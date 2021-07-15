@@ -147,6 +147,16 @@ public:
         return engine->getConfiguration().getBucketType() == "persistent";
     }
 
+    /**
+     * Used to detect magma tests
+     *
+     * @returns true if bucket has magma via either magma backend or nexus
+     */
+    bool hasMagma() const {
+        // Catch backend=magma and nexus_..._backend=magma
+        return config_string.find("backend=magma") != std::string::npos;
+    }
+
     bool needsBGFetch(cb::engine_errc ec) const {
         if (ec == cb::engine_errc::would_block && isPersistent() &&
             isFullEviction()) {
@@ -512,16 +522,6 @@ public:
     bool isMagma() const {
         return engine->getConfiguration().getBackend() == "magma" ||
                isNexusMagmaPrimary();
-    }
-
-    /**
-     * Used to blanket skip magma tests from running for reasons such as memory
-     * sensitivty
-     *
-     * @returns true if bucket has magma via either magma backend or nexus
-     */
-    bool hasMagma() const {
-        return std::get<0>(GetParam()).find("agma") != std::string::npos;
     }
 
     bool isNexusMagmaPrimary() const {

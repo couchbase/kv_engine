@@ -53,6 +53,7 @@
 #include <executor/fake_executorpool.h>
 #include <executor/task_type.h>
 #include <folly/synchronization/Baton.h>
+#include <platform/cb_arena_malloc.h>
 #include <platform/dirutils.h>
 #include <string_utilities.h>
 #include <utilities/test_manifest.h>
@@ -108,6 +109,19 @@ void SingleThreadedKVBucketTest::SetUp() {
 }
 
 void SingleThreadedKVBucketTest::TearDown() {
+    if (hasMagma()) {
+        // Expect something in the secondary domain - what cannot be predicted
+        EXPECT_NE(0,
+                  cb::ArenaMalloc::getPreciseAllocated(
+                          engine->getArenaMallocClient(),
+                          cb::MemoryDomain::Secondary));
+    } else {
+        // Expect nothing in the secondary domain if we're not using magma
+        EXPECT_EQ(0,
+                  cb::ArenaMalloc::getPreciseAllocated(
+                          engine->getArenaMallocClient(),
+                          cb::MemoryDomain::Secondary));
+    }
     shutdownAndPurgeTasks(engine.get());
     KVBucketTest::TearDown();
 }

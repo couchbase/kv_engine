@@ -56,7 +56,8 @@ IF (EP_USE_MAGMA)
     LIST(APPEND EP_STORAGE_LIBS magma)
     SET(MAGMA_KVSTORE_SOURCE
             src/kvstore/magma-kvstore/magma-kvstore.cc
-            src/kvstore/magma-kvstore/magma-kvstore_config.cc)
+            src/kvstore/magma-kvstore/magma-kvstore_config.cc
+            src/kvstore/magma-kvstore/magma-memory-tracking-proxy.cc)
     ADD_DEFINITIONS(-DEP_USE_MAGMA=1)
     MESSAGE(STATUS "ep-engine: Building magma-kvstore")
 
@@ -475,19 +476,25 @@ endfunction()
 
 add_subdirectory(tests)
 
-add_library(ep_mocks OBJECT
-        tests/mock/mock_dcp_conn_map.cc
-        tests/mock/mock_dcp_consumer.cc
-        tests/mock/mock_dcp_producer.cc
-        tests/mock/mock_ep_bucket.cc
-        tests/mock/mock_ephemeral_bucket.cc
-        tests/mock/mock_ephemeral_vb.cc
-        tests/mock/mock_kvstore.cc
-        tests/mock/mock_replicationthrottle.cc
-        tests/mock/mock_stream.cc
-        tests/mock/mock_synchronous_ep_engine.cc
-        tests/mock/mock_taskable.cc
-        ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h)
+SET(MOCK_SOURCE
+    tests/mock/mock_dcp_conn_map.cc
+    tests/mock/mock_dcp_consumer.cc
+    tests/mock/mock_dcp_producer.cc
+    tests/mock/mock_ep_bucket.cc
+    tests/mock/mock_ephemeral_bucket.cc
+    tests/mock/mock_ephemeral_vb.cc
+    tests/mock/mock_kvstore.cc
+    tests/mock/mock_replicationthrottle.cc
+    tests/mock/mock_stream.cc
+    tests/mock/mock_synchronous_ep_engine.cc
+    tests/mock/mock_taskable.cc
+    ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h)
+
+if(EP_USE_MAGMA)
+    list(APPEND MOCK_SOURCE tests/mock/mock_magma_kvstore.cc)
+endif()
+
+add_library(ep_mocks OBJECT ${MOCK_SOURCE})
 set_property(TARGET ep_mocks PROPERTY POSITION_INDEPENDENT_CODE 1)
 target_link_libraries(ep_mocks PUBLIC platform spdlog)
 add_sanitizers(ep_mocks)

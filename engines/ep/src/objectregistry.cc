@@ -103,7 +103,9 @@ EventuallyPersistentEngine* ObjectRegistry::getCurrentEngine() {
 }
 
 EventuallyPersistentEngine* ObjectRegistry::onSwitchThread(
-        EventuallyPersistentEngine* engine, bool want_old_thread_local) {
+        EventuallyPersistentEngine* engine,
+        bool want_old_thread_local,
+        cb::MemoryDomain domain) {
     EventuallyPersistentEngine* old_engine = nullptr;
 
     if (want_old_thread_local) {
@@ -116,7 +118,7 @@ EventuallyPersistentEngine* ObjectRegistry::onSwitchThread(
     // Next tell ArenaMalloc what todo so that we can account memory to the
     // bucket
     if (engine) {
-        cb::ArenaMalloc::switchToClient(engine->getArenaMallocClient());
+        cb::ArenaMalloc::switchToClient(engine->getArenaMallocClient(), domain);
     } else {
         cb::ArenaMalloc::switchFromClient();
     }

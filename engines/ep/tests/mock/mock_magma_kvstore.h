@@ -17,60 +17,22 @@
 
 class MockMagmaKVStore : public MagmaKVStore {
 public:
-    explicit MockMagmaKVStore(MagmaKVStoreConfig& config)
-        : MagmaKVStore(config) {
-    }
+    explicit MockMagmaKVStore(MagmaKVStoreConfig& config);
 
-    MagmaKVStore::DiskState readVBStateFromDisk(Vbid vbid) {
-        return MagmaKVStore::readVBStateFromDisk(vbid);
-    }
+    MagmaKVStore::DiskState readVBStateFromDisk(Vbid vbid);
 
     MagmaKVStore::DiskState readVBStateFromDisk(
-            Vbid vbid, magma::Magma::Snapshot& snapshot) const override {
-        readVBStateFromDiskHook();
-
-        return MagmaKVStore::readVBStateFromDisk(vbid, snapshot);
-    }
+            Vbid vbid, magma::Magma::Snapshot& snapshot) const override;
 
     int saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                  VB::Commit& commitData,
-                 kvstats_ctx& kvctx) override {
-        if (saveDocsErrorInjector) {
-            return saveDocsErrorInjector(commitData, kvctx);
-        }
-
-        return MagmaKVStore::saveDocs(txnCtx, commitData, kvctx);
-    }
+                 kvstats_ctx& kvctx) override;
 
     magma::Status addLocalDoc(Vbid vbid,
                               std::string_view key,
-                              std::string value) {
-        WriteOps writeOps;
-        LocalDbReqs localDbReqs;
-        localDbReqs.emplace_back(MagmaLocalReq(key, std::move(value)));
+                              std::string value);
 
-        addLocalDbReqs(localDbReqs, writeOps);
-        auto ret = magma->WriteDocs(
-                vbid.get(), writeOps, kvstoreRevList[getCacheSlot(vbid)]);
-
-        magma->Sync(true);
-
-        return ret;
-    }
-
-    magma::Status deleteLocalDoc(Vbid vbid, std::string_view key) {
-        WriteOps writeOps;
-        LocalDbReqs localDbReqs;
-        localDbReqs.emplace_back(MagmaLocalReq::makeDeleted(key));
-
-        addLocalDbReqs(localDbReqs, writeOps);
-        auto ret = magma->WriteDocs(
-                vbid.get(), writeOps, kvstoreRevList[getCacheSlot(vbid)]);
-
-        magma->Sync(true);
-
-        return ret;
-    }
+    magma::Status deleteLocalDoc(Vbid vbid, std::string_view key);
 
     TestingHook<> readVBStateFromDiskHook;
 

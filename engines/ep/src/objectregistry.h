@@ -10,6 +10,8 @@
  */
 #pragma once
 
+#include <platform/cb_arena_malloc_client.h>
+
 class EventuallyPersistentEngine;
 class Blob;
 class Item;
@@ -30,7 +32,8 @@ public:
 
     static EventuallyPersistentEngine* onSwitchThread(
             EventuallyPersistentEngine* engine,
-            bool want_old_thread_local = false);
+            bool want_old_thread_local = false,
+            cb::MemoryDomain domain = cb::MemoryDomain::Primary);
 };
 
 /**

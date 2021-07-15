@@ -34,6 +34,7 @@ class Status;
 } // namespace magma
 
 class MagmaKVStoreConfig;
+class MagmaMemoryTrackingProxy;
 struct kvstats_ctx;
 struct MagmaKVStoreTransactionContext;
 struct vbucket_state;
@@ -794,9 +795,9 @@ protected:
     MagmaKVStoreConfig& configuration;
 
     /**
-     * Mamga instance for a shard
+     * Wrapped magma instance for a shard
      */
-    std::unique_ptr<magma::Magma> magma;
+    std::unique_ptr<MagmaMemoryTrackingProxy> magma;
 
     // Path to magma files. Include shardID.
     const std::string magmaPath;

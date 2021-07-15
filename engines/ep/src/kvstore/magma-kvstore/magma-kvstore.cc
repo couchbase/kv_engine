@@ -19,6 +19,7 @@
 #include "kvstore/kvstore_transaction_context.h"
 #include "magma-kvstore_config.h"
 #include "magma-kvstore_iorequest.h"
+#include "magma-memory-tracking-proxy.h"
 #include "objectregistry.h"
 #include "shared/magma-kvstore_metadata.h"
 #include "vb_commit.h"
@@ -473,16 +474,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
 
     doCheckpointEveryBatch = configuration.getMagmaCheckpointEveryBatch();
 
-    // Set up thread and memory tracking.
-    // Please note... SetupThreadContext and ResetThreadContext
-    // will being removed once magma tracking is complete.
-    configuration.magmaCfg.SetupThreadContext = [this]() {
-        ObjectRegistry::onSwitchThread(currEngine, false);
-    };
-    configuration.magmaCfg.ResetThreadContext = []() {
-        ObjectRegistry::onSwitchThread(nullptr);
-    };
-
     // If currEngine is null, which can happen with some tests,
     // that is ok because a null currEngine means we are operating
     // in a global environment.
@@ -490,7 +481,10 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.SwitchExecutionEnvFunc =
             [](void* env) -> EventuallyPersistentEngine* {
         auto eng = static_cast<EventuallyPersistentEngine*>(env);
-        return ObjectRegistry::onSwitchThread(eng, true);
+        return ObjectRegistry::onSwitchThread(
+                eng,
+                true,
+                eng ? cb::MemoryDomain::Secondary : cb::MemoryDomain::Primary);
     };
 
     configuration.magmaCfg.MakeCompactionCallback =
@@ -526,7 +520,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.UID = loggerName;
 
     // Open the magma instance for this shard and populate the vbstate.
-    magma = std::make_unique<Magma>(configuration.magmaCfg);
+    magma = std::make_unique<MagmaMemoryTrackingProxy>(configuration.magmaCfg);
     auto status = magma->Open();
     if (!status) {
         std::string err =
@@ -745,8 +739,8 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
     Slice keySlice = {reinterpret_cast<const char*>(key.data()), key.size()};
     Slice metaSlice;
     Slice valueSlice;
-    Magma::FetchBuffer idxBuf;
-    Magma::FetchBuffer seqBuf;
+    DomainAwareFetchBuffer idxBuf;
+    DomainAwareFetchBuffer seqBuf;
     bool found;
 
     auto start = std::chrono::steady_clock::now();
