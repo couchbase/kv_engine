@@ -539,8 +539,6 @@ public:
  */
 class StorageProperties {
 public:
-    enum class EfficientGet : bool { Yes, No };
-
     /**
      * Does the KVStore allow externally driven compactions (driven via
      * ns_server/EPBucket) whilst we do writes?
@@ -549,15 +547,8 @@ public:
 
     enum class ByIdScan : bool { Yes, No };
 
-    StorageProperties(EfficientGet eget,
-                      ConcurrentWriteCompact cwc,
-                      ByIdScan byIdScan)
-        : efficientGet(eget), concWriteCompact(cwc), byIdScan(byIdScan) {
-    }
-
-    /* True if we can batch-process multiple get operations at once */
-    bool hasEfficientGet() const {
-        return (efficientGet == EfficientGet::Yes);
+    StorageProperties(ConcurrentWriteCompact cwc, ByIdScan byIdScan)
+        : concWriteCompact(cwc), byIdScan(byIdScan) {
     }
 
     /* True if the underlying storage supports concurrent writing
@@ -571,7 +562,6 @@ public:
     }
 
 private:
-    EfficientGet efficientGet;
     ConcurrentWriteCompact concWriteCompact;
     ByIdScan byIdScan;
 };
