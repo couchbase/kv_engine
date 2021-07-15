@@ -24,6 +24,19 @@ DomainAwareFetchBuffer::~DomainAwareFetchBuffer() {
     buffer.reset();
 }
 
+template <>
+void DomainAwareDelete<magma::UserStats>::operator()(magma::UserStats* p) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    delete p;
+}
+
+template <>
+void DomainAwareDelete<magma::Magma::SeqIterator>::operator()(
+        magma::Magma::SeqIterator* p) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    delete p;
+}
+
 MagmaMemoryTrackingProxy::MagmaMemoryTrackingProxy(
         magma::Magma::Config& config) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
@@ -88,11 +101,11 @@ magma::Status MagmaMemoryTrackingProxy::GetDocs(
     return magma->GetDocs(kvID, getOps, cb);
 }
 
-std::vector<magma::Magma::KVStoreID>
-MagmaMemoryTrackingProxy::GetKVStoreList() {
-    // cb::UseArenaMallocSecondaryDomain domainGuard;
-    // @todo: Return a type which can be destroyed in the correct domain
-    return magma->GetKVStoreList();
+void MagmaMemoryTrackingProxy::executeOnKVStoreList(
+        std::function<void(const std::vector<magma::Magma::KVStoreID>&)>
+                callback) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    callback(magma->GetKVStoreList());
 }
 
 std::tuple<magma::Status, magma::Magma::KVStoreRevision>
@@ -108,18 +121,20 @@ MagmaMemoryTrackingProxy::GetKVStoreStats(const magma::Magma::KVStoreID kvid) {
     return magma->GetKVStoreStats(kvid);
 }
 
-std::unique_ptr<magma::UserStats> MagmaMemoryTrackingProxy::GetKVStoreUserStats(
+DomainAwareUniquePtr<magma::UserStats>
+MagmaMemoryTrackingProxy::GetKVStoreUserStats(
         const magma::Magma::KVStoreID kvid) {
-    // cb::UseArenaMallocSecondaryDomain domainGuard;
-    // @todo: Return a type which can be destroyed in the correct domain
-    return magma->GetKVStoreUserStats(kvid);
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return DomainAwareUniquePtr<magma::UserStats>{
+            magma->GetKVStoreUserStats(kvid).release()};
 }
 
-std::unique_ptr<magma::UserStats> MagmaMemoryTrackingProxy::GetKVStoreUserStats(
+DomainAwareUniquePtr<magma::UserStats>
+MagmaMemoryTrackingProxy::GetKVStoreUserStats(
         magma::Magma::Snapshot& snapshot) {
-    // cb::UseArenaMallocSecondaryDomain domainGuard;
-    // @todo: Return a type which can be destroyed in the correct domain
-    return magma->GetKVStoreUserStats(snapshot);
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return DomainAwareUniquePtr<magma::UserStats>{
+            magma->GetKVStoreUserStats(snapshot).release()};
 }
 
 magma::Status MagmaMemoryTrackingProxy::GetLocal(
@@ -169,11 +184,11 @@ void MagmaMemoryTrackingProxy::GetStats(
     magma->GetStats(magmaStats, cacheDuration);
 }
 
-std::unique_ptr<magma::Magma::SeqIterator>
+DomainAwareUniquePtr<magma::Magma::SeqIterator>
 MagmaMemoryTrackingProxy::NewSeqIterator(magma::Magma::Snapshot& snapshot) {
-    // cb::UseArenaMallocSecondaryDomain domainGuard;
-    // @todo: Return a type which can be destroyed in the correct domain
-    return magma->NewSeqIterator(snapshot);
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return DomainAwareUniquePtr<magma::Magma::SeqIterator>{
+            magma->NewSeqIterator(snapshot).release()};
 }
 
 magma::Status MagmaMemoryTrackingProxy::Open() {

@@ -40,6 +40,18 @@ private:
     std::unique_ptr<magma::Magma::FetchBuffer> buffer;
 };
 
+/**
+ * Helper/Deleter for std::unique_ptr types, will delete in
+ * MemoryDomain::Secondary
+ */
+template <class T>
+struct DomainAwareDelete {
+    void operator()(T* p);
+};
+
+template <class T>
+using DomainAwareUniquePtr = std::unique_ptr<T, DomainAwareDelete<T>>;
+
 class MagmaMemoryTrackingProxy {
 public:
     /**
@@ -75,15 +87,26 @@ public:
     magma::Status GetDocs(const magma::Magma::KVStoreID kvID,
                           magma::Operations<magma::Magma::GetOperation>& getOps,
                           magma::Magma::GetDocCallback cb);
-    std::vector<magma::Magma::KVStoreID> GetKVStoreList();
+
+    /**
+     * Invokes the given callback with the result of calling
+     * magma::GetKVStoreList, this allows the caller to switch domains and work
+     * with the returned vector
+     *
+     * @param callback function to invoke for each KVStore
+     */
+    void executeOnKVStoreList(
+            std::function<void(const std::vector<magma::Magma::KVStoreID>&)>
+                    callback);
+
     std::tuple<magma::Status, magma::Magma::KVStoreRevision> GetKVStoreRevision(
             const magma::Magma::KVStoreID kvID);
     std::tuple<magma::Status, magma::KVStoreStats> GetKVStoreStats(
             const magma::Magma::KVStoreID kvid);
 
-    std::unique_ptr<magma::UserStats> GetKVStoreUserStats(
+    DomainAwareUniquePtr<magma::UserStats> GetKVStoreUserStats(
             const magma::Magma::KVStoreID kvid);
-    std::unique_ptr<magma::UserStats> GetKVStoreUserStats(
+    DomainAwareUniquePtr<magma::UserStats> GetKVStoreUserStats(
             magma::Magma::Snapshot& snapshot);
 
     magma::Status GetLocal(const magma::Magma::KVStoreID kvID,
@@ -109,7 +132,7 @@ public:
     void GetStats(
             magma::Magma::MagmaStats& magmaStats,
             std::chrono::milliseconds cacheDuration = std::chrono::seconds(0));
-    std::unique_ptr<magma::Magma::SeqIterator> NewSeqIterator(
+    DomainAwareUniquePtr<magma::Magma::SeqIterator> NewSeqIterator(
             magma::Magma::Snapshot& snapshot);
     magma::Status Open();
     magma::Status Rollback(const magma::Magma::KVStoreID kvID,

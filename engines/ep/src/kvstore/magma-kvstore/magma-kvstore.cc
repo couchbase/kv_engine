@@ -28,6 +28,7 @@
 #include <executor/executorpool.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <nlohmann/json.hpp>
+#include <platform/cb_arena_malloc.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
 #include <algorithm>
@@ -549,19 +550,21 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaFragmentationPercentage());
     calculateAndSetMagmaThreads();
 
-    auto kvstoreList = magma->GetKVStoreList();
-    for (auto& kvid : kvstoreList) {
-        // While loading the vbstate cache, set the kvstoreRev.
-        status = loadVBStateCache(Vbid(kvid), true);
-        ++st.numLoadedVb;
-        if (!status) {
-            throw std::logic_error("MagmaKVStore vbstate vbid:" +
-                                   std::to_string(kvid) +
-                                   " not found."
-                                   " Status:" +
-                                   status.String());
-        }
-    }
+    magma->executeOnKVStoreList(
+            [this](const std::vector<magma::Magma::KVStoreID>& kvstores) {
+                cb::UseArenaMallocPrimaryDomain domainGuard;
+                for (auto kvid : kvstores) {
+                    auto status = loadVBStateCache(Vbid(kvid), true);
+                    ++st.numLoadedVb;
+                    if (!status) {
+                        throw std::logic_error("MagmaKVStore vbstate vbid:" +
+                                               std::to_string(kvid) +
+                                               " not found."
+                                               " Status:" +
+                                               status.String());
+                    }
+                }
+            });
 }
 
 MagmaKVStore::~MagmaKVStore() {
@@ -1319,35 +1322,43 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     return status.ErrorCode();
 }
 
-MagmaScanContext::MagmaScanContext(
-        std::unique_ptr<StatusCallback<GetValue>> cb,
-        std::unique_ptr<StatusCallback<CacheLookup>> cl,
-        Vbid vb,
-        std::unique_ptr<KVFileHandle> handle,
-        int64_t start,
-        int64_t end,
-        uint64_t purgeSeqno,
-        DocumentFilter _docFilter,
-        ValueFilter _valFilter,
-        uint64_t _documentCount,
-        const vbucket_state& vbucketState,
-        const std::vector<Collections::KVStore::DroppedCollection>&
-                droppedCollections,
-        std::unique_ptr<magma::Magma::SeqIterator> itr)
-    : BySeqnoScanContext(std::move(cb),
-                         std::move(cl),
-                         vb,
-                         std::move(handle),
-                         start,
-                         end,
-                         purgeSeqno,
-                         _docFilter,
-                         _valFilter,
-                         _documentCount,
-                         vbucketState,
-                         droppedCollections),
-      itr(std::move(itr)) {
-}
+/**
+ * MagmaScanContext is BySeqnoScanContext with the magma
+ * iterator added.
+ */
+class MagmaScanContext : public BySeqnoScanContext {
+public:
+    MagmaScanContext(std::unique_ptr<StatusCallback<GetValue>> cb,
+                     std::unique_ptr<StatusCallback<CacheLookup>> cl,
+                     Vbid vb,
+                     std::unique_ptr<KVFileHandle> handle,
+                     int64_t start,
+                     int64_t end,
+                     uint64_t purgeSeqno,
+                     DocumentFilter _docFilter,
+                     ValueFilter _valFilter,
+                     uint64_t _documentCount,
+                     const vbucket_state& vbucketState,
+                     const std::vector<Collections::KVStore::DroppedCollection>&
+                             droppedCollections,
+                     DomainAwareUniquePtr<magma::Magma::SeqIterator> itr)
+        : BySeqnoScanContext(std::move(cb),
+                             std::move(cl),
+                             vb,
+                             std::move(handle),
+                             start,
+                             end,
+                             purgeSeqno,
+                             _docFilter,
+                             _valFilter,
+                             _documentCount,
+                             vbucketState,
+                             droppedCollections),
+          itr(std::move(itr)) {
+    }
+
+    DomainAwareUniquePtr<magma::Magma::SeqIterator> itr{nullptr};
+};
 
 std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
         std::unique_ptr<StatusCallback<GetValue>> cb,
