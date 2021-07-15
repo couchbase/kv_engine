@@ -7517,6 +7517,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_mem_high_wat_percent",
               "ep_mem_low_wat",
               "ep_mem_low_wat_percent",
+              "ep_mem_used_primary",
+              "ep_mem_used_secondary",
               "ep_oom_errors",
               "ep_overhead",
               "ep_storedval_num",

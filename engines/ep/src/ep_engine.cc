@@ -3173,6 +3173,19 @@ cb::engine_errc EventuallyPersistentEngine::doMemoryStats(
                     add_stat,
                     cookie);
 
+    // Note calling getEstimated as the precise value was requested previously
+    // which will have updated these stats.
+    add_casted_stat("ep_mem_used_primary",
+                    cb::ArenaMalloc::getEstimatedAllocated(
+                            arena, cb::MemoryDomain::Primary),
+                    add_stat,
+                    cookie);
+    add_casted_stat("ep_mem_used_secondary",
+                    cb::ArenaMalloc::getEstimatedAllocated(
+                            arena, cb::MemoryDomain::Secondary),
+                    add_stat,
+                    cookie);
+
     add_casted_stat(
             "ht_mem_used_replica", stats.replicaHTMemory, add_stat, cookie);
 
