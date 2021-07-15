@@ -71,18 +71,27 @@ uint32_t Flush::countNonEmptyDroppedCollections() const {
         // In the flusher we count how many dropped collections had items and
         // will need a purge.
         //
-        // Two checks are in-place:
+        // Two scenarios must be considered here:
+        // 1) If the collection previously existed on disk and was dropped in
+        //    this flush batch
+        // 2a) If the collection was created and dropped in this flush batch and
+        //     we only persisted the dropped (couchstore)
+        // 2b) If the collection was created and dropped in this flush batch and
+        //     we persisted both the create and the drop (magma)
+        //
+        // Two checks are in-place corresponding to the above scenarios:
         // 1) If the 'stats' map doesn't store the dropped 'cid', then this
         // flush batch had no items for the collection, we must inspect the
         // manifest "StatsForFlush" object which stores the state of the dropped
         // collection. From there inspect the high-seqno and start-seqno.
         //
-        // 2) If the 'stats' map does store the dropped 'cid', then an item for
-        // the collection is in this flush, the collection is not empty.
+        // 2) If the 'stats' map does store the dropped 'cid', then the
+        // collection is empty only if we didn't persist an item belonging to it
+        // in this flush batch.
         auto sItr = flushAccounting.getStats().find(cid);
 
         if (sItr == flushAccounting.getStats().end() ||
-            sItr->second.getPersistedHighSeqno() == 0) {
+            !sItr->second.itemInBatch()) {
             const auto highSeqno =
                     manifest.lock()
                             .getStatsForFlush(cid, dropped.endSeqno)

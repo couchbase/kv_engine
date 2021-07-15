@@ -93,12 +93,20 @@ void FlushAccounting::StatisticsUpdate::insert(IsSystem isSystem,
         isCommitted == IsCommitted::Yes) {
         incrementItemCount();
     }
+
+    if (isSystem == IsSystem::No) {
+        flushedItem = true;
+    }
+
     // else inserting a collection-start/prepare/tombstone/abort:
     // no item increment but account for the disk size change
     updateDiskSize(diskSizeDelta);
 }
 
 void FlushAccounting::StatisticsUpdate::update(ssize_t diskSizeDelta) {
+    // System events don't get updated so just set flushedItem to true
+    flushedItem = true;
+
     updateDiskSize(diskSizeDelta);
 }
 
@@ -109,6 +117,11 @@ void FlushAccounting::StatisticsUpdate::remove(IsSystem isSystem,
     if (isSystem == IsSystem::No && isCommitted == IsCommitted::Yes) {
         decrementItemCount();
     }
+
+    if (isSystem == IsSystem::No) {
+        flushedItem = true;
+    }
+
     updateDiskSize(diskSizeDelta);
 }
 

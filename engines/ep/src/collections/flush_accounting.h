@@ -209,6 +209,12 @@ public:
             return diskSize;
         }
 
+        /// @returns true if a non-meta item has been persisted for this
+        ///          collection in this flush batch
+        bool itemInBatch() const {
+            return flushedItem;
+        }
+
     private:
         void incrementItemCount();
 
@@ -219,6 +225,7 @@ public:
         uint64_t persistedHighSeqno{0};
         ssize_t itemCount{0};
         ssize_t diskSize{0};
+        bool flushedItem{false};
     };
 
     using StatsMap = std::unordered_map<CollectionID, StatisticsUpdate>;
