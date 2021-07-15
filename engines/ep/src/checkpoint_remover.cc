@@ -30,21 +30,22 @@
 // if memory reduction is needed.
 //
 // 0                                                                      Q
-// ├───────────────────┬───────────────┬───┬──────────────────────────────┤
-// │                   │               │   │                              │
-// │                   │               │   │                              │
-// └───────────────────▼───────────────▼───▼──────────────────────────────┘
-//                     A               B   X
+// ├──────────────┬────────────┬───┬───────┬──────────────────────────────┤
+// │              │            │   │       │                              │
+// │              │            │   │       │                              │
+// └──────────────▼────────────▼───▼───────▼──────────────────────────────┘
+//                A            B   X       C
 //
-//   A = cursor_dropping_checkpoint_mem_lower_mark (30%)
-//   B = cursor_dropping_checkpoint_mem_upper_mark (50%)
+//   A = checkpoint_memory_recovery_lower_mark
+//   B = checkpoint_memory_recovery_upper_mark
+//   C = checkpoints quota (as defined by checkpoint_memory_ratio)
 //   X = current checkpoint memory used
 //   Q = bucket quota
 //
 // Memory reduction will commence if checkpoint memory usage (X) is greater than
-// cursor_dropping_checkpoint_mem_upper_mark (B).
+// checkpoint_memory_recovery_upper_mark (B).
 //
-// If memory reduction triggers then this function will return X - A as the
+// If memory reduction triggers then this function will return (X - A) as the
 // target amount to free.
 //
 // When memory reduction is required two different techniques are applied:
@@ -58,34 +59,34 @@
 //
 std::pair<bool, size_t>
 ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
-    const auto bucketQuota = stats.getMaxDataSize();
-    const auto checkpointMemoryUsage = stats.getEstimatedCheckpointMemUsage();
-    const auto& config = engine->getConfiguration();
-    const auto checkpointMemoryLimit =
-            (bucketQuota * config.getCursorDroppingCheckpointMemUpperMark()) /
-            100;
-    const auto requiresMemoryRecovery =
-            checkpointMemoryUsage >= checkpointMemoryLimit;
+    const auto& bucket = *engine->getKVBucket();
+    const auto checkpointMemoryRatio = bucket.getCheckpointMemoryRatio();
+    const auto checkpointQuota = stats.getMaxDataSize() * checkpointMemoryRatio;
+    const auto recoveryThreshold =
+            checkpointQuota * bucket.getCheckpointMemoryRecoveryUpperMark();
+    const auto usage = stats.getEstimatedCheckpointMemUsage();
 
-    if (!requiresMemoryRecovery) {
+    if (usage < recoveryThreshold) {
         return std::make_pair(false, 0);
     }
 
-    // Calculate the lower percentage of quota and subtract that from
-    // the current checkpoint memory size to obtain the 'target'.
-    const size_t amountOfMemoryToClear =
-            checkpointMemoryUsage -
-            ((bucketQuota * config.getCursorDroppingCheckpointMemLowerMark()) /
-             100);
+    const auto lowerRatio = bucket.getCheckpointMemoryRecoveryLowerMark();
+    const auto lowerMark = checkpointQuota * lowerRatio;
+    Expects(usage > lowerMark);
+    const size_t amountOfMemoryToClear = usage - lowerMark;
 
     const auto toMB = [](size_t bytes) { return bytes / (1024 * 1024); };
+    const auto upperRatio = bucket.getCheckpointMemoryRecoveryUpperMark();
     EP_LOG_INFO(
-            "Triggering memory recovery as checkpoint_memory ({} MB) "
-            "exceeds cursor_dropping_checkpoint_mem_upper_mark ({}%, "
-            "{} MB). Attempting to free {} MB of memory.",
-            toMB(checkpointMemoryUsage),
-            config.getCursorDroppingCheckpointMemUpperMark(),
-            toMB(checkpointMemoryLimit),
+            "Triggering memory recovery as checkpoint memory usage ({} MB) "
+            "exceeds the upper_mark ({}, "
+            "{} MB) - total checkpoint quota {}, {} MB . Attempting to free {} "
+            "MB of memory.",
+            toMB(usage),
+            upperRatio,
+            toMB(checkpointQuota * upperRatio),
+            checkpointMemoryRatio,
+            toMB(checkpointQuota),
             toMB(amountOfMemoryToClear));
 
     return std::make_pair(true, amountOfMemoryToClear);

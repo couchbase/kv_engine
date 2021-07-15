@@ -4291,9 +4291,6 @@ void STParameterizedBucketTest::testCheckpointMemThresholdEnforced(
         VbucketOp op) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    // Checkout default setting
-    ASSERT_EQ(1.0f, store->getCheckpointMemoryRatio());
-
     setVBucketState(vbid, vbucket_state_active);
     auto vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
@@ -4335,6 +4332,9 @@ void STParameterizedBucketTest::testCheckpointMemThresholdEnforced(
         return numItems - 1;
     };
 
+    const auto ckptMemRatio = store->getCheckpointMemoryRatio();
+    ASSERT_GT(store->getCheckpointMemoryRatio(), 0);
+
     const auto initialNumItems = loadUptoOOM();
     ASSERT_GT(initialNumItems, 0);
 
@@ -4346,8 +4346,7 @@ void STParameterizedBucketTest::testCheckpointMemThresholdEnforced(
     ASSERT_EQ(0, vb->getNumItems());
 
     // Set ratio to something lower
-    store->setCheckpointMemoryRatio(0.5f);
-    ASSERT_EQ(0.5f, store->getCheckpointMemoryRatio());
+    store->setCheckpointMemoryRatio(ckptMemRatio / 2);
 
     const auto numItems = loadUptoOOM();
     EXPECT_LT(numItems, initialNumItems);

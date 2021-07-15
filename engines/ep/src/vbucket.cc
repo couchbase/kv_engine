@@ -3291,7 +3291,8 @@ std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSetInner(
                 getId().to_string());
     }
 
-    if (bucket && !bucket->hasCapacityInCheckpoints()) {
+    if (bucket && bucket->verifyCheckpointMemoryState() ==
+                          KVBucket::CheckpointMemoryState::Full) {
         return {MutationStatus::NoMem, {}};
     }
 
@@ -3442,7 +3443,8 @@ std::pair<AddStatus, std::optional<VBNotifyCtx>> VBucket::processAdd(
         return {AddStatus::Exists, {}};
     }
 
-    if (bucket && !bucket->hasCapacityInCheckpoints()) {
+    if (bucket && bucket->verifyCheckpointMemoryState() ==
+                          KVBucket::CheckpointMemoryState::Full) {
         return {AddStatus::NoMem, {}};
     }
 

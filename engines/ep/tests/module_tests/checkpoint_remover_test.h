@@ -61,7 +61,7 @@ protected:
      * @param moveCursor  indicates whether the cursor created in the
      * test should be moved forward.
      */
-    void testExpelingOccursBeforeCursorDropping(bool moveCursor);
+    void testExpellingOccursBeforeCursorDropping(bool moveCursor);
 
     /**
      * Construct a cursor, and call getNextItemsForCursor.

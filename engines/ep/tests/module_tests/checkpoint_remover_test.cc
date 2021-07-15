@@ -361,9 +361,9 @@ TEST_F(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
     EXPECT_GT(amountOfMemoryToClear, 0);
 }
 
-void CheckpointRemoverEPTest::testExpelingOccursBeforeCursorDropping(
+void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
         bool moveCursor) {
-    // 1)Get enough checkpoint metadata to trigger expel
+    // 1) Get enough checkpoint metadata to trigger expel
     // 2) doesn't hit maxDataSize first
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto& config = engine->getConfiguration();
@@ -373,43 +373,38 @@ void CheckpointRemoverEPTest::testExpelingOccursBeforeCursorDropping(
             engine->getConfiguration().getChkRemoverStime());
 
     auto vb = store->getVBuckets().getBucket(vbid);
-    auto* checkpointManager =
+    auto* manager =
             static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
     CheckpointConfig c(*engine.get());
-    checkpointManager->resetConfig(c);
+    manager->resetConfig(c);
 
     auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
     createDcpStream(*producer);
 
-    bool isLastMutation;
     ActiveStream& activeStream =
             reinterpret_cast<ActiveStream&>(*producer->findStream(vbid));
     auto cursor = activeStream.getCursor().lock();
 
     config.setChkExpelEnabled(true);
-    config.setMaxSize(engine->getEpStats().getPreciseTotalMemoryUsed() +
-                      (400 * 1024));
-    config.setCursorDroppingCheckpointMemUpperMark(10);
-    const auto chkptMemLimit =
-            (config.getMaxSize() *
-             config.getCursorDroppingCheckpointMemUpperMark()) /
-            100;
+    config.setMaxSize(1024 * 1024 * 100);
+    const auto chkptMemRecoveryLimit =
+            config.getMaxSize() * store->getCheckpointMemoryRatio() *
+            store->getCheckpointMemoryRecoveryUpperMark();
     auto& stats = engine->getEpStats();
     stats.mem_low_wat.store(1);
 
     int ii = 0;
-    while (stats.getEstimatedCheckpointMemUsage() < chkptMemLimit) {
+    const auto value = std::string(1024 * 1024, 'x');
+    while (stats.getEstimatedCheckpointMemUsage() < chkptMemRecoveryLimit) {
         std::string doc_key = "key_" + std::to_string(ii);
-        store_item(vbid, makeStoredDocKey(doc_key), "value");
+        store_item(vbid, makeStoredDocKey(doc_key), value);
         ++ii;
     }
     flush_vbucket_to_disk(vbid, ii);
 
     if (moveCursor) {
-        // Move the cursor past 90% of the items added.
-        for (int jj = 0; jj < ii * 0.9; ++jj) {
-            checkpointManager->nextItem(cursor.get(), isLastMutation);
-        }
+        std::vector<queued_item> items;
+        manager->getNextItemsForCursor(cursor.get(), items);
     }
 
     bool shouldReduceMemory{false};
@@ -419,12 +414,10 @@ void CheckpointRemoverEPTest::testExpelingOccursBeforeCursorDropping(
     EXPECT_TRUE(shouldReduceMemory);
 
     bool newOpenCheckpointCreated;
-    checkpointManager->removeClosedUnrefCheckpoints(*vb,
-                                                    newOpenCheckpointCreated);
+    manager->removeClosedUnrefCheckpoints(*vb, newOpenCheckpointCreated);
 
     task->run();
-    checkpointManager->removeClosedUnrefCheckpoints(*vb,
-                                                    newOpenCheckpointCreated);
+    manager->removeClosedUnrefCheckpoints(*vb, newOpenCheckpointCreated);
 
     std::tie(shouldReduceMemory, amountOfMemoryToClear) =
             task->isReductionInCheckpointMemoryNeeded();
@@ -433,7 +426,7 @@ void CheckpointRemoverEPTest::testExpelingOccursBeforeCursorDropping(
 
 // Test that we correctly apply expelling before cursor dropping.
 TEST_F(CheckpointRemoverEPTest, expelButNoCursorDrop) {
-    testExpelingOccursBeforeCursorDropping(true);
+    testExpellingOccursBeforeCursorDropping(true);
     EXPECT_NE(0, engine->getEpStats().itemsExpelledFromCheckpoints);
     EXPECT_EQ(0, engine->getEpStats().cursorsDropped);
 }
@@ -443,7 +436,7 @@ TEST_F(CheckpointRemoverEPTest, expelButNoCursorDrop) {
 TEST_F(CheckpointRemoverEPTest, notExpelButCursorDrop) {
     engine->getConfiguration().setChkMaxItems(10);
     engine->getConfiguration().setMaxCheckpoints(20);
-    testExpelingOccursBeforeCursorDropping(false);
+    testExpellingOccursBeforeCursorDropping(false);
     EXPECT_EQ(0, engine->getEpStats().itemsExpelledFromCheckpoints);
     EXPECT_EQ(1, engine->getEpStats().cursorsDropped);
 }

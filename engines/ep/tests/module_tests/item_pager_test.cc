@@ -223,12 +223,30 @@ protected:
                         mfu = ht.generateFreqValue(mfu);
                     }
                     item.setFreqCounterValue(mfu);
-                    auto result = storeItem(item);
-                    if (result != cb::engine_errc::success) {
+                    if (storeItem(item) != cb::engine_errc::success) {
                         ADD_FAILURE() << "Failed storing an item before the "
                                          "predicate returned true";
                         return count;
                     }
+
+                    // Some ItemPager tests want to store up to the HWM, which
+                    // is prevented by MB-46827 (bounded CM mem-usage). To allow
+                    // that, just move the cursor and expel from checkpoints.
+                    //
+                    // Note: Flushing and expelling at every mutation is indeed
+                    // expensive but it seems that we can't avoid that at the
+                    // time of writing. Problem is that some ItemPager tests
+                    // wants to verify that the ItemPager is able to push the
+                    // mem-usage down to the LWM. And that is obviously based on
+                    // the assumption that there's enough allocation in the HT
+                    // for the pager to free-up. So, if (eg) I perform the
+                    // flush+expel only periodically, then we do get to HWM but
+                    // the allocation in the HT doesn't hit the required level
+                    // for verifying the pager assumptions.
+                    // For avoiding the runtime increase of those tests, I've
+                    // just increased the value-size of stored items, so we
+                    // manage to hit the same mem-conditions with less work.
+                    flushAndExpelFromCheckpoints(vbid);
                 }
                 populate = !predicate();
                 if (!populate) {
@@ -1286,32 +1304,35 @@ TEST_P(STItemPagerTest, MB43559_EvictionWithoutReplicasReachesLWM) {
     // would be slow. Load to the HWM, then flush, then repeat if we dropped
     // below the HWM
     while (!aboveHWM()) {
-        itemCount += populateVbsUntil(
-                vbids, aboveHWM, "keys_" + std::to_string(i++) + "_", 500);
-        for (const auto& vb : vbids) {
-            // flush and remove checkpoints as eviction will not touch
-            // dirty items
-            flushAndRemoveCheckpoints(vb);
-        }
+        // Note: the populate function persists and expels from checkpoints, so
+        // here we'll hit the HWM with most of the allocations in the HT and all
+        // items clean
+        itemCount += populateVbsUntil(vbids,
+                                      aboveHWM,
+                                      "keys_" + std::to_string(i++) + "_",
+                                      2048 /*valSize*/);
     }
 
-    EXPECT_GT(itemCount, 100);
+    // confirm we are above the high watermark, and can test the item pager
+    // behaviour
+    ASSERT_GT(stats.getEstimatedTotalMemoryUsed(), stats.mem_high_wat.load());
+
+    // Note: Any more precise expectation on item-count is just a guess, as
+    // different storage have different mem-usage baselines, so the num of items
+    // that we manage to store may vary considerably.
+    EXPECT_GT(itemCount, 0);
 
     // Note: prior to the fix for this MB, eviction relied upon cached
     // residency ratios _which were only updated when gathering stats_.
     // This is no longer the case post-fix, but to ensure the test _would_
     // fail prior to the fix, this is done here.
-    auto refreshCachedResidentRatios = [&store=store, &engine=engine]() {
+    auto refreshCachedResidentRatios = [& store = store]() {
         // call getAggregatedVBucketStats to updated cached resident ratios (as
         // returned by `store->get*ResidentRatio()`)
         testing::NiceMock<MockStatCollector> collector;
         store->getAggregatedVBucketStats(collector.forBucket("foobar"));
     };
     refreshCachedResidentRatios();
-
-    // confirm we are above the high watermark, and can test the item pager
-    // behaviour
-    ASSERT_GT(stats.getEstimatedTotalMemoryUsed(), stats.mem_high_wat.load());
 
     // there are no replica buckets
     ASSERT_EQ(0, store->getNumOfVBucketsInState(vbucket_state_replica));

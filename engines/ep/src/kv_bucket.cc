@@ -2799,7 +2799,33 @@ float KVBucket::getCheckpointMemoryRecoveryLowerMark() const {
     return checkpointMemoryRecoveryLowerMark;
 }
 
-bool KVBucket::hasCapacityInCheckpoints() const {
+KVBucket::CheckpointMemoryState KVBucket::getCheckpointMemoryState() const {
     const auto checkpointQuota = stats.getMaxDataSize() * checkpointMemoryRatio;
-    return stats.getEstimatedCheckpointMemUsage() < checkpointQuota;
+    const auto recoveryThreshold =
+            checkpointQuota * checkpointMemoryRecoveryUpperMark;
+    const auto usage = stats.getEstimatedCheckpointMemUsage();
+
+    if (usage < recoveryThreshold) {
+        return CheckpointMemoryState::Available;
+    } else if (usage < checkpointQuota) {
+        return CheckpointMemoryState::NeedsRecovery;
+    } else {
+        return CheckpointMemoryState::Full;
+    }
+
+    folly::assume_unreachable();
+}
+
+KVBucket::CheckpointMemoryState KVBucket::verifyCheckpointMemoryState() {
+    const auto state = getCheckpointMemoryState();
+    switch (state) {
+    case CheckpointMemoryState::Available:
+        break;
+    case CheckpointMemoryState::NeedsRecovery:
+    case CheckpointMemoryState::Full:
+        wakeUpCheckpointRemover();
+        break;
+    }
+
+    return state;
 }

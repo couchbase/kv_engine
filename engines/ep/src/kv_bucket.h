@@ -781,11 +781,26 @@ public:
 
     float getCheckpointMemoryRecoveryLowerMark() const;
 
+    enum class CheckpointMemoryState : uint8_t {
+        Available,
+        NeedsRecovery,
+        Full
+    };
+
     /**
-     * @return true if the current mem-usage in checkpoint is below the
-     *  configuration threshold
+     * @return the current state of total checkpoints memory usage as defined by
+     * CheckpointMemoryState
      */
-    bool hasCapacityInCheckpoints() const;
+    CheckpointMemoryState getCheckpointMemoryState() const;
+
+    /**
+     * Verifies the current state of total checkpoints memory usage. This may
+     * trigger attempt of checkpoint memory recovery.
+     *
+     * @return Information on the state of checkpoints mem-usage as defined by
+     * CheckpointMemoryState
+     */
+    CheckpointMemoryState verifyCheckpointMemoryState();
 
 protected:
     GetValue getInternal(const DocKey& key,

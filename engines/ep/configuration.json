@@ -199,7 +199,7 @@
             "type": "size_t"
         },
         "checkpoint_memory_ratio": {
-            "default": "1.0",
+            "default": "0.5",
             "descr": "Max ratio of the bucket quota that can be allocated in checkpoints. The system enters a TempOOM phase if hit.",
             "dynamic": true,
             "type": "float",
@@ -211,7 +211,7 @@
             }
         },
         "checkpoint_memory_recovery_upper_mark": {
-            "default": "0.7",
+            "default": "0.9",
             "descr": "Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that triggers attempt of memory releasing from checkpoint.",
             "dynamic": true,
             "type": "float",
@@ -223,7 +223,7 @@
             }
         },
         "checkpoint_memory_recovery_lower_mark": {
-            "default": "0.3",
+            "default": "0.6",
             "descr": "Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that represents the target of checkpoint memory recovery. Memory recovery yields when reached.",
             "dynamic": true,
             "type": "float",
