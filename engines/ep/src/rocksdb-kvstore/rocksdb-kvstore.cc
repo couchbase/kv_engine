@@ -947,8 +947,7 @@ bool RocksDBKVStore::getStat(std::string_view name, size_t& value) const {
 }
 
 StorageProperties RocksDBKVStore::getStorageProperties() const {
-    StorageProperties rv(StorageProperties::EfficientVBDump::Yes,
-                         StorageProperties::EfficientVBDeletion::Yes,
+    StorageProperties rv(StorageProperties::EfficientVBDeletion::Yes,
                          StorageProperties::PersistedDeletion::No,
                          // TODO RDB: Not strictly true, multiGet
                          // does not yet use the underlying multi get
