@@ -547,8 +547,18 @@ public:
 
     enum class ByIdScan : bool { Yes, No };
 
-    StorageProperties(ConcurrentWriteCompact cwc, ByIdScan byIdScan)
-        : concWriteCompact(cwc), byIdScan(byIdScan) {
+    /**
+     * Will the KVStore de-dupe items such that only the highest seqno for any
+     * given key in a single flush batch is persisted?
+     */
+    enum class AutomaticDeduplication : bool { Yes, No };
+
+    StorageProperties(ConcurrentWriteCompact cwc,
+                      ByIdScan byIdScan,
+                      AutomaticDeduplication automaticDeduplication)
+        : concWriteCompact(cwc),
+          byIdScan(byIdScan),
+          automaticDeduplication(automaticDeduplication) {
     }
 
     /* True if the underlying storage supports concurrent writing
@@ -561,9 +571,14 @@ public:
         return byIdScan == ByIdScan::Yes;
     }
 
+    bool hasAutomaticDeduplication() const {
+        return automaticDeduplication == AutomaticDeduplication::Yes;
+    }
+
 private:
     ConcurrentWriteCompact concWriteCompact;
     ByIdScan byIdScan;
+    AutomaticDeduplication automaticDeduplication;
 };
 
 

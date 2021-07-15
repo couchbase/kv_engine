@@ -712,7 +712,10 @@ void MagmaKVStore::rollback() {
 
 StorageProperties MagmaKVStore::getStorageProperties() const {
     StorageProperties rv(StorageProperties::ConcurrentWriteCompact::Yes,
-                         StorageProperties::ByIdScan::No);
+                         StorageProperties::ByIdScan::No,
+                         // @TODO MB-33784: Enable auto de-dupe if/when magma
+                         // supports it
+                         StorageProperties::AutomaticDeduplication::No);
     return rv;
 }
 
