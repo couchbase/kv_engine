@@ -204,7 +204,7 @@ Available params for "set":
                                    high water mark.
     max_checkpoints              - Max number of checkpoints allowed per vbucket.
     checkpoint_memory_ratio      - Max ratio of the bucket quota that can be allocated in checkpoints.
-
+    checkpoint_memory_recovery_upper_mark - Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that triggers attempt of memory releasing from checkpoint.
 
   Available params for set flush_param:
     access_scanner_enabled       - Enable or disable access scanner task (true/false)

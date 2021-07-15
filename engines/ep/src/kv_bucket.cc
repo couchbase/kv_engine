@@ -164,6 +164,8 @@ public:
             store.getEPEngine().updateDcpMinCompressionRatio(value);
         } else if (key == "checkpoint_memory_ratio") {
             store.setCheckpointMemoryRatio(value);
+        } else if (key == "checkpoint_memory_recovery_upper_mark") {
+            store.setCheckpointMemoryRecoveryUpperMark(value);
         }
     }
 
@@ -405,6 +407,12 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
 
     config.addValueChangedListener(
             "checkpoint_memory_ratio",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    checkpointMemoryRecoveryUpperMark =
+            config.getCheckpointMemoryRecoveryUpperMark();
+    config.addValueChangedListener(
+            "checkpoint_memory_recovery_upper_mark",
             std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
@@ -2730,6 +2738,22 @@ cb::engine_errc KVBucket::setCheckpointMemoryRatio(float ratio) {
 
 float KVBucket::getCheckpointMemoryRatio() const {
     return checkpointMemoryRatio;
+}
+
+cb::engine_errc KVBucket::setCheckpointMemoryRecoveryUpperMark(float ratio) {
+    if (ratio < 0.0 || ratio > 1.0) {
+        EP_LOG_ERR(
+                "KVBucket::setCheckpointMemoryRecoveryUpperMark: invalid "
+                "argument {}",
+                ratio);
+        return cb::engine_errc::invalid_arguments;
+    }
+    checkpointMemoryRecoveryUpperMark = ratio;
+    return cb::engine_errc::success;
+}
+
+float KVBucket::getCheckpointMemoryRecoveryUpperMark() const {
+    return checkpointMemoryRecoveryUpperMark;
 }
 
 bool KVBucket::hasCapacityInCheckpoints() const {
