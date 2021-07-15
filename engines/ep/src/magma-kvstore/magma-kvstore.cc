@@ -2243,8 +2243,6 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
                                       std::unique_ptr<RollbackCB> callback) {
     logger->TRACE("MagmaKVStore::rollback {} seqno:{}", vbid, rollbackSeqno);
 
-    Magma::FetchBuffer idxBuf;
-    Magma::FetchBuffer seqBuf;
     auto cacheLookup = std::make_shared<NoLookupCallback>();
     callback->setKVFileHandle(makeFileHandle(vbid));
 
