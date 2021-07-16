@@ -51,8 +51,8 @@ public:
     static bool exists();
 
     /**
-     * @returns the singleton instance of ExecutorPool, creating it if not
-     * already exists.
+     * @returns the singleton instance of ExecutorPool
+     * @throws std::logic_error if the instance isn't created yet
      */
     static ExecutorPool* get();
 
