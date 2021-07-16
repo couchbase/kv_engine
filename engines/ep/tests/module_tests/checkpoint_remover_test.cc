@@ -323,8 +323,7 @@ TEST_F(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
 
     // No item stored, no memory condition that triggers mem-recovery
     const auto checkpointMemoryLimit =
-            (bucketQuota * config.getCursorDroppingCheckpointMemUpperMark()) /
-            100;
+            bucketQuota * store->getCheckpointMemoryRatio();
     EXPECT_LT(stats.getEstimatedCheckpointMemUsage(), checkpointMemoryLimit);
     EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
     bool hasTriggered{false};
@@ -468,7 +467,7 @@ TEST_F(CheckpointRemoverEPTest, DISABLED_noCursorDropWhenTargetMet) {
     config.setChkExpelEnabled(true);
     const size_t maxSize = 100000;
     config.setMaxSize(maxSize);
-    config.setCursorDroppingCheckpointMemUpperMark(35);
+    config.setCheckpointMemoryRatio(0.35);
     // This value is forced to 1 so expel/cursor drop becomes eligible
     engine->getEpStats().mem_low_wat.store(1);
 

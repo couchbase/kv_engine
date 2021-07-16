@@ -525,10 +525,6 @@ cb::engine_errc EventuallyPersistentEngine::setCheckpointParam(
             config.setItemNumBasedNewChk(cb_stob(val));
         } else if (key == "keep_closed_chks") {
             config.setKeepClosedChks(cb_stob(val));
-        } else if (key == "cursor_dropping_checkpoint_mem_upper_mark") {
-            config.setCursorDroppingCheckpointMemUpperMark(std::stoull(val));
-        } else if (key == "cursor_dropping_checkpoint_mem_lower_mark") {
-            config.setCursorDroppingCheckpointMemLowerMark(std::stoull(val));
         } else if (key == "checkpoint_memory_ratio") {
             config.setCheckpointMemoryRatio(std::stof(val));
         } else if (key == "checkpoint_memory_recovery_upper_mark") {
