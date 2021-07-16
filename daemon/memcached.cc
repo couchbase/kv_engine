@@ -493,6 +493,9 @@ static void settings_init() {
             "num_reader_threads", [](const std::string&, Settings& s) -> void {
                 auto val =
                         ThreadPoolConfig::ThreadCount(s.getNumReaderThreads());
+                // Update the ExecutorPool
+                ExecutorPool::get()->setNumReaders(val);
+                // Notify all buckets of the recent change
                 BucketManager::instance().forEach(
                         [val](Bucket& b, void*) -> bool {
                             b.getEngine().set_num_reader_threads(val);
@@ -504,6 +507,9 @@ static void settings_init() {
             "num_writer_threads", [](const std::string&, Settings& s) -> void {
                 auto val =
                         ThreadPoolConfig::ThreadCount(s.getNumWriterThreads());
+                // Update the ExecutorPool
+                ExecutorPool::get()->setNumWriters(val);
+                // Notify all buckets of the recent change
                 BucketManager::instance().forEach(
                         [val](Bucket& b, void*) -> bool {
                             b.getEngine().set_num_writer_threads(val);

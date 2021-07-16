@@ -6813,13 +6813,11 @@ void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
 void EventuallyPersistentEngine::set_num_reader_threads(
         ThreadPoolConfig::ThreadCount num) {
     getConfiguration().setNumReaderThreads(static_cast<int>(num));
-    ExecutorPool::get()->setNumReaders(num);
 }
 
 void EventuallyPersistentEngine::set_num_writer_threads(
         ThreadPoolConfig::ThreadCount num) {
     getConfiguration().setNumWriterThreads(static_cast<int>(num));
-    ExecutorPool::get()->setNumWriters(num);
 
     auto* epBucket = dynamic_cast<EPBucket*>(getKVBucket());
     if (epBucket) {
