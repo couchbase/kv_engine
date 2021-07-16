@@ -844,6 +844,8 @@ TEST_P(DurabilityActiveStreamTest,
     EXPECT_EQ(1, vb->getHighPreparedSeqno());
     EXPECT_EQ(1, vb->getHighCompletedSeqno());
 
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
     { // Locking scope for collections handle
         auto item = makePendingItem(
                 key,

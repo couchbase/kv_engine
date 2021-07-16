@@ -673,12 +673,13 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_create_delete) {
                     vbid, StoredDocKey{key, CollectionEntry::fruit}, "value");
         }
 
+        flushVBucketToDiskIfPersistent(vbid, (2 * items) + 2);
+
         // Delete dairy
         vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
 
         // Persist everything ready for warmup and check.
-        // Flusher will merge create/delete and we only flush the delete
-        flushVBucketToDiskIfPersistent(vbid, (2 * items) + 2);
+        flushVBucketToDiskIfPersistent(vbid, 1);
 
         // We will see create fruit/dairy and delete dairy (from another CP)
         // In-memory stream will also see all 2*items mutations (ordered with
