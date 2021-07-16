@@ -13,6 +13,7 @@
 #include "vb_ready_queue.h"
 #include <executor/globaltask.h>
 #include <memcached/vbucket.h>
+#include <vb_notifiable_task.h>
 
 /*
  * This task is used to complete (commit or abort) all SyncWrites which have
@@ -31,22 +32,14 @@
  * during dcpSeqnoAck when attemping to later call notifySeqnoAvailable when
  * this was done on the original thread.
  */
-class DurabilityCompletionTask : public GlobalTask {
+class DurabilityCompletionTask : public VBNotifiableTask {
 public:
     explicit DurabilityCompletionTask(EventuallyPersistentEngine& engine);
 
-    bool run() override;
+    void visitVBucket(VBucket& vb) override;
 
     std::string getDescription() const override {
         return "DurabilityCompletionTask";
-    }
-
-    std::chrono::microseconds maxExpectedDuration() const override {
-        // Task shouldn't run much longer than maxChunkDuration; given we yield
-        // after that duration - however _could_ exceed a bit given we check
-        // the duration on each vBucket. As such add a 2x margin of error.
-        return std::chrono::duration_cast<std::chrono::microseconds>(
-                2 * maxChunkDuration);
     }
 
     /**
@@ -56,20 +49,4 @@ public:
      * for it to run.
      */
     void notifySyncWritesToComplete(Vbid vbid);
-
-private:
-    /**
-     * Queue of unique vBuckets to process.
-     */
-    VBReadyQueue queue;
-
-    /**
-     * Flag which is used to check if a wakeup has already been scheduled for
-     * this task.
-     */
-    std::atomic<bool> wakeUpScheduled{false};
-
-    /// Maximum duration this task should execute for before yielding back to
-    /// the ExecutorPool (to allow other tasks to run).
-    static const std::chrono::steady_clock::duration maxChunkDuration;
 };
