@@ -711,7 +711,9 @@ static void startExecutorPool() {
                          ThreadPoolConfig::ThreadCount(
                                  Settings::instance().getNumReaderThreads()),
                          ThreadPoolConfig::ThreadCount(
-                                 Settings::instance().getNumWriterThreads()));
+                                 Settings::instance().getNumWriterThreads()),
+                         Settings::instance().getNumAuxIoThreads(),
+                         Settings::instance().getNumNonIoThreads());
     ExecutorPool::get()->registerTaskable(NoBucketTaskable::instance());
 
     // MB-47484 Set up the settings callback for the executor pool now that
@@ -738,6 +740,24 @@ static void startExecutorPool() {
                 // Notify all buckets of the recent change
                 BucketManager::instance().forEach([val](Bucket& b) -> bool {
                     b.getEngine().set_num_writer_threads(val);
+                    return true;
+                });
+            });
+    settings.addChangeListener(
+            "num_auxio_threads", [](const std::string&, Settings& s) -> void {
+                auto val = s.getNumAuxIoThreads();
+                ExecutorPool::get()->setNumAuxIO(val);
+                BucketManager::instance().forEach([val](Bucket& b) -> bool {
+                    b.getEngine().set_num_auxio_threads(val);
+                    return true;
+                });
+            });
+    settings.addChangeListener(
+            "num_nonio_threads", [](const std::string&, Settings& s) -> void {
+                auto val = s.getNumNonIoThreads();
+                ExecutorPool::get()->setNumNonIO(val);
+                BucketManager::instance().forEach([val](Bucket& b) -> bool {
+                    b.getEngine().set_num_nonio_threads(val);
                     return true;
                 });
             });

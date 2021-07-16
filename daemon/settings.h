@@ -694,6 +694,26 @@ public:
         notify_changed("num_writer_threads");
     }
 
+    int getNumAuxIoThreads() const {
+        return num_auxio_threads.load(std::memory_order_acquire);
+    }
+
+    void setNumAuxIoThreads(size_t val) {
+        num_auxio_threads.store(val, std::memory_order_release);
+        has.num_auxio_threads = true;
+        notify_changed("num_auxio_threads");
+    }
+
+    int getNumNonIoThreads() const {
+        return num_nonio_threads.load(std::memory_order_acquire);
+    }
+
+    void setNumNonIoThreads(size_t val) {
+        num_nonio_threads.store(val, std::memory_order_release);
+        has.num_nonio_threads = true;
+        notify_changed("num_nonio_threads");
+    }
+
     std::pair<in_port_t, sa_family_t> getPrometheusConfig() {
         return *prometheus_config.rlock();
     }
@@ -909,6 +929,8 @@ protected:
 
     std::atomic<int> num_reader_threads{0};
     std::atomic<int> num_writer_threads{0};
+    std::atomic<int> num_auxio_threads{0};
+    std::atomic<int> num_nonio_threads{0};
 
     folly::Synchronized<std::pair<in_port_t, sa_family_t>> prometheus_config;
 
@@ -971,6 +993,8 @@ public:
         bool opentracing_config = false;
         bool num_reader_threads = false;
         bool num_writer_threads = false;
+        bool num_auxio_threads = false;
+        bool num_nonio_threads = false;
         bool num_storage_threads = false;
         bool portnumber_file = false;
         bool parent_identifier = false;

@@ -494,6 +494,28 @@ static void handle_num_writer_threads(Settings& s,  const nlohmann::json& obj) {
     }
 }
 
+static void handle_num_auxio_threads(Settings& s, const nlohmann::json& obj) {
+    if (obj.is_number_unsigned()) {
+        s.setNumAuxIoThreads(obj.get<size_t>());
+    } else {
+        throw std::invalid_argument(
+                fmt::format("Value to set number of AuxIO threads must be an "
+                            "unsigned integer! Value:'{}'",
+                            obj.dump()));
+    }
+}
+
+static void handle_num_nonio_threads(Settings& s, const nlohmann::json& obj) {
+    if (obj.is_number_unsigned()) {
+        s.setNumNonIoThreads(obj.get<size_t>());
+    } else {
+        throw std::invalid_argument(
+                fmt::format("Value to set number of NonIO threads must be an "
+                            "unsigned integer! Value:'{}'",
+                            obj.dump()));
+    }
+}
+
 static void handle_num_storage_threads(Settings& s, const nlohmann::json& obj) {
     if (obj.is_number_unsigned()) {
         s.setNumStorageThreads(obj.get<size_t>());
@@ -644,6 +666,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"num_reader_threads", handle_num_reader_threads},
             {"num_writer_threads", handle_num_writer_threads},
             {"num_storage_threads", handle_num_storage_threads},
+            {"num_auxio_threads", handle_num_auxio_threads},
+            {"num_nonio_threads", handle_num_nonio_threads},
             {"tracing_enabled", handle_tracing_enabled},
             {"enforce_tenant_limits_enabled",
              handle_enforce_tenant_limits_enabled},
@@ -1085,6 +1109,22 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                  threadConfig2String(getNumWriterThreads()),
                  threadConfig2String(other.getNumWriterThreads()));
         setNumWriterThreads(other.getNumWriterThreads());
+    }
+
+    if (other.has.num_auxio_threads &&
+        other.getNumAuxIoThreads() != getNumAuxIoThreads()) {
+        LOG_INFO("Change number of AuxIO threads from: {} to {}",
+                 getNumAuxIoThreads(),
+                 other.getNumAuxIoThreads());
+        setNumAuxIoThreads(other.getNumAuxIoThreads());
+    }
+
+    if (other.has.num_nonio_threads &&
+        other.getNumNonIoThreads() != getNumNonIoThreads()) {
+        LOG_INFO("Change number of NonIO threads from: {} to {}",
+                 getNumNonIoThreads(),
+                 other.getNumNonIoThreads());
+        setNumNonIoThreads(other.getNumNonIoThreads());
     }
 
     if (other.has.prometheus_config) {
