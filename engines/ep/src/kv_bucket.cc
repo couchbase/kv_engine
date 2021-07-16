@@ -166,6 +166,8 @@ public:
             store.setCheckpointMemoryRatio(value);
         } else if (key == "checkpoint_memory_recovery_upper_mark") {
             store.setCheckpointMemoryRecoveryUpperMark(value);
+        } else if (key == "checkpoint_memory_recovery_lower_mark") {
+            store.setCheckpointMemoryRecoveryLowerMark(value);
         }
     }
 
@@ -288,7 +290,12 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
       xattrEnabled(true),
       maxTtl(engine.getConfiguration().getMaxTtl()),
       checkpointMemoryRatio(
-              engine.getConfiguration().getCheckpointMemoryRatio()) {
+              engine.getConfiguration().getCheckpointMemoryRatio()),
+      checkpointMemoryRecoveryUpperMark(
+              engine.getConfiguration().getCheckpointMemoryRecoveryUpperMark()),
+      checkpointMemoryRecoveryLowerMark(
+              engine.getConfiguration()
+                      .getCheckpointMemoryRecoveryLowerMark()) {
     cachedResidentRatio.activeRatio.store(0);
     cachedResidentRatio.replicaRatio.store(0);
 
@@ -409,10 +416,12 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             "checkpoint_memory_ratio",
             std::make_unique<EPStoreValueChangeListener>(*this));
 
-    checkpointMemoryRecoveryUpperMark =
-            config.getCheckpointMemoryRecoveryUpperMark();
     config.addValueChangedListener(
             "checkpoint_memory_recovery_upper_mark",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    config.addValueChangedListener(
+            "checkpoint_memory_recovery_lower_mark",
             std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
@@ -2748,12 +2757,46 @@ cb::engine_errc KVBucket::setCheckpointMemoryRecoveryUpperMark(float ratio) {
                 ratio);
         return cb::engine_errc::invalid_arguments;
     }
+    if (ratio < checkpointMemoryRecoveryLowerMark) {
+        EP_LOG_ERR(
+                "KVBucket::setCheckpointMemoryRecoveryUpperMark: invalid "
+                "argument {}, lower than lower-mark {}",
+                ratio,
+                checkpointMemoryRecoveryLowerMark);
+        return cb::engine_errc::invalid_arguments;
+    }
+
     checkpointMemoryRecoveryUpperMark = ratio;
     return cb::engine_errc::success;
 }
 
 float KVBucket::getCheckpointMemoryRecoveryUpperMark() const {
     return checkpointMemoryRecoveryUpperMark;
+}
+
+cb::engine_errc KVBucket::setCheckpointMemoryRecoveryLowerMark(float ratio) {
+    if (ratio < 0.0 || ratio > 1.0) {
+        EP_LOG_ERR(
+                "KVBucket::setCheckpointMemoryRecoveryLowerMark: invalid "
+                "argument {}",
+                ratio);
+        return cb::engine_errc::invalid_arguments;
+    }
+    if (ratio > checkpointMemoryRecoveryUpperMark) {
+        EP_LOG_ERR(
+                "KVBucket::setCheckpointMemoryRecoveryLowerMark: invalid "
+                "argument {}, greater than upper-mark {}",
+                ratio,
+                checkpointMemoryRecoveryUpperMark);
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    checkpointMemoryRecoveryLowerMark = ratio;
+    return cb::engine_errc::success;
+}
+
+float KVBucket::getCheckpointMemoryRecoveryLowerMark() const {
+    return checkpointMemoryRecoveryLowerMark;
 }
 
 bool KVBucket::hasCapacityInCheckpoints() const {

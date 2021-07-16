@@ -221,6 +221,18 @@
                 }
             }
         },
+        "checkpoint_memory_recovery_lower_mark": {
+            "default": "0.3",
+            "descr": "Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that represents the target of checkpoint memory recovery. Memory recovery yields when reached.",
+            "dynamic": true,
+            "type": "float",
+            "validator": {
+                "range": {
+                    "min": 0.0,
+                    "max": 1.0
+                }
+            }
+        },
         "collections_drop_compaction_delay" : {
             "default": "5000",
             "descr": "How many milliseconds before compaction runs following the drop of a collection",

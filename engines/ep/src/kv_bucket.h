@@ -771,6 +771,18 @@ public:
     float getCheckpointMemoryRecoveryUpperMark() const;
 
     /**
+     * Sets the ratio of the checkpoint quota (as computed by
+     * checkpoint_memory_ratio) that represents the target of checkpoint memory
+     * recovery. Memory recovery yields when reached.
+     *
+     * @param ratio
+     * @return success if the operation succeeds, an error code otherwise
+     */
+    cb::engine_errc setCheckpointMemoryRecoveryLowerMark(float ratio);
+
+    float getCheckpointMemoryRecoveryLowerMark() const;
+
+    /**
      * @return true if the current mem-usage in checkpoint is below the
      *  configuration threshold
      */
@@ -960,6 +972,14 @@ protected:
      * Requires synchronization as it stores a dynamic configuration param.
      */
     std::atomic<float> checkpointMemoryRecoveryUpperMark;
+
+    /**
+     * Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio)
+     * that represents the target of checkpoint memory recovery. Memory recovery
+     * yields when reached.
+     * Requires synchronization as it stores a dynamic configuration param.
+     */
+    std::atomic<float> checkpointMemoryRecoveryLowerMark;
 
     friend class KVBucketTest;
 
