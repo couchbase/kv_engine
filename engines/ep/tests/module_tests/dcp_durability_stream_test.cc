@@ -523,68 +523,6 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
     producer->cancelCheckpointCreatorTask();
 }
 
-TEST_P(DurabilityActiveStreamTest, BackfillAbort) {
-    producer->createCheckpointProcessorTask();
-    producer->scheduleCheckpointProcessorTask();
-
-    auto vb = engine->getVBucket(vbid);
-
-    auto& ckptMgr = *vb->checkpointManager;
-
-    // Get rid of set_vb_state and any other queue_op we are not interested in
-    ckptMgr.clear(*vb, 0 /*seqno*/);
-
-    const auto key = makeStoredDocKey("key");
-    const auto& value = "value";
-    auto item = makePendingItem(
-            key,
-            value,
-            cb::durability::Requirements(cb::durability::Level::Majority,
-                                         cb::durability::Timeout(1)));
-    VBQueueItemCtx ctx;
-    ctx.durability =
-            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
-    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->abort(key,
-                        vb->getHighSeqno(),
-                        {} /*abortSeqno*/,
-                        vb->lockCollections(key)));
-
-    flushVBucketToDiskIfPersistent(vbid, 1);
-
-    stream.reset();
-    removeCheckpoint(*vb, 2);
-
-    recreateStream(*vb);
-    ASSERT_TRUE(stream->isBackfilling());
-
-    auto& bfm = producer->getBFM();
-    bfm.backfill();
-    bfm.backfill();
-    const auto& readyQ = stream->public_readyQ();
-    EXPECT_EQ(2, readyQ.size());
-
-    auto resp = stream->public_popFromReadyQ();
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
-    auto marker = dynamic_cast<SnapshotMarker&>(*resp);
-    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
-    EXPECT_EQ(0, marker.getMaxVisibleSeqno().value_or(~0));
-    EXPECT_EQ(1, *marker.getHighCompletedSeqno());
-    EXPECT_EQ(0, marker.getStartSeqno());
-    EXPECT_EQ(2, marker.getEndSeqno());
-
-    resp = stream->public_popFromReadyQ();
-    ASSERT_TRUE(resp);
-    EXPECT_EQ(DcpResponse::Event::Abort, resp->getEvent());
-    const auto& abrt = static_cast<AbortSyncWrite&>(*resp);
-    ASSERT_TRUE(abrt.getBySeqno());
-    EXPECT_EQ(2, *abrt.getBySeqno());
-    EXPECT_EQ(1, abrt.getPreparedSeqno());
-
-    producer->cancelCheckpointCreatorTask();
-}
-
 // MB-37103: Check that a backfill where the High Completed Seqno is zero
 // correctly populates the snapshot marker.
 TEST_P(DurabilityActiveStreamTest, BackfillHCSZero) {
