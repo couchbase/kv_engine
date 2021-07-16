@@ -1030,7 +1030,7 @@ int memcached_main(int argc, char** argv) {
         parent_monitor.reset();
     }
 
-    LOG_INFO_RAW("Shutting down Prometheus exporter");
+    // Shut down Prometheus (it adds its own log message)
     cb::prometheus::shutdown();
 
     LOG_INFO_RAW("Shutting down audit daemon");

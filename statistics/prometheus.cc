@@ -205,9 +205,16 @@ MetricServer::MetricServer(in_port_t port,
     }
 }
 
-// defined here as Exposer must be a complete type. Avoids
-// polluting the header with prometheus headers.
-MetricServer::~MetricServer() = default;
+MetricServer::~MetricServer() {
+    try {
+        if (isAlive()) {
+            LOG_INFO("Shutting down Prometheus exporter: {}",
+                     getRunningConfigAsJson().dump());
+        }
+    } catch (const std::exception&) {
+        // we don't want any exception being thrown in the destructor
+    }
+}
 
 bool MetricServer::isAlive() const {
     // if exposer was successfully created, it is running
