@@ -447,4 +447,14 @@ TEST_P(InterfacesTest, MB46863_NsServerWithoutSupportForIfconfig_ReloadOk) {
     for (const auto& p : portnumbers["ports"]) {
         ASSERT_NE("ephemeral", p["tag"].get<std::string>());
     }
+
+    // MB-47411: The prometheus interface was incorrectly deleted as part
+    //           of cleaning up unused interfaces
+    bool found = false;
+    for (const auto& e : getInterfaces(getAdminConnection())) {
+        if (e["type"] == "prometheus") {
+            found = true;
+        }
+    }
+    ASSERT_TRUE(found) << "The prometheus interface should be present";
 }

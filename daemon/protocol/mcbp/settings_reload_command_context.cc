@@ -78,7 +78,7 @@ void SettingsReloadCommandContext::maybeReconfigurePrometheus(Settings& next) {
     }
 
     auto [next_port, next_family] = next.getPrometheusConfig();
-    auto [curr_port, curr_family] = next.getPrometheusConfig();
+    auto [curr_port, curr_family] = cb::prometheus::getRunningConfig();
     if (next_port == curr_port && next_family == curr_family) {
         // Nothing changed
         return;
@@ -173,6 +173,9 @@ void SettingsReloadCommandContext::maybeReconfigureInterfaces(Settings& next) {
     // Iterate over the interfaces and this time delete the ones
     // not present in the current configuration
     for (const auto& iface : interfaces) {
+        if (iface.getType() != NetworkInterfaceDescription::Type::Mcbp) {
+            continue;
+        }
         bool found = false;
         for (const auto& e : new_ifc) {
             if (e.port == iface.getPort() &&
