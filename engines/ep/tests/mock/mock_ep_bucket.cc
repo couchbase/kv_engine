@@ -139,3 +139,7 @@ std::shared_ptr<CompactionContext> MockEPBucket::makeCompactionContext(
     auto context = EPBucket::makeCompactionContext(vbid, config, purgeSeqno);
     return mockMakeCompactionContext(context);
 }
+
+void MockEPBucket::publicCompactionCompletionCallback(CompactionContext& ctx) {
+    compactionCompletionCallback(ctx);
+}

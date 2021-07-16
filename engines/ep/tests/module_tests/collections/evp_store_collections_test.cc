@@ -3821,6 +3821,95 @@ TEST_F(CollectionsTest, MB_45899) {
     EXPECT_EQ(copyStats, summary.find(CollectionID::Default)->second);
 }
 
+#ifdef EP_USE_MAGMA
+/**
+ * Test that we maintain the dropped collections meta correctly if we drop a
+ * collection during a purge.
+ *
+ * Test only runs for magma as the completion callback is called under the
+ * vBucket lock for couchstore (and would deadlock the test)
+ */
+TEST_P(CollectionsMagmaParameterizedTest, DropDuringPurge) {
+    CollectionsManifest cm;
+    auto vb = store->getVBucket(vbid);
+
+    cm.add(CollectionEntry::fruit);
+    cm.add(CollectionEntry::meat);
+
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "value");
+    store_item(vbid, StoredDocKey{"beef", CollectionEntry::meat}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    cm.remove(CollectionEntry::fruit);
+    vb->updateFromManifest(makeManifest(cm));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto& epBucket = dynamic_cast<MockEPBucket&>(*store);
+    epBucket.mockMakeCompactionContext =
+            [this, &cm, &epBucket, &vb](
+                    std::shared_ptr<CompactionContext> ctx) {
+                ctx->completionCallback = [this, &cm, &epBucket, &vb](
+                                                  CompactionContext& ctx) {
+                    // Fruit should be there
+                    auto dropped =
+                            store->getRWUnderlying(vbid)->getDroppedCollections(
+                                    vbid);
+                    EXPECT_TRUE(dropped.first);
+                    EXPECT_EQ(1, dropped.second.size());
+
+                    // Drop a collection and flush so that the dropped
+                    // collections local doc gets updated
+                    cm.remove(CollectionEntry::meat);
+                    vb->updateFromManifest(makeManifest(cm));
+                    flushVBucketToDiskIfPersistent(vbid, 1);
+
+                    // Meat should be now too
+                    dropped =
+                            store->getRWUnderlying(vbid)->getDroppedCollections(
+                                    vbid);
+                    EXPECT_TRUE(dropped.first);
+                    EXPECT_EQ(2, dropped.second.size());
+
+                    // Now, hit the actual completion callback to set item
+                    // counts
+                    epBucket.publicCompactionCompletionCallback(ctx);
+                };
+                return ctx;
+            };
+
+    // Not using runCollectionsEraser(vbid) here as that asserts that dropped
+    // collections is empty at the end (and it won't be in this test). Running
+    // the compaction manually.
+    store->scheduleCompaction(vbid, {}, nullptr, std::chrono::seconds(0));
+    std::string task = "Compact DB file " + std::to_string(vbid.get());
+    runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], task);
+
+    // Meat should still be there - before the fix dropped size would be 0
+    auto dropped = store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
+    EXPECT_TRUE(dropped.first);
+    EXPECT_EQ(1, dropped.second.size());
+
+    EXPECT_EQ(1, vb->getNumTotalItems());
+
+    epBucket.mockMakeCompactionContext =
+            [](std::shared_ptr<CompactionContext> ctx) {
+                // Use the default context from now on
+                return ctx;
+            };
+    runCollectionsEraser(vbid);
+
+    dropped = store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
+    EXPECT_TRUE(dropped.first);
+    EXPECT_EQ(0, dropped.second.size());
+
+    EXPECT_EQ(0, vb->getNumTotalItems());
+}
+#endif
+
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
                          CollectionsExpiryLimitTest,
                          ::testing::Bool(),
@@ -3846,3 +3935,10 @@ INSTANTIATE_TEST_SUITE_P(CollectionsCouchstore,
                          CollectionsCouchstoreParameterizedTest,
                          STParameterizedBucketTest::couchstoreConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+#ifdef EP_USE_MAGMA
+INSTANTIATE_TEST_SUITE_P(CollectionsMagma,
+                         CollectionsMagmaParameterizedTest,
+                         STParameterizedBucketTest::magmaConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+#endif

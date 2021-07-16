@@ -78,3 +78,6 @@ class CollectionsCouchstoreParameterizedTest
 
 class CollectionsEphemeralParameterizedTest
     : public CollectionsParameterizedTest {};
+
+class CollectionsMagmaParameterizedTest : public CollectionsParameterizedTest {
+};

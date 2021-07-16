@@ -698,7 +698,8 @@ protected:
     /**
      * CompactDB implementation. See comments on public compactDB.
      */
-    bool compactDBInternal(std::shared_ptr<CompactionContext> ctx);
+    bool compactDBInternal(std::unique_lock<std::mutex>& vbLock,
+                           std::shared_ptr<CompactionContext> ctx);
 
     /*
      * The DB for each VBucket is created in a separated subfolder of

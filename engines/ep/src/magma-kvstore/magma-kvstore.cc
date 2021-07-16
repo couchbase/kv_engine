@@ -2000,7 +2000,7 @@ cb::engine_errc MagmaKVStore::getAllKeys(
 bool MagmaKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                              std::shared_ptr<CompactionContext> ctx) {
     vbLock.unlock();
-    auto res = compactDBInternal(std::move(ctx));
+    auto res = compactDBInternal(vbLock, std::move(ctx));
 
     if (!res) {
         st.numCompactionFailure++;
@@ -2009,7 +2009,8 @@ bool MagmaKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
     return res;
 }
 
-bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
+bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
+                                     std::shared_ptr<CompactionContext> ctx) {
     std::chrono::steady_clock::time_point start =
             std::chrono::steady_clock::now();
 
@@ -2174,15 +2175,45 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
         ctx->completionCallback(*ctx);
     }
 
-
     if (ctx->eraserContext->needToUpdateCollectionsMetadata()) {
-        // Delete dropped collections.
-        localDbReqs.emplace_back(
-                MagmaLocalReq::makeDeleted(droppedCollectionsKey));
+        // Need to write back some collections metadata, in particular we need
+        // to remove from the dropped collections doc all of the collections
+        // that we have just purged. A collection drop might have happened after
+        // we started this compaction though and we may not have dropped it yet
+        // so we can't just delete the doc. To avoid a flusher coming along and
+        // dropping another collection while we do this we need to hold the
+        // vBucket write lock.
+        vbLock.lock();
 
+        // 1) Get the current state from disk
+        auto [getDroppedStatus, droppedCollections] =
+                getDroppedCollections(vbid);
+        if (!getDroppedStatus) {
+            throw std::runtime_error(
+                    fmt::format("MagmaKVStore::compactDbInternal {} failed "
+                                "getDroppedCollections",
+                                vbid));
+        }
+
+        // 2) Generate a new flatbuffer document to write back
+        auto fbData = Collections::VB::Flush::
+                encodeRelativeComplementOfDroppedCollections(
+                        droppedCollections,
+                        ctx->eraserContext->getDroppedCollections());
+
+        // 3) If the function returned data, write it, else the document is
+        // delete.
         WriteOps writeOps;
-        addLocalDbReqs(localDbReqs, writeOps);
+        if (fbData.data()) {
+            localDbReqs.emplace_back(
+                    MagmaLocalReq(droppedCollectionsKey, fbData));
+        } else {
+            // Need to ensure the 'dropped' list on disk is now gone
+            localDbReqs.emplace_back(
+                    MagmaLocalReq::makeDeleted(droppedCollectionsKey));
+        }
 
+        addLocalDbReqs(localDbReqs, writeOps);
         MagmaDbStats magmaDbStats;
 
         { // locking scope for magmaDbStats

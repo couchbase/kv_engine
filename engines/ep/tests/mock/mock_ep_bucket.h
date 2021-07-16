@@ -76,6 +76,8 @@ public:
             std::vector<bgfetched_item_t>& fetchedItems,
             std::chrono::steady_clock::time_point start) override;
 
+    void publicCompactionCompletionCallback(CompactionContext& ctx);
+
     TestingHook<Vbid> completeBGFetchMultiHook;
 
     std::shared_ptr<CompactTask> getCompactionTask(Vbid vbid) const;
