@@ -681,9 +681,14 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
     EXPECT_EQ(2, vb.getHighSeqno());
     EXPECT_EQ(0, vb.getMaxVisibleSeqno());
 
-    // Note: Prepare and Abort are in the same key-space, so they will be
-    //     deduplicated at Flush
-    flushVBucketToDiskIfPersistent(vbid, 1);
+    auto expected = 1;
+    auto flusherDedupe = !store->getOneROUnderlying()
+                                  ->getStorageProperties()
+                                  .hasAutomaticDeduplication();
+    if (!flusherDedupe) {
+        expected++;
+    }
+    flushVBucketToDiskIfPersistent(vbid, expected);
 
     EXPECT_EQ(0, vb.getNumItems());
     EXPECT_EQ(0, ckptMgr.getNumItemsForPersistence());
@@ -755,9 +760,14 @@ void DurabilityEPBucketTest::testPersistPrepareAbortPrepare(
     EXPECT_EQ(3, vb.getHighSeqno());
     EXPECT_EQ(0, vb.getMaxVisibleSeqno());
 
-    // Note: Prepare and Abort are in the same key-space, so they will be
-    //     deduplicated at Flush
-    flushVBucketToDiskIfPersistent(vbid, 1);
+    auto expected = 1;
+    auto flusherDedupe = !store->getOneROUnderlying()
+                                  ->getStorageProperties()
+                                  .hasAutomaticDeduplication();
+    if (!flusherDedupe) {
+        expected += 2;
+    }
+    flushVBucketToDiskIfPersistent(vbid, expected);
 
     // At persist-dedup, the 2nd Prepare survives
     auto* store = vb.getShard()->getROUnderlying();
@@ -826,9 +836,14 @@ void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
     EXPECT_EQ(4, vb.getHighSeqno());
     EXPECT_EQ(0, vb.getMaxVisibleSeqno());
 
-    // Note: Prepare and Abort are in the same key-space and hence are
-    //       deduplicated at Flush.
-    flushVBucketToDiskIfPersistent(vbid, 1);
+    auto expected = 1;
+    auto flusherDedupe = !store->getOneROUnderlying()
+                                  ->getStorageProperties()
+                                  .hasAutomaticDeduplication();
+    if (!flusherDedupe) {
+        expected += 3;
+    }
+    flushVBucketToDiskIfPersistent(vbid, expected);
 
     // At persist-dedup, the 2nd Abort survives
     auto* store = vb.getShard()->getROUnderlying();
@@ -1666,7 +1681,14 @@ TEST_P(DurabilityEPBucketTest,
     performCommitForKey(vb, key, prepareSeqno, 0, 0);
 
     // flush the prepare and commit mutations to disk
-    flushVBucketToDiskIfPersistent(vbid, 2);
+    auto expected = 2;
+    auto flusherDedupe = !store->getOneROUnderlying()
+                                  ->getStorageProperties()
+                                  .hasAutomaticDeduplication();
+    if (!flusherDedupe) {
+        expected += 6;
+    }
+    flushVBucketToDiskIfPersistent(vbid, expected);
     verifyOnDiskItemCount(vb, 0);
     verifyCollectionItemCount(vb, keyCollectionID, 0);
 

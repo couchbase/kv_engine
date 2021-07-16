@@ -476,7 +476,13 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
                         {} /*abortSeqno*/,
                         vb->lockCollections(key)));
 
-    flushVBucketToDiskIfPersistent(vbid, 1);
+    auto expected = 1;
+    if (store->getOneROUnderlying()
+                ->getStorageProperties()
+                .hasAutomaticDeduplication()) {
+        expected++;
+    }
+    flushVBucketToDiskIfPersistent(vbid, expected);
 
     // Remove our first checkpoint to backfill the prepare
     bool newCkpt;

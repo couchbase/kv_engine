@@ -1725,14 +1725,14 @@ TEST_P(DurabilityWarmupTest, CommittedWithAckAfterWarmup) {
     }
 }
 
-// MB-35192: EPBucket::flushVBucket calls rwUnderlying->optimizeWrites(items);
-// Which may reorder the items before they are written to disk.
-// Test to ensure the persisted HPS and HCS are set to the highest
-// value found in the items that are about to be flushed.
+// MB-35192: EPBucket::flushVBucket calls
+// rwUnderlying->prepareForDeduplication(items); Which may reorder the items
+// before they are written to disk. Test to ensure the persisted HPS and HCS are
+// set to the highest value found in the items that are about to be flushed.
 TEST_P(DurabilityWarmupTest, WarmUpHPSAndHCSWithNonSeqnoSortedItems) {
     auto key = makeStoredDocKey("okey");
 
-    // These items will be sorted by key by optimizeWrites
+    // These items will be sorted by key by prepareForDeduplication
     // ordering them a -> b, the opposite order to their seqnos.
     auto itemB = makePendingItem(makeStoredDocKey("b"), "value");
     auto itemA = makePendingItem(makeStoredDocKey("a"), "value");

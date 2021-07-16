@@ -916,10 +916,11 @@ public:
                                     std::unique_ptr<RollbackCB>) = 0;
 
     /**
-     * This method is called before persisting a batch of data if you'd like to
-     * do stuff to them that might improve performance at the IO layer.
+     * This method is called before persisting a batch of data to sort the data
+     * by key and seqno so that we can de-duplicate the writes passed to the
+     * KVStore if it cannot de-duplicate them itself.
      */
-    void optimizeWrites(std::vector<queued_item>& items);
+    void prepareForDeduplication(std::vector<queued_item>& items);
 
     /**
      * This method is called after persisting a batch of data to perform any

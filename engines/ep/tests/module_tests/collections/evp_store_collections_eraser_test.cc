@@ -1546,6 +1546,14 @@ void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
     vb->updateFromManifest(makeManifest(
             cm.remove(CollectionEntry::dairy).remove(CollectionEntry::fruit)));
     waitingForFlush += 2;
+
+    auto flusherDedupe = !store->getOneROUnderlying()
+                                  ->getStorageProperties()
+                                  .hasAutomaticDeduplication();
+    if (!warmupInTheMiddle && !flushInTheMiddle && !flusherDedupe) {
+        waitingForFlush += 2;
+    }
+
     flushVBucketToDiskIfPersistent(vbid, waitingForFlush);
 
     if (isPersistent() && !isMagma()) {
@@ -1628,7 +1636,16 @@ void CollectionsEraserPersistentOnly::testEmptyCollections(
     vb->updateFromManifest(makeManifest(
             cm.remove(CollectionEntry::dairy).remove(CollectionEntry::fruit)));
 
-    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
+    auto expected = 2; // 2 system
+    auto flusherDedupe = !store->getOneROUnderlying()
+                                  ->getStorageProperties()
+                                  .hasAutomaticDeduplication();
+    if (!flushInTheMiddle && !flusherDedupe) {
+        expected += 2;
+    }
+
+    vb->checkpointManager->dump();
+    flushVBucketToDiskIfPersistent(vbid, expected);
 
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));

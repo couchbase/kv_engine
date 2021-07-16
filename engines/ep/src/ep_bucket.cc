@@ -416,7 +416,12 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
-    rwUnderlying->optimizeWrites(toFlush.items);
+    bool mustDedupe =
+            !rwUnderlying->getStorageProperties().hasAutomaticDeduplication();
+
+    if (mustDedupe) {
+        rwUnderlying->prepareForDeduplication(toFlush.items);
+    }
 
     Item* prev = nullptr;
 
@@ -522,7 +527,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     // (b) can de-duplicate as the previous key was the same, or (c)
     // actually need to persist.
     // Note: This assumes items have been sorted by key and then by
-    // seqno (see optimizeWrites() above) such that duplicate keys are
+    // seqno (see prepareForDeduplication() above) such that duplicate keys are
     // adjacent but with the highest seqno first.
     // Note(2): The de-duplication here is an optimization to save
     // creating and enqueuing multiple set() operations on the
@@ -592,7 +597,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
                 // Process the Item's value into the transition struct
                 proposedVBState.transition.fromItem(*item);
             }
-        } else if (!canDeDuplicate(prev, *item)) {
+        } else if (!mustDedupe || !canDeDuplicate(prev, *item)) {
             // This is an item we must persist.
             prev = item.get();
             ++flushBatchSize;
@@ -662,7 +667,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
         } else {
             // Item is the same key as the previous[1] one - don't need
             // to flush to disk.
-            // [1] Previous here really means 'next' - optimizeWrites()
+            // [1] Previous here really means 'next' - prepareForDeduplication()
             //     above has actually re-ordered items such that items
             //     with the same key are ordered from high->low seqno.
             //     This means we only write the highest (i.e. newest)

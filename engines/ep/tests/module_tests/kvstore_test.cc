@@ -1034,7 +1034,7 @@ TEST_P(KVStoreParamTest, Durability_PersistAbort) {
     EXPECT_EQ(999, gv.item->getPrepareSeqno());
 }
 
-TEST_P(KVStoreParamTest, OptimizeWrites) {
+TEST_P(KVStoreParamTest, PrepareForDeduplication) {
     std::vector<queued_item> items;
     std::vector<StoredDocKey> keys;
     keys.resize(3);
@@ -1046,7 +1046,7 @@ TEST_P(KVStoreParamTest, OptimizeWrites) {
     }
 
     // sort the items
-    kvstore->optimizeWrites(items);
+    kvstore->prepareForDeduplication(items);
 
     for (int i = 0; i < 3; i++) {
         EXPECT_EQ(0, keys[i].compare(items[i]->getKey()));

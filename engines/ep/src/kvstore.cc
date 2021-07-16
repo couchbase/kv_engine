@@ -435,7 +435,7 @@ void KVStore::addTimingStats(const AddStatFn& add_stat,
                       c);
 }
 
-void KVStore::optimizeWrites(std::vector<queued_item>& items) {
+void KVStore::prepareForDeduplication(std::vector<queued_item>& items) {
     if (items.empty()) {
         return;
     }

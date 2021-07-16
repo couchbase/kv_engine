@@ -4579,12 +4579,18 @@ TEST_P(STParamPersistentBucketTest,
     });
 }
 
-TEST_P(STParamPersistentBucketTest, AbortDoesNotIncrementOpsDelete) {
+TEST_P(STParamPersistentBucketTest,
+       AbortDoesNotIncrementOpsDelete_FlusherDedupe) {
+    auto flusherDedupe = !store->getOneROUnderlying()
+                                  ->getStorageProperties()
+                                  .hasAutomaticDeduplication();
+    if (!flusherDedupe) {
+        GTEST_SKIP();
+    }
     testAbortDoesNotIncrementOpsDelete(true /*flusherDedup*/);
 }
 
-TEST_P(STParamPersistentBucketTest,
-       AbortDoesNotIncrementOpsDelete_FlusherDedup) {
+TEST_P(STParamPersistentBucketTest, AbortDoesNotIncrementOpsDelete) {
     testAbortDoesNotIncrementOpsDelete(false /*flusherDedup*/);
 }
 

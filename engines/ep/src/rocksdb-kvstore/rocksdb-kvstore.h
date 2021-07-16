@@ -204,7 +204,7 @@ public:
 
     size_t getNumShards();
 
-    void optimizeWrites(std::vector<queued_item>&) {
+    void prepareForDeduplication(std::vector<queued_item>&) {
     }
 
     bool compactDB(std::unique_lock<std::mutex>&,

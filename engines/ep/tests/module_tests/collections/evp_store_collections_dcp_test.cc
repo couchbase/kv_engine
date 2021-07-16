@@ -2763,8 +2763,19 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
 
     // Many events were generated but only 1 is counted as flushed (because of
     // flusher de-dup). The second item flushed is the 'pear' key
-    flushVBucketToDiskIfPersistent(vbid, 1 + 1);
-    flushVBucketToDiskIfPersistent(replicaVB, 1 + 1);
+    auto flusherDedupe = !store->getOneROUnderlying()
+                                  ->getStorageProperties()
+                                  .hasAutomaticDeduplication();
+    auto expected = 1 + 1;
+    if (!flusherDedupe) {
+        expected += 3;
+
+        if (dropAtEnd) {
+            expected++;
+        }
+    }
+    flushVBucketToDiskIfPersistent(vbid, expected);
+    flushVBucketToDiskIfPersistent(replicaVB, expected);
 
     // With or without the de-dup bug, we cannot read the key from the dropped
     // collection because currently in-memory VB::Manifest has the correct
@@ -2852,7 +2863,7 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
             replicaVB));
 
     // Check value in VB before erasure
-    auto expected = 2;
+    expected = 2;
     if (updateItemPath) {
         expected = 1;
     }
@@ -2990,6 +3001,14 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     auto key2 = makeStoredDocKey("apple", target);
 
     auto expectedToFlush = 1;
+
+    auto flusherDedupe = !store->getOneROUnderlying()
+                                  ->getStorageProperties()
+                                  .hasAutomaticDeduplication();
+    if (!flusherDedupe) {
+        expectedToFlush++;
+    }
+
     auto highSeqno = vb->getHighSeqno();
     if (!reproduceUnderflow) {
         expectedToFlush++;
