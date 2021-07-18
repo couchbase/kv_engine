@@ -632,7 +632,7 @@ TEST_F(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
         cm->forceNewCheckpoint();
         flush_vbucket_to_disk(vbid, 0);
         bool newOpenCreated;
-        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated, 999);
+        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated);
     }
 
     // queue a single item into checkpoint
@@ -696,7 +696,7 @@ TEST_F(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
         cm->forceNewCheckpoint();
         flush_vbucket_to_disk(vbid, 0);
         bool newOpenCreated;
-        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated, 999);
+        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated);
     }
 
     store_item(vbid, makeStoredDocKey("key_1"), "value");
@@ -738,7 +738,7 @@ TEST_F(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
         cm->forceNewCheckpoint();
         flush_vbucket_to_disk(vbid, 0);
         bool newOpenCreated;
-        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated, 999);
+        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated);
     }
 
     store_item(vbid, makeStoredDocKey("key_1"), "value");
@@ -785,7 +785,7 @@ TEST_F(CheckpointRemoverEPTest,
         cm->forceNewCheckpoint();
         flush_vbucket_to_disk(vbid, 0);
         bool newOpenCreated;
-        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated, 999);
+        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated);
     }
 
     // expelling will not remove items preceded by an item with the same seqno

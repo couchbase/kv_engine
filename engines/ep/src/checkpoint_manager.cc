@@ -445,7 +445,7 @@ bool CheckpointManager::isCheckpointCreationForHighMemUsage_UNLOCKED(
 }
 
 size_t CheckpointManager::removeClosedUnrefCheckpoints(
-        VBucket& vbucket, bool& newOpenCheckpointCreated, size_t limit) {
+        VBucket& vbucket, bool& newOpenCheckpointCreated) {
     // This function is executed periodically by the non-IO dispatcher.
     size_t numNonMetaItems = 0;
     // Checkpoints in the `unrefCheckpointList` have to be deleted before we
@@ -474,7 +474,6 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
         }
 
         size_t numMetaItems = 0;
-        size_t numCheckpointsRemoved = 0;
         // Iterate through the current checkpoints (from oldest to newest),
         // checking if the checkpoint can be removed.
         // `it` is set to the first checkpoint we want to keep - all earlier
@@ -492,12 +491,6 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
             } else {
                 numNonMetaItems += (*it)->getNumItems();
                 numMetaItems += (*it)->getNumMetaItems();
-                ++numCheckpointsRemoved;
-
-                if (numCheckpointsRemoved >= limit) {
-                    ++it;
-                    break;
-                }
             }
         }
         numItems.fetch_sub(numNonMetaItems + numMetaItems);

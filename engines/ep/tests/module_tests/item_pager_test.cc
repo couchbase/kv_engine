@@ -1880,8 +1880,7 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
     bool newCkptCreated;
     vb->checkpointManager->createNewCheckpoint(true);
     flushVBucketToDiskIfPersistent(vbid, itemCount);
-    vb->checkpointManager->removeClosedUnrefCheckpoints(
-            *vb, newCkptCreated, itemCount * 2);
+    vb->checkpointManager->removeClosedUnrefCheckpoints(*vb, newCkptCreated);
 
     auto& stats = engine->getEpStats();
     // confirm we are now below the low watermark, and can test the item pager

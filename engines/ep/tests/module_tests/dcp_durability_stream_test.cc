@@ -476,6 +476,11 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
                         {} /*abortSeqno*/,
                         vb->lockCollections(key)));
 
+    EXPECT_EQ(
+            2,
+            CheckpointManagerTestIntrospector::public_getCheckpointList(ckptMgr)
+                    .size());
+
     auto expected = 1;
     if (store->getOneROUnderlying()
                 ->getStorageProperties()
@@ -486,7 +491,7 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
 
     // Remove our first checkpoint to backfill the prepare
     bool newCkpt;
-    ckptMgr.removeClosedUnrefCheckpoints(*vb, newCkpt, 2 /*limit*/);
+    EXPECT_EQ(1, ckptMgr.removeClosedUnrefCheckpoints(*vb, newCkpt));
 
     // Should not create a checkpoint
     ASSERT_FALSE(newCkpt);
@@ -707,8 +712,7 @@ void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
     // Need to close the previously existing checkpoints so that we can backfill
     // from disk
     bool newCkpt = false;
-    auto size =
-            mockCkptMgr.removeClosedUnrefCheckpoints(*vb, newCkpt, 5 /*limit*/);
+    auto size = mockCkptMgr.removeClosedUnrefCheckpoints(*vb, newCkpt);
     ASSERT_FALSE(newCkpt);
     ASSERT_EQ(4, size);
 }

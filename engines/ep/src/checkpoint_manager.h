@@ -155,13 +155,9 @@ public:
      * @param newOpenCheckpointCreated the flag indicating if the new open
      * checkpoint was created as a result of running this function.
      * @return the number of non-meta items that are purged from checkpoint
-     * @param limit Max number of checkpoint that can be removed.
-     *     No limit by default, overidden only for testing.
      */
-    size_t removeClosedUnrefCheckpoints(
-            VBucket& vbucket,
-            bool& newOpenCheckpointCreated,
-            size_t limit = std::numeric_limits<size_t>::max());
+    size_t removeClosedUnrefCheckpoints(VBucket& vbucket,
+                                        bool& newOpenCheckpointCreated);
 
     /**
      * Attempt to expel (i.e. eject from memory) items in the oldest checkpoint

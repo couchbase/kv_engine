@@ -757,9 +757,9 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
 
     // Remove the first checkpoint (to force a DCP backfill).
     bool newCkpt = false;
-    ASSERT_EQ(2,
-              vb->checkpointManager->removeClosedUnrefCheckpoints(
-                      *vb, newCkpt, 1));
+    ASSERT_EQ(
+            2,
+            vb->checkpointManager->removeClosedUnrefCheckpoints(*vb, newCkpt));
     ASSERT_FALSE(newCkpt);
     /* State is now:
      *  Disk:
@@ -903,9 +903,9 @@ TEST_P(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     ASSERT_TRUE(route0_1.producer->handleSlowStream(
             vbid, pStream->getCursor().lock().get()));
     bool newCkpt = false;
-    ASSERT_EQ(2,
-              vb->checkpointManager->removeClosedUnrefCheckpoints(
-                      *vb, newCkpt, 1));
+    ASSERT_EQ(
+            2,
+            vb->checkpointManager->removeClosedUnrefCheckpoints(*vb, newCkpt));
     ASSERT_FALSE(newCkpt);
 
     /* State is now:
