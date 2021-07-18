@@ -523,8 +523,6 @@ cb::engine_errc EventuallyPersistentEngine::setCheckpointParam(
             config.setMaxCheckpoints(v);
         } else if (key == "item_num_based_new_chk") {
             config.setItemNumBasedNewChk(cb_stob(val));
-        } else if (key == "keep_closed_chks") {
-            config.setKeepClosedChks(cb_stob(val));
         } else if (key == "checkpoint_memory_ratio") {
             config.setCheckpointMemoryRatio(std::stof(val));
         } else if (key == "checkpoint_memory_recovery_upper_mark") {

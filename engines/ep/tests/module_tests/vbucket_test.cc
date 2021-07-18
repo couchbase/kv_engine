@@ -107,7 +107,6 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
             DEFAULT_CHECKPOINT_ITEMS,
             DEFAULT_MAX_CHECKPOINTS,
             true /*itemNumBasedNewCheckpoint*/,
-            false /*keepClosedCheckpoints*/,
             (vbType == VBType::Persistent ? true
                                           : false) /*persistenceEnabled*/);
 

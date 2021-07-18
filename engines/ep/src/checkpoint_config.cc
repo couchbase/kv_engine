@@ -37,8 +37,6 @@ public:
     void booleanValueChanged(const std::string& key, bool value) override {
         if (key.compare("item_num_based_new_chk") == 0) {
             config.allowItemNumBasedNewCheckpoint(value);
-        } else if (key.compare("keep_closed_chks") == 0) {
-            config.allowKeepClosedCheckpoints(value);
         }
     }
 
@@ -51,7 +49,6 @@ CheckpointConfig::CheckpointConfig()
       checkpointMaxItems(DEFAULT_CHECKPOINT_ITEMS),
       maxCheckpoints(DEFAULT_MAX_CHECKPOINTS),
       itemNumBasedNewCheckpoint(true),
-      keepClosedCheckpoints(false),
       persistenceEnabled(true) { /* empty */
 }
 
@@ -59,13 +56,11 @@ CheckpointConfig::CheckpointConfig(rel_time_t period,
                                    size_t max_items,
                                    size_t max_ckpts,
                                    bool item_based_new_ckpt,
-                                   bool keep_closed_ckpts,
                                    bool persistence_enabled)
     : checkpointPeriod(period),
       checkpointMaxItems(max_items),
       maxCheckpoints(max_ckpts),
       itemNumBasedNewCheckpoint(item_based_new_ckpt),
-      keepClosedCheckpoints(keep_closed_ckpts),
       persistenceEnabled(persistence_enabled) {
 }
 
@@ -75,7 +70,6 @@ CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine& e) {
     checkpointMaxItems = config.getChkMaxItems();
     maxCheckpoints = config.getMaxCheckpoints();
     itemNumBasedNewCheckpoint = config.isItemNumBasedNewChk();
-    keepClosedCheckpoints = config.isKeepClosedChks();
     persistenceEnabled = config.getBucketType() == "persistent";
 }
 
@@ -93,9 +87,6 @@ void CheckpointConfig::addConfigChangeListener(
             std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
     configuration.addValueChangedListener(
             "item_num_based_new_chk",
-            std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
-    configuration.addValueChangedListener(
-            "keep_closed_chks",
             std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
 }
 

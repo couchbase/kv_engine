@@ -198,10 +198,6 @@ Available params for "set":
     item_num_based_new_chk       - true if a new checkpoint can be created based
                                    on.
                                    the number of items in the open checkpoint.
-    keep_closed_chks             - true if we want to keep closed checkpoints in
-                                   memory.
-                                   as long as the current memory usage is below
-                                   high water mark.
     max_checkpoints              - Max number of checkpoints allowed per vbucket.
     checkpoint_memory_ratio      - Max ratio of the bucket quota that can be allocated in checkpoints.
     checkpoint_memory_recovery_upper_mark - Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that triggers attempt of memory releasing from checkpoint.

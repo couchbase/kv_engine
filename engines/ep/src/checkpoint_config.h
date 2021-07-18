@@ -27,7 +27,6 @@ public:
                      size_t max_items,
                      size_t max_ckpts,
                      bool item_based_new_ckpt,
-                     bool keep_closed_ckpts,
                      bool persistence_enabled);
 
     explicit CheckpointConfig(EventuallyPersistentEngine& e);
@@ -46,10 +45,6 @@ public:
 
     bool isItemNumBasedNewCheckpoint() const {
         return itemNumBasedNewCheckpoint;
-    }
-
-    bool canKeepClosedCheckpoints() const {
-        return keepClosedCheckpoints;
     }
 
     bool isPersistenceEnabled() const {
@@ -72,10 +67,6 @@ protected:
         itemNumBasedNewCheckpoint = value;
     }
 
-    void allowKeepClosedCheckpoints(bool value) {
-        keepClosedCheckpoints = value;
-    }
-
     static void addConfigChangeListener(EventuallyPersistentEngine& engine);
 
 private:
@@ -83,18 +74,16 @@ private:
 
     // Period of a checkpoint in terms of time in sec
     rel_time_t checkpointPeriod;
+
     // Number of max items allowed in each checkpoint
     size_t checkpointMaxItems;
+
     // Number of max checkpoints allowed
     size_t maxCheckpoints;
+
     // Flag indicating if a new checkpoint is created once the number of items
-    // in the current
-    // checkpoint is greater than the max number allowed.
+    // in the current checkpoint is greater than the max number allowed.
     bool itemNumBasedNewCheckpoint;
-    // Flag indicating if closed checkpoints should be kept in memory if the
-    // current memory usage
-    // below the high water mark.
-    bool keepClosedCheckpoints;
 
     // Flag indicating if persistence is enabled.
     bool persistenceEnabled;

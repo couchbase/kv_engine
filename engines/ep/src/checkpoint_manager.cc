@@ -473,15 +473,6 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
                     getOpenCheckpointId_UNLOCKED(lh) > oldCkptId;
         }
 
-        if (checkpointConfig.canKeepClosedCheckpoints()) {
-            auto memoryUsed =
-                    static_cast<double>(stats.getEstimatedTotalMemoryUsed());
-            if (memoryUsed < stats.mem_high_wat &&
-                checkpointList.size() <= checkpointConfig.getMaxCheckpoints()) {
-                return 0;
-            }
-        }
-
         size_t numMetaItems = 0;
         size_t numCheckpointsRemoved = 0;
         // Iterate through the current checkpoints (from oldest to newest),
@@ -507,16 +498,6 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
                     ++it;
                     break;
                 }
-
-                if (checkpointConfig.canKeepClosedCheckpoints() &&
-                    (checkpointList.size() - numCheckpointsRemoved) <=
-                            checkpointConfig.getMaxCheckpoints()) {
-                    // Collect unreferenced closed checkpoints until the number
-                    // of checkpoints is
-                    // equal to the number of max checkpoints allowed.
-                    ++it;
-                    break;
-                }
             }
         }
         numItems.fetch_sub(numNonMetaItems + numMetaItems);
@@ -527,7 +508,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
     }
     // Here we have released the lock and unrefCheckpointList is not yet
     // out-of-scope (it will be when this function returns).
-    // Thus, checkpoint memory freeing doen't happen under lock.
+    // Thus, checkpoint memory freeing doesn't happen under lock.
     // That is very important as releasing objects is an expensive operation, so
     // it would have a relevant impact on front-end operations.
     // Also note that this function is O(N), with N being checkpointList.size().

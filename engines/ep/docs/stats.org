@@ -259,10 +259,6 @@ For introductory information on stats within Couchbase, start with the
 | ep_item_num_based_new_chk             | True if the number of items in the      |
 |                                       | current checkpoint plays a role in a    |
 |                                       | new checkpoint creation                 |
-| ep_keep_closed_chks                   | True if we want to keep the closed      |
-|                                       | checkpoints for each vbucket unless     |
-|                                       | the memory usage is above high water    |
-|                                       | mark                                    |
 | ep_max_checkpoints                    | The maximum amount of checkpoints that  |
 |                                       | can be in memory per vbucket            |
 | ep_max_item_size                      | The maximum value size                  |

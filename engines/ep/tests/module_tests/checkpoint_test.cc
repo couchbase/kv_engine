@@ -397,7 +397,6 @@ TEST_P(CheckpointTest, ItemBasedCheckpointCreation) {
                              MIN_CHECKPOINT_ITEMS,
                              /*numCheckpoints*/ 2,
                              /*itemBased*/ true,
-                             /*keepClosed*/ false,
                              persistent() /*persistenceEnabled*/);
     createManager();
 
@@ -560,7 +559,6 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursor) {
                              MIN_CHECKPOINT_ITEMS,
                              /*numCheckpoints*/ 2,
                              /*itemBased*/ true,
-                             /*keepClosed*/ false,
                              persistent() /*persistenceEnabled*/);
     createManager();
 
@@ -619,7 +617,6 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursorLimited) {
                              MIN_CHECKPOINT_ITEMS,
                              /*numCheckpoints*/ 2,
                              /*itemBased*/ true,
-                             /*keepClosed*/ false,
                              persistent() /*persistenceEnabled*/);
     createManager();
 
@@ -662,7 +659,6 @@ TEST_P(CheckpointTest, DiskCheckpointStrictItemLimit) {
                              MIN_CHECKPOINT_ITEMS,
                              /*numCheckpoints*/ 2,
                              /*itemBased*/ true,
-                             /*keepClosed*/ false,
                              persistent() /*persistenceEnabled*/);
     createManager();
 
@@ -706,7 +702,6 @@ TEST_P(CheckpointTest, CursorMovement) {
                              MIN_CHECKPOINT_ITEMS,
                              /*numCheckpoints*/ 2,
                              /*itemBased*/ true,
-                             /*keepClosed*/ false,
                              persistent() /*persistenceEnabled*/);
     createManager();
 
@@ -823,7 +818,6 @@ TEST_P(CheckpointTest, SeqnoAndHLCOrdering) {
                              n_threads * n_items,
                              /*numCheckpoints*/ 2,
                              /*itemBased*/ true,
-                             /*keepClosed*/ false,
                              persistent() /*persistenceEnabled*/);
     createManager();
 
@@ -1389,7 +1383,6 @@ TEST_P(CheckpointTest, DuplicateCheckpointCursorDifferentCheckpoints) {
                              MIN_CHECKPOINT_ITEMS,
                              /*numCheckpoints*/ 2,
                              /*itemBased*/ true,
-                             /*keepClosed*/ false,
                              persistent() /*persistenceEnabled*/);
     createManager();
 
@@ -2042,7 +2035,6 @@ void CheckpointTest::testDoNotExpelIfHaveSameSeqnoAfterMutation() {
                              /*maxItemsInCheckpoint*/ 1,
                              /*numCheckpoints*/ 2,
                              /*itemBased*/ true,
-                             /*keepClosed*/ false,
                              persistent() /*persistenceEnabled*/);
     createManager();
 

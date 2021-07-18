@@ -659,12 +659,6 @@
             "dynamic": true,
             "type": "bool"
         },
-        "keep_closed_chks": {
-            "default": "false",
-            "descr": "True if we want to keep the closed checkpoints for each vbucket unless the memory usage is above high water mark",
-            "dynamic": true,
-            "type": "bool"
-        },
         "connection_manager_interval": {
             "default": "1",
             "descr": "How often connection manager task should be run (in seconds).",
