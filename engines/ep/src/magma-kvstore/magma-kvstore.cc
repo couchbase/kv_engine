@@ -1865,16 +1865,12 @@ std::pair<Status, std::string> MagmaKVStore::processReadLocalDocResult(
 
 std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
         Vbid vbid, const Slice& keySlice) const {
-    Slice valSlice;
-    Magma::FetchBuffer valBuf;
     bool found{false};
     magma::Status retStatus = Status::OK();
     std::string valString;
 
-    auto status =
-            magma->GetLocal(vbid.get(), keySlice, valBuf, valSlice, found);
-    return processReadLocalDocResult(
-            status, vbid, keySlice, valSlice.ToString(), found);
+    auto status = magma->GetLocal(vbid.get(), keySlice, valString, found);
+    return processReadLocalDocResult(status, vbid, keySlice, valString, found);
 }
 
 std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
