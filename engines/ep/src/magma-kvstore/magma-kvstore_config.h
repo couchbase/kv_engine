@@ -103,11 +103,6 @@ public:
     }
     void setMagmaFlusherThreadPercentage(size_t value);
 
-    size_t getNumWriterThreads() const {
-        return numWriterThreads.load();
-    }
-    void setNumWriterThreads(size_t value);
-
     size_t getMagmaMaxDefaultStorageThreads() const {
         return magmaMaxDefaultStorageThreads;
     }
@@ -235,10 +230,6 @@ private:
     // remaining threads will be compactors. Atomic as this can be changed
     // dynamically.
     std::atomic<size_t> magmaFlusherPercentage;
-
-    // Number of KV writer threads. Used to calculate how many storage threads
-    // to create for magma in the default case.
-    std::atomic<size_t> numWriterThreads;
 
     /**
      * Number of threads the storage backend is allowed to run. The "default"

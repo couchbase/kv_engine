@@ -22,6 +22,7 @@
 #include "vb_commit.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
+#include <executor/executorpool.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <nlohmann/json.hpp>
 #include <statistics/cbstat_collector.h>
@@ -2880,7 +2881,7 @@ void MagmaKVStore::calculateAndSetMagmaThreads() {
                 "WriterThreads:{} "
                 "Setting flushers=1",
                 rawBackendThreads,
-                configuration.getNumWriterThreads());
+                ExecutorPool::get()->getNumWriters());
         flushers = 1;
     }
 
@@ -2892,7 +2893,7 @@ void MagmaKVStore::calculateAndSetMagmaThreads() {
                 "WriterThreads:{} "
                 "Setting compactors=1",
                 rawBackendThreads,
-                configuration.getNumWriterThreads());
+                ExecutorPool::get()->getNumWriters());
         compactors = 1;
     }
 
