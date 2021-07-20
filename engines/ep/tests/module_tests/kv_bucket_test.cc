@@ -447,6 +447,7 @@ void KVBucketTest::replaceMagmaKVStore(MagmaKVStoreConfig& config) {
     EXPECT_EQ(engine->getConfiguration().getBucketType(), "persistent");
     EXPECT_EQ(engine->getConfiguration().getBackend(), "magma");
 #ifdef EP_USE_MAGMA
+    store->takeRW(0);
     auto rw = std::make_unique<MockMagmaKVStore>(config);
     store->setRW(0, std::move(rw));
 #endif

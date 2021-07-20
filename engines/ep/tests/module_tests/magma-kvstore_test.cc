@@ -333,6 +333,7 @@ TEST_F(MagmaKVStoreTest, initializeWithHeaderButNoVBState) {
 
     // Recreate the kvstore and the state should equal the default constructed
     // state (and not throw an exception)
+    kvstore.reset();
     kvstore = std::make_unique<MockMagmaKVStore>(*kvstoreConfig);
 
     vbstate = kvstore->getCachedVBucketState(vbid);

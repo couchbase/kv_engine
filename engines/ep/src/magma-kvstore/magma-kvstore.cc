@@ -566,7 +566,9 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     }
 }
 
-MagmaKVStore::~MagmaKVStore() = default;
+MagmaKVStore::~MagmaKVStore() {
+    logger->unregister();
+}
 
 void MagmaKVStore::deinitialize() {
     logger->info("MagmaKVStore: {} deinitializing", configuration.getShardId());

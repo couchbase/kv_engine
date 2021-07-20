@@ -690,13 +690,7 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
     std::vector<Vbid> vbids = {Vbid(0), Vbid(1)};
     uint64_t seqno = 1000;
 
-    // For this test we need to initialize both VBucket 0 and VBucket 1.
-    // In the case of RocksDB we need to release the DB
-    // already opened in 'kvstore'
-    if (kvstoreConfig->getBackend() == "rocksdb") {
-        kvstore.reset();
-    }
-
+    kvstore.reset();
     kvstore = setup_kv_store(*kvstoreConfig, vbids);
 
     // Check our loaded vb stat
