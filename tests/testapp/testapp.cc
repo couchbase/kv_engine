@@ -422,6 +422,8 @@ nlohmann::json TestappTest::generate_config() {
                "SHA256"}}},
             {"ssl_minimum_protocol", "tlsv1"},
             {"threads", 2},
+            {"num_reader_threads", "default"},
+            {"num_writer_threads", "default"},
             {"opcode_attributes_override",
              {{"version", 1},
               {"EWB_CTL", {{"slow", 50}}},

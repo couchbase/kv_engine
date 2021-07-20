@@ -490,34 +490,6 @@ static void settings_init() {
     }
 
     settings.addChangeListener(
-            "num_reader_threads", [](const std::string&, Settings& s) -> void {
-                auto val =
-                        ThreadPoolConfig::ThreadCount(s.getNumReaderThreads());
-                // Update the ExecutorPool
-                ExecutorPool::get()->setNumReaders(val);
-                // Notify all buckets of the recent change
-                BucketManager::instance().forEach(
-                        [val](Bucket& b, void*) -> bool {
-                            b.getEngine().set_num_reader_threads(val);
-                            return true;
-                        },
-                        nullptr);
-            });
-    settings.addChangeListener(
-            "num_writer_threads", [](const std::string&, Settings& s) -> void {
-                auto val =
-                        ThreadPoolConfig::ThreadCount(s.getNumWriterThreads());
-                // Update the ExecutorPool
-                ExecutorPool::get()->setNumWriters(val);
-                // Notify all buckets of the recent change
-                BucketManager::instance().forEach(
-                        [val](Bucket& b, void*) -> bool {
-                            b.getEngine().set_num_writer_threads(val);
-                            return true;
-                        },
-                        nullptr);
-            });
-    settings.addChangeListener(
             "num_storage_threads", [](const std::string&, Settings& s) -> void {
                 auto val = ThreadPoolConfig::StorageThreadCount(
                         s.getNumStorageThreads());
@@ -767,6 +739,49 @@ static void initialize_sasl() {
     }
 }
 
+static void startExecutorPool() {
+    LOG_INFO_RAW("Start executor pool");
+    ExecutorPool::create(ExecutorPool::Backend::Folly,
+                         0,
+                         ThreadPoolConfig::ThreadCount(
+                                 Settings::instance().getNumReaderThreads()),
+                         ThreadPoolConfig::ThreadCount(
+                                 Settings::instance().getNumWriterThreads()));
+    ExecutorPool::get()->registerTaskable(NoBucketTaskable::instance());
+
+    // MB-47484 Set up the settings callback for the executor pool now that
+    // it is up'n'running
+    auto& settings = Settings::instance();
+    settings.addChangeListener(
+            "num_reader_threads", [](const std::string&, Settings& s) -> void {
+                auto val =
+                        ThreadPoolConfig::ThreadCount(s.getNumReaderThreads());
+                // Update the ExecutorPool
+                ExecutorPool::get()->setNumReaders(val);
+                // Notify all buckets of the recent change
+                BucketManager::instance().forEach(
+                        [val](Bucket& b, void*) -> bool {
+                            b.getEngine().set_num_reader_threads(val);
+                            return true;
+                        },
+                        nullptr);
+            });
+    settings.addChangeListener(
+            "num_writer_threads", [](const std::string&, Settings& s) -> void {
+                auto val =
+                        ThreadPoolConfig::ThreadCount(s.getNumWriterThreads());
+                // Update the ExecutorPool
+                ExecutorPool::get()->setNumWriters(val);
+                // Notify all buckets of the recent change
+                BucketManager::instance().forEach(
+                        [val](Bucket& b, void*) -> bool {
+                            b.getEngine().set_num_writer_threads(val);
+                            return true;
+                        },
+                        nullptr);
+            });
+}
+
 int memcached_main(int argc, char** argv) {
     // MB-14649 log() crash on windows on some CPU's
 #ifdef _WIN64
@@ -983,14 +998,7 @@ int memcached_main(int argc, char** argv) {
     initializeTracing(Settings::instance().getPhosphorConfig());
     TRACE_GLOBAL0("memcached", "Started");
 
-    LOG_INFO_RAW("Start executor pool");
-    ExecutorPool::create(ExecutorPool::Backend::Folly,
-                         0,
-                         ThreadPoolConfig::ThreadCount(
-                                 Settings::instance().getNumReaderThreads()),
-                         ThreadPoolConfig::ThreadCount(
-                                 Settings::instance().getNumWriterThreads()));
-    ExecutorPool::get()->registerTaskable(NoBucketTaskable::instance());
+    startExecutorPool();
 
     // Schedule the StaleTraceRemover
     startStaleTraceDumpRemover(std::chrono::minutes(1),
