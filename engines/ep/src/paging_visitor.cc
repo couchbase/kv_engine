@@ -176,7 +176,8 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
 
 void PagingVisitor::visitBucket(const VBucketPtr& vb) {
     update();
-    removeClosedUnrefCheckpoints(*vb);
+
+    vb->checkpointManager->removeClosedUnrefCheckpoints(*vb);
 
     // fast path for expiry item pager
     if (owner == EXPIRY_PAGER) {
@@ -246,7 +247,7 @@ void PagingVisitor::visitBucket(const VBucketPtr& vb) {
     // so we now want to reclaim the memory being used to hold
     // closed and unreferenced checkpoints in the vbucket, before
     // potentially moving to the next vbucket.
-    removeClosedUnrefCheckpoints(*vb);
+    vb->checkpointManager->removeClosedUnrefCheckpoints(*vb);
 }
 
 void PagingVisitor::update() {
@@ -335,14 +336,6 @@ PagingVisitor::getVBucketComparator() const {
         return std::make_pair(isReplica[a.get()], memUsed[a.get()]) >
                std::make_pair(isReplica[b.get()], memUsed[b.get()]);
     };
-}
-
-// Removes checkpoints that are both closed and unreferenced, thereby
-// freeing the associated memory.
-// @param vb  The vbucket whose eligible checkpoints are removed from.
-void PagingVisitor::removeClosedUnrefCheckpoints(VBucket& vb) {
-    size_t removed = vb.checkpointManager->removeClosedUnrefCheckpoints(vb);
-    stats.itemsRemovedFromCheckpoints.fetch_add(removed);
 }
 
 bool PagingVisitor::doEviction(const HashTable::HashBucketLock& lh,

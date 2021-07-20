@@ -497,6 +497,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(VBucket& vb) {
         numMetaItemsRemoved += checkpoint->getNumMetaItems();
     }
     numItems.fetch_sub(numNonMetaItemsRemoved + numMetaItemsRemoved);
+    stats.itemsRemovedFromCheckpoints.fetch_add(numNonMetaItemsRemoved);
 
     return numNonMetaItemsRemoved;
 }

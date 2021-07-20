@@ -128,11 +128,6 @@ protected:
     uint64_t ageThreshold;
 
 private:
-    // Removes checkpoints that are both closed and unreferenced, thereby
-    // freeing the associated memory.
-    // @param vb  The vbucket whose eligible checkpoints are removed from.
-    void removeClosedUnrefCheckpoints(VBucket& vb);
-
     bool doEviction(const HashTable::HashBucketLock& lh, StoredValue* v);
 
     /*
