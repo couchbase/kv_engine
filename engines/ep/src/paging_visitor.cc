@@ -341,18 +341,8 @@ PagingVisitor::getVBucketComparator() const {
 // freeing the associated memory.
 // @param vb  The vbucket whose eligible checkpoints are removed from.
 void PagingVisitor::removeClosedUnrefCheckpoints(VBucket& vb) {
-    bool newCheckpointCreated = false;
-    size_t removed = vb.checkpointManager->removeClosedUnrefCheckpoints(
-            vb, newCheckpointCreated);
+    size_t removed = vb.checkpointManager->removeClosedUnrefCheckpoints(vb);
     stats.itemsRemovedFromCheckpoints.fetch_add(removed);
-    // If the new checkpoint is created, notify this event to the
-    // corresponding paused DCP connections.
-    if (newCheckpointCreated) {
-        store.getEPEngine().getDcpConnMap().notifyVBConnections(
-                vb.getId(),
-                vb.checkpointManager->getHighSeqno(),
-                SyncWriteOperation::No);
-    }
 }
 
 bool PagingVisitor::doEviction(const HashTable::HashBucketLock& lh,

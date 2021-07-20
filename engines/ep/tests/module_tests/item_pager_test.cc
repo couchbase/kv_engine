@@ -632,10 +632,7 @@ TEST_P(STItemPagerTest, test_memory_limit) {
         vb->checkpointManager->createNewCheckpoint();
         // Reflush
         flush_vbucket_to_disk(vbid);
-        bool newCheckpointCreated = false;
-        auto removed = vb->checkpointManager->removeClosedUnrefCheckpoints(
-                *vb, newCheckpointCreated);
-        EXPECT_EQ(1, removed);
+        EXPECT_EQ(1, vb->checkpointManager->removeClosedUnrefCheckpoints(*vb));
     }
 
     // Now set max_size to be mem_used + 10% (we need some headroom)
@@ -1877,10 +1874,9 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
     // us to use a significantly lower quota which reduces test time
     // significantly
     auto vb = store->getVBucket(vbid);
-    bool newCkptCreated;
     vb->checkpointManager->createNewCheckpoint(true);
     flushVBucketToDiskIfPersistent(vbid, itemCount);
-    vb->checkpointManager->removeClosedUnrefCheckpoints(*vb, newCkptCreated);
+    vb->checkpointManager->removeClosedUnrefCheckpoints(*vb);
 
     auto& stats = engine->getEpStats();
     // confirm we are now below the low watermark, and can test the item pager

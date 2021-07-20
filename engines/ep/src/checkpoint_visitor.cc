@@ -30,18 +30,7 @@ CheckpointVisitor::CheckpointVisitor(KVBucketIface* s,
 }
 
 void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
-    bool newCheckpointCreated = false;
-    removed = vb->checkpointManager->removeClosedUnrefCheckpoints(
-            *vb, newCheckpointCreated);
-    // If the new checkpoint is created, notify this event to the
-    // corresponding paused DCP connections.
-    if (newCheckpointCreated) {
-        store->getEPEngine().getDcpConnMap().notifyVBConnections(
-                vb->getId(),
-                vb->checkpointManager->getHighSeqno(),
-                SyncWriteOperation::No);
-    }
-
+    removed = vb->checkpointManager->removeClosedUnrefCheckpoints(*vb);
     stats.itemsRemovedFromCheckpoints.fetch_add(removed);
     if (removed > 0) {
         EP_LOG_DEBUG("Removed {} closed unreferenced checkpoints from {}",

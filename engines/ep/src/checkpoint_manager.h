@@ -149,15 +149,13 @@ public:
     uint64_t getLastClosedCheckpointId();
 
     /**
-     * Remove closed unreferenced checkpoints and return them through the
-     * vector.
-     * @param vbucket the vbucket that this checkpoint manager belongs to.
-     * @param newOpenCheckpointCreated the flag indicating if the new open
-     * checkpoint was created as a result of running this function.
+     * Removes closed unreferenced checkpoints from the checkpoint-list and
+     * frees up their used memory.
+     *
+     * @param vb the vbucket that this checkpoint manager belongs to.
      * @return the number of non-meta items that are purged from checkpoint
      */
-    size_t removeClosedUnrefCheckpoints(VBucket& vbucket,
-                                        bool& newOpenCheckpointCreated);
+    size_t removeClosedUnrefCheckpoints(VBucket& vb);
 
     /**
      * Attempt to expel (i.e. eject from memory) items in the oldest checkpoint

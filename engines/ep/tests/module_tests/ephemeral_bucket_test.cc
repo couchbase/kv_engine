@@ -254,8 +254,7 @@ TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
     // remove the checkpoint containing the set vbstate to get a clean
     // baseline memory usage
     cpm.createNewCheckpoint(true /*force*/);
-    bool newCkptCreated = false;
-    cpm.removeClosedUnrefCheckpoints(replica, newCkptCreated);
+    cpm.removeClosedUnrefCheckpoints(replica);
 
     auto& stats = engine->getEpStats();
     const auto initialMem = stats.replicaCheckpointOverhead;
@@ -320,7 +319,7 @@ TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
     // now remove the checkpoint and confirm the replicaCheckpointOverhead is
     // now back to the initial value.
     cpm.createNewCheckpoint();
-    cpm.removeClosedUnrefCheckpoints(replica, newCkptCreated);
+    cpm.removeClosedUnrefCheckpoints(replica);
 
     EXPECT_EQ(initialMem, stats.replicaCheckpointOverhead);
 
@@ -355,8 +354,7 @@ TEST_F(SingleThreadedEphemeralTest, RangeIteratorVBDeleteRaceTest) {
 
     // make checkpoint to cause backfill later rather than straight to in-memory
     ckpt_mgr.createNewCheckpoint();
-    bool new_ckpt_created;
-    ASSERT_EQ(2, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
+    ASSERT_EQ(2, ckpt_mgr.removeClosedUnrefCheckpoints(*vb));
 
     // Create a Mock Dcp producer
     const std::string testName("test_producer");
@@ -510,8 +508,7 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
             *(static_cast<MockCheckpointManager*>(vb.checkpointManager.get()));
     ASSERT_EQ(2, ckptMgr.getNumCheckpoints());
     ckptMgr.createNewCheckpoint();
-    bool newCkptCreated;
-    ckptMgr.removeClosedUnrefCheckpoints(vb, newCkptCreated);
+    ckptMgr.removeClosedUnrefCheckpoints(vb);
     ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
 
     // Create producer and stream, enable SyncRepl

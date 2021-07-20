@@ -490,11 +490,10 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
     flushVBucketToDiskIfPersistent(vbid, expected);
 
     // Remove our first checkpoint to backfill the prepare
-    bool newCkpt;
-    EXPECT_EQ(1, ckptMgr.removeClosedUnrefCheckpoints(*vb, newCkpt));
-
-    // Should not create a checkpoint
-    ASSERT_FALSE(newCkpt);
+    const auto openCkptId = ckptMgr.getOpenCheckpointId();
+    ASSERT_EQ(1, ckptMgr.removeClosedUnrefCheckpoints(*vb));
+    // No new checkpoint created
+    ASSERT_EQ(openCkptId, ckptMgr.getOpenCheckpointId());
 
     // Test that we actually dropped the checkpoint by number of items
     ASSERT_EQ(2, ckptMgr.getNumItems());
@@ -711,9 +710,10 @@ void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
 
     // Need to close the previously existing checkpoints so that we can backfill
     // from disk
-    bool newCkpt = false;
-    auto size = mockCkptMgr.removeClosedUnrefCheckpoints(*vb, newCkpt);
-    ASSERT_FALSE(newCkpt);
+    const auto openCkptId = mockCkptMgr.getOpenCheckpointId();
+    auto size = mockCkptMgr.removeClosedUnrefCheckpoints(*vb);
+    // No new checkpoint created
+    ASSERT_EQ(openCkptId, mockCkptMgr.getOpenCheckpointId());
     ASSERT_EQ(4, size);
 }
 
@@ -5663,12 +5663,10 @@ void DurabilityActiveStreamTest::removeCheckpoint(VBucket& vb, int numItems) {
     // flush to move the persistence cursor
     flushVBucketToDiskIfPersistent(vb.getId(), 0);
 
-    bool new_ckpt_created = false;
     int itemsRemoved = 0;
 
     while (true) {
-        auto removed =
-                ckpt_mgr.removeClosedUnrefCheckpoints(vb, new_ckpt_created);
+        auto removed = ckpt_mgr.removeClosedUnrefCheckpoints(vb);
         itemsRemoved += removed;
 
         if (itemsRemoved >= numItems || !removed) {

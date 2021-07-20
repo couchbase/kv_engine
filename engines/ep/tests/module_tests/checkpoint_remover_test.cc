@@ -412,11 +412,10 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
             task->isReductionInCheckpointMemoryNeeded();
     EXPECT_TRUE(shouldReduceMemory);
 
-    bool newOpenCheckpointCreated;
-    manager->removeClosedUnrefCheckpoints(*vb, newOpenCheckpointCreated);
+    manager->removeClosedUnrefCheckpoints(*vb);
 
     task->run();
-    manager->removeClosedUnrefCheckpoints(*vb, newOpenCheckpointCreated);
+    manager->removeClosedUnrefCheckpoints(*vb);
 
     std::tie(shouldReduceMemory, amountOfMemoryToClear) =
             task->isReductionInCheckpointMemoryNeeded();
@@ -631,8 +630,7 @@ TEST_F(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
         // clear out the first checkpoint containing a set vbstate
         cm->forceNewCheckpoint();
         flush_vbucket_to_disk(vbid, 0);
-        bool newOpenCreated;
-        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated);
+        cm->removeClosedUnrefCheckpoints(*vb);
     }
 
     // queue a single item into checkpoint
@@ -695,8 +693,7 @@ TEST_F(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
         // clear out the first checkpoint containing a set vbstate
         cm->forceNewCheckpoint();
         flush_vbucket_to_disk(vbid, 0);
-        bool newOpenCreated;
-        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated);
+        cm->removeClosedUnrefCheckpoints(*vb);
     }
 
     store_item(vbid, makeStoredDocKey("key_1"), "value");
@@ -737,8 +734,7 @@ TEST_F(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
         // clear out the first checkpoint containing a set vbstate
         cm->forceNewCheckpoint();
         flush_vbucket_to_disk(vbid, 0);
-        bool newOpenCreated;
-        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated);
+        cm->removeClosedUnrefCheckpoints(*vb);
     }
 
     store_item(vbid, makeStoredDocKey("key_1"), "value");
@@ -784,8 +780,7 @@ TEST_F(CheckpointRemoverEPTest,
         // clear out the first checkpoint containing a set vbstate
         cm->forceNewCheckpoint();
         flush_vbucket_to_disk(vbid, 0);
-        bool newOpenCreated;
-        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated);
+        cm->removeClosedUnrefCheckpoints(*vb);
     }
 
     // expelling will not remove items preceded by an item with the same seqno

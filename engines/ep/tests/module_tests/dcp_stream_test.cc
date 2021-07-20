@@ -1302,10 +1302,8 @@ protected:
         /* Wait for removal of the old checkpoint, this also would imply that
          * the items are persisted (in case of persistent buckets) */
         {
-            bool new_ckpt_created;
             std::chrono::microseconds uSleepTime(128);
-            while (numItems != ckpt_mgr.removeClosedUnrefCheckpoints(
-                                       *vb0, new_ckpt_created)) {
+            while (numItems != ckpt_mgr.removeClosedUnrefCheckpoints(*vb0)) {
                 uSleepTime = decayingSleep(uSleepTime);
             }
         }
@@ -1693,8 +1691,7 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
 
     flushVBucketToDiskIfPersistent(vbid, 3);
 
-    bool newCKptCreated;
-    ASSERT_EQ(3, ckptMgr.removeClosedUnrefCheckpoints(*vb, newCKptCreated));
+    ASSERT_EQ(3, ckptMgr.removeClosedUnrefCheckpoints(*vb));
 
     // Re-create producer now we have items only on disk.
     setupProducer();
@@ -1778,8 +1775,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillDeletedVBucket) {
         flushVBucketToDiskIfPersistent(vbid, 2);
 
         // Close the now unreferenced checkpoint so DCP stream must go to disk.
-        bool newCKptCreated;
-        ASSERT_EQ(2, ckptMgr.removeClosedUnrefCheckpoints(*vb, newCKptCreated));
+        ASSERT_EQ(2, ckptMgr.removeClosedUnrefCheckpoints(*vb));
     }
 
     auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
@@ -1847,8 +1843,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
         // new checkpoint, flushing the (now-closed) one and removing it.
         ckptMgr.createNewCheckpoint();
         flushVBucketToDiskIfPersistent(vbid, 2);
-        bool newCKptCreated;
-        ASSERT_EQ(2, ckptMgr.removeClosedUnrefCheckpoints(*vb, newCKptCreated));
+        ASSERT_EQ(2, ckptMgr.removeClosedUnrefCheckpoints(*vb));
     }
 
     // Re-create producer now we have items only on disk, setting a scan buffer
@@ -1982,10 +1977,9 @@ TEST_P(SingleThreadedActiveStreamTest, MB36146) {
 
     ckptMgr.runGetItemsHook = [this, &ckptMgr](const CheckpointCursor* cursor,
                                                Vbid vbid) {
-        bool newCheckpoint = false;
         EXPECT_EQ(1,
                   ckptMgr.removeClosedUnrefCheckpoints(
-                          *engine->getVBucket(vbid), newCheckpoint));
+                          *engine->getVBucket(vbid)));
         size_t numberOfItemsInCursor = 0;
         EXPECT_NO_THROW(numberOfItemsInCursor =
                                 ckptMgr.getNumItemsForCursor(cursor));
@@ -3154,8 +3148,7 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
     ckptMgr.createNewCheckpoint();
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    bool newCKptCreated;
-    ASSERT_EQ(1, ckptMgr.removeClosedUnrefCheckpoints(*vb, newCKptCreated));
+    ASSERT_EQ(1, ckptMgr.removeClosedUnrefCheckpoints(*vb));
 
     // Re-create producer now we have items only on disk. We want to stream up
     // to seqno 1 (our only item) to test that we get the StreamEnd message.
@@ -3846,8 +3839,7 @@ TEST_P(SingleThreadedActiveStreamTest, NoValueStreamBackfillsFullSystemEvent) {
     // Ensure backfill
     manager.createNewCheckpoint();
     flushVBucketToDiskIfPersistent(vbid, 2);
-    bool newCkptCreated;
-    EXPECT_EQ(2, manager.removeClosedUnrefCheckpoints(vb, newCkptCreated));
+    EXPECT_EQ(2, manager.removeClosedUnrefCheckpoints(vb));
     ASSERT_EQ(1, list.size());
     ASSERT_EQ(0, manager.getNumOpenChkItems());
 
@@ -3911,8 +3903,7 @@ protected:
 
         flushVBucketToDiskIfPersistent(vbid, 3);
 
-        bool newCKptCreated;
-        ASSERT_EQ(3, ckptMgr.removeClosedUnrefCheckpoints(*vb, newCKptCreated));
+        ASSERT_EQ(3, ckptMgr.removeClosedUnrefCheckpoints(*vb));
 
         // Re-create the stream now we have items only on disk.
         stream = producer->mockActiveStreamRequest(0 /*flags*/,
@@ -4258,9 +4249,10 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillRangeCoversAllDataInTheStorage) {
     manager.createNewCheckpoint();
     flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
     ASSERT_EQ(2, list.size());
-    bool newCkptCreated;
-    EXPECT_EQ(2, manager.removeClosedUnrefCheckpoints(vb, newCkptCreated));
-    EXPECT_FALSE(newCkptCreated);
+    const auto openCkptId = manager.getOpenCheckpointId();
+    ASSERT_EQ(2, manager.removeClosedUnrefCheckpoints(vb));
+    // No new checkpoint created
+    ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
     ASSERT_EQ(1, list.size());
     ASSERT_EQ(0, manager.getNumOpenChkItems());
 
@@ -4357,9 +4349,10 @@ TEST_P(SingleThreadedActiveStreamTest, MB_45757) {
     manager.createNewCheckpoint();
     flushVBucketToDiskIfPersistent(vbid, 1 /*expected_num_flushed*/);
     ASSERT_EQ(2, list.size());
-    bool newCkptCreated;
-    EXPECT_EQ(1, manager.removeClosedUnrefCheckpoints(vb, newCkptCreated));
-    EXPECT_FALSE(newCkptCreated);
+    const auto openCkptId = manager.getOpenCheckpointId();
+    ASSERT_EQ(1, manager.removeClosedUnrefCheckpoints(vb));
+    // No new checkpoint created
+    ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
     ASSERT_EQ(1, list.size());
     ASSERT_EQ(0, manager.getNumOpenChkItems());
 

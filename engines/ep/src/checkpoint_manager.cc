@@ -444,8 +444,7 @@ bool CheckpointManager::isCheckpointCreationForHighMemUsage_UNLOCKED(
     return forceCreation;
 }
 
-size_t CheckpointManager::removeClosedUnrefCheckpoints(
-        VBucket& vbucket, bool& newOpenCheckpointCreated) {
+size_t CheckpointManager::removeClosedUnrefCheckpoints(VBucket& vb) {
     // This function is executed periodically by the non-IO dispatcher.
 
     // We need to acquire the CM lock for extracting checkpoints from the
@@ -461,16 +460,12 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
              checkpointList.front()->isNoCursorsInCheckpoint())) {
             canCreateNewCheckpoint = true;
         }
-        if (vbucket.getState() == vbucket_state_active &&
-            canCreateNewCheckpoint) {
+        if (vb.getState() == vbucket_state_active && canCreateNewCheckpoint) {
             bool forceCreation =
-                    isCheckpointCreationForHighMemUsage_UNLOCKED(lh, vbucket);
+                    isCheckpointCreationForHighMemUsage_UNLOCKED(lh, vb);
             // Check if this master active vbucket needs to create a new open
             // checkpoint.
-            const auto oldCkptId = getOpenCheckpointId_UNLOCKED(lh);
             checkOpenCheckpoint_UNLOCKED(lh, forceCreation, true);
-            newOpenCheckpointCreated =
-                    getOpenCheckpointId_UNLOCKED(lh) > oldCkptId;
         }
 
         // Iterate through the current checkpoints (from oldest to newest),

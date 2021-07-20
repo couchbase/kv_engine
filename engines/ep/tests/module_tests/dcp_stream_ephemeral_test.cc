@@ -168,9 +168,10 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_NormalWrite) {
     // Steps to ensure backfill when we re-create the stream in the following
     manager.createNewCheckpoint();
     ASSERT_EQ(2, list.size());
-    bool newCkptCreated;
-    EXPECT_EQ(1, manager.removeClosedUnrefCheckpoints(vb, newCkptCreated));
-    EXPECT_FALSE(newCkptCreated);
+    const auto openCkptId = manager.getOpenCheckpointId();
+    ASSERT_EQ(1, manager.removeClosedUnrefCheckpoints(vb));
+    // No new checkpoint created
+    ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
     ASSERT_EQ(1, list.size());
     ASSERT_EQ(0, manager.getNumOpenChkItems());
 
@@ -274,12 +275,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
     // Steps to ensure backfill when we re-create the stream in the following
     manager.createNewCheckpoint();
     ASSERT_EQ(3, list.size());
-    // Note: I'm not making assertions on the result of 'newCkptCreated' as that
-    // that is also time-bound so it differs on slow/fast builds. The important
-    // thing here is that we remove checkpoints for triggering backfill, so the
-    // checkpoint-list size check is the important bit.
-    bool newCkptCreated;
-    EXPECT_EQ(3, manager.removeClosedUnrefCheckpoints(vb, newCkptCreated));
+    EXPECT_EQ(3, manager.removeClosedUnrefCheckpoints(vb));
     ASSERT_EQ(1, list.size());
     ASSERT_EQ(0, manager.getNumOpenChkItems());
 

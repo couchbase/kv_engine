@@ -381,15 +381,13 @@ BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
                        &numCkptRemoverRuns,
                        &bgDone]() {
         tg.threadUp();
-        bool newOpenCheckpointCreated;
         while (true) {
             // Simulate the Flusher, this makes the per-iteration num of
             // checkpoints eligible for removal (last/open checkpoint excluded).
             std::vector<queued_item> items;
             ckptMgr->getItemsForPersistence(items, numCkptToRemovePerIteration);
 
-            numUnrefItems += ckptMgr->removeClosedUnrefCheckpoints(
-                    *vb, newOpenCheckpointCreated);
+            numUnrefItems += ckptMgr->removeClosedUnrefCheckpoints(*vb);
             numCkptRemoverRuns++;
 
             // Break when all but the last item (in last checkpoint) is removed

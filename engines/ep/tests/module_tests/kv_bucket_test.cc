@@ -245,12 +245,10 @@ void KVBucketTest::removeCheckpoint(VBucket& vb, int numItems) {
     // flush to move the persistence cursor
     flushVBucketToDiskIfPersistent(vb.getId(), 0);
 
-    bool new_ckpt_created = false;
     int itemsRemoved = 0;
 
     while (true) {
-        auto removed =
-                ckpt_mgr.removeClosedUnrefCheckpoints(vb, new_ckpt_created);
+        auto removed = ckpt_mgr.removeClosedUnrefCheckpoints(vb);
         itemsRemoved += removed;
 
         if (itemsRemoved >= numItems || !removed) {
@@ -268,8 +266,7 @@ void KVBucketTest::flushAndRemoveCheckpoints(Vbid vbid) {
 
     dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
 
-    bool new_ckpt_created = false;
-    ckpt_mgr.removeClosedUnrefCheckpoints(vb, new_ckpt_created);
+    ckpt_mgr.removeClosedUnrefCheckpoints(vb);
 }
 
 void KVBucketTest::flushAndExpelFromCheckpoints(Vbid vbid) {

@@ -1244,14 +1244,12 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
 
     // Next we to ensure the recreated stream really does a backfill, so drop
     // in-memory items
-    bool newcp;
     vb->checkpointManager->createNewCheckpoint();
     // Force persistence into new CP
     queueNewItem(*vb, "key2");
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
               getEPBucket().flushVBucket(vbid));
-    EXPECT_EQ(1,
-              vb->checkpointManager->removeClosedUnrefCheckpoints(*vb, newcp));
+    EXPECT_EQ(1, vb->checkpointManager->removeClosedUnrefCheckpoints(*vb));
 
     // Now store another item, without MB-29369 fix we would lose this item
     store_item(vbid, makeStoredDocKey("key3"), "value");
@@ -1400,7 +1398,6 @@ void MB22960callbackBeforeRegisterCursor(
     // on the first, so that it can test what happens when checkpoints are
     // moved forward during a backfill.
     if (registerCursorCount == 0) {
-        bool new_ckpt_created;
         auto& ckpt_mgr =
                 *(static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
 
@@ -1438,8 +1435,7 @@ void MB22960callbackBeforeRegisterCursor(
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
         // Now remove the earlier checkpoint
-        EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(
-                *vb, new_ckpt_created));
+        EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb));
         EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
@@ -1468,8 +1464,7 @@ void MB22960callbackBeforeRegisterCursor(
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
         // Now remove the earlier checkpoint
-        EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(
-                *vb, new_ckpt_created));
+        EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb));
         EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
     }
@@ -1561,8 +1556,7 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
     EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
 
     // can't remove checkpoint because of DCP stream.
-    bool new_ckpt_created;
-    EXPECT_EQ(0, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
+    EXPECT_EQ(0, ckpt_mgr.removeClosedUnrefCheckpoints(*vb));
     EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
 
     mock_stream->handleSlowStream();
@@ -1578,7 +1572,7 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
     // checkpoint, so we can now remove the 2 closed checkpoints
     EXPECT_EQ(1,
               ckpt_mgr.getCheckpointList().back()->getNumCursorsInCheckpoint());
-    EXPECT_EQ(2, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
+    EXPECT_EQ(2, ckpt_mgr.removeClosedUnrefCheckpoints(*vb));
     EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
 
     //schedule a backfill
@@ -1714,8 +1708,7 @@ TEST_P(STParamPersistentBucketTest,
     ckpt_mgr.createNewCheckpoint();
 
     // Remove the first checkpoint
-    bool new_ckpt_created;
-    ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created);
+    ckpt_mgr.removeClosedUnrefCheckpoints(*vb);
 
     // Add a second item and flush to bucket
     auto item2 = make_item(vbid, makeStoredDocKey("key2"), "value");
@@ -2044,8 +2037,7 @@ TEST_P(STParamPersistentBucketTest, MB19892_BackfillNotDeleted) {
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
               getEPBucket().flushVBucket(vbid));
 
-    bool new_ckpt_created;
-    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
+    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb));
 
     // Create a DCP producer, and start a stream request.
     std::string name{"test_producer"};
@@ -2414,8 +2406,7 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
               getEPBucket().flushVBucket(vbid));
 
-    bool new_ckpt_created;
-    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
+    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb));
     vb.reset();
 
     EXPECT_EQ(0, lpAuxioQ->getFutureQueueSize());
@@ -3297,8 +3288,7 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
     mock_stream->handleSlowStream();
 
     // remove the previous checkpoint to force a backfill
-    bool new_ckpt_created = false;
-    auto removed = ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created);
+    auto removed = ckpt_mgr.removeClosedUnrefCheckpoints(*vb);
     EXPECT_EQ(2, removed);
 
     // Kick the stream into backfill
@@ -3366,13 +3356,11 @@ TEST_P(STParamPersistentBucketTest, MB_29512) {
 
     // 3) Force all memory items out so DCP will definitely go to disk and
     //    not memory.
-    bool newcp;
     vb->checkpointManager->createNewCheckpoint();
     // Force persistence into new CP
     store_item(vbid, makeStoredDocKey("k3"), "k3");
     flush_vbucket_to_disk(vbid, 1);
-    EXPECT_EQ(2,
-              vb->checkpointManager->removeClosedUnrefCheckpoints(*vb, newcp));
+    EXPECT_EQ(2, vb->checkpointManager->removeClosedUnrefCheckpoints(*vb));
 
     // 4) Stream request picking up where we left off.
     uint64_t rollbackSeqno = 0;

@@ -756,11 +756,11 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
     EXPECT_EQ(cb::engine_errc::success, storeSet("d"));
 
     // Remove the first checkpoint (to force a DCP backfill).
-    bool newCkpt = false;
-    ASSERT_EQ(
-            2,
-            vb->checkpointManager->removeClosedUnrefCheckpoints(*vb, newCkpt));
-    ASSERT_FALSE(newCkpt);
+    auto& manager = *vb->checkpointManager;
+    const auto openCkptId = manager.getOpenCheckpointId();
+    ASSERT_EQ(2, manager.removeClosedUnrefCheckpoints(*vb));
+    // No new checkpoint created
+    ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
     /* State is now:
      *  Disk:
      *      1:PRE(a), 2:CMT(a), 3:SET(b)
@@ -902,11 +902,11 @@ TEST_P(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
             route0_1.producer->findStream(vbid).get());
     ASSERT_TRUE(route0_1.producer->handleSlowStream(
             vbid, pStream->getCursor().lock().get()));
-    bool newCkpt = false;
-    ASSERT_EQ(
-            2,
-            vb->checkpointManager->removeClosedUnrefCheckpoints(*vb, newCkpt));
-    ASSERT_FALSE(newCkpt);
+    auto& manager = *vb->checkpointManager;
+    const auto openCkptId = manager.getOpenCheckpointId();
+    ASSERT_EQ(2, manager.removeClosedUnrefCheckpoints(*vb));
+    // No new checkpoint created
+    ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
 
     /* State is now:
      *  Disk:

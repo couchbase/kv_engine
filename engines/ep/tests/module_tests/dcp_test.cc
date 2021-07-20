@@ -319,12 +319,10 @@ void DCPTest::removeCheckpoint(int numItems) {
 
     /* Wait for removal of the old checkpoint, this also would imply that
        the items are persisted (in case of persistent buckets) */
-    bool new_ckpt_created;
     std::chrono::microseconds uSleepTime(128);
     int itemsRemoved = 0;
     while (true) {
-        itemsRemoved +=
-                ckpt_mgr.removeClosedUnrefCheckpoints(*vb0, new_ckpt_created);
+        itemsRemoved += ckpt_mgr.removeClosedUnrefCheckpoints(*vb0);
         if (itemsRemoved >= numItems) {
             break;
         }
