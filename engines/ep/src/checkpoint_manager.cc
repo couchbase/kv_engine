@@ -447,12 +447,12 @@ bool CheckpointManager::isCheckpointCreationForHighMemUsage_UNLOCKED(
 size_t CheckpointManager::removeClosedUnrefCheckpoints(
         VBucket& vbucket, bool& newOpenCheckpointCreated) {
     // This function is executed periodically by the non-IO dispatcher.
-    size_t numNonMetaItems = 0;
-    // Checkpoints in the `unrefCheckpointList` have to be deleted before we
-    // return from this function. With smart pointers, deletion happens when
-    // `unrefCheckpointList` goes out of scope (i.e., when this function
-    // returns).
-    CheckpointList unrefCheckpointList;
+
+    // We need to acquire the CM lock for extracting checkpoints from the
+    // CheckpointList. But the actual deallocation must be lock-free, as it is
+    // an expensive operation that has been already proven to degrade frontend
+    // throughput if performed under lock.
+    CheckpointList toRelease;
     {
         std::lock_guard<std::mutex> lh(queueLock);
         bool canCreateNewCheckpoint = false;
@@ -473,7 +473,6 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
                     getOpenCheckpointId_UNLOCKED(lh) > oldCkptId;
         }
 
-        size_t numMetaItems = 0;
         // Iterate through the current checkpoints (from oldest to newest),
         // checking if the checkpoint can be removed.
         // `it` is set to the first checkpoint we want to keep - all earlier
@@ -488,25 +487,23 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
             // in it.
             if ((*it)->getNumCursorsInCheckpoint() > 0) {
                 break;
-            } else {
-                numNonMetaItems += (*it)->getNumItems();
-                numMetaItems += (*it)->getNumMetaItems();
             }
         }
-        numItems.fetch_sub(numNonMetaItems + numMetaItems);
-        unrefCheckpointList.splice(unrefCheckpointList.begin(),
-                                   checkpointList,
-                                   checkpointList.begin(),
-                                   it);
+        toRelease.splice(
+                toRelease.begin(), checkpointList, checkpointList.begin(), it);
     }
-    // Here we have released the lock and unrefCheckpointList is not yet
-    // out-of-scope (it will be when this function returns).
-    // Thus, checkpoint memory freeing doesn't happen under lock.
-    // That is very important as releasing objects is an expensive operation, so
-    // it would have a relevant impact on front-end operations.
-    // Also note that this function is O(N), with N being checkpointList.size().
+    // CM lock released here
 
-    return numNonMetaItems;
+    // Update stats and compute return value
+    size_t numNonMetaItemsRemoved = 0;
+    size_t numMetaItemsRemoved = 0;
+    for (const auto& checkpoint : toRelease) {
+        numNonMetaItemsRemoved += checkpoint->getNumItems();
+        numMetaItemsRemoved += checkpoint->getNumMetaItems();
+    }
+    numItems.fetch_sub(numNonMetaItemsRemoved + numMetaItemsRemoved);
+
+    return numNonMetaItemsRemoved;
 }
 
 CheckpointManager::ExpelResult
