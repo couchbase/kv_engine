@@ -80,7 +80,12 @@ const std::string globalBucketLoggerName = "globalBucketLogger";
  * is registered correctly. BucketLoggers must be registered to ensure that
  * their verbosity can be changed at runtime. Spdlog provides a registry which
  * we can use to do so, however one exists per dynamically linked library. To
- * keep code simple we use only the registry within the logging library.
+ * keep code simple we use only the registry within the logging library. As the
+ * spdlog registry deals in shared_ptr<spdlog::logger>'s we can't rely on the
+ * destructor of the BucketLogger to unregister the logger from the spdlog
+ * registry on destruction of the copy held for our own purposes; as such we
+ * must call unregister() on the BucketLogger before destruction to avoid
+ * leaking the BucketLogger.
  */
 class BucketLogger : public spdlog::logger {
 public:

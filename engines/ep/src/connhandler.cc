@@ -92,6 +92,7 @@ ConnHandler::~ConnHandler() {
             totalCount,
             cb::time2text(totalDuration),
             std::string_view{buf.data(), buf.size()});
+    logger->unregister();
 }
 
 cb::engine_errc ConnHandler::addStream(uint32_t opaque, Vbid, uint32_t flags) {

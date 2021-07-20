@@ -14,6 +14,7 @@
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_stream.h"
+#include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "dcp/consumer.h"
 #include "dcp/response.h"
@@ -22,6 +23,7 @@
 #include "kv_bucket.h"
 
 #include <programs/engine_testapp/mock_cookie.h>
+#include <spdlog/spdlog.h>
 
 class STDcpTest : public STParameterizedBucketTest {
 protected:
@@ -1064,6 +1066,19 @@ TEST_P(STDcpTest, MB_45863) {
     EXPECT_FALSE(producer->findStream(vbid));
     mockConnMap.disconnect(cookie);
     mockConnMap.manageConnections();
+}
+
+TEST_P(STDcpTest, ConnHandlerLoggerRegisterUnregister) {
+    std::string loggerName;
+    {
+        auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                          cookie,
+                                                          "test_producer",
+                                                          /*flags*/ 0);
+        loggerName = producer->getLogger().name();
+        EXPECT_TRUE(spdlog::get(loggerName));
+    }
+    EXPECT_FALSE(spdlog::get(loggerName));
 }
 
 INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
