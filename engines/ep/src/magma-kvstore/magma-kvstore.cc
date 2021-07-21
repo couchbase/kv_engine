@@ -2983,3 +2983,9 @@ Status MagmaDbStats::Unmarshal(const std::string& encoded) {
 
     return Status::OK();
 }
+
+std::unique_ptr<TransactionContext> MagmaKVStore::begin(
+        Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) {
+    inTransaction = true;
+    return std::make_unique<TransactionContext>(vbid, std::move(pcb));
+}

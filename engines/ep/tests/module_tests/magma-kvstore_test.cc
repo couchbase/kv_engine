@@ -71,9 +71,8 @@ TEST_F(MagmaKVStoreRollbackTest, Rollback) {
     uint64_t seqno = 1;
 
     for (int i = 0; i < 2; i++) {
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         for (int j = 0; j < 5; j++) {
             auto key = makeStoredDocKey("key" + std::to_string(seqno));
             auto qi = makeCommittedItem(key, "value");
@@ -115,9 +114,8 @@ TEST_F(MagmaKVStoreRollbackTest, RollbackNoValidCheckpoint) {
     // Create maxCheckpoints+2 checkpoints
     // Magma may internally retain +1 additional checkpoint for crash recovery
     for (int i = 0; i < int(maxCheckpoints) + 2; i++) {
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         for (int j = 0; j < 5; j++) {
             auto key = makeStoredDocKey("key" + std::to_string(seqno));
             auto qi = makeCommittedItem(key, "value");
@@ -246,9 +244,7 @@ TEST_F(MagmaKVStoreTest, setMaxDataSize) {
     uint64_t seqno{1};
 
     // Magma's memory quota is recalculated on each commit batch.
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");
     qi->setBySeqno(seqno++);
     kvstore->set(*ctx, qi);
@@ -262,9 +258,7 @@ TEST_F(MagmaKVStoreTest, setMaxDataSize) {
     kvstore->setMaxDataSize(memQuota / 10);
 
     // Magma's memory quota is recalculated on each commit batch.
-    ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     qi->setBySeqno(seqno++);
     kvstore->set(*ctx, qi);
     kvstore->commit(*ctx, flush);
@@ -279,12 +273,11 @@ TEST_F(MagmaKVStoreTest, setMaxDataSize) {
 }
 
 TEST_F(MagmaKVStoreTest, badSetRequest) {
-    auto tc = std::make_unique<TransactionContext>(
-            Vbid(0), std::make_unique<MockPersistenceCallback>());
+    auto tc = kvstore->begin(Vbid(0),
+                             std::make_unique<MockPersistenceCallback>());
     auto& mockPersistenceCallback =
             dynamic_cast<MockPersistenceCallback&>(*tc->cb);
 
-    kvstore->begin(*tc);
     auto key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
@@ -302,12 +295,11 @@ TEST_F(MagmaKVStoreTest, badSetRequest) {
 }
 
 TEST_F(MagmaKVStoreTest, badDelRequest) {
-    auto tc = std::make_unique<TransactionContext>(
-            Vbid(0), std::make_unique<MockPersistenceCallback>());
+    auto tc = kvstore->begin(Vbid(0),
+                             std::make_unique<MockPersistenceCallback>());
     auto& mockPersistenceCallback =
             dynamic_cast<MockPersistenceCallback&>(*tc->cb);
 
-    kvstore->begin(*tc);
     auto key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);

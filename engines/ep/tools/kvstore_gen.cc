@@ -119,9 +119,7 @@ int main(int argc, char** argv) {
     std::vector<StoredDocKey> keys;
     // Populate vBucket with N documents
     const std::string key = "key";
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     for (uint64_t i = 0; i < totalDocs; i++) {
         keys.emplace_back(key + std::to_string(i), CollectionID::Default);
         auto value = makeRandomString(docSize);
@@ -142,9 +140,7 @@ int main(int argc, char** argv) {
     int updates = 0;
     auto keyIt = keys.begin();
     for (uint64_t c = 0; c < numCommits; c++) {
-        ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         for (uint64_t u = 0; u < updatesPerCommit; u++) {
             auto value = makeRandomString(docSize);
             queued_item qi{new Item(*keyIt, 0, 0, value.data(), value.size())};

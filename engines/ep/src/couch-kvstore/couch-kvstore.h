@@ -390,6 +390,9 @@ public:
      */
     static CollectionID getCollectionIdFromStatsDocId(std::string_view id);
 
+    std::unique_ptr<TransactionContext> begin(
+            Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) override;
+
 protected:
     /**
      * RAII holder for a couchstore LocalDoc object

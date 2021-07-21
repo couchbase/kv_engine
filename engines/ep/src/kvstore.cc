@@ -481,11 +481,6 @@ void KVStore::delSystemEvent(TransactionContext& txnCtx,
     del(txnCtx, item);
 }
 
-bool KVStore::begin(TransactionContext& txCtx) {
-    inTransaction = true;
-    return inTransaction;
-}
-
 std::string to_string(KVStore::FlushStateDeletion state) {
     switch (state) {
     case KVStore::FlushStateDeletion::Delete:

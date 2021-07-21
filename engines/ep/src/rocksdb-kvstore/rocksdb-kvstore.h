@@ -324,6 +324,9 @@ public:
 
     const KVStoreConfig& getConfig() const override;
 
+    std::unique_ptr<TransactionContext> begin(
+            Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) override;
+
 protected:
     // Write a batch of updates to the given database; measuring the time
     // taken and adding the timer to the commit histogram.

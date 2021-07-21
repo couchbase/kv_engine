@@ -69,9 +69,7 @@ TEST_F(CouchKVStoreTest, StatsTest) {
     auto kvstore = setup_kv_store(config);
 
     // Perform a transaction with a single mutation (set) in it.
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     const std::string key{"key"};
     const std::string value{"value"};
     kvstore->set(*ctx, makeCommittedItem(makeStoredDocKey(key), value));
@@ -108,9 +106,7 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     auto kvstore = setup_kv_store(config);
 
     // Perform a transaction with a single mutation (set) in it.
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     const std::string key{"key"};
     const std::string value{"value"};
     kvstore->set(*ctx, makeCommittedItem(makeStoredDocKey(key), value));
@@ -268,9 +264,7 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(
 
     // Test setup, create a new file
     auto kvstore = setup_kv_store(config1);
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
 
     for (int i = 0; i < keys; i++) {
         // key needs to look like it's in the default collection so we can flush
@@ -285,9 +279,7 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(
 
     kvstore->commit(*ctx, flush);
 
-    ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
 
     // Now delete keys (if requested). Alternate between value and no-value
     // (like xattr)
@@ -393,9 +385,8 @@ TEST_F(CouchKVStoreTest, OpenHistoricalSnapshot) {
     auto kvstore = setup_kv_store(config);
 
     for (int ii = 1; ii < 5; ++ii) {
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         auto key = makeStoredDocKey("mykey");
         const std::string value = std::to_string(ii);
         std::unique_ptr<Item> item =
@@ -537,9 +528,8 @@ protected:
 
     void populate_items(size_t count) {
         generate_items(count);
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         for (const auto& item : items) {
             kvstore->set(*ctx, item);
         }
@@ -627,9 +617,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, initializeWithHeaderButNoVBState) {
 TEST_F(CouchKVStoreErrorInjectionTest, openDB_retry_open_db_ex) {
     generate_items(1);
 
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->set(*ctx, items.front());
     {
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
@@ -655,9 +643,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, openDB_retry_open_db_ex) {
 TEST_F(CouchKVStoreErrorInjectionTest, openDB_open_db_ex) {
     generate_items(1);
 
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->set(*ctx, items.front());
     {
         /* Establish Logger expectation */
@@ -683,9 +669,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, openDB_open_db_ex) {
 TEST_F(CouchKVStoreErrorInjectionTest, commit_save_documents) {
     generate_items(1);
 
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->set(*ctx, items.front());
     {
         /* Establish Logger expectation */
@@ -711,9 +695,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_save_documents) {
 TEST_F(CouchKVStoreErrorInjectionTest, commit_save_local_document) {
     generate_items(1);
 
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->set(*ctx, items.front());
     {
         /* Establish Logger expectation */
@@ -740,9 +722,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_save_local_document) {
 TEST_F(CouchKVStoreErrorInjectionTest, commit_commit) {
     generate_items(1);
 
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->set(*ctx, items.front());
     {
         /* Establish Logger expectation */
@@ -994,9 +974,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count1) {
     generate_items(6);
 
     for (const auto& item : items) {
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         kvstore->set(*ctx, item);
         kvstore->commit(*ctx, flush);
     }
@@ -1027,9 +1006,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
     generate_items(6);
 
     for (const auto& item : items) {
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         kvstore->set(*ctx, item);
         kvstore->commit(*ctx, flush);
     }
@@ -1062,9 +1040,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
     generate_items(6);
 
     for (const auto& item : items) {
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         kvstore->set(*ctx, item);
         kvstore->commit(*ctx, flush);
     }
@@ -1095,9 +1072,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
     generate_items(6);
 
     for (const auto& item : items) {
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         // Commit a valid vbstate
         flush.proposedVBState.lastSnapEnd = item->getBySeqno();
         kvstore->set(*ctx, item);
@@ -1189,9 +1165,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
     generate_items(6);
 
     for (const auto& item : items) {
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         kvstore->set(*ctx, item);
         kvstore->commit(*ctx, flush);
     }
@@ -1199,9 +1174,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
     {
         generate_items(1);
 
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         kvstore->set(*ctx, items.front());
         {
             /* Establish Logger expectation */
@@ -1371,9 +1345,8 @@ public:
         auto qi = makePendingItem(storedDocKey, value);
         qi->setBySeqno(seqno);
 
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         kvstore->del(*ctx, qi);
         VB::Commit commit(manifest);
         commit.proposedVBState = kvstore->getPersistedVBucketState(vbid);
@@ -1386,9 +1359,8 @@ public:
         qi->setBySeqno(seqno);
         qi->setAbortSyncWrite();
 
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         kvstore->del(*ctx, qi);
         VB::Commit commit(manifest);
         commit.proposedVBState = kvstore->getPersistedVBucketState(vbid);
@@ -1400,9 +1372,8 @@ public:
     }
 
     void flushItem(queued_item item) {
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         kvstore->set(*ctx, item);
 
         // The collections flush data doesn't get reset after a commit (it
@@ -1498,9 +1469,7 @@ private:
 TEST_F(CouchstoreTest, noMeta) {
     StoredDocKey key = makeStoredDocKey("key");
     auto item = makeCommittedItem(key, "value");
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     auto* request = kvstore->setAndReturnRequest(item);
 
     // Now directly mess with the metadata of the value which will be written
@@ -1516,9 +1485,7 @@ TEST_F(CouchstoreTest, noMeta) {
 TEST_F(CouchstoreTest, shortMeta) {
     StoredDocKey key = makeStoredDocKey("key");
     auto item = makeCommittedItem(key, "value");
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     auto* request = kvstore->setAndReturnRequest(item);
 
     // Now directly mess with the metadata of the value which will be written
@@ -1543,9 +1510,7 @@ TEST_F(CouchstoreTest, testV0MetaThings) {
                                             PROTOCOL_BINARY_RAW_BYTES,
                                             0xf00fcafe11225566ull));
 
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->set(*ctx, item);
     kvstore->commit(*ctx, flush);
 
@@ -1573,9 +1538,7 @@ TEST_F(CouchstoreTest, testV1MetaThings) {
                                             datatype,
                                             0xf00fcafe11225566ull));
     EXPECT_NE(0, datatype); // make sure we writing non-zero
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->set(*ctx, item);
     kvstore->commit(*ctx, flush);
 
@@ -1593,9 +1556,7 @@ TEST_F(CouchstoreTest, testV1MetaThings) {
 TEST_F(CouchstoreTest, fuzzV1) {
     StoredDocKey key = makeStoredDocKey("key");
     auto item = makeCommittedItem(key, "value");
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     auto* request = kvstore->setAndReturnRequest(item);
 
     // Now directly mess with the metadata of the value which will be written
@@ -1643,9 +1604,7 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
     meta.ext2 = datatype;
     meta.legacyDeleted = 0x01;
 
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     auto* request = kvstore->setAndReturnRequest(item);
 
     // Force the meta to be V2 (19 bytes)
@@ -2037,9 +1996,8 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushing) {
     int64_t seqno = 1;
     for (int ii = 0; ii < 5; ++ii) {
         StoredDocKey key = makeStoredDocKey("key-" + std::to_string(ii));
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         kvstore->set(
                 *ctx,
                 queued_item{std::make_unique<Item>(key,
@@ -2058,9 +2016,8 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushing) {
     kvstore->setConcurrentCompactionPostLockHook([&ii, &seqno, this](
                                                          const std::string&) {
         StoredDocKey key = makeStoredDocKey("concurrent-" + std::to_string(ii));
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         kvstore->set(
                 *ctx,
                 queued_item{std::make_unique<Item>(key,
@@ -2098,9 +2055,8 @@ TEST_F(CouchstoreTest, MB_39946_diskSize_could_underflow) {
     auto doWrite = [&seqno, &value, items, this](const std::string&) {
         for (int ii = 0; ii < items; ++ii) {
             StoredDocKey key = makeStoredDocKey("key-" + std::to_string(ii));
-            auto ctx = std::make_unique<TransactionContext>(
-                    vbid, std::make_unique<PersistenceCallback>());
-            kvstore->begin(*ctx);
+            auto ctx = kvstore->begin(vbid,
+                                      std::make_unique<PersistenceCallback>());
             queued_item qi;
             qi = makeCommittedItem(key, value);
 
@@ -2138,9 +2094,8 @@ TEST_F(CouchstoreTest, MB_39946_diskSize_could_underflow) {
         qi->setBySeqno(seqno++);
         qi->setDeleted();
         qi->replaceValue({});
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         kvstore->del(*ctx, qi);
         kvstore->commit(*ctx, flush); // Would throw for underflow
     }
@@ -2156,9 +2111,7 @@ TEST_F(CouchstoreTest, MB_39946_diskSize_could_underflow) {
 ///           the same vbucket while it is running.
 TEST_F(CouchstoreTest, MB43121) {
     StoredDocKey key = makeStoredDocKey("mykey");
-    auto txnCtx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*txnCtx);
+    auto txnCtx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->set(
             *txnCtx,
             queued_item{std::make_unique<Item>(
@@ -2353,9 +2306,7 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPreparePurgeToPrepare) {
     dummy->setBySeqno(2);
 
     // And set the PCS so that the compactor tries to drop the prepare at 1
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->set(*ctx, dummy);
     flush.proposedVBState = kvstore->getPersistedVBucketState(vbid);
     flush.proposedVBState.persistedCompletedSeqno = 1;
@@ -2428,9 +2379,7 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareCompleteToAbort) {
     //    prepare from step 1 eligible for purging
     auto dummy = makeCommittedItem(makeStoredDocKey("dummy"), "dummy");
     dummy->setBySeqno(2);
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->set(*ctx, dummy);
 
     // And set the PCS so that the compactor tries to drop the prepare at 1

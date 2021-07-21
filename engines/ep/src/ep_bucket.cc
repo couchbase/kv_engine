@@ -412,15 +412,8 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     std::optional<snapshot_range_t> range;
     KVStore* rwUnderlying = getRWUnderlying(vb->getId());
 
-    auto ctx = std::make_unique<TransactionContext>(
-            vb->getId(), std::make_unique<EPPersistenceCallback>(stats, *vb));
-    while (!rwUnderlying->begin(*ctx)) {
-        ++stats.beginFailed;
-        EP_LOG_WARN_RAW(
-                "Failed to start a transaction!!! "
-                "Retry in 1 sec ...");
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
+    auto ctx = rwUnderlying->begin(
+            vbid, std::make_unique<EPPersistenceCallback>(stats, *vb));
 
     bool mustDedupe =
             !rwUnderlying->getStorageProperties().hasAutomaticDeduplication();

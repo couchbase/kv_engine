@@ -1908,3 +1908,9 @@ vbucket_state RocksDBKVStore::getPersistedVBucketState(Vbid vbid) {
 
     return state.vbstate;
 }
+
+std::unique_ptr<TransactionContext> RocksDBKVStore::begin(
+        Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) {
+    inTransaction = true;
+    return std::make_unique<TransactionContext>(vbid, std::move(pcb));
+}

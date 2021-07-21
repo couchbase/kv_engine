@@ -660,14 +660,12 @@ public:
     /**
      * Begin a transaction (if not already in one).
      *
-     * @param txCtx A transaction context to associate with this transaction.
-     *        The context will be passed to each operations' completion
-     *        callback, so this can be used to hold state common to the entire
-     *        transaction without having to duplicate it in every Callback.
-     *
-     * @return false if we cannot begin a transaction
+     * @param vbid Vbucket to flush to
+     * @param pcb PersistenceCallback to be invoked for each item persisted.
+     * @return TransactionContext appropriate for the given KVStore
      */
-    bool begin(TransactionContext& txCtx);
+    virtual std::unique_ptr<TransactionContext> begin(
+            Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) = 0;
 
     /**
      * Commit a transaction (unless not currently in one).

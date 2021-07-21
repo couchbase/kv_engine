@@ -4325,3 +4325,9 @@ std::optional<DbHolder> CouchKVStore::openOrCreate(Vbid vbid) noexcept {
 
     return std::move(db);
 }
+
+std::unique_ptr<TransactionContext> CouchKVStore::begin(
+        Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) {
+    inTransaction = true;
+    return std::make_unique<TransactionContext>(vbid, std::move(pcb));
+}

@@ -137,9 +137,7 @@ public:
 
 // Rocks doesn't support returning compressed values.
 TEST_P(KVStoreParamTestSkipRocks, CompressedTest) {
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
 
     for (int i = 1; i <= 5; i++) {
         std::string key("key" + std::to_string(i));
@@ -184,9 +182,7 @@ MATCHER(IsValueValid,
 // Check that when deleted docs with no value are fetched from disk, they
 // do not have snappy bit set (zero length should not be compressed).
 TEST_P(KVStoreParamTestSkipRocks, ZeroSizeValueNotCompressed) {
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
 
     auto qi = makeDeletedItem(makeStoredDocKey("key"));
     qi->setBySeqno(1);
@@ -306,9 +302,7 @@ public:
 
 // Test basic set / get of a document
 TEST_P(KVStoreParamTest, BasicTest) {
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     StoredDocKey key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
@@ -322,9 +316,7 @@ TEST_P(KVStoreParamTest, BasicTest) {
 
 // Test different modes of get()
 TEST_P(KVStoreParamTest, GetModes) {
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     StoredDocKey key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
@@ -397,9 +389,7 @@ TEST_P(KVStoreParamTest, GetRangeMissNumGetFailure) {
 }
 
 TEST_P(KVStoreParamTest, SaveDocsHisto) {
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     StoredDocKey key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
@@ -424,9 +414,7 @@ TEST_P(KVStoreParamTest, SaveDocsHisto) {
 }
 
 TEST_P(KVStoreParamTest, BatchSizeHisto) {
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     StoredDocKey key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
@@ -446,9 +434,7 @@ TEST_P(KVStoreParamTest, BatchSizeHisto) {
 }
 
 TEST_P(KVStoreParamTest, DocsCommittedStat) {
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     StoredDocKey key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
@@ -461,9 +447,7 @@ TEST_P(KVStoreParamTest, DocsCommittedStat) {
 }
 
 void KVStoreParamTest::testBgFetchDocsReadGet(bool deleted) {
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     StoredDocKey key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
@@ -628,9 +612,7 @@ TEST_P(KVStoreParamTest,
 }
 
 queued_item KVStoreParamTest::storeDocument(bool deleted) {
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     StoredDocKey key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "valuevaluevaluevaluevalue");
     qi->setBySeqno(1);
@@ -646,13 +628,11 @@ queued_item KVStoreParamTest::storeDocument(bool deleted) {
 }
 
 TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
-    auto tc = std::make_unique<TransactionContext>(
-            Vbid(0), std::make_unique<MockPersistenceCallback>());
+    auto tc = kvstore->begin(Vbid(0),
+                             std::make_unique<MockPersistenceCallback>());
     auto mutationStatus = KVStore::FlushStateMutation::Insert;
     auto& mockPersistenceCallback =
             dynamic_cast<MockPersistenceCallback&>(*tc->cb);
-
-    kvstore->begin(*tc);
 
     // Expect that the SET callback will not be called just after `set`
     EXPECT_CALL(mockPersistenceCallback, setCallback(_, mutationStatus))
@@ -678,18 +658,15 @@ TEST_P(KVStoreParamTestSkipRocks, TestPersistenceCallbacksForDel) {
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
 
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->set(*ctx, qi);
     kvstore->commit(*ctx, flush);
 
-    auto tc = std::make_unique<TransactionContext>(
-            Vbid(0), std::make_unique<MockPersistenceCallback>());
+    auto tc = kvstore->begin(Vbid(0),
+                             std::make_unique<MockPersistenceCallback>());
     auto& mockPersistenceCallback =
             dynamic_cast<MockPersistenceCallback&>(*tc->cb);
 
-    kvstore->begin(*tc);
     // Expect that the DEL callback will not be called just after `del`
     auto status = KVStore::FlushStateDeletion::Delete;
     EXPECT_CALL(mockPersistenceCallback, deleteCallback(_, status)).Times(0);
@@ -717,9 +694,8 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
 
     // Store an item into each VBucket
     for (auto vbid : vbids) {
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         auto key = makeStoredDocKey("key-" + std::to_string(vbid.get()));
         auto qi = makeCommittedItem(key, value);
         qi->setBySeqno(seqno++);
@@ -743,9 +719,7 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
 
 /// Verify that deleting a vBucket while a Scan is open is handled correctly.
 TEST_P(KVStoreParamTest, DelVBucketWhileScanning) {
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
 
     // Store some documents.
     for (int i = 1; i <= 5; i++) {
@@ -824,9 +798,8 @@ TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
     auto set = [&] {
         int64_t seqno = 1;
         while (!stop.load()) {
-            auto ctx = std::make_unique<TransactionContext>(
-                    vbid, std::make_unique<PersistenceCallback>());
-            kvstore->begin(*ctx);
+            auto ctx = kvstore->begin(vbid,
+                                      std::make_unique<PersistenceCallback>());
             auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");
             qi->setBySeqno(seqno++);
             kvstore->set(*ctx, qi);
@@ -900,9 +873,8 @@ TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
 // the current view of the fileMap causing scan to fail.
 TEST_P(KVStoreParamTest, CompactAndScan) {
     for (int i = 1; i < 10; i++) {
-        auto ctx = std::make_unique<TransactionContext>(
-                vbid, std::make_unique<PersistenceCallback>());
-        kvstore->begin(*ctx);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         auto key = makeStoredDocKey(std::string(i, 'k'));
         auto qi = makeCommittedItem(key, "value");
         qi->setBySeqno(i);
@@ -963,9 +935,7 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
     // Upsert an item 10 times in a single transaction (we want to test that
     // the VBucket state is updated with the highest seqno found in a commit
     // batch)
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     for (int i = 1; i <= 10; i++) {
         auto qi = makeCommittedItem(key, value);
         qi->setBySeqno(i);
@@ -982,9 +952,7 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
 
 void KVStoreParamTest::testGetRange(ValueFilter filter) {
     // Setup: store 5 keys, a, b, c, d, e (with matching values)
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     int64_t seqno = 1;
     for (char k = 'a'; k < 'f'; k++) {
         auto item = makeCommittedItem(makeStoredDocKey({k}),
@@ -1047,9 +1015,7 @@ TEST_P(KVStoreParamTest, GetRangeKeys) {
 TEST_P(KVStoreParamTest, GetRangeDeleted) {
     // Setup: 1) store 8 keys, a, b, c, d, e, f, g (with matching values)
     //        2) delete 3 of them (b, d, f)
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     int64_t seqno = 1;
     for (char k = 'a'; k < 'h'; k++) {
         auto item = makeCommittedItem(makeStoredDocKey({k}),
@@ -1059,9 +1025,7 @@ TEST_P(KVStoreParamTest, GetRangeDeleted) {
     }
     kvstore->commit(*ctx, flush);
 
-    ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     for (char k = 'b'; k < 'g'; k += 2) {
         auto item = makeCommittedItem(makeStoredDocKey({k}),
                                       "value_"s + std::string{k});
@@ -1091,9 +1055,7 @@ TEST_P(KVStoreParamTest, Durability_PersistPrepare) {
     auto qi = makePendingItem(key, "value");
     qi->setBySeqno(1);
 
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->set(*ctx, qi);
     kvstore->commit(*ctx, flush);
 
@@ -1114,9 +1076,7 @@ TEST_P(KVStoreParamTest, Durability_PersistAbort) {
     qi->setPrepareSeqno(999);
     qi->setBySeqno(1);
 
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->del(*ctx, qi);
     kvstore->commit(*ctx, flush);
 
@@ -1156,9 +1116,7 @@ TEST_P(KVStoreParamTest, GetItemCount) {
     ASSERT_EQ(0, kvstore->getItemCount(vbid));
 
     // Setup: store 3 keys, a, b, c
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     int64_t seqno = 1;
     for (char k = 'a'; k <= 'c'; k++) {
         auto item = makeCommittedItem(makeStoredDocKey({k}), "value");
@@ -1177,9 +1135,7 @@ TEST_P(KVStoreParamTest, GetItemCountInvalidVBucket) {
 }
 
 TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     int keys = 20;
     for (int i = 0; i < keys; i++) {
         std::string key("key" + std::to_string(i));
@@ -1208,9 +1164,7 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsNoStats) {
 
 TEST_P(KVStoreParamTestSkipRocks, GetCollectionStats) {
     CollectionID cid;
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     int64_t seqno = 1;
     auto item = makeCommittedItem(makeStoredDocKey("mykey", cid), "value");
     item->setBySeqno(seqno++);
@@ -1261,9 +1215,7 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsFailed) {
     }
 
     CollectionID cid;
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     int64_t seqno = 1;
     auto item = makeCommittedItem(makeStoredDocKey("mykey", cid), "value");
     item->setBySeqno(seqno++);
@@ -1320,9 +1272,7 @@ private:
 TEST_P(KVStoreParamTest, reuseSeqIterator) {
     uint64_t seqno = 1;
 
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     for (int j = 0; j < 2; j++) {
         auto key = makeStoredDocKey("key" + std::to_string(j));
         auto qi = makeCommittedItem(key, "value");
@@ -1350,9 +1300,7 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
     kvstore->scan(*scanCtx);
     ASSERT_EQ(callback->nItems, 1);
 
-    ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     for (int j = 0; j < 2; j++) {
         auto key = makeStoredDocKey("key" + std::to_string(j));
         auto qi = makeCommittedItem(key, "value");
@@ -1385,9 +1333,7 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
 // currently doesn't set the purge seqno correctly and is hence skipped.
 TEST_P(KVStoreParamTestSkipRocks, purgeSeqnoAfterCompaction) {
     uint64_t seqno = 1;
-    auto ctx = std::make_unique<TransactionContext>(
-            vbid, std::make_unique<PersistenceCallback>());
-    kvstore->begin(*ctx);
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     auto key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(seqno++);
