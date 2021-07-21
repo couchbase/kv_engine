@@ -425,13 +425,19 @@ bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
     return true;
 }
 
-bool CheckpointManager::isCheckpointCreationForHighMemUsage_UNLOCKED(
+bool CheckpointManager::isCheckpointCreationForHighMemUsage(
         const std::lock_guard<std::mutex>& lh, const VBucket& vbucket) {
     bool forceCreation = false;
     auto memoryUsed = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
 
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
 
+    // @todo: This function is broken as CM::cursor tracks all cursors, the
+    // persistence (and backup) one included. So:
+    // -> allCursorsInOpenCheckpoint = false, always
+    // -> forceCreation = false, always
+    // This will be fixed within MB-47386.
+    //
     // pesistence and conn cursors are all currently in the open checkpoint?
     bool allCursorsInOpenCheckpoint =
             (cursors.size() + 1) == openCkpt.getNumCursorsInCheckpoint();
@@ -454,19 +460,8 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(VBucket& vb) {
     CheckpointList toRelease;
     {
         std::lock_guard<std::mutex> lh(queueLock);
-        bool canCreateNewCheckpoint = false;
-        if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
-            (checkpointList.size() == checkpointConfig.getMaxCheckpoints() &&
-             checkpointList.front()->isNoCursorsInCheckpoint())) {
-            canCreateNewCheckpoint = true;
-        }
-        if (vb.getState() == vbucket_state_active && canCreateNewCheckpoint) {
-            bool forceCreation =
-                    isCheckpointCreationForHighMemUsage_UNLOCKED(lh, vb);
-            // Check if this master active vbucket needs to create a new open
-            // checkpoint.
-            checkOpenCheckpoint_UNLOCKED(lh, forceCreation, true);
-        }
+
+        maybeCreateNewCheckpoint(lh, vb);
 
         // Iterate through the current checkpoints (from oldest to newest),
         // checking if the checkpoint can be removed.
@@ -1627,4 +1622,22 @@ FlushHandle::~FlushHandle() {
     }
     // Flush-success path
     manager.removeBackupPersistenceCursor();
+}
+
+void CheckpointManager::maybeCreateNewCheckpoint(
+        const std::lock_guard<std::mutex>& lh, VBucket& vb) {
+    // Only the active can shape the CheckpointList
+    if (vb.getState() != vbucket_state_active) {
+        return;
+    }
+
+    if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
+        (checkpointList.size() == checkpointConfig.getMaxCheckpoints() &&
+         checkpointList.front()->isNoCursorsInCheckpoint())) {
+        // CM state pre-conditions allow creating a new checkpoint.
+
+        // Create a new checkpoint if required.
+        const auto forceCreation = isCheckpointCreationForHighMemUsage(lh, vb);
+        checkOpenCheckpoint_UNLOCKED(lh, forceCreation, true);
+    }
 }

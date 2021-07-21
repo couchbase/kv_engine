@@ -650,7 +650,7 @@ protected:
 
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
 
-    bool isCheckpointCreationForHighMemUsage_UNLOCKED(
+    bool isCheckpointCreationForHighMemUsage(
             const std::lock_guard<std::mutex>& lh, const VBucket& vbucket);
 
     void resetCursors();
@@ -658,6 +658,16 @@ protected:
     queued_item createCheckpointItem(uint64_t id,
                                      Vbid vbid,
                                      queue_op checkpoint_op);
+
+    /**
+     * Checks if the CM state pre-conditions for creating a new checkpoint are
+     * met and proceeds trying creating a new checkpoint.
+     *
+     * @param lh Lock to CM mutex
+     * @param vb Ref to the vbucket owning this CM
+     */
+    void maybeCreateNewCheckpoint(const std::lock_guard<std::mutex>& lh,
+                                  VBucket& vb);
 
     CheckpointList checkpointList;
     EPStats                 &stats;
