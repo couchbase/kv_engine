@@ -420,7 +420,7 @@ int main(int argc, char** argv) {
     cb::logger::createConsoleLogger();
     ::testing::InitGoogleTest(&argc, argv);
     // required for gethostname(); normally called by memcached's main()
-    cb_initialize_sockets();
+    cb::net::initialize();
 
     int cmd;
     while ((cmd = getopt(argc, argv, "e:")) != EOF) {

@@ -105,8 +105,7 @@ int main(int argc, char** argv) {
     bool allBuckets = false;
     std::vector<std::string> buckets;
 
-    /* Initialize the socket subsystem */
-    cb_initialize_sockets();
+    cb::net::initialize();
 
     struct option long_options[] = {
             {"ipv4", no_argument, nullptr, '4'},

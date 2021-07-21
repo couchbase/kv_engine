@@ -95,8 +95,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    // Initialize the socket subsystem (needed on win32)
-    cb_initialize_sockets();
+    cb::net::initialize();
 
     try {
         in_port_t port;

@@ -1341,7 +1341,7 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
-    cb_initialize_sockets();
+    cb::net::initialize();
     try {
         cb::backtrace::initialize();
     } catch (const std::exception& e) {

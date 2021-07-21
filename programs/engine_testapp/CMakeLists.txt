@@ -45,5 +45,6 @@ target_link_libraries(engine_testapp_dependencies INTERFACE
                       ep
                       ewouldblock_engine
                       nobucket
+                      cbsocket
                       ${COUCHBASE_NETWORK_LIBS})
 add_sanitizers(engine_testapp)

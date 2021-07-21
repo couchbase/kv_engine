@@ -403,8 +403,7 @@ int main(int argc, char** argv) {
     std::string streamIdFileName;
     uint32_t streamRequestFlags = DCP_ADD_STREAM_FLAG_LATEST;
 
-    /* Initialize the socket subsystem */
-    cb_initialize_sockets();
+    cb::net::initialize();
 
     const int valueOptionId = 1;
     const int streamIdOptionId = 2;

@@ -817,9 +817,7 @@ int memcached_main(int argc, char** argv) {
     setup_libevent_locking();
 
     initialize_openssl();
-
-    /* Initialize the socket subsystem */
-    cb_initialize_sockets();
+    cb::net::initialize();
 
     /* init settings */
     settings_init();

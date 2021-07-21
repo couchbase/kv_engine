@@ -158,8 +158,7 @@ int main(int argc, char** argv) {
     sa_family_t family = AF_UNSPEC;
     bool secure = false;
 
-    // Initialize the socket subsystem
-    cb_initialize_sockets();
+    cb::net::initialize();
 
     struct option long_options[] = {
             {"ipv4", no_argument, nullptr, '4'},

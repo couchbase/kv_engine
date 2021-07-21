@@ -510,7 +510,7 @@ int main(int argc, char **argv) {
 
     setupWindowsDebugCRTAssertHandling();
     cb::logger::createConsoleLogger();
-    cb_initialize_sockets();
+    cb::net::initialize();
 
     auto limit = cb::io::maximizeFileDescriptors(1024);
     if (limit < 1024) {

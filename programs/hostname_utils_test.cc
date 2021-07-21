@@ -17,7 +17,7 @@
 class HostnameUtilsTest : public ::testing::Test {
 protected:
     static void SetUpTestCase() {
-        cb_initialize_sockets();
+        cb::net::initialize();
     }
 };
 

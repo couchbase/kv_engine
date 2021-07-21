@@ -200,8 +200,7 @@ static unsigned long strtoul(const char* arg) {
 int main(int argc, char** argv) {
     // Make sure that we dump callstacks on the console
     install_backtrace_terminate_handler();
-    // Initialize the socket subsystem
-    cb_initialize_sockets();
+    cb::net::initialize();
 
     int cmd;
     std::string port{"11210"};

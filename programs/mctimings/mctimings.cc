@@ -420,8 +420,7 @@ int main(int argc, char** argv) {
     bool json = false;
     std::vector<std::string> extraArgs;
 
-    /* Initialize the socket subsystem */
-    cb_initialize_sockets();
+    cb::net::initialize();
 
     std::vector<option> long_options{
             {{"ipv4", no_argument, nullptr, '4'},

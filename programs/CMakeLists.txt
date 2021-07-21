@@ -9,6 +9,7 @@ cb_add_test_executable(memcached-hostutils-test
                $<TARGET_OBJECTS:mc_program_utils>)
 kv_enable_pch(memcached-hostutils-test)
 target_link_libraries(memcached-hostutils-test PRIVATE
+                      cbsocket
                       platform
                       gtest
                       gtest_main)

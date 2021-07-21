@@ -21,7 +21,7 @@
 
 int main(int argc, char** argv) {
     setupWindowsDebugCRTAssertHandling();
-    cb_initialize_sockets();
+    cb::net::initialize();
 
 #if defined(EVTHREAD_USE_WINDOWS_THREADS_IMPLEMENTED)
     const auto failed = evthread_use_windows_threads() == -1;

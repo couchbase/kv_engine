@@ -428,9 +428,10 @@ static void pools_callback(struct evhttp_request* req, void*) {
 
 int main(int argc, char** argv) {
     install_backtrace_terminate_handler();
+    cb::net::initialize();
+
     bool failed;
 #if defined(EVTHREAD_USE_WINDOWS_THREADS_IMPLEMENTED)
-    cb_initialize_sockets();
     failed = evthread_use_windows_threads() == -1;
 #elif defined(EVTHREAD_USE_PTHREADS_IMPLEMENTED)
     failed = evthread_use_pthreads() == -1;
