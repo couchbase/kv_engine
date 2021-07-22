@@ -15,6 +15,7 @@
 #include "collections/eraser_context.h"
 #include "collections/kvstore.h"
 #include "kvstore_fwd.h"
+#include "persistence_callback.h"
 #include "utilities/testing_hook.h"
 
 #include <memcached/engine_common.h>
@@ -41,7 +42,6 @@ class EPStats;
 class Item;
 class KVStore;
 class KVStoreConfig;
-class PersistenceCallback;
 class RollbackCB;
 class RollbackResult;
 class VBucket;

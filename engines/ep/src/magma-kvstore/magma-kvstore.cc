@@ -234,6 +234,22 @@ MagmaKVStore::MagmaCompactionCB::~MagmaCompactionCB() {
     magmaKVStore.logger->debug("MagmaCompactionCB destructor");
 }
 
+struct MagmaKVStoreTransactionContext : public TransactionContext {
+    MagmaKVStoreTransactionContext(Vbid vbid,
+                                   std::unique_ptr<PersistenceCallback> cb)
+        : TransactionContext(vbid, std::move(cb)) {
+    }
+    /**
+     * Container for pending Magma requests.
+     *
+     * Using deque as as the expansion behaviour is less aggressive compared to
+     * std::vector (MagmaRequest objects are ~176 bytes in size).
+     */
+    using PendingRequestQueue = std::deque<MagmaRequest>;
+
+    PendingRequestQueue pendingReqs;
+};
+
 bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                                       const magma::Slice& keySlice,
                                       const magma::Slice& metaSlice,
@@ -416,7 +432,6 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
 MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     : KVStore(),
       configuration(configuration),
-      pendingReqs(std::make_unique<PendingRequestQueue>()),
       magmaPath(configuration.getDBName() + "/magma." +
                 std::to_string(configuration.getShardId())),
       scanCounter(0),
@@ -602,7 +617,8 @@ bool MagmaKVStore::commit(TransactionContext& txnCtx, VB::Commit& commitData) {
         return true;
     }
 
-    if (pendingReqs->size() == 0) {
+    auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(txnCtx);
+    if (ctx.pendingReqs.size() == 0) {
         inTransaction = false;
         return true;
     }
@@ -611,17 +627,17 @@ bool MagmaKVStore::commit(TransactionContext& txnCtx, VB::Commit& commitData) {
     bool success = true;
 
     // Flush all documents to disk
-    auto errCode = saveDocs(txnCtx, commitData, kvctx);
+    auto errCode = saveDocs(ctx, commitData, kvctx);
     if (errCode != static_cast<int>(cb::engine_errc::success)) {
         logger->warn("MagmaKVStore::commit: saveDocs {} errCode:{}",
-                     pendingReqs->front().getVbID(),
+                     ctx.pendingReqs.front().getVbID(),
                      errCode);
         success = false;
     }
 
     postFlushHook();
 
-    commitCallback(txnCtx, errCode, kvctx);
+    commitCallback(ctx, errCode, kvctx);
 
     // This behaviour is to replicate the one in Couchstore.
     // Set `in_transanction = false` only if `commit` is successful.
@@ -630,17 +646,16 @@ bool MagmaKVStore::commit(TransactionContext& txnCtx, VB::Commit& commitData) {
         inTransaction = false;
     }
 
-    pendingReqs->clear();
     logger->TRACE("MagmaKVStore::commit success:{}", success);
 
     return success;
 }
 
-void MagmaKVStore::commitCallback(TransactionContext& txnCtx,
+void MagmaKVStore::commitCallback(MagmaKVStoreTransactionContext& txnCtx,
                                   int errCode,
                                   kvstats_ctx&) {
     const auto flushSuccess = (errCode == Status::Code::Ok);
-    for (const auto& req : *pendingReqs) {
+    for (const auto& req : txnCtx.pendingReqs) {
         size_t mutationSize =
                 req.getRawKeyLen() + req.getBodySize() + req.getMetaSize();
         st.io_num_write++;
@@ -667,7 +682,7 @@ void MagmaKVStore::commitCallback(TransactionContext& txnCtx,
                         "MagmaKVStore::commitCallback(Delete) {} key:{} "
                         "errCode:{} "
                         "deleteState:{}",
-                        pendingReqs->front().getVbID(),
+                        req.getVbID(),
                         cb::UserData(req.getKey().to_string()),
                         errCode,
                         to_string(state));
@@ -696,7 +711,7 @@ void MagmaKVStore::commitCallback(TransactionContext& txnCtx,
                         "MagmaKVStore::commitCallback(Set) {} key:{} "
                         "errCode:{} "
                         "setState:{}",
-                        pendingReqs->front().getVbID(),
+                        req.getVbID(),
                         cb::UserData(req.getKey().to_string()),
                         errCode,
                         to_string(state));
@@ -749,7 +764,8 @@ void MagmaKVStore::set(TransactionContext& txnCtx, queued_item item) {
                 "MagmaKVStore::set: inTransaction must be true to perform a "
                 "set operation.");
     }
-    pendingReqs->emplace_back(std::move(item), logger);
+    auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(txnCtx);
+    ctx.pendingReqs.emplace_back(std::move(item), logger);
 }
 
 GetValue MagmaKVStore::get(const DiskDocKey& key,
@@ -951,7 +967,8 @@ void MagmaKVStore::del(TransactionContext& txnCtx, queued_item item) {
                 "MagmaKVStore::del: inTransaction must be true to perform a "
                 "delete operation.");
     }
-    pendingReqs->emplace_back(std::move(item), logger);
+    auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(txnCtx);
+    ctx.pendingReqs.emplace_back(std::move(item), logger);
 }
 
 void MagmaKVStore::delVBucket(Vbid vbid, uint64_t kvstoreRev) {
@@ -1085,7 +1102,8 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
                     false);
 }
 
-int MagmaKVStore::saveDocs(TransactionContext& txnCtx, VB::Commit& commitData,
+int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
+                           VB::Commit& commitData,
                            kvstats_ctx& kvctx) {
     uint64_t ninserts = 0;
     uint64_t ndeletes = 0;
@@ -1251,14 +1269,16 @@ int MagmaKVStore::saveDocs(TransactionContext& txnCtx, VB::Commit& commitData,
         return Status::OK();
     };
 
+    auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(txnCtx);
+
     // Vector of updates to be written to the data store.
     WriteOps writeOps;
-    writeOps.reserve(pendingReqs->size());
+    writeOps.reserve(ctx.pendingReqs.size());
 
     // TODO: Replace writeOps with Magma::WriteOperations when it
     // becomes available. This will allow us to pass pendingReqs
     // in and create the WriteOperation from the pendingReqs queue.
-    for (auto& req : *pendingReqs) {
+    for (auto& req : ctx.pendingReqs) {
         auto& docMeta = req.getDocMeta();
         Slice valSlice{req.getBodyData(), req.getBodySize()};
         if (req.getDocMeta().bySeqno > lastSeqno) {
@@ -1312,8 +1332,8 @@ int MagmaKVStore::saveDocs(TransactionContext& txnCtx, VB::Commit& commitData,
                 std::chrono::duration_cast<std::chrono::microseconds>(
                         std::chrono::steady_clock::now() - beginTime));
 
-        st.batchSize.add(pendingReqs->size());
-        st.docsCommitted = pendingReqs->size();
+        st.batchSize.add(ctx.pendingReqs.size());
+        st.docsCommitted = ctx.pendingReqs.size();
     } else {
         logger->critical(
                 "MagmaKVStore::saveDocs {} WriteDocs failed. Status:{}",
@@ -2987,5 +3007,5 @@ Status MagmaDbStats::Unmarshal(const std::string& encoded) {
 std::unique_ptr<TransactionContext> MagmaKVStore::begin(
         Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) {
     inTransaction = true;
-    return std::make_unique<TransactionContext>(vbid, std::move(pcb));
+    return std::make_unique<MagmaKVStoreTransactionContext>(vbid, std::move(pcb));
 }

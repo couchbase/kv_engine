@@ -32,7 +32,7 @@ public:
         return MagmaKVStore::readVBStateFromDisk(vbid, snapshot);
     }
 
-    int saveDocs(TransactionContext& txnCtx,
+    int saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                  VB::Commit& commitData,
                  kvstats_ctx& kvctx) override {
         if (saveDocsErrorInjector) {

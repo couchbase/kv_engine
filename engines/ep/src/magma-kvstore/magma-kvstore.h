@@ -16,6 +16,7 @@
 #include "kvstore_priv.h"
 #include "libmagma/magma.h"
 #include "rollback_result.h"
+#include "kvstore_transaction_context.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
 
@@ -35,10 +36,10 @@ class Slice;
 class Status;
 } // namespace magma
 
-class MagmaRequest;
 class MagmaKVStoreConfig;
 class MagmaCompactionCB;
 struct kvstats_ctx;
+struct MagmaKVStoreTransactionContext;
 struct vbucket_state;
 
 /**
@@ -725,9 +726,11 @@ protected:
                           const magma::Slice& valueSlice,
                           ValueFilter filter) const;
 
-    virtual int saveDocs(TransactionContext& txnCtx, VB::Commit& commitData, kvstats_ctx& kvctx);
+    virtual int saveDocs(MagmaKVStoreTransactionContext& txnCtx,
+                         VB::Commit& commitData,
+                         kvstats_ctx& kvctx);
 
-    void commitCallback(TransactionContext& txnCtx,
+    void commitCallback(MagmaKVStoreTransactionContext& txnCtx,
                         int status,
                         kvstats_ctx& kvctx);
 
@@ -805,19 +808,6 @@ protected:
      * Mamga instance for a shard
      */
     std::unique_ptr<magma::Magma> magma;
-
-    /**
-     * Container for pending Magma requests.
-     *
-     * Using deque as as the expansion behaviour is less aggressive compared to
-     * std::vector (MagmaRequest objects are ~176 bytes in size).
-     */
-    using PendingRequestQueue = std::deque<MagmaRequest>;
-
-    // Used for queueing mutation requests (in `set` and `del`) and flushing
-    // them to disk (in `commit`).
-    // unique_ptr for pimpl.
-    std::unique_ptr<PendingRequestQueue> pendingReqs;
 
     // Path to magma files. Include shardID.
     const std::string magmaPath;
