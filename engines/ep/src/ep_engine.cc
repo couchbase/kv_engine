@@ -6482,12 +6482,9 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
             reqState = PermittedVBStates(static_cast<vbucket_state_t>(desired));
         }
 
-        // Only attempt to decode this payload if collections are enabled, i.e.
-        // the developer-preview, let's be extra defensive about people
-        // assuming this encoding is here.
+        // Is a collection requested?
         if (extras.size() ==
-                    (sizeof(RequestedVBState) + sizeof(CollectionIDType)) &&
-            serverApi->core->isCollectionsEnabled()) {
+            (sizeof(RequestedVBState) + sizeof(CollectionIDType))) {
             reqCollection = static_cast<CollectionIDType>(
                     ntohl(*reinterpret_cast<const uint32_t*>(
                             extras.substr(sizeof(RequestedVBState),
@@ -6503,8 +6500,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     // of.
     // If the client IS talking collections but hasn't specified a collection,
     // we'll give them the actual vBucket high seqno.
-    if (!serverApi->cookie->is_collections_supported(*cookie) &&
-        serverApi->core->isCollectionsEnabled()) {
+    if (!serverApi->cookie->is_collections_supported(*cookie)) {
         reqCollection = CollectionID::Default;
     }
 
