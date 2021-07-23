@@ -20,6 +20,7 @@
 #include "getkeys.h"
 #include "item.h"
 #include "kvstore_config.h"
+#include "kvstore_transaction_context.h"
 #include "persistence_callback.h"
 #include "rollback_result.h"
 #include "statistics/cbstat_collector.h"

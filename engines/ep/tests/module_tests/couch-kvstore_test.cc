@@ -20,6 +20,7 @@
 #include "couch-kvstore/couch-kvstore-config.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "kvstore_test.h"
+#include "kvstore_transaction_context.h"
 #include "rollback_result.h"
 #include "src/internal.h"
 #include "test_helpers.h"

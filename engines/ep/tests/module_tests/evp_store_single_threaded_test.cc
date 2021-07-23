@@ -39,6 +39,7 @@
 #include "failover-table.h"
 #include "flusher.h"
 #include "item_freq_decayer_visitor.h"
+#include "kvstore_transaction_context.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"

@@ -15,6 +15,7 @@
 #include "collections/manager.h"
 #include "collections/vbucket_manifest.h"
 #include "kvstore.h"
+#include "kvstore_transaction_context.h"
 #include "vb_commit.h"
 
 #include <folly/portability/GMock.h>

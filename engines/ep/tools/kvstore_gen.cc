@@ -22,6 +22,7 @@
 #include "item.h"
 #include "kvstore.h"
 #include "kvstore_config.h"
+#include "kvstore_transaction_context.h"
 #include "vbucket_state.h"
 #include <logger/logger.h>
 #include <platform/atomic.h>

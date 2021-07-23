@@ -16,6 +16,7 @@
 #include "item.h"
 #include "kvstore.h"
 #include "kvstore_config.h"
+#include "kvstore_transaction_context.h"
 #include "vb_commit.h"
 #ifdef EP_USE_ROCKSDB
 #include "rocksdb-kvstore/rocksdb-kvstore_config.h"

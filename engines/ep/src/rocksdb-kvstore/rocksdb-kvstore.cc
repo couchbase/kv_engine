@@ -16,6 +16,7 @@
 #include "ep_time.h"
 #include "item.h"
 #include "kvstore_priv.h"
+#include "kvstore_transaction_context.h"
 #include "vb_commit.h"
 #include "vbucket.h"
 #include "vbucket_state.h"

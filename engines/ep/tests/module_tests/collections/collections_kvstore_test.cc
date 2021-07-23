@@ -17,6 +17,7 @@
 #include "item.h"
 #include "kvstore.h"
 #include "kvstore_config.h"
+#include "kvstore_transaction_context.h"
 #include "stats.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/kvstore_test.h"

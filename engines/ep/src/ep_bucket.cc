@@ -24,6 +24,7 @@
 #include "failover-table.h"
 #include "flusher.h"
 #include "item.h"
+#include "kvstore_transaction_context.h"
 #include "persistence_callback.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"

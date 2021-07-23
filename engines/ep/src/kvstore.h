@@ -1272,34 +1272,3 @@ protected:
     /// database.
     std::unique_ptr<KVFileHandle> kvFileHandle;
 };
-
-/**
- * State associated with a KVStore transaction (begin() / commit() pair).
- * Users would typically subclass this, and provide an instance to begin().
- * The KVStore will then provide a pointer to it during every persistence
- * callback.
- */
-struct TransactionContext {
-    explicit TransactionContext(Vbid vbid) : vbid(vbid) {
-    }
-    virtual ~TransactionContext() = default;
-
-    /**
-     * Callback for sets. Invoked after persisting an item. Does nothing by
-     * default as a subclass should provide functionality but we want to allow
-     * simple tests to run without doing so.
-     */
-    virtual void setCallback(const queued_item&, KVStore::FlushStateMutation) {
-    }
-
-    /**
-     * Callback for deletes. Invoked after persisting an item. Does nothing by
-     * default as a subclass should provide functionality but we want to allow
-     * simple tests to run without doing so.
-     */
-    virtual void deleteCallback(const queued_item&,
-                                KVStore::FlushStateDeletion) {
-    }
-
-    const Vbid vbid;
-};

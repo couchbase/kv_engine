@@ -11,6 +11,7 @@
 #pragma once
 
 #include "kvstore.h"
+#include "kvstore_transaction_context.h"
 
 class EPStats;
 class VBucket;
