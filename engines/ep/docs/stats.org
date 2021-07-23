@@ -543,6 +543,11 @@ The stats below are listed for each vbucket.
 | vb_pending_eject              | Number of times item values got ejected    |
 | vb_pending_expired            | Number of times an item was expired        |
 | ht_memory                     | Memory overhead of the hashtable           |
+| ht_num_deleted_items          | Number of deleted items in the hashtable   |
+| ht_num_in_memory_items        | Number of in-memory items in the hashtable |
+| ht_num_in_memory_non_resident_items | Number of in-memory non-resident items (i.e. items which only have their metadata in memory) |
+| ht_num_items                  | Number of items in the hashtable           |
+| ht_num_temp_items             | Number of temporary items in the hashable  |
 | ht_item_memory                | Total item memory                          |
 | ht_cache_size                 | Total size of cache (Includes non resident |
 |                               | items)                                     |

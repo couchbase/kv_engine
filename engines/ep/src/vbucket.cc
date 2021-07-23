@@ -3125,6 +3125,17 @@ void VBucket::_addStats(VBucketStatsDetailLevel detail,
                 add_stat,
                 c);
         addStat("ht_memory", ht.memorySize(), add_stat, c);
+        addStat("ht_num_items", ht.getNumItems(), add_stat, c);
+        addStat("ht_num_deleted_items", ht.getNumDeletedItems(), add_stat, c);
+        addStat("ht_num_in_memory_items",
+                ht.getNumInMemoryItems(),
+                add_stat,
+                c);
+        addStat("ht_num_in_memory_non_resident_items",
+                ht.getNumInMemoryNonResItems(),
+                add_stat,
+                c);
+        addStat("ht_num_temp_items", ht.getNumTempItems(), add_stat, c);
         addStat("ht_item_memory", ht.getItemMemory(), add_stat, c);
         addStat("ht_item_memory_uncompressed",
                 ht.getUncompressedItemMemory(),
