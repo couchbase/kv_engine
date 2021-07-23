@@ -37,16 +37,47 @@ void NetworkInterfaceManager::createBootstrapInterface() {
     if (settings.has.interfaces) {
         LOG_INFO_RAW("Enable port(s)");
         for (auto& interf : settings.getInterfaces()) {
-            if (!createInterface(interf.tag,
-                                 interf.host,
-                                 interf.port,
-                                 interf.system,
-                                 !interf.ssl.key.empty(),
-                                 interf.ipv4,
-                                 interf.ipv6)) {
-                FATAL_ERROR(EXIT_FAILURE,
-                            "Failed to create required listening socket(s). "
-                            "Terminating.");
+            auto createfunc = [this](const nlohmann::json& spec,
+                                     bool required) {
+                try {
+                    auto [status, error] = doDefineInterface(spec);
+                    if (status != cb::mcbp::Status::Success && required) {
+                        FATAL_ERROR(EXIT_FAILURE,
+                                    "Failed to create required listening "
+                                    "socket: \"{}\". Errors: {}"
+                                    "Terminating.",
+                                    spec.dump(),
+                                    error);
+                    }
+                } catch (const std::exception& e) {
+                    FATAL_ERROR(EXIT_FAILURE,
+                                "Failed to create required listening "
+                                "socket: \"{}\". Error: {}"
+                                "Terminating.",
+                                spec.dump(),
+                                e.what());
+                }
+            };
+
+            if (interf.ipv4 != NetworkInterface::Protocol::Off) {
+                createfunc(nlohmann::json{{"type", "mcbp"},
+                                          {"family", "inet"},
+                                          {"host", interf.host},
+                                          {"port", interf.port},
+                                          {"tag", interf.tag},
+                                          {"system", interf.system},
+                                          {"tls", !interf.ssl.key.empty()}},
+                           interf.ipv4 == NetworkInterface::Protocol::Required);
+            }
+
+            if (interf.ipv6 != NetworkInterface::Protocol::Off) {
+                createfunc(nlohmann::json{{"type", "mcbp"},
+                                          {"family", "inet6"},
+                                          {"host", interf.host},
+                                          {"port", interf.port},
+                                          {"system", interf.system},
+                                          {"tls", !interf.ssl.key.empty()}},
+                           interf.ipv6 == NetworkInterface::Protocol::Required);
             }
         }
     } else {
@@ -263,175 +294,6 @@ static SOCKET new_server_socket(struct addrinfo* ai) {
     }
 
     return sfd;
-}
-
-bool NetworkInterfaceManager::createInterface(const std::string& tag,
-                                              const std::string& host,
-                                              in_port_t port,
-                                              bool system_port,
-                                              bool tls,
-                                              NetworkInterface::Protocol iv4,
-                                              NetworkInterface::Protocol iv6) {
-    SOCKET sfd;
-    addrinfo hints = {};
-
-    // Set to true when we create an IPv4 interface
-    bool ipv4 = false;
-    // Set to true when we create an IPv6 interface
-    bool ipv6 = false;
-
-    hints.ai_flags = AI_PASSIVE;
-    hints.ai_protocol = IPPROTO_TCP;
-    hints.ai_socktype = SOCK_STREAM;
-
-    if (iv4 != NetworkInterface::Protocol::Off &&
-        iv6 != NetworkInterface::Protocol::Off) {
-        hints.ai_family = AF_UNSPEC;
-    } else if (iv4 != NetworkInterface::Protocol::Off) {
-        hints.ai_family = AF_INET;
-    } else if (iv6 != NetworkInterface::Protocol::Off) {
-        hints.ai_family = AF_INET6;
-    } else {
-        throw std::invalid_argument(
-                "server_socket: can't create a socket without IPv4 or IPv6");
-    }
-
-    const char* host_buf = nullptr;
-    if (!host.empty() && host != "*") {
-        host_buf = host.c_str();
-    }
-
-    struct addrinfo* ai;
-    int error =
-            getaddrinfo(host_buf, std::to_string(port).c_str(), &hints, &ai);
-    if (error != 0) {
-#ifdef WIN32
-        LOG_WARNING("getaddrinfo(): {}", cb_strerror(error));
-#else
-        if (error != EAI_SYSTEM) {
-            LOG_WARNING("getaddrinfo(): {}", gai_strerror(error));
-        } else {
-            LOG_WARNING("getaddrinfo(): {}", cb_strerror(error));
-        }
-#endif
-        return false;
-    }
-
-    // getaddrinfo may return multiple entries for a given name/port pair.
-    // Iterate over all of them and try to set up a listen object.
-    // We need at least _one_ entry per requested configuration (IPv4/6) in
-    // order to call it a success.
-    for (struct addrinfo* next = ai; next; next = next->ai_next) {
-        if (next->ai_addr->sa_family != AF_INET &&
-            next->ai_addr->sa_family != AF_INET6) {
-            // Ignore unsupported address families
-            continue;
-        }
-
-        if ((sfd = new_server_socket(next)) == INVALID_SOCKET) {
-            // getaddrinfo can return "junk" addresses,
-            continue;
-        }
-
-        if (bind(sfd, next->ai_addr, (socklen_t)next->ai_addrlen) ==
-            SOCKET_ERROR) {
-            const auto bind_error = cb::net::get_socket_error();
-            auto name = cb::net::to_string(
-                    reinterpret_cast<sockaddr_storage*>(next->ai_addr),
-                    static_cast<socklen_t>(next->ai_addrlen));
-            LOG_WARNING(
-                    "Failed to bind to {} - {}", name, cb_strerror(bind_error));
-            safe_close(sfd);
-            continue;
-        }
-
-        in_port_t listenport = port;
-        if (listenport == 0) {
-            // The interface description requested an ephemeral port to
-            // be allocated. Pick up the real port number
-            union {
-                struct sockaddr_in in;
-                struct sockaddr_in6 in6;
-            } my_sockaddr{};
-            socklen_t len = sizeof(my_sockaddr);
-            if (getsockname(sfd, (struct sockaddr*)&my_sockaddr, &len) == 0) {
-                if (next->ai_addr->sa_family == AF_INET) {
-                    listenport = ntohs(my_sockaddr.in.sin_port);
-                } else {
-                    listenport = ntohs(my_sockaddr.in6.sin6_port);
-                }
-            } else {
-                const auto e = cb::net::get_socket_error();
-                auto name = cb::net::to_string(
-                        reinterpret_cast<sockaddr_storage*>(next->ai_addr),
-                        static_cast<socklen_t>(next->ai_addrlen));
-                LOG_WARNING(
-                        "Failed to look up the assigned port for the ephemeral "
-                        "port: {} error: {}",
-                        name,
-                        cb_strerror(e));
-                safe_close(sfd);
-                continue;
-            }
-        } else {
-            listenport = port;
-        }
-
-        // We've configured this port.
-        if (next->ai_addr->sa_family == AF_INET) {
-            // We have at least one entry
-            ipv4 = true;
-        } else {
-            // We have at least one entry
-            ipv6 = true;
-        }
-
-        auto inter = std::make_shared<ListeningPort>(tag,
-                                                     host,
-                                                     listenport,
-                                                     next->ai_addr->sa_family,
-                                                     system_port,
-                                                     tls);
-        listen_conn.emplace_back(ServerSocket::create(sfd, eventBase, inter));
-        stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
-    }
-
-    freeaddrinfo(ai);
-
-    // Check if we successfully listened on all required protocols.
-    bool required_proto_missing = false;
-
-    // Check if the specified (missing) protocol was requested; if so log a
-    // message, and if required return true.
-    auto checkIfProtocolRequired =
-            [host, port](const NetworkInterface::Protocol& protoMode,
-                         const char* protoName) -> bool {
-        if (protoMode != NetworkInterface::Protocol::Off) {
-            // Failed to create a socket for this protocol; and it's not
-            // disabled
-            auto level = spdlog::level::level_enum::warn;
-            if (protoMode == NetworkInterface::Protocol::Required) {
-                level = spdlog::level::level_enum::critical;
-            }
-            CB_LOG_ENTRY(level,
-                         R"(Failed to create {} {} socket for "{}:{}")",
-                         to_string(protoMode),
-                         protoName,
-                         host.empty() ? "*" : host,
-                         port);
-        }
-        return protoMode == NetworkInterface::Protocol::Required;
-    };
-    if (!ipv4) {
-        required_proto_missing |= checkIfProtocolRequired(iv4, "IPv4");
-    }
-    if (!ipv6) {
-        required_proto_missing |= checkIfProtocolRequired(iv6, "IPv6");
-    }
-
-    // Return success as long as we managed to create a listening port
-    // for all non-optional protocols.
-    return !required_proto_missing;
 }
 
 std::pair<nlohmann::json, nlohmann::json>

@@ -86,19 +86,6 @@ protected:
     /**
      * Create a new interface by using the provided attributes
      *
-     * @return true if success, false otherwise
-     */
-    bool createInterface(const std::string& tag,
-                         const std::string& host,
-                         in_port_t port,
-                         bool system_port,
-                         bool tls,
-                         NetworkInterface::Protocol iv4,
-                         NetworkInterface::Protocol iv6);
-
-    /**
-     * Create a new interface by using the provided attributes
-     *
      * @return a JSON description of the define ports and all of the errors
      * @throws std::system_error if an error occurs
      */
@@ -108,7 +95,6 @@ protected:
     folly::EventBase& eventBase;
     const cb::prometheus::AuthCallback authCallback;
     std::vector<std::unique_ptr<ServerSocket>> listen_conn;
-    std::pair<in_port_t, sa_family_t> prometheus_conn;
     folly::Synchronized<std::unique_ptr<TlsConfiguration>> tlsConfiguration;
 
     // @todo remove me once we don't need to automatically update
