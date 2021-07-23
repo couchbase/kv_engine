@@ -124,7 +124,8 @@ protected:
         const std::string key = "key";
         std::string value = "value";
         Vbid vbid = Vbid(0);
-        auto ctx = std::make_unique<TransactionContext>(vbid);
+        auto ctx = std::make_unique<TransactionContext>(
+                vbid, std::make_unique<PersistenceCallback>());
         kvstore->begin(*ctx);
         for (int i = 1; i <= numItems; i++) {
             auto docKey = makeStoredDocKey(key + std::to_string(i));

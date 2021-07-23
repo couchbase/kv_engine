@@ -3848,7 +3848,8 @@ TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
         itm->setExpTime(0);
         itm->setBySeqno(itm->getBySeqno() + 1);
 
-        auto ctx = std::make_unique<TransactionContext>(vbid);
+        auto ctx = std::make_unique<TransactionContext>(
+                vbid, std::make_unique<PersistenceCallback>());
         kvstore->begin(*ctx);
         // Release the item (from the unique ptr) as the queued_item we create
         // will destroy it later
@@ -3864,7 +3865,8 @@ TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
         auto key2 = makeStoredDocKey("key2");
         auto itm = makeCommittedItem(key2, "value");
         itm->setBySeqno(4);
-        auto ctx = std::make_unique<TransactionContext>(vbid);
+        auto ctx = std::make_unique<TransactionContext>(
+                vbid, std::make_unique<PersistenceCallback>());
         kvstore->begin(*ctx);
         kvstore->del(*ctx, itm);
         VB::Commit f(epstore.getVBucket(vbid)->getManifest());

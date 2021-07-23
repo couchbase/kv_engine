@@ -187,7 +187,8 @@ std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config,
 
 class MockTransactionContext : public TransactionContext {
 public:
-    MockTransactionContext(Vbid vb) : TransactionContext(vb) {
+    MockTransactionContext(Vbid vb)
+        : TransactionContext(vb, std::make_unique<PersistenceCallback>()) {
     }
 
     MOCK_METHOD2(setCallback, void(const Item&, KVStore::FlushStateMutation));

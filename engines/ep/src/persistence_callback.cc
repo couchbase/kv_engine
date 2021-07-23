@@ -13,21 +13,18 @@
 
 #include "bucket_logger.h"
 #include "item.h"
+#include "kvstore.h"
 #include "stats.h"
 #include "vbucket.h"
 #include <utilities/logtags.h>
 
-PersistenceCallback::PersistenceCallback() {
+EPPersistenceCallback::EPPersistenceCallback(EPStats& stats, VBucket& vb)
+    : stats(stats), vbucket(vb) {
 }
 
-PersistenceCallback::~PersistenceCallback() = default;
-
 // This callback is invoked for set only.
-void PersistenceCallback::operator()(EPTransactionContext& epCtx,
-                                     const Item& queuedItem,
-                                     KVStore::FlushStateMutation state) {
-    auto& vbucket = epCtx.vbucket;
-
+void EPPersistenceCallback::operator()(const Item& queuedItem,
+                                       KVStore::FlushStateMutation state) {
     using State = KVStore::FlushStateMutation;
 
     switch (state) {
@@ -59,7 +56,7 @@ void PersistenceCallback::operator()(EPTransactionContext& epCtx,
             }
         }
         // Update general flush stats
-        epCtx.stats.totalPersisted++;
+        stats.totalPersisted++;
 
         // Account only committed items in opsCreate/Update and numTotalItems
         if (queuedItem.isCommitted()) {
@@ -85,7 +82,7 @@ void PersistenceCallback::operator()(EPTransactionContext& epCtx,
                 "SET on {} seqno:{}",
                 queuedItem.getVBucketId(),
                 queuedItem.getBySeqno());
-        ++epCtx.stats.flushFailed;
+        ++stats.flushFailed;
         ++vbucket.opsReject;
         return;
     }
@@ -96,11 +93,8 @@ void PersistenceCallback::operator()(EPTransactionContext& epCtx,
 //
 // The boolean indicates whether the underlying storage
 // successfully deleted the item.
-void PersistenceCallback::operator()(EPTransactionContext& epCtx,
-                                     const Item& queuedItem,
-                                     KVStore::FlushStateDeletion state) {
-    auto& vbucket = epCtx.vbucket;
-
+void EPPersistenceCallback::operator()(const Item& queuedItem,
+                                       KVStore::FlushStateDeletion state) {
     switch (state) {
     case KVStore::FlushStateDeletion::Delete:
     case KVStore::FlushStateDeletion::DocNotFound: {
@@ -116,23 +110,9 @@ void PersistenceCallback::operator()(EPTransactionContext& epCtx,
                 "DELETE on {} seqno:{}",
                 queuedItem.getVBucketId(),
                 queuedItem.getBySeqno());
-        ++epCtx.stats.flushFailed;
+        ++stats.flushFailed;
         ++vbucket.opsReject;
         return;
     }
     folly::assume_unreachable();
-}
-
-EPTransactionContext::EPTransactionContext(EPStats& stats, VBucket& vbucket)
-    : TransactionContext(vbucket.getId()), stats(stats), vbucket(vbucket) {
-}
-
-void EPTransactionContext::setCallback(const Item& item,
-                                       KVStore::FlushStateMutation state) {
-    cb(*this, item, state);
-}
-
-void EPTransactionContext::deleteCallback(const Item& item,
-                                          KVStore::FlushStateDeletion state) {
-    cb(*this, item, state);
 }

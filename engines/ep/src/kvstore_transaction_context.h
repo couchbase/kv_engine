@@ -12,6 +12,7 @@
 #pragma once
 
 #include "kvstore.h"
+#include "persistence_callback.h"
 
 /**
  * State associated with a KVStore transaction (begin() / commit() pair).
@@ -20,7 +21,8 @@
  * callback.
  */
 struct TransactionContext {
-    explicit TransactionContext(Vbid vbid) : vbid(vbid) {
+    TransactionContext(Vbid vbid, std::unique_ptr<PersistenceCallback> cb)
+        : vbid(vbid), cb(std::move(cb)) {
     }
     virtual ~TransactionContext() = default;
 
@@ -29,7 +31,8 @@ struct TransactionContext {
      * default as a subclass should provide functionality but we want to allow
      * simple tests to run without doing so.
      */
-    virtual void setCallback(const Item&, KVStore::FlushStateMutation) {
+    virtual void setCallback(const Item& i, KVStore::FlushStateMutation m) {
+        (*cb)(i, m);
     }
 
     /**
@@ -37,8 +40,10 @@ struct TransactionContext {
      * default as a subclass should provide functionality but we want to allow
      * simple tests to run without doing so.
      */
-    virtual void deleteCallback(const Item&, KVStore::FlushStateDeletion) {
+    virtual void deleteCallback(const Item& i, KVStore::FlushStateDeletion d) {
+        (*cb)(i, d);
     }
 
     const Vbid vbid;
+    std::unique_ptr<PersistenceCallback> cb;
 };

@@ -2882,9 +2882,8 @@ TEST_P(EPVBucketDurabilityTest,
     ASSERT_EQ(2, items.size()) << "Expected setVBState and SET.";
 
     // (1.2) Mimic flusher by running the PCB for the store at (1)
-    EPTransactionContext txnCtx(global_stats, *vbucket);
-    PersistenceCallback persistCb;
-    persistCb(txnCtx, *items.back(), KVStore::FlushStateMutation::Insert);
+    EPPersistenceCallback persistCb(global_stats, *vbucket);
+    persistCb(*items.back(), KVStore::FlushStateMutation::Insert);
     EXPECT_EQ(1, vbucket->getNumItems());
 
     // (1.3) Delete key. StoredValue will still be present in HT as Dirty.
@@ -2911,7 +2910,7 @@ TEST_P(EPVBucketDurabilityTest,
     items.clear();
     vbucket->checkpointManager->getItemsForPersistence(items, 1);
     ASSERT_EQ(2, items.size()) << "Expected Delete and Prepared SyncWrite";
-    persistCb(txnCtx, *items.at(0), KVStore::FlushStateDeletion::Delete);
+    persistCb(*items.at(0), KVStore::FlushStateDeletion::Delete);
 
     EXPECT_EQ(0, vbucket->getNumItems())
             << "Should have zero items once delete persistence callback has "
@@ -2919,7 +2918,7 @@ TEST_P(EPVBucketDurabilityTest,
 
     // Run persistence callback for prepared Add. Item count should be
     // unaffected (still zero) given this is not yet a Committed item.
-    persistCb(txnCtx, *items.at(1), KVStore::FlushStateMutation::Insert);
+    persistCb(*items.at(1), KVStore::FlushStateMutation::Insert);
 
     EXPECT_EQ(0, vbucket->getNumItems())
             << "Should have zero items once set(pending) persistence callback "
@@ -2952,9 +2951,8 @@ TEST_P(EPVBucketDurabilityTest,
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
     EXPECT_EQ(queue_op::pending_sync_write, items.at(1)->getOperation());
 
-    EPTransactionContext txnCtx(global_stats, *vbucket);
-    PersistenceCallback persistCb;
-    persistCb(txnCtx, *items.back(), KVStore::FlushStateMutation::Insert);
+    EPPersistenceCallback persistCb(global_stats, *vbucket);
+    persistCb(*items.back(), KVStore::FlushStateMutation::Insert);
     EXPECT_EQ(0, vbucket->getNumItems())
             << "Prepared SyncAdd should not increase numItems";
 
@@ -2986,7 +2984,7 @@ TEST_P(EPVBucketDurabilityTest,
     // TEST
     // Run the persistence callback for the Commit SyncWrite at (1.2).
     // This should increase the number of items on disk from 0 to 1.
-    persistCb(txnCtx, *items.at(0), KVStore::FlushStateMutation::Insert);
+    persistCb(*items.at(0), KVStore::FlushStateMutation::Insert);
     EXPECT_EQ(1, vbucket->getNumTotalItems())
             << "Should have one item once set(Commit) persistence callback has "
                "run.";
@@ -3001,7 +2999,7 @@ TEST_P(EPVBucketDurabilityTest,
     EXPECT_EQ(queue_op::mutation, items.at(1)->getOperation());
     EXPECT_TRUE(items.at(1)->isDeleted());
     EXPECT_EQ(queue_op::pending_sync_write, items.at(2)->getOperation());
-    persistCb(txnCtx, *items.at(1), KVStore::FlushStateDeletion::Delete);
+    persistCb(*items.at(1), KVStore::FlushStateDeletion::Delete);
 
     EXPECT_EQ(0, vbucket->getNumItems())
             << "Should have zero items once delete persistence callback "

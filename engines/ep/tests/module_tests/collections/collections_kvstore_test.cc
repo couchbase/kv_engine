@@ -201,7 +201,8 @@ public:
     void applyAndCheck(const CollectionsManifest& cm,
                        std::vector<CollectionID> expectedDropped = {}) {
         VB::Commit commitData(manifest);
-        auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+        auto ctx = std::make_unique<TransactionContext>(
+                vbucket.getId(), std::make_unique<PersistenceCallback>());
         kvstore->begin(*ctx);
         applyEvents(*ctx, commitData, cm);
         kvstore->commit(*ctx, commitData);
@@ -375,14 +376,16 @@ void CollectionsKVStoreTest::failForDuplicate() {
 
     // Drive the KVStore so that we flush the same collection twice with no
     // drop, this would attempt to create it twice in the metadata
-    auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+    auto ctx = std::make_unique<TransactionContext>(
+            vbucket.getId(), std::make_unique<PersistenceCallback>());
     kvstore->begin(*ctx);
     flush.collections.recordSystemEvent(*event);
     EXPECT_FALSE(event->isDeleted());
     kvstore->setSystemEvent(*ctx, event);
     kvstore->commit(*ctx, flush);
 
-    ctx = std::make_unique<TransactionContext>(vbucket.getId());
+    ctx = std::make_unique<TransactionContext>(
+            vbucket.getId(), std::make_unique<PersistenceCallback>());
     kvstore->begin(*ctx);
     event->setBySeqno(event->getBySeqno() + 1);
     flush.collections.recordSystemEvent(*event);
@@ -493,7 +496,8 @@ public:
     // runs a flush batch that will leave the target collection in open state
     void openCollection() {
         cm.add(target);
-        auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+        auto ctx = std::make_unique<TransactionContext>(
+                vbucket.getId(), std::make_unique<PersistenceCallback>());
         kvstore->begin(*ctx);
         applyEvents(*ctx, cm);
         kvstore->commit(*ctx, flush);
@@ -503,7 +507,8 @@ public:
     void dropCollection() {
         openCollection();
         cm.remove(target);
-        auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+        auto ctx = std::make_unique<TransactionContext>(
+                vbucket.getId(), std::make_unique<PersistenceCallback>());
         kvstore->begin(*ctx);
         applyEvents(*ctx, cm);
         kvstore->commit(*ctx, flush);
@@ -511,7 +516,8 @@ public:
 
     // runs a flush batch that will leave the target collection in open state
     void openScopeOpenCollection() {
-        auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+        auto ctx = std::make_unique<TransactionContext>(
+                vbucket.getId(), std::make_unique<PersistenceCallback>());
         kvstore->begin(*ctx);
         cm.add(targetScope);
         applyEvents(*ctx, cm);
@@ -524,7 +530,8 @@ public:
     void dropScope() {
         openScopeOpenCollection();
         cm.remove(targetScope);
-        auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+        auto ctx = std::make_unique<TransactionContext>(
+                vbucket.getId(), std::make_unique<PersistenceCallback>());
         kvstore->begin(*ctx);
         applyEvents(*ctx, cm);
         kvstore->commit(*ctx, flush);
@@ -552,7 +559,8 @@ void CollectionRessurectionKVStoreTest::resurectionTest() {
     // The test will run cycles of create/drop, so that the collection
     // has multiple generations within a single flush batch, we can then verify
     // that the meta-data stored by commit is correct
-    auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+    auto ctx = std::make_unique<TransactionContext>(
+            vbucket.getId(), std::make_unique<PersistenceCallback>());
     kvstore->begin(*ctx);
     if (!cm.exists(target)) {
         cm.add(target);
@@ -636,7 +644,8 @@ void CollectionRessurectionKVStoreTest::resurectionScopesTest() {
     // The test will run cycles of create/drop, so that the collection
     // has multiple generations within a single flush batch, we can then verify
     // that the meta-data stored by commit is correct
-    auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+    auto ctx = std::make_unique<TransactionContext>(
+            vbucket.getId(), std::make_unique<PersistenceCallback>());
     kvstore->begin(*ctx);
     if (!cm.exists(targetScope)) {
         cm.add(targetScope);

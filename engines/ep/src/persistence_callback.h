@@ -11,11 +11,9 @@
 #pragma once
 
 #include "kvstore.h"
-#include "kvstore_transaction_context.h"
 
 class EPStats;
 class VBucket;
-struct EPTransactionContext;
 
 /**
  * Callback invoked after persisting an item from memory to disk.
@@ -26,34 +24,32 @@ struct EPTransactionContext;
  */
 class PersistenceCallback {
 public:
-    PersistenceCallback();
-
-    ~PersistenceCallback();
+    virtual ~PersistenceCallback() = default;
 
     // This callback is invoked for set only.
-    void operator()(EPTransactionContext&,
-                    const Item&,
-                    KVStore::FlushStateMutation);
+    virtual void operator()(const Item&, KVStore::FlushStateMutation){};
 
     // This callback is invoked for deletions only.
     //
     // The boolean indicates whether the underlying storage
     // successfully deleted the item.
-    void operator()(EPTransactionContext&,
-                    const Item&,
-                    KVStore::FlushStateDeletion);
+    virtual void operator()(const Item&, KVStore::FlushStateDeletion){};
 };
 
-struct EPTransactionContext : public TransactionContext {
-    EPTransactionContext(EPStats& stats, VBucket& vbucket);
+class EPPersistenceCallback : public PersistenceCallback {
+public:
+    EPPersistenceCallback(EPStats& stats, VBucket& vb);
 
-    void setCallback(const Item&, KVStore::FlushStateMutation) override;
+    // This callback is invoked for set only.
+    void operator()(const Item&, KVStore::FlushStateMutation) override;
 
-    void deleteCallback(const Item&, KVStore::FlushStateDeletion) override;
+    // This callback is invoked for deletions only.
+    //
+    // The boolean indicates whether the underlying storage
+    // successfully deleted the item.
+    void operator()(const Item&, KVStore::FlushStateDeletion) override;
 
+private:
     EPStats& stats;
     VBucket& vbucket;
-
-protected:
-    PersistenceCallback cb;
 };

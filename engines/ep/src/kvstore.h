@@ -37,12 +37,14 @@
 class BucketLogger;
 class CookieIface;
 class DiskDocKey;
+class EPStats;
 class Item;
 class KVStore;
 class KVStoreConfig;
 class PersistenceCallback;
 class RollbackCB;
 class RollbackResult;
+class VBucket;
 
 namespace cb::mcbp {
 class Request;

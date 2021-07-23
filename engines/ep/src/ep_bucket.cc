@@ -25,6 +25,7 @@
 #include "flusher.h"
 #include "item.h"
 #include "kvstore_transaction_context.h"
+#include "kvstore.h"
 #include "persistence_callback.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"
@@ -411,7 +412,8 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     std::optional<snapshot_range_t> range;
     KVStore* rwUnderlying = getRWUnderlying(vb->getId());
 
-    auto ctx = std::make_unique<EPTransactionContext>(stats, *vb);
+    auto ctx = std::make_unique<TransactionContext>(
+            vb->getId(), std::make_unique<EPPersistenceCallback>(stats, *vb));
     while (!rwUnderlying->begin(*ctx)) {
         ++stats.beginFailed;
         EP_LOG_WARN_RAW(

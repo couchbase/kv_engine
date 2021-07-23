@@ -71,7 +71,8 @@ TEST_F(MagmaKVStoreRollbackTest, Rollback) {
     uint64_t seqno = 1;
 
     for (int i = 0; i < 2; i++) {
-        auto ctx = std::make_unique<TransactionContext>(vbid);
+        auto ctx = std::make_unique<TransactionContext>(
+                vbid, std::make_unique<PersistenceCallback>());
         kvstore->begin(*ctx);
         for (int j = 0; j < 5; j++) {
             auto key = makeStoredDocKey("key" + std::to_string(seqno));
@@ -114,7 +115,8 @@ TEST_F(MagmaKVStoreRollbackTest, RollbackNoValidCheckpoint) {
     // Create maxCheckpoints+2 checkpoints
     // Magma may internally retain +1 additional checkpoint for crash recovery
     for (int i = 0; i < int(maxCheckpoints) + 2; i++) {
-        auto ctx = std::make_unique<TransactionContext>(vbid);
+        auto ctx = std::make_unique<TransactionContext>(
+                vbid, std::make_unique<PersistenceCallback>());
         kvstore->begin(*ctx);
         for (int j = 0; j < 5; j++) {
             auto key = makeStoredDocKey("key" + std::to_string(seqno));
@@ -244,7 +246,8 @@ TEST_F(MagmaKVStoreTest, setMaxDataSize) {
     uint64_t seqno{1};
 
     // Magma's memory quota is recalculated on each commit batch.
-    auto ctx = std::make_unique<TransactionContext>(vbid);
+    auto ctx = std::make_unique<TransactionContext>(
+            vbid, std::make_unique<PersistenceCallback>());
     kvstore->begin(*ctx);
     auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");
     qi->setBySeqno(seqno++);
@@ -259,7 +262,8 @@ TEST_F(MagmaKVStoreTest, setMaxDataSize) {
     kvstore->setMaxDataSize(memQuota / 10);
 
     // Magma's memory quota is recalculated on each commit batch.
-    ctx = std::make_unique<TransactionContext>(vbid);
+    ctx = std::make_unique<TransactionContext>(
+            vbid, std::make_unique<PersistenceCallback>());
     kvstore->begin(*ctx);
     qi->setBySeqno(seqno++);
     kvstore->set(*ctx, qi);
