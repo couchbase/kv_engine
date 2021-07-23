@@ -41,8 +41,8 @@ public:
         return key;
     }
 
-    const queued_item getItem() const {
-        return item;
+    const Item& getItem() const {
+        return *item;
     }
 
 protected:

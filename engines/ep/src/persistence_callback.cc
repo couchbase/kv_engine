@@ -24,7 +24,7 @@ PersistenceCallback::~PersistenceCallback() = default;
 
 // This callback is invoked for set only.
 void PersistenceCallback::operator()(EPTransactionContext& epCtx,
-                                     queued_item queuedItem,
+                                     const Item& queuedItem,
                                      KVStore::FlushStateMutation state) {
     auto& vbucket = epCtx.vbucket;
 
@@ -36,16 +36,16 @@ void PersistenceCallback::operator()(EPTransactionContext& epCtx,
         // Mark clean, only if the StoredValue has the same CommittedState and
         // and Seqno (MB-39280) as the persisted item.
         {
-            auto res = vbucket.ht.findItem(*queuedItem);
+            auto res = vbucket.ht.findItem(queuedItem);
             auto* v = res.storedValue;
-            if (v && (v->getBySeqno() == queuedItem->getBySeqno())) {
+            if (v && (v->getBySeqno() == queuedItem.getBySeqno())) {
                 if (!v->isDirty()) {
                     // MB-41658: Found item _should_ always be dirty, but
                     // crash/warmup tests intermittently fail this check. Dump
                     // additional details to assist in diagnosing issue if it
                     // reoccurs.
                     std::stringstream itemSS;
-                    itemSS << *queuedItem;
+                    itemSS << queuedItem;
                     std::stringstream svSS;
                     svSS << *v;
                     throw std::logic_error(fmt::format(
@@ -62,7 +62,7 @@ void PersistenceCallback::operator()(EPTransactionContext& epCtx,
         epCtx.stats.totalPersisted++;
 
         // Account only committed items in opsCreate/Update and numTotalItems
-        if (queuedItem->isCommitted()) {
+        if (queuedItem.isCommitted()) {
             if (state == State::Insert) {
                 ++vbucket.opsCreate;
                 vbucket.incrNumTotalItems();
@@ -74,7 +74,7 @@ void PersistenceCallback::operator()(EPTransactionContext& epCtx,
         // All inserts to disk (mutation, prepare, commit,system event) take up
         // space on disk so increment metadata stat.
         if (state == State::Insert) {
-            vbucket.incrMetaDataDisk(*queuedItem);
+            vbucket.incrMetaDataDisk(queuedItem);
         }
 
         return;
@@ -83,8 +83,8 @@ void PersistenceCallback::operator()(EPTransactionContext& epCtx,
         EP_LOG_WARN(
                 "PersistenceCallback::set: Fatal error in persisting "
                 "SET on {} seqno:{}",
-                queuedItem->getVBucketId(),
-                queuedItem->getBySeqno());
+                queuedItem.getVBucketId(),
+                queuedItem.getBySeqno());
         ++epCtx.stats.flushFailed;
         ++vbucket.opsReject;
         return;
@@ -97,7 +97,7 @@ void PersistenceCallback::operator()(EPTransactionContext& epCtx,
 // The boolean indicates whether the underlying storage
 // successfully deleted the item.
 void PersistenceCallback::operator()(EPTransactionContext& epCtx,
-                                     queued_item queuedItem,
+                                     const Item& queuedItem,
                                      KVStore::FlushStateDeletion state) {
     auto& vbucket = epCtx.vbucket;
 
@@ -107,15 +107,15 @@ void PersistenceCallback::operator()(EPTransactionContext& epCtx,
         // We have successfully removed an item from the disk, we
         // may now remove it from the hash table.
         const bool deleted = (state == KVStore::FlushStateDeletion::Delete);
-        vbucket.deletedOnDiskCbk(*queuedItem, deleted);
+        vbucket.deletedOnDiskCbk(queuedItem, deleted);
         return;
     }
     case KVStore::FlushStateDeletion::Failed:
         EP_LOG_WARN(
                 "PersistenceCallback::del: Fatal error in persisting "
                 "DELETE on {} seqno:{}",
-                queuedItem->getVBucketId(),
-                queuedItem->getBySeqno());
+                queuedItem.getVBucketId(),
+                queuedItem.getBySeqno());
         ++epCtx.stats.flushFailed;
         ++vbucket.opsReject;
         return;
@@ -127,12 +127,12 @@ EPTransactionContext::EPTransactionContext(EPStats& stats, VBucket& vbucket)
     : TransactionContext(vbucket.getId()), stats(stats), vbucket(vbucket) {
 }
 
-void EPTransactionContext::setCallback(const queued_item& item,
+void EPTransactionContext::setCallback(const Item& item,
                                        KVStore::FlushStateMutation state) {
     cb(*this, item, state);
 }
 
-void EPTransactionContext::deleteCallback(const queued_item& item,
+void EPTransactionContext::deleteCallback(const Item& item,
                                           KVStore::FlushStateDeletion state) {
     cb(*this, item, state);
 }

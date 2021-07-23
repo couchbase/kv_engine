@@ -32,7 +32,7 @@ public:
 
     // This callback is invoked for set only.
     void operator()(EPTransactionContext&,
-                    queued_item,
+                    const Item&,
                     KVStore::FlushStateMutation);
 
     // This callback is invoked for deletions only.
@@ -40,17 +40,16 @@ public:
     // The boolean indicates whether the underlying storage
     // successfully deleted the item.
     void operator()(EPTransactionContext&,
-                    queued_item,
+                    const Item&,
                     KVStore::FlushStateDeletion);
 };
 
 struct EPTransactionContext : public TransactionContext {
     EPTransactionContext(EPStats& stats, VBucket& vbucket);
 
-    void setCallback(const queued_item&, KVStore::FlushStateMutation) override;
+    void setCallback(const Item&, KVStore::FlushStateMutation) override;
 
-    void deleteCallback(const queued_item&,
-                        KVStore::FlushStateDeletion) override;
+    void deleteCallback(const Item&, KVStore::FlushStateDeletion) override;
 
     EPStats& stats;
     VBucket& vbucket;

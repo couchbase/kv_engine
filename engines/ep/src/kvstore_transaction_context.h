@@ -29,7 +29,7 @@ struct TransactionContext {
      * default as a subclass should provide functionality but we want to allow
      * simple tests to run without doing so.
      */
-    virtual void setCallback(const queued_item&, KVStore::FlushStateMutation) {
+    virtual void setCallback(const Item&, KVStore::FlushStateMutation) {
     }
 
     /**
@@ -37,8 +37,7 @@ struct TransactionContext {
      * default as a subclass should provide functionality but we want to allow
      * simple tests to run without doing so.
      */
-    virtual void deleteCallback(const queued_item&,
-                                KVStore::FlushStateDeletion) {
+    virtual void deleteCallback(const Item&, KVStore::FlushStateDeletion) {
     }
 
     const Vbid vbid;

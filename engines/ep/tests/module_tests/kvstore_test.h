@@ -14,6 +14,7 @@
 #include "callbacks.h"
 #include "collections/manager.h"
 #include "collections/vbucket_manifest.h"
+#include "item.h"
 #include "kvstore.h"
 #include "kvstore_transaction_context.h"
 #include "vb_commit.h"
@@ -189,10 +190,9 @@ public:
     MockTransactionContext(Vbid vb) : TransactionContext(vb) {
     }
 
-    MOCK_METHOD2(setCallback,
-                 void(const queued_item&, KVStore::FlushStateMutation));
+    MOCK_METHOD2(setCallback, void(const Item&, KVStore::FlushStateMutation));
     MOCK_METHOD2(deleteCallback,
-                 void(const queued_item&, KVStore::FlushStateDeletion));
+                 void(const Item&, KVStore::FlushStateDeletion));
 };
 
 class KVStoreTestCacheCallback : public StatusCallback<CacheLookup> {
