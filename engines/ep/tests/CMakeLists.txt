@@ -95,7 +95,6 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/item_test.cc
         module_tests/kvstore_test.cc
         module_tests/kv_bucket_test.cc
-        module_tests/memory_tracking_allocator_test.cc
         module_tests/monotonic_test.cc
         module_tests/mutation_log_test.cc
         module_tests/objectregistry_test.cc

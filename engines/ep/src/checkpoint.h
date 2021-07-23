@@ -20,8 +20,8 @@
 #include <folly/Synchronized.h>
 #include <folly/container/F14Map.h>
 #include <memcached/engine_common.h>
+#include <platform/memory_tracking_allocator.h>
 #include <platform/non_negative_counter.h>
-#include <utilities/memory_tracking_allocator.h>
 #include <optional>
 
 #include <list>

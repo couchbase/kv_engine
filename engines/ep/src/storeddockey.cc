@@ -10,7 +10,7 @@
 
 #include "storeddockey.h"
 #include <mcbp/protocol/unsigned_leb128.h>
-#include <memory_tracking_allocator.h>
+#include <platform/memory_tracking_allocator.h>
 #include <iomanip>
 
 std::ostream& operator<<(std::ostream& os, const StoredDocKey& key) {
