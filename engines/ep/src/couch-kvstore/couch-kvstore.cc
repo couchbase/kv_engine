@@ -2843,7 +2843,7 @@ bool CouchKVStore::commit(TransactionContext& txnCtx, VB::Commit& commitData) {
 
     kvstats_ctx kvctx(commitData);
     // flush all
-    const auto errCode = saveDocs(vbid, docs, docinfos, kvReqs, kvctx);
+    const auto errCode = saveDocs(ctx, docs, docinfos, kvReqs, kvctx);
 
     postFlushHook();
 
@@ -2960,11 +2960,13 @@ static size_t calcLogicalDataSize(const Doc* doc, const DocInfo& info) {
     return info.id.size + info.rev_meta.size + (doc ? doc->data.size : 0);
 }
 
-couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
-                                          const std::vector<Doc*>& docs,
-                                          const std::vector<DocInfo*>& docinfos,
-                                          const std::vector<void*>& kvReqs,
-                                          kvstats_ctx& kvctx) {
+couchstore_error_t CouchKVStore::saveDocs(
+        CouchKVStoreTransactionContext& txnCtx,
+        const std::vector<Doc*>& docs,
+        const std::vector<DocInfo*>& docinfos,
+        const std::vector<void*>& kvReqs,
+        kvstats_ctx& kvctx) {
+    auto vbid = txnCtx.vbid;
     auto handle = openOrCreate(vbid);
     if (!handle) {
         logger.warn("CouchKVStore::saveDocs: openOrCreate error");
@@ -3038,17 +3040,19 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
     vbucket_state& state = kvctx.commitData.proposedVBState;
     state.onDiskPrepares += kvctx.onDiskPrepareDelta;
     state.updateOnDiskPrepareBytes(kvctx.onDiskPrepareBytesDelta);
-    pendingLocalReqsQ.emplace_back("_local/vbstate", makeJsonVBState(state));
+    txnCtx.pendingLocalReqsQ.emplace_back("_local/vbstate",
+                                          makeJsonVBState(state));
 
     kvctx.commitData.collections.saveCollectionStats(
-            [this, &dbRef = *db](CollectionID cid,
-                                 const Collections::VB::PersistedStats& stats) {
-                saveCollectionStats(dbRef, cid, stats);
+            [this, &dbRef = *db, &txnCtx](
+                    CollectionID cid,
+                    const Collections::VB::PersistedStats& stats) {
+                saveCollectionStats(txnCtx, dbRef, cid, stats);
             });
 
     if (kvctx.commitData.collections.isReadyForCommit()) {
-        const auto errCode =
-                updateCollectionsMeta(*db, kvctx.commitData.collections);
+        const auto errCode = updateCollectionsMeta(
+                txnCtx, *db, kvctx.commitData.collections);
         if (errCode) {
             logger.warn(
                     "CouchKVStore::saveDocs: {} updateCollections meta "
@@ -3060,16 +3064,16 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
     }
 
     /// Update the local documents before we commit
-    auto errCode = updateLocalDocuments(*db, pendingLocalReqsQ);
+    auto errCode = updateLocalDocuments(*db, txnCtx.pendingLocalReqsQ);
     if (errCode) {
         logger.warn(
                 "CouchKVStore::saveDocs: updateLocalDocuments size:{} "
                 "error:{} [{}]",
-                pendingLocalReqsQ.size(),
+                txnCtx.pendingLocalReqsQ.size(),
                 couchstore_strerror(errCode),
                 couchkvstore_strerrno(db, errCode));
     }
-    pendingLocalReqsQ.clear();
+    txnCtx.pendingLocalReqsQ.clear();
 
     auto cs_begin = std::chrono::steady_clock::now();
 
@@ -3360,16 +3364,18 @@ std::string CouchKVStore::makeJsonVBState(const vbucket_state& vbState) {
 }
 
 void CouchKVStore::saveCollectionStats(
+        CouchKVStoreTransactionContext& txnCtx,
         Db& db,
         CollectionID cid,
         const Collections::VB::PersistedStats& stats) {
-    pendingLocalReqsQ.emplace_back(getCollectionStatsLocalDocId(cid),
-                                   stats.getLebEncodedStats());
+    txnCtx.pendingLocalReqsQ.emplace_back(getCollectionStatsLocalDocId(cid),
+                                          stats.getLebEncodedStats());
 }
 
-void CouchKVStore::deleteCollectionStats(CollectionID cid) {
-    pendingLocalReqsQ.emplace_back(getCollectionStatsLocalDocId(cid),
-                                   CouchLocalDocRequest::IsDeleted{});
+void CouchKVStore::deleteCollectionStats(CouchKVStoreTransactionContext& txnCtx,
+                                         CollectionID cid) {
+    txnCtx.pendingLocalReqsQ.emplace_back(getCollectionStatsLocalDocId(cid),
+                                          CouchLocalDocRequest::IsDeleted{});
 }
 
 std::pair<bool, Collections::VB::PersistedStats>
@@ -3985,25 +3991,27 @@ CouchKVStore::getDroppedCollections(Db& db) const {
 }
 
 couchstore_error_t CouchKVStore::updateCollectionsMeta(
-        Db& db, Collections::VB::Flush& collectionsFlush) {
-    updateManifestUid(collectionsFlush);
+        CouchKVStoreTransactionContext& txnCtx,
+        Db& db,
+        Collections::VB::Flush& collectionsFlush) {
+    updateManifestUid(txnCtx, collectionsFlush);
 
     if (collectionsFlush.isOpenCollectionsChanged()) {
-        auto status = updateOpenCollections(db, collectionsFlush);
+        auto status = updateOpenCollections(txnCtx, db, collectionsFlush);
         if (status != COUCHSTORE_SUCCESS) {
             return status;
         }
     }
 
     if (collectionsFlush.isDroppedCollectionsChanged()) {
-        auto status = updateDroppedCollections(db, collectionsFlush);
+        auto status = updateDroppedCollections(txnCtx, db, collectionsFlush);
         if (status != COUCHSTORE_SUCCESS) {
             return status;
         }
     }
 
     if (collectionsFlush.isScopesChanged()) {
-        auto status = updateScopes(db, collectionsFlush);
+        auto status = updateScopes(txnCtx, db, collectionsFlush);
         if (status != COUCHSTORE_SUCCESS) {
             return status;
         }
@@ -4012,14 +4020,17 @@ couchstore_error_t CouchKVStore::updateCollectionsMeta(
     return COUCHSTORE_SUCCESS;
 }
 
-void CouchKVStore::updateManifestUid(Collections::VB::Flush& collectionsFlush) {
+void CouchKVStore::updateManifestUid(CouchKVStoreTransactionContext& txnCtx,
+                                     Collections::VB::Flush& collectionsFlush) {
     // write back, no read required
-    pendingLocalReqsQ.emplace_back(Collections::manifestName,
-                                   collectionsFlush.encodeManifestUid());
+    txnCtx.pendingLocalReqsQ.emplace_back(Collections::manifestName,
+                                          collectionsFlush.encodeManifestUid());
 }
 
 couchstore_error_t CouchKVStore::updateOpenCollections(
-        Db& db, Collections::VB::Flush& collectionsFlush) {
+        CouchKVStoreTransactionContext& txnCtx,
+        Db& db,
+        Collections::VB::Flush& collectionsFlush) {
     auto collectionsRes = readLocalDoc(db, Collections::openCollectionsName);
 
     if (collectionsRes.status != COUCHSTORE_SUCCESS &&
@@ -4029,7 +4040,7 @@ couchstore_error_t CouchKVStore::updateOpenCollections(
 
     cb::const_byte_buffer empty;
 
-    pendingLocalReqsQ.emplace_back(
+    txnCtx.pendingLocalReqsQ.emplace_back(
             Collections::openCollectionsName,
             collectionsFlush.encodeOpenCollections(
                     collectionsRes.doc.getLocalDoc()
@@ -4039,10 +4050,13 @@ couchstore_error_t CouchKVStore::updateOpenCollections(
 }
 
 couchstore_error_t CouchKVStore::updateDroppedCollections(
-        Db& db, Collections::VB::Flush& collectionsFlush) {
+        CouchKVStoreTransactionContext& txnCtx,
+        Db& db,
+        Collections::VB::Flush& collectionsFlush) {
     // Delete the stats doc for dropped collections
-    collectionsFlush.forEachDroppedCollection(
-            [this](CollectionID id) { this->deleteCollectionStats(id); });
+    collectionsFlush.forEachDroppedCollection([this, &txnCtx](CollectionID id) {
+        this->deleteCollectionStats(txnCtx, id);
+    });
 
     auto [getDroppedStatus, dropped] = getDroppedCollections(db);
     if (getDroppedStatus != COUCHSTORE_SUCCESS) {
@@ -4052,15 +4066,17 @@ couchstore_error_t CouchKVStore::updateDroppedCollections(
     auto encodedDroppedCollections =
             collectionsFlush.encodeDroppedCollections(dropped);
     if (encodedDroppedCollections.data()) {
-        pendingLocalReqsQ.emplace_back(Collections::droppedCollectionsName,
-                                       encodedDroppedCollections);
+        txnCtx.pendingLocalReqsQ.emplace_back(
+                Collections::droppedCollectionsName, encodedDroppedCollections);
     }
 
     return COUCHSTORE_SUCCESS;
 }
 
 couchstore_error_t CouchKVStore::updateScopes(
-        Db& db, Collections::VB::Flush& collectionsFlush) {
+        CouchKVStoreTransactionContext& txnCtx,
+        Db& db,
+        Collections::VB::Flush& collectionsFlush) {
     auto scopesRes = readLocalDoc(db, Collections::scopesName);
 
     if (scopesRes.status != COUCHSTORE_SUCCESS &&
@@ -4069,7 +4085,7 @@ couchstore_error_t CouchKVStore::updateScopes(
     }
 
     cb::const_byte_buffer empty;
-    pendingLocalReqsQ.emplace_back(
+    txnCtx.pendingLocalReqsQ.emplace_back(
             Collections::scopesName,
             collectionsFlush.encodeOpenScopes(
                     scopesRes.doc.getLocalDoc() ? scopesRes.doc.getBuffer()

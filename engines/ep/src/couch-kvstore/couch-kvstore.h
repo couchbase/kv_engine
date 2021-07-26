@@ -37,6 +37,8 @@ class CouchKVStoreConfig;
 class DbHolder;
 class EventuallyPersistentEngine;
 
+struct CouchKVStoreTransactionContext;
+
 /**
  * Class representing a document to be persisted in couchstore.
  */
@@ -533,7 +535,7 @@ protected:
     /**
      * save the Documents held in docs to the file associated with vbid/rev
      *
-     * @param vbid the vbucket file to open/write/commit
+     * @param txnCtx the current transaction context (including queues and vbid)
      * @param docs vector of Doc* to be written (can be empty)
      * @param docsinfo vector of DocInfo* to be written (non const due to
      *        couchstore API). Entry n corresponds to entry n of docs.
@@ -543,7 +545,7 @@ protected:
      *
      * @returns COUCHSTORE_SUCCESS or a failure code (failure paths log)
      */
-    couchstore_error_t saveDocs(Vbid vbid,
+    couchstore_error_t saveDocs(CouchKVStoreTransactionContext& txnCtx,
                                 const std::vector<Doc*>& docs,
                                 const std::vector<DocInfo*>& docinfos,
                                 const std::vector<void*>& kvReqs,
@@ -566,15 +568,19 @@ protected:
      * @param cid The collection to update
      * @param stats Stats an object of stats collected by the flush
      */
-    void saveCollectionStats(Db& db,
+    void saveCollectionStats(CouchKVStoreTransactionContext& txnCtx,
+                             Db& db,
                              CollectionID cid,
                              const Collections::VB::PersistedStats& stats);
 
     /**
      * Delete the count for collection cid
+     *
+     * @param txnCtx TransactionContext containing queues/vbid
      * @param cid The collection to delete
      */
-    void deleteCollectionStats(CollectionID cid);
+    void deleteCollectionStats(CouchKVStoreTransactionContext& txnCtx,
+                               CollectionID cid);
 
     /// Get the collection stats for the given collection
     std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
@@ -609,18 +615,24 @@ protected:
     /**
      * Sync the KVStore::collectionsMeta structures to the database.
      *
+     * @param txnCtx TransactionContext containing queues/vbid
      * @param db The database handle used to read state
      * @return error code if the update fails
      */
     couchstore_error_t updateCollectionsMeta(
-            Db& db, Collections::VB::Flush& collectionsFlush);
+            CouchKVStoreTransactionContext& txnCtx,
+            Db& db,
+            Collections::VB::Flush& collectionsFlush);
 
     /**
      * Called from updateCollectionsMeta this function maintains the current
      * uid committed by creating a pending write to the local document index.
+     *
+     * @param txnCtx TransactionContext containing queues/vbid
      * @param collectionsFlush flush object for a single 'flush/commit'
      */
-    void updateManifestUid(Collections::VB::Flush& collectionsFlush);
+    void updateManifestUid(CouchKVStoreTransactionContext& txnCtx,
+                           Collections::VB::Flush& collectionsFlush);
 
     /**
      * Called from updateCollectionsMeta this function maintains the set of open
@@ -630,33 +642,41 @@ protected:
      * can then be passed into updateDroppedCollections so it can avoid a
      * duplicated read of the dropped collections.
      *
+     * @param txnCtx TransactionContext containing queues/vbid
      * @param db The database handle to update
      * @param collectionsFlush flush object for a single 'flush/commit'
      * @return error code if the update fails
      */
     couchstore_error_t updateOpenCollections(
-            Db& db, Collections::VB::Flush& collectionsFlush);
+            CouchKVStoreTransactionContext& txnCtx,
+            Db& db,
+            Collections::VB::Flush& collectionsFlush);
 
     /**
      * Called from updateCollectionsMeta this function maintains the set of
      * dropped collections.
      *
+     * @param txnCtx TransactionContext containing queues/vbid
      * @param db The database handle to update
      * @param collectionsFlush flush object for a single 'flush/commit'
      * @return error code if the update fails
      */
     couchstore_error_t updateDroppedCollections(
-            Db& db, Collections::VB::Flush& collectionsFlush);
+            CouchKVStoreTransactionContext& txnCtx,
+            Db& db,
+            Collections::VB::Flush& collectionsFlush);
 
     /**
      * Called from updateCollectionsMeta this function maintains the set of
      * open scopes.
      *
+     * @param txnCtx TransactionContext containing queues/vbid
      * @param db The database handle to update
      * @param collectionsFlush flush object for a single 'flush/commit'
      * @return error code if the update fails
      */
-    couchstore_error_t updateScopes(Db& db,
+    couchstore_error_t updateScopes(CouchKVStoreTransactionContext& txnCtx,
+                                    Db& db,
                                     Collections::VB::Flush& collectionsFlush);
 
     /**
@@ -941,14 +961,6 @@ protected:
     std::shared_ptr<RevisionMap> dbFileRevMap;
 
     /**
-     * A queue of pending local document updates (set or delete) that is used
-     * by the 'flush' path of KVStore (begin/[set|del]/commit). The commit
-     * path will write this queue of requests before finally calling
-     * couchstore_commit
-     */
-    PendingLocalDocRequestQueue pendingLocalReqsQ;
-
-    /**
      * FileOpsInterface implementation for couchstore which tracks
      * all bytes read/written by couchstore *except* compaction.
      *
@@ -1054,4 +1066,12 @@ struct CouchKVStoreTransactionContext : public TransactionContext {
     }
 
     CouchKVStore::PendingRequestQueue pendingReqsQ;
+
+    /**
+     * A queue of pending local document updates (set or delete) that is used
+     * by the 'flush' path of KVStore (begin/[set|del]/commit). The commit
+     * path will write this queue of requests before finally calling
+     * couchstore_commit
+     */
+    CouchKVStore::PendingLocalDocRequestQueue pendingLocalReqsQ;
 };
