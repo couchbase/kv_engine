@@ -21,10 +21,14 @@
  * callback.
  */
 struct TransactionContext {
-    TransactionContext(Vbid vbid, std::unique_ptr<PersistenceCallback> cb)
-        : vbid(vbid), cb(std::move(cb)) {
+    TransactionContext(KVStore& kvstore,
+                       Vbid vbid,
+                       std::unique_ptr<PersistenceCallback> cb)
+        : kvstore(kvstore), vbid(vbid), cb(std::move(cb)) {
     }
-    virtual ~TransactionContext() = default;
+    virtual ~TransactionContext() {
+        kvstore.endTransaction(vbid);
+    }
 
     /**
      * Callback for sets. Invoked after persisting an item. Does nothing by
@@ -44,6 +48,7 @@ struct TransactionContext {
         (*cb)(i, d);
     }
 
+    KVStore& kvstore;
     const Vbid vbid;
     std::unique_ptr<PersistenceCallback> cb;
 };

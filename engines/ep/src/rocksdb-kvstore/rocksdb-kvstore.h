@@ -546,7 +546,8 @@ private:
 struct RocksDBKVStoreTransactionContext : public TransactionContext {
     // Defined in the .cc so that we don't need the full inclusion of
     // RocksRequest
-    RocksDBKVStoreTransactionContext(Vbid vbid,
+    RocksDBKVStoreTransactionContext(KVStore& kvstore,
+                                     Vbid vbid,
                                      std::unique_ptr<PersistenceCallback> cb);
 
     // Used for queueing mutation requests (in `set` and `del`) and flushing

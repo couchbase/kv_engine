@@ -564,3 +564,28 @@ Vbid::id_type KVStore::getCacheSlot(Vbid vbid) const {
 size_t KVStore::getCacheSize() const {
     return getConfig().getCacheSize();
 }
+
+bool KVStore::startTransaction(Vbid vbid) {
+    auto& vbInTransaction = inTransaction[getCacheSlot(vbid)];
+    bool expected = false;
+    if (!vbInTransaction.compare_exchange_strong(expected, true)) {
+        // Some other thread is already in a transaction against this vBucket.
+        return false;
+    }
+
+    return true;
+}
+
+void KVStore::endTransaction(Vbid vbid) {
+    auto& vbInTransaction = inTransaction[getCacheSlot(vbid)];
+    vbInTransaction = false;
+}
+
+void KVStore::checkIfInTransaction(Vbid vbid, std::string_view caller) {
+    if (!inTransaction[getCacheSlot(vbid)]) {
+        throw std::invalid_argument(fmt::format(
+                "{} inTransaction {} must be true to perform this operation.",
+                caller,
+                vbid));
+    }
+}

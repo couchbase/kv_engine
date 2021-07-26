@@ -366,6 +366,7 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
     cachedSpaceUsed.assign(cacheSize, 0);
 
     cachedVBStates.resize(cacheSize);
+    inTransaction = std::vector<std::atomic_bool>(cacheSize);
 }
 
 // Helper function to create and resize the 'locked' vector
@@ -519,11 +520,7 @@ CouchKVStore::~CouchKVStore() {
 }
 
 void CouchKVStore::set(TransactionContext& txnCtx, queued_item item) {
-    if (!inTransaction) {
-        throw std::invalid_argument(
-                "CouchKVStore::set: inTransaction must be "
-                "true to perform a set operation.");
-    }
+    checkIfInTransaction(txnCtx.vbid, "CouchKVStore::set");
 
     // each req will be de-allocated after commit
     auto& ctx = dynamic_cast<CouchKVStoreTransactionContext&>(txnCtx);
@@ -765,11 +762,7 @@ void CouchKVStore::getRange(Vbid vb,
 }
 
 void CouchKVStore::del(TransactionContext& txnCtx, queued_item item) {
-    if (!inTransaction) {
-        throw std::invalid_argument(
-                "CouchKVStore::del: inTransaction must be "
-                "true to perform a delete operation.");
-    }
+    checkIfInTransaction(txnCtx.vbid, "CouchKVStore::del");
 
     auto& ctx = dynamic_cast<CouchKVStoreTransactionContext&>(txnCtx);
     ctx.pendingReqsQ.emplace_back(std::move(item));
@@ -2379,7 +2372,6 @@ cb::couchstore::Header CouchKVStore::getDbInfo(Vbid vbid) {
 }
 
 void CouchKVStore::close() {
-    inTransaction = false;
 }
 
 void CouchKVStore::updateDbFileMap(Vbid vbucketId, uint64_t newFileRev) {
@@ -2810,10 +2802,7 @@ static int byIdScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
 
 bool CouchKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
                           VB::Commit& commitData) {
-    if (!inTransaction) {
-        logger.warn("CouchKVStore::commit: called not in transaction");
-        return true;
-    }
+    checkIfInTransaction(txnCtx->vbid, "CouchKVStore::commit");
 
     auto& ctx = dynamic_cast<CouchKVStoreTransactionContext&>(*txnCtx);
 
@@ -2858,8 +2847,6 @@ bool CouchKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
         kvctx.commitData.collections.postCommitMakeStatsVisible();
 
         updateCachedVBState(vbid, commitData.proposedVBState);
-
-        inTransaction = false;
     } else {
         logger.warn(
                 "CouchKVStore::commit: saveDocs error:{}, "
@@ -4349,6 +4336,10 @@ std::optional<DbHolder> CouchKVStore::openOrCreate(Vbid vbid) noexcept {
 
 std::unique_ptr<TransactionContext> CouchKVStore::begin(
         Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) {
-    inTransaction = true;
-    return std::make_unique<CouchKVStoreTransactionContext>(vbid, std::move(pcb));
+    if (!startTransaction(vbid)) {
+        return {};
+    }
+
+    return std::make_unique<CouchKVStoreTransactionContext>(
+            *this, vbid, std::move(pcb));
 }

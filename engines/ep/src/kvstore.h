@@ -1143,6 +1143,23 @@ public:
         postFlushHook = hook;
     }
 
+    /**
+     * End a transaction by resetting the appropriate inTransaction bool. Public
+     * so that we can call this from ~TransactionContext().
+     *
+     * @param vbid to start a transaction for
+     */
+    void endTransaction(Vbid vbid);
+
+    /**
+     * Validate if the given vBucket is in a transaction
+     *
+     * @param vbid to check
+     * @param caller to print in throw if not in transaction
+     * @throws invalid_argument if not in transaction
+     */
+    void checkIfInTransaction(Vbid vbid, std::string_view caller);
+
 protected:
     /// Get a string to use as the prefix for the stats. This is typically
     /// "ro_<shard id>" for the read only store, and "rw_<shard id>" for the
@@ -1203,6 +1220,14 @@ protected:
     /// @returns the size to use for the cached values
     size_t getCacheSize() const;
 
+    /**
+     * Start a transaction by setting the necessary inTransaction bool
+     *
+     * @param vbid to start a transaction for
+     * @return true if a transaction can be started, false if not
+     */
+    bool startTransaction(Vbid vbid);
+
     /* all stats */
     KVStoreStats st;
     std::vector<std::unique_ptr<vbucket_state>> cachedVBStates;
@@ -1214,12 +1239,11 @@ protected:
      */
     MakeCompactionContextCallback makeCompactionContextCallback;
 
-    // This variable is used to verify that the KVStore API is used correctly
-    // "Correctly" means that the caller must use the API in the following way:
-    //      - begin() x1
-    //      - set() / del() xN
-    //      - commit()
-    bool inTransaction{false};
+    /**
+     * Guards against users attempting to flush against the same vBucket
+     * concurrently.
+     */
+    std::vector<std::atomic_bool> inTransaction;
 
     // Test-only. If set, this is executed after the a flush-batch is committed
     // to disk but before we call back into the PersistenceCallback.

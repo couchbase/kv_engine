@@ -235,9 +235,10 @@ MagmaKVStore::MagmaCompactionCB::~MagmaCompactionCB() {
 }
 
 struct MagmaKVStoreTransactionContext : public TransactionContext {
-    MagmaKVStoreTransactionContext(Vbid vbid,
+    MagmaKVStoreTransactionContext(KVStore& kvstore,
+                                   Vbid vbid,
                                    std::unique_ptr<PersistenceCallback> cb)
-        : TransactionContext(vbid, std::move(cb)) {
+        : TransactionContext(kvstore, vbid, std::move(cb)) {
     }
     /**
      * Container for pending Magma requests.
@@ -491,6 +492,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     // this shard will have to deal with
     auto cacheSize = getCacheSize();
     cachedVBStates.resize(cacheSize);
+    inTransaction = std::vector<std::atomic_bool>(cacheSize);
     kvstoreRevList.resize(cacheSize, Monotonic<uint64_t>(0));
 
     useUpsertForSet = configuration.getMagmaEnableUpsert();
@@ -589,9 +591,7 @@ MagmaKVStore::~MagmaKVStore() {
 void MagmaKVStore::deinitialize() {
     logger->info("MagmaKVStore: {} deinitializing", configuration.getShardId());
 
-    if (!inTransaction) {
-        magma->Sync(true);
-    }
+    magma->Sync(true);
 
     // Close shuts down all of the magma background threads (compaction is the
     // one that we care about here). The compaction callbacks require the magma
@@ -611,16 +611,10 @@ std::string MagmaKVStore::getVBDBSubdir(Vbid vbid) {
 
 bool MagmaKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
                           VB::Commit& commitData) {
-    // This behaviour is to replicate the one in Couchstore.
-    // If `commit` is called when not in transaction, just return true.
-    if (!inTransaction) {
-        logger->warn("MagmaKVStore::commit called not in transaction");
-        return true;
-    }
+    checkIfInTransaction(txnCtx->vbid, "MagmaKVStore::commit");
 
     auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(*txnCtx);
     if (ctx.pendingReqs.size() == 0) {
-        inTransaction = false;
         return true;
     }
 
@@ -644,7 +638,6 @@ bool MagmaKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
     // Set `in_transanction = false` only if `commit` is successful.
     if (success) {
         updateCachedVBState(txnCtx->vbid, commitData.proposedVBState);
-        inTransaction = false;
     }
 
     logger->TRACE("MagmaKVStore::commit success:{}", success);
@@ -754,12 +747,9 @@ std::vector<vbucket_state*> MagmaKVStore::listPersistedVbuckets() {
 }
 
 void MagmaKVStore::set(TransactionContext& txnCtx, queued_item item) {
-    if (!inTransaction) {
-        throw std::logic_error(
-                "MagmaKVStore::set: inTransaction must be true to perform a "
-                "set operation.");
-    }
-    auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(txnCtx);
+    checkIfInTransaction(txnCtx.vbid, "MagmaKVStore::set");
+
+    auto& ctx = static_cast<MagmaKVStoreTransactionContext&>(txnCtx);
     ctx.pendingReqs.emplace_back(std::move(item), logger);
 }
 
@@ -957,11 +947,8 @@ void MagmaKVStore::getRange(Vbid vbid,
 }
 
 void MagmaKVStore::del(TransactionContext& txnCtx, queued_item item) {
-    if (!inTransaction) {
-        throw std::logic_error(
-                "MagmaKVStore::del: inTransaction must be true to perform a "
-                "delete operation.");
-    }
+    checkIfInTransaction(txnCtx.vbid, "MagmaKVStore::del");
+
     auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(txnCtx);
     ctx.pendingReqs.emplace_back(std::move(item), logger);
 }
@@ -3001,6 +2988,10 @@ Status MagmaDbStats::Unmarshal(const std::string& encoded) {
 
 std::unique_ptr<TransactionContext> MagmaKVStore::begin(
         Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) {
-    inTransaction = true;
-    return std::make_unique<MagmaKVStoreTransactionContext>(vbid, std::move(pcb));
+    if (!startTransaction(vbid)) {
+        return {};
+    }
+
+    return std::make_unique<MagmaKVStoreTransactionContext>(
+            *this, vbid, std::move(pcb));
 }

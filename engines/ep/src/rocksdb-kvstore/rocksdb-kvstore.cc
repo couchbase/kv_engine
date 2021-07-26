@@ -288,7 +288,10 @@ RocksDBKVStore::RocksDBKVStore(RocksDBKVStoreConfig& configuration)
       configuration(configuration),
       vbHandles(configuration.getMaxVBuckets()),
       logger(configuration.getLogger()) {
-    cachedVBStates.resize(getCacheSize());
+    auto cacheSize = getCacheSize();
+    cachedVBStates.resize(cacheSize);
+    inTransaction = std::vector<std::atomic_bool>(cacheSize);
+
     writeOptions.sync = true;
 
     // The RocksDB Options is a set of DBOptions and ColumnFamilyOptions.
@@ -405,8 +408,6 @@ RocksDBKVStore::~RocksDBKVStore() {
     // CFOptions are destroyed as a temporary workaround for some RocksDB
     // open issues.
     rdb.reset();
-
-    inTransaction = false;
 }
 
 void RocksDBKVStore::openDB() {
@@ -548,15 +549,10 @@ std::string RocksDBKVStore::getDBSubdir() {
 
 bool RocksDBKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
                             VB::Commit& commitData) {
-    // This behaviour is to replicate the one in Couchstore.
-    // If `commit` is called when not in transaction, just return true.
-    if (!inTransaction) {
-        return true;
-    }
+    checkIfInTransaction(txnCtx->vbid, "RocksDBKVStore::commit");
 
     auto& ctx = dynamic_cast<RocksDBKVStoreTransactionContext&>(*txnCtx);
     if (ctx.pendingReqs->empty()) {
-        inTransaction = false;
         return true;
     }
 
@@ -590,7 +586,6 @@ bool RocksDBKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
     // Set `in_transanction = false` only if `commit` is successful.
     if (success) {
         updateCachedVBState(vbid, commitData.proposedVBState);
-        inTransaction = false;
     }
 
     return success;
@@ -667,11 +662,8 @@ std::vector<vbucket_state*> RocksDBKVStore::listPersistedVbuckets() {
 }
 
 void RocksDBKVStore::set(TransactionContext& txnCtx, queued_item item) {
-    if (!inTransaction) {
-        throw std::logic_error(
-                "RocksDBKVStore::set: inTransaction must be true to perform a "
-                "set operation.");
-    }
+    checkIfInTransaction(txnCtx.vbid, "RocksDBKVStore::set");
+
     auto& ctx = dynamic_cast<RocksDBKVStoreTransactionContext&>(txnCtx);
     ctx.pendingReqs->emplace_back(std::move(item));
 }
@@ -765,14 +757,11 @@ void RocksDBKVStore::getRange(Vbid vb,
 }
 
 void RocksDBKVStore::del(TransactionContext& txnCtx, queued_item item) {
+    checkIfInTransaction(txnCtx.vbid, "RocksDBKVStore::del");
+
     if (!item->isDeleted()) {
         throw std::invalid_argument(
                 "RocksDBKVStore::del item to delete is not marked as deleted.");
-    }
-    if (!inTransaction) {
-        throw std::logic_error(
-                "RocksDBKVStore::del: inTransaction must be true to perform a "
-                "delete operation.");
     }
     // TODO: Deleted items remain as tombstones, but are not yet expired,
     // they will accumuate forever.
@@ -1907,13 +1896,16 @@ vbucket_state RocksDBKVStore::getPersistedVBucketState(Vbid vbid) {
 
 std::unique_ptr<TransactionContext> RocksDBKVStore::begin(
         Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) {
-    inTransaction = true;
-    return std::make_unique<RocksDBKVStoreTransactionContext>(vbid,
-                                                              std::move(pcb));
+    if (!startTransaction(vbid)) {
+        return {};
+    }
+
+    return std::make_unique<RocksDBKVStoreTransactionContext>(
+            *this, vbid, std::move(pcb));
 }
 
 RocksDBKVStoreTransactionContext::RocksDBKVStoreTransactionContext(
-        Vbid vbid, std::unique_ptr<PersistenceCallback> cb)
-    : TransactionContext(vbid, std::move(cb)),
+        KVStore& kvstore, Vbid vbid, std::unique_ptr<PersistenceCallback> cb)
+    : TransactionContext(kvstore, vbid, std::move(cb)),
       pendingReqs(std::make_unique<RocksDBKVStore::PendingRequestQueue>()) {
 }

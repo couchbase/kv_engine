@@ -1052,9 +1052,10 @@ private:
 };
 
 struct CouchKVStoreTransactionContext : public TransactionContext {
-    CouchKVStoreTransactionContext(Vbid vbid,
+    CouchKVStoreTransactionContext(KVStore& kvstore,
+                                   Vbid vbid,
                                    std::unique_ptr<PersistenceCallback> cb)
-        : TransactionContext(vbid, std::move(cb)) {
+        : TransactionContext(kvstore, vbid, std::move(cb)) {
     }
 
     CouchKVStore::PendingRequestQueue pendingReqsQ;

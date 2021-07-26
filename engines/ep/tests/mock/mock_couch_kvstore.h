@@ -68,12 +68,6 @@ public:
      */
     MockCouchRequest* setAndReturnRequest(TransactionContext& txnCtx,
                                           queued_item& itm) {
-        if (!inTransaction) {
-            throw std::invalid_argument(
-                    "MockCouchKVStore::set: inTransaction must be "
-                    "true to perform a set operation.");
-        }
-
         // each req will be de-allocated after commit
         auto& ctx = dynamic_cast<CouchKVStoreTransactionContext&>(txnCtx);
         ctx.pendingReqsQ.emplace_back(itm);

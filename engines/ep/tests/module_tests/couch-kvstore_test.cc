@@ -279,6 +279,8 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(
 
     kvstore->commit(std::move(ctx), flush);
 
+    EXPECT_FALSE(ctx);
+    EXPECT_FALSE(ctx.get());
     ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
 
     // Now delete keys (if requested). Alternate between value and no-value
