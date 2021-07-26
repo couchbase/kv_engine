@@ -11,14 +11,11 @@
 
 #pragma once
 
+#include "ep_test_apis.h"
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
-
 #include <sstream>
-#include <string>
 #include <vector>
-
-#include "ep_test_apis.h"
 
 template <typename T>
 static void checkeqfn(T exp,

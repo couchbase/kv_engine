@@ -15,14 +15,12 @@
 
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
-
+#include <memcached/types.h>
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/platform_thread.h>
-
 #include <array>
-#include <memcached/types.h>
 
 #define WHITESPACE_DB "whitespace sucks.db"
 

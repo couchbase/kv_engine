@@ -14,16 +14,13 @@
 // name check
 #include <programs/engine_testapp/mock_cookie.h>
 
-#include "ep_testsuite_common.h"
 #include "ep_test_apis.h"
-
-#include <cstring>
-#include <iostream>
-#include <string>
-
+#include "ep_testsuite_common.h"
 #include <platform/cb_malloc.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
+#include <iostream>
+#include <string>
 
 const char *dbname_env = nullptr;
 

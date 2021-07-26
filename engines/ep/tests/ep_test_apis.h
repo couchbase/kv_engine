@@ -10,20 +10,18 @@
  */
 #pragma once
 
-#include <memcached/engine.h>
-#include <memcached/engine_testapp.h>
-#include <memcached/protocol_binary.h>
-#include <relaxed_atomic.h>
-
-#include <folly/portability/SysStat.h>
-#include <iostream>
-#include <map>
-#include <string>
-
 #include "ep_request_utils.h"
 #include "ep_types.h"
 #include "ext_meta_parser.h"
 #include "item.h"
+#include <folly/portability/SysStat.h>
+#include <memcached/engine.h>
+#include <memcached/engine_testapp.h>
+#include <memcached/protocol_binary.h>
+#include <relaxed_atomic.h>
+#include <iostream>
+#include <map>
+#include <string>
 
 #define check(expr, msg)                               \
     do {                                               \

@@ -17,24 +17,8 @@
 // Usage: (to run just a single test case)
 // make engine_tests EP_TEST_NUM=3
 
-#include <chrono>
-#include <condition_variable>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <iostream>
-#include <map>
-#include <mutex>
-#include <random>
-#include <regex>
-#include <set>
-#include <string>
-#include <thread>
-#include <vector>
-
 #include "couch-kvstore/couch-kvstore-metadata.h"
 #include "ep_test_apis.h"
-
 #include "ep_testsuite_common.h"
 #include <libcouchstore/couch_db.h>
 #include <memcached/engine.h>
@@ -49,6 +33,19 @@
 #include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <map>
+#include <mutex>
+#include <random>
+#include <regex>
+#include <set>
+#include <string>
+#include <thread>
+#include <vector>
 
 #ifdef linux
 /* /usr/include/netinet/in.h defines macros from ntohs() to _bswap_nn to
@@ -64,10 +61,6 @@
 
 using namespace std::string_literals;
 using namespace std::string_view_literals;
-
-// ptr_fun don't like the extern "C" thing for unlock cookie.. cast it
-// away ;)
-typedef void (*UNLOCK_COOKIE_T)(const void *cookie);
 
 class ThreadData {
 public:
