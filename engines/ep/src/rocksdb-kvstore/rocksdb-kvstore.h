@@ -19,6 +19,7 @@
 
 #include "../objectregistry.h"
 #include "collections/collection_persisted_stats.h"
+#include "kvstore_transaction_context.h"
 #include "rollback_result.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
@@ -115,6 +116,14 @@ struct KVStatsCtx;
  */
 class RocksDBKVStore : public KVStore {
 public:
+    /**
+     * Container for pending RocksDB requests.
+     *
+     * Using deque as as the expansion behaviour is less aggressive compared to
+     * std::vector (RocksRequest objects are ~160 bytes in size).
+     */
+    using PendingRequestQueue = std::deque<RocksRequest>;
+
     /**
      * Constructor
      *
@@ -328,14 +337,6 @@ protected:
     rocksdb::Status writeAndTimeBatch(rocksdb::WriteBatch batch);
 
 private:
-    /**
-     * Container for pending RocksDB requests.
-     *
-     * Using deque as as the expansion behaviour is less aggressive compared to
-     * std::vector (RocksRequest objects are ~160 bytes in size).
-     */
-    using PendingRequestQueue = std::deque<RocksRequest>;
-
     RocksDBKVStoreConfig& configuration;
 
     // Unique RocksDB instance, per-Shard.
@@ -509,11 +510,6 @@ private:
                            Vbid vb,
                            ValueFilter filter) const;
 
-    // Used for queueing mutation requests (in `set` and `del`) and flushing
-    // them to disk (in `commit`).
-    // unique_ptr for pimpl.
-    std::unique_ptr<PendingRequestQueue> pendingReqs;
-
     rocksdb::WriteOptions writeOptions;
 
     // RocksDB does *not* need additional synchronisation around
@@ -549,4 +545,16 @@ private:
     };
 
     BucketLogger& logger;
+};
+
+struct RocksDBKVStoreTransactionContext : public TransactionContext {
+    // Defined in the .cc so that we don't need the full inclusion of
+    // RocksRequest
+    RocksDBKVStoreTransactionContext(Vbid vbid,
+                                     std::unique_ptr<PersistenceCallback> cb);
+
+    // Used for queueing mutation requests (in `set` and `del`) and flushing
+    // them to disk (in `commit`).
+    // unique_ptr for pimpl.
+    std::unique_ptr<RocksDBKVStore::PendingRequestQueue> pendingReqs;
 };

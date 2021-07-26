@@ -287,7 +287,6 @@ RocksDBKVStore::RocksDBKVStore(RocksDBKVStoreConfig& configuration)
     : KVStore(),
       configuration(configuration),
       vbHandles(configuration.getMaxVBuckets()),
-      pendingReqs(std::make_unique<PendingRequestQueue>()),
       logger(configuration.getLogger()) {
     cachedVBStates.resize(getCacheSize());
     writeOptions.sync = true;
@@ -555,7 +554,8 @@ bool RocksDBKVStore::commit(TransactionContext& txnCtx,
         return true;
     }
 
-    if (pendingReqs->empty()) {
+    auto& ctx = dynamic_cast<RocksDBKVStoreTransactionContext&>(txnCtx);
+    if (ctx.pendingReqs->empty()) {
         inTransaction = false;
         return true;
     }
@@ -565,7 +565,7 @@ bool RocksDBKVStore::commit(TransactionContext& txnCtx,
     PendingRequestQueue commitBatch;
     {
         std::lock_guard<std::mutex> lock(writeMutex);
-        std::swap(*pendingReqs, commitBatch);
+        std::swap(*ctx.pendingReqs, commitBatch);
     }
 
     bool success = true;
@@ -672,7 +672,8 @@ void RocksDBKVStore::set(TransactionContext& txnCtx, queued_item item) {
                 "RocksDBKVStore::set: inTransaction must be true to perform a "
                 "set operation.");
     }
-    pendingReqs->emplace_back(std::move(item));
+    auto& ctx = dynamic_cast<RocksDBKVStoreTransactionContext&>(txnCtx);
+    ctx.pendingReqs->emplace_back(std::move(item));
 }
 
 GetValue RocksDBKVStore::get(const DiskDocKey& key,
@@ -775,7 +776,8 @@ void RocksDBKVStore::del(TransactionContext& txnCtx, queued_item item) {
     }
     // TODO: Deleted items remain as tombstones, but are not yet expired,
     // they will accumuate forever.
-    pendingReqs->emplace_back(std::move(item));
+    auto& ctx = dynamic_cast<RocksDBKVStoreTransactionContext&>(txnCtx);
+    ctx.pendingReqs->emplace_back(std::move(item));
 }
 
 void RocksDBKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
@@ -1906,5 +1908,12 @@ vbucket_state RocksDBKVStore::getPersistedVBucketState(Vbid vbid) {
 std::unique_ptr<TransactionContext> RocksDBKVStore::begin(
         Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) {
     inTransaction = true;
-    return std::make_unique<TransactionContext>(vbid, std::move(pcb));
+    return std::make_unique<RocksDBKVStoreTransactionContext>(vbid,
+                                                              std::move(pcb));
+}
+
+RocksDBKVStoreTransactionContext::RocksDBKVStoreTransactionContext(
+        Vbid vbid, std::unique_ptr<PersistenceCallback> cb)
+    : TransactionContext(vbid, std::move(cb)),
+      pendingReqs(std::make_unique<RocksDBKVStore::PendingRequestQueue>()) {
 }
