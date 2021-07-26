@@ -133,11 +133,6 @@ public:
      */
     bool commit(TransactionContext& txnCtx, VB::Commit& commitData) override;
 
-    /**
-     * Rollback a transaction (unless not currently in one).
-     */
-    void rollback() override;
-
     void addStats(const AddStatFn& add_stat,
                   const void* c,
                   const std::string& args) const override;

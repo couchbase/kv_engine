@@ -722,12 +722,6 @@ void MagmaKVStore::commitCallback(MagmaKVStoreTransactionContext& txnCtx,
     }
 }
 
-void MagmaKVStore::rollback() {
-    if (inTransaction) {
-        inTransaction = false;
-    }
-}
-
 StorageProperties MagmaKVStore::getStorageProperties() const {
     StorageProperties rv(StorageProperties::ConcurrentWriteCompact::Yes,
                          StorageProperties::ByIdScan::No,

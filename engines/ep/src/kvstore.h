@@ -672,11 +672,6 @@ public:
     virtual bool commit(TransactionContext& txnCtx, VB::Commit& commitData) = 0;
 
     /**
-     * Rollback the current transaction.
-     */
-    virtual void rollback() = 0;
-
-    /**
      * Get the properties of the underlying storage.
      */
     virtual StorageProperties getStorageProperties() const = 0;

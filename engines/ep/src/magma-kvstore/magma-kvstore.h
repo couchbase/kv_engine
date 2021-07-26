@@ -220,11 +220,6 @@ public:
      */
     bool commit(TransactionContext& txnCtx, VB::Commit& commitData) override;
 
-    /**
-     * Rollback a transaction (unless not currently in one).
-     */
-    void rollback() override;
-
     StorageProperties getStorageProperties() const override;
 
     void setMaxDataSize(size_t size) override;

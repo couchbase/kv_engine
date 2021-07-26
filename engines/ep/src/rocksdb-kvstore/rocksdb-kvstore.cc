@@ -658,12 +658,6 @@ size_t RocksDBKVStore::getItemCount(Vbid vbid) {
     return std::stoi(val);
 }
 
-void RocksDBKVStore::rollback() {
-    if (inTransaction) {
-        inTransaction = false;
-    }
-}
-
 std::vector<vbucket_state*> RocksDBKVStore::listPersistedVbuckets() {
     std::vector<vbucket_state*> result;
     for (const auto& vb : cachedVBStates) {

@@ -180,15 +180,6 @@ public:
     bool commit(TransactionContext& txnCtx, VB::Commit& commitData) override;
 
     /**
-     * Rollback a transaction (unless not currently in one).
-     */
-    void rollback() override {
-        if (inTransaction) {
-            inTransaction = false;
-        }
-    }
-
-    /**
      * Query the properties of the underlying storage.
      *
      * @return properties of the underlying storage system
