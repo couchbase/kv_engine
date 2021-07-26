@@ -1470,7 +1470,7 @@ TEST_F(CouchstoreTest, noMeta) {
     StoredDocKey key = makeStoredDocKey("key");
     auto item = makeCommittedItem(key, "value");
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
-    auto* request = kvstore->setAndReturnRequest(item);
+    auto* request = kvstore->setAndReturnRequest(*ctx, item);
 
     // Now directly mess with the metadata of the value which will be written
     MockCouchRequest::MetaData meta;
@@ -1486,7 +1486,7 @@ TEST_F(CouchstoreTest, shortMeta) {
     StoredDocKey key = makeStoredDocKey("key");
     auto item = makeCommittedItem(key, "value");
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
-    auto* request = kvstore->setAndReturnRequest(item);
+    auto* request = kvstore->setAndReturnRequest(*ctx, item);
 
     // Now directly mess with the metadata of the value which will be written
     MockCouchRequest::MetaData meta;
@@ -1557,7 +1557,7 @@ TEST_F(CouchstoreTest, fuzzV1) {
     StoredDocKey key = makeStoredDocKey("key");
     auto item = makeCommittedItem(key, "value");
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
-    auto* request = kvstore->setAndReturnRequest(item);
+    auto* request = kvstore->setAndReturnRequest(*ctx, item);
 
     // Now directly mess with the metadata of the value which will be written
     MockCouchRequest::MetaData meta;
@@ -1605,7 +1605,7 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
     meta.legacyDeleted = 0x01;
 
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
-    auto* request = kvstore->setAndReturnRequest(item);
+    auto* request = kvstore->setAndReturnRequest(*ctx, item);
 
     // Force the meta to be V2 (19 bytes)
     request->writeMetaData(meta, MockCouchRequest::MetaData::sizeofV2);

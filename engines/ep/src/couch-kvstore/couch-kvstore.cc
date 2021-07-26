@@ -526,7 +526,8 @@ void CouchKVStore::set(TransactionContext& txnCtx, queued_item item) {
     }
 
     // each req will be de-allocated after commit
-    pendingReqsQ.emplace_back(std::move(item));
+    auto& ctx = dynamic_cast<CouchKVStoreTransactionContext&>(txnCtx);
+    ctx.pendingReqsQ.emplace_back(std::move(item));
 }
 
 GetValue CouchKVStore::get(const DiskDocKey& key,
@@ -770,7 +771,8 @@ void CouchKVStore::del(TransactionContext& txnCtx, queued_item item) {
                 "true to perform a delete operation.");
     }
 
-    pendingReqsQ.emplace_back(std::move(item));
+    auto& ctx = dynamic_cast<CouchKVStoreTransactionContext&>(txnCtx);
+    ctx.pendingReqsQ.emplace_back(std::move(item));
 }
 
 void CouchKVStore::delVBucket(Vbid vbucket, uint64_t fileRev) {
@@ -2812,7 +2814,9 @@ bool CouchKVStore::commit(TransactionContext& txnCtx, VB::Commit& commitData) {
         return true;
     }
 
-    size_t pendingCommitCnt = pendingReqsQ.size();
+    auto& ctx = dynamic_cast<CouchKVStoreTransactionContext&>(txnCtx);
+
+    size_t pendingCommitCnt = ctx.pendingReqsQ.size();
     if (pendingCommitCnt == 0) {
         return true;
     }
@@ -2831,7 +2835,7 @@ bool CouchKVStore::commit(TransactionContext& txnCtx, VB::Commit& commitData) {
     std::vector<void*> kvReqs(pendingCommitCnt);
 
     for (size_t i = 0; i < pendingCommitCnt; ++i) {
-        auto& req = pendingReqsQ[i];
+        auto& req = ctx.pendingReqsQ[i];
         docs[i] = req.getDbDoc();
         docinfos[i] = req.getDbDocInfo();
         kvReqs[i] = &req;
@@ -2843,9 +2847,9 @@ bool CouchKVStore::commit(TransactionContext& txnCtx, VB::Commit& commitData) {
 
     postFlushHook();
 
-    commitCallback(txnCtx, pendingReqsQ, kvctx, errCode);
+    commitCallback(txnCtx, ctx.pendingReqsQ, kvctx, errCode);
 
-    pendingReqsQ.clear();
+    ctx.pendingReqsQ.clear();
 
     const auto success = (errCode == COUCHSTORE_SUCCESS);
     if (success) {
@@ -4329,5 +4333,5 @@ std::optional<DbHolder> CouchKVStore::openOrCreate(Vbid vbid) noexcept {
 std::unique_ptr<TransactionContext> CouchKVStore::begin(
         Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) {
     inTransaction = true;
-    return std::make_unique<TransactionContext>(vbid, std::move(pcb));
+    return std::make_unique<CouchKVStoreTransactionContext>(vbid, std::move(pcb));
 }

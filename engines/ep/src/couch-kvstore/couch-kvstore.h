@@ -18,6 +18,7 @@
 #include "kvstore_priv.h"
 #include "libcouchstore/couch_db.h"
 #include "monotonic.h"
+#include "kvstore_transaction_context.h"
 
 #include <folly/SharedMutex.h>
 #include <folly/Synchronized.h>
@@ -135,6 +136,17 @@ struct kvstats_ctx;
 class CouchKVStore : public KVStore
 {
 public:
+    /**
+     * Container for pending couchstore requests.
+     *
+     * Using deque as (a) it doesn't move (and hence invalidate) any existing
+     * elements, which is relied on as CouchRequest has pointers to it's own
+     * data, and (b) as the expansion behviour is less aggressive compared to
+     * std::vector (CouchRequest objects are ~256 bytes in size).
+     */
+    using PendingRequestQueue = std::deque<CouchRequest>;
+    using PendingLocalDocRequestQueue = std::deque<CouchLocalDocRequest>;
+
     /**
      * Constructor - creates a read/write CouchKVStore
      *
@@ -440,17 +452,6 @@ protected:
     };
 
     const KVStoreConfig& getConfig() const override;
-
-    /**
-     * Container for pending couchstore requests.
-     *
-     * Using deque as (a) it doesn't move (and hence invalidate) any existing
-     * elements, which is relied on as CouchRequest has pointers to it's own
-     * data, and (b) as the expansion behviour is less aggressive compared to
-     * std::vector (CouchRequest objects are ~256 bytes in size).
-     */
-    using PendingRequestQueue = std::deque<CouchRequest>;
-    using PendingLocalDocRequestQueue = std::deque<CouchLocalDocRequest>;
 
     /*
      * Returns the DbInfo for the given vbucket database.
@@ -939,8 +940,6 @@ protected:
      */
     std::shared_ptr<RevisionMap> dbFileRevMap;
 
-    PendingRequestQueue pendingReqsQ;
-
     /**
      * A queue of pending local document updates (set or delete) that is used
      * by the 'flush' path of KVStore (begin/[set|del]/commit). The commit
@@ -1046,4 +1045,13 @@ private:
 
     // Underlying stats for OS file operations during compaction
     FileStats fsStatsCompaction;
+};
+
+struct CouchKVStoreTransactionContext : public TransactionContext {
+    CouchKVStoreTransactionContext(Vbid vbid,
+                                   std::unique_ptr<PersistenceCallback> cb)
+        : TransactionContext(vbid, std::move(cb)) {
+    }
+
+    CouchKVStore::PendingRequestQueue pendingReqsQ;
 };

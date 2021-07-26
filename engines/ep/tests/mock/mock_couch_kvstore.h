@@ -66,7 +66,8 @@ public:
      * NOTE: Returned pointer is only valid until the next request is added to
      * the pendingReqsQ.
      */
-    MockCouchRequest* setAndReturnRequest(queued_item& itm) {
+    MockCouchRequest* setAndReturnRequest(TransactionContext& txnCtx,
+                                          queued_item& itm) {
         if (!inTransaction) {
             throw std::invalid_argument(
                     "MockCouchKVStore::set: inTransaction must be "
@@ -74,8 +75,9 @@ public:
         }
 
         // each req will be de-allocated after commit
-        pendingReqsQ.emplace_back(itm);
-        return static_cast<MockCouchRequest*>(&pendingReqsQ.back());
+        auto& ctx = dynamic_cast<CouchKVStoreTransactionContext&>(txnCtx);
+        ctx.pendingReqsQ.emplace_back(itm);
+        return static_cast<MockCouchRequest*>(&ctx.pendingReqsQ.back());
     }
 
     bool commit(TransactionContext& txnCtx, VB::Commit& commitData) override {
