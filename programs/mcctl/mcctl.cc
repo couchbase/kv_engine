@@ -1,4 +1,3 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -13,16 +12,14 @@
  *         process.
  */
 #include <getopt.h>
-#include <memcached/openssl.h>
 #include <memcached/protocol_binary.h>
-#include <memcached/util.h>
-#include <platform/cb_malloc.h>
+#include <platform/dirutils.h>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <utilities/string_utilities.h>
 #include <utilities/terminate_handler.h>
-
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -124,10 +121,13 @@ Options:
   -b or --bucket bucketname      The name of the bucket to operate on
   -u or --user username          The name of the user to authenticate as
   -P or --password password      The passord to use for authentication
-                                 (use '-' to read from standard input)
-  -s or --ssl                    Connect to the server over SSL
-  -C or --ssl-cert filename      Read the SSL certificate from the specified file
-  -K or --ssl-key filename       Read the SSL private key from the specified file
+                                 (use '-' to read from standard input, or
+                                 set the environment variable CB_PASSWORD)
+  --tls[=cert,key]               Use TLS and optionally try to authenticate
+                                 by using the provided certificate and
+                                 private key.
+  -s or --ssl                    Deprecated. Use --tls
+  -C or --ssl-cert filename      Deprecated. Use --tls=[cert,key]
   -4 or --ipv4                   Connect over IPv4
   -6 or --ipv6                   Connect over IPv6
   --help                         This help text
@@ -160,7 +160,9 @@ int main(int argc, char** argv) {
 
     cb::net::initialize();
 
-    struct option long_options[] = {
+    // we could have used an array, but then we need to keep track of the
+    // size. easier to just use a vector
+    const std::vector<option> options{
             {"ipv4", no_argument, nullptr, '4'},
             {"ipv6", no_argument, nullptr, '6'},
             {"host", required_argument, nullptr, 'h'},
@@ -168,15 +170,18 @@ int main(int argc, char** argv) {
             {"bucket", required_argument, nullptr, 'b'},
             {"password", required_argument, nullptr, 'P'},
             {"user", required_argument, nullptr, 'u'},
+            {"tls=", optional_argument, nullptr, 't'},
             {"ssl", no_argument, nullptr, 's'},
             {"ssl-cert", required_argument, nullptr, 'C'},
             {"ssl-key", required_argument, nullptr, 'K'},
             {"help", no_argument, nullptr, 0},
             {nullptr, 0, nullptr, 0}};
 
-    while ((cmd = getopt_long(
-                    argc, argv, "46h:p:u:b:P:sC:K:", long_options, nullptr)) !=
-           EOF) {
+    while ((cmd = getopt_long(argc,
+                              argv,
+                              "46h:p:u:b:P:sC:K:t",
+                              options.data(),
+                              nullptr)) != EOF) {
         switch (cmd) {
         case '6' :
             family = AF_INET6;
@@ -208,7 +213,31 @@ int main(int argc, char** argv) {
         case 'K':
             ssl_key.assign(optarg);
             break;
+        case 't':
+            secure = true;
+            if (optarg) {
+                auto parts = split_string(optarg, ",");
+                if (parts.size() != 2) {
+                    std::cerr << "Incorrect format for --tls=certificate,key"
+                              << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                ssl_cert = std::move(parts.front());
+                ssl_key = std::move(parts.back());
 
+                if (!cb::io::isFile(ssl_cert)) {
+                    std::cerr << "Certificate file " << ssl_cert
+                              << " does not exists\n";
+                    exit(EXIT_FAILURE);
+                }
+
+                if (!cb::io::isFile(ssl_key)) {
+                    std::cerr << "Private key file " << ssl_key
+                              << " does not exists\n";
+                    exit(EXIT_FAILURE);
+                }
+            }
+            break;
         default:
             usage();
         }

@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -13,6 +12,7 @@
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <fmt/core.h>
+#include <getopt.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
@@ -20,12 +20,12 @@
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/json_utilities.h>
+#include <utilities/string_utilities.h>
 #include <utilities/terminate_handler.h>
-
-#include <getopt.h>
 #include <array>
 #include <cinttypes>
 #include <cstdlib>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 
@@ -382,8 +382,12 @@ void usage() {
   -b or --bucket bucketname      The name of the bucket to operate on
   -u or --user username          The name of the user to authenticate as
   -P or --password password      The passord to use for authentication
-                                 (use '-' to read from standard input)
-  -s or --ssl                    Connect to the server over SSL
+                                 (use '-' to read from standard input, or
+                                 set the environment variable CB_PASSWORD)
+  --tls[=cert,key]               Use TLS and optionally try to authenticate
+                                 by using the provided certificate and
+                                 private key.
+  -s or --ssl                    Deprecated. Use --tls
   -4 or --ipv4                   Connect over IPv4
   -6 or --ipv6                   Connect over IPv6
   -v or --verbose                Use verbose output
@@ -412,6 +416,8 @@ int main(int argc, char** argv) {
     std::string host{"localhost"};
     std::string user{};
     std::string password{};
+    std::string ssl_cert;
+    std::string ssl_key;
     std::vector<std::string> buckets{{"/all/"}};
     std::string file;
     sa_family_t family = AF_UNSPEC;
@@ -422,7 +428,7 @@ int main(int argc, char** argv) {
 
     cb::net::initialize();
 
-    std::vector<option> long_options{
+    const std::vector<option> options{
             {{"ipv4", no_argument, nullptr, '4'},
              {"ipv6", no_argument, nullptr, '6'},
              {"host", required_argument, nullptr, 'h'},
@@ -431,6 +437,7 @@ int main(int argc, char** argv) {
              {"password", required_argument, nullptr, 'P'},
              {"user", required_argument, nullptr, 'u'},
              {"ssl", no_argument, nullptr, 's'},
+             {"tls=", optional_argument, nullptr, 't'},
              {"verbose", no_argument, nullptr, 'v'},
              {"json", optional_argument, nullptr, 'j'},
              {"file", required_argument, nullptr, 'f'},
@@ -440,8 +447,8 @@ int main(int argc, char** argv) {
 
     while ((cmd = getopt_long(argc,
                               argv,
-                              "46h:p:u:b:P:sSvjf:a",
-                              long_options.data(),
+                              "46h:p:u:b:P:st:Svjf:at",
+                              options.data(),
                               nullptr)) != EOF) {
         switch (cmd) {
         case '6':
@@ -474,6 +481,31 @@ int main(int argc, char** argv) {
             break;
         case 's':
             secure = true;
+            break;
+        case 't':
+            secure = true;
+            if (optarg) {
+                auto parts = split_string(optarg, ",");
+                if (parts.size() != 2) {
+                    std::cerr << "Incorrect format for --tls=certificate,key"
+                              << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                ssl_cert = std::move(parts.front());
+                ssl_key = std::move(parts.back());
+
+                if (!cb::io::isFile(ssl_cert)) {
+                    std::cerr << "Certificate file " << ssl_cert
+                              << " does not exists\n";
+                    exit(EXIT_FAILURE);
+                }
+
+                if (!cb::io::isFile(ssl_key)) {
+                    std::cerr << "Private key file " << ssl_key
+                              << " does not exists\n";
+                    exit(EXIT_FAILURE);
+                }
+            }
             break;
         case 'v':
             verbose = true;
@@ -538,7 +570,8 @@ int main(int argc, char** argv) {
             family = fam;
         }
         MemcachedConnection connection(host, in_port, family, secure);
-
+        connection.setSslCertFile(ssl_cert);
+        connection.setSslKeyFile(ssl_key);
         connection.connect();
 
         // MEMCACHED_VERSION contains the git sha

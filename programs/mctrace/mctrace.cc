@@ -1,4 +1,3 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -25,6 +24,7 @@
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
 
+#include <utilities/string_utilities.h>
 #include <chrono>
 #include <cstdio>
 #include <iostream>
@@ -54,9 +54,11 @@ Options:
                       the textual string set in the environment variable
                       CB_PASSWORD is used. If '-' is specified the password
                       is read from standard input.
-    --ssl / -s        Connect over SSL
-    --ssl=cert,key    Try to authenticate over SSL by using the provided SSL
-                      certificate and private key.
+  --tls[=cert,key]               Use TLS and optionally try to authenticate
+                                 by using the provided certificate and
+                                 private key.
+    --ssl / -s        Deprecated. Use --tls
+    --ssl=cert,key    Deprecated. Use --tls=cert,key
     --config= / -c    Specify the trace configuration to use on the server
                       (note that this will override the current configuration
                       and the previous configuration will NOT be restored
@@ -92,13 +94,14 @@ int main(int argc, char** argv) {
 
     cb::net::initialize();
 
-    struct option long_options[] = {
+    const std::vector<option> options{
             {"ipv4", no_argument, nullptr, '4'},
             {"ipv6", no_argument, nullptr, '6'},
             {"host", required_argument, nullptr, 'h'},
             {"port", required_argument, nullptr, 'p'},
             {"user", required_argument, nullptr, 'u'},
             {"password", required_argument, nullptr, 'P'},
+            {"tls=", optional_argument, nullptr, 's'},
             {"ssl=", optional_argument, nullptr, 's'},
             {"config", required_argument, nullptr, 'c'},
             {"output", required_argument, nullptr, 'o'},
@@ -107,7 +110,7 @@ int main(int argc, char** argv) {
             {nullptr, 0, nullptr, 0}};
 
     while ((cmd = getopt_long(
-                    argc, argv, "46h:p:u:P:sc:o:w", long_options, nullptr)) !=
+                    argc, argv, "46h:p:u:P:sc:o:w", options.data(), nullptr)) !=
            EOF) {
         switch (cmd) {
         case '6':
@@ -131,24 +134,24 @@ int main(int argc, char** argv) {
         case 's':
             secure = true;
             if (optarg) {
-                ssl_cert.assign(optarg);
-                auto idx = ssl_cert.find(',');
-                if (idx == std::string::npos) {
-                    std::cerr << "Invalid format for SSL certificate and key\n";
+                auto parts = split_string(optarg, ",");
+                if (parts.size() != 2) {
+                    std::cerr << "Incorrect format for --tls=certificate,key"
+                              << std::endl;
                     exit(EXIT_FAILURE);
                 }
-                ssl_key = ssl_cert.substr(idx + 1);
-                ssl_cert.resize(idx);
+                ssl_cert = std::move(parts.front());
+                ssl_key = std::move(parts.back());
 
                 if (!cb::io::isFile(ssl_cert)) {
-                    std::cerr << "SSL certificate file " << ssl_cert
-                              << " does not exists";
+                    std::cerr << "Certificate file " << ssl_cert
+                              << " does not exists\n";
                     exit(EXIT_FAILURE);
                 }
 
                 if (!cb::io::isFile(ssl_key)) {
-                    std::cerr << "SSL private file " << ssl_key
-                              << " does not exists";
+                    std::cerr << "Private key file " << ssl_key
+                              << " does not exists\n";
                     exit(EXIT_FAILURE);
                 }
             }

@@ -1,4 +1,3 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -10,13 +9,13 @@
  */
 
 #include <getopt.h>
-#include <nlohmann/json.hpp>
+#include <platform/dirutils.h>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
-#include <utilities/terminate_handler.h>
-
 #include <protocol/connection/frameinfo.h>
+#include <utilities/string_utilities.h>
+#include <utilities/terminate_handler.h>
 #include <iostream>
 
 /**
@@ -68,11 +67,16 @@ Options:
   -p or --port port              The port number to connect to
   -b or --bucket bucketname      The name of the bucket to operate on
   -u or --user username          The name of the user to authenticate as
+
   -P or --password password      The passord to use for authentication
-                                 (use '-' to read from standard input)
-  -s or --ssl                    Connect to the server over SSL
-  -C or --ssl-cert filename      Read the SSL certificate from the specified file
-  -K or --ssl-key filename       Read the SSL private key from the specified file
+                                 (use '-' to read from standard input, or
+                                 set the environment variable CB_PASSWORD)
+  --tls[=cert,key]               Use TLS and optionally try to authenticate
+                                 by using the provided certificate and
+                                 private key.
+  -s or --ssl                    Deprecated. Use --tls
+  -C or --ssl-cert filename      Deprecated. Use --tls=[cert,key]
+  -C or --ssl-cert filename      Deprecated. Use --tls=[cert,key]
   -4 or --ipv4                   Connect over IPv4
   -6 or --ipv6                   Connect over IPv6
   -j or --json                   Print result as JSON (unformatted)
@@ -107,7 +111,7 @@ int main(int argc, char** argv) {
 
     cb::net::initialize();
 
-    struct option long_options[] = {
+    const std::vector<option> options = {
             {"ipv4", no_argument, nullptr, '4'},
             {"ipv6", no_argument, nullptr, '6'},
             {"host", required_argument, nullptr, 'h'},
@@ -115,6 +119,7 @@ int main(int argc, char** argv) {
             {"bucket", required_argument, nullptr, 'b'},
             {"password", required_argument, nullptr, 'P'},
             {"user", required_argument, nullptr, 'u'},
+            {"tls=", optional_argument, nullptr, 't'},
             {"ssl", no_argument, nullptr, 's'},
             {"ssl-cert", required_argument, nullptr, 'C'},
             {"ssl-key", required_argument, nullptr, 'K'},
@@ -126,8 +131,8 @@ int main(int argc, char** argv) {
 
     while ((cmd = getopt_long(argc,
                               argv,
-                              "46h:p:u:b:P:SsjJC:K:I:a",
-                              long_options,
+                              "46h:p:u:b:P:SsjJC:K:I:at",
+                              options.data(),
                               nullptr)) != EOF) {
         switch (cmd) {
         case '6' :
@@ -180,6 +185,31 @@ int main(int argc, char** argv) {
             break;
         case 'a':
             allBuckets = true;
+            break;
+        case 't':
+            secure = true;
+            if (optarg) {
+                auto parts = split_string(optarg, ",");
+                if (parts.size() != 2) {
+                    std::cerr << "Incorrect format for --tls=certificate,key"
+                              << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                ssl_cert = std::move(parts.front());
+                ssl_key = std::move(parts.back());
+
+                if (!cb::io::isFile(ssl_cert)) {
+                    std::cerr << "Certificate file " << ssl_cert
+                              << " does not exists\n";
+                    exit(EXIT_FAILURE);
+                }
+
+                if (!cb::io::isFile(ssl_key)) {
+                    std::cerr << "Private key file " << ssl_key
+                              << " does not exists\n";
+                    exit(EXIT_FAILURE);
+                }
+            }
             break;
         default:
             usage();
@@ -241,7 +271,6 @@ int main(int argc, char** argv) {
                     static std::string bucketSeparator(78, '*');
                     std::cout << bucketSeparator << std::endl;
                     std::cout << *bucketItr << std::endl << std::endl;
-                    ;
                 }
                 connection.selectBucket(*bucketItr);
                 bucketItr++;
