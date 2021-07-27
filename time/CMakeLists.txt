@@ -8,7 +8,7 @@ kv_enable_pch(mcd_time)
 cb_add_test_executable(memcached_timestamp_test timestamp_test.cc
                ${PROJECT_SOURCE_DIR}/include/memcached/isotime.h)
 kv_enable_pch(memcached_timestamp_test)
-target_link_libraries(memcached_timestamp_test PRIVATE mcd_time)
+target_link_libraries(memcached_timestamp_test PRIVATE mcd_time platform gtest gtest_main)
 ADD_TEST(NAME memcached-timestamp-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_timestamp_test)
