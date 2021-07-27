@@ -481,25 +481,25 @@ void KVStore::delSystemEvent(TransactionContext& txnCtx,
     del(txnCtx, item);
 }
 
-std::string to_string(KVStore::FlushStateDeletion state) {
+std::string to_string(FlushStateDeletion state) {
     switch (state) {
-    case KVStore::FlushStateDeletion::Delete:
+    case FlushStateDeletion::Delete:
         return "FlushStateDeletion::Delete";
-    case KVStore::FlushStateDeletion::DocNotFound:
+    case FlushStateDeletion::DocNotFound:
         return "FlushStateDeletion::DocNotFound";
-    case KVStore::FlushStateDeletion::Failed:
+    case FlushStateDeletion::Failed:
         return "FlushStateDeletion::Failed";
     }
     folly::assume_unreachable();
 }
 
-std::string to_string(KVStore::FlushStateMutation state) {
+std::string to_string(FlushStateMutation state) {
     switch (state) {
-    case KVStore::FlushStateMutation::Failed:
+    case FlushStateMutation::Failed:
         return "FlushStateMutation::Failed";
-    case KVStore::FlushStateMutation::Insert:
+    case FlushStateMutation::Insert:
         return "FlushStateMutation::Insert";
-    case KVStore::FlushStateMutation::Update:
+    case FlushStateMutation::Update:
         return "FlushStateMutation::Update";
     }
     folly::assume_unreachable();

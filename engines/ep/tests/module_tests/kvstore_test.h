@@ -187,18 +187,15 @@ std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config,
 
 class MockPersistenceCallback : public PersistenceCallback {
 public:
-    MOCK_METHOD2(setCallback, void(const Item&, KVStore::FlushStateMutation));
+    MOCK_METHOD2(setCallback, void(const Item&, FlushStateMutation));
 
-    void operator()(const Item& qi,
-                    KVStore::FlushStateMutation state) override {
+    void operator()(const Item& qi, FlushStateMutation state) override {
         setCallback(qi, state);
     }
 
-    MOCK_METHOD2(deleteCallback,
-                 void(const Item&, KVStore::FlushStateDeletion));
+    MOCK_METHOD2(deleteCallback, void(const Item&, FlushStateDeletion));
 
-    void operator()(const Item& qi,
-                    KVStore::FlushStateDeletion state) override {
+    void operator()(const Item& qi, FlushStateDeletion state) override {
         deleteCallback(qi, state);
     }
 };

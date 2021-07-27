@@ -289,7 +289,7 @@ TEST_F(MagmaKVStoreTest, badSetRequest) {
     };
 
     EXPECT_CALL(mockPersistenceCallback,
-                setCallback(_, KVStore::FlushStateMutation::Failed))
+                setCallback(_, FlushStateMutation::Failed))
             .Times(1);
     EXPECT_FALSE(kvstore->commit(*tc, flush));
 }
@@ -312,7 +312,7 @@ TEST_F(MagmaKVStoreTest, badDelRequest) {
     };
 
     EXPECT_CALL(mockPersistenceCallback,
-                deleteCallback(_, KVStore::FlushStateDeletion::Failed))
+                deleteCallback(_, FlushStateDeletion::Failed))
             .Times(1);
     EXPECT_FALSE(kvstore->commit(*tc, flush));
 }

@@ -589,12 +589,6 @@ private:
  */
 class KVStore {
 public:
-    /// Result of flushing a Deletion, passed to the PersistenceCallback.
-    enum class FlushStateDeletion { Delete, DocNotFound, Failed };
-
-    /// Result of flushing a Mutation, passed to the PersistenceCallback.
-    enum class FlushStateMutation { Insert, Update, Failed };
-
     virtual ~KVStore();
 
     /**
@@ -1235,8 +1229,8 @@ protected:
     TestingHook<> postFlushHook;
 };
 
-std::string to_string(KVStore::FlushStateDeletion status);
-std::string to_string(KVStore::FlushStateMutation state);
+std::string to_string(FlushStateDeletion status);
+std::string to_string(FlushStateMutation state);
 
 /**
  * The KVStoreFactory creates the correct KVStore instance(s) when

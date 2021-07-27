@@ -24,12 +24,12 @@
 #include <utilities/test_manifest.h>
 
 struct WriteCallback {
-    void operator()(TransactionContext&, KVStore::FlushStateMutation) {
+    void operator()(TransactionContext&, FlushStateMutation) {
     }
 };
 
 struct DeleteCallback {
-    void operator()(TransactionContext&, KVStore::FlushStateDeletion) {
+    void operator()(TransactionContext&, FlushStateDeletion) {
     }
 };
 

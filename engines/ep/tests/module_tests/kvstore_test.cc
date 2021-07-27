@@ -64,13 +64,13 @@ void GetCallback::callback(GetValue& result) {
 }
 
 struct WriteCallback {
-    void operator()(TransactionContext, KVStore::FlushStateMutation) {
+    void operator()(TransactionContext, FlushStateMutation) {
     }
 };
 
 struct DeleteCallback {
 public:
-    void operator()(TransactionContext&, KVStore::FlushStateDeletion) {
+    void operator()(TransactionContext&, FlushStateDeletion) {
     }
 };
 
@@ -220,23 +220,19 @@ public:
     // Actual operator() methods which will be called by the storage layer.
     // GMock cannot mock these directly, so instead provide named 'callback'
     // methods which these functions call.
-    void operator()(TransactionContext& txCtx,
-                    KVStore::FlushStateMutation state) {
+    void operator()(TransactionContext& txCtx, FlushStateMutation state) {
         callback(txCtx, state);
     }
-    void operator()(TransactionContext& txCtx,
-                    KVStore::FlushStateDeletion state) {
+    void operator()(TransactionContext& txCtx, FlushStateDeletion state) {
         callback(txCtx, state);
     }
 
     // SET callback.
-    virtual void callback(TransactionContext&,
-                          KVStore::FlushStateMutation&) = 0;
+    virtual void callback(TransactionContext&, FlushStateMutation&) = 0;
 
     // DEL callback.
     // @param value number of items that the underlying storage has deleted
-    virtual void callback(TransactionContext& txCtx,
-                          KVStore::FlushStateDeletion&) = 0;
+    virtual void callback(TransactionContext& txCtx, FlushStateDeletion&) = 0;
 };
 
 void KVStoreBackend::setup(const std::string& dataDir,
@@ -630,7 +626,7 @@ queued_item KVStoreParamTest::storeDocument(bool deleted) {
 TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
     auto tc = kvstore->begin(Vbid(0),
                              std::make_unique<MockPersistenceCallback>());
-    auto mutationStatus = KVStore::FlushStateMutation::Insert;
+    auto mutationStatus = FlushStateMutation::Insert;
     auto& mockPersistenceCallback =
             dynamic_cast<MockPersistenceCallback&>(*tc->cb);
 
@@ -668,7 +664,7 @@ TEST_P(KVStoreParamTestSkipRocks, TestPersistenceCallbacksForDel) {
             dynamic_cast<MockPersistenceCallback&>(*tc->cb);
 
     // Expect that the DEL callback will not be called just after `del`
-    auto status = KVStore::FlushStateDeletion::Delete;
+    auto status = FlushStateDeletion::Delete;
     EXPECT_CALL(mockPersistenceCallback, deleteCallback(_, status)).Times(0);
 
     qi->setDeleted();

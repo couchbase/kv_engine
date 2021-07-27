@@ -21,3 +21,9 @@
 /// requested and what is supported by the kvstore implementation. Map key is
 /// the name of the statistic. Map value is the statistic value.
 using GetStatsMap = std::unordered_map<std::string_view, size_t>;
+
+/// Result of flushing a Deletion, passed to the PersistenceCallback.
+enum class FlushStateDeletion { Delete, DocNotFound, Failed };
+
+/// Result of flushing a Mutation, passed to the PersistenceCallback.
+enum class FlushStateMutation { Insert, Update, Failed };

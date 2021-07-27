@@ -24,8 +24,8 @@ EPPersistenceCallback::EPPersistenceCallback(EPStats& stats, VBucket& vb)
 
 // This callback is invoked for set only.
 void EPPersistenceCallback::operator()(const Item& queuedItem,
-                                       KVStore::FlushStateMutation state) {
-    using State = KVStore::FlushStateMutation;
+                                       FlushStateMutation state) {
+    using State = FlushStateMutation;
 
     switch (state) {
     case State::Insert:
@@ -76,7 +76,7 @@ void EPPersistenceCallback::operator()(const Item& queuedItem,
 
         return;
     }
-    case KVStore::FlushStateMutation::Failed:
+    case FlushStateMutation::Failed:
         EP_LOG_WARN(
                 "PersistenceCallback::set: Fatal error in persisting "
                 "SET on {} seqno:{}",
@@ -94,17 +94,17 @@ void EPPersistenceCallback::operator()(const Item& queuedItem,
 // The boolean indicates whether the underlying storage
 // successfully deleted the item.
 void EPPersistenceCallback::operator()(const Item& queuedItem,
-                                       KVStore::FlushStateDeletion state) {
+                                       FlushStateDeletion state) {
     switch (state) {
-    case KVStore::FlushStateDeletion::Delete:
-    case KVStore::FlushStateDeletion::DocNotFound: {
+    case FlushStateDeletion::Delete:
+    case FlushStateDeletion::DocNotFound: {
         // We have successfully removed an item from the disk, we
         // may now remove it from the hash table.
-        const bool deleted = (state == KVStore::FlushStateDeletion::Delete);
+        const bool deleted = (state == FlushStateDeletion::Delete);
         vbucket.deletedOnDiskCbk(queuedItem, deleted);
         return;
     }
-    case KVStore::FlushStateDeletion::Failed:
+    case FlushStateDeletion::Failed:
         EP_LOG_WARN(
                 "PersistenceCallback::del: Fatal error in persisting "
                 "DELETE on {} seqno:{}",

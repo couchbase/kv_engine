@@ -731,7 +731,7 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
 
     // (1.2) Mimic flusher by running the PCB for the store at (1)
     cb1(*out.back(),
-        KVStore::FlushStateMutation::Insert); // Using the create/update
+        FlushStateMutation::Insert); // Using the create/update
                                               // callback
 
     EXPECT_EQ(1, vbucket->getNumItems());
@@ -753,7 +753,7 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
 
     // (3.1) Run the PCB for the delete/expiry (2)
     // Using the delete callback
-    cb1(*out.back(), KVStore::FlushStateDeletion::Delete);
+    cb1(*out.back(), FlushStateDeletion::Delete);
 
     // In FE mode, getNumItems is tracking disk items, so we should have 0 disk
     // items until the 'flush' of the second store (3)
@@ -762,7 +762,7 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
     // (4) run the create/update PCB again, the store (3) should look like a
     // create because of the delete at (2)
     cb1(*out.back(),
-        KVStore::FlushStateMutation::Insert); // Using the create/update
+        FlushStateMutation::Insert); // Using the create/update
                                               // callback
 
     EXPECT_EQ(1, vbucket->getNumItems());

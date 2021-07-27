@@ -10,9 +10,10 @@
  */
 #pragma once
 
-#include "kvstore.h"
+#include "kvstore_fwd.h"
 
 class EPStats;
+class Item;
 class VBucket;
 
 /**
@@ -27,13 +28,13 @@ public:
     virtual ~PersistenceCallback() = default;
 
     // This callback is invoked for set only.
-    virtual void operator()(const Item&, KVStore::FlushStateMutation){};
+    virtual void operator()(const Item&, FlushStateMutation){};
 
     // This callback is invoked for deletions only.
     //
     // The boolean indicates whether the underlying storage
     // successfully deleted the item.
-    virtual void operator()(const Item&, KVStore::FlushStateDeletion){};
+    virtual void operator()(const Item&, FlushStateDeletion){};
 };
 
 class EPPersistenceCallback : public PersistenceCallback {
@@ -41,13 +42,13 @@ public:
     EPPersistenceCallback(EPStats& stats, VBucket& vb);
 
     // This callback is invoked for set only.
-    void operator()(const Item&, KVStore::FlushStateMutation) override;
+    void operator()(const Item&, FlushStateMutation) override;
 
     // This callback is invoked for deletions only.
     //
     // The boolean indicates whether the underlying storage
     // successfully deleted the item.
-    void operator()(const Item&, KVStore::FlushStateDeletion) override;
+    void operator()(const Item&, FlushStateDeletion) override;
 
 private:
     EPStats& stats;
