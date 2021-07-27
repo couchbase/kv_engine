@@ -12,9 +12,7 @@
 #include "check_password.h"
 
 #include <cbsasl/logging.h>
-#include <cbsasl/util.h>
 #include <utilities/logtags.h>
-#include <iterator>
 
 namespace cb::sasl::plain {
 

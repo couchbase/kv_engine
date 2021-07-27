@@ -10,9 +10,9 @@
  */
 #pragma once
 
-#include <inttypes.h>
 #include <nlohmann/json_fwd.hpp>
 #include <atomic>
+#include <cinttypes>
 #include <mutex>
 #include <string>
 #include <unordered_map>

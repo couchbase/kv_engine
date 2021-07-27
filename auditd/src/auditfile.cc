@@ -9,7 +9,6 @@
  *   the file licenses/APL2.txt.
  */
 #include "auditfile.h"
-#include "audit.h"
 
 #include <logger/logger.h>
 #include <memcached/isotime.h>
@@ -23,7 +22,6 @@
 #include <sys/stat.h>
 #include <algorithm>
 #include <cstring>
-#include <fstream>
 #include <iostream>
 #include <sstream>
 

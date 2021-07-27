@@ -10,8 +10,8 @@
  */
 #pragma once
 
-#include <inttypes.h>
 #include <nlohmann/json_fwd.hpp>
+#include <cinttypes>
 #include <string>
 
 class AuditImpl;

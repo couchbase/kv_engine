@@ -9,15 +9,10 @@
  */
 
 #include "pwfile.h"
-#include "util.h"
 
-#include <cbsasl/logging.h>
 #include <cbsasl/plain/plain.h>
 #include <cbsasl/scram-sha/scram-sha.h>
 #include <cbsasl/server.h>
-
-#include <platform/random.h>
-
 #include <memory>
 #include <string>
 
@@ -63,7 +58,7 @@ std::pair<cb::sasl::Error, std::string_view> ServerContext::start(
         backend =
                 std::make_unique<mechanism::scram::Sha256ServerBackend>(*this);
         break;
-    case Mechanism::SCRAM_SHA1:;
+    case Mechanism::SCRAM_SHA1:
         backend = std::make_unique<mechanism::scram::Sha1ServerBackend>(*this);
         break;
     case Mechanism::PLAIN:

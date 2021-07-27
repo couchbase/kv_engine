@@ -14,7 +14,6 @@
 #include "check_password.h"
 
 #include <cbsasl/logging.h>
-#include <platform/dirutils.h>
 #include <cstring>
 
 namespace cb::sasl::mechanism::plain {

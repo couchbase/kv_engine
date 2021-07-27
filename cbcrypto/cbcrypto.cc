@@ -13,7 +13,6 @@
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/base64.h>
-#include <iomanip>
 #include <memory>
 #include <sstream>
 #include <stdexcept>

@@ -12,7 +12,6 @@
 #include <cbsasl/mechanism.h>
 
 #include <algorithm>
-#include <iterator>
 #include <vector>
 
 namespace cb::sasl {

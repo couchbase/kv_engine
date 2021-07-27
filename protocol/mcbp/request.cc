@@ -10,7 +10,6 @@
  */
 
 #include <mcbp/protocol/request.h>
-#include <memcached/dcp_stream_id.h>
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>

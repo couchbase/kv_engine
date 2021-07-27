@@ -14,7 +14,6 @@
 #include <memcached/protocol_binary.h>
 #include <platform/byte_buffer_dump.h>
 #include <platform/string_hex.h>
-#include <utilities/logtags.h>
 
 #include <cctype>
 #include <cstring>

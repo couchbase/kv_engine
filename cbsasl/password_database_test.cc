@@ -19,12 +19,9 @@
 #include <nlohmann/json.hpp>
 #include <openssl/evp.h>
 #include <platform/base64.h>
-#include <platform/checked_snprintf.h>
 #include <platform/dirutils.h>
 #include <platform/random.h>
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
 
 class PasswordMetaTest : public ::testing::Test {
 public:

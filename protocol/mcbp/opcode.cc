@@ -13,8 +13,6 @@
 #include <platform/string_hex.h>
 #include <algorithm>
 #include <cctype>
-#include <iterator>
-#include <ostream>
 #include <stdexcept>
 
 namespace cb::mcbp {

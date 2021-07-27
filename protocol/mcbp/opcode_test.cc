@@ -11,7 +11,6 @@
 
 #include <folly/portability/GTest.h>
 #include <mcbp/protocol/opcode.h>
-#include <memcached/protocol_binary.h>
 #include <platform/string_hex.h>
 #include <algorithm>
 #include <cctype>

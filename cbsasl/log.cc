@@ -12,7 +12,6 @@
 #include <cbsasl/logging.h>
 
 #include <relaxed_atomic.h>
-#include <iostream>
 
 namespace cb::sasl::logging {
 

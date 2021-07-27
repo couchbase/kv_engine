@@ -194,7 +194,6 @@ void ScramShaBackend::addAttribute(std::ostream& out,
         throw std::invalid_argument(
                 "ScramShaBackend::addAttribute:"
                 " Invalid value (should not be int)");
-        break;
 
     case 'i': // iterator count
         out << value;

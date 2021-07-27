@@ -16,7 +16,6 @@
 #include <platform/base64.h>
 #include <platform/random.h>
 #include <atomic>
-#include <iterator>
 #include <memory>
 #include <mutex>
 #include <stdexcept>

@@ -34,10 +34,11 @@ Blob::Blob(const Blob& other)
     std::copy(other.blob.begin(), other.blob.end(), blob.begin());
 }
 
-Blob::Blob(cb::char_buffer buffer,
-           std::unique_ptr<char[]>& allocator_,
-           bool compressed,
-           size_t size)
+Blob::Blob(
+        cb::char_buffer buffer,
+        std::unique_ptr<char[]>& allocator_, // NOLINT(modernize-avoid-c-arrays)
+        bool compressed,
+        size_t size)
     : blob(buffer), allocator(allocator_), alloc_size(size) {
     assign({buffer.data(), buffer.size()}, compressed);
 }
@@ -167,6 +168,7 @@ void Blob::set(std::string_view key, std::string_view value) {
             // we can do an in-place removement
             remove_segment(old_offset, old_kv_size);
         } else {
+            // NOLINTNEXTLINE(modernize-avoid-c-arrays)
             std::unique_ptr<char[]> temp(new char[newsize]);
             // copy everything up to the old one
             std::copy(blob.data(), blob.data() + old_offset, temp.get());
@@ -187,6 +189,7 @@ void Blob::set(std::string_view key, std::string_view value) {
 void Blob::grow_buffer(uint32_t size) {
     if (blob.size() < size) {
         if (alloc_size < size) {
+            // NOLINTNEXTLINE(modernize-avoid-c-arrays)
             std::unique_ptr<char[]> temp(new char[size]);
             std::copy(blob.data(), blob.data() + blob.size(), temp.get());
             allocator.swap(temp);

@@ -10,10 +10,7 @@
  */
 
 #include <folly/portability/GTest.h>
-#include <mcbp/protocol/opcode.h>
 #include <memcached/protocol_binary.h>
-#include <algorithm>
-#include <cctype>
 #include <map>
 #include <stdexcept>
 

@@ -9,7 +9,6 @@
  *   the file licenses/APL2.txt.
  */
 
-#include <daemon/settings.h>
 #include <folly/portability/GTest.h>
 #include <logger/logger.h>
 
