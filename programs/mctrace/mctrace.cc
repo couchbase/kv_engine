@@ -78,7 +78,7 @@ Options:
 
 int main(int argc, char** argv) {
     int cmd;
-    std::string port{"11210"};
+    std::string port;
     std::string host{"localhost"};
     std::string user{};
     std::string password{};
@@ -180,6 +180,9 @@ int main(int argc, char** argv) {
     }
 
     try {
+        if (port.empty()) {
+            port = secure ? "11207" : "11210";
+        }
         in_port_t in_port;
         sa_family_t fam;
         std::tie(host, in_port, fam) = cb::inet::parse_hostname(host, port);
