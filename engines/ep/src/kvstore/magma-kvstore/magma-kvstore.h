@@ -12,11 +12,11 @@
 #pragma once
 
 #include "collections/collection_persisted_stats.h"
-#include "kvstore.h"
-#include "kvstore_priv.h"
+#include "kvstore/kvstore.h"
+#include "kvstore/kvstore_priv.h"
+#include "kvstore/kvstore_transaction_context.h"
 #include "libmagma/magma.h"
 #include "rollback_result.h"
-#include "kvstore_transaction_context.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
 

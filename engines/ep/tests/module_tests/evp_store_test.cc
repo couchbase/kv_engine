@@ -30,7 +30,7 @@
 #include "ep_time.h"
 #include "flusher.h"
 #include "item_eviction.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include "tasks.h"
 #include "test_manifest.h"
 #include "tests/mock/mock_ep_bucket.h"

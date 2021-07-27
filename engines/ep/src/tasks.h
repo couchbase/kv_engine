@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include "storeddockey.h"
 #include <executor/globaltask.h>
 

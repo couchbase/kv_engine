@@ -12,17 +12,17 @@
 #include <functional>
 #include <memory>
 
-#include "couch-kvstore/couch-kvstore-config.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"
 #include "flusher.h"
 #include "kvshard.h"
-#include "kvstore.h"
+#include "kvstore/couch-kvstore/couch-kvstore-config.h"
+#include "kvstore/kvstore.h"
 #ifdef EP_USE_MAGMA
-#include "magma-kvstore/magma-kvstore_config.h"
+#include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #endif
 #ifdef EP_USE_ROCKSDB
-#include "rocksdb-kvstore/rocksdb-kvstore_config.h"
+#include "kvstore/rocksdb-kvstore/rocksdb-kvstore_config.h"
 #endif
 
 /* [EPHE TODO]: Consider not using KVShard for ephemeral bucket */

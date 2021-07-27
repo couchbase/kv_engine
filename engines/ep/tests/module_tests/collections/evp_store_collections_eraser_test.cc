@@ -15,7 +15,7 @@
 #include "ephemeral_tombstone_purger.h"
 #include "ephemeral_vb.h"
 #include "item.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"

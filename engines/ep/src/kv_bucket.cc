@@ -33,7 +33,7 @@
 #include "item_compressor.h"
 #include "item_freq_decayer.h"
 #include "kvshard.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"
 #include "tasks.h"

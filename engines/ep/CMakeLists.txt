@@ -44,8 +44,8 @@ SET(EP_STORAGE_LIBS couchstore_static)
 
 IF (EP_USE_ROCKSDB)
     INCLUDE_DIRECTORIES(AFTER SYSTEM ${ROCKSDB_INCLUDE_DIR})
-    SET(ROCKSDB_KVSTORE_SOURCE src/rocksdb-kvstore/rocksdb-kvstore.cc
-        src/rocksdb-kvstore/rocksdb-kvstore_config.cc)
+    SET(ROCKSDB_KVSTORE_SOURCE src/kvstore/rocksdb-kvstore/rocksdb-kvstore.cc
+            src/kvstore/rocksdb-kvstore/rocksdb-kvstore_config.cc)
     LIST(APPEND EP_STORAGE_LIBS ${ROCKSDB_LIBRARIES})
     ADD_DEFINITIONS(-DEP_USE_ROCKSDB=1)
     MESSAGE(STATUS "ep-engine: Using RocksDB")
@@ -54,8 +54,8 @@ ENDIF (EP_USE_ROCKSDB)
 IF (EP_USE_MAGMA)
     INCLUDE_DIRECTORIES(AFTER ${MAGMA_INCLUDE_DIR})
     LIST(APPEND EP_STORAGE_LIBS magma)
-    SET(MAGMA_KVSTORE_SOURCE src/magma-kvstore/magma-kvstore.cc
-                             src/magma-kvstore/magma-kvstore_config.cc)
+    SET(MAGMA_KVSTORE_SOURCE src/kvstore/magma-kvstore/magma-kvstore.cc
+            src/kvstore/magma-kvstore/magma-kvstore_config.cc)
     ADD_DEFINITIONS(-DEP_USE_MAGMA=1)
     MESSAGE(STATUS "ep-engine: Building magma-kvstore")
 ENDIF (EP_USE_MAGMA)
@@ -230,11 +230,11 @@ TARGET_INCLUDE_DIRECTORIES(ep-engine_collections
                            PUBLIC
                            ${CMAKE_CURRENT_BINARY_DIR}/src/)
 
-SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-fs-stats.cc
-                         src/couch-kvstore/couch-kvstore.cc
-                         src/couch-kvstore/couch-kvstore-config.cc
-                         src/couch-kvstore/couch-kvstore-db-holder.cc
-                         src/couch-kvstore/couch-kvstore-file-cache.cc)
+SET(COUCH_KVSTORE_SOURCE src/kvstore/couch-kvstore/couch-fs-stats.cc
+        src/kvstore/couch-kvstore/couch-kvstore.cc
+        src/kvstore/couch-kvstore/couch-kvstore-config.cc
+        src/kvstore/couch-kvstore/couch-kvstore-db-holder.cc
+        src/kvstore/couch-kvstore/couch-kvstore-file-cache.cc)
 SET(OBJECTREGISTRY_SOURCE src/objectregistry.cc)
 SET(CONFIG_SOURCE src/configuration.cc
   ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc)
@@ -342,14 +342,14 @@ ADD_LIBRARY(ep_objs OBJECT
             src/item_freq_decayer.cc
             src/item_freq_decayer_visitor.cc
             src/item_pager.cc
-            src/kvstore.cc
-            src/kvstore_config.cc
+        src/kvstore/kvstore.cc
+        src/kvstore/kvstore_config.cc
             src/kv_bucket.cc
             src/kvshard.cc
             src/mutation_log.cc
             src/mutation_log_entry.cc
             src/paging_visitor.cc
-            src/persistence_callback.cc
+        src/kvstore/persistence_callback.cc
             src/pid_controller.cc
             src/pre_link_document_context.cc
             src/pre_link_document_context.h
@@ -598,8 +598,8 @@ if(CB_ENABLE_HEADER_INCLUDE_CHECK)
     )
     if(NOT EP_USE_MAGMA)
       list(REMOVE_ITEM ep_headers
-        src/magma-kvstore/magma-kvstore.h
-        src/magma-kvstore/magma-kvstore_config.h)
+              src/kvstore/magma-kvstore/magma-kvstore.h
+              src/kvstore/magma-kvstore/magma-kvstore_config.h)
     endif()
 
     add_header_object_library(NAME ep_headers_obj HEADERS ${ep_headers})

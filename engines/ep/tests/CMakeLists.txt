@@ -163,7 +163,7 @@ add_sanitizers(ep-engine_ep_unit_tests)
 kv_enable_pch(ep-engine_ep_unit_tests)
 
 cb_add_test_executable(ep-engine_couch-fs-stats_test
-        ${EventuallyPersistentEngine_SOURCE_DIR}/src/couch-kvstore/couch-fs-stats.cc
+        ${EventuallyPersistentEngine_SOURCE_DIR}/src/kvstore/couch-kvstore/couch-fs-stats.cc
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/configuration.h
         module_tests/couch-fs-stats_test.cc
         ${Couchstore_SOURCE_DIR}/src/crc32.cc

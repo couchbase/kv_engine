@@ -12,7 +12,7 @@
 #include "dcp/backfill_by_seqno_disk.h"
 #include "dcp/active_stream_impl.h"
 #include "kv_bucket.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 
 #include <mcbp/protocol/dcp_stream_end_status.h>
 

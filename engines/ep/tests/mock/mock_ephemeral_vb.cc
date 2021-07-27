@@ -11,7 +11,7 @@
 #include "collections/vbucket_manifest.h"
 #include "ephemeral_tombstone_purger.h"
 #include "failover-table.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 
 MockEphemeralVBucket::MockEphemeralVBucket(
         Vbid i,

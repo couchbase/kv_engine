@@ -17,7 +17,7 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "durability/active_durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
-#include "persistence_callback.h"
+#include "kvstore/persistence_callback.h"
 #include "test_helpers.h"
 #include "thread_gate.h"
 #include "vbucket_utils.h"

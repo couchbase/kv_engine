@@ -9,7 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "couch-kvstore/couch-kvstore.h"
+#include "couch-kvstore.h"
 
 #include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
@@ -19,9 +19,9 @@
 #include "ep_time.h"
 #include "getkeys.h"
 #include "item.h"
-#include "kvstore_config.h"
-#include "kvstore_transaction_context.h"
-#include "persistence_callback.h"
+#include "kvstore/kvstore_config.h"
+#include "kvstore/kvstore_transaction_context.h"
+#include "kvstore/persistence_callback.h"
 #include "rollback_result.h"
 #include "statistics/cbstat_collector.h"
 #include "vb_commit.h"

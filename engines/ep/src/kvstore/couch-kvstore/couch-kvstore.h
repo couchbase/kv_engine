@@ -12,13 +12,13 @@
 
 #include "atomicqueue.h"
 #include "configuration.h"
-#include "couch-kvstore/couch-fs-stats.h"
-#include "couch-kvstore/couch-kvstore-metadata.h"
-#include "kvstore.h"
-#include "kvstore_priv.h"
+#include "couch-fs-stats.h"
+#include "couch-kvstore-metadata.h"
+#include "kvstore/kvstore.h"
+#include "kvstore/kvstore_priv.h"
+#include "kvstore/kvstore_transaction_context.h"
 #include "libcouchstore/couch_db.h"
 #include "monotonic.h"
-#include "kvstore_transaction_context.h"
 
 #include <folly/SharedMutex.h>
 #include <folly/Synchronized.h>

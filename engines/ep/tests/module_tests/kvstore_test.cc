@@ -11,18 +11,18 @@
 #include "kvstore_test.h"
 
 #include "bucket_logger.h"
-#include "couch-kvstore/couch-kvstore-config.h"
-#include "couch-kvstore/couch-kvstore.h"
 #include "item.h"
-#include "kvstore.h"
-#include "kvstore_config.h"
+#include "kvstore/couch-kvstore/couch-kvstore-config.h"
+#include "kvstore/couch-kvstore/couch-kvstore.h"
+#include "kvstore/kvstore.h"
+#include "kvstore/kvstore_config.h"
 #ifdef EP_USE_ROCKSDB
-#include "rocksdb-kvstore/rocksdb-kvstore_config.h"
+#include "kvstore/rocksdb-kvstore/rocksdb-kvstore_config.h"
 #endif
 #ifdef EP_USE_MAGMA
 #include "../mock/mock_magma_kvstore.h"
-#include "magma-kvstore/magma-kvstore_config.h"
-#include "magma-kvstore/magma-kvstore_iorequest.h"
+#include "kvstore/magma-kvstore/magma-kvstore_config.h"
+#include "kvstore/magma-kvstore/magma-kvstore_iorequest.h"
 #endif
 #include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"

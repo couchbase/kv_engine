@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include "couch-kvstore/couch-kvstore.h"
+#include "kvstore/couch-kvstore/couch-kvstore.h"
 
 class MockCouchRequest : public CouchRequest {
 public:

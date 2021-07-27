@@ -14,7 +14,7 @@
 #include "../mock/mock_ep_bucket.h"
 #include "../mock/mock_magma_kvstore.h"
 #include "checkpoint_manager.h"
-#include "magma-kvstore/magma-kvstore_config.h"
+#include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #include "tests/module_tests/test_helpers.h"
 
 using FlushResult = EPBucket::FlushResult;

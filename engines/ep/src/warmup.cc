@@ -24,7 +24,7 @@
 #include "failover-table.h"
 #include "flusher.h"
 #include "item.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include "mutation_log.h"
 #include "vb_visitors.h"
 #include "vbucket_bgfetch_item.h"

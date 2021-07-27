@@ -27,7 +27,7 @@
 #include "hash_table_stat_visitor.h"
 #include "kv_bucket.h"
 #include "kvshard.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include "objectregistry.h"
 #include "pre_link_document_context.h"
 #include "rollback_result.h"

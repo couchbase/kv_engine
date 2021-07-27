@@ -10,7 +10,6 @@
  */
 
 #include "collections/flush.h"
-#include "../kvstore.h"
 #include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
 #include "collections/kvstore_generated.h"
@@ -19,6 +18,7 @@
 #include "ep_bucket.h"
 #include "ep_engine.h"
 #include "item.h"
+#include "kvstore/kvstore.h"
 
 namespace Collections::VB {
 

@@ -17,9 +17,10 @@
 
 #pragma once
 
-#include "../objectregistry.h"
 #include "collections/collection_persisted_stats.h"
-#include "kvstore_transaction_context.h"
+#include "kvstore/kvstore.h"
+#include "kvstore/kvstore_transaction_context.h"
+#include "objectregistry.h"
 #include "rollback_result.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
@@ -28,8 +29,6 @@
 #include <platform/non_negative_counter.h>
 #include <map>
 #include <vector>
-
-#include <kvstore.h>
 
 #include <rocksdb/db.h>
 #include <rocksdb/listener.h>

@@ -15,7 +15,7 @@
 #include "item.h"
 #include "kv_bucket.h"
 #include "kvshard.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
 

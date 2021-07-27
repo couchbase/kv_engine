@@ -13,7 +13,7 @@
 
 #include "ep_engine.h"
 #include "ep_vb.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include "vbucket.h"
 #include "vbucket_fwd.h"
 

@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "kvstore_config.h"
+#include "kvstore/kvstore_config.h"
 #include "libmagma/magma.h"
 
 #include <memcached/thread_pool_config.h>

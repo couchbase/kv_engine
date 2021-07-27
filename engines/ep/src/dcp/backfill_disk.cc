@@ -14,7 +14,7 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 
 CacheCallback::CacheCallback(KVBucket& bucket, std::shared_ptr<ActiveStream> s)
     : bucket(bucket), streamPtr(s) {

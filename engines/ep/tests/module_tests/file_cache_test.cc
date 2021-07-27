@@ -9,9 +9,9 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "engines/ep/src/couch-kvstore/couch-kvstore-config.h"
-#include "engines/ep/src/couch-kvstore/couch-kvstore-file-cache.h"
-#include "engines/ep/src/couch-kvstore/couch-kvstore.h"
+#include "kvstore/couch-kvstore/couch-kvstore-config.h"
+#include "kvstore/couch-kvstore/couch-kvstore-file-cache.h"
+#include "kvstore/couch-kvstore/couch-kvstore.h"
 
 #include <folly/portability/GTest.h>
 

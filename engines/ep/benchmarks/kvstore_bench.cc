@@ -14,12 +14,12 @@
 #include "collections/vbucket_manifest.h"
 #include "configuration.h"
 #include "item.h"
-#include "kvstore.h"
-#include "kvstore_config.h"
-#include "kvstore_transaction_context.h"
+#include "kvstore/kvstore.h"
+#include "kvstore/kvstore_config.h"
+#include "kvstore/kvstore_transaction_context.h"
 #include "vb_commit.h"
 #ifdef EP_USE_ROCKSDB
-#include "rocksdb-kvstore/rocksdb-kvstore_config.h"
+#include "kvstore/rocksdb-kvstore/rocksdb-kvstore_config.h"
 #endif
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket_state.h"

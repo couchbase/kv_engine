@@ -23,7 +23,7 @@
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
 #include "flusher.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "test_helpers.h"
 #include "vbucket_state.h"

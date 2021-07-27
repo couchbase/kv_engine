@@ -11,9 +11,9 @@
 
 #include "../mock/mock_magma_kvstore.h"
 #include "configuration.h"
+#include "kvstore/magma-kvstore/magma-kvstore_config.h"
+#include "kvstore/magma-kvstore/magma-kvstore_metadata.h"
 #include "kvstore_test.h"
-#include "magma-kvstore/magma-kvstore_config.h"
-#include "magma-kvstore/magma-kvstore_metadata.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"
 #include "thread_gate.h"

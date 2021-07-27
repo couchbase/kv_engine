@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "kvstore_config.h"
+#include "kvstore/kvstore_config.h"
 #include "utility.h"
 #include "vbucket_fwd.h"
 #include <memcached/vbucket.h>

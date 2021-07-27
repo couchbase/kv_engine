@@ -15,7 +15,7 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "item.h"
-#include "kvstore_transaction_context.h"
+#include "kvstore/kvstore_transaction_context.h"
 #include "magma-kvstore_config.h"
 #include "magma-kvstore_iorequest.h"
 #include "magma-kvstore_metadata.h"

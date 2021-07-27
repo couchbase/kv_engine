@@ -13,7 +13,7 @@
 
 #ifdef EP_USE_MAGMA
 
-#include "magma-kvstore/magma-kvstore.h"
+#include "kvstore/magma-kvstore/magma-kvstore.h"
 
 class MockMagmaKVStore : public MagmaKVStore {
 public:

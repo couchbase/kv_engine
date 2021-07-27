@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "kvstore_config.h"
+#include "kvstore/kvstore_config.h"
 
 class CouchKVStoreConfig : public KVStoreConfig {
 public:

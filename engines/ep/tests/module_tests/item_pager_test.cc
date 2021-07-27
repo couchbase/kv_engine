@@ -25,7 +25,7 @@
 #include "item.h"
 #include "item_eviction.h"
 #include "kv_bucket.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 

@@ -17,7 +17,7 @@
 #include "ephemeral_vb.h"
 
 #include "kv_bucket.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_conn_map.h"

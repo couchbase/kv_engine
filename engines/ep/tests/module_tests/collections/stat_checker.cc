@@ -13,7 +13,7 @@
 #include "collections/vbucket_manifest_handles.h"
 
 #include "kvshard.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 
 #include "stats.h"
 #include "tests/module_tests/collections/stat_checker.h"

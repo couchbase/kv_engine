@@ -18,11 +18,11 @@
 #include "collections/manager.h"
 #include "collections/vbucket_manifest.h"
 #include "configuration.h"
-#include "couch-kvstore/couch-kvstore-config.h"
 #include "item.h"
-#include "kvstore.h"
-#include "kvstore_config.h"
-#include "kvstore_transaction_context.h"
+#include "kvstore/couch-kvstore/couch-kvstore-config.h"
+#include "kvstore/kvstore.h"
+#include "kvstore/kvstore_config.h"
+#include "kvstore/kvstore_transaction_context.h"
 #include "vbucket_state.h"
 #include <logger/logger.h>
 #include <platform/atomic.h>

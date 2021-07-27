@@ -13,7 +13,7 @@
 #include "ep_engine.h"
 #include "ep_vb.h"
 #include "kvshard.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
 #include <platform/histogram.h>

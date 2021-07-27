@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "kvstore_config.h"
+#include "kvstore/kvstore_config.h"
 
 #include <rocksdb/rate_limiter.h>
 

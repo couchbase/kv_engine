@@ -12,7 +12,7 @@
 #pragma once
 
 #include "kv_bucket.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include "utilities/testing_hook.h"
 
 class BgFetcher;

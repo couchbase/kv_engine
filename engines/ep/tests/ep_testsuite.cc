@@ -17,7 +17,7 @@
 // Usage: (to run just a single test case)
 // make engine_tests EP_TEST_NUM=3
 
-#include "couch-kvstore/couch-kvstore-metadata.h"
+#include "kvstore/couch-kvstore/couch-kvstore-metadata.h"
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 #include <libcouchstore/couch_db.h>

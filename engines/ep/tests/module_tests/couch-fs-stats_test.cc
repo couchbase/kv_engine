@@ -9,10 +9,9 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "kvstore/couch-kvstore/couch-fs-stats.h"
+#include "kvstore/kvstore.h"
 #include "tests/wrapped_fileops_test.h"
-#include "src/couch-kvstore/couch-fs-stats.h"
-
-#include "kvstore.h"
 
 class TestStatsOps : public StatsOps {
 public:

@@ -13,8 +13,6 @@
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint.h"
 #include "checkpoint_utils.h"
-#include "couch-kvstore/couch-kvstore-config.h"
-#include "couch-kvstore/couch-kvstore.h"
 #include "durability/active_durability_monitor.h"
 #include "durability/durability_completion_task.h"
 #include "durability/durability_monitor.h"
@@ -22,6 +20,8 @@
 #include "ep_vb.h"
 #include "item.h"
 #include "kv_bucket.h"
+#include "kvstore/couch-kvstore/couch-kvstore-config.h"
+#include "kvstore/couch-kvstore/couch-kvstore.h"
 #include "src/internal.h" // this is couchstore/src/internal.h
 #include "test_helpers.h"
 #include "tests/test_fileops.h"

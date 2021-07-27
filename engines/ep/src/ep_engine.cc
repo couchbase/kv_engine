@@ -36,7 +36,7 @@
 #include "getkeys.h"
 #include "hash_table_stat_visitor.h"
 #include "htresizer.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include "replicationthrottle.h"
 #include "server_document_iface_border_guard.h"
 #include "stats-info.h"

@@ -12,7 +12,7 @@
 #pragma once
 
 #include "item.h"
-#include "kvstore_priv.h"
+#include "kvstore/kvstore_priv.h"
 #include "magma-kvstore_metadata.h"
 
 class BucketLogger;

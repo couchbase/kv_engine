@@ -9,9 +9,10 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "couch-kvstore/couch-fs-stats.h"
+#include "couch-fs-stats.h"
+
 #include "common.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include <platform/histogram.h>
 
 std::unique_ptr<FileOpsInterface> getCouchstoreStatsOps(

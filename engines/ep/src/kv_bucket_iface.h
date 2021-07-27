@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "kvstore_fwd.h"
+#include "kvstore/kvstore_fwd.h"
 #include "permitted_vb_states.h"
 #include "rollback_result.h"
 #include "vbucket_fwd.h"

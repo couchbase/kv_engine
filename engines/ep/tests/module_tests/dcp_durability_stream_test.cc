@@ -24,7 +24,7 @@
 #include "durability/durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
 #include "kv_bucket.h"
-#include "kvstore.h"
+#include "kvstore/kvstore.h"
 #include "test_helpers.h"
 #include "vbucket_state.h"
 #include "vbucket_utils.h"
