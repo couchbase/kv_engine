@@ -390,6 +390,11 @@ Specifies the number of storage backend threads.
 If 0 means that memcached should use the default number of storage threads which
 is calculated as 3 x num_writer_threads.
 
+=== enforce_tenant_limits_enabled
+
+Specifies if cross-connection resource control should be enforced for
+tenants.
+
 === logger
 
 The *logger* attribute is used to specify properties for the logger

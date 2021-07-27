@@ -1010,6 +1010,29 @@ TEST_F(SettingsTest, TracingEnabled) {
     }
 }
 
+TEST_F(SettingsTest, TenantTrackingEnabled) {
+    nonBooleanValuesShouldFail("enforce_tenant_limits_enabled");
+
+    nlohmann::json obj;
+    obj["enforce_tenant_limits_enabled"] = true;
+    try {
+        Settings settings(obj);
+        EXPECT_TRUE(settings.isEnforceTenantLimitsEnabled());
+        EXPECT_TRUE(settings.has.enforce_tenant_limits_enabled);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    obj["enforce_tenant_limits_enabled"] = false;
+    try {
+        Settings settings(obj);
+        EXPECT_FALSE(settings.isEnforceTenantLimitsEnabled());
+        EXPECT_TRUE(settings.has.enforce_tenant_limits_enabled);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+}
+
 TEST_F(SettingsTest, ExternalAuthService) {
     nonBooleanValuesShouldFail("external_auth_service");
 
@@ -1087,6 +1110,24 @@ TEST(SettingsUpdateTest, PrometheusIsDynamic) {
         EXPECT_EQ(999, port);
         EXPECT_EQ(AF_INET6, family);
     }
+}
+
+TEST(SettingsUpdateTest, TenantTrackingEnabledIsDynamic) {
+    // setting the same value should work
+    Settings settings;
+    Settings updated;
+    settings.setEnforceTenantLimitsEnabled(true);
+    updated.setEnforceTenantLimitsEnabled(true);
+    settings.updateSettings(updated, true);
+    EXPECT_TRUE(settings.isEnforceTenantLimitsEnabled());
+
+    updated.setEnforceTenantLimitsEnabled(false);
+    settings.updateSettings(updated, true);
+    EXPECT_FALSE(settings.isEnforceTenantLimitsEnabled());
+
+    updated.setEnforceTenantLimitsEnabled(true);
+    settings.updateSettings(updated, true);
+    EXPECT_TRUE(settings.isEnforceTenantLimitsEnabled());
 }
 
 TEST(SettingsUpdateTest, AlwaysCollectTraceInfoIsDynamic) {

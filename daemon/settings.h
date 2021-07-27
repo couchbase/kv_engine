@@ -778,6 +778,16 @@ public:
         notify_changed("num_storage_threads");
     }
 
+    bool isEnforceTenantLimitsEnabled() const {
+        return enforce_tenant_limits_enabled.load(std::memory_order_acquire);
+    }
+
+    void setEnforceTenantLimitsEnabled(bool val) {
+        enforce_tenant_limits_enabled.store(val, std::memory_order_release);
+        has.enforce_tenant_limits_enabled = true;
+        notify_changed("enforce_tenant_limits_enabled");
+    }
+
     void setPhosphorConfig(std::string value) {
         *phosphor_config.wlock() = std::move(value);
         has.phosphor_config = true;
@@ -980,6 +990,8 @@ protected:
     folly::Synchronized<std::string> phosphor_config{
             "buffer-mode:ring;buffer-size:20971520;enabled-categories:*"};
 
+    std::atomic_bool enforce_tenant_limits_enabled{false};
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -1035,5 +1047,6 @@ public:
         bool parent_identifier = false;
         bool prometheus_config = false;
         bool phosphor_config = false;
+        bool enforce_tenant_limits_enabled = false;
     } has;
 };
