@@ -1098,7 +1098,7 @@ void EPVBucket::collectionsRolledBack(KVBucket& bucket) {
     }
 }
 
-void EPVBucket::setNumTotalItems(KVStore& kvstore) {
+void EPVBucket::setNumTotalItems(KVStoreIface& kvstore) {
     size_t vbItemCount = kvstore.getItemCount(getId());
     const auto* vbState = kvstore.getCachedVBucketState(getId());
     Expects(vbState);

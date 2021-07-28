@@ -90,7 +90,7 @@ public:
      * @param [out] commitData
      * @return true if flush succeeds, false otherwise
      */
-    bool commit(KVStore& kvstore,
+    bool commit(KVStoreIface& kvstore,
                 std::unique_ptr<TransactionContext> txnCtx,
                 VB::Commit& commitData);
 

@@ -89,7 +89,7 @@ void checkGetValue(GetValue& result,
     }
 }
 
-void initialize_kv_store(KVStore* kvstore, Vbid vbid) {
+void initialize_kv_store(KVStoreIface* kvstore, Vbid vbid) {
     // simulate the setVbState by incrementing the rev
     kvstore->prepareToCreate(vbid);
     vbucket_state state;
@@ -99,8 +99,8 @@ void initialize_kv_store(KVStore* kvstore, Vbid vbid) {
     kvstore->snapshotVBucket(vbid, state);
 }
 
-std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config,
-                                        std::vector<Vbid> vbids) {
+std::unique_ptr<KVStoreIface> setup_kv_store(KVStoreConfig& config,
+                                             std::vector<Vbid> vbids) {
     auto kvstore = KVStoreFactory::create(config);
     for (auto vbid : vbids) {
         initialize_kv_store(kvstore.get(), vbid);
@@ -1421,7 +1421,7 @@ protected:
     }
 
     std::unique_ptr<KVStoreConfig> kvstoreConfig;
-    std::unique_ptr<KVStore> kvstore;
+    std::unique_ptr<KVStoreIface> kvstore;
 };
 
 // Verify that RocksDB internal stats are returned

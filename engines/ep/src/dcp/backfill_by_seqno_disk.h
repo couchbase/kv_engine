@@ -20,7 +20,7 @@ class Filter;
 }
 class BySeqnoScanContext;
 class KVBucket;
-class KVStore;
+class KVStoreIface;
 
 /**
  * Concrete class that does backfill from the disk and informs the DCP stream
@@ -86,6 +86,6 @@ private:
      */
     std::pair<bool, std::optional<uint64_t>> getHighSeqnoOfCollections(
             const BySeqnoScanContext& seqnoScanCtx,
-            const KVStore& kvStore,
+            const KVStoreIface& kvStore,
             const Collections::VB::Filter& filter) const;
 };

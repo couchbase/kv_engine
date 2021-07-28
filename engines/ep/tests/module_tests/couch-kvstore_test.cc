@@ -55,7 +55,7 @@ public:
                                    int keys,
                                    std::pair<int, int> deletedKeyRange);
 
-    void runCompaction(KVStore& kvstore, CompactionConfig config) {
+    void runCompaction(KVStoreIface& kvstore, CompactionConfig config) {
         std::mutex mutex;
         std::unique_lock<std::mutex> lock(mutex);
         auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);

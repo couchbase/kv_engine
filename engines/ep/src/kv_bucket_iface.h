@@ -37,7 +37,7 @@ class HashTable;
 class ItemMetaData;
 class KVBucket;
 class KVShard;
-class KVStore;
+class KVStoreIface;
 class MutationLog;
 class PauseResumeVBVisitor;
 class PersistenceCallback;
@@ -573,13 +573,14 @@ public:
                                       rel_time_t currentTime,
                                       const CookieIface* cookie) = 0;
 
-    virtual KVStore* getRWUnderlying(Vbid vbId) = 0;
+    virtual KVStoreIface* getRWUnderlying(Vbid vbId) = 0;
 
-    virtual KVStore* getRWUnderlyingByShard(size_t shardId) = 0;
+    virtual KVStoreIface* getRWUnderlyingByShard(size_t shardId) = 0;
 
-    virtual const KVStore* getROUnderlyingByShard(size_t shardId) const = 0;
+    virtual const KVStoreIface* getROUnderlyingByShard(
+            size_t shardId) const = 0;
 
-    virtual const KVStore* getROUnderlying(Vbid vbId) const = 0;
+    virtual const KVStoreIface* getROUnderlying(Vbid vbId) const = 0;
 
     /**
      * takeRW and setRW are used for changing the kvstore(s) in unit tests
@@ -588,7 +589,7 @@ public:
      * KVStores
      * @param shardId the shard to take from
      */
-    virtual std::unique_ptr<KVStore> takeRW(size_t shardId) = 0;
+    virtual std::unique_ptr<KVStoreIface> takeRW(size_t shardId) = 0;
 
     /**
      * takeRW and  setRW are used for changing the kvstore(s) in unit tests
@@ -596,7 +597,7 @@ public:
      * @param shardId the shared to set onto
      * @param rw the read write KVStore
      */
-    virtual void setRW(size_t shardId, std::unique_ptr<KVStore> rw) = 0;
+    virtual void setRW(size_t shardId, std::unique_ptr<KVStoreIface> rw) = 0;
 
     virtual void deleteExpiredItem(Item& it,
                                    time_t startTime,
@@ -696,8 +697,8 @@ public:
             gsl::span<const std::string_view> keys) = 0;
 
     virtual void resetUnderlyingStats() = 0;
-    virtual const KVStore* getOneROUnderlying() const = 0;
-    virtual KVStore* getOneRWUnderlying() = 0;
+    virtual const KVStoreIface* getOneROUnderlying() const = 0;
+    virtual KVStoreIface* getOneRWUnderlying() = 0;
 
     /**
      * @return A single Flusher pointer that belongs to this Bucket. May be

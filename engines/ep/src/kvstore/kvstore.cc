@@ -176,7 +176,7 @@ void KVStoreStats::reset() {
     flusherWriteAmplificationHisto.reset();
 }
 
-std::unique_ptr<KVStore> KVStoreFactory::create(KVStoreConfig& config) {
+std::unique_ptr<KVStoreIface> KVStoreFactory::create(KVStoreConfig& config) {
     std::string backend = config.getBackend();
     if (backend == "couchdb") {
         auto rw = std::make_unique<CouchKVStore>(

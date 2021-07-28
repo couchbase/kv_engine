@@ -55,7 +55,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
         return backfill_snooze;
     }
 
-    const KVStore* kvstore = bucket.getROUnderlying(vbid);
+    const auto* kvstore = bucket.getROUnderlying(vbid);
     if (!kvstore) {
         stream->log(spdlog::level::level_enum::warn,
                     "DCPBackfillBySeqnoDisk::create(): couldn't get KVStore "
@@ -175,7 +175,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
         return backfill_finished;
     }
 
-    const KVStore* kvstore = bucket.getROUnderlying(vbid);
+    const auto* kvstore = bucket.getROUnderlying(vbid);
     scan_error_t error =
             kvstore->scan(static_cast<BySeqnoScanContext&>(*scanCtx));
 
@@ -220,7 +220,7 @@ void DCPBackfillBySeqnoDisk::complete(bool cancelled) {
 std::pair<bool, std::optional<uint64_t>>
 DCPBackfillBySeqnoDisk::getHighSeqnoOfCollections(
         const BySeqnoScanContext& seqnoScanCtx,
-        const KVStore& kvStore,
+        const KVStoreIface& kvStore,
         const Collections::VB::Filter& filter) const {
     if (!seqnoScanCtx.handle) {
         return {false, std::nullopt};

@@ -415,7 +415,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
 
     // The range becomes initialised only when an item is flushed
     std::optional<snapshot_range_t> range;
-    KVStore* rwUnderlying = getRWUnderlying(vb->getId());
+    auto* rwUnderlying = getRWUnderlying(vb->getId());
 
     auto ctx = rwUnderlying->begin(
             vbid, std::make_unique<EPPersistenceCallback>(stats, *vb));
@@ -919,7 +919,7 @@ size_t EPBucket::getFlusherBatchSplitTrigger() {
     return flusherBatchSplitTrigger;
 }
 
-bool EPBucket::commit(KVStore& kvstore,
+bool EPBucket::commit(KVStoreIface& kvstore,
                       std::unique_ptr<TransactionContext> txnCtx,
                       VB::Commit& commitData) {
     HdrMicroSecBlockTimer timer(
@@ -1143,7 +1143,7 @@ void EPBucket::flushOneDelOrSet(TransactionContext& txnCtx,
     stats.dirtyAgeHighWat.store(std::max(stats.dirtyAge.load(),
                                          stats.dirtyAgeHighWat.load()));
 
-    KVStore *rwUnderlying = getRWUnderlying(qi->getVBucketId());
+    auto* rwUnderlying = getRWUnderlying(qi->getVBucketId());
     if (!deleted) {
         // TODO: Need to separate disk_insert from disk_update because
         // bySeqno doesn't give us that information.
@@ -1724,7 +1724,7 @@ private:
 };
 
 RollbackResult EPBucket::doRollback(Vbid vbid, uint64_t rollbackSeqno) {
-    KVStore* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
+    auto* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
     auto result = rwUnderlying->rollback(
             vbid,
             rollbackSeqno,

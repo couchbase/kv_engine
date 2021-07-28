@@ -14,8 +14,8 @@
 #include "collections/vbucket_manifest.h"
 #include "configuration.h"
 #include "item.h"
-#include "kvstore/kvstore.h"
 #include "kvstore/kvstore_config.h"
+#include "kvstore/kvstore_iface.h"
 #include "kvstore/kvstore_transaction_context.h"
 #include "vb_commit.h"
 #ifdef EP_USE_ROCKSDB
@@ -147,7 +147,7 @@ protected:
     }
 
 private:
-    std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config) {
+    std::unique_ptr<KVStoreIface> setup_kv_store(KVStoreConfig& config) {
         auto kvstore = KVStoreFactory::create(config);
         vbucket_state state;
         state.transition.state = vbucket_state_active;
@@ -157,7 +157,7 @@ private:
 
 protected:
     std::unique_ptr<KVStoreConfig> kvstoreConfig;
-    std::unique_ptr<KVStore> kvstore;
+    std::unique_ptr<KVStoreIface> kvstore;
     Vbid vbid = Vbid(0);
     int numItems;
 };

@@ -4577,7 +4577,7 @@ TEST_P(STPassiveStreamCouchstoreTest, VBStateNotLostAfterFlushFailure) {
                                                   true /*deletion*/,
                                                   2 /*revSeqno*/)));
 
-    KVStore& kvStore = *store->getRWUnderlying(vbid);
+    auto& kvStore = *store->getRWUnderlying(vbid);
     auto& vbs = *kvStore.getCachedVBucketState(vbid);
     // Check the vbstate entries that are set by SnapRange info
     const auto checkVBState = [&vbs](uint64_t lastSnapStart,

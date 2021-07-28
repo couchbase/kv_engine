@@ -6794,7 +6794,7 @@ void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
     for (uint16_t ii = 0; ii < getKVBucket()->getVBuckets().getNumShards();
          ++ii) {
         getKVBucket()->getVBuckets().getShard(ii)->forEachKVStore(
-                [size](KVStore* kvs) { kvs->setMaxDataSize(size); });
+                [size](auto* kvs) { kvs->setMaxDataSize(size); });
     }
 
     // Update the ArenaMalloc threshold

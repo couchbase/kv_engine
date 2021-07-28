@@ -16,6 +16,8 @@
 
 class BgFetcher;
 class EPBucket;
+class KVStoreIface;
+
 struct vbucket_state;
 
 /**
@@ -262,7 +264,7 @@ public:
     /**
      * Use the KVStore to calculate and set the 'onDiskItemCount'
      */
-    void setNumTotalItems(KVStore& kvstore);
+    void setNumTotalItems(KVStoreIface& kvstore);
 
     void notifyFlusher() override;
 

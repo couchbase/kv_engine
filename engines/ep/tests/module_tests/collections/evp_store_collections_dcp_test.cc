@@ -2880,7 +2880,7 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
         expected--;
     }
 
-    auto checkKVS = [dropAtEnd, expected, &target](KVStore& kvs, Vbid id) {
+    auto checkKVS = [dropAtEnd, expected, &target](KVStoreIface& kvs, Vbid id) {
         auto [status, dropped] = kvs.getDroppedCollections(id);
         ASSERT_TRUE(status);
         EXPECT_TRUE(dropped.empty());

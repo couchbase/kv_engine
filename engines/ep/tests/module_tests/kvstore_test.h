@@ -61,7 +61,7 @@ public:
     void teardown();
 
     std::unique_ptr<KVStoreConfig> kvstoreConfig;
-    std::unique_ptr<KVStore> kvstore;
+    std::unique_ptr<KVStoreIface> kvstore;
 };
 
 // Test fixture for tests which run on all KVStore implementations (Couchstore
@@ -179,11 +179,12 @@ void checkGetValue(GetValue& result,
                    bool expectCompressed = false);
 
 // Initializes a KVStore
-void initialize_kv_store(KVStore* kvstore, Vbid vbid = Vbid(0));
+void initialize_kv_store(KVStoreIface* kvstore, Vbid vbid = Vbid(0));
 
 // Creates and initializes a KVStore with the given config
-std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config,
-                                        std::vector<Vbid> vbids = {Vbid(0)});
+std::unique_ptr<KVStoreIface> setup_kv_store(KVStoreConfig& config,
+                                             std::vector<Vbid> vbids = {
+                                                     Vbid(0)});
 
 class MockPersistenceCallback : public PersistenceCallback {
 public:

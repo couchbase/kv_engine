@@ -561,7 +561,7 @@ void KVBucket::getValue(Item& it) {
 }
 
 const StorageProperties KVBucket::getStorageProperties() const {
-    const KVStore* store = vbMap.shards[0]->getROUnderlying();
+    const auto* store = vbMap.shards[0]->getROUnderlying();
     return store->getStorageProperties();
 }
 
@@ -1043,7 +1043,7 @@ cb::engine_errc KVBucket::createVBucket_UNLOCKED(
 
     // Before adding the VB to the map, notify KVStore of the create
     vbMap.getShardByVbId(vbid)->forEachKVStore(
-            [vbid](KVStore* kvs) { kvs->prepareToCreate(vbid); });
+            [vbid](KVStoreIface* kvs) { kvs->prepareToCreate(vbid); });
 
     // If active, update the VB from the bucket's collection state.
     // Note: Must be done /before/ adding the new VBucket to vbMap so that
@@ -2368,7 +2368,7 @@ void KVBucket::addKVStoreStats(const AddStatFn& add_stat,
          * write instance whereas RocksDBKVStore has only instance
          * for both read write and read-only.
          */
-        std::set<const KVStore*> underlyingSet;
+        std::set<const KVStoreIface*> underlyingSet;
         underlyingSet.insert(shard->getRWUnderlying());
 
         for (auto* store : underlyingSet) {
@@ -2380,7 +2380,7 @@ void KVBucket::addKVStoreStats(const AddStatFn& add_stat,
 void KVBucket::addKVStoreTimingStats(const AddStatFn& add_stat,
                                      const CookieIface* cookie) {
     for (const auto& shard : vbMap.shards) {
-        std::set<const KVStore*> underlyingSet;
+        std::set<const KVStoreIface*> underlyingSet;
         underlyingSet.insert(shard->getRWUnderlying());
 
         for (auto* store : underlyingSet) {
@@ -2402,7 +2402,7 @@ bool KVBucket::getKVStoreStat(std::string_view name, size_t& value) {
 
 GetStatsMap KVBucket::getKVStoreStats(gsl::span<const std::string_view> keys) {
     GetStatsMap statsMap;
-    auto aggShardStats = [&](const KVStore* store) {
+    auto aggShardStats = [&](const KVStoreIface* store) {
         auto shardStats = store->getStats(keys);
         for (const auto& [name, value] : shardStats) {
             auto [itr, emplaced] = statsMap.try_emplace(name, value);
@@ -2417,11 +2417,11 @@ GetStatsMap KVBucket::getKVStoreStats(gsl::span<const std::string_view> keys) {
     return statsMap;
 }
 
-const KVStore* KVBucket::getOneROUnderlying() const {
+const KVStoreIface* KVBucket::getOneROUnderlying() const {
     return vbMap.shards[EP_PRIMARY_SHARD]->getROUnderlying();
 }
 
-KVStore *KVBucket::getOneRWUnderlying() {
+KVStoreIface* KVBucket::getOneRWUnderlying() {
     return vbMap.shards[EP_PRIMARY_SHARD]->getRWUnderlying();
 }
 
@@ -2709,11 +2709,11 @@ SeqnoAckCallback KVBucket::makeSeqnoAckCB() const {
     };
 }
 
-std::unique_ptr<KVStore> KVBucket::takeRW(size_t shardId) {
+std::unique_ptr<KVStoreIface> KVBucket::takeRW(size_t shardId) {
     return vbMap.shards[shardId]->takeRW();
 }
 
-void KVBucket::setRW(size_t shardId, std::unique_ptr<KVStore> rw) {
+void KVBucket::setRW(size_t shardId, std::unique_ptr<KVStoreIface> rw) {
     vbMap.shards[shardId]->setRWUnderlying(std::move(rw));
 }
 

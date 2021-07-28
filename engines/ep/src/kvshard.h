@@ -61,7 +61,7 @@ class Configuration;
 class CookieIface;
 class EPBucket;
 class EventuallyPersistentEngine;
-class KVStore;
+class KVStoreIface;
 
 class KVShard {
 public:
@@ -70,21 +70,21 @@ public:
     KVShard(EventuallyPersistentEngine& engine, KVShard::id_type id);
     ~KVShard();
 
-    KVStore* getRWUnderlying() {
+    KVStoreIface* getRWUnderlying() {
         return rwStore.get();
     }
 
-    const KVStore* getROUnderlying() const {
+    const KVStoreIface* getROUnderlying() const {
         return rwStore.get();
     }
 
-    void setRWUnderlying(std::unique_ptr<KVStore> newStore);
+    void setRWUnderlying(std::unique_ptr<KVStoreIface> newStore);
 
     /**
      * move the rw store out of the shard, the shard will be left with no
      * KVStores after calling this method
      */
-    std::unique_ptr<KVStore> takeRW();
+    std::unique_ptr<KVStoreIface> takeRW();
 
     template <class UnaryFunction>
     void forEachKVStore(UnaryFunction f) {
@@ -222,7 +222,7 @@ private:
      */
     std::vector<VBMapElement> vbuckets;
 
-    std::unique_ptr<KVStore> rwStore;
+    std::unique_ptr<KVStoreIface> rwStore;
 
 public:
     std::atomic<size_t> highPriorityCount;

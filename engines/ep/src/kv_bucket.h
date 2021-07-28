@@ -14,6 +14,7 @@
 #include "callbacks.h"
 #include "ep_types.h"
 #include "kv_bucket_iface.h"
+#include "kvstore/kvstore_iface.h"
 #include "mutation_log.h"
 #include "stored-value.h"
 #include "storeddockey.h"
@@ -393,25 +394,25 @@ public:
                               rel_time_t currentTime,
                               const CookieIface* cookie) override;
 
-    KVStore* getRWUnderlying(Vbid vbId) override {
+    KVStoreIface* getRWUnderlying(Vbid vbId) override {
         return vbMap.getShardByVbId(vbId)->getRWUnderlying();
     }
 
-    KVStore* getRWUnderlyingByShard(size_t shardId) override {
+    KVStoreIface* getRWUnderlyingByShard(size_t shardId) override {
         return vbMap.shards[shardId]->getRWUnderlying();
     }
 
-    const KVStore* getROUnderlyingByShard(size_t shardId) const override {
+    const KVStoreIface* getROUnderlyingByShard(size_t shardId) const override {
         return vbMap.shards[shardId]->getROUnderlying();
     }
 
-    const KVStore* getROUnderlying(Vbid vbId) const override {
+    const KVStoreIface* getROUnderlying(Vbid vbId) const override {
         return vbMap.getShardByVbId(vbId)->getROUnderlying();
     }
 
-    std::unique_ptr<KVStore> takeRW(size_t shardId) override;
+    std::unique_ptr<KVStoreIface> takeRW(size_t shardId) override;
 
-    void setRW(size_t shardId, std::unique_ptr<KVStore> rw) override;
+    void setRW(size_t shardId, std::unique_ptr<KVStoreIface> rw) override;
 
     cb::mcbp::Status evictKey(const DocKey& key,
                               Vbid vbucket,
@@ -568,8 +569,8 @@ public:
     bool getKVStoreStat(std::string_view name, size_t& value) override;
 
     void resetUnderlyingStats() override;
-    const KVStore* getOneROUnderlying() const override;
-    KVStore* getOneRWUnderlying() override;
+    const KVStoreIface* getOneROUnderlying() const override;
+    KVStoreIface* getOneRWUnderlying() override;
 
     EvictionPolicy getItemEvictionPolicy() const override {
         return eviction_policy;

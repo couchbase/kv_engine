@@ -144,10 +144,10 @@ std::vector<Vbid> KVShard::getVBuckets() {
     return rv;
 }
 
-void KVShard::setRWUnderlying(std::unique_ptr<KVStore> newStore) {
+void KVShard::setRWUnderlying(std::unique_ptr<KVStoreIface> newStore) {
     rwStore.swap(newStore);
 }
 
-std::unique_ptr<KVStore> KVShard::takeRW() {
+std::unique_ptr<KVStoreIface> KVShard::takeRW() {
     return std::move(rwStore);
 }

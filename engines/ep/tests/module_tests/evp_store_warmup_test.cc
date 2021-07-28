@@ -1485,7 +1485,7 @@ void DurabilityWarmupTest::testPromotedReplicaMidSnapshotHPS(
     auto vb = engine->getKVBucket()->getVBucket(vbid);
 
     store = engine->getKVBucket();
-    KVStore* rwUnderlying = store->getRWUnderlying(vbid);
+    auto* rwUnderlying = store->getRWUnderlying(vbid);
     const auto* persistedVbState = rwUnderlying->getCachedVBucketState(vbid);
     auto pps = persistedVbState->persistedPreparedSeqno;
     auto hps = persistedVbState->highPreparedSeqno;
@@ -1517,7 +1517,7 @@ void DurabilityWarmupTest::testPromotedReplicaCompleteSnapshotHPS(
     auto vb = engine->getKVBucket()->getVBucket(vbid);
 
     store = engine->getKVBucket();
-    KVStore* rwUnderlying = store->getRWUnderlying(vbid);
+    auto* rwUnderlying = store->getRWUnderlying(vbid);
     const auto* persistedVbState = rwUnderlying->getCachedVBucketState(vbid);
     auto pps = persistedVbState->persistedPreparedSeqno;
     auto hps = persistedVbState->highPreparedSeqno;

@@ -1161,7 +1161,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DiskSnapshotHCSPersisted) {
 }
 
 uint64_t DurabilityPassiveStreamPersistentTest::getPersistedHCS() {
-    KVStore* rwUnderlying = store->getRWUnderlying(vbid);
+    auto* rwUnderlying = store->getRWUnderlying(vbid);
     const auto* persistedVbState = rwUnderlying->getCachedVBucketState(vbid);
     return persistedVbState->persistedCompletedSeqno;
 }

@@ -516,7 +516,7 @@ public:
 
     uint64_t getMVS() {
         if(persistent()) {
-            KVStore* rwUnderlying = store->getRWUnderlying(vbid);
+            auto* rwUnderlying = store->getRWUnderlying(vbid);
             const auto* persistedVbState =
                     rwUnderlying->getCachedVBucketState(vbid);
 
@@ -3814,7 +3814,7 @@ TEST_P(DurabilityEPBucketTest, ActivePersistedDurabilitySeqnosAdvanceOnSyncWrite
     ASSERT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
 
     store = engine->getKVBucket();
-    KVStore* rwUnderlying = store->getRWUnderlying(vbid);
+    auto* rwUnderlying = store->getRWUnderlying(vbid);
     const auto* persistedVbState = rwUnderlying->getCachedVBucketState(vbid);
     auto& pcs = persistedVbState->persistedCompletedSeqno;
     auto& pps = persistedVbState->persistedPreparedSeqno;
