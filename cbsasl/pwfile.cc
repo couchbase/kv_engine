@@ -12,35 +12,37 @@
 #include "password_database.h"
 
 #include <cbsasl/logging.h>
+#include <folly/Synchronized.h>
 #include <platform/timeutils.h>
 #include <chrono>
+#include <memory>
 #include <mutex>
-#include <sstream>
 
 class PasswordDatabaseManager {
 public:
-    PasswordDatabaseManager() : db(new cb::sasl::pwdb::PasswordDatabase) {
-    }
-
     void swap(std::unique_ptr<cb::sasl::pwdb::PasswordDatabase>& ndb) {
-        std::lock_guard<std::mutex> lock(dbmutex);
         db.swap(ndb);
     }
 
     cb::sasl::pwdb::User find(const std::string& username) {
-        std::lock_guard<std::mutex> lock(dbmutex);
-        return db->find(username);
+        return (*db.rlock())->find(username);
     }
 
-private:
-    std::mutex dbmutex;
-    std::unique_ptr<cb::sasl::pwdb::PasswordDatabase> db;
+    static PasswordDatabaseManager& instance() {
+        static PasswordDatabaseManager singleton;
+        return singleton;
+    }
+
+protected:
+    PasswordDatabaseManager() {
+        *db.wlock() = std::make_unique<cb::sasl::pwdb::PasswordDatabase>();
+    }
+
+    folly::Synchronized<std::unique_ptr<cb::sasl::pwdb::PasswordDatabase>> db;
 };
 
-static PasswordDatabaseManager pwmgr;
-
 bool find_user(const std::string& username, cb::sasl::pwdb::User& user) {
-    user = pwmgr.find(username);
+    user = PasswordDatabaseManager::instance().find(username);
     return !user.isDummy();
 }
 
@@ -54,7 +56,7 @@ cb::sasl::Error parse_user_db(const std::string content, bool file) {
                 "Loading [" + content + "] took " +
                 cb::time2text(std::chrono::steady_clock::now() - start));
         cb::sasl::logging::log(cb::sasl::logging::Level::Debug, logmessage);
-        pwmgr.swap(db);
+        PasswordDatabaseManager::instance().swap(db);
     } catch (std::exception& e) {
         std::string message("Failed loading [");
         message.append(content);
