@@ -11,9 +11,8 @@
 
 #include "vb_visitors.h"
 
-#include <utility>
-
 #include "vbucket.h"
+#include <utility>
 
 VBucketVisitor::VBucketVisitor() = default;
 

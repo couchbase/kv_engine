@@ -11,8 +11,6 @@
 
 #include "progress_tracker.h"
 
-#include <limits>
-
 ProgressTracker::ProgressTracker()
     : need_initial_time(true),
       next_visit_count_check(INITIAL_VISIT_COUNT_CHECK),

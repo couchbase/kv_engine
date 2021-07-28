@@ -154,8 +154,7 @@ protected:
  */
 class PauseResumeVBVisitor {
 public:
-    virtual ~PauseResumeVBVisitor() {
-    }
+    virtual ~PauseResumeVBVisitor() = default;
 
     /**
      * Visit a VBucket within an epStore.
