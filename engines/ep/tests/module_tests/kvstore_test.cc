@@ -646,18 +646,17 @@ queued_item KVStoreParamTest::storeDocument(bool deleted) {
 }
 
 TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
-    // Grab a pointer to our MockTransactionContext so that we can establish
-    // expectations on it throughout the test. We consume our unique_ptr to it
-    // in KVStore::begin but our raw pointer will remain.
-    std::unique_ptr<TransactionContext> tc =
-            std::make_unique<MockTransactionContext>(Vbid(0));
+    auto tc = std::make_unique<TransactionContext>(
+            Vbid(0), std::make_unique<MockPersistenceCallback>());
     auto mutationStatus = KVStore::FlushStateMutation::Insert;
-    auto* mockTC = dynamic_cast<MockTransactionContext*>(tc.get());
+    auto& mockPersistenceCallback =
+            dynamic_cast<MockPersistenceCallback&>(*tc->cb);
 
     kvstore->begin(*tc);
 
     // Expect that the SET callback will not be called just after `set`
-    EXPECT_CALL(*mockTC, setCallback(_, mutationStatus)).Times(0);
+    EXPECT_CALL(mockPersistenceCallback, setCallback(_, mutationStatus))
+            .Times(0);
 
     auto key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
@@ -665,7 +664,8 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
     kvstore->set(*tc, qi);
 
     // Expect that the SET callback will be called once after `commit`
-    EXPECT_CALL(*mockTC, setCallback(_, mutationStatus)).Times(1);
+    EXPECT_CALL(mockPersistenceCallback, setCallback(_, mutationStatus))
+            .Times(1);
 
     EXPECT_TRUE(kvstore->commit(*tc, flush));
 }
@@ -684,24 +684,22 @@ TEST_P(KVStoreParamTestSkipRocks, TestPersistenceCallbacksForDel) {
     kvstore->set(*ctx, qi);
     kvstore->commit(*ctx, flush);
 
-    // Grab a pointer to our MockTransactionContext so that we can establish
-    // expectations on it throughout the test. We consume our unique_ptr to it
-    // in KVStore::begin but our raw pointer will remain.
-    std::unique_ptr<TransactionContext> tc =
-            std::make_unique<MockTransactionContext>(Vbid(0));
-    auto* mockTC = dynamic_cast<MockTransactionContext*>(tc.get());
+    auto tc = std::make_unique<TransactionContext>(
+            Vbid(0), std::make_unique<MockPersistenceCallback>());
+    auto& mockPersistenceCallback =
+            dynamic_cast<MockPersistenceCallback&>(*tc->cb);
 
     kvstore->begin(*tc);
     // Expect that the DEL callback will not be called just after `del`
     auto status = KVStore::FlushStateDeletion::Delete;
-    EXPECT_CALL(*mockTC, deleteCallback(_, status)).Times(0);
+    EXPECT_CALL(mockPersistenceCallback, deleteCallback(_, status)).Times(0);
 
     qi->setDeleted();
     qi->setBySeqno(2);
     kvstore->del(*tc, qi);
 
     // Expect that the DEL callback will be called once after `commit`
-    EXPECT_CALL(*mockTC, deleteCallback(_, status)).Times(1);
+    EXPECT_CALL(mockPersistenceCallback, deleteCallback(_, status)).Times(1);
 
     EXPECT_TRUE(kvstore->commit(*tc, flush));
 }

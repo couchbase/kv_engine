@@ -185,15 +185,22 @@ void initialize_kv_store(KVStore* kvstore, Vbid vbid = Vbid(0));
 std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config,
                                         std::vector<Vbid> vbids = {Vbid(0)});
 
-class MockTransactionContext : public TransactionContext {
+class MockPersistenceCallback : public PersistenceCallback {
 public:
-    MockTransactionContext(Vbid vb)
-        : TransactionContext(vb, std::make_unique<PersistenceCallback>()) {
+    MOCK_METHOD2(setCallback, void(const Item&, KVStore::FlushStateMutation));
+
+    void operator()(const Item& qi,
+                    KVStore::FlushStateMutation state) override {
+        setCallback(qi, state);
     }
 
-    MOCK_METHOD2(setCallback, void(const Item&, KVStore::FlushStateMutation));
     MOCK_METHOD2(deleteCallback,
                  void(const Item&, KVStore::FlushStateDeletion));
+
+    void operator()(const Item& qi,
+                    KVStore::FlushStateDeletion state) override {
+        deleteCallback(qi, state);
+    }
 };
 
 class KVStoreTestCacheCallback : public StatusCallback<CacheLookup> {

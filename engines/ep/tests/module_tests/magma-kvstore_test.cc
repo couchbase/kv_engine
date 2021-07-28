@@ -279,8 +279,11 @@ TEST_F(MagmaKVStoreTest, setMaxDataSize) {
 }
 
 TEST_F(MagmaKVStoreTest, badSetRequest) {
-    std::unique_ptr<MockTransactionContext> tc =
-            std::make_unique<MockTransactionContext>(Vbid(0));
+    auto tc = std::make_unique<TransactionContext>(
+            Vbid(0), std::make_unique<MockPersistenceCallback>());
+    auto& mockPersistenceCallback =
+            dynamic_cast<MockPersistenceCallback&>(*tc->cb);
+
     kvstore->begin(*tc);
     auto key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
@@ -292,18 +295,17 @@ TEST_F(MagmaKVStoreTest, badSetRequest) {
         return magma::Status::IOError;
     };
 
-    EXPECT_CALL(*tc, setCallback(_, KVStore::FlushStateMutation::Failed))
+    EXPECT_CALL(mockPersistenceCallback,
+                setCallback(_, KVStore::FlushStateMutation::Failed))
             .Times(1);
     EXPECT_FALSE(kvstore->commit(*tc, flush));
 }
 
 TEST_F(MagmaKVStoreTest, badDelRequest) {
-    // Grab a pointer to our MockTransactionContext so that we can establish
-    // expectations on it throughout the test. We consume our unique_ptr to it
-    // in KVStore::begin but our raw pointer will remain.
-    std::unique_ptr<TransactionContext> tc =
-            std::make_unique<MockTransactionContext>(Vbid(0));
-    auto* mockTC = dynamic_cast<MockTransactionContext*>(tc.get());
+    auto tc = std::make_unique<TransactionContext>(
+            Vbid(0), std::make_unique<MockPersistenceCallback>());
+    auto& mockPersistenceCallback =
+            dynamic_cast<MockPersistenceCallback&>(*tc->cb);
 
     kvstore->begin(*tc);
     auto key = makeStoredDocKey("key");
@@ -317,7 +319,8 @@ TEST_F(MagmaKVStoreTest, badDelRequest) {
         return magma::Status::IOError;
     };
 
-    EXPECT_CALL(*mockTC, deleteCallback(_, KVStore::FlushStateDeletion::Failed))
+    EXPECT_CALL(mockPersistenceCallback,
+                deleteCallback(_, KVStore::FlushStateDeletion::Failed))
             .Times(1);
     EXPECT_FALSE(kvstore->commit(*tc, flush));
 }
