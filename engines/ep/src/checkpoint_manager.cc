@@ -112,15 +112,6 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(const LockHolder& lh,
         openCkpt.setSnapshotEndSeqno(lastBySeqno, maxVisibleSeqno);
     }
 
-    // Update any set_vbstate items to have the same seqno as the
-    // checkpoint_start.
-    const auto ckpt_start_seqno = (*ckpt_start)->getBySeqno();
-    for (auto item = std::next(ckpt_start); item != openCkpt.end(); item++) {
-        if ((*item)->getOperation() == queue_op::set_vbucket_state) {
-            (*item)->setBySeqno(ckpt_start_seqno);
-        }
-    }
-
     openCkpt.setId(id);
     EP_LOG_DEBUG(
             "Set the current open checkpoint id to {} for {} bySeqno is "
