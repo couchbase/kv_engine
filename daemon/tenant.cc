@@ -12,6 +12,8 @@
 #include <platform/timeutils.h>
 #include <chrono>
 
+constexpr std::size_t mib = 1024 * 1024;
+
 std::string to_string(Tenant::RateLimit limit) {
     switch (limit) {
     case Tenant::RateLimit::Connections:
@@ -30,45 +32,66 @@ std::string to_string(Tenant::RateLimit limit) {
 }
 
 void to_json(nlohmann::json& json, const Tenant::Constraints& constraints) {
-    json = {{"ingress", constraints.ingress.load()},
-            {"egress", constraints.egress.load()},
-            {"connections", constraints.connections.load()},
-            {"operations", constraints.operations.load()}};
+    json = {{"ingress_mib_per_min", constraints.ingress.load() / mib},
+            {"egress_mib_per_min", constraints.egress.load() / mib},
+            {"num_connections", constraints.connections.load()},
+            {"num_ops_per_min", constraints.operations.load()}};
 }
 
 static inline void update(std::atomic<std::size_t>& atomic,
                           const nlohmann::json& json,
-                          std::string_view key) {
+                          std::string_view key,
+                          std::size_t multiplier) {
     auto iter = json.find(key);
     if (iter != json.end() && iter->is_number_integer()) {
-        atomic.store(iter->get<size_t>());
+        atomic.store(iter->get<size_t>() * multiplier);
     }
 }
 
 void from_json(const nlohmann::json& json, Tenant::Constraints& constraints) {
-    update(constraints.ingress, json, "ingress");
-    update(constraints.egress, json, "egress");
-    update(constraints.connections, json, "connections");
-    update(constraints.operations, json, "operations");
+    update(constraints.ingress, json, "ingress_mib_per_min", mib);
+    update(constraints.egress, json, "egress_mib_per_min", mib);
+    update(constraints.connections, json, "num_connections", 1);
+    update(constraints.operations, json, "num_ops_per_min", 1);
 }
 
 Tenant::Tenant(cb::rbac::UserIdent ident, const nlohmann::json& c)
     : identity(std::move(ident)) {
     from_json(c, constraints);
+    uuid.withLock([](auto& u) { std::fill(u.begin(), u.end(), 0); });
 }
 
 nlohmann::json Tenant::to_json() const {
-    return nlohmann::json{
-            {"egress", sent.load()},
-            {"ingress", received.load()},
-            {"operations", operations.load()},
+    auto ret = nlohmann::json{
+            {"egress_bytes", sent.load()},
+            {"ingress_bytes", received.load()},
+            {"num_operations", operations.load()},
             {"connections",
              {{"current", curr_conns.load()}, {"total", total_conns.load()}}},
-            {"constraints", constraints},
-            {"rate_limited", rate_limited},
+            {"rate_limited",
+             // Ideally we could have just used the to_json method automatically
+             // but egress and ingress should be reported as mib per minute.
+             // internally we need to operate on bytes when we check on the
+             // limit and we don't want to do conversion for every check so
+             // the method converting to and from JSON automatically handle
+             // the conversion.
+             {{"ingress_mib_per_min", rate_limited.ingress.load()},
+              {"egress_mib_per_min", rate_limited.egress.load()},
+              {"num_connections", rate_limited.connections.load()},
+              {"num_ops_per_min", rate_limited.operations.load()}}},
             {"cpu",
              cb::time2text(
                      std::chrono::nanoseconds{total_cpu_time_ns.load()})}};
+    // maybe add uuid
+    uuid.withLock([&ret](auto& u) {
+        static cb::uuid::uuid_t none{{0}};
+        if (u == none) {
+            return;
+        }
+        ret["uuid"] = to_string(u);
+    });
+
+    return ret;
 }
 
 void Tenant::send(size_t nbytes) {

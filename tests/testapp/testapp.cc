@@ -414,6 +414,7 @@ nlohmann::json TestappTest::generate_config() {
              {{"enabled", true},
               {"minidump_dir", mcd_env->getMinidumpDir()},
               {"content", "default"}}},
+            {"root", SOURCE_ROOT},
             {"ssl_cipher_list",
              {{"tls 1.2", "HIGH"},
               {"tls 1.3",

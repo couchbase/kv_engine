@@ -9,9 +9,11 @@
  */
 #pragma once
 
+#include <folly/Synchronized.h>
 #include <memcached/rbac.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/non_negative_counter.h>
+#include <platform/uuid.h>
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -74,6 +76,7 @@ public:
 
 protected:
     const cb::rbac::UserIdent identity;
+    folly::Synchronized<cb::uuid::uuid_t, std::mutex> uuid;
 
     /// A sloppy gauge where we count the number of entries within a given
     /// period. If the environment variable MEMCACHED_UNIT_TESTS is set

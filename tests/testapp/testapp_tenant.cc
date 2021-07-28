@@ -8,23 +8,19 @@
  *   the file licenses/APL2.txt.
  */
 
-#include <folly/portability/Stdlib.h>
-
 #include "testapp.h"
 #include "testapp_client_test.h"
 
 class TenantTest : public TestappClientTest {
 public:
-    static void SetUpTestCase() {
-        setenv("COUCHBASE_DBAAS", "enable", 1);
-        auto config = generate_config();
-        config["root"] = SOURCE_ROOT;
-        doSetUpTestCaseWithConfiguration(config);
+    void SetUp() override {
+        memcached_cfg["enforce_tenant_limits_enabled"] = true;
+        reconfigure();
     }
 
-    static void TearDownTestCase() {
-        unsetenv("COUCHBASE_DBAAS");
-        TestappTest::TearDownTestCase();
+    void TearDown() override {
+        memcached_cfg["enforce_tenant_limits_enabled"] = false;
+        reconfigure();
     }
 };
 
@@ -58,11 +54,12 @@ TEST_P(TenantTest, TenantStats) {
 
                 auto json = nlohmann::json::parse(value);
                 // We've not sent any commands after we authenticated
-                EXPECT_EQ(0, json["ingress"].get<int>());
+                EXPECT_EQ(0, json["ingress_bytes"].get<int>());
 
                 // But we did send the reply to the AUTH so we should have
                 // sent 1 mcbp response header
-                EXPECT_EQ(sizeof(cb::mcbp::Header), json["egress"].get<int>());
+                EXPECT_EQ(sizeof(cb::mcbp::Header),
+                          json["egress_bytes"].get<int>());
 
                 EXPECT_EQ(1, json["connections"]["current"].get<int>());
                 EXPECT_EQ(1, json["connections"]["total"].get<int>());
@@ -78,9 +75,10 @@ TEST_P(TenantTest, TenantStats) {
                 EXPECT_EQ(R"({"domain":"local","user":"jones"})", key);
 
                 auto json = nlohmann::json::parse(value);
-                EXPECT_EQ(sizeof(cb::mcbp::Header), json["ingress"].get<int>());
+                EXPECT_EQ(sizeof(cb::mcbp::Header),
+                          json["ingress_bytes"].get<int>());
                 EXPECT_EQ(sizeof(cb::mcbp::Header) + sizeof(cb::mcbp::Header),
-                          json["egress"].get<int>());
+                          json["egress_bytes"].get<int>());
                 EXPECT_EQ(1, json["connections"]["current"].get<int>());
                 EXPECT_EQ(1, json["connections"]["total"].get<int>());
                 found = true;
@@ -97,9 +95,10 @@ TEST_P(TenantTest, TenantStats) {
                 EXPECT_EQ(R"({"domain":"local","user":"jones"})", key);
 
                 auto json = nlohmann::json::parse(value);
-                EXPECT_EQ(sizeof(cb::mcbp::Header), json["ingress"].get<int>());
+                EXPECT_EQ(sizeof(cb::mcbp::Header),
+                          json["ingress_bytes"].get<int>());
                 EXPECT_EQ(3 * sizeof(cb::mcbp::Header),
-                          json["egress"].get<int>());
+                          json["egress_bytes"].get<int>());
                 EXPECT_EQ(1, json["connections"]["current"].get<int>());
                 EXPECT_EQ(2, json["connections"]["total"].get<int>());
                 found = true;
@@ -161,6 +160,23 @@ TEST_P(TenantTest, TenantStats) {
             done = true;
         }
     }
+
+    // Verify that the stats recorded the rate limiting
+    conn.stats(
+            [&found](const std::string& key, const std::string& value) -> void {
+                EXPECT_EQ(R"({"domain":"local","user":"jones"})", key);
+
+                auto json = nlohmann::json::parse(value);
+                const auto& limited = json["rate_limited"];
+                EXPECT_EQ(1, limited["num_connections"].get<int>());
+                if (!folly::kIsSanitize) { // NOLINT
+                    EXPECT_EQ(1, limited["num_ops_per_min"].get<int>());
+                }
+                found = true;
+            },
+            R"(tenants {"domain":"local","user":"jones"})");
+    ASSERT_TRUE(found) << "Expected tenant data to be found for jones";
+    found = false;
 
     conn.deleteBucket("rbac_test");
 }

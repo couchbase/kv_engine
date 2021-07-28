@@ -22,8 +22,6 @@ public:
     static void startup();
     static void shutdown();
 
-    static bool isTenantTrackingEnabled();
-
     static std::shared_ptr<Tenant> get(const cb::rbac::UserIdent& ident,
                                        bool create = true);
     static nlohmann::json to_json();

@@ -35,39 +35,35 @@ public:
 
     void purgeIdleTenants();
 
-    bool isEnabled() {
-        return enabled.load();
-    }
-
 protected:
     TenantManagerImpl()
         : userDirectory(
                   boost::filesystem::path{Settings::instance().getRoot()} /
                   "etc" / "couchbase" / "kv" / "security" / "user.d") {
-        if (getenv("COUCHBASE_DBAAS")) {
-            const auto path = userDirectory / "default.json";
-            if (exists(path)) {
-                try {
-                    initial = nlohmann::json::parse(
-                            cb::io::loadFile(path.generic_string()));
-                    LOG_INFO("Enable tenant tracking using the constraints: {}",
-                             initial.dump());
-                    enabled = true;
-                } catch (const std::exception& exception) {
-                    LOG_CRITICAL("Failed to load {}: {}",
-                                 path.generic_string(),
-                                 exception.what());
-                }
-            } else {
+        const auto path = userDirectory / "default.json";
+        if (exists(path)) {
+            try {
+                initial = nlohmann::json::parse(
+                        cb::io::loadFile(path.generic_string()));
+                LOG_INFO("Default ({}) tenant resource control constraints: {}",
+                         Settings::instance().isEnforceTenantLimitsEnabled()
+                                 ? "Enabled"
+                                 : "Disabled",
+                         initial.dump());
+            } catch (const std::exception& exception) {
                 FATAL_ERROR(EXIT_FAILURE,
-                            "COUCHBASE_DBAAS set, but {} does not exist.",
-                            userDirectory.generic_string());
+                            "Failed to load {}: {}",
+                            path.generic_string(),
+                            exception.what());
             }
+        } else {
+            FATAL_ERROR(EXIT_FAILURE,
+                        "Internal error: {} does not exist.",
+                        userDirectory.generic_string());
         }
     }
 
     const boost::filesystem::path userDirectory;
-    std::atomic_bool enabled{false};
     nlohmann::json initial;
     folly::Synchronized<
             std::unordered_map<std::string, std::shared_ptr<Tenant>>,
@@ -159,9 +155,6 @@ void TenantManagerImpl::purgeIdleTenants() {
 std::shared_ptr<Tenant> TenantManager::get(const cb::rbac::UserIdent& ident,
                                            bool create) {
     return TenantManagerImpl::instance().get(ident, create);
-}
-bool TenantManager::isTenantTrackingEnabled() {
-    return TenantManagerImpl::instance().isEnabled();
 }
 
 nlohmann::json TenantManager::to_json() {

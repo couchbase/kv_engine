@@ -9,20 +9,20 @@ file will be applied.
 The format of these files is JSON and looks like:
 
     {
-      "connections": 1,
-      "egress": 1024,
-      "ingress": 1024,
-      "operations": 10
+      "egress_mib_per_min": 1024,
+      "ingress_mib_per_min": 1024,
+      "num_connections": 1,
+      "num_ops_per_min": 10
     }
 
-* `connections` Is the total number of concurrent client connection the user
+* `num_connections` Is the total number of concurrent client connection the user
   may connect to the node.
-* `egress` Is the total number of bytes the client may request from the server
-  per minute. Error messages related to packet validation, access control
-  or rate limitations will override the limit
-* `ingress` is the total number of bytes the client may send to the server
-  per minute. Given that we can't stop the client from sending the data to
-  the server will read the request but return a rate limited error message
-  instead of executing the packet
-* `operations` is the total number of operations the client may execute per
+* `egress_mib_per_min` Is the number of million bytes the client may request
+  from the server per minute. Error messages related to packet validation,
+  access control or rate limitations will override the limit
+* `ingress_mib_per_min` is the number of million bytes the client may send
+  to the server per minute. Given that we can't stop the client from sending
+  the data to the server will read the request but return a rate limited error
+  message instead of executing the packet
+* `num_ops_per_min` is the total number of operations the client may execute per
   minute.

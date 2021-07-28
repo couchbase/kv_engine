@@ -1,6 +1,6 @@
 {
-  "connections": 10,
-  "egress": 10485760,
-  "ingress": 10485760,
-  "operations": 6000
+  "egress_mib_per_min": 1,
+  "ingress_mib_per_min": 1,
+  "num_connections": 10,
+  "num_ops_per_min": 6000
 }

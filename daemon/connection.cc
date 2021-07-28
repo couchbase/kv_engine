@@ -1163,7 +1163,7 @@ void Connection::setAuthenticated(bool authenticated_,
     if (authenticated_) {
         updateDescription();
         privilegeContext = cb::rbac::createContext(user, "");
-        if (!internal && TenantManager::isTenantTrackingEnabled()) {
+        if (!internal && Settings::instance().isEnforceTenantLimitsEnabled()) {
             tenant = TenantManager::get(user);
             tenant->logon();
         } else {

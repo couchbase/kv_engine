@@ -53,10 +53,6 @@ JSON looks like:
         "iv" : "base64 encoded iv"
     }
 
-## `COUCHBASE_DBAAS`
-
-Enable tenant tracking for DBaaS mode
-
 ## `COUCHBASE_ENABLE_PRIVILEGE_DEBUG`
 
 By setting this environment variable all privilege checks returns
