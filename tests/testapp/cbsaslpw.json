@@ -115,6 +115,12 @@
       }
     },
     {
+      "limits": {
+        "egress_mib_per_min": 1,
+        "ingress_mib_per_min": 1,
+        "num_ops_per_min": 6000,
+        "num_connections": 10
+      },
       "n": "jones",
       "plain": "JODrAhh4pQOfVo91pFkKyJl5mF4NyZRU2mzoyriSoGXGLl5/",
       "sha1": {

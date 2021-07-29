@@ -93,4 +93,13 @@ void set_scramsha_fallback_salt(const std::string& salt) {
     pwdb::UserFactory::setScramshaFallbackSalt(salt);
 }
 
+std::optional<cb::sasl::pwdb::User> getUser(cb::rbac::UserIdent ident) {
+    cb::sasl::pwdb::User user;
+    if (ident.domain == Domain::Local && find_user(ident.name, user)) {
+        return {user};
+    }
+
+    return {};
+}
+
 } // namespace cb::sasl::server

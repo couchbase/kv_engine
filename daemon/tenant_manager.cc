@@ -11,16 +11,14 @@
 
 #include "log_macros.h"
 #include "nobucket_taskable.h"
-#include "one_shot_task.h"
 #include "settings.h"
-#include <boost/filesystem.hpp>
+#include <cbsasl/server.h>
 #include <executor/executorpool.h>
 #include <executor/globaltask.h>
 #include <folly/Synchronized.h>
 #include <memcached/rbac.h>
 #include <memcached/tenant.h>
 #include <nlohmann/json.hpp>
-#include <platform/dirutils.h>
 #include <unordered_map>
 
 class TenantManagerImpl {
@@ -36,35 +34,11 @@ public:
     void purgeIdleTenants();
 
 protected:
-    TenantManagerImpl()
-        : userDirectory(
-                  boost::filesystem::path{Settings::instance().getRoot()} /
-                  "etc" / "couchbase" / "kv" / "security" / "user.d") {
-        const auto path = userDirectory / "default.json";
-        if (exists(path)) {
-            try {
-                initial = nlohmann::json::parse(
-                        cb::io::loadFile(path.generic_string()));
-                LOG_INFO("Default ({}) tenant resource control constraints: {}",
-                         Settings::instance().isEnforceTenantLimitsEnabled()
-                                 ? "Enabled"
-                                 : "Disabled",
-                         initial.dump());
-            } catch (const std::exception& exception) {
-                FATAL_ERROR(EXIT_FAILURE,
-                            "Failed to load {}: {}",
-                            path.generic_string(),
-                            exception.what());
-            }
-        } else {
-            FATAL_ERROR(EXIT_FAILURE,
-                        "Internal error: {} does not exist.",
-                        userDirectory.generic_string());
-        }
+    TenantManagerImpl() {
+        LOG_INFO("Tenant resource control: {}",
+                 Settings::instance().isEnforceTenantLimitsEnabled());
     }
 
-    const boost::filesystem::path userDirectory;
-    nlohmann::json initial;
     folly::Synchronized<
             std::unordered_map<std::string, std::shared_ptr<Tenant>>,
             std::mutex>
@@ -73,49 +47,43 @@ protected:
 
 std::shared_ptr<Tenant> TenantManagerImpl::get(const cb::rbac::UserIdent& ident,
                                                bool create) {
+    // Do this in two passes.. first try to just get it, if it fails
+    // do the slow path where we need to look up the user in the userdb
+    // first
     auto name = ident.to_json().dump();
-    bool created = false;
-    auto ret = tenants.withLock([&name, id = ident, create, &created, this](
-                                        auto& map) {
+    auto ret = tenants.withLock([&name, id = ident](auto& map) {
+        auto iter = map.find(name);
+        if (iter == map.end()) {
+            return std::shared_ptr<Tenant>{};
+        }
+        return iter->second;
+    });
+
+    if (ret || !create) {
+        // We found the user or it wasn't found but we shouldn't create it
+        return ret;
+    }
+
+    // We need the user data
+    auto userentry = cb::sasl::server::getUser(ident);
+    if (!userentry) {
+        // no such user and we can't create
+        return {};
+    }
+
+    const auto& user = userentry.value();
+    ret = tenants.withLock([&name, id = ident, create, &user](auto& map) {
         auto iter = map.find(name);
         if (iter == map.end()) {
             if (create) {
-                auto ret = std::make_shared<Tenant>(std::move(id), initial);
+                auto ret = std::make_shared<Tenant>(std::move(id), user);
                 map[name] = ret;
-                created = true;
                 return ret;
             }
             return std::shared_ptr<Tenant>{};
         }
         return iter->second;
     });
-
-    if (created) {
-        // start a task to read the restrictions
-        ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
-                TaskId::Core_TenantConfig,
-                "Tenant: " + name,
-                [tenant = ret,
-                 nm = std::move(name),
-                 id = ident,
-                 root = userDirectory]() {
-                    auto fname = root / (id.name + ".json");
-                    if (exists(fname)) {
-                        try {
-                            const auto json = nlohmann::json::parse(
-                                    cb::io::loadFile(fname.generic_string()));
-                            tenant->resetConstraints(json);
-                            LOG_INFO("Update tenant {} to use {}",
-                                     id.to_json(),
-                                     json.dump());
-                        } catch (const std::exception& exception) {
-                            LOG_ERROR("Failed to read {}: {}",
-                                      fname.generic_string(),
-                                      exception.what());
-                        }
-                    }
-                }));
-    }
 
     return ret;
 }

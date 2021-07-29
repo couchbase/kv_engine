@@ -1,6 +1,0 @@
-{
-  "egress_mib_per_min": 1,
-  "ingress_mib_per_min": 1,
-  "num_connections": 10,
-  "num_ops_per_min": 6000
-}

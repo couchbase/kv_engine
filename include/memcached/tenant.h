@@ -9,7 +9,7 @@
  */
 #pragma once
 
-#include <folly/Synchronized.h>
+#include <cbsasl/user.h>
 #include <memcached/rbac.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/non_negative_counter.h>
@@ -32,7 +32,7 @@ public:
     };
 
     /// Initialize a new Tenant to use the provided constraints
-    Tenant(cb::rbac::UserIdent ident, const nlohmann::json& c);
+    Tenant(cb::rbac::UserIdent ident, const cb::sasl::pwdb::User& user);
 
     nlohmann::json to_json() const;
 
@@ -70,13 +70,9 @@ public:
     /// been used for a while)
     bool mayDeleteTenant();
 
-    /// Reset the constraints to match the values in the provided
-    /// spec.
-    void resetConstraints(const nlohmann::json& spec);
-
 protected:
     const cb::rbac::UserIdent identity;
-    folly::Synchronized<cb::uuid::uuid_t, std::mutex> uuid;
+    const cb::uuid::uuid_t uuid;
 
     /// A sloppy gauge where we count the number of entries within a given
     /// period. If the environment variable MEMCACHED_UNIT_TESTS is set
@@ -116,6 +112,4 @@ protected:
     Constraints rate_limited;
 };
 
-void to_json(nlohmann::json&, const Tenant::Constraints&);
-void from_json(const nlohmann::json&, Tenant::Constraints&);
 std::string to_string(Tenant::RateLimit limit);

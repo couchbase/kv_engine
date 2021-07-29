@@ -15,6 +15,7 @@
 #include <cbsasl/domain.h>
 #include <cbsasl/error.h>
 
+#include "user.h"
 #include <memcached/rbac/privilege_database.h>
 #include <functional>
 #include <memory>
@@ -34,6 +35,9 @@ void initialize();
  * close and release allocated resources
  */
 void shutdown();
+
+/// lookup the named user
+std::optional<cb::sasl::pwdb::User> getUser(cb::rbac::UserIdent ident);
 
 /**
  * List all of the mechanisms available in cbsasl

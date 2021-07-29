@@ -53,7 +53,6 @@ TASK(WarmupCompletion, READER_TASK_IDX, 0)
 TASK(VKeyStatBGFetchTask, READER_TASK_IDX, 3)
 TASK(Core_SaslRefreshTask, READER_TASK_IDX, 0)
 TASK(Core_RbacReloadTask, READER_TASK_IDX, 0)
-TASK(Core_TenantConfig, READER_TASK_IDX, 0)
 
 // Aux IO tasks
 TASK(VBucketMemoryAndDiskDeletionTask, AUXIO_TASK_IDX, 0)
