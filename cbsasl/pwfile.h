@@ -9,8 +9,8 @@
  */
 #pragma once
 
+#include <cbsasl/user.h>
 #include <string>
-#include "user.h"
 
 /**
  * Searches for a user entry for the specified user.

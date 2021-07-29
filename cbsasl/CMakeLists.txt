@@ -30,7 +30,6 @@ add_library(cbsasl STATIC
      strcmp.cc
      strerror.cc
      user.cc
-     user.h
      util.h)
 kv_enable_pch(cbsasl)
 cb_enable_unity_build(cbsasl)

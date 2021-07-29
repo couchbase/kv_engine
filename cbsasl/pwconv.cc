@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -10,8 +9,7 @@
  */
 #include <cbsasl/logging.h>
 #include <cbsasl/pwdb.h>
-#include "user.h"
-
+#include <cbsasl/user.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <fstream>

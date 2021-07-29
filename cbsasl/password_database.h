@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -10,11 +9,10 @@
  */
 #pragma once
 
+#include <cbsasl/user.h>
 #include <nlohmann/json_fwd.hpp>
-
 #include <string>
 #include <unordered_map>
-#include "user.h"
 
 namespace cb::sasl::pwdb {
 

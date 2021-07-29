@@ -9,11 +9,11 @@
  */
 
 #include "password_database.h"
-#include "user.h"
 
 #include <cbcrypto/cbcrypto.h>
 #include <cbsasl/pwdb.h>
 #include <cbsasl/server.h>
+#include <cbsasl/user.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
 #include <nlohmann/json.hpp>
@@ -101,6 +101,11 @@ class UserTest : public ::testing::Test {
 public:
     void SetUp() override {
         root["n"] = "username";
+        root["uuid"] = "00000000-0000-0000-0000-000000000000";
+        root["limits"] = {{"ingress_mib_per_min", 10},
+                          {"egress_mib_per_min", 20},
+                          {"num_connections", 1},
+                          {"num_ops_per_min", 1000}};
         root["plain"] = Couchbase::Base64::encode("secret");
 
         nlohmann::json sha1;
@@ -133,9 +138,13 @@ public:
 
 TEST_F(UserTest, TestNormalInit) {
     using namespace cb::sasl;
-    pwdb::User u;
-    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root));
+    pwdb::User u(root);
     EXPECT_EQ("username", u.getUsername().getRawValue());
+    EXPECT_EQ(1, u.getLimits().num_connections);
+    EXPECT_EQ(1000, u.getLimits().num_ops_per_min);
+    EXPECT_EQ(10, u.getLimits().ingress_mib_per_min);
+    EXPECT_EQ(20, u.getLimits().egress_mib_per_min);
+    EXPECT_EQ(cb::uuid::uuid_t{}, u.getUuid());
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA1));
@@ -184,8 +193,7 @@ TEST_F(UserTest, TestNoPlaintext) {
     using namespace cb::sasl;
 
     root.erase("plain");
-    pwdb::User u;
-    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root));
+    pwdb::User u(root);
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA1));
@@ -196,8 +204,7 @@ TEST_F(UserTest, TestNoSha512) {
     using namespace cb::sasl;
 
     root.erase("sha512");
-    pwdb::User u;
-    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root));
+    pwdb::User u(root);
     EXPECT_THROW(u.getPassword(Mechanism::SCRAM_SHA512), std::invalid_argument);
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA1));
@@ -208,8 +215,7 @@ TEST_F(UserTest, TestNoSha256) {
     using namespace cb::sasl;
 
     root.erase("sha256");
-    pwdb::User u;
-    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root));
+    pwdb::User u(root);
     EXPECT_THROW(u.getPassword(Mechanism::SCRAM_SHA256), std::invalid_argument);
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA1));
@@ -220,8 +226,7 @@ TEST_F(UserTest, TestNoSha1) {
     using namespace cb::sasl;
 
     root.erase("sha1");
-    pwdb::User u;
-    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root));
+    pwdb::User u(root);
     EXPECT_THROW(u.getPassword(Mechanism::SCRAM_SHA1), std::invalid_argument);
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
@@ -230,8 +235,7 @@ TEST_F(UserTest, TestNoSha1) {
 
 TEST_F(UserTest, InvalidLabel) {
     root["gssapi"] = "foo";
-    EXPECT_THROW(auto u = cb::sasl::pwdb::UserFactory::create(root),
-                 std::runtime_error);
+    EXPECT_THROW(cb::sasl::pwdb::User u(root), std::runtime_error);
 }
 
 /**

@@ -14,6 +14,7 @@
 #include <cbsasl/mechanism.h>
 #include <cbsasl/pwdb.h>
 #include <nlohmann/json_fwd.hpp>
+#include <platform/uuid.h>
 #include <utilities/logtags.h>
 #include <cstdint>
 #include <map>
@@ -21,6 +22,21 @@
 #include <vector>
 
 namespace cb::sasl::pwdb {
+
+namespace user {
+/// It is possible to insert a "limits" section per user in cbsasl.json
+/// This struct contains the legal properties to specify
+struct Limits {
+    constexpr static uint64_t Unlimited = 0;
+    uint64_t num_connections = Unlimited;
+    uint64_t num_ops_per_min = Unlimited;
+    uint64_t ingress_mib_per_min = Unlimited;
+    uint64_t egress_mib_per_min = Unlimited;
+};
+
+void to_json(nlohmann::json&, const Limits&);
+void from_json(const nlohmann::json&, Limits&);
+} // namespace user
 
 class UserFactory;
 
@@ -32,13 +48,8 @@ public:
      */
     class PasswordMetaData {
     public:
-        /**
-         * Create a new instance of the PasswordMetaData
-         */
-        PasswordMetaData()
-            : iteration_count(0){
-
-              };
+        /// Create a new instance of the PasswordMetaData
+        PasswordMetaData() = default;
 
         /**
          * Create a new instance of the PasswordMetaData with
@@ -85,15 +96,15 @@ public:
             return iteration_count;
         }
 
-    private:
-        // Base 64 encoded version of the salt
+    protected:
+        /// Base 64 encoded version of the salt
         std::string salt;
 
-        // The actual password used
+        /// The actual password used
         std::string password;
 
-        // The iteration count used for generating the password
-        int iteration_count;
+        /// The iteration count used for generating the password
+        int iteration_count = 0;
     };
 
     /**
@@ -114,10 +125,57 @@ public:
     }
 
     /**
+     * Create a user entry and initialize it from the supplied
+     * JSON structure:
+     *
+     *       {
+     *            "limits" : {
+     *                "egress_mib_per_min": 1,
+     *                "ingress_mib_per_min": 1,
+     *                "num_ops_per_min": 1,
+     *                "num_connections": 1
+     *            },
+     *            "n" : "username",
+     *            "sha512" : {
+     *                "h" : "base64 encoded sha512 hash of the password",
+     *                "s" : "base64 encoded salt",
+     *                "i" : iteration-count
+     *            },
+     *            "sha256" : {
+     *                "h" : "base64 encoded sha256 hash of the password",
+     *                "s" : "base64 encoded salt",
+     *                "i" : iteration-count
+     *            },
+     *            "sha1" : {
+     *                "h" : "base64 encoded sha1 hash of the password",
+     *                "s" : "base64 encoded salt",
+     *                "i" : iteration-count
+     *            },
+     *            "plain" : "base64 encoded hex version of sha1 hash
+     *                       of plain text password",
+     *            "uuid" : "00000000-0000-0000-0000-000000000000"
+     *       }
+     *
+     * @param obj the object containing the JSON description
+     * @throws std::runtime_error if there is a syntax error
+     */
+    explicit User(const nlohmann::json& json);
+
+    /**
      * Get the username for this entry
      */
     const UserData getUsername() const {
         return username;
+    }
+
+    /// Get the limits set for the user
+    user::Limits getLimits() const {
+        return limits;
+    }
+
+    /// Get the users UUID
+    cb::uuid::uuid_t getUuid() const {
+        return uuid;
     }
 
     /**
@@ -142,20 +200,28 @@ public:
      */
     nlohmann::json to_json() const;
 
-    /**
-     * Generate a textual representation of the user object (in JSON)
-     */
-    std::string to_string() const;
-
 protected:
     friend class UserFactory;
 
-    void generateSecrets(const Mechanism& mech, const std::string& passwd);
+    /**
+     * Generate (and insert) the "secrets" entry for the provided mechanism
+     * and password.
+     */
+    void generateSecrets(Mechanism mech, std::string_view passwd);
 
     std::map<Mechanism, PasswordMetaData> password;
 
     UserData username;
 
+    cb::uuid::uuid_t uuid{};
+    user::Limits limits;
+
+    /// To avoid leaking if a user exists or not we want to be able to
+    /// complete a full SASL authentication cycle (and not fail in the
+    /// initial SASL roundtrip for SCRAM). This flag indicates that this
+    /// is such a dummy object that we want the authentcation to fail
+    /// anyway (even if the user ended up using the same password as
+    /// we randomly generated).
     bool dummy;
 };
 
@@ -174,36 +240,6 @@ public:
      * @return a newly created dummy object
      */
     static User create(const std::string& name, const std::string& pw);
-
-    /**
-     * Create a user entry and initialize it from the supplied
-     * JSON structure:
-     *
-     *       {
-     *            "n" : "username",
-     *            "sha512" : {
-     *                "h" : "base64 encoded sha512 hash of the password",
-     *                "s" : "base64 encoded salt",
-     *                "i" : iteration-count
-     *            },
-     *            "sha256" : {
-     *                "h" : "base64 encoded sha256 hash of the password",
-     *                "s" : "base64 encoded salt",
-     *                "i" : iteration-count
-     *            },
-     *            "sha1" : {
-     *                "h" : "base64 encoded sha1 hash of the password",
-     *                "s" : "base64 encoded salt",
-     *                "i" : iteration-count
-     *            },
-     *            "plain" : "base64 encoded hex version of sha1 hash
-     *                       of plain text password"
-     *       }
-     *
-     * @param obj the object containing the JSON description
-     * @throws std::runtime_error if there is a syntax error
-     */
-    static User create(const nlohmann::json& obj);
 
     /**
      * Construct a dummy user object that may be used in authentication

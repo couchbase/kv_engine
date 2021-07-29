@@ -54,7 +54,7 @@ PasswordDatabase::PasswordDatabase(const std::string& content, bool file) {
 
     // parse all of the users
     for (const auto& u : *it) {
-        auto user = UserFactory::create(u);
+        User user(u);
         db[user.getUsername().getRawValue()] = user;
     }
 }
