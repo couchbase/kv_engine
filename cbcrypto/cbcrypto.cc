@@ -145,7 +145,7 @@ static std::string HMAC_SHA512(std::string_view key, std::string_view data) {
             key, data, BCRYPT_SHA512_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
 }
 
-static inline std::string PBKDF2(const std::string& pass,
+static inline std::string PBKDF2(std::string_view pass,
                                  std::string_view salt,
                                  unsigned int iterationCount,
                                  LPCWSTR algorithm) {
@@ -202,19 +202,19 @@ static inline std::string PBKDF2(const std::string& pass,
     return ret;
 }
 
-static std::string PBKDF2_HMAC_SHA1(const std::string& pass,
+static std::string PBKDF2_HMAC_SHA1(std::string_view pass,
                                     std::string_view salt,
                                     unsigned int iterationCount) {
     return PBKDF2(pass, salt, iterationCount, BCRYPT_SHA1_ALGORITHM);
 }
 
-static std::string PBKDF2_HMAC_SHA256(const std::string& pass,
+static std::string PBKDF2_HMAC_SHA256(std::string_view pass,
                                       std::string_view salt,
                                       unsigned int iterationCount) {
     return PBKDF2(pass, salt, iterationCount, BCRYPT_SHA256_ALGORITHM);
 }
 
-static std::string PBKDF2_HMAC_SHA512(const std::string& pass,
+static std::string PBKDF2_HMAC_SHA512(std::string_view pass,
                                       std::string_view salt,
                                       unsigned int iterationCount) {
     return PBKDF2(pass, salt, iterationCount, BCRYPT_SHA512_ALGORITHM);
@@ -416,7 +416,7 @@ static std::string HMAC_SHA512(std::string_view key, std::string_view data) {
     return ret;
 }
 
-static std::string PBKDF2_HMAC_SHA1(const std::string& pass,
+static std::string PBKDF2_HMAC_SHA1(std::string_view pass,
                                     std::string_view salt,
                                     unsigned int iterationCount) {
     std::string ret;
@@ -440,7 +440,7 @@ static std::string PBKDF2_HMAC_SHA1(const std::string& pass,
     return ret;
 }
 
-static std::string PBKDF2_HMAC_SHA256(const std::string& pass,
+static std::string PBKDF2_HMAC_SHA256(std::string_view pass,
                                       std::string_view salt,
                                       unsigned int iterationCount) {
     std::string ret;
@@ -464,7 +464,7 @@ static std::string PBKDF2_HMAC_SHA256(const std::string& pass,
     return ret;
 }
 
-static std::string PBKDF2_HMAC_SHA512(const std::string& pass,
+static std::string PBKDF2_HMAC_SHA512(std::string_view pass,
                                       std::string_view salt,
                                       unsigned int iterationCount) {
     std::string ret;
@@ -696,7 +696,7 @@ static std::string HMAC_SHA512(std::string_view key, std::string_view data) {
     return ret;
 }
 
-static std::string PBKDF2_HMAC_SHA1(const std::string& pass,
+static std::string PBKDF2_HMAC_SHA1(std::string_view pass,
                                     std::string_view salt,
                                     unsigned int iterationCount) {
     std::string ret;
@@ -721,7 +721,7 @@ static std::string PBKDF2_HMAC_SHA1(const std::string& pass,
     return ret;
 }
 
-static std::string PBKDF2_HMAC_SHA256(const std::string& pass,
+static std::string PBKDF2_HMAC_SHA256(std::string_view pass,
                                       std::string_view salt,
                                       unsigned int iterationCount) {
     std::string ret;
@@ -744,7 +744,7 @@ static std::string PBKDF2_HMAC_SHA256(const std::string& pass,
     return ret;
 }
 
-static std::string PBKDF2_HMAC_SHA512(const std::string& pass,
+static std::string PBKDF2_HMAC_SHA512(std::string_view pass,
                                       std::string_view salt,
                                       unsigned int iterationCount) {
     std::string ret;
@@ -971,7 +971,7 @@ std::string cb::crypto::HMAC(const Algorithm algorithm,
 }
 
 std::string cb::crypto::PBKDF2_HMAC(const Algorithm algorithm,
-                                    const std::string& pass,
+                                    std::string_view pass,
                                     std::string_view salt,
                                     unsigned int iterationCount) {
     TRACE_EVENT2("cbcrypto",
@@ -1141,10 +1141,11 @@ std::string cb::crypto::decrypt(const nlohmann::json& json,
             cipher, {key.data(), key.size()}, {iv.data(), iv.size()}, data);
 }
 
-cb::crypto::Cipher cb::crypto::to_cipher(const std::string& str) {
+cb::crypto::Cipher cb::crypto::to_cipher(std::string_view str) {
     if (str == "AES_256_cbc") {
         return Cipher::AES_256_cbc;
     }
 
-    throw std::invalid_argument("to_cipher: Unknown cipher: " + str);
+    throw std::invalid_argument("to_cipher: Unknown cipher: " +
+                                std::string{str});
 }

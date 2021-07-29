@@ -44,7 +44,7 @@ std::string HMAC(Algorithm algorithm,
  *         std::runtime_error - Failures generating the HMAC
  */
 std::string PBKDF2_HMAC(Algorithm algorithm,
-                        const std::string& pass,
+                        std::string_view pass,
                         std::string_view salt,
                         unsigned int iterationCount);
 
@@ -55,7 +55,7 @@ std::string digest(Algorithm algorithm, std::string_view data);
 
 enum class Cipher { AES_256_cbc };
 
-Cipher to_cipher(const std::string& str);
+Cipher to_cipher(std::string_view str);
 
 /**
  * Encrypt the specified data by using a given cipher
