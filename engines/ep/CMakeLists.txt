@@ -342,6 +342,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/item_freq_decayer.cc
             src/item_freq_decayer_visitor.cc
             src/item_pager.cc
+        src/kvstore/nexus-kvstore/nexus-kvstore.cc
         src/kvstore/kvstore.cc
         src/kvstore/kvstore_config.cc
             src/kv_bucket.cc

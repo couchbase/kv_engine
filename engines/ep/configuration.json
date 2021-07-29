@@ -94,14 +94,15 @@
         },
         "backend": {
             "default": "couchdb",
-            "desr": "The storage backend to use.",
+            "desr": "The storage backend to use. The \"nexus\" variant is a test only backend which will run two backends for a single bucket and compare the results of their operations.",
             "dynamic": false,
             "type": "std::string",
             "validator": {
                 "enum": [
                     "couchdb",
                     "magma",
-                    "rocksdb"
+                    "rocksdb",
+                    "nexus"
                 ]
             }
         },

@@ -1126,7 +1126,7 @@ cb::engine_errc KVBucket::deleteVBucket(Vbid vbid, const CookieIface* c) {
 
 cb::engine_errc KVBucket::checkForDBExistence(Vbid db_file_id) {
     std::string backend = engine.getConfiguration().getBackend();
-    if (backend.compare("couchdb") == 0 || backend.compare("magma") == 0) {
+    if (backend == "couchdb" || backend == "magma" || backend == "nexus") {
         VBucketPtr vb = vbMap.getBucket(db_file_id);
         if (!vb) {
             return cb::engine_errc::not_my_vbucket;

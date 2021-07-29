@@ -477,7 +477,6 @@ void STParameterizedBucketTest::SetUp() {
     }
     auto bucketType = std::get<0>(GetParam());
     config_string += generateBucketTypeConfig(bucketType);
-
     auto evictionPolicy = std::get<1>(GetParam());
 
     if (!evictionPolicy.empty()) {

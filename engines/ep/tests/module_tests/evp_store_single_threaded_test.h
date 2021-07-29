@@ -396,6 +396,10 @@ public:
                 std::make_tuple("persistent_couchstore"s, "full_eviction"s)
 #ifdef EP_USE_MAGMA
                         ,
+                std::make_tuple("persistent_nexus_couchdb_magma"s,
+                                "value_only"),
+                std::make_tuple("persistent_nexus_couchdb_magma"s,
+                                "full_eviction"),
                 std::make_tuple("persistent_magma"s, "value_only"s),
                 std::make_tuple("persistent_magma"s, "full_eviction"s)
 #endif
@@ -418,6 +422,10 @@ public:
                 std::make_tuple("persistent_couchstore"s, "full_eviction"s)
 #ifdef EP_USE_MAGMA
                         ,
+                std::make_tuple("persistent_nexus_couchdb_magma"s,
+                                "value_only"),
+                std::make_tuple("persistent_nexus_couchdb_magma"s,
+                                "full_eviction"),
                 std::make_tuple("persistent_magma"s, "value_only"s),
                 std::make_tuple("persistent_magma"s, "full_eviction"s)
 #endif
@@ -447,6 +455,10 @@ public:
                 std::make_tuple("persistent_couchstore"s, "full_eviction"s)
 #ifdef EP_USE_MAGMA
                         ,
+                std::make_tuple("persistent_nexus_couchdb_magma"s,
+                                "value_only"),
+                std::make_tuple("persistent_nexus_couchdb_magma"s,
+                                "full_eviction"),
                 std::make_tuple("persistent_magma"s, "value_only"s),
                 std::make_tuple("persistent_magma"s, "full_eviction"s)
 #endif
@@ -465,6 +477,8 @@ public:
                 std::make_tuple("persistent_rocksdb"s, "full_eviction"s),
 #endif
 #ifdef EP_USE_MAGMA
+                std::make_tuple("persistent_nexus_couchdb_magma"s,
+                                "full_eviction"),
                 std::make_tuple("persistent_magma"s, "full_eviction"s),
 #endif
                 std::make_tuple("persistent_couchstore"s, "full_eviction"s));
@@ -487,11 +501,11 @@ public:
     }
 
     bool isRocksDB() const {
-        return std::get<0>(GetParam()).find("rocksdb") != std::string::npos;
+        return engine->getConfiguration().getBackend() == "rocksdb";
     }
 
     bool isMagma() const {
-        return std::get<0>(GetParam()).find("magma") != std::string::npos;
+        return engine->getConfiguration().getBackend() == "magma";
     }
 
     std::string getBackend() const {

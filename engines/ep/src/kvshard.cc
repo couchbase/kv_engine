@@ -40,6 +40,9 @@ KVShard::KVShard(EventuallyPersistentEngine& engine, id_type id)
     if (backend == "couchdb") {
         kvConfig = std::make_unique<CouchKVStoreConfig>(config, numShards, id);
         rwStore = KVStoreFactory::create(*kvConfig);
+    } else if (backend == "nexus") {
+        kvConfig = std::make_unique<CouchKVStoreConfig>(config, numShards, id);
+        rwStore = KVStoreFactory::create(*kvConfig);
     }
 #ifdef EP_USE_MAGMA
     else if (backend == "magma") {

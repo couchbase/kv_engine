@@ -998,6 +998,10 @@ class ConnectionTest : public DCPTest,
                                std::tuple<std::string, std::string>> {
 protected:
     void SetUp() override {
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+
         bucketType = std::get<0>(GetParam());
         if (bucketType.find("persistent") != std::string::npos) {
             config_string += generateBackendConfig(bucketType);
