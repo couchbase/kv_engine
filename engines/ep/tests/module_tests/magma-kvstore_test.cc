@@ -79,7 +79,7 @@ TEST_F(MagmaKVStoreRollbackTest, Rollback) {
             qi->setBySeqno(seqno++);
             kvstore->set(*ctx, qi);
         }
-        kvstore->commit(*ctx, flush);
+        kvstore->commit(std::move(ctx), flush);
     }
 
     auto rv = kvstore->get(makeDiskDocKey("key5"), Vbid(0));
@@ -122,7 +122,7 @@ TEST_F(MagmaKVStoreRollbackTest, RollbackNoValidCheckpoint) {
             qi->setBySeqno(seqno++);
             kvstore->set(*ctx, qi);
         }
-        kvstore->commit(*ctx, flush);
+        kvstore->commit(std::move(ctx), flush);
     }
 
     auto rollbackResult =
@@ -248,7 +248,7 @@ TEST_F(MagmaKVStoreTest, setMaxDataSize) {
     auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");
     qi->setBySeqno(seqno++);
     kvstore->set(*ctx, qi);
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     size_t memQuota;
     ASSERT_TRUE(kvstore->getStat("memory_quota", memQuota));
@@ -261,7 +261,7 @@ TEST_F(MagmaKVStoreTest, setMaxDataSize) {
     ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     qi->setBySeqno(seqno++);
     kvstore->set(*ctx, qi);
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     size_t memQuotaAfter;
     ASSERT_TRUE(kvstore->getStat("memory_quota", memQuotaAfter));
@@ -291,7 +291,7 @@ TEST_F(MagmaKVStoreTest, badSetRequest) {
     EXPECT_CALL(mockPersistenceCallback,
                 setCallback(_, FlushStateMutation::Failed))
             .Times(1);
-    EXPECT_FALSE(kvstore->commit(*tc, flush));
+    EXPECT_FALSE(kvstore->commit(std::move(tc), flush));
 }
 
 TEST_F(MagmaKVStoreTest, badDelRequest) {
@@ -314,7 +314,7 @@ TEST_F(MagmaKVStoreTest, badDelRequest) {
     EXPECT_CALL(mockPersistenceCallback,
                 deleteCallback(_, FlushStateDeletion::Failed))
             .Times(1);
-    EXPECT_FALSE(kvstore->commit(*tc, flush));
+    EXPECT_FALSE(kvstore->commit(std::move(tc), flush));
 }
 
 TEST_F(MagmaKVStoreTest, initializeWithHeaderButNoVBState) {

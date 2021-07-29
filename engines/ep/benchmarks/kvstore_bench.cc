@@ -136,7 +136,7 @@ protected:
         Collections::VB::Manifest m{std::make_shared<Collections::Manager>()};
         VB::Commit f(m);
 
-        kvstore->commit(*ctx, f);
+        kvstore->commit(std::move(ctx), f);
         // Just check that the VBucket High Seqno has been updated correctly
         EXPECT_EQ(kvstore->getCachedVBucketState(vbid)->highSeqno, numItems);
     }

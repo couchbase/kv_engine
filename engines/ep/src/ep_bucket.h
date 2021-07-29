@@ -86,12 +86,12 @@ public:
      * Persist whatever flush-batch previously queued into KVStore.
      *
      * @param kvstore
-     * @param txnCtx context for the current transaction
+     * @param txnCtx context for the current transaction (consumed on use)
      * @param [out] commitData
      * @return true if flush succeeds, false otherwise
      */
     bool commit(KVStore& kvstore,
-                TransactionContext& txnCtx,
+                std::unique_ptr<TransactionContext> txnCtx,
                 VB::Commit& commitData);
 
     /// Start the Flusher for all shards in this bucket.

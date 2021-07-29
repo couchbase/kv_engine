@@ -204,7 +204,7 @@ public:
         auto ctx = kvstore->begin(vbucket.getId(),
                                   std::make_unique<PersistenceCallback>());
         applyEvents(*ctx, commitData, cm);
-        kvstore->commit(*ctx, commitData);
+        kvstore->commit(std::move(ctx), commitData);
         auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));
         EXPECT_TRUE(status);
         checkUid(md, cm);
@@ -380,7 +380,7 @@ void CollectionsKVStoreTest::failForDuplicate() {
     flush.collections.recordSystemEvent(*event);
     EXPECT_FALSE(event->isDeleted());
     kvstore->setSystemEvent(*ctx, event);
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     ctx = kvstore->begin(vbucket.getId(),
                          std::make_unique<PersistenceCallback>());
@@ -389,7 +389,7 @@ void CollectionsKVStoreTest::failForDuplicate() {
     kvstore->setSystemEvent(*ctx, event);
 
     // The attempt to commit fails
-    EXPECT_THROW(kvstore->commit(*ctx, flush), std::logic_error);
+    EXPECT_THROW(kvstore->commit(std::move(ctx), flush), std::logic_error);
 }
 
 TEST_P(CollectionsKVStoreTest, failForDuplicateCollection) {
@@ -496,7 +496,7 @@ public:
         auto ctx = kvstore->begin(vbucket.getId(),
                                   std::make_unique<PersistenceCallback>());
         applyEvents(*ctx, cm);
-        kvstore->commit(*ctx, flush);
+        kvstore->commit(std::move(ctx), flush);
     }
 
     // runs a flush batch that will leave the target collection in dropped state
@@ -506,7 +506,7 @@ public:
         auto ctx = kvstore->begin(vbucket.getId(),
                                   std::make_unique<PersistenceCallback>());
         applyEvents(*ctx, cm);
-        kvstore->commit(*ctx, flush);
+        kvstore->commit(std::move(ctx), flush);
     }
 
     // runs a flush batch that will leave the target collection in open state
@@ -517,7 +517,7 @@ public:
         applyEvents(*ctx, cm);
         cm.add(target, targetScope);
         applyEvents(*ctx, cm);
-        kvstore->commit(*ctx, flush);
+        kvstore->commit(std::move(ctx), flush);
     }
 
     // runs a flush batch that will leave the target collection in dropped state
@@ -527,7 +527,7 @@ public:
         auto ctx = kvstore->begin(vbucket.getId(),
                                   std::make_unique<PersistenceCallback>());
         applyEvents(*ctx, cm);
-        kvstore->commit(*ctx, flush);
+        kvstore->commit(std::move(ctx), flush);
     }
 
     void resurectionTest();
@@ -578,7 +578,7 @@ void CollectionRessurectionKVStoreTest::resurectionTest() {
         cm.remove(collection);
         applyEvents(*ctx, cm);
     }
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     // Now validate
     auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));
@@ -667,7 +667,7 @@ void CollectionRessurectionKVStoreTest::resurectionScopesTest() {
         cm.remove(scope);
         applyEvents(*ctx, cm);
     }
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     // Now validate
     auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));

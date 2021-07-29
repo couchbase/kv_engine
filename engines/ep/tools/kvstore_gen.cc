@@ -130,7 +130,7 @@ int main(int argc, char** argv) {
     Collections::VB::Manifest manifest{
             std::make_shared<Collections::Manager>()};
     VB::Commit commit(manifest);
-    kvstore->commit(*ctx, commit);
+    kvstore->commit(std::move(ctx), commit);
 
     // Now perform specified number of commits.
     // Shuffle initial keys, then mutate each key in turn (uniform random
@@ -154,6 +154,6 @@ int main(int argc, char** argv) {
             updates++;
         }
         VB::Commit commit(manifest);
-        kvstore->commit(*ctx, commit);
+        kvstore->commit(std::move(ctx), commit);
     }
 }

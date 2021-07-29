@@ -3854,7 +3854,7 @@ TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
         // will destroy it later
         kvstore->del(*ctx, queued_item(std::move(itm)));
         VB::Commit f(epstore.getVBucket(vbid)->getManifest());
-        kvstore->commit(*ctx, f);
+        kvstore->commit(std::move(ctx), f);
     }
 
     // Add another item to ensure that seqno of the deleted item
@@ -3868,7 +3868,7 @@ TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
                 kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         kvstore->del(*ctx, itm);
         VB::Commit f(epstore.getVBucket(vbid)->getManifest());
-        kvstore->commit(*ctx, f);
+        kvstore->commit(std::move(ctx), f);
     }
 
     // Now read back and verify key1 has a non-zero delete time

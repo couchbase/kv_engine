@@ -147,7 +147,7 @@ TEST_P(KVStoreParamTestSkipRocks, CompressedTest) {
     }
     // Ensure a valid vbstate is committed
     flush.proposedVBState.lastSnapEnd = 5;
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     auto scanCtx = kvstore->initBySeqnoScanContext(
             std::make_unique<GetCallback>(true /*expectcompressed*/),
@@ -190,7 +190,7 @@ TEST_P(KVStoreParamTestSkipRocks, ZeroSizeValueNotCompressed) {
 
     // Ensure a valid vbstate is committed
     flush.proposedVBState.lastSnapEnd = 1;
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     auto mockGetCb = std::make_unique<MockGetValueCallback>();
     EXPECT_CALL(
@@ -304,7 +304,7 @@ TEST_P(KVStoreParamTest, BasicTest) {
     qi->setBySeqno(1);
     kvstore->set(*ctx, qi);
 
-    EXPECT_TRUE(kvstore->commit(*ctx, flush));
+    EXPECT_TRUE(kvstore->commit(std::move(ctx), flush));
 
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     checkGetValue(gv, cb::engine_errc::success);
@@ -318,7 +318,7 @@ TEST_P(KVStoreParamTest, GetModes) {
     qi->setBySeqno(1);
     kvstore->set(*ctx, qi);
 
-    EXPECT_TRUE(kvstore->commit(*ctx, flush));
+    EXPECT_TRUE(kvstore->commit(std::move(ctx), flush));
 
     auto gv = kvstore->get(
             DiskDocKey{key}, Vbid(0), ValueFilter::VALUES_COMPRESSED);
@@ -396,7 +396,7 @@ TEST_P(KVStoreParamTest, SaveDocsHisto) {
     qi1->setBySeqno(2);
     kvstore->set(*ctx, qi1);
 
-    EXPECT_TRUE(kvstore->commit(*ctx, flush));
+    EXPECT_TRUE(kvstore->commit(std::move(ctx), flush));
 
     auto& stats = kvstore->getKVStoreStat();
 
@@ -421,7 +421,7 @@ TEST_P(KVStoreParamTest, BatchSizeHisto) {
     qi1->setBySeqno(2);
     kvstore->set(*ctx, qi1);
 
-    EXPECT_TRUE(kvstore->commit(*ctx, flush));
+    EXPECT_TRUE(kvstore->commit(std::move(ctx), flush));
 
     auto& stats = kvstore->getKVStoreStat();
 
@@ -436,7 +436,7 @@ TEST_P(KVStoreParamTest, DocsCommittedStat) {
     qi->setBySeqno(1);
     kvstore->set(*ctx, qi);
 
-    EXPECT_TRUE(kvstore->commit(*ctx, flush));
+    EXPECT_TRUE(kvstore->commit(std::move(ctx), flush));
 
     auto& stats = kvstore->getKVStoreStat();
     EXPECT_EQ(1, stats.docsCommitted);
@@ -454,7 +454,7 @@ void KVStoreParamTest::testBgFetchDocsReadGet(bool deleted) {
 
     kvstore->set(*ctx, qi);
 
-    EXPECT_TRUE(kvstore->commit(*ctx, flush));
+    EXPECT_TRUE(kvstore->commit(std::move(ctx), flush));
 
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     checkGetValue(gv);
@@ -619,7 +619,7 @@ queued_item KVStoreParamTest::storeDocument(bool deleted) {
 
     kvstore->set(*ctx, qi);
 
-    EXPECT_TRUE(kvstore->commit(*ctx, flush));
+    EXPECT_TRUE(kvstore->commit(std::move(ctx), flush));
     return qi;
 }
 
@@ -643,7 +643,7 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
     EXPECT_CALL(mockPersistenceCallback, setCallback(_, mutationStatus))
             .Times(1);
 
-    EXPECT_TRUE(kvstore->commit(*tc, flush));
+    EXPECT_TRUE(kvstore->commit(std::move(tc), flush));
 }
 
 // This test does not work under RocksDB because we assume that every
@@ -656,7 +656,7 @@ TEST_P(KVStoreParamTestSkipRocks, TestPersistenceCallbacksForDel) {
 
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->set(*ctx, qi);
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     auto tc = kvstore->begin(Vbid(0),
                              std::make_unique<MockPersistenceCallback>());
@@ -674,7 +674,7 @@ TEST_P(KVStoreParamTestSkipRocks, TestPersistenceCallbacksForDel) {
     // Expect that the DEL callback will be called once after `commit`
     EXPECT_CALL(mockPersistenceCallback, deleteCallback(_, status)).Times(1);
 
-    EXPECT_TRUE(kvstore->commit(*tc, flush));
+    EXPECT_TRUE(kvstore->commit(std::move(tc), flush));
 }
 
 TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
@@ -696,7 +696,7 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
         auto qi = makeCommittedItem(key, value);
         qi->setBySeqno(seqno++);
         kvstore->set(*ctx, qi);
-        kvstore->commit(*ctx, flush);
+        kvstore->commit(std::move(ctx), flush);
     }
 
     // Check that each item has been stored in the right VBucket
@@ -726,7 +726,7 @@ TEST_P(KVStoreParamTest, DelVBucketWhileScanning) {
     }
     // Ensure a valid vbstate is committed
     flush.proposedVBState.lastSnapEnd = 5;
-    ASSERT_TRUE(kvstore->commit(*ctx, flush));
+    ASSERT_TRUE(kvstore->commit(std::move(ctx), flush));
 
     // Setup the mock GetValue callback. We want to perform the scan in two
     // parts, to allow us to delete the vBucket while the scan is in progress.
@@ -799,7 +799,7 @@ TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
             auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");
             qi->setBySeqno(seqno++);
             kvstore->set(*ctx, qi);
-            auto ok = kvstore->commit(*ctx, flush);
+            auto ok = kvstore->commit(std::move(ctx), flush);
 
             // Everytime we get a successful commit, that
             // means we have a vbucket we can drop.
@@ -877,7 +877,7 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
         kvstore->set(*ctx, qi);
         // Ensure a valid vbstate is committed
         flush.proposedVBState.lastSnapEnd = i;
-        kvstore->commit(*ctx, flush);
+        kvstore->commit(std::move(ctx), flush);
     }
 
     ThreadGate tg(3);
@@ -939,7 +939,7 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
     }
     // Ensure a valid vbstate is committed
     flush.proposedVBState.lastSnapEnd = 10;
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     GetValue gv = kvstore->get(DiskDocKey{key}, vbid);
     checkGetValue(gv);
@@ -956,7 +956,7 @@ void KVStoreParamTest::testGetRange(ValueFilter filter) {
         item->setBySeqno(seqno++);
         kvstore->set(*ctx, item);
     }
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     // Test: Ask for keys in the range [b,d]. Should return b & c.
     std::vector<GetValue> results;
@@ -1019,7 +1019,7 @@ TEST_P(KVStoreParamTest, GetRangeDeleted) {
         item->setBySeqno(seqno++);
         kvstore->set(*ctx, item);
     }
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     for (char k = 'b'; k < 'g'; k += 2) {
@@ -1029,7 +1029,7 @@ TEST_P(KVStoreParamTest, GetRangeDeleted) {
         item->setBySeqno(seqno++);
         kvstore->del(*ctx, item);
     }
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     // Test: Ask for keys in the range [b,f]. Should return c and e.
     std::vector<GetValue> results;
@@ -1053,7 +1053,7 @@ TEST_P(KVStoreParamTest, Durability_PersistPrepare) {
 
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->set(*ctx, qi);
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
@@ -1074,7 +1074,7 @@ TEST_P(KVStoreParamTest, Durability_PersistAbort) {
 
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     kvstore->del(*ctx, qi);
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
@@ -1119,7 +1119,7 @@ TEST_P(KVStoreParamTest, GetItemCount) {
         item->setBySeqno(seqno++);
         kvstore->set(*ctx, item);
     }
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     EXPECT_EQ(3, kvstore->getItemCount(vbid));
 }
@@ -1140,7 +1140,7 @@ TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
         kvstore->set(*ctx, qi);
     }
 
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
     auto cb(std::make_shared<CustomCallback<const DiskDocKey&>>());
     DiskDocKey start(nullptr, 0);
     kvstore->getAllKeys(Vbid(0), start, 20, cb);
@@ -1165,7 +1165,7 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStats) {
     auto item = makeCommittedItem(makeStoredDocKey("mykey", cid), "value");
     item->setBySeqno(seqno++);
     kvstore->set(*ctx, item);
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     auto kvHandle = kvstore->makeFileHandle(vbid);
     EXPECT_TRUE(kvHandle);
@@ -1216,7 +1216,7 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsFailed) {
     auto item = makeCommittedItem(makeStoredDocKey("mykey", cid), "value");
     item->setBySeqno(seqno++);
     kvstore->set(*ctx, item);
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     auto kvHandle = kvstore->makeFileHandle(vbid);
     EXPECT_TRUE(kvHandle);
@@ -1278,7 +1278,7 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
     // Need a valid snap end for couchstore
     flush.proposedVBState.lastSnapEnd = seqno - 1;
 
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     auto cb = std::make_unique<ReuseSnapshotCallback>(1, 2, 2);
     auto cl = std::make_unique<KVStoreTestCacheCallback>(1, 2, vbid);
@@ -1303,7 +1303,7 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
         qi->setBySeqno(seqno++);
         kvstore->set(*ctx, qi);
     }
-    kvstore->commit(*ctx, flush);
+    kvstore->commit(std::move(ctx), flush);
 
     CompactionConfig compactionConfig;
     compactionConfig.purge_before_seq = 0;
@@ -1339,7 +1339,7 @@ TEST_P(KVStoreParamTestSkipRocks, purgeSeqnoAfterCompaction) {
     auto qi2 = makeCommittedItem(key2, "value");
     qi2->setBySeqno(seqno++);
     kvstore->set(*ctx, qi2);
-    ASSERT_TRUE(kvstore->commit(*ctx, flush));
+    ASSERT_TRUE(kvstore->commit(std::move(ctx), flush));
 
     CompactionConfig compactionConfig;
     compactionConfig.drop_deletes = true;

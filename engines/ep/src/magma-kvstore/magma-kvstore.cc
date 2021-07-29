@@ -609,7 +609,8 @@ std::string MagmaKVStore::getVBDBSubdir(Vbid vbid) {
     return magmaPath + std::to_string(vbid.get());
 }
 
-bool MagmaKVStore::commit(TransactionContext& txnCtx, VB::Commit& commitData) {
+bool MagmaKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
+                          VB::Commit& commitData) {
     // This behaviour is to replicate the one in Couchstore.
     // If `commit` is called when not in transaction, just return true.
     if (!inTransaction) {
@@ -617,7 +618,7 @@ bool MagmaKVStore::commit(TransactionContext& txnCtx, VB::Commit& commitData) {
         return true;
     }
 
-    auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(txnCtx);
+    auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(*txnCtx);
     if (ctx.pendingReqs.size() == 0) {
         inTransaction = false;
         return true;
@@ -642,7 +643,7 @@ bool MagmaKVStore::commit(TransactionContext& txnCtx, VB::Commit& commitData) {
     // This behaviour is to replicate the one in Couchstore.
     // Set `in_transanction = false` only if `commit` is successful.
     if (success) {
-        updateCachedVBState(txnCtx.vbid, commitData.proposedVBState);
+        updateCachedVBState(txnCtx->vbid, commitData.proposedVBState);
         inTransaction = false;
     }
 

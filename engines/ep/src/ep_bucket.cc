@@ -784,7 +784,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     }
 
     // Persist the flush-batch.
-    if (!commit(*rwUnderlying, *ctx, commitData)) {
+    if (!commit(*rwUnderlying, std::move(ctx), commitData)) {
         flushFailureEpilogue(*vb, toFlush);
 
         return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
@@ -905,15 +905,16 @@ size_t EPBucket::getFlusherBatchSplitTrigger() {
 }
 
 bool EPBucket::commit(KVStore& kvstore,
-                      TransactionContext& txnCtx,
+                      std::unique_ptr<TransactionContext> txnCtx,
                       VB::Commit& commitData) {
     HdrMicroSecBlockTimer timer(
             &stats.diskCommitHisto, "disk_commit", stats.timingLog);
     const auto commit_start = std::chrono::steady_clock::now();
 
-    const auto res = kvstore.commit(txnCtx, commitData);
+    auto vbid = txnCtx->vbid;
+    const auto res = kvstore.commit(std::move(txnCtx), commitData);
     if (!res) {
-        EP_LOG_WARN("KVBucket::commit: kvstore.commit failed {}", txnCtx.vbid);
+        EP_LOG_WARN("KVBucket::commit: kvstore.commit failed {}", vbid);
     }
 
     const auto commit_time =

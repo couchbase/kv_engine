@@ -135,12 +135,8 @@ public:
 
     void operator=(RocksDBKVStore& from) = delete;
 
-    /**
-     * Commit a transaction (unless not currently in one).
-     *
-     * Returns false if the commit fails.
-     */
-    bool commit(TransactionContext& txnCtx, VB::Commit& commitData) override;
+    bool commit(std::unique_ptr<TransactionContext> txnCtx,
+                VB::Commit& commitData) override;
 
     void addStats(const AddStatFn& add_stat,
                   const void* c,

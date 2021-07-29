@@ -177,7 +177,8 @@ public:
      */
     ~CouchKVStore() override;
 
-    bool commit(TransactionContext& txnCtx, VB::Commit& commitData) override;
+    bool commit(std::unique_ptr<TransactionContext> txnCtx,
+                VB::Commit& commitData) override;
 
     /**
      * Query the properties of the underlying storage.

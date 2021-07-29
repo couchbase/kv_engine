@@ -546,7 +546,7 @@ std::string RocksDBKVStore::getDBSubdir() {
            std::to_string(configuration.getShardId());
 }
 
-bool RocksDBKVStore::commit(TransactionContext& txnCtx,
+bool RocksDBKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
                             VB::Commit& commitData) {
     // This behaviour is to replicate the one in Couchstore.
     // If `commit` is called when not in transaction, just return true.
@@ -554,7 +554,7 @@ bool RocksDBKVStore::commit(TransactionContext& txnCtx,
         return true;
     }
 
-    auto& ctx = dynamic_cast<RocksDBKVStoreTransactionContext&>(txnCtx);
+    auto& ctx = dynamic_cast<RocksDBKVStoreTransactionContext&>(*txnCtx);
     if (ctx.pendingReqs->empty()) {
         inTransaction = false;
         return true;
@@ -569,7 +569,7 @@ bool RocksDBKVStore::commit(TransactionContext& txnCtx,
     }
 
     bool success = true;
-    auto vbid = txnCtx.vbid;
+    auto vbid = txnCtx->vbid;
 
     // Flush all documents to disk
     auto status = saveDocs(vbid, commitData, commitBatch);
@@ -584,7 +584,7 @@ bool RocksDBKVStore::commit(TransactionContext& txnCtx,
 
     postFlushHook();
 
-    commitCallback(txnCtx, status, commitBatch);
+    commitCallback(ctx, status, commitBatch);
 
     // This behaviour is to replicate the one in Couchstore.
     // Set `in_transanction = false` only if `commit` is successful.

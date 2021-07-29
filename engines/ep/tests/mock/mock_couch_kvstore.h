@@ -80,9 +80,10 @@ public:
         return static_cast<MockCouchRequest*>(&ctx.pendingReqsQ.back());
     }
 
-    bool commit(TransactionContext& txnCtx, VB::Commit& commitData) override {
+    bool commit(std::unique_ptr<TransactionContext> txnCtx,
+                VB::Commit& commitData) override {
         preCommitHook();
-        return CouchKVStore::commit(txnCtx, commitData);
+        return CouchKVStore::commit(std::move(txnCtx), commitData);
     }
 
     /**

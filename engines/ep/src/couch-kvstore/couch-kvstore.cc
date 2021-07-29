@@ -2808,20 +2808,21 @@ static int byIdScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     return int(status);
 }
 
-bool CouchKVStore::commit(TransactionContext& txnCtx, VB::Commit& commitData) {
+bool CouchKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
+                          VB::Commit& commitData) {
     if (!inTransaction) {
         logger.warn("CouchKVStore::commit: called not in transaction");
         return true;
     }
 
-    auto& ctx = dynamic_cast<CouchKVStoreTransactionContext&>(txnCtx);
+    auto& ctx = dynamic_cast<CouchKVStoreTransactionContext&>(*txnCtx);
 
     size_t pendingCommitCnt = ctx.pendingReqsQ.size();
     if (pendingCommitCnt == 0) {
         return true;
     }
 
-    const auto vbid = txnCtx.vbid;
+    const auto vbid = txnCtx->vbid;
 
     TRACE_EVENT2("CouchKVStore",
                  "commit",
@@ -2847,7 +2848,7 @@ bool CouchKVStore::commit(TransactionContext& txnCtx, VB::Commit& commitData) {
 
     postFlushHook();
 
-    commitCallback(txnCtx, ctx.pendingReqsQ, kvctx, errCode);
+    commitCallback(ctx, ctx.pendingReqsQ, kvctx, errCode);
 
     ctx.pendingReqsQ.clear();
 
