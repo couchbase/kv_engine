@@ -70,6 +70,9 @@ public:
     /// been used for a while)
     bool mayDeleteTenant();
 
+    /// Set the constraints to match the users limits
+    void setLimits(const cb::sasl::pwdb::user::Limits& limits);
+
 protected:
     const cb::rbac::UserIdent identity;
     const cb::uuid::uuid_t uuid;

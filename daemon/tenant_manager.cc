@@ -120,6 +120,14 @@ void TenantManagerImpl::purgeIdleTenants() {
     });
 }
 
+void TenantManager::setLimits(const cb::rbac::UserIdent& ident,
+                              const cb::sasl::pwdb::user::Limits& limits) {
+    auto tenant = TenantManagerImpl::instance().get(ident, false);
+    if (tenant) {
+        tenant->setLimits(limits);
+    }
+}
+
 std::shared_ptr<Tenant> TenantManager::get(const cb::rbac::UserIdent& ident,
                                            bool create) {
     return TenantManagerImpl::instance().get(ident, create);

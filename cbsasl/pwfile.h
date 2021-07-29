@@ -10,6 +10,7 @@
 #pragma once
 
 #include <cbsasl/user.h>
+#include <functional>
 #include <string>
 
 /**
@@ -21,4 +22,14 @@
  */
 bool find_user(const std::string& username, cb::sasl::pwdb::User& user);
 
-cb::sasl::Error load_user_db();
+/**
+ * (Re)Load the user database (specified by the environment variable
+ * CBSASL_PWFILE) from disk and install as the current database.
+ *
+ * @param usercallback If provided the the callback will get fired for
+ *                     every user in the database _after_ the database
+ *                     was installed as the current database to be used
+ *                     from the rest of the system.
+ */
+cb::sasl::Error load_user_db(
+        std::function<void(const cb::sasl::pwdb::User&)> usercallback = {});

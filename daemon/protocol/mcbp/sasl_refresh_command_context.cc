@@ -11,16 +11,28 @@
 #include "sasl_refresh_command_context.h"
 
 #include <cbsasl/mechanism.h>
+#include <cbsasl/user.h>
 #include <daemon/connection.h>
 #include <daemon/one_shot_task.h>
 #include <daemon/runtime.h>
+#include <daemon/settings.h>
+#include <daemon/tenant_manager.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
 
 cb::engine_errc SaslRefreshCommandContext::doSaslRefresh() {
     try {
         using namespace cb::sasl;
-        switch (server::refresh()) {
+        std::function<void(const cb::sasl::pwdb::User&)> usercallback;
+        if (Settings::instance().isEnforceTenantLimitsEnabled()) {
+            usercallback = [](const cb::sasl::pwdb::User& user) {
+                cb::rbac::UserIdent ident(user.getUsername().getRawValue(),
+                                          Domain::Local);
+                TenantManager::setLimits(ident, user.getLimits());
+            };
+        }
+
+        switch (server::reload_password_database(usercallback)) {
         case Error::OK:
             set_default_bucket_enabled(
                     mechanism::plain::authenticate("default", "") == Error::OK);

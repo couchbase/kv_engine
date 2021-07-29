@@ -17,6 +17,10 @@ struct UserIdent;
 }
 class Tenant;
 
+namespace cb::sasl::pwdb::user {
+struct Limits;
+}
+
 class TenantManager {
 public:
     static void startup();
@@ -24,5 +28,8 @@ public:
 
     static std::shared_ptr<Tenant> get(const cb::rbac::UserIdent& ident,
                                        bool create = true);
+    static void setLimits(const cb::rbac::UserIdent& ident,
+                          const cb::sasl::pwdb::user::Limits& limits);
+
     static nlohmann::json to_json();
 };

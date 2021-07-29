@@ -69,8 +69,9 @@ std::pair<cb::sasl::Error, std::string_view> ServerContext::start(
     return backend->start(input);
 }
 
-cb::sasl::Error refresh() {
-    return load_user_db();
+cb::sasl::Error reload_password_database(
+        std::function<void(const cb::sasl::pwdb::User&)> usercallback) {
+    return load_user_db(usercallback);
 }
 
 void initialize() {

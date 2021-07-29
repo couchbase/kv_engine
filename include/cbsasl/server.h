@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -11,11 +10,10 @@
 
 #pragma once
 
+#include "user.h"
 #include <cbsasl/context.h>
 #include <cbsasl/domain.h>
 #include <cbsasl/error.h>
-
-#include "user.h"
 #include <memcached/rbac/privilege_database.h>
 #include <functional>
 #include <memory>
@@ -45,10 +43,11 @@ std::optional<cb::sasl::pwdb::User> getUser(cb::rbac::UserIdent ident);
 std::string listmech();
 
 /**
- * Refresh the internal data (this may result in loading password
- * databases etc)
+ * Reload the password database and iterate over the database before it
+ * is installed.
  */
-cb::sasl::Error refresh();
+cb::sasl::Error reload_password_database(
+        std::function<void(const cb::sasl::pwdb::User&)> usercallback);
 
 /**
  * Set the HMAC interation count to use.

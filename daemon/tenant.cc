@@ -7,6 +7,7 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
+#include <logger/logger.h>
 #include <memcached/tenant.h>
 #include <nlohmann/json.hpp>
 #include <platform/timeutils.h>
@@ -33,18 +34,34 @@ std::string to_string(Tenant::RateLimit limit) {
 
 Tenant::Tenant(cb::rbac::UserIdent ident, const cb::sasl::pwdb::User& user)
     : identity(std::move(ident)), uuid(user.getUuid()) {
-    auto limits = user.getLimits();
-    auto set = [](std::atomic<size_t>& var, uint64_t val, uint64_t multiplier) {
-        if (val) {
-            var.store(val * multiplier);
-        } else {
-            var.store(std::numeric_limits<uint64_t>::max());
+    setLimits(user.getLimits());
+}
+
+void Tenant::setLimits(const cb::sasl::pwdb::user::Limits& limits) {
+    bool changed = false;
+    auto set = [&changed](std::atomic<size_t>& var, uint64_t val) {
+        if (!val) {
+            val = std::numeric_limits<uint64_t>::max();
+        }
+        if (var.load() != val) {
+            var.store(val);
+            changed = true;
         }
     };
-    set(constraints.ingress, limits.ingress_mib_per_min, mib);
-    set(constraints.egress, limits.egress_mib_per_min, mib);
-    set(constraints.connections, limits.num_connections, 1);
-    set(constraints.operations, limits.num_ops_per_min, 1);
+    set(constraints.ingress, limits.ingress_mib_per_min * mib);
+    set(constraints.egress, limits.egress_mib_per_min * mib);
+    set(constraints.connections, limits.num_connections);
+    set(constraints.operations, limits.num_ops_per_min);
+    if (changed) {
+        LOG_INFO(
+                "Tenant {} rate limited to egress_mib_per_min:{} "
+                "ingress_mib_per_min:{} num_connections:{} num_ops_per_min:{}",
+                identity.to_json().dump(),
+                limits.ingress_mib_per_min,
+                limits.egress_mib_per_min,
+                limits.num_connections,
+                limits.num_ops_per_min);
+    }
 }
 
 nlohmann::json Tenant::to_json() const {

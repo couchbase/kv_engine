@@ -11,6 +11,7 @@
 
 #include <cbsasl/user.h>
 #include <nlohmann/json_fwd.hpp>
+#include <functional>
 #include <string>
 #include <unordered_map>
 
@@ -50,6 +51,14 @@ public:
             // through the entire authentication phase but fail with
             // incorrect password ;-)
             return User();
+        }
+    }
+
+    /// Iterate over all of the users in the database
+    void iterate(
+            std::function<void(const cb::sasl::pwdb::User&)> usercallback) {
+        for (const auto& entry : db) {
+            usercallback(entry.second);
         }
     }
 
