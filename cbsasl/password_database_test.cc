@@ -8,9 +8,8 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "password_database.h"
-
 #include <cbcrypto/cbcrypto.h>
+#include <cbsasl/password_database.h>
 #include <cbsasl/server.h>
 #include <cbsasl/user.h>
 #include <folly/portability/GTest.h>

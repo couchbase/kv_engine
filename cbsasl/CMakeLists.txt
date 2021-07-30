@@ -1,35 +1,26 @@
 add_library(cbsasl STATIC
-     ${Memcached_SOURCE_DIR}/include/cbsasl/client.h
-     ${Memcached_SOURCE_DIR}/include/cbsasl/context.h
-     ${Memcached_SOURCE_DIR}/include/cbsasl/domain.h
-     ${Memcached_SOURCE_DIR}/include/cbsasl/error.h
-     ${Memcached_SOURCE_DIR}/include/cbsasl/logging.h
-     ${Memcached_SOURCE_DIR}/include/cbsasl/mechanism.h
-     ${Memcached_SOURCE_DIR}/include/cbsasl/server.h
-
-     client.cc
-     context.cc
-     domain.cc
-     log.cc
-     log_callback.cc
-     mechanism.cc
-     plain/check_password.cc
-     plain/check_password.h
-     plain/plain.cc
-     plain/plain.h
-     password_database.cc
-     password_database.h
-     pwfile.cc
-     pwfile.h
-     scram-sha/scram-sha.cc
-     scram-sha/scram-sha.h
-     scram-sha/stringutils.cc
-     scram-sha/stringutils.h
-     server.cc
-     strcmp.cc
-     strerror.cc
-     user.cc
-     util.h)
+            client.cc
+            context.cc
+            domain.cc
+            log.cc
+            log_callback.cc
+            mechanism.cc
+            plain/check_password.cc
+            plain/check_password.h
+            plain/plain.cc
+            plain/plain.h
+            password_database.cc
+            pwfile.cc
+            pwfile.h
+            scram-sha/scram-sha.cc
+            scram-sha/scram-sha.h
+            scram-sha/stringutils.cc
+            scram-sha/stringutils.h
+            server.cc
+            strcmp.cc
+            strerror.cc
+            user.cc
+            util.h)
 kv_enable_pch(cbsasl)
 cb_enable_unity_build(cbsasl)
 

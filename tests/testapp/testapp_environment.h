@@ -20,6 +20,10 @@ namespace cb::mcbp {
 enum class ClientOpcode : uint8_t;
 }
 
+namespace cb::sasl::pwdb {
+class MutablePasswordDatabase;
+}
+
 /**
  * The test bucket which tests are being run against.
  */
@@ -195,6 +199,16 @@ public:
     virtual std::string getLogDir() const = 0;
 
     virtual std::string getLogFilePattern() const = 0;
+
+    virtual cb::sasl::pwdb::MutablePasswordDatabase& getPasswordDatabase() = 0;
+
+    /// Write the current password database to disk and tell memcached to
+    /// reload the file
+    ///
+    /// @param connection a connection to the server (must have admin
+    ///                   privileges)
+    /// @throws std::exception for errors (file io, server failure etc)
+    virtual void refreshPassordDatabase(MemcachedConnection& connection) = 0;
 };
 
 extern std::unique_ptr<McdEnvironment> mcd_env;

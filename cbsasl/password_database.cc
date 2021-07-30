@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -8,8 +7,7 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include "password_database.h"
-
+#include <cbsasl/password_database.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <chrono>
@@ -133,6 +131,26 @@ PasswordDatabase::PasswordDatabase(const std::string& content, bool file) {
     }
 }
 
+User PasswordDatabase::find(const std::string& username) const {
+    auto it = db.find(username);
+    if (it == db.end()) {
+        // Return a dummy user (allow the authentication to go
+        // through the entire authentication phase but fail with
+        // incorrect password ;-)
+        return User();
+    } else {
+        return it->second;
+    }
+}
+
+/// Iterate over all of the users in the database
+void PasswordDatabase::iterate(
+        std::function<void(const cb::sasl::pwdb::User&)> usercallback) const {
+    for (const auto& entry : db) {
+        usercallback(entry.second);
+    }
+}
+
 nlohmann::json PasswordDatabase::to_json() const {
     nlohmann::json json;
     nlohmann::json array = nlohmann::json::array();
@@ -146,6 +164,22 @@ nlohmann::json PasswordDatabase::to_json() const {
 
 std::string PasswordDatabase::to_string() const {
     return to_json().dump();
+}
+
+MutablePasswordDatabase::MutablePasswordDatabase(const nlohmann::json& content)
+    : PasswordDatabase(content.dump(), false) {
+}
+
+void MutablePasswordDatabase::upsert(User user) {
+    const auto name = user.getUsername().getRawValue();
+    db[name] = std::move(user);
+}
+
+void MutablePasswordDatabase::remove(const std::string& username) {
+    auto it = db.find(username);
+    if (it != db.end()) {
+        db.erase(it);
+    }
 }
 
 } // namespace cb::sasl::pwdb

@@ -9,9 +9,8 @@
  *   the file licenses/APL2.txt.
  */
 #include "pwfile.h"
-#include "password_database.h"
-
 #include <cbsasl/logging.h>
+#include <cbsasl/password_database.h>
 #include <folly/Synchronized.h>
 #include <platform/timeutils.h>
 #include <chrono>

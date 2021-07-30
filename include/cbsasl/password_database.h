@@ -25,6 +25,8 @@ public:
      */
     PasswordDatabase() = default;
 
+    virtual ~PasswordDatabase() = default;
+
     /**
      * Create an instance of the password database and initialize
      * it with the content of the filename
@@ -42,25 +44,11 @@ public:
      * @param username the username to look up
      * @return a copy of the user object
      */
-    User find(const std::string& username) {
-        auto it = db.find(username);
-        if (it != db.end()) {
-            return it->second;
-        } else {
-            // Return a dummy user (allow the authentication to go
-            // through the entire authentication phase but fail with
-            // incorrect password ;-)
-            return User();
-        }
-    }
+    User find(const std::string& username) const;
 
     /// Iterate over all of the users in the database
-    void iterate(
-            std::function<void(const cb::sasl::pwdb::User&)> usercallback) {
-        for (const auto& entry : db) {
-            usercallback(entry.second);
-        }
-    }
+    void iterate(std::function<void(const cb::sasl::pwdb::User&)> usercallback)
+            const;
 
     /**
      * Create a JSON representation of the password database
@@ -99,10 +87,20 @@ public:
     static void write_password_file(const std::string& filename,
                                     const std::string& content);
 
-private:
+protected:
     /**
      * The actual user database
      */
     std::unordered_map<std::string, User> db;
+};
+
+/// When writing unit tests one may want to add/remove/modify users
+class MutablePasswordDatabase : public PasswordDatabase {
+public:
+    MutablePasswordDatabase() : PasswordDatabase() {
+    }
+    explicit MutablePasswordDatabase(const nlohmann::json& content);
+    void upsert(User user);
+    void remove(const std::string& username);
 };
 } // namespace cb::sasl::pwdb

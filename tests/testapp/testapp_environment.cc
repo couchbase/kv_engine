@@ -11,6 +11,7 @@
 #include "testapp_environment.h"
 #include "memcached_audit_events.h"
 #include <boost/filesystem.hpp>
+#include <cbsasl/password_database.h>
 #include <cbsasl/user.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
@@ -437,19 +438,20 @@ public:
         using cb::sasl::pwdb::User;
         using cb::sasl::pwdb::UserFactory;
         using cb::sasl::pwdb::user::Limits;
+
         std::vector<User> users;
 
         // Reduce the iteration count to speed up the unit tests
         UserFactory::setDefaultHmacIterationCount(10);
 
-        users.emplace_back(UserFactory::create("@admin", "password"));
-        users.emplace_back(UserFactory::create("bucket-1", "1S|=,%#x1"));
-        users.emplace_back(UserFactory::create("bucket-2", "secret"));
-        users.emplace_back(UserFactory::create("bucket-3", "1S|=,%#x1"));
-        users.emplace_back(UserFactory::create("smith", "smithpassword"));
-        users.emplace_back(UserFactory::create("larry", "larrypassword"));
-        users.emplace_back(UserFactory::create("legacy", "new"));
-        users.emplace_back(UserFactory::create("default", ""));
+        passwordDatabase.upsert(UserFactory::create("@admin", "password"));
+        passwordDatabase.upsert(UserFactory::create("bucket-1", "1S|=,%#x1"));
+        passwordDatabase.upsert(UserFactory::create("bucket-2", "secret"));
+        passwordDatabase.upsert(UserFactory::create("bucket-3", "1S|=,%#x1"));
+        passwordDatabase.upsert(UserFactory::create("smith", "smithpassword"));
+        passwordDatabase.upsert(UserFactory::create("larry", "larrypassword"));
+        passwordDatabase.upsert(UserFactory::create("legacy", "new"));
+        passwordDatabase.upsert(UserFactory::create("default", ""));
 
         auto jones = UserFactory::create("jones", "jonespassword");
         Limits limits;
@@ -458,14 +460,10 @@ public:
         limits.num_ops_per_min = 6000;
         limits.num_connections = 10;
         jones.setLimits(limits);
-        users.emplace_back(std::move(jones));
+        passwordDatabase.upsert(std::move(jones));
 
-        nlohmann::json db;
-        db["users"] = users;
         std::ofstream cbsasldb(isasl_file_name.generic_string());
-        // We don't really need it "formatted" but it makes it a lot
-        // easier to look at it without having to use jq
-        cbsasldb << db.dump(2) << std::endl;
+        cbsasldb << passwordDatabase.to_json() << std::endl;
     }
 
     void terminate(int exitcode) override {
@@ -600,6 +598,22 @@ public:
         return (log_dir / "memcached").generic_string();
     }
 
+    cb::sasl::pwdb::MutablePasswordDatabase& getPasswordDatabase() override {
+        return passwordDatabase;
+    }
+
+    void refreshPassordDatabase(MemcachedConnection& connection) override {
+        std::ofstream cbsasldb(isasl_file_name.generic_string());
+        cbsasldb << passwordDatabase.to_json() << std::endl;
+        cbsasldb.close();
+        auto rsp = connection.execute(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::IsaslRefresh});
+        if (!rsp.isSuccess()) {
+            throw ConnectionError(
+                    "refreshPassordDatabase: Failed to reload database", rsp);
+        }
+    }
+
 private:
     const boost::filesystem::path test_directory;
     const boost::filesystem::path isasl_file_name;
@@ -615,6 +629,7 @@ private:
     nlohmann::json audit_config;
     nlohmann::json rbac_data;
     std::unique_ptr<TestBucketImpl> testBucket;
+    cb::sasl::pwdb::MutablePasswordDatabase passwordDatabase;
 };
 
 McdEnvironment* McdEnvironment::create(bool manageSSL_,
