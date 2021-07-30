@@ -191,10 +191,6 @@ public:
     std::vector<vbucket_state*> listPersistedVbuckets() override;
 
     /**
-     * Take a snapshot of the stats in the main DB.
-     */
-    bool snapshotStats(const std::map<std::string, std::string>& m);
-    /**
      * Take a snapshot of the vbucket states in the main DB.
      */
     bool snapshotVBucket(Vbid vbucketId, const vbucket_state& vbstate) override;

@@ -844,11 +844,6 @@ bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId,
     return true;
 }
 
-bool RocksDBKVStore::snapshotStats(const std::map<std::string, std::string>&) {
-    // TODO RDB:  Implement
-    return true;
-}
-
 void RocksDBKVStore::destroyInvalidVBuckets(bool) {
     // TODO RDB:  implement
 }
