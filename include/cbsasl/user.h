@@ -12,7 +12,6 @@
 
 #include <cbcrypto/cbcrypto.h>
 #include <cbsasl/mechanism.h>
-#include <cbsasl/pwdb.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/uuid.h>
 #include <utilities/logtags.h>

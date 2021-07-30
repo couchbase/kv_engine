@@ -19,7 +19,6 @@ add_library(cbsasl STATIC
      plain/plain.h
      password_database.cc
      password_database.h
-     pwconv.cc
      pwfile.cc
      pwfile.h
      scram-sha/scram-sha.cc
@@ -45,7 +44,6 @@ add_sanitizers(cbsasl)
 cb_add_test_executable(cbsasl_unit_test
                        client_server_test.cc
                        password_database_test.cc
-                       pwconv_test.cc
                        sasl_server_test.cc
                        scram-sha/saslprep_test.cc
                        strcmp_test.cc)

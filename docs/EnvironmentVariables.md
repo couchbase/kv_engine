@@ -71,11 +71,6 @@ variable is set.
 
 Specify the list of ciphers allowed.
 
-## `ISASL_PWFILE`
-
-`ISASL_PWFILE` is used to tell `cbsasl` the location of the password
-database in the old (deprecated) format.
-
 ## `MEMCACHED_CRASH_TEST`
 
 Variable set to identify that we're running the crash test (and allows)

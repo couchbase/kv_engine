@@ -11,10 +11,84 @@
 #include "password_database.h"
 
 #include <nlohmann/json.hpp>
+#include <platform/dirutils.h>
+#include <chrono>
+#include <fstream>
+#include <iostream>
 #include <memory>
+#include <sstream>
 #include <string>
 
 namespace cb::sasl::pwdb {
+
+std::string PasswordDatabase::read_password_file(const std::string& filename) {
+    if (filename == "-") {
+        std::string contents;
+        try {
+            contents.assign(std::istreambuf_iterator<char>{std::cin},
+                            std::istreambuf_iterator<char>());
+        } catch (const std::exception& ex) {
+            std::cerr << "Failed to read password database from stdin: "
+                      << ex.what() << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        return contents;
+    }
+
+    auto ret = cb::io::loadFile(filename, std::chrono::seconds{5});
+
+    // The password file may be encrypted
+    auto* env = getenv("COUCHBASE_CBSASL_SECRETS");
+    if (env == nullptr) {
+        return ret;
+    }
+
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(env);
+    } catch (const nlohmann::json::exception& e) {
+        std::stringstream ss;
+        ss << "cbsasl_read_password_file: Invalid json specified in "
+              "COUCHBASE_CBSASL_SECRETS. Parse failed with: '"
+           << e.what() << "'";
+        throw std::runtime_error(ss.str());
+    }
+
+    return cb::crypto::decrypt(json, ret);
+}
+
+void PasswordDatabase::write_password_file(const std::string& filename,
+                                           const std::string& content) {
+    if (filename == "-") {
+        std::cout.write(content.data(), content.size());
+        std::cout.flush();
+        return;
+    }
+
+    std::ofstream of(filename, std::ios::binary);
+
+    auto* env = getenv("COUCHBASE_CBSASL_SECRETS");
+    if (env == nullptr) {
+        of.write(content.data(), content.size());
+    } else {
+        nlohmann::json json;
+        try {
+            json = nlohmann::json::parse(env);
+        } catch (const nlohmann::json::exception& e) {
+            std::stringstream ss;
+            ss << "cbsasl_write_password_file: Invalid json specified in "
+                  "COUCHBASE_CBSASL_SECRETS. Parse failed with: '"
+               << e.what() << "'";
+            throw std::runtime_error(ss.str());
+        }
+
+        auto enc = cb::crypto::encrypt(json, content);
+        of.write(enc.data(), enc.size());
+    }
+
+    of.flush();
+    of.close();
+}
 
 PasswordDatabase::PasswordDatabase(const std::string& content, bool file) {
     nlohmann::json json;

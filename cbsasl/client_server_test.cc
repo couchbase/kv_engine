@@ -12,6 +12,7 @@
 #include <cbsasl/server.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
+#include <nlohmann/json.hpp>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -21,19 +22,26 @@ const char* cbpwfile = "cbsasl_test.pw";
 class SaslClientServerTest : public ::testing::Test {
 protected:
     static void SetUpTestCase() {
-        FILE* fp = fopen(cbpwfile, "w");
-        ASSERT_NE(nullptr, fp);
+        using cb::sasl::pwdb::User;
+        using cb::sasl::pwdb::UserFactory;
 
         // Create a password with a leading, middle and trailing space
-        fprintf(fp, "mikewied  mik epw \n");
+        auto user = UserFactory::create("mikewied", " mik epw ");
+        nlohmann::json pwdb;
+        pwdb["users"] = nlohmann::json::array();
+        pwdb["users"].emplace_back(user);
+
+        FILE* fp = fopen(cbpwfile, "w");
+        ASSERT_NE(nullptr, fp);
+        fprintf(fp, "%s\n", pwdb.dump().c_str());
         ASSERT_EQ(0, fclose(fp));
 
-        setenv("ISASL_PWFILE", cbpwfile, 1);
+        setenv("CBSASL_PWFILE", cbpwfile, 1);
         cb::sasl::server::initialize();
     }
 
     static void TearDownTestCase() {
-        unsetenv("ISASL_PWFILE");
+        unsetenv("CBSASL_PWFILE");
         cb::sasl::server::shutdown();
         ASSERT_EQ(0, remove(cbpwfile));
     }

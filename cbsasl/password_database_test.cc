@@ -11,7 +11,6 @@
 #include "password_database.h"
 
 #include <cbcrypto/cbcrypto.h>
-#include <cbsasl/pwdb.h>
 #include <cbsasl/server.h>
 #include <cbsasl/user.h>
 #include <folly/portability/GTest.h>
@@ -360,8 +359,9 @@ protected:
 TEST_F(EncryptedDatabaseTest, WriteReadFilePlain) {
     EXPECT_EQ(nullptr, getenv("COUCHBASE_CBSASL_SECRETS"));
     const std::string input{"All work and no play makes Jack a dull boy"};
-    cb::sasl::pwdb::write_password_file(filename, input);
-    auto content = cb::sasl::pwdb::read_password_file(filename);
+    cb::sasl::pwdb::PasswordDatabase::write_password_file(filename, input);
+    auto content =
+            cb::sasl::pwdb::PasswordDatabase::read_password_file(filename);
     EXPECT_EQ(input, content);
 }
 
@@ -369,7 +369,8 @@ TEST_F(EncryptedDatabaseTest, WriteReadFileEncrypted) {
     // Add the file to the exec environment
     setenv("COUCHBASE_CBSASL_SECRETS", secrets.c_str(), 1);
     const std::string input{"All work and no play makes Jack a dull boy"};
-    cb::sasl::pwdb::write_password_file(filename, input);
-    auto content = cb::sasl::pwdb::read_password_file(filename);
+    cb::sasl::pwdb::PasswordDatabase::write_password_file(filename, input);
+    auto content =
+            cb::sasl::pwdb::PasswordDatabase::read_password_file(filename);
     EXPECT_EQ(input, content);
 }

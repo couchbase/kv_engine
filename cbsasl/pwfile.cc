@@ -85,43 +85,6 @@ cb::sasl::Error parse_user_db(
     return cb::sasl::Error::OK;
 }
 
-/**
- * The isasl pwfile is the old style format of this file.
- *
- * Let's just parse it and build up the JSON needed from the
- * new style password database as documented in CBSASL.md
- */
-static cb::sasl::Error load_isasl_user_db(
-        std::function<void(const cb::sasl::pwdb::User&)> usercallback) {
-    const char* filename = getenv("ISASL_PWFILE");
-
-    if (!filename) {
-        cb::sasl::logging::log(cb::sasl::logging::Level::Debug,
-                               "No password file specified");
-        return cb::sasl::Error::OK;
-    }
-
-    std::string content;
-
-    try {
-        std::stringstream input(cb::sasl::pwdb::read_password_file(filename));
-        std::stringstream output;
-
-        cb::sasl::pwdb::convert(input, output);
-        content = output.str();
-    } catch (std::runtime_error& e) {
-        cb::sasl::logging::log(
-                cb::sasl::logging::Level::Error,
-                std::string{"load_isasl_user_db() received exception: "} +
-                        e.what());
-        return cb::sasl::Error::FAIL;
-    }
-
-    auto ret = parse_user_db(content, false, usercallback);
-
-    return ret;
-}
-
 cb::sasl::Error load_user_db(
         std::function<void(const cb::sasl::pwdb::User&)> usercallback) {
     try {
@@ -131,7 +94,8 @@ cb::sasl::Error load_user_db(
             return parse_user_db(filename, true, std::move(usercallback));
         }
 
-        return load_isasl_user_db(std::move(usercallback));
+        throw std::runtime_error(
+                "load_user_db: Environment variable CBSASL_PWFILE must be set");
     } catch (std::bad_alloc&) {
         return cb::sasl::Error::NO_MEM;
     }

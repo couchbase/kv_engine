@@ -72,6 +72,33 @@ public:
      */
     std::string to_string() const;
 
+    /**
+     * Read the password file from the specified filename.
+     *
+     * If the environment variable `COUCHBASE_CBSASL_SECRETS` is set it
+     * contains the cipher, key and iv to use to decrypt the file.
+     *
+     * @param filename the name of the file to read
+     * @return the content of the file
+     * @throws std::exception if an error occurs while reading or decrypting
+     *                        the content
+     */
+    static std::string read_password_file(const std::string& filename);
+
+    /**
+     * Write the password data to the specified filename.
+     *
+     * If the environment variable `COUCHBASE_CBSASL_SECRETS` is set it
+     * contains the cipher, key and iv to use to encrypt the file.
+     *
+     * @param filename the name of the file to write
+     * @param content the data to write
+     * @throws std::exception if an error occurs while reading or encrypting
+     *                        the content
+     */
+    static void write_password_file(const std::string& filename,
+                                    const std::string& content);
+
 private:
     /**
      * The actual user database
