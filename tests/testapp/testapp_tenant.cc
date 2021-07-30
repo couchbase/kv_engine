@@ -99,7 +99,12 @@ TEST_P(TenantTest, TenantStats) {
                           json["ingress_bytes"].get<int>());
                 EXPECT_EQ(3 * sizeof(cb::mcbp::Header),
                           json["egress_bytes"].get<int>());
-                EXPECT_EQ(1, json["connections"]["current"].get<int>());
+                // We can't validate the "current" connection here, reconnect
+                // could cause us to end up on a different front end thread
+                // on memcached and we can't really predict the scheduling
+                // so we could end up getting here _before_ the disconnect
+                // logic happened on the other thread (we've seen this in
+                // one CV unit test failure already)
                 EXPECT_EQ(2, json["connections"]["total"].get<int>());
                 found = true;
             },
@@ -177,6 +182,46 @@ TEST_P(TenantTest, TenantStats) {
             R"(tenants {"domain":"local","user":"jones"})");
     ASSERT_TRUE(found) << "Expected tenant data to be found for jones";
     found = false;
+
+    // Verify that the number of current connections is correct:
+    conn.stats(
+            [&found](const std::string& key, const std::string& value) -> void {
+                EXPECT_EQ(R"({"domain":"local","user":"jones"})", key);
+
+                auto json = nlohmann::json::parse(value);
+                EXPECT_EQ(10, json["connections"]["current"].get<int>());
+                found = true;
+            },
+            R"(tenants {"domain":"local","user":"jones"})");
+    ASSERT_TRUE(found) << "Expected tenant data to be found for jones";
+    found = false;
+
+    // Close all of the connections, and verify that the current connection
+    // counter should drop. Multiple threads are involved so we need to
+    // run a loop and wait..
+    connections.clear();
+    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    int current = 0;
+    do {
+        conn.stats(
+                [&found, &current](const std::string& key,
+                                   const std::string& value) -> void {
+                    EXPECT_EQ(R"({"domain":"local","user":"jones"})", key);
+                    auto json = nlohmann::json::parse(value);
+                    current = json["connections"]["current"].get<int>();
+                    found = true;
+                },
+                R"(tenants {"domain":"local","user":"jones"})");
+        ASSERT_TRUE(found) << "Expected tenant data to be found for jones";
+        found = false;
+        if (current != 1) {
+            // back off to let the other threads run so we don't busy-wait
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    } while (current != 1 && std::chrono::steady_clock::now() < timeout);
+    if (current != 1) {
+        FAIL() << "Timed out waiting for current connections to drop to 1";
+    }
 
     conn.deleteBucket("rbac_test");
 }
