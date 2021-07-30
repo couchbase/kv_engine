@@ -16,12 +16,41 @@ public:
     void SetUp() override {
         memcached_cfg["enforce_tenant_limits_enabled"] = true;
         reconfigure();
+        admin = TestappClientTest::getConnection().clone();
+        admin->authenticate("@admin", "password", "PLAIN");
     }
 
     void TearDown() override {
         memcached_cfg["enforce_tenant_limits_enabled"] = false;
         reconfigure();
     }
+
+    /// get the tenant-specific data for the tenant used in the unit
+    /// test ({"domain":"local","user":"jones"})
+    /// @throws std::runtime_error for errors (which would cause the calling
+    ///                            test to fail (which is what we expect))
+    nlohmann::json getTenantStats() {
+        bool found = false;
+        nlohmann::json ret;
+        admin->stats(
+                [&found, &ret](const auto& key, const auto& value) {
+                    if (key != R"({"domain":"local","user":"jones"})") {
+                        throw std::runtime_error(
+                                "Internal error: Unexpected tenant received: " +
+                                key);
+                    }
+                    ret = nlohmann::json::parse(value);
+                    found = true;
+                },
+                R"(tenants {"domain":"local","user":"jones"})");
+        if (!found) {
+            throw std::runtime_error(
+                    "Did not find any tenant stats for jones!");
+        }
+        return ret;
+    }
+
+    std::unique_ptr<MemcachedConnection> admin;
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -32,9 +61,8 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 /// Disable the test as I've changed the way to enable/disable the tenant
 /// tests by checking for a directory (which we don't have in testapp)
 TEST_P(TenantTest, TenantStats) {
-    auto& conn = getAdminConnection();
     // We should not have any tenants yet
-    conn.stats(
+    admin->stats(
             [](const std::string& key, const std::string& value) -> void {
                 FAIL() << "We just enabled tenant stats so no one should "
                           "exist, but received: "
@@ -42,87 +70,44 @@ TEST_P(TenantTest, TenantStats) {
                        << key << " - " << value;
             },
             "tenants");
+    admin->createBucket("rbac_test", "", BucketType::Memcached);
 
-    conn.createBucket("rbac_test", "", BucketType::Memcached);
-
-    auto clone = conn.clone();
+    auto clone = admin->clone();
     clone->authenticate("jones", "jonespassword", "PLAIN");
-    bool found = false;
-    conn.stats(
-            [&found](const std::string& key, const std::string& value) -> void {
-                EXPECT_EQ(R"({"domain":"local","user":"jones"})", key);
 
-                auto json = nlohmann::json::parse(value);
-                // We've not sent any commands after we authenticated
-                EXPECT_EQ(0, json["ingress_bytes"].get<int>());
+    auto json = getTenantStats();
 
-                // But we did send the reply to the AUTH so we should have
-                // sent 1 mcbp response header
-                EXPECT_EQ(sizeof(cb::mcbp::Header),
-                          json["egress_bytes"].get<int>());
+    // We've not sent any commands after we authenticated
+    EXPECT_EQ(0, json["ingress_bytes"].get<int>());
 
-                EXPECT_EQ(1, json["connections"]["current"].get<int>());
-                EXPECT_EQ(1, json["connections"]["total"].get<int>());
-                found = true;
-            },
-            R"(tenants {"domain":"local","user":"jones"})");
+    // But we did send the reply to the AUTH so we should have
+    // sent 1 mcbp response header
+    EXPECT_EQ(sizeof(cb::mcbp::Header), json["egress_bytes"].get<int>());
+    EXPECT_EQ(1, json["connections"]["current"].get<int>());
+    EXPECT_EQ(1, json["connections"]["total"].get<int>());
 
-    ASSERT_TRUE(found) << "Expected tenant data to be found for jones";
-    found = false;
     clone->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
-    conn.stats(
-            [&found](const std::string& key, const std::string& value) -> void {
-                EXPECT_EQ(R"({"domain":"local","user":"jones"})", key);
+    json = getTenantStats();
 
-                auto json = nlohmann::json::parse(value);
-                EXPECT_EQ(sizeof(cb::mcbp::Header),
-                          json["ingress_bytes"].get<int>());
-                EXPECT_EQ(sizeof(cb::mcbp::Header) + sizeof(cb::mcbp::Header),
-                          json["egress_bytes"].get<int>());
-                EXPECT_EQ(1, json["connections"]["current"].get<int>());
-                EXPECT_EQ(1, json["connections"]["total"].get<int>());
-                found = true;
-            },
-            R"(tenants {"domain":"local","user":"jones"})");
-    ASSERT_TRUE(found) << "Expected tenant data to be found for jones";
-    found = false;
+    EXPECT_EQ(sizeof(cb::mcbp::Header), json["ingress_bytes"].get<int>());
+    EXPECT_EQ(sizeof(cb::mcbp::Header) + sizeof(cb::mcbp::Header),
+              json["egress_bytes"].get<int>());
+    EXPECT_EQ(1, json["connections"]["current"].get<int>());
+    EXPECT_EQ(1, json["connections"]["total"].get<int>());
 
     // Reconnect and verify that we keep the correct # for total connections
     clone->reconnect();
     clone->authenticate("jones", "jonespassword", "PLAIN");
-    conn.stats(
-            [&found](const std::string& key, const std::string& value) -> void {
-                EXPECT_EQ(R"({"domain":"local","user":"jones"})", key);
-
-                auto json = nlohmann::json::parse(value);
-                EXPECT_EQ(sizeof(cb::mcbp::Header),
-                          json["ingress_bytes"].get<int>());
-                EXPECT_EQ(3 * sizeof(cb::mcbp::Header),
-                          json["egress_bytes"].get<int>());
-                // We can't validate the "current" connection here, reconnect
-                // could cause us to end up on a different front end thread
-                // on memcached and we can't really predict the scheduling
-                // so we could end up getting here _before_ the disconnect
-                // logic happened on the other thread (we've seen this in
-                // one CV unit test failure already)
-                EXPECT_EQ(2, json["connections"]["total"].get<int>());
-                found = true;
-            },
-            R"(tenants {"domain":"local","user":"jones"})");
-    ASSERT_TRUE(found) << "Expected tenant data to be found for jones";
-    found = false;
-
-    // verify that we can request all tenants
-    conn.stats(
-            [&found](const std::string& key, const std::string& value) -> void {
-                EXPECT_EQ("0", key);
-                EXPECT_NE(std::string::npos,
-                          value.find(
-                                  R"("id":{"domain":"local","user":"jones"})"));
-                found = true;
-            },
-            "tenants");
-    ASSERT_TRUE(found) << "Expected tenant data to be found for jones";
+    json = getTenantStats();
+    EXPECT_EQ(sizeof(cb::mcbp::Header), json["ingress_bytes"].get<int>());
+    EXPECT_EQ(3 * sizeof(cb::mcbp::Header), json["egress_bytes"].get<int>());
+    // We can't validate the "current" connection here, reconnect
+    // could cause us to end up on a different front end thread
+    // on memcached and we can't really predict the scheduling
+    // so we could end up getting here _before_ the disconnect
+    // logic happened on the other thread (we've seen this in
+    // one CV unit test failure already)
+    EXPECT_EQ(2, json["connections"]["total"].get<int>());
 
     if (!folly::kIsSanitize) { // NOLINT
         // make sure we can rate limit. Hopefully the CV allows for 6000 noop/s
@@ -167,34 +152,14 @@ TEST_P(TenantTest, TenantStats) {
     }
 
     // Verify that the stats recorded the rate limiting
-    conn.stats(
-            [&found](const std::string& key, const std::string& value) -> void {
-                EXPECT_EQ(R"({"domain":"local","user":"jones"})", key);
-
-                auto json = nlohmann::json::parse(value);
-                const auto& limited = json["rate_limited"];
-                EXPECT_EQ(1, limited["num_connections"].get<int>());
-                if (!folly::kIsSanitize) { // NOLINT
-                    EXPECT_EQ(1, limited["num_ops_per_min"].get<int>());
-                }
-                found = true;
-            },
-            R"(tenants {"domain":"local","user":"jones"})");
-    ASSERT_TRUE(found) << "Expected tenant data to be found for jones";
-    found = false;
-
+    json = getTenantStats();
+    const auto& limited = json["rate_limited"];
+    EXPECT_EQ(1, limited["num_connections"].get<int>());
+    if (!folly::kIsSanitize) { // NOLINT
+        EXPECT_EQ(1, limited["num_ops_per_min"].get<int>());
+    }
     // Verify that the number of current connections is correct:
-    conn.stats(
-            [&found](const std::string& key, const std::string& value) -> void {
-                EXPECT_EQ(R"({"domain":"local","user":"jones"})", key);
-
-                auto json = nlohmann::json::parse(value);
-                EXPECT_EQ(10, json["connections"]["current"].get<int>());
-                found = true;
-            },
-            R"(tenants {"domain":"local","user":"jones"})");
-    ASSERT_TRUE(found) << "Expected tenant data to be found for jones";
-    found = false;
+    EXPECT_EQ(10, json["connections"]["current"].get<int>());
 
     // Close all of the connections, and verify that the current connection
     // counter should drop. Multiple threads are involved so we need to
@@ -203,17 +168,8 @@ TEST_P(TenantTest, TenantStats) {
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(30);
     int current = 0;
     do {
-        conn.stats(
-                [&found, &current](const std::string& key,
-                                   const std::string& value) -> void {
-                    EXPECT_EQ(R"({"domain":"local","user":"jones"})", key);
-                    auto json = nlohmann::json::parse(value);
-                    current = json["connections"]["current"].get<int>();
-                    found = true;
-                },
-                R"(tenants {"domain":"local","user":"jones"})");
-        ASSERT_TRUE(found) << "Expected tenant data to be found for jones";
-        found = false;
+        json = getTenantStats();
+        current = json["connections"]["current"].get<int>();
         if (current != 1) {
             // back off to let the other threads run so we don't busy-wait
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -223,5 +179,17 @@ TEST_P(TenantTest, TenantStats) {
         FAIL() << "Timed out waiting for current connections to drop to 1";
     }
 
-    conn.deleteBucket("rbac_test");
+    // verify that we can request all tenants
+    bool found = false;
+    admin->stats(
+            [&found](const std::string& key, const std::string& value) -> void {
+                EXPECT_EQ("0", key);
+                EXPECT_NE(std::string::npos,
+                          value.find(
+                                  R"("id":{"domain":"local","user":"jones"})"));
+                found = true;
+            },
+            "tenants");
+    ASSERT_TRUE(found) << "Expected tenant data to be found for jones";
+    admin->deleteBucket("rbac_test");
 }
