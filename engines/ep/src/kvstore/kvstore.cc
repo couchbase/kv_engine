@@ -22,6 +22,7 @@
 #include "item.h"
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/couch-kvstore/couch-kvstore.h"
+#include "kvstore/nexus-kvstore/nexus-kvstore-config.h"
 #include "kvstore/nexus-kvstore/nexus-kvstore.h"
 #include "vbucket_state.h"
 #ifdef EP_USE_MAGMA
@@ -186,7 +187,8 @@ std::unique_ptr<KVStoreIface> KVStoreFactory::create(KVStoreConfig& config) {
                 dynamic_cast<CouchKVStoreConfig&>(config));
         return std::move(rw);
     } else if (backend == "nexus") {
-        auto rw = std::make_unique<NexusKVStore>(config);
+        auto rw = std::make_unique<NexusKVStore>(
+                dynamic_cast<NexusKVStoreConfig&>(config));
         return std::move(rw);
     }
 #ifdef EP_USE_MAGMA

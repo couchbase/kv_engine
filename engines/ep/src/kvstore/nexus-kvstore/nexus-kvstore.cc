@@ -11,14 +11,13 @@
 
 #include "nexus-kvstore.h"
 
-#include "kvstore/couch-kvstore/couch-kvstore-config.h"
-#include "kvstore/couch-kvstore/couch-kvstore.h"
+#include "kvstore/kvstore_transaction_context.h"
+#include "nexus-kvstore-config.h"
 #include "rollback_result.h"
 #include "vbucket_state.h"
 
-NexusKVStore::NexusKVStore(KVStoreConfig& config) {
-    primary = std::make_unique<CouchKVStore>(
-            dynamic_cast<CouchKVStoreConfig&>(config));
+NexusKVStore::NexusKVStore(NexusKVStoreConfig& config) : configuration(config) {
+    primary = KVStoreFactory::create(configuration.getPrimaryConfig());
 }
 
 void NexusKVStore::deinitialize() {

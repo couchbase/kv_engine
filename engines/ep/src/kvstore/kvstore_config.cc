@@ -15,6 +15,7 @@
 #include "configuration.h"
 #include "environment.h"
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
+#include "kvstore/nexus-kvstore/nexus-kvstore-config.h"
 
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
@@ -131,7 +132,7 @@ std::unique_ptr<KVStoreConfig> KVStoreConfig::createKVStoreConfig(
         kvConfig = std::make_unique<CouchKVStoreConfig>(
                 config, backend, numShards, shardId);
     } else if (backend == "nexus") {
-        kvConfig = std::make_unique<CouchKVStoreConfig>(
+        kvConfig = std::make_unique<NexusKVStoreConfig>(
                 config, backend, numShards, shardId);
     }
 #ifdef EP_USE_MAGMA

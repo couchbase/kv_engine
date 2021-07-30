@@ -327,8 +327,9 @@ std::string generateBackendConfig(std::string_view config) {
     }
 
     auto backendStart = config.find("_") + 1;
-    auto backendEnd = config.substr(backendStart).find("_");
-    auto backend = config.substr(backendStart, backendEnd);
+    auto withoutBucketType = config.substr(backendStart);
+    auto backendEnd = withoutBucketType.find("_");
+    auto backend = withoutBucketType.substr(0, backendEnd);
 
     if (backend == "couchstore") {
         backend = "couchdb";
@@ -336,5 +337,23 @@ std::string generateBackendConfig(std::string_view config) {
 
     ret += backend;
 
+    if (backend == "nexus") {
+        ret += generateNexusConfig(withoutBucketType.substr(backendEnd + 1));
+    }
+
     return ret;
+}
+
+std::string generateNexusConfig(std::string_view config) {
+    // Nexus variant, need to read some extra config
+    std::string configString = ";";
+
+    auto primaryEnd = config.find("_");
+    auto primary = config.substr(0, primaryEnd);
+    auto secondary = config.substr(primaryEnd + 1);
+
+    configString += "nexus_primary_backend=" + std::string(primary) + ";";
+    configString += "nexus_secondary_backend=" + std::string(secondary);
+
+    return configString;
 }

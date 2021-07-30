@@ -225,3 +225,11 @@ std::string generateBucketTypeConfig(std::string_view config);
  * @throws invalid_argument if not a persistent bucket type
  */
 std::string generateBackendConfig(std::string_view config);
+
+/**
+ * Generates a config string for NexusKVStore usage from the testConfig
+ *
+ * @param config config for the test
+ * @return config string
+ */
+std::string generateNexusConfig(std::string_view testConfig);

@@ -13,13 +13,15 @@
 
 #include "kvstore/kvstore.h"
 
+class NexusKVStoreConfig;
+
 /**
  * Testing harness for two KVStore implementations that runs both KVStores in
  * parallel and compares the results of interesting operations.
  */
 class NexusKVStore : public KVStoreIface {
 public:
-    NexusKVStore(KVStoreConfig& config);
+    NexusKVStore(NexusKVStoreConfig& config);
 
     void deinitialize() override;
     void addStats(const AddStatFn& add_stat,
@@ -123,5 +125,6 @@ protected:
     void prepareToCreateImpl(Vbid vbid) override;
 
 protected:
+    NexusKVStoreConfig& configuration;
     std::unique_ptr<KVStoreIface> primary;
 };
