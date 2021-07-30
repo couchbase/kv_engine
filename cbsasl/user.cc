@@ -387,6 +387,10 @@ const User::PasswordMetaData& User::getPassword(const Mechanism& mech) const {
     }
 }
 
+void to_json(nlohmann::json& json, const User& user) {
+    json = user.to_json();
+}
+
 namespace user {
 void to_json(nlohmann::json& json, const Limits& limits) {
     json = {{"ingress_mib_per_min", limits.ingress_mib_per_min},

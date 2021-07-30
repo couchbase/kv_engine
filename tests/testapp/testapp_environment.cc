@@ -11,6 +11,7 @@
 #include "testapp_environment.h"
 #include "memcached_audit_events.h"
 #include <boost/filesystem.hpp>
+#include <cbsasl/user.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
 #include <nlohmann/json.hpp>
@@ -360,8 +361,7 @@ public:
                        const std::string& engineConfig)
         : test_directory(absolute(boost::filesystem::path(
                   cb::io::mkdtemp("memcached_testapp.")))),
-          isasl_file_name(boost::filesystem::path(SOURCE_ROOT) / "tests" /
-                          "testapp" / "cbsaslpw.json"),
+          isasl_file_name(test_directory / "cbsaslpw.json"),
           configuration_file(test_directory / "memcached.json"),
           portnumber_file(test_directory / "ports.json"),
           rbac_file_name(test_directory / "rbac.json"),
@@ -401,13 +401,14 @@ public:
         // cannot convert argument 2 from
         // 'const boost::filesystem::path::value_type *' to 'const char *'
         setenv("CBSASL_PWFILE", isasl_file_name.generic_string().c_str(), 1);
+        setupPasswordDatabase();
 
         // Some of the tests wants to modify the RBAC file so we need
         // to make a local copy they can operate on
         const auto input_file =
                 cb::io::sanitizePath(SOURCE_ROOT "/tests/testapp/rbac.json");
         rbac_data = nlohmann::json::parse(cb::io::loadFile(input_file));
-        rewriteRbacFile();
+        rewriteRbacFileImpl();
 
         // And we need an audit daemon configuration
         const auto descr =
@@ -428,8 +429,43 @@ public:
                    "enabled"}}},
                 {"filtering_enabled", false},
                 {"disabled_userids", nlohmann::json::array()}};
+        rewriteAuditConfigImpl();
+    }
 
-        rewriteAuditConfig();
+    void setupPasswordDatabase() {
+        // Write the initial password database:
+        using cb::sasl::pwdb::User;
+        using cb::sasl::pwdb::UserFactory;
+        using cb::sasl::pwdb::user::Limits;
+        std::vector<User> users;
+
+        // Reduce the iteration count to speed up the unit tests
+        UserFactory::setDefaultHmacIterationCount(10);
+
+        users.emplace_back(UserFactory::create("@admin", "password"));
+        users.emplace_back(UserFactory::create("bucket-1", "1S|=,%#x1"));
+        users.emplace_back(UserFactory::create("bucket-2", "secret"));
+        users.emplace_back(UserFactory::create("bucket-3", "1S|=,%#x1"));
+        users.emplace_back(UserFactory::create("smith", "smithpassword"));
+        users.emplace_back(UserFactory::create("larry", "larrypassword"));
+        users.emplace_back(UserFactory::create("legacy", "new"));
+        users.emplace_back(UserFactory::create("default", ""));
+
+        auto jones = UserFactory::create("jones", "jonespassword");
+        Limits limits;
+        limits.egress_mib_per_min = 1;
+        limits.ingress_mib_per_min = 1;
+        limits.num_ops_per_min = 6000;
+        limits.num_connections = 10;
+        jones.setLimits(limits);
+        users.emplace_back(std::move(jones));
+
+        nlohmann::json db;
+        db["users"] = users;
+        std::ofstream cbsasldb(isasl_file_name.generic_string());
+        // We don't really need it "formatted" but it makes it a lot
+        // easier to look at it without having to use jq
+        cbsasldb << db.dump(2) << std::endl;
     }
 
     void terminate(int exitcode) override {
@@ -507,10 +543,14 @@ public:
         return audit_config;
     }
 
-    void rewriteAuditConfig() override {
+    void rewriteAuditConfigImpl() {
         std::ofstream out(audit_file_name.generic_string());
         out << audit_config.dump(2) << std::endl;
         out.close();
+    }
+
+    void rewriteAuditConfig() override {
+        rewriteAuditConfigImpl();
     }
 
     std::string getRbacFilename() const override {
@@ -521,10 +561,14 @@ public:
         return rbac_data;
     }
 
-    void rewriteRbacFile() override {
+    void rewriteRbacFileImpl() {
         std::ofstream out(rbac_file_name.generic_string());
         out << rbac_data.dump(2) << std::endl;
         out.close();
+    }
+
+    void rewriteRbacFile() override {
+        rewriteRbacFileImpl();
     }
 
     TestBucketImpl& getTestBucket() override {

@@ -2,12 +2,6 @@ include(CouchbaseGoogleTest)
 
 INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/external)
 
-cb_add_test_executable(generate_test_cbsaslpw generate_test_cbsaslpw.cc)
-kv_enable_pch(generate_test_cbsaslpw)
-target_link_libraries(generate_test_cbsaslpw PRIVATE cbsasl platform
-                      ${OPENSSL_LIBRARIES})
-add_sanitizers(generate_test_cbsaslpw)
-
 add_library(testapp_auth_provider OBJECT auth_provider.h auth_provider.cc)
 kv_enable_pch(testapp_auth_provider)
 cb_add_test_executable(testapp_auth_provider_test auth_provider_test.cc

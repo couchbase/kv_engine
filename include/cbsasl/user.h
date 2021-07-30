@@ -28,10 +28,10 @@ namespace user {
 /// This struct contains the legal properties to specify
 struct Limits {
     constexpr static uint64_t Unlimited = 0;
+    uint64_t egress_mib_per_min = Unlimited;
+    uint64_t ingress_mib_per_min = Unlimited;
     uint64_t num_connections = Unlimited;
     uint64_t num_ops_per_min = Unlimited;
-    uint64_t ingress_mib_per_min = Unlimited;
-    uint64_t egress_mib_per_min = Unlimited;
 };
 
 void to_json(nlohmann::json&, const Limits&);
@@ -173,6 +173,10 @@ public:
         return limits;
     }
 
+    void setLimits(user::Limits next) {
+        limits = next;
+    }
+
     /// Get the users UUID
     cb::uuid::uuid_t getUuid() const {
         return uuid;
@@ -224,6 +228,8 @@ protected:
     /// we randomly generated).
     bool dummy;
 };
+
+void to_json(nlohmann::json& json, const User& user);
 
 /**
  * The UserFactory class is used to generate a User Object from a
