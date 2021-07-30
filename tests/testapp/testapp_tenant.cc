@@ -10,6 +10,8 @@
 
 #include "testapp.h"
 #include "testapp_client_test.h"
+#include <cbsasl/password_database.h>
+#include <cbsasl/user.h>
 
 class TenantTest : public TestappClientTest {
 public:
@@ -58,8 +60,6 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::Values(TransportProtocols::McbpPlain),
                          ::testing::PrintToStringParamName());
 
-/// Disable the test as I've changed the way to enable/disable the tenant
-/// tests by checking for a directory (which we don't have in testapp)
 TEST_P(TenantTest, TenantStats) {
     // We should not have any tenants yet
     admin->stats(
@@ -191,5 +191,31 @@ TEST_P(TenantTest, TenantStats) {
             },
             "tenants");
     ASSERT_TRUE(found) << "Expected tenant data to be found for jones";
+
+    // Verify that I can tune the tenants limits. Lower the max limit to
+    // 5 connections
+    auto& db = mcd_env->getPasswordDatabase();
+    auto user = db.find("jones");
+    auto limits = user.getLimits();
+    limits.num_connections = 5;
+    user.setLimits(limits);
+    db.upsert(std::move(user));
+    mcd_env->refreshPassordDatabase(*admin);
+
+    for (uint64_t ii = 1; ii < limits.num_connections; ++ii) {
+        connections.push_back(clone->clone());
+        connections.back()->authenticate("jones", "jonespassword", "PLAIN");
+        auto rsp = connections.back()->execute(
+                BinprotGenericCommand(cb::mcbp::ClientOpcode::Noop));
+        ASSERT_TRUE(rsp.isSuccess()) << "We should be able to fill the limit";
+    }
+
+    connections.push_back(clone->clone());
+    connections.back()->authenticate("jones", "jonespassword", "PLAIN");
+    auto rsp = connections.back()->execute(
+            BinprotGenericCommand(cb::mcbp::ClientOpcode::Noop));
+    ASSERT_EQ(cb::mcbp::Status::RateLimitedMaxConnections, rsp.getStatus())
+            << rsp.getDataString();
+
     admin->deleteBucket("rbac_test");
 }
