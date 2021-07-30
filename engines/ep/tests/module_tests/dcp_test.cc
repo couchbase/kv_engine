@@ -1004,6 +1004,7 @@ protected:
             if (!config_string.empty()) {
                 config_string += ";";
             }
+            config_string += "backend=magma;";
             config_string += magmaConfig;
         }
         DCPTest::SetUp();
