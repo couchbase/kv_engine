@@ -203,9 +203,6 @@ public:
 
     size_t getNumShards();
 
-    void prepareForDeduplication(std::vector<queued_item>&) {
-    }
-
     bool compactDB(std::unique_lock<std::mutex>&,
                    std::shared_ptr<CompactionContext>) override {
         // Explicit compaction is not needed.
