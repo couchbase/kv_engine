@@ -172,7 +172,7 @@ TEST_P(TenantTest, TenantStats) {
         current = json["connections"]["current"].get<int>();
         if (current != 1) {
             // back off to let the other threads run so we don't busy-wait
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     } while (current != 1 && std::chrono::steady_clock::now() < timeout);
     if (current != 1) {
