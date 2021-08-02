@@ -159,7 +159,7 @@ protected:
 #ifdef EP_USE_MAGMA
         // Magma... we need to run explicit compaction to make sure no
         // implicit compactions run that might use memory.
-        if (isMagma()) {
+        if (hasMagma()) {
             auto kvstore = store->getRWUnderlyingByShard(0);
             // Force a compaction here to make sure there are no implicit
             // compactions to consume any memory
@@ -351,7 +351,7 @@ protected:
 // that items are successfully paged out.
 TEST_P(STItemPagerTest, ServerQuotaReached) {
     // MB-41568 Disabled
-    if (isMagma()) {
+    if (hasMagma()) {
         return;
     }
     size_t count = populateUntilTmpFail(vbid);
@@ -370,7 +370,7 @@ TEST_P(STItemPagerTest, ServerQuotaReached) {
         EXPECT_EQ(count, vb->getNumItems());
     } else {
         size_t val{0};
-        if (isMagma()) {
+        if (hasMagma()) {
             auto kvstore = store->getROUnderlyingByShard(0);
             kvstore->getStat("storage_mem_used", val);
         }
@@ -906,7 +906,7 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
         // Ephemeral does not evict from replicas
         GTEST_SKIP();
     }
-    if (isMagma()) {
+    if (hasMagma()) {
         // Magma's memory usage makes tests relying on memory usage maths
         // difficult, and probably quite fragile/sensitive to magma changes.
         // The behaviour being tested is _not_ dependent on the backend,
@@ -1238,7 +1238,7 @@ TEST_P(STItemPagerTest, MB43559_EvictionWithoutReplicasReachesLWM) {
     // Magma's memory usage makes calculations around recovering memory
     // through eviction difficult. Increase the quota to allow eviction
     // to actually reach the low watermark despite magma's memory usage
-    if (isMagma()) {
+    if (hasMagma()) {
         increaseQuota(2 * 1024 * 1024);
     }
 
@@ -1686,7 +1686,7 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrderIsSafe) {
     // 17 is the minimum number of vbs found to demonstrate a segfault
     // with an unsuitable comparator on linux. This is likely impl dependent.
     // 18 gives 6 vbs per active/replica/pending
-    if (isMagma()) {
+    if (hasMagma()) {
         // Magma does not appreciate having max_vbuckets updated
         // In relation to this test, magma should not behave differently to
         // couchstore buckets anyway
@@ -1804,7 +1804,7 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
     // Magma has been failing this test consistently after more memory was
     // allocated to histograms so bump the quota accordingly. If others start
     // to fail then we should consider moving this to affect all magma tests.
-    if (isMagma()) {
+    if (hasMagma()) {
         increaseQuota(1024 * 1024);
     }
 

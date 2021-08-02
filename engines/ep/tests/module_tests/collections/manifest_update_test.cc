@@ -41,7 +41,7 @@ class CollectionsManifestUpdatePersistent
 TEST_P(CollectionsManifestUpdatePersistent, update_fail_persist) {
     // magma variant not happy that the dir gets pulled away. Since this test
     // isn't actually writing data for the KVStore - skip for magma
-    if (isMagma()) {
+    if (hasMagma()) {
         GTEST_SKIP();
     }
 

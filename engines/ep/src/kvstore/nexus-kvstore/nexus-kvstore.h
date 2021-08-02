@@ -127,4 +127,5 @@ protected:
 protected:
     NexusKVStoreConfig& configuration;
     std::unique_ptr<KVStoreIface> primary;
+    std::unique_ptr<KVStoreIface> secondary;
 };

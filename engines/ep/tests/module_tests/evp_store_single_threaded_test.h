@@ -504,8 +504,19 @@ public:
         return engine->getConfiguration().getBackend() == "rocksdb";
     }
 
+    /// @returns true if this is a magma bucket
     bool isMagma() const {
         return engine->getConfiguration().getBackend() == "magma";
+    }
+
+    /**
+     * Used to blanket skip magma tests from running for reasons such as memory
+     * sensitivty
+     *
+     * @returns true if bucket has magma via either magma backend or nexus
+     */
+    bool hasMagma() const {
+        return std::get<0>(GetParam()).find("agma") != std::string::npos;
     }
 
     std::string getBackend() const {

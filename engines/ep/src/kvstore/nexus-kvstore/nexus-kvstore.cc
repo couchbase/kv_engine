@@ -18,6 +18,7 @@
 
 NexusKVStore::NexusKVStore(NexusKVStoreConfig& config) : configuration(config) {
     primary = KVStoreFactory::create(configuration.getPrimaryConfig());
+    secondary = KVStoreFactory::create(configuration.getSecondaryConfig());
 }
 
 void NexusKVStore::deinitialize() {
