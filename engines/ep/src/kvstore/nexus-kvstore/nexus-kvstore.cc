@@ -59,7 +59,26 @@ bool NexusKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
 }
 
 StorageProperties NexusKVStore::getStorageProperties() const {
-    return primary->getStorageProperties();
+    auto primaryProperties = primary->getStorageProperties();
+    auto secondaryProperties = secondary->getStorageProperties();
+
+    // ByIdScan adds an extra DCP feature that clients should not assume
+    // exists (so we should only enable it if bost KVStores support it).
+    auto byIdScan = StorageProperties::ByIdScan::No;
+    if (primaryProperties.hasByIdScan() && secondaryProperties.hasByIdScan()) {
+        byIdScan = StorageProperties::ByIdScan::Yes;
+    }
+
+    // Auto de-dupe will change the flush batches and not all KVStores can deal
+    // with that so we can only set it to true if it's true for both. All
+    // KVStores should be able to deal with a deduped flush batch.
+    auto autoDedupe = StorageProperties::AutomaticDeduplication::No;
+    if (primaryProperties.hasAutomaticDeduplication() &&
+        secondaryProperties.hasAutomaticDeduplication()) {
+        autoDedupe = StorageProperties::AutomaticDeduplication::Yes;
+    }
+
+    return StorageProperties(byIdScan, autoDedupe);
 }
 
 void NexusKVStore::set(TransactionContext& txnCtx, queued_item item) {
