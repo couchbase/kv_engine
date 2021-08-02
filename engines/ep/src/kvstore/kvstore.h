@@ -500,12 +500,6 @@ public:
  */
 class StorageProperties {
 public:
-    /**
-     * Does the KVStore allow externally driven compactions (driven via
-     * ns_server/EPBucket) whilst we do writes?
-     */
-    enum class ConcurrentWriteCompact : bool { Yes, No };
-
     enum class ByIdScan : bool { Yes, No };
 
     /**
@@ -514,18 +508,9 @@ public:
      */
     enum class AutomaticDeduplication : bool { Yes, No };
 
-    StorageProperties(ConcurrentWriteCompact cwc,
-                      ByIdScan byIdScan,
+    StorageProperties(ByIdScan byIdScan,
                       AutomaticDeduplication automaticDeduplication)
-        : concWriteCompact(cwc),
-          byIdScan(byIdScan),
-          automaticDeduplication(automaticDeduplication) {
-    }
-
-    /* True if the underlying storage supports concurrent writing
-     * and compacting */
-    bool hasConcWriteCompact() const {
-        return (concWriteCompact == ConcurrentWriteCompact::Yes);
+        : byIdScan(byIdScan), automaticDeduplication(automaticDeduplication) {
     }
 
     bool hasByIdScan() const {
@@ -537,7 +522,6 @@ public:
     }
 
 private:
-    ConcurrentWriteCompact concWriteCompact;
     ByIdScan byIdScan;
     AutomaticDeduplication automaticDeduplication;
 };

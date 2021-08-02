@@ -717,8 +717,7 @@ void MagmaKVStore::commitCallback(MagmaKVStoreTransactionContext& txnCtx,
 }
 
 StorageProperties MagmaKVStore::getStorageProperties() const {
-    StorageProperties rv(StorageProperties::ConcurrentWriteCompact::Yes,
-                         StorageProperties::ByIdScan::No,
+    StorageProperties rv(StorageProperties::ByIdScan::No,
                          // @TODO MB-33784: Enable auto de-dupe if/when magma
                          // supports it
                          StorageProperties::AutomaticDeduplication::No);

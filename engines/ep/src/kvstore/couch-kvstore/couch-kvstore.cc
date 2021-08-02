@@ -2023,8 +2023,7 @@ bool CouchKVStore::snapshotVBucket(Vbid vbucketId,
 }
 
 StorageProperties CouchKVStore::getStorageProperties() const {
-    StorageProperties rv(StorageProperties::ConcurrentWriteCompact::Yes,
-                         StorageProperties::ByIdScan::Yes,
+    StorageProperties rv(StorageProperties::ByIdScan::Yes,
                          StorageProperties::AutomaticDeduplication::No);
     return rv;
 }

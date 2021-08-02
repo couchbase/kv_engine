@@ -625,14 +625,10 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
                                                        TRACK_STATISTICS |
                                                        GET_DELETED_VALUE);
 
-    // Magma compactions are not interlocked with writes so the expiration when
-    // driven by compaction will need to bg fetch the item from disk if it is
-    // not resident to ensure that we don't "expire" old versions of items.
-    if (store->getROUnderlying(vbid)
-                ->getStorageProperties()
-                .hasConcWriteCompact()) {
-        runBGFetcherTask();
-    }
+    // Compactions are not interlocked with writes so the expiration when driven
+    // by compaction will need to bg fetch the item from disk if it is not
+    // resident to ensure that we don't "expire" old versions of items.
+    runBGFetcherTask();
 
     gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
     ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
@@ -715,14 +711,6 @@ void EPBucketFullEvictionTest::compactionFindsNonResidentItem(
 
     // 4) Callback from the "compactor" with Av1
     vb->deleteExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
-
-    if (!store->getROUnderlying(vbid)
-                 ->getStorageProperties()
-                 .hasConcWriteCompact()) {
-        EXPECT_EQ(1, vb->numExpiredItems);
-        flushVBucketToDiskIfPersistent(vbid, 1);
-        return;
-    }
 
     int expectedExpiredItems = 1;
     if (dropCollection) {
@@ -819,16 +807,6 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentSupersededItem) {
     // 5) Callback from the "compactor" with Av1
     vb->deleteExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
 
-    // Early return for non-magma backends as they will just expire the item
-    // immediately because they interlock writes and compaction
-    if (!store->getROUnderlying(vbid)
-                 ->getStorageProperties()
-                 .hasConcWriteCompact()) {
-        EXPECT_EQ(1, vb->numExpiredItems);
-        flushVBucketToDiskIfPersistent(vbid, 1);
-        return;
-    }
-
     EXPECT_EQ(0, vb->numExpiredItems);
 
     // We should not have deleted the item and should not flush anything
@@ -883,16 +861,6 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
 
     // 4) Callback from the "compactor" with Av1
     vb->deleteExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
-
-    // Early return for non-magma backends as they will just expire the item
-    // immediately because they interlock writes and compaction
-    if (!store->getROUnderlying(vbid)
-                 ->getStorageProperties()
-                 .hasConcWriteCompact()) {
-        EXPECT_EQ(1, vb->numExpiredItems);
-        flushVBucketToDiskIfPersistent(vbid, 1);
-        return;
-    }
 
     EXPECT_EQ(0, vb->numExpiredItems);
 
