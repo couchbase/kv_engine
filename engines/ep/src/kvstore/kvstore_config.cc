@@ -55,12 +55,13 @@ private:
 };
 
 KVStoreConfig::KVStoreConfig(Configuration& config,
+                             std::string_view backend,
                              uint16_t numShards,
                              uint16_t shardid)
     : KVStoreConfig(config.getMaxVbuckets(),
                     numShards,
                     config.getDbname(),
-                    config.getBackend(),
+                    backend,
                     shardid) {
     setPeriodicSyncBytes(config.getFsyncAfterEveryNBytesWritten());
     config.addValueChangedListener(
@@ -88,12 +89,12 @@ KVStoreConfig::KVStoreConfig(Configuration& config,
 KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
                              uint16_t _maxShards,
                              std::string _dbname,
-                             std::string _backend,
+                             std::string_view _backend,
                              uint16_t _shardId)
     : maxVBuckets(_maxVBuckets),
       maxShards(_maxShards),
       dbname(std::move(_dbname)),
-      backend(std::move(_backend)),
+      backend(_backend),
       shardId(_shardId),
       logger(getGlobalBucketLogger().get()) {
     auto& env = Environment::get();
@@ -128,21 +129,21 @@ std::unique_ptr<KVStoreConfig> KVStoreConfig::createKVStoreConfig(
     std::unique_ptr<KVStoreConfig> kvConfig;
     if (backend == "couchdb") {
         kvConfig = std::make_unique<CouchKVStoreConfig>(
-                config, numShards, shardId);
+                config, backend, numShards, shardId);
     } else if (backend == "nexus") {
         kvConfig = std::make_unique<CouchKVStoreConfig>(
-                config, numShards, shardId);
+                config, backend, numShards, shardId);
     }
 #ifdef EP_USE_MAGMA
     else if (backend == "magma") {
         kvConfig = std::make_unique<MagmaKVStoreConfig>(
-                config, numShards, shardId);
+                config, backend, numShards, shardId);
     }
 #endif
 #ifdef EP_USE_ROCKSDB
     else if (backend == "rocksdb") {
         kvConfig = std::make_unique<RocksDBKVStoreConfig>(
-                config, numShards, shardId);
+                config, backend, numShards, shardId);
     }
 #endif
     else {

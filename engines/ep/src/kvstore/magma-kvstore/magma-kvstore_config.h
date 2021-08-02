@@ -28,6 +28,7 @@ class MagmaKVStoreConfig : public KVStoreConfig {
 public:
     // Initialize the object from the central EPEngine Configuration
     MagmaKVStoreConfig(Configuration& config,
+                       std::string_view backend,
                        uint16_t numShards,
                        uint16_t shardid);
 

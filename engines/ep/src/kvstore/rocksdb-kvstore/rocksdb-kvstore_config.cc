@@ -14,9 +14,10 @@
 #include "configuration.h"
 
 RocksDBKVStoreConfig::RocksDBKVStoreConfig(Configuration& config,
+                                           std::string_view backend,
                                            uint16_t numShards,
                                            uint16_t shardid)
-    : KVStoreConfig(config, numShards, shardid) {
+    : KVStoreConfig(config, backend, numShards, shardid) {
     // The RocksDB Options, CFOptions and BBTOptions in 'configuration.json'
     // are comma-separated <option>=<value> pairs, but RocksDB can parse only
     // semicolon-separated option strings. We cannot use directly the semicolon

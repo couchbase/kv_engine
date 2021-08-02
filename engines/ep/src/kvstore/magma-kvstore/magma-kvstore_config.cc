@@ -37,9 +37,10 @@ private:
 };
 
 MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
+                                       std::string_view backend,
                                        uint16_t numShards,
                                        uint16_t shardid)
-    : KVStoreConfig(config, numShards, shardid) {
+    : KVStoreConfig(config, backend, numShards, shardid) {
     bucketQuota = config.getMaxSize();
     magmaDeleteMemtableWritecache = config.getMagmaDeleteMemtableWritecache();
     magmaDeleteFragRatio = config.getMagmaDeleteFragRatio();

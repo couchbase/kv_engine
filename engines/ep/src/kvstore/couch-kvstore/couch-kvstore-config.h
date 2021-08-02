@@ -20,6 +20,7 @@ public:
      * ep-engine Configuration instance.
      */
     CouchKVStoreConfig(Configuration& config,
+                       std::string_view backend,
                        uint16_t maxShards,
                        uint16_t shardId);
 

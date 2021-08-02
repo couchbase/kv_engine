@@ -126,7 +126,10 @@ protected:
      * This constructor intialises the object from a central
      * ep-engine Configuration instance.
      */
-    KVStoreConfig(Configuration& config, uint16_t numShards, uint16_t shardId);
+    KVStoreConfig(Configuration& config,
+                  std::string_view backend,
+                  uint16_t numShards,
+                  uint16_t shardId);
 
     /**
      * This constructor sets the mandatory config options
@@ -136,7 +139,7 @@ protected:
     KVStoreConfig(uint16_t _maxVBuckets,
                   uint16_t _maxShards,
                   std::string _dbname,
-                  std::string _backend,
+                  std::string_view _backend,
                   uint16_t _shardId);
 
     class ConfigChangeListener;

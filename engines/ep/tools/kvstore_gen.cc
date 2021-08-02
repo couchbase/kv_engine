@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
     Configuration config;
     config.parseConfiguration(("dbname="s + filename).c_str(),
                               get_mock_server_api());
-    CouchKVStoreConfig kvStoreConfig(config, 1, 0);
+    CouchKVStoreConfig kvStoreConfig(config, "couchdb", 1, 0);
     auto kvstore = KVStoreFactory::create(kvStoreConfig);
     vbucket_state state;
     state.transition.state = vbucket_state_active;

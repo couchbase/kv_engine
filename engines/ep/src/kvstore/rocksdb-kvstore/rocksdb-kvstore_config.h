@@ -25,6 +25,7 @@ class RocksDBKVStoreConfig : public KVStoreConfig {
 public:
     // Initialize the object from the central EPEngine Configuration
     RocksDBKVStoreConfig(Configuration& config,
+                         std::string_view backend,
                          uint16_t numShards,
                          uint16_t shardid);
 

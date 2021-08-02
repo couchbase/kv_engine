@@ -43,9 +43,10 @@ private:
 };
 
 CouchKVStoreConfig::CouchKVStoreConfig(Configuration& config,
+                                       std::string_view backend,
                                        uint16_t maxShards,
                                        uint16_t shardId)
-    : KVStoreConfig(config, maxShards, shardId), buffered(true) {
+    : KVStoreConfig(config, backend, maxShards, shardId), buffered(true) {
     setCouchstoreTracingEnabled(config.isCouchstoreTracing());
     config.addValueChangedListener(
             "couchstore_tracing",

@@ -252,18 +252,18 @@ void KVStoreBackend::setup(const std::string& dataDir,
 
     if (config.getBackend() == "couchdb") {
         kvstoreConfig = std::make_unique<CouchKVStoreConfig>(
-                config, workload.getNumShards(), 0 /*shardId*/);
+                config, backend, workload.getNumShards(), 0 /*shardId*/);
     }
 #ifdef EP_USE_ROCKSDB
     else if (config.getBackend() == "rocksdb") {
         kvstoreConfig = std::make_unique<RocksDBKVStoreConfig>(
-                config, workload.getNumShards(), 0 /*shardId*/);
+                config, backend, workload.getNumShards(), 0 /*shardId*/);
     }
 #endif
 #ifdef EP_USE_MAGMA
     else if (config.getBackend() == "magma") {
         kvstoreConfig = std::make_unique<MagmaKVStoreConfig>(
-                config, workload.getNumShards(), 0 /*shardId*/);
+                config, backend, workload.getNumShards(), 0 /*shardId*/);
     }
 #endif
     kvstore = setup_kv_store(*kvstoreConfig);
@@ -1407,8 +1407,11 @@ protected:
         WorkLoadPolicy workload(config.getMaxNumWorkers(),
                                 config.getMaxNumShards());
 
-        kvstoreConfig = std::make_unique<RocksDBKVStoreConfig>(
-                config, workload.getNumShards(), 0 /*shardId*/);
+        kvstoreConfig =
+                std::make_unique<RocksDBKVStoreConfig>(config,
+                                                       config.getBackend(),
+                                                       workload.getNumShards(),
+                                                       0 /*shardId*/);
         kvstore = setup_kv_store(*kvstoreConfig);
     }
 
@@ -1448,8 +1451,11 @@ TEST_F(RocksDBKVStoreTest, StatsTest) {
     WorkLoadPolicy workload(config.getMaxNumWorkers(),
                             config.getMaxNumShards());
 
-    kvstoreConfig = std::make_unique<RocksDBKVStoreConfig>(
-            config, workload.getNumShards(), 0 /*shardId*/);
+    kvstoreConfig =
+            std::make_unique<RocksDBKVStoreConfig>(config,
+                                                   config.getBackend(),
+                                                   workload.getNumShards(),
+                                                   0 /*shardId*/);
     // Close the opened DB instance
     kvstore.reset();
     // Re-open with the new configuration
@@ -1483,8 +1489,11 @@ TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
             get_mock_server_api());
     WorkLoadPolicy workload(config.getMaxNumWorkers(),
                             config.getMaxNumShards());
-    kvstoreConfig = std::make_unique<RocksDBKVStoreConfig>(
-            config, workload.getNumShards(), 0 /*shardId*/);
+    kvstoreConfig =
+            std::make_unique<RocksDBKVStoreConfig>(config,
+                                                   config.getBackend(),
+                                                   workload.getNumShards(),
+                                                   0 /*shardId*/);
 
     // Close the opened DB instance
     kvstore.reset();
@@ -1496,8 +1505,11 @@ TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
     config.parseConfiguration(
             (baseConfig + ";rocksdb_stats_level=kAll").c_str(),
             get_mock_server_api());
-    kvstoreConfig = std::make_unique<RocksDBKVStoreConfig>(
-            config, workload.getNumShards(), 0 /*shardId*/);
+    kvstoreConfig =
+            std::make_unique<RocksDBKVStoreConfig>(config,
+                                                   config.getBackend(),
+                                                   workload.getNumShards(),
+                                                   0 /*shardId*/);
     // Close the opened DB instance
     kvstore.reset();
     // Re-open with the new configuration

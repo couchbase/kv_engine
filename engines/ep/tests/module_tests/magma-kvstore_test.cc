@@ -37,8 +37,11 @@ protected:
         config.parseConfiguration(configStr.c_str(), get_mock_server_api());
         WorkLoadPolicy workload(config.getMaxNumWorkers(),
                                 config.getMaxNumShards());
-        kvstoreConfig = std::make_unique<MagmaKVStoreConfig>(
-                config, workload.getNumShards(), 0 /*shardId*/);
+        kvstoreConfig =
+                std::make_unique<MagmaKVStoreConfig>(config,
+                                                     config.getBackend(),
+                                                     workload.getNumShards(),
+                                                     0 /*shardId*/);
         kvstore = std::make_unique<MockMagmaKVStore>(*kvstoreConfig);
     }
 
