@@ -14,6 +14,14 @@
 #include "bucket_logger.h"
 #include "configuration.h"
 #include "environment.h"
+#include "kvstore/couch-kvstore/couch-kvstore-config.h"
+
+#ifdef EP_USE_MAGMA
+#include "kvstore/magma-kvstore/magma-kvstore_config.h"
+#endif
+#ifdef EP_USE_ROCKSDB
+#include "kvstore/rocksdb-kvstore/rocksdb-kvstore_config.h"
+#endif
 
 #include <memory>
 #include <utility>
@@ -110,4 +118,37 @@ KVStoreConfig& KVStoreConfig::setLogger(BucketLogger& _logger) {
 
 size_t KVStoreConfig::getCacheSize() const {
     return std::ceil(float(getMaxVBuckets()) / getMaxShards());
+}
+
+std::unique_ptr<KVStoreConfig> KVStoreConfig::createKVStoreConfig(
+        Configuration& config,
+        std::string_view backend,
+        uint16_t numShards,
+        uint16_t shardId) {
+    std::unique_ptr<KVStoreConfig> kvConfig;
+    if (backend == "couchdb") {
+        kvConfig = std::make_unique<CouchKVStoreConfig>(
+                config, numShards, shardId);
+    } else if (backend == "nexus") {
+        kvConfig = std::make_unique<CouchKVStoreConfig>(
+                config, numShards, shardId);
+    }
+#ifdef EP_USE_MAGMA
+    else if (backend == "magma") {
+        kvConfig = std::make_unique<MagmaKVStoreConfig>(
+                config, numShards, shardId);
+    }
+#endif
+#ifdef EP_USE_ROCKSDB
+    else if (backend == "rocksdb") {
+        kvConfig = std::make_unique<RocksDBKVStoreConfig>(
+                config, numShards, shardId);
+    }
+#endif
+    else {
+        throw std::logic_error(
+                "KVStoreConfig::createKVStoreConfig: Invalid backend type '" +
+                std::string(backend) + "'");
+    }
+    return kvConfig;
 }

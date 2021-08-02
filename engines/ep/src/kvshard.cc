@@ -16,14 +16,7 @@
 #include "ep_engine.h"
 #include "flusher.h"
 #include "kvshard.h"
-#include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/kvstore.h"
-#ifdef EP_USE_MAGMA
-#include "kvstore/magma-kvstore/magma-kvstore_config.h"
-#endif
-#ifdef EP_USE_ROCKSDB
-#include "kvstore/rocksdb-kvstore/rocksdb-kvstore_config.h"
-#endif
 
 /* [EPHE TODO]: Consider not using KVShard for ephemeral bucket */
 KVShard::KVShard(EventuallyPersistentEngine& engine, id_type id)
@@ -37,35 +30,18 @@ KVShard::KVShard(EventuallyPersistentEngine& engine, id_type id)
     const auto numShards = engine.getWorkLoadPolicy().getNumShards();
     auto& config = engine.getConfiguration();
     const std::string backend = config.getBackend();
-    if (backend == "couchdb") {
-        kvConfig = std::make_unique<CouchKVStoreConfig>(config, numShards, id);
-        rwStore = KVStoreFactory::create(*kvConfig);
-    } else if (backend == "nexus") {
-        kvConfig = std::make_unique<CouchKVStoreConfig>(config, numShards, id);
-        rwStore = KVStoreFactory::create(*kvConfig);
-    }
+
 #ifdef EP_USE_MAGMA
-    else if (backend == "magma") {
-        // magma has its own bloom filters and should not use
-        // kv_engine's bloom filters. Should save some memory.
+    if (backend == "magma") {
+        // magma has its own bloom filters and should not use kv_engine's bloom
+        // filters. Should save some memory.
         config.setBfilterEnabled(false);
-        kvConfig = std::make_unique<MagmaKVStoreConfig>(config, numShards, id);
-        rwStore = KVStoreFactory::create(*kvConfig);
     }
 #endif
-#ifdef EP_USE_ROCKSDB
-    else if (backend == "rocksdb") {
-        kvConfig =
-                std::make_unique<RocksDBKVStoreConfig>(config, numShards, id);
-        rwStore = KVStoreFactory::create(*kvConfig);
-    }
-#endif
-    else {
-        throw std::logic_error(
-                "KVShard::KVShard: "
-                "Invalid backend type '" +
-                backend + "'");
-    }
+
+    kvConfig =
+            KVStoreConfig::createKVStoreConfig(config, backend, numShards, id);
+    rwStore = KVStoreFactory::create(*kvConfig);
 }
 
 // Non-inline destructor so we can destruct

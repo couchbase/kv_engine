@@ -97,10 +97,7 @@ protected:
             state.SetLabel("Couchstore");
             config.parseConfiguration((configStr + ";backend=couchdb").c_str(),
                                       get_mock_server_api());
-            WorkLoadPolicy workload(config.getMaxNumWorkers(),
-                                    config.getMaxNumShards());
-            kvstoreConfig = std::make_unique<KVStoreConfig>(
-                    config, workload.getNumShards(), shardId);
+
             break;
         }
 #ifdef EP_USE_ROCKSDB
@@ -108,16 +105,16 @@ protected:
             state.SetLabel("CouchRocks");
             config.parseConfiguration((configStr + ";backend=rocksdb").c_str(),
                                       get_mock_server_api());
-            WorkLoadPolicy workload(config.getMaxNumWorkers(),
-                                    config.getMaxNumShards());
-            kvstoreConfig = std::make_unique<RocksDBKVStoreConfig>(
-                    config, workload.getNumShards(), shardId);
             break;
         }
 #endif
         }
+        WorkLoadPolicy workload(config.getMaxNumWorkers(),
+                                config.getMaxNumShards());
 
         // Initialize KVStore
+        kvstoreConfig = KVStoreConfig::createKVStoreConfig(
+                config, config.getBackend(), workload.getNumShards(), shardId);
         kvstore = setup_kv_store(*kvstoreConfig);
 
         // Load some data

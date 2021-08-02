@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <string>
 
 class BucketLogger;
@@ -21,21 +22,20 @@ class Configuration;
 class KVStoreConfig {
 public:
     /**
-     * This constructor intialises the object from a central
-     * ep-engine Configuration instance.
-     */
-    KVStoreConfig(Configuration& config, uint16_t numShards, uint16_t shardId);
-
-    /**
-     * This constructor sets the mandatory config options
+     * Generate a KVStoreConfig of the appropriate type using the given
+     * parameters.
      *
-     * Optional config options are set using a separate method
+     * @param config Bucket configuration
+     * @param backend The type of KVStoreConfig/KVStore to be created
+     * @param numShards Number of configured shard
+     * @param shardId ID of the shard that this KVStoreConfig will belong to
+     * @return KVStoreConfig
      */
-    KVStoreConfig(uint16_t _maxVBuckets,
-                  uint16_t _maxShards,
-                  std::string _dbname,
-                  std::string _backend,
-                  uint16_t _shardId);
+    static std::unique_ptr<KVStoreConfig> createKVStoreConfig(
+            Configuration& config,
+            std::string_view backend,
+            uint16_t numShards,
+            uint16_t shardId);
 
     KVStoreConfig(const KVStoreConfig& other);
 
@@ -122,6 +122,23 @@ public:
     size_t getCacheSize() const;
 
 protected:
+    /**
+     * This constructor intialises the object from a central
+     * ep-engine Configuration instance.
+     */
+    KVStoreConfig(Configuration& config, uint16_t numShards, uint16_t shardId);
+
+    /**
+     * This constructor sets the mandatory config options
+     *
+     * Optional config options are set using a separate method
+     */
+    KVStoreConfig(uint16_t _maxVBuckets,
+                  uint16_t _maxShards,
+                  std::string _dbname,
+                  std::string _backend,
+                  uint16_t _shardId);
+
     class ConfigChangeListener;
 
     uint16_t maxVBuckets;
