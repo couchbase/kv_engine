@@ -43,7 +43,7 @@ void Flush::saveCollectionStats(
         }
 
         // Get the current stats of the collection (for the seqno).
-        auto collsFlushStats = manifest.lock().getStatsForFlush(
+        auto collsFlushStats = manifest.get().lock().getStatsForFlush(
                 cid, flushStats.getPersistedHighSeqno());
 
         // Generate new stats, add the deltas from this flush batch for count
@@ -93,7 +93,8 @@ uint32_t Flush::countNonEmptyDroppedCollections() const {
         if (sItr == flushAccounting.getStats().end() ||
             !sItr->second.itemInBatch()) {
             const auto highSeqno =
-                    manifest.lock()
+                    manifest.get()
+                            .lock()
                             .getStatsForFlush(cid, dropped.endSeqno)
                             .highSeqno;
             if (highSeqno != 0 && highSeqno != dropped.startSeqno) {
@@ -130,7 +131,7 @@ void Flush::forEachDroppedCollection(
 // longer applicable and are not pushed to the VB::Manifest.
 void Flush::postCommitMakeStatsVisible() {
     for (const auto& [cid, flushStats] : flushAccounting.getStats()) {
-        auto lock = manifest.lock(cid);
+        auto lock = manifest.get().lock(cid);
         if (!lock.valid() ||
             lock.isLogicallyDeleted(flushStats.getPersistedHighSeqno())) {
             // Can be flushing for a dropped collection (no longer in the
@@ -161,7 +162,7 @@ void Flush::flushSuccess(Vbid vbid, EPBucket& bucket) {
 void Flush::notifyManifestOfAnyDroppedCollections() {
     for (const auto& [cid, droppedData] :
          flushAccounting.getDroppedCollections()) {
-        manifest.collectionDropPersisted(cid, droppedData.endSeqno);
+        manifest.get().collectionDropPersisted(cid, droppedData.endSeqno);
     }
 }
 
@@ -603,7 +604,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenScopes(
 }
 
 bool Flush::droppedCollectionsExists() const {
-    return manifest.isDropInProgress();
+    return manifest.get().isDropInProgress();
 }
 
 FlushAccounting::StatisticsUpdate Flush::getDroppedStats(CollectionID cid) {
@@ -668,6 +669,10 @@ void Flush::updateStats(const DocKey& key,
                                     wantsDropped)) {
         setReadyForCommit();
     }
+}
+
+void Flush::setManifest(Manifest& newManifest) {
+    manifest = newManifest;
 }
 
 } // namespace Collections::VB

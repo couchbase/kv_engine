@@ -129,6 +129,14 @@ public:
     void setManifestUid(ManifestUid uid);
 
     /**
+     * Set the manifest to the given manifest. Required by the NexusKVStore to
+     * generate a VB::Commit/Collections::Flush to track collections stats
+     * for the secondary KVStore without altering the stats tracked in the
+     * primary VB::Manifest.
+     */
+    void setManifest(Manifest& newManifest);
+
+    /**
      * Called after a flush was successful so that purging can be triggered and
      * statistic changes applied.
      */
@@ -351,7 +359,7 @@ private:
      * ref to the 'parent' manifest for this VB::Flusher, this will receive item
      * count updates
      */
-    Manifest& manifest;
+    std::reference_wrapper<Manifest> manifest;
 
     /**
      * Flushing counts how many non-empty collections were committed and uses
