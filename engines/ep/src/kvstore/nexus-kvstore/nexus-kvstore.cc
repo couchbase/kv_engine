@@ -23,6 +23,7 @@ NexusKVStore::NexusKVStore(NexusKVStoreConfig& config) : configuration(config) {
 
 void NexusKVStore::deinitialize() {
     primary->deinitialize();
+    secondary->deinitialize();
 }
 
 void NexusKVStore::addStats(const AddStatFn& add_stat,
@@ -47,10 +48,11 @@ void NexusKVStore::addTimingStats(const AddStatFn& add_stat,
 
 void NexusKVStore::resetStats() {
     primary->resetStats();
+    secondary->resetStats();
 }
 
 size_t NexusKVStore::getMemFootPrint() const {
-    return primary->getMemFootPrint();
+    return primary->getMemFootPrint() + secondary->getMemFootPrint();
 }
 
 bool NexusKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
@@ -100,6 +102,7 @@ GetValue NexusKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
 
 void NexusKVStore::setMaxDataSize(size_t size) {
     primary->setMaxDataSize(size);
+    secondary->setMaxDataSize(size);
 }
 
 void NexusKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) const {
@@ -120,6 +123,7 @@ void NexusKVStore::del(TransactionContext& txnCtx, queued_item item) {
 
 void NexusKVStore::delVBucket(Vbid vbucket, uint64_t fileRev) {
     primary->delVBucket(vbucket, fileRev);
+    secondary->delVBucket(vbucket, fileRev);
 }
 
 std::vector<vbucket_state*> NexusKVStore::listPersistedVbuckets() {
@@ -138,7 +142,8 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
 
 void NexusKVStore::abortCompactionIfRunning(
         std::unique_lock<std::mutex>& vbLock, Vbid vbid) {
-    return primary->abortCompactionIfRunning(vbLock, vbid);
+    primary->abortCompactionIfRunning(vbLock, vbid);
+    secondary->abortCompactionIfRunning(vbLock, vbid);
 }
 
 vbucket_state* NexusKVStore::getCachedVBucketState(Vbid vbid) {
@@ -173,6 +178,7 @@ RollbackResult NexusKVStore::rollback(Vbid vbid,
 
 void NexusKVStore::pendingTasks() {
     primary->pendingTasks();
+    secondary->pendingTasks();
 }
 
 cb::engine_errc NexusKVStore::getAllKeys(
@@ -184,7 +190,8 @@ cb::engine_errc NexusKVStore::getAllKeys(
 }
 
 bool NexusKVStore::supportsHistoricalSnapshots() const {
-    return primary->supportsHistoricalSnapshots();
+    return primary->supportsHistoricalSnapshots() &&
+           secondary->supportsHistoricalSnapshots();
 }
 
 std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
@@ -249,6 +256,7 @@ const KVStoreConfig& NexusKVStore::getConfig() const {
 
 void NexusKVStore::setStorageThreads(ThreadPoolConfig::StorageThreadCount num) {
     primary->setStorageThreads(num);
+    secondary->setStorageThreads(num);
 }
 
 std::unique_ptr<TransactionContext> NexusKVStore::begin(
@@ -279,10 +287,15 @@ bool NexusKVStore::snapshotStats(const nlohmann::json& stats) {
 
 void NexusKVStore::prepareToCreate(Vbid vbid) {
     primary->prepareToCreate(vbid);
+    secondary->prepareToCreate(vbid);
 }
 
 uint64_t NexusKVStore::prepareToDelete(Vbid vbid) {
-    return primary->prepareToDelete(vbid);
+    auto primaryResult = primary->prepareToDelete(vbid);
+    auto secondaryResult = secondary->prepareToDelete(vbid);
+    Expects(primaryResult == secondaryResult);
+
+    return primaryResult;
 }
 
 uint64_t NexusKVStore::getLastPersistedSeqno(Vbid vbid) {
@@ -304,9 +317,14 @@ void NexusKVStore::delSystemEvent(TransactionContext& txnCtx,
 }
 
 uint64_t NexusKVStore::prepareToDeleteImpl(Vbid vbid) {
-    return primary->prepareToDeleteImpl(vbid);
+    auto primaryResult = primary->prepareToDeleteImpl(vbid);
+    auto secondaryResult = secondary->prepareToDeleteImpl(vbid);
+    Expects(primaryResult == secondaryResult);
+
+    return primaryResult;
 }
 
 void NexusKVStore::prepareToCreateImpl(Vbid vbid) {
     primary->prepareToCreateImpl(vbid);
+    secondary->prepareToCreateImpl(vbid);
 }
