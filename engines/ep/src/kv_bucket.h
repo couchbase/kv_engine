@@ -28,6 +28,7 @@
 class DurabilityCompletionTask;
 class ReplicationThrottle;
 class VBucketCountVisitor;
+class DatatypeStatVisitor;
 namespace Collections {
 class Manager;
 }
@@ -802,6 +803,14 @@ protected:
             const VBucketCountVisitor& pending,
             const VBucketCountVisitor& dead,
             const BucketStatCollector& collector);
+
+    /**
+     * Helper method used by getAggregatedVBucketStats to output aggregated
+     * datatype stats.
+     */
+    void appendDatatypeStats(const DatatypeStatVisitor& active,
+                             const DatatypeStatVisitor& replica,
+                             const BucketStatCollector& collector);
 
     /**
      * Returns the callback function to be invoked when SyncWrite(s) have been
