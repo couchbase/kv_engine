@@ -2733,6 +2733,60 @@ TEST_P(CheckpointTest, CheckpointItemToString) {
     EXPECT_EQ("cid:0x1:0x1:0x63:_scope", event->getKey().to_string());
 }
 
+// This test drives the checkpoint manager with the events of MB-47516. Trying
+// to force the bug from higher level constructs is not possible in a single
+// threaded test without a hook to inject expel at the right moment.
+// The MB itself saw a pending vbucket receive a disk-snapshot and then a DCP
+// takeover switches the VB to active. A set-vbstate which occurs when the take
+// over stream is accepted places a set-vbstate meta-item as the last item in
+// the open/disk checkpoint. Next as the takeover stream runs
+// "KVBucket::setVbucketState" expel triggers in between two checkpoint manager
+// calls leaving the closed checkpoint in a bad state.
+TEST_P(CheckpointTest, MB_47516) {
+    // running for persistence only is a simplification of the test so we can
+    // just use the persistence cursor to drive the issue
+    if (!persistent()) {
+        return;
+    }
+
+    // mimic the MB, note disk/memory doesn't really matter, or the range
+    // of the snapshot - the issue is that a combination of renumbering the
+    // vbstate item + expel allows registerCursor to operate incorrectly
+
+    // 1) Receive a snapshot, two items is plenty for the test
+    this->manager->createSnapshot(1001, 1002, 1002, CheckpointType::Disk, 1002);
+    ASSERT_TRUE(this->queueNewItem("k1001")); // 1001
+    ASSERT_TRUE(this->queueNewItem("k1002")); // 1002
+
+    // 1.1) persist these, cursor now past them and we can expel
+    std::vector<queued_item> items;
+    manager->getNextItemsForPersistence(items);
+    // we get the cp start and our two items
+    EXPECT_EQ(3, items.size());
+
+    // 2) A set-vbstate needs to occur - this happens when a takeover stream is
+    //    accepted and queues the new vbstate.
+    this->manager->queueSetVBState(*vbucket);
+
+    // 3) Expel occurs in the middle of the state switch - between
+    //    queueSetVBState and createNewCheckpoint. This is the second
+    //    part of the MB leaving checkpoint in a bad state. registerCursor
+    //    from this point can return the incorrect seqno
+    auto expel = this->manager->expelUnreferencedCheckpointItems();
+    // cp start and our keys are expelled
+    EXPECT_EQ(3, expel.expelCount);
+
+    // Note in this test we don't need to call createNewCheckpoint, the damage
+    // was done without.
+
+    // Items 1001/1002 were expelled - we should not get a cursor for them. So
+    // ask for all data, we should be told to try backfill and be given a cursor
+    // for the high-seqno+1 (the next in-memory item)
+    auto cursor = this->manager->registerCursorBySeqno("MB_47516", 0);
+    EXPECT_TRUE(cursor.tryBackfill);
+    EXPECT_EQ(1003, cursor.seqno);
+}
+
 INSTANTIATE_TEST_SUITE_P(
         AllVBTypesAllEvictionModes,
         CheckpointTest,
