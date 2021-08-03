@@ -476,13 +476,8 @@ void STParameterizedBucketTest::SetUp() {
         config_string += ";";
     }
     auto bucketType = std::get<0>(GetParam());
-    if (bucketType == "persistentRocksdb") {
-        config_string += "bucket_type=persistent;backend=rocksdb";
-    } else if (bucketType == "persistentMagma") {
-        config_string += "bucket_type=persistent;backend=magma";
-    } else {
-        config_string += "bucket_type=" + bucketType;
-    }
+    config_string += generateBucketTypeConfig(bucketType);
+
     auto evictionPolicy = std::get<1>(GetParam());
 
     if (!evictionPolicy.empty()) {

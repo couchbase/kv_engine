@@ -299,3 +299,42 @@ void removePathIfExists(const std::string& path) {
         }
     }
 }
+
+std::string getBucketType(std::string_view config) {
+    if (config.find("persistent") != std::string::npos) {
+        return "persistent";
+    }
+    return "ephemeral";
+}
+
+std::string generateBucketTypeConfig(std::string_view config) {
+    std::string ret = "bucket_type=";
+    if (config.find("persistent") != std::string::npos) {
+        ret += "persistent;";
+        ret += generateBackendConfig(config);
+    } else {
+        ret += config;
+    }
+
+    return ret;
+}
+
+std::string generateBackendConfig(std::string_view config) {
+    std::string ret = "backend=";
+    if (config.find("persistent") == std::string::npos) {
+        throw std::invalid_argument(
+                "Not a persistent bucket, backend not applicable");
+    }
+
+    auto backendStart = config.find("_") + 1;
+    auto backendEnd = config.substr(backendStart).find("_");
+    auto backend = config.substr(backendStart, backendEnd);
+
+    if (backend == "couchstore") {
+        backend = "couchdb";
+    }
+
+    ret += backend;
+
+    return ret;
+}

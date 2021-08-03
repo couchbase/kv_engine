@@ -1871,9 +1871,9 @@ public:
     static auto configValues() {
         return ::testing::Values(
 #ifdef EP_USE_MAGMA
-                std::make_tuple("persistentMagma"s, "value_only"s),
+                std::make_tuple("persistent_magma"s, "value_only"s),
 #endif
-                std::make_tuple("persistent"s, "value_only"s));
+                std::make_tuple("persistent_couchstore"s, "value_only"s));
     }
 };
 

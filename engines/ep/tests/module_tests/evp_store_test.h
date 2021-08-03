@@ -60,21 +60,23 @@ public:
         using namespace std::string_literals;
         return ::testing::Values(
 #ifdef EP_USE_ROCKSDB
-                std::make_tuple("persistentRocksdb"s, "value_only"s, false),
-                std::make_tuple("persistentRocksdb"s, "value_only"s, true),
-                std::make_tuple("persistentRocksdb"s, "full_eviction"s, false),
-                std::make_tuple("persistentRocksdb"s, "full_eviction"s, true),
+                std::make_tuple("persistent_rocksdb"s, "value_only"s, false),
+                std::make_tuple("persistent_rocksdb"s, "value_only"s, true),
+                std::make_tuple("persistent_rocksdb"s, "full_eviction"s, false),
+                std::make_tuple("persistent_rocksdb"s, "full_eviction"s, true),
 #endif
 #ifdef EP_USE_MAGMA
-                std::make_tuple("persistentMagma"s, "value_only"s, false),
-                std::make_tuple("persistentMagma"s, "value_only"s, true),
-                std::make_tuple("persistentMagma"s, "full_eviction"s, false),
-                std::make_tuple("persistentMagma"s, "full_eviction"s, true),
+                std::make_tuple("persistent_magma"s, "value_only"s, false),
+                std::make_tuple("persistent_magma"s, "value_only"s, true),
+                std::make_tuple("persistent_magma"s, "full_eviction"s, false),
+                std::make_tuple("persistent_magma"s, "full_eviction"s, true),
 #endif
-                std::make_tuple("persistent"s, "value_only"s, false),
-                std::make_tuple("persistent"s, "value_only"s, true),
-                std::make_tuple("persistent"s, "full_eviction"s, false),
-                std::make_tuple("persistent"s, "full_eviction"s, true));
+                std::make_tuple("persistent_couchstore"s, "value_only"s, false),
+                std::make_tuple("persistent_couchstore"s, "value_only"s, true),
+                std::make_tuple(
+                        "persistent_couchstore"s, "full_eviction"s, false),
+                std::make_tuple(
+                        "persistent_couchstore"s, "full_eviction"s, true));
     }
 
 protected:

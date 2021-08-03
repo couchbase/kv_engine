@@ -56,9 +56,13 @@ using namespace std::string_view_literals;
 using ::testing::ElementsAre;
 
 void StreamTest::SetUp() {
-    bucketType = GetParam();
-    if (bucketType == "persistentMagma") {
-        bucketType = "persistent;backend=magma;" + magmaConfig;
+    bucketType = getBucketType(GetParam());
+    if (bucketType == "persistent") {
+        config_string += generateBackendConfig(GetParam());
+    }
+
+    if (bucketType == "persistent_magma") {
+        bucketType += magmaConfig;
     }
     DCPTest::SetUp();
     vb0 = engine->getVBucket(Vbid(0));
@@ -1444,7 +1448,8 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
                          StreamTest,
-                         ::testing::Values("persistent", "ephemeral"),
+                         ::testing::Values("persistent_couchstore",
+                                           "ephemeral"),
                          [](const ::testing::TestParamInfo<std::string>& info) {
                              return info.param;
                          });
@@ -1452,7 +1457,8 @@ INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
                          CacheCallbackTest,
-                         ::testing::Values("persistent", "ephemeral"),
+                         ::testing::Values("persistent_couchstore",
+                                           "ephemeral"),
                          [](const ::testing::TestParamInfo<std::string>& info) {
                              return info.param;
                          });

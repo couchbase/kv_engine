@@ -1120,11 +1120,7 @@ public:
         }
 
         auto bucketType = getBucketType();
-        if (bucketType == "persistentMagma") {
-            config_string += "bucket_type=persistent;backend=magma";
-        } else {
-            config_string += "bucket_type=" + bucketType;
-        }
+        config_string += generateBackendConfig(bucketType);
 
         auto evictionPolicy = getEvictionPolicy();
         config_string += ";item_eviction_policy=" + evictionPolicy;
@@ -1145,10 +1141,10 @@ public:
     static auto persistentConfigValues() {
         using namespace std::string_literals;
         return ::testing::Combine(
-                ::testing::Values("persistent"s
+                ::testing::Values("persistent_couchstore"s
 #ifdef EP_USE_MAGMA
                                   ,
-                                  "persistentMagma"s
+                                  "persistent_magma"s
 #endif
                                   ),
                 ::testing::Values("value_only"s, "full_eviction"s),

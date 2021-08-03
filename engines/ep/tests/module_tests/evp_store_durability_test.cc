@@ -594,7 +594,7 @@ void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
     // beforehand is breaking something.
 #ifdef THREAD_SANITIZER
     auto bucketType = std::get<0>(GetParam());
-    if (bucketType == "persistentRocksdb") {
+    if (isRocksDB()) {
         return;
     }
 #endif
@@ -1397,7 +1397,7 @@ void DurabilityEPBucketTest::verifyOnDiskItemCount(VBucket& vb,
     // skip for rocksdb as it treats every mutation as an insertion
     // and so we would expect a different item count compared with couchstore
     auto bucketType = std::get<0>(GetParam());
-    if (bucketType == "persistentRocksdb") {
+    if (isRocksDB()) {
         return;
     }
     EXPECT_EQ(expectedValue, vb.getNumTotalItems());
@@ -1408,7 +1408,7 @@ void DurabilityEPBucketTest::verifyCollectionItemCount(VBucket& vb,
                                                        uint64_t expectedValue) {
     // skip for rocksdb as it dose not perform item counting for collections
     auto bucketType = std::get<0>(GetParam());
-    if (bucketType == "persistentRocksdb") {
+    if (isRocksDB()) {
         return;
     }
     {

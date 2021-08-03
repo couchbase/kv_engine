@@ -2502,7 +2502,7 @@ TEST_F(CollectionsTest, PerCollectionDiskSizeRollback) {
  */
 StatChecker::PostFunc getPrepareStatCheckerPostFuncForBackend(
         std::string backend, StatChecker::PostFunc fn) {
-    if (backend.find("Magma") != std::string::npos) {
+    if (backend.find("magma") != std::string::npos) {
         // Magma doesn't currently track prepares as we remove them during
         // compaction and we don't know if we are removing a stale one or not,
         // making it impossible to count them accurately. As such we also cannot

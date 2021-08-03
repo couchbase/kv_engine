@@ -30,9 +30,9 @@ public:
         using namespace std::string_literals;
         return ::testing::Values(
 #ifdef EP_USE_MAGMA
-                "persistentMagma",
+                "persistent_magma",
 #endif
-                "persistent",
+                "persistent_couchstore",
                 "ephemeral");
     }
 
@@ -40,9 +40,9 @@ public:
         using namespace std::string_literals;
         return ::testing::Values(
 #ifdef EP_USE_MAGMA
-                "persistentMagma",
+                "persistent_magma",
 #endif
-                "persistent");
+                "persistent_couchstore");
     }
 
 protected:

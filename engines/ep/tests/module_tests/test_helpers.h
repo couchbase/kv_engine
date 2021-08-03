@@ -191,3 +191,37 @@ void modifyCouchstoreVBState(
  * @throws std::system_error If the removal fails for reason other than ENOENT
  */
 void removePathIfExists(const std::string& path);
+
+/**
+ * Get the bucket type from the config string
+ *
+ * @param config Test config string
+ * @return Bucket type
+ */
+std::string getBucketType(std::string_view config);
+
+/**
+ * Generate a bucket type + bucket backend config string from the test config
+ * string
+ *
+ * e.g. "persistent_couchstore" -> "bucketType=persistent;backend=couchdb"
+ * e.g. "persistent_magma" -> "bucketType=persistent;backend=magma"
+ * e.g. "ephemeral" -> "bucketType=ephemeral"
+ *
+ * @param config Test config string
+ * @return Bucket config string
+ */
+std::string generateBucketTypeConfig(std::string_view config);
+
+/**
+ * Generate a bucket backend config string from the test config string
+ *
+ * e.g. "persistent_couchstore" -> "backend=couchdb"
+ * e.g. "persistent_magma" -> "backend=magma"
+ * e.g. "ephemeral" -> throws
+ *
+ * @param config Test config string
+ * @return Bucket config string
+ * @throws invalid_argument if not a persistent bucket type
+ */
+std::string generateBackendConfig(std::string_view config);

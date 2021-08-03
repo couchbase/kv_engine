@@ -392,12 +392,12 @@ public:
         return ::testing::Values(
                 std::make_tuple("ephemeral"s, "auto_delete"s),
                 std::make_tuple("ephemeral"s, "fail_new_data"),
-                std::make_tuple("persistent"s, "value_only"s),
-                std::make_tuple("persistent"s, "full_eviction"s)
+                std::make_tuple("persistent_couchstore"s, "value_only"s),
+                std::make_tuple("persistent_couchstore"s, "full_eviction"s)
 #ifdef EP_USE_MAGMA
                         ,
-                std::make_tuple("persistentMagma"s, "value_only"s),
-                std::make_tuple("persistentMagma"s, "full_eviction"s)
+                std::make_tuple("persistent_magma"s, "value_only"s),
+                std::make_tuple("persistent_magma"s, "full_eviction"s)
 #endif
         );
     }
@@ -407,19 +407,19 @@ public:
         return ::testing::Values(
                 std::make_tuple("ephemeral"s, "auto_delete"s),
                 std::make_tuple("ephemeral"s, "fail_new_data"),
-                std::make_tuple("persistent"s, "value_only"s),
-                std::make_tuple("persistent"s, "full_eviction"s));
+                std::make_tuple("persistent_couchstore"s, "value_only"s),
+                std::make_tuple("persistent_couchstore"s, "full_eviction"s));
     }
 
     static auto persistentConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
-                std::make_tuple("persistent"s, "value_only"s),
-                std::make_tuple("persistent"s, "full_eviction"s)
+                std::make_tuple("persistent_couchstore"s, "value_only"s),
+                std::make_tuple("persistent_couchstore"s, "full_eviction"s)
 #ifdef EP_USE_MAGMA
                         ,
-                std::make_tuple("persistentMagma"s, "value_only"s),
-                std::make_tuple("persistentMagma"s, "full_eviction"s)
+                std::make_tuple("persistent_magma"s, "value_only"s),
+                std::make_tuple("persistent_magma"s, "full_eviction"s)
 #endif
         );
     }
@@ -427,34 +427,33 @@ public:
     static auto couchstoreConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
-                std::make_tuple("persistent"s, "value_only"s),
-                std::make_tuple("persistent"s, "full_eviction"s));
+                std::make_tuple("persistent_couchstore"s, "value_only"s),
+                std::make_tuple("persistent_couchstore"s, "full_eviction"s));
     }
 
 #ifdef EP_USE_MAGMA
     static auto magmaConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
-                std::make_tuple("persistentMagma"s, "value_only"s),
-                std::make_tuple("persistentMagma"s, "full_eviction"s)
-        );
+                std::make_tuple("persistent_magma"s, "value_only"s),
+                std::make_tuple("persistent_magma"s, "full_eviction"s));
     }
 #endif
 
     static auto persistentAllBackendsConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
-                std::make_tuple("persistent"s, "value_only"s),
-                std::make_tuple("persistent"s, "full_eviction"s)
+                std::make_tuple("persistent_couchstore"s, "value_only"s),
+                std::make_tuple("persistent_couchstore"s, "full_eviction"s)
 #ifdef EP_USE_MAGMA
                         ,
-                std::make_tuple("persistentMagma"s, "value_only"s),
-                std::make_tuple("persistentMagma"s, "full_eviction"s)
+                std::make_tuple("persistent_magma"s, "value_only"s),
+                std::make_tuple("persistent_magma"s, "full_eviction"s)
 #endif
 #ifdef EP_USE_ROCKSDB
                         ,
-                std::make_tuple("persistentRocksdb"s, "value_only"s),
-                std::make_tuple("persistentRocksdb"s, "full_eviction"s)
+                std::make_tuple("persistent_rocksdb"s, "value_only"s),
+                std::make_tuple("persistent_rocksdb"s, "full_eviction"s)
 #endif
         );
     }
@@ -463,12 +462,12 @@ public:
         using namespace std::string_literals;
         return ::testing::Values(
 #ifdef EP_USE_ROCKSDB
-                std::make_tuple("persistentRocksdb"s, "full_eviction"s),
+                std::make_tuple("persistent_rocksdb"s, "full_eviction"s),
 #endif
 #ifdef EP_USE_MAGMA
-                std::make_tuple("persistentMagma"s, "full_eviction"s),
+                std::make_tuple("persistent_magma"s, "full_eviction"s),
 #endif
-                std::make_tuple("persistent"s, "full_eviction"s));
+                std::make_tuple("persistent_couchstore"s, "full_eviction"s));
     }
 
     bool persistent() const {
@@ -488,11 +487,11 @@ public:
     }
 
     bool isRocksDB() const {
-        return std::get<0>(GetParam()).find("Rocksdb") != std::string::npos;
+        return std::get<0>(GetParam()).find("rocksdb") != std::string::npos;
     }
 
     bool isMagma() const {
-        return std::get<0>(GetParam()).find("Magma") != std::string::npos;
+        return std::get<0>(GetParam()).find("magma") != std::string::npos;
     }
 
     std::string getBackend() const {

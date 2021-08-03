@@ -999,13 +999,9 @@ class ConnectionTest : public DCPTest,
 protected:
     void SetUp() override {
         bucketType = std::get<0>(GetParam());
-        if (bucketType == "persistentMagma") {
+        if (bucketType.find("persistent") != std::string::npos) {
+            config_string += generateBackendConfig(bucketType);
             bucketType = "persistent";
-            if (!config_string.empty()) {
-                config_string += ";";
-            }
-            config_string += "backend=magma;";
-            config_string += magmaConfig;
         }
         DCPTest::SetUp();
         vbid = Vbid(0);
