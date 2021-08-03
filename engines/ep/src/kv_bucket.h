@@ -201,7 +201,16 @@ public:
     void snapshotStats(bool shuttingDown) override;
 
     void getAggregatedVBucketStats(
-            const BucketStatCollector& collector) override;
+            const BucketStatCollector& collector,
+            cb::prometheus::Cardinality cardinality) override;
+
+    /**
+     * Helper to default to collecting all stats, while avoiding default args
+     * on a virtual method.
+     */
+    void getAggregatedVBucketStats(const BucketStatCollector& collector) {
+        getAggregatedVBucketStats(collector, cb::prometheus::Cardinality::All);
+    }
 
     void completeBGFetchMulti(Vbid vbId,
                               std::vector<bgfetched_item_t>& fetchedItems,

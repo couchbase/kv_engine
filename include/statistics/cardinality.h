@@ -16,6 +16,8 @@ namespace cb::prometheus {
  * request
  *  * low cardinality: per-bucket or global instance stats
  *  * high cardinality: per-collection/per-scope stats
+ *  * all: include metrics from both low and high cardinality groups (e.g.,
+ *         for code shared with cbstats)
  */
-enum class Cardinality { Low, High };
+enum class Cardinality { Low, High, All };
 } // namespace cb::prometheus

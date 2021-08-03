@@ -2983,7 +2983,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
     collector.addStat(Key::ep_flush_duration_total,
                       epstats.cumulativeFlushTime);
 
-    kvBucket->getAggregatedVBucketStats(collector);
+    kvBucket->getAggregatedVBucketStats(collector,
+                                        cb::prometheus::Cardinality::Low);
 
     kvBucket->getFileStats(collector);
 
@@ -3110,6 +3111,9 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
 cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
         const BucketStatCollector& collector) {
     configuration.addStats(collector);
+
+    kvBucket->getAggregatedVBucketStats(collector,
+                                        cb::prometheus::Cardinality::High);
 
     EPStats& epstats = getEpStats();
 
