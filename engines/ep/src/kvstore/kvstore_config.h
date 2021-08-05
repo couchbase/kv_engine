@@ -49,6 +49,10 @@ public:
         return maxShards;
     }
 
+    void setDBName(std::string dbName) {
+        dbname = dbName;
+    }
+
     std::string getDBName() const {
         return dbname;
     }

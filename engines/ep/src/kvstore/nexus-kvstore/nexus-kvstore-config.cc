@@ -13,6 +13,8 @@
 
 #include "configuration.h"
 
+#include <platform/dirutils.h>
+
 NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
                                        std::string_view backend,
                                        uint16_t numShards,
@@ -22,7 +24,13 @@ NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
     primaryConfig = KVStoreConfig::createKVStoreConfig(
             config, primaryBackend, numShards, shardId);
 
+    primaryConfig->setDBName(primaryConfig->getDBName() +
+                             cb::io::DirectorySeparator + "nexus-primary");
+
     auto secondaryBackend = config.getNexusSecondaryBackend();
     secondaryConfig = KVStoreConfig::createKVStoreConfig(
             config, secondaryBackend, numShards, shardId);
+
+    secondaryConfig->setDBName(secondaryConfig->getDBName() +
+                               cb::io::DirectorySeparator + "nexus-secondary");
 }
