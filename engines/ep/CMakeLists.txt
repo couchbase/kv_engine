@@ -391,9 +391,11 @@ SET_PROPERTY(TARGET ep_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 cb_enable_unity_build(ep_objs)
 
 # MB-46833: Suspect a gcc bug where consumer.cc + producer.cc together fails.
-# Here we will build producer.cc alone and avoid the issue only on gcc
+# Here we will build producer.cc alone and avoid the issue only on gcc. Same is
+# seen for warmup.cc.
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 set_source_files_properties(src/dcp/producer.cc
+                            src/warmup.cc
                             PROPERTIES SKIP_UNITY_BUILD_INCLUSION 1)
 endif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 
