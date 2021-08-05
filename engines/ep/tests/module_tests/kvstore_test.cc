@@ -11,6 +11,7 @@
 #include "kvstore_test.h"
 
 #include "bucket_logger.h"
+#include "collections/collection_persisted_stats.h"
 #include "item.h"
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/couch-kvstore/couch-kvstore.h"

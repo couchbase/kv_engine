@@ -59,4 +59,7 @@ struct PersistedStats {
     cb::NonNegativeCounter<uint64_t> highSeqno;
     cb::NonNegativeCounter<uint64_t> diskSize;
 };
+
+std::ostream& operator<<(std::ostream& os, const PersistedStats& ps);
+
 } // namespace Collections::VB

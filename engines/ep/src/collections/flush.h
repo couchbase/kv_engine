@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include "collections/collection_persisted_stats.h"
 #include "collections/collections_types.h"
 #include "collections/flush_accounting.h"
 #include "collections/kvstore.h"
@@ -26,6 +25,7 @@ class EPBucket;
 namespace Collections::VB {
 
 class Manifest;
+struct PersistedStats;
 
 /**
  * The Collections::VB::Flush object maintains data used in a single run of the

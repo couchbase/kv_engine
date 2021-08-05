@@ -74,4 +74,11 @@ std::string PersistedStats::getLebEncodedStats() const {
     data.append(leb.begin(), leb.end());
     return data;
 }
+
+std::ostream& operator<<(std::ostream& os, const PersistedStats& ps) {
+    os << "{itemCount:" << ps.itemCount << " highSeqno:" << ps.highSeqno
+       << " diskSize:" << ps.diskSize << "}";
+    return os;
+}
+
 } // namespace Collections::VB

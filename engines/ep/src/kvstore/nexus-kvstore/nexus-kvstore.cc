@@ -12,6 +12,7 @@
 #include "nexus-kvstore.h"
 
 #include "bucket_logger.h"
+#include "collections/collection_persisted_stats.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "kvstore/kvstore_transaction_context.h"

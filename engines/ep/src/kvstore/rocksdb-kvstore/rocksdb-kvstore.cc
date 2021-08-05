@@ -13,6 +13,7 @@
 #include "rocksdb-kvstore_config.h"
 
 #include "bucket_logger.h"
+#include "collections/collection_persisted_stats.h"
 #include "ep_time.h"
 #include "item.h"
 #include "kvstore/kvstore_priv.h"
@@ -1406,6 +1407,14 @@ RocksDBKVStore::RocksDBHandle::RocksDBHandle(const RocksDBKVStore& kvstore,
 
 std::unique_ptr<KVFileHandle> RocksDBKVStore::makeFileHandle(Vbid vbid) const {
     return std::make_unique<RocksDBHandle>(*this, *rdb);
+}
+
+std::pair<bool, Collections::VB::PersistedStats>
+RocksDBKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
+                                   CollectionID collection) const {
+    // TODO JWW 2018-07-30 implement this, for testing purposes return dummy
+    // values of 0 to imply the function didn't fail
+    return {true, Collections::VB::PersistedStats()};
 }
 
 std::unique_ptr<BySeqnoScanContext> RocksDBKVStore::initBySeqnoScanContext(

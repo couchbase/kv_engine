@@ -14,6 +14,7 @@
  */
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
+#include "collections/collection_persisted_stats.h"
 #include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/backfill-manager.h"

@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include "collections/collection_persisted_stats.h"
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_priv.h"
 #include "kvstore/kvstore_transaction_context.h"

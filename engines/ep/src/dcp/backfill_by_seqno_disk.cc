@@ -10,6 +10,7 @@
  */
 
 #include "dcp/backfill_by_seqno_disk.h"
+#include "collections/collection_persisted_stats.h"
 #include "dcp/active_stream_impl.h"
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"

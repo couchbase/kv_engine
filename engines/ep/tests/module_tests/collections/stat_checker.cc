@@ -9,6 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "collections/collection_persisted_stats.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
 

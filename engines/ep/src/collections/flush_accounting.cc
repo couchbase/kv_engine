@@ -10,6 +10,7 @@
  */
 
 #include "collections/flush_accounting.h"
+#include "collections/collection_persisted_stats.h"
 #include "systemevent_factory.h"
 
 namespace Collections::VB {

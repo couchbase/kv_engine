@@ -15,6 +15,7 @@
 #include "../couchstore/tests/test_fileops.h"
 #include "../mock/mock_ep_bucket.h"
 #include "checkpoint_utils.h"
+#include "collections/collection_persisted_stats.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_vb.h"
 #include "kvstore/couch-kvstore/couch-kvstore.h"

@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include "collections/collection_persisted_stats.h"
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"
 #include "objectregistry.h"
@@ -285,11 +284,7 @@ public:
 
     std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
             const KVFileHandle& kvFileHandle,
-            CollectionID collection) const override {
-        // TODO JWW 2018-07-30 implement this, for testing purposes return dummy
-        // values of 0 to imply the function didn't fail
-        return {true, Collections::VB::PersistedStats()};
-    }
+            CollectionID collection) const override;
 
     void prepareToCreateImpl(Vbid vbid) override {
         // TODO DJR 2017-05-19 implement this.
