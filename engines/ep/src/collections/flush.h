@@ -121,6 +121,14 @@ public:
             const std::vector<Collections::KVStore::DroppedCollection>& v);
 
     /**
+     * Set the ManifestUid from the create/drop events (but only the greatest
+     * observed). May also be called by the KVStore should a flush require a
+     * stats update that doesn't add/remove a collection to set the current
+     * manifest uid.
+     */
+    void setManifestUid(ManifestUid uid);
+
+    /**
      * Called after a flush was successful so that purging can be triggered and
      * statistic changes applied.
      */
@@ -278,12 +286,6 @@ public:
     bool isOpen(CollectionID cid) const;
 
 private:
-    /**
-     * Set the ManifestUid from the create/drop events (but only the greatest
-     * observed).
-     */
-    void setManifestUid(ManifestUid in);
-
     /**
      * After all flushed items and system events have been processed this
      * function counts how many non-empty collections were dropped.

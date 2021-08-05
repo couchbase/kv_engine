@@ -1874,6 +1874,11 @@ TEST_P(CollectionsEraserPersistentOnly,
     flushVBucketToDiskIfPersistent(vbid, 1);
     EXPECT_EQ(0, vb->getNumItems());
 
+    auto [status, manifest] =
+            store->getRWUnderlying(vbid)->getCollectionsManifest(vbid);
+    ASSERT_TRUE(status);
+    EXPECT_EQ(3, manifest.manifestUid);
+
     // Collection Purge
     EXPECT_EQ(1,
               (*task_executor->getLpTaskQ()[WRITER_TASK_IDX])

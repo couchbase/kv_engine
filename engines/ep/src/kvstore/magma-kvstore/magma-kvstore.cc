@@ -1296,7 +1296,16 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
         return Status::Invalid;
     }
 
+    auto [getManifestStatus, manifest] = getCollectionsManifest(vbid);
+    if (!getManifestStatus) {
+        logger->warn(
+                "MagmaKVStore::saveDocs {} Failed to get collections manifest",
+                vbid);
+        return Status::Invalid;
+    }
+
     commitData.collections.setDroppedCollectionsForStore(dropped);
+    commitData.collections.setManifestUid(manifest.manifestUid);
 
     auto status = magma->WriteDocs(vbid.get(),
                                    writeOps,
