@@ -63,6 +63,8 @@ public:
         engine.reset(nullptr);
         ObjectRegistry::onSwitchThread(nullptr);
     };
+
+    void testOperationsInterlockedWithWarmup(bool abortWarmup);
 };
 
 // Test that the FreqSaturatedCallback of a vbucket is initialized and after
@@ -246,9 +248,22 @@ TEST_F(WarmupTest, MB_27162) {
     EXPECT_EQ(3, itemMeta.revSeqno);
 }
 
-// MB-25197 and MB-34422
-// Some operations must block until warmup has loaded the vbuckets
 TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
+    testOperationsInterlockedWithWarmup(false);
+}
+
+TEST_F(WarmupTest, OperationsInterlockedWithWarmupCancelled) {
+    testOperationsInterlockedWithWarmup(true);
+}
+
+/**
+ * MB-25197, MB-34422 and MB-47851.
+ * Some operations must block until warmup has loaded the vbuckets
+ * Two variants of test - either let warmup complete successfully
+ * (abortWarmup=false), or abort it before cookies would normally be notified.
+ * In both cases all cookies should be unblocked.
+ */
+void WarmupTest::testOperationsInterlockedWithWarmup(bool abortWarmup) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     store_item(vbid, makeStoredDocKey("key1"), "value");
@@ -289,74 +304,92 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
 
             };
 
-    while (engine->getKVBucket()->maybeWaitForVBucketWarmup(cookie)) {
-        CheckedExecutor executor(task_executor, readerQueue);
-        // Do a setVBState but don't flush it through. This call should be
-        // failed ewouldblock whilst warmup has yet to attempt to create VBs.
-        EXPECT_EQ(cb::engine_errc::would_block,
-                  store->setVBucketState(vbid,
-                                         vbucket_state_active,
-                                         {},
-                                         TransferVB::No,
-                                         setVBStateCookie));
+    // Perform requests for each of the different calls which should return
+    // EWOULDBLOCK if called before populateVBucketMap has completed.
 
-        EXPECT_EQ(cb::engine_errc::would_block,
-                  engine->get_failover_log(getFailoverCookie,
-                                           1 /*opaque*/,
-                                           vbid,
-                                           fakeDcpAddFailoverLog));
-
-        EXPECT_EQ(
-                cb::engine_errc::would_block,
-                engine->get_stats(statsCookie1, "vbucket", {}, dummyAddStats));
-
-        EXPECT_EQ(cb::engine_errc::would_block,
-                  engine->get_stats(
-                          statsCookie2, "vbucket-details", {}, dummyAddStats));
-
-        EXPECT_EQ(cb::engine_errc::would_block,
-                  engine->get_stats(
-                          statsCookie3, "vbucket-seqno", {}, dummyAddStats));
-
-        EXPECT_EQ(cb::engine_errc::would_block,
-                  engine->deleteVBucket(delVbCookie, vbid, true));
-
-        executor.runCurrentTask();
-    }
-
-    for (const auto& n : notifications) {
-        EXPECT_GT(get_number_of_mock_cookie_io_notifications(n.first),
-                  n.second);
-    }
-
-    EXPECT_NE(nullptr, store->getVBuckets().getBucket(vbid));
-
-    EXPECT_EQ(cb::engine_errc::success,
+    // Do a setVBState but don't flush it through. This call should be
+    // failed ewouldblock whilst warmup has yet to attempt to create VBs.
+    EXPECT_EQ(cb::engine_errc::would_block,
               store->setVBucketState(vbid,
                                      vbucket_state_active,
                                      {},
                                      TransferVB::No,
                                      setVBStateCookie));
 
-    EXPECT_EQ(cb::engine_errc::success,
+    EXPECT_EQ(cb::engine_errc::would_block,
               engine->get_failover_log(getFailoverCookie,
                                        1 /*opaque*/,
                                        vbid,
                                        fakeDcpAddFailoverLog));
 
-    EXPECT_EQ(cb::engine_errc::success,
+    EXPECT_EQ(cb::engine_errc::would_block,
               engine->get_stats(statsCookie1, "vbucket", {}, dummyAddStats));
 
-    EXPECT_EQ(cb::engine_errc::success,
+    EXPECT_EQ(cb::engine_errc::would_block,
               engine->get_stats(
                       statsCookie2, "vbucket-details", {}, dummyAddStats));
 
-    EXPECT_EQ(cb::engine_errc::success,
+    EXPECT_EQ(cb::engine_errc::would_block,
               engine->get_stats(
                       statsCookie3, "vbucket-seqno", {}, dummyAddStats));
 
-    EXPECT_EQ(cb::engine_errc::success,
-              engine->deleteVBucket(delVbCookie, vbid, false));
+    EXPECT_EQ(cb::engine_errc::would_block,
+              engine->deleteVBucket(delVbCookie, vbid, true));
+
+    // Unblock cookies - either by aborting warmup, or advancing warmup
+    // far enough that the request can be issued successfully.
+    if (abortWarmup) {
+        engine->initiate_shutdown();
+        engine->cancel_all_operations_in_ewb_state();
+    } else {
+        // Per warmup advance normally, until we have completed
+        // populateVBucketMap.
+        while (engine->getKVBucket()->maybeWaitForVBucketWarmup(cookie)) {
+            CheckedExecutor executor(task_executor, readerQueue);
+            executor.runCurrentTask();
+        }
+        EXPECT_NE(nullptr, store->getVBuckets().getBucket(vbid));
+    }
+
+    // Should have received one more notification than started with, and
+    // with appropriate status code.
+    const auto expectedStatus = abortWarmup ? cb::engine_errc::disconnect
+                                            : cb::engine_errc::success;
+    for (const auto& n : notifications) {
+        EXPECT_EQ(n.second + 1,
+                  get_number_of_mock_cookie_io_notifications(n.first));
+        EXPECT_EQ(expectedStatus, cookie_to_mock_cookie(n.first)->status);
+    }
+
+    if (!abortWarmup) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  store->setVBucketState(vbid,
+                                         vbucket_state_active,
+                                         {},
+                                         TransferVB::No,
+                                         setVBStateCookie));
+
+        EXPECT_EQ(cb::engine_errc::success,
+                  engine->get_failover_log(getFailoverCookie,
+                                           1 /*opaque*/,
+                                           vbid,
+                                           fakeDcpAddFailoverLog));
+
+        EXPECT_EQ(
+                cb::engine_errc::success,
+                engine->get_stats(statsCookie1, "vbucket", {}, dummyAddStats));
+
+        EXPECT_EQ(cb::engine_errc::success,
+                  engine->get_stats(
+                          statsCookie2, "vbucket-details", {}, dummyAddStats));
+
+        EXPECT_EQ(cb::engine_errc::success,
+                  engine->get_stats(
+                          statsCookie3, "vbucket-seqno", {}, dummyAddStats));
+
+        EXPECT_EQ(cb::engine_errc::success,
+                  engine->deleteVBucket(delVbCookie, vbid, false));
+    }
 
     // finish warmup so the test can exit
     while (engine->getKVBucket()->isWarmingUp()) {
