@@ -161,6 +161,7 @@ LibeventServerSocketImpl::LibeventServerSocketImpl(
 }
 
 LibeventServerSocketImpl::~LibeventServerSocketImpl() {
+    interface->valid.store(false, std::memory_order_release);
     std::string tagstr;
     if (!interface->tag.empty()) {
         tagstr = " \"" + interface->tag + "\"";
@@ -256,8 +257,7 @@ void LibeventServerSocketImpl::acceptNewClient() {
         return;
     }
 
-    FrontEndThread::dispatch(
-            client, interface->system, interface->port, std::move(ssl));
+    FrontEndThread::dispatch(client, interface, std::move(ssl));
 }
 
 nlohmann::json LibeventServerSocketImpl::toJson() const {

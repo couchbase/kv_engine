@@ -8,6 +8,7 @@
  */
 #include "network_interface_manager.h"
 
+#include "connection.h"
 #include "front_end_thread.h"
 #include "listening_port.h"
 #include "log_macros.h"
@@ -93,6 +94,7 @@ void NetworkInterfaceManager::event_handler() {
 
         bool changes = false;
         auto interfaces = Settings::instance().getInterfaces();
+        bool interfaces_dropped = false;
 
         // Step one, enable all new ports
         bool success = true;
@@ -189,6 +191,7 @@ void NetworkInterfaceManager::event_handler() {
                     // erase returns the element following this one (or end())
                     changes = true;
                     iter = listen_conn.erase(iter);
+                    interfaces_dropped = true;
                 } else {
                     // look at the next element
                     ++iter;
@@ -207,6 +210,11 @@ void NetworkInterfaceManager::event_handler() {
         if (changes) {
             // Try to write all of the changes, ignore errors
             writeInterfaceFile(false);
+        }
+
+        if (interfaces_dropped) {
+            iterate_all_connections(
+                    [](auto& conn) { conn.reEvaluateParentPort(); });
         }
     }
 }

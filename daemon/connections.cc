@@ -57,15 +57,14 @@ void iterate_thread_connections(FrontEndThread* thread,
 
 Connection* conn_new(SOCKET sfd,
                      FrontEndThread& thread,
-                     bool system,
-                     in_port_t parent_port,
+                     std::shared_ptr<ListeningPort> descr,
                      uniqueSslPtr ssl) {
     std::unique_ptr<Connection> ret;
     Connection* c = nullptr;
 
     try {
         ret = std::make_unique<Connection>(
-                sfd, thread, system, parent_port, std::move(ssl));
+                sfd, thread, std::move(descr), std::move(ssl));
         getConnections().wlock()->push_back(ret.get());
         c = ret.release();
         stats.total_conns++;
