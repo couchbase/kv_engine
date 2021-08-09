@@ -1221,13 +1221,11 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
         addVBStateUpdateToLocalDbReqs(
                 localDbReqs, vbstate, kvstoreRevList[getCacheSlot(vbid)]);
 
-        commitData.collections.saveCollectionStats(
-                [this, &localDbReqs](
-                        CollectionID cid,
-                        const Collections::VB::PersistedStats& stats) {
-                    saveCollectionStats(localDbReqs, cid, stats);
-                });
-
+        // We have to update the collections meta before we save the collections
+        // stats because the drop of a collection will delete "alive" stats doc
+        // for the collection but a drop + create in the same batch needs to
+        // overwrite the original doc with the new variant. So, we delete it
+        // here then recreate it below in that case.
         if (commitData.collections.isReadyForCommit()) {
             auto status = updateCollectionsMeta(
                     vbid, localDbReqs, commitData.collections);
@@ -1240,6 +1238,14 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                 return status;
             }
         }
+
+        commitData.collections.saveCollectionStats(
+                [this, &localDbReqs](
+                        CollectionID cid,
+                        const Collections::VB::PersistedStats& stats) {
+                    saveCollectionStats(localDbReqs, cid, stats);
+                });
+
         addLocalDbReqs(localDbReqs, postWriteOps);
         auto now = std::chrono::steady_clock::now();
         saveDocsDuration =

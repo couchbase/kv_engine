@@ -3060,6 +3060,15 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     EXPECT_EQ(systemeventSize + itemSize, stats.diskSize);
     EXPECT_EQ(highSeqno, stats.highSeqno);
 
+    auto kvstore = store->getRWUnderlying(vbid);
+    auto kvstoreHandle = kvstore->makeFileHandle(vbid);
+    auto [statsResult, diskStats] =
+            kvstore->getCollectionStats(*kvstoreHandle, target.getId());
+    ASSERT_TRUE(statsResult);
+    EXPECT_EQ(highSeqno, diskStats.highSeqno);
+    EXPECT_EQ(systemeventSize + itemSize, diskStats.diskSize);
+    EXPECT_EQ(1, diskStats.itemCount);
+
     delete_item(vbid, key1);
     itemSize = key1.size() + MetaData::getMetaDataSize(MetaData::Version::V1);
     if (isMagma()) {
@@ -3072,6 +3081,13 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     EXPECT_EQ(systemeventSize + itemSize, stats.diskSize);
     highSeqno++;
     EXPECT_EQ(highSeqno, stats.highSeqno);
+
+    kvstoreHandle = kvstore->makeFileHandle(vbid);
+    std::tie(statsResult, diskStats) =
+            kvstore->getCollectionStats(*kvstoreHandle, target.getId());
+    EXPECT_EQ(highSeqno, diskStats.highSeqno);
+    EXPECT_EQ(systemeventSize + itemSize, diskStats.diskSize);
+    EXPECT_EQ(0, diskStats.itemCount);
 }
 
 TEST_P(CollectionsDcpPersistentOnly, create_drop_create_same_id_stats) {
