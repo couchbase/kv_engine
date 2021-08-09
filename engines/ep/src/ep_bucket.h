@@ -221,6 +221,8 @@ public:
 
     void warmupCompleted();
 
+    void releaseBlockedCookies() override;
+
     bool canEvictFromReplicas() override {
         return true;
     }

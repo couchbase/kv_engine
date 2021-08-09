@@ -825,7 +825,7 @@ ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
     return result;
 }
 
-void KVBucket::releaseRegisteredSyncWrites() {
+void KVBucket::releaseBlockedCookies() {
     for (size_t vbid = 0; vbid < vbMap.size; ++vbid) {
         VBucketPtr vb = vbMap.getBucket(Vbid{gsl::narrow<uint16_t>(vbid)});
         if (!vb) {

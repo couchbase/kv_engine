@@ -288,7 +288,6 @@ bool EPBucket::initialize() {
 void EPBucket::deinitialize() {
     stopFlusher();
     stopBgFetcher();
-    stopWarmup();
 
     KVBucket::deinitialize();
 
@@ -1960,4 +1959,12 @@ bool EPBucket::isValidBucketDurabilityLevel(cb::durability::Level level) const {
         return true;
     }
     folly::assume_unreachable();
+}
+
+void EPBucket::releaseBlockedCookies() {
+    KVBucket::releaseBlockedCookies();
+
+    // Stop warmup (if not yet completed) which will unblock any cookies which
+    // were held pending if they were received before populateVBucketMap phase.
+    stopWarmup();
 }
