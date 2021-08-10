@@ -12,12 +12,20 @@
 
 #include <memcached/tracer.h>
 #include <memory>
+#include <optional>
 
 namespace cb::mcbp {
 class Header;
 enum class Status : uint16_t;
 } // namespace cb::mcbp
 
+namespace cb::rbac {
+class PrivilegeAccess;
+enum class Privilege;
+} // namespace cb::rbac
+
+class CollectionID;
+class ScopeID;
 class Tenant;
 using protocol_binary_datatype_t = uint8_t;
 
@@ -78,6 +86,22 @@ public:
     /// Check if the requested datatype is supported by the connection.
     virtual bool isDatatypeSupported(
             protocol_binary_datatype_t datatype) const = 0;
+
+    /**
+     * Test if the cookie posess the requested privilege in its effective
+     * set.
+     *
+     * @param privilege The privilege to check
+     * @param sid If the privilege is not found for the bucket, try looking in
+     *            this scope.
+     * @param cid If the privilege is not found for the scope, try looking in
+     *            this collection.
+     * @throws invalid_argument if cid defined but not sid
+     */
+    virtual cb::rbac::PrivilegeAccess testPrivilege(
+            cb::rbac::Privilege privilege,
+            std::optional<ScopeID> sid,
+            std::optional<CollectionID> cid) const = 0;
 
     /**
      * Inflate the value (if deflated); caching the inflated value inside the

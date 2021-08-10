@@ -12,6 +12,8 @@
 
 #include <mcbp/protocol/status.h>
 
+MockCookie::CheckPrivilegeFunction MockCookie::checkPrivilegeFunction;
+
 MockCookie::MockCookie(EngineIface* e) : engine(e) {
 }
 
@@ -139,6 +141,17 @@ void MockCookie::handleIoComplete(cb::engine_errc completeStatus) {
     num_io_notifications++;
     cond.notify_all();
     unlock();
+}
+
+cb::rbac::PrivilegeAccess MockCookie::testPrivilege(
+        cb::rbac::Privilege privilege,
+        std::optional<ScopeID> sid,
+        std::optional<CollectionID> cid) const {
+    if (checkPrivilegeFunction) {
+        return checkPrivilegeFunction(*this, privilege, sid, cid);
+    }
+
+    return cb::rbac::PrivilegeAccessOk;
 }
 
 MockCookie* cookie_to_mock_cookie(const CookieIface* cookie) {

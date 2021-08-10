@@ -2475,7 +2475,7 @@ static enum test_result test_key_stats_eaccess(EngineIface* h) {
 
     auto* cookie = testHarness->create_cookie(h);
 
-    mock_set_check_privilege_function(
+    MockCookie::setCheckPrivilegeFunction(
             [](const CookieIface&,
                cb::rbac::Privilege,
                std::optional<ScopeID>,
@@ -2485,7 +2485,7 @@ static enum test_result test_key_stats_eaccess(EngineIface* h) {
 
     const auto ret = h->get_stats(*cookie, "key k1 0"sv, {}, add_stats);
     // Reset priv check function
-    mock_set_check_privilege_function({});
+    MockCookie::setCheckPrivilegeFunction({});
     checkeq(cb::engine_errc::no_access,
             ret,
             "Expected stats key to return no access");

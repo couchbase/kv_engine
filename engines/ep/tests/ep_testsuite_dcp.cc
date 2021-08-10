@@ -7496,7 +7496,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     verify_all_vb_seqnos(h, 0, -1, CollectionID(9));
 
     // Priv checking
-    mock_set_check_privilege_function(
+    MockCookie::setCheckPrivilegeFunction(
             [](const CookieIface& c,
                cb::rbac::Privilege priv,
                std::optional<ScopeID> sid,
@@ -7509,7 +7509,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     get_all_vb_seqnos(
             h, RequestedVBState::Active, cookie, 8, cb::engine_errc::no_access);
     get_all_vb_seqnos(h, RequestedVBState::Active, cookie, 9);
-    mock_set_check_privilege_function(
+    MockCookie::setCheckPrivilegeFunction(
             [](const CookieIface& c,
                cb::rbac::Privilege priv,
                std::optional<ScopeID> sid,
@@ -7522,7 +7522,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
                       {},
                       cb::engine_errc::no_access);
 
-    mock_reset_check_privilege_function();
+    MockCookie::setCheckPrivilegeFunction({});
     /*
      * What happens when we don't tell the server that we can talk collections?
      */

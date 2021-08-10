@@ -125,7 +125,23 @@ public:
 
     void waitForNotifications(std::unique_lock<std::mutex>& lock);
 
-private:
+    using CheckPrivilegeFunction = std::function<cb::rbac::PrivilegeAccess(
+            const CookieIface&,
+            cb::rbac::Privilege,
+            std::optional<ScopeID>,
+            std::optional<CollectionID>)>;
+    static void setCheckPrivilegeFunction(CheckPrivilegeFunction func) {
+        checkPrivilegeFunction = std::move(func);
+    }
+
+    cb::rbac::PrivilegeAccess testPrivilege(
+            cb::rbac::Privilege privilege,
+            std::optional<ScopeID> sid,
+            std::optional<CollectionID> cid) const override;
+
+protected:
+    static CheckPrivilegeFunction checkPrivilegeFunction;
+
     void* engine_data{nullptr};
     uint32_t sfd{};
     cb::engine_errc status{cb::engine_errc::success};
@@ -143,8 +159,6 @@ private:
     DcpConnHandlerIface* connHandlerIface = nullptr;
 
     cb::compression::Buffer inflated_payload;
-
-    static const uint64_t MAGIC = 0xbeefcafecafebeefULL;
     EngineIface* engine = nullptr;
 };
 

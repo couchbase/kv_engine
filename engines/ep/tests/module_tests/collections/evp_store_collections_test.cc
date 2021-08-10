@@ -3113,15 +3113,16 @@ class CollectionsRbacTest : public CollectionsTest {
 public:
     void SetUp() override {
         CollectionsTest::SetUp();
-        mock_reset_check_privilege_function();
+        MockCookie::setCheckPrivilegeFunction({});
         mock_set_privilege_context_revision(0);
     }
     std::set<CollectionID> noAccessCids;
 
-    CheckPrivilegeFunction checkPriv = [this](const CookieIface&,
-                                              cb::rbac::Privilege priv,
-                                              std::optional<ScopeID> sid,
-                                              std::optional<CollectionID> cid)
+    MockCookie::CheckPrivilegeFunction checkPriv =
+            [this](const CookieIface&,
+                   cb::rbac::Privilege priv,
+                   std::optional<ScopeID> sid,
+                   std::optional<CollectionID> cid)
             -> cb::rbac::PrivilegeAccess {
         if (cid && noAccessCids.find(*cid) != noAccessCids.end()) {
             return cb::rbac::PrivilegeAccessFailNoPrivileges;
@@ -3131,13 +3132,13 @@ public:
 
     void setNoAccess(CollectionID noaccess) {
         noAccessCids.insert(noaccess);
-        mock_set_check_privilege_function(checkPriv);
+        MockCookie::setCheckPrivilegeFunction(checkPriv);
         mock_set_privilege_context_revision(
                 mock_get_privilege_context_revision() + 1);
     }
 
     void TearDown() override {
-        mock_reset_check_privilege_function();
+        MockCookie::setCheckPrivilegeFunction({});
         mock_set_privilege_context_revision(0);
         CollectionsTest::TearDown();
     }

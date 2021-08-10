@@ -1229,13 +1229,13 @@ TEST_F(CollectionsVBFilterTest, snappy_event) {
 
 class CollectionsVBFilterAccessControlTest : public CollectionsVBFilterTest {
     void TearDown() override {
-        mock_reset_check_privilege_function();
+        MockCookie::setCheckPrivilegeFunction({});
         CollectionsVBFilterTest::TearDown();
     }
 };
 
 TEST_F(CollectionsVBFilterAccessControlTest, no_privilege_for_passthrough) {
-    mock_set_check_privilege_function(
+    MockCookie::setCheckPrivilegeFunction(
             [](const CookieIface&,
                cb::rbac::Privilege priv,
                std::optional<ScopeID> sid,
@@ -1265,7 +1265,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, no_privilege_for_passthrough) {
 }
 
 TEST_F(CollectionsVBFilterAccessControlTest, privilege_for_passthrough) {
-    mock_set_check_privilege_function(
+    MockCookie::setCheckPrivilegeFunction(
             [](const CookieIface&,
                cb::rbac::Privilege priv,
                std::optional<ScopeID> sid,
@@ -1295,7 +1295,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_collection) {
     // privilege.
     CollectionID noAccessTo = CollectionEntry::fruit.getId();
 
-    mock_set_check_privilege_function(
+    MockCookie::setCheckPrivilegeFunction(
             [noAccessTo](const CookieIface&,
                          cb::rbac::Privilege priv,
                          std::optional<ScopeID> sid,
@@ -1336,7 +1336,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_collections) {
     // Make check bucket fail, looks like the connection has no bucket.DcpStream
     // privilege.
     CollectionID noAccessTo = CollectionEntry::fruit.getId();
-    mock_set_check_privilege_function(
+    MockCookie::setCheckPrivilegeFunction(
             [noAccessTo](const CookieIface&,
                          cb::rbac::Privilege priv,
                          std::optional<ScopeID> sid,
@@ -1375,7 +1375,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_scope) {
     // privilege.
     ScopeID noAccessTo = ScopeEntry::shop1.getId();
 
-    mock_set_check_privilege_function(
+    MockCookie::setCheckPrivilegeFunction(
             [noAccessTo](const CookieIface&,
                          cb::rbac::Privilege priv,
                          std::optional<ScopeID> sid,

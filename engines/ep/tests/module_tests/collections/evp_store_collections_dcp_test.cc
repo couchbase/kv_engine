@@ -2150,18 +2150,18 @@ class CollectionsDcpCloseAfterLosingPrivs
     : public CollectionsDcpParameterizedTest {
 public:
     void SetUp() override {
-        mock_reset_check_privilege_function();
+        MockCookie::setCheckPrivilegeFunction({});
         mock_set_privilege_context_revision(0);
         CollectionsDcpParameterizedTest::SetUp();
     }
     void TearDown() override {
-        mock_reset_check_privilege_function();
+        MockCookie::setCheckPrivilegeFunction({});
         mock_set_privilege_context_revision(0);
         CollectionsDcpParameterizedTest::TearDown();
     }
 
     void setNoAccess(CollectionID noaccess) {
-        mock_set_check_privilege_function(
+        MockCookie::setCheckPrivilegeFunction(
                 [noaccess](const CookieIface&,
                            cb::rbac::Privilege priv,
                            std::optional<ScopeID> sid,

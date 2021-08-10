@@ -167,15 +167,6 @@ struct MockServerDocumentApi : public ServerDocumentIface {
     }
 };
 
-static CheckPrivilegeFunction checkPrivilegeFunction;
-void mock_set_check_privilege_function(CheckPrivilegeFunction function) {
-    checkPrivilegeFunction = std::move(function);
-}
-
-void mock_reset_check_privilege_function() {
-    checkPrivilegeFunction = nullptr;
-}
-
 static uint32_t privilege_context_revision = 0;
 void mock_set_privilege_context_revision(uint32_t rev) {
     privilege_context_revision = rev;
@@ -228,22 +219,15 @@ struct MockServerCookieApi : public ServerCookieIface {
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) override {
-        if (checkPrivilegeFunction) {
-            return checkPrivilegeFunction(cookie, privilege, sid, cid);
-        }
-
-        return cb::rbac::PrivilegeAccessOk;
+        return cookie.testPrivilege(privilege, sid, cid);
     }
+
     cb::rbac::PrivilegeAccess test_privilege(
             const CookieIface& cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) override {
-        if (checkPrivilegeFunction) {
-            return checkPrivilegeFunction(cookie, privilege, sid, cid);
-        }
-
-        return cb::rbac::PrivilegeAccessOk;
+        return cookie.testPrivilege(privilege, sid, cid);
     }
 
     uint32_t get_privilege_context_revision(

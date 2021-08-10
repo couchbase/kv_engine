@@ -739,7 +739,7 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
 cb::rbac::PrivilegeAccess Cookie::testPrivilege(
         cb::rbac::Privilege privilege,
         std::optional<ScopeID> sid,
-        std::optional<CollectionID> cid) {
+        std::optional<CollectionID> cid) const {
     using cb::rbac::PrivilegeAccess;
     auto ret = testPrivilege(privilegeContext, privilege, sid, cid);
 
@@ -754,7 +754,7 @@ cb::rbac::PrivilegeAccess Cookie::testPrivilege(
         const cb::rbac::PrivilegeContext& ctx,
         cb::rbac::Privilege privilege,
         std::optional<ScopeID> sid,
-        std::optional<CollectionID> cid) {
+        std::optional<CollectionID> cid) const {
     return ctx.check(privilege, sid, cid);
 }
 

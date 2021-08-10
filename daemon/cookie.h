@@ -519,9 +519,10 @@ public:
      *            this collection.
      * @throws invalid_argument if cid defined but not sid
      */
-    cb::rbac::PrivilegeAccess testPrivilege(cb::rbac::Privilege privilege,
-                                            std::optional<ScopeID> sid,
-                                            std::optional<CollectionID> cid);
+    cb::rbac::PrivilegeAccess testPrivilege(
+            cb::rbac::Privilege privilege,
+            std::optional<ScopeID> sid,
+            std::optional<CollectionID> cid) const override;
 
     /// Get the underlying privilege context
     const cb::rbac::PrivilegeContext& getPrivilegeContext() const {
@@ -587,7 +588,7 @@ protected:
             const cb::rbac::PrivilegeContext& ctx,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
-            std::optional<CollectionID> cid);
+            std::optional<CollectionID> cid) const;
 
     /**
      * Is OpenTelemetry enabled for this cookie or not. By querying the
