@@ -174,11 +174,6 @@ public:
                                               uint64_t manifestUid) override {
         wrapped->set_unknown_collection_error_context(cookie, manifestUid);
     }
-    std::string_view get_inflated_payload(
-            const CookieIface& cookie,
-            const cb::mcbp::Request& request) override {
-        throw std::runtime_error("get_inflated_payload not implemented");
-    }
 
 protected:
     ServerCookieIface* wrapped;

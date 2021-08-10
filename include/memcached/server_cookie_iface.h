@@ -323,14 +323,4 @@ struct ServerCookieIface {
      */
     virtual void set_unknown_collection_error_context(CookieIface& cookie,
                                                       uint64_t manifestUid) = 0;
-
-    /**
-     * Get the inflated payload associated with this command
-     * @param cookie The cookie representing this command
-     * param request The request (only used by the mock test framework
-     *               to inflate on the fly)
-     * @return the inflated payload
-     */
-    virtual std::string_view get_inflated_payload(
-            const CookieIface& cookie, const cb::mcbp::Request& request) = 0;
 };

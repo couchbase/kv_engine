@@ -232,11 +232,6 @@ struct ServerCookieApi : public ServerCookieIface {
                                               uint64_t manifestUid) override {
         getCookie(cookie).setUnknownCollectionErrorContext(manifestUid);
     }
-
-    std::string_view get_inflated_payload(const CookieIface& cookie,
-                                          const cb::mcbp::Request&) override {
-        return getCookie(cookie).getInflatedInputPayload();
-    }
 };
 
 class ServerApiImpl : public ServerApi {

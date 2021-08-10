@@ -314,15 +314,6 @@ struct MockServerCookieApi : public ServerCookieIface {
                                               uint64_t manifestUid) override {
     }
 
-    std::string_view get_inflated_payload(
-            const CookieIface& cookie,
-            const cb::mcbp::Request& request) override {
-        auto* c = cookie_to_mock_cookie(&cookie);
-        c->inflateInputPayload(
-                reinterpret_cast<const cb::mcbp::Header&>(request));
-        return c->getInflatedInputPayload();
-    }
-
     void notify_io_complete(const CookieIface& cookie,
                             cb::engine_errc status) override {
         auto& c = cookie_to_mock_cookie(cookie);
