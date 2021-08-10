@@ -459,6 +459,12 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaInitialWalBufferSize();
     configuration.magmaCfg.WALSyncTime = 0ms;
     configuration.magmaCfg.EnableWAL = configuration.getMagmaEnableWAL();
+    configuration.magmaCfg.EnableGroupCommit =
+            configuration.getMagmaEnableGroupCommit();
+    configuration.magmaCfg.GroupCommitMaxSyncWaitDuration =
+            configuration.getMagmaGroupCommitMaxSyncWaitDuration();
+    configuration.magmaCfg.GroupCommitMaxTransactionCount =
+            configuration.getMagmaGroupCommitMaxTransactionCount();
     configuration.magmaCfg.ExpiryFragThreshold =
             configuration.getMagmaExpiryFragThreshold();
     configuration.magmaCfg.KVStorePurgerInterval =

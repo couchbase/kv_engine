@@ -135,6 +135,18 @@ public:
         return magmaEnableWAL;
     }
 
+    bool getMagmaEnableGroupCommit() const {
+        return magmaEnableGroupCommit;
+    }
+
+    std::chrono::milliseconds getMagmaGroupCommitMaxSyncWaitDuration() const {
+        return magmaGroupCommitMaxSyncWaitDuration;
+    }
+
+    size_t getMagmaGroupCommitMaxTransactionCount() const {
+        return magmaGroupCommitMaxTransactionCount;
+    }
+
     magma::Magma::Config magmaCfg;
 
 private:
@@ -271,4 +283,34 @@ private:
 
     float magmaBloomFilterAccuracy;
     float magmaBloomFilterAccuracyForBottomLevel;
+
+    /**
+     * Group Commit allows transactions in magma to be grouped
+     * together to reduce the number of WAL fsyncs. When a
+     * transaction is ready to fsync, if there are new transactions
+     * waiting to start, we stall the transaction waiting to fsync
+     * until there are no more transactions waiting to start for
+     * a given magma instance.
+     */
+    bool magmaEnableGroupCommit;
+
+    /**
+     * When group commit is enabled, magma_group_commit_max_sync_wait_duration
+     * can be used as a limit to how long a stalled transaction will wait
+     * before the WAL fsync is enabled regardless if there are
+     * transactions waiting to execute. If the oldest transaction waiting
+     * has been waint for magmaGroupCommitMaxSyncWaitDuration or longer,
+     * the current transaction will trigger the WAL fsync.
+     */
+    std::chrono::milliseconds magmaGroupCommitMaxSyncWaitDuration;
+
+    /**
+     * When group commit is enabled, magma_group_commit_max_transaction_count
+     * can be used as a limit to how long a stalled transaction will wait
+     * before the WAL fsync is enabled regardless if there are
+     * transactions waiting to execute. If the current transaction plus the
+     * count of waiting transactions >= magmaGroupCommitMaxTransactionCount,
+     * the current transaction will trigger the WAL fsync.
+     */
+    size_t magmaGroupCommitMaxTransactionCount;
 };

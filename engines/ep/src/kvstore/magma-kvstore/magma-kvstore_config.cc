@@ -73,6 +73,11 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaBloomFilterAccuracyForBottomLevel =
             config.getMagmaBloomFilterAccuracyForBottomLevel();
     magmaEnableWAL = config.isMagmaEnableWal();
+    magmaEnableGroupCommit = config.isMagmaEnableGroupCommit();
+    magmaGroupCommitMaxSyncWaitDuration = std::chrono::milliseconds(
+            config.getMagmaGroupCommitMaxSyncWaitDurationMs());
+    magmaGroupCommitMaxTransactionCount =
+            config.getMagmaGroupCommitMaxTransactionCount();
 
     config.addValueChangedListener(
             "magma_fragmentation_percentage",

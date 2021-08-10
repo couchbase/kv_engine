@@ -1231,6 +1231,24 @@
             "descr": "Percentage of storage threads that are flusher threads (i.e. with a value of 20 we will allocate 4 (1/5th) of the storage threads to flushers and the remaining 16 (4/5ths) threads will be compactors).",
             "type": "size_t"
         },
+        "magma_enable_group_commit": {
+            "default": "false",
+            "desr": "Group Commit allows transactions in magma to be grouped together to reduce the number of WAL fsyncs. When a transaction is ready to fsync, if there are new transactions waiting to start, we stall the transaction waiting to fsync until there are no more transactions waiting to start for a given magma instance.",
+            "dynamic": false,
+            "type": "bool"
+        },
+        "magma_group_commit_max_sync_wait_duration_ms": {
+            "default": "20",
+            "desr": "When a transaction is about to stall because there are pending transactions waiting to start, if there already are transactions waiting and the oldest transaction has been waiting for magma_group_commit_max_sync_wait_duration ms or more, the current transaction will perform the fsync. When group commit is enabled and both magma_group_commit_max_sync_wait_duration and magma_group_commit_max_transaction_count are set to 0, transactions will stall until there are no more transactions waiting to start. Unit is milliseconds.",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "magma_group_commit_max_transaction_count": {
+            "default": "20",
+            "desr": "When a transaction is about to stall because there are pending transactions waiting to start, if there already are magma_group_commit_max_transaction_count including the current transaction waiting, the current transaction will perform the fsync. When group commit is enabled and both magma_group_commit_max_sync_wait_duration and magma_group_commit_max_transaction_count are set to 0, transactions will stall until there are no more transactions waiting to start.",
+            "dynamic": false,
+            "type": "size_t"
+        },
         "magma_max_default_storage_threads": {
             "default": "20",
             "dynamic": false,
