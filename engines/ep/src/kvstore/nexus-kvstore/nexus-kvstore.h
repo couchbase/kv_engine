@@ -162,6 +162,36 @@ protected:
      */
     [[nodiscard]] std::unique_lock<std::mutex> getLock(Vbid vbid) const;
 
+    /**
+     * Compare get values of the primary against the secondary. Compares status
+     * and the resulting item.
+     *
+     * @param caller string to log
+     * @param vbid vbucket
+     * @param key to log
+     * @param primaryGetValue
+     * @param secondaryGetValue
+     */
+    void doPostGetChecks(std::string_view caller,
+                         Vbid vbid,
+                         const DiskDocKey& key,
+                         const GetValue& primaryGetValue,
+                         const GetValue& secondaryGetValue) const;
+
+    /**
+     * Compare the two items returns from the kvstores. Can't use the typical
+     * Item comparator as that compares datatype and value which may not be the
+     * same if one KVStore automatically compresses items (couchstore) and
+     * another does not (magma).
+     *
+     * @param primaryItem not const as may need to decompress, but we are taking
+     *                    a copy to not change the result
+     * @param secondaryItem not const as may need to decompress, but we are
+     *                      taking a copy to not change the result
+     * @return true if logically equivalent
+     */
+    bool compareItem(Item primaryItem, Item secondaryItem) const;
+
     // Friended to let us call handleError to error if the results of the
     // secondary PersistenceCallback are different to those of the primary
     friend NexusKVStoreSecondaryPersistenceCallback;

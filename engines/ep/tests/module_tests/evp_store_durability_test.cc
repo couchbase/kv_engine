@@ -2846,6 +2846,11 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
         return;
     }
 
+    // TODO MB-47604: Enable when secondary supports compaction
+    if (isNexus()) {
+        GTEST_SKIP();
+    }
+
     setVBucketToActiveWithValidTopology();
     using namespace cb::durability;
 
@@ -2922,6 +2927,11 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
 TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
     if (isRocksDB()) {
         return;
+    }
+
+    // TODO MB-47604: Enable when secondary supports compaction
+    if (isNexus()) {
+        GTEST_SKIP();
     }
 
     setVBucketToActiveWithValidTopology();

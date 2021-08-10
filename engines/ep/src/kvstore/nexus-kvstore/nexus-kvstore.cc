@@ -23,6 +23,8 @@
 #include "vb_commit.h"
 #include "vbucket_state.h"
 
+#include <utilities/logtags.h>
+
 NexusKVStore::NexusKVStore(NexusKVStoreConfig& config) : configuration(config) {
     primary = KVStoreFactory::create(configuration.getPrimaryConfig());
     secondary = KVStoreFactory::create(configuration.getSecondaryConfig());
@@ -349,11 +351,100 @@ void NexusKVStore::set(TransactionContext& txnCtx, queued_item item) {
     secondary->set(*nexusTxnCtx.secondaryContext, item);
 }
 
+void NexusKVStore::doPostGetChecks(std::string_view caller,
+                                   Vbid vb,
+                                   const DiskDocKey& key,
+                                   const GetValue& primaryGetValue,
+                                   const GetValue& secondaryGetValue) const {
+    if (primaryGetValue.getStatus() != secondaryGetValue.getStatus()) {
+        auto msg = fmt::format(
+                "NexusKVStore::{}: {} key:{} status mismatch primary:{} "
+                "secondary:{}",
+                caller,
+                vb,
+                cb::UserData(key.to_string()),
+                primaryGetValue.getStatus(),
+                secondaryGetValue.getStatus());
+        handleError(msg);
+    }
+
+    if (primaryGetValue.getStatus() == cb::engine_errc::success &&
+        !compareItem(*primaryGetValue.item, *secondaryGetValue.item)) {
+        auto msg = fmt::format(
+                "NexusKVStore::{}: {} key:{} item mismatch primary:{} "
+                "secondary:{}",
+                caller,
+                vb,
+                cb::UserData(key.to_string()),
+                *primaryGetValue.item,
+                *secondaryGetValue.item);
+        handleError(msg);
+    }
+}
+
+bool NexusKVStore::compareItem(Item primaryItem, Item secondaryItem) const {
+    // We can't use the Item comparator as that's going to check datatype and
+    // value fields which may be different if we asked for a compressed item and
+    // the KVStore returned it de-compressed because it stored it decompressed.
+    if (primaryItem.isCommitted() != secondaryItem.isCommitted() ||
+        primaryItem.getOperation() != secondaryItem.getOperation() ||
+        primaryItem.getRevSeqno() != secondaryItem.getRevSeqno() ||
+        primaryItem.getVBucketId() != secondaryItem.getVBucketId() ||
+        primaryItem.getCas() != secondaryItem.getCas() ||
+        primaryItem.getExptime() != secondaryItem.getExptime() ||
+        primaryItem.getPrepareSeqno() != secondaryItem.getPrepareSeqno() ||
+        primaryItem.getBySeqno() != secondaryItem.getBySeqno() ||
+        primaryItem.getKey() != secondaryItem.getKey() ||
+        primaryItem.isDeleted() != secondaryItem.isDeleted()) {
+        return false;
+    }
+
+    if (primaryItem.isDeleted() &&
+        primaryItem.deletionSource() != secondaryItem.deletionSource()) {
+        // If deleted, source should be the same
+        return false;
+    }
+
+    if (primaryItem.getDataType() == secondaryItem.getDataType()) {
+        // Direct comparison of value is possible
+        return primaryItem.getValueView() == secondaryItem.getValueView();
+    }
+
+    // Datatypes not the same... we want to check the value but we're going to
+    // have to make sure that both items are in the same state of compression to
+    // compare them.
+    std::string decompressedValue;
+    if (mcbp::datatype::is_snappy(primaryItem.getDataType())) {
+        primaryItem.decompressValue();
+        decompressedValue = primaryItem.getValueView();
+    } else {
+        decompressedValue = primaryItem.getValueView();
+    }
+
+    std::string otherDecompressedValue;
+    if (mcbp::datatype::is_snappy(secondaryItem.getDataType())) {
+        secondaryItem.decompressValue();
+        otherDecompressedValue = secondaryItem.getValueView();
+    } else {
+        otherDecompressedValue = secondaryItem.getValueView();
+    }
+
+    if (decompressedValue != otherDecompressedValue) {
+        return false;
+    }
+
+    return true;
+}
+
 GetValue NexusKVStore::get(const DiskDocKey& key,
                            Vbid vb,
                            ValueFilter filter) const {
     auto lh = getLock(vb);
-    return primary->get(key, vb, filter);
+    auto primaryGetValue = primary->get(key, vb, filter);
+    auto secondaryGetValue = secondary->get(key, vb, filter);
+
+    doPostGetChecks(__FUNCTION__, vb, key, primaryGetValue, secondaryGetValue);
+    return primaryGetValue;
 }
 
 GetValue NexusKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
@@ -361,7 +452,15 @@ GetValue NexusKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
                                      Vbid vb,
                                      ValueFilter filter) const {
     auto lh = getLock(vb);
-    return primary->getWithHeader(kvFileHandle, key, vb, filter);
+    auto primaryGetValue =
+            primary->getWithHeader(kvFileHandle, key, vb, filter);
+
+    auto secondaryHandle = secondary->makeFileHandle(vb);
+    auto secondaryGetValue =
+            secondary->getWithHeader(*secondaryHandle, key, vb, filter);
+
+    doPostGetChecks(__FUNCTION__, vb, key, primaryGetValue, secondaryGetValue);
+    return primaryGetValue;
 }
 
 void NexusKVStore::setMaxDataSize(size_t size) {

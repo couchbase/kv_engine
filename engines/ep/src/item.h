@@ -670,6 +670,7 @@ private:
 };
 
 bool operator==(const Item& lhs, const Item& rhs);
+bool operator!=(const Item& lhs, const Item& rhs);
 std::ostream& operator<<(std::ostream& os, const Item& item);
 
 // If you're reading this because this assert has failed because you've

@@ -173,6 +173,10 @@ bool operator==(const Item& lhs, const Item& rhs) {
            lhs.preserveTtl == rhs.preserveTtl;
 }
 
+bool operator!=(const Item& lhs, const Item& rhs) {
+    return !(lhs == rhs);
+}
+
 std::ostream& operator<<(std::ostream& os, const Item& i) {
     os << "Item[" << &i << "] with key:";
 
