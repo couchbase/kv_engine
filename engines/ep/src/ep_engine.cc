@@ -4944,8 +4944,7 @@ cb::engine_errc EventuallyPersistentEngine::testPrivilege(
         std::optional<ScopeID> sid,
         std::optional<CollectionID> cid) const {
     try {
-        switch (serverApi->cookie->test_privilege(cookie, priv, sid, cid)
-                        .getStatus()) {
+        switch (cookie.testPrivilege(priv, sid, cid).getStatus()) {
         case cb::rbac::PrivilegeAccess::Status::Ok:
             return cb::engine_errc::success;
         case cb::rbac::PrivilegeAccess::Status::Fail:

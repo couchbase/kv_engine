@@ -140,23 +140,6 @@ struct ServerCookieIface {
     virtual void setDcpFlowControlBufferSize(const CookieIface& cookie,
                                              std::size_t size) = 0;
 
-    /**
-     * Test if the cookie have the specified privilege in it's active set.
-     *
-     * @param cookie the cookie sent to the engine for an operation
-     * @param privilege the privilege to check for
-     * @param sid the scope id (optional for bucket tests)
-     * @param cid the collection id (optional for scope/bucket tests)
-     * @throws invalid_argument if cid defined but not sid
-     * @return PrivilegeAccess::Ok if the cookie have the privilege in its
-     *         active set. PrivilegeAccess::Fail/FailNoPrivileges otherwise
-     */
-    virtual cb::rbac::PrivilegeAccess test_privilege(
-            const CookieIface& cookie,
-            cb::rbac::Privilege privilege,
-            std::optional<ScopeID> sid,
-            std::optional<CollectionID> cid) = 0;
-
     /// Get the revision number for the privilege context for the cookie to
     /// allow the engine to cache the result of a privilege check if locating
     /// the sid / cid is costly.

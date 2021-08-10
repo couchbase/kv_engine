@@ -138,14 +138,6 @@ struct ServerCookieApi : public ServerCookieIface {
         return getCookie(cookie).checkPrivilege(privilege, sid, cid);
     }
 
-    cb::rbac::PrivilegeAccess test_privilege(
-            const CookieIface& cookie,
-            cb::rbac::Privilege privilege,
-            std::optional<ScopeID> sid,
-            std::optional<CollectionID> cid) override {
-        return getCookie(cookie).testPrivilege(privilege, sid, cid);
-    }
-
     uint32_t get_privilege_context_revision(
             const CookieIface& cookie) override {
         return getCookie(cookie).getPrivilegeContext().getGeneration();
