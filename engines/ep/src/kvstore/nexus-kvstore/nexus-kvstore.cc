@@ -26,6 +26,9 @@
 NexusKVStore::NexusKVStore(NexusKVStoreConfig& config) : configuration(config) {
     primary = KVStoreFactory::create(configuration.getPrimaryConfig());
     secondary = KVStoreFactory::create(configuration.getSecondaryConfig());
+
+    auto cacheSize = configuration.getCacheSize();
+    vbMutexes = std::vector<std::mutex>(cacheSize);
 }
 
 void NexusKVStore::deinitialize() {
@@ -258,6 +261,8 @@ bool NexusKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
     auto& nexusTxnCtx = dynamic_cast<NexusKVStoreTransactionContext&>(*txnCtx);
     auto vbid = txnCtx->vbid;
 
+    auto lh = getLock(vbid);
+
     // Need to create the manifest for the secondary KVStore
     auto secondaryVBManifest =
             generateSecondaryVBManifest(vbid, primaryCommitData);
@@ -347,6 +352,7 @@ void NexusKVStore::set(TransactionContext& txnCtx, queued_item item) {
 GetValue NexusKVStore::get(const DiskDocKey& key,
                            Vbid vb,
                            ValueFilter filter) const {
+    auto lh = getLock(vb);
     return primary->get(key, vb, filter);
 }
 
@@ -354,6 +360,7 @@ GetValue NexusKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
                                      const DiskDocKey& key,
                                      Vbid vb,
                                      ValueFilter filter) const {
+    auto lh = getLock(vb);
     return primary->getWithHeader(kvFileHandle, key, vb, filter);
 }
 
@@ -363,6 +370,7 @@ void NexusKVStore::setMaxDataSize(size_t size) {
 }
 
 void NexusKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) const {
+    auto lh = getLock(vb);
     primary->getMulti(vb, itms);
 }
 
@@ -371,6 +379,7 @@ void NexusKVStore::getRange(Vbid vb,
                             const DiskDocKey& endKey,
                             ValueFilter filter,
                             const KVStoreIface::GetRangeCb& cb) const {
+    auto lh = getLock(vb);
     primary->getRange(vb, startKey, endKey, filter, cb);
 }
 
@@ -676,4 +685,9 @@ void NexusKVStore::handleError(std::string_view msg) const {
 void NexusKVStore::endTransaction(Vbid vbid) {
     primary->endTransaction(vbid);
     secondary->endTransaction(vbid);
+}
+
+std::unique_lock<std::mutex> NexusKVStore::getLock(Vbid vbid) const {
+    return std::unique_lock<std::mutex>(
+            vbMutexes[vbid.get() / configuration.getMaxShards()]);
 }

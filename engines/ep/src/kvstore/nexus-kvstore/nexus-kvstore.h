@@ -152,6 +152,16 @@ protected:
             const Collections::VB::Manifest& primaryVBManifest,
             const Collections::VB::Manifest& secondaryVBManifest);
 
+    /**
+     * We cache locks per-vBucket and to save memory usage we only allocate
+     * num vBuckets / num shards slots in the array. Acquire and return the
+     * desired lock to the caller.
+     *
+     * @param vbid Vbid of the lock we want
+     * @return acquired unique lock for the vBucket
+     */
+    [[nodiscard]] std::unique_lock<std::mutex> getLock(Vbid vbid) const;
+
     // Friended to let us call handleError to error if the results of the
     // secondary PersistenceCallback are different to those of the primary
     friend NexusKVStoreSecondaryPersistenceCallback;
@@ -160,4 +170,17 @@ protected:
     NexusKVStoreConfig& configuration;
     std::unique_ptr<KVStoreIface> primary;
     std::unique_ptr<KVStoreIface> secondary;
+
+    /**
+     * Mutexes that allow us to lock interesting actions for some particular
+     * vBucket. For example, because we want to be able to do a get against
+     * both KVStores and compare the results we need to be able to prevent
+     * flushing from happening at the same time to ensure that the comparison
+     * is valid. Logically we could use KVBucket::vb_mutexes to the same effect,
+     * but given that the purpose of NexusKVStore is to test, it makes sense
+     * to use a system as close to the typical KVStore usage as possible.
+     *
+     * Mutable so that we can take the lock in const functions such as get.
+     */
+    mutable std::vector<std::mutex> vbMutexes;
 };
