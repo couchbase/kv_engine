@@ -116,12 +116,6 @@ struct test_harness {
     virtual void waitfor_cookie(const CookieIface* cookie) = 0;
 
     /**
-     * Store the specified pointer in the specified cookie
-     */
-    virtual void store_engine_specific(const CookieIface* cookie,
-                                       void* engine_data) = 0;
-
-    /**
      * Get the number of references for the specified cookie
      */
     virtual int get_number_of_mock_cookie_references(

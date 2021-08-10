@@ -52,23 +52,6 @@ public:
     void setDcpFlowControlBufferSize(const CookieIface& cookie,
                                      std::size_t size) override {
     }
-    void store_engine_specific(const CookieIface& cookie,
-                               void* engine_data) override {
-        throw std::runtime_error("Not implemented");
-    }
-    void* get_engine_specific(const CookieIface& cookie) override {
-        throw std::runtime_error("Not implemented");
-    }
-    bool is_datatype_supported(const CookieIface& cookie,
-                               protocol_binary_datatype_t datatype) override {
-        throw std::runtime_error("Not implemented");
-    }
-    bool is_mutation_extras_supported(const CookieIface& cookie) override {
-        throw std::runtime_error("Not implemented");
-    }
-    bool is_collections_supported(const CookieIface& cookie) override {
-        throw std::runtime_error("Not implemented");
-    }
     cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
             const CookieIface& cookie) override {
         throw std::runtime_error("Not implemented");

@@ -31,7 +31,7 @@
 #include "objectregistry.h"
 #include "snappy-c.h"
 #include <executor/executorpool.h>
-
+#include <memcached/cookie_iface.h>
 #include <memcached/server_cookie_iface.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/fmt/fmt.h>
@@ -2003,7 +2003,7 @@ void DcpProducer::updateStreamsMap(Vbid vbid,
 
 cb::mcbp::DcpStreamEndStatus DcpProducer::mapEndStreamStatus(
         const CookieIface* cookie, cb::mcbp::DcpStreamEndStatus status) const {
-    if (!engine_.isCollectionsSupported(cookie)) {
+    if (!cookie->isCollectionsSupported()) {
         switch (status) {
         case cb::mcbp::DcpStreamEndStatus::Ok:
         case cb::mcbp::DcpStreamEndStatus::Closed:

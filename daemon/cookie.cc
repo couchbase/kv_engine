@@ -851,3 +851,13 @@ void Cookie::setUnknownCollectionErrorContext(uint64_t manifestUid) {
 std::shared_ptr<Tenant> Cookie::getTenant() {
     return connection.getTenant();
 }
+
+bool Cookie::isMutationExtrasSupported() const {
+    return connection.isSupportsMutationExtras();
+}
+bool Cookie::isCollectionsSupported() const {
+    return connection.isCollectionsSupported();
+}
+bool Cookie::isDatatypeSupported(protocol_binary_datatype_t datatype) const {
+    return connection.isDatatypeEnabled(datatype);
+}

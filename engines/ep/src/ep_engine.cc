@@ -1815,34 +1815,20 @@ void EventuallyPersistentEngine::releaseCookie(const CookieIface* cookie) {
 void EventuallyPersistentEngine::storeEngineSpecific(const CookieIface* cookie,
                                                      void* engine_data) {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->store_engine_specific(*cookie, engine_data);
+    const_cast<CookieIface*>(cookie)->setEngineStorage(engine_data);
 }
 
 void* EventuallyPersistentEngine::getEngineSpecific(const CookieIface* cookie) {
-    NonBucketAllocationGuard guard;
-    return serverApi->cookie->get_engine_specific(*cookie);
+    return cookie->getEngineStorage();
 }
 
 bool EventuallyPersistentEngine::isDatatypeSupported(
         const CookieIface* cookie, protocol_binary_datatype_t datatype) {
-    NonBucketAllocationGuard guard;
-    return serverApi->cookie->is_datatype_supported(*cookie, datatype);
-}
-
-bool EventuallyPersistentEngine::isMutationExtrasSupported(
-        const CookieIface* cookie) {
-    NonBucketAllocationGuard guard;
-    return serverApi->cookie->is_mutation_extras_supported(*cookie);
+    return cookie->isDatatypeSupported(datatype);
 }
 
 bool EventuallyPersistentEngine::isXattrEnabled(const CookieIface* cookie) {
-    return isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_XATTR);
-}
-
-bool EventuallyPersistentEngine::isCollectionsSupported(
-        const CookieIface* cookie) {
-    NonBucketAllocationGuard guard;
-    return serverApi->cookie->is_collections_supported(*cookie);
+    return cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_XATTR);
 }
 
 cb::mcbp::ClientOpcode EventuallyPersistentEngine::getOpcodeIfEwouldblockSet(
@@ -5437,7 +5423,7 @@ DocKey EventuallyPersistentEngine::makeDocKey(const CookieIface* cookie,
                                               cb::const_byte_buffer key) {
     return DocKey{key.data(),
                   key.size(),
-                  isCollectionsSupported(cookie)
+                  cookie->isCollectionsSupported()
                           ? DocKeyEncodesCollectionId::Yes
                           : DocKeyEncodesCollectionId::No};
 }
@@ -5553,7 +5539,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         return cb::engine_errc::success;
     }
 
-    if (isMutationExtrasSupported(cookie)) {
+    if (cookie->isMutationExtrasSupported()) {
         return sendMutationExtras(response,
                                   request.getVBucket(),
                                   bySeqno,
@@ -5833,7 +5819,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
         return cb::engine_errc::success;
     }
 
-    if (isMutationExtrasSupported(cookie)) {
+    if (cookie->isMutationExtrasSupported()) {
         return sendMutationExtras(response,
                                   request.getVBucket(),
                                   bySeqno,
@@ -6162,7 +6148,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
     }
 
     std::optional<CollectionID> keysCollection;
-    if (isCollectionsSupported(cookie)) {
+    if (cookie->isCollectionsSupported()) {
         keysCollection = start_key.getCollectionID();
     }
 
@@ -6232,7 +6218,7 @@ cb::engine_errc EventuallyPersistentEngine::getRandomKey(
         uint32_t flags = it->getFlags();
         ret = sendResponse(
                 response,
-                isCollectionsSupported(cookie)
+                cookie->isCollectionsSupported()
                         ? DocKey{it->getKey()}
                         : it->getKey().makeDocKeyWithoutCollectionID(),
                 std::string_view{reinterpret_cast<const char*>(&flags),
@@ -6492,7 +6478,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     // of.
     // If the client IS talking collections but hasn't specified a collection,
     // we'll give them the actual vBucket high seqno.
-    if (!serverApi->cookie->is_collections_supported(*cookie)) {
+    if (!cookie->isCollectionsSupported()) {
         reqCollection = CollectionID::Default;
     }
 

@@ -19,6 +19,7 @@ enum class Status : uint16_t;
 } // namespace cb::mcbp
 
 class Tenant;
+using protocol_binary_datatype_t = uint8_t;
 
 /**
  * The CookieIface is an abstract class representing a single command
@@ -68,6 +69,15 @@ public:
     virtual void* getEngineStorage() const = 0;
     /// Set the engine pointer to the provided value
     virtual void setEngineStorage(void* value) = 0;
+
+    /// Check if mutation extras is supported by the connection.
+    virtual bool isMutationExtrasSupported() const = 0;
+    /// Check if collections is supported by the connection
+    virtual bool isCollectionsSupported() const = 0;
+
+    /// Check if the requested datatype is supported by the connection.
+    virtual bool isDatatypeSupported(
+            protocol_binary_datatype_t datatype) const = 0;
 
     /**
      * Inflate the value (if deflated); caching the inflated value inside the

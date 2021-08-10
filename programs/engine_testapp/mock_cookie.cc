@@ -50,7 +50,7 @@ void MockCookie::setMutationExtrasHandling(bool enable) {
     handle_mutation_extras = enable;
 }
 
-bool MockCookie::getMutationExtrasHandling() const {
+bool MockCookie::isMutationExtrasSupported() const {
     return handle_mutation_extras;
 }
 
@@ -58,7 +58,8 @@ void MockCookie::setDatatypeSupport(protocol_binary_datatype_t datatypes) {
     enabled_datatypes = std::bitset<8>(datatypes);
 }
 
-bool MockCookie::isDatatypeSupport(protocol_binary_datatype_t datatype) const {
+bool MockCookie::isDatatypeSupported(
+        protocol_binary_datatype_t datatype) const {
     std::bitset<8> in(datatype);
     return (enabled_datatypes & in) == in;
 }

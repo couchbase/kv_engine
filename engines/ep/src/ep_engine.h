@@ -539,8 +539,6 @@ public:
     bool isDatatypeSupported(const CookieIface* cookie,
                              protocol_binary_datatype_t datatype);
 
-    bool isMutationExtrasSupported(const CookieIface* cookie);
-
     bool isXattrEnabled(const CookieIface* cookie);
 
     bool isCollectionsSupported(const CookieIface* cookie);

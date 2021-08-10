@@ -89,28 +89,6 @@ struct ServerCookieApi : public ServerCookieIface {
         getCookie(cookie).getConnection().setDcpFlowControlBufferSize(size);
     }
 
-    void store_engine_specific(const CookieIface& cookie,
-                               void* engine_data) override {
-        getCookie(cookie).setEngineStorage(engine_data);
-    }
-
-    void* get_engine_specific(const CookieIface& cookie) override {
-        return getCookie(cookie).getEngineStorage();
-    }
-
-    bool is_datatype_supported(const CookieIface& cookie,
-                               protocol_binary_datatype_t datatype) override {
-        return getCookie(cookie).getConnection().isDatatypeEnabled(datatype);
-    }
-
-    bool is_mutation_extras_supported(const CookieIface& cookie) override {
-        return getCookie(cookie).getConnection().isSupportsMutationExtras();
-    }
-
-    bool is_collections_supported(const CookieIface& cookie) override {
-        return getCookie(cookie).getConnection().isCollectionsSupported();
-    }
-
     cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
             const CookieIface& void_cookie) override {
         auto& cookie = getCookie(void_cookie);

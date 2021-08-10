@@ -64,59 +64,6 @@ struct ServerCookieIface {
             const CookieIface& cookie) = 0;
 
     /**
-     * Store engine-specific session data on the given cookie.
-     *
-     * The engine interface allows for a single item to be
-     * attached to the connection that it can use to track
-     * connection-specific data throughout duration of the
-     * connection.
-     *
-     * @param cookie The cookie provided by the frontend
-     * @param engine_data pointer to opaque data
-     */
-    virtual void store_engine_specific(const CookieIface& cookie,
-                                       void* engine_data) = 0;
-
-    /**
-     * Retrieve engine-specific session data for the given cookie.
-     *
-     * @param cookie The cookie provided by the frontend
-     *
-     * @return the data provied by store_engine_specific or NULL
-     *         if none was provided
-     */
-    virtual void* get_engine_specific(const CookieIface& cookie) = 0;
-
-    /**
-     * Check if datatype is supported by the connection.
-     *
-     * @param cookie The cookie provided by the frontend
-     * @param datatype The datatype to test
-     *
-     * @return true if connection supports the datatype or else false.
-     */
-    virtual bool is_datatype_supported(const CookieIface& cookie,
-                                       protocol_binary_datatype_t datatype) = 0;
-
-    /**
-     * Check if mutation extras is supported by the connection.
-     *
-     * @param cookie The cookie provided by the frontend
-     *
-     * @return true if supported or else false.
-     */
-    virtual bool is_mutation_extras_supported(const CookieIface& cookie) = 0;
-
-    /**
-     * Check if collections are supported by the connection.
-     *
-     * @param cookie The cookie provided by the frontend
-     *
-     * @return true if supported or else false.
-     */
-    virtual bool is_collections_supported(const CookieIface& cookie) = 0;
-
-    /**
      * Retrieve the opcode of the connection, if
      * ewouldblock flag is set. Please note that the ewouldblock
      * flag for a connection is cleared before calling into

@@ -80,13 +80,14 @@ public:
     }
 
     void setMutationExtrasHandling(bool enable);
-    bool getMutationExtrasHandling() const;
+    bool isMutationExtrasSupported() const override;
 
     void setDatatypeSupport(protocol_binary_datatype_t datatypes);
-    bool isDatatypeSupport(protocol_binary_datatype_t datatype) const;
+    bool isDatatypeSupported(
+            protocol_binary_datatype_t datatype) const override;
 
     void setCollectionsSupport(bool enable);
-    bool isCollectionsSupported() const;
+    bool isCollectionsSupported() const override;
 
     uint32_t getConnectionId() const override {
         return sfd;

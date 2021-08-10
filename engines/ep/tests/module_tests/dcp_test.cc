@@ -86,23 +86,6 @@ public:
                                      std::size_t size) override {
         wrapped->setDcpFlowControlBufferSize(cookie, size);
     }
-    void store_engine_specific(const CookieIface& cookie,
-                               void* engine_data) override {
-        wrapped->store_engine_specific(cookie, engine_data);
-    }
-    void* get_engine_specific(const CookieIface& cookie) override {
-        return wrapped->get_engine_specific(cookie);
-    }
-    bool is_datatype_supported(const CookieIface& cookie,
-                               protocol_binary_datatype_t datatype) override {
-        return wrapped->is_datatype_supported(cookie, datatype);
-    }
-    bool is_mutation_extras_supported(const CookieIface& cookie) override {
-        return wrapped->is_mutation_extras_supported(cookie);
-    }
-    bool is_collections_supported(const CookieIface& cookie) override {
-        return wrapped->is_collections_supported(cookie);
-    }
     cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
             const CookieIface& cookie) override {
         return wrapped->get_opcode_if_ewouldblock_set(cookie);
@@ -1534,13 +1517,13 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     class MockServerCookieApi : public WrappedServerCookieIface {
     public:
         void scheduleDcpStep(const CookieIface& cookie) override {
-            auto* notify_ptr = reinterpret_cast<size_t*>(
-                    wrapped->get_engine_specific(cookie));
+            auto* notify_ptr =
+                    reinterpret_cast<size_t*>(cookie.getEngineStorage());
             (*notify_ptr)++;
         }
     } scapi;
 
-    scapi.store_engine_specific(*cookie, &notify_count);
+    cookie->setEngineStorage(&notify_count);
 
     // 0. Should start with no notifications.
     ASSERT_EQ(0, notify_count);
@@ -1593,13 +1576,13 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     class MockServerCookieApi : public WrappedServerCookieIface {
     public:
         void scheduleDcpStep(const CookieIface& cookie) override {
-            auto* notify_ptr = reinterpret_cast<size_t*>(
-                    get_mock_server_api()->cookie->get_engine_specific(cookie));
+            auto* notify_ptr =
+                    reinterpret_cast<size_t*>(cookie.getEngineStorage());
             (*notify_ptr)++;
         }
     } scapi;
 
-    scapi.store_engine_specific(*cookie, &notify_count);
+    cookie->setEngineStorage(&notify_count);
 
     // 0. Should start with no notifications.
     ASSERT_EQ(0, notify_count);
@@ -2254,7 +2237,7 @@ public:
 
         // Save `this` in server-specific so we can retrieve it from
         // dcp_test_notify_io_complete below:
-        get_mock_server_api()->cookie->store_engine_specific(*cookie, this);
+        cookie->setEngineStorage(this);
 
         producer = connMap->newProducer(cookie,
                                         "test_producer",
@@ -2277,7 +2260,7 @@ public:
     static void dcp_test_notify_io_complete(const CookieIface& cookie,
                                             cb::engine_errc status) {
         const auto* notifyTest = reinterpret_cast<const ConnMapNotifyTest*>(
-                get_mock_server_api()->cookie->get_engine_specific(cookie));
+                cookie.getEngineStorage());
         cb_assert(notifyTest != nullptr);
         const_cast<ConnMapNotifyTest*>(notifyTest)->notify();
     }

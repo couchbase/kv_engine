@@ -559,6 +559,11 @@ public:
         responseStatus = status;
     }
 
+    bool isMutationExtrasSupported() const override;
+    bool isCollectionsSupported() const override;
+    bool isDatatypeSupported(
+            protocol_binary_datatype_t datatype) const override;
+
 protected:
     /**
      * Log the current connection if its execution time exceeds the

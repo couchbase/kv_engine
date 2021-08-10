@@ -194,12 +194,6 @@ public:
         dynamic_cast<MockCookie*>(const_cast<CookieIface*>(cookie))->wait();
     }
 
-    void store_engine_specific(const CookieIface* cookie,
-                               void* engine_data) override {
-        get_mock_server_api()->cookie->store_engine_specific(*cookie,
-                                                             engine_data);
-    }
-
     int get_number_of_mock_cookie_references(
             const CookieIface* cookie) override {
         return const_cast<CookieIface*>(cookie)->getRefcount();
