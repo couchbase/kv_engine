@@ -768,7 +768,7 @@
         },
         "nexus_primary_backend": {
             "default": "couchdb",
-            "desr": "If using the Nexus testing backend then this configuration parameter specifies which type of KVStore to create as the primary variant.",
+            "descr": "If using the Nexus testing backend then this configuration parameter specifies which type of KVStore to create as the primary variant.",
             "dynamic": false,
             "type": "std::string",
             "validator": {
@@ -784,7 +784,7 @@
         },
         "nexus_secondary_backend": {
             "default": "magma",
-            "desr": "If using the Nexus testing backend then this configuration parameter specifies which type of KVStore to create as the secondary variant.",
+            "descr": "If using the Nexus testing backend then this configuration parameter specifies which type of KVStore to create as the secondary variant.",
             "dynamic": false,
             "type": "std::string",
             "validator": {
@@ -792,6 +792,22 @@
                     "couchdb",
                     "magma",
                     "rocksdb"
+                ]
+            },
+            "requires": {
+                "backend": "nexus"
+            }
+        },
+        "nexus_error_handling": {
+            "default": "throw",
+            "descr": "If using the Nexus testing backend then this config parameter specifies how errors (discrepancies) between the primary and secondary backends are handled.",
+            "dynamic": false,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "abort",
+                    "log",
+                    "throw"
                 ]
             },
             "requires": {

@@ -13,6 +13,8 @@
 
 #include "kvstore/kvstore_config.h"
 
+enum class NexusErrorHandlingMethod { Abort, Log, Throw };
+
 /**
  * Config for the NexusKVStore. We subclass for the sake of using the same API
  * for the non-nexus KVStores but we don't really care about the underlying
@@ -33,7 +35,12 @@ public:
         return *secondaryConfig;
     }
 
+    NexusErrorHandlingMethod getErrorHandlingMethod() const {
+        return errorHandlingMethod;
+    }
+
 protected:
     std::unique_ptr<KVStoreConfig> primaryConfig;
     std::unique_ptr<KVStoreConfig> secondaryConfig;
+    NexusErrorHandlingMethod errorHandlingMethod;
 };

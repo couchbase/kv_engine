@@ -11,6 +11,7 @@
 
 #include "nexus-kvstore.h"
 
+#include "bucket_logger.h"
 #include "kvstore/kvstore_transaction_context.h"
 #include "nexus-kvstore-config.h"
 #include "rollback_result.h"
@@ -293,7 +294,16 @@ void NexusKVStore::prepareToCreate(Vbid vbid) {
 uint64_t NexusKVStore::prepareToDelete(Vbid vbid) {
     auto primaryResult = primary->prepareToDelete(vbid);
     auto secondaryResult = secondary->prepareToDelete(vbid);
-    Expects(primaryResult == secondaryResult);
+
+    if (primaryResult != secondaryResult) {
+        auto msg = fmt::format(
+                "NexusKVStore::prepareToDelete: {}: primaryResult:{} "
+                "secondaryResult:{}",
+                vbid,
+                primaryResult,
+                secondaryResult);
+        handleError(msg);
+    }
 
     return primaryResult;
 }
@@ -319,7 +329,16 @@ void NexusKVStore::delSystemEvent(TransactionContext& txnCtx,
 uint64_t NexusKVStore::prepareToDeleteImpl(Vbid vbid) {
     auto primaryResult = primary->prepareToDeleteImpl(vbid);
     auto secondaryResult = secondary->prepareToDeleteImpl(vbid);
-    Expects(primaryResult == secondaryResult);
+
+    if (primaryResult != secondaryResult) {
+        auto msg = fmt::format(
+                "NexusKVStore::prepareToDeleteImpl: {}: primaryResult:{} "
+                "secondaryResult:{}",
+                vbid,
+                primaryResult,
+                secondaryResult);
+        handleError(msg);
+    }
 
     return primaryResult;
 }
@@ -327,4 +346,18 @@ uint64_t NexusKVStore::prepareToDeleteImpl(Vbid vbid) {
 void NexusKVStore::prepareToCreateImpl(Vbid vbid) {
     primary->prepareToCreateImpl(vbid);
     secondary->prepareToCreateImpl(vbid);
+}
+
+void NexusKVStore::handleError(std::string_view msg) {
+    // Always worth logging
+    EP_LOG_CRITICAL("{}", msg);
+
+    switch (configuration.getErrorHandlingMethod()) {
+    case NexusErrorHandlingMethod::Log:
+        return;
+    case NexusErrorHandlingMethod::Abort:
+        std::abort();
+    case NexusErrorHandlingMethod::Throw:
+        throw std::logic_error(std::string(msg));
+    }
 }

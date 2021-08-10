@@ -33,4 +33,17 @@ NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
 
     secondaryConfig->setDBName(secondaryConfig->getDBName() +
                                cb::io::DirectorySeparator + "nexus-secondary");
+
+    auto errorHandling = config.getNexusErrorHandling();
+    if (errorHandling == "abort") {
+        errorHandlingMethod = NexusErrorHandlingMethod::Abort;
+    } else if (errorHandling == "log") {
+        errorHandlingMethod = NexusErrorHandlingMethod::Log;
+    } else if (errorHandling == "throw") {
+        errorHandlingMethod = NexusErrorHandlingMethod::Throw;
+    } else {
+        throw std::logic_error(
+                "NexusKVStoreConfig::NexusKVStoreConfig invalid errorHandling "
+                "parameter given");
+    }
 }

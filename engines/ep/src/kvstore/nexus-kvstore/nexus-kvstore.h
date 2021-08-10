@@ -124,6 +124,8 @@ protected:
     uint64_t prepareToDeleteImpl(Vbid vbid) override;
     void prepareToCreateImpl(Vbid vbid) override;
 
+    void handleError(std::string_view msg);
+
 protected:
     NexusKVStoreConfig& configuration;
     std::unique_ptr<KVStoreIface> primary;
