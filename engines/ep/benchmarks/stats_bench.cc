@@ -65,7 +65,7 @@ protected:
 BENCHMARK_DEFINE_F(StatsBench, CollectionStats)(benchmark::State& state) {
     // Benchmark - measure how long it takes to add stats for N collections
 
-    CBStatCollector collector(dummyCallback, cookie, get_mock_server_api());
+    CBStatCollector collector(dummyCallback, cookie);
     while (state.KeepRunning()) {
         vbManifest->addCollectionStats(Vbid(0), collector);
     }

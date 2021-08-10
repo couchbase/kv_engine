@@ -516,7 +516,7 @@ TEST_F(StatTest, CBStatsScopeCollectionPrefix) {
 
     auto cbFunc = cb.AsStdFunction();
     // create a collector to which stats will be added
-    CBStatCollector collector(cbFunc, cookie, engine->getServerApi());
+    CBStatCollector collector(cbFunc, cookie);
 
     auto bucket = collector.forBucket("BucketName");
     auto scope = bucket.forScope("scope-name", ScopeID(0x0));
@@ -555,7 +555,7 @@ TEST_F(StatTest, CBStatsNameSeparateFromEnum) {
 
     auto cbFunc = cb.AsStdFunction();
     // create a collector to which stats will be added
-    CBStatCollector collector(cbFunc, cookie, nullptr /* server API */);
+    CBStatCollector collector(cbFunc, cookie);
 
     auto bucket = collector.forBucket("BucketName");
     InSequence s;
@@ -590,7 +590,7 @@ TEST_F(StatTest, LegacyStatsAreNotFormatted) {
 
     auto cbFunc = cb.AsStdFunction();
 
-    CBStatCollector collector(cbFunc, cookie, nullptr /* server api */);
+    CBStatCollector collector(cbFunc, cookie);
 
     auto bucket = collector.forBucket("BucketName");
     InSequence s;

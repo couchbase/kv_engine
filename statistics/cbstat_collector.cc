@@ -12,6 +12,7 @@
 #include <statistics/cbstat_collector.h>
 
 #include <logger/logger.h>
+#include <memcached/cookie_iface.h>
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
 #include <memcached/rbac/privileges.h>
@@ -116,13 +117,9 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
 
 cb::engine_errc CBStatCollector::testPrivilegeForStat(
         std::optional<ScopeID> sid, std::optional<CollectionID> cid) const {
-    Expects(serverApi != nullptr);
     try {
-        switch (serverApi->cookie
-                        ->test_privilege(*cookie,
-                                         cb::rbac::Privilege::SimpleStats,
-                                         sid,
-                                         cid)
+        switch (cookie->testPrivilege(
+                              cb::rbac::Privilege::SimpleStats, sid, cid)
                         .getStatus()) {
         case cb::rbac::PrivilegeAccess::Status::Ok:
             return cb::engine_errc::success;

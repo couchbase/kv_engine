@@ -3374,7 +3374,7 @@ TEST_P(CollectionsParameterizedTest, OneScopeStatsByIdParsing) {
 
     auto& manager = getCollectionsManager();
     auto kv = engine->getKVBucket();
-    CBStatCollector cbcollector(append_stat, cookie, engine->getServerApi());
+    CBStatCollector cbcollector(append_stat, cookie);
     auto collector = cbcollector.forBucket("bucket-name");
     auto result = manager.doScopeStats(*kv, collector, "scopes-byid 0x0");
     EXPECT_EQ(cb::engine_errc::success, result.result);

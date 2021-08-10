@@ -3865,7 +3865,7 @@ cb::engine_errc EventuallyPersistentEngine::doConnAggStats(
                 [add_stat, separator = std::string(sep)](
                         EventuallyPersistentEngine* ep,
                         const CookieIface* cookie) {
-                    CBStatCollector col(add_stat, cookie, ep->getServerApi());
+                    CBStatCollector col(add_stat, cookie);
                     ep->doConnAggStatsInner(col.forBucket(ep->getName()),
                                             separator);
                     return cb::engine_errc::success;
@@ -4425,7 +4425,7 @@ cb::engine_errc EventuallyPersistentEngine::doCollectionStats(
         const CookieIface* cookie,
         const AddStatFn& add_stat,
         const std::string& statKey) {
-    CBStatCollector collector(add_stat, cookie, getServerApi());
+    CBStatCollector collector(add_stat, cookie);
     auto bucketCollector = collector.forBucket(getName());
     auto res = Collections::Manager::doCollectionStats(
             *kvBucket, bucketCollector, statKey);
@@ -4441,7 +4441,7 @@ cb::engine_errc EventuallyPersistentEngine::doScopeStats(
         const CookieIface* cookie,
         const AddStatFn& add_stat,
         const std::string& statKey) {
-    CBStatCollector collector(add_stat, cookie, getServerApi());
+    CBStatCollector collector(add_stat, cookie);
     auto bucketCollector = collector.forBucket(getName());
     auto res = Collections::Manager::doScopeStats(
             *kvBucket, bucketCollector, statKey);
@@ -4634,7 +4634,7 @@ cb::engine_errc EventuallyPersistentEngine::doDiskinfoStats(
         std::string_view key) {
     const std::string statKey(key.data(), key.size());
     if (key.size() == 8) {
-        CBStatCollector collector{add_stat, cookie, getServerApi()};
+        CBStatCollector collector{add_stat, cookie};
         auto bucketC = collector.forBucket(getName());
         return kvBucket->getFileStats(bucketC);
     }
@@ -4716,7 +4716,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     // while others have not. Depending on the key, this collector _may_
     // not be used, but creating it here reduces duplication (and it's not
     // expensive to create)
-    CBStatCollector collector{add_stat, c, getServerApi()};
+    CBStatCollector collector{add_stat, c};
     auto bucketCollector = collector.forBucket(getName());
 
     if (key.empty()) {

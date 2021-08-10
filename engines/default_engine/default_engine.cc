@@ -544,7 +544,7 @@ cb::engine_errc default_engine::get_stats(const CookieIface& cookie,
     cb::engine_errc ret = cb::engine_errc::success;
 
     if (key.empty()) {
-        do_engine_stats(CBStatCollector(add_stat, &cookie, &server));
+        do_engine_stats(CBStatCollector(add_stat, &cookie));
     } else if (key == "slabs"sv) {
         slabs_stats(this, add_stat, &cookie);
     } else if (key == "items"sv) {
