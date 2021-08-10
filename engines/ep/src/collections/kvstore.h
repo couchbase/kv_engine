@@ -42,6 +42,8 @@ struct OpenCollection {
     }
 };
 
+std::ostream& operator<<(std::ostream& os, const Collections::KVStore::OpenCollection& collection);
+
 /**
  * KVStore will store the start-seqno of the scope and the meta-data of
  * the scope.
@@ -54,6 +56,8 @@ struct OpenScope {
         return !(*this == other);
     }
 };
+
+std::ostream& operator<<(std::ostream& os, const Collections::KVStore::OpenScope& scope);
 
 /**
  * Data that KVStore is required return to from KVStore::getCollectionsManifest
@@ -124,6 +128,8 @@ struct Manifest {
      */
     bool droppedCollectionsExist{false};
 };
+
+std::ostream& operator<<(std::ostream& os, const Collections::KVStore::Manifest& manifest);
 
 /**
  * A dropped collection stores the seqno range it spans and the collection-ID

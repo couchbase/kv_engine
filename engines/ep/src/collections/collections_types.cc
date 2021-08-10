@@ -180,4 +180,22 @@ std::ostream& operator<<(std::ostream& os, const ScopeSharedMetaData& meta) {
 
 } // namespace VB
 
+std::ostream& operator<<(std::ostream& os, const CollectionMetaData& meta) {
+    os << "sid:" << meta.sid << ",cid:" << meta.cid << ",name:" << meta.name << ",maxTtl:";
+
+    if (meta.maxTtl) {
+        os << meta.maxTtl->count();
+    } else {
+        os << "{}";
+    }
+
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const ScopeMetaData& meta) {
+    os << "sid:" << meta.sid << ",name:" << meta.name;
+
+    return os;
+}
+
 } // end namespace Collections

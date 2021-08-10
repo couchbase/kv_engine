@@ -186,4 +186,37 @@ bool DroppedCollection::operator==(const DroppedCollection& other) const {
            collectionId == other.collectionId;
 }
 
+std::ostream& operator<<(
+        std::ostream& os,
+        const Collections::KVStore::OpenCollection& collection) {
+    os << "meta:" << collection.metaData;
+    os << "startSeqno:" << collection.startSeqno;
+
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const Collections::KVStore::OpenScope& scope) {
+    os << "meta:" << scope.metaData;
+    os << "startSeqno:" << scope.startSeqno;
+
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const Collections::KVStore::Manifest& manifest) {
+    os << "manifestUid" << manifest.manifestUid << "droppedCollectionsExist"
+       << manifest.droppedCollectionsExist;
+
+    for (const auto& scope : manifest.scopes) {
+        os << scope;
+    }
+
+    for (const auto& collection : manifest.collections) {
+        os << collection;
+    }
+
+    return os;
+}
+
 } // namespace Collections::KVStore

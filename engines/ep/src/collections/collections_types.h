@@ -172,6 +172,8 @@ struct CollectionMetaData {
     }
 };
 
+std::ostream& operator<<(std::ostream& os, const CollectionMetaData& meta);
+
 /**
  * The metadata of a single scope
  *
@@ -185,6 +187,8 @@ struct ScopeMetaData {
         return sid == other.sid && name == other.name;
     }
 };
+
+std::ostream& operator<<(std::ostream& os, const ScopeMetaData& meta);
 
 /**
  * For creation of collection SystemEvents - The SystemEventFactory
