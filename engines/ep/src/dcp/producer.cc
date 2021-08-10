@@ -360,6 +360,14 @@ cb::engine_errc DcpProducer::streamRequest(
                 vbucket,
                 filter.getStreamId());
         return cb::engine_errc::dcp_streamid_invalid;
+    } else if (filter.isCollectionFilter() && isSyncWritesEnabled()) {
+        // These two don't (or may not) quite work together (very little
+        // coverage and never required)
+        logger->warn(
+                "({}) Stream request failed for filtered collections + "
+                "sync-writes ",
+                vbucket);
+        return cb::engine_errc::not_supported;
     }
 
     // Check if this vbid can be added to this producer connection, and if
