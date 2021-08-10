@@ -89,21 +89,6 @@ struct ServerCookieApi : public ServerCookieIface {
         getCookie(cookie).getConnection().setDcpFlowControlBufferSize(size);
     }
 
-    cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
-            const CookieIface& void_cookie) override {
-        auto& cookie = getCookie(void_cookie);
-
-        cb::mcbp::ClientOpcode opcode = cb::mcbp::ClientOpcode::Invalid;
-        if (cookie.isEwouldblock()) {
-            try {
-                opcode = cb::mcbp::ClientOpcode(cookie.getHeader().getOpcode());
-            } catch (...) {
-                // Don't barf out if the header isn't there
-            }
-        }
-        return opcode;
-    }
-
     void notify_io_complete(const CookieIface& cookie,
                             cb::engine_errc status) override {
         notifyIoComplete(getCookie(cookie), status);

@@ -86,10 +86,6 @@ public:
                                      std::size_t size) override {
         wrapped->setDcpFlowControlBufferSize(cookie, size);
     }
-    cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
-            const CookieIface& cookie) override {
-        return wrapped->get_opcode_if_ewouldblock_set(cookie);
-    }
     void notify_io_complete(const CookieIface& cookie,
                             cb::engine_errc status) override {
         return wrapped->notify_io_complete(cookie, status);

@@ -52,10 +52,6 @@ public:
     void setDcpFlowControlBufferSize(const CookieIface& cookie,
                                      std::size_t size) override {
     }
-    cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
-            const CookieIface& cookie) override {
-        throw std::runtime_error("Not implemented");
-    }
     void notify_io_complete(const CookieIface& cookie,
                             cb::engine_errc status) override {
         std::lock_guard<std::mutex> lock(mutex);

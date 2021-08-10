@@ -543,8 +543,6 @@ public:
 
     bool isCollectionsSupported(const CookieIface* cookie);
 
-    cb::mcbp::ClientOpcode getOpcodeIfEwouldblockSet(const CookieIface* cookie);
-
     void setErrorContext(const CookieIface* cookie, std::string_view message);
 
     void setErrorJsonExtras(const CookieIface* cookie,

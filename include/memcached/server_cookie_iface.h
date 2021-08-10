@@ -64,21 +64,6 @@ struct ServerCookieIface {
             const CookieIface& cookie) = 0;
 
     /**
-     * Retrieve the opcode of the connection, if
-     * ewouldblock flag is set. Please note that the ewouldblock
-     * flag for a connection is cleared before calling into
-     * the engine interface, so this method only works in the
-     * notify hooks.
-     *
-     * @param cookie The cookie provided by the frontend
-     *
-     * @return the opcode from the binary_header saved in the
-     * connection.
-     */
-    virtual cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
-            const CookieIface& cookie) = 0;
-
-    /**
      * Let a connection know that IO has completed.
      * @param cookie cookie representing the connection
      * @param status the status for the io operation

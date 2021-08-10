@@ -197,12 +197,6 @@ struct MockServerCookieApi : public ServerCookieIface {
                                      std::size_t size) override {
     }
 
-    cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
-            const CookieIface& cookie) override {
-        (void)cookie_to_mock_cookie(&cookie); // validate cookie
-        return cb::mcbp::ClientOpcode::Invalid;
-    }
-
     void reserve(const CookieIface& cookie) override {
         const_cast<CookieIface&>(cookie).incrementRefcount();
     }

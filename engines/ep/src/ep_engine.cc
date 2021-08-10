@@ -1831,12 +1831,6 @@ bool EventuallyPersistentEngine::isXattrEnabled(const CookieIface* cookie) {
     return cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_XATTR);
 }
 
-cb::mcbp::ClientOpcode EventuallyPersistentEngine::getOpcodeIfEwouldblockSet(
-        const CookieIface* cookie) {
-    NonBucketAllocationGuard guard;
-    return serverApi->cookie->get_opcode_if_ewouldblock_set(*cookie);
-}
-
 void EventuallyPersistentEngine::setErrorContext(const CookieIface* cookie,
                                                  std::string_view message) {
     NonBucketAllocationGuard guard;
