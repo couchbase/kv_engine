@@ -145,30 +145,40 @@ bool OpenScope::operator==(const OpenScope& other) const {
     return startSeqno == other.startSeqno && metaData == other.metaData;
 }
 
-bool Manifest::operator==(const Manifest& other) const {
-    if ((manifestUid == other.manifestUid) &&
-        (droppedCollectionsExist == other.droppedCollectionsExist) &&
-        (collections.size() == other.collections.size()) &&
-        (scopes.size() == other.scopes.size())) {
-        for (const auto& collection : collections) {
-            if (std::count(other.collections.begin(),
-                           other.collections.end(),
-                           collection) == 0) {
-                return false;
-            }
-        }
-
-        for (const auto& scope : scopes) {
-            if (std::count(other.scopes.begin(), other.scopes.end(), scope) ==
-                0) {
-                return false;
-            }
-        }
-    } else {
+bool Manifest::compareCollections(const Manifest& other) const {
+    if (collections.size() != other.collections.size()) {
         return false;
     }
 
+    for (const auto& collection : collections) {
+        if (std::count(other.collections.begin(),
+                       other.collections.end(),
+                       collection) == 0) {
+            return false;
+        }
+    }
+
     return true;
+}
+
+bool Manifest::compareScopes(const Manifest& other) const {
+    if (scopes.size() != other.scopes.size()) {
+        return false;
+    }
+
+    for (const auto& scope : scopes) {
+        if (std::count(other.scopes.begin(), other.scopes.end(), scope) == 0) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool Manifest::operator==(const Manifest& other) const {
+    return manifestUid == other.manifestUid && compareCollections(other) &&
+           compareScopes(other) &&
+           droppedCollectionsExist == other.droppedCollectionsExist;
 }
 
 bool DroppedCollection::operator==(const DroppedCollection& other) const {

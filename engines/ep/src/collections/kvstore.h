@@ -102,6 +102,12 @@ struct Manifest {
         return !(*this == other);
     }
 
+    /// Returns true if collections are logically equivalent
+    bool compareCollections(const Manifest& other) const;
+
+    /// Returns true if scopes are logically equivalent
+    bool compareScopes(const Manifest& other) const;
+
     /// The uid of the last manifest to change the collection state
     ManifestUid manifestUid{0};
 
