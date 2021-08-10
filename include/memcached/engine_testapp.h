@@ -116,12 +116,6 @@ struct test_harness {
     virtual void waitfor_cookie(const CookieIface* cookie) = 0;
 
     /**
-     * Get the number of references for the specified cookie
-     */
-    virtual int get_number_of_mock_cookie_references(
-            const CookieIface* cookie) = 0;
-
-    /**
      * Add the specified offset (in seconds) to the internal clock. (Adding
      * a negative value is supported)
      */

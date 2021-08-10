@@ -194,11 +194,6 @@ public:
         dynamic_cast<MockCookie*>(const_cast<CookieIface*>(cookie))->wait();
     }
 
-    int get_number_of_mock_cookie_references(
-            const CookieIface* cookie) override {
-        return const_cast<CookieIface*>(cookie)->getRefcount();
-    }
-
     void set_pre_link_function(PreLinkFunction function) override {
         mock_set_pre_link_function(function);
     }
