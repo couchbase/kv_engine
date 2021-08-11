@@ -537,7 +537,6 @@ int main(int argc, char **argv) {
                     "v" /* verbose output */
                     "Z" /* Terminate on first error */
                     "C:" /* Test case id */
-                    "s" /* spinlock the program */
                     "X" /* Use stderr logger */
                     "f:" /* output format. Valid values are: 'text' and 'xml' */
                     )) != -1) {
@@ -545,13 +544,6 @@ int main(int argc, char **argv) {
         case 'a':
             attempts = std::stoi(optarg);
             break;
-        case 's' : {
-            int spin = 1;
-            while (spin) {
-
-            }
-            break;
-        }
         case 'C' :
             test_case_id = std::stoi(optarg);
             break;
