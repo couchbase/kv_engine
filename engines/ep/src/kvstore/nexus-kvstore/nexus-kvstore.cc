@@ -310,7 +310,14 @@ StorageProperties NexusKVStore::getStorageProperties() const {
         autoDedupe = StorageProperties::AutomaticDeduplication::Yes;
     }
 
-    return StorageProperties(byIdScan, autoDedupe);
+    // Not all KVStores can count prepares
+    auto prepareCounting = StorageProperties::PrepareCounting::No;
+    if (primaryProperties.hasPrepareCounting() &&
+        secondaryProperties.hasPrepareCounting()) {
+        prepareCounting = StorageProperties::PrepareCounting::Yes;
+    }
+
+    return StorageProperties(byIdScan, autoDedupe, prepareCounting);
 }
 
 void NexusKVStore::set(TransactionContext& txnCtx, queued_item item) {

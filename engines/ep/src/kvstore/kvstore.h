@@ -508,9 +508,18 @@ public:
      */
     enum class AutomaticDeduplication : bool { Yes, No };
 
+    /**
+     * Will the KVStore count items in the prepare namespace (and update the
+     * values appropriately in the vbstate)
+     */
+    enum class PrepareCounting : bool { Yes, No };
+
     StorageProperties(ByIdScan byIdScan,
-                      AutomaticDeduplication automaticDeduplication)
-        : byIdScan(byIdScan), automaticDeduplication(automaticDeduplication) {
+                      AutomaticDeduplication automaticDeduplication,
+                      PrepareCounting prepareCounting)
+        : byIdScan(byIdScan),
+          automaticDeduplication(automaticDeduplication),
+          prepareCounting(prepareCounting) {
     }
 
     bool hasByIdScan() const {
@@ -521,9 +530,14 @@ public:
         return automaticDeduplication == AutomaticDeduplication::Yes;
     }
 
+    bool hasPrepareCounting() const {
+        return prepareCounting == PrepareCounting::Yes;
+    }
+
 private:
     ByIdScan byIdScan;
     AutomaticDeduplication automaticDeduplication;
+    PrepareCounting prepareCounting;
 };
 
 
