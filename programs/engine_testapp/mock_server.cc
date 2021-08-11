@@ -186,7 +186,7 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     void reserve(const CookieIface& cookie) override {
-        const_cast<CookieIface&>(cookie).incrementRefcount();
+        cookie_to_mock_cookie(cookie).incrementRefcount();
     }
 
     void release(const CookieIface& cookie) override {
