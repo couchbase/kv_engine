@@ -34,6 +34,11 @@ using protocol_binary_datatype_t = uint8_t;
  * when used from the frontend calling down into the underlying engine
  * (there is currently an exception to this, and that is that DCP connections
  * _currently_ use the Cookie to represent the connection)
+ *
+ * The methods in the interface are safe to call from the core and the
+ * underlying engine. It is the responsibility of the implementation of the
+ * method to switch to the core's memory allocation domain if memory needs
+ * to be allocated.
  */
 class CookieIface : public cb::tracing::Traceable {
 public:
@@ -44,27 +49,6 @@ public:
     /// Get the tenant the cookie is bound to (NOTE: may not be set to
     /// a tenant)
     virtual std::shared_ptr<Tenant> getTenant() = 0;
-
-    /// Is the current cookie blocked?
-    virtual bool isEwouldblock() const = 0;
-
-    /// Set the ewouldblock status for the cookie
-    virtual void setEwouldblock(bool ewouldblock) = 0;
-
-    // The source code was initially written in C which didn't have the
-    // concept of shared pointers so the current code use a manual
-    // reference counting. If the engine wants to keep a reference to the
-    // cookie it must bump the reference count to avoid the core to reuse
-    // the cookie leaving the engine with a dangling pointer.
-
-    /// Get the current reference count
-    virtual uint8_t getRefcount() = 0;
-    /// Add a reference to the cookie
-    /// returns the incremented ref count
-    virtual uint8_t incrementRefcount() = 0;
-    /// Release a reference to the cookie
-    /// returns the decremented ref count
-    virtual uint8_t decrementRefcount() = 0;
 
     // The underlying engine may store information bound to the given cookie
     // in an opaque pointer. The framework will _NOT_ take ownership of the

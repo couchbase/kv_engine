@@ -46,21 +46,34 @@ public:
         return {};
     }
 
-    bool isEwouldblock() const override {
+    /// Is the current cookie blocked?
+    bool isEwouldblock() const {
         return handle_ewouldblock;
     }
 
-    void setEwouldblock(bool ewouldblock) override;
+    /// Set the ewouldblock status for the cookie
+    void setEwouldblock(bool ewouldblock);
 
-    uint8_t getRefcount() override {
+    // The source code was initially written in C which didn't have the
+    // concept of shared pointers so the current code use a manual
+    // reference counting. If the engine wants to keep a reference to the
+    // cookie it must bump the reference count to avoid the core to reuse
+    // the cookie leaving the engine with a dangling pointer.
+
+    /// Get the current reference count
+    uint8_t getRefcount() {
         return references;
     }
 
-    uint8_t incrementRefcount() override {
+    /// Add a reference to the cookie
+    /// returns the incremented ref count
+    uint8_t incrementRefcount() {
         return ++references;
     }
 
-    uint8_t decrementRefcount() override {
+    /// Release a reference to the cookie
+    /// returns the decremented ref count
+    uint8_t decrementRefcount() {
         return --references;
     }
 
