@@ -284,9 +284,7 @@ test_result try_run_test(std::function<test_result()> testFunc) noexcept {
     }
 }
 
-static test_result execute_test(engine_test_t test,
-                                const char* engine,
-                                const char* default_cfg) {
+static test_result execute_test(engine_test_t test, const char* default_cfg) {
     auto executorBoarderGuard =
             folly::makeGuard([] { ExecutorPool::shutdown(); });
 
@@ -673,8 +671,7 @@ int main(int argc, char **argv) {
                         // cleaning up of dead tests if all modules are fixed,
                         // this else if can be removed.
                         try {
-                            ecode = execute_test(
-                                    testcases[i], engine.c_str(), engine_args);
+                            ecode = execute_test(testcases[i], engine_args);
                         } catch (const TestExpectationFailed&) {
                             ecode = FAIL;
                         } catch (const std::exception& e) {
