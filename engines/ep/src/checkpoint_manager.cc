@@ -53,8 +53,7 @@ CheckpointManager::CheckpointManager(EPStats& st,
     //     when the checkpointList is empty.
     //     Only in CheckpointManager::clear_UNLOCKED, the checkpointList
     //     is temporarily cleared and a new open checkpoint added immediately.
-    addOpenCheckpoint(1,
-                      lastSnapStart,
+    addOpenCheckpoint(lastSnapStart,
                       lastSnapEnd,
                       maxVisibleSeqno,
                       {},
@@ -105,9 +104,8 @@ Checkpoint& CheckpointManager::getOpenCheckpoint_UNLOCKED(
     return *checkpointList.back();
 }
 
-void CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
-    addNewCheckpoint_UNLOCKED(id,
-                              lastBySeqno,
+void CheckpointManager::addNewCheckpoint_UNLOCKED() {
+    addNewCheckpoint_UNLOCKED(lastBySeqno,
                               lastBySeqno,
                               maxVisibleSeqno,
                               {},
@@ -115,14 +113,11 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
 }
 
 void CheckpointManager::addNewCheckpoint_UNLOCKED(
-        uint64_t id,
         uint64_t snapStartSeqno,
         uint64_t snapEndSeqno,
         uint64_t visibleSnapEnd,
         std::optional<uint64_t> highCompletedSeqno,
         CheckpointType checkpointType) {
-    Expects(id > 0);
-
     // First, we must close the open checkpoint.
     auto& oldOpenCkpt = *checkpointList.back();
     EP_LOG_DEBUG(
@@ -139,20 +134,7 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
     ++numItems;
     oldOpenCkpt.setState(CHECKPOINT_CLOSED);
 
-    // Now, we can create the new open checkpoint
-    EP_LOG_DEBUG(
-            "CheckpointManager::addNewCheckpoint_UNLOCKED: Create "
-            "a new open checkpoint: [{}, id:{}, snapStart:{}, snapEnd:{}, "
-            "visibleSnapEnd:{}, hcs:{}, type:{}]",
-            vbucketId,
-            id,
-            snapStartSeqno,
-            snapEndSeqno,
-            visibleSnapEnd,
-            to_string_or_none(highCompletedSeqno),
-            to_string(checkpointType));
-    addOpenCheckpoint(id,
-                      snapStartSeqno,
+    addOpenCheckpoint(snapStartSeqno,
                       snapEndSeqno,
                       visibleSnapEnd,
                       highCompletedSeqno,
@@ -193,7 +175,6 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
 }
 
 void CheckpointManager::addOpenCheckpoint(
-        uint64_t id,
         uint64_t snapStart,
         uint64_t snapEnd,
         uint64_t visibleSnapEnd,
@@ -202,6 +183,21 @@ void CheckpointManager::addOpenCheckpoint(
     Expects(checkpointList.empty() ||
             checkpointList.back()->getState() ==
                     checkpoint_state::CHECKPOINT_CLOSED);
+
+    const uint64_t id =
+            checkpointList.empty() ? 1 : checkpointList.back()->getId() + 1;
+
+    EP_LOG_DEBUG(
+            "CheckpointManager::addNewCheckpoint_UNLOCKED: Create "
+            "a new open checkpoint: [{}, id:{}, snapStart:{}, snapEnd:{}, "
+            "visibleSnapEnd:{}, hcs:{}, type:{}]",
+            vbucketId,
+            id,
+            snapStart,
+            snapEnd,
+            visibleSnapEnd,
+            to_string_or_none(highCompletedSeqno),
+            to_string(checkpointType));
 
     auto ckpt = std::make_unique<Checkpoint>(*this,
                                              stats,
@@ -1133,8 +1129,10 @@ void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) 
     numItems = 0;
     lastBySeqno.reset(seqno);
     maxVisibleSeqno.reset(seqno);
-    addOpenCheckpoint(1 /*id*/,
-                      lastBySeqno,
+
+    Expects(checkpointList.empty());
+
+    addOpenCheckpoint(lastBySeqno,
                       lastBySeqno,
                       maxVisibleSeqno,
                       {},
@@ -1205,7 +1203,7 @@ void CheckpointManager::checkOpenCheckpoint_UNLOCKED(
         (checkpointConfig.isItemNumBasedNewCheckpoint() &&
          openCkpt.getNumItems() >= checkpointConfig.getCheckpointMaxItems()) ||
         (openCkpt.getNumItems() > 0 && timeBound)) {
-        addNewCheckpoint_UNLOCKED(openCkpt.getId() + 1);
+        addNewCheckpoint_UNLOCKED();
     }
 }
 
@@ -1269,8 +1267,6 @@ void CheckpointManager::createSnapshot(
     std::lock_guard<std::mutex> lh(queueLock);
 
     auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
-    const auto openCkptId = openCkpt.getId();
-    Expects(openCkptId > 0);
 
     if (openCkpt.getNumItems() == 0) {
         openCkpt.setSnapshotStartSeqno(snapStartSeqno);
@@ -1280,8 +1276,7 @@ void CheckpointManager::createSnapshot(
         return;
     }
 
-    addNewCheckpoint_UNLOCKED(openCkptId + 1,
-                              snapStartSeqno,
+    addNewCheckpoint_UNLOCKED(snapStartSeqno,
                               snapEndSeqno,
                               visibleSnapEnd,
                               highCompletedSeqno,
@@ -1398,7 +1393,7 @@ uint64_t CheckpointManager::createNewCheckpoint(bool force) {
         return openCkpt.getId();
     }
 
-    addNewCheckpoint_UNLOCKED(openCkpt.getId() + 1);
+    addNewCheckpoint_UNLOCKED();
     return getOpenCheckpointId_UNLOCKED(lh);
 }
 

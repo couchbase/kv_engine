@@ -587,7 +587,6 @@ protected:
      * Closes the current open checkpoint and adds a new open checkpoint to
      * the checkpointList.
      *
-     * @param id for the new checkpoint
      * @param snapStartSeqno for the new checkpoint
      * @param snapEndSeqno for the new checkpoint
      * @param visibleSnapEnd for the new checkpoint
@@ -595,8 +594,7 @@ protected:
      * @param checkpointType is the checkpoint created from a replica receiving
      *                       a disk snapshot?
      */
-    void addNewCheckpoint_UNLOCKED(uint64_t id,
-                                   uint64_t snapStartSeqno,
+    void addNewCheckpoint_UNLOCKED(uint64_t snapStartSeqno,
                                    uint64_t snapEndSeqno,
                                    uint64_t visibleSnapEnd,
                                    std::optional<uint64_t> highCompletedSeqno,
@@ -605,25 +603,22 @@ protected:
     /*
      * Closes the current open checkpoint and adds a new open checkpoint to
      * the checkpointList.
-     * Note: the function sets snapStart and snapEnd to 'lastBySeqno' for the
-     *     new checkpoint.
      *
-     * @param id for the new checkpoint
+     * Note: The function sets snapStart and snapEnd to 'lastBySeqno' for the
+     *       new checkpoint.
      */
-    void addNewCheckpoint_UNLOCKED(uint64_t id);
+    void addNewCheckpoint_UNLOCKED();
 
     /*
      * Add an open checkpoint to the checkpointList.
      *
-     * @param id for the new checkpoint
      * @param snapStartSeqno for the new checkpoint
      * @param snapEndSeqno for the new checkpoint
      * @param highCompletedSeqno the SyncRepl HCS to be flushed to disk
      * @param checkpointType is the checkpoint created from a replica receiving
      *                       a disk snapshot?
      */
-    void addOpenCheckpoint(uint64_t id,
-                           uint64_t snapStart,
+    void addOpenCheckpoint(uint64_t snapStart,
                            uint64_t snapEnd,
                            uint64_t visibleSnapEnd,
                            std::optional<uint64_t> highCompletedSeqno,
