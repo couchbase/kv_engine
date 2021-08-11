@@ -458,7 +458,15 @@ public:
 
     std::string_view getInflatedInputPayload() const override;
 
-    bool inflateInputPayload(const cb::mcbp::Header& header) override;
+    /**
+     * Inflate the value (if deflated); caching the inflated value inside the
+     * cookie.
+     *
+     * @param header The packet header
+     * @return true if success, false if an error occurs (the error context
+     *         contains the reason why)
+     */
+    bool inflateInputPayload(const cb::mcbp::Header& header);
 
     /**
      * Helper function to inflate the specified Snappy-compressed buffer.

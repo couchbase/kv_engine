@@ -103,16 +103,6 @@ public:
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) const = 0;
 
-    /**
-     * Inflate the value (if deflated); caching the inflated value inside the
-     * cookie.
-     *
-     * @param header The packet header
-     * @return true if success, false if an error occurs (the error context
-     *         contains the reason why)
-     */
-    virtual bool inflateInputPayload(const cb::mcbp::Header& header) = 0;
-
     /// Get the payload from the command.
     virtual std::string_view getInflatedInputPayload() const = 0;
 };

@@ -101,8 +101,6 @@ public:
     /// decrement the ref count and signal the bucket that we're disconnecting
     void disconnect();
 
-    bool inflateInputPayload(const cb::mcbp::Header& header) override;
-
     std::string_view getInflatedInputPayload() const override {
         return {inflated_payload.data(), inflated_payload.size()};
     }

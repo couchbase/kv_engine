@@ -108,26 +108,6 @@ void MockCookie::disconnect() {
     }
 }
 
-bool MockCookie::inflateInputPayload(const cb::mcbp::Header& header) {
-    inflated_payload.reset();
-    if (!mcbp::datatype::is_snappy(header.getDatatype())) {
-        return true;
-    }
-
-    try {
-        auto val = header.getValue();
-        if (!cb::compression::inflate(
-                    cb::compression::Algorithm::Snappy,
-                    {reinterpret_cast<const char*>(val.data()), val.size()},
-                    inflated_payload)) {
-            return false;
-        }
-    } catch (const std::bad_alloc&) {
-        return false;
-    }
-    return true;
-}
-
 void MockCookie::setStatus(cb::engine_errc newStatus) {
     status = newStatus;
 }
