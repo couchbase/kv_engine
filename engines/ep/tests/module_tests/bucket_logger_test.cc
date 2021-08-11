@@ -20,6 +20,12 @@
 
 #include <programs/engine_testapp/mock_server.h>
 
+BucketLoggerTest::BucketLoggerTest() {
+    // Write to a different file in case other parent class fixtures are running
+    // in parallel
+    config.filename = "bucket_logger_test";
+}
+
 void BucketLoggerTest::SetUp() {
     // Store the oldLogLevel for tearDown
     oldLogLevel = globalBucketLogger->level();

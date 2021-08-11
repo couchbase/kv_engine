@@ -23,6 +23,7 @@
  */
 class BucketLoggerTest : virtual public SpdloggerTest {
 protected:
+    BucketLoggerTest();
     void SetUp() override;
     void TearDown() override;
     void setUpLogger() override;

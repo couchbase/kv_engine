@@ -13,16 +13,16 @@
 
 #include <engines/ep/src/bucket_logger.h>
 
-void BucketLoggerEngineTest::SetUp() {
-    // Override some logger config params before calling parent class SetUp():
-
+BucketLoggerEngineTest::BucketLoggerEngineTest() {
     // 1. Write to a different file in case other parent class fixtures are
     // running in parallel
     config.filename = "spdlogger_engine_test";
     // 2. Set up the logger with a greater file size so logs are output to a
     // single file
     config.cyclesize = 100 * 1024;
+}
 
+void BucketLoggerEngineTest::SetUp() {
     BucketLoggerTest::SetUp();
     EventuallyPersistentEngineTest::SetUp();
 }

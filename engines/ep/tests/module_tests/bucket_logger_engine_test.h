@@ -22,6 +22,7 @@
 class BucketLoggerEngineTest : public BucketLoggerTest,
                                public EventuallyPersistentEngineTest {
 protected:
+    BucketLoggerEngineTest();
     void SetUp() override;
     void TearDown() override;
 };
