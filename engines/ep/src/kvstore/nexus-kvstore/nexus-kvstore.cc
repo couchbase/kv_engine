@@ -373,7 +373,45 @@ std::vector<vbucket_state*> NexusKVStore::listPersistedVbuckets() {
 
 bool NexusKVStore::snapshotVBucket(Vbid vbucketId,
                                    const vbucket_state& vbstate) {
-    return primary->snapshotVBucket(vbucketId, vbstate);
+    auto primaryResult = primary->snapshotVBucket(vbucketId, vbstate);
+    auto secondaryResult = secondary->snapshotVBucket(vbucketId, vbstate);
+
+    if (primaryResult != secondaryResult) {
+        auto msg = fmt::format(
+                "NexusKVStore::snapshotVBucket: {} primaryResult:{} "
+                "secondaryResult:{}",
+                vbucketId,
+                primaryResult,
+                secondaryResult);
+        handleError(msg);
+    }
+
+    auto primaryVbState = primary->getPersistedVBucketState(vbucketId);
+    auto secondaryVbState = secondary->getPersistedVBucketState(vbucketId);
+
+    if (!getStorageProperties().hasPrepareCounting()) {
+        // Can't compare prepare counts so zero them out
+        primaryVbState.onDiskPrepares = 0;
+        secondaryVbState.onDiskPrepares = 0;
+        primaryVbState.setOnDiskPrepareBytes(0);
+        secondaryVbState.setOnDiskPrepareBytes(0);
+    }
+
+    // @TODO MB-47604 - can't compare purgeSeqno until compaction works
+    primaryVbState.purgeSeqno = 0;
+    secondaryVbState.purgeSeqno = 0;
+
+    if (primaryVbState != secondaryVbState) {
+        auto msg = fmt::format(
+                "NexusKVStore::snapshotVBucket: {} difference in vbstate "
+                "primary:{} secondary:{}",
+                vbucketId,
+                primaryVbState,
+                secondaryVbState);
+        handleError(msg);
+    }
+
+    return primaryResult;
 }
 
 bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
