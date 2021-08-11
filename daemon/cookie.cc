@@ -855,8 +855,12 @@ void Cookie::setUnknownCollectionErrorContext(uint64_t manifestUid) {
     event_id.clear();
 }
 
-std::shared_ptr<Tenant> Cookie::getTenant() {
-    return connection.getTenant();
+Tenant* Cookie::getTenant() {
+    return connection.getTenant().get();
+}
+
+const Tenant* Cookie::getTenant() const {
+    return connection.getTenant().get();
 }
 
 bool Cookie::isMutationExtrasSupported() const {

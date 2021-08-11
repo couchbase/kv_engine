@@ -42,8 +42,12 @@ public:
 
     ~MockCookie() override;
 
-    std::shared_ptr<Tenant> getTenant() override {
-        return {};
+    Tenant* getTenant() override {
+        return nullptr;
+    }
+
+    const Tenant* getTenant() const override {
+        return nullptr;
     }
 
     /// Is the current cookie blocked?
