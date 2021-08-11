@@ -12,8 +12,6 @@
 #include <memcached/engine_testapp.h>
 #include <memcached/rbac.h>
 
-void mock_init_alloc_hooks();
-
 ServerApi* get_mock_server_api();
 
 void init_mock_server();

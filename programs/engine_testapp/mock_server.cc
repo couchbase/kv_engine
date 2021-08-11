@@ -111,9 +111,6 @@ static int mock_parse_config(const char *str, struct config_item items[], FILE *
     return parse_config(str, items, error);
 }
 
-void mock_init_alloc_hooks() {
-}
-
 struct MockServerCoreApi : public ServerCoreIface {
     rel_time_t get_current_time() override {
         return mock_get_current_time();

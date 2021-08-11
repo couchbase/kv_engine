@@ -31,7 +31,6 @@ int main(int argc, char** argv) {
     setupWindowsDebugCRTAssertHandling();
     putenv(allow_no_stats_env);
     cb::logger::createBlackholeLogger();
-    mock_init_alloc_hooks();
     init_mock_server();
     initialize_time_functions(get_mock_server_api()->core);
 

@@ -138,7 +138,6 @@ int main(int argc, char **argv) {
     // Create a blackhole logger to prevent Address sanitizer error when
     // calling mock_init_alloc_hooks
     cb::logger::createBlackholeLogger();
-    mock_init_alloc_hooks();
     init_mock_server();
 
     // Create the console logger for test case output
