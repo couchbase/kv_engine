@@ -2690,7 +2690,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         const BucketStatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
-    constexpr std::array<std::string_view, 35> statNames = {
+    constexpr std::array<std::string_view, 39> statNames = {
             {"magma_NCompacts",
              "magma_NFlushes",
              "magma_NTTLCompacts",
@@ -2717,6 +2717,10 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_WriteCacheMemUsed",
              "magma_WALMemUsed",
              "magma_TableMetaMemUsed",
+             "magma_TableObjectMemUsed",
+             "magma_ReadAheadBufferMemUsed",
+             "magma_LSMTreeObjectMemUsed",
+             "magma_HistogramMemUsed",
              "magma_BufferMemUsed",
              "magma_TotalMemUsed",
              "magma_TotalBloomFilterMemUsed",
@@ -2834,6 +2838,12 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
                               residentRatio);
         }
     }
+    addStat(Key::ep_magma_read_ahead_buffer_mem_used,
+            "magma_ReadAheadBufferMemUsed");
+    addStat(Key::ep_magma_histogram_mem_used, "magma_HistogramMemUsed");
+    addStat(Key::ep_magma_table_object_mem_used, "magma_TableObjectMemUsed");
+    addStat(Key::ep_magma_lsmtree_object_mem_used,
+            "magma_LSMTreeObjectMemUsed");
     addStat(Key::ep_magma_write_cache_mem_used, "magma_WriteCacheMemUsed");
     addStat(Key::ep_magma_wal_mem_used, "magma_WALMemUsed");
     addStat(Key::ep_magma_table_meta_mem_used, "magma_TableMetaMemUsed");

@@ -2709,6 +2709,10 @@ GetStatsMap MagmaKVStore::getStats(
          magmaStats.SeqStats.TotalIndexBlocksSize);
     fill("magma_WriteCacheMemUsed", magmaStats.WriteCacheMemUsed);
     fill("magma_WALMemUsed", magmaStats.WALMemUsed);
+    fill("magma_ReadAheadBufferMemUsed", magmaStats.ReadAheadBufferMemUsed);
+    fill("magma_TableObjectMemUsed", magmaStats.TableObjectMemUsed);
+    fill("magma_LSMTreeObjectMemUsed", magmaStats.LSMTreeObjectMemUsed);
+    fill("magma_HistogramMemUsed", magmaStats.HistogramMemUsed);
     fill("magma_TableMetaMemUsed", magmaStats.TableMetaMemUsed);
     fill("magma_BufferMemUsed", magmaStats.BufferMemUsed);
     fill("magma_TotalMemUsed", magmaStats.TotalMemUsed);

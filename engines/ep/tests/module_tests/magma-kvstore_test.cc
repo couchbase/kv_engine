@@ -143,7 +143,7 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
 }
 
 TEST_F(MagmaKVStoreTest, getStats) {
-    constexpr std::array<std::string_view, 36> statNames = {{
+    constexpr std::array<std::string_view, 40> statNames = {{
             "magma_NCompacts",
             "magma_NFlushes",
             "magma_NTTLCompacts",
@@ -179,6 +179,10 @@ TEST_F(MagmaKVStoreTest, getStats) {
             "magma_NTablesCreated",
             "magma_NTableFiles",
             "magma_NSyncs",
+            "magma_TableObjectMemUsed",
+            "magma_ReadAheadBufferMemUsed",
+            "magma_LSMTreeObjectMemUsed",
+            "magma_HistogramMemUsed",
             "foo",
     }};
     auto stats = kvstore->getStats(statNames);
@@ -223,6 +227,10 @@ TEST_F(MagmaKVStoreTest, getStat) {
     ASSERT_TRUE(kvstore->getStat("magma_TotalDiskUsage", value));
     ASSERT_TRUE(kvstore->getStat("magma_WALDiskUsage", value));
     // Memory usage.
+    ASSERT_TRUE(kvstore->getStat("magma_TableObjectMemUsed", value));
+    ASSERT_TRUE(kvstore->getStat("magma_LSMTreeObjectMemUsed", value));
+    ASSERT_TRUE(kvstore->getStat("magma_HistogramMemUsed", value));
+    ASSERT_TRUE(kvstore->getStat("magma_ReadAheadBufferMemUsed", value));
     ASSERT_TRUE(kvstore->getStat("magma_BlockCacheMemUsed", value));
     ASSERT_TRUE(kvstore->getStat("magma_KeyIndexSize", value));
     ASSERT_TRUE(kvstore->getStat("magma_SeqIndex_IndexBlockSize", value));
