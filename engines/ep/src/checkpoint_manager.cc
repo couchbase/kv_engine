@@ -1617,24 +1617,63 @@ void CheckpointManager::maybeCreateNewCheckpoint(
 
 CheckpointList CheckpointManager::extractClosedUnrefCheckpoints(
         const std::lock_guard<std::mutex>& lh) {
-    // Iterate through the current checkpoints (from oldest to newest),
-    // checking if the checkpoint can be removed.
-    // `it` is set to the first checkpoint we want to keep - all earlier
-    // ones are removed.
-    auto it = checkpointList.begin();
-    // Note terminating condition - we stop at one before the last
-    // checkpoint - we must leave at least one checkpoint in existence.
-    for (; it != checkpointList.end() && std::next(it) != checkpointList.end();
-         ++it) {
-        // Stop when we encounter the first checkpoint which has cursor(s)
-        // in it.
-        if ((*it)->getNumCursorsInCheckpoint() > 0) {
-            break;
+    if (checkpointList.size() < 2) {
+        // Only an open checkpoint in the list, nothing to remove.
+        return {};
+    }
+
+    CheckpointList::iterator it;
+    if (cursors.empty()) {
+        // No cursors, can remove everything but the open checkpoint
+        it = std::prev(checkpointList.end());
+    } else {
+        it = getLowestCursor(lh)->currentCheckpoint;
+
+        if (it == checkpointList.begin()) {
+            // Lowest cursor is in the first checkpoint, nothing to remove.
+            return {};
         }
     }
 
+    // Checkpoints eligible for removal are by definition the ones in
+    // [list.begin(), lowestCursorCheckpoint - 1]
     CheckpointList ret;
-    ret.splice(ret.begin(), checkpointList, checkpointList.begin(), it);
+    const auto begin = checkpointList.begin();
+    Expects((*begin)->getId() < (*it)->getId());
+    const auto distance = (*it)->getId() - (*begin)->getId();
+    // Note: Same as for the STL container, the overload of the splice function
+    // that doesn't require the distance is O(N) in the size of the input list,
+    // while this is a O(1) operation.
+    ret.splice(ret.begin(), checkpointList, begin, it, distance);
 
     return ret;
+}
+
+std::shared_ptr<CheckpointCursor> CheckpointManager::getLowestCursor(
+        const std::lock_guard<std::mutex>& lh) {
+    // Note: This function is called at checkpoint expel/removal and executes.
+    // under CM lock.
+    // At the time of writing (MB-47386) the purpose is to get rid of any code
+    // that is O(N = checkpoint-list-size), so scanning the cursors-map is
+    // better than scanning the checkpoint-list. But, this is still a O(N)
+    // procedure, where N this time is the cursor-map-size.
+    // In particular with collections, the number of cursors can increase
+    // considerably compared with the pre-7.0 releases. So we should be smarted
+    // than just std::std::unordered_map on cursors. Replacing that with an
+    // ordered container (ordered by cursor seqno) would give us O(1) at scan as
+    // the lower cursor will be simply the first element in the container.
+    // But, we would lose the constant complexity at accessing elements by key.
+    // Not sure what would be the performance impact of that, but probably in
+    // the end we may need to keep the existing container for fast access, plus
+    // an additional ordered container for fast access of the lowest element.
+    // An other alternative is keeping track of the lowest cursor by recomputing
+    // it at every cursor-move in CM. Ideally that is being a cheap operation at
+    // cursor-move and would also make the code here O(1).
+
+    const auto entry = std::min_element(
+            cursors.begin(), cursors.end(), [](const auto& a, const auto& b) {
+                // Compare by CheckpointCursor.
+                return *a.second < *b.second;
+            });
+    return entry->second;
 }

@@ -691,6 +691,15 @@ protected:
     CheckpointList extractClosedUnrefCheckpoints(
             const std::lock_guard<std::mutex>& lh);
 
+    /**
+     * Returns the earliest cursor in checkpoints.
+     *
+     * @param lh Lock to CM mutex
+     * @return the lowest cursor
+     */
+    std::shared_ptr<CheckpointCursor> getLowestCursor(
+            const std::lock_guard<std::mutex>& lh);
+
     CheckpointList checkpointList;
     EPStats                 &stats;
     CheckpointConfig        &checkpointConfig;

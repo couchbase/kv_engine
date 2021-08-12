@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include <list>
+#include <boost/container/list.hpp>
 #include <memory>
 
 class Checkpoint;
@@ -19,7 +19,12 @@ class VBucket;
 
 // List of Checkpoints used by class CheckpointManager to store Checkpoints for
 // a given vBucket.
-using CheckpointList = std::list<std::unique_ptr<Checkpoint>>;
+// We use the boost container (rather that the STL one) because boost provides a
+// constant-complexity splice function that unfortunately std-c++ lacks.
+// Splice is used in the CM code in multiple places under CM lock, so we cannot
+// afford that to be O(N) as that degrades frontend throughput when the CM list
+// is large.
+using CheckpointList = boost::container::list<std::unique_ptr<Checkpoint>>;
 
 /**
  * RAII resource, used to reset the state of the CheckpointManager after
