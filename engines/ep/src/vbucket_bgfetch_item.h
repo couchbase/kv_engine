@@ -154,6 +154,8 @@ public:
         return bgfetched_list;
     }
 
+    bool operator==(const vb_bgfetch_item_ctx_t& other) const;
+
     /**
      * @returns the ValueFilter to be used when fetching the item for the set
      * of outstanding fetch requests.

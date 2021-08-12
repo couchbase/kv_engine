@@ -21,6 +21,8 @@
 #include "nexus-kvstore-transaction-context.h"
 #include "rollback_result.h"
 #include "vb_commit.h"
+#include "vbucket.h"
+#include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
 
 #include <utilities/logtags.h>
@@ -468,9 +470,78 @@ void NexusKVStore::setMaxDataSize(size_t size) {
     secondary->setMaxDataSize(size);
 }
 
-void NexusKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) const {
+/**
+ * BGFetchItem created by NexusKVStore to perform the same BGFetch operation
+ * against the secondary KVStore in NexusKVStore.
+ */
+class NexusBGFetchItem : public BGFetchItem {
+public:
+    explicit NexusBGFetchItem(std::chrono::steady_clock::time_point initTime,
+                              ValueFilter filter)
+        : BGFetchItem(initTime), filter(filter) {
+    }
+
+    void complete(EventuallyPersistentEngine& engine,
+                  VBucketPtr& vb,
+                  std::chrono::steady_clock::time_point startTime,
+                  const DiskDocKey& key) const override {
+        // Do nothing, we will compare the GetValues later
+    }
+
+    void abort(EventuallyPersistentEngine& engine,
+               cb::engine_errc status,
+               std::map<const CookieIface*, cb::engine_errc>& toNotify)
+            const override {
+        // Same as above
+    }
+
+    ValueFilter getValueFilter() const override {
+        return filter;
+    }
+
+private:
+    ValueFilter filter;
+};
+
+void NexusKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& primaryQueue) const {
     auto lh = getLock(vb);
-    primary->getMulti(vb, itms);
+    vb_bgfetch_queue_t secondaryQueue;
+    for (const auto& [key, primaryCtx] : primaryQueue) {
+        auto [itr, inserted] =
+                secondaryQueue.emplace(key, vb_bgfetch_item_ctx_t());
+        Expects(inserted);
+
+        for (const auto& bgFetchItem : primaryCtx.getRequests()) {
+            itr->second.addBgFetch(std::make_unique<NexusBGFetchItem>(
+                    bgFetchItem->initTime, bgFetchItem->getValueFilter()));
+        }
+    }
+
+    primary->getMulti(vb, primaryQueue);
+    secondary->getMulti(vb, secondaryQueue);
+
+    if (primaryQueue.size() != secondaryQueue.size()) {
+        auto msg = fmt::format(
+                "NexusKVStore::getMulti: {}: primary queue and secondary "
+                "queue are different sizes",
+                vb);
+        handleError(msg);
+    }
+
+    for (auto& [key, value] : primaryQueue) {
+        auto secondaryItr = secondaryQueue.find(key);
+        if (secondaryItr == secondaryQueue.end()) {
+            auto msg = fmt::format(
+                    "NexusKVStore::getMulti: {}: found key:{} in primary queue "
+                    "but not secondary",
+                    vb,
+                    cb::UserData(key.to_string()));
+            handleError(msg);
+        }
+
+        doPostGetChecks(
+                __FUNCTION__, vb, key, value.value, secondaryItr->second.value);
+    }
 }
 
 void NexusKVStore::getRange(Vbid vb,
