@@ -14,9 +14,10 @@
  */
 
 #include "benchmark_memory_tracker.h"
+#include "checkpoint.h"
 #include "checkpoint_manager.h"
+#include "checkpoint_types.h"
 #include "engine_fixture.h"
-#include "ep_bucket.h"
 #include "item.h"
 #include "kv_bucket.h"
 #include "stored_value_factories.h"
@@ -25,7 +26,6 @@
 
 #include <executor/fake_executorpool.h>
 #include <folly/portability/GTest.h>
-#include <mock/mock_synchronous_ep_engine.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <algorithm>
 #include <thread>
@@ -84,19 +84,6 @@ protected:
         EngineFixture::TearDown(state);
     }
 
-    /// Flush all items in the vBucket to disk.
-    size_t flushAllItems(Vbid vbid) {
-        size_t itemsFlushed = 0;
-        auto& ep = dynamic_cast<EPBucket&>(*engine->getKVBucket());
-        EPBucket::MoreAvailable moreAvailable;
-        do {
-            const auto res = ep.flushVBucket(vbid);
-            moreAvailable = res.moreAvailable;
-            itemsFlushed += res.numFlushed;
-        } while (moreAvailable == EPBucket::MoreAvailable::Yes);
-        return itemsFlushed;
-    }
-
     Store store;
 };
 
@@ -147,6 +134,8 @@ protected:
         }
         EngineFixture::TearDown(state);
     }
+
+    CheckpointList extractClosedUnrefCheckpoints(CheckpointManager&);
 };
 
 /**
@@ -435,6 +424,80 @@ BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
     bgThread.join();
 }
 
+CheckpointList CheckpointBench::extractClosedUnrefCheckpoints(
+        CheckpointManager& manager) {
+    std::lock_guard<std::mutex> lh(manager.queueLock);
+    return manager.extractClosedUnrefCheckpoints(lh);
+}
+
+/**
+ * Removing checkpoints is logically split in two parts:
+ *
+ * 1. Extracting the checkpoints to remove from the CM list
+ * 2. Releasing the checkpoints
+ *
+ * (1) is what executes under CM lock and must be fast enough for not blocking
+ * frontend operations and avoiding frontend throughput degradation.
+ *
+ * At the time of introducing this bench, (1) is O(N) in the size of the
+ * checkpoint list. The bench measures the runtime of (1) at increasing num of
+ * checkpoints and shows that the runtime increases linearly.
+ * Then under MB-47386 (1) will be made O(1), so the same bench will show
+ * constant runtimes for any workload.
+ */
+BENCHMARK_DEFINE_F(CheckpointBench, ExtractClosedUnrefCheckpoints)
+(benchmark::State& state) {
+    const size_t numCheckpoints = state.range(0);
+
+    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+
+    while (state.KeepRunning()) {
+        state.PauseTiming();
+
+        // Clean up everything and start from scat every iteration
+        manager.clear(0 /*seqno*/);
+        ASSERT_EQ(0, manager.getHighSeqno());
+        ASSERT_EQ(1, manager.getNumItems());
+
+        // Note: Testclass sets chk_max_items=1, load N items will end up with
+        // N checkpoints
+        for (size_t i = 0; i < numCheckpoints; ++i) {
+            queued_item item{new Item(
+                    StoredDocKey(std::string("key") + std::to_string(i),
+                                 CollectionID::Default),
+                    vbid,
+                    queue_op::mutation,
+                    0 /*revSeqno*/,
+                    0 /*bySeqno*/)};
+            item->setQueuedTime();
+            EXPECT_TRUE(manager.queueDirty(
+                    vb, item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
+        }
+        ASSERT_EQ(numCheckpoints, manager.getNumCheckpoints());
+        ASSERT_EQ(numCheckpoints, manager.getHighSeqno());
+        ASSERT_GT(manager.getNumItems(), numCheckpoints);
+
+        // Make all closed checkpoints eligible for removal
+        flushAllItems(vbid);
+
+        // Benchmark
+        {
+            state.ResumeTiming();
+            const auto list = extractClosedUnrefCheckpoints(manager);
+            // Don't account checkpoints deallocation, so pause before list goes
+            // out of scope
+            state.PauseTiming();
+
+            EXPECT_EQ(numCheckpoints - 1, list.size());
+        }
+
+        // Need to resume here, gbench will fail when it's time to exit the
+        // loop otherwise.
+        state.ResumeTiming();
+    }
+}
+
 // Run with couchstore backend(0); item counts from 1..10,000,000
 BENCHMARK_REGISTER_F(MemTrackingVBucketBench, QueueDirty)
         ->Args({0, 1})
@@ -471,4 +534,13 @@ BENCHMARK_REGISTER_F(MemTrackingVBucketBench, FlushVBucket)
 // Arguments: numCheckpoints, numCkptToRemovePerIteration
 BENCHMARK_REGISTER_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
         ->Args({1000000, 1000})
+        ->Iterations(1);
+
+// Arguments: numCheckpoints
+BENCHMARK_REGISTER_F(CheckpointBench, ExtractClosedUnrefCheckpoints)
+        ->Args({1})
+        ->Args({10})
+        ->Args({100})
+        ->Args({1000})
+        ->Args({10000})
         ->Iterations(1);

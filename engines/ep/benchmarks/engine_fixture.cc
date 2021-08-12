@@ -11,16 +11,17 @@
 
 #include "engine_fixture.h"
 
+#include "benchmark_memory_tracker.h"
+#include "ep_bucket.h"
+#include "ep_time.h"
+#include "item.h"
+
 #include <executor/fake_executorpool.h>
 #include <mock/mock_synchronous_ep_engine.h>
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <thread>
-
-#include "benchmark_memory_tracker.h"
-#include "ep_time.h"
-#include "item.h"
 
 void EngineFixture::SetUp(const benchmark::State& state) {
     if (state.thread_index == 0) {
@@ -48,6 +49,7 @@ void EngineFixture::SetUp(const benchmark::State& state) {
 void EngineFixture::TearDown(const benchmark::State& state) {
     if (state.thread_index == 0) {
         executorPool->cancelAndClearAll();
+        executorPool->unregisterTaskable(engine->getTaskable(), true /*force*/);
         destroy_mock_cookie(cookie);
         engine->getDcpConnMap().manageConnections();
         engine.reset();
@@ -68,4 +70,16 @@ Item EngineFixture::make_item(Vbid vbid,
               PROTOCOL_BINARY_DATATYPE_JSON);
     item.setVBucketId(vbid);
     return item;
+}
+
+size_t EngineFixture::flushAllItems(Vbid vbid) {
+    size_t itemsFlushed = 0;
+    auto& ep = dynamic_cast<EPBucket&>(*engine->getKVBucket());
+    EPBucket::MoreAvailable moreAvailable;
+    do {
+        const auto res = ep.flushVBucket(vbid);
+        moreAvailable = res.moreAvailable;
+        itemsFlushed += res.numFlushed;
+    } while (moreAvailable == EPBucket::MoreAvailable::Yes);
+    return itemsFlushed;
 }

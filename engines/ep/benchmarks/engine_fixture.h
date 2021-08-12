@@ -31,6 +31,9 @@ protected:
 
     Item make_item(Vbid vbid, const std::string& key, const std::string& value);
 
+    /// Flush all items in the vBucket to disk.
+    size_t flushAllItems(Vbid vbid);
+
     SynchronousEPEngineUniquePtr engine;
     CookieIface* cookie = nullptr;
     const Vbid vbid = Vbid(0);

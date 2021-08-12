@@ -66,9 +66,10 @@ struct CheckpointSnapshotRange {
  */
 class CheckpointManager {
     friend class Checkpoint;
-    friend class EventuallyPersistentEngine;
-    friend class Consumer;
+    friend class CheckpointBench;
     friend class CheckpointManagerTestIntrospector;
+    friend class Consumer;
+    friend class EventuallyPersistentEngine;
 
 public:
     using FlusherCallback = std::shared_ptr<Callback<Vbid>>;
@@ -501,6 +502,11 @@ public:
     std::function<void(int64_t delta)> getOverheadChangedCallback() const;
 
     /**
+     * @return The number of checkpoints currently managed by this CM.
+     */
+    size_t getNumCheckpoints() const;
+
+    /**
      * Member std::function variable, to allow us to inject code into
      * removeCursor_UNLOCKED() for unit MB36146
      */
@@ -673,6 +679,17 @@ protected:
      */
     void maybeCreateNewCheckpoint(const std::lock_guard<std::mutex>& lh,
                                   VBucket& vb);
+
+    /**
+     * Remove all the closed/unref checkpoints (only the ones already processed
+     * by all cursors) from the checkpoint-list and return the removed chuck to
+     * the caller.
+     *
+     * @param lh Lock to CM mutex
+     * @return the set of closed/unref checkpoints removed from the CM list
+     */
+    CheckpointList extractClosedUnrefCheckpoints(
+            const std::lock_guard<std::mutex>& lh);
 
     CheckpointList checkpointList;
     EPStats                 &stats;

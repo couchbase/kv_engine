@@ -456,29 +456,14 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(VBucket& vb) {
     CheckpointList toRelease;
     {
         std::lock_guard<std::mutex> lh(queueLock);
-
         maybeCreateNewCheckpoint(lh, vb);
-
-        // Iterate through the current checkpoints (from oldest to newest),
-        // checking if the checkpoint can be removed.
-        // `it` is set to the first checkpoint we want to keep - all earlier
-        // ones are removed.
-        auto it = checkpointList.begin();
-        // Note terminating condition - we stop at one before the last
-        // checkpoint - we must leave at least one checkpoint in existence.
-        for (; it != checkpointList.end() &&
-               std::next(it) != checkpointList.end();
-             ++it) {
-            // Stop when we encounter the first checkpoint which has cursor(s)
-            // in it.
-            if ((*it)->getNumCursorsInCheckpoint() > 0) {
-                break;
-            }
-        }
-        toRelease.splice(
-                toRelease.begin(), checkpointList, checkpointList.begin(), it);
+        toRelease = extractClosedUnrefCheckpoints(lh);
     }
     // CM lock released here
+
+    if (toRelease.empty()) {
+        return 0;
+    }
 
     // Update stats and compute return value
     size_t numNonMetaItemsRemoved = 0;
@@ -1581,6 +1566,11 @@ CheckpointManager::getOverheadChangedCallback() const {
     return overheadChangedCallback;
 }
 
+size_t CheckpointManager::getNumCheckpoints() const {
+    std::lock_guard<std::mutex> lh(queueLock);
+    return checkpointList.size();
+}
+
 std::ostream& operator <<(std::ostream& os, const CheckpointManager& m) {
     os << "CheckpointManager[" << &m << "] with numItems:"
        << m.getNumItems() << " checkpoints:" << m.checkpointList.size()
@@ -1623,4 +1613,28 @@ void CheckpointManager::maybeCreateNewCheckpoint(
         const auto forceCreation = isCheckpointCreationForHighMemUsage(lh, vb);
         checkOpenCheckpoint_UNLOCKED(lh, forceCreation, true);
     }
+}
+
+CheckpointList CheckpointManager::extractClosedUnrefCheckpoints(
+        const std::lock_guard<std::mutex>& lh) {
+    // Iterate through the current checkpoints (from oldest to newest),
+    // checking if the checkpoint can be removed.
+    // `it` is set to the first checkpoint we want to keep - all earlier
+    // ones are removed.
+    auto it = checkpointList.begin();
+    // Note terminating condition - we stop at one before the last
+    // checkpoint - we must leave at least one checkpoint in existence.
+    for (; it != checkpointList.end() && std::next(it) != checkpointList.end();
+         ++it) {
+        // Stop when we encounter the first checkpoint which has cursor(s)
+        // in it.
+        if ((*it)->getNumCursorsInCheckpoint() > 0) {
+            break;
+        }
+    }
+
+    CheckpointList ret;
+    ret.splice(ret.begin(), checkpointList, checkpointList.begin(), it);
+
+    return ret;
 }
