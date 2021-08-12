@@ -525,6 +525,10 @@ public:
                engine->getConfiguration().getNexusPrimaryBackend() == "magma";
     }
 
+    bool isNexus() const {
+        return engine->getConfiguration().getBackend() == "nexus";
+    }
+
     std::string getBackend() const {
         return std::get<0>(GetParam());
     }

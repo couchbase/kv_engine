@@ -14,6 +14,7 @@
 #include "kvstore/kvstore.h"
 
 class NexusKVStoreConfig;
+class NexusKVStoreSecondaryPersistenceCallback;
 
 /**
  * Testing harness for two KVStore implementations that runs both KVStores in
@@ -125,7 +126,7 @@ protected:
     uint64_t prepareToDeleteImpl(Vbid vbid) override;
     void prepareToCreateImpl(Vbid vbid) override;
 
-    void handleError(std::string_view msg);
+    void handleError(std::string_view msg) const;
 
     /**
      * Create a Collections::VB::Manifest for the secondary KVStore to use
@@ -150,6 +151,10 @@ protected:
             Vbid vbid,
             const Collections::VB::Manifest& primaryVBManifest,
             const Collections::VB::Manifest& secondaryVBManifest);
+
+    // Friended to let us call handleError to error if the results of the
+    // secondary PersistenceCallback are different to those of the primary
+    friend NexusKVStoreSecondaryPersistenceCallback;
 
 protected:
     NexusKVStoreConfig& configuration;

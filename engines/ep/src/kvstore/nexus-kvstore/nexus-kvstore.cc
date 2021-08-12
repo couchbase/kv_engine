@@ -16,6 +16,7 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "kvstore/kvstore_transaction_context.h"
 #include "nexus-kvstore-config.h"
+#include "nexus-kvstore-persistence-callback.h"
 #include "nexus-kvstore-transaction-context.h"
 #include "rollback_result.h"
 #include "vb_commit.h"
@@ -494,15 +495,18 @@ void NexusKVStore::setStorageThreads(ThreadPoolConfig::StorageThreadCount num) {
 
 std::unique_ptr<TransactionContext> NexusKVStore::begin(
         Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) {
-    auto primaryContext = primary->begin(vbid, std::move(pcb));
-    auto secondaryContext =
-            secondary->begin(vbid, std::make_unique<PersistenceCallback>());
+    auto ctx = std::make_unique<NexusKVStoreTransactionContext>(*this, vbid);
 
-    return std::make_unique<NexusKVStoreTransactionContext>(
-            *this,
+    ctx->primaryContext = primary->begin(
             vbid,
-            std::move(primaryContext),
-            std::move(secondaryContext));
+            std::make_unique<NexusKVStorePrimaryPersistenceCallback>(
+                    std::move(pcb), ctx->primarySets, ctx->primaryDeletions));
+    ctx->secondaryContext = secondary->begin(
+            vbid,
+            std::make_unique<NexusKVStoreSecondaryPersistenceCallback>(
+                    *this, ctx->primarySets, ctx->primaryDeletions));
+
+    return ctx;
 }
 
 const KVStoreStats& NexusKVStore::getKVStoreStat() const {
@@ -592,7 +596,7 @@ void NexusKVStore::prepareToCreateImpl(Vbid vbid) {
     secondary->prepareToCreateImpl(vbid);
 }
 
-void NexusKVStore::handleError(std::string_view msg) {
+void NexusKVStore::handleError(std::string_view msg) const {
     // Always worth logging
     EP_LOG_CRITICAL("{}", msg);
 

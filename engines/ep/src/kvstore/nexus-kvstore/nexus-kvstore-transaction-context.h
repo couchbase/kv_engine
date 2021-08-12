@@ -16,16 +16,22 @@
 #include "kvstore/persistence_callback.h"
 
 struct NexusKVStoreTransactionContext : public TransactionContext {
-    NexusKVStoreTransactionContext(
-            KVStoreIface& kvstore,
-            Vbid vbid,
-            std::unique_ptr<TransactionContext> primary,
-            std::unique_ptr<TransactionContext> secondary)
-        : TransactionContext(kvstore, vbid, {}),
-          primaryContext(std::move(primary)),
-          secondaryContext(std::move(secondary)) {
+    NexusKVStoreTransactionContext(KVStoreIface& kvstore, Vbid vbid)
+        : TransactionContext(kvstore, vbid, {}) {
     }
 
     std::unique_ptr<TransactionContext> primaryContext;
     std::unique_ptr<TransactionContext> secondaryContext;
+
+    // Caching the results of the PersistenceCallback of the primary so that
+    // when we run the flush against the secondary we can check that the
+    // key was persisted and the state returned for it. These maps are
+    // referenced by the NexusKVStorePersistenceCallbacks which use them
+    // directly. We're storing the DiskDocKey rather than and Item because:
+    // a) The Item passed in the PersistenceCallback API is a reference and
+    //    will be freed before we run persistence for the secondary
+    // b) The Item shouldn't change
+    // c) The DiskDocKey is unique when it comes to prepares etc.
+    std::unordered_map<DiskDocKey, FlushStateMutation> primarySets;
+    std::unordered_map<DiskDocKey, FlushStateDeletion> primaryDeletions;
 };
