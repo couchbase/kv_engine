@@ -21,7 +21,7 @@
  * callback.
  */
 struct TransactionContext {
-    TransactionContext(KVStore& kvstore,
+    TransactionContext(KVStoreIface& kvstore,
                        Vbid vbid,
                        std::unique_ptr<PersistenceCallback> cb)
         : kvstore(kvstore), vbid(vbid), cb(std::move(cb)) {
@@ -48,7 +48,7 @@ struct TransactionContext {
         (*cb)(i, d);
     }
 
-    KVStore& kvstore;
+    KVStoreIface& kvstore;
     const Vbid vbid;
     std::unique_ptr<PersistenceCallback> cb;
 };

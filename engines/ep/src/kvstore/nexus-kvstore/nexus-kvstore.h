@@ -119,6 +119,7 @@ public:
                         const queued_item item) override;
     void delSystemEvent(TransactionContext& txnCtx,
                         const queued_item item) override;
+    void endTransaction(Vbid vbid) override;
 
 protected:
     uint64_t prepareToDeleteImpl(Vbid vbid) override;

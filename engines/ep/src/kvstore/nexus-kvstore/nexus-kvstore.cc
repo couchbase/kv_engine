@@ -361,3 +361,7 @@ void NexusKVStore::handleError(std::string_view msg) {
         throw std::logic_error(std::string(msg));
     }
 }
+
+void NexusKVStore::endTransaction(Vbid vbid) {
+    primary->endTransaction(vbid);
+}

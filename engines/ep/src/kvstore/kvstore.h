@@ -710,12 +710,6 @@ public:
         postFlushHook = hook;
     }
 
-    /**
-     * End a transaction by resetting the appropriate inTransaction bool. Public
-     * so that we can call this from ~TransactionContext().
-     *
-     * @param vbid to start a transaction for
-     */
     void endTransaction(Vbid vbid);
 
     /**

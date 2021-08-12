@@ -541,6 +541,14 @@ public:
             ThreadPoolConfig::StorageThreadCount num) = 0;
 
     /**
+     * End a transaction by resetting the appropriate state. Public so that we
+     * can call this from ~TransactionContext().
+     *
+     * @param vbid to end a transaction for
+     */
+    virtual void endTransaction(Vbid vbid) = 0;
+
+    /**
      * Construct a transaction context applicable to the given KVStore and
      * return it to the caller
      *
