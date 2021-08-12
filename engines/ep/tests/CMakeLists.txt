@@ -25,6 +25,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
         ep_request_utils.cc
         module_tests/atomic_unordered_map_test.cc
         module_tests/backfill-manager_test.cc
+        module_tests/backfill_disk_test.cc
         module_tests/basic_ll_test.cc
         module_tests/bloomfilter_test.cc
         module_tests/bucket_logger_engine_test.cc
