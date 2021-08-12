@@ -136,6 +136,9 @@ public:
      */
     void setManifest(Manifest& newManifest);
 
+    /// Returns the VB::Manifest currently in use
+    VB::Manifest& getManifest() const;
+
     /**
      * Called after a flush was successful so that purging can be triggered and
      * statistic changes applied.

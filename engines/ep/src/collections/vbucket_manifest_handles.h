@@ -518,6 +518,10 @@ public:
 
     size_t getItemCount() const;
 
+    uint64_t getPersistedHighSeqno() const {
+        return manifest->getPersistedHighSeqno(itr);
+    }
+
     /// @return the number of stores to the collection
     size_t getOpsStore() const;
 
@@ -670,6 +674,10 @@ public:
                                const ManifestEntry& droppedEntry,
                                uint64_t droppedSeqno) {
         manifest.saveDroppedCollection(cid, droppedEntry, droppedSeqno);
+    }
+
+    void setDiskSize(CollectionID cid, size_t size) {
+        manifest.setDiskSize(cid, size);
     }
 
     /**

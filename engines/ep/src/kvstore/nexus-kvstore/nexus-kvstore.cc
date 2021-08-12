@@ -12,9 +12,13 @@
 #include "nexus-kvstore.h"
 
 #include "bucket_logger.h"
+#include "collections/vbucket_manifest.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "kvstore/kvstore_transaction_context.h"
 #include "nexus-kvstore-config.h"
+#include "nexus-kvstore-transaction-context.h"
 #include "rollback_result.h"
+#include "vb_commit.h"
 #include "vbucket_state.h"
 
 NexusKVStore::NexusKVStore(NexusKVStoreConfig& config) : configuration(config) {
@@ -56,9 +60,233 @@ size_t NexusKVStore::getMemFootPrint() const {
     return primary->getMemFootPrint() + secondary->getMemFootPrint();
 }
 
+Collections::VB::Manifest NexusKVStore::generateSecondaryVBManifest(
+        Vbid vbid, const VB::Commit& primaryCommitData) {
+    // Need to create the manifest for the secondary KVStore
+    auto secondaryManifest = primaryCommitData.collections.getManifest();
+
+    // Having generated the Manifest object we now need to correct the disk
+    // sizes as they may differ between KVStores. We'll load the disk sizes of
+    // each collection now...
+    auto secondaryFileHandle = secondary->makeFileHandle(vbid);
+    if (secondaryFileHandle) {
+        auto collections = secondaryManifest.wlock();
+        for (auto& itr : collections) {
+            auto& [cid, entry] = itr;
+            auto [statsSuccess, stats] =
+                    secondary->getCollectionStats(*secondaryFileHandle, cid);
+            if (statsSuccess) {
+                collections.setDiskSize(cid, stats.diskSize);
+            }
+        }
+    }
+
+    return secondaryManifest;
+}
+
+void NexusKVStore::doPostFlushSanityChecks(
+        Vbid vbid,
+        const Collections::VB::Manifest& primaryVBManifest,
+        const Collections::VB::Manifest& secondaryVBManifest) {
+    // 1) Compare on disk manifests
+    auto [primaryManifestResult, primaryKVStoreManifest] =
+            primary->getCollectionsManifest(vbid);
+    auto [secondaryManifestResult, secondaryKVStoreManifest] =
+            secondary->getCollectionsManifest(vbid);
+    if (primaryManifestResult != secondaryManifestResult) {
+        auto msg = fmt::format(
+                "NexusKVStore::doPostFlushSanityChecks: {}: issue getting "
+                "collections manifest primary:{} secondary:{}",
+                vbid,
+                primaryManifestResult,
+                secondaryManifestResult);
+        handleError(msg);
+    }
+
+    // @TODO MB-47604: currently we don't check droppedCollectionsExist when
+    // comparing the two manifests because we don't currently run compaction
+    // against the secondary KVStore.
+    if (primaryKVStoreManifest.manifestUid !=
+        secondaryKVStoreManifest.manifestUid) {
+        auto msg = fmt::format(
+                "NexusKVStore::doPostFlushSanityChecks: {}: collections "
+                "manifest uid not equal primary:{} secondary: {}",
+                vbid,
+                primaryKVStoreManifest.manifestUid,
+                secondaryKVStoreManifest.manifestUid);
+        handleError(msg);
+    }
+
+    if (!primaryKVStoreManifest.compareCollections(secondaryKVStoreManifest)) {
+        auto msg = fmt::format(
+                "NexusKVStore::doPostFlushSanityChecks: {}: collections "
+                "manifest collections not equal primary:{} secondary:{}",
+                vbid,
+                primaryKVStoreManifest,
+                secondaryKVStoreManifest);
+        handleError(msg);
+    }
+
+    if (!primaryKVStoreManifest.compareScopes(secondaryKVStoreManifest)) {
+        auto msg = fmt::format(
+                "NexusKVStore::doPostFlushSanityChecks: {}: collections "
+                "manifest scopes not equal primary:{} secondary:{}",
+                vbid,
+                primaryKVStoreManifest,
+                secondaryKVStoreManifest);
+        handleError(msg);
+    }
+
+    // 2) Compare collections stats doc values
+    for (const auto& collection : primaryKVStoreManifest.collections) {
+        auto& cid = collection.metaData.cid;
+
+        auto primaryHandle = primary->makeFileHandle(vbid);
+        auto [primaryResult, primaryStats] =
+                primary->getCollectionStats(*primaryHandle, cid);
+        auto secondaryHandle = secondary->makeFileHandle(vbid);
+        auto [secondaryResult, secondaryStats] =
+                secondary->getCollectionStats(*secondaryHandle, cid);
+        if (primaryResult != secondaryResult) {
+            auto msg = fmt::format(
+                    "NexusKVStore::doPostFlushSanityChecks: {}: issue getting "
+                    "collection stats primary:{} secondary:{}",
+                    vbid,
+                    primaryResult,
+                    secondaryResult);
+            handleError(msg);
+        }
+
+        if (primaryStats.itemCount != secondaryStats.itemCount) {
+            auto msg = fmt::format(
+                    "NexusKVStore::doPostFlushSanityChecks: {}: cid:{} item "
+                    "count mismatch primary:{} secondary:{}",
+                    vbid,
+                    cid,
+                    primaryStats.itemCount,
+                    secondaryStats.itemCount);
+            handleError(msg);
+        }
+        if (primaryStats.itemCount !=
+            primaryVBManifest.lock(cid).getItemCount()) {
+            auto msg = fmt::format(
+                    "NexusKVStore::doPostFlushSanityChecks: {}: cid:{} item "
+                    "count mismatch for primary disk:{} VBManifest:{}",
+                    vbid,
+                    cid,
+                    primaryStats.itemCount,
+                    primaryVBManifest.lock(cid).getItemCount());
+            handleError(msg);
+        }
+        if (secondaryStats.itemCount !=
+            secondaryVBManifest.lock(cid).getItemCount()) {
+            auto msg = fmt::format(
+                    "NexusKVStore::doPostFlushSanityChecks: {}: cid:{} item "
+                    "count mismatch for secondary disk:{} VBManifest:{}",
+                    vbid,
+                    cid,
+                    secondaryStats.itemCount,
+                    secondaryVBManifest.lock(cid).getItemCount());
+            handleError(msg);
+        }
+
+        if (primaryStats.highSeqno != secondaryStats.highSeqno) {
+            auto msg = fmt::format(
+                    "NexusKVStore::doPostFlushSanityChecks: {}: cid:{} high "
+                    "seqno mismatch primary:{} secondary:{}",
+                    vbid,
+                    cid,
+                    primaryStats.highSeqno,
+                    secondaryStats.highSeqno);
+            handleError(msg);
+        }
+        if (primaryStats.highSeqno !=
+            primaryVBManifest.lock(cid).getPersistedHighSeqno()) {
+            auto msg = fmt::format(
+                    "NexusKVStore::doPostFlushSanityChecks: {}: cid:{} high "
+                    "seqno mismatch for primary disk:{} VBManifest:{}",
+                    vbid,
+                    cid,
+                    primaryStats.highSeqno,
+                    primaryVBManifest.lock(cid).getPersistedHighSeqno());
+            handleError(msg);
+        }
+        if (secondaryStats.highSeqno !=
+            secondaryVBManifest.lock(cid).getPersistedHighSeqno()) {
+            auto msg = fmt::format(
+                    "NexusKVStore::doPostFlushSanityChecks: {}: cid:{} high "
+                    "seqno mismatch for secondary disk:{} VBManifest:{}",
+                    vbid,
+                    cid,
+                    secondaryStats.highSeqno,
+                    secondaryVBManifest.lock(cid).getPersistedHighSeqno());
+            handleError(msg);
+        }
+
+        // We can't compare disk size between primary and secondary as they
+        // will differ if the underlying KVStore type is different. We can
+        // check them against the VB Manifest though.
+        if (primaryStats.diskSize !=
+            primaryVBManifest.lock(cid).getDiskSize()) {
+            auto msg = fmt::format(
+                    "NexusKVStore::doPostFlushSanityChecks: {}: cid:{} disk "
+                    "size mismatch for primary disk:{} VBManifest:{}",
+                    vbid,
+                    cid,
+                    primaryStats.diskSize,
+                    primaryVBManifest.lock(cid).getDiskSize());
+            handleError(msg);
+        }
+        if (secondaryStats.diskSize !=
+            secondaryVBManifest.lock(cid).getDiskSize()) {
+            auto msg = fmt::format(
+                    "NexusKVStore::doPostFlushSanityChecks: {}: cid:{} disk "
+                    "size mismatch for secondary disk:{} VBManifest:{}",
+                    vbid,
+                    cid,
+                    secondaryStats.diskSize,
+                    secondaryVBManifest.lock(cid).getDiskSize());
+            handleError(msg);
+        }
+    }
+}
+
 bool NexusKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
-                          VB::Commit& commitData) {
-    return primary->commit(std::move(txnCtx), commitData);
+                          VB::Commit& primaryCommitData) {
+    auto& nexusTxnCtx = dynamic_cast<NexusKVStoreTransactionContext&>(*txnCtx);
+    auto vbid = txnCtx->vbid;
+
+    // Need to create the manifest for the secondary KVStore
+    auto secondaryVBManifest =
+            generateSecondaryVBManifest(vbid, primaryCommitData);
+
+    // Copy the flush tracking before we go and update it for each doc we see.
+    // We need this copy for the secondary to start the counts from the same
+    // place. We need to swap the manifest that the collections flush object
+    // points to though so that it doesn't try to update the original manifest
+    // for the secondary KVStore. We'll check that manifest against the disk
+    // state to make sure the secondary KVStore is correct.
+    VB::Commit secondaryCommitData = primaryCommitData;
+    secondaryCommitData.collections.setManifest(secondaryVBManifest);
+
+    auto primaryResult = primary->commit(std::move(nexusTxnCtx.primaryContext),
+                                         primaryCommitData);
+    auto secondaryResult = secondary->commit(
+            std::move(nexusTxnCtx.secondaryContext), secondaryCommitData);
+    if (primaryResult != secondaryResult) {
+        auto msg = fmt::format(
+                "NexusKVStore::commit: {}: primaryResult:{} secondaryResult:{}",
+                vbid,
+                primaryResult,
+                secondaryResult);
+        handleError(msg);
+    }
+
+    doPostFlushSanityChecks(vbid,
+                            primaryCommitData.collections.getManifest(),
+                            secondaryVBManifest);
+
+    return primaryResult;
 }
 
 StorageProperties NexusKVStore::getStorageProperties() const {
@@ -85,7 +313,9 @@ StorageProperties NexusKVStore::getStorageProperties() const {
 }
 
 void NexusKVStore::set(TransactionContext& txnCtx, queued_item item) {
-    primary->set(txnCtx, item);
+    auto& nexusTxnCtx = dynamic_cast<NexusKVStoreTransactionContext&>(txnCtx);
+    primary->set(*nexusTxnCtx.primaryContext, item);
+    secondary->set(*nexusTxnCtx.secondaryContext, item);
 }
 
 GetValue NexusKVStore::get(const DiskDocKey& key,
@@ -119,7 +349,9 @@ void NexusKVStore::getRange(Vbid vb,
 }
 
 void NexusKVStore::del(TransactionContext& txnCtx, queued_item item) {
-    primary->del(txnCtx, item);
+    auto& nexusTxnCtx = dynamic_cast<NexusKVStoreTransactionContext&>(txnCtx);
+    primary->del(*nexusTxnCtx.primaryContext, item);
+    secondary->del(*nexusTxnCtx.secondaryContext, item);
 }
 
 void NexusKVStore::delVBucket(Vbid vbucket, uint64_t fileRev) {
@@ -262,7 +494,15 @@ void NexusKVStore::setStorageThreads(ThreadPoolConfig::StorageThreadCount num) {
 
 std::unique_ptr<TransactionContext> NexusKVStore::begin(
         Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) {
-    return primary->begin(vbid, std::move(pcb));
+    auto primaryContext = primary->begin(vbid, std::move(pcb));
+    auto secondaryContext =
+            secondary->begin(vbid, std::make_unique<PersistenceCallback>());
+
+    return std::make_unique<NexusKVStoreTransactionContext>(
+            *this,
+            vbid,
+            std::move(primaryContext),
+            std::move(secondaryContext));
 }
 
 const KVStoreStats& NexusKVStore::getKVStoreStat() const {
@@ -318,12 +558,16 @@ void NexusKVStore::prepareForDeduplication(std::vector<queued_item>& items) {
 
 void NexusKVStore::setSystemEvent(TransactionContext& txnCtx,
                                   const queued_item item) {
-    primary->setSystemEvent(txnCtx, item);
+    auto& nexusTxnCtx = dynamic_cast<NexusKVStoreTransactionContext&>(txnCtx);
+    primary->setSystemEvent(*nexusTxnCtx.primaryContext, item);
+    secondary->setSystemEvent(*nexusTxnCtx.secondaryContext, item);
 }
 
 void NexusKVStore::delSystemEvent(TransactionContext& txnCtx,
                                   const queued_item item) {
-    primary->delSystemEvent(txnCtx, item);
+    auto& nexusTxnCtx = dynamic_cast<NexusKVStoreTransactionContext&>(txnCtx);
+    primary->delSystemEvent(*nexusTxnCtx.primaryContext, item);
+    secondary->delSystemEvent(*nexusTxnCtx.secondaryContext, item);
 }
 
 uint64_t NexusKVStore::prepareToDeleteImpl(Vbid vbid) {
@@ -364,4 +608,5 @@ void NexusKVStore::handleError(std::string_view msg) {
 
 void NexusKVStore::endTransaction(Vbid vbid) {
     primary->endTransaction(vbid);
+    secondary->endTransaction(vbid);
 }

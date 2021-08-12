@@ -675,4 +675,8 @@ void Flush::setManifest(Manifest& newManifest) {
     manifest = newManifest;
 }
 
+VB::Manifest& Flush::getManifest() const {
+    return manifest;
+}
+
 } // namespace Collections::VB

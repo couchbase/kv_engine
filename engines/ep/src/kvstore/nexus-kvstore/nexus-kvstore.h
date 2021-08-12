@@ -127,6 +127,30 @@ protected:
 
     void handleError(std::string_view msg);
 
+    /**
+     * Create a Collections::VB::Manifest for the secondary KVStore to use
+     * during this flush batch.
+     *
+     * @param vbid Vbid
+     * @param commitData passed to ::commit and includes a reference to the
+     *                   manifest via Collections::Flush
+     * @return A copy of the Collections::VB::Manifest
+     */
+    Collections::VB::Manifest generateSecondaryVBManifest(
+            Vbid vbid, const VB::Commit& commitData);
+
+    /**
+     * Check a various state after flushing both primary and secondary KVStores
+     *
+     * @param vbid Vbid
+     * @param primaryVBManifest in memory primary manifest
+     * @param secondaryVBManifest in memory secondary manifest
+     */
+    void doPostFlushSanityChecks(
+            Vbid vbid,
+            const Collections::VB::Manifest& primaryVBManifest,
+            const Collections::VB::Manifest& secondaryVBManifest);
+
 protected:
     NexusKVStoreConfig& configuration;
     std::unique_ptr<KVStoreIface> primary;

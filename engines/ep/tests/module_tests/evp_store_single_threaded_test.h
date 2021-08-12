@@ -506,7 +506,8 @@ public:
 
     /// @returns true if this is a magma bucket
     bool isMagma() const {
-        return engine->getConfiguration().getBackend() == "magma";
+        return engine->getConfiguration().getBackend() == "magma" ||
+               isNexusMagmaPrimary();
     }
 
     /**
@@ -517,6 +518,11 @@ public:
      */
     bool hasMagma() const {
         return std::get<0>(GetParam()).find("agma") != std::string::npos;
+    }
+
+    bool isNexusMagmaPrimary() const {
+        return engine->getConfiguration().getBackend() == "nexus" &&
+               engine->getConfiguration().getNexusPrimaryBackend() == "magma";
     }
 
     std::string getBackend() const {

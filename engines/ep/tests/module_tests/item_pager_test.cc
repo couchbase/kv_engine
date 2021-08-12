@@ -1071,7 +1071,7 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
         // Ephemeral does not evict from replicas
         GTEST_SKIP();
     }
-    if (isMagma()) {
+    if (hasMagma()) {
         // Magma's memory usage makes tests relying on memory usage maths
         // difficult, and probably quite fragile/sensitive to magma changes.
         // The behaviour being tested is _not_ dependent on the backend,

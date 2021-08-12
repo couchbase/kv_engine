@@ -70,6 +70,31 @@ Manifest::~Manifest() {
     }
 }
 
+Manifest::Manifest(Manifest& other) : manager(other.manager) {
+    // Prevent other from being modified while we copy.
+    auto wlock = other.wlock();
+
+    // Collections map is not trivially copyable, so we have do it manually
+    for (auto& [cid, entry] : other.map) {
+        CollectionSharedMetaDataView meta{
+                entry.getName(), entry.getScopeID(), entry.getMaxTtl()};
+        auto [itr, inserted] =
+                map.try_emplace(cid,
+                                other.manager->createOrReferenceMeta(cid, meta),
+                                entry.getStartSeqno());
+        Expects(inserted);
+        itr->second.setItemCount(entry.getItemCount());
+        itr->second.setDiskSize(entry.getDiskSize());
+        itr->second.setHighSeqno(entry.getHighSeqno());
+        itr->second.setPersistedHighSeqno(entry.getPersistedHighSeqno());
+    }
+
+    scopes = other.scopes;
+    droppedCollections = other.droppedCollections;
+    manifestUid = other.manifestUid;
+    dropInProgress.store(other.dropInProgress);
+}
+
 //
 // applyDrops (and applyCreates et'al) all follow a similar pattern and are
 // tightly coupled with completeUpdate. As input the function is given a set of
@@ -947,6 +972,16 @@ void Manifest::setHighSeqno(CollectionID collection, uint64_t value) const {
                         " with value:" + std::to_string(value));
     }
     itr->second.setHighSeqno(value);
+}
+
+void Manifest::setDiskSize(CollectionID collection, size_t size) const {
+    auto itr = map.find(collection);
+    if (itr == map.end()) {
+        throwException<std::invalid_argument>(
+                __FUNCTION__,
+                "failed find of collection:" + collection.to_string());
+    }
+    return itr->second.setDiskSize(size);
 }
 
 uint64_t Manifest::getPersistedHighSeqno(CollectionID collection) const {

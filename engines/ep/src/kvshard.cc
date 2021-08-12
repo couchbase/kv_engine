@@ -32,7 +32,8 @@ KVShard::KVShard(EventuallyPersistentEngine& engine, id_type id)
     const std::string backend = config.getBackend();
 
 #ifdef EP_USE_MAGMA
-    if (backend == "magma") {
+    if (backend == "magma" ||
+        (backend == "nexus" && config.getNexusPrimaryBackend() == "magma")) {
         // magma has its own bloom filters and should not use kv_engine's bloom
         // filters. Should save some memory.
         config.setBfilterEnabled(false);
