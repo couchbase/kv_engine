@@ -396,9 +396,9 @@ public:
                 std::make_tuple("persistent_couchstore"s, "full_eviction"s)
 #ifdef EP_USE_MAGMA
                         ,
-                std::make_tuple("persistent_nexus_couchdb_magma"s,
+                std::make_tuple("persistent_nexus_couchstore_magma"s,
                                 "value_only"),
-                std::make_tuple("persistent_nexus_couchdb_magma"s,
+                std::make_tuple("persistent_nexus_couchstore_magma"s,
                                 "full_eviction"),
                 std::make_tuple("persistent_magma"s, "value_only"s),
                 std::make_tuple("persistent_magma"s, "full_eviction"s)
@@ -422,9 +422,9 @@ public:
                 std::make_tuple("persistent_couchstore"s, "full_eviction"s)
 #ifdef EP_USE_MAGMA
                         ,
-                std::make_tuple("persistent_nexus_couchdb_magma"s,
+                std::make_tuple("persistent_nexus_couchstore_magma"s,
                                 "value_only"),
-                std::make_tuple("persistent_nexus_couchdb_magma"s,
+                std::make_tuple("persistent_nexus_couchstore_magma"s,
                                 "full_eviction"),
                 std::make_tuple("persistent_magma"s, "value_only"s),
                 std::make_tuple("persistent_magma"s, "full_eviction"s)
@@ -455,9 +455,13 @@ public:
                 std::make_tuple("persistent_couchstore"s, "full_eviction"s)
 #ifdef EP_USE_MAGMA
                         ,
-                std::make_tuple("persistent_nexus_couchdb_magma"s,
+                std::make_tuple("persistent_nexus_couchstore_magma"s,
                                 "value_only"),
-                std::make_tuple("persistent_nexus_couchdb_magma"s,
+                std::make_tuple("persistent_nexus_couchstore_magma"s,
+                                "full_eviction"),
+                std::make_tuple("persistent_nexus_magma_couchstore"s,
+                                "value_only"),
+                std::make_tuple("persistent_nexus_magma_couchstore"s,
                                 "full_eviction"),
                 std::make_tuple("persistent_magma"s, "value_only"s),
                 std::make_tuple("persistent_magma"s, "full_eviction"s)
@@ -477,7 +481,7 @@ public:
                 std::make_tuple("persistent_rocksdb"s, "full_eviction"s),
 #endif
 #ifdef EP_USE_MAGMA
-                std::make_tuple("persistent_nexus_couchdb_magma"s,
+                std::make_tuple("persistent_nexus_couchstore_magma"s,
                                 "full_eviction"),
                 std::make_tuple("persistent_magma"s, "full_eviction"s),
 #endif

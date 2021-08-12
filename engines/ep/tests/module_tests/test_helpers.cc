@@ -352,6 +352,13 @@ std::string generateNexusConfig(std::string_view config) {
     auto primary = config.substr(0, primaryEnd);
     auto secondary = config.substr(primaryEnd + 1);
 
+    if (primary == "couchstore") {
+        primary = "couchdb";
+    }
+    if (secondary == "couchstore") {
+        secondary = "couchdb";
+    }
+
     configString += "nexus_primary_backend=" + std::string(primary) + ";";
     configString += "nexus_secondary_backend=" + std::string(secondary);
 

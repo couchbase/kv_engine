@@ -270,6 +270,23 @@ bool NexusKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
     VB::Commit secondaryCommitData = primaryCommitData;
     secondaryCommitData.collections.setManifest(secondaryVBManifest);
 
+    // Secondary commit data needs some tweaking in
+    auto* secondaryVbState = secondary->getCachedVBucketState(vbid);
+    if (!primary->getStorageProperties().hasPrepareCounting() &&
+        secondary->getStorageProperties().hasPrepareCounting() &&
+        secondaryVbState) {
+        // Secondary supports prepare counting but primary doesn't. This means
+        // that flushes which call getCachedVBucketState and other things that
+        // call getPersistedVBucketState will have incorrect numbers for
+        // prepares as we'll reset counters on every flush. We can fix this by
+        // passing back the secondary count (under the assumption that the
+        // primary doesn't care about it).
+        secondaryCommitData.proposedVBState.onDiskPrepares =
+                secondaryVbState->onDiskPrepares;
+        secondaryCommitData.proposedVBState.setOnDiskPrepareBytes(
+                secondaryVbState->getOnDiskPrepareBytes());
+    }
+
     auto primaryResult = primary->commit(std::move(nexusTxnCtx.primaryContext),
                                          primaryCommitData);
     auto secondaryResult = secondary->commit(
