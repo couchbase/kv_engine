@@ -1013,7 +1013,7 @@ TEST_P(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
     flushNodeIfPersistent(Node1);
 
     // brute force... ensure in-memory is now purged so our new stream backfills
-    vb->checkpointManager->clear(vbucket_state_active);
+    vb->checkpointManager->clear();
 
     // Now reconnect Node0/Node2
     auto route0_2_new = createDcpRoute(Node0, Node2);

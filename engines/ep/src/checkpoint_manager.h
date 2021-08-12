@@ -347,12 +347,15 @@ public:
         return getNumItemsForCursor(persistenceCursor);
     }
 
-    void clear(vbucket_state_t vbState);
-
     /**
-     * Clear all the checkpoints managed by this checkpoint manager.
+     * Clears all the checkpoints managed by this checkpoint manager and reset
+     * seqnos to the given seqno.
+     * If the optional seqno arg is omitted, then CM::lastBySeqno is used for
+     * resetting seqnos.
+     *
+     * @param seqno (optional) The high-seqno to set for the cleared CM.
      */
-    void clear(VBucket& vb, uint64_t seqno);
+    void clear(std::optional<uint64_t> seqno = {});
 
     const CheckpointConfig &getCheckpointConfig() const {
         return checkpointConfig;
@@ -575,7 +578,14 @@ protected:
 
     size_t getNumItemsForCursor_UNLOCKED(const CheckpointCursor* cursor) const;
 
-    void clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno);
+    /**
+     * Clears this CM, effectively removing all checkpoints in the list and
+     * resetting seqnos.
+     *
+     * @param lh Lock to CM::queueLock
+     * @param seqno The high-seqno to set for the cleared CM
+     */
+    void clear(const std::lock_guard<std::mutex>& lh, uint64_t seqno);
 
     /*
      * @return a reference to the open checkpoint

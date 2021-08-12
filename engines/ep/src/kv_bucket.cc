@@ -2013,7 +2013,7 @@ void KVBucket::reset() {
         auto vb = getLockedVBucket(vbid);
         if (vb) {
             vb->ht.clear();
-            vb->checkpointManager->clear(vb->getState());
+            vb->checkpointManager->clear();
             vb->resetStats();
             vb->setPersistedSnapshot({0, 0});
             EP_LOG_INFO("KVBucket::reset(): Successfully flushed {}", vbid);

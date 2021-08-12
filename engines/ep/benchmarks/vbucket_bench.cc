@@ -199,7 +199,7 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, QueueDirty)
         peakBytes = std::max(peakBytes, memoryTracker->getMaxAlloc());
         /// Cleanup VBucket
         vb->ht.clear();
-        vb->checkpointManager->clear(*vb, 0);
+        vb->checkpointManager->clear(0);
         state.ResumeTiming();
     }
 

@@ -187,7 +187,7 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     // Since public_processSet causes queueDirty to be run for each item above
     // we need to clear checkpointManager from having any references to the
     // items we want to delete
-    vbucket->checkpointManager->clear(vbucket->getState());
+    vbucket->checkpointManager->clear();
     // Record memory usage after creation.
     size_t mem_used_1 = global_stats.getPreciseTotalMemoryUsed();
 

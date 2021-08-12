@@ -50,7 +50,7 @@ void VBucketDurabilityTest::storeSyncWrites(
     // @todo: For now this function is supposed to be called once per test,
     //     expand if necessary
     ht->clear();
-    ckptMgr->clear(*vbucket, 0);
+    ckptMgr->clear(0);
 
     // In general we need to test SyncWrites at sparse seqnos. To achieve that
     // we have 2 options (e.g., if we want to add SyncWrites with seqnos
@@ -150,7 +150,7 @@ void VBucketDurabilityTest::testAddPrepareAndCommit(
     }
 
     // Simulate flush + checkpoint-removal
-    ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
+    ckptMgr->clear();
 
     // Simulate replica and active seqno-ack
     vbucket->seqnoAcknowledged(
@@ -282,7 +282,7 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteLoop) {
 
 TEST_P(VBucketDurabilityTest, AbortSyncWriteLoop) {
     ht->clear();
-    ckptMgr->clear(*vbucket, 0);
+    ckptMgr->clear(0);
     auto key = makeStoredDocKey("key");
     auto pending = makePendingItem(key, "valueB");
 
@@ -603,7 +603,7 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
 
     // replica3 acks, Durability Requirements satisfied
     // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
-    ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
+    ckptMgr->clear();
     vbucket->seqnoAcknowledged(
             folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
             replica3,
@@ -680,7 +680,7 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
     EXPECT_TRUE(sv->getValue());
 
     // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
-    ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
+    ckptMgr->clear();
 
     // Client never notified yet
     ASSERT_EQ(SWCompleteTrace(
@@ -943,7 +943,7 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
     EXPECT_EQ(1, monitor.getNumTracked());
 
     // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
-    ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
+    ckptMgr->clear();
 
     // Client never notified yet
     ASSERT_EQ(SWCompleteTrace(
@@ -1108,7 +1108,7 @@ TEST_P(VBucketDurabilityTest, Commit) {
 
 void VBucketDurabilityTest::testHTCommitExisting() {
     ht->clear(false);
-    ckptMgr->clear(*vbucket, 0);
+    ckptMgr->clear(0);
 
     auto key = makeStoredDocKey("key");
     auto committed = makeCommittedItem(key, "valueA"s);
@@ -2679,7 +2679,7 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
     ASSERT_EQ(writes.size(), vbucket->durabilityMonitor->getNumTracked());
 
     // This is just for an easier inspection of the CheckpointManager below
-    ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
+    ckptMgr->clear();
 
     auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
 

@@ -1629,7 +1629,7 @@ TEST_P(SingleThreadedActiveStreamTest, DiskSnapshotSendsChkMarker) {
     auto vb = engine->getVBucket(vbid);
     auto& ckptMgr = *vb->checkpointManager;
     // Get rid of set_vb_state and any other queue_op we are not interested in
-    ckptMgr.clear(*vb, 0 /*seqno*/);
+    ckptMgr.clear(0 /*seqno*/);
 
     // Remove the initial stream, we want to force it to backfill.
     stream.reset();
@@ -2535,7 +2535,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
     auto vb = engine->getVBucket(vbid);
     ASSERT_TRUE(vb);
     auto& ckptMgr = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
-    ckptMgr.clear(*vb, 0 /*seqno*/);
+    ckptMgr.clear(0 /*seqno*/);
     ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
     ASSERT_EQ(CheckpointType::Memory, ckptMgr.getOpenCheckpointType());
 

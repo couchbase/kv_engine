@@ -2101,7 +2101,7 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
 
     // Clear everything from CP manager so DCP backfills - here we are streaming
     // the active VB which we have just ran tombstone purging on.
-    vb->checkpointManager->clear(vbucket_state_active);
+    vb->checkpointManager->clear();
 
     createDcpObjects(std::make_optional(std::string_view{}));
 
@@ -2125,8 +2125,7 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
     // is triggered.
 
     // Clear everything from CP manager so DCP backfills
-    store->getVBucket(replicaVB)->checkpointManager->clear(
-            vbucket_state_replica);
+    store->getVBucket(replicaVB)->checkpointManager->clear();
     producers->consumer = nullptr; // effectively stops faux 'replication'
     createDcpStream({std::string{}}, replicaVB, cb::engine_errc::success, 0);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpNoop);

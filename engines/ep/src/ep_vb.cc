@@ -1047,11 +1047,12 @@ std::function<void(int64_t)> EPVBucket::getSaveDroppedCollectionCallback(
 void EPVBucket::postProcessRollback(const RollbackResult& rollbackResult,
                                     uint64_t prevHighSeqno,
                                     KVBucket& bucket) {
-    failovers->pruneEntries(rollbackResult.highSeqno);
-    checkpointManager->clear(*this, rollbackResult.highSeqno);
+    const auto seqno = rollbackResult.highSeqno;
+    failovers->pruneEntries(seqno);
+    clearCMAndResetDiskQueueStats(seqno);
     setPersistedSnapshot(
             {rollbackResult.snapStartSeqno, rollbackResult.snapEndSeqno});
-    incrRollbackItemCount(prevHighSeqno - rollbackResult.highSeqno);
+    incrRollbackItemCount(prevHighSeqno - seqno);
     setReceivingInitialDiskSnapshot(false);
 
     auto& kvstore = *bucket.getRWUnderlying(getId());
@@ -1120,4 +1121,13 @@ void EPVBucket::notifyFlusher() {
 
 Flusher* EPVBucket::getFlusher() {
     return dynamic_cast<EPBucket&>(*bucket).getFlusher(getId());
+}
+
+void EPVBucket::clearCMAndResetDiskQueueStats(uint64_t seqno) {
+    checkpointManager->clear(seqno);
+
+    const auto size = dirtyQueueSize.load();
+    dirtyQueueSize.fetch_sub(size);
+    stats.diskQueueSize.fetch_sub(size);
+    dirtyQueueAge.store(0);
 }

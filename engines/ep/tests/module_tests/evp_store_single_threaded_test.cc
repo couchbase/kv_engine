@@ -3736,7 +3736,7 @@ TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
     auto vb = store->getVBuckets().getBucket(vbid);
 
     // Clear all checkpoints so that backfill will take place
-    vb->checkpointManager->clear(vbucket_state_active);
+    vb->checkpointManager->clear();
 
     // Setup DCP
     auto producer = std::make_shared<MockDcpProducer>(*engine,
@@ -3951,7 +3951,7 @@ TEST_P(STParameterizedBucketTest, produce_delete_times) {
 
     // Clear checkpoint so DCP will goto backfill
     auto vb = engine->getKVBucket()->getVBucket(vbid);
-    vb->checkpointManager->clear(*vb, 2);
+    vb->checkpointManager->clear(2);
 
     auto cookie = create_mock_cookie(engine.get());
     auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);

@@ -362,6 +362,13 @@ private:
     void collectionsRolledBack(KVBucket& bucket);
 
     /**
+     * Clears all checkpoints and high-seqno in CM and resets the DWQ counters.
+     *
+     * @param seqno The high-seqno to set for the cleared CM
+     */
+    void clearCMAndResetDiskQueueStats(uint64_t seqno);
+
+    /**
      * Total number of alive (non-deleted), Committed items on-disk in this
      * vBucket (excludes Prepares).
      * Initially populated during warmup as the number of items on disk;

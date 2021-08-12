@@ -1104,20 +1104,8 @@ void CheckpointManager::dump() const {
     std::cerr << *this << std::endl;
 }
 
-void CheckpointManager::clear(VBucket& vb, uint64_t seqno) {
-    std::lock_guard<std::mutex> lh(queueLock);
-    clear_UNLOCKED(vb.getState(), seqno);
-
-    // Reset the disk write queue size stat for the vbucket
-    if (checkpointConfig.isPersistenceEnabled()) {
-        size_t currentDqSize = vb.dirtyQueueSize.load();
-        vb.dirtyQueueSize.fetch_sub(currentDqSize);
-        stats.diskQueueSize.fetch_sub(currentDqSize);
-        vb.dirtyQueueAge.store(0);
-    }
-}
-
-void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) {
+void CheckpointManager::clear(const std::lock_guard<std::mutex>& lh,
+                              uint64_t seqno) {
     // Swap our checkpoint list for a new one so that we can clear everything
     // and addOpenCheckpoint will create the new checkpoint in our new list.
     // This also keeps our cursors pointing to valid checkpoints which is
@@ -1235,9 +1223,9 @@ size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(
     return 0;
 }
 
-void CheckpointManager::clear(vbucket_state_t vbState) {
+void CheckpointManager::clear(std::optional<uint64_t> seqno) {
     std::lock_guard<std::mutex> lh(queueLock);
-    clear_UNLOCKED(vbState, lastBySeqno);
+    clear(lh, seqno ? *seqno : lastBySeqno);
 }
 
 bool CheckpointManager::isLastMutationItemInCheckpoint(

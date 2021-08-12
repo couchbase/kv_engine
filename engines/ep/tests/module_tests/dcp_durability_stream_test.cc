@@ -63,7 +63,7 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     auto vb = engine->getVBucket(vbid);
     auto& ckptMgr = *vb->checkpointManager;
     // Get rid of set_vb_state and any other queue_op we are not interested in
-    ckptMgr.clear(*vb, 0 /*seqno*/);
+    ckptMgr.clear(0 /*seqno*/);
 
     const auto key = makeStoredDocKey("key");
     const std::string value = "value";
@@ -387,7 +387,7 @@ TEST_P(DurabilityActiveStreamTest, BackfillDurabilityLevel) {
     auto vb = engine->getVBucket(vbid);
     auto& ckptMgr = *vb->checkpointManager;
     // Get rid of set_vb_state and any other queue_op we are not interested in
-    ckptMgr.clear(*vb, 0 /*seqno*/);
+    ckptMgr.clear(0 /*seqno*/);
 
     const auto key = makeStoredDocKey("key");
     const auto& value = "value";
@@ -455,7 +455,7 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
     auto& ckptMgr = *vb->checkpointManager;
 
     // Get rid of set_vb_state and any other queue_op we are not interested in
-    ckptMgr.clear(*vb, 0 /*seqno*/);
+    ckptMgr.clear(0 /*seqno*/);
 
     const auto key = makeStoredDocKey("key");
     const auto& value = "value";
@@ -539,7 +539,7 @@ TEST_P(DurabilityActiveStreamTest, BackfillHCSZero) {
     auto vb = engine->getVBucket(vbid);
     auto& ckptMgr = *vb->checkpointManager;
     // Get rid of set_vb_state and any other queue_op we are not interested in
-    ckptMgr.clear(*vb, 0 /*seqno*/);
+    ckptMgr.clear(0 /*seqno*/);
 
     auto item = makeCommittedItem(makeStoredDocKey("key"), "value");
     VBQueueItemCtx ctx;
@@ -987,7 +987,7 @@ TEST_P(DurabilityActiveStreamTest, DiskSnapshotSendsHCSWithSyncRepSupport) {
     auto vb = engine->getVBucket(vbid);
     auto& ckptMgr = *vb->checkpointManager;
     // Get rid of set_vb_state and any other queue_op we are not interested in
-    ckptMgr.clear(*vb, 0 /*seqno*/);
+    ckptMgr.clear(0 /*seqno*/);
 
     const auto key = makeStoredDocKey("key");
     const std::string value = "value";
@@ -1386,7 +1386,7 @@ void DurabilityPassiveStreamTest::
     auto& ckptMgr = *vb->checkpointManager;
     if (clearCM) {
         // Clear everything in CM, start from one single empty open checkpoint
-        ckptMgr.clear(*vb, 0 /*seqno*/);
+        ckptMgr.clear(0 /*seqno*/);
     }
     uint32_t opaque = 1;
 
@@ -2052,7 +2052,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
     auto vb = engine->getVBucket(vbid);
     auto& ckptMgr = *vb->checkpointManager;
     // Get rid of set_vb_state and any other queue_op we are not interested in
-    ckptMgr.clear(*vb, 0 /*seqno*/);
+    ckptMgr.clear(0 /*seqno*/);
 
     const auto key = makeStoredDocKey("key");
     const uint64_t cas = 999;
@@ -2449,7 +2449,7 @@ void DurabilityPassiveStreamPersistentTest::
     auto vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
     auto& ckptMgr = *vb->checkpointManager;
-    ckptMgr.clear(*vb, 0 /*seqno*/);
+    ckptMgr.clear(0 /*seqno*/);
 
     const auto receiveSnapshot = [this, &vb, &ckptMgr](
                                          CheckpointType type,
@@ -4695,7 +4695,7 @@ void DurabilityPromotionStreamTest::
     auto vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
     auto& ckptMgr = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
-    ckptMgr.clear(*vb, 0 /*seqno*/);
+    ckptMgr.clear(0 /*seqno*/);
 
     // 1) Replica receives a first MemoryCheckpoint - snap{1, 1} + M:1
     uint32_t opaque = 1;

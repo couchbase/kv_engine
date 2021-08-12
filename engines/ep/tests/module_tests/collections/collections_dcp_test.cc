@@ -287,7 +287,7 @@ void CollectionsDcpTest::ensureDcpWillBackfill() {
     // Wipe the checkpoint out of the 'source' VB, so any DCP work has to
     // go back to backfilling (i.e. cannot resume from checkpoint manager)
     VBucketPtr vb = store->getVBucket(vbid);
-    vb->checkpointManager->clear(vbucket_state_active);
+    vb->checkpointManager->clear();
 
     // Move DCP to a new vbucket so that we can replay history from 0
     // without having to wind back vbid(1)
