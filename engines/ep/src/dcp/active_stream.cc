@@ -1278,6 +1278,33 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
                      outstandingItemsResult.highCompletedSeqno,
                      visibleSeqno,
                      highNonVisibleSeqno);
+        } else if (!firstMarkerSent && isSeqnoAdvancedEnabled() &&
+                   lastReadSeqno < snap_end_seqno_) {
+            // MB-47009: This first snapshot has been completely filtered away.
+            // The remaining items must not of been for this client. We must
+            // still send a snapshot marker so that the client is moved to their
+            // end seqno - so a snapshot + seqno advance is needed.
+            firstMarkerSent = true;
+
+            // Note that we cannot enter this case if supportSyncReplication()
+            // returns true (see isSeqnoAdvancedEnabled). This means that we
+            // do not need to set the HCS/MVS or timestamp parameters of the
+            // snapshot marker. MB-47877 tracks enabling sync-writes+filtering
+            pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
+                                                          vb_,
+                                                          snap_start_seqno_,
+                                                          snap_end_seqno_,
+                                                          MARKER_FLAG_MEMORY,
+                                                          std::nullopt,
+                                                          std::nullopt,
+                                                          std::nullopt,
+                                                          sid));
+
+            lastSentSnapEndSeqno.store(snap_end_seqno_,
+                                       std::memory_order_relaxed);
+            nextSnapshotIsCheckpoint = false;
+
+            queueSeqnoAdvanced();
         } else if (readyQ.empty() && isSeqnoAdvancedEnabled() &&
                    isSeqnoGapAtEndOfSnapshot()) {
             auto vb = engine->getVBucket(getVBucket());
@@ -2132,6 +2159,17 @@ void ActiveStream::queueSeqnoAdvanced() {
     const auto seqno = lastSentSnapEndSeqno.load();
     pushToReadyQ(std::make_unique<SeqnoAdvanced>(opaque_, vb_, sid, seqno));
     lastSentSeqnoAdvance.store(seqno);
+
+    // MB-47009 and MB-47534
+    // Set the lastReadSeqno to be the seqno-advance.
+    // We have read and then discarded something - setting this value to be
+    // where the stream has read to ensures we don't send further seqno
+    // advances unless a new snapshot is generated.
+    // This is conditional as at least one path already manages lastReadSeqno
+    // before getting here (lastReadSeqno is a Monotonic type).
+    if (lastReadSeqno.load() < seqno) {
+        lastReadSeqno.store(seqno);
+    }
 }
 
 bool ActiveStream::isDiskOnly() const {

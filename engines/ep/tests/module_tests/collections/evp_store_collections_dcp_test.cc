@@ -1805,6 +1805,85 @@ TEST_F(CollectionsFilteredDcpTest, collection_tombstone_on_scope_filter) {
                         /*compareManifests*/ false);
 }
 
+// Test that we can stream-resume an interrupted snapshot where the rest of the
+// snapshot is filtered away.
+TEST_F(CollectionsFilteredDcpTest, MB_47009) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Create two collections
+    CollectionsManifest cm;
+    setCollections(
+            cookie,
+            cm.add(CollectionEntry::vegetable).add(CollectionEntry::fruit));
+    flush_vbucket_to_disk(vbid, 2);
+
+    // Write some items, sequenced though so that vegetable is fruit
+    store_item(vbid, StoredDocKey{"k1", CollectionEntry::vegetable}, "value");
+    store_item(vbid, StoredDocKey{"k2", CollectionEntry::vegetable}, "value");
+    store_item(vbid, StoredDocKey{"k1", CollectionEntry::fruit}, "value");
+    store_item(vbid, StoredDocKey{"k2", CollectionEntry::fruit}, "value");
+    flush_vbucket_to_disk(vbid, 4);
+
+    // Now DCP stream the vegetable collection only, but request as if we were
+    // interrupted from the initial backfill, but have all of the collection.
+    // I.e. as if our backfill looked like
+    // snap{0, 6}
+    // create vegetable{1}
+    // mutation{3, k1}
+    // mutation{4, k2}
+    // seqno advance{6}
+    // but we were interrupted after receiving seqno 4
+
+    producer = SingleThreadedKVBucketTest::createDcpProducer(
+            cookieP, IncludeDeleteTime::No);
+
+    // Out stream request starts @4 but sets the snapshot as {0:6}
+    uint64_t rollbackSeqno;
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->streamRequest(
+                      0,
+                      1, // opaque
+                      vbid,
+                      4, // start_seqno
+                      ~0ull, // end_seqno
+                      vb->failovers->getLatestEntry().vb_uuid, // vbucket_uuid,
+                      0, // snap_start_seqno,
+                      6, // snap_end_seqno,
+                      &rollbackSeqno,
+                      [](const std::vector<vbucket_failover_t>&) {
+                          return cb::engine_errc::success;
+                      },
+                      R"({"collections":["a"]})"));
+
+    // Drive the stream and expect a seqno-advance to move us to the end of
+    // the snapshot
+    notifyAndStepToCheckpoint();
+    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced, producers->last_op);
+    EXPECT_EQ(6, producers->last_byseqno);
+
+    auto stream = producer->findStream(vbid);
+    EXPECT_EQ(6, stream->getLastReadSeqno());
+
+    // Then we can continue with other snapshots
+    store_item(vbid, StoredDocKey{"k3", CollectionEntry::vegetable}, "value");
+    store_item(vbid, StoredDocKey{"k4", CollectionEntry::vegetable}, "value");
+    store_item(vbid, StoredDocKey{"k3", CollectionEntry::fruit}, "value");
+    flush_vbucket_to_disk(vbid, 3);
+    notifyAndStepToCheckpoint();
+    EXPECT_EQ(7, producers->last_snap_start_seqno);
+    EXPECT_EQ(8, producers->last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
+    EXPECT_EQ(7, producers->last_byseqno);
+    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
+    EXPECT_EQ(8, producers->last_byseqno);
+    // 9 is filtered out, but the stream read it
+    EXPECT_EQ(9, stream->getLastReadSeqno());
+}
+
 // Check that when filtering is on, we don't send snapshots for fully filtered
 // snapshots
 TEST_P(CollectionsDcpParameterizedTest, MB_24572) {
@@ -2365,12 +2444,34 @@ TEST_P(CollectionsDcpParameterizedTest,
     createDcpObjects({{R"({"collections":["c"]})"}});
 
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(4, producers->last_snap_end_seqno);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
                   cb::engine_errc::success);
+
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
                   cb::engine_errc::success);
     EXPECT_EQ(producers->last_byseqno.load(), 4);
+
+    // progress the stream with 'replicated' items for a different collection to
+    // the filtered stream
+    auto item = make_item(
+            vbid, makeStoredDocKey("key1", CollectionEntry::meat), "value");
+    item.setCas(1);
+    uint64_t seqno;
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setWithMeta(std::ref(item),
+                                 0,
+                                 &seqno,
+                                 cookie,
+                                 {vbucket_state_replica},
+                                 CheckConflicts::No,
+                                 /*allowExisting*/ true));
+
+    // Nothing on this stream, prior to MB-47534 seqno advance would keep
+    // triggering
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid);
 }
 
 TEST_P(CollectionsDcpParameterizedTest,
@@ -3353,6 +3454,77 @@ TEST_P(CollectionsDcpParameterizedTest, replica_active_state_diverge) {
                          nullptr,
                          {})
                       .getStatus());
+}
+
+// Test for MB-47753. In this case a filtered DCP stream has its cursor dropped.
+// Before the cursor drop, the client is up-to-date with their filtered
+// collection, and last received a seqno-advance to move them to the end of
+// the snapshot. After cursor dropping before the fix for this issue a new
+// backfill was scheduled, that returns nothing and forces a new seqno-advance.
+// With the fix in place, the second backfill doesn't occur and no duplicate
+// message is seen.
+TEST_F(CollectionsFilteredDcpTest, MB_47753) {
+    // Only valid for persistent
+    if (!isPersistent()) {
+        return;
+    }
+
+    // Store an item to a new collection and create a stream (which backfills)
+    VBucketPtr vb = store->getVBucket(vbid);
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    store_item(vbid, StoredDocKey{"k1", CollectionEntry::fruit}, "v1");
+    flush_vbucket_to_disk(vbid, 2);
+
+    ensureDcpWillBackfill();
+
+    createDcpObjects({{R"({"collections":["9"]})"}});
+
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    auto* as = static_cast<ActiveStream*>(stream.get());
+
+    // Manually drive the backfill so stream can drop cursor whilst running
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    EXPECT_TRUE(as->isBackfilling());
+
+    // Store a new item and flush it, to a different collection, clear the
+    // checkpoint so we cannot get a cursor for this item.
+    store_item(vbid, StoredDocKey{"k1", CollectionEntry::defaultC}, "v1");
+    flush_vbucket_to_disk(vbid, 1);
+    vb->checkpointManager->clear(vbucket_state_active);
+
+    // Drop the streams cursor and run the first backfill (this backfill
+    // is the one which was scheduled as part of stream creation).
+    as->handleSlowStream();
+
+    // backfill:create()
+    runNextTask(lpAuxioQ);
+
+    // backfill:scan()
+    runNextTask(lpAuxioQ);
+
+    // backfill:finished()
+    runNextTask(lpAuxioQ);
+
+    // The initial snapshot is sent to the client
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(3, producers->last_snap_end_seqno);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(1, producers->last_byseqno);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ(2, producers->last_byseqno);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced);
+    EXPECT_EQ(3, producers->last_byseqno);
+
+    // And this stream produces no more, prior to fixing MB-47753 a second
+    // backfill produced an empty snapshot
+    EXPECT_TRUE(as->isInMemory());
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
 }
 
 // Test cases which run for persistent and ephemeral buckets
