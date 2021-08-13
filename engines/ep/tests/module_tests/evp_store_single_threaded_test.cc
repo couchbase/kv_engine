@@ -137,6 +137,12 @@ void SingleThreadedKVBucketTest::setVBucketStateAndRunPersistTask(
     }
 }
 
+void SingleThreadedKVBucketTest::setVBucketToActiveWithValidTopology(
+        nlohmann::json topology) {
+    setVBucketStateAndRunPersistTask(
+            vbid, vbucket_state_active, {{"topology", topology}});
+}
+
 void SingleThreadedKVBucketTest::shutdownAndPurgeTasks(
         EventuallyPersistentEngine* ep) {
     ep->getEpStats().isShutdown = true;

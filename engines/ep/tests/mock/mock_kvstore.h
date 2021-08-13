@@ -30,7 +30,12 @@ struct TransactionContext;
 
 class MockKVStore : public KVStore {
 public:
-    MockKVStore();
+    /**
+     * Construct a MockKVStore
+     * @param realKVS If non-null; the underlying real KVStore the mock can
+     *        delegate calls to.
+     */
+    MockKVStore(std::unique_ptr<KVStore> realKVS);
     ~MockKVStore() override;
 
     MOCK_METHOD(void, deinitialize, (), (override));
@@ -189,4 +194,35 @@ public:
      */
     static MockKVStore& replaceROKVStoreWithMock(KVBucket& bucket,
                                                  size_t shardId);
+
+    /**
+     * Restores the bucket's original read-only KVStore, removing the
+     * MockKVStore from between the bucket and original and returning it.
+     * Inverse of replaceROKVStoreWithMock.
+     */
+    static std::unique_ptr<MockKVStore> restoreOriginalROKVStore(
+            KVBucket& bucket);
+
+    /**
+     * Helper function to replace the existing read-write KVStore in the given
+     * bucket & shard with a new MockKVStore instance. Returns a reference to
+     * the created mock.
+     */
+    static MockKVStore& replaceRWKVStoreWithMock(KVBucket& bucket,
+                                                 size_t shardId);
+
+    /**
+     * Restores the bucket's original read-write KVStore, removing the
+     * MockKVStore from between the bucket and original and returning it.
+     * Inverse of replaceRWKVStoreWithMock.
+     */
+    static std::unique_ptr<MockKVStore> restoreOriginalRWKVStore(
+            KVBucket& bucket);
+
+private:
+    /// Underlying 'real' KVStore object. Will be null if MockKVStore
+    /// was constructed standalone, but will be set if MockKVStore was
+    /// constructed by replacing an existing one via replaceROKVStoreWithMock()
+    /// or replaceRWKVStoreWithMock().
+    std::unique_ptr<KVStore> realKVS;
 };

@@ -1929,14 +1929,23 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
 
     auto scanResult = kvStore->scan(*scanCtx);
 
-    auto& storageCB = static_cast<LoadSyncWrites&>(scanCtx->getValueCallback());
-
-    // If we abort our scan early due to reaching the HPS then the scan result
-    // will be failure but we will have scanned correctly.
-    if (cb::engine_errc{storageCB.getStatus()} != cb::engine_errc::no_memory) {
-        Expects(scanResult == scan_success);
+    switch (scanResult) {
+    case scan_success:
+        break;
+    case scan_again:
+        // If we abort our scan early due to reaching the HPS (by setting
+        // storageCB.getStatus) then the scan result will be 'again' but we
+        // will have scanned correctly.
+        break;
+    case scan_failed: {
+        EP_LOG_CRITICAL(
+                "EPBucket::loadPreparedSyncWrites: scan() failed for {}",
+                epVb.getId());
+        return {0, 0, false};
+    }
     }
 
+    auto& storageCB = static_cast<LoadSyncWrites&>(scanCtx->getValueCallback());
     EP_LOG_DEBUG(
             "EPBucket::loadPreparedSyncWrites: Identified {} outstanding "
             "prepared SyncWrites for {} in {}",

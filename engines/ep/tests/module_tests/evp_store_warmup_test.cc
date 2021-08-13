@@ -13,6 +13,8 @@
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_ep_bucket.h"
 #include "../mock/mock_item_freq_decayer.h"
+#include "../mock/mock_kvstore.h"
+#include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
@@ -2675,3 +2677,149 @@ INSTANTIATE_TEST_SUITE_P(FullOrValue,
                          MB_34718_WarmupTest,
                          STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+/**
+ * Tests which verify that warmup is aborted if any disk failures occur.
+ */
+class WarmupAbortedOnDiskError : public WarmupTest {
+public:
+    enum class InjectErrorFunc { InitScanContext, Scan };
+
+protected:
+    // Verify that disk errors encountered during warmup are correctly detected
+    // and propagated and trigger warmup to be aborted, for errors occuring in
+    // initScanContext or scan() for the given warmup state.
+    void testWarmupAbortedOnDiskError(WarmupState::State injectState,
+                                      InjectErrorFunc injectFunc,
+                                      std::string extraConfig = "") {
+        // Setup - store one committed item so we have data to warmup and one
+        // prepare for testing warmup of prepared sync writes.
+        setVBucketToActiveWithValidTopology();
+        store_item(vbid, makeStoredDocKey("key1"), "value");
+        auto item = makePendingItem(makeStoredDocKey("key2"), "value2");
+        uint64_t cas;
+        ASSERT_EQ(cb::engine_errc::would_block,
+                  engine->storeInner(
+                          cookie, *item, cas, StoreSemantics::Set, false));
+        flush_vbucket_to_disk(vbid, 2);
+
+        // Setup: Restart engine and begin warmup. This is a single-threaded
+        // test so we will run each phase in this main thread; using testing
+        // hooks to inject disk errors as required:
+        // 1. Advance to phase keyDumpforShard
+        // 2. Replace kvstore with a MockStore, and configure to make
+        //    initScanContext fail
+        resetEngineAndEnableWarmup(extraConfig);
+
+        store->getWarmup()->stateTransitionHook = [this,
+                                                   injectState,
+                                                   injectFunc](
+                                                          const auto& state) {
+            using namespace ::testing;
+            if (state == injectState) {
+                // Need to replace RO or RW kvstore as appropriate (some
+                // warmup phases use RO, others RW).
+                auto& mockKVStore =
+                        (injectState ==
+                         WarmupState::State::LoadPreparedSyncWrites)
+                                ? MockKVStore::replaceRWKVStoreWithMock(*store,
+                                                                        0)
+                                : MockKVStore::replaceROKVStoreWithMock(*store,
+                                                                        0);
+                switch (injectFunc) {
+                case InjectErrorFunc::InitScanContext:
+                    // Configure the mock to return an empty scan context.
+                    EXPECT_CALL(mockKVStore,
+                                initBySeqnoScanContext(_, _, _, _, _, _, _))
+                            .WillOnce(Return(ByMove(
+                                    std::unique_ptr<BySeqnoScanContext>())));
+                    break;
+                case InjectErrorFunc::Scan:
+                    // First expect an initBySeqnoScanContext call, but that can
+                    // perform default action in MockKVStore (succeed).
+                    EXPECT_CALL(mockKVStore,
+                                initBySeqnoScanContext(_, _, _, _, _, _, _))
+                            .Times(1);
+                    EXPECT_CALL(mockKVStore, scan(An<BySeqnoScanContext&>()))
+                            .WillOnce(Return(scan_failed));
+                    break;
+                }
+
+                if (injectState == WarmupState::State::LoadPreparedSyncWrites) {
+                    // This also calls getCachedVBucketState() - which we
+                    // can simply rely on default action in MockKVStore to
+                    // forward to real.
+                    EXPECT_CALL(mockKVStore, getCachedVBucketState(_)).Times(1);
+                }
+            }
+        };
+
+        // Test: Advance warmup until no more tasks remain.
+        auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+        CheckedExecutor executor(task_executor, readerQueue);
+        do {
+            executor.runCurrentTask();
+            executor.completeCurrentTask();
+            executor.updateCurrentTime();
+        } while (readerQueue.fetchNextTask(executor));
+
+        // Verify error was correctly handled - warmup should not have completed
+        // (essentially bucket stops and doesn't proceed).
+        auto kvBucket = engine->getKVBucket();
+        auto warmup = kvBucket->getWarmup();
+        EXPECT_TRUE(kvBucket->isWarmingUp());
+        EXPECT_EQ(injectState, warmup->getWarmupState());
+
+        // Clean up (ensures that original KVStore is in place for bucket
+        // tear-down.
+        if (injectState == WarmupState::State::LoadPreparedSyncWrites) {
+            MockKVStore::restoreOriginalRWKVStore(*store);
+        } else {
+            MockKVStore::restoreOriginalROKVStore(*store);
+        }
+    }
+};
+
+TEST_F(WarmupAbortedOnDiskError, InitScanContext_LoadPreparedSyncWrites) {
+    testWarmupAbortedOnDiskError(WarmupState::State::LoadPreparedSyncWrites,
+                                 InjectErrorFunc::InitScanContext);
+}
+
+TEST_F(WarmupAbortedOnDiskError, InitScanContext_KeyDump) {
+    testWarmupAbortedOnDiskError(WarmupState::State::KeyDump,
+                                 InjectErrorFunc::InitScanContext);
+}
+
+TEST_F(WarmupAbortedOnDiskError, InitScanContext_LoadingData) {
+    testWarmupAbortedOnDiskError(WarmupState::State::LoadingData,
+                                 InjectErrorFunc::InitScanContext);
+}
+
+TEST_F(WarmupAbortedOnDiskError, InitScanContext_LoadingKVPairs) {
+    // Loading KVPairs is only applicable to full eviction
+    testWarmupAbortedOnDiskError(WarmupState::State::LoadingKVPairs,
+                                 InjectErrorFunc::InitScanContext,
+                                 "item_eviction_policy=full_eviction");
+}
+
+TEST_F(WarmupAbortedOnDiskError, Scan_LoadPreparedSyncWrites) {
+    testWarmupAbortedOnDiskError(WarmupState::State::LoadPreparedSyncWrites,
+                                 InjectErrorFunc::Scan);
+}
+
+TEST_F(WarmupAbortedOnDiskError, Scan_KeyDump) {
+    testWarmupAbortedOnDiskError(WarmupState::State::KeyDump,
+                                 InjectErrorFunc::Scan);
+}
+
+TEST_F(WarmupAbortedOnDiskError, Scan_LoadingData) {
+    testWarmupAbortedOnDiskError(WarmupState::State::LoadingData,
+                                 InjectErrorFunc::Scan);
+}
+
+TEST_F(WarmupAbortedOnDiskError, Scan_LoadingKVPairs) {
+    // Loading KVPairs is only applicable to full eviction
+    testWarmupAbortedOnDiskError(WarmupState::State::LoadingKVPairs,
+                                 InjectErrorFunc::Scan,
+                                 "item_eviction_policy=full_eviction");
+}

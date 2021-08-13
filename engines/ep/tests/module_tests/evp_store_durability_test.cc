@@ -296,13 +296,6 @@ protected:
  */
 class DurabilityBucketTest : public STParameterizedBucketTest {
 protected:
-    void setVBucketToActiveWithValidTopology(
-            nlohmann::json topology = nlohmann::json::array({{"active",
-                                                              "replica"}})) {
-        setVBucketStateAndRunPersistTask(
-                vbid, vbucket_state_active, {{"topology", topology}});
-    }
-
     /**
      * Method to set the current vbucket to the replica state and runes the
      * persistence task
