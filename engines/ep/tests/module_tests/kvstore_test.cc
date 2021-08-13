@@ -102,6 +102,7 @@ void initialize_kv_store(KVStoreIface* kvstore, Vbid vbid) {
 std::unique_ptr<KVStoreIface> setup_kv_store(KVStoreConfig& config,
                                              std::vector<Vbid> vbids) {
     auto kvstore = KVStoreFactory::create(config);
+
     for (auto vbid : vbids) {
         initialize_kv_store(kvstore.get(), vbid);
     }
@@ -237,10 +238,10 @@ public:
 
 void KVStoreBackend::setup(const std::string& dataDir,
                            const std::string& backend) {
-    Configuration config;
     // `GetParam` returns the string parameter representing the KVStore
     // implementation.
-    auto configStr = "dbname="s + dataDir + ";backend="s + backend + ";";
+    auto configStr = "dbname="s + dataDir + ";";
+    configStr += generateBackendConfig("persistent_" + backend) + ";";
 
     if (backend == "magma") {
         configStr += magmaConfig;
@@ -250,22 +251,10 @@ void KVStoreBackend::setup(const std::string& dataDir,
     WorkLoadPolicy workload(config.getMaxNumWorkers(),
                             config.getMaxNumShards());
 
-    if (config.getBackend() == "couchdb") {
-        kvstoreConfig = std::make_unique<CouchKVStoreConfig>(
-                config, backend, workload.getNumShards(), 0 /*shardId*/);
-    }
-#ifdef EP_USE_ROCKSDB
-    else if (config.getBackend() == "rocksdb") {
-        kvstoreConfig = std::make_unique<RocksDBKVStoreConfig>(
-                config, backend, workload.getNumShards(), 0 /*shardId*/);
-    }
-#endif
-#ifdef EP_USE_MAGMA
-    else if (config.getBackend() == "magma") {
-        kvstoreConfig = std::make_unique<MagmaKVStoreConfig>(
-                config, backend, workload.getNumShards(), 0 /*shardId*/);
-    }
-#endif
+    kvstoreConfig = KVStoreConfig::createKVStoreConfig(config,
+                                                       config.getBackend(),
+                                                       workload.getNumShards(),
+                                                       0 /*shardId*/);
     kvstore = setup_kv_store(*kvstoreConfig);
 }
 
@@ -287,7 +276,7 @@ void KVStoreParamTest::TearDown() {
 }
 
 bool KVStoreParamTest::supportsFetchingAsSnappy() const {
-    return GetParam() == "couchdb";
+    return isCouchstore();
 }
 
 class KVStoreParamTestSkipMagma : public KVStoreParamTest {
@@ -324,7 +313,7 @@ TEST_P(KVStoreParamTest, GetModes) {
             DiskDocKey{key}, Vbid(0), ValueFilter::VALUES_COMPRESSED);
     // Only couchstore compresses documents individually, hence is the only
     // kvstore backend which will return compressed when requested.
-    const auto expectCompressed = GetParam() == "couchdb" ? true : false;
+    const auto expectCompressed = isCouchstore();
     checkGetValue(gv, cb::engine_errc::success, expectCompressed);
 
     gv = kvstore->get(DiskDocKey{key}, Vbid(0), ValueFilter::KEYS_ONLY);
@@ -392,7 +381,7 @@ TEST_P(KVStoreParamTest, SaveDocsHisto) {
     kvstore->set(*ctx, qi);
 
     StoredDocKey key1 = makeStoredDocKey("key1");
-    auto qi1 = makeCommittedItem(key, "value");
+    auto qi1 = makeCommittedItem(key1, "value");
     qi1->setBySeqno(2);
     kvstore->set(*ctx, qi1);
 
@@ -417,7 +406,7 @@ TEST_P(KVStoreParamTest, BatchSizeHisto) {
     kvstore->set(*ctx, qi);
 
     StoredDocKey key1 = makeStoredDocKey("key1");
-    auto qi1 = makeCommittedItem(key, "value");
+    auto qi1 = makeCommittedItem(key1, "value");
     qi1->setBySeqno(2);
     kvstore->set(*ctx, qi1);
 
@@ -624,6 +613,12 @@ queued_item KVStoreParamTest::storeDocument(bool deleted) {
 }
 
 TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
+    // Nexus not supported as we do some funky stuff with the
+    // PersistenceCallbacks
+    if (isNexus()) {
+        GTEST_SKIP();
+    }
+
     auto tc = kvstore->begin(Vbid(0),
                              std::make_unique<MockPersistenceCallback>());
     auto mutationStatus = FlushStateMutation::Insert;
@@ -649,6 +644,12 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
 // This test does not work under RocksDB because we assume that every
 // deletion is to an item that does not exist
 TEST_P(KVStoreParamTestSkipRocks, TestPersistenceCallbacksForDel) {
+    // Nexus not supported as we do some funky stuff with the
+    // PersistenceCallbacks
+    if (isNexus()) {
+        GTEST_SKIP();
+    }
+
     // Store an item
     auto key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
@@ -924,16 +925,15 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
 }
 
 TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
-    auto key = makeStoredDocKey("key");
     std::string value = "value";
     Vbid vbid = Vbid(0);
 
-    // Upsert an item 10 times in a single transaction (we want to test that
-    // the VBucket state is updated with the highest seqno found in a commit
-    // batch)
+    // Upsert 10 items in a single transaction (we want to test that the VBucket
+    // state is updated with the highest seqno found in a commit batch)
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     for (int i = 1; i <= 10; i++) {
-        auto qi = makeCommittedItem(key, value);
+        auto qi = makeCommittedItem(makeStoredDocKey("key" + std::to_string(i)),
+                                    value);
         qi->setBySeqno(i);
         kvstore->set(*ctx, qi);
     }
@@ -941,8 +941,6 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
     flush.proposedVBState.lastSnapEnd = 10;
     kvstore->commit(std::move(ctx), flush);
 
-    GetValue gv = kvstore->get(DiskDocKey{key}, vbid);
-    checkGetValue(gv);
     EXPECT_EQ(kvstore->getCachedVBucketState(vbid)->highSeqno, 10);
 }
 
@@ -1206,7 +1204,7 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsFailed) {
     /* Magma gets its collection stats from in memory so any corruption of
      data files between KVStore::makeFileHandle() and
      KVStore::getCollectionStats() won't cause the call to fail */
-    if (GetParam() == "magma") {
+    if (GetParam() == "magma" || isNexus()) {
         return;
     }
 
@@ -1233,6 +1231,11 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsFailed) {
 }
 
 TEST_P(KVStoreParamTestSkipRocks, SyncDeletePrepareOverwriteCorrectFlushState) {
+    if (isNexus()) {
+        // Nexus doesn't support the MockPersistenceCallback
+        GTEST_SKIP();
+    }
+
     auto key = makeStoredDocKey("key");
     {
         auto tc = kvstore->begin(Vbid(0),
@@ -1267,6 +1270,11 @@ TEST_P(KVStoreParamTestSkipRocks, SyncDeletePrepareOverwriteCorrectFlushState) {
 }
 
 TEST_P(KVStoreParamTestSkipRocks, SyncDeletePrepareNotPurgedByTimestamp) {
+    if (isNexus()) {
+        // @TODO MB-47604: Run when we add compaction support
+        GTEST_SKIP();
+    }
+
     auto key = makeStoredDocKey("key");
     auto tc = kvstore->begin(Vbid(0), std::make_unique<PersistenceCallback>());
 
@@ -1420,6 +1428,9 @@ TEST_P(KVStoreParamTestSkipRocks, purgeSeqnoAfterCompaction) {
 static std::string kvstoreTestParams[] = {
 #ifdef EP_USE_MAGMA
         "magma",
+        "nexus_couchdb_magma",
+        // @TODO MB-47604: Remove this variant as the above should cover it
+        "nexus_magma_couchdb",
 #endif
 #ifdef EP_USE_ROCKSDB
         "rocksdb",
@@ -1449,6 +1460,9 @@ INSTANTIATE_TEST_SUITE_P(KVStoreParam,
 static std::string kvstoreTestParamsSkipRocks[] = {
 #ifdef EP_USE_MAGMA
         "magma",
+        "nexus_couchdb_magma",
+        // @TODO MB-47604: Remove this variant as the above should cover it
+        "nexus_magma_couchdb",
 #endif
         "couchdb"};
 

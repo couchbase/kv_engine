@@ -14,6 +14,7 @@
 #include "callbacks.h"
 #include "collections/manager.h"
 #include "collections/vbucket_manifest.h"
+#include "configuration.h"
 #include "item.h"
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"
@@ -62,6 +63,7 @@ public:
 
     std::unique_ptr<KVStoreConfig> kvstoreConfig;
     std::unique_ptr<KVStoreIface> kvstore;
+    Configuration config;
 };
 
 // Test fixture for tests which run on all KVStore implementations (Couchstore
@@ -124,6 +126,19 @@ protected:
     void checkBGFetchResult(const ValueFilter& filter,
                             const Item& testDoc,
                             const vb_bgfetch_item_ctx_t& fetched) const;
+
+    bool isCouchstore() const {
+        return config.getBackend() == "couchdb" || isNexusCouchstorePrimary();
+    }
+
+    bool isNexusCouchstorePrimary() const {
+        return config.getBackend() == "nexus" &&
+               config.getNexusPrimaryBackend() == "couchdb";
+    }
+
+    bool isNexus() const {
+        return config.getBackend() == "nexus";
+    }
 };
 
 /**
