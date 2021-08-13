@@ -550,7 +550,68 @@ void NexusKVStore::getRange(Vbid vb,
                             ValueFilter filter,
                             const KVStoreIface::GetRangeCb& cb) const {
     auto lh = getLock(vb);
-    primary->getRange(vb, startKey, endKey, filter, cb);
+
+    std::deque<GetValue> primaryGetValues;
+    auto primaryCb = [&primaryGetValues](GetValue&& gv) {
+        primaryGetValues.emplace_back(std::move(gv));
+    };
+
+    primary->getRange(vb, startKey, endKey, filter, primaryCb);
+
+    std::deque<GetValue> secondaryGetValues;
+    auto secondaryCb = [&secondaryGetValues](GetValue&& gv) {
+        secondaryGetValues.emplace_back(std::move(gv));
+    };
+
+    secondary->getRange(vb, startKey, endKey, filter, secondaryCb);
+
+    if (primaryGetValues.size() != secondaryGetValues.size()) {
+        auto msg = fmt::format(
+                "NexusKVStore::getMulti: {}: primary getvalues  and secondary "
+                "get values are different sizes",
+                vb);
+        handleError(msg);
+    }
+
+    auto size = primaryGetValues.size();
+    for (size_t i = 0; i < size; i++) {
+        // Check primary vs secondary
+        if (primaryGetValues.front().getStatus() !=
+            secondaryGetValues.front().getStatus()) {
+            // Might be able to log key if one is success
+            std::string key = "";
+            if (primaryGetValues.front().getStatus() ==
+                cb::engine_errc::success) {
+                key = primaryGetValues.front().item->getKey().to_string();
+            }
+            if (secondaryGetValues.front().getStatus() ==
+                cb::engine_errc::success) {
+                key = secondaryGetValues.front().item->getKey().to_string();
+            }
+
+            auto msg = fmt::format(
+                    "NexusKVStore::getRange: {}: different result for item "
+                    "with key {}"
+                    "primary:{} secondary:{}",
+                    vb,
+                    key,
+                    primaryGetValues.front().getStatus(),
+                    secondaryGetValues.front().getStatus());
+            handleError(msg);
+        }
+
+        if (primaryGetValues.front().getStatus() == cb::engine_errc::success) {
+            doPostGetChecks(__FUNCTION__,
+                            vb,
+                            DiskDocKey(primaryGetValues.front().item->getKey()),
+                            primaryGetValues.front(),
+                            secondaryGetValues.front());
+        }
+
+        cb(std::move(primaryGetValues.front()));
+        primaryGetValues.pop_front();
+        secondaryGetValues.pop_front();
+    }
 }
 
 void NexusKVStore::del(TransactionContext& txnCtx, queued_item item) {
