@@ -135,6 +135,14 @@ protected:
         EngineFixture::TearDown(state);
     }
 
+    /**
+     * Creates the given number of checkpoints in CM and moves cursor to the
+     * open checkpoint.
+     *
+     * @param numCheckpoints
+     */
+    void createCheckpointsAndMoveCursor(size_t numCheckpoints);
+
     CheckpointList extractClosedUnrefCheckpoints(CheckpointManager&);
 };
 
@@ -430,6 +438,37 @@ CheckpointList CheckpointBench::extractClosedUnrefCheckpoints(
     return manager.extractClosedUnrefCheckpoints(lh);
 }
 
+void CheckpointBench::createCheckpointsAndMoveCursor(size_t numCheckpoints) {
+    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+
+    // Clean up everything and start from scat every iteration
+    manager.clear(0 /*seqno*/);
+    ASSERT_EQ(0, manager.getHighSeqno());
+    ASSERT_EQ(1, manager.getNumItems());
+
+    // Note: Testclass sets chk_max_items=1, load N items will end up with
+    // N checkpoints
+    for (size_t i = 0; i < numCheckpoints; ++i) {
+        queued_item item{
+                new Item(StoredDocKey(std::string("key") + std::to_string(i),
+                                      CollectionID::Default),
+                         vbid,
+                         queue_op::mutation,
+                         0 /*revSeqno*/,
+                         0 /*bySeqno*/)};
+        item->setQueuedTime();
+        EXPECT_TRUE(manager.queueDirty(
+                vb, item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
+    }
+    ASSERT_EQ(numCheckpoints, manager.getNumCheckpoints());
+    ASSERT_EQ(numCheckpoints, manager.getHighSeqno());
+    ASSERT_GT(manager.getNumItems(), numCheckpoints);
+
+    // Make all closed checkpoints eligible for removal
+    flushAllItems(vbid);
+}
+
 /**
  * Removing checkpoints is logically split in two parts:
  *
@@ -448,38 +487,11 @@ CheckpointList CheckpointBench::extractClosedUnrefCheckpoints(
 BENCHMARK_DEFINE_F(CheckpointBench, ExtractClosedUnrefCheckpoints)
 (benchmark::State& state) {
     const size_t numCheckpoints = state.range(0);
-
-    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
-    auto& manager = *vb.checkpointManager;
+    auto& manager = *engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
 
     while (state.KeepRunning()) {
         state.PauseTiming();
-
-        // Clean up everything and start from scat every iteration
-        manager.clear(0 /*seqno*/);
-        ASSERT_EQ(0, manager.getHighSeqno());
-        ASSERT_EQ(1, manager.getNumItems());
-
-        // Note: Testclass sets chk_max_items=1, load N items will end up with
-        // N checkpoints
-        for (size_t i = 0; i < numCheckpoints; ++i) {
-            queued_item item{new Item(
-                    StoredDocKey(std::string("key") + std::to_string(i),
-                                 CollectionID::Default),
-                    vbid,
-                    queue_op::mutation,
-                    0 /*revSeqno*/,
-                    0 /*bySeqno*/)};
-            item->setQueuedTime();
-            EXPECT_TRUE(manager.queueDirty(
-                    vb, item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
-        }
-        ASSERT_EQ(numCheckpoints, manager.getNumCheckpoints());
-        ASSERT_EQ(numCheckpoints, manager.getHighSeqno());
-        ASSERT_GT(manager.getNumItems(), numCheckpoints);
-
-        // Make all closed checkpoints eligible for removal
-        flushAllItems(vbid);
+        createCheckpointsAndMoveCursor(numCheckpoints);
 
         // Benchmark
         {
@@ -490,6 +502,35 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractClosedUnrefCheckpoints)
             state.PauseTiming();
 
             EXPECT_EQ(numCheckpoints - 1, list.size());
+        }
+
+        // Need to resume here, gbench will fail when it's time to exit the
+        // loop otherwise.
+        state.ResumeTiming();
+    }
+}
+
+/**
+ * Getting the list of cursors to drop executes under CM::lock, and at the time
+ * of introducing this bench the operation is O(N) in the size of the checkpoint
+ * list. The function is being made O(1) under MB-47386.
+ */
+BENCHMARK_DEFINE_F(CheckpointBench, GetCursorsToDrop)
+(benchmark::State& state) {
+    const size_t numCheckpoints = state.range(0);
+    auto& manager = *engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
+
+    while (state.KeepRunning()) {
+        state.PauseTiming();
+        createCheckpointsAndMoveCursor(numCheckpoints);
+
+        // Benchmark
+        {
+            state.ResumeTiming();
+            const auto cursors = manager.getListOfCursorsToDrop();
+            state.PauseTiming();
+
+            EXPECT_EQ(0, cursors.size());
         }
 
         // Need to resume here, gbench will fail when it's time to exit the
@@ -536,8 +577,45 @@ BENCHMARK_REGISTER_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
         ->Args({1000000, 1000})
         ->Iterations(1);
 
+// The following benchs aim to show the asymptotic behaviour of the specific
+// function under test. In particular, we want to show that functions are
+// constant-complexity and don't degrade when the number of checkpoints in CM
+// gets high.
+// Notes:
+// - I set iterations:1 because this bench tend to spend most of the time in the
+//   setup phase and runtimes become high with the GBench auto-iterations
+// - The GBench auto-iterations is useful to produce high-accuracy results (eg,
+//   stddev below a certain threshold), which we don't need here.
+// - For producing usable results I'm still using a fixed number (> 1) of
+//   Repetitions (eg, 10). That way I get a stddev~15%, which is perfectly fine
+//   for measuring the asymptotic behaviour of our code.
+// - I prefer Repetitions over Iterations because that automatically gives us
+//   mean/median/stddev in the results.
+//
+// Example of output when running 10 Repetitions:
+//
+// -----------------------------------------------------------------------------------------------------
+// Benchmark                                                           Time             CPU   Iterations
+// -----------------------------------------------------------------------------------------------------
+// CheckpointBench/GetCursorsToDrop/100/iterations:1_mean           7160 ns         5470 ns           10
+// CheckpointBench/GetCursorsToDrop/100/iterations:1_median         6597 ns         5116 ns           10
+// CheckpointBench/GetCursorsToDrop/100/iterations:1_stddev         1331 ns          776 ns           10
+//
+// CheckpointBench/GetCursorsToDrop/1000/iterations:1_mean          7762 ns         6209 ns           10
+// CheckpointBench/GetCursorsToDrop/1000/iterations:1_median        7190 ns         5517 ns           10
+// CheckpointBench/GetCursorsToDrop/1000/iterations:1_stddev        1266 ns         1713 ns           10
+
 // Arguments: numCheckpoints
 BENCHMARK_REGISTER_F(CheckpointBench, ExtractClosedUnrefCheckpoints)
+        ->Args({1})
+        ->Args({10})
+        ->Args({100})
+        ->Args({1000})
+        ->Args({10000})
+        ->Iterations(1);
+
+// Arguments: numCheckpoints
+BENCHMARK_REGISTER_F(CheckpointBench, GetCursorsToDrop)
         ->Args({1})
         ->Args({10})
         ->Args({100})
