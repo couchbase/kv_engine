@@ -1535,6 +1535,7 @@ void CheckpointManager::takeAndResetCursors(CheckpointManager& other) {
 }
 
 bool CheckpointManager::isOpenCheckpointDisk() {
+    std::lock_guard<std::mutex> lh(queueLock);
     return checkpointList.back()->isDiskCheckpoint();
 }
 
