@@ -53,7 +53,7 @@ public:
                     new Item(emptyKey, Vbid(0xffff), queue_op::empty, 0, 0));
             return qi;
         }
-        if (getOpenCheckpointId_UNLOCKED(lh) == 0) {
+        if (getOpenCheckpointId(lh) == 0) {
             queued_item qi(
                     new Item(emptyKey, Vbid(0xffff), queue_op::empty, 0, 0));
             return qi;

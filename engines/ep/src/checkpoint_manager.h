@@ -530,8 +530,11 @@ protected:
      */
     bool incrCursor(CheckpointCursor& cursor);
 
-    uint64_t getOpenCheckpointId_UNLOCKED(
-            const std::lock_guard<std::mutex>& lh);
+    /**
+     * @param lh Lock to CM::queueLock
+     * @return the id of the open checkpoint
+     */
+    uint64_t getOpenCheckpointId(const std::lock_guard<std::mutex>& lh);
 
     uint64_t getLastClosedCheckpointId_UNLOCKED(
             const std::lock_guard<std::mutex>& lh);

@@ -67,19 +67,19 @@ CheckpointManager::CheckpointManager(EPStats& st,
     }
 }
 
-uint64_t CheckpointManager::getOpenCheckpointId_UNLOCKED(
+uint64_t CheckpointManager::getOpenCheckpointId(
         const std::lock_guard<std::mutex>& lh) {
     return getOpenCheckpoint_UNLOCKED(lh).getId();
 }
 
 uint64_t CheckpointManager::getOpenCheckpointId() {
     std::lock_guard<std::mutex> lh(queueLock);
-    return getOpenCheckpointId_UNLOCKED(lh);
+    return getOpenCheckpointId(lh);
 }
 
 uint64_t CheckpointManager::getLastClosedCheckpointId_UNLOCKED(
         const std::lock_guard<std::mutex>& lh) {
-    auto id = getOpenCheckpointId_UNLOCKED(lh);
+    auto id = getOpenCheckpointId(lh);
     return id > 0 ? (id - 1) : 0;
 }
 
@@ -629,53 +629,57 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
 std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
     std::lock_guard<std::mutex> lh(queueLock);
 
-    Checkpoint* persistentCheckpoint =
-            (persistenceCursor == nullptr)
-                    ? nullptr
-                    : persistenceCursor->currentCheckpoint->get();
-
-    const auto backupExists = cursors.find(backupPCursorName) != cursors.end();
-    const auto* backupCheckpoint =
-            backupExists
-                    ? cursors.at(backupPCursorName)->currentCheckpoint->get()
-                    : nullptr;
-
-    /*
-     * Iterate through the list of checkpoints and add the checkpoint to
-     * a set of valid checkpoints until we reach either an open checkpoint
-     * or a checkpoint that contains the persistence cursor or the
-     * backup-pcursor.
-     */
-    std::unordered_set<Checkpoint*> validChkpts;
-    for (const auto& chkpt : checkpointList) {
-        if (persistentCheckpoint == chkpt.get() ||
-            backupCheckpoint == chkpt.get() ||
-            chkpt->getState() == CHECKPOINT_OPEN) {
-            break;
-        } else {
-            validChkpts.insert(chkpt.get());
-        }
-    }
-
-    /*
-     * If we cannot find any valid checkpoints to remove cursors from
-     * then just return an empty vector.
-     */
-    if (validChkpts.empty()) {
-        return {};
-    }
-
-    /*
-     * Iterate through all cursors and if the cursor resides in one of the
-     * valid checkpoints (i.e. a checkpoint that cursors can be deleted
-     * from) then add the cursor to the cursorsToDrop vector.
-     */
     std::vector<Cursor> cursorsToDrop;
-    for (const auto& cursor : cursors) {
-        if (validChkpts.count(cursor.second->currentCheckpoint->get()) > 0) {
-            cursorsToDrop.emplace_back(cursor.second);
+
+    if (persistenceCursor) {
+        // EP
+        // By logic:
+        // 1. We can't drop the persistence cursor
+        // 2. We can't drop the backup-persistence cursor
+        // , so surely we can never remove the checkpoint where the
+        // special-cursor min(pcursor, backup-pcursor) resides and all
+        // checkpoints after that.
+        // So in the end it comes by logic that here we want remove only the
+        // cursors that reside in the checkpoints up to the last one before the
+        // checkpoint pointed by special-cursor.
+        // Note that the invariant applies that (backup-pcursor <= pcursor), if
+        // the backup cursor exists. So that can be exploited to simplify
+        // the logic further here.
+
+        const auto backupExists =
+                cursors.find(backupPCursorName) != cursors.end();
+        const auto& specialCursor = backupExists
+                                            ? *cursors.at(backupPCursorName)
+                                            : *persistenceCursor;
+
+        for (const auto& pair : cursors) {
+            const auto cursor = pair.second;
+            // Note: Strict condition here.
+            // Historically the primary reason for dropping cursors has been
+            // making closed checkpoints eligible for removal. But with expel it
+            // would make sense to drop cursors that reside within the same
+            // checkpoint as pcursor/backup-pcursor, as that may make some items
+            // eligible for expel.
+            // At the time of writing that kind of change is out of scope, so
+            // making that a @todo for now.
+            if (cursor->getId() < specialCursor.getId()) {
+                cursorsToDrop.emplace_back(cursor);
+            }
+        }
+    } else {
+        // Ephemeral
+        // There's no persistence cursor, so we want just to remove all cursors
+        // that reside in the closed checkpoints.
+
+        const auto id = getOpenCheckpointId(lh);
+        for (const auto& pair : cursors) {
+            const auto cursor = pair.second;
+            if (cursor->getId() < id) {
+                cursorsToDrop.emplace_back(cursor);
+            }
         }
     }
+
     return cursorsToDrop;
 }
 
@@ -1367,7 +1371,7 @@ uint64_t CheckpointManager::createNewCheckpoint(bool force) {
     }
 
     addNewCheckpoint_UNLOCKED();
-    return getOpenCheckpointId_UNLOCKED(lh);
+    return getOpenCheckpointId(lh);
 }
 
 size_t CheckpointManager::getMemoryUsage_UNLOCKED() const {
@@ -1420,8 +1424,7 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
                          buf.size(),
                          "vb_%d:open_checkpoint_id",
                          vbucketId.get());
-        add_casted_stat(
-                buf.data(), getOpenCheckpointId_UNLOCKED(lh), add_stat, cookie);
+        add_casted_stat(buf.data(), getOpenCheckpointId(lh), add_stat, cookie);
         checked_snprintf(buf.data(),
                          buf.size(),
                          "vb_%d:last_closed_checkpoint_id",
