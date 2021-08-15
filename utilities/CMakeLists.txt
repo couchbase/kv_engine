@@ -21,6 +21,8 @@ add_library(mcd_util STATIC
             breakpad.cc
             breakpad_settings.cc
             breakpad_settings.h
+            terminal_color.cc
+            terminal_color.h
             config_parser.cc
             dcp_stream_id.cc
             dockey.cc

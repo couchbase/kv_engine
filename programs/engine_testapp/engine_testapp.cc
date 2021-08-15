@@ -27,6 +27,7 @@
 #include <platform/dirutils.h>
 #include <platform/socket.h>
 #include <utilities/string_utilities.h>
+#include <utilities/terminal_color.h>
 #include <chrono>
 #include <cinttypes>
 #include <cstdlib>
@@ -36,7 +37,6 @@
 #include <string>
 #include <vector>
 
-static bool color_enabled;
 static bool verbose_logging = false;
 
 // The handle for the 'current' engine, as used by execute_test.
@@ -73,77 +73,70 @@ static int report_test(const char* name,
                        bool compact) {
     int rc = 0;
     const char* msg = nullptr;
-    int color = 0;
-    char color_str[8] = { 0 };
-    const char *reset_color = color_enabled ? "\033[m" : "";
+    TerminalColor color = TerminalColor::Black;
 
     switch (r) {
     case SUCCESS:
         msg="OK";
-        color = 32;
+        color = TerminalColor::Green;
         break;
     case SKIPPED:
         msg="SKIPPED";
-        color = 32;
+        color = TerminalColor::Blue;
         break;
     case FAIL:
-        color = 31;
+        color = TerminalColor::Red;
         msg="FAIL";
         rc = 1;
         break;
     case DIED:
-        color = 31;
+        color = TerminalColor::Red;
         msg = "DIED";
         rc = 1;
         break;
     case PENDING:
-        color = 33;
+        color = TerminalColor::Yellow;
         msg = "PENDING";
         break;
     case SUCCESS_AFTER_RETRY:
         msg="OK AFTER RETRY";
-        color = 33;
+        color = TerminalColor::Yellow;
         break;
     case SKIPPED_UNDER_ROCKSDB:
         msg="SKIPPED_UNDER_ROCKSDB";
-        color = 32;
+        color = TerminalColor::Blue;
         break;
     case SKIPPED_UNDER_MAGMA:
         msg = "SKIPPED_UNDER_MAGMA";
-        color = 32;
+        color = TerminalColor::Blue;
         break;
     default:
-        color = 31;
+        color = TerminalColor::Magenta;
         msg = "UNKNOWN";
         rc = 1;
     }
 
     cb_assert(msg);
-    if (color_enabled) {
-        snprintf(color_str, sizeof(color_str), "\033[%dm", color);
-    }
-
     auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
     if (quiet) {
         if (r != SUCCESS) {
-            printf("%s:  (%" PRIu64 " ms) %s%s%s\n", name, duration_ms.count(),
-                   color_str, msg, reset_color);
-            fflush(stdout);
+            std::cout << name << ":  (" << duration_ms.count() << " ms) "
+                      << color << msg << TerminalColor::Reset << std::endl;
         }
     } else {
         if (compact && (r == SUCCESS || r == SKIPPED || r == PENDING)) {
             size_t len = strlen(name) + 27; /* for "Running [0/0] xxxx ..." etc */
             size_t ii;
 
-            fprintf(stdout, "\r");
+            std::cout << "\r";
             for (ii = 0; ii < len; ++ii) {
-                fprintf(stdout, " ");
+                std::cout << " ";
             }
-            fprintf(stdout, "\r");
-            fflush(stdout);
+            std::cout << "\r";
+            std::cout.flush();
         } else {
-            printf("(%" PRIu64 " ms) %s%s%s\n", duration_ms.count(), color_str,
-                   msg, reset_color);
+            std::cout << "(" << duration_ms.count() << " ms) " << color << msg
+                      << TerminalColor::Reset << std::endl;
         }
     }
     return rc;
@@ -503,7 +496,13 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    color_enabled = getenv("TESTAPP_ENABLE_COLOR") != nullptr;
+    setTerminalColorSupport(getenv("TESTAPP_ENABLE_COLOR") != nullptr);
+
+#ifndef WIN32
+    if (isatty(STDOUT_FILENO)) {
+        setTerminalColorSupport(true);
+    }
+#endif
 
     /* Allow 'attempts' to also be set via env variable - this allows
        commit-validation scripts to enable retries for all

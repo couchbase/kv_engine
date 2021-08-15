@@ -13,15 +13,9 @@
 #include <mcbp/protocol/opcode.h>
 #include <mcbp/protocol/status.h>
 #include <platform/string_hex.h>
+#include <utilities/terminal_color.h>
 #include <iostream>
 #include <vector>
-
-#ifdef WIN32
-// Command.com don't support colors the same way as the terminals
-static bool nocolor = true;
-#else
-static bool nocolor = false;
-#endif
 
 static void usage() {
     std::cerr << R"(Usage: mcbp_info [options]
@@ -29,9 +23,7 @@ static void usage() {
 Options:
 
 )";
-#ifdef WIN32
-    std::cerr << "  --color            Use colors in the output" << std::endl;
-#else
+#ifndef WIN32
     std::cerr << "  --nocolor          Don't use colors in the output"
               << std::endl;
 #endif
@@ -42,17 +34,6 @@ Options:
 )";
 
     exit(EXIT_FAILURE);
-}
-
-enum class Color { Red = 31, Green = 32, Yellow = 33 };
-
-void printString(Color color, std::string_view view) {
-    if (nocolor) {
-        std::cout << view;
-    } else {
-        std::cout << "\033[" << std::to_string(int(color)) << "m" << view
-                  << "\033[m";
-    }
 }
 
 void dump_client_opcodes() {
@@ -66,31 +47,34 @@ void dump_client_opcodes() {
         if (cb::mcbp::is_valid_opcode(op)) {
             if (cb::mcbp::is_supported_opcode(op)) {
                 if (cb::mcbp::is_deprecated(op)) {
-                    printString(Color::Yellow, "d");
+                    std::cout << TerminalColor::Yellow << "d";
                 } else if (cb::mcbp::is_reorder_supported(op)) {
                     if (cb::mcbp::is_durability_supported(op)) {
-                        printString(Color::Green, "R");
+                        std::cout << TerminalColor::Green << "R";
                     } else {
-                        printString(Color::Green, "r");
+                        std::cout << TerminalColor::Green << "r";
                     }
                 } else {
-                    printString(Color::Green, "X");
+                    std::cout << TerminalColor::Green << "X";
                 }
             } else {
-                printString(Color::Yellow, "U");
+                std::cout << TerminalColor::Yellow << "U";
             }
         } else {
-            printString(Color::Red, ".");
+            std::cout << TerminalColor::Red << ".";
         }
+        std::cout << TerminalColor::Reset;
     }
 
-    std::cout << std::endl << std::endl << "Legend: " << std::endl;
-    printString(Color::Green, "  r\tReorder supported\n");
-    printString(Color::Green, "  R\tReorder and durability supported\n");
-    printString(Color::Yellow, "  d\tDeprecated\n");
-    printString(Color::Green, "  X\tSupported\n");
-    printString(Color::Yellow, "  U\tNot supported\n");
-    printString(Color::Red, "  .\tNot defined\n");
+    std::cout << "\n\nLegend:\n"
+              << TerminalColor::Green << "  r\tReorder supported\n"
+              << TerminalColor::Green
+              << "  R\tReorder and durability supported\n"
+              << TerminalColor::Yellow << "  d\tDeprecated\n"
+              << TerminalColor::Green << "  X\tSupported\n"
+              << TerminalColor::Yellow << "  U\tNot supported\n"
+              << TerminalColor::Red << "  .\tNot defined\n"
+              << TerminalColor::Reset;
 }
 
 void dump_server_opcodes() {
@@ -102,15 +86,17 @@ void dump_server_opcodes() {
         }
         auto op = cb::mcbp::ServerOpcode(opcode);
         if (cb::mcbp::is_valid_opcode(op)) {
-            printString(Color::Green, "X");
+            std::cout << TerminalColor::Green << "X";
         } else {
-            printString(Color::Red, ".");
+            std::cout << TerminalColor::Red << ".";
         }
+        std::cout << TerminalColor::Reset;
     }
 
-    std::cout << std::endl << std::endl << "Legend: " << std::endl;
-    printString(Color::Green, "  X\tSupported\n");
-    printString(Color::Red, "  .\tNot defined\n");
+    std::cout << "\n\nLegend:\n"
+              << TerminalColor::Green << "  X\tSupported\n"
+              << TerminalColor::Red << "  .\tNot defined\n"
+              << TerminalColor::Reset;
 }
 
 void dump_status() {
@@ -132,22 +118,24 @@ void dump_status() {
                 const auto status = cb::mcbp::Status(st);
                 to_string(status);
                 if (cb::mcbp::isStatusSuccess(status)) {
-                    printString(Color::Green, "S");
+                    std::cout << TerminalColor::Green << "S";
                 } else {
-                    printString(Color::Green, "E");
+                    std::cout << TerminalColor::Green << "E";
                 }
             } catch (const std::exception&) {
-                printString(Color::Red, ".");
+                std::cout << TerminalColor::Red << ".";
             }
         } else {
-            printString(Color::Red, ".");
+            std::cout << TerminalColor::Red << ".";
         }
+        std::cout << TerminalColor::Reset;
     }
 
-    std::cout << std::endl << std::endl << "Legend: " << std::endl;
-    printString(Color::Green, "  S\tSuccess\n");
-    printString(Color::Green, "  E\tError\n");
-    printString(Color::Red, "  .\tNot defined\n");
+    std::cout << "\n\nLegend:\n"
+              << TerminalColor::Green << "  S\tSuccess\n"
+              << TerminalColor::Green << "  E\tError\n"
+              << TerminalColor::Red << "  .\tNot defined\n"
+              << TerminalColor::Reset;
 }
 
 int main(int argc, char** argv) {
@@ -156,14 +144,14 @@ int main(int argc, char** argv) {
     enum class Command { ClientOpcodes, ServerOpcodes, Status };
     std::vector<Command> commands;
 
-#ifndef WIN32
-    nocolor = isatty(STDOUT_FILENO) == 0;
+#ifdef WIN32
+    const bool color = false;
+#else
+    bool color = isatty(STDOUT_FILENO) != 0;
 #endif
 
     const std::vector<option> options = {
-#ifdef WIN32
-            {"color", no_argument, nullptr, 'n'},
-#else
+#ifndef WIN32
             {"nocolor", no_argument, nullptr, 'n'},
 #endif
             {"client_opcodes", no_argument, nullptr, 'o'},
@@ -172,14 +160,12 @@ int main(int argc, char** argv) {
             {"help", no_argument, nullptr, 0},
             {nullptr, 0, nullptr, 0}};
 
-    while ((cmd = getopt_long(argc, argv, "o", options.data(), nullptr)) !=
+    while ((cmd = getopt_long(argc, argv, "", options.data(), nullptr)) !=
            EOF) {
         switch (cmd) {
         case 'n':
-#ifdef WIN32
-            nocolor = false;
-#else
-            nocolor = true;
+#ifndef WIN32
+            color = false;
 #endif
             break;
         case 'o':
@@ -201,6 +187,8 @@ int main(int argc, char** argv) {
         usage();
         return EXIT_FAILURE;
     }
+
+    setTerminalColorSupport(color);
 
     for (const auto& c : commands) {
         switch (c) {
