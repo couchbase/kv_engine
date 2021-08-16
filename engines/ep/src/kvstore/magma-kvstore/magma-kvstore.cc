@@ -1273,16 +1273,13 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
         return Status::Invalid;
     }
 
-    auto [getManifestStatus, manifest] = getCollectionsManifest(vbid);
-    if (!getManifestStatus) {
-        logger->warn(
-                "MagmaKVStore::saveDocs {} Failed to get collections manifest",
-                vbid);
-        return Status::Invalid;
-    }
+    // Not checking the result here as the first flush may not find a manifest
+    // and getCollectionsManifest returns a default constructed one in that case
+    // (with manifest uid of 0).
+    auto manifestResult = getCollectionsManifest(vbid);
 
     commitData.collections.setDroppedCollectionsForStore(dropped);
-    commitData.collections.setManifestUid(manifest.manifestUid);
+    commitData.collections.setManifestUid(manifestResult.second.manifestUid);
 
     auto status = magma->WriteDocs(vbid.get(),
                                    writeOps,
@@ -2348,16 +2345,37 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
 
     std::string manifest;
     std::tie(status, manifest) = readLocalDoc(vbid, manifestKey);
+    if (!(status.IsOK() || status.ErrorCode() == Status::NotFound)) {
+        return {false,
+                Collections::KVStore::Manifest{
+                        Collections::KVStore::Manifest::Default{}}};
+    }
 
     std::string openCollections;
     std::tie(status, openCollections) = readLocalDoc(vbid, openCollectionsKey);
+    if (!(status.IsOK() || status.ErrorCode() == Status::NotFound)) {
+        return {false,
+                Collections::KVStore::Manifest{
+                        Collections::KVStore::Manifest::Default{}}};
+    }
 
     std::string openScopes;
     std::tie(status, openScopes) = readLocalDoc(vbid, openScopesKey);
+    if (!(status.IsOK() || status.ErrorCode() == Status::NotFound)) {
+        return {false,
+                Collections::KVStore::Manifest{
+                        Collections::KVStore::Manifest::Default{}}};
+    }
 
     std::string droppedCollections;
     std::tie(status, droppedCollections) =
             readLocalDoc(vbid, droppedCollectionsKey);
+    if (!(status.IsOK() || status.ErrorCode() == Status::NotFound)) {
+        return {false,
+                Collections::KVStore::Manifest{
+                        Collections::KVStore::Manifest::Default{}}};
+    }
+
     return {true,
             Collections::KVStore::decodeManifest(
                     {reinterpret_cast<const uint8_t*>(manifest.data()),
