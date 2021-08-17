@@ -288,12 +288,13 @@ public:
 
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) override;
 
-    std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
-            const KVFileHandle& kvFileHandle,
-            CollectionID collection) override {
+    std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
+    getCollectionStats(const KVFileHandle& kvFileHandle,
+                       CollectionID collection) override {
         // TODO JWW 2018-07-30 implement this, for testing purposes return dummy
-        // values of 0 to imply the function didn't fail
-        return {true, Collections::VB::PersistedStats()};
+        // values to imply the function didn't fail
+        return {GetCollectionStatsStatus::Success,
+                Collections::VB::PersistedStats()};
     }
 
     void prepareToCreateImpl(Vbid vbid) override {

@@ -575,14 +575,15 @@ protected:
     void deleteCollectionStats(CollectionID cid);
 
     /// Get the collection stats for the given collection
-    std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
-            const KVFileHandle& kvFileHandle, CollectionID collection) override;
-    std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
-            Db& db, CollectionID collection);
+    std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
+    getCollectionStats(const KVFileHandle& kvFileHandle,
+                       CollectionID collection) override;
+    std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
+    getCollectionStats(Db& db, CollectionID collection);
 
     /// Get the collection stats from the local doc named statDocName
-    std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
-            Db& db, const std::string& statDocName);
+    std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
+    getCollectionStats(Db& db, const std::string& statDocName);
 
     /**
      * Return value of readLocalDoc. Status indicates if doc is valid or not

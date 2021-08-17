@@ -371,8 +371,9 @@ public:
 
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) override;
 
-    std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
-            const KVFileHandle& kvFileHandle, CollectionID collection) override;
+    std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
+    getCollectionStats(const KVFileHandle& kvFileHandle,
+                       CollectionID collection) override;
 
     /**
      * Get the alive collection stats for the given collection
@@ -381,8 +382,8 @@ public:
      * @param collection to find stats for
      * @return Bool status and Stats (defaulted to 0 if not found)
      */
-    std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(Vbid,
-                                                       CollectionID collection);
+    std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
+    getCollectionStats(Vbid, CollectionID collection);
 
     /**
      * Get the collection stats for the given key
@@ -391,8 +392,8 @@ public:
      * @param keySlice Stats key to lookup
      * @return Bool status and Stats (defaulted to 0 if not found)
      */
-    std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
-            Vbid, magma::Slice keySlice);
+    std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
+    getCollectionStats(Vbid, magma::Slice keySlice);
 
     /**
      * Increment the kvstore revision.

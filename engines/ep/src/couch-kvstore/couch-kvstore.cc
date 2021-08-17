@@ -1277,8 +1277,8 @@ couchstore_error_t CouchKVStore::replayPreCopyLocalDoc(
         // This is a collection statistics doc, obtain collection-ID
         auto cid = getCollectionIdFromStatsDocId(documentId);
         // and load the stats
-        auto [success, currentStats] = getCollectionStats(target, cid);
-        if (!success) {
+        auto [status, currentStats] = getCollectionStats(target, cid);
+        if (status == GetCollectionStatsStatus::Failed) {
             logger.warn(
                     "CouchKVStore::replayPreCopyLocalDoc: failed loading stats "
                     "for doc:{} cid:{}",
@@ -1782,8 +1782,8 @@ couchstore_error_t CouchKVStore::maybePatchMetaData(
         // that in the case of a first compaction after upgrade from pre 7.0
         // we get the correct disk (because we use the dbinfo.space_used). The
         // target file could return a value too small in that case (MB-45917)
-        auto [success, currentStats] = getCollectionStats(source, cid);
-        if (!success) {
+        auto [status, currentStats] = getCollectionStats(source, cid);
+        if (status == KVStore::GetCollectionStatsStatus::Failed) {
             logger.warn(
                     "CouchKVStore::maybePatchMetaData: Failed to load "
                     "collection stats for {}, cid:{}, stats could be now "
@@ -3330,26 +3330,27 @@ void CouchKVStore::deleteCollectionStats(CollectionID cid) {
                                    CouchLocalDocRequest::IsDeleted{});
 }
 
-std::pair<bool, Collections::VB::PersistedStats>
+std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 CouchKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
                                  CollectionID collection) {
     const auto& db = static_cast<const CouchKVFileHandle&>(kvFileHandle);
     return getCollectionStats(*db.getDb(), collection);
 }
 
-std::pair<bool, Collections::VB::PersistedStats>
+std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 CouchKVStore::getCollectionStats(Db& db, CollectionID collection) {
     if (!collection.isUserCollection()) {
         logger.warn(
                 "CouchKVStore::getCollectionStats stats are not available for "
                 "cid:{}",
                 collection.to_string());
-        return {false, Collections::VB::PersistedStats{}};
+        return {KVStore::GetCollectionStatsStatus::Failed,
+                Collections::VB::PersistedStats{}};
     }
     return getCollectionStats(db, getCollectionStatsLocalDocId(collection));
 }
 
-std::pair<bool, Collections::VB::PersistedStats>
+std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 CouchKVStore::getCollectionStats(Db& db, const std::string& statDocName) {
     sized_buf id;
     id.buf = const_cast<char*>(statDocName.c_str());
@@ -3367,11 +3368,13 @@ CouchKVStore::getCollectionStats(Db& db, const std::string& statDocName) {
                     "couchstore_open_local_document error:{}",
                     statDocName,
                     couchstore_strerror(errCode));
-            return {false, Collections::VB::PersistedStats{}};
+            return {KVStore::GetCollectionStatsStatus::Failed,
+                    Collections::VB::PersistedStats{}};
         }
         // Return Collections::VB::PersistedStats() with everything set to
         // 0 as the collection might have not been persisted to disk yet.
-        return {true, Collections::VB::PersistedStats{}};
+        return {KVStore::GetCollectionStatsStatus::NotFound,
+                Collections::VB::PersistedStats{}};
     }
 
     DbInfo info;
@@ -3384,7 +3387,7 @@ CouchKVStore::getCollectionStats(Db& db, const std::string& statDocName) {
                 couchstore_strerror(errCode));
     }
 
-    return {true,
+    return {KVStore::GetCollectionStatsStatus::Success,
             Collections::VB::PersistedStats(lDoc.getLocalDoc()->json.buf,
                                             lDoc.getLocalDoc()->json.size,
                                             info.space_used)};

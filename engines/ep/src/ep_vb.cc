@@ -1080,9 +1080,9 @@ void EPVBucket::collectionsRolledBack(KVBucket& bucket) {
     // For each collection in the VB, reload the stats to the point before
     // the rollback seqno
     for (auto& collection : wh) {
-        auto [success, stats] =
+        auto [status, stats] =
                 kvstore.getCollectionStats(*kvstoreContext, collection.first);
-        if (!success) {
+        if (status == KVStore::GetCollectionStatsStatus::Failed) {
             EP_LOG_WARN(
                     "EPVBucket::collectionsRolledBack(): getCollectionStats() "
                     "failed for {}",

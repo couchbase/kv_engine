@@ -3027,16 +3027,14 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
         EXPECT_TRUE(fileHandle);
 
         if (dropAtEnd) {
-            // Note this API isn't here to handle 'unknown collection' so zero
-            // is the expected value for a dropped/non-existent collection
-            auto [success, stats] = kvs.getCollectionStats(*fileHandle, target);
-            EXPECT_TRUE(success);
+            auto [status, stats] = kvs.getCollectionStats(*fileHandle, target);
+            EXPECT_EQ(KVStore::GetCollectionStatsStatus::NotFound, status);
             EXPECT_EQ(0, stats.itemCount);
             EXPECT_EQ(0, stats.highSeqno);
             EXPECT_EQ(0, stats.diskSize);
         } else {
-            auto [success, stats] = kvs.getCollectionStats(*fileHandle, target);
-            EXPECT_TRUE(success);
+            auto [status, stats] = kvs.getCollectionStats(*fileHandle, target);
+            EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, status);
             EXPECT_EQ(expected, stats.itemCount);
             EXPECT_EQ(7, stats.highSeqno);
         }

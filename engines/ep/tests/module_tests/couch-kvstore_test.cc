@@ -331,9 +331,9 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(
 
     // Check item count
     auto kvstoreContext = kvstore2.rw->makeFileHandle(Vbid(0));
-    auto [success, stats] =
+    auto [status, stats] =
             kvstore2.rw->getCollectionStats(*kvstoreContext, cid);
-    EXPECT_TRUE(success);
+    EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, status);
     auto deletedCount = deletedRange.second - deletedRange.first;
     EXPECT_EQ(keys - deletedCount, stats.itemCount);
     EXPECT_EQ(keys + (deletedCount - 1), stats.highSeqno);
