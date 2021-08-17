@@ -1871,27 +1871,11 @@ static enum test_result test_temp_item_deletion(EngineIface* h) {
     // disk, before the second get_meta call tries to find that item in HT,
     // we will have only 1 bgfetch
     wait_for_stat_to_be_gte(h, "ep_bg_meta_fetched", 1);
-    int exp_get_meta_ops = get_int_stat(h, "ep_num_ops_get_meta");
 
-    // Do get_meta for a non-existing key.
-    char const *k2 = "k2";
-    check(!get_meta(h, k2, errorMetaPair), "Expected get meta to return false");
-    checkeq(cb::engine_errc::no_such_key,
-            errorMetaPair.first,
-            "Expected no_such_key");
-
-    // This call for get_meta may or may not result in bg fetch because
-    // bloomfilter may predict that key does not exist.
-    // However we still must increment the ep_num_ops_get_meta count
-    checkeq(exp_get_meta_ops + 1,
-            get_int_stat(h, "ep_num_ops_get_meta"),
-            "Num get meta ops not as expected");
-
-    // Trigger the expiry pager and verify that two temp items are deleted
+    // Trigger the expiry pager and verify that the temp item is deleted
     set_param(h, EngineParamCategory::Flush, "num_nonio_threads", "1");
 
-    // When bloom filters are on, it skips 1 of the expired items.
-    int ep_expired_pager = get_bool_stat(h, "ep_bfilter_enabled") ? 1 : 2;
+    int ep_expired_pager = 1;
     wait_for_stat_to_be(h, "ep_expired_pager", ep_expired_pager);
 
     checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");

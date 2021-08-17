@@ -288,7 +288,7 @@ protected:
  * Test fixture for item pager tests - enables the Item Pager (in addition to
  * what the parent class does).
  */
-class STItemPagerTest : public STBucketQuotaTest {
+class STItemPagerTest : virtual public STBucketQuotaTest {
 protected:
     void SetUp() override {
         config_string += "concurrent_pagers=" +
@@ -1458,7 +1458,7 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
  * Test fixture for expiry pager tests - enables the Expiry Pager (in addition
  * to what the parent class does).
  */
-class STExpiryPagerTest : public STBucketQuotaTest {
+class STExpiryPagerTest : virtual public STBucketQuotaTest {
 protected:
     void SetUp() override {
         STBucketQuotaTest::SetUp();
@@ -2327,6 +2327,128 @@ TEST(VbucketFilterTest, Split) {
     }
 }
 
+/**
+ * Test fixture for full eviction buckets with bloom filter disabled. Inherits
+ * from both STExpiryPagerTest and STItemPagerTest so that we can re-use the
+ * code that wrangles the ItemPager in both modes.
+ */
+class STFullEvictionNoBloomFilterPagerTest : virtual public STExpiryPagerTest,
+                                             virtual public STItemPagerTest {
+public:
+    void SetUp() override {
+        config_string += "bfilter_enabled=false;";
+        config_string += "concurrent_pagers=" +
+                         std::to_string(getNumConcurrentPagers()) + ";";
+
+        STExpiryPagerTest::SetUp();
+
+        // Manually create item pager as in STItemPagerTest::SetUp()
+        scheduleItemPager();
+        ++initialNonIoTasks;
+        itemPagerScheduled = true;
+    }
+
+    void testTempItemEvictableButNotExpirable(StoredDocKey key);
+};
+
+void STFullEvictionNoBloomFilterPagerTest::testTempItemEvictableButNotExpirable(
+        StoredDocKey key) {
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    // Attempt to expire the fetched (temp non-existent) item
+    wakeUpExpiryPager();
+
+    auto& stats = engine->getEpStats();
+    EXPECT_EQ(0, stats.expired_pager);
+    EXPECT_EQ(0, vb->numExpiredItems);
+
+    {
+        auto htRes = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(htRes.committed);
+
+        // Poke the freq counter so that this item will definitely get evicted
+        htRes.committed->setFreqCounterValue(0);
+
+        EXPECT_FALSE(htRes.pending);
+    }
+
+    // Run item pager to test that we can actually get rid of this item.
+    // We're going to set this vBucket to replica and write ourselves over the
+    // HWM against some other vBucket to ensure that this vBucket is visited
+    // first by the PagingVisitor to ensure that we try to evict our item.
+    store->setVBucketState(vbid, vbucket_state_replica);
+
+    auto dummyVb = Vbid(1);
+    store->setVBucketState(dummyVb, vbucket_state_active);
+    populateUntilAboveHighWaterMark(dummyVb);
+    runHighMemoryPager();
+
+    {
+        // Item is gone, all is good
+        auto htRes = vb->ht.findForUpdate(key);
+        EXPECT_FALSE(htRes.committed);
+        EXPECT_FALSE(htRes.pending);
+    }
+}
+
+TEST_P(STFullEvictionNoBloomFilterPagerTest, TempNonResidentNotExpired) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Store the item to trigger a metadata bg fetch, running it will create a
+    // TempNonExistent item
+    auto key = makeStoredDocKey("key");
+    auto item = make_item(vbid, key, "v1");
+    EXPECT_EQ(cb::engine_errc::would_block, store->add(item, cookie));
+    runBGFetcherTask();
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    // Verify that the item is TempNonExistent
+    {
+        auto htRes = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(htRes.committed);
+        ASSERT_TRUE(htRes.committed->isTempNonExistentItem());
+
+        EXPECT_FALSE(htRes.pending);
+    }
+
+    // And proceed with the test
+    testTempItemEvictableButNotExpirable(key);
+}
+
+TEST_P(STFullEvictionNoBloomFilterPagerTest, TempDeletedNotExpired) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Store a deleted item so that an add driven bg fetch will restore
+    // deleted meta (setting the previously TempInitial item to TempDeleted)
+    auto key = makeStoredDocKey("key");
+    auto item = makeDeletedItem(key);
+    EXPECT_EQ(cb::engine_errc::success, store->set(*item, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    // Add to drive a bg fetch
+    auto itemToAdd = make_item(vbid, key, "v1");
+    EXPECT_EQ(cb::engine_errc::would_block, store->add(itemToAdd, cookie));
+    runBGFetcherTask();
+
+    // Verify that the item is TempDeleted
+    {
+        auto htRes = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(htRes.committed);
+        ASSERT_TRUE(htRes.committed->isTempDeletedItem());
+
+        EXPECT_FALSE(htRes.pending);
+    }
+
+    // And proceed with the test
+    testTempItemEvictableButNotExpirable(key);
+}
+
 // TODO: Ideally all of these tests should run with or without jemalloc,
 // however we currently rely on jemalloc for accurate memory tracking; and
 // hence it is required currently.
@@ -2346,6 +2468,12 @@ INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
                          STExpiryPagerTest,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(
+        PersistentFullEviciton,
+        STFullEvictionNoBloomFilterPagerTest,
+        STParameterizedBucketTest::fullEvictionAllBackendsConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(ValueOnly,
                          STValueEvictionExpiryPagerTest,

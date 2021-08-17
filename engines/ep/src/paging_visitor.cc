@@ -71,7 +71,7 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
     // Delete expired items for an active vbucket.
     bool isExpired = (currentBucket->getState() == vbucket_state_active) &&
                      v.isExpired(startTime) && !v.isDeleted();
-    if (isExpired || v.isTempNonExistentItem() || v.isTempDeletedItem()) {
+    if (isExpired) {
         std::unique_ptr<Item> it = v.toItem(currentBucket->getId());
         expired.push_back(*it.get());
         return true;
