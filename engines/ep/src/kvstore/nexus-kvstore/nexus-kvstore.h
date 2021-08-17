@@ -141,16 +141,18 @@ protected:
             Vbid vbid, const VB::Commit& commitData);
 
     /**
-     * Check a various state after flushing both primary and secondary KVStores
+     * Check a various state after updating both primary and secondary KVStores
      *
      * @param vbid Vbid
-     * @param primaryVBManifest in memory primary manifest
-     * @param secondaryVBManifest in memory secondary manifest
+     * @param primaryVBManifest in memory primary manifest (passing nullptr
+     *        skips the checks against the in memory manifest)
+     * @param secondaryVBManifest in memory secondary manifest (passing nullptr
+     *        skips the checks against the in memory manifest)
      */
-    void doPostFlushSanityChecks(
+    void doCollectionsMetadataChecks(
             Vbid vbid,
-            const Collections::VB::Manifest& primaryVBManifest,
-            const Collections::VB::Manifest& secondaryVBManifest);
+            const Collections::VB::Manifest* primaryVBManifest,
+            const Collections::VB::Manifest* secondaryVBManifest);
 
     /**
      * We cache locks per-vBucket and to save memory usage we only allocate
