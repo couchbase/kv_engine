@@ -1232,6 +1232,71 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsFailed) {
     EXPECT_EQ(0, stats.diskSize);
 }
 
+TEST_P(KVStoreParamTestSkipRocks, SyncDeletePrepareOverwriteCorrectFlushState) {
+    auto key = makeStoredDocKey("key");
+    {
+        auto tc = kvstore->begin(Vbid(0),
+                                 std::make_unique<MockPersistenceCallback>());
+        auto& mockPersistenceCallback =
+                dynamic_cast<MockPersistenceCallback&>(*tc->cb);
+        auto qi = makePendingItem(key, "value");
+        qi->setBySeqno(1);
+        qi->setDeleted(DeleteSource::Explicit);
+        kvstore->set(*tc, qi);
+
+        EXPECT_CALL(mockPersistenceCallback,
+                    setCallback(_, FlushStateMutation::Insert))
+                .Times(1);
+        EXPECT_TRUE(kvstore->commit(std::move(tc), flush));
+    }
+
+    auto tc = kvstore->begin(Vbid(0),
+                             std::make_unique<MockPersistenceCallback>());
+    auto& mockPersistenceCallback =
+            dynamic_cast<MockPersistenceCallback&>(*tc->cb);
+
+    auto qi = makePendingItem(key, "value");
+    qi->setBySeqno(2);
+    qi->setDeleted(DeleteSource::Explicit);
+    kvstore->set(*tc, qi);
+
+    EXPECT_CALL(mockPersistenceCallback,
+                setCallback(_, FlushStateMutation::Update))
+            .Times(1);
+    EXPECT_TRUE(kvstore->commit(std::move(tc), flush));
+}
+
+TEST_P(KVStoreParamTestSkipRocks, SyncDeletePrepareNotPurgedByTimestamp) {
+    auto key = makeStoredDocKey("key");
+    auto tc = kvstore->begin(Vbid(0), std::make_unique<PersistenceCallback>());
+
+    auto qi = makePendingItem(key, "value");
+    qi->setBySeqno(1);
+    qi->setDeleted(DeleteSource::Explicit);
+    qi->setExpTime(1);
+    kvstore->set(*tc, qi);
+
+    // Highest seqno is not eligible for purging so write a dummy item to make
+    // the SyncDelete prepare eligible
+    auto dummyItem = makeCommittedItem(makeStoredDocKey("dummy"), "dummy");
+    dummyItem->setBySeqno(2);
+    kvstore->set(*tc, dummyItem);
+
+    EXPECT_TRUE(kvstore->commit(std::move(tc), flush));
+
+    CompactionConfig compactionConfig;
+    compactionConfig.purge_before_seq = 0;
+    compactionConfig.purge_before_ts = 2;
+    compactionConfig.drop_deletes = false;
+    auto cctx = std::make_shared<CompactionContext>(vbid, compactionConfig, 0);
+    {
+        auto lock = getVbLock();
+        EXPECT_TRUE(kvstore->compactDB(lock, cctx));
+    }
+
+    EXPECT_EQ(0, cctx->stats.tombstonesPurged);
+}
+
 class ReuseSnapshotCallback : public StatusCallback<GetValue> {
 public:
     ReuseSnapshotCallback(uint64_t startSeqno,

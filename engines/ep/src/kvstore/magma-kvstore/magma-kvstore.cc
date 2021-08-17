@@ -63,9 +63,8 @@ MetaData::MetaData(const Item& it)
       flags(it.getFlags()),
       valueSize(it.getNBytes()),
       vbid(it.getVBucketId().get()),
-      datatype(it.getDataType()),
-      prepareSeqno(it.getPrepareSeqno()) {
-    if (it.isDeleted()) {
+      datatype(it.getDataType()) {
+    if (it.isDeleted() && !it.isPending()) {
         deleted = 1;
         deleteSource = static_cast<uint8_t>(it.deletionSource());
     } else {
@@ -73,7 +72,16 @@ MetaData::MetaData(const Item& it)
         deleteSource = 0;
     }
     operation = static_cast<uint8_t>(toOperation(it.getOperation()));
-    durabilityLevel = static_cast<uint8_t>(it.getDurabilityReqs().getLevel());
+
+    if (it.isPending()) {
+        durabilityDetails.pending.isDelete = it.isDeleted();
+        durabilityDetails.pending.level =
+                static_cast<uint8_t>(it.getDurabilityReqs().getLevel());
+    }
+
+    if (it.isCommitSyncWrite() || it.isAbort()) {
+        durabilityDetails.completed.prepareSeqno = it.getPrepareSeqno();
+    }
 }
 
 MetaData::MetaData(bool isDeleted, uint32_t valueSize, int64_t seqno, Vbid vbid)
@@ -86,9 +94,7 @@ MetaData::MetaData(bool isDeleted, uint32_t valueSize, int64_t seqno, Vbid vbid)
       valueSize(valueSize),
       vbid(vbid.get()),
       datatype(0),
-      operation(0),
-      durabilityLevel(0),
-      prepareSeqno(0) {
+      operation(0) {
     if (isDeleted) {
         deleted = 1;
         deleteSource = static_cast<uint8_t>(DeleteSource::Explicit);
@@ -99,7 +105,9 @@ MetaData::MetaData(bool isDeleted, uint32_t valueSize, int64_t seqno, Vbid vbid)
 }
 
 cb::durability::Level MetaData::getDurabilityLevel() const {
-    return static_cast<cb::durability::Level>(durabilityLevel);
+    Expects(static_cast<MetaData::Operation>(operation) ==
+            MetaData::Operation::PreparedSyncWrite);
+    return static_cast<cb::durability::Level>(durabilityDetails.pending.level);
 }
 
 std::string MetaData::to_string(Operation op) const {
@@ -395,7 +403,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             }
         }
         time_t currTime = ep_real_time();
-        if (exptime && exptime < currTime) {
+        if (exptime && exptime < currTime && !magmakv::isPrepared(metaSlice)) {
             auto docMeta = magmakv::getDocMeta(metaSlice);
             auto itm =
                     std::make_unique<Item>(makeDiskDocKey(keySlice).getDocKey(),
@@ -1063,14 +1071,17 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
         // must be ignored.
         item->setPendingSyncWrite({meta.getDurabilityLevel(),
                                    cb::durability::Timeout::Infinity()});
+        if (meta.durabilityDetails.pending.isDelete) {
+            item->setDeleted(DeleteSource::Explicit);
+        }
         return item;
     case magmakv::MetaData::Operation::CommittedSyncWrite:
         item->setCommittedviaPrepareSyncWrite();
-        item->setPrepareSeqno(meta.prepareSeqno);
+        item->setPrepareSeqno(meta.getPrepareSeqno());
         return item;
     case magmakv::MetaData::Operation::Abort:
         item->setAbortSyncWrite();
-        item->setPrepareSeqno(meta.prepareSeqno);
+        item->setPrepareSeqno(meta.getPrepareSeqno());
         return item;
     }
 

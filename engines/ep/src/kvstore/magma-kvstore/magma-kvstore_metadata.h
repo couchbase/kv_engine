@@ -49,8 +49,7 @@ public:
         Abort,
     };
 
-    MetaData()
-        : deleted(0), deleteSource(0), operation(0), durabilityLevel(0){};
+    MetaData() : deleted(0), deleteSource(0), operation(0){};
 
     explicit MetaData(const Item& it);
 
@@ -63,6 +62,13 @@ public:
     }
 
     cb::durability::Level getDurabilityLevel() const;
+
+    cb::uint48_t getPrepareSeqno() const {
+        auto op = static_cast<Operation>(operation);
+        Expects(op == Operation::CommittedSyncWrite || op == Operation::Abort);
+        return durabilityDetails.completed.prepareSeqno;
+    }
+
     std::string to_string(Operation op) const;
 
     std::string to_string() const;
@@ -79,8 +85,26 @@ public:
     uint8_t deleted : 1;
     uint8_t deleteSource : 1;
     uint8_t operation : 2;
-    uint8_t durabilityLevel : 2;
-    cb::uint48_t prepareSeqno = 0;
+
+    union durabilityDetails {
+        // Need to supply a default constructor or the compiler will
+        // complain about cb::uint48_t
+        durabilityDetails() : raw(0){};
+
+        struct {
+            // 0:pendingSyncWrite, 1:pendingSyncDelete
+            uint8_t isDelete : 1;
+            // cb::durability::level
+            uint8_t level : 2;
+        } pending;
+
+        struct completedDetails {
+            // prepareSeqno of the completed Syncwrite
+            cb::uint48_t prepareSeqno;
+        } completed;
+
+        cb::uint48_t raw;
+    } durabilityDetails;
 
 private:
     static Operation toOperation(queue_op op);
