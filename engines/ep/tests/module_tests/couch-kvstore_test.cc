@@ -339,6 +339,10 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(
     EXPECT_EQ(keys + (deletedCount - 1), stats.highSeqno);
     EXPECT_NE(0, stats.diskSize);
 
+    auto uid = kvstore2.rw->getCollectionsManifestUid(*kvstoreContext);
+    EXPECT_TRUE(uid.has_value());
+    EXPECT_EQ(0, uid.value());
+
     // Test that the datafile can be compacted.
     // MB-45917
     CompactionConfig config{0, 0, true /*purge all tombstones*/, false};

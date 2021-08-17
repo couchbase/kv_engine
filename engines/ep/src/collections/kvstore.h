@@ -132,6 +132,11 @@ struct DroppedCollection {
     }
 };
 
+/**
+ * Decode the manifest buffer from the local doc store into a ManifestUID
+ * @param manifest buffer containing manifest meta data
+ */
+ManifestUid decodeManifestUid(cb::const_byte_buffer manifest);
 
 /**
  * Decode the buffers from the local doc store into the collections

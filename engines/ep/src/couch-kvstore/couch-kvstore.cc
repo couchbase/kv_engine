@@ -3875,6 +3875,25 @@ CouchKVStore::ReadLocalDocResult CouchKVStore::readLocalDoc(
     return {COUCHSTORE_SUCCESS, std::move(lDoc)};
 }
 
+std::optional<Collections::ManifestUid> CouchKVStore::getCollectionsManifestUid(
+        KVFileHandle& kvFileHandle) {
+    auto& couchKvHandle = static_cast<CouchKVFileHandle&>(kvFileHandle);
+    auto db = couchKvHandle.getDb();
+    auto manifestRes = readLocalDoc(*db, Collections::manifestName);
+    if (manifestRes.status != COUCHSTORE_SUCCESS) {
+        if (manifestRes.status == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+            return Collections::ManifestUid{0};
+        } else {
+            logger.warn(
+                    "CouchKVStore::getCollectionsManifestUid(): "
+                    "error:{}",
+                    couchstore_strerror(manifestRes.status));
+            return std::nullopt;
+        }
+    }
+    return Collections::KVStore::decodeManifestUid(manifestRes.doc.getBuffer());
+}
+
 std::pair<bool, Collections::KVStore::Manifest>
 CouchKVStore::getCollectionsManifest(Vbid vbid) {
     DbHolder db(*this);

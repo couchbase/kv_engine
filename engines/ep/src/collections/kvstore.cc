@@ -35,6 +35,14 @@ void verifyFlatbuffersData(cb::const_byte_buffer buf,
     throw std::runtime_error(ss.str());
 }
 
+ManifestUid decodeManifestUid(cb::const_byte_buffer manifest) {
+    verifyFlatbuffersData<Collections::KVStore::CommittedManifest>(
+            manifest, "decodeManifestUid(manifest)");
+    auto fbData = flatbuffers::GetRoot<Collections::KVStore::CommittedManifest>(
+            manifest.data());
+    return ManifestUid{fbData->uid()};
+}
+
 Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
                                               cb::const_byte_buffer collections,
                                               cb::const_byte_buffer scopes,
@@ -47,12 +55,7 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
     std::unordered_set<ScopeID> openScopes;
 
     if (!manifest.empty()) {
-        verifyFlatbuffersData<Collections::KVStore::CommittedManifest>(
-                manifest, "decodeManifest(manifest)");
-        auto fbData =
-                flatbuffers::GetRoot<Collections::KVStore::CommittedManifest>(
-                        manifest.data());
-        rv.manifestUid = fbData->uid();
+        rv.manifestUid = decodeManifestUid(manifest);
     }
     if (!collections.empty()) {
         verifyFlatbuffersData<Collections::KVStore::OpenCollections>(
