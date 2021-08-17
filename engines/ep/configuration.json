@@ -1218,7 +1218,7 @@
             "type": "size_t"
         },
         "magma_enable_group_commit": {
-            "default": "false",
+            "default": "true",
             "desr": "Group Commit allows transactions in magma to be grouped together to reduce the number of WAL fsyncs. When a transaction is ready to fsync, if there are new transactions waiting to start, we stall the transaction waiting to fsync until there are no more transactions waiting to start for a given magma instance.",
             "dynamic": false,
             "type": "bool"
