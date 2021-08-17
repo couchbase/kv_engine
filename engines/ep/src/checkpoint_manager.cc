@@ -1575,6 +1575,77 @@ size_t CheckpointManager::getNumCheckpoints() const {
     return checkpointList.size();
 }
 
+bool CheckpointManager::hasNonMetaItemsForCursor(
+        const CheckpointCursor& cursor) {
+    std::lock_guard<std::mutex> lh(queueLock);
+
+    if (!cursor.valid()) {
+        return false;
+    }
+
+    // Note: using "mutation" === "non-meta item" in the following.
+    // Point of the function is to tell the user if there are mutations
+    // available for the cursor to process.
+    // CM lastBySeqno is bumped only for mutations, so we can exploit that here.
+    const auto seqno = (*cursor.currentPos)->getBySeqno();
+    if (seqno < lastBySeqno) {
+        // Surely there's at least another mutation to process
+        return true;
+    }
+
+    if (seqno > lastBySeqno) {
+        // Note: A cursor's seqno can be higher than lastBySeqno as meta items
+        // in CM can be queued after the last mutation and will get (lastBySeqno
+        // + 1). If that's the case, then cursor points to something that comes
+        // surely after the last queued mutation, so nothing else to process
+        return false;
+    }
+
+    // Cursor is at lastBySeqno, which could be shared across a mutation and
+    // multiple meta items. Eg:
+    //
+    // CheckpointManager[0x10f1d8380] with numItems:2 checkpoints:1
+    //    Checkpoint[0x10f1d8540] with id:4 seqno:{4,4} snap:{3,4, visible:4}
+    //      state:CHECKPOINT_OPEN numCursors:2 type:Memory hcs:none  items:[
+    //        {4,empty,cid:0x1:empty,118,[m]}
+    //        {4,checkpoint_start,cid:0x1:checkpoint_start,129,[m]}
+    //        {4,mutation,cid:0x0:key,130,}
+    //    ]
+
+    if (!(*cursor.currentPos)->isCheckPointMetaItem()) {
+        // If at mutation, then we can definitely state that there's nothing
+        // to process as:
+        // - another mutation would bump lastBySeqno to (lastBySeqno + 1), which
+        //   can't be the case here
+        // - another meta-item would get (lastBySeqno + 1) but we are not
+        //   interested in meta-items here
+        return false;
+    }
+
+    // If at meta-items, we need to check if there's any mutation to be
+    // processed at the same seqno.
+    //
+    // Unfortunately in general the state can be more complex than what shown
+    // above, and the check can cross multiple checkpoints. Eg:
+    //
+    // C1:{e:4 cs:4 vbs:4 ce:4}  C2:{e:4 cs:4 m:4}
+    //              ^
+    //
+    // Theoretically this scenario can end up in traversing many meta items
+    // until we reach a mutation or the end of the queue, so introducing another
+    // O(N) procedure. In practice that's all very unlikely, as normally
+    // meta-items are a tiny percentage of all queued items. The only real way
+    // for degrading this logic is having hundreds of consecutive set-vbstate
+    // items.
+    auto c = CheckpointCursor(cursor, "");
+    while (incrCursor(c)) {
+        if (!(*c.currentPos)->isCheckPointMetaItem()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 std::ostream& operator <<(std::ostream& os, const CheckpointManager& m) {
     os << "CheckpointManager[" << &m << "] with numItems:"
        << m.getNumItems() << " checkpoints:" << m.checkpointList.size()

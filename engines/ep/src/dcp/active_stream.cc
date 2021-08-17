@@ -929,16 +929,18 @@ std::unique_ptr<DcpResponse> ActiveStream::nextQueuedItem(
 }
 
 bool ActiveStream::nextCheckpointItem(DcpProducer& producer) {
-    VBucketPtr vbucket = engine->getVBucket(vb_);
-    if (vbucket && vbucket->checkpointManager->getNumItemsForCursor(
-                           cursor.lock().get()) > 0) {
-        // schedule this stream to build the next checkpoint
-        producer.scheduleCheckpointProcessorTask(shared_from_this());
-        return true;
-    } else if (chkptItemsExtractionInProgress) {
-        return true;
+    auto vb = engine->getVBucket(vb_);
+    if (vb) {
+        const auto curs = cursor.lock();
+        if (curs && vb->checkpointManager->hasNonMetaItemsForCursor(*curs)) {
+            // Schedule the stream-processor for pulling items from checkpoints
+            // and pushing them into the stream readyQ
+            producer.scheduleCheckpointProcessorTask(shared_from_this());
+            return true;
+        }
     }
-    return false;
+
+    return chkptItemsExtractionInProgress;
 }
 
 void ActiveStream::nextCheckpointItemTask() {

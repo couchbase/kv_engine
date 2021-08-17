@@ -507,6 +507,17 @@ public:
     size_t getNumCheckpoints() const;
 
     /**
+     * Returns whether the is some non-meta item to process for the given
+     * cursor.
+     *
+     * Note: Function non-const as it potentially creates a temporary cursor
+     * and moves it by re-using existing/non-const functions.
+     *
+     * @param cursor
+     */
+    bool hasNonMetaItemsForCursor(const CheckpointCursor& cursor);
+
+    /**
      * Member std::function variable, to allow us to inject code into
      * removeCursor_UNLOCKED() for unit MB36146
      */
