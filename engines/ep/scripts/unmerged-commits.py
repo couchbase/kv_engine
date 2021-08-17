@@ -41,7 +41,7 @@ class bcolors:
 # (6.0.0, 6.0.1, 6.0.2, ...), as new maintenance releases come along.
 #
 # However, we also have specific branches for a single release
-# (e.g. 6.5.0) are of limited lifespan - once 6.5.0 has shipped the
+# (e.g. 6.5.0, 7.0.1) which are of limited lifespan - once 6.5.0 has shipped the
 # branch will not change and future fixes from say alice which need to
 # be included in 6.5.x should be merged into the release train branch
 # (e.g. mad-hatter).
@@ -82,7 +82,12 @@ sequences = {
           'couchbase/mad-hatter')],
         # kv_engine 6.6.x release train.
         [('couchbase/6.6.0',
-          'couchbase/mad-hatter')]
+          'couchbase/mad-hatter')],
+        # kv_engine 7.0.x release train; merging into cheshire-cat branch.
+        [('couchbase/7.0.0',
+          'couchbase/7.0.1'),
+         ('couchbase/7.0.1',
+          'couchbase/cheshire-cat')]
     ],
 
     'platform': [
