@@ -27,6 +27,8 @@
 
 #include <utilities/logtags.h>
 
+#include <utility>
+
 NexusKVStore::NexusKVStore(NexusKVStoreConfig& config) : configuration(config) {
     primary = KVStoreFactory::create(configuration.getPrimaryConfig());
     secondary = KVStoreFactory::create(configuration.getSecondaryConfig());
@@ -112,14 +114,10 @@ void NexusKVStore::doCollectionsMetadataChecks(
         handleError(msg);
     }
 
-    // @TODO MB-47604: currently we don't check droppedCollectionsExist when
-    // comparing the two manifests because we don't currently run compaction
-    // against the secondary KVStore.
-    if (primaryKVStoreManifest.manifestUid !=
-        secondaryKVStoreManifest.manifestUid) {
+    if (primaryKVStoreManifest != secondaryKVStoreManifest) {
         auto msg = fmt::format(
                 "NexusKVStore::doCollectionsMetadataChecks: {}: collections "
-                "manifest uid not equal primary:{} secondary: {}",
+                "manifest not equal primary:{} secondary: {}",
                 vbid,
                 primaryKVStoreManifest.manifestUid,
                 secondaryKVStoreManifest.manifestUid);
@@ -676,10 +674,6 @@ bool NexusKVStore::snapshotVBucket(Vbid vbucketId,
         secondaryVbState.setOnDiskPrepareBytes(0);
     }
 
-    // @TODO MB-47604 - can't compare purgeSeqno until compaction works
-    primaryVbState.purgeSeqno = 0;
-    secondaryVbState.purgeSeqno = 0;
-
     if (primaryVbState != secondaryVbState) {
         auto msg = fmt::format(
                 "NexusKVStore::snapshotVBucket: {} difference in vbstate "
@@ -693,9 +687,275 @@ bool NexusKVStore::snapshotVBucket(Vbid vbucketId,
     return primaryResult;
 }
 
+/**
+ * Expiry callback variant that stores a set of callback invocations and
+ * (if supplied) forwards the callback on to the real expiry callback
+ */
+class NexusExpiryCB : public Callback<Item&, time_t&> {
+public:
+    explicit NexusExpiryCB(std::shared_ptr<Callback<Item&, time_t&>> cb = {})
+        : cb(std::move(cb)) {
+    }
+
+    void callback(Item& it, time_t& startTime) override {
+        // Time is not interesting here
+        callbacks.emplace(it);
+        if (cb) {
+            cb->callback(it, startTime);
+        }
+    }
+
+    std::unordered_set<DiskDocKey> callbacks;
+    std::shared_ptr<Callback<Item&, time_t&>> cb;
+};
+
+struct NexusCompactionContext {
+    KVStoreIface* kvStoreToCompactFirst;
+    KVStoreIface* kvStoreToCompactSecond;
+    std::shared_ptr<CompactionContext> firstCtx;
+    std::shared_ptr<CompactionContext> secondCtx;
+
+    bool attemptToPruneStaleCallbacks;
+};
+
+NexusCompactionContext NexusKVStore::calculateCompactionOrder(
+        std::shared_ptr<CompactionContext> primaryCtx,
+        std::shared_ptr<CompactionContext> secondaryCtx) {
+    auto primaryStaleCallbacks =
+            primary->getStorageProperties().hasCompactionStaleItemCallbacks();
+    auto secondaryStaleCallbacks =
+            secondary->getStorageProperties().hasCompactionStaleItemCallbacks();
+
+    if (!primaryStaleCallbacks && !secondaryStaleCallbacks) {
+        // Couchstore + Couchstore
+        // Neither has stale call backs, comparisons are simple and it should
+        // not matter in which order we run compaction
+        return {primary.get(),
+                secondary.get(),
+                primaryCtx,
+                secondaryCtx,
+                false};
+    } else if (primaryStaleCallbacks && !secondaryStaleCallbacks) {
+        // Magma + Couchstore
+        // Run primary first to attempt to prune the stale callbacks
+        return {primary.get(), secondary.get(), primaryCtx, secondaryCtx, true};
+    } else if (!primaryStaleCallbacks && secondaryStaleCallbacks) {
+        // Couchstore + Magma
+        // Run secondary first to attempt to prune the stale callbacks
+        return {secondary.get(), primary.get(), secondaryCtx, primaryCtx, true};
+    } else {
+        // Magma + Magma
+        // Order shouldn't matter, the stale callback pruning may/may not work
+        // depending on how/when files are compacted in magma
+        return {primary.get(),
+                secondary.get(),
+                primaryCtx,
+                secondaryCtx,
+                false};
+    }
+}
+
 bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
-                             std::shared_ptr<CompactionContext> c) {
-    return primary->compactDB(vbLock, c);
+                             std::shared_ptr<CompactionContext> primaryCtx) {
+    auto vbid = primaryCtx->vbid;
+
+    // Need to take the lock for this vBucket to prevent concurrent flushes
+    // from changing the on disk state that a compaction might see (and
+    // concurrent gets from seeing a different state should compaction change
+    // things).
+    // @TODO MB-47604: Getting concurrent flushes and compaction working would
+    // be good as it more closely behaves like the real system
+    auto lh = getLock(vbid);
+
+    // We can't pass the vbLock to the underlying KVStores as they may unlock it
+    // if they don't need to hold it to inter-lock flushing and compaction. At
+    // a glance that's fine as we are inter-locking flushing and compaction in
+    // NexusKVStore with our own lock, but the presence of that lock can cause
+    // lock order cycles if we attempt to re-acquire the vbLock whilst holding
+    // the NexusKVStore lock. We have to acqurie the vbLock first for flushing,
+    // so the only way out of this is to just pass a dummy lock to the
+    // underlying KVStores. We don't care about unlocking the vbLock as we're
+    // inter-locking flushing/gets/compactions already.
+    std::mutex dummyLock;
+    auto dummyLh = std::unique_lock<std::mutex>(dummyLock);
+
+    // Create a new context to avoid calling things like the completion callback
+    // which sets in memory state after the secondary compacts
+    auto secondaryCtx = std::make_shared<CompactionContext>(
+            vbid, primaryCtx->compactConfig, primaryCtx->max_purged_seq);
+
+    // Don't set the NexusExpiryCB cb member to avoid forwarding expiries to
+    // the engine (we will do so for the primary)
+    auto secondaryExpiryCb = std::make_shared<NexusExpiryCB>();
+    secondaryCtx->expiryCallback = secondaryExpiryCb;
+
+    // Replace the ExpiredItemsCallback with our own that stores the result for
+    // later comparison with the secondary and forwards the result on
+    auto primaryExpiryCb =
+            std::make_shared<NexusExpiryCB>(primaryCtx->expiryCallback);
+    primaryCtx->expiryCallback = primaryExpiryCb;
+
+    std::unordered_map<DiskDocKey, int64_t> primaryDrops;
+    std::unordered_map<DiskDocKey, int64_t> secondaryDrops;
+    Collections::KVStore::DroppedCb originalDroppedKeyCb =
+            primaryCtx->droppedKeyCb;
+    primaryCtx->droppedKeyCb = [&primaryDrops, &originalDroppedKeyCb](
+                                       const DiskDocKey& key,
+                                       int64_t seqno,
+                                       bool aborted,
+                                       int64_t pcs) {
+        auto [itr, inserted] = primaryDrops.try_emplace(key, seqno);
+        itr->second = std::max<uint64_t>(itr->second, seqno);
+
+        originalDroppedKeyCb(key, seqno, aborted, pcs);
+    };
+
+    secondaryCtx->droppedKeyCb = [&secondaryDrops](const DiskDocKey& key,
+                                                   int64_t seqno,
+                                                   bool aborted,
+                                                   int64_t pcs) {
+        auto itr = secondaryDrops.find(key);
+        if (itr != secondaryDrops.end()) {
+            itr->second = std::max<uint64_t>(itr->second, seqno);
+        } else {
+            secondaryDrops[key] = seqno;
+        }
+    };
+
+    // Comparisons in the callbacks made may be difficult to make if one KVStore
+    // may call back with stale items but the other does not. If we know that
+    // one of the KVStores will do so then we can run the compaction for that
+    // KVStore first and check the item against the other to see if it is stale
+    // or not. If the callback is for a stale item, we remove it from the list
+    // to compare.
+    auto nexusCompactionContext =
+            calculateCompactionOrder(primaryCtx, secondaryCtx);
+
+    auto firstResult = nexusCompactionContext.kvStoreToCompactFirst->compactDB(
+            dummyLh, nexusCompactionContext.firstCtx);
+
+    if (nexusCompactionContext.attemptToPruneStaleCallbacks) {
+        // Iterate over the callbacks made by the first compaction and run
+        // a get against the other KVStore to check if the item exists. If it
+        // does and the seqno of the drop is lower than that of the primary
+        // then we should just ignore the callback invocation as it's probably
+        // a stale key.
+        auto& firstDrops =
+                nexusCompactionContext.kvStoreToCompactFirst == primary.get()
+                        ? primaryDrops
+                        : secondaryDrops;
+        for (auto itr = firstDrops.begin(); itr != firstDrops.end();) {
+            auto key = itr->first;
+            auto seqno = itr->second;
+
+            auto gv = nexusCompactionContext.kvStoreToCompactSecond->get(key,
+                                                                         vbid);
+            if (gv.getStatus() == cb::engine_errc::success &&
+                gv.item->getBySeqno() > seqno) {
+                // Remove
+                firstDrops.erase(itr++);
+            } else {
+                itr++;
+            }
+        }
+    }
+
+    // Might have to re-acquire the lock, depending what the first kvstore does
+    // with it...
+    if (!dummyLh.owns_lock()) {
+        dummyLh.lock();
+    }
+    auto secondResult =
+            nexusCompactionContext.kvStoreToCompactSecond->compactDB(
+                    dummyLh, nexusCompactionContext.secondCtx);
+
+    if (firstResult != secondResult) {
+        auto msg = fmt::format(
+                "NexusKVStore::compactDB: {}: compaction result mismatch "
+                "first:{} second:{}",
+                vbid,
+                firstResult,
+                secondResult);
+        handleError(msg);
+    }
+
+    // The expiration callback invocations should be the same
+    for (auto& cb : primaryExpiryCb->callbacks) {
+        if (secondaryExpiryCb->callbacks.find(cb) ==
+            secondaryExpiryCb->callbacks.end()) {
+            auto msg = fmt::format(
+                    "NexusKVStore::compactDB: {}: Expiry callback found with "
+                    "key:{} for primary but not secondary",
+                    vbid,
+                    cb::UserData(cb.to_string()));
+            handleError(msg);
+        } else {
+            secondaryExpiryCb->callbacks.erase(cb);
+        }
+    }
+
+    if (!secondaryExpiryCb->callbacks.empty()) {
+        std::stringstream ss;
+        for (auto& cb : secondaryExpiryCb->callbacks) {
+            ss << cb::UserData(cb.to_string()) << ",";
+        }
+        ss.unget();
+
+        auto msg = fmt::format(
+                "NexusKVStore::compactDB: {}: secondary expiry callbacks not "
+                "made by primary:{}",
+                vbid,
+                ss.str());
+        handleError(msg);
+    }
+
+    for (auto& [key, seqno] : primaryDrops) {
+        auto itr = secondaryDrops.find(key);
+        if (itr == secondaryDrops.end()) {
+            auto msg = fmt::format(
+                    "NexusKVStore::compactDB: {}: drop callback found with "
+                    "key:{} for primary but not secondary",
+                    vbid,
+                    cb::UserData(key.to_string()));
+            handleError(msg);
+        } else if (seqno != itr->second) {
+            auto msg = fmt::format(
+                    "NexusKVStore::compactDB: {}: drop callback found with "
+                    "key:{} and different seqno primary:{} secondary:{}",
+                    vbid,
+                    cb::UserData(key.to_string()),
+                    seqno,
+                    itr->second);
+            handleError(msg);
+        } else {
+            secondaryDrops.erase(key);
+        }
+    }
+
+    if (!secondaryDrops.empty()) {
+        std::stringstream ss;
+        for (auto& [key, seqno] : secondaryDrops) {
+            ss << "[key:" << cb::UserData(key.to_string()) << ",seqno:" << seqno
+               << "],";
+        }
+        ss.unget();
+
+        auto msg = fmt::format(
+                "NexusKVStore::compactDB: {}: secondary callbacks not made by "
+                "primary:{}",
+                vbid,
+                ss.str());
+        handleError(msg);
+    }
+
+    // Compare the collections state if successful
+    if (firstResult) {
+        doCollectionsMetadataChecks(vbid, nullptr, nullptr);
+    }
+
+    return nexusCompactionContext.kvStoreToCompactFirst == primary.get()
+                   ? firstResult
+                   : secondResult;
 }
 
 void NexusKVStore::abortCompactionIfRunning(
@@ -851,7 +1111,16 @@ const KVStoreStats& NexusKVStore::getKVStoreStat() const {
 
 void NexusKVStore::setMakeCompactionContextCallback(
         MakeCompactionContextCallback cb) {
-    primary->setMakeCompactionContextCallback(cb);
+    // The makeCompactionContextCallback function stored in KVStore is used to
+    // allow magma to run "implicit" background compactions. Couchstore
+    // doesn't support these (and RocksDBKVStore is barely implemented) so we
+    // can just return here instead of setting the callback to effectively
+    // disable magma's implicit compactions. This lets us run compaction in
+    // lockstep between primary and secondary as only externally driven
+    // compactions will run.
+    // TODO MB-47604 eventually getting magma's implicit background compactions
+    // running would be beneficial here.
+    return;
 }
 
 void NexusKVStore::setPostFlushHook(std::function<void()> hook) {

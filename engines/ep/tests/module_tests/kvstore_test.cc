@@ -1279,11 +1279,6 @@ TEST_P(KVStoreParamTestSkipRocks, SyncDeletePrepareOverwriteCorrectFlushState) {
 }
 
 TEST_P(KVStoreParamTestSkipRocks, SyncDeletePrepareNotPurgedByTimestamp) {
-    if (isNexus()) {
-        // @TODO MB-47604: Run when we add compaction support
-        GTEST_SKIP();
-    }
-
     auto key = makeStoredDocKey("key");
     auto tc = kvstore->begin(Vbid(0), std::make_unique<PersistenceCallback>());
 

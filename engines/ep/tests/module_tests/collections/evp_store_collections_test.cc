@@ -2519,12 +2519,6 @@ StatChecker::PostFunc getPrepareStatCheckerPostFuncForBackend(
 
 TEST_P(CollectionsPersistentParameterizedTest,
        PerCollectionDiskSizeDurability) {
-    // TODO MB-47604: Test doesn't work until secondary compaction is
-    //  implemented to purge the prepare.
-    if (isNexus()) {
-        GTEST_SKIP();
-    }
-
     // test that the per-collection disk size (updated by saveDocsCallback)
     // changes when items in the collection are added/updated/deleted (but not
     // when evicted) and does not change when items in other collections are

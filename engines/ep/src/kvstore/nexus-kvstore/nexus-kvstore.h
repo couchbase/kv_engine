@@ -16,6 +16,8 @@
 class NexusKVStoreConfig;
 class NexusKVStoreSecondaryPersistenceCallback;
 
+struct NexusCompactionContext;
+
 /**
  * Testing harness for two KVStore implementations that runs both KVStores in
  * parallel and compares the results of interesting operations.
@@ -199,6 +201,17 @@ protected:
      * @return true if logically equivalent
      */
     bool compareItem(Item primaryItem, Item secondaryItem) const;
+
+    /**
+     * Work out which order to run compaction in
+     * @param primaryCtx
+     * @param secondaryCtx
+     * @return A NexusCompactionContext containing the KVStore order and KVStore
+     *         specific contexts
+     */
+    NexusCompactionContext calculateCompactionOrder(
+            std::shared_ptr<CompactionContext> primaryCtx,
+            std::shared_ptr<CompactionContext> secondaryCtx);
 
     // Friended to let us call handleError to error if the results of the
     // secondary PersistenceCallback are different to those of the primary

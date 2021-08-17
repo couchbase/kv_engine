@@ -309,11 +309,6 @@ TEST_P(CollectionsEraserTest, basic_4_collections) {
 }
 
 TEST_P(CollectionsEraserTest, default_Destroy) {
-    if (isNexus()) {
-        // @TODO MB-47604: Enable when compaction is supported
-        GTEST_SKIP();
-    }
-
     // add some items
     store_item(vbid,
                StoredDocKey{"dairy:milk", CollectionEntry::defaultC},
