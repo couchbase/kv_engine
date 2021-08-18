@@ -116,8 +116,6 @@ std::string MetaData::to_string(Operation op) const {
         return "Mutation";
     case Operation::PreparedSyncWrite:
         return "PreparedSyncWrite";
-    case Operation::CommittedSyncWrite:
-        return "CommittedSyncWrite";
     case Operation::Abort:
         return "Abort";
     }
@@ -144,11 +142,10 @@ MetaData::Operation MetaData::toOperation(queue_op op) {
     switch (op) {
     case queue_op::mutation:
     case queue_op::system_event:
+    case queue_op::commit_sync_write:
         return Operation::Mutation;
     case queue_op::pending_sync_write:
         return Operation::PreparedSyncWrite;
-    case queue_op::commit_sync_write:
-        return Operation::CommittedSyncWrite;
     case queue_op::abort_sync_write:
         return Operation::Abort;
     case queue_op::empty:
@@ -1064,7 +1061,6 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
 
     switch (meta.getOperation()) {
     case magmakv::MetaData::Operation::Mutation:
-    case magmakv::MetaData::Operation::CommittedSyncWrite:
         // Item already defaults to Mutation - nothing else to do.
         return item;
     case magmakv::MetaData::Operation::PreparedSyncWrite:

@@ -34,13 +34,6 @@ public:
         // Present in the DurabilityPrepare namespace.
         PreparedSyncWrite,
 
-        // A committed SyncWrite.
-        // This exists so we can correctly backfill from disk a Committed
-        // mutation and sent out as a DCP_COMMIT to sync_replication
-        // enabled DCP clients.
-        // Present in the 'normal' (committed) namespace.
-        CommittedSyncWrite,
-
         // An aborted SyncWrite.
         // This exists so we can correctly backfill from disk an Aborted
         // mutation and sent out as a DCP_ABORT to sync_replication
@@ -65,7 +58,7 @@ public:
 
     cb::uint48_t getPrepareSeqno() const {
         auto op = static_cast<Operation>(operation);
-        Expects(op == Operation::CommittedSyncWrite || op == Operation::Abort);
+        Expects(op == Operation::Abort);
         return durabilityDetails.completed.prepareSeqno;
     }
 
