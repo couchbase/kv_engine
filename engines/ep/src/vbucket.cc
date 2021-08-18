@@ -407,9 +407,7 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
     ItemsToFlush result;
 
     if (approxLimit == 0) {
-        result.moreAvailable =
-                (checkpointManager->getNumItemsForPersistence() > 0);
-        return result;
+        throw std::invalid_argument("VBucket::getItemsToPersist: limit=0");
     }
 
     // Get up to approxLimit checkpoint items outstanding for the persistence

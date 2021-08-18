@@ -29,6 +29,7 @@
 
 #include "../mock/mock_ephemeral_vb.h"
 
+#include <folly/portability/GMock.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 #include <memory>
@@ -622,6 +623,20 @@ TEST_P(VBucketTest, DISABLED_GetItemsToPersist_Limit) {
     EXPECT_EQ(range.getEnd() + 5, result.ranges.back().getEnd());
 }
 
+TEST_P(VBucketTest, GetItemsToPersist_ZeroLimitThrows) {
+    if (!persistent()) {
+        return;
+    }
+
+    try {
+        vbucket->getItemsToPersist(0);
+    } catch (const std::invalid_argument& e) {
+        EXPECT_THAT(e.what(), testing::HasSubstr("limit=0"));
+        return;
+    }
+    FAIL();
+}
+
 // Check that getItemsToPersist() correctly returns `moreAvailable` if we
 // hit the CheckpointManager limit early.
 TEST_P(VBucketTest, GetItemsToPersist_LimitCkptMoreAvailable) {
@@ -629,15 +644,23 @@ TEST_P(VBucketTest, GetItemsToPersist_LimitCkptMoreAvailable) {
         return;
     }
 
-    // Setup - Add an item to checkpoint manager (in addition to initial
+    // Setup - Add 2 items to checkpoint manager (in addition to initial
     // checkpoint_start).
+    // The 2 items need to be in different checkpoints as the limit is an
+    // approximate limit.
+    auto& manager = *vbucket->checkpointManager;
+    ASSERT_EQ(1, manager.getOpenCheckpointId());
     ASSERT_EQ(MutationStatus::WasClean, setOne(makeStoredDocKey("1")));
+    manager.createNewCheckpoint();
+    ASSERT_EQ(2, manager.getOpenCheckpointId());
+    ASSERT_EQ(MutationStatus::WasClean, setOne(makeStoredDocKey("2")));
 
     // Test - fetch items such that we have a limit for CheckpointManager of
-    // zero. This should return moreAvailable=true.
-    auto result = this->vbucket->getItemsToPersist(0);
+    // 1. This should return moreAvailable=true.
+    auto result = vbucket->getItemsToPersist(1);
     EXPECT_TRUE(result.moreAvailable);
-    EXPECT_EQ(0, result.items.size());
+    // start + mutation + end
+    EXPECT_EQ(3, result.items.size());
 }
 
 class VBucketEvictionTest : public VBucketTest {};
