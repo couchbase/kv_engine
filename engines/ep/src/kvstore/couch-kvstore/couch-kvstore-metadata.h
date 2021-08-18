@@ -209,14 +209,14 @@ protected:
                   "MetaDataV2 is not the expected size.");
 
     /*
-     * V3 is a 2 byte[1] extension storing Synchronous Replication state.
+     * V3 is a 7 byte[1] extension storing Synchronous Replication state.
      *
-     * [1] It /could/ fit all required state into a single byte, however that
-     * would mean it's the same size as V2 (1Byte) and we use metadata size to
-     * distinguish between the different metadata versions. As such 2bytes are
-     * used which logically wastes 1 byte per SyncWrite. If / when we
-     * restructure MetaData to say use variable-length encoding with explicit
-     * versions (a la flex framing extras) the size could be reduced.
+     * [1] It /could/ fit in 6 bytes as the operation field is redundant (we can
+     * determine if an item is a prepare or an abort by the deleted flag). We
+     * use the 7 byte V3 version for backwards compatibility reasons though.
+     * If / when we restructure MetaData to say use variable-length encoding
+     * with explicit versions (a la flex framing extras) the size could be
+     * reduced.
      */
     class MetaDataV3 {
     public:
@@ -226,10 +226,12 @@ protected:
             // Present in the DurabilityPrepare namespace.
             Pending = 0,
             // A committed SyncWrite.
-            // This exists so we can correctly backfill from disk a Committed
-            // mutation and sent out as a DCP_COMMIT to sync_replication
-            // enabled DCP clients.
-            // Present in the 'normal' (committed) namespace.
+            // This exists for legacy reasons. Commit SyncWrite are now stored
+            // on disk as mutations (we must be able to treate mutations as
+            // commits when read from disk as they may have been stored as such
+            // if this node used to be a replica). It's still possible to read
+            // a Commit SyncWrite as V3 metadata from disk though so we need to
+            // deal with that.
             Commit = 1,
             // An aborted SyncWrite.
             // This exists so we can correctly backfill from disk an Aborted
@@ -259,7 +261,9 @@ protected:
                 operation = Operation::Pending;
                 break;
             case queue_op::commit_sync_write:
-                operation = Operation::Commit;
+                throw std::logic_error(
+                        "MetaDataV3::setDurabilityOp: Don't "
+                        "expect to be called for commit");
                 break;
             case queue_op::abort_sync_write:
                 operation = Operation::Abort;
@@ -276,7 +280,7 @@ protected:
             case Operation::Pending:
                 return queue_op::pending_sync_write;
             case Operation::Commit:
-                return queue_op::commit_sync_write;
+                return queue_op::mutation;
             case Operation::Abort:
                 return queue_op::abort_sync_write;
             default:
@@ -307,23 +311,17 @@ protected:
         }
 
         cb::uint48_t getPrepareSeqno() const {
-            Expects(operation == Operation::Commit ||
-                    operation == Operation::Abort);
+            Expects(operation == Operation::Abort);
             return details.completed.prepareSeqno;
         }
 
         void setPrepareSeqno(cb::uint48_t prepareSeqno) {
-            Expects(operation == Operation::Commit ||
-                    operation == Operation::Abort);
+            Expects(operation == Operation::Abort);
             details.completed.prepareSeqno = prepareSeqno;
         }
 
         void prepareForPersistence() {
             details.raw = details.raw.hton();
-        }
-
-        bool isCommit() const {
-            return operation == Operation::Commit;
         }
 
         bool isPrepare() const {
@@ -374,7 +372,7 @@ public:
          * Sherlock began storing the V2 MetaData.
          * Watson stops storing the V2 MetaData (now storing V1)
          *
-         * Any new MetaData (e.g a V3) we wish to store may cause trouble if it
+         * Any new MetaData (e.g a V4) we wish to store may cause trouble if it
          * has the size of V2, code assumes the version from the size.
          */
     };
@@ -441,8 +439,8 @@ public:
         allMeta.v1.copyToBuf(out.buf + sizeof(MetaDataV0));
 
         // We can write either V1 or V3 at present (V3 contains metadata which
-        // is only applicable to SyncWrites, so we use V1 for non-SyncWrites
-        // and V3 for SyncWrites.
+        // is only applicable to prepare namespace items, so we use V1 for
+        // non-prepare namespace and V3 for prepare namespace.
         if (out.size == getMetaDataSize(Version::V3)) {
             allMeta.v3.copyToBuf(out.buf + sizeof(MetaDataV0) +
                                  sizeof(MetaDataV1));
@@ -541,8 +539,7 @@ public:
     }
 
     bool isCommit() const {
-        return getVersionInitialisedFrom() != MetaData::Version::V3 ||
-               allMeta.v3.isCommit();
+        return getVersionInitialisedFrom() != MetaData::Version::V3;
     }
 
     bool isPrepare() const {

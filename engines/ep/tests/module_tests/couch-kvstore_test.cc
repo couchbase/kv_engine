@@ -1764,9 +1764,9 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
     EXPECT_EQ(level, metadata->getDurabilityLevel());
     EXPECT_EQ(queue_op::pending_sync_write, metadata->getDurabilityOp());
 
-    metadata->setDurabilityOp(queue_op::commit_sync_write);
+    metadata->setDurabilityOp(queue_op::abort_sync_write);
     metadata->setCompletedProperties(1234);
-    EXPECT_EQ(queue_op::commit_sync_write, metadata->getDurabilityOp());
+    EXPECT_EQ(queue_op::abort_sync_write, metadata->getDurabilityOp());
     EXPECT_EQ(1234, metadata->getPrepareSeqno());
 
     // Now we move the metadata out, this will give back a V1 structure
