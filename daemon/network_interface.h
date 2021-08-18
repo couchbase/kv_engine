@@ -32,9 +32,9 @@ public:
     explicit NetworkInterface(const nlohmann::json& json);
 
     bool operator==(const NetworkInterface& o) const {
-        return host == o.host && ssl.key == o.ssl.key &&
-               ssl.cert == o.ssl.cert && port == o.port && ipv6 == o.ipv6 &&
-               ipv4 == o.ipv4 && tag == o.tag && system == o.system;
+        return host == o.host && tls == o.tls && port == o.port &&
+               ipv6 == o.ipv6 && ipv4 == o.ipv4 && tag == o.tag &&
+               system == o.system;
     }
 
     bool operator!=(const NetworkInterface& o) const {
@@ -43,10 +43,7 @@ public:
 
     std::string tag;
     std::string host;
-    struct {
-        std::string key;
-        std::string cert;
-    } ssl;
+    bool tls = false;
     in_port_t port = 11211;
     Protocol ipv6 = Protocol::Optional;
     Protocol ipv4 = Protocol::Optional;

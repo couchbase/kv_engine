@@ -10,12 +10,9 @@
  */
 
 #include "settings.h"
-#include "ssl_utils.h"
 #include <folly/portability/GTest.h>
-#include <getopt.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
-#include <openssl/ssl.h>
 #include <platform/dirutils.h>
 
 class SettingsTest : public ::testing::Test {
@@ -327,20 +324,13 @@ TEST_F(SettingsTest, Prometheus) {
 TEST_F(SettingsTest, Interfaces) {
     nonArrayValuesShouldFail("interfaces");
 
-    const auto key_file = cb::io::mktemp("config_parse_test");
-    const auto cert_file = cb::io::mktemp("config_parse_test");
-
     nlohmann::json obj;
-    obj["tag"] = "ssl";
+    obj["tag"] = "tls";
     obj["port"] = 0;
     obj["ipv4"] = "optional";
     obj["ipv6"] = "optional";
     obj["host"] = "*";
-
-    nlohmann::json ssl;
-    ssl["key"] = key_file;
-    ssl["cert"] = cert_file;
-    obj["ssl"] = ssl;
+    obj["tls"] = true;
 
     nlohmann::json array;
     array.push_back(obj);
@@ -363,84 +353,6 @@ TEST_F(SettingsTest, Interfaces) {
     } catch (std::exception& exception) {
         FAIL() << exception.what();
     }
-
-    cb::io::rmrf(key_file);
-    cb::io::rmrf(cert_file);
-}
-
-TEST_F(SettingsTest, InterfacesMissingSSLFiles) {
-    nonArrayValuesShouldFail("interfaces");
-
-    const auto key_file = cb::io::mktemp("config_parse_test");
-    const auto cert_file = cb::io::mktemp("config_parse_test");
-
-    nlohmann::json obj;
-    obj["tag"] = "ssl";
-    obj["port"] = 0;
-    obj["ipv4"] = "optional";
-    obj["ipv6"] = "optional";
-    obj["host"] = "*";
-
-    nlohmann::json ssl;
-    ssl["key"] = key_file;
-    ssl["cert"] = cert_file;
-    obj["ssl"] = ssl;
-
-    nlohmann::json array;
-    array.push_back(obj);
-
-    nlohmann::json root;
-    root["interfaces"] = array;
-
-    try {
-        Settings settings(root);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    // We should fail if one of the files is missing
-    cb::io::rmrf(key_file);
-    expectFail<std::system_error>(root);
-    fclose(fopen(key_file.c_str(), "a"));
-    cb::io::rmrf(cert_file);
-    expectFail<std::system_error>(root);
-    cb::io::rmrf(key_file);
-}
-
-TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
-    nonArrayValuesShouldFail("interfaces");
-
-    const auto filename = cb::io::mktemp("config_parse_test");
-
-    nlohmann::json obj;
-    obj["tag"] = "ssl";
-    obj["port"] = 0;
-    obj["ipv4"] = true;
-    obj["ipv6"] = true;
-    obj["host"] = "*";
-
-    nlohmann::json ssl;
-    ssl["cert"] = filename;
-    obj["ssl"] = ssl;
-
-    nlohmann::json array;
-    array.push_back(obj);
-
-    nlohmann::json root;
-    root["interfaces"] = array;
-
-    expectFail<nlohmann::json::exception>(root);
-
-    ssl.clear();
-    ssl["key"] = filename;
-    obj["ssl"] = ssl;
-    array.clear();
-    array.push_back(obj);
-    root["interfaces"] = array;
-
-    expectFail<nlohmann::json::exception>(root);
-
-    cb::io::rmrf(filename);
 }
 
 TEST_F(SettingsTest, InterfacesEphemeralMissingTag) {
@@ -751,93 +663,6 @@ TEST_F(SettingsTest, Root) {
     // But we should fail if the file don't exist
     obj["root"] = "/it/would/suck/if/this/exist";
     expectFail<std::system_error>(obj);
-}
-
-TEST_F(SettingsTest, SslCipherList) {
-    // Ensure that we accept a string
-    nlohmann::json obj;
-    obj["ssl_cipher_list"] = "HIGH";
-    try {
-        Settings settings(obj);
-        EXPECT_EQ("HIGH", settings.getSslCipherList());
-        EXPECT_TRUE(settings.has.ssl_cipher_list);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    // An empty string is also allowed (remove all cipher)
-    obj["ssl_cipher_list"] = "";
-    try {
-        Settings settings(obj);
-        EXPECT_EQ("", settings.getSslCipherList());
-        EXPECT_TRUE(settings.has.ssl_cipher_list);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    // Detect that we need at least 1 cipher defined
-    obj["ssl_cipher_list"] = "foobar";
-    try {
-        Settings settings(obj);
-        FAIL() << "Cipher list should contain at least one usable cipher";
-    } catch (std::exception&) {
-    }
-}
-
-TEST_F(SettingsTest, SslCipherOrder) {
-    nonBooleanValuesShouldFail("ssl_cipher_order");
-
-    // Ensure that we accept a string
-    nlohmann::json obj;
-    Settings settings(obj);
-    EXPECT_FALSE(settings.has.ssl_cipher_order);
-
-    obj["ssl_cipher_order"] = false;
-    try {
-        Settings settings(obj);
-        EXPECT_FALSE(settings.isSslCipherOrder());
-        EXPECT_TRUE(settings.has.ssl_cipher_order);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    obj["ssl_cipher_order"] = true;
-    try {
-        Settings settings(obj);
-        EXPECT_TRUE(settings.isSslCipherOrder());
-        EXPECT_TRUE(settings.has.ssl_cipher_order);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-}
-
-TEST_F(SettingsTest, SslMinimumProtocol) {
-    nonStringValuesShouldFail("ssl_minimum_protocol");
-
-    nlohmann::json obj;
-    const std::vector<std::string> protocol = {
-            "tlsv1", "tlsv1.1", "tlsv1_1", "tlsv1.2", "tlsv1_2"};
-    for (const auto& p : protocol) {
-        // Ensure that we accept a string
-        obj["ssl_minimum_protocol"] = p;
-        try {
-            Settings settings(obj);
-            EXPECT_EQ(p, settings.getSslMinimumProtocol());
-            EXPECT_TRUE(settings.has.ssl_minimum_protocol);
-        } catch (std::exception& exception) {
-            FAIL() << exception.what();
-        }
-    }
-
-    // An empty string is also allowed
-    obj["ssl_minimum_protocol"] = "";
-    try {
-        Settings settings(obj);
-        EXPECT_EQ("", settings.getSslMinimumProtocol());
-        EXPECT_TRUE(settings.has.ssl_minimum_protocol);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
 }
 
 TEST_F(SettingsTest, Breakpad) {
@@ -1399,76 +1224,6 @@ TEST(SettingsUpdateTest, DatatypeSnappyIsDynamic) {
     // changing it should work
     updated.setDatatypeSnappyEnabled(!settings.isDatatypeSnappyEnabled());
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
-}
-
-TEST(SettingsUpdateTest, SslCipherListIsDynamic) {
-    Settings updated;
-    Settings settings;
-    // setting it to the same value should work
-    settings.setSslCipherList("high");
-    auto old = settings.getSslCipherList();
-    updated.setSslCipherList(old);
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-
-    // changing it should work
-    updated.setSslCipherList("low");
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    EXPECT_EQ(old, settings.getSslCipherList());
-    EXPECT_NO_THROW(settings.updateSettings(updated));
-    EXPECT_EQ("low", settings.getSslCipherList());
-}
-
-TEST(SettingsUpdateTest, SslCipherSuiteIsDynamic) {
-    Settings updated;
-    Settings settings;
-    // setting it to the same value should work
-    settings.setSslCipherSuites("TLS_AES_128_GCM_SHA256");
-    auto old = settings.getSslCipherSuites();
-    updated.setSslCipherList(old);
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-
-    // changing it should work
-    updated.setSslCipherSuites("TLS_AES_128_CCM_8_SHA256");
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    EXPECT_EQ(old, settings.getSslCipherSuites());
-    EXPECT_NO_THROW(settings.updateSettings(updated));
-    EXPECT_EQ("TLS_AES_128_CCM_8_SHA256", settings.getSslCipherSuites());
-}
-
-TEST(SettingsUpdateTest, SslCipherOrderIsDynamic) {
-    Settings updated;
-    Settings settings;
-    // setting it to the same value should work
-    settings.setSslCipherOrder(true);
-    auto old = settings.isSslCipherOrder();
-    updated.setSslCipherOrder(old);
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-
-    // changing it should work
-    updated.setSslCipherOrder(false);
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    EXPECT_EQ(old, settings.isSslCipherOrder());
-    EXPECT_NO_THROW(settings.updateSettings(updated));
-    EXPECT_EQ(false, settings.isSslCipherOrder());
-}
-
-TEST(SettingsUpdateTest, SslMinimumProtocolIsDynamic) {
-    Settings updated;
-    Settings settings;
-    // setting it to the same value should work
-    settings.setSslMinimumProtocol("tlsv1.2");
-    auto old = settings.getSslMinimumProtocol();
-    updated.setSslMinimumProtocol(old);
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    settings.setSslCipherOrder(true);
-
-    // changing it should work
-    updated.setSslMinimumProtocol("tlsv1");
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    EXPECT_EQ(old, settings.getSslMinimumProtocol());
-    EXPECT_NO_THROW(settings.updateSettings(updated));
-    EXPECT_EQ("tlsv1", settings.getSslMinimumProtocol());
-    settings.setSslCipherOrder(false);
 }
 
 TEST(SettingsUpdateTest, MaxPacketSizeIsDynamic) {

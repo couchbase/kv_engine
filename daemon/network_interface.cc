@@ -63,25 +63,9 @@ static void handle_interface_ipv6(NetworkInterface& ifc,
     handle_interface_protocol(ifc.ipv6, "ipv6", it);
 }
 
-static void handle_interface_ssl(NetworkInterface& ifc,
+static void handle_interface_tls(NetworkInterface& ifc,
                                  nlohmann::json::const_iterator it) {
-    if (it.value().type() != nlohmann::json::value_t::object) {
-        throw std::invalid_argument(R"("ssl" must be an object)");
-    }
-    ifc.ssl.key = cb::jsonGet<std::string>(it.value(), "key");
-    ifc.ssl.cert = cb::jsonGet<std::string>(it.value(), "cert");
-
-    if (!cb::io::isFile(ifc.ssl.key)) {
-        throw std::system_error(
-                std::make_error_code(std::errc::no_such_file_or_directory),
-                R"("ssl:key":')" + ifc.ssl.key + "'");
-    }
-
-    if (!cb::io::isFile(ifc.ssl.cert)) {
-        throw std::system_error(
-                std::make_error_code(std::errc::no_such_file_or_directory),
-                R"("ssl:cert":')" + ifc.ssl.cert + "'");
-    }
+    ifc.tls = cb::jsonGet<bool>(it);
 }
 
 static void handle_interface_system(NetworkInterface& ifc,
@@ -115,7 +99,7 @@ NetworkInterface::NetworkInterface(const nlohmann::json& json) {
             {"host", handle_interface_host},
             {"ipv4", handle_interface_ipv4},
             {"ipv6", handle_interface_ipv6},
-            {"ssl", handle_interface_ssl},
+            {"tls", handle_interface_tls},
             {"system", handle_interface_system},
     };
 

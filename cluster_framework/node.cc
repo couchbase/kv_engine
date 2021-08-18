@@ -77,8 +77,6 @@ NodeImpl::NodeImpl(boost::filesystem::path directory, std::string id)
               {"error_maps_dir", errmaps.generic_string()},
               {"external_auth_service", true},
               {"rbac_file", rbac.generic_string()},
-              {"ssl_cipher_list", "HIGH"},
-              {"ssl_minimum_protocol", "tlsv1"},
               {"opcode_attributes_override",
                {{"version", 1},
                 {"default", {{"slow", 500}}},

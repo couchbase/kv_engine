@@ -1,4 +1,3 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -459,60 +458,6 @@ public:
         notify_changed("max_send_queue_size");
     }
 
-    /**
-     * Get the list of SSL ciphers to use for TLS < 1.3
-     *
-     * @return the list of available SSL ciphers to use
-     */
-    std::string getSslCipherList() const {
-        return *ssl_cipher_list.rlock();
-    }
-
-    /**
-     * Set the list of SSL ciphers the node may use for TLS < 1.3
-     *
-     * @param ssl_cipher_list the new list of SSL ciphers
-     */
-    void setSslCipherList(std::string list);
-
-    /**
-     * Get the list of SSL ciphers suites to use for TLS > 1.2
-     *
-     * @return the list of available SSL ciphers to use
-     */
-    std::string getSslCipherSuites() const {
-        return *ssl_cipher_suites.rlock();
-    }
-
-    /**
-     * Set the list of SSL ciphers the node may use for TLS > 1.2
-     *
-     * @param ssl_cipher_list the new list of SSL ciphers
-     */
-    void setSslCipherSuites(std::string suites);
-
-    bool isSslCipherOrder() const {
-        return ssl_cipher_order.load(std::memory_order_acquire);
-    }
-
-    void setSslCipherOrder(bool ordered);
-
-    /**
-     * Get the minimum SSL protocol the node use
-     *
-     * @return the minimum ssl protocol
-     */
-    const std::string& getSslMinimumProtocol() const {
-        return ssl_minimum_protocol;
-    }
-
-    /**
-     * Set the minimum SSL Protocol the node accepts
-     *
-     * @param ssl_minimum_protocol the new minimum SSL protocol
-     */
-    void setSslMinimumProtocol(std::string protocol);
-
     void reconfigureClientCertAuth(
             std::unique_ptr<cb::x509::ClientCertConfig> config) {
         client_cert_mapper.reconfigure(std::move(config));
@@ -798,8 +743,6 @@ public:
         return std::string{*phosphor_config.rlock()};
     }
 
-    nlohmann::json getTlsConfiguration() const;
-
     bool isLocalhostInterfaceWhitelisted() const {
         return whitelist_localhost_interface.load(std::memory_order_acquire);
     }
@@ -897,23 +840,7 @@ protected:
     /// limit is set to 40MB (2x the max document size)
     std::atomic<size_t> max_send_queue_size{40 * 1024 * 1024};
 
-    /// The SSL cipher list to use for TLS < 1.3
-    folly::Synchronized<std::string> ssl_cipher_list;
-
-    /// The SSL cipher suites to use for TLS > 1.3
-    folly::Synchronized<std::string> ssl_cipher_suites;
-
-    /// if we should use the ssl cipher ordering
-    std::atomic_bool ssl_cipher_order{true};
-
-    /**
-     * The minimum ssl protocol to use (by default this is TLS 1)
-     */
-    std::string ssl_minimum_protocol;
-
-    /**
-     * ssl client authentication
-     */
+    /// ssl client authentication
     cb::x509::ClientCertMapper client_cert_mapper;
 
     /// The available sasl mechanism list
@@ -1034,10 +961,6 @@ public:
         bool breakpad = false;
         bool max_packet_size = false;
         bool max_send_queue_size = false;
-        bool ssl_cipher_list = false;
-        bool ssl_cipher_order = false;
-        bool ssl_cipher_suites = false;
-        bool ssl_minimum_protocol = false;
         bool client_cert_auth = false;
         bool sasl_mechanisms = false;
         bool ssl_sasl_mechanisms = false;

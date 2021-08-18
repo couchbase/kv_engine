@@ -459,25 +459,6 @@ static void settings_init() {
     settings.setVerbose(0);
     settings.setNumWorkerThreads(get_number_of_worker_threads());
 
-    {
-        // MB-13642 Allow the user to specify the SSL cipher list
-        //    If someone wants to use SSL we should try to be "secure
-        //    by default", and only allow for using strong ciphers.
-        //    Users that may want to use a less secure cipher list
-        //    should be allowed to do so by setting an environment
-        //    variable (since there is no place in the UI to do
-        //    so currently). Whenever ns_server allows for specifying
-        //    the SSL cipher list in the UI, it will be stored
-        //    in memcached.json and override these settings.
-        const char *env = getenv("COUCHBASE_SSL_CIPHER_LIST");
-        if (env == nullptr) {
-            settings.setSslCipherList("HIGH");
-        } else {
-            settings.setSslCipherList(env);
-        }
-    }
-
-    settings.setSslMinimumProtocol("tlsv1");
     if (getenv("COUCHBASE_ENABLE_PRIVILEGE_DEBUG") != nullptr) {
         settings.setPrivilegeDebug(true);
     }

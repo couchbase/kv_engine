@@ -54,20 +54,29 @@ cb::engine_errc IfconfigCommandContext::scheduleTask() {
                     ::notifyIoComplete(cookie, cb::engine_errc::success);
                 }));
     } else if (key == "tls") {
-        // @todo remove as part of dropping support TLS props from
-        // memcached.json
-        networkInterfaceManager->disallowTlsSettingsInConfigFile();
-        ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
-                TaskId::Core_Ifconfig,
-                "Ifconfig set TLS configuration",
-                [this, spec = std::move(value)]() {
-                    auto json = nlohmann::json::parse(spec);
-                    auto [s, p] =
-                            networkInterfaceManager->doTlsReconfigure(json);
-                    status = s;
-                    payload = std::move(p);
-                    ::notifyIoComplete(cookie, cb::engine_errc::success);
-                }));
+        if (value.empty()) {
+            ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
+                    TaskId::Core_Ifconfig,
+                    "Ifconfig get TLS configuration",
+                    [this]() {
+                        auto [s, p] = networkInterfaceManager->doGetTlsConfig();
+                        status = s;
+                        payload = std::move(p);
+                        ::notifyIoComplete(cookie, cb::engine_errc::success);
+                    }));
+        } else {
+            ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
+                    TaskId::Core_Ifconfig,
+                    "Ifconfig set TLS configuration",
+                    [this, spec = std::move(value)]() {
+                        auto json = nlohmann::json::parse(spec);
+                        auto [s, p] =
+                                networkInterfaceManager->doTlsReconfigure(json);
+                        status = s;
+                        payload = std::move(p);
+                        ::notifyIoComplete(cookie, cb::engine_errc::success);
+                    }));
+        }
     } else {
         throw std::runtime_error(
                 "IfconfigCommandContext::scheduleTask(): unknown command");

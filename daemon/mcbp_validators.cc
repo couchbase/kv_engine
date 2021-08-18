@@ -2081,7 +2081,23 @@ static Status ifconfig_validator(Cookie& cookie) {
         return Status::Success;
     }
 
-    if (value.empty()) {
+    if (key == "tls") {
+        if (!value.empty()) {
+            try {
+                TlsConfiguration::validate(nlohmann::json::parse(value));
+            } catch (const std::invalid_argument& e) {
+                cookie.setErrorContext(e.what());
+                return Status::Einval;
+            } catch (const std::exception&) {
+                cookie.setErrorContext("value is not valid JSON");
+                return Status::Einval;
+            }
+        }
+
+        return Status::Success;
+    }
+
+    if (value.empty()) { // Define and Delete must have value
         cookie.setErrorContext("Request must include value");
         return Status::Einval;
     }
@@ -2090,20 +2106,6 @@ static Status ifconfig_validator(Cookie& cookie) {
         try {
             const auto descr =
                     NetworkInterfaceDescription(nlohmann::json::parse(value));
-        } catch (const std::invalid_argument& e) {
-            cookie.setErrorContext(e.what());
-            return Status::Einval;
-        } catch (const std::exception&) {
-            cookie.setErrorContext("value is not valid JSON");
-            return Status::Einval;
-        }
-
-        return Status::Success;
-    }
-
-    if (key == "tls") {
-        try {
-            TlsConfiguration::validate(nlohmann::json::parse(value));
         } catch (const std::invalid_argument& e) {
             cookie.setErrorContext(e.what());
             return Status::Einval;

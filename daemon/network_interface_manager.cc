@@ -67,7 +67,7 @@ void NetworkInterfaceManager::createBootstrapInterface() {
                                           {"port", interf.port},
                                           {"tag", interf.tag},
                                           {"system", interf.system},
-                                          {"tls", !interf.ssl.key.empty()}},
+                                          {"tls", interf.tls}},
                            interf.ipv4 == NetworkInterface::Protocol::Required);
             }
 
@@ -77,7 +77,7 @@ void NetworkInterfaceManager::createBootstrapInterface() {
                                           {"host", interf.host},
                                           {"port", interf.port},
                                           {"system", interf.system},
-                                          {"tls", !interf.ssl.key.empty()}},
+                                          {"tls", interf.tls}},
                            interf.ipv6 == NetworkInterface::Protocol::Required);
             }
         }
@@ -109,12 +109,6 @@ void NetworkInterfaceManager::createBootstrapInterface() {
             // Create an IPv4 bootstrap interface
             createfunc(AF_INET6);
         }
-    }
-
-    auto tls = Settings::instance().getTlsConfiguration();
-    if (!tls.empty()) {
-        LOG_INFO("TLS configuration: {}", tls.dump());
-        doTlsReconfigure(tls);
     }
 
     if (settings.has.prometheus_config) {
@@ -479,6 +473,22 @@ NetworkInterfaceManager::doListInterface() {
     }
 
     return {cb::mcbp::Status::Success, ret.dump(2)};
+}
+
+std::pair<cb::mcbp::Status, std::string>
+NetworkInterfaceManager::doGetTlsConfig() {
+    try {
+        return tlsConfiguration.withRLock([](auto& config)
+                                                  -> std::pair<cb::mcbp::Status,
+                                                               std::string> {
+            if (config) {
+                return {cb::mcbp::Status::Success, config->to_json().dump(2)};
+            }
+            return {cb::mcbp::Status::KeyEnoent, ""};
+        });
+    } catch (const std::exception& e) {
+        return {cb::mcbp::Status::Einternal, e.what()};
+    }
 }
 
 std::pair<cb::mcbp::Status, std::string>

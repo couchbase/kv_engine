@@ -141,7 +141,7 @@ void SettingsReloadCommandContext::maybeReconfigureInterfaces(Settings& next) {
                                                {"port", e.port},
                                                {"tag", e.tag},
                                                {"system", e.system},
-                                               {"tls", !e.ssl.key.empty()}});
+                                               {"tls", e.tls}});
             } catch (const std::exception& exception) {
                 if (e.ipv4 == NetworkInterface::Protocol::Required) {
                     // It is required; Throw the exception so we'll
@@ -159,7 +159,7 @@ void SettingsReloadCommandContext::maybeReconfigureInterfaces(Settings& next) {
                                                {"host", e.host},
                                                {"port", e.port},
                                                {"system", e.system},
-                                               {"tls", !e.ssl.key.empty()}});
+                                               {"tls", e.tls}});
             } catch (const std::exception& exception) {
                 if (e.ipv6 == NetworkInterface::Protocol::Required) {
                     // It is required; Throw the exception so we'll
@@ -207,7 +207,7 @@ cb::engine_errc SettingsReloadCommandContext::doSettingsReload() {
 
         // Unfortunately ns_server won't keep its commitment to implement
         // MB-46863 for 7.1. Until they do we need to work around it
-        // by trying to update the prometheus, interface and TLS
+        // by trying to update the prometheus and interface
         // configuration as part of reloading the configuration.
         //
         // The following section may be deleted once they get around
@@ -225,13 +225,6 @@ cb::engine_errc SettingsReloadCommandContext::doSettingsReload() {
         // an exception which will cause an error to be sent back to the
         // client.
         maybeReconfigureInterfaces(new_settings);
-
-        // Finally; update the TLS configuration
-        auto tls = new_settings.getTlsConfiguration();
-        if (!tls.empty() &&
-            networkInterfaceManager->allowTlsSettingsInConfigFile()) {
-            networkInterfaceManager->doTlsReconfigure(tls);
-        }
 
         // END workaround for ns_server limitations (MB-46863)
 

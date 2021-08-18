@@ -53,6 +53,7 @@ public:
     /// Create the bootstrap interface for external users to connect to
     void createBootstrapInterface();
 
+    std::pair<cb::mcbp::Status, std::string> doGetTlsConfig();
     std::pair<cb::mcbp::Status, std::string> doTlsReconfigure(
             const nlohmann::json& spec);
     std::pair<cb::mcbp::Status, std::string> doDefineInterface(
@@ -62,15 +63,6 @@ public:
     std::pair<cb::mcbp::Status, std::string> doListInterface();
 
     uniqueSslPtr createClientSslHandle();
-
-    /// @todo Remove once we don't allow TLS properties in memcached.json
-    bool allowTlsSettingsInConfigFile() const {
-        return allowMemcachedJsonTlsProps;
-    }
-
-    void disallowTlsSettingsInConfigFile() {
-        allowMemcachedJsonTlsProps.store(false);
-    }
 
 protected:
     /**
@@ -96,10 +88,6 @@ protected:
     const cb::prometheus::AuthCallback authCallback;
     std::vector<std::unique_ptr<ServerSocket>> listen_conn;
     folly::Synchronized<std::unique_ptr<TlsConfiguration>> tlsConfiguration;
-
-    // @todo remove me once we don't need to automatically update
-    //       tls config from settings (people use the TLS command)
-    std::atomic_bool allowMemcachedJsonTlsProps = true;
 };
 
 /// The one and only instance of the network interface manager.

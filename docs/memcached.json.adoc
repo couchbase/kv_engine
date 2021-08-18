@@ -69,36 +69,6 @@ The *privilege_debug* attribute is a boolean value that may be set
 (and the missing privilege is logged). See docs/rbac.md for more
 information.
 
-=== ssl_cipher_list
-
-Specify the list of ciphers to use. The format of the string is
-described in ciphers ( https://www.openssl.org/docs/apps/ciphers.html
-). By default no value is specified causing whatever openssl defaults
-to to be enabled. Some values may be:
-
-    HIGH          Only enable "high" encrypthion ciphers (keys > 128
-                  bits)
-
-    MEDIUM        In addition to the high encryption ciphers, also
-                  allow 128 bit encryption
-
-=== ssl_cipher_order
-
-A boolean option to specify if the server should dictate the cipher
-order, or if the client should be allowed to pick one from the
-servers advertised set.
-
-=== ssl_minimum_protocol
-
-Specify the minimum protocol allowed for ssl. The default disables
-SSLv2 and SSLv3 and allows for TLSv1, TLSv1.1 and TLSv1.2. The
-string is case insensitive, and the following values may be used:
-
-    TLSv1              Allow TLSv1, TLSv1.1, TLSv1.2 and TLSv1.3
-    TLSv1.1/TLSv1_1    Allow TLSv1.1, TLSv1.2 and TLSv1.3
-    TLSv1.2/TLSv1_2    Allow TLSv1.2 and TLSv1.3
-    TLSv1.3/TLSv1_3    Allow TLSv1.3
-
 === threads
 
 The *threads* attribute specify the number of threads used to serve
@@ -167,20 +137,7 @@ object describing a single interface with the following properties:
                   true  -> "optional"
                   false -> "off"
 
-    ssl           An object specifying SSL related properties.
-                  See below.
-
-The *ssl* object contains the two *mandatory* attributes:
-
-    key           A string value with the absolute path to the
-	          file containing the private key to use.
-
-    cert          A string value with the absolute path to the
-                  file containing the X.509 certificate to use.
-
-*maxconn*, *tcp_nodelay*, *ssl.key* and *ssl.cert* may
-be modified by instructing memcached to reread the configuration
-file.
+    tls           Boolean if TLS should be used or not
 
 === stdin_listener
 
@@ -436,8 +393,6 @@ A Sample memcached.json:
         "rbac_file" : "/opt/couchbase/etc/security/rbac.json",
         "privilege_debug" : false,
         "error_maps_dir": "/opt/couchbase/etc/error_maps",
-        "ssl_cipher_list" : "HIGH",
-        "ssl_cipher_order" : true,
         "threads" : 4,
         "interfaces" :
         [
@@ -447,18 +402,10 @@ A Sample memcached.json:
                 "port" : 11209,
                 "IPv4" : true,
                 "IPv6" : true,
-                "ssl" :
-                {
-                    "key" : "/etc/memcached/pkey",
-                    "cert" : "/etc/memcached/cert"
-                }
+                "tls" : true
             }
         ],
         "stdin_listener" : false,
-        "engine" : {
-            "module" : "bucket_engine.so",
-            "config" : "admin=_admin;default_bucket_name=default;auto_create=false"
-        },
         "default_reqs_per_event" : 20,
         "reqs_per_event_high_priority" : 40,
         "reqs_per_event_med_priority" : 20,

@@ -314,10 +314,18 @@ TEST_P(InterfacesTest, TlsPropertiesEncryptedCert) {
             {"client cert auth", "disabled"},
             {"password", cb::base64::encode("This is the passphrase", false)}};
 
-    const auto rsp = adminConnection->execute(BinprotGenericCommand{
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Ifconfig, "tls", tls_properties.dump()});
     ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
                                  << rsp.getDataString();
+
+    // Verify that we don't return the passphrase
+    rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Ifconfig, "tls"});
+    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+                                 << rsp.getDataString();
+    auto json = rsp.getDataJson();
+    EXPECT_EQ("set", json["password"]) << json.dump(2);
 }
 
 /// ns_server revoked the commitment to implement MB-46863 for 7.1,

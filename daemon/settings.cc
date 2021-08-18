@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -9,28 +8,25 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "settings.h"
+#include "log_macros.h"
+#include "network_interface_manager.h"
+#include "ssl_utils.h"
+#include <gsl/gsl-lite.hpp>
+#include <mcbp/mcbp.h>
+#include <memcached/openssl.h>
+#include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/trace_config.h>
 #include <platform/base64.h>
 #include <platform/dirutils.h>
 #include <platform/timeutils.h>
-
-#include <gsl/gsl-lite.hpp>
+#include <utilities/json_utilities.h>
+#include <utilities/logtags.h>
 #include <algorithm>
 #include <cstring>
 #include <fstream>
 #include <system_error>
-
-#include "log_macros.h"
-#include "network_interface_manager.h"
-#include "settings.h"
-#include "ssl_utils.h"
-
-#include <mcbp/mcbp.h>
-#include <memcached/openssl.h>
-#include <memcached/util.h>
-#include <utilities/json_utilities.h>
-#include <utilities/logtags.h>
 
 Settings::Settings() = default;
 Settings::~Settings() = default;
@@ -119,7 +115,7 @@ static void handle_threads(Settings& s, const nlohmann::json& obj) {
 static void handle_scramsha_fallback_salt(Settings& s,
                                           const nlohmann::json& obj) {
     // Try to base64 decode it to validate that it is a legal value..
-    std::string salt = obj.get<std::string>();
+    auto salt = obj.get<std::string>();
     cb::base64::decode(salt);
     s.setScramshaFallbackSalt(salt);
 }
@@ -313,72 +309,6 @@ static void handle_root(Settings& s, const nlohmann::json& obj) {
     }
 
     s.setRoot(dir);
-}
-
-/**
- * Handle the "ssl_cipher_list" tag in the settings
- *
- * The value must be a string
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_ssl_cipher_list(Settings& s, const nlohmann::json& obj) {
-    if (obj.is_string()) {
-        // Backwards compatibility until ns_server adds support for new
-        // model
-        const auto value = obj.get<std::string>();
-        if (!value.empty()) {
-            cb::openssl::unique_ssl_ctx_ptr ctx;
-            ctx.reset(SSL_CTX_new(SSLv23_server_method()));
-            if (!ctx) {
-                throw std::bad_alloc{};
-            }
-            if (SSL_CTX_set_cipher_list(ctx.get(), value.c_str()) == 0) {
-                std::string msg =
-                        "Failed to select any of the requested ciphers (";
-                msg.append(value);
-                msg.append(")");
-                throw std::runtime_error(msg);
-            }
-        }
-
-        s.setSslCipherList(obj.get<std::string>());
-    } else if (obj.is_object()) {
-        auto iter = obj.find("tls 1.2");
-        if (iter == obj.cend()) {
-            s.setSslCipherList("");
-        } else {
-            s.setSslCipherList(iter->get<std::string>());
-        }
-
-        iter = obj.find("tls 1.3");
-        if (iter == obj.cend()) {
-            s.setSslCipherSuites("");
-        } else {
-            s.setSslCipherSuites(iter->get<std::string>());
-        }
-    } else {
-        throw std::runtime_error("ssl_cipher_list should be an object");
-    }
-}
-
-static void handle_ssl_cipher_order(Settings& s, const nlohmann::json& obj) {
-    s.setSslCipherOrder(obj.get<bool>());
-}
-
-/**
- * Handle the "ssl_minimum_protocol" tag in the settings
- *
- * The value must be a string containing one of the following:
- *    tlsv1, tlsv1.1, tlsv1_1, tlsv1.2, tlsv1_2, tlsv1.3, tlsv1_3
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_ssl_minimum_protocol(Settings& s,
-                                        const nlohmann::json& obj) {
-    s.setSslMinimumProtocol(obj.get<std::string>());
 }
 
 /**
@@ -701,9 +631,6 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"datatype_json", handle_datatype_json},
             {"datatype_snappy", handle_datatype_snappy},
             {"root", handle_root},
-            {"ssl_cipher_list", handle_ssl_cipher_list},
-            {"ssl_cipher_order", handle_ssl_cipher_order},
-            {"ssl_minimum_protocol", handle_ssl_minimum_protocol},
             {"breakpad", handle_breakpad},
             {"max_packet_size", handle_max_packet_size},
             {"max_send_queue_size", handle_max_send_queue_size},
@@ -928,39 +855,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
-    if (other.has.ssl_cipher_list) {
-        std::string his = *other.ssl_cipher_list.rlock();
-        std::string mine = *ssl_cipher_list.rlock();
-        if (his != mine) {
-            LOG_INFO(
-                    R"(Change SSL Cipher list (TLS < 1.3) from "{}" to "{}")",
-                    mine,
-                    his);
-            setSslCipherList(his);
-        }
-    }
-
-    if (other.has.ssl_cipher_suites) {
-        std::string his = *other.ssl_cipher_suites.rlock();
-        std::string mine = *ssl_cipher_suites.rlock();
-        if (his != mine) {
-            LOG_INFO(
-                    R"(Change SSL Cipher list (TLS > 1.2) from "{}" to "{}")",
-                    mine,
-                    his);
-            setSslCipherSuites(his);
-        }
-    }
-
-    if (other.has.ssl_cipher_order) {
-        if (other.ssl_cipher_order != ssl_cipher_order) {
-            LOG_INFO(R"(Change SSL Cipher order from "{}" to "{}")",
-                     ssl_cipher_order ? "enabled" : "disabled",
-                     other.ssl_cipher_order ? "enabled" : "disabled");
-            setSslCipherOrder(other.ssl_cipher_order);
-        }
-    }
-
     if (other.has.client_cert_auth) {
         const auto m = client_cert_mapper.to_string();
         const auto o = other.client_cert_mapper.to_string();
@@ -974,15 +868,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             reconfigureClientCertAuth(std::move(config));
         }
     }
-    if (other.has.ssl_minimum_protocol) {
-        if (other.ssl_minimum_protocol != ssl_minimum_protocol) {
-            LOG_INFO(
-                    R"(Change SSL minimum protocol from "{}" to "{}")",
-                    ssl_minimum_protocol,
-                    other.ssl_minimum_protocol);
-            setSslMinimumProtocol(other.ssl_minimum_protocol);
-        }
-    }
+
     if (other.has.dedupe_nmvb_maps) {
         if (other.dedupe_nmvb_maps != dedupe_nmvb_maps) {
             LOG_INFO("{} deduplication of NMVB maps",
@@ -1242,43 +1128,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     }
 }
 
-// Until we've got everyone moved over to the new ifconfig interface!
-nlohmann::json Settings::getTlsConfiguration() const {
-    nlohmann::json tls;
-    if (has.interfaces) {
-        interfaces.withRLock([&tls](auto& interf) {
-            for (const auto& i : interf) {
-                if (!i.ssl.key.empty()) {
-                    tls = {{"private key", i.ssl.key},
-                           {"certificate chain", i.ssl.cert}};
-                    return;
-                }
-            }
-        });
-    }
-
-    if (!tls.empty()) {
-        tls["minimum version"] = getSslMinimumProtocol();
-        tls["cipher order"] = isSslCipherOrder();
-        tls["cipher list"]["TLS 1.2"] = getSslCipherList();
-        tls["cipher list"]["TLS 1.3"] = getSslCipherSuites();
-
-        switch (client_cert_mapper.getMode()) {
-        case cb::x509::Mode::Disabled:
-            tls["client cert auth"] = "disabled";
-            break;
-        case cb::x509::Mode::Enabled:
-            tls["client cert auth"] = "enabled";
-            break;
-        case cb::x509::Mode::Mandatory:
-            tls["client cert auth"] = "mandatory";
-            break;
-        }
-    }
-
-    return tls;
-}
-
 spdlog::level::level_enum Settings::getLogLevel() const {
     switch (getVerbose()) {
     case 0:
@@ -1327,30 +1176,6 @@ void Settings::setSslSaslMechanisms(const std::string& mechanisms) {
     ssl_sasl_mechanisms.wlock()->assign(mechs);
     has.ssl_sasl_mechanisms = true;
     notify_changed("ssl_sasl_mechanisms");
-}
-
-void Settings::setSslCipherOrder(bool ordered) {
-    ssl_cipher_order.store(ordered,std::memory_order_release);
-    has.ssl_cipher_order = true;
-    notify_changed("ssl_cipher_order");
-}
-
-void Settings::setSslMinimumProtocol(std::string protocol) {
-    ssl_minimum_protocol = std::move(protocol);
-    has.ssl_minimum_protocol = true;
-    notify_changed("ssl_minimum_protocol");
-}
-
-void Settings::setSslCipherList(std::string list) {
-    *ssl_cipher_list.wlock() = std::move(list);
-    has.ssl_cipher_list = true;
-    notify_changed("ssl_cipher_list");
-}
-
-void Settings::setSslCipherSuites(std::string suites) {
-    *ssl_cipher_suites.wlock() = std::move(suites);
-    has.ssl_cipher_suites = true;
-    notify_changed("ssl_cipher_suites");
 }
 
 size_t Settings::getMaxConcurrentCommandsPerConnection() const {

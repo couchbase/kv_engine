@@ -171,16 +171,8 @@ static void isasl_refresh_executor(Cookie& cookie) {
 }
 
 static void ssl_certs_refresh_executor(Cookie& cookie) {
-    // MB-46983: until ns_server use ifconfig we need to reply with success
-    // @todo Once ns_server supports ifconfig we shall return NotSupported
-
-    auto tls = Settings::instance().getTlsConfiguration();
-    if (!tls.empty() && networkInterfaceManager &&
-        networkInterfaceManager->allowTlsSettingsInConfigFile()) {
-        networkInterfaceManager->doTlsReconfigure(tls);
-    }
-
-    cookie.sendResponse(cb::mcbp::Status::Success);
+    cookie.setErrorContext("Use ifconfig tls instead");
+    cookie.sendResponse(cb::mcbp::Status::NotSupported);
 }
 
 static void verbosity_executor(Cookie& cookie) {

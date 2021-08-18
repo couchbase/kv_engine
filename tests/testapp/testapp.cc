@@ -481,13 +481,6 @@ nlohmann::json TestappTest::generate_config() {
              {{"enabled", true},
               {"minidump_dir", mcd_env->getMinidumpDir()},
               {"content", "default"}}},
-            {"ssl_cipher_list",
-             {{"tls 1.2", "HIGH"},
-              {"tls 1.3",
-               "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_"
-               "128_GCM_SHA256:TLS_AES_128_CCM_8_SHA256:TLS_AES_128_CCM_"
-               "SHA256"}}},
-            {"ssl_minimum_protocol", "tlsv1"},
             {"threads", 2},
             {"num_reader_threads", "default"},
             {"num_writer_threads", "default"},
