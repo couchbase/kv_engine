@@ -1764,6 +1764,16 @@ void RollbackDcpTest::rollbackSyncWriteOnTopOfSyncWrite(bool syncDeleteFirst,
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(baseItems, vb->getNumItems());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
+
+    {
+        // Commit state on disk is the same as a mutation so we need to fudge
+        // the state back to CommittedViaPrepare so that we can check that the
+        // ht dump is equal
+        auto htRes = vb->ht.findForUpdate(key);
+        if (htRes.committed) {
+            htRes.committed->setCommitted(CommittedState::CommittedViaPrepare);
+        }
+    }
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
 
@@ -1982,6 +1992,17 @@ void RollbackDcpTest::rollbackCommitOnTopOfSyncWrite(bool syncDeleteFirst,
     EXPECT_EQ(1, passiveDm.getNumTracked());
     EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+
+    {
+        // Commit state on disk is the same as a mutation so we need to fudge
+        // the state back to CommittedViaPrepare so that we can check that the
+        // ht dump is equal
+        auto htRes = vb->ht.findForUpdate(key);
+        if (htRes.committed) {
+            htRes.committed->setCommitted(CommittedState::CommittedViaPrepare);
+        }
+    }
+
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
     auto expectedItems = syncDeleteFirst ? 0 : 1;
     EXPECT_EQ(expectedItems, vb->getNumItems());

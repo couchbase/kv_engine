@@ -1064,6 +1064,7 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
 
     switch (meta.getOperation()) {
     case magmakv::MetaData::Operation::Mutation:
+    case magmakv::MetaData::Operation::CommittedSyncWrite:
         // Item already defaults to Mutation - nothing else to do.
         return item;
     case magmakv::MetaData::Operation::PreparedSyncWrite:
@@ -1075,10 +1076,6 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
         if (meta.durabilityDetails.pending.isDelete) {
             item->setDeleted(DeleteSource::Explicit);
         }
-        return item;
-    case magmakv::MetaData::Operation::CommittedSyncWrite:
-        item->setCommittedviaPrepareSyncWrite();
-        item->setPrepareSeqno(meta.getPrepareSeqno());
         return item;
     case magmakv::MetaData::Operation::Abort:
         item->setAbortSyncWrite();

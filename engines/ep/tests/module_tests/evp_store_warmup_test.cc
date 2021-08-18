@@ -659,6 +659,10 @@ protected:
     GetValue getItemFetchFromDiskIfNeeded(const DocKey& key,
                                           DocumentState docState);
 
+    // Helper method - fetches the Item from disk by evicting the item then
+    // running a bgfetch
+    GetValue getItemFromDisk(const DocKey& key, DocumentState docState);
+
     enum class Resolution : uint8_t { Commit, Abort };
 
     /**
@@ -810,6 +814,41 @@ GetValue DurabilityWarmupTest::getItemFetchFromDiskIfNeeded(
     return gv;
 }
 
+GetValue DurabilityWarmupTest::getItemFromDisk(const DocKey& key,
+                                               DocumentState docState) {
+    // Evict the key if it exists so that we read from disk. Hit the vBucket
+    // level function (rather than the KVBucket level one) to ensure that this
+    // works for replica vBuckets
+    const char* msg;
+    auto vb = store->getVBucket(vbid);
+    vb->evictKey(&msg, vb->lockCollections(key));
+
+    // And get. Again, hit the vBucket level function rather than the KVBucket
+    // one to run the get against both active and replica vBuckets.
+    const auto options =
+            static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
+    auto gv = vb->getInternal(cookie,
+                              *engine,
+                              options,
+                              VBucket::GetKeyOnly::No,
+                              vb->lockCollections(key),
+                              vb->getState() == vbucket_state_active
+                                      ? ForGetReplicaOp::No
+                                      : ForGetReplicaOp::Yes);
+
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
+    runBGFetcherTask();
+    gv = vb->getInternal(cookie,
+                         *engine,
+                         options,
+                         VBucket::GetKeyOnly::No,
+                         vb->lockCollections(key),
+                         vb->getState() == vbucket_state_active
+                                 ? ForGetReplicaOp::No
+                                 : ForGetReplicaOp::Yes);
+    return gv;
+}
+
 void DurabilityWarmupTest::testPendingSyncWrite(
         vbucket_state_t vbState,
         const std::vector<std::string>& keys,
@@ -937,7 +976,9 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
             setVBucketStateAndRunPersistTask(vbid, vbState);
         }
 
-        const auto expectedItem = getItemFetchFromDiskIfNeeded(key, docState);
+        // Read from disk to ensure that the result is comparable with the read
+        // after warmup (as we store commits on disk as mutations)
+        const auto expectedItem = getItemFromDisk(key, docState);
         ASSERT_EQ(cb::engine_errc::success, expectedItem.getStatus());
 
         // About to destroy engine; reset vb shared_ptr.
@@ -945,10 +986,12 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
         resetEngineAndWarmup();
         vb = engine->getVBucket(vbid);
 
-        // Check that the item is CommittedviaPrepare.
-        GetValue gv = getItemFetchFromDiskIfNeeded(key, docState);
+        // Check the item state. Committed will be CommittedViaMutation rather
+        // than CommittedViaPrepare as commits are stored as mutations on disk.
+        GetValue gv = getItemFromDisk(key, docState);
         EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
-        EXPECT_EQ(CommittedState::CommittedViaPrepare, gv.item->getCommitted());
+        EXPECT_EQ(CommittedState::CommittedViaMutation,
+                  gv.item->getCommitted());
         EXPECT_EQ(*expectedItem.item, *gv.item);
 
         // DurabilityMonitor should be empty as no outstanding prepares.

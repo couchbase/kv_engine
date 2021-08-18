@@ -170,8 +170,6 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
             }
             break;
         case queue_op::commit_sync_write:
-            item->setCommittedviaPrepareSyncWrite();
-            item->setPrepareSeqno(metadata.getPrepareSeqno());
             break;
         case queue_op::abort_sync_write:
             item->setAbortSyncWrite();
