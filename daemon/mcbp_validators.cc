@@ -357,10 +357,17 @@ Status McbpValidator::verify_header(Cookie& cookie,
         return status;
     }
 
+    // We need to look up SID and CID if this command is related to a
+    // collection. Looking up the SID caused a perf regression (MB-39594) and
+    // we don't really need to look up the SID if the privilege context
+    // include all scopes and collections. If the command is executed with
+    // a different user we don't have that users privilege context yet, so
+    // we would have to look up SID and CID (MB-47904)
     if (connection.getBucket().type != BucketType::NoBucket &&
         cb::mcbp::is_collection_command(request.getClientOpcode()) &&
         connection.getBucket().supports(cb::engine::Feature::Collections) &&
-        cookie.getPrivilegeContext().hasScopePrivileges()) {
+        (cookie.getPrivilegeContext().hasScopePrivileges() ||
+         cookie.getEffectiveUser().has_value())) {
         // verify that we can map the connection to sid. To make our
         // unit tests easier lets go through the connection
         auto key = cookie.getRequestKey();
