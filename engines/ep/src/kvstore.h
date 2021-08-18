@@ -1207,6 +1207,19 @@ public:
         postFlushHook = hook;
     }
 
+    /**
+     * Get an item from the KVStore using a seqno for lookup
+     *
+     * @param handle the KVFileHandle for an open file
+     * @param vbucket of the get
+     * @param seq the seqno to look for
+     * @param filter ValueFilter for key+meta or key+meta+value lookup
+     */
+    virtual GetValue getBySeqno(KVFileHandle& handle,
+                                Vbid vbid,
+                                uint64_t seq,
+                                ValueFilter filter) = 0;
+
 protected:
     /// Get a string to use as the prefix for the stats. This is typically
     /// "ro_<shard id>" for the read only store, and "rw_<shard id>" for the

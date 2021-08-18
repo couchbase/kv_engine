@@ -328,6 +328,11 @@ public:
 
     const KVStoreConfig& getConfig() const override;
 
+    GetValue getBySeqno(KVFileHandle& handle,
+                        Vbid vbid,
+                        uint64_t seq,
+                        ValueFilter filter) override;
+
 protected:
     // Write a batch of updates to the given database; measuring the time
     // taken and adding the timer to the commit histogram.

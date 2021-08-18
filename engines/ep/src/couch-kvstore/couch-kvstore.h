@@ -386,6 +386,11 @@ public:
      */
     void closeDatabaseHandle(Db* db);
 
+    GetValue getBySeqno(KVFileHandle& handle,
+                        Vbid vbid,
+                        uint64_t seq,
+                        ValueFilter filter) override;
+
     /**
      * @return the local document name for the collections stats
      */

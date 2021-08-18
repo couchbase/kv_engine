@@ -668,6 +668,11 @@ public:
      */
     uint64_t getKVStoreRevision(Vbid vbid) const;
 
+    GetValue getBySeqno(KVFileHandle& handle,
+                        Vbid vbid,
+                        uint64_t seq,
+                        ValueFilter filter) override;
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

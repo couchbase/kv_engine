@@ -4346,3 +4346,28 @@ std::optional<DbHolder> CouchKVStore::openOrCreate(Vbid vbid) noexcept {
 
     return std::move(db);
 }
+
+GetValue CouchKVStore::getBySeqno(KVFileHandle& handle,
+                                  Vbid vbid,
+                                  uint64_t seq,
+                                  ValueFilter filter) {
+    auto& couchKvHandle = static_cast<CouchKVFileHandle&>(handle);
+    auto& db = couchKvHandle.getDbHolder();
+
+    DocInfo* docInfo = nullptr;
+    auto status = couchstore_docinfo_by_sequence(db, seq, &docInfo);
+
+    if (status != COUCHSTORE_SUCCESS || docInfo == nullptr) {
+        return GetValue(nullptr, couchErr2EngineErr(status));
+    }
+
+    GetValue rv;
+    status = fetchDoc(db, docInfo, rv, vbid, filter);
+
+    if (status != COUCHSTORE_SUCCESS) {
+        ++st.numGetFailure;
+    }
+    couchstore_free_docinfo(docInfo);
+    rv.setStatus(couchErr2EngineErr(status));
+    return rv;
+}
