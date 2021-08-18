@@ -165,7 +165,8 @@ public:
             IncludeXattrs includeXattrs = IncludeXattrs::Yes,
             IncludeDeletedUserXattrs includeDeleteUserXattrs =
                     IncludeDeletedUserXattrs::No,
-            std::optional<std::string_view> jsonFilter = {});
+            std::optional<std::string_view> jsonFilter = {},
+            std::function<void()> preSetActiveHook = {});
 
     /**
      * Step the producer and expect the opcode to be returned
