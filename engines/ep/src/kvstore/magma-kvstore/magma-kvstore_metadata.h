@@ -24,25 +24,7 @@ namespace magmakv {
 #pragma pack(1)
 class MetaData {
 public:
-    // The Operation this represents - maps to queue_op types:
-    enum class Operation {
-        // A standard mutation (or deletion). Present in the 'normal'
-        // (committed) namespace.
-        Mutation,
-
-        // A prepared SyncWrite. `durability_level` field indicates the level
-        // Present in the DurabilityPrepare namespace.
-        PreparedSyncWrite,
-
-        // An aborted SyncWrite.
-        // This exists so we can correctly backfill from disk an Aborted
-        // mutation and sent out as a DCP_ABORT to sync_replication
-        // enabled DCP clients.
-        // Present in the DurabilityPrepare namespace.
-        Abort,
-    };
-
-    MetaData() : deleted(0), deleteSource(0), operation(0){};
+    MetaData() : deleted(0), deleteSource(0){};
 
     explicit MetaData(const Item& it);
 
@@ -50,19 +32,11 @@ public:
     // different meta data versions, we simplify by using just 1.
     MetaData(bool isDeleted, uint32_t valueSize, int64_t seqno, Vbid vbid);
 
-    Operation getOperation() const {
-        return static_cast<Operation>(operation);
-    }
-
     cb::durability::Level getDurabilityLevel() const;
 
     cb::uint48_t getPrepareSeqno() const {
-        auto op = static_cast<Operation>(operation);
-        Expects(op == Operation::Abort);
         return durabilityDetails.completed.prepareSeqno;
     }
-
-    std::string to_string(Operation op) const;
 
     std::string to_string() const;
 
@@ -77,7 +51,6 @@ public:
     uint8_t datatype = 0;
     uint8_t deleted : 1;
     uint8_t deleteSource : 1;
-    uint8_t operation : 2;
 
     union durabilityDetails {
         // Need to supply a default constructor or the compiler will
@@ -98,9 +71,6 @@ public:
 
         cb::uint48_t raw;
     } durabilityDetails;
-
-private:
-    static Operation toOperation(queue_op op);
 };
 #pragma pack()
 

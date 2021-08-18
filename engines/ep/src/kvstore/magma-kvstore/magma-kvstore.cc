@@ -71,7 +71,6 @@ MetaData::MetaData(const Item& it)
         deleted = 0;
         deleteSource = 0;
     }
-    operation = static_cast<uint8_t>(toOperation(it.getOperation()));
 
     if (it.isPending()) {
         durabilityDetails.pending.isDelete = it.isDeleted();
@@ -93,8 +92,7 @@ MetaData::MetaData(bool isDeleted, uint32_t valueSize, int64_t seqno, Vbid vbid)
       flags(0),
       valueSize(valueSize),
       vbid(vbid.get()),
-      datatype(0),
-      operation(0) {
+      datatype(0) {
     if (isDeleted) {
         deleted = 1;
         deleteSource = static_cast<uint8_t>(DeleteSource::Explicit);
@@ -105,21 +103,7 @@ MetaData::MetaData(bool isDeleted, uint32_t valueSize, int64_t seqno, Vbid vbid)
 }
 
 cb::durability::Level MetaData::getDurabilityLevel() const {
-    Expects(static_cast<MetaData::Operation>(operation) ==
-            MetaData::Operation::PreparedSyncWrite);
     return static_cast<cb::durability::Level>(durabilityDetails.pending.level);
-}
-
-std::string MetaData::to_string(Operation op) const {
-    switch (op) {
-    case Operation::Mutation:
-        return "Mutation";
-    case Operation::PreparedSyncWrite:
-        return "PreparedSyncWrite";
-    case Operation::Abort:
-        return "Abort";
-    }
-    return std::string{"Unknown:" + std::to_string(static_cast<uint8_t>(op))};
 }
 
 std::string MetaData::to_string() const {
@@ -133,30 +117,8 @@ std::string MetaData::to_string() const {
        << " deleted:" << (deleted == 0 ? "false" : "true") << " deleteSource:"
        << (deleted == 0 ? " " : deleteSource == 0 ? "Explicit" : "TTL")
        << " version:" << vers << " datatype:" << dt
-       << " operation:" << to_string(getOperation())
        << " durabilityLevel:" << cb::durability::to_string(req);
     return ss.str();
-}
-
-MetaData::Operation MetaData::toOperation(queue_op op) {
-    switch (op) {
-    case queue_op::mutation:
-    case queue_op::system_event:
-    case queue_op::commit_sync_write:
-        return Operation::Mutation;
-    case queue_op::pending_sync_write:
-        return Operation::PreparedSyncWrite;
-    case queue_op::abort_sync_write:
-        return Operation::Abort;
-    case queue_op::empty:
-    case queue_op::checkpoint_start:
-    case queue_op::checkpoint_end:
-    case queue_op::set_vbucket_state:
-        break;
-    }
-    throw std::invalid_argument(
-            "magma::MetaData::toOperation: Unsupported op " +
-            std::to_string(static_cast<uint8_t>(op)));
 }
 
 /**
@@ -196,14 +158,14 @@ static Vbid getVbid(const Slice& metaSlice) {
     return Vbid(getDocMeta(metaSlice).vbid);
 }
 
-static bool isPrepared(const Slice& metaSlice) {
-    return static_cast<MetaData::Operation>(getDocMeta(metaSlice).operation) ==
-           MetaData::Operation::PreparedSyncWrite;
+static bool isPrepared(const Slice& keySlice, const Slice& metaSlice) {
+    return DiskDocKey(keySlice.Data(), keySlice.Len()).isPrepared() &&
+           !getDocMeta(metaSlice).deleted;
 }
 
-static bool isAbort(const Slice& metaSlice) {
-    return static_cast<MetaData::Operation>(getDocMeta(metaSlice).operation) ==
-           MetaData::Operation::Abort;
+static bool isAbort(const Slice& keySlice, const Slice& metaSlice) {
+    return DiskDocKey(keySlice.Data(), keySlice.Len()).isPrepared() &&
+           getDocMeta(metaSlice).deleted;
 }
 
 } // namespace magmakv
@@ -312,13 +274,15 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         if (cbCtx.ctx->eraserContext->isLogicallyDeleted(diskKey.getDocKey(),
                                                          seqno)) {
             // Inform vb that the key@seqno is dropped
-            cbCtx.ctx->droppedKeyCb(
-                    diskKey, seqno, magmakv::isAbort(metaSlice), cbCtx.ctx->highCompletedSeqno);
+            cbCtx.ctx->droppedKeyCb(diskKey,
+                                    seqno,
+                                    magmakv::isAbort(keySlice, metaSlice),
+                                    cbCtx.ctx->highCompletedSeqno);
 
             { // Locking scope for magmaDbStats
                 auto dbStats = cbCtx.magmaDbStats.stats.wlock();
 
-                if (magmakv::isPrepared(metaSlice)) {
+                if (magmakv::isPrepared(keySlice, metaSlice)) {
                     cbCtx.ctx->stats.preparesPurged++;
                 } else {
                     if (magmakv::isDeleted(metaSlice)) {
@@ -386,7 +350,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         // because we send Mutations instead of Commits when streaming from
         // Disk so we do not need to send a Prepare message to keep things
         // consistent on a replica.
-        if (magmakv::isPrepared(metaSlice)) {
+        if (magmakv::isPrepared(keySlice, metaSlice)) {
             if (seqno <= cbCtx.ctx->highCompletedSeqno) {
                 cbCtx.ctx->stats.preparesPurged++;
 
@@ -400,7 +364,8 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             }
         }
         time_t currTime = ep_real_time();
-        if (exptime && exptime < currTime && !magmakv::isPrepared(metaSlice)) {
+        if (exptime && exptime < currTime &&
+            !magmakv::isPrepared(keySlice, metaSlice)) {
             auto docMeta = magmakv::getDocMeta(metaSlice);
             auto itm =
                     std::make_unique<Item>(makeDiskDocKey(keySlice).getDocKey(),
@@ -1059,28 +1024,20 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
         item->setDeleted(static_cast<DeleteSource>(meta.deleteSource));
     }
 
-    switch (meta.getOperation()) {
-    case magmakv::MetaData::Operation::Mutation:
-        // Item already defaults to Mutation - nothing else to do.
-        return item;
-    case magmakv::MetaData::Operation::PreparedSyncWrite:
-        // From disk we return a zero (infinite) timeout; as this could
-        // refer to an already-committed SyncWrite and hence timeout
-        // must be ignored.
+    if (magmakv::isPrepared(keySlice, metaSlice)) {
         item->setPendingSyncWrite({meta.getDurabilityLevel(),
                                    cb::durability::Timeout::Infinity()});
         if (meta.durabilityDetails.pending.isDelete) {
             item->setDeleted(DeleteSource::Explicit);
         }
         return item;
-    case magmakv::MetaData::Operation::Abort:
+    } else if (magmakv::isAbort(keySlice, metaSlice)) {
         item->setAbortSyncWrite();
         item->setPrepareSeqno(meta.getPrepareSeqno());
         return item;
     }
 
-    throw std::logic_error("MagmaKVStore::makeItem unexpected operation:" +
-                           meta.to_string(meta.getOperation()));
+    return item;
 }
 
 GetValue MagmaKVStore::makeGetValue(Vbid vb,
