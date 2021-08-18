@@ -283,12 +283,15 @@ CouchRequest::CouchRequest(queued_item it)
     meta.setExptime(item->getExptime());
     meta.setDataType(item->getDataType());
 
-    const auto isDurabilityOp =
+    // Prepare namespace operations (prepares and aborts) use the V3 metadata
+    // whilst commit namespace operations (mutations and commits) use the V1
+    // metadata
+    const auto isPrepareNamspace =
             (item->getOperation() == queue_op::pending_sync_write ||
-             item->getOperation() == queue_op::commit_sync_write ||
              item->getOperation() == queue_op::abort_sync_write);
 
-    if (isDurabilityOp) {
+    if (isPrepareNamspace) {
+        // Durability op is only part of V3 metadata.
         meta.setDurabilityOp(item->getOperation());
     }
 
@@ -303,7 +306,7 @@ CouchRequest::CouchRequest(queued_item it)
         meta.setPrepareProperties(level, item->isDeleted());
     }
 
-    if (item->isCommitSyncWrite() || item->isAbort()) {
+    if (item->isAbort()) {
         meta.setCompletedProperties(item->getPrepareSeqno());
     }
 
@@ -311,7 +314,7 @@ CouchRequest::CouchRequest(queued_item it)
 
     // Now allocate space to hold the meta and get it ready for storage
     dbDocInfo.rev_meta.size = MetaData::getMetaDataSize(
-            isDurabilityOp ? MetaData::Version::V3 : MetaData::Version::V1);
+            isPrepareNamspace ? MetaData::Version::V3 : MetaData::Version::V1);
     dbDocInfo.rev_meta.buf = meta.prepareAndGetForPersistence();
 
     dbDocInfo.rev_seq = item->getRevSeqno();

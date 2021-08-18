@@ -1975,13 +1975,13 @@ TEST_P(ConcurrentCompactPurge, ConcCompactPurgeTombstones) {
     //    2) apricot{v2} k:8+ v:12 + m:18 = 38
     // For GetParam==true (prepare/commit) fruit collection consists of:
     //    1) create-collection k:14 + v:57 + m:+18 = 88
-    //    2) durian{pong} k:8 +  v:14 + m:24 = 46
+    //    2) durian{pong} k:8 +  v:14 + m:15 = 39
     //    3) apricot{v2} k:8+ v:12 + m:18 = 38
     auto expectedSz = 0;
     if (!GetParam()) {
         expectedSz = 89 + 38;
     } else {
-        expectedSz = 89 + 46 + 38;
+        expectedSz = 89 + 39 + 38;
     }
 
     auto diskSizeFinal =
