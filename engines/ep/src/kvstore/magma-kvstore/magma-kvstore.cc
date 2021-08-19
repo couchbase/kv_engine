@@ -55,9 +55,11 @@ static const std::string droppedCollectionsKey = "_collections/dropped";
 #define TRACE trace
 
 namespace magmakv {
-MetaData::MetaData(const Item& it) : metaDataVersion(0) {
+MetaData::MetaData(const Item& it) {
     if (it.isPending() || it.isAbort()) {
-        metaDataVersion = 1;
+        version.version = Version::V1;
+    } else {
+        version.version = Version::V0;
     }
 
     allMeta.v0.bySeqno = it.getBySeqno();
@@ -90,7 +92,7 @@ MetaData::MetaData(const Item& it) : metaDataVersion(0) {
 }
 
 cb::durability::Level MetaData::getDurabilityLevel() const {
-    Expects(metaDataVersion == 1);
+    Expects(getVersion() == Version::V1);
     return static_cast<cb::durability::Level>(
             allMeta.v1.durabilityDetails.pending.level);
 }
@@ -107,9 +109,10 @@ std::string MetaData::to_string() const {
        << (allMeta.v0.deleted == 0        ? " "
            : allMeta.v0.deleteSource == 0 ? "Explicit"
                                           : "TTL")
-       << " version:" << metaDataVersion << " datatype:" << allMeta.v0.datatype;
+       << " version:" << static_cast<uint8_t>(getVersion())
+       << " datatype:" << allMeta.v0.datatype;
 
-    if (metaDataVersion == 1) {
+    if (getVersion() == Version::V1) {
         if (allMeta.v0.deleted) {
             // abort
             ss << " prepareSeqno:"
@@ -133,10 +136,8 @@ std::string MetaData::to_string() const {
  * Helper functions to pull metadata stuff out of the metadata slice.
  * The are used down in magma and are passed in as part of the configuration.
  */
-static const MetaData& getDocMeta(const Slice& metaSlice) {
-    const auto* docMeta =
-            reinterpret_cast<MetaData*>(const_cast<char*>(metaSlice.Data()));
-    return *docMeta;
+static const MetaData getDocMeta(const Slice& metaSlice) {
+    return MetaData(std::string_view(metaSlice.Data(), metaSlice.Len()));
 }
 
 static uint64_t getSeqNum(const Slice& metaSlice) {
@@ -1247,16 +1248,14 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
         case WriteOperation::Insert:
             writeOps.emplace_back(Magma::WriteOperation::NewDocInsert(
                     {req.getRawKey(), req.getRawKeyLen()},
-                    {reinterpret_cast<char*>(&docMeta),
-                     sizeof(magmakv::MetaData)},
+                    {reinterpret_cast<char*>(&docMeta), docMeta.getLength()},
                     valSlice,
                     &req));
             break;
         case WriteOperation::Upsert:
             writeOps.emplace_back(Magma::WriteOperation::NewDocUpsert(
                     {req.getRawKey(), req.getRawKeyLen()},
-                    {reinterpret_cast<char*>(&docMeta),
-                     sizeof(magmakv::MetaData)},
+                    {reinterpret_cast<char*>(&docMeta), docMeta.getLength()},
                     valSlice,
                     &req));
             break;

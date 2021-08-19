@@ -24,15 +24,38 @@ namespace magmakv {
 #pragma pack(1)
 class MetaData {
 public:
+    enum class Version : uint8_t { V0, V1 };
+
     MetaData() = default;
 
     explicit MetaData(const Item& it);
 
+    explicit MetaData(std::string_view buf) {
+        // Read version first, that should always exist
+        std::tie(version, buf) = VersionStorage::parse(buf);
+
+        switch (getVersion()) {
+        case Version::V0:
+            std::tie(allMeta.v0, buf) = MetaDataV0::parse(buf);
+            break;
+        case Version::V1:
+            std::tie(allMeta.v0, buf) = MetaDataV0::parse(buf);
+            std::tie(allMeta.v1, buf) = MetaDataV1::parse(buf);
+            break;
+        }
+
+        Expects(buf.empty());
+    }
+
     cb::durability::Level getDurabilityLevel() const;
 
     cb::uint48_t getPrepareSeqno() const {
-        Expects(metaDataVersion == 1);
+        Expects(getVersion() == Version::V1);
         return allMeta.v1.durabilityDetails.completed.prepareSeqno;
+    }
+
+    Version getVersion() const {
+        return version.version;
     }
 
     Vbid getVbid() const {
@@ -88,18 +111,68 @@ public:
     }
 
     bool isSyncDelete() const {
-        Expects(metaDataVersion == 1);
+        Expects(getVersion() == Version::V1);
         return allMeta.v1.durabilityDetails.pending.isDelete;
     }
 
     std::string to_string() const;
 
+    size_t getLength() const {
+        auto versionSize = sizeof(VersionStorage);
+
+        switch (getVersion()) {
+        case Version::V0:
+            return versionSize + sizeof(MetaDataV0);
+        case Version::V1:
+            return versionSize + sizeof(MetaDataV0) + sizeof(MetaDataV1);
+        }
+
+        folly::assume_unreachable();
+    }
+
 protected:
+    /**
+     * Version field, stored by all metadata types so that we can work out which
+     * version it is to decode correctly
+     */
+    class VersionStorage {
+    public:
+        VersionStorage() = default;
+
+        static std::pair<VersionStorage, std::string_view> parse(
+                std::string_view buf) {
+            Expects(buf.size() >= sizeof(VersionStorage));
+
+            VersionStorage v;
+            std::memcpy(&v, buf.data(), sizeof(VersionStorage));
+
+            buf.remove_prefix(sizeof(VersionStorage));
+            return {v, buf};
+        }
+
+        Version version = Version::V0;
+    };
+    static_assert(sizeof(Version) == 1,
+                  "magmakv::Version is not the expected size.");
+
     /**
      * Standard metadata used for commit namespace items
      */
     class MetaDataV0 {
     public:
+        MetaDataV0() = default;
+
+        static std::pair<MetaDataV0, std::string_view> parse(
+                std::string_view buf) {
+            Expects(buf.size() >= sizeof(MetaDataV0));
+
+            MetaDataV0 v;
+            std::memcpy(&v, buf.data(), sizeof(MetaDataV0));
+
+            buf.remove_prefix(sizeof(MetaDataV0));
+            return {v, buf};
+        }
+
         int64_t bySeqno = 0;
         uint64_t cas = 0;
         cb::uint48_t revSeqno = 0;
@@ -124,6 +197,19 @@ protected:
      */
     class MetaDataV1 {
     public:
+        MetaDataV1() = default;
+
+        static std::pair<MetaDataV1, std::string_view> parse(
+                std::string_view buf) {
+            Expects(buf.size() >= sizeof(MetaDataV1));
+
+            MetaDataV1 v;
+            std::memcpy(&v, buf.data(), sizeof(MetaDataV1));
+
+            buf.remove_prefix(sizeof(MetaDataV1));
+            return {v, buf};
+        }
+
         union durabilityDetails {
             // Need to supply a default constructor or the compiler will
             // complain about cb::uint48_t
@@ -148,7 +234,7 @@ protected:
     static_assert(sizeof(MetaDataV1) == 6,
                   "magmakv::MetaDataV1 is not the expected size.");
 
-    uint8_t metaDataVersion = 0;
+    VersionStorage version;
     class AllMetaData {
     public:
         MetaDataV0 v0;

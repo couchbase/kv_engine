@@ -366,7 +366,7 @@ TEST_F(MagmaKVStoreTest, MB39669_CompactionBeforeWarmup) {
     // Vbid.
     magmakv::MetaData metadata;
     metadata.setVbid(Vbid(0));
-    magma::Slice meta{reinterpret_cast<char*>(&metadata), sizeof(metadata)};
+    magma::Slice meta{reinterpret_cast<char*>(&metadata), metadata.getLength()};
     // Compaction callback should return false for anything before warmup.
     EXPECT_FALSE(newCompaction->operator()(key, meta, value));
 }
@@ -476,7 +476,7 @@ TEST_F(MagmaKVStoreTest, MagmaGetExpiryTimeAlive) {
     magmakv::MetaData expiredItem;
     expiredItem.setExptime(10);
     magma::Slice expiredItemSlice = {reinterpret_cast<char*>(&expiredItem),
-                                     sizeof(magmakv::MetaData)};
+                                     expiredItem.getLength()};
 
     EXPECT_EQ(10, kvstore->getExpiryOrPurgeTime(expiredItemSlice));
 }
@@ -486,7 +486,7 @@ TEST_F(MagmaKVStoreTest, MagmaGetExpiryTimeTombstone) {
     tombstone.setExptime(10);
     tombstone.setDeleted(true);
     magma::Slice tombstoneSlice = {reinterpret_cast<char*>(&tombstone),
-                                   sizeof(magmakv::MetaData)};
+                                   tombstone.getLength()};
 
     EXPECT_EQ(10 + kvstoreConfig->getMetadataPurgeAge(),
               kvstore->getExpiryOrPurgeTime(tombstoneSlice));
