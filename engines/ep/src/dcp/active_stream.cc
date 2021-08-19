@@ -281,8 +281,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                 log(spdlog::level::level_enum::info,
                     "{} "
                     "ActiveStream::markDiskSnapshot not sending snapshot "
-                    "because"
-                    "it contains no visible items",
+                    "because it contains no visible items",
                     logPrefix);
                 // reregister cursor at original end seqno
                 notifyEmptyBackfill_UNLOCKED(chkCursorSeqno);

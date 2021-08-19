@@ -365,6 +365,10 @@ public:
         return filter;
     }
 
+    bool supportSyncWrites() const {
+        return syncReplication != SyncReplication::No;
+    }
+
 protected:
     void clear_UNLOCKED();
 
@@ -465,10 +469,6 @@ protected:
 
     bool supportSyncReplication() const {
         return syncReplication == SyncReplication::SyncReplication;
-    }
-
-    bool supportSyncWrites() const {
-        return syncReplication != SyncReplication::No;
     }
 
     /**

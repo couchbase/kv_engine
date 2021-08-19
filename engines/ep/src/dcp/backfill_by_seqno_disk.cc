@@ -13,6 +13,7 @@
 #include "dcp/active_stream_impl.h"
 #include "kv_bucket.h"
 #include "kvstore.h"
+#include "vbucket_state.h"
 
 #include <mcbp/protocol/dcp_stream_end_status.h>
 
@@ -139,12 +140,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
         stream->setDead(cb::mcbp::DcpStreamEndStatus::Rollback);
         transitionState(backfill_state_done);
     } else {
-        bool markerSent =
-                stream->markDiskSnapshot(startSeqno,
-                                         scanCtx->maxSeqno,
-                                         scanCtx->persistedCompletedSeqno,
-                                         scanCtx->maxVisibleSeqno,
-                                         scanCtx->timestamp);
+        bool markerSent = markDiskSnapshot(*stream, *scanCtx, *kvstore);
 
         if (markerSent) {
             // This value may be an overestimate - it includes prepares/aborts
@@ -262,4 +258,227 @@ DCPBackfillBySeqnoDisk::getHighSeqnoOfCollections(
     }
 
     return {true, collHigh};
+}
+
+bool DCPBackfillBySeqnoDisk::markDiskSnapshot(ActiveStream& stream,
+                                              BySeqnoScanContext& scanCtx,
+                                              KVStore& kvs) {
+    if (stream.getFilter().isLegacyFilter()) {
+        return markLegacyDiskSnapshot(stream, scanCtx, kvs);
+    }
+    return stream.markDiskSnapshot(startSeqno,
+                                   scanCtx.maxSeqno,
+                                   scanCtx.persistedCompletedSeqno,
+                                   scanCtx.maxVisibleSeqno,
+                                   scanCtx.timestamp);
+}
+
+// This function is used for backfills where the stream is configured as a
+// 'legacy' stream. That means a DCP stream that can only see the default
+// collection and cannot be sent DCP SeqnoAdvanced messages to skip 'gaps' in
+// snapshots. The purpose of this function is to set the snapshot end value
+// correctly, as seen in MB-47437 the highest item in the disk snapshot is not
+// always the correct end value for the legacy stream.
+//
+// This function makes a few decisions about how to proceed and we can be in
+// this function for KV to KV replication only during periods where the cluster
+// is mid-upgrade.
+//
+// 1) If the manifest-UID we read from the disk snapshot is 0, that's the easy
+//    case, and is the case we have been relying on for any upgrade to
+//    collections. When the manifest-UID is 0.
+//    a) only the default collection can exist
+//    b) the cluster cannot change the UID (i.e. make a collection config
+//       change) until all nodes are collection capable, at this point any
+//       KV replication streams are switched from legacy to collection aware.
+//    When only the default collection exists then we can mark the disksnapshot
+//    as normal, all of the vbstate derived values (e.g. maxVisibleSeqno) are
+//    relevant to the snapshot.
+//
+// 2) If the manifest-UID we read from the disk snapshot is not 0 fail if
+//    sync-replication is enabled. This is because this function does not
+//    support the discovery of the PCS if other collections are in play (it
+//    could), the expectation is that there are no clients we need to support
+//    that want sync-replication, other than KV itself (who will not be in
+//    legacy mode).
+//
+//  3) Finally manifest-UID is not 0, and sync-replication is not enabled we
+//     can process the backfill, we just need to figure out the maxVisibleSeqno
+//     of the default-collection. We have the default collection's high-seqno
+//     so that's the starting point for figuring this out.
+bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
+                                                    BySeqnoScanContext& scanCtx,
+                                                    KVStore& kvs) {
+    // We enter here for a legacy DCP stream
+    // but bail if syncReplication and ! manifest 0 (more work needed to
+    // get all markDiskSnapshot parameters)
+    // TODO: MB-48094 Add new version of getCollectionsManifestUid to magma to
+    // read from snapshots rather than using a MagmaKVFileHandle
+    const auto uid = kvs.getCollectionsManifestUid(*scanCtx.handle);
+
+    if (!uid.has_value()) {
+        // KVStore logs details
+        stream.log(spdlog::level::level_enum::warn,
+                   "({}) DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot: "
+                   "aborting stream as failed to "
+                   "read uid",
+                   stream.getVBucket());
+        stream.setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
+        return false;
+    }
+    // Note: Replication streams will flip to collection aware after upgrade so
+    // won't be here if the uid is > 0
+    if (stream.supportSyncWrites() && uid != 0) {
+        stream.log(spdlog::level::level_enum::warn,
+                   "({}) DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot: "
+                   "aborting stream as it has "
+                   "requested sync-writes + legacy filtering and "
+                   "manifest-uid:{}",
+                   stream.getVBucket(),
+                   uid.value());
+        stream.setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
+        return false;
+    }
+
+    // The manifest-UID is 0, we can return here and mark the snapshot with all
+    // of the data we already have.
+    if (uid == 0) {
+        return stream.markDiskSnapshot(startSeqno,
+                                       scanCtx.maxSeqno,
+                                       scanCtx.persistedCompletedSeqno,
+                                       scanCtx.maxVisibleSeqno,
+                                       scanCtx.timestamp);
+    }
+
+    // Need to figure out the maxSeqno/maxVisibleSeqno for calling
+    // markDiskSnapshot, no need for the PCS or timestamp values as we checked
+    // sync replication is not enabled.
+
+    // Step 1. get the default collection high-seqno
+    // TODO: MB-48094 Add new version of getCollectionStats to magma to
+    // read from snapshots rather than using a MagmaKVFileHandle
+    const auto [status, stats] =
+            kvs.getCollectionStats(*scanCtx.handle, CollectionID::Default);
+
+    // If we do not find stats for the default collection that means either
+    // nothing has been flushed to the default collection or the default
+    // collection has been dropped (after accepting the streamRequest. For both
+    // cases return false, the backfill can be skipped and in-memory streaming
+    // will drive the stream
+    if (status != KVStore::GetCollectionStatsStatus::Success) {
+        if (status == KVStore::GetCollectionStatsStatus::Failed) {
+            stream.setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
+        } else {
+            stream.log(spdlog::level::level_enum::info,
+                       "({}) DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot "
+                       "found no "
+                       "stats for default collection",
+                       stream.getVBucket());
+        }
+        // return false to ensure we cancel the backfill as we either have
+        // failed and have set the stream to dead, or there is no items on disk
+        // for the collection as no meta data for the collection was found on
+        // disk.
+        return false;
+    }
+
+    // Step 2. get the item @ the high-seqno
+    // TODO: MB-48094 Add new version of getBySeqno to magma to read from
+    // snapshots rather than using a MagmaKVFileHandle
+    const auto gv = kvs.getBySeqno(*scanCtx.handle,
+                                   stream.getVBucket(),
+                                   stats.highSeqno,
+                                   ValueFilter::KEYS_ONLY);
+
+    if (gv.getStatus() != cb::engine_errc::success) {
+        stream.log(spdlog::level::level_enum::warn,
+                   "({}) DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot failed "
+                   "getBySeqno {}",
+                   stream.getVBucket(),
+                   gv.getStatus());
+        stream.setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
+        return false;
+    }
+
+    // Step 3. If this is a committed item, done.
+    if (gv.item->isCommitted()) {
+        return stream.markDiskSnapshot(
+                startSeqno, stats.highSeqno, {}, stats.highSeqno, {});
+    }
+
+    // Step 4. The *slow* path, have to find the highest committed seqno. This
+    // basic implementation will scan the seqno index (not reading values).
+    // Possible improvements if required could be to do a key index scan in the
+    // default collection range (maybe if the default collection was a small %
+    // of the total vbucket.
+    stream.log(spdlog::level::level_enum::info,
+               "({}) DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot is "
+               "scanning for "
+               "the highest committed default item from {} to {}",
+               stream.getVBucket(),
+               startSeqno,
+               stats.highSeqno);
+
+    // Basic callback that checks for the default collection's highest
+    // committed item
+    struct FindMaxCommittedItem : public StatusCallback<GetValue> {
+        FindMaxCommittedItem(uint64_t maxSeqno) : maxSeqno(maxSeqno) {
+        }
+
+        void callback(GetValue& val) override {
+            // Scan can stop once we go past the maxSeqno, but the scan API is a
+            // bit ugly here, if we say no_memory the scan will stop
+            if (uint64_t(val.item->getBySeqno()) > maxSeqno) {
+                setStatus(cb::engine_errc::no_memory);
+            }
+
+            if (val.item->getKey().isInDefaultCollection() &&
+                val.item->isCommitted()) {
+                maxVisibleSeqno = std::max<uint64_t>(maxVisibleSeqno,
+                                                     val.item->getBySeqno());
+            }
+        }
+        const uint64_t maxSeqno{0};
+        uint64_t maxVisibleSeqno{0};
+    };
+
+    // Less than pretty, but we want to scan the already open file, no opening
+    // a new scan. So we create a new BySeqnoScanContext with callbacks bespoke
+    // to the needs of this function and take the handle from the scanCtx
+    // TODO : MB-48096 Optimize backfill range
+    auto scanForHighestCommitttedItem = std::make_unique<BySeqnoScanContext>(
+            std::make_unique<FindMaxCommittedItem>(stats.highSeqno),
+            std::make_unique<NoLookupCallback>(),
+            scanCtx.vbid,
+            std::move(scanCtx.handle), // scan the already open file
+            startSeqno,
+            stats.highSeqno,
+            0,
+            DocumentFilter::ALL_ITEMS,
+            ValueFilter::KEYS_ONLY,
+            0,
+            vbucket_state{},
+            std::vector<Collections::KVStore::DroppedCollection>{});
+
+    const auto scanStatus = kvs.scan(*scanForHighestCommitttedItem);
+    if (scanStatus == scan_failed) {
+        // scan_again can be returned, but that is expected when the scan goes
+        // past the end default collection high seqno
+        stream.setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
+        return false;
+    }
+
+    // Give the handle back to the main document scan
+    scanCtx.handle = std::move(scanForHighestCommitttedItem->handle);
+
+    auto& cb = static_cast<FindMaxCommittedItem&>(
+            scanForHighestCommitttedItem->getValueCallback());
+
+    if (cb.maxVisibleSeqno > 0) {
+        return stream.markDiskSnapshot(
+                startSeqno, cb.maxVisibleSeqno, {}, cb.maxVisibleSeqno, {});
+    } else {
+        // Found nothing committed at all
+        return false;
+    }
 }

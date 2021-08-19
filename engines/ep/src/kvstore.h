@@ -310,7 +310,7 @@ public:
 
     const Vbid vbid;
     int64_t lastReadSeqno{0};
-    const std::unique_ptr<KVFileHandle> handle;
+    std::unique_ptr<KVFileHandle> handle;
     const DocumentFilter docFilter;
     const ValueFilter valFilter;
     std::unique_ptr<StatusCallback<GetValue>> callback;
