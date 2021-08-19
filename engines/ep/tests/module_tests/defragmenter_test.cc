@@ -349,13 +349,15 @@ TEST_P(DefragmenterTest, DISABLED_RefCountMemUsage) {
     // defragmenter drop out of scope afterwards to avoid interfering
     // with the memory measurements.
     {
-        cb::ArenaMalloc::switchToClient(global_stats.arena, false);
+        cb::ArenaMalloc::switchToClient(
+                global_stats.arena, cb::MemoryDomain::Primary, false);
 
         PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(
                 DefragmenterTask::getMaxValueSize()));
         prAdapter.visit(*vbucket);
 
-        cb::ArenaMalloc::switchToClient(global_stats.arena, true);
+        cb::ArenaMalloc::switchToClient(
+                global_stats.arena, cb::MemoryDomain::Primary, true);
 
         cb::ArenaMalloc::releaseMemory(global_stats.arena);
 

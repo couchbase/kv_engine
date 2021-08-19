@@ -103,6 +103,7 @@ std::chrono::duration<double> DefragmenterTask::defrag() {
     // Disable thread-caching (as we are about to defragment, and hence don't
     // want any of the new Blobs in tcache).
     cb::ArenaMalloc::switchToClient(engine->getArenaMallocClient(),
+                                    cb::MemoryDomain::Primary,
                                     false /* no tcache*/);
 
     // Prepare the underlying visitor.
@@ -126,6 +127,7 @@ std::chrono::duration<double> DefragmenterTask::defrag() {
 
     // Defrag complete. Restore thread caching.
     cb::ArenaMalloc::switchToClient(engine->getArenaMallocClient(),
+                                    cb::MemoryDomain::Primary,
                                     true /* tcache*/);
 
     updateStats(visitor);
