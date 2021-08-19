@@ -697,6 +697,24 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
         const auto privilege_string = cb::rbac::to_string(privilege);
         const auto context = ctx.to_string();
 
+        nlohmann::json json;
+        json["bucket"] = connection.getBucket().name;
+        if (&ctx != &privilegeContext) {
+            auto nm = euid->to_json();
+            json["euid"] = nm;
+            json["euid"]["user"] = cb::tagUserData(nm["user"]);
+        }
+        if (sid) {
+            json["scope"] = sid->to_string();
+        }
+        if (cid) {
+            json["collection"] = cid->to_string();
+        }
+        json["context"] = context;
+        json["UUID"] = getEventId();
+        json["privilege"] = privilege_string;
+        json["command"] = command;
+
         if (Settings::instance().isPrivilegeDebug()) {
             audit_privilege_debug(*this,
                                   command,
@@ -704,28 +722,17 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
                                   privilege_string,
                                   context);
 
-            LOG_INFO(
-                    "{}: RBAC privilege debug:{} command:[{}] bucket:[{}] "
-                    "privilege:[{}] context:{}",
-                    connection.getId(),
-                    connection.getDescription(),
-                    command,
-                    connection.getBucket().name,
-                    privilege_string,
-                    context);
+            LOG_INFO("{}: RBAC {} privilege debug: {}",
+                     connection.getId(),
+                     connection.getDescription(),
+                     json.dump());
 
             return cb::rbac::PrivilegeAccessOk;
         } else {
-            LOG_INFO(
-                    "{} RBAC {} missing privilege {} for {} in bucket:[{}] "
-                    "with context: {} UUID:[{}]",
-                    connection.getId(),
-                    connection.getDescription(),
-                    privilege_string,
-                    command,
-                    connection.getBucket().name,
-                    context,
-                    getEventId());
+            LOG_INFO("{} RBAC {} missing privilege: {}",
+                     connection.getId(),
+                     connection.getDescription(),
+                     json.dump());
             // Add a textual error as well
             setErrorContext("Authorization failure: can't execute " + command +
                             " operation without the " + privilege_string +
