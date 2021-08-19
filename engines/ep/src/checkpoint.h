@@ -741,7 +741,8 @@ private:
      */
     class MemoryCounter {
     public:
-        MemoryCounter(EPStats& stats) : local(0), stats(stats) {
+        MemoryCounter(EPStats& stats, CheckpointManager& manager)
+            : local(0), stats(stats), manager(manager) {
         }
         ~MemoryCounter();
         MemoryCounter& operator+=(size_t size);
@@ -754,6 +755,8 @@ private:
         cb::NonNegativeCounter<size_t> local;
         // Used to update the "global" bucket counter in EPStats
         EPStats& stats;
+        // Used to update the vb level counter in CheckpointManager
+        CheckpointManager& manager;
     };
 
     // Record the memory overhead of maintaining the keyIndex and metaKeyIndex.

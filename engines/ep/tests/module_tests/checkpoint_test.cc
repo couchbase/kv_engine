@@ -2814,6 +2814,7 @@ void CheckpointMemoryTrackingTest::testEstimatedCheckpointMemUsage() {
     EXPECT_GT(initialQueued, 0);
     EXPECT_EQ(0, initialIndex);
     EXPECT_EQ(initialQueued, stats.getEstimatedCheckpointMemUsage());
+    EXPECT_EQ(initialQueued, manager.getEstimatedMemUsage());
 
     size_t itemsAlloc = 0;
     size_t keyIndexAlloc = 0;
@@ -2834,11 +2835,12 @@ void CheckpointMemoryTrackingTest::testEstimatedCheckpointMemUsage() {
     EXPECT_EQ(numItems, manager.getNumOpenChkItems());
     EXPECT_EQ(initialQueueSize + numItems, openQueue.size());
 
-    auto queued = checkpoint->getQueuedItemsMemUsage();
-    auto index = checkpoint->getKeyIndexMemUsage();
+    const auto queued = checkpoint->getQueuedItemsMemUsage();
+    const auto index = checkpoint->getKeyIndexMemUsage();
     EXPECT_EQ(initialQueued + itemsAlloc, queued);
     EXPECT_EQ(initialIndex + keyIndexAlloc, index);
     EXPECT_EQ(queued + index, stats.getEstimatedCheckpointMemUsage());
+    EXPECT_EQ(queued + index, manager.getEstimatedMemUsage());
 }
 
 TEST_F(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsage) {
@@ -2918,6 +2920,7 @@ TEST_F(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtExpelling) {
     EXPECT_EQ(initialIndex, index);
     EXPECT_EQ(queued + index,
               engine->getEpStats().getEstimatedCheckpointMemUsage());
+    EXPECT_EQ(queued + index, manager.getEstimatedMemUsage());
 }
 
 TEST_F(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtRemoval) {
@@ -2975,4 +2978,5 @@ TEST_F(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtRemoval) {
     EXPECT_EQ(expectedFinalIndexAllocation, index);
     EXPECT_EQ(queued + index,
               engine->getEpStats().getEstimatedCheckpointMemUsage());
+    EXPECT_EQ(queued + index, manager.getEstimatedMemUsage());
 }

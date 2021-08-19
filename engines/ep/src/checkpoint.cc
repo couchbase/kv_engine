@@ -186,8 +186,8 @@ Checkpoint::Checkpoint(
       toWrite(trackingAllocator),
       committedKeyIndex(keyIndexTrackingAllocator),
       preparedKeyIndex(keyIndexTrackingAllocator),
-      keyIndexMemUsage(st),
-      queuedItemsMemUsage(st),
+      keyIndexMemUsage(st, manager),
+      queuedItemsMemUsage(st, manager),
       checkpointType(checkpointType),
       highCompletedSeqno(std::move(highCompletedSeqno)),
       memOverheadChangedCallback(memOverheadChangedCallback) {
@@ -681,17 +681,20 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
 }
 
 Checkpoint::MemoryCounter::~MemoryCounter() {
+    manager.estimatedMemUsage -= local;
     stats.coreLocal.get()->estimatedCheckpointMemUsage.fetch_sub(local);
 }
 
 Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator+=(size_t size) {
     local += size;
+    manager.estimatedMemUsage += size;
     stats.coreLocal.get()->estimatedCheckpointMemUsage.fetch_add(size);
     return *this;
 }
 
 Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator-=(size_t size) {
     local -= size;
+    manager.estimatedMemUsage -= size;
     stats.coreLocal.get()->estimatedCheckpointMemUsage.fetch_sub(size);
     return *this;
 }

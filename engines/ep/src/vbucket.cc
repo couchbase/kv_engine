@@ -307,7 +307,7 @@ int64_t VBucket::getHighCompletedSeqno() const {
 }
 
 size_t VBucket::getChkMgrMemUsage() const {
-    return checkpointManager->getMemoryUsage();
+    return checkpointManager->getEstimatedMemUsage();
 }
 
 size_t VBucket::getChkMgrMemUsageOfUnrefCheckpoints() const {

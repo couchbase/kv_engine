@@ -1395,6 +1395,11 @@ size_t CheckpointManager::getMemoryUsage() const {
     return getMemoryUsage_UNLOCKED();
 }
 
+size_t CheckpointManager::getEstimatedMemUsage() const {
+    // Atomic, don't need to acquire the CM lock
+    return estimatedMemUsage;
+}
+
 size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() const {
     std::lock_guard<std::mutex> lh(queueLock);
 

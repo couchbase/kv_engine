@@ -381,6 +381,11 @@ public:
     size_t getMemoryUsage() const;
 
     /**
+     * @return the estimated memory usage of all the checkpoints managed
+     */
+    size_t getEstimatedMemUsage() const;
+
+    /**
      * Return memory overhead of all the checkpoints managed
      */
     size_t getMemoryOverhead_UNLOCKED() const;
@@ -764,6 +769,15 @@ protected:
      * the stat updates or we'll overcount them.
      */
     VBucket::AggregatedFlushStats persistenceFailureStatOvercounts;
+
+    /**
+     *  Estimated memory usage of all checkpoints in this CM.
+     *  This accounts for queued items mem-usage and key-index mem-usage.
+     *  Updated in-place by all checkpoint operations that affect it.
+     *  Used as an optimization for avoiding to scan the full checkpoint-list
+     *  for computing the value.
+     */
+    cb::NonNegativeCounter<size_t> estimatedMemUsage{0};
 
     friend std::ostream& operator<<(std::ostream& os, const CheckpointManager& m);
 };
