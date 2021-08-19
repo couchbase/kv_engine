@@ -1195,7 +1195,7 @@
         },
         "magma_mem_quota_ratio": {
             "default": "0.1",
-            "dynamic": false,
+            "dynamic": true,
             "descr": "Magma total memory ratio of the Bucket Quota across all shards.",
             "type": "float"
         },

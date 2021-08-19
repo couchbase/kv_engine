@@ -824,6 +824,13 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
+        } else if (key == "magma_mem_quota_ratio") {
+            float value;
+            if (safe_strtof(val, value)) {
+                getConfiguration().setMagmaMemQuotaRatio(value);
+            } else {
+                rv = cb::engine_errc::invalid_arguments;
+            }
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::invalid_arguments;

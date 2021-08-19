@@ -149,6 +149,8 @@ public:
         return magmaGroupCommitMaxTransactionCount;
     }
 
+    void setMagmaMemQuotaRatio(float value);
+
     magma::Magma::Config magmaCfg;
 
 private:
@@ -209,7 +211,7 @@ private:
     size_t magmaMaxWriteCache;
 
     // Magma Memory Quota as a ratio of Bucket Quota
-    float magmaMemQuotaRatio;
+    std::atomic<float> magmaMemQuotaRatio;
 
     // Magma uses a write ahead log to quickly persist items during bg
     // flushing. This buffer contains the items along with control records

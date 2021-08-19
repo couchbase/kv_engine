@@ -32,6 +32,12 @@ public:
         }
     }
 
+    void floatValueChanged(const std::string& key, float value) override {
+        if (key == "magma_mem_quota_ratio") {
+            config.setMagmaMemQuotaRatio(value);
+        }
+    }
+
 private:
     MagmaKVStoreConfig& config;
 };
@@ -123,4 +129,11 @@ void MagmaKVStoreConfig::setBucketQuota(size_t value) {
     // Just update the cached value, the update to magma is driven via the
     // engine.
     bucketQuota.store(value);
+}
+
+void MagmaKVStoreConfig::setMagmaMemQuotaRatio(float value) {
+    magmaMemQuotaRatio.store(value);
+    if (store) {
+        store->setMaxDataSize(bucketQuota);
+    }
 }
