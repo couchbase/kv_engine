@@ -355,7 +355,17 @@ StorageProperties NexusKVStore::getStorageProperties() const {
         prepareCounting = StorageProperties::PrepareCounting::Yes;
     }
 
-    return StorageProperties(byIdScan, autoDedupe, prepareCounting);
+    // Nexus calls back from compaction with the callbacks from the primary.
+    // The bucket should be able to deal with either.
+    auto compactionStaleItemCallbacks =
+            primary->getStorageProperties().hasCompactionStaleItemCallbacks()
+                    ? StorageProperties::CompactionStaleItemCallbacks::Yes
+                    : StorageProperties::CompactionStaleItemCallbacks::No;
+
+    return StorageProperties(byIdScan,
+                             autoDedupe,
+                             prepareCounting,
+                             compactionStaleItemCallbacks);
 }
 
 void NexusKVStore::set(TransactionContext& txnCtx, queued_item item) {

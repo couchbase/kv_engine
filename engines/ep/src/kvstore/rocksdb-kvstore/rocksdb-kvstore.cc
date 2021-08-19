@@ -931,7 +931,8 @@ bool RocksDBKVStore::getStat(std::string_view name, size_t& value) const {
 StorageProperties RocksDBKVStore::getStorageProperties() const {
     StorageProperties rv(StorageProperties::ByIdScan::No,
                          StorageProperties::AutomaticDeduplication::Yes,
-                         StorageProperties::PrepareCounting::No);
+                         StorageProperties::PrepareCounting::No,
+                         StorageProperties::CompactionStaleItemCallbacks::No);
     return rv;
 }
 

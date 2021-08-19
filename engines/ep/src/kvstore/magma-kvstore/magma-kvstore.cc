@@ -692,7 +692,8 @@ StorageProperties MagmaKVStore::getStorageProperties() const {
                          // @TODO MB-33784: Enable auto de-dupe if/when magma
                          // supports it
                          StorageProperties::AutomaticDeduplication::No,
-                         StorageProperties::PrepareCounting::No);
+                         StorageProperties::PrepareCounting::No,
+                         StorageProperties::CompactionStaleItemCallbacks::Yes);
     return rv;
 }
 

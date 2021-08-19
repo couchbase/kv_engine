@@ -511,12 +511,20 @@ public:
      */
     enum class PrepareCounting : bool { Yes, No };
 
+    /**
+     * Will the KVStore make callbacks with stale (superseded) items during
+     * compaction?
+     */
+    enum class CompactionStaleItemCallbacks : bool { Yes, No };
+
     StorageProperties(ByIdScan byIdScan,
                       AutomaticDeduplication automaticDeduplication,
-                      PrepareCounting prepareCounting)
+                      PrepareCounting prepareCounting,
+                      CompactionStaleItemCallbacks compactionStaleItemCallbacks)
         : byIdScan(byIdScan),
           automaticDeduplication(automaticDeduplication),
-          prepareCounting(prepareCounting) {
+          prepareCounting(prepareCounting),
+          compactionStaleItemCallbacks(compactionStaleItemCallbacks) {
     }
 
     bool hasByIdScan() const {
@@ -531,10 +539,16 @@ public:
         return prepareCounting == PrepareCounting::Yes;
     }
 
+    bool hasCompactionStaleItemCallbacks() const {
+        return compactionStaleItemCallbacks ==
+               CompactionStaleItemCallbacks::Yes;
+    }
+
 private:
     ByIdScan byIdScan;
     AutomaticDeduplication automaticDeduplication;
     PrepareCounting prepareCounting;
+    CompactionStaleItemCallbacks compactionStaleItemCallbacks;
 };
 
 
