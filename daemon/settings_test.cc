@@ -1230,7 +1230,6 @@ TEST(SettingsUpdateTest, MaxConnectionsIsDynamic) {
 
     // changing it should work
     updated.setMaxConnections(1000);
-    ;
     settings.updateSettings(updated, true);
     EXPECT_EQ(1000, settings.getMaxConnections());
 }
@@ -1245,7 +1244,6 @@ TEST(SettingsUpdateTest, SystemConnectionsIsDynamic) {
 
     // changing it should work
     updated.setSystemConnections(1000);
-    ;
     settings.updateSettings(updated, true);
     EXPECT_EQ(1000, settings.getSystemConnections());
 }
