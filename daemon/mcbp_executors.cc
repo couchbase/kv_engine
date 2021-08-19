@@ -846,13 +846,6 @@ void execute_client_request_packet(Cookie& cookie,
     }
 
     if (res.failed()) {
-        LOG_WARNING("{} {}: no access to command {}",
-                    c->getId(),
-                    c->getDescription(),
-                    to_string(opcode));
-
-        audit_command_access_failed(cookie);
-
         if (c->remapErrorCode(getEngineErrorCode(res)) ==
             cb::engine_errc::disconnect) {
             c->shutdown();

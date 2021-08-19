@@ -729,10 +729,11 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
 
             return cb::rbac::PrivilegeAccessOk;
         } else {
-            LOG_INFO("{} RBAC {} missing privilege: {}",
-                     connection.getId(),
-                     connection.getDescription(),
-                     json.dump());
+            audit_command_access_failed(*this);
+            LOG_WARNING("{} RBAC {} missing privilege: {}",
+                        connection.getId(),
+                        connection.getDescription(),
+                        json.dump());
             // Add a textual error as well
             setErrorContext("Authorization failure: can't execute " + command +
                             " operation without the " + privilege_string +
