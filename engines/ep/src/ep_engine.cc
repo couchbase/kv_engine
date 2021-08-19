@@ -375,6 +375,18 @@ cb::engine_errc EventuallyPersistentEngine::get_prometheus_stats(
                 return cb::engine_errc(status);
             }
 
+            // aggregate DCP producer metrics
+
+            ConnCounter aggregator;
+            dcpConnMap_->each([&aggregator](
+                                      const std::shared_ptr<ConnHandler>& tc) {
+                ++aggregator.totalConns;
+                if (auto tp = std::dynamic_pointer_cast<DcpProducer>(tc); tp) {
+                    tp->aggregateQueueStats(aggregator);
+                }
+            });
+            addAggregatedProducerStats(collector, aggregator);
+
         } else {
             cb::engine_errc status;
             if (status = doEngineStats(collector);
@@ -3949,33 +3961,35 @@ void EventuallyPersistentEngine::doDcpStatsInner(const CookieIface* cookie,
                                                  const AddStatFn& add_stat,
                                                  std::string_view value) {
     ConnStatBuilder dcpVisitor(cookie, add_stat, DcpStatsFilter{value});
+    // ConnStatBuilder also adds per-stream stats while aggregating.
     dcpConnMap_->each(dcpVisitor);
 
     const auto& aggregator = dcpVisitor.getCounter();
 
-    add_casted_stat("ep_dcp_count", aggregator.totalConns, add_stat, cookie);
-    add_casted_stat("ep_dcp_producer_count", aggregator.totalProducers, add_stat, cookie);
-    add_casted_stat("ep_dcp_total_bytes", aggregator.conn_totalBytes, add_stat, cookie);
-    add_casted_stat("ep_dcp_total_uncompressed_data_size", aggregator.conn_totalUncompressedDataSize,
-                    add_stat, cookie);
-    add_casted_stat("ep_dcp_total_queue", aggregator.conn_queue,
-                    add_stat, cookie);
-    add_casted_stat("ep_dcp_queue_fill", aggregator.conn_queueFill,
-                    add_stat, cookie);
-    add_casted_stat("ep_dcp_items_sent", aggregator.conn_queueDrain,
-                    add_stat, cookie);
-    add_casted_stat("ep_dcp_items_remaining", aggregator.conn_queueRemaining,
-                    add_stat, cookie);
-    add_casted_stat("ep_dcp_num_running_backfills",
-                    dcpConnMap_->getNumRunningBackfills(),
-                    add_stat,
-                    cookie);
-    add_casted_stat("ep_dcp_max_running_backfills",
-                    dcpConnMap_->getMaxRunningBackfills(),
-                    add_stat,
-                    cookie);
+    CBStatCollector collector(add_stat, cookie);
+    addAggregatedProducerStats(collector.forBucket(getName()), aggregator);
 
     dcpConnMap_->addStats(add_stat, cookie);
+}
+
+void EventuallyPersistentEngine::addAggregatedProducerStats(
+        const BucketStatCollector& col, const ConnCounter& aggregator) {
+    using namespace cb::stats;
+    col.addStat(Key::dcp_count, aggregator.totalConns);
+    col.addStat(Key::dcp_producer_count, aggregator.totalProducers);
+    col.addStat(Key::dcp_consumer_count,
+                aggregator.totalConns - aggregator.totalProducers);
+    col.addStat(Key::dcp_total_data_size, aggregator.conn_totalBytes);
+    col.addStat(Key::dcp_total_uncompressed_data_size,
+                aggregator.conn_totalUncompressedDataSize);
+    col.addStat(Key::dcp_total_queue, aggregator.conn_queue);
+    col.addStat(Key::dcp_queue_fill, aggregator.conn_queueFill);
+    col.addStat(Key::dcp_items_sent, aggregator.conn_queueDrain);
+    col.addStat(Key::dcp_items_remaining, aggregator.conn_queueRemaining);
+    col.addStat(Key::dcp_num_running_backfills,
+                dcpConnMap_->getNumRunningBackfills());
+    col.addStat(Key::dcp_max_running_backfills,
+                dcpConnMap_->getMaxRunningBackfills());
 }
 
 cb::engine_errc EventuallyPersistentEngine::doEvictionStats(
