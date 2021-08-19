@@ -730,6 +730,7 @@ StorageProperties MagmaKVStore::getStorageProperties() const {
 }
 
 void MagmaKVStore::setMaxDataSize(size_t size) {
+    configuration.setBucketQuota(size);
     const size_t memoryQuota = (size / configuration.getMaxShards()) *
                                configuration.getMagmaMemQuotaRatio();
     magma->SetMemoryQuota(memoryQuota);

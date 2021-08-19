@@ -34,9 +34,11 @@ public:
 
     void setStore(MagmaKVStore* store);
 
-    size_t getBucketQuota() {
+    size_t getBucketQuota() const {
         return bucketQuota;
     }
+    void setBucketQuota(size_t value);
+
     size_t getMagmaDeleteMemtableWritecache() const {
         return magmaDeleteMemtableWritecache;
     }
@@ -155,7 +157,7 @@ private:
     MagmaKVStore* store;
 
     // Bucket RAM Quota
-    size_t bucketQuota;
+    std::atomic<size_t> bucketQuota;
 
     // Magma uses a lazy update model to maintain the sequence index. It
     // maintains a list of deleted seq #s that were deleted from the key Index.

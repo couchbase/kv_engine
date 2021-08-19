@@ -118,3 +118,9 @@ void MagmaKVStoreConfig::setMagmaFlusherThreadPercentage(size_t value) {
         store->calculateAndSetMagmaThreads();
     }
 }
+
+void MagmaKVStoreConfig::setBucketQuota(size_t value) {
+    // Just update the cached value, the update to magma is driven via the
+    // engine.
+    bucketQuota.store(value);
+}
