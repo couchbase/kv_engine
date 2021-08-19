@@ -14,6 +14,7 @@
 #include "callbacks.h"
 #include "collections/eraser_context.h"
 #include "collections/kvstore.h"
+#include "ep_time.h"
 #include "kvstore_fwd.h"
 #include "kvstore_iface.h"
 #include "utilities/testing_hook.h"
@@ -132,8 +133,12 @@ struct CompactionConfig {
 struct CompactionContext {
     CompactionContext(Vbid vbid,
                       const CompactionConfig& config,
-                      uint64_t purgeSeq)
-        : vbid(vbid), compactConfig(config), max_purged_seq(purgeSeq) {
+                      uint64_t purgeSeq,
+                      std::optional<time_t> timeToExpireFrom = {})
+        : vbid(vbid),
+          compactConfig(config),
+          max_purged_seq(purgeSeq),
+          timeToExpireFrom(timeToExpireFrom) {
     }
     Vbid vbid;
 
@@ -157,6 +162,9 @@ struct CompactionContext {
 
     /// The SyncRepl HCS, can purge any prepares before the HCS.
     uint64_t highCompletedSeqno = 0;
+
+    /// Time from which we expire items (if set). Otherwise current time is used
+    std::optional<time_t> timeToExpireFrom = {};
 };
 
 

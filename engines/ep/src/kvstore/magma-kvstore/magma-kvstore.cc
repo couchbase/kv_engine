@@ -359,8 +359,15 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                 return true;
             }
         }
-        time_t currTime = ep_real_time();
-        if (exptime && exptime < currTime &&
+
+        time_t timeToExpireFrom;
+        if (cbCtx.ctx->timeToExpireFrom) {
+            timeToExpireFrom = cbCtx.ctx->timeToExpireFrom.value();
+        } else {
+            timeToExpireFrom = ep_real_time();
+        }
+
+        if (exptime && exptime < timeToExpireFrom &&
             !magmakv::isPrepared(keySlice, metaSlice)) {
             auto docMeta = magmakv::getDocMeta(metaSlice);
             auto itm =
@@ -378,7 +385,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                 itm->decompressValue();
             }
             itm->setDeleted(DeleteSource::TTL);
-            cbCtx.ctx->expiryCallback->callback(*(itm.get()), currTime);
+            cbCtx.ctx->expiryCallback->callback(*(itm.get()), timeToExpireFrom);
 
             if (logger->should_log(spdlog::level::TRACE)) {
                 logger->TRACE("MagmaCompactionCB: {} expiry callback {}",

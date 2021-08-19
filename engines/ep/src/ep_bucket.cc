@@ -1200,13 +1200,20 @@ void EPBucket::dropKey(Vbid vbid,
 
 std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
         Vbid vbid, CompactionConfig& config, uint64_t purgeSeqno) {
+    auto& configuration = getEPEngine().getConfiguration();
+
     if (config.purge_before_ts == 0) {
         config.purge_before_ts =
-                ep_real_time() - getEPEngine()
-                                         .getConfiguration()
-                                         .getPersistentMetadataPurgeAge();
+                ep_real_time() - configuration.getPersistentMetadataPurgeAge();
     }
-    auto ctx = std::make_shared<CompactionContext>(vbid, config, purgeSeqno);
+
+    std::optional<time_t> expireFrom;
+    if (configuration.isCompactionExpireFromStart()) {
+        expireFrom = ep_real_time();
+    }
+
+    auto ctx = std::make_shared<CompactionContext>(
+            vbid, config, purgeSeqno, expireFrom);
 
     BloomFilterCBPtr filter(new BloomFilterCallback(*this));
     ctx->bloomFilterCallback = filter;

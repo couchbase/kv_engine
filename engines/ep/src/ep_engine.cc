@@ -847,6 +847,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
+        } else if (key == "compaction_expire_from_start") {
+            getConfiguration().setCompactionExpireFromStart(cb_stob(val));
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::invalid_arguments;

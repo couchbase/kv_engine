@@ -953,13 +953,19 @@ static int time_purge_hook(Db* d,
             return COUCHSTORE_COMPACT_KEEP_ITEM;
         }
 
-        time_t currtime = ep_real_time();
-        if (exptime && exptime < currtime && metadata->isCommit()) {
+        time_t timeToExpireFrom;
+        if (ctx->timeToExpireFrom) {
+            timeToExpireFrom = ctx->timeToExpireFrom.value();
+        } else {
+            timeToExpireFrom = ep_real_time();
+        }
+
+        if (exptime && exptime < timeToExpireFrom && metadata->isCommit()) {
             int ret;
             metadata->setDeleteSource(DeleteSource::TTL);
             try {
                 ret = notify_expired_item(
-                        *info, *metadata, item, *ctx, currtime);
+                        *info, *metadata, item, *ctx, timeToExpireFrom);
             } catch (const std::bad_alloc&) {
                 EP_LOG_WARN_RAW("time_purge_hook: memory allocation failed");
                 return COUCHSTORE_ERROR_ALLOC_FAIL;

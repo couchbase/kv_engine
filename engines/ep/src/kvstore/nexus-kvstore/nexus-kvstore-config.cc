@@ -34,6 +34,10 @@ NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
     secondaryConfig->setDBName(secondaryConfig->getDBName() +
                                cb::io::DirectorySeparator + "nexus-secondary");
 
+    // Nexus needs compaction to expire items from the same time point to assert
+    // that items expired by both KVStores are the same.
+    config.setCompactionExpireFromStart(true);
+
     auto errorHandling = config.getNexusErrorHandling();
     if (errorHandling == "abort") {
         errorHandlingMethod = NexusErrorHandlingMethod::Abort;

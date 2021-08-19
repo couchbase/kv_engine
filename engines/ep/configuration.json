@@ -177,6 +177,12 @@
                 }
             }
         },
+        "compaction_expire_from_start": {
+            "default": "false",
+            "descr": "Should compaction expire items that were logically deleted at the start of the compaction (true) or at the point in time at which they were visited (false)?",
+            "dynamic": true,
+            "type": "bool"
+        },
         "chk_expel_enabled": {
             "default" : "true",
             "descr": "Enable the ability to expel (remove from memory) items from a checkpoint.  An item can be expelled if all cursors in the checkpoint have iterated past the item.",
