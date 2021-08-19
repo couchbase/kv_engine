@@ -33,7 +33,7 @@ public:
     }
 
     Vbid getVbID() const {
-        return Vbid(docMeta.vbid);
+        return Vbid(docMeta.getVbid());
     }
 
     size_t getRawKeyLen() const {

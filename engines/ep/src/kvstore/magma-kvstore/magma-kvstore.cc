@@ -54,70 +54,74 @@ static const std::string droppedCollectionsKey = "_collections/dropped";
 #define TRACE trace
 
 namespace magmakv {
-MetaData::MetaData(const Item& it)
-    : metaDataVersion(0),
-      bySeqno(it.getBySeqno()),
-      cas(it.getCas()),
-      revSeqno(it.getRevSeqno()),
-      exptime(it.getExptime()),
-      flags(it.getFlags()),
-      valueSize(it.getNBytes()),
-      vbid(it.getVBucketId().get()),
-      datatype(it.getDataType()) {
+MetaData::MetaData(const Item& it) : metaDataVersion(0) {
+    if (it.isPending() || it.isAbort()) {
+        metaDataVersion = 1;
+    }
+
+    allMeta.v0.bySeqno = it.getBySeqno();
+    allMeta.v0.cas = it.getCas();
+    allMeta.v0.revSeqno = it.getRevSeqno();
+    allMeta.v0.exptime = it.getExptime();
+    allMeta.v0.flags = it.getFlags();
+    allMeta.v0.valueSize = it.getNBytes();
+    allMeta.v0.vbid = it.getVBucketId().get();
+    allMeta.v0.datatype = it.getDataType();
+
     if (it.isDeleted() && !it.isPending()) {
-        deleted = 1;
-        deleteSource = static_cast<uint8_t>(it.deletionSource());
+        allMeta.v0.deleted = 1;
+        allMeta.v0.deleteSource = static_cast<uint8_t>(it.deletionSource());
     } else {
-        deleted = 0;
-        deleteSource = 0;
+        allMeta.v0.deleted = 0;
+        allMeta.v0.deleteSource = 0;
     }
 
     if (it.isPending()) {
-        durabilityDetails.pending.isDelete = it.isDeleted();
-        durabilityDetails.pending.level =
+        allMeta.v1.durabilityDetails.pending.isDelete = it.isDeleted();
+        allMeta.v1.durabilityDetails.pending.level =
                 static_cast<uint8_t>(it.getDurabilityReqs().getLevel());
     }
 
-    if (it.isCommitSyncWrite() || it.isAbort()) {
-        durabilityDetails.completed.prepareSeqno = it.getPrepareSeqno();
-    }
-}
-
-MetaData::MetaData(bool isDeleted, uint32_t valueSize, int64_t seqno, Vbid vbid)
-    : metaDataVersion(0),
-      bySeqno(seqno),
-      cas(0),
-      revSeqno(0),
-      exptime(0),
-      flags(0),
-      valueSize(valueSize),
-      vbid(vbid.get()),
-      datatype(0) {
-    if (isDeleted) {
-        deleted = 1;
-        deleteSource = static_cast<uint8_t>(DeleteSource::Explicit);
-    } else {
-        deleted = 0;
-        deleteSource = 0;
+    if (it.isAbort()) {
+        allMeta.v1.durabilityDetails.completed.prepareSeqno =
+                it.getPrepareSeqno();
     }
 }
 
 cb::durability::Level MetaData::getDurabilityLevel() const {
-    return static_cast<cb::durability::Level>(durabilityDetails.pending.level);
+    Expects(metaDataVersion == 1);
+    return static_cast<cb::durability::Level>(
+            allMeta.v1.durabilityDetails.pending.level);
 }
 
 std::string MetaData::to_string() const {
     std::stringstream ss;
-    int vers = metaDataVersion;
-    int dt = datatype;
     cb::durability::Requirements req(getDurabilityLevel(), {});
-    ss << "bySeqno:" << bySeqno << " cas:" << cas << " exptime:" << exptime
-       << " revSeqno:" << revSeqno << " flags:" << flags
-       << " valueSize:" << valueSize << " vbid:" << vbid
-       << " deleted:" << (deleted == 0 ? "false" : "true") << " deleteSource:"
-       << (deleted == 0 ? " " : deleteSource == 0 ? "Explicit" : "TTL")
-       << " version:" << vers << " datatype:" << dt
-       << " durabilityLevel:" << cb::durability::to_string(req);
+    ss << "bySeqno:" << allMeta.v0.bySeqno << " cas:" << allMeta.v0.cas
+       << " exptime:" << allMeta.v0.exptime
+       << " revSeqno:" << allMeta.v0.revSeqno << " flags:" << allMeta.v0.flags
+       << " valueSize:" << allMeta.v0.valueSize << " vbid:" << allMeta.v0.vbid
+       << " deleted:" << (allMeta.v0.deleted == 0 ? "false" : "true")
+       << " deleteSource:"
+       << (allMeta.v0.deleted == 0        ? " "
+           : allMeta.v0.deleteSource == 0 ? "Explicit"
+                                          : "TTL")
+       << " version:" << metaDataVersion << " datatype:" << allMeta.v0.datatype;
+
+    if (metaDataVersion == 1) {
+        if (allMeta.v0.deleted) {
+            // abort
+            ss << " prepareSeqno:"
+               << allMeta.v1.durabilityDetails.completed.prepareSeqno;
+        } else {
+            // prepare
+            ss << " durabilityLevel:"
+               << allMeta.v1.durabilityDetails.pending.level;
+            ss << " syncDelete:"
+               << allMeta.v1.durabilityDetails.pending.isDelete;
+        }
+    }
+
     return ss.str();
 }
 
@@ -135,37 +139,37 @@ static const MetaData& getDocMeta(const Slice& metaSlice) {
 }
 
 static uint64_t getSeqNum(const Slice& metaSlice) {
-    return getDocMeta(metaSlice).bySeqno;
+    return getDocMeta(metaSlice).getBySeqno();
 }
 
 static size_t getValueSize(const Slice& metaSlice) {
-    return getDocMeta(metaSlice).valueSize;
+    return getDocMeta(metaSlice).getValueSize();
 }
 
 static uint32_t getExpiryTime(const Slice& metaSlice) {
-    return getDocMeta(metaSlice).exptime;
+    return getDocMeta(metaSlice).getExptime();
 }
 
 static bool isDeleted(const Slice& metaSlice) {
-    return getDocMeta(metaSlice).deleted > 0;
+    return getDocMeta(metaSlice).isDeleted();
 }
 
 static bool isCompressed(const Slice& metaSlice) {
-    return mcbp::datatype::is_snappy(getDocMeta(metaSlice).datatype);
+    return mcbp::datatype::is_snappy(getDocMeta(metaSlice).getDatatype());
 }
 
 static Vbid getVbid(const Slice& metaSlice) {
-    return Vbid(getDocMeta(metaSlice).vbid);
+    return getDocMeta(metaSlice).getVbid();
 }
 
 static bool isPrepared(const Slice& keySlice, const Slice& metaSlice) {
     return DiskDocKey(keySlice.Data(), keySlice.Len()).isPrepared() &&
-           !getDocMeta(metaSlice).deleted;
+           !getDocMeta(metaSlice).isDeleted();
 }
 
 static bool isAbort(const Slice& keySlice, const Slice& metaSlice) {
     return DiskDocKey(keySlice.Data(), keySlice.Len()).isPrepared() &&
-           getDocMeta(metaSlice).deleted;
+           getDocMeta(metaSlice).isDeleted();
 }
 
 } // namespace magmakv
@@ -369,15 +373,15 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             auto docMeta = magmakv::getDocMeta(metaSlice);
             auto itm =
                     std::make_unique<Item>(makeDiskDocKey(keySlice).getDocKey(),
-                                           docMeta.flags,
-                                           docMeta.exptime,
+                                           docMeta.getFlags(),
+                                           docMeta.getExptime(),
                                            valueSlice.Data(),
                                            valueSlice.Len(),
-                                           docMeta.datatype,
-                                           docMeta.cas,
-                                           docMeta.bySeqno,
+                                           docMeta.getDatatype(),
+                                           docMeta.getCas(),
+                                           docMeta.getBySeqno(),
                                            vbid,
-                                           docMeta.revSeqno);
+                                           docMeta.getRevSeqno());
             if (magmakv::isCompressed(metaSlice)) {
                 itm->decompressValue();
             }
@@ -1006,28 +1010,28 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
 
     const bool includeValue = (filter != ValueFilter::KEYS_ONLY ||
                                key.getDocKey().isInSystemCollection()) &&
-                              meta.valueSize;
+                              meta.getValueSize();
 
     auto item =
             std::make_unique<Item>(key.getDocKey(),
-                                   meta.flags,
-                                   meta.exptime,
+                                   meta.getFlags(),
+                                   meta.getExptime(),
                                    includeValue ? valueSlice.Data() : nullptr,
-                                   includeValue ? meta.valueSize : 0,
-                                   meta.datatype,
-                                   meta.cas,
-                                   meta.bySeqno,
+                                   includeValue ? meta.getValueSize() : 0,
+                                   meta.getDatatype(),
+                                   meta.getCas(),
+                                   meta.getBySeqno(),
                                    vb,
-                                   meta.revSeqno);
+                                   meta.getRevSeqno());
 
-    if (meta.deleted) {
-        item->setDeleted(static_cast<DeleteSource>(meta.deleteSource));
+    if (meta.isDeleted()) {
+        item->setDeleted(meta.getDeleteSource());
     }
 
     if (magmakv::isPrepared(keySlice, metaSlice)) {
         item->setPendingSyncWrite({meta.getDurabilityLevel(),
                                    cb::durability::Timeout::Infinity()});
-        if (meta.durabilityDetails.pending.isDelete) {
+        if (meta.isSyncDelete()) {
             item->setDeleted(DeleteSource::Explicit);
         }
         return item;
@@ -1076,7 +1080,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                     "docExists:{} tombstone:{}",
                     vbid,
                     cb::UserData{diskDocKey.to_string()},
-                    req->getDocMeta().bySeqno,
+                    req->getDocMeta().getBySeqno(),
                     req->isDelete(),
                     docExists,
                     isTombstone);
@@ -1098,7 +1102,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                         isTombstone ? IsDeleted::Yes : IsDeleted::No;
                 commitData.collections.updateStats(
                         docKey,
-                        req->getDocMeta().bySeqno,
+                        req->getDocMeta().getBySeqno(),
                         isCommitted,
                         isDeleted,
                         req->getBodySize(),
@@ -1107,17 +1111,18 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                         configuration.magmaCfg.GetValueSize(oldMeta),
                         WantsDropped::Yes);
             } else {
-                commitData.collections.updateStats(docKey,
-                                                   req->getDocMeta().bySeqno,
-                                                   isCommitted,
-                                                   isDeleted,
-                                                   req->getBodySize(),
-                                                   WantsDropped::Yes);
+                commitData.collections.updateStats(
+                        docKey,
+                        req->getDocMeta().getBySeqno(),
+                        isCommitted,
+                        isDeleted,
+                        req->getBodySize(),
+                        WantsDropped::Yes);
             }
         } else {
             // Tell Collections::Flush that it may need to record this seqno
             commitData.collections.maybeUpdatePersistedHighSeqno(
-                    docKey, req->getDocMeta().bySeqno, req->isDelete());
+                    docKey, req->getDocMeta().getBySeqno(), req->isDelete());
         }
 
         if (docExists) {
@@ -1236,8 +1241,8 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     for (auto& req : ctx.pendingReqs) {
         auto& docMeta = req.getDocMeta();
         Slice valSlice{req.getBodyData(), req.getBodySize()};
-        if (req.getDocMeta().bySeqno > lastSeqno) {
-            lastSeqno = req.getDocMeta().bySeqno;
+        if (req.getDocMeta().getBySeqno() > lastSeqno) {
+            lastSeqno = req.getDocMeta().getBySeqno();
         }
 
         switch (commitData.writeOp) {
