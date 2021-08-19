@@ -396,7 +396,7 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             "max_ttl", std::make_unique<EPStoreValueChangeListener>(*this));
 
     xattrEnabled = config.isXattrEnabled();
-    
+
     auto numConcurrentPagers = config.getConcurrentPagers();
 
     // Always create the item pager; but initially disable, leaving scheduling
