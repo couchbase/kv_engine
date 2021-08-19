@@ -149,43 +149,44 @@ size_t ClosedUnrefCheckpointRemoverTask::attemptMemoryRecovery(
 
 bool ClosedUnrefCheckpointRemoverTask::run() {
     TRACE_EVENT0("ep-engine/task", "ClosedUnrefCheckpointRemoverTask");
+
     bool inverse = true;
-    if (available.compare_exchange_strong(inverse, false)) {
-        bool shouldReduceMemory{false};
-        size_t amountOfMemoryToClear{0};
-        size_t amountOfMemoryRecovered{0};
-
-        std::tie(shouldReduceMemory, amountOfMemoryToClear) =
-                isReductionInCheckpointMemoryNeeded();
-        if (shouldReduceMemory) {
-            // Try expelling first, if enabled
-            if (engine->getConfiguration().isChkExpelEnabled()) {
-                amountOfMemoryRecovered = attemptMemoryRecovery(
-                        MemoryRecoveryMechanism::checkpointExpel,
-                        amountOfMemoryToClear);
-            }
-            // If still need to recover more memory, drop cursors
-            if (amountOfMemoryToClear > amountOfMemoryRecovered) {
-                attemptMemoryRecovery(
-                        MemoryRecoveryMechanism::cursorDrop,
-                        amountOfMemoryToClear - amountOfMemoryRecovered);
-            }
-        }
-        KVBucketIface* kvBucket = engine->getKVBucket();
-
-        auto pv =
-                std::make_unique<CheckpointVisitor>(kvBucket, stats, available);
-
-        // Empirical evidence from perf runs shows that 99.9% of "Checkpoint
-        // Remover" task should complete under 50ms
-        const auto maxExpectedDurationForVisitorTask =
-                std::chrono::milliseconds(50);
-
-        kvBucket->visitAsync(std::move(pv),
-                             "Checkpoint Remover",
-                             TaskId::ClosedUnrefCheckpointRemoverVisitorTask,
-                             maxExpectedDurationForVisitorTask);
+    if (!available.compare_exchange_strong(inverse, false)) {
+        snooze(sleepTime);
+        return true;
     }
+
+    bool shouldReduceMemory{false};
+    size_t amountOfMemoryToClear{0};
+    size_t amountOfMemoryRecovered{0};
+
+    std::tie(shouldReduceMemory, amountOfMemoryToClear) =
+            isReductionInCheckpointMemoryNeeded();
+    if (shouldReduceMemory) {
+        // Try expelling first, if enabled
+        if (engine->getConfiguration().isChkExpelEnabled()) {
+            amountOfMemoryRecovered = attemptMemoryRecovery(
+                    MemoryRecoveryMechanism::checkpointExpel,
+                    amountOfMemoryToClear);
+        }
+        // If still need to recover more memory, drop cursors
+        if (amountOfMemoryToClear > amountOfMemoryRecovered) {
+            attemptMemoryRecovery(
+                    MemoryRecoveryMechanism::cursorDrop,
+                    amountOfMemoryToClear - amountOfMemoryRecovered);
+        }
+    }
+    KVBucketIface* kvBucket = engine->getKVBucket();
+
+    auto pv = std::make_unique<CheckpointVisitor>(kvBucket, stats, available);
+
+    // Note: Empirical evidence from perf runs shows that 99.9% of "Checkpoint
+    // Remover" task should complete under 50ms
+    kvBucket->visitAsync(std::move(pv),
+                         "Checkpoint Remover",
+                         TaskId::ClosedUnrefCheckpointRemoverVisitorTask,
+                         std::chrono::milliseconds(50) /*maxExpectedDuration*/);
+
     snooze(sleepTime);
     return true;
 }
