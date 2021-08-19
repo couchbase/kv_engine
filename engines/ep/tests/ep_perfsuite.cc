@@ -1560,72 +1560,6 @@ static enum test_result perf_slow_stat_latency_100vb_sets_and_dcp(
             testingPerformance ? 100 : 10);
 }
 
-/**
- * Test to demonstrate the performance of a bucket being warmed up
- *
- * WARNING: Please note that this test in its default state don't help to
- * demonstrate warmup in the most ideal way. The test doesn't use a partially
- * large number of documents, nor are they very big and we don't perform any
- * file cache drops so we're effectively backfilling from memory cached files.
- */
-static enum test_result perf_bucket_warmup(EngineIface* h) {
-    const size_t numVbucket = 10;
-    const size_t numDocs = 5000;
-    const size_t numOfWarmups = 10;
-
-    printf("\n\n");
-    int printed = printf("=== Latency(%zu - bucket(s)) - %zu items(µs)",
-                         numVbucket,
-                         numDocs);
-
-    fillLineWith('=', 88 - printed);
-
-    // Create active vbuckets and add items to them so that they can be warmed
-    // up
-    std::string keyBase("key");
-    for (size_t i = 0; i < numVbucket; i++) {
-        Vbid vb(i);
-        check(set_vbucket_state(h, vb, vbucket_state_active),
-              "Failed to set vbucket state for vb");
-        write_items(h,
-                    numDocs,
-                    0,
-                    (keyBase + std::to_string(i)).c_str(),
-                    "value",
-                    0,
-                    vb);
-    }
-    wait_for_flusher_to_settle(h);
-
-    std::vector<hrtime_t> warmup_timings;
-    // Now perform testing
-    for (size_t i = 0; i < numOfWarmups; i++) {
-        using namespace std::chrono;
-        // shutdown the bucket so we can warm it up
-        testHarness->destroy_bucket(h, false);
-        const auto start = std::chrono::steady_clock::now();
-        // Warmup the bucket and wait for warmup to complete
-        h = testHarness->create_bucket(
-                true, testHarness->get_current_testcase()->cfg);
-        wait_for_warmup_complete(h);
-        const auto end = std::chrono::steady_clock::now();
-        // Store the duration for the warmup
-        warmup_timings.push_back(
-                duration_cast<microseconds>(end - start).count());
-    }
-
-    std::vector<std::pair<std::string, std::vector<hrtime_t>*>> timings;
-
-    timings.emplace_back("Warmup", &warmup_timings);
-    std::stringstream title;
-    title << "one"
-          << "_buckets_baseline";
-    output_result(title.str(), "Timings", timings, "µs");
-
-    testHarness->destroy_bucket(h, false);
-    return SUCCESS;
-}
-
 /*****************************************************************************
  * List of testcases
  *****************************************************************************/
@@ -1760,22 +1694,6 @@ BaseTestCase testsuite_testcases[] = {
                  prepare,
                  cleanup),
 
-        TestCase("Warmup latency with 10 vbuckets with 5000 docs",
-                 perf_bucket_warmup,
-                 test_setup,
-                 teardown,
-                 "backend=couchdb;"
-                 // Test requires ~1GB bucket quota
-                 "max_size=1000000000;"
-                 // Test requires 100 vBuckets.
-                 "max_vbuckets=10;max_num_shards=4",
-                 prepare,
-                 cleanup),
-
-        TestCase(nullptr,
-                 nullptr,
-                 nullptr,
-                 nullptr,
-                 "backend=couchdb",
-                 prepare,
-                 cleanup)};
+        TestCase(nullptr, nullptr, nullptr, nullptr,
+                 "backend=couchdb", prepare, cleanup)
+};

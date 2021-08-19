@@ -2254,17 +2254,14 @@ size_t KVBucket::visitAsync(std::unique_ptr<PausableVBucketVisitor> visitor,
 }
 
 KVBucket::Position KVBucket::pauseResumeVisit(PauseResumeVBVisitor& visitor,
-                                              Position& start_pos,
-                                              VBucketFilter* filter) {
+                                              Position& start_pos) {
     Vbid vbid = start_pos.vbucket_id;
     for (; vbid.get() < vbMap.getSize(); ++vbid) {
-        if (!filter || (*filter)(vbid)) {
-            VBucketPtr vb = vbMap.getBucket(vbid);
-            if (vb) {
-                bool paused = !visitor.visit(*vb);
-                if (paused) {
-                    break;
-                }
+        VBucketPtr vb = vbMap.getBucket(vbid);
+        if (vb) {
+            bool paused = !visitor.visit(*vb);
+            if (paused) {
+                break;
             }
         }
     }
