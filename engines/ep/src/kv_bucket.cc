@@ -1370,35 +1370,18 @@ void KVBucket::appendAggregatedVBucketStats(
 
     for (uint8_t ii = 0; ii < active.getNumDatatypes(); ++ii) {
         auto datatypeStr = mcbp::datatype::to_string(ii);
+        auto labelled = collector.withLabels(
+                {{"datatype", datatypeStr}, {"vbucket_state", "active"}});
 
-        std::string uniqueName = "ep_active_datatype_";
-        uniqueName += datatypeStr;
-        // TODO: MB-39505 This definition needs moving to stats.def.h
-        //  but there's not yet support for "templated" unique names.
-        //  The alternative would be to list every permutation of
-        //  datatypes and vbucket states in stats.def.h.
-        StatDef def(
-                {uniqueName},
-                units::count,
-                "datatype_count",
-                StatDef::Labels{{"datatype", std::string_view{datatypeStr}},
-                                {"vbucket_state", std::string_view{"active"}}});
-        collector.addStat(def, active.getDatatypeCount(ii));
+        labelled.addStat(Key::datatype_count, active.getDatatypeCount(ii));
     }
 
     for (uint8_t ii = 0; ii < replica.getNumDatatypes(); ++ii) {
         auto datatypeStr = mcbp::datatype::to_string(ii);
+        auto labelled = collector.withLabels(
+                {{"datatype", datatypeStr}, {"vbucket_state", "replica"}});
 
-        std::string uniqueName = "ep_replica_datatype_";
-        uniqueName += datatypeStr;
-
-        StatDef def({uniqueName},
-                    units::count,
-                    "datatype_count",
-                    StatDef::Labels{
-                            {"datatype", std::string_view{datatypeStr}},
-                            {"vbucket_state", std::string_view{"replica"}}});
-        collector.addStat(def, replica.getDatatypeCount(ii));
+        labelled.addStat(Key::datatype_count, replica.getDatatypeCount(ii));
     }
 }
 

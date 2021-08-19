@@ -580,6 +580,7 @@ STAT(ep_hlc_drift_count, FMT("ep_{state}_hlc_drift_count"), count, , )
 STAT(ep_ahead_exceptions, FMT("ep_{state}_ahead_exceptions"), count, , )
 STAT(ep_behind_exceptions, FMT("ep_{state}_behind_exceptions"), count, , )
 STAT(ep_clock_cas_drift_threshold_exceeded, , count, , )
+STAT(datatype_count, FMT("ep_{vbucket_state}_datatype_{datatype}"), count, , )
 
 STAT(vb_auto_delete_count,
      FMT("vb_{state}_auto_delete_count"),
