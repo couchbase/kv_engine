@@ -30,12 +30,10 @@
 #include "protocol/mcbp/engine_wrapper.h"
 #include "runtime.h"
 #include "settings.h"
-#include "ssl_utils.h"
 #include "stats.h"
 #include "tenant_manager.h"
 #include "tracing.h"
 #include "utilities/terminate_handler.h"
-
 #include <boost/filesystem/path.hpp>
 #include <cbsasl/logging.h>
 #include <cbsasl/mechanism.h>
@@ -46,7 +44,6 @@
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/mcbp.h>
 #include <memcached/rbac.h>
-#include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/backtrace.h>
@@ -59,7 +56,6 @@
 #include <statistics/prometheus.h>
 #include <utilities/breakpad.h>
 #include <utilities/openssl_utils.h>
-
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
@@ -70,10 +66,6 @@
 
 #if HAVE_LIBNUMA
 #include <numa.h>
-#endif
-
-#ifdef WIN32
-#include <Winbase.h> // For SetDllDirectory
 #endif
 
 std::atomic<bool> memcached_shutdown;
@@ -518,11 +510,6 @@ static void update_settings_from_config()
 
     if (!settings.getRoot().empty()) {
         root = settings.getRoot();
-#ifdef WIN32
-        std::string libdir = root + "/lib";
-        cb::io::sanitizePath(libdir);
-        SetDllDirectory(libdir.c_str());
-#endif
     }
 
     if (settings.getErrorMapsDir().empty()) {
