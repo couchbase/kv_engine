@@ -13,9 +13,7 @@
  * memcached process
  */
 #include <getopt.h>
-#include <memcached/openssl.h>
 #include <memcached/protocol_binary.h>
-#include <memcached/util.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <platform/interrupt.h>
@@ -25,6 +23,7 @@
 #include <protocol/connection/client_connection.h>
 
 #include <utilities/string_utilities.h>
+#include <utilities/terminal_color.h>
 #include <chrono>
 #include <cstdio>
 #include <iostream>
@@ -41,7 +40,7 @@ static void sigint_handler() {
 }
 
 static void usage() {
-    static const char* text = R"(Usage: mctrace [options]
+    std::cerr << R"(Usage: mctrace [options]
 
 Options:
     --ipv4 / -4       Use IPv4
@@ -54,9 +53,9 @@ Options:
                       the textual string set in the environment variable
                       CB_PASSWORD is used. If '-' is specified the password
                       is read from standard input.
-  --tls[=cert,key]               Use TLS and optionally try to authenticate
-                                 by using the provided certificate and
-                                 private key.
+    --tls[=cert,key]  Use TLS and optionally try to authenticate
+                      by using the provided certificate and
+                      private key.
     --ssl / -s        Deprecated. Use --tls
     --ssl=cert,key    Deprecated. Use --tls=cert,key
     --config= / -c    Specify the trace configuration to use on the server
@@ -70,15 +69,22 @@ Options:
                       data. This option clears the data on the server before
                       waiting for the user to press ctrl-c and may be used
                       to get information for a known window of time.
-    --help            This help text
+)"
+#ifndef WIN32
+              << "  --no-color                     Disable colors\n"
+#endif
+              << R"(  --help                         This help text
 
 )";
 
-    std::cerr << text << std::endl;
     exit(EXIT_FAILURE);
 }
 
 int main(int argc, char** argv) {
+#ifndef WIN32
+    setTerminalColorSupport(isatty(STDERR_FILENO) && isatty(STDOUT_FILENO));
+#endif
+
     int cmd;
     std::string port;
     std::string host{"localhost"};
@@ -106,6 +112,9 @@ int main(int argc, char** argv) {
             {"config", required_argument, nullptr, 'c'},
             {"output", required_argument, nullptr, 'o'},
             {"wait", no_argument, nullptr, 'w'},
+#ifndef WIN32
+            {"no-color", no_argument, nullptr, 'n'},
+#endif
             {"help", no_argument, nullptr, 0},
             {nullptr, 0, nullptr, 0}};
 
@@ -136,22 +145,25 @@ int main(int argc, char** argv) {
             if (optarg) {
                 auto parts = split_string(optarg, ",");
                 if (parts.size() != 2) {
-                    std::cerr << "Incorrect format for --tls=certificate,key"
-                              << std::endl;
+                    std::cerr << TerminalColor::Red
+                              << "Incorrect format for --tls=certificate,key"
+                              << TerminalColor::Reset << std::endl;
                     exit(EXIT_FAILURE);
                 }
                 ssl_cert = std::move(parts.front());
                 ssl_key = std::move(parts.back());
 
                 if (!cb::io::isFile(ssl_cert)) {
-                    std::cerr << "Certificate file " << ssl_cert
-                              << " does not exists\n";
+                    std::cerr << TerminalColor::Red << "Certificate file "
+                              << ssl_cert << " does not exists"
+                              << TerminalColor::Reset << std::endl;
                     exit(EXIT_FAILURE);
                 }
 
                 if (!cb::io::isFile(ssl_key)) {
-                    std::cerr << "Private key file " << ssl_key
-                              << " does not exists\n";
+                    std::cerr << TerminalColor::Red << "Private key file "
+                              << ssl_key << " does not exists"
+                              << TerminalColor::Reset << std::endl;
                     exit(EXIT_FAILURE);
                 }
             }
@@ -164,6 +176,9 @@ int main(int argc, char** argv) {
             break;
         case 'w':
             interactive = true;
+            break;
+        case 'n':
+            setTerminalColorSupport(false);
             break;
         default:
             usage();
@@ -216,8 +231,9 @@ int main(int argc, char** argv) {
             connection.ioctl_set("trace.start", {});
         } else {
             if (connection.ioctl_get("trace.status") != "enabled") {
-                std::cerr << "Trace is not running. Specify a configuration."
-                          << std::endl;
+                std::cerr << TerminalColor::Red
+                          << "Trace is not running. Specify a configuration."
+                          << TerminalColor::Reset << std::endl;
                 exit(EXIT_FAILURE);
             }
         }
@@ -230,7 +246,11 @@ int main(int argc, char** argv) {
             // Register our SIGINT handler
             cb::console::set_sigint_handler(sigint_handler);
 
-            std::cerr << "Press CTRL-C to stop trace" << std::endl;
+            // This should be std::cout as it isn't an error, but given that
+            // the user may want the output to go to stdout we use stderr
+            // instead
+            std::cerr << TerminalColor::Yellow << "Press CTRL-C to stop trace"
+                      << TerminalColor::Reset << std::endl;
             // Wait for the trace to automatically stop or ctrl+c
             do {
                 // In the ideal world we'd use a condition variable to do this
@@ -244,10 +264,9 @@ int main(int argc, char** argv) {
         if (!output.empty() && output != "-") {
             destination = fopen(output.c_str(), "w");
             if (destination == nullptr) {
-                fprintf(stderr,
-                        R"(Failed to open "%s": %s)",
-                        output.c_str(),
-                        cb_strerror().c_str());
+                std::cerr << TerminalColor::Red << "Failed to open \"" << output
+                          << "\": " << cb_strerror() << TerminalColor::Reset
+                          << std::endl;
                 exit(EXIT_FAILURE);
             }
         }
@@ -256,7 +275,7 @@ int main(int argc, char** argv) {
         auto uuid = connection.ioctl_get("trace.dump.begin");
         const std::string chunk_key = "trace.dump.chunk?id=" + uuid;
 
-        // Print the dump to stdout
+        // Print the dump to the destination (file or stdout)
         std::string chunk;
         do {
             chunk = connection.ioctl_get(chunk_key);
@@ -271,10 +290,12 @@ int main(int argc, char** argv) {
         // Remove the dump
         connection.ioctl_set("trace.dump.clear", uuid);
     } catch (const ConnectionError& ex) {
-        std::cerr << ex.what() << std::endl;
+        std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
+                  << std::endl;
         return EXIT_FAILURE;
     } catch (const std::runtime_error& ex) {
-        std::cerr << ex.what() << std::endl;
+        std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
+                  << std::endl;
         return EXIT_FAILURE;
     }
 
