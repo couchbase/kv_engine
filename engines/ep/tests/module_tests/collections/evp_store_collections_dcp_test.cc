@@ -2459,55 +2459,206 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_EQ(producers->last_byseqno.load(), 4);
 }
 
-TEST_P(CollectionsDcpParameterizedTest,
-       seqno_advanced_backfill_from_empty_disk_snapshot_replica) {
-    VBucketPtr vb = store->getVBucket(vbid);
-    CollectionsManifest cm{};
-    setCollections(cookie,
-                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
+class MB48010CollectionsDCPParamTest : public CollectionsDcpParameterizedTest {
+public:
+    void SetUp() override;
 
-    store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "pork");
-    store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "beef");
+    void writeDocToReplica(Vbid vbid,
+                           StoredDocKey key,
+                           uint64_t seqno,
+                           bool prepare);
+};
 
-    // 2 collections + 2 mutations
-    if (persistent()) {
-        flush_vbucket_to_disk(vbid, 4);
+/**
+ * Setup to test MB-48010 in which we test that a collection filtered stream
+ * sends appropriate seqno advances if we are streaming from a replica that
+ * had a partial disk checkpoint at the time of backfill creation that had been
+ * partially expelled. We are also test that we send seqno advances as required
+ * when a:
+ *
+ * 1) snapshot end with item in collection
+ * 1) snapshot ends with different collection
+ * 2) snapshot ends with prepare
+ * 3) snapshot ends with prepare in different collection
+ */
+void MB48010CollectionsDCPParamTest::SetUp() {
+    CollectionsDcpParameterizedTest::SetUp();
+
+    // Destroys all, we don't want DCP until later (unless we're ephemeral and
+    // have to jump through some hoops to get a backfill stream going...)
+    if (isPersistent()) {
+        resetEngineAndWarmup();
     }
+
+    // Test requires a replica vbucket so we do the merging of disk/memry
     store->setVBucketState(vbid, vbucket_state_replica);
-    ensureDcpWillBackfill();
+    VBucketPtr vb = store->getVBucket(vbid);
 
-    // filter only CollectionEntry::dairy
+    // 1) Create a snapshot which we will populate as if DCP is sending messages
+    // This snapshot will cover 0 to 5
+    // It begins by creating two collections and receiving one mutation
+    // All of that is flushed and then expel is used to discard in-memory items
+    vb->checkpointManager->createSnapshot(0, 4, 0, CheckpointType::Disk, 4);
+
+    uint64_t uid = 0;
+    vb->replicaCreateCollection(Collections::ManifestUid(uid),
+                                {ScopeID::Default, CollectionEntry::dairy},
+                                "dairy",
+                                {},
+                                1);
+    vb->replicaCreateCollection(Collections::ManifestUid(++uid),
+                                {ScopeID::Default, CollectionEntry::fruit},
+                                "fruit",
+                                {},
+                                2);
+
+    // 2 collections written
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    if (ephemeral()) {
+        // Step the stream for the first two items, this is going to ensure that
+        // expel can run by having a cursor in the checkpoint (if we had none
+        // then we'd skip expel in favour of dropping the checkpoint).
+        runCheckpointProcessor();
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                      cb::engine_errc::success);
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                      cb::engine_errc::success);
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                      cb::engine_errc::success);
+    }
+
+    // IMPORTANT: Run expel so that some flushed items are removed from memory
+    // The DCP stream has to run a backfill for the snapshot
+    auto expel = vb->checkpointManager->expelUnreferencedCheckpointItems();
+    EXPECT_NE(0, expel.expelCount);
+
+    if (ephemeral()) {
+        // Nuke the dcp stuff without restart - which would break the test for
+        // ephemeral as the items would go away.
+        teardown();
+        cookieC = create_mock_cookie();
+        cookieP = create_mock_cookie();
+    }
+
+    // Stream the dairy collection only
     createDcpObjects({{R"({"collections":["c"]})"}});
+    producers->consumer = nullptr; // don't need the consumer
+    auto vb0Stream = producer->findStream(Vbid(0));
+    ASSERT_NE(nullptr, vb0Stream.get());
 
+    // Now we drive the stream and finish the snapshot
+    // First chunk of data comes from backfilling
+    EXPECT_TRUE(vb0Stream->isBackfilling());
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
     EXPECT_EQ(0, producers->last_snap_start_seqno);
     EXPECT_EQ(4, producers->last_snap_end_seqno);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
                   cb::engine_errc::success);
 
-    EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
-                  cb::engine_errc::success);
-    EXPECT_EQ(producers->last_byseqno.load(), 4);
+    // At this point ActiveStream::readyQ is empty - the buggy code would use
+    // that as part of the condition for sending a seqno-advance, yet it has
+    // no bearing on the snapshot
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->stepWithBorderGuard(*producers));
 
-    // progress the stream with 'replicated' items for a different collection to
-    // the filtered stream
-    auto item = make_item(
-            vbid, makeStoredDocKey("key1", CollectionEntry::meat), "value");
+    // Seqno 3 is not part of the stream
+    writeDocToReplica(vbid,
+                      makeStoredDocKey("k1", CollectionEntry::fruit.getId()),
+                      3,
+                      false);
+    notifyAndRunToCheckpoint(*producer, *producers, true);
+
+    // Before fix we got a seqno advance here, but nothing should be sent
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->stepWithBorderGuard(*producers));
+}
+
+void MB48010CollectionsDCPParamTest::writeDocToReplica(Vbid vbid,
+                                                       StoredDocKey key,
+                                                       uint64_t seqno,
+                                                       bool prepare) {
+    auto item = make_item(vbid, key, "value");
     item.setCas(1);
-    uint64_t seqno;
-    EXPECT_EQ(cb::engine_errc::success,
-              store->setWithMeta(std::ref(item),
-                                 0,
-                                 &seqno,
-                                 cookie,
-                                 {vbucket_state_replica},
-                                 CheckConflicts::No,
-                                 /*allowExisting*/ true));
+    item.setBySeqno(seqno);
+    uint64_t seq = 0;
 
-    // Nothing on this stream, prior to MB-47534 seqno advance would keep
-    // triggering
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid);
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    if (!prepare) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->setWithMeta(std::ref(item),
+                                  0,
+                                  &seq,
+                                  cookie,
+                                  *engine,
+                                  CheckConflicts::No,
+                                  /*allowExisting*/ true,
+                                  GenerateBySeqno::No,
+                                  GenerateCas::No,
+                                  vb->lockCollections(key)));
+        return;
+    }
+
+    using namespace cb::durability;
+    item.setPendingSyncWrite(
+            Requirements{Level::Majority, Timeout::Infinity()});
+    EXPECT_EQ(cb::engine_errc::success,
+              vb->prepare(std::ref(item),
+                          0,
+                          &seq,
+                          cookie,
+                          *engine,
+                          CheckConflicts::No,
+                          /*allowExisting*/ true,
+                          GenerateBySeqno::No,
+                          GenerateCas::No,
+                          vb->lockCollections(key)));
+}
+
+TEST_P(MB48010CollectionsDCPParamTest,
+       replica_merged_snapshot_ends_on_mutation) {
+    writeDocToReplica(vbid,
+                      makeStoredDocKey("k1", CollectionEntry::dairy.getId()),
+                      4,
+                      false);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ(4, producers->last_byseqno);
+}
+
+TEST_P(MB48010CollectionsDCPParamTest,
+       replica_merged_snapshot_ends_on_non_collection_mutation) {
+    writeDocToReplica(vbid,
+                      makeStoredDocKey("k1", CollectionEntry::fruit.getId()),
+                      4,
+                      false);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced);
+    EXPECT_EQ(4, producers->last_byseqno);
+}
+
+TEST_P(MB48010CollectionsDCPParamTest,
+       replica_merged_snapshot_ends_on_prepare) {
+    writeDocToReplica(vbid,
+                      makeStoredDocKey("k1", CollectionEntry::dairy.getId()),
+                      4,
+                      true);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced);
+    EXPECT_EQ(4, producers->last_byseqno);
+}
+
+TEST_P(MB48010CollectionsDCPParamTest,
+       replica_merged_snapshot_ends_on_non_collection_prepare) {
+    writeDocToReplica(vbid,
+                      makeStoredDocKey("k1", CollectionEntry::fruit.getId()),
+                      4,
+                      true);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced);
+    EXPECT_EQ(4, producers->last_byseqno);
 }
 
 TEST_P(CollectionsDcpParameterizedTest,
@@ -3593,4 +3744,9 @@ INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpPersistentOnly,
                          STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
+                         MB48010CollectionsDCPParamTest,
+                         STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
