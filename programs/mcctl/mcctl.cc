@@ -11,6 +11,7 @@
 /* mcctl - Utility program to perform IOCTL-style operations on a memcached
  *         process.
  */
+#include <folly/portability/Unistd.h>
 #include <getopt.h>
 #include <memcached/protocol_binary.h>
 #include <platform/dirutils.h>
@@ -19,6 +20,7 @@
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/string_utilities.h>
+#include <utilities/terminal_color.h>
 #include <utilities/terminate_handler.h>
 #include <cstdio>
 #include <cstdlib>
@@ -37,7 +39,9 @@ static int get_verbosity(MemcachedConnection& connection) {
     if (stats) {
         auto verbosity = stats.find("verbosity");
         if (verbosity == stats.end()) {
-            std::cerr << "Verbosity not returned from the server" << std::endl;
+            std::cerr << TerminalColor::Red
+                      << "Verbosity not returned from the server"
+                      << TerminalColor::Reset << std::endl;
             return EXIT_FAILURE;
         } else if (verbosity->type() ==
                    nlohmann::json::value_t::number_integer) {
@@ -53,14 +57,18 @@ static int get_verbosity(MemcachedConnection& connection) {
             if (numVerbosity > -1 && numVerbosity < 4) {
                 ptr = levels[numVerbosity];
             }
-            std::cerr << ptr << std::endl;
+            std::cout << ptr << std::endl;
         } else {
-            std::cerr << "Invalid object type returned from the server: "
-                      << verbosity->type_name() << std::endl;
+            std::cerr << TerminalColor::Red
+                      << "Invalid object type returned from the server: "
+                      << verbosity->type_name() << TerminalColor::Reset
+                      << std::endl;
             return EXIT_FAILURE;
         }
     } else {
-        std::cerr << "Settings stats not returned from the server" << std::endl;
+        std::cerr << TerminalColor::Red
+                  << "Settings stats not returned from the server"
+                  << TerminalColor::Reset << std::endl;
         return EXIT_FAILURE;
     }
 
@@ -105,8 +113,9 @@ static int set_verbosity(MemcachedConnection& connection,
     if (resp.isSuccess()) {
         return EXIT_SUCCESS;
     } else {
-        std::cerr << "Command failed: " << to_string(resp.getStatus())
-                  << std::endl;
+        std::cerr << TerminalColor::Red
+                  << "Command failed: " << to_string(resp.getStatus())
+                  << TerminalColor::Reset << std::endl;
         return EXIT_FAILURE;
     }
 }
@@ -130,7 +139,11 @@ Options:
   -C or --ssl-cert filename      Deprecated. Use --tls=[cert,key]
   -4 or --ipv4                   Connect over IPv4
   -6 or --ipv6                   Connect over IPv6
-  --help                         This help text
+)"
+#ifndef WIN32
+              << "  --no-color                     Disable colors\n"
+#endif
+              << R"("  --help                         This help text
 
 Commands:
 
@@ -146,6 +159,9 @@ Commands:
 int main(int argc, char** argv) {
     // Make sure that we dump callstacks on the console
     install_backtrace_terminate_handler();
+#ifndef WIN32
+    setTerminalColorSupport(isatty(STDERR_FILENO) && isatty(STDOUT_FILENO));
+#endif
 
     int cmd;
     std::string port;
@@ -174,6 +190,9 @@ int main(int argc, char** argv) {
             {"ssl", no_argument, nullptr, 's'},
             {"ssl-cert", required_argument, nullptr, 'C'},
             {"ssl-key", required_argument, nullptr, 'K'},
+#ifndef WIN32
+            {"no-color", no_argument, nullptr, 'n'},
+#endif
             {"help", no_argument, nullptr, 0},
             {nullptr, 0, nullptr, 0}};
 
@@ -218,25 +237,31 @@ int main(int argc, char** argv) {
             if (optarg) {
                 auto parts = split_string(optarg, ",");
                 if (parts.size() != 2) {
-                    std::cerr << "Incorrect format for --tls=certificate,key"
-                              << std::endl;
+                    std::cerr << TerminalColor::Red
+                              << "Incorrect format for --tls=certificate,key"
+                              << TerminalColor::Reset << std::endl;
                     exit(EXIT_FAILURE);
                 }
                 ssl_cert = std::move(parts.front());
                 ssl_key = std::move(parts.back());
 
                 if (!cb::io::isFile(ssl_cert)) {
-                    std::cerr << "Certificate file " << ssl_cert
-                              << " does not exists\n";
+                    std::cerr << TerminalColor::Red << "Certificate file "
+                              << ssl_cert << " does not exists"
+                              << TerminalColor::Reset << std::endl;
                     exit(EXIT_FAILURE);
                 }
 
                 if (!cb::io::isFile(ssl_key)) {
-                    std::cerr << "Private key file " << ssl_key
-                              << " does not exists\n";
+                    std::cerr << TerminalColor::Red << "Private key file "
+                              << ssl_key << " does not exists"
+                              << TerminalColor::Reset << std::endl;
                     exit(EXIT_FAILURE);
                 }
             }
+            break;
+        case 'n':
+            setTerminalColorSupport(false);
             break;
         default:
             usage();
@@ -258,7 +283,8 @@ int main(int argc, char** argv) {
 
     std::string command{argv[optind]};
     if (command != "get" && command != "set" && command != "reload") {
-        fprintf(stderr, "Unknown subcommand \"%s\"\n", argv[optind]);
+        std::cerr << TerminalColor::Red << "Unknown subcommand \""
+                  << argv[optind] << "\"" << TerminalColor::Reset << std::endl;
         usage();
     }
 
@@ -332,38 +358,45 @@ int main(int argc, char** argv) {
                 auto response =
                         connection.execute(BinprotConfigReloadCommand{});
                 if (!response.isSuccess()) {
-                    std::cerr << "Failed: " << to_string(response.getStatus())
-                              << std::endl;
+                    std::cerr << TerminalColor::Red
+                              << "Failed: " << to_string(response.getStatus());
                     if (!response.getDataString().empty()) {
-                        std::cerr << "\t" << response.getDataString()
-                                  << std::endl;
+                        std::cerr << std::endl
+                                  << "\t" << response.getDataString();
                     }
+                    std::cerr << TerminalColor::Reset << std::endl;
                     return EXIT_FAILURE;
                 }
             } else if (property == "sasl") {
                 auto response =
                         connection.execute(BinprotIsaslRefreshCommand{});
                 if (!response.isSuccess()) {
-                    std::cerr << "Failed: " << to_string(response.getStatus())
-                              << std::endl;
+                    std::cerr << TerminalColor::Red
+                              << "Failed: " << to_string(response.getStatus());
+
                     if (!response.getDataString().empty()) {
-                        std::cerr << "\t" << response.getDataString()
-                                  << std::endl;
+                        std::cerr << std::endl
+                                  << "\t" << response.getDataString();
                     }
+                    std::cerr << TerminalColor::Reset << std::endl;
+
                     return EXIT_FAILURE;
                 }
             } else {
                 std::cerr
+                        << TerminalColor::Red
                         << R"(Error: Unknown property. The only supported properties is "config" or "sasl")"
-                        << std::endl;
+                        << TerminalColor::Reset << std::endl;
                 return EXIT_FAILURE;
             }
         }
     } catch (const ConnectionError& ex) {
-        std::cerr << ex.what() << std::endl;
+        std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
+                  << std::endl;
         return EXIT_FAILURE;
     } catch (const std::runtime_error& ex) {
-        std::cerr << ex.what() << std::endl;
+        std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
+                  << std::endl;
         return EXIT_FAILURE;
     }
 
