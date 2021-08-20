@@ -636,8 +636,75 @@ void NexusKVStore::delVBucket(Vbid vbucket, uint64_t fileRev) {
     secondary->delVBucket(vbucket, fileRev);
 }
 
+bool NexusKVStore::compareVBucketState(vbucket_state primaryVbState,
+                                       vbucket_state secondaryVbState) const {
+    if (!getStorageProperties().hasPrepareCounting()) {
+        // Can't compare prepare counts so zero them out
+        primaryVbState.onDiskPrepares = 0;
+        secondaryVbState.onDiskPrepares = 0;
+        primaryVbState.setOnDiskPrepareBytes(0);
+        secondaryVbState.setOnDiskPrepareBytes(0);
+    }
+
+    return primaryVbState == secondaryVbState;
+}
+
 std::vector<vbucket_state*> NexusKVStore::listPersistedVbuckets() {
-    return primary->listPersistedVbuckets();
+    auto primaryVbStates = primary->listPersistedVbuckets();
+    auto secondaryVbStates = secondary->listPersistedVbuckets();
+
+    // listPersistedVbuckets returns the array of cached vbucket states (as that
+    // should be populated with what's on disk). cachedVbucketStates is sized
+    // such that it only tracks the vBuckets a shard cares about (i.e. max
+    // vBuckets / max shards). Were one KVStore to return too many or too few
+    // vBuckets then we'd have messed up the construction. To map the vector
+    // index to vbid we have to multiply by max shards and add the shard id.
+    // Should the sizes be different here then that implies that vBuckets
+    // returned are entirely un-comparable and there's not much point printing
+    // them because somthing fundamental has gone wrong.
+    if (primaryVbStates.size() != secondaryVbStates.size()) {
+        auto msg = fmt::format(
+                "NexusKVStore::listPersistedVbuckets: size of "
+                "listPersistedVbuckets not equal primary: {} "
+                "secondary:{} shard id:{} max shards:{}",
+                primaryVbStates.size(),
+                secondaryVbStates.size(),
+                configuration.getShardId(),
+                configuration.getMaxShards());
+        handleError(msg);
+
+        // This isn't comparable, just return.
+        return primaryVbStates;
+    }
+
+    for (size_t i = 0; i < primaryVbStates.size(); i++) {
+        Vbid vbid = Vbid(i * configuration.getMaxShards() +
+                         configuration.getShardId());
+        if (primaryVbStates[i] == nullptr || secondaryVbStates[i] == nullptr) {
+            if (primaryVbStates[i] != secondaryVbStates[i]) {
+                auto msg = fmt::format(
+                        "NexusKVStore::listPersistedVbuckets: {} "
+                        "vbucket state found primary:{} secondary:{}",
+                        vbid,
+                        primaryVbStates[i] != nullptr,
+                        secondaryVbStates[i] != nullptr);
+                handleError(msg);
+            }
+            continue;
+        }
+
+        if (!compareVBucketState(*primaryVbStates[i], *secondaryVbStates[i])) {
+            auto msg = fmt::format(
+                    "NexusKVStore::listPersistedVbuckets: {} "
+                    "vbucket state not equal primary:{} secondary:{}",
+                    vbid,
+                    *primaryVbStates[i],
+                    *secondaryVbStates[i]);
+            handleError(msg);
+        }
+    }
+
+    return primaryVbStates;
 }
 
 bool NexusKVStore::snapshotVBucket(Vbid vbucketId,
@@ -666,7 +733,7 @@ bool NexusKVStore::snapshotVBucket(Vbid vbucketId,
         secondaryVbState.setOnDiskPrepareBytes(0);
     }
 
-    if (primaryVbState != secondaryVbState) {
+    if (!compareVBucketState(primaryVbState, secondaryVbState)) {
         auto msg = fmt::format(
                 "NexusKVStore::snapshotVBucket: {} difference in vbstate "
                 "primary:{} secondary:{}",
