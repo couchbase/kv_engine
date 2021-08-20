@@ -126,6 +126,28 @@ public:
         available -= nb;
     }
 
+    void handlePotentialNetworkException() {
+        if (exception) {
+            if (exception->getType() ==
+                folly::AsyncSocketException::NETWORK_ERROR) {
+#ifdef WIN32
+                // To make it easier to write code on top of this treat
+                // the windows specific WSAECONNABORTED as reset
+                if (exception->getErrno() == WSAECONNABORTED) {
+                    throw std::system_error(
+                            std::make_error_code(std::errc::connection_reset),
+                            "EOF");
+                }
+#endif
+                throw std::system_error(exception->getErrno(),
+                                        std::system_category(),
+                                        "network error");
+            }
+
+            throw *exception;
+        }
+    }
+
     /// Set to true once we see EOF
     bool eof = false;
     /// Contains the exception if we encountered a read error
@@ -557,6 +579,33 @@ public:
         base.terminateLoopSoon();
     }
 
+    void handlePotentialNetworkException() {
+        if (exception) {
+            if (exception->getType() ==
+                folly::AsyncSocketException::END_OF_FILE) {
+                throw std::system_error(
+                        std::make_error_code(std::errc::connection_reset),
+                        "network error");
+            }
+            if (exception->getType() ==
+                folly::AsyncSocketException::NETWORK_ERROR) {
+#ifdef WIN32
+                // To make it easier to write code on top of this treat
+                // the windows specific WSAECONNABORTED as reset
+                if (exception->getErrno() == WSAECONNABORTED) {
+                    throw std::system_error(
+                            std::make_error_code(std::errc::connection_reset),
+                            "EOF");
+                }
+#endif
+                throw std::system_error(exception->getErrno(),
+                                        std::system_category(),
+                                        "network error");
+            }
+            throw *exception;
+        }
+    }
+
     folly::EventBase& base;
     std::optional<folly::AsyncSocketException> exception;
 };
@@ -576,21 +625,7 @@ void MemcachedConnection::sendBuffer(const std::vector<iovec>& list) {
                     "event "
                     "pump");
         }
-        if (writeCallback.exception) {
-            if (writeCallback.exception->getType() ==
-                folly::AsyncSocketException::END_OF_FILE) {
-                throw std::system_error(
-                        std::make_error_code(std::errc::connection_reset),
-                        "network error");
-            }
-            if (writeCallback.exception->getType() ==
-                folly::AsyncSocketException::NETWORK_ERROR) {
-                throw std::system_error(writeCallback.exception->getErrno(),
-                                        std::system_category(),
-                                        "network error");
-            }
-            throw *writeCallback.exception;
-        }
+        writeCallback.handlePotentialNetworkException();
     }
 }
 
@@ -611,21 +646,7 @@ void MemcachedConnection::sendBuffer(cb::const_byte_buffer buf) {
                 "MemcachedConnection::sendBuffer(): Failed running the event "
                 "pump");
     }
-    if (writeCallback.exception) {
-        if (writeCallback.exception->getType() ==
-            folly::AsyncSocketException::END_OF_FILE) {
-            throw std::system_error(
-                    std::make_error_code(std::errc::connection_reset),
-                    "network error");
-        }
-        if (writeCallback.exception->getType() ==
-            folly::AsyncSocketException::NETWORK_ERROR) {
-            throw std::system_error(writeCallback.exception->getErrno(),
-                                    std::system_category(),
-                                    "network error");
-        }
-        throw *writeCallback.exception;
-    }
+    writeCallback.handlePotentialNetworkException();
 }
 
 void MemcachedConnection::sendPartialFrame(Frame& frame,
@@ -739,17 +760,7 @@ void MemcachedConnection::recvFrame(Frame& frame,
             throw std::system_error(
                     std::make_error_code(std::errc::connection_reset), "EOF");
         }
-        if (asyncReadCallback->exception) {
-            if (asyncReadCallback->exception->getType() ==
-                folly::AsyncSocketException::NETWORK_ERROR) {
-                throw std::system_error(
-                        asyncReadCallback->exception->getErrno(),
-                        std::system_category(),
-                        "network error");
-            }
-
-            throw *asyncReadCallback->exception;
-        }
+        asyncReadCallback->handlePotentialNetworkException();
 
         // Create a timeout
         class Timeout : public folly::AsyncTimeout {
@@ -802,10 +813,7 @@ void MemcachedConnection::recvFrame(Frame& frame,
             throw std::system_error(
                     std::make_error_code(std::errc::connection_reset), "EOF");
         }
-        if (asyncReadCallback->exception) {
-            throw *asyncReadCallback->exception;
-        }
-
+        asyncReadCallback->handlePotentialNetworkException();
         throw std::runtime_error(
                 "MemcachedConnection::recvFrame: Failed to fetch next frame");
     }
