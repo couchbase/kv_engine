@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <folly/portability/Unistd.h>
 #include <getopt.h>
 #include <platform/dirutils.h>
 #include <programs/getpass.h>
@@ -15,6 +16,7 @@
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/frameinfo.h>
 #include <utilities/string_utilities.h>
+#include <utilities/terminal_color.h>
 #include <utilities/terminate_handler.h>
 #include <iostream>
 
@@ -52,7 +54,8 @@ static void request_stat(MemcachedConnection& connection,
                     getFrameInfos);
         }
     } catch (const ConnectionError& ex) {
-        std::cerr << ex.what() << std::endl;
+        std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
+                  << std::endl;
     }
 }
 
@@ -83,7 +86,11 @@ Options:
   -J or --json=pretty            Print result in JSON (formatted)
   -I or --impersonate username   Try to impersonate the specified user
   -a or --all-buckets            Iterate buckets that list bucket returns
-  --help                         This help text
+)"
+#ifndef WIN32
+              << "  --no-color                     Disable colors\n"
+#endif
+              << R"(  --help                         This help text
   statkey ...  Statistic(s) to request
 )";
 
@@ -93,6 +100,9 @@ Options:
 int main(int argc, char** argv) {
     // Make sure that we dump callstacks on the console
     install_backtrace_terminate_handler();
+#ifndef WIN32
+    setTerminalColorSupport(isatty(STDERR_FILENO) && isatty(STDOUT_FILENO));
+#endif
 
     int cmd;
     std::string port;
@@ -126,6 +136,9 @@ int main(int argc, char** argv) {
             {"impersonate", required_argument, nullptr, 'I'},
             {"json", optional_argument, nullptr, 'j'},
             {"all-buckets", no_argument, nullptr, 'a'},
+#ifndef WIN32
+            {"no-color", no_argument, nullptr, 'n'},
+#endif
             {"help", no_argument, nullptr, 0},
             {nullptr, 0, nullptr, 0}};
 
@@ -158,8 +171,9 @@ int main(int argc, char** argv) {
             break;
         case 'S':
             // Deprecated and not shown in the help text
-            std::cerr << "mcstat: -S is deprecated. Use \'-P -\" instead"
-                      << std::endl;
+            std::cerr << TerminalColor::Yellow
+                      << R"(mcstat: -S is deprecated. Use "-P -" instead)"
+                      << TerminalColor::Reset << std::endl;
             password.assign(getpass());
             break;
         case 's':
@@ -183,6 +197,9 @@ int main(int argc, char** argv) {
         case 'I':
             impersonate.assign(optarg);
             break;
+        case 'n':
+            setTerminalColorSupport(false);
+            break;
         case 'a':
             allBuckets = true;
             break;
@@ -191,22 +208,25 @@ int main(int argc, char** argv) {
             if (optarg) {
                 auto parts = split_string(optarg, ",");
                 if (parts.size() != 2) {
-                    std::cerr << "Incorrect format for --tls=certificate,key"
-                              << std::endl;
+                    std::cerr << TerminalColor::Red
+                              << "Incorrect format for --tls=certificate,key"
+                              << TerminalColor::Reset << std::endl;
                     exit(EXIT_FAILURE);
                 }
                 ssl_cert = std::move(parts.front());
                 ssl_key = std::move(parts.back());
 
                 if (!cb::io::isFile(ssl_cert)) {
-                    std::cerr << "Certificate file " << ssl_cert
-                              << " does not exists\n";
+                    std::cerr << TerminalColor::Red << "Certificate file "
+                              << ssl_cert << " does not exists"
+                              << TerminalColor::Reset << std::endl;
                     exit(EXIT_FAILURE);
                 }
 
                 if (!cb::io::isFile(ssl_key)) {
-                    std::cerr << "Private key file " << ssl_key
-                              << " does not exists\n";
+                    std::cerr << TerminalColor::Red << "Private key file "
+                              << ssl_key << " does not exists"
+                              << TerminalColor::Reset << std::endl;
                     exit(EXIT_FAILURE);
                 }
             }
@@ -218,8 +238,9 @@ int main(int argc, char** argv) {
     }
 
     if (allBuckets && !buckets.empty()) {
-        std::cerr << "Cannot use both bucket and all-buckets options\n";
-        usage();
+        std::cerr << TerminalColor::Red
+                  << "Cannot use both bucket and all-buckets options"
+                  << TerminalColor::Reset << std::endl;
         return EXIT_FAILURE;
     }
 
@@ -249,14 +270,14 @@ int main(int argc, char** argv) {
 
         connection.connect();
 
-        // MEMCACHED_VERSION contains the git sha
-        connection.setAgentName("mcstat " MEMCACHED_VERSION);
-        connection.setFeatures({cb::mcbp::Feature::XERROR});
-
         if (!user.empty()) {
             connection.authenticate(user, password,
                                     connection.getSaslMechanisms());
         }
+
+        // MEMCACHED_VERSION contains the git sha
+        connection.setAgentName("mcstat " MEMCACHED_VERSION);
+        connection.setFeatures({cb::mcbp::Feature::XERROR});
 
         if (allBuckets) {
             buckets = connection.listBuckets();
@@ -269,8 +290,10 @@ int main(int argc, char** argv) {
                 // When all buckets is enabled, clone what cbstats does
                 if (allBuckets) {
                     static std::string bucketSeparator(78, '*');
-                    std::cout << bucketSeparator << std::endl;
-                    std::cout << *bucketItr << std::endl << std::endl;
+                    std::cout << TerminalColor::Green << bucketSeparator
+                              << std::endl
+                              << *bucketItr << TerminalColor::Reset << std::endl
+                              << std::endl;
                 }
                 connection.selectBucket(*bucketItr);
                 bucketItr++;
@@ -287,10 +310,12 @@ int main(int argc, char** argv) {
         } while (bucketItr != buckets.end());
 
     } catch (const ConnectionError& ex) {
-        std::cerr << ex.what() << std::endl;
+        std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
+                  << std::endl;
         return EXIT_FAILURE;
     } catch (const std::runtime_error& ex) {
-        std::cerr << ex.what() << std::endl;
+        std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
+                  << std::endl;
         return EXIT_FAILURE;
     }
 
