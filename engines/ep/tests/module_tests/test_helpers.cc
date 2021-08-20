@@ -16,6 +16,7 @@
 #include "item.h"
 #include "vbucket.h"
 
+#include <boost/filesystem.hpp>
 #include <folly/portability/GTest.h>
 #include <libcouchstore/couch_db.h>
 #include <nlohmann/json.hpp>
@@ -291,12 +292,24 @@ std::string dbnameFromCurrentGTestInfo() {
 }
 
 void removePathIfExists(const std::string& path) {
-    try {
-        cb::io::rmrf(path);
-    } catch (std::system_error& e) {
-        if (e.code() != std::error_code(ENOENT, std::system_category())) {
-            throw e;
+    boost::filesystem::path p(path);
+    if (exists(p)) {
+        // try a few times while backing off in case someone else holds
+        // the resource open (and thats the reason why we fail to remove
+        // the file.
+        for (int ii = 0; ii < 20; ++ii) {
+            try {
+                boost::filesystem::remove_all(p);
+                return;
+            } catch (const std::exception& e) {
+                std::cerr << "Failed to remove: " << p.generic_string() << ": "
+                          << e.what() << std::endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds{20});
+            }
         }
+
+        // Try a final time and this time we'll throw an exception
+        boost::filesystem::remove_all(p);
     }
 }
 
