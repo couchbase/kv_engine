@@ -620,7 +620,7 @@ public:
      */
     virtual void scheduleVBStatePersist(Vbid vbid) = 0;
 
-    virtual const VBucketMap &getVBuckets() = 0;
+    virtual const VBucketMap& getVBuckets() const = 0;
 
     virtual EventuallyPersistentEngine& getEPEngine() = 0;
     virtual const EventuallyPersistentEngine& getEPEngine() const = 0;

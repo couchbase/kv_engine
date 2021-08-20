@@ -92,57 +92,67 @@ ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
     return std::make_pair(true, amountOfMemoryToClear);
 }
 
-size_t ClosedUnrefCheckpointRemoverTask::attemptMemoryRecovery(
-        MemoryRecoveryMechanism mechanism, size_t amountOfMemoryToClear) {
+size_t ClosedUnrefCheckpointRemoverTask::attemptItemExpelling(
+        size_t memToClear) {
     size_t memoryCleared = 0;
-    KVBucketIface* kvBucket = engine->getKVBucket();
-    // Get a list of vbuckets sorted by memory usage
-    // of their respective checkpoint managers.
-    auto vbuckets = kvBucket->getVBuckets().getVBucketsSortedByChkMgrMem();
+    auto& kvBucket = *engine->getKVBucket();
+    const auto vbuckets = kvBucket.getVBuckets().getVBucketsSortedByChkMgrMem();
     for (const auto& it : vbuckets) {
-        if (memoryCleared >= amountOfMemoryToClear) {
+        if (memoryCleared >= memToClear) {
             break;
         }
-        Vbid vbid = it.first;
-        VBucketPtr vb = kvBucket->getVBucket(vbid);
+        const auto vbid = it.first;
+        VBucketPtr vb = kvBucket.getVBucket(vbid);
         if (!vb) {
             continue;
         }
-        switch (mechanism) {
-        case MemoryRecoveryMechanism::checkpointExpel: {
-            auto expelResult =
-                    vb->checkpointManager->expelUnreferencedCheckpointItems();
-            EP_LOG_DEBUG(
-                    "Expelled {} unreferenced checkpoint items "
-                    "from {} "
-                    "and estimated to have recovered {} bytes.",
-                    expelResult.expelCount,
-                    vb->getId(),
-                    expelResult.estimateOfFreeMemory);
-            memoryCleared += expelResult.estimateOfFreeMemory;
+
+        const auto expelResult =
+                vb->checkpointManager->expelUnreferencedCheckpointItems();
+        EP_LOG_DEBUG(
+                "Expelled {} unreferenced checkpoint items "
+                "from {} "
+                "and estimated to have recovered {} bytes.",
+                expelResult.expelCount,
+                vb->getId(),
+                expelResult.estimateOfFreeMemory);
+        memoryCleared += expelResult.estimateOfFreeMemory;
+    }
+    return memoryCleared;
+}
+
+size_t ClosedUnrefCheckpointRemoverTask::attemptCursorDropping(
+        size_t memToClear) {
+    size_t memoryCleared = 0;
+    auto& kvBucket = *engine->getKVBucket();
+    const auto vbuckets = kvBucket.getVBuckets().getVBucketsSortedByChkMgrMem();
+    for (const auto& it : vbuckets) {
+        if (memoryCleared >= memToClear) {
             break;
         }
-        case MemoryRecoveryMechanism::cursorDrop: {
-            // Get a list of cursors that can be dropped from the
-            // vbucket's checkpoint manager, so as to unreference
-            // an estimated number of checkpoints.
-            auto cursors = vb->checkpointManager->getListOfCursorsToDrop();
-            for (const auto& cursor : cursors) {
-                if (memoryCleared < amountOfMemoryToClear) {
-                    if (engine->getDcpConnMap().handleSlowStream(
-                                vbid, cursor.lock().get())) {
-                        auto memoryFreed =
-                                vb->getChkMgrMemUsageOfUnrefCheckpoints();
-                        ++stats.cursorsDropped;
-                        stats.cursorMemoryFreed += memoryFreed;
-                        memoryCleared += memoryFreed;
-                    }
-                } else { // memoryCleared >= amountOfMemoryToClear
-                    break;
-                }
+        const auto vbid = it.first;
+        VBucketPtr vb = kvBucket.getVBucket(vbid);
+        if (!vb) {
+            continue;
+        }
+
+        // Get a list of cursors that can be dropped from the vbucket's CM, so
+        // as to unreference an estimated number of checkpoints.
+        const auto cursors = vb->checkpointManager->getListOfCursorsToDrop();
+        for (const auto& cursor : cursors) {
+            if (memoryCleared >= memToClear) {
+                break;
             }
-        } // case cursorDrop
-        } // switch (mechanism)
+
+            if (engine->getDcpConnMap().handleSlowStream(vbid,
+                                                         cursor.lock().get())) {
+                const auto memoryFreed =
+                        vb->getChkMgrMemUsageOfUnrefCheckpoints();
+                ++stats.cursorsDropped;
+                stats.cursorMemoryFreed += memoryFreed;
+                memoryCleared += memoryFreed;
+            }
+        }
     }
     return memoryCleared;
 }
@@ -157,27 +167,23 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
     }
 
     bool shouldReduceMemory{false};
-    size_t amountOfMemoryToClear{0};
-    size_t amountOfMemoryRecovered{0};
+    size_t memToClear{0};
+    size_t memRecovered{0};
 
-    std::tie(shouldReduceMemory, amountOfMemoryToClear) =
+    std::tie(shouldReduceMemory, memToClear) =
             isReductionInCheckpointMemoryNeeded();
     if (shouldReduceMemory) {
         // Try expelling first, if enabled
         if (engine->getConfiguration().isChkExpelEnabled()) {
-            amountOfMemoryRecovered = attemptMemoryRecovery(
-                    MemoryRecoveryMechanism::checkpointExpel,
-                    amountOfMemoryToClear);
+            memRecovered = attemptItemExpelling(memToClear);
         }
         // If still need to recover more memory, drop cursors
-        if (amountOfMemoryToClear > amountOfMemoryRecovered) {
-            attemptMemoryRecovery(
-                    MemoryRecoveryMechanism::cursorDrop,
-                    amountOfMemoryToClear - amountOfMemoryRecovered);
+        if (memToClear > memRecovered) {
+            attemptCursorDropping(memToClear - memRecovered);
         }
     }
-    KVBucketIface* kvBucket = engine->getKVBucket();
 
+    KVBucketIface* kvBucket = engine->getKVBucket();
     auto pv = std::make_unique<CheckpointVisitor>(kvBucket, stats, available);
 
     // Note: Empirical evidence from perf runs shows that 99.9% of "Checkpoint

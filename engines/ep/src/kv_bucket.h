@@ -448,7 +448,7 @@ public:
 
     void scheduleVBStatePersist(Vbid vbid) override;
 
-    const VBucketMap &getVBuckets() override {
+    const VBucketMap& getVBuckets() const override {
         return vbMap;
     }
 
