@@ -160,7 +160,8 @@ protected:
      */
     class MetaDataV0 {
     public:
-        MetaDataV0() = default;
+        MetaDataV0() : deleted(0), deleteSource(0) {
+        }
 
         static std::pair<MetaDataV0, std::string_view> parse(
                 std::string_view buf) {
@@ -173,7 +174,7 @@ protected:
             return {v, buf};
         }
 
-        int64_t bySeqno = 0;
+        cb::uint48_t bySeqno = 0;
         uint64_t cas = 0;
         cb::uint48_t revSeqno = 0;
         uint32_t exptime = 0;
@@ -185,7 +186,7 @@ protected:
         uint8_t deleteSource : 1;
     };
 
-    static_assert(sizeof(MetaDataV0) == 38,
+    static_assert(sizeof(MetaDataV0) == 36,
                   "magmakv::MetaDataV0 is not the expected size.");
 
     /**
@@ -244,6 +245,6 @@ protected:
 };
 #pragma pack()
 
-static_assert(sizeof(MetaData) == 45,
+static_assert(sizeof(MetaData) == 43,
               "magmakv::MetaData is not the expected size.");
 } // namespace magmakv
