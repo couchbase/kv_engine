@@ -562,7 +562,7 @@ public:
 };
 
 void MemcachedConnection::sendBuffer(const std::vector<iovec>& list) {
-    if (packet_dump || true) {
+    if (packet_dump) {
         for (const auto& entry : list) {
             sendBuffer({reinterpret_cast<const uint8_t*>(entry.iov_base),
                         entry.iov_len});
@@ -579,9 +579,9 @@ void MemcachedConnection::sendBuffer(const std::vector<iovec>& list) {
         if (writeCallback.exception) {
             if (writeCallback.exception->getType() ==
                 folly::AsyncSocketException::END_OF_FILE) {
-                throw std::system_error(int(std::errc::connection_reset),
-                                        std::system_category(),
-                                        "network error");
+                throw std::system_error(
+                        std::make_error_code(std::errc::connection_reset),
+                        "network error");
             }
             if (writeCallback.exception->getType() ==
                 folly::AsyncSocketException::NETWORK_ERROR) {
@@ -612,6 +612,18 @@ void MemcachedConnection::sendBuffer(cb::const_byte_buffer buf) {
                 "pump");
     }
     if (writeCallback.exception) {
+        if (writeCallback.exception->getType() ==
+            folly::AsyncSocketException::END_OF_FILE) {
+            throw std::system_error(
+                    std::make_error_code(std::errc::connection_reset),
+                    "network error");
+        }
+        if (writeCallback.exception->getType() ==
+            folly::AsyncSocketException::NETWORK_ERROR) {
+            throw std::system_error(writeCallback.exception->getErrno(),
+                                    std::system_category(),
+                                    "network error");
+        }
         throw *writeCallback.exception;
     }
 }
@@ -724,11 +736,18 @@ void MemcachedConnection::recvFrame(Frame& frame,
 
     if (!asyncReadCallback->getNextFrame()) {
         if (asyncReadCallback->eof) {
-            throw std::system_error(int(std::errc::connection_reset),
-                                    std::system_category(),
-                                    "EOF");
+            throw std::system_error(
+                    std::make_error_code(std::errc::connection_reset), "EOF");
         }
         if (asyncReadCallback->exception) {
+            if (asyncReadCallback->exception->getType() ==
+                folly::AsyncSocketException::NETWORK_ERROR) {
+                throw std::system_error(
+                        asyncReadCallback->exception->getErrno(),
+                        std::system_category(),
+                        "network error");
+            }
+
             throw *asyncReadCallback->exception;
         }
 
@@ -780,9 +799,8 @@ void MemcachedConnection::recvFrame(Frame& frame,
     const auto* next = asyncReadCallback->getNextFrame();
     if (next == nullptr) {
         if (asyncReadCallback->eof) {
-            throw std::system_error(int(std::errc::connection_reset),
-                                    std::system_category(),
-                                    "EOF");
+            throw std::system_error(
+                    std::make_error_code(std::errc::connection_reset), "EOF");
         }
         if (asyncReadCallback->exception) {
             throw *asyncReadCallback->exception;
