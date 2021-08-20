@@ -8,11 +8,13 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <folly/portability/Unistd.h>
 #include <getopt.h>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
 #include <utilities/string_utilities.h>
+#include <utilities/terminal_color.h>
 #include <iostream>
 
 static void usage() {
@@ -29,13 +31,20 @@ Options:
   --tls                    Try to use TLS
   --ipv4                   Connect over IPv4
   --ipv6                   Connect over IPv6
-  --help                   This help text
-)";
+    )"
+#ifndef WIN32
+              << "  --no-color                     Disable colors\n"
+#endif
+              << "  --help                   This help text" << std::endl;
 
     exit(EXIT_FAILURE);
 }
 
 int main(int argc, char** argv) {
+#ifndef WIN32
+    setTerminalColorSupport(isatty(STDERR_FILENO) && isatty(STDOUT_FILENO));
+#endif
+
     int cmd;
     std::string host{"localhost"};
     std::string user{};
@@ -50,6 +59,9 @@ int main(int argc, char** argv) {
             {"tls", no_argument, nullptr, 'T'},
             {"ipv4", no_argument, nullptr, '4'},
             {"ipv6", no_argument, nullptr, '6'},
+#ifndef WIN32
+            {"no-color", no_argument, nullptr, 'n'},
+#endif
             {"help", no_argument, nullptr, 0},
             {nullptr, 0, nullptr, 0}};
 
@@ -75,6 +87,9 @@ int main(int argc, char** argv) {
         case '6':
             family = AF_INET6;
             break;
+        case 'n':
+            setTerminalColorSupport(false);
+            break;
         default:
             usage();
             return EXIT_FAILURE;
@@ -82,7 +97,9 @@ int main(int argc, char** argv) {
     }
 
     if (user.empty()) {
-        std::cerr << "A user must be specified with --user" << std::endl;
+        std::cerr << TerminalColor::Red
+                  << "A user must be specified with --user"
+                  << TerminalColor::Reset << std::endl;
         return EXIT_FAILURE;
     }
 
@@ -117,16 +134,19 @@ int main(int argc, char** argv) {
             try {
                 auto c = connection.clone();
                 c->authenticate(user, password, mech);
-                std::cout << "OK" << std::endl;
+                std::cout << TerminalColor::Green << "OK";
             } catch (const std::exception& ex) {
-                std::cout << "FAILED - " << ex.what() << std::endl;
+                std::cout << TerminalColor::Red << "FAILED - " << ex.what();
             }
+            std::cout << TerminalColor::Reset << std::endl;
         }
     } catch (const ConnectionError& ex) {
-        std::cerr << ex.what() << std::endl;
+        std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
+                  << std::endl;
         return EXIT_FAILURE;
     } catch (const std::system_error& ex) {
-        std::cerr << ex.what() << std::endl;
+        std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
+                  << std::endl;
         return EXIT_FAILURE;
     }
 
