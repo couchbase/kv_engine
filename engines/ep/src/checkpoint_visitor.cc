@@ -23,20 +23,19 @@ CheckpointVisitor::CheckpointVisitor(KVBucketIface* s,
                                      std::atomic<bool>& sfin)
     : store(s),
       stats(st),
-      removed(0),
       taskStart(std::chrono::steady_clock::now()),
       wasAboveBackfillThreshold(s->isMemUsageAboveBackfillThreshold()),
       stateFinalizer(sfin) {
 }
 
 void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
-    removed = vb->checkpointManager->removeClosedUnrefCheckpoints(*vb);
-    if (removed > 0) {
-        EP_LOG_DEBUG("Removed {} closed unreferenced checkpoints from {}",
-                     removed,
+    const auto numItemsRemoved =
+            vb->checkpointManager->removeClosedUnrefCheckpoints(*vb);
+    if (numItemsRemoved > 0) {
+        EP_LOG_DEBUG("Removed {} items from unreferenced checkpoints from {}",
+                     numItemsRemoved,
                      vb->getId());
     }
-    removed = 0;
 }
 
 void CheckpointVisitor::complete() {

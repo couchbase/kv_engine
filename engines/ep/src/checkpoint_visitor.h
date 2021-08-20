@@ -35,7 +35,6 @@ public:
 private:
     KVBucketIface* store;
     EPStats& stats;
-    size_t removed;
     std::chrono::steady_clock::time_point taskStart;
 
     /**
