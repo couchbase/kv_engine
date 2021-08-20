@@ -20,6 +20,83 @@ namespace cb::stats {
 
 using namespace std::string_view_literals;
 
+// constexpr check if character would match [a-zA-Z]
+constexpr bool isAlpha(char c) {
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+}
+// constexpr check if character would match [a-zA-Z0-9]
+constexpr bool isAlphaNum(char c) {
+    return isAlpha(c) || (c >= '0' && c <= '9');
+}
+
+template <int N>
+// must accept a string literal, std::array is not suitable.
+// NOLINTNEXTLINE(modernize-avoid-c-arrays)
+constexpr bool isEmptyStr(const char (&name)[N]) {
+    return N == 1 && name[0] == '\0';
+}
+
+/**
+ * Validate at compile time that a metric family string literal name meets the
+ * regex:
+ *
+ *   [a-zA-Z_][a-zA-Z0-9_]*
+ *
+ * Note: metric names _may_ also include colons, but these are reserved for
+ * user defined recording rules and should _not_ be included in any names
+ * exposed by KV.
+ */
+template <int N>
+// NOLINTNEXTLINE(modernize-avoid-c-arrays)
+constexpr bool isValidMetricFamily(const char (&name)[N]) {
+    if (isEmptyStr(name)) {
+        return false;
+    }
+    if (!(isAlpha(name[0]) || name[0] == '_')) {
+        return false;
+    }
+    // checking chars [1, N-1] as the first char has been tested, and the
+    // last char should be \0
+    for (int i = 1; i < N - 1; ++i) {
+        const auto& c = name[i];
+        if (!(isAlphaNum(c) || c == '_')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+//// Validation
+//// verify prometheus metric families have valid names.
+
+// label does not need validating here
+#define LABEL(key, value)
+
+// if no promtheusName was specified, fall back to the statEnum
+#define STAT(statEnum, cbstatsName, unit, prometheusName, ...) \
+    static_assert(                                             \
+            isValidMetricFamily(#prometheusName) ||            \
+            (isEmptyStr(#prometheusName) && isValidMetricFamily(#statEnum)));
+
+// no validation, does not have a prometheus metric family name
+#define CBSTAT(statEnum, cbstatsName, ...)
+
+#define PSTAT(metricFamily, unit, ...) \
+    static_assert(isValidMetricFamily(#metricFamily));
+
+// no validation here, is used by cbstats
+#define FMT(cbstatsName)
+#include <statistics/stats.def.h>
+#undef FMT
+#undef PSTAT
+#undef CBSTAT
+#undef STAT
+#undef LABEL
+
+//// Stat definitions
+//// Names have been validated above, now use stats.def.h to generate
+//// the actual stat definitions.
+
 #define LABEL(key, value) \
     { #key, #value }
 
