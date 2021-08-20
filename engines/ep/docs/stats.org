@@ -312,8 +312,8 @@ For introductory information on stats within Couchbase, start with the
 |                                       | remover will start cursor dropping      |
 | ep_cursors_dropped                    | Number of cursors dropped by the        |
 |                                       | checkpoint remover                      |
-| ep_cursor_memory_freed                | Amount of memory freed through dropping |
-|                                       | checkpoint cursors                      |
+| ep_mem_freed_by_checkpoint_removal    | Amount of memory freed through ckpt     |
+|                                       | removal                                 |
 | ep_active_hlc_drift                   | The total absolute drift for all active |
 |                                       | vbuckets. This is microsecond           |
 |                                       | granularity.                            |

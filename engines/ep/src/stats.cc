@@ -56,7 +56,7 @@ EPStats::EPStats()
       mem_high_wat(0),
       mem_high_wat_percent(0),
       cursorsDropped(0),
-      cursorMemoryFreed(0),
+      memFreedByCheckpointRemoval(0),
       pagerRuns(0),
       expiryPagerRuns(0),
       freqDecayerRuns(0),
@@ -272,7 +272,7 @@ void EPStats::reset() {
     dirtyAgeHighWat.store(0);
     commit_time.store(0);
     cursorsDropped.store(0);
-    cursorMemoryFreed.store(0);
+    memFreedByCheckpointRemoval.store(0);
     pagerRuns.store(0);
     expiryPagerRuns.store(0);
     freqDecayerRuns.store(0);

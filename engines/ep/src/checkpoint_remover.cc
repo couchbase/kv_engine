@@ -149,7 +149,6 @@ size_t ClosedUnrefCheckpointRemoverTask::attemptCursorDropping(
                 const auto memoryFreed =
                         vb->getChkMgrMemUsageOfUnrefCheckpoints();
                 ++stats.cursorsDropped;
-                stats.cursorMemoryFreed += memoryFreed;
                 memoryCleared += memoryFreed;
             }
         }

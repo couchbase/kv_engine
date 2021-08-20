@@ -468,12 +468,15 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(VBucket& vb) {
     // Update stats and compute return value
     size_t numNonMetaItemsRemoved = 0;
     size_t numMetaItemsRemoved = 0;
+    size_t memoryReleased = 0;
     for (const auto& checkpoint : toRelease) {
         numNonMetaItemsRemoved += checkpoint->getNumItems();
         numMetaItemsRemoved += checkpoint->getNumMetaItems();
+        memoryReleased += checkpoint->getMemConsumption();
     }
     numItems.fetch_sub(numNonMetaItemsRemoved + numMetaItemsRemoved);
     stats.itemsRemovedFromCheckpoints.fetch_add(numNonMetaItemsRemoved);
+    stats.memFreedByCheckpointRemoval += memoryReleased;
 
     return numNonMetaItemsRemoved;
 }

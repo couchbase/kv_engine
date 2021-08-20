@@ -7149,7 +7149,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_connection_manager_interval",
               "ep_couch_bucket",
               "ep_cursors_dropped",
-              "ep_cursor_memory_freed",
+              "ep_mem_freed_by_checkpoint_removal",
               "ep_data_read_failed",
               "ep_data_write_failed",
               "ep_data_traffic_enabled",

@@ -298,8 +298,8 @@ public:
     //! Number of cursors dropped by checkpoint remover
     Counter cursorsDropped;
 
-    //! Amount of memory we have freed by dropping cursors
-    std::atomic<size_t> cursorMemoryFreed;
+    //! Amount of memory we have freed by checkpoint removal
+    std::atomic<size_t> memFreedByCheckpointRemoval;
 
     //! Number of times we needed to kick in the pager
     Counter pagerRuns;

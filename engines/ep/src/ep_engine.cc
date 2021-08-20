@@ -3107,7 +3107,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStats(
                       epstats.compressorNumCompressed);
 
     collector.addStat(Key::ep_cursors_dropped, epstats.cursorsDropped);
-    collector.addStat(Key::ep_cursor_memory_freed, epstats.cursorMemoryFreed);
+    collector.addStat(Key::ep_mem_freed_by_checkpoint_removal,
+                      epstats.memFreedByCheckpointRemoval);
 
     doDiskFailureStats(collector);
 
