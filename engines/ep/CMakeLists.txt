@@ -54,8 +54,10 @@ ENDIF (EP_USE_ROCKSDB)
 IF (EP_USE_MAGMA)
     INCLUDE_DIRECTORIES(AFTER ${MAGMA_INCLUDE_DIR})
     LIST(APPEND EP_STORAGE_LIBS magma)
-    SET(MAGMA_KVSTORE_SOURCE src/kvstore/magma-kvstore/magma-kvstore.cc
-            src/kvstore/magma-kvstore/magma-kvstore_config.cc)
+    SET(MAGMA_KVSTORE_SOURCE
+            src/kvstore/magma-kvstore/magma-kvstore.cc
+            src/kvstore/magma-kvstore/magma-kvstore_config.cc
+            src/kvstore/magma-kvstore/shared/magma-kvstore_metadata.cc)
     ADD_DEFINITIONS(-DEP_USE_MAGMA=1)
     MESSAGE(STATUS "ep-engine: Building magma-kvstore")
 ENDIF (EP_USE_MAGMA)

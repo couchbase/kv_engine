@@ -12,7 +12,7 @@
 #include "../mock/mock_magma_kvstore.h"
 #include "configuration.h"
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
-#include "kvstore/magma-kvstore/magma-kvstore_metadata.h"
+#include "kvstore/magma-kvstore/shared/magma-kvstore_metadata.h"
 #include "kvstore_test.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"
@@ -365,7 +365,7 @@ TEST_F(MagmaKVStoreTest, MB39669_CompactionBeforeWarmup) {
     // skipped (zero-length meta == local document) and (b) to provide a valid
     // Vbid.
     magmakv::MetaData metadata;
-    metadata.setVbid(Vbid(0));
+    metadata.setVbid(0);
     magma::Slice meta{reinterpret_cast<char*>(&metadata), metadata.getLength()};
     // Compaction callback should return false for anything before warmup.
     EXPECT_FALSE(newCompaction->operator()(key, meta, value));
@@ -484,7 +484,7 @@ TEST_F(MagmaKVStoreTest, MagmaGetExpiryTimeAlive) {
 TEST_F(MagmaKVStoreTest, MagmaGetExpiryTimeTombstone) {
     magmakv::MetaData tombstone;
     tombstone.setExptime(10);
-    tombstone.setDeleted(true);
+    tombstone.setDeleted(true, false /*deleteSource*/);
     magma::Slice tombstoneSlice = {reinterpret_cast<char*>(&tombstone),
                                    tombstone.getLength()};
 

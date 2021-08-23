@@ -13,7 +13,7 @@
 
 #include "item.h"
 #include "kvstore/kvstore_priv.h"
-#include "magma-kvstore_metadata.h"
+#include "shared/magma-kvstore_metadata.h"
 
 class BucketLogger;
 

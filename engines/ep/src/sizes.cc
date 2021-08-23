@@ -29,7 +29,7 @@
 #include "kvstore/kvstore_priv.h"
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore_iorequest.h"
-#include "kvstore/magma-kvstore/magma-kvstore_metadata.h"
+#include "kvstore/magma-kvstore/shared/magma-kvstore_metadata.h"
 #endif
 #include "kvstore/persistence_callback.h"
 #include "probabilistic_counter.h"

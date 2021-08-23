@@ -11,7 +11,10 @@
 
 #pragma once
 
-#include "item.h"
+#include <platform/n_byte_integer.h>
+
+#include <nlohmann/json_fwd.hpp>
+#include <cstring>
 
 namespace magmakv {
 // MetaData is used to serialize and de-serialize metadata respectively when
@@ -28,42 +31,30 @@ public:
 
     MetaData() = default;
 
-    explicit MetaData(const Item& it);
-
-    explicit MetaData(std::string_view buf) {
-        // Read version first, that should always exist
-        std::tie(version, buf) = VersionStorage::parse(buf);
-
-        switch (getVersion()) {
-        case Version::V0:
-            std::tie(allMeta.v0, buf) = MetaDataV0::parse(buf);
-            break;
-        case Version::V1:
-            std::tie(allMeta.v0, buf) = MetaDataV0::parse(buf);
-            std::tie(allMeta.v1, buf) = MetaDataV1::parse(buf);
-            break;
-        }
-
-        Expects(buf.empty());
-    }
-
-    cb::durability::Level getDurabilityLevel() const;
-
-    cb::uint48_t getPrepareSeqno() const {
-        Expects(getVersion() == Version::V1);
-        return allMeta.v1.durabilityDetails.completed.prepareSeqno;
-    }
+    explicit MetaData(std::string_view buf);
 
     Version getVersion() const {
         return version.version;
     }
 
-    Vbid getVbid() const {
-        return Vbid(allMeta.v0.vbid);
+    void setVersion(Version v) {
+        version.version = v;
     }
 
-    void setVbid(Vbid vbid) {
-        allMeta.v0.vbid = vbid.get();
+    uint8_t getDurabilityLevel() const;
+
+    void setDurabilityDetailsForPrepare(bool isDelete, uint8_t level);
+
+    cb::uint48_t getPrepareSeqno() const;
+
+    void setDurabilityDetailsForAbort(cb::uint48_t prepareSeqno);
+
+    uint16_t getVbid() const {
+        return allMeta.v0.vbid;
+    }
+
+    void setVbid(uint16_t vbid) {
+        allMeta.v0.vbid = vbid;
     }
 
     uint32_t getExptime() const {
@@ -74,16 +65,25 @@ public:
         allMeta.v0.exptime = exptime;
     }
 
-    void setDeleted(bool deleted) {
+    void setDeleted(bool deleted, bool deleteSource) {
         allMeta.v0.deleted = deleted;
+        allMeta.v0.deleteSource = deleteSource;
     }
 
     int64_t getBySeqno() const {
         return allMeta.v0.bySeqno;
     }
 
+    void setBySeqno(cb::uint48_t bySeqno) {
+        allMeta.v0.bySeqno = bySeqno;
+    }
+
     uint32_t getValueSize() const {
         return allMeta.v0.valueSize;
+    }
+
+    void setValueSize(uint32_t valueSize) {
+        allMeta.v0.valueSize = valueSize;
     }
 
     bool isDeleted() const {
@@ -94,41 +94,46 @@ public:
         return allMeta.v0.datatype;
     }
 
+    void setDataType(uint8_t datatype) {
+        allMeta.v0.datatype = datatype;
+    }
+
     uint32_t getFlags() const {
         return allMeta.v0.flags;
+    }
+
+    void setFlags(uint32_t flags) {
+        allMeta.v0.flags = flags;
     }
 
     uint64_t getCas() const {
         return allMeta.v0.cas;
     }
 
+    void setCas(uint64_t cas) {
+        allMeta.v0.cas = cas;
+    }
+
     cb::uint48_t getRevSeqno() const {
         return allMeta.v0.revSeqno;
     }
 
-    DeleteSource getDeleteSource() const {
-        return static_cast<DeleteSource>(allMeta.v0.deleteSource);
+    void setRevSeqno(cb::uint48_t revSeqno) {
+        allMeta.v0.revSeqno = revSeqno;
     }
 
-    bool isSyncDelete() const {
-        Expects(getVersion() == Version::V1);
-        return allMeta.v1.durabilityDetails.pending.isDelete;
+    bool getDeleteSource() const {
+        return allMeta.v0.deleteSource;
     }
+
+    bool isSyncDelete() const;
 
     std::string to_string() const;
 
-    size_t getLength() const {
-        auto versionSize = sizeof(VersionStorage);
-
-        switch (getVersion()) {
-        case Version::V0:
-            return versionSize + sizeof(MetaDataV0);
-        case Version::V1:
-            return versionSize + sizeof(MetaDataV0) + sizeof(MetaDataV1);
-        }
-
-        folly::assume_unreachable();
-    }
+    /**
+     * @return the length of the metadata for the given version
+     */
+    size_t getLength() const;
 
 protected:
     /**
@@ -140,15 +145,7 @@ protected:
         VersionStorage() = default;
 
         static std::pair<VersionStorage, std::string_view> parse(
-                std::string_view buf) {
-            Expects(buf.size() >= sizeof(VersionStorage));
-
-            VersionStorage v;
-            std::memcpy(&v, buf.data(), sizeof(VersionStorage));
-
-            buf.remove_prefix(sizeof(VersionStorage));
-            return {v, buf};
-        }
+                std::string_view buf);
 
         Version version = Version::V0;
     };
@@ -164,15 +161,7 @@ protected:
         }
 
         static std::pair<MetaDataV0, std::string_view> parse(
-                std::string_view buf) {
-            Expects(buf.size() >= sizeof(MetaDataV0));
-
-            MetaDataV0 v;
-            std::memcpy(&v, buf.data(), sizeof(MetaDataV0));
-
-            buf.remove_prefix(sizeof(MetaDataV0));
-            return {v, buf};
-        }
+                std::string_view buf);
 
         cb::uint48_t bySeqno = 0;
         uint64_t cas = 0;
@@ -201,15 +190,7 @@ protected:
         MetaDataV1() = default;
 
         static std::pair<MetaDataV1, std::string_view> parse(
-                std::string_view buf) {
-            Expects(buf.size() >= sizeof(MetaDataV1));
-
-            MetaDataV1 v;
-            std::memcpy(&v, buf.data(), sizeof(MetaDataV1));
-
-            buf.remove_prefix(sizeof(MetaDataV1));
-            return {v, buf};
-        }
+                std::string_view buf);
 
         union durabilityDetails {
             // Need to supply a default constructor or the compiler will
@@ -247,4 +228,8 @@ protected:
 
 static_assert(sizeof(MetaData) == 43,
               "magmakv::MetaData is not the expected size.");
+
+void to_json(nlohmann::json& json, const MetaData& meta);
+void from_json(const nlohmann::json& j, MetaData& meta);
+
 } // namespace magmakv

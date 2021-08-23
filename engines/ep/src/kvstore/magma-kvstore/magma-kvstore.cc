@@ -19,8 +19,8 @@
 #include "kvstore/kvstore_transaction_context.h"
 #include "magma-kvstore_config.h"
 #include "magma-kvstore_iorequest.h"
-#include "magma-kvstore_metadata.h"
 #include "objectregistry.h"
+#include "shared/magma-kvstore_metadata.h"
 #include "vb_commit.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
@@ -55,51 +55,44 @@ static const std::string droppedCollectionsKey = "_collections/dropped";
 #define TRACE trace
 
 namespace magmakv {
-MetaData::MetaData(const Item& it) {
+MetaData makeMetaData(const Item& it) {
+    auto metadata = MetaData();
     if (it.isPending() || it.isAbort()) {
-        version.version = Version::V1;
+        metadata.setVersion(MetaData::Version::V1);
     } else {
-        version.version = Version::V0;
+        metadata.setVersion(MetaData::Version::V0);
     }
 
-    allMeta.v0.bySeqno = it.getBySeqno();
-    allMeta.v0.cas = it.getCas();
-    allMeta.v0.revSeqno = it.getRevSeqno();
-    allMeta.v0.exptime = it.getExptime();
-    allMeta.v0.flags = it.getFlags();
-    allMeta.v0.valueSize = it.getNBytes();
-    allMeta.v0.vbid = it.getVBucketId().get();
-    allMeta.v0.datatype = it.getDataType();
+    metadata.setBySeqno(it.getBySeqno());
+    metadata.setCas(it.getCas());
+    metadata.setRevSeqno(it.getRevSeqno());
+    metadata.setExptime(it.getExptime());
+    metadata.setFlags(it.getFlags());
+    metadata.setValueSize(it.getNBytes());
+    metadata.setVbid(it.getVBucketId().get());
+    metadata.setDataType(it.getDataType());
 
     if (it.isDeleted() && !it.isPending()) {
-        allMeta.v0.deleted = 1;
-        allMeta.v0.deleteSource = static_cast<uint8_t>(it.deletionSource());
-    } else {
-        allMeta.v0.deleted = 0;
-        allMeta.v0.deleteSource = 0;
+        metadata.setDeleted(true, static_cast<bool>(it.deletionSource()));
     }
 
     if (it.isPending()) {
-        allMeta.v1.durabilityDetails.pending.isDelete = it.isDeleted();
-        allMeta.v1.durabilityDetails.pending.level =
-                static_cast<uint8_t>(it.getDurabilityReqs().getLevel());
+        metadata.setDurabilityDetailsForPrepare(
+                it.isDeleted(),
+                static_cast<uint8_t>(it.getDurabilityReqs().getLevel()));
     }
 
     if (it.isAbort()) {
-        allMeta.v1.durabilityDetails.completed.prepareSeqno =
-                it.getPrepareSeqno();
+        metadata.setDurabilityDetailsForAbort(it.getPrepareSeqno());
     }
-}
 
-cb::durability::Level MetaData::getDurabilityLevel() const {
-    Expects(getVersion() == Version::V1);
-    return static_cast<cb::durability::Level>(
-            allMeta.v1.durabilityDetails.pending.level);
+    return metadata;
 }
 
 std::string MetaData::to_string() const {
     std::stringstream ss;
-    cb::durability::Requirements req(getDurabilityLevel(), {});
+    auto level = static_cast<cb::durability::Level>(getDurabilityLevel());
+    cb::durability::Requirements req(level, {});
     ss << "bySeqno:" << allMeta.v0.bySeqno << " cas:" << allMeta.v0.cas
        << " exptime:" << allMeta.v0.exptime
        << " revSeqno:" << allMeta.v0.revSeqno << " flags:" << allMeta.v0.flags
@@ -161,7 +154,7 @@ static bool isCompressed(const Slice& metaSlice) {
 }
 
 static Vbid getVbid(const Slice& metaSlice) {
-    return getDocMeta(metaSlice).getVbid();
+    return Vbid(getDocMeta(metaSlice).getVbid());
 }
 
 static bool isPrepared(const Slice& keySlice, const Slice& metaSlice) {
@@ -178,7 +171,7 @@ static bool isAbort(const Slice& keySlice, const Slice& metaSlice) {
 
 MagmaRequest::MagmaRequest(queued_item it, std::shared_ptr<BucketLogger> logger)
     : IORequest(std::move(it)),
-      docMeta(magmakv::MetaData(*item)),
+      docMeta(magmakv::makeMetaData(*item)),
       docBody(item->getValue()) {
     if (logger->should_log(spdlog::level::TRACE)) {
         logger->TRACE("MagmaRequest:{}", to_string());
@@ -1024,12 +1017,13 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
                                    meta.getRevSeqno());
 
     if (meta.isDeleted()) {
-        item->setDeleted(meta.getDeleteSource());
+        item->setDeleted(static_cast<DeleteSource>(meta.getDeleteSource()));
     }
 
     if (magmakv::isPrepared(keySlice, metaSlice)) {
-        item->setPendingSyncWrite({meta.getDurabilityLevel(),
-                                   cb::durability::Timeout::Infinity()});
+        auto level =
+                static_cast<cb::durability::Level>(meta.getDurabilityLevel());
+        item->setPendingSyncWrite({level, cb::durability::Timeout::Infinity()});
         if (meta.isSyncDelete()) {
             item->setDeleted(DeleteSource::Explicit);
         }
