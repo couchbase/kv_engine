@@ -730,6 +730,7 @@ protected:
     class MagmaCompactionCB : public magma::Magma::CompactionCallback {
     public:
         MagmaCompactionCB(MagmaKVStore& magmaKVStore,
+                          Vbid vbid,
                           std::shared_ptr<CompactionContext> ctx = nullptr);
 
         ~MagmaCompactionCB() override;
@@ -744,8 +745,21 @@ protected:
         }
         MagmaKVStore& magmaKVStore;
 
+        /**
+         * Vbucket being compacted - required so that we can work out which
+         * vBucket is being compacted for implicit (magma driven) compactions.
+         */
+        Vbid vbid;
+
+        /**
+         * Ctx may be passed at construction (explicit, kv/ns_server driven
+         * compactions) or set later (implicit magma driven compactions)
+         */
         std::shared_ptr<CompactionContext> ctx;
 
+        /**
+         * Stats updates made during compaction
+         */
         MagmaDbStats magmaDbStats;
     };
 

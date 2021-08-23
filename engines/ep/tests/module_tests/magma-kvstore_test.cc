@@ -358,7 +358,8 @@ TEST_F(MagmaKVStoreTest, initializeWithHeaderButNoVBState) {
 // MagmaKVStore are ignored - until a later compaction after warmup.
 TEST_F(MagmaKVStoreTest, MB39669_CompactionBeforeWarmup) {
     // Simulate a compaction callback early on - before Warmup has completed.
-    auto newCompaction = kvstoreConfig->magmaCfg.MakeCompactionCallback();
+    auto newCompaction = kvstoreConfig->magmaCfg.MakeCompactionCallback(
+            magma::Magma::KVStoreID(0));
     magma::Slice key;
     magma::Slice value;
     // Require a valid metadata slice to (a) ensure the item isn't just

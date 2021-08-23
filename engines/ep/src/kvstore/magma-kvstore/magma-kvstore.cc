@@ -153,10 +153,6 @@ static bool isCompressed(const Slice& metaSlice) {
     return mcbp::datatype::is_snappy(getDocMeta(metaSlice).getDatatype());
 }
 
-static Vbid getVbid(const Slice& metaSlice) {
-    return Vbid(getDocMeta(metaSlice).getVbid());
-}
-
 static bool isPrepared(const Slice& keySlice, const Slice& metaSlice) {
     return DiskDocKey(keySlice.Data(), keySlice.Len()).isPrepared() &&
            !getDocMeta(metaSlice).isDeleted();
@@ -191,8 +187,10 @@ static DiskDocKey makeDiskDocKey(const Slice& key) {
 }
 
 MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
-        MagmaKVStore& magmaKVStore, std::shared_ptr<CompactionContext> ctx)
-    : magmaKVStore(magmaKVStore), ctx(std::move(ctx)) {
+        MagmaKVStore& magmaKVStore,
+        Vbid vbid,
+        std::shared_ptr<CompactionContext> ctx)
+    : magmaKVStore(magmaKVStore), vbid(vbid), ctx(std::move(ctx)) {
     magmaKVStore.logger->TRACE("MagmaCompactionCB constructor");
 }
 
@@ -228,7 +226,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         return false;
     }
 
-    auto vbid = magmakv::getVbid(metaSlice);
+    auto vbid = cbCtx.vbid;
     std::string userSanitizedItemStr;
     if (logger->should_log(spdlog::level::TRACE)) {
         userSanitizedItemStr =
@@ -495,9 +493,11 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
         return ObjectRegistry::onSwitchThread(eng, true);
     };
 
-    configuration.magmaCfg.MakeCompactionCallback = [&]() {
-        return std::make_unique<MagmaKVStore::MagmaCompactionCB>(*this);
-    };
+    configuration.magmaCfg.MakeCompactionCallback =
+            [&](const Magma::KVStoreID kvID) {
+                return std::make_unique<MagmaKVStore::MagmaCompactionCB>(
+                        *this, Vbid(kvID));
+            };
 
     configuration.magmaCfg.MakeUserStats = []() {
         return std::make_unique<MagmaDbStats>();
@@ -2032,8 +2032,9 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     }
     ctx->highCompletedSeqno = diskState.vbstate.persistedCompletedSeqno;
 
-    auto compactionCB = [this, ctx]() {
-        return std::make_unique<MagmaKVStore::MagmaCompactionCB>(*this, ctx);
+    auto compactionCB = [this, ctx](const Magma::KVStoreID kvID) {
+        return std::make_unique<MagmaKVStore::MagmaCompactionCB>(
+                *this, ctx->vbid, ctx);
     };
 
     uint64_t collectionItemsDropped = 0;
