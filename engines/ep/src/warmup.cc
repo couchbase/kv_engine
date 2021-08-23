@@ -488,7 +488,7 @@ private:
 };
 
 bool WarmupVbucketVisitor::visit(VBucket& vb) {
-    auto* kvstore = ep.getRWUnderlyingByShard(backfillTask.getShardId());
+    auto* kvstore = ep.getROUnderlyingByShard(backfillTask.getShardId());
 
     if (!currentScanCtx) {
         auto kvLookup = std::make_unique<LoadStorageKVPairCallback>(
