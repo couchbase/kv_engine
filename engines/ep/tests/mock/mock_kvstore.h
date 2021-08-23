@@ -148,9 +148,14 @@ public:
                 makeFileHandle,
                 (Vbid vbid),
                 (override));
-    MOCK_METHOD((std::pair<bool, Collections::VB::PersistedStats>),
+    MOCK_METHOD((std::pair<KVStore::GetCollectionStatsStatus,
+                           Collections::VB::PersistedStats>),
                 getCollectionStats,
                 (const KVFileHandle& kvFileHandle, CollectionID collection),
+                (override));
+    MOCK_METHOD(std::optional<Collections::ManifestUid>,
+                getCollectionsManifestUid,
+                (KVFileHandle & kvFileHandle),
                 (override));
     MOCK_METHOD((std::pair<bool, Collections::KVStore::Manifest>),
                 getCollectionsManifest,
@@ -166,6 +171,13 @@ public:
     MOCK_METHOD(void,
                 setStorageThreads,
                 (ThreadPoolConfig::StorageThreadCount num),
+                (override));
+    MOCK_METHOD(GetValue,
+                getBySeqno,
+                (KVFileHandle & handle,
+                 Vbid vbid,
+                 uint64_t seq,
+                 ValueFilter filter),
                 (override));
     MOCK_METHOD(uint64_t, prepareToDeleteImpl, (Vbid vbid), (override));
     MOCK_METHOD(void, prepareToCreateImpl, (Vbid vbid), (override));
