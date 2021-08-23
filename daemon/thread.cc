@@ -13,6 +13,7 @@
 #include "connections.h"
 #include "cookie.h"
 #include "front_end_thread.h"
+#include "listening_port.h"
 #include "log_macros.h"
 #include "memcached.h"
 #include "settings.h"
@@ -45,10 +46,10 @@ FrontEndThread::ConnectionQueue::~ConnectionQueue() {
 }
 
 void FrontEndThread::ConnectionQueue::push(SOCKET sock,
-                                           bool system,
-                                           in_port_t port,
+                                           std::shared_ptr<ListeningPort> descr,
                                            uniqueSslPtr ssl) {
-    connections.lock()->emplace_back(Entry{sock, system, port, std::move(ssl)});
+    connections.lock()->emplace_back(
+            Entry{sock, std::move(descr), std::move(ssl)});
 }
 
 void FrontEndThread::ConnectionQueue::swap(std::vector<Entry>& other) {
@@ -120,12 +121,12 @@ void FrontEndThread::dispatch_new_connections() {
     new_conn_queue.swap(connections);
 
     for (auto& entry : connections) {
+        const bool system = entry.descr->system;
         if (conn_new(entry.sock,
                      *this,
-                     entry.system,
-                     entry.port,
+                     std::move(entry.descr),
                      std::move(entry.ssl)) == nullptr) {
-            if (entry.system) {
+            if (system) {
                 --stats.system_conns;
             }
             safe_close(entry.sock);
@@ -174,8 +175,7 @@ void scheduleDcpStep(Cookie& cookie) {
 }
 
 void FrontEndThread::dispatch(SOCKET sfd,
-                              bool system,
-                              in_port_t port,
+                              std::shared_ptr<ListeningPort> descr,
                               uniqueSslPtr ssl) {
     // Which thread we assigned a connection to most recently.
     static std::atomic<size_t> last_thread = 0;
@@ -184,7 +184,7 @@ void FrontEndThread::dispatch(SOCKET sfd,
     last_thread = tid;
 
     try {
-        thread.new_conn_queue.push(sfd, system, port, move(ssl));
+        thread.new_conn_queue.push(sfd, std::move(descr), move(ssl));
         thread.eventBase.runInEventBaseThread([&thread]() {
             if (is_memcached_shutting_down()) {
                 if (signal_idle_clients(thread, false) == 0) {
@@ -199,7 +199,7 @@ void FrontEndThread::dispatch(SOCKET sfd,
         LOG_WARNING("dispatch_conn_new: Failed to dispatch new connection: {}",
                     e.what());
 
-        if (system) {
+        if (descr->system) {
             --stats.system_conns;
         }
         safe_close(sfd);

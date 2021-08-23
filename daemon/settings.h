@@ -800,6 +800,16 @@ public:
 
     nlohmann::json getTlsConfiguration() const;
 
+    bool isLocalhostInterfaceWhitelisted() const {
+        return whitelist_localhost_interface.load(std::memory_order_acquire);
+    }
+
+    void setWhitelistLocalhostInterface(bool val) {
+        whitelist_localhost_interface.store(val, std::memory_order_release);
+        has.whitelist_localhost_interface = true;
+        notify_changed("whitelist_localhost_interface");
+    }
+
 protected:
     /// Should the server always collect trace information for commands
     std::atomic_bool always_collect_trace_info{false};
@@ -992,6 +1002,11 @@ protected:
 
     std::atomic_bool enforce_tenant_limits_enabled{false};
 
+    /// If "localhost" is whitelisted from deleting connections as part
+    /// of server cleanup. This setting should only be used for unit
+    /// tests
+    std::atomic_bool whitelist_localhost_interface{true};
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -1048,5 +1063,6 @@ public:
         bool prometheus_config = false;
         bool phosphor_config = false;
         bool enforce_tenant_limits_enabled = false;
+        bool whitelist_localhost_interface = false;
     } has;
 };

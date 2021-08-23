@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2019-Present Couchbase, Inc.
  *
@@ -12,6 +11,7 @@
 #pragma once
 
 #include <platform/socket.h>
+#include <atomic>
 #include <string>
 #include <utility>
 
@@ -37,8 +37,6 @@ public:
           system(system),
           tls(tls) {
     }
-
-    ListeningPort(const ListeningPort& other) = default;
 
     std::string getHostname() const {
         if (host == "*") {
@@ -74,4 +72,7 @@ public:
 
     /// Is this port set up for TLS
     const bool tls;
+
+    /// Set to false once the interface is being shut down
+    std::atomic_bool valid{true};
 };

@@ -52,14 +52,12 @@ struct FrontEndThread {
      * robin.
      *
      * @param sfd the socket to use
-     * @param system is this a system connection or not
-     * @param port the port number the socket is bound to
+     * @param descr The description of the port it is listening to
      * @param ssl the OpenSSL SSL structure to use (if this is a connection
      *            using SSL)
      */
     static void dispatch(SOCKET sfd,
-                         bool system,
-                         in_port_t port,
+                         std::shared_ptr<ListeningPort> descr,
                          uniqueSslPtr ssl);
 
     /// Mutex to lock protect access to this object.
@@ -115,16 +113,19 @@ protected:
     class ConnectionQueue {
     public:
         struct Entry {
-            Entry(SOCKET sock, bool system, in_port_t port, uniqueSslPtr ssl)
-                : sock(sock), system(system), port(port), ssl(std::move(ssl)) {
+            Entry(SOCKET sock,
+                  std::shared_ptr<ListeningPort> descr,
+                  uniqueSslPtr ssl)
+                : sock(sock), descr(std::move(descr)), ssl(std::move(ssl)) {
             }
             SOCKET sock;
-            bool system;
-            in_port_t port;
+            std::shared_ptr<ListeningPort> descr;
             uniqueSslPtr ssl;
         };
         ~ConnectionQueue();
-        void push(SOCKET sock, bool system, in_port_t port, uniqueSslPtr ssl);
+        void push(SOCKET sock,
+                  std::shared_ptr<ListeningPort> descr,
+                  uniqueSslPtr ssl);
         void swap(std::vector<Entry>& other);
 
     protected:

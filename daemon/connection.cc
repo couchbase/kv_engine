@@ -15,6 +15,7 @@
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
 #include "front_end_thread.h"
+#include "listening_port.h"
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "memcached.h"
@@ -237,6 +238,10 @@ void Connection::restartAuthentication() {
 cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
     privilegeContext.dropPrivilege(privilege);
     return cb::engine_errc::success;
+}
+
+in_port_t Connection::getParentPort() const {
+    return listening_port->port;
 }
 
 cb::rbac::PrivilegeContext Connection::getPrivilegeContext() {
@@ -752,6 +757,38 @@ void Connection::logExecutionException(const std::string_view where,
         }
     } catch (...) {
         // catch all, defensive as possible
+    }
+}
+
+void Connection::reEvaluateParentPort() {
+    if (listening_port->valid) {
+        return;
+    }
+
+    bool localhost = false;
+    if (Settings::instance().isLocalhostInterfaceWhitelisted()) {
+        // Make sure we don't tear down localhost connections
+        if (listening_port->family == AF_INET) {
+            localhost =
+                    peername.find(R"("ip":"127.0.0.1")") != std::string::npos;
+        } else {
+            localhost = peername.find(R"("ip":"::1")") != std::string::npos;
+        }
+    }
+
+    if (localhost) {
+        LOG_INFO(
+                "{} Keeping connection alive even if server port was removed: "
+                "{}",
+                getId(),
+                getDescription());
+    } else {
+        LOG_INFO("{} Shutting down; server port was removed: {}",
+                 getId(),
+                 getDescription());
+        setTerminationReason("Server port shut down");
+        shutdown();
+        signalIfIdle();
     }
 }
 
@@ -1293,17 +1330,17 @@ Connection::Connection(FrontEndThread& thr)
 
 Connection::Connection(SOCKET sfd,
                        FrontEndThread& thr,
-                       bool system,
-                       in_port_t parent_port,
+                       std::shared_ptr<ListeningPort> descr,
                        uniqueSslPtr sslStructure)
     : peername(cb::net::getPeerNameAsJson(sfd).dump()),
       sockname(cb::net::getSockNameAsJson(sfd).dump()),
       thread(thr),
+      listening_port(std::move(descr)),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
       socketDescriptor(sfd),
-      parent_port(parent_port),
-      connectedToSystemPort(system),
+      parent_port(listening_port->port),
+      connectedToSystemPort(listening_port->system),
       ssl(sslStructure) {
     setTcpNoDelay(true);
     updateDescription();

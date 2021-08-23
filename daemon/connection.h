@@ -68,8 +68,7 @@ public:
 
     Connection(SOCKET sfd,
                FrontEndThread& thr,
-               bool system,
-               in_port_t parent_port,
+               std::shared_ptr<ListeningPort> descr,
                uniqueSslPtr sslStructure);
 
     ~Connection() override;
@@ -177,9 +176,7 @@ public:
         return thread;
     }
 
-    in_port_t getParentPort() const {
-        return parent_port;
-    }
+    in_port_t getParentPort() const;
 
     /**
      * Get the command context to use for checking access.
@@ -283,6 +280,10 @@ public:
      * @return the mapped value.
      */
     cb::engine_errc remapErrorCode(cb::engine_errc code);
+
+    /// Revaluate if the parent port is still valid or not (and if
+    /// we should shut down the connection or not).
+    void reEvaluateParentPort();
 
     /**
      * Add the specified number of ns to the amount of CPU time this
@@ -932,6 +933,11 @@ protected:
 
     /// Pointer to the thread object serving this connection
     FrontEndThread& thread;
+
+    /// The description of the listening port which accepted the client
+    /// (needed in order to shut down the connection if the administrator
+    /// disables the port)
+    std::shared_ptr<ListeningPort> listening_port;
 
     /// The SASL object used to do sasl authentication. It should be created
     /// as part of SASL START, and released UNLESS the underlying mechanism

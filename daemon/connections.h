@@ -27,16 +27,14 @@ class Bucket;
  *
  * @param sfd the socket descriptor
  * @param thread The front end thread the connection should be bound to
- * @param system Is the connection bound to a port marked as a system port
- * @param parent_port The port number the connection connected to
+ * @param descr Descriotion of the port accepting the connection
  * @param ssl The SSL structure to use if the connection is connecting
  *            over a port marked as SSL
  * @return a connection object on success, nullptr otherwise
  */
 Connection* conn_new(SOCKET sfd,
                      FrontEndThread& thread,
-                     bool system,
-                     in_port_t parent_port,
+                     std::shared_ptr<ListeningPort> descr,
                      uniqueSslPtr ssl);
 
 /**

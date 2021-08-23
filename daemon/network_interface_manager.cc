@@ -8,6 +8,7 @@
  */
 #include "network_interface_manager.h"
 
+#include "connection.h"
 #include "listening_port.h"
 #include "log_macros.h"
 #include "memcached.h"
@@ -448,6 +449,8 @@ NetworkInterfaceManager::doDeleteInterface(const std::string& uuid) {
 
             listen_conn.erase(iter);
             writeInterfaceFile(false);
+            iterate_all_connections(
+                    [](auto& conn) { conn.reEvaluateParentPort(); });
             return {cb::mcbp::Status::Success, {}};
         }
     }

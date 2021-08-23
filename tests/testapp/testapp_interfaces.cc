@@ -27,7 +27,6 @@ public:
             std::cerr << "Error in InterfacesTest::SetUpTestCase, terminating "
                          "process"
                       << std::endl;
-
             exit(EXIT_FAILURE);
         } else {
             CreateTestBucket();
@@ -59,6 +58,8 @@ protected:
         return getAdminConnection().execute(BinprotGenericCommand{
                 cb::mcbp::ClientOpcode::ConfigReload, {}, {}});
     }
+
+    void test_mb47707(bool whitelist_localhost_interface);
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -457,4 +458,73 @@ TEST_P(InterfacesTest, MB46863_NsServerWithoutSupportForIfconfig_ReloadOk) {
         }
     }
     ASSERT_TRUE(found) << "The prometheus interface should be present";
+}
+
+void InterfacesTest::test_mb47707(bool whitelist_localhost_interface) {
+    memcached_cfg["whitelist_localhost_interface"] =
+            whitelist_localhost_interface;
+    reconfigure(memcached_cfg);
+
+    auto& admin = getAdminConnection();
+    // Define the interface to use
+    nlohmann::json descr = {{"host", "127.0.0.1"},
+                            {"port", 0},
+                            {"family", "inet"},
+                            {"system", false},
+                            {"tag", "MB-47707"},
+                            {"type", "mcbp"}};
+
+    auto rsp = admin.execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Ifconfig, "define", descr.dump()});
+    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+                                 << rsp.getDataString();
+    auto json = rsp.getDataJson();
+    auto uuid = json["ports"][0]["uuid"].get<std::string>();
+    auto new_port = json["ports"][0]["port"].get<in_port_t>();
+
+    MemcachedConnection c("127.0.0.1", new_port, AF_INET, false);
+    c.connect();
+    rsp = c.execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::SaslListMechs});
+    ASSERT_TRUE(rsp.isSuccess()) << "Status: " << to_string(rsp.getStatus())
+                                 << " message " << rsp.getDataString();
+
+    // Delete the interface
+    rsp = admin.execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Ifconfig, "delete", uuid});
+    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+                                 << rsp.getDataString();
+
+    if (whitelist_localhost_interface) {
+        // The connection should not be disconnected
+        rsp = c.execute(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::SaslListMechs});
+        ASSERT_TRUE(rsp.isSuccess()) << "Status: " << to_string(rsp.getStatus())
+                                     << " message " << rsp.getDataString();
+    } else {
+        // The connection should be disconnected
+        try {
+            rsp = c.execute(BinprotGenericCommand{
+                    cb::mcbp::ClientOpcode::SaslListMechs});
+            FAIL() << "Expected the connection to be disconnected.\n"
+                   << "Status: " << to_string(rsp.getStatus())
+                   << "\nmessage: " << rsp.getDataString();
+        } catch (const std::system_error& error) {
+            // we should probably have checked if the error code is
+            // conn-reset, but then again that may be different on windows
+            // mac and linux...
+        }
+    }
+}
+
+/// Verify that we don't disconnect localhost connections as part of
+/// interface deletion if they're bound to localhost
+TEST_P(InterfacesTest, MB_47707_LocalhostWhitelisted) {
+    test_mb47707(true);
+}
+
+/// Verify that we disconnect localhost connections as part of
+/// interface deletion even if they're bound to localhost
+TEST_P(InterfacesTest, MB_47707_LocalhostNotWhitelisted) {
+    test_mb47707(false);
 }
