@@ -23,6 +23,7 @@
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_stream.h"
+#include "../mock/mock_synchronous_ep_engine.h"
 
 /* MB-24159 - Test to confirm a dcp stream backfill from an ephemeral bucket
  * over a range which includes /no/ items doesn't cause the producer to

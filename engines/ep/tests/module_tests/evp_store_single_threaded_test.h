@@ -15,7 +15,9 @@
 
 #pragma once
 
+#include "dcp/dcp-types.h"
 #include "kv_bucket_test.h"
+#include "storeddockey_fwd.h"
 #include <executor/fake_executorpool.h>
 #include <libcouchstore/couch_db.h>
 #include <nlohmann/json.hpp>
@@ -134,18 +136,11 @@ public:
      */
     void runCollectionsEraser(Vbid id);
 
-    bool isBloomFilterEnabled() const {
-        return engine->getConfiguration().isBfilterEnabled();
-    }
+    bool isBloomFilterEnabled() const;
 
-    bool isFullEviction() const {
-        return engine->getConfiguration().getItemEvictionPolicy() ==
-               "full_eviction";
-    }
+    bool isFullEviction() const;
 
-    bool isPersistent() const {
-        return engine->getConfiguration().getBucketType() == "persistent";
-    }
+    bool isPersistent() const;
 
     /**
      * Used to detect magma tests
@@ -518,32 +513,20 @@ public:
         return persistent() && std::get<1>(GetParam()) == "full_eviction";
     }
 
-    bool isRocksDB() const {
-        return engine->getConfiguration().getBackend() == "rocksdb";
-    }
+    bool isRocksDB() const;
 
     /// @returns true if this is a magma bucket
-    bool isMagma() const {
-        return engine->getConfiguration().getBackend() == "magma" ||
-               isNexusMagmaPrimary();
-    }
+    bool isMagma() const;
 
-    bool isNexusMagmaPrimary() const {
-        return engine->getConfiguration().getBackend() == "nexus" &&
-               engine->getConfiguration().getNexusPrimaryBackend() == "magma";
-    }
+    bool isNexusMagmaPrimary() const;
 
-    bool isNexus() const {
-        return engine->getConfiguration().getBackend() == "nexus";
-    }
+    bool isNexus() const;
 
     std::string getBackend() const {
         return std::get<0>(GetParam());
     }
 
-    bool bloomFilterEnabled() const {
-        return engine->getConfiguration().isBfilterEnabled();
-    }
+    bool bloomFilterEnabled() const;
 
     bool supportsFetchingAsSnappy() const {
         return !(isMagma() || isRocksDB());

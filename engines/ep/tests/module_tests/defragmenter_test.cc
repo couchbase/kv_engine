@@ -11,6 +11,7 @@
 
 #include "defragmenter_test.h"
 
+#include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
 #include "defragmenter.h"
 #include "defragmenter_visitor.h"

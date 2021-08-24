@@ -23,10 +23,11 @@
 #include "ep_types.h"
 
 #include <folly/portability/GTest.h>
+#include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <tests/ep_request_utils.h>
-#include <tests/mock/mock_synchronous_ep_engine.h>
+#include <tests/mock/mock_synchronous_ep_engine_fwd.h>
 
 #include <memory>
 
@@ -35,6 +36,7 @@ class FileOpsInterface;
 class ItemMetaData;
 class KVBucket;
 class MagmaKVStoreConfig;
+class VBucket;
 
 namespace Collections {
 class Manager;

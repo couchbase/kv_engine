@@ -26,6 +26,7 @@
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_kvstore.h"
 #include "tests/mock/mock_stream.h"
+#include "tests/mock/mock_synchronous_ep_engine.h"
 #include <kv_bucket.h>
 
 using namespace ::testing;

@@ -13,10 +13,11 @@
 
 #include "../mock/mock_ep_bucket.h"
 #include "../mock/mock_magma_kvstore.h"
-#include "../tests/module_tests/thread_gate.h"
+#include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #include "tests/module_tests/test_helpers.h"
+#include "tests/module_tests/thread_gate.h"
 
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;

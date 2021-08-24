@@ -9,6 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "../mock/mock_synchronous_ep_engine.h"
 #include "dcp/backfill-manager.h"
 #include "evp_store_single_threaded_test.h"
 

@@ -27,6 +27,7 @@
 #include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_stream.h"
+#include "../mock/mock_synchronous_ep_engine.h"
 
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>

@@ -17,6 +17,7 @@
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "stats.h"
+#include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_test.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include <folly/portability/GTest.h>

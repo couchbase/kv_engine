@@ -14,6 +14,7 @@
 #include "../couchstore/src/internal.h"
 #include "../couchstore/tests/test_fileops.h"
 #include "../mock/mock_ep_bucket.h"
+#include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_utils.h"
 #include "collections/collection_persisted_stats.h"
 #include "collections/vbucket_manifest_handles.h"

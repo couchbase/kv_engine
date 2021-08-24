@@ -31,6 +31,7 @@
 #include "tests/mock/mock_couch_kvstore.h"
 #include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_global_task.h"
+#include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/collections/stat_checker.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"

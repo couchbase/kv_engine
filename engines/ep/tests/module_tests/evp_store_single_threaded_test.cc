@@ -21,6 +21,7 @@
 #include "../mock/mock_ep_bucket.h"
 #include "../mock/mock_item_freq_decayer.h"
 #include "../mock/mock_stream.h"
+#include "../mock/mock_synchronous_ep_engine.h"
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
@@ -424,6 +425,19 @@ void SingleThreadedKVBucketTest::runCollectionsEraser(Vbid id) {
     scheduleAndRunCollectionsEraser(id);
 }
 
+bool SingleThreadedKVBucketTest::isBloomFilterEnabled() const {
+    return engine->getConfiguration().isBfilterEnabled();
+}
+
+bool SingleThreadedKVBucketTest::isFullEviction() const {
+    return engine->getConfiguration().getItemEvictionPolicy() ==
+           "full_eviction";
+}
+
+bool SingleThreadedKVBucketTest::isPersistent() const {
+    return engine->getConfiguration().getBucketType() == "persistent";
+}
+
 size_t SingleThreadedKVBucketTest::getFutureQueueSize(task_type_t type) const {
     return (*task_executor->getLpTaskQ()[type]).getFutureQueueSize();
 }
@@ -508,6 +522,28 @@ void STParameterizedBucketTest::SetUp() {
     }
 
     SingleThreadedKVBucketTest::SetUp();
+}
+
+bool STParameterizedBucketTest::isRocksDB() const {
+    return engine->getConfiguration().getBackend() == "rocksdb";
+}
+
+bool STParameterizedBucketTest::isMagma() const {
+    return engine->getConfiguration().getBackend() == "magma" ||
+           isNexusMagmaPrimary();
+}
+
+bool STParameterizedBucketTest::isNexusMagmaPrimary() const {
+    return engine->getConfiguration().getBackend() == "nexus" &&
+           engine->getConfiguration().getNexusPrimaryBackend() == "magma";
+}
+
+bool STParameterizedBucketTest::isNexus() const {
+    return engine->getConfiguration().getBackend() == "nexus";
+}
+
+bool STParameterizedBucketTest::bloomFilterEnabled() const {
+    return engine->getConfiguration().isBfilterEnabled();
 }
 
 /// @returns a string representing this tests' parameters.

@@ -11,19 +11,12 @@
 
 #pragma once
 
+#include "mock_synchronous_ep_engine_fwd.h"
 #include <checkpoint_config.h>
 #include <dcp/dcpconnmap.h>
 #include <ep_engine.h>
 
-class SynchronousEPEngine;
 struct MockReplicationThrottle;
-
-struct SynchronousEPEngineDeleter {
-    void operator()(SynchronousEPEngine*);
-};
-
-using SynchronousEPEngineUniquePtr =
-        std::unique_ptr<SynchronousEPEngine, SynchronousEPEngineDeleter>;
 
 /* A class which subclasses the real EPEngine. Its main purpose is to allow
  * us to construct and setup an EPStore without starting all the various
