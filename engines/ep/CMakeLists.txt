@@ -56,10 +56,18 @@ IF (EP_USE_MAGMA)
     LIST(APPEND EP_STORAGE_LIBS magma)
     SET(MAGMA_KVSTORE_SOURCE
             src/kvstore/magma-kvstore/magma-kvstore.cc
-            src/kvstore/magma-kvstore/magma-kvstore_config.cc
-            src/kvstore/magma-kvstore/shared/magma-kvstore_metadata.cc)
+            src/kvstore/magma-kvstore/magma-kvstore_config.cc)
     ADD_DEFINITIONS(-DEP_USE_MAGMA=1)
     MESSAGE(STATUS "ep-engine: Building magma-kvstore")
+
+    add_library(ep-engine_magma STATIC
+            src/kvstore/magma-kvstore/shared/magma-kvstore_metadata.cc)
+    target_link_libraries(ep-engine_magma PRIVATE platform)
+    target_include_directories(ep-engine_magma PUBLIC
+            src/kvstore/magma-kvstore/shared)
+    set_property(TARGET ep-engine_magma PROPERTY POSITION_INDEPENDENT_CODE 1)
+    kv_enable_pch(ep-engine_magma)
+    list(APPEND EP_STORAGE_LIBS ep-engine_magma)
 ENDIF (EP_USE_MAGMA)
 
 INCLUDE_DIRECTORIES(AFTER SYSTEM
