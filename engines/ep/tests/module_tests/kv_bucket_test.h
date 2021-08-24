@@ -19,20 +19,20 @@
 
 #pragma once
 
-#include "callbacks.h"
 #include "ep_types.h"
 #include "storeddockey_fwd.h"
 
 #include <folly/portability/GTest.h>
 #include <memcached/durability_spec.h>
-#include <memcached/protocol_binary.h>
-#include <programs/engine_testapp/mock_cookie.h>
+#include <memcached/engine_error.h>
 #include <tests/ep_request_utils.h>
 #include <tests/mock/mock_synchronous_ep_engine_fwd.h>
 
 #include <memory>
 
+class CookieIface;
 class CouchKVStoreConfig;
+class GetValue;
 class FileOpsInterface;
 class ItemMetaData;
 class KVBucket;
@@ -310,6 +310,13 @@ public:
     // protected members. Uses a raw pointer as this is owned by the engine.
     KVBucket* store;
 
-    // The (mock) server cookie.
-    MockCookie* cookie = nullptr;
+    /**
+     * The (mock) server cookie. Declared as the interface type (CookieIface)
+     * instead of concrete type (MockCookie) to minimise the number of places
+     * where mock_cookie.h needs to be included (most places where 'cookie'
+     * is used only need the interface).
+     * Use cookie_to_mock_cookie() to obtain the underlying MockCookie instance
+     * if required.
+     */
+    CookieIface* cookie = nullptr;
 };

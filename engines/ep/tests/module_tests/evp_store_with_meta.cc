@@ -359,7 +359,8 @@ void WithMetaTest::testWithMetaXattrWithEmptyPayload(
                                     std::to_string(static_cast<uint8_t>(op)));
     }
 
-    cookie->setDatatypeSupport(PROTOCOL_BINARY_DATATYPE_JSON);
+    cookie_to_mock_cookie(cookie)->setDatatypeSupport(
+            PROTOCOL_BINARY_DATATYPE_JSON);
 
     auto& vb = *store->getVBucket(vbid);
     ASSERT_EQ(0, vb.getHighSeqno());
@@ -604,7 +605,8 @@ TEST_F(WithMetaTest, storeUncompressedInOffMode) {
     ItemMetaData itemMeta{item->getCas(), item->getRevSeqno(),
                           item->getFlags(), item->getExptime()};
 
-    cookie->setDatatypeSupport(PROTOCOL_BINARY_DATATYPE_SNAPPY);
+    cookie_to_mock_cookie(cookie)->setDatatypeSupport(
+            PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
     auto swm =
             buildWithMetaPacket(cb::mcbp::ClientOpcode::SetWithMeta,
@@ -1294,7 +1296,8 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
                                    mykey,
                                    value);
 
-    cookie->setDatatypeSupport(PROTOCOL_BINARY_DATATYPE_SNAPPY);
+    cookie_to_mock_cookie(cookie)->setDatatypeSupport(
+            PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
     EXPECT_EQ(cb::engine_errc::success,
               callEngine(cb::mcbp::ClientOpcode::SetWithMeta, swm));
@@ -1360,7 +1363,8 @@ TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
                                    mykey,
                                    value);
 
-    cookie->setDatatypeSupport(PROTOCOL_BINARY_DATATYPE_SNAPPY);
+    cookie_to_mock_cookie(cookie)->setDatatypeSupport(
+            PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
     EXPECT_EQ(cb::engine_errc::success,
               callEngine(cb::mcbp::ClientOpcode::SetWithMeta, swm));

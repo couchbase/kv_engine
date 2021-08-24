@@ -51,8 +51,8 @@ TEST_P(CollectionsLegacyDcpTest, default_collection_is_not_vbucket_highseqno) {
     ensureDcpWillBackfill();
 
     // Make cookie look like a non-collection client
-    cookieP->setCollectionsSupport(false);
-    cookieC->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
     createDcpObjects({});
 
     // Snapshot must not be past the high-seqno of the default collection
@@ -110,8 +110,8 @@ TEST_P(CollectionsLegacyDcpTest,
     ensureDcpWillBackfill();
 
     // Make cookie look like a non-collection client
-    cookieP->setCollectionsSupport(false);
-    cookieC->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
     createDcpObjects({});
 
     // Snapshot must not be past the high-seqno of the default collection
@@ -147,8 +147,8 @@ TEST_P(CollectionsLegacyDcpTest, default_collection_is_empty) {
     ensureDcpWillBackfill();
 
     // Make cookie look like a non-collection client
-    cookieP->setCollectionsSupport(false);
-    cookieC->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
     createDcpObjects({});
     auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
@@ -190,8 +190,8 @@ TEST_P(CollectionsLegacyDcpTest,
     ensureDcpWillBackfill();
 
     // Make cookie look like a non-collection client
-    cookieP->setCollectionsSupport(false);
-    cookieC->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);
 
@@ -241,8 +241,8 @@ TEST_P(CollectionsLegacyDcpTest, sync_replication_stream_is_ok) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     ensureDcpWillBackfill();
-    cookieP->setCollectionsSupport(false);
-    cookieC->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
 
     createDcpObjects({}, false, 0, true /*sync replication*/);
 
@@ -305,8 +305,8 @@ TEST_P(CollectionsLegacyDcpTest, sync_replication_stream_ends) {
     ensureDcpWillBackfill();
 
     // Make cookie look like a non-collection client
-    cookieP->setCollectionsSupport(false);
-    cookieC->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
 
     createDcpObjects({}, false, 0, true /*sync replication*/);
 

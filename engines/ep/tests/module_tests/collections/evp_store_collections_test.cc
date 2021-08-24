@@ -2835,7 +2835,7 @@ TEST_F(CollectionsTest, GetAllKeysStartHalfWay) {
 
 TEST_F(CollectionsTest, GetAllKeysStartHalfWayForCollection) {
     // Enable collections on mock connection
-    cookie->setCollectionsSupport(true);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
     auto vb = store->getVBucket(vbid);
 
     // Add the meat collection
@@ -2863,7 +2863,7 @@ TEST_F(CollectionsTest, GetAllKeysStartHalfWayForCollection) {
 
 TEST_F(CollectionsTest, GetAllKeysForCollectionEmptyKey) {
     // Enable collections on mock connection
-    cookie->setCollectionsSupport(true);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
     auto vb = store->getVBucket(vbid);
 
     // Add the meat collection
@@ -2909,7 +2909,7 @@ TEST_F(CollectionsTest, GetAllKeysNonCollectionConnectionCidEncodeKey) {
 
 TEST_F(CollectionsTest, GetAllKeysCollectionConnection) {
     // Enable collections on mock connection
-    cookie->setCollectionsSupport(true);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
     auto vb = store->getVBucket(vbid);
 
     // Add the meat collection
@@ -3156,7 +3156,7 @@ public:
 TEST_F(CollectionsRbacTest, GetAllKeysRbacCollectionConnection) {
     // Enable collections for this mock connection and remove
     // privs to access the default and dairy collections
-    cookie->setCollectionsSupport(true);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
     setNoAccess(CollectionEntry::dairy);
     setNoAccess(CollectionEntry::defaultC);
     auto vb = store->getVBucket(vbid);
@@ -3212,7 +3212,7 @@ TEST_F(CollectionsRbacTest, GetAllKeysRbacCollectionConnection) {
 }
 
 TEST_F(CollectionsRbacTest, TestKeyStats) {
-    cookie->setCollectionsSupport(true);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
     setCollections(cookie, cm);
@@ -3259,7 +3259,7 @@ TEST_F(CollectionsRbacTest, TestKeyStats) {
 }
 
 TEST_F(CollectionsRbacTest, TestVKeyStats) {
-    cookie->setCollectionsSupport(true);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
     setCollections(cookie, cm);

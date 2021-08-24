@@ -114,9 +114,11 @@ TEST_P(EPBucketTest, test_mb20751_deadlock_on_disconnect_delete) {
     std::thread frontend_thread_handling_disconnect{[this](){
             // Frontend thread always runs with the cookie locked, so
             // lock here to match.
-            cookie->lock();
+            auto* mockCookie = cookie_to_mock_cookie(cookie);
+            Expects(cookie);
+            mockCookie->lock();
             engine->handleDisconnect(cookie);
-            cookie->unlock();
+            mockCookie->unlock();
         }};
 
     // 2. Trigger a bucket deletion.
@@ -487,9 +489,11 @@ TEST_P(EPBucketTest, MB_21976) {
     EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     // Mark the status of the cookie so that we can see if notify is called
-    cookie->lock();
-    cookie->setStatus(cb::engine_errc::too_big);
-    cookie->unlock();
+    auto* mockCookie = cookie_to_mock_cookie(cookie);
+    Expects(cookie);
+    mockCookie->lock();
+    mockCookie->setStatus(cb::engine_errc::too_big);
+    mockCookie->unlock();
 
     auto* deleteCookie = create_mock_cookie(engine.get());
 
@@ -503,7 +507,8 @@ TEST_P(EPBucketTest, MB_21976) {
 
     // Check the status of the cookie to see if the cookie status has changed
     // to cb::engine_errc::not_my_vbucket, which means the notify was sent
-    EXPECT_EQ(cb::engine_errc::not_my_vbucket, cookie->getStatus());
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket,
+              cookie_to_mock_cookie(cookie)->getStatus());
 
     destroy_mock_cookie(deleteCookie);
 }
@@ -1282,7 +1287,7 @@ TEST_P(EPBucketTest, GetNonResidentCompressed) {
     // Check the item is returned compressed (if supported by KVStore)
     const auto Json = PROTOCOL_BINARY_DATATYPE_JSON;
     const auto JsonSnappy = Json | PROTOCOL_BINARY_DATATYPE_SNAPPY;
-    cookie->setDatatypeSupport(JsonSnappy);
+    cookie_to_mock_cookie(cookie)->setDatatypeSupport(JsonSnappy);
 
     auto item = doGet();
     if (supportsFetchingAsSnappy()) {
@@ -1293,7 +1298,7 @@ TEST_P(EPBucketTest, GetNonResidentCompressed) {
 
     // Test 2: perform a get when snappy is not supported.
     // Check the item is returned uncompressed.
-    cookie->setDatatypeSupport(Json);
+    cookie_to_mock_cookie(cookie)->setDatatypeSupport(Json);
     item = doGet();
     EXPECT_EQ(Json, item->getDataType());
 }

@@ -661,7 +661,9 @@ TEST_P(STParameterizedBucketTest,
     std::thread frontend_thread_streamRequest{[&]() {
         // Frontend thread always runs with the cookie locked, so
         // lock here to match.
-        cookie->lock();
+        auto* mockCookie = cookie_to_mock_cookie(cookie);
+        Expects(mockCookie);
+        mockCookie->lock();
 
         uint64_t rollbackSeqno;
         auto result = producer->streamRequest(0,
@@ -676,14 +678,14 @@ TEST_P(STParameterizedBucketTest,
                                               mock_dcp_add_failover_log,
                                               {});
         EXPECT_EQ(cb::engine_errc::success, result);
-        cookie->unlock();
+        mockCookie->unlock();
 
         auto stream = producer->findStream(vbid1);
         ASSERT_TRUE(stream->isBackfilling());
 
-        cookie->lock();
+        mockCookie->lock();
         engine->handleDisconnect(cookie);
-        cookie->unlock();
+        mockCookie->unlock();
     }};
 
     // TEST: Trigger a shutdown. In original bug (with the sequence of
