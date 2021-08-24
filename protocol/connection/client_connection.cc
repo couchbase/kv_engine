@@ -38,6 +38,51 @@
 static const bool packet_dump = getenv("COUCHBASE_PACKET_DUMP") != nullptr;
 
 /**
+ * We can't throw the exception from inside folly's event loop and we're
+ * provided a "AsyncSocketException" from folly which may have different
+ * origins (it would have been a ton easier to use if was based on system_error
+ * with its own category).
+ *
+ * Map some of the network events over to std::system_error (network based)
+ * so that we can deal with them in a sane way in the application code.
+ * For "unknown" errors we just rethrow the folly exception.
+ *
+ * @param ex The exception set by folly
+ */
+static void handleFollyAsyncSocketException(
+        const folly::AsyncSocketException& ex) {
+    if (ex.getType() == folly::AsyncSocketException::END_OF_FILE) {
+        throw std::system_error(
+                std::make_error_code(std::errc::connection_reset), ex.what());
+    }
+
+    // I've seen cases where errno represents one of the "connection reset"
+    // cases, but the type isn't set to NETWORK ERROR. To avoid getting
+    // unit test failures caused by that lets handle the situation
+    // explicitly
+    const auto code = std::make_error_code(std::errc::connection_reset);
+    if (ex.getErrno() == code.value()) {
+        throw std::system_error(code, ex.what());
+    }
+
+#ifdef WIN32
+    // To make it easier to write code on top of this treat
+    // the windows specific WSAECONNABORTED as reset
+    if (ex.getErrno() == WSAECONNABORTED) {
+        throw std::system_error(
+                std::make_error_code(std::errc::connection_reset), ex.what());
+    }
+#endif
+
+    if (ex.getType() == folly::AsyncSocketException::NETWORK_ERROR) {
+        throw std::system_error(
+                ex.getErrno(), std::system_category(), ex.what());
+    }
+
+    throw ex;
+}
+
+/**
  * When using folly we install a ReadCallback which gets called when
  * folly detects that it may read data from the network. Whenever the
  * callback is registered it monitors for incoming data.
@@ -128,23 +173,7 @@ public:
 
     void handlePotentialNetworkException() {
         if (exception) {
-            if (exception->getType() ==
-                folly::AsyncSocketException::NETWORK_ERROR) {
-#ifdef WIN32
-                // To make it easier to write code on top of this treat
-                // the windows specific WSAECONNABORTED as reset
-                if (exception->getErrno() == WSAECONNABORTED) {
-                    throw std::system_error(
-                            std::make_error_code(std::errc::connection_reset),
-                            "EOF");
-                }
-#endif
-                throw std::system_error(exception->getErrno(),
-                                        std::system_category(),
-                                        "network error");
-            }
-
-            throw *exception;
+            handleFollyAsyncSocketException(*exception);
         }
     }
 
@@ -581,28 +610,7 @@ public:
 
     void handlePotentialNetworkException() {
         if (exception) {
-            if (exception->getType() ==
-                folly::AsyncSocketException::END_OF_FILE) {
-                throw std::system_error(
-                        std::make_error_code(std::errc::connection_reset),
-                        "network error");
-            }
-            if (exception->getType() ==
-                folly::AsyncSocketException::NETWORK_ERROR) {
-#ifdef WIN32
-                // To make it easier to write code on top of this treat
-                // the windows specific WSAECONNABORTED as reset
-                if (exception->getErrno() == WSAECONNABORTED) {
-                    throw std::system_error(
-                            std::make_error_code(std::errc::connection_reset),
-                            "EOF");
-                }
-#endif
-                throw std::system_error(exception->getErrno(),
-                                        std::system_category(),
-                                        "network error");
-            }
-            throw *exception;
+            handleFollyAsyncSocketException(*exception);
         }
     }
 
