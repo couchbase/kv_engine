@@ -10,12 +10,10 @@
 #pragma once
 
 #include <memcached/cookie_iface.h>
-#include <memcached/engine.h>
-#include <memcached/engine_testapp.h>
+#include <memcached/engine_error.h>
 #include <memcached/tracer.h>
-
-#include <platform/compress.h>
 #include <platform/compression/buffer.h>
+#include <platform/socket.h>
 #include <atomic>
 #include <bitset>
 #include <condition_variable>
@@ -23,6 +21,7 @@
 #include <string>
 
 class DcpConnHandlerIface;
+struct EngineIface;
 
 class MockCookie : public CookieIface {
 public:
