@@ -577,10 +577,6 @@ static void handle_num_storage_threads(Settings& s, const nlohmann::json& obj) {
     }
 }
 
-static void handle_extensions(Settings& s, const nlohmann::json& obj) {
-    LOG_INFO_RAW("Extensions ignored");
-}
-
 static void handle_logger(Settings& s, const nlohmann::json& obj) {
     if (!obj.is_object()) {
         cb::throwJsonTypeError(R"("opcode_attributes_override" must be an
@@ -695,7 +691,6 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"error_maps_dir", handle_error_maps_dir},
             {"threads", handle_threads},
             {"interfaces", handle_interfaces},
-            {"extensions", handle_extensions},
             {"logger", handle_logger},
             {"default_reqs_per_event", handle_default_reqs_event},
             {"reqs_per_event_high_priority", handle_high_reqs_event},
