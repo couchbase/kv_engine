@@ -10,11 +10,9 @@
 
 #include "settings.h"
 #include "log_macros.h"
-#include "network_interface_manager.h"
 #include "ssl_utils.h"
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/mcbp.h>
-#include <memcached/openssl.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/trace_config.h>
@@ -25,7 +23,6 @@
 #include <utilities/logtags.h>
 #include <algorithm>
 #include <cstring>
-#include <fstream>
 #include <system_error>
 
 Settings::Settings() = default;
