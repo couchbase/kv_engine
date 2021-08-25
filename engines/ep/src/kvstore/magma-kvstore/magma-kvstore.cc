@@ -1312,11 +1312,17 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
              &beginTime,
              &saveDocsDuration,
              &postWriteOps]() -> std::pair<Status, Magma::WriteOpsCPtr> {
-        magmaDbStats.docCount = ninserts - ndeletes;
-        addStatUpdateToWriteOps(magmaDbStats, postWriteOps);
 
         auto& vbstate = commitData.proposedVBState;
         vbstate.highSeqno = lastSeqno;
+
+        magmaDbStats.docCount = ninserts - ndeletes;
+        // Don't update UserStats highSeqno if it has not changed
+        if (vbstate.highSeqno > magmaDbStats.highSeqno) {
+            magmaDbStats.highSeqno = vbstate.highSeqno;
+        }
+
+        addStatUpdateToWriteOps(magmaDbStats, postWriteOps);
         // @todo: Magma doesn't track onDiskPrepares
         // @todo MB-42900: Magma doesn't track onDiskPrepareBytes
 

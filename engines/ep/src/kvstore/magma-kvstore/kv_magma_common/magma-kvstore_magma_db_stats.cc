@@ -15,13 +15,15 @@
 
 void to_json(nlohmann::json& json, const MagmaDbStats& dbStats) {
     json = nlohmann::json{{"docCount", std::to_string(dbStats.docCount)},
-                          {"purgeSeqno", std::to_string(dbStats.purgeSeqno)}};
+                          {"purgeSeqno", std::to_string(dbStats.purgeSeqno)},
+                          {"highSeqno", std::to_string(dbStats.highSeqno)}};
 }
 
 void from_json(const nlohmann::json& j, MagmaDbStats& dbStats) {
     dbStats.docCount = std::stoull(j.at("docCount").get<std::string>());
     dbStats.purgeSeqno.reset(
             std::stoull(j.at("purgeSeqno").get<std::string>()));
+    dbStats.highSeqno.reset(std::stoull(j.at("highSeqno").get<std::string>()));
 }
 
 void MagmaDbStats::Merge(const UserStats& other) {
@@ -33,6 +35,10 @@ void MagmaDbStats::Merge(const UserStats& other) {
     docCount += otherStats->docCount;
     if (otherStats->purgeSeqno > purgeSeqno) {
         purgeSeqno = otherStats->purgeSeqno;
+    }
+
+    if (otherStats->highSeqno > highSeqno) {
+        highSeqno = otherStats->highSeqno;
     }
 }
 

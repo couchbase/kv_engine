@@ -29,8 +29,8 @@ class MagmaDbStats : public magma::UserStats {
 public:
     explicit MagmaDbStats() = default;
 
-    MagmaDbStats(int64_t docCount, uint64_t purgeSeqno) {
-        reset(docCount, purgeSeqno);
+    MagmaDbStats(int64_t docCount, uint64_t purgeSeqno, int64_t highSeqno) {
+        reset(docCount, purgeSeqno, highSeqno);
     }
 
     MagmaDbStats(const MagmaDbStats& other) = default;
@@ -38,11 +38,12 @@ public:
     MagmaDbStats& operator=(const MagmaDbStats& other) {
         docCount = other.docCount;
         purgeSeqno = other.purgeSeqno;
+        highSeqno = other.highSeqno;
         return *this;
     }
 
     void reset(const MagmaDbStats& other) {
-        reset(other.docCount, other.purgeSeqno);
+        reset(other.docCount, other.purgeSeqno, other.highSeqno);
     }
 
     /**
@@ -78,13 +79,24 @@ public:
      */
     magma::Status Unmarshal(const std::string& encoded) override;
 
-    void reset(int64_t newDocCount, uint64_t newPurgeSeqno) {
+    void reset(int64_t newDocCount,
+               uint64_t newPurgeSeqno,
+               int64_t newHighSeqno) {
         docCount = newDocCount;
         purgeSeqno.reset(newPurgeSeqno);
+        highSeqno.reset(newHighSeqno);
     }
 
     int64_t docCount{0};
     Monotonic<uint64_t> purgeSeqno{0};
+    // Store highSeqno in UserStats
+    // Magma rollback callback iterates from rollback seqno to highSeqno. If the
+    // tombstone/prepare/collection has been purged, the docs being rolled back
+    // will be missing from the rollback callback. We store highSeqno in
+    // UserStats and retrieve it from from Magma's oldest checkpoint. This
+    // oldest rollbackable highSeqno will be used to prevent purge of docs that
+    // can be rolled back.
+    Monotonic<int64_t> highSeqno{0};
 };
 
 void to_json(nlohmann::json& json, const MagmaDbStats& stats);
