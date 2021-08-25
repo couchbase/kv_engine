@@ -32,12 +32,7 @@
 #include <thread>
 #include <tuple>
 
-enum class TransportProtocols {
-    McbpPlain,
-    McbpSsl,
-    McbpIpv6Plain,
-    McbpIpv6Ssl
-};
+enum class TransportProtocols { McbpPlain, McbpSsl };
 
 namespace Testapp {
 const size_t MAX_CONNECTIONS = 1000;

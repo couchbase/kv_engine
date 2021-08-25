@@ -20,12 +20,23 @@
  * up the test execution.
  */
 
-class IPv6Test : public TestappClientTest {};
+class IPv6Test : public TestappClientTest {
+public:
+    bool isTls() {
+        switch (GetParam()) {
+        case TransportProtocols::McbpPlain:
+            return false;
+        case TransportProtocols::McbpSsl:
+            return true;
+        }
+        throw std::invalid_argument("IPv6Test::isTls: Invalid param provided");
+    }
+};
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          IPv6Test,
-                         ::testing::Values(TransportProtocols::McbpIpv6Plain,
-                                           TransportProtocols::McbpIpv6Ssl),
+                         ::testing::Values(TransportProtocols::McbpPlain,
+                                           TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
 
 /**
@@ -35,5 +46,18 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
  * checks that we can acutally use an IPv6 connection
  */
 TEST_P(IPv6Test, Authenticate) {
-    getAdminConnection();
+    if (!mcd_env->haveIPv6()) {
+        GTEST_SKIP();
+    }
+
+    bool tls = isTls();
+    std::unique_ptr<MemcachedConnection> connection;
+    connectionMap.iterate([&connection, tls](const auto& c) {
+        if (c.getFamily() == AF_INET6 && tls == c.isSsl()) {
+            connection = c.clone();
+        }
+    });
+
+    ASSERT_TRUE(connection) << "Failed to locate connection";
+    connection->authenticate("@admin", "password");
 }

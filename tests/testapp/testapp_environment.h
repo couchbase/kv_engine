@@ -202,6 +202,12 @@ public:
 
     virtual cb::sasl::pwdb::MutablePasswordDatabase& getPasswordDatabase() = 0;
 
+    /// Do we have support for IPv4 addresses on the machine
+    virtual bool haveIPv4() const = 0;
+
+    /// Do we have support for IPv6 addresses on the machine
+    virtual bool haveIPv6() const = 0;
+
     /// Write the current password database to disk and tell memcached to
     /// reload the file
     ///

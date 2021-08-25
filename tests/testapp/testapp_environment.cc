@@ -370,7 +370,8 @@ public:
           audit_log_dir(test_directory / "audittrail"),
           minidump_dir(test_directory / "crash"),
           log_dir(test_directory / "log"),
-          manageSSL(manageSSL_) {
+          manageSSL(manageSSL_),
+          ipaddresses(cb::net::getIpAddresses(false)) {
         create_directories(minidump_dir);
         create_directories(log_dir);
 
@@ -602,6 +603,14 @@ public:
         return passwordDatabase;
     }
 
+    bool haveIPv4() const override {
+        return !ipaddresses.first.empty();
+    }
+
+    bool haveIPv6() const override {
+        return !ipaddresses.second.empty();
+    }
+
     void refreshPassordDatabase(MemcachedConnection& connection) override {
         std::ofstream cbsasldb(isasl_file_name.generic_string());
         cbsasldb << passwordDatabase.to_json() << std::endl;
@@ -625,6 +634,10 @@ private:
     const boost::filesystem::path minidump_dir;
     const boost::filesystem::path log_dir;
     const bool manageSSL;
+    /// first entry is IPv4 addresses, second is IPv6
+    /// (see cb::net::getIPAdresses)
+    const std::pair<std::vector<std::string>, std::vector<std::string>>
+            ipaddresses;
 
     nlohmann::json audit_config;
     nlohmann::json rbac_data;

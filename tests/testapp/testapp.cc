@@ -67,12 +67,8 @@ std::string to_string(const TransportProtocols& transport) {
     switch (transport) {
     case TransportProtocols::McbpPlain:
         return "Mcbp";
-    case TransportProtocols::McbpIpv6Plain:
-        return "McbpIpv6";
     case TransportProtocols::McbpSsl:
         return "McbpSsl";
-    case TransportProtocols::McbpIpv6Ssl:
-        return "McbpIpv6Ssl";
     }
     throw std::logic_error("Unknown transport");
 }
