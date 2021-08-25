@@ -55,7 +55,7 @@ class RollbackTest
       public ::testing::WithParamInterface<
               std::tuple<std::string, std::string, std::string>> {
     void SetUp() override {
-        config_string += "backend=" + getBackend();
+        config_string += generateBackendConfig(std::get<0>(GetParam()));
         config_string += ";item_eviction_policy=" + getEvictionMode();
 #ifdef EP_USE_MAGMA
         config_string += ";" + magmaRollbackConfig;
@@ -109,7 +109,7 @@ protected:
 
 public:
     std::string getBackend() const {
-        return std::get<0>(GetParam());
+        return engine->getConfiguration().getBackend();
     }
 
     std::string getEvictionMode() const {
@@ -2445,10 +2445,10 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
 }
 
 auto allConfigValues =
-        ::testing::Combine(::testing::Values("couchdb"
+        ::testing::Combine(::testing::Values("persistent_couchdb"
 #ifdef EP_USE_MAGMA
                                              ,
-                                             "magma"
+                                             "persistent_magma"
 #endif
                                              ),
                            ::testing::Values("value_only", "full_eviction"),
