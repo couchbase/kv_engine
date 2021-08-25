@@ -2559,15 +2559,28 @@ commands.
 ### 0x01 Clustermap Change Notification
 
 The server will push the new cluster map to the clients iff the client
-subscibes to clustermap notifications (see [HELO](#0x1f-helo))
+subscribes to clustermap notifications (see [HELO](#0x1f-helo))
 
 The request:
 * Must have extras
 * Must not have key
 * Must have value
 
-The revision number of the clustermap is stored with 4 bytes in the extras
-(network byte order), and the full clustermap is sent in the value field.
+The layout of the extras section depends on the version of the request.
+The version is inferred from the length of the extras.
+
+If the extras section is 4 bytes long, the extras contain a single
+unsigned 32-bit integer in network byte order. This is the revision
+number of the clustermap. This version of the request does not support
+the concept of revision epoch.
+
+If the extras section is 16 bytes long, the extras contain two
+signed 64-bit integers in network byte order. The first 8 bytes are the
+revision epoch, and the second 8 bytes are the revision number.
+The epoch value may be negative to indicate the epoch is not yet
+initialized. The revision value is never negative.
+
+In all versions, the full clustermap is sent in the value field.
 
 The server does not need a reply to the message (it is silently dropped without
 any kind of validation).
