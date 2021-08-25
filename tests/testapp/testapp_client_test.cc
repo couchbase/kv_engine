@@ -16,9 +16,11 @@
 MemcachedConnection& TestappClientTest::getConnection() {
     switch (GetParam()) {
     case TransportProtocols::McbpPlain:
-        return prepare(connectionMap.getConnection(false, AF_INET));
+        return prepare(connectionMap.getConnection(
+                false, mcd_env->haveIPv4() ? AF_INET : AF_INET6));
     case TransportProtocols::McbpSsl:
-        return prepare(connectionMap.getConnection(true, AF_INET));
+        return prepare(connectionMap.getConnection(
+                true, mcd_env->haveIPv4() ? AF_INET : AF_INET6));
     }
     throw std::logic_error("Unknown transport");
 }
@@ -188,9 +190,11 @@ void TestappXattrClientTest::SetUp() {
 MemcachedConnection& TestappXattrClientTest::getConnection() {
     switch (::testing::get<0>(GetParam())) {
     case TransportProtocols::McbpPlain:
-        return prepare(connectionMap.getConnection(false, AF_INET));
+        return prepare(connectionMap.getConnection(
+                false, mcd_env->haveIPv4() ? AF_INET : AF_INET6));
     case TransportProtocols::McbpSsl:
-        return prepare(connectionMap.getConnection(true, AF_INET));
+        return prepare(connectionMap.getConnection(
+                true, mcd_env->haveIPv4() ? AF_INET : AF_INET6));
     }
     throw std::logic_error("Unknown transport");
 }

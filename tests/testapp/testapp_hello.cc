@@ -33,7 +33,8 @@ protected:
      * Get a fresh connection to the server (with no features set)
      */
     MemcachedConnection& getConnection() override {
-        auto& ret = connectionMap.getConnection(false, AF_INET);
+        auto& ret = connectionMap.getConnection(
+                false, mcd_env->haveIPv4() ? AF_INET : AF_INET6);
         ret.reconnect();
         return ret;
     }

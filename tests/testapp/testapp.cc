@@ -1168,7 +1168,8 @@ MemcachedConnection& TestappTest::getConnection() {
     // required (this makes the return value of getConnection predictable
     // (rather than returning whatever happened to be stored in "front" of
     // the map.
-    return prepare(connectionMap.getConnection(false, AF_INET));
+    return prepare(connectionMap.getConnection(
+            false, mcd_env->haveIPv4() ? AF_INET : AF_INET6));
 }
 
 MemcachedConnection& TestappTest::getAdminConnection() {

@@ -33,14 +33,19 @@ protected:
                {"cipher order", true},
                {"client cert auth", "disabled"}};
         reloadConfig();
-        connection = connectionMap.getConnection(true, AF_INET).clone();
+        connection =
+                connectionMap
+                        .getConnection(true,
+                                       mcd_env->haveIPv4() ? AF_INET : AF_INET6)
+                        .clone();
     }
 
     void reloadConfig() {
         BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Ifconfig);
         cmd.setKey("tls");
         cmd.setValue(tls.dump());
-        auto& conn = prepare(connectionMap.getConnection(false, AF_INET));
+        auto& conn = prepare(connectionMap.getConnection(
+                false, mcd_env->haveIPv4() ? AF_INET : AF_INET6));
         conn.authenticate("@admin", "password", "PLAIN");
         auto rsp = conn.execute(cmd);
         ASSERT_TRUE(rsp.isSuccess())
