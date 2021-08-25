@@ -180,19 +180,19 @@ public:
     MemcachedConnection& getROConnection() {
         auto& smith = *smith_holder.get();
         smith.authenticate("smith", "smithpassword", "PLAIN");
-        return prepare(smith);
+        return prepare_auth_connection(smith);
     }
 
     MemcachedConnection& getWOConnection() {
         auto& jones = *jones_holder.get();
         jones.authenticate("jones", "jonespassword", "PLAIN");
-        return prepare(jones);
+        return prepare_auth_connection(jones);
     }
 
     MemcachedConnection& getRWConnection() {
         auto& larry = *larry_holder.get();
         larry.authenticate("larry", "larrypassword", "PLAIN");
-        return prepare(larry);
+        return prepare_auth_connection(larry);
     }
 
 protected:
@@ -237,7 +237,7 @@ protected:
         return resp;
     }
 
-    MemcachedConnection& prepare(MemcachedConnection& c) {
+    MemcachedConnection& prepare_auth_connection(MemcachedConnection& c) {
         c.setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
                        cb::mcbp::Feature::XATTR,
                        cb::mcbp::Feature::XERROR,
@@ -298,7 +298,7 @@ TEST_P(RbacRoleTest, Arithmetic) {
     // reset the connection to get back the privilege
     rw.reconnect();
     rw.authenticate("larry", "larrypassword", "PLAIN");
-    prepare(rw);
+    prepare_auth_connection(rw);
     // With upsert it should be allowed to create the key
     rw.arithmetic(name, 0, 0);
 
@@ -383,7 +383,7 @@ TEST_P(RbacRoleTest, MutationTest_WriteOnly) {
     // Reset privilege set
     wo.reconnect();
     wo.authenticate("jones", "jonespassword", "PLAIN");
-    prepare(wo);
+    prepare_auth_connection(wo);
 
     // If we drop the Upsert privilege we should only be allowed to do add
     wo.dropPrivilege(cb::rbac::Privilege::Upsert);

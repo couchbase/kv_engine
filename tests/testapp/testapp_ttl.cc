@@ -27,10 +27,10 @@ public:
 
 protected:
     /// We need support JSON as we'll be operating with subdoc.
-    MemcachedConnection& getConnection() override {
-        auto& ret = TestappClientTest::getConnection();
-        ret.setFeature(cb::mcbp::Feature::JSON, true);
-        return ret;
+    MemcachedConnection& prepare(MemcachedConnection& connection) override {
+        TestappClientTest::prepare(connection);
+        connection.setFeature(cb::mcbp::Feature::JSON, true);
+        return connection;
     }
 
     /// Helper method to store a fixed document with a given TTL (or preserve

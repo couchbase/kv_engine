@@ -29,14 +29,9 @@ const size_t MaxSavedConnectionId = 33;
 
 class HelloTest : public TestappTest {
 protected:
-    /**
-     * Get a fresh connection to the server (with no features set)
-     */
-    MemcachedConnection& getConnection() override {
-        auto& ret = connectionMap.getConnection(
-                false, mcd_env->haveIPv4() ? AF_INET : AF_INET6);
-        ret.reconnect();
-        return ret;
+    /// OVerride prepare to give a "fresh" connection without any features set
+    MemcachedConnection& prepare(MemcachedConnection& connection) override {
+        return connection;
     }
 };
 

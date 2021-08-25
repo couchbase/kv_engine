@@ -102,14 +102,18 @@ public:
         return ClientSnappySupport::No;
     }
 
+    virtual bool isTlsEnabled() const {
+        return false;
+    }
+
     /**
      * What response datatype do we expect for documents which are JSON?
      * Will be JSON only if the client successfully negotiated JSON feature.
      */
     cb::mcbp::Datatype expectedJSONDatatype() const;
 
-    virtual MemcachedConnection& getConnection();
-    virtual MemcachedConnection& getAdminConnection();
+    MemcachedConnection& getConnection();
+    MemcachedConnection& getAdminConnection();
 
     /**
      * Reconfigure the server to use the given cert_auth policy
@@ -243,7 +247,7 @@ protected:
      * @param connection the connection to prepare
      * @return The connection to use
      */
-    MemcachedConnection& prepare(MemcachedConnection& connection);
+    virtual MemcachedConnection& prepare(MemcachedConnection& connection);
 
     /**
      * Create an extended attribute

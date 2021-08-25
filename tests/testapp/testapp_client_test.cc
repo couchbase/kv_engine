@@ -13,16 +13,14 @@
 #include <protocol/connection/frameinfo.h>
 #include <xattr/blob.h>
 
-MemcachedConnection& TestappClientTest::getConnection() {
+bool TestappClientTest::isTlsEnabled() const {
     switch (GetParam()) {
     case TransportProtocols::McbpPlain:
-        return prepare(connectionMap.getConnection(
-                false, mcd_env->haveIPv4() ? AF_INET : AF_INET6));
+        return false;
     case TransportProtocols::McbpSsl:
-        return prepare(connectionMap.getConnection(
-                true, mcd_env->haveIPv4() ? AF_INET : AF_INET6));
+        return true;
     }
-    throw std::logic_error("Unknown transport");
+    throw std::logic_error("isTlsEnabled(): unknown transport");
 }
 
 void TestappXattrClientTest::setBodyAndXattr(
@@ -187,23 +185,21 @@ void TestappXattrClientTest::SetUp() {
     setMinCompressionRatio(0);
 }
 
-MemcachedConnection& TestappXattrClientTest::getConnection() {
-    switch (::testing::get<0>(GetParam())) {
-    case TransportProtocols::McbpPlain:
-        return prepare(connectionMap.getConnection(
-                false, mcd_env->haveIPv4() ? AF_INET : AF_INET6));
-    case TransportProtocols::McbpSsl:
-        return prepare(connectionMap.getConnection(
-                true, mcd_env->haveIPv4() ? AF_INET : AF_INET6));
-    }
-    throw std::logic_error("Unknown transport");
-}
-
 void TestappXattrClientTest::createXattr(MemcachedConnection& conn,
                                          const std::string& path,
                                          const std::string& value,
                                          bool macro) {
     runCreateXattr(conn, path, value, macro, xattrOperationStatus);
+}
+
+bool TestappXattrClientTest::isTlsEnabled() const {
+    switch (::testing::get<0>(GetParam())) {
+    case TransportProtocols::McbpPlain:
+        return false;
+    case TransportProtocols::McbpSsl:
+        return true;
+    }
+    throw std::logic_error("isTlsEnabled(): Unknown transport");
 }
 
 ClientJSONSupport TestappXattrClientTest::hasJSONSupport() const {

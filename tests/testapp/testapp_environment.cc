@@ -434,25 +434,40 @@ public:
         rewriteAuditConfigImpl();
     }
 
+    std::string getPassword(std::string_view user) const override {
+        auto iter = users.find(std::string{user});
+        if (iter == users.end()) {
+            throw std::runtime_error("getPassword(): Unknown user: " +
+                                     std::string{user});
+        }
+        return iter->second;
+    }
+
+    const std::unordered_map<std::string, std::string> users{
+            {"@admin", "password"},
+            {"bucket-1", "1S|=,%#x1"},
+            {"bucket-2", "secret"},
+            {"bucket-3", "1S|=,%#x1"},
+            {"smith", "smithpassword"},
+            {"larry", "larrypassword"},
+            {"legacy", "new"},
+            {"default", ""},
+            {"jones", "jonespassword"}};
+
     void setupPasswordDatabase() {
         // Write the initial password database:
         using cb::sasl::pwdb::User;
         using cb::sasl::pwdb::UserFactory;
         using cb::sasl::pwdb::user::Limits;
 
-        std::vector<User> users;
-
         // Reduce the iteration count to speed up the unit tests
         UserFactory::setDefaultHmacIterationCount(10);
 
-        passwordDatabase.upsert(UserFactory::create("@admin", "password"));
-        passwordDatabase.upsert(UserFactory::create("bucket-1", "1S|=,%#x1"));
-        passwordDatabase.upsert(UserFactory::create("bucket-2", "secret"));
-        passwordDatabase.upsert(UserFactory::create("bucket-3", "1S|=,%#x1"));
-        passwordDatabase.upsert(UserFactory::create("smith", "smithpassword"));
-        passwordDatabase.upsert(UserFactory::create("larry", "larrypassword"));
-        passwordDatabase.upsert(UserFactory::create("legacy", "new"));
-        passwordDatabase.upsert(UserFactory::create("default", ""));
+        for (const auto [u, p] : users) {
+            if (u != "jones") {
+                passwordDatabase.upsert(UserFactory::create(u, p));
+            }
+        }
 
         auto jones = UserFactory::create("jones", "jonespassword");
         Limits limits;

@@ -1169,7 +1169,7 @@ MemcachedConnection& TestappTest::getConnection() {
     // (rather than returning whatever happened to be stored in "front" of
     // the map.
     return prepare(connectionMap.getConnection(
-            false, mcd_env->haveIPv4() ? AF_INET : AF_INET6));
+            isTlsEnabled(), mcd_env->haveIPv4() ? AF_INET : AF_INET6));
 }
 
 MemcachedConnection& TestappTest::getAdminConnection() {

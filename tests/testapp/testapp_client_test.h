@@ -22,8 +22,8 @@
 class TestappClientTest
     : public TestappTest,
       public ::testing::WithParamInterface<TransportProtocols> {
-protected:
-    MemcachedConnection& getConnection() override;
+public:
+    bool isTlsEnabled() const override;
 };
 
 enum class XattrSupport { Yes, No };
@@ -50,8 +50,6 @@ protected:
 
     void SetUp() override;
 
-    MemcachedConnection& getConnection() override;
-
     BinprotSubdocResponse getXattr(MemcachedConnection& conn,
                                    const std::string& path,
                                    bool deleted = false);
@@ -60,8 +58,8 @@ protected:
                      const std::string& value,
                      bool macro = false);
 
+    bool isTlsEnabled() const override;
     ClientJSONSupport hasJSONSupport() const override;
-
     ClientSnappySupport hasSnappySupport() const override;
 
     // What response datatype do we expect for documents which are JSON?

@@ -208,6 +208,9 @@ public:
     /// Do we have support for IPv6 addresses on the machine
     virtual bool haveIPv6() const = 0;
 
+    /// Get the password for the requested user
+    virtual std::string getPassword(std::string_view user) const = 0;
+
     /// Write the current password database to disk and tell memcached to
     /// reload the file
     ///
