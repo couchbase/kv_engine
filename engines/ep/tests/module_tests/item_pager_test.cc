@@ -2356,10 +2356,13 @@ void STFullEvictionNoBloomFilterPagerTest::testTempItemEvictableButNotExpirable(
     auto vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
 
-    // Attempt to expire the fetched (temp non-existent) item
+    // Attempt to expire the fetched (temp non-existent) item. Time travel 1
+    // second to ensure that the item is expired (by time)
+    TimeTraveller tt(1);
     wakeUpExpiryPager();
 
     auto& stats = engine->getEpStats();
+    ASSERT_EQ(1, stats.expiryPagerRuns);
     EXPECT_EQ(0, stats.expired_pager);
     EXPECT_EQ(0, vb->numExpiredItems);
 

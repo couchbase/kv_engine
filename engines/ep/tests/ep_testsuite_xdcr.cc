@@ -1814,78 +1814,6 @@ static enum test_result test_exp_persisted_set_del(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_temp_item_deletion(EngineIface* h) {
-    // Do get_meta for an existing key
-    char const *k1 = "k1";
-
-    checkeq(cb::engine_errc::success,
-            store(h, nullptr, StoreSemantics::Set, k1, "somevalue"),
-            "Failed set.");
-    wait_for_flusher_to_settle(h);
-
-    checkeq(cb::engine_errc::success, del(h, k1, 0, Vbid(0)), "Delete failed");
-    wait_for_flusher_to_settle(h);
-    wait_for_stat_to_be(h, "curr_items", 0);
-
-    // Issue a get_meta for a deleted key. This will need to bring in a temp
-    // item into the hashtable as a placeholder for the (deleted) metadata
-    // which needs to be loaded from disk via BG fetch
-    // We need to temporarily disable the reader threads as to prevent the
-    // BGfetch from immediately running and removing our temp_item before
-    // we've had chance to validate its existence.
-    set_param(h, EngineParamCategory::Flush, "num_reader_threads", "0");
-
-    // Disable nonio so that we have better control of the expirypager
-    set_param(h, EngineParamCategory::Flush, "num_nonio_threads", "0");
-
-    // Tell the harness not to handle EWOULDBLOCK for us - we want it to
-    // be outstanding while we check the below stats.
-    auto* cookie = testHarness->create_cookie(h);
-    testHarness->set_ewouldblock_handling(cookie, false);
-
-    cb::EngineErrorMetadataPair errorMetaPair;
-
-    check(!get_meta(h, k1, errorMetaPair, cookie),
-          "Expected get_meta to fail (EWOULDBLOCK)");
-    checkeq(cb::engine_errc::would_block,
-            errorMetaPair.first,
-            "Expected EWOULDBLOCK");
-
-    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
-    checkeq(1,
-            get_int_stat(h, "curr_temp_items"),
-            "Expected single temp_items");
-
-    // Re-enable EWOULDBLOCK handling (and reader threads), and re-issue.
-    testHarness->set_ewouldblock_handling(cookie, true);
-    set_param(h, EngineParamCategory::Flush, "num_reader_threads", "1");
-
-    check(get_meta(h, k1, errorMetaPair, cookie),
-          "Expected get_meta to succeed");
-    checkeq(DocumentState::Deleted,
-            errorMetaPair.second.document_state,
-            "Expected deleted flag to be set");
-
-    // Even though 2 get_meta calls are made, we may have one or two bg fetches
-    // done. That is if first bgfetch restores in HT, the deleted item from
-    // disk, before the second get_meta call tries to find that item in HT,
-    // we will have only 1 bgfetch
-    wait_for_stat_to_be_gte(h, "ep_bg_meta_fetched", 1);
-
-    // Trigger the expiry pager and verify that the temp item is deleted
-    set_param(h, EngineParamCategory::Flush, "num_nonio_threads", "1");
-
-    int ep_expired_pager = 1;
-    wait_for_stat_to_be(h, "ep_expired_pager", ep_expired_pager);
-
-    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
-    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
-
-    testHarness->destroy_cookie(cookie);
-
-    return SUCCESS;
-}
-
 static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
     // put some random metadata
     ItemMetaData itemMeta;
@@ -3394,15 +3322,6 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "conflict_resolution_type=lww",
                  prepare,
-                 cleanup),
-        TestCase("temp item deletion",
-                 test_temp_item_deletion,
-                 test_setup,
-                 teardown,
-                 "exp_pager_stime=1",
-                 /* TODO RDB: curr_items not correct under Rocks full eviction*/
-                 /* related to temp items in hash table */
-                 prepare_ep_bucket_skip_broken_under_rocks_full_eviction,
                  cleanup),
         TestCase("test get_meta with item_eviction",
                  test_getMeta_with_item_eviction,

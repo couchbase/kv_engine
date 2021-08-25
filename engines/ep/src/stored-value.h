@@ -248,7 +248,9 @@ public:
      * @return true if this item's expiry time < asOf
      */
     bool isExpired(time_t asOf) const {
-        if (getExptime() != 0 && getExptime() < asOf) {
+        // Temp items shouldn't get expired by anything, they should get freed
+        // from the HashTable by the ItemPager.
+        if (getExptime() != 0 && getExptime() < asOf && !isTempItem()) {
             return true;
         }
         return false;
