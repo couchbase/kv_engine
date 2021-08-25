@@ -1148,14 +1148,15 @@ TEST_P(KVBucketParamTest, unlockKeyTempDeletedTest) {
                           {cb::engine_errc::success},
                           PROTOCOL_BINARY_RAW_BYTES);
 
-    GetValue gv = store->getAndUpdateTtl(key, vbid, cookie, ep_real_time());
+    GetValue gv =
+            store->getAndUpdateTtl(key, vbid, cookie, ep_real_time() + 10000);
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 
     gv = store->getLocked(key, vbid, ep_current_time(), 10, cookie);
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 
     itm.setCas(gv.item->getCas());
-    store->deleteExpiredItem(itm, ep_real_time() + 10, ExpireBy::Pager);
+    store->deleteExpiredItem(itm, ep_real_time() + 10001, ExpireBy::Pager);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
