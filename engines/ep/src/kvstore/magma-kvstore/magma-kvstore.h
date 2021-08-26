@@ -753,12 +753,6 @@ protected:
         }
         MagmaKVStore& magmaKVStore;
 
-        // The only usage of this is is in compactionCallback and it could be a
-        // local variable instead but it's less expensive to reset the contents
-        // of the stringstream than it is to destroy/recreate the stringstream
-        // for each key we visit.
-        std::stringstream itemKeyBuf;
-
         std::shared_ptr<CompactionContext> ctx;
 
         MagmaDbStats magmaDbStats;

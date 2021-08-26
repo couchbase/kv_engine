@@ -235,16 +235,14 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
     }
 
     auto vbid = magmakv::getVbid(metaSlice);
-    auto& itemString = cbCtx.itemKeyBuf;
+    std::string userSanitizedItemStr;
     if (logger->should_log(spdlog::level::TRACE)) {
-        itemString.str(std::string());
-        itemString << "key:"
-                   << cb::UserData{makeDiskDocKey(keySlice).to_string()};
-        itemString << " ";
-        itemString << magmakv::getDocMeta(metaSlice).to_string();
-        logger->TRACE("MagmaCompactionCB: {} {}",
-                      vbid,
-                      cb::UserData(itemString.str()));
+        userSanitizedItemStr =
+                "key:" +
+                cb::UserData{makeDiskDocKey(keySlice).to_string()}
+                        .getSanitizedValue() +
+                " " + magmakv::getDocMeta(metaSlice).to_string();
+        logger->TRACE("MagmaCompactionCB: {} {}", vbid, userSanitizedItemStr);
     }
 
     if (!cbCtx.ctx) {
@@ -301,7 +299,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                         "MagmaKVStore::MagmaCompactionCallback: DROP "
                         "collections "
                         "{}",
-                        itemString.str());
+                        userSanitizedItemStr);
             }
             return true;
         }
@@ -323,7 +321,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                 if (logger->should_log(spdlog::level::TRACE)) {
                     logger->TRACE("MagmaCompactionCB: {} DROP drop_deletes {}",
                                   vbid,
-                                  cb::UserData(itemString.str()));
+                                  userSanitizedItemStr);
                 }
                 drop = true;
             }
@@ -333,7 +331,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                     logger->TRACE(
                             "MagmaCompactionCB: {} DROP expired tombstone {}",
                             vbid,
-                            cb::UserData(itemString.str()));
+                            userSanitizedItemStr);
                 }
                 drop = true;
             }
@@ -363,7 +361,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                     logger->TRACE(
                             "MagmaKVStore::MagmaCompactionCallback: "
                             "DROP prepare {}",
-                            itemString.str());
+                            userSanitizedItemStr);
                 }
                 return true;
             }
@@ -392,15 +390,14 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             if (logger->should_log(spdlog::level::TRACE)) {
                 logger->TRACE("MagmaCompactionCB: {} expiry callback {}",
                               vbid,
-                              cb::UserData(itemString.str()));
+                              userSanitizedItemStr);
             }
         }
     }
 
     if (logger->should_log(spdlog::level::TRACE)) {
-        logger->TRACE("MagmaCompactionCB: {} KEEP {}",
-                      vbid,
-                      cb::UserData(itemString.str()));
+        logger->TRACE(
+                "MagmaCompactionCB: {} KEEP {}", vbid, userSanitizedItemStr);
     }
     return false;
 }
