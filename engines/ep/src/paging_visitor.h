@@ -79,7 +79,12 @@ public:
 
     void update();
 
-    bool pauseVisitor() override;
+    /**
+     * @return ExecutionState::Pause if this visitor execution duration-quantum
+     *  has been consumed. Only for the ExpiryPager "paused" is also returned
+     *  based on the DWQ size. ExecutionState::Continue otherwise.
+     */
+    ExecutionState shouldInterrupt() override;
 
     void complete() override;
 

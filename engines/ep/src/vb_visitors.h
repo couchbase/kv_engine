@@ -74,14 +74,15 @@ protected:
 };
 
 /**
- * A base class for VBucket visitor class which supports pausing after
- * processing a vBucket, to be later resumed at the next vBucket.
+ * A base class for VBucket visitor class which supports interrupting after
+ * processing a vBucket, to be later resumed at the next vBucket or completely
+ * stop the execution.
  *
  * This is used by KVBucketIface::visitAsync() to allow costly visitors to
  * pause after some amount of work, sleeping for a period before resuming.
  *
  */
-class PausableVBucketVisitor : public VBucketVisitor {
+class InterruptableVBucketVisitor : public VBucketVisitor {
 public:
     void visitBucket(const VBucketPtr& vb) override = 0;
 
@@ -92,29 +93,50 @@ public:
     virtual void begin(){};
 
     /**
-     * Called after all vbuckets have been visited.
+     * Called when the visitor interrupts its execution, so after all vbuckets
+     * have been visited of if the visit is stopped.
      */
     virtual void complete(){};
 
     /**
-     * Return true if visiting vbuckets should be paused temporarily.
-     *
-     * Default implementation pauses if the chunk has been running for
-     * more than maxChunkDuration.
+     * Represents the execution state of the visitor. Used at every vbucket
+     * visit of the VBCBAdaptor for determining how the adaptor has to proceed.
      */
-    virtual bool pauseVisitor() = 0;
+    enum class ExecutionState : uint8_t {
+        /// The adaptor can proceed visiting another vbucket
+        Continue,
+        /// The execution needs to pause, it will resume later from where the
+        /// adaptor left
+        Pause,
+        /// The execution must be stopped, the adaptor task will finish its
+        /// execution
+        Stop
+    };
+
+    /**
+     * Tells the caller if visiting vbuckets should be interrupted.
+     *
+     * @return the execution state to inform the caller whether to continue,
+     *  pause or stop this visitor execution
+     */
+    virtual ExecutionState shouldInterrupt() = 0;
 };
 
 /**
  * A base class for a vBucket visitor which pauses after a given duration of
  * time has been spent executing (maxChunkDuration).
  */
-class CappedDurationVBucketVisitor : public PausableVBucketVisitor {
+class CappedDurationVBucketVisitor : public InterruptableVBucketVisitor {
 public:
     void visitBucket(const VBucketPtr& vb) override = 0;
 
     void begin() override;
-    bool pauseVisitor() override;
+
+    /**
+     * @return ExecutionState::Pause if this visitor execution duration-quantum
+     *  has been consumed. ExecutionState::Continue otherwise.
+     */
+    ExecutionState shouldInterrupt() override;
 
 protected:
     /**

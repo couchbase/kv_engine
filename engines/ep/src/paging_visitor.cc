@@ -266,16 +266,17 @@ void PagingVisitor::update() {
     expired.clear();
 }
 
-bool PagingVisitor::pauseVisitor() {
+InterruptableVBucketVisitor::ExecutionState PagingVisitor::shouldInterrupt() {
     if (!canPause) {
-        return false;
+        return ExecutionState::Continue;
     }
-    bool shouldPause = CappedDurationVBucketVisitor::pauseVisitor();
-    if (owner == EXPIRY_PAGER) {
-        size_t queueSize = stats.diskQueueSize.load();
-        shouldPause |= queueSize >= MAX_PERSISTENCE_QUEUE_SIZE;
+
+    if (owner == EXPIRY_PAGER &&
+        (stats.diskQueueSize.load() >= MAX_PERSISTENCE_QUEUE_SIZE)) {
+        return ExecutionState::Pause;
     }
-    return shouldPause;
+
+    return CappedDurationVBucketVisitor::shouldInterrupt();
 }
 
 void PagingVisitor::complete() {
