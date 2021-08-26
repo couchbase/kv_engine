@@ -2307,10 +2307,6 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
                                               const uint64_t seqno,
                                               const Slice& metaSlice) {
                 auto diskKey = makeDiskDocKey(keySlice);
-                auto docKey = diskKey.getDocKey();
-                if (docKey.isInSystemCollection()) {
-                    return;
-                }
 
                 if (logger->should_log(spdlog::level::TRACE)) {
                     logger->TRACE(
