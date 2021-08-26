@@ -2128,8 +2128,8 @@ static enum test_result test_dcp_producer_stream_req_full_merged_snapshots(
 
 static enum test_result test_dcp_producer_stream_req_full(EngineIface* h) {
     const int num_items = 300, batch_items = 100;
-    for (int start_seqno = 0; start_seqno < num_items;
-         start_seqno += batch_items) {
+    int start_seqno = 0;
+    for (; start_seqno < num_items; start_seqno += batch_items) {
         wait_for_flusher_to_settle(h);
         write_items(h, batch_items, start_seqno);
     }
@@ -2138,7 +2138,15 @@ static enum test_result test_dcp_producer_stream_req_full(EngineIface* h) {
     verify_curr_items(h, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
-    checkne(num_items - get_stat<uint64_t>(h, "ep_items_rm_from_checkpoints"),
+    // Need to avoid eager checkpoint mem-recovery for getting to what we want
+    // at this step
+    set_param(h,
+              EngineParamCategory::Checkpoint,
+              "checkpoint_memory_recovery_upper_mark",
+              "1.0");
+    write_items(h, 1, start_seqno + 1);
+    checkne(num_items + 1 -
+                    get_stat<uint64_t>(h, "ep_items_rm_from_checkpoints"),
             uint64_t{0},
             "Ensure a non-zero number of items to still be present in "
             "CheckpointManager to verify that we still get all mutations in the"
@@ -2149,7 +2157,7 @@ static enum test_result test_dcp_producer_stream_req_full(EngineIface* h) {
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
-    ctx.exp_mutations = num_items;
+    ctx.exp_mutations = num_items + 1;
     ctx.exp_markers = 1;
 
     TestDcpConsumer tdc("unittest", cookie, h);
@@ -2280,8 +2288,6 @@ static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h) {
         }
         write_items(h, batch_items, start_seqno);
     }
-
-    wait_for_stat_to_be_gte(h, "vb_0:num_checkpoints", 2, "checkpoint");
 
     auto* cookie = testHarness->create_cookie(h);
 
@@ -8148,35 +8154,43 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_remover_stime=1;max_checkpoints=2",
                  prepare,
                  cleanup),
-        TestCase("test dcp replica stream all",
-                 test_dcp_replica_stream_all,
-                 test_setup,
-                 teardown,
-                 "chk_remover_stime=1;max_checkpoints=2",
-                 prepare,
-                 cleanup),
-        TestCase("test dcp replica stream all with collections enabled stream",
-                 test_dcp_replica_stream_all_collection_enabled,
-                 test_setup,
-                 teardown,
-                 "chk_remover_stime=1;max_checkpoints=2",
-                 prepare,
-                 cleanup),
-        TestCase("test dcp replica stream one collection with mutations just "
-                 "from disk",
-                 test_dcp_replica_stream_one_collection_on_disk,
-                 test_setup,
-                 teardown,
-                 "chk_remover_stime=1;max_checkpoints=2",
-                 prepare,
-                 cleanup),
-        TestCase("test dcp replica stream one collection",
-                 test_dcp_replica_stream_one_collection,
-                 test_setup,
-                 teardown,
-                 "chk_remover_stime=1;max_checkpoints=2",
-                 prepare,
-                 cleanup),
+        TestCase(
+                "test dcp replica stream all",
+                test_dcp_replica_stream_all,
+                test_setup,
+                teardown,
+                "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
+                "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
+                prepare,
+                cleanup),
+        TestCase(
+                "test dcp replica stream all with collections enabled stream",
+                test_dcp_replica_stream_all_collection_enabled,
+                test_setup,
+                teardown,
+                "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
+                "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
+                prepare,
+                cleanup),
+        TestCase(
+                "test dcp replica stream one collection with mutations just "
+                "from disk",
+                test_dcp_replica_stream_one_collection_on_disk,
+                test_setup,
+                teardown,
+                "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
+                "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
+                prepare,
+                cleanup),
+        TestCase(
+                "test dcp replica stream one collection",
+                test_dcp_replica_stream_one_collection,
+                test_setup,
+                teardown,
+                "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
+                "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
+                prepare,
+                cleanup),
         TestCase("test dcp replica stream expiries - ExpiryOutput Enabled",
                  test_dcp_replica_stream_expiry_enabled,
                  test_setup,
@@ -8212,35 +8226,44 @@ BaseTestCase testsuite_testcases[] = {
                     during this test and create extra checkpoints we don't
                     want.*/
                  "chk_remover_stime=1;chk_max_items=100;"
-                 "chk_period=1000000",
+                 "chk_period=1000000;checkpoint_memory_recovery_upper_mark=0;"
+                 "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
                  cleanup),
         TestCase("test producer stream request (full merged snapshots)",
                  test_dcp_producer_stream_req_full_merged_snapshots,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_max_items=100",
+                 "chk_remover_stime=1;chk_max_items=100;checkpoint_memory_"
+                 "recovery_upper_mark=0;"
+                 "checkpoint_memory_recovery_lower_mark=0",
                  prepare_ep_bucket,
                  cleanup),
         TestCase("test producer stream request (full)",
                  test_dcp_producer_stream_req_full,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;max_checkpoints=2;chk_max_items=100",
+                 "chk_remover_stime=1;max_checkpoints=2;chk_max_items=100;"
+                 "checkpoint_memory_recovery_upper_mark=0;"
+                 "checkpoint_memory_recovery_lower_mark=0",
                  prepare_ephemeral_bucket,
                  cleanup),
         TestCase("test producer stream request (backfill)",
                  test_dcp_producer_stream_req_backfill,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_max_items=100;dcp_scan_item_limit=50",
+                 "chk_remover_stime=1;chk_max_items=100;dcp_scan_item_limit=50;"
+                 "checkpoint_memory_recovery_upper_mark=0;"
+                 "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
                  cleanup),
         TestCase("test producer stream request (disk only)",
                  test_dcp_producer_stream_req_diskonly,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_max_items=100",
+                 "chk_remover_stime=1;chk_max_items=100;checkpoint_memory_"
+                 "recovery_upper_mark=0;"
+                 "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
                  cleanup),
         TestCase("test producer disk backfill buffer limits",
@@ -8250,7 +8273,8 @@ BaseTestCase testsuite_testcases[] = {
                  /* Set buffer size to a very low value (less than the size
                     of a mutation) */
                  "dcp_backfill_byte_limit=1;chk_remover_stime=1;"
-                 "chk_max_items=3",
+                 "chk_max_items=3;checkpoint_memory_recovery_upper_mark=0;"
+                 "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
                  cleanup),
         TestCase("test producer stream request (memory only)",
@@ -8305,14 +8329,18 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_keep_stream_open_replica,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_max_items=100",
+                 "chk_remover_stime=1;chk_max_items=100;checkpoint_memory_"
+                 "recovery_upper_mark=0;"
+                 "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
                  cleanup),
         TestCase("test producer stream cursor movement",
                  test_dcp_producer_stream_cursor_movement,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_max_items=10",
+                 "chk_remover_stime=1;chk_max_items=10;checkpoint_memory_"
+                 "recovery_upper_mark=0;"
+                 "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
                  cleanup),
         TestCase("test producer stream request nmvb",
@@ -8370,7 +8398,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_failover_scenario_two_with_dcp,
                  test_setup,
                  teardown,
-                 nullptr,
+                 "checkpoint_memory_recovery_upper_mark=0;checkpoint_memory_"
+                 "recovery_lower_mark=0",
                  prepare,
                  cleanup),
         TestCase("test add stream",
@@ -8580,7 +8609,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_last_items_purged,
                  test_setup,
                  teardown,
-                 nullptr,
+                 "checkpoint_memory_recovery_upper_mark=0;checkpoint_memory_"
+                 "recovery_lower_mark=0",
                  /* In ephemeral buckets the test is run from module tests:
                     EphTombstoneTest.ImmediateDeletedPurge() */
                  /* TODO RDB: Need to purge in a compaction filter,
@@ -8595,7 +8625,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_rollback_after_purge,
                  test_setup,
                  teardown,
-                 nullptr,
+                 "checkpoint_memory_recovery_upper_mark=0;checkpoint_memory_"
+                 "recovery_lower_mark=0",
                  /* In ephemeral buckets the test is run from module tests:
                     StreamTest.RollbackDueToPurge() */
                  /* TODO RDB: Need to purge in a compaction filter,
