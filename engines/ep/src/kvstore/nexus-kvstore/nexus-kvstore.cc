@@ -1024,11 +1024,51 @@ void NexusKVStore::abortCompactionIfRunning(
 }
 
 vbucket_state* NexusKVStore::getCachedVBucketState(Vbid vbid) {
+    auto* primaryVbState = primary->getCachedVBucketState(vbid);
+    auto* secondaryVbState = secondary->getCachedVBucketState(vbid);
+
+    if (static_cast<bool>(primaryVbState) !=
+        static_cast<bool>(secondaryVbState)) {
+        auto msg = fmt::format(
+                "NexusKVStore::getCachedVBucketState: {}:"
+                "vbstate returned for only one KVStore"
+                "primary:{} secondary:{}",
+                vbid,
+                static_cast<bool>(primaryVbState),
+                static_cast<bool>(secondaryVbState));
+        handleError(msg);
+    }
+
+    if (primaryVbState && secondaryVbState &&
+        !compareVBucketState(*primaryVbState, *secondaryVbState)) {
+        auto msg = fmt::format(
+                "NexusKVStore::getCachedVBucketState: {}: "
+                "difference in vBucket state primary:{} "
+                "secondary:{}",
+                vbid,
+                *primaryVbState,
+                *secondaryVbState);
+        handleError(msg);
+    }
+
     return primary->getCachedVBucketState(vbid);
 }
 
 vbucket_state NexusKVStore::getPersistedVBucketState(Vbid vbid) {
-    return primary->getPersistedVBucketState(vbid);
+    auto primaryVbState = primary->getPersistedVBucketState(vbid);
+    auto secondaryVbState = secondary->getPersistedVBucketState(vbid);
+
+    if (!compareVBucketState(primaryVbState, secondaryVbState)) {
+        auto msg = fmt::format(
+                "NexusKVStore::getPersistedVBucketState: {}: "
+                "difference in vBucket state primary:{} "
+                "secondary:{}",
+                vbid,
+                primaryVbState,
+                secondaryVbState);
+        handleError(msg);
+    }
+    return primaryVbState;
 }
 
 size_t NexusKVStore::getNumPersistedDeletes(Vbid vbid) {
