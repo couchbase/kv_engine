@@ -16,7 +16,6 @@
 #include "collections/kvstore.h"
 #include "kvstore_fwd.h"
 #include "kvstore_iface.h"
-#include "persistence_callback.h"
 #include "utilities/testing_hook.h"
 
 #include <memcached/engine_common.h>
@@ -29,10 +28,8 @@
 #include <cstring>
 #include <list>
 #include <map>
-#include <string>
 #include <string_view>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 /* Forward declarations */
