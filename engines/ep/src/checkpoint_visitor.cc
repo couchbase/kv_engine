@@ -18,14 +18,14 @@
 
 #include <tuple>
 
-CheckpointVisitor::CheckpointVisitor(KVBucketIface* s,
-                                     EPStats& st,
-                                     std::atomic<bool>& sfin)
-    : store(s),
-      stats(st),
+CheckpointVisitor::CheckpointVisitor(KVBucketIface* store,
+                                     EPStats& stats,
+                                     std::atomic<bool>& stateFinalizer)
+    : store(store),
+      stats(stats),
       taskStart(std::chrono::steady_clock::now()),
-      wasAboveBackfillThreshold(s->isMemUsageAboveBackfillThreshold()),
-      stateFinalizer(sfin) {
+      wasAboveBackfillThreshold(store->isMemUsageAboveBackfillThreshold()),
+      stateFinalizer(stateFinalizer) {
 }
 
 void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {

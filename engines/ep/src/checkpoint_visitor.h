@@ -23,10 +23,9 @@ class KVBucketIface;
  */
 class CheckpointVisitor : public CappedDurationVBucketVisitor {
 public:
-    /**
-     * Construct a CheckpointVisitor.
-     */
-    CheckpointVisitor(KVBucketIface* s, EPStats& st, std::atomic<bool>& sfin);
+    CheckpointVisitor(KVBucketIface* store,
+                      EPStats& stats,
+                      std::atomic<bool>& stateFinalizer);
 
     void visitBucket(const VBucketPtr& vb) override;
 
@@ -44,5 +43,11 @@ private:
      */
     bool wasAboveBackfillThreshold;
 
+    /**
+     *  Ref to a RemoverTask flag for signaling when the this Visitor has
+     *  completed its execution. The RemoveTask task uses that flag for
+     *  determining whether a Visitor is already executing and spawning a new
+     *  Visitor accordingly.
+     */
     std::atomic<bool>& stateFinalizer;
 };
