@@ -15,8 +15,10 @@
 
 class NexusKVStoreConfig;
 class NexusKVStoreSecondaryPersistenceCallback;
+class NexusRollbackCB;
 
 struct NexusCompactionContext;
+struct NexusRollbackContext;
 
 /**
  * Testing harness for two KVStore implementations that runs both KVStores in
@@ -215,14 +217,32 @@ protected:
             std::shared_ptr<CompactionContext> primaryCtx,
             std::shared_ptr<CompactionContext> secondaryCtx);
 
-    // Friended to let us call handleError to error if the results of the
-    // secondary PersistenceCallback are different to those of the primary
+    /**
+     * Work out which order to run rollback in
+     * @return A NexusRollbackContext containing the KVStore order
+     */
+    NexusRollbackContext calculateRollbackOrder();
+
+    // Friended to let us call handleError to error from associated classes
     friend NexusKVStoreSecondaryPersistenceCallback;
+    friend NexusRollbackCB;
 
 protected:
     NexusKVStoreConfig& configuration;
     std::unique_ptr<KVStoreIface> primary;
     std::unique_ptr<KVStoreIface> secondary;
+
+    /**
+     * During rollback we make a call to getWithHeader in EPDiskRollbackCB for
+     * each item we are attempting to rollback to compare the before and after
+     * state of the document. When we make this call, the underlying file has
+     * already been reverted to the previous state and we are just iterating the
+     * changes. As such, a call to getWithHeader for the rolling back KVStore
+     * will have a different result (if it's the one done first) to the other
+     * KVStore. This means we have to skip the checks we'd normally do in
+     * getWithHeader for this portion of a rollback.
+     */
+    bool skipGetWithHeaderChecksForRollback = false;
 
     /**
      * Mutexes that allow us to lock interesting actions for some particular

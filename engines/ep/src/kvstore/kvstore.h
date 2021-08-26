@@ -859,11 +859,11 @@ class RollbackCB : public StatusCallback<GetValue> {
 public:
     void callback(GetValue& val) override = 0;
 
-    void setKVFileHandle(std::unique_ptr<KVFileHandle> handle) {
+    virtual void setKVFileHandle(std::unique_ptr<KVFileHandle> handle) {
         kvFileHandle = std::move(handle);
     }
 
-    const KVFileHandle* getKVFileHandle() const {
+    virtual const KVFileHandle* getKVFileHandle() const {
         return kvFileHandle.get();
     }
 

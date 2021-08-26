@@ -16,6 +16,9 @@
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "kvstore/kvstore_transaction_context.h"
+#ifdef EP_USE_MAGMA
+#include "kvstore/magma-kvstore/magma-kvstore.h"
+#endif
 #include "nexus-kvstore-config.h"
 #include "nexus-kvstore-persistence-callback.h"
 #include "nexus-kvstore-transaction-context.h"
@@ -453,8 +456,17 @@ GetValue NexusKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
                                      Vbid vb,
                                      ValueFilter filter) const {
     auto lh = getLock(vb);
+
     auto primaryGetValue =
             primary->getWithHeader(kvFileHandle, key, vb, filter);
+
+    if (skipGetWithHeaderChecksForRollback) {
+        // We're calling this from rollback, and the primary KVStore will have
+        // been rolled back already and we're looking for the pre-rollback seqno
+        // state of a doc in the callback in EPBucket. Any comparison here would
+        // be invalid so we just return early.
+        return primaryGetValue;
+    }
 
     auto secondaryHandle = secondary->makeFileHandle(vb);
     auto secondaryGetValue =
@@ -968,10 +980,205 @@ size_t NexusKVStore::getItemCount(Vbid vbid) {
     return primary->getItemCount(vbid);
 }
 
+/**
+ * Rollback callback for NexusKVStore. This callback:
+ *
+ * a) forwards the callback invocation on to the original callback (if the
+ *    original callback is supplied during construction)
+ * b) forwards gets and sets of the file handle on to the original callback (if
+ *    original callback is supplied during construction)
+ * b) stores a copy of the key and seqno for comparison of the callback
+ *    invocations between primary and secondary KVStores
+ */
+class NexusRollbackCB : public RollbackCB {
+public:
+    NexusRollbackCB(NexusKVStore& kvstore,
+                    Vbid vbid,
+                    std::unordered_map<DiskDocKey, uint64_t>& rollbacks,
+                    std::unique_ptr<RollbackCB> originalCb = {})
+        : kvstore(kvstore),
+          vbid(vbid),
+          rolledBack(rollbacks),
+          originalCb(std::move(originalCb)) {
+    }
+
+    void callback(GetValue& val) override {
+        // The item passed in here is the post-rollback item. We should compare
+        // it to the items rolled back by the primary.
+        Expects(val.item);
+        auto [itr, emplaceResult] = rolledBack.try_emplace(
+                DiskDocKey(*val.item), val.item->getBySeqno());
+        if (!emplaceResult) {
+            auto msg = fmt::format(
+                    "NexusRollbackCB::callback: {}: called back for {} with "
+                    "seqno {} but callback already exists with seqno {}",
+                    vbid,
+                    cb::UserData(val.item->getKey().to_string()),
+                    val.item->getBySeqno(),
+                    itr->second);
+            kvstore.handleError(msg);
+        }
+
+        if (originalCb) {
+            originalCb->callback(val);
+        }
+    }
+
+    void setKVFileHandle(std::unique_ptr<KVFileHandle> handle) override {
+        // Give the file handle to the original (if it exists), otherwise we
+        // need to store it ourselves.
+        if (originalCb) {
+            originalCb->setKVFileHandle(std::move(handle));
+            return;
+        }
+
+        RollbackCB::setKVFileHandle(std::move(handle));
+    }
+
+    const KVFileHandle* getKVFileHandle() const override {
+        // Get the file handle from the original if it exists (we should have
+        // given it to the orignal via setKVFileHandle), otherwise we should
+        // have store it in the parent so we should return that one.
+        if (originalCb) {
+            return originalCb->getKVFileHandle();
+        }
+
+        return RollbackCB::getKVFileHandle();
+    }
+
+    // Used for logging errors
+    NexusKVStore& kvstore;
+
+    // Used for logging errors
+    Vbid vbid;
+
+    /**
+     * Map of DiskDocKey (includes prepare namespace) to seqno
+     */
+    std::unordered_map<DiskDocKey, uint64_t>& rolledBack;
+
+    /**
+     * Original callback to be invoked if set
+     */
+    std::unique_ptr<RollbackCB> originalCb;
+};
+
+struct NexusRollbackContext {
+    KVStoreIface* kvstoreToRollbackFirst;
+    KVStoreIface* kvstoreToRollbackSecond;
+};
+
+NexusRollbackContext NexusKVStore::calculateRollbackOrder() {
+#ifdef EP_USE_MAGMA
+
+    bool primaryIsMagma = dynamic_cast<MagmaKVStore*>(primary.get());
+    bool secondaryIsMagma = dynamic_cast<MagmaKVStore*>(secondary.get());
+
+    if (!primaryIsMagma && secondaryIsMagma) {
+        // Got to do magma (secondary) first
+        return {secondary.get(), primary.get()};
+    }
+#endif
+
+    return {primary.get(), secondary.get()};
+}
+
 RollbackResult NexusKVStore::rollback(Vbid vbid,
                                       uint64_t rollbackseqno,
                                       std::unique_ptr<RollbackCB> ptr) {
-    return primary->rollback(vbid, rollbackseqno, std::move(ptr));
+    // We're not taking the lock for the vBucket here because the callback in
+    // EPDiskRollbackCB is going to call getWithHeader for each item we roll
+    // back. We're protected from getting into odd states though as:
+    //
+    // 1) This vBucket must be a replica so no bg fetches
+    // 2) During rollback we take the vBucket write lock so no flushes
+
+    // Skip checks, see member declaration for more details.
+    skipGetWithHeaderChecksForRollback = true;
+    auto guard = folly::makeGuard(
+            [this] { skipGetWithHeaderChecksForRollback = false; });
+
+    std::unordered_map<DiskDocKey, uint64_t> primaryRollbacks;
+    auto primaryCb = std::make_unique<NexusRollbackCB>(
+            *this, vbid, primaryRollbacks, std::move(ptr));
+
+    std::unordered_map<DiskDocKey, uint64_t> secondaryRollbacks;
+    auto secondaryCb =
+            std::make_unique<NexusRollbackCB>(*this, vbid, secondaryRollbacks);
+
+    // Magma is only going to keep n checkpoints (i.e. n rollback points) in
+    // memory and as we're checkpointing every flush batch (to ensure that
+    // rollback points are consistent between magma and couchstore) that's
+    // effectively n flush batches. Best thing to do here is to do the magma
+    // rollback first (assuming we are running magma) and then assert later that
+    // couchstore rolls back to the same seqno. Should magma be unable to roll
+    // back to anything other than 0 then there's no point rolling back
+    // couchstore.
+    auto nexusRollbackContext = calculateRollbackOrder();
+
+    auto firstResult = nexusRollbackContext.kvstoreToRollbackFirst->rollback(
+            vbid,
+            rollbackseqno,
+            nexusRollbackContext.kvstoreToRollbackFirst == primary.get()
+                    ? std::move(primaryCb)
+                    : std::move(secondaryCb));
+
+    if (!firstResult.success) {
+        // Need to roll back to zero, may as well just return now
+        return firstResult;
+    }
+
+    auto secondResult = nexusRollbackContext.kvstoreToRollbackSecond->rollback(
+            vbid,
+            rollbackseqno,
+            nexusRollbackContext.kvstoreToRollbackSecond == primary.get()
+                    ? std::move(primaryCb)
+                    : std::move(secondaryCb));
+
+    if (firstResult != secondResult) {
+        auto msg = fmt::format(
+                "NexusKVStore::rollback: {}: rollback result not equal "
+                "first:{} second:{}",
+                vbid,
+                firstResult,
+                secondResult);
+        handleError(msg);
+    }
+
+    for (const auto& [key, seqno] : primaryRollbacks) {
+        auto itr = secondaryRollbacks.find(key);
+        if (itr == secondaryRollbacks.end()) {
+            auto msg = fmt::format(
+                    "NexusKVStore::rollback: {}: primary invoked rollback "
+                    "callback for {} at seqno {} but secondary did not",
+                    vbid,
+                    cb::UserData(key.to_string()),
+                    seqno);
+            handleError(msg);
+        }
+        secondaryRollbacks.erase(itr);
+    }
+
+    if (!secondaryRollbacks.empty()) {
+        std::stringstream ss;
+        for (const auto& [key, seqno] : secondaryRollbacks) {
+            ss << "[key:" << cb::UserData(key.to_string()) << ",seqno:" << seqno
+               << "],";
+        }
+        ss.unget();
+
+        auto msg = fmt::format(
+                "NexusKVStoer::rollback: {}: secondary callbacks invocations "
+                "not made by primary:{}",
+                vbid,
+                ss.str());
+    }
+
+    doCollectionsMetadataChecks(vbid, nullptr, nullptr);
+
+    return nexusRollbackContext.kvstoreToRollbackFirst == primary.get()
+                   ? firstResult
+                   : secondResult;
 }
 
 void NexusKVStore::pendingTasks() {

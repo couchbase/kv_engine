@@ -26,3 +26,17 @@ RollbackResult::RollbackResult(bool success,
       snapStartSeqno(snapStartSeqno),
       snapEndSeqno(snapEndSeqno) {
 }
+
+bool RollbackResult::operator==(const RollbackResult& other) {
+    return success == other.success && highSeqno == other.highSeqno &&
+           snapStartSeqno == other.snapStartSeqno &&
+           snapEndSeqno == other.snapEndSeqno;
+}
+
+std::ostream& operator<<(std::ostream& os, const RollbackResult& result) {
+    os << "success:" << result.success << " highSeqno:" << result.highSeqno
+       << " snapStartSeqno:" << result.snapStartSeqno
+       << " snapEndSeqno:" << result.snapEndSeqno;
+
+    return os;
+}

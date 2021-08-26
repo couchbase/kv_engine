@@ -439,6 +439,21 @@ bool SingleThreadedKVBucketTest::isPersistent() const {
     return engine->getConfiguration().getBucketType() == "persistent";
 }
 
+bool SingleThreadedKVBucketTest::isNexus() const {
+    return engine->getConfiguration().getBackend() == "nexus";
+}
+
+/// @returns true if this is a magma bucket
+bool SingleThreadedKVBucketTest::isMagma() const {
+    return engine->getConfiguration().getBackend() == "magma" ||
+           isNexusMagmaPrimary();
+}
+
+bool SingleThreadedKVBucketTest::isNexusMagmaPrimary() const {
+    return engine->getConfiguration().getBackend() == "nexus" &&
+           engine->getConfiguration().getNexusPrimaryBackend() == "magma";
+}
+
 size_t SingleThreadedKVBucketTest::getFutureQueueSize(task_type_t type) const {
     return (*task_executor->getLpTaskQ()[type]).getFutureQueueSize();
 }

@@ -13,6 +13,7 @@
 
 #include "configuration.h"
 
+#include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #endif
@@ -42,17 +43,31 @@ NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
     // that items expired by both KVStores are the same.
     config.setCompactionExpireFromStart(true);
 
-#ifdef EP_USE_MAGMA
     if (primaryBackend == "magma") {
+#ifdef EP_USE_MAGMA
         dynamic_cast<MagmaKVStoreConfig&>(*primaryConfig)
                 .setMagmaCheckpointEveryBatch(true);
+#endif
+    } else if (primaryBackend == "couchdb") {
+        // Couchstore has an optimization that forces rollback to zero should
+        // we try to roll back more than 50% of the seqnos. Magma doesn't have
+        // this so we need to turn it off for couchstore to ensure comparability
+        dynamic_cast<CouchKVStoreConfig&>(*primaryConfig)
+                .setMidpointRollbackOptimisation(false);
     }
 
     if (secondaryBackend == "magma") {
+#ifdef EP_USE_MAGMA
         dynamic_cast<MagmaKVStoreConfig&>(*secondaryConfig)
                 .setMagmaCheckpointEveryBatch(true);
-    }
 #endif
+    } else if (primaryBackend == "couchdb") {
+        // Couchstore has an optimization that forces rollback to zero should
+        // we try to roll back more than 50% of the seqnos. Magma doesn't have
+        // this so we need to turn it off for couchstore to ensure comparability
+        dynamic_cast<CouchKVStoreConfig&>(*secondaryConfig)
+                .setMidpointRollbackOptimisation(false);
+    }
 
     auto errorHandling = config.getNexusErrorHandling();
     if (errorHandling == "abort") {

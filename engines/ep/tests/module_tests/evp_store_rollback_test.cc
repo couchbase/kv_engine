@@ -690,7 +690,9 @@ TEST_P(RollbackTest, RollbackToZeroLTMidpointDocCounts) {
     // that would require us to discard more than half of our seqnos. Skipped
     // for magma as we don't make this "optimization".
     // @TODO magma: investigate if we should make the above "optimization".
-    if (getBackend() == "magma") {
+    // Not enabled for nexus which disables the midpoint optimisation for
+    // comparison with magma.
+    if (isMagma() || isNexus()) {
         return;
     }
 
@@ -2448,15 +2450,18 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
             << "stream should have received a STREAM_END";
 }
 
-auto allConfigValues =
-        ::testing::Combine(::testing::Values("persistent_couchdb"
+auto allConfigValues = ::testing::Combine(
+        ::testing::Values("persistent_couchdb"
 #ifdef EP_USE_MAGMA
-                                             ,
-                                             "persistent_magma"
+                          ,
+                          "persistent_magma",
+                          // @TODO MB-47604 Remove couchstore couchstore variant
+                          "persistent_nexus_couchstore_couchstore",
+                          "persistent_nexus_couchstore_magma"
 #endif
-                                             ),
-                           ::testing::Values("value_only", "full_eviction"),
-                           ::testing::Values("replica", "pending"));
+                          ),
+        ::testing::Values("value_only", "full_eviction"),
+        ::testing::Values("replica", "pending"));
 
 // Test cases which run in both Full and Value eviction on replica and pending
 // vbucket states

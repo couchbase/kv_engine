@@ -152,6 +152,13 @@ public:
         return config_string.find("backend=magma") != std::string::npos;
     }
 
+    bool isNexus() const;
+
+    /// @returns true if this is a magma bucket
+    bool isMagma() const;
+
+    bool isNexusMagmaPrimary() const;
+
     bool needsBGFetch(cb::engine_errc ec) const {
         if (ec == cb::engine_errc::would_block && isPersistent() &&
             isFullEviction()) {

@@ -35,8 +35,15 @@ public:
                    uint64_t snapStartSeqno,
                    uint64_t snapEndSeqno);
 
+    bool operator==(const RollbackResult& other);
+    bool operator!=(const RollbackResult& other) {
+        return !operator==(other);
+    }
+
     bool success;
     uint64_t highSeqno;
     uint64_t snapStartSeqno;
     uint64_t snapEndSeqno;
 };
+
+std::ostream& operator<<(std::ostream& os, const RollbackResult& result);

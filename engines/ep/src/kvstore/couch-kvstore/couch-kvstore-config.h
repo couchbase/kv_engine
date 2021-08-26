@@ -80,6 +80,11 @@ public:
 
     void setCouchstoreFileCacheMaxSize(size_t value);
 
+    // WARNING: Not thread safe (i.e. dynamic)
+    void setMidpointRollbackOptimisation(bool value) {
+        midpointRollbackOptimisationEnabled = value;
+    }
+
     bool isMidpointRollbackOptimisationEnabled() const {
         return midpointRollbackOptimisationEnabled;
     }
