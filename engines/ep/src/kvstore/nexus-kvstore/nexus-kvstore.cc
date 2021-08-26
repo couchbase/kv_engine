@@ -977,7 +977,53 @@ DBFileInfo NexusKVStore::getAggrDbFileInfo() {
 }
 
 size_t NexusKVStore::getItemCount(Vbid vbid) {
-    return primary->getItemCount(vbid);
+    auto primaryCount = primary->getItemCount(vbid);
+    auto secondaryCount = secondary->getItemCount(vbid);
+
+    // If primary supports prepare counting then a test is valid as we should be
+    // able to adjust the value of the primary by the onDiskPrepares in the
+    // vbstate. If the primary /does not/ support prepare counting though and
+    // the secondary /does/ then we can't adjust correctly as we store the
+    // vbstate of the primary everywhere. In this case, just skip the test and
+    // return.
+    if (!primary->getStorageProperties().hasPrepareCounting() &&
+        secondary->getStorageProperties().hasPrepareCounting()) {
+        return primaryCount;
+    }
+
+    // We return the primary value so we need to copy it to adjust for
+    // comparison
+    auto correctedPrimaryCount = primaryCount;
+
+    size_t primaryPrepares = 0;
+    if (primary->getStorageProperties().hasPrepareCounting()) {
+        auto vbState = primary->getPersistedVBucketState(vbid);
+        primaryPrepares = vbState.onDiskPrepares;
+        correctedPrimaryCount -= vbState.onDiskPrepares;
+    }
+
+    size_t secondaryPrepares = 0;
+    if (secondary->getStorageProperties().hasPrepareCounting()) {
+        auto vbState = secondary->getPersistedVBucketState(vbid);
+        secondaryPrepares = vbState.onDiskPrepares;
+        secondaryCount -= vbState.onDiskPrepares;
+    }
+
+    if (correctedPrimaryCount != secondaryCount) {
+        auto msg = fmt::format(
+                "NexusKVStore::getItemCount: {}: difference in "
+                "item count primary:{} secondary:{} prepare count primary:{} "
+                "secondary:{}",
+                vbid,
+                correctedPrimaryCount,
+                secondaryCount,
+                primaryPrepares,
+                secondaryPrepares);
+        handleError(msg);
+    }
+
+    // Return the primary result again
+    return primaryCount;
 }
 
 /**

@@ -1102,6 +1102,13 @@ TEST_P(KVStoreParamTest, PrepareForDeduplication) {
 
 // Verify basic functionality of getItemCount.
 TEST_P(KVStoreParamTest, GetItemCount) {
+    if (isNexus()) {
+        // Doesn't work for nexus as NexusKVStore::getItemCount() needs to read
+        // the vbstate to adjust for prepare namespace items and we don't write
+        // one in this test.
+        GTEST_SKIP();
+    }
+
     ASSERT_EQ(0, kvstore->getItemCount(vbid));
 
     // Setup: store 3 keys, a, b, c
