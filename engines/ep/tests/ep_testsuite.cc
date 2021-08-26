@@ -8533,7 +8533,8 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_max_items=500;"
                  "chk_remover_stime=1;"
                  "max_num_shards=4;"
-                 "max_size=10000000",
+                 "max_size=10000000;checkpoint_memory_recovery_upper_mark=0;"
+                 "checkpoint_memory_recovery_lower_mark=0",
                  // TODO RDB: This test requires full control and accurate
                  // tracking on how memory is allocated by the underlying
                  // store. We do not have that yet for RocksDB. Depending
@@ -8613,14 +8614,15 @@ BaseTestCase testsuite_testcases[] = {
                  test_bg_meta_stats,
                  test_setup,
                  teardown,
-                 nullptr,
+                 "nullptr",
                  prepare_ep_bucket,
                  cleanup),
         TestCase("mem stats",
                  test_mem_stats,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_period=60",
+                 "chk_remover_stime=1;chk_period=60;checkpoint_memory_recovery_"
+                 "upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
                  prepare,
                  cleanup),
         TestCase("stats key",
@@ -8844,7 +8846,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_disk_gt_ram_golden,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_period=60",
+                 "chk_remover_stime=1;chk_period=60;checkpoint_memory_recovery_"
+                 "upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
                  /* TODO RDB: ep_total_persisted not correct under Rocks */
                  prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
@@ -8852,7 +8855,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_disk_gt_ram_paged_rm,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_period=60",
+                 "chk_remover_stime=1;chk_period=60;checkpoint_memory_recovery_"
+                 "upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
                  /* TODO RDB: ep_total_persisted not correct under Rocks */
                  prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
@@ -9095,20 +9099,22 @@ BaseTestCase testsuite_testcases[] = {
                  "max_vbuckets=16;max_num_shards=4;ht_size=7;ht_locks=3",
                  prepare,
                  cleanup),
-        TestCase("test vbucket destroy stats",
-                 test_vbucket_destroy_stats,
-                 test_setup,
-                 teardown,
-                 "chk_remover_stime=1;"
-                 "chk_period=60;"
-                 "chk_expel_enabled=false;",
-                 /* Checkpoint expelling needs to be disabled for this test
-                  * because the test checks for items being removed by
-                  * monitoring the ep_items_rm_from_checkpoints stat.  If the
-                  * items have already been expelled the stat will not change.
-                  */
-                 prepare_ep_bucket,
-                 cleanup),
+        TestCase(
+                "test vbucket destroy stats",
+                test_vbucket_destroy_stats,
+                test_setup,
+                teardown,
+                "chk_remover_stime=1;"
+                "chk_period=60;"
+                "chk_expel_enabled=false;chk_period=60;checkpoint_memory_"
+                "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
+                /* Checkpoint expelling needs to be disabled for this test
+                 * because the test checks for items being removed by
+                 * monitoring the ep_items_rm_from_checkpoints stat.  If the
+                 * items have already been expelled the stat will not change.
+                 */
+                prepare_ep_bucket,
+                cleanup),
         TestCase("test async vbucket destroy restart",
                  test_async_vbucket_destroy_restart,
                  test_setup,

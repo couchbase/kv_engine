@@ -825,3 +825,43 @@ TEST_F(CheckpointRemoverEPTest,
     // checkpoint being opened.
     EXPECT_EQ(2, cm->getNumCheckpoints());
 }
+
+TEST_F(CheckpointRemoverEPTest, MB_48233) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Run the remover one first time. Before the fix this step leaves the
+    // Task::available flag set to false, which prevent any further execution
+    // of the removal logic at the next runs.
+    const auto remover = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+            engine.get(),
+            engine->getEpStats(),
+            engine->getConfiguration().getChkRemoverStime());
+    remover->run();
+
+    auto& config = engine->getConfiguration();
+    config.setChkExpelEnabled(true);
+    config.setMaxSize(1024 * 1024 * 100);
+    const auto value = std::string(1024 * 1024, 'x');
+    auto ret = cb::engine_errc::success;
+    for (size_t i = 0; ret != cb::engine_errc::no_memory; ++i) {
+        auto item = make_item(
+                vbid, makeStoredDocKey("key_" + std::to_string(i)), value);
+        ret = store->set(item, cookie);
+    }
+
+    ASSERT_EQ(KVBucket::CheckpointMemoryState::Full,
+              store->getCheckpointMemoryState());
+
+    // Make items eligible for expelling
+    flush_vbucket_to_disk(vbid, store->getVBucket(vbid)->getNumItems());
+
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.itemsExpelledFromCheckpoints);
+
+    // Run the remover a second time.
+    remover->run();
+
+    // Before the fix a second execution just returns by Task::available=false,
+    // so we wouldn't expel anything
+    ASSERT_GT(stats.itemsExpelledFromCheckpoints, 0);
+}
