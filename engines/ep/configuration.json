@@ -1460,6 +1460,12 @@
             "descr": "Maximum number of couchstore files that we will keep open. Default value is 30 * 1024 (i.e. one file for each vBucket and 30 Buckets - the supported limit).",
             "type": "size_t"
         },
+        "couchstore_midpoint_rollback_optimisation": {
+            "default": "true",
+            "dynamic": false,
+            "descr": "Should we have to rollback more than half of the seqnos seen by this vBucket we will instead rollback to 0 and re-stream from the active if set to true",
+            "type": "bool"
+        },
         "warmup": {
             "default": "true",
             "dynamic": false,

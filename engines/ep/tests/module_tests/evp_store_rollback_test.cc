@@ -693,6 +693,10 @@ TEST_P(RollbackTest, RollbackToZeroLTMidpointDocCounts) {
     if (getBackend() == "magma") {
         return;
     }
+
+    config_string += ";couchstore_midpoint_rollback_optimisation=true";
+    resetEngineAndWarmup();
+
     rollback_to_zero(4);
 }
 

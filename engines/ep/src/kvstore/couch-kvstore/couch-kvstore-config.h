@@ -80,10 +80,14 @@ public:
 
     void setCouchstoreFileCacheMaxSize(size_t value);
 
+    bool isMidpointRollbackOptimisationEnabled() const {
+        return midpointRollbackOptimisationEnabled;
+    }
+
 private:
     class ConfigChangeListener;
 
-    bool buffered;
+    bool buffered{false};
 
     // Following config variables are atomic as can be changed (via
     // ConfigChangeListener) at runtime by front-end threads while read by
@@ -95,4 +99,6 @@ private:
     std::atomic_bool couchstoreWriteValidationEnabled;
     /* enbale mprotect of couchstore internal io buffer */
     std::atomic_bool couchstoreMprotectEnabled;
+
+    bool midpointRollbackOptimisationEnabled{false};
 };

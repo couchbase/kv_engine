@@ -63,6 +63,8 @@ CouchKVStoreConfig::CouchKVStoreConfig(Configuration& config,
     config.addValueChangedListener(
             "couchstore_file_cache_max_size",
             std::make_unique<ConfigChangeListener>(*this));
+    midpointRollbackOptimisationEnabled =
+            config.isCouchstoreMidpointRollbackOptimisation();
 }
 
 CouchKVStoreConfig::CouchKVStoreConfig(uint16_t maxVBuckets,

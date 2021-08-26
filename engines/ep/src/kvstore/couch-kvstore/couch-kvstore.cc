@@ -3668,11 +3668,8 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
         return RollbackResult(false);
     }
 
-    // Allow rollbacks when we have fewer than 10 items even if the requested
-    // rollback point is in the first half of our seqnos. This allows much
-    // easier testing as we do not have to write x items before the majority of
-    // tests to verify certain rollback behaviours.
-    if (totSeqCount > 10 && (totSeqCount / 2) <= rollbackSeqCount) {
+    if (configuration.isMidpointRollbackOptimisationEnabled() &&
+        (totSeqCount / 2) <= rollbackSeqCount) {
         //doresetVbucket flag set or rollback is greater than 50%,
         //reset the vbucket and send the entire snapshot
         return RollbackResult(false);

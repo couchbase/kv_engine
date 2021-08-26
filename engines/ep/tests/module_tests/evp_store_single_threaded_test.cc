@@ -97,6 +97,7 @@ void SingleThreadedKVBucketTest::SetUp() {
         config_string += ";";
     }
     config_string += "warmup=false";
+    config_string += ";couchstore_midpoint_rollback_optimisation=false";
 
     // Set the chk_period to be a large value so that a slow test doesn't create
     // checkpoints (and may fail if checkpoint state is tested). This parameter
