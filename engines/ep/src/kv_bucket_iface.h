@@ -44,7 +44,7 @@ class PauseResumeVBVisitor;
 class PersistenceCallback;
 class VBucketMap;
 class VBucketVisitor;
-class PausableVBucketVisitor;
+class InterruptableVBucketVisitor;
 class BucketStatCollector;
 class StatCollector;
 class StorageProperties;
@@ -482,17 +482,20 @@ public:
 
     /**
      * Visit each VBucket in the Bucket, calling
-     * PausableVBucketVisitor::visitBucket() on each vBucket.
+     * InterruptableVBucketVisitor::visitBucket() on each vBucket.
      * Visiting is executed in a background task (asynchronously).
      *
      * This method is suitable where the visitor needs to perform a large and/or
      * variable amount of work for each vBucket, and hence it should be
      * performed asynchronously in a background task.
      *
-     * After visting each vbucket, PausableVBucketVisitor::pauseVisitor() will
-     * be called to check if execution of the background task should be paused.
-     * If true, then will yield back to the Executor to allow any waiting
+     * After visiting each vb, InterruptableVBucketVisitor::shouldInterrupt()
+     * will be called to check if execution of the background task should be
+     * paused or stopped.
+     * If paused, then will yield back to the Executor to allow any waiting
      * higher-priority tasks to run.
+     * While if stopped, the visitor will inform the Executor that the task has
+     * completed.
      *
      * @param visitor Object to visit each bucket with.
      * @param label Name to associate with the created task.
@@ -503,7 +506,7 @@ public:
      *                            warning.
      */
     virtual size_t visitAsync(
-            std::unique_ptr<PausableVBucketVisitor> visitor,
+            std::unique_ptr<InterruptableVBucketVisitor> visitor,
             const char* lbl,
             TaskId id,
             std::chrono::microseconds maxExpectedDuration) = 0;

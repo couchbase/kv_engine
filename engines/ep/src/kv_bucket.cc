@@ -2269,10 +2269,11 @@ void KVBucket::visit(VBucketVisitor &visitor)
     }
 }
 
-size_t KVBucket::visitAsync(std::unique_ptr<PausableVBucketVisitor> visitor,
-                            const char* lbl,
-                            TaskId id,
-                            std::chrono::microseconds maxExpectedDuration) {
+size_t KVBucket::visitAsync(
+        std::unique_ptr<InterruptableVBucketVisitor> visitor,
+        const char* lbl,
+        TaskId id,
+        std::chrono::microseconds maxExpectedDuration) {
     auto task = std::make_shared<VBCBAdaptor>(this,
                                               id,
                                               std::move(visitor),
@@ -2313,7 +2314,7 @@ KVBucket::Position KVBucket::endPosition() const
 
 VBCBAdaptor::VBCBAdaptor(KVBucket* s,
                          TaskId id,
-                         std::unique_ptr<PausableVBucketVisitor> v,
+                         std::unique_ptr<InterruptableVBucketVisitor> v,
                          const char* l,
                          bool shutdown)
     : GlobalTask(&s->getEPEngine(), id, 0 /*initialSleepTime*/, shutdown),
@@ -2352,17 +2353,26 @@ bool VBCBAdaptor::run() {
         VBucketPtr vb = store->getVBucket(vbid);
         if (vb) {
             currentvb = vbid.get();
-            if (visitor->pauseVisitor()) {
+
+            using State = InterruptableVBucketVisitor::ExecutionState;
+            switch (visitor->shouldInterrupt()) {
+            case State::Continue:
+                break;
+            case State::Pause:
                 snooze(0);
                 return true;
+            case State::Stop:
+                visitor->complete();
+                return false;
             }
+
             visitor->visitBucket(vb);
         }
         vbucketsToVisit.pop_front();
     }
-    visitor->complete();
 
     // Processed all vBuckets now, do not need to run again.
+    visitor->complete();
     return false;
 }
 
