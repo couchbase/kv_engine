@@ -21,77 +21,6 @@
 #include <phosphor/phosphor.h>
 #include <memory>
 
-// isReductionInCheckpointMemoryNeeded() wants to determine if checkpoint
-// expelling and/or cursor dropping should be invoked, if true a calculated
-// memory reduction 'target' is also returned.
-//
-// The following diagram depicts the bucket memory where Q is the bucket quota
-// and the labelled vertical lines each show thresholds/stats used in deciding
-// if memory reduction is needed.
-//
-// 0                                                                      Q
-// ├──────────────┬────────────┬───┬───────┬──────────────────────────────┤
-// │              │            │   │       │                              │
-// │              │            │   │       │                              │
-// └──────────────▼────────────▼───▼───────▼──────────────────────────────┘
-//                A            B   X       C
-//
-//   A = checkpoint_memory_recovery_lower_mark
-//   B = checkpoint_memory_recovery_upper_mark
-//   C = checkpoints quota (as defined by checkpoint_memory_ratio)
-//   X = current checkpoint memory used
-//   Q = bucket quota
-//
-// Memory reduction will commence if checkpoint memory usage (X) is greater than
-// checkpoint_memory_recovery_upper_mark (B).
-//
-// If memory reduction triggers then this function will return (X - A) as the
-// target amount to free.
-//
-// When memory reduction is required two different techniques are applied:
-// 1) First checkpoint expelling. If that technique does not 'free' the required
-//    target, then a second technique is applied.
-// 2) The second technique is cursor dropping.
-//
-// At the end of the memory reduction if the target is still not reached no
-// further action occurs. The next invocation of the
-// ClosedUnrefCheckpointRemoverTask will start the process again.
-//
-std::pair<bool, size_t>
-ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
-    const auto& bucket = *engine->getKVBucket();
-    const auto checkpointMemoryRatio = bucket.getCheckpointMemoryRatio();
-    const auto checkpointQuota = stats.getMaxDataSize() * checkpointMemoryRatio;
-    const auto recoveryThreshold =
-            checkpointQuota * bucket.getCheckpointMemoryRecoveryUpperMark();
-    const auto usage = stats.getEstimatedCheckpointMemUsage();
-
-    if (usage < recoveryThreshold) {
-        return std::make_pair(false, 0);
-    }
-
-    const auto lowerRatio = bucket.getCheckpointMemoryRecoveryLowerMark();
-    const auto lowerMark = checkpointQuota * lowerRatio;
-    Expects(usage > lowerMark);
-    const size_t amountOfMemoryToClear = usage - lowerMark;
-
-    const auto toMB = [](size_t bytes) { return bytes / (1024 * 1024); };
-    const auto upperRatio = bucket.getCheckpointMemoryRecoveryUpperMark();
-    EP_LOG_INFO(
-            "Triggering memory recovery as checkpoint memory usage ({} MB) "
-            "exceeds the upper_mark ({}, "
-            "{} MB) - total checkpoint quota {}, {} MB . Attempting to free {} "
-            "MB of memory.",
-            toMB(usage),
-            upperRatio,
-            toMB(checkpointQuota * upperRatio),
-            checkpointMemoryRatio,
-            toMB(checkpointQuota),
-            toMB(amountOfMemoryToClear));
-
-    return std::make_pair(true, amountOfMemoryToClear);
-}
-
 size_t ClosedUnrefCheckpointRemoverTask::attemptItemExpelling(
         size_t memToClear) {
     size_t memoryCleared = 0;
@@ -169,8 +98,9 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
     size_t memToClear{0};
     size_t memRecovered{0};
 
+    auto* kvBucket = engine->getKVBucket();
     std::tie(shouldReduceMemory, memToClear) =
-            isReductionInCheckpointMemoryNeeded();
+            kvBucket->isReductionInCheckpointMemoryNeeded();
 
     if (!shouldReduceMemory) {
         available = true;
@@ -186,8 +116,6 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
     if (memToClear > memRecovered) {
         attemptCursorDropping(memToClear - memRecovered);
     }
-
-    KVBucketIface* kvBucket = engine->getKVBucket();
 
     // CheckpointVisitor takes a memToRelease arg (positive integer) that is
     // currently unused, so the behaviour of the visitor stays unchanged (ie, it

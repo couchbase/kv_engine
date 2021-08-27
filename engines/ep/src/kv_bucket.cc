@@ -2860,3 +2860,36 @@ KVBucket::CheckpointMemoryState KVBucket::verifyCheckpointMemoryState() {
 
     return state;
 }
+
+std::pair<bool, size_t> KVBucket::isReductionInCheckpointMemoryNeeded() const {
+    const auto checkpointMemoryRatio = getCheckpointMemoryRatio();
+    const auto checkpointQuota = stats.getMaxDataSize() * checkpointMemoryRatio;
+    const auto recoveryThreshold =
+            checkpointQuota * getCheckpointMemoryRecoveryUpperMark();
+    const auto usage = stats.getEstimatedCheckpointMemUsage();
+
+    if (usage < recoveryThreshold) {
+        return std::make_pair(false, 0);
+    }
+
+    const auto lowerRatio = getCheckpointMemoryRecoveryLowerMark();
+    const auto lowerMark = checkpointQuota * lowerRatio;
+    Expects(usage > lowerMark);
+    const size_t amountOfMemoryToClear = usage - lowerMark;
+
+    const auto toMB = [](size_t bytes) { return bytes / (1024 * 1024); };
+    const auto upperRatio = getCheckpointMemoryRecoveryUpperMark();
+    EP_LOG_INFO(
+            "Triggering memory recovery as checkpoint memory usage ({} MB) "
+            "exceeds the upper_mark ({}, "
+            "{} MB) - total checkpoint quota {}, {} MB . Attempting to free {} "
+            "MB of memory.",
+            toMB(usage),
+            upperRatio,
+            toMB(checkpointQuota * upperRatio),
+            checkpointMemoryRatio,
+            toMB(checkpointQuota),
+            toMB(amountOfMemoryToClear));
+
+    return std::make_pair(true, amountOfMemoryToClear);
+}

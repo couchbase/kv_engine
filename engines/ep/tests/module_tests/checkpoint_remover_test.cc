@@ -310,10 +310,6 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
 // Test that we correctly determine whether to trigger memory recovery.
 TEST_F(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-    const auto& task = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
-            engine.get(),
-            engine->getEpStats(),
-            engine->getConfiguration().getChkRemoverStime());
 
     const size_t bucketQuota = 1024 * 1024 * 100;
     auto& config = engine->getConfiguration();
@@ -329,7 +325,7 @@ TEST_F(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
     bool hasTriggered{false};
     size_t amountOfMemoryToClear{0};
     std::tie(hasTriggered, amountOfMemoryToClear) =
-            task->isReductionInCheckpointMemoryNeeded();
+            store->isReductionInCheckpointMemoryNeeded();
     EXPECT_FALSE(hasTriggered);
     EXPECT_EQ(0, amountOfMemoryToClear);
 
@@ -355,7 +351,7 @@ TEST_F(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
 
     // Checkpoint mem-recovery must trigger (regardless of any LWM)
     std::tie(hasTriggered, amountOfMemoryToClear) =
-            task->isReductionInCheckpointMemoryNeeded();
+            store->isReductionInCheckpointMemoryNeeded();
     EXPECT_TRUE(hasTriggered);
     EXPECT_GT(amountOfMemoryToClear, 0);
 }
@@ -409,7 +405,7 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
     bool shouldReduceMemory{false};
     size_t amountOfMemoryToClear{0};
     std::tie(shouldReduceMemory, amountOfMemoryToClear) =
-            task->isReductionInCheckpointMemoryNeeded();
+            store->isReductionInCheckpointMemoryNeeded();
     EXPECT_TRUE(shouldReduceMemory);
 
     manager->removeClosedUnrefCheckpoints(*vb);
@@ -418,7 +414,7 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
     manager->removeClosedUnrefCheckpoints(*vb);
 
     std::tie(shouldReduceMemory, amountOfMemoryToClear) =
-            task->isReductionInCheckpointMemoryNeeded();
+            store->isReductionInCheckpointMemoryNeeded();
     EXPECT_FALSE(shouldReduceMemory);
 }
 
