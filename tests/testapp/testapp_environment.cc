@@ -452,7 +452,8 @@ public:
             {"larry", "larrypassword"},
             {"legacy", "new"},
             {"default", ""},
-            {"jones", "jonespassword"}};
+            {"jones", "jonespassword"},
+            {"Luke", "Skywalker"}};
 
     void setupPasswordDatabase() {
         // Write the initial password database:
