@@ -12,7 +12,6 @@
 #pragma once
 
 #include "kvstore/kvstore.h"
-#include "kvstore/kvstore_priv.h"
 #include "kvstore/kvstore_transaction_context.h"
 #include "libmagma/magma.h"
 #include "rollback_result.h"
@@ -20,7 +19,6 @@
 #include "vbucket_state.h"
 
 #include <folly/Synchronized.h>
-#include <platform/dirutils.h>
 #include <platform/non_negative_counter.h>
 
 #include <map>
@@ -36,7 +34,6 @@ class Status;
 } // namespace magma
 
 class MagmaKVStoreConfig;
-class MagmaCompactionCB;
 struct kvstats_ctx;
 struct MagmaKVStoreTransactionContext;
 struct vbucket_state;
@@ -111,12 +108,9 @@ public:
     struct Stats {
         Stats() = default;
 
-        Stats(const Stats& other) = default;
-
-        void reset(int64_t docCount,
-                   uint64_t purgeSeqno) {
-            this->docCount = docCount;
-            this->purgeSeqno.reset(purgeSeqno);
+        void reset(int64_t newDocCount, uint64_t newPurgeSeqno) {
+            docCount = newDocCount;
+            purgeSeqno.reset(newPurgeSeqno);
         }
 
         int64_t docCount{0};
@@ -156,7 +150,6 @@ public:
 class MagmaKVStore : public KVStore {
 public:
     using WriteOps = std::vector<magma::Magma::WriteOperation>;
-    using ReadOps = std::vector<magma::Slice>;
 
     /**
      * A localDb request is used to scope the memory required for
@@ -177,8 +170,7 @@ public:
 
         static MagmaLocalReq makeDeleted(std::string_view key,
                                          std::string&& value = {}) {
-            return MagmaLocalReq(
-                    std::move(key), std::move(value), true /*deleted*/);
+            return {std::move(key), std::move(value), true /*deleted*/};
         }
 
         std::string key;
@@ -679,7 +671,6 @@ public:
     std::shared_ptr<BucketLogger> logger;
 
 protected:
-    class ConfigChangeListener;
 
     /**
      * CompactDB implementation. See comments on public compactDB.

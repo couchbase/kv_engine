@@ -2169,9 +2169,9 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         vbLock.lock();
 
         // 1) Get the current state from disk
-        auto [getDroppedStatus, droppedCollections] =
+        auto [collDroppedStatus, droppedCollections] =
                 getDroppedCollections(vbid);
-        if (!getDroppedStatus) {
+        if (!collDroppedStatus) {
             throw std::runtime_error(
                     fmt::format("MagmaKVStore::compactDbInternal {} failed "
                                 "getDroppedCollections",
@@ -2327,10 +2327,10 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
         return RollbackResult(false);
     }
 
-    return RollbackResult(true,
-                          vbstate->highSeqno,
-                          vbstate->lastSnapStart,
-                          vbstate->lastSnapEnd);
+    return {true,
+            static_cast<uint64_t>(vbstate->highSeqno),
+            vbstate->lastSnapStart,
+            vbstate->lastSnapEnd};
 }
 
 std::pair<bool, Collections::KVStore::Manifest>
@@ -2482,8 +2482,7 @@ magma::Status MagmaKVStore::updateDroppedCollections(
     // processed the collection.
     auto [status, dropped] = getDroppedCollections(vbid);
     if (!status) {
-        return Status(Status::Code::Invalid,
-                      "Failed to get dropped collections");
+        return {Status::Code::Invalid, "Failed to get dropped collections"};
     }
 
     // We may not have dropped a collection but we may have a dropped collection
@@ -2508,7 +2507,7 @@ magma::Status MagmaKVStore::updateDroppedCollections(
 
         // Step 1) Read the dropped stats - they may already exist and we should
         // add to their values if they do.
-        auto [droppedStatus, droppedStats] =
+        auto [droppedStatus, droppedCollStats] =
                 getDroppedCollectionStats(vbid, cid);
 
         // Step 2) Read the current alive stats on disk, we'll add them to
@@ -2517,21 +2516,21 @@ magma::Status MagmaKVStore::updateDroppedCollections(
         // to a change in doc state then we'd have already tracked this in the
         // original drop
         if (droppedInBatch) {
-            auto [status, currentAliveStats] = getCollectionStats(vbid, cid);
+            auto [getStatus, currentAliveStats] = getCollectionStats(vbid, cid);
             if (status) {
-                droppedStats.itemCount += currentAliveStats.itemCount;
-                droppedStats.diskSize += currentAliveStats.diskSize;
+                droppedCollStats.itemCount += currentAliveStats.itemCount;
+                droppedCollStats.diskSize += currentAliveStats.diskSize;
             }
         }
 
         // Step 3) Add the dropped stats from FlushAccounting
         auto droppedInFlush = collectionsFlush.getDroppedStats(cid);
-        droppedStats.itemCount += droppedInFlush.getItemCount();
-        droppedStats.diskSize += droppedInFlush.getDiskSize();
+        droppedCollStats.itemCount += droppedInFlush.getItemCount();
+        droppedCollStats.diskSize += droppedInFlush.getDiskSize();
 
         // Step 4) Write the new dropped stats back for compaction
         auto key = getDroppedCollectionsStatsKey(cid);
-        auto encodedStats = droppedStats.getLebEncodedStats();
+        auto encodedStats = droppedCollStats.getLebEncodedStats();
         localDbReqs.emplace_back(MagmaLocalReq(key, std::move(encodedStats)));
 
         // Step 5) Delete the latest alive stats if the collection wasn't
