@@ -240,6 +240,14 @@ protected:
     /// The number of times we've started a memcached server
     static std::size_t num_server_starts;
 
+    /// A connection authenticated as "@admin" and not connected to any
+    /// bucket.
+    /// If you switch bucket you should "unselect" bucket
+    /// If you put the connection in a bad state you should reconnect and
+    /// authenticate the connection
+    static std::unique_ptr<MemcachedConnection> adminConnection;
+    static void rebuildAdminConnection();
+
     /**
      * Prepare a connection object to be used from a client by reconnecting
      * and performing the initial handshake logic

@@ -29,7 +29,7 @@ public:
         // (at least right now) expects to be associated with the default
         // bucket.
         unsetenv(VARIABLE);
-        stop_memcached_server();
+        TestappClientTest::TearDownTestCase();
     }
 };
 
@@ -40,9 +40,8 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 
 TEST_P(NoAutoselectDefaultBucketTest, NoAutoselect) {
     // Verify that we have a bucket named default!
-    auto& admin = getAdminConnection();
     bool found = false;
-    for (const auto& b : admin.listBuckets()) {
+    for (const auto& b : adminConnection->listBuckets()) {
         if (b == "default") {
             found = true;
         }

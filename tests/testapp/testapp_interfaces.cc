@@ -28,9 +28,9 @@ public:
                          "process"
                       << std::endl;
             exit(EXIT_FAILURE);
-        } else {
-            CreateTestBucket();
         }
+        rebuildAdminConnection();
+        CreateTestBucket();
     }
 
 protected:
@@ -55,7 +55,7 @@ protected:
 
     BinprotResponse reconfigure(const nlohmann::json& config) {
         write_config_to_file(config.dump());
-        return getAdminConnection().execute(BinprotGenericCommand{
+        return adminConnection->execute(BinprotGenericCommand{
                 cb::mcbp::ClientOpcode::ConfigReload, {}, {}});
     }
 
@@ -102,8 +102,7 @@ TEST_P(InterfacesTest, NoAccessTest) {
 
 /// Test that we can use ifconfig to list all of the defined interfaces
 TEST_P(InterfacesTest, ListInterfaces) {
-    auto& conn = getAdminConnection();
-    auto json = getInterfaces(conn);
+    auto json = getInterfaces(*adminConnection);
     auto [ipv4, ipv6] = cb::net::getIpAddresses(false);
     int total = 2; // prometheus and the ipv4 interface
     (void)ipv4;
@@ -122,7 +121,6 @@ TEST_P(InterfacesTest, ListInterfaces) {
 
 TEST_P(InterfacesTest, Prometheus) {
     // We should only allow a single one. Defining another one should fail
-    auto& conn = getAdminConnection();
     BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Ifconfig);
     cmd.setKey("define");
     nlohmann::json descr = {{"host", "127.0.0.1"},
@@ -130,23 +128,23 @@ TEST_P(InterfacesTest, Prometheus) {
                             {"family", "inet"},
                             {"type", "prometheus"}};
     cmd.setValue(descr.dump());
-    auto rsp = conn.execute(cmd);
+    auto rsp = adminConnection->execute(cmd);
     EXPECT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
 
-    auto interfaces = getInterfaces(conn);
+    auto interfaces = getInterfaces(*adminConnection);
     std::string uuid = interfaces.back()["uuid"];
     ASSERT_FALSE(uuid.empty()) << "Failed to locate the uuid for prometheus";
-    rsp = conn.execute(BinprotGenericCommand{
+    rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Ifconfig, "delete", uuid});
     ASSERT_TRUE(rsp.isSuccess()) << "Should be allowed to delete prometheus";
 
     // But now it should be gone and we shouldnt be able to delete it again
-    rsp = conn.execute(BinprotGenericCommand{
+    rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Ifconfig, "delete", uuid});
     ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus())
             << "The interface should be deleted";
     // And no longer part of list interfaces
-    interfaces = getInterfaces(conn);
+    interfaces = getInterfaces(*adminConnection);
     auto [ipv4, ipv6] = cb::net::getIpAddresses(false);
     int total = 1;
     (void)ipv4;
@@ -157,7 +155,7 @@ TEST_P(InterfacesTest, Prometheus) {
     ASSERT_EQ(total, interfaces.size());
     ASSERT_EQ("mcbp", interfaces.back()["type"]);
 
-    rsp = conn.execute(cmd);
+    rsp = adminConnection->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess());
     const auto interf = rsp.getDataJson();
     EXPECT_TRUE(interf["errors"].is_array());
@@ -173,17 +171,15 @@ TEST_P(InterfacesTest, Prometheus) {
     EXPECT_NE(uuid, config["uuid"]);
     uuid = config["uuid"];
 
-    interfaces = getInterfaces(conn);
+    interfaces = getInterfaces(*adminConnection);
     ASSERT_EQ(uuid, interfaces.back()["uuid"])
             << "list interfaces should return the newly created interface";
 }
 
 TEST_P(InterfacesTest, Mcbp) {
-    auto& conn = getAdminConnection();
-
-    // I should not be able to connect to the same host/port I'm already
+    // I should not be able to define to the same host/port I'm already
     // connected to
-    auto interfaces = getInterfaces(conn);
+    auto interfaces = getInterfaces(*adminConnection);
     ASSERT_EQ("mcbp", interfaces.front()["type"]);
     ASSERT_EQ("127.0.0.1", interfaces.front()["host"]);
     ASSERT_NE(0, interfaces.front()["port"]);
@@ -197,14 +193,14 @@ TEST_P(InterfacesTest, Mcbp) {
     BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Ifconfig);
     cmd.setKey("define");
     cmd.setValue(descr.dump());
-    auto rsp = conn.execute(cmd);
+    auto rsp = adminConnection->execute(cmd);
     EXPECT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
 
     // But I should be allowed to bind to the ANY interface on the same
     // port
     descr["host"] = "0.0.0.0";
     cmd.setValue(descr.dump());
-    rsp = conn.execute(cmd);
+    rsp = adminConnection->execute(cmd);
     ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
                                  << rsp.getDataString();
     auto json = rsp.getDataJson();
@@ -231,19 +227,19 @@ TEST_P(InterfacesTest, Mcbp) {
     };
 
     // It should now be part of the list command
-    findUuid(conn);
+    findUuid(*adminConnection);
     ASSERT_TRUE(found) << "Did not find the interface with uuid: " << uuid
                        << std::endl
                        << json.dump(2);
 
     // It should not be possible to define it again
-    rsp = conn.execute(cmd);
+    rsp = adminConnection->execute(cmd);
     ASSERT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
 
     // And not if I try to use the wild hard either
     descr["host"] = "*";
     cmd.setValue(descr.dump());
-    rsp = conn.execute(cmd);
+    rsp = adminConnection->execute(cmd);
     ASSERT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
 
     // but we should be allowed to bind explicitly to all of the other
@@ -254,14 +250,14 @@ TEST_P(InterfacesTest, Mcbp) {
     for (auto host : ipv4) {
         descr["host"] = host;
         cmd.setValue(descr.dump());
-        rsp = conn.execute(cmd);
+        rsp = adminConnection->execute(cmd);
         ASSERT_TRUE(rsp.isSuccess());
     }
 
-    interfaces = getInterfaces(conn);
+    interfaces = getInterfaces(*adminConnection);
     for (auto interface : interfaces) {
         if (interface["type"] == "mcbp" && interface["tag"] != "bootstrap") {
-            rsp = conn.execute(
+            rsp = adminConnection->execute(
                     BinprotGenericCommand{cb::mcbp::ClientOpcode::Ifconfig,
                                           "delete",
                                           interface["uuid"]});
@@ -274,7 +270,7 @@ TEST_P(InterfacesTest, Mcbp) {
     // Test if we cannot resolve the hostname
     descr["host"] = "This-name-should-not-resolve";
     cmd.setValue(descr.dump());
-    rsp = conn.execute(cmd);
+    rsp = adminConnection->execute(cmd);
     ASSERT_EQ(cb::mcbp::Status::Einternal, rsp.getStatus())
             << rsp.getDataString();
 
@@ -283,8 +279,6 @@ TEST_P(InterfacesTest, Mcbp) {
 }
 
 TEST_P(InterfacesTest, TlsProperties) {
-    auto& conn = getAdminConnection();
-
     nlohmann::json tls_properties = {
             {"private key", SOURCE_ROOT "/tests/cert/testapp.pem"},
             {"certificate chain", SOURCE_ROOT "/tests/cert/testapp.cert"},
@@ -298,17 +292,13 @@ TEST_P(InterfacesTest, TlsProperties) {
                "SHA256"}}},
             {"cipher order", true},
             {"client cert auth", "disabled"}};
-    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Ifconfig);
-    cmd.setKey("tls");
-    cmd.setValue(tls_properties.dump());
-    auto rsp = conn.execute(cmd);
+    const auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Ifconfig, "tls", tls_properties.dump()});
     ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
                                  << rsp.getDataString();
 }
 
 TEST_P(InterfacesTest, TlsPropertiesEncryptedCert) {
-    auto& conn = getAdminConnection();
-
     nlohmann::json tls_properties = {
             {"private key", SOURCE_ROOT "/tests/cert/encrypted-testapp.pem"},
             {"certificate chain", SOURCE_ROOT "/tests/cert/testapp.cert"},
@@ -324,11 +314,8 @@ TEST_P(InterfacesTest, TlsPropertiesEncryptedCert) {
             {"client cert auth", "disabled"},
             {"password", cb::base64::encode("This is the passphrase", false)}};
 
-    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Ifconfig);
-    cmd.setKey("tls");
-    cmd.setValue(tls_properties.dump());
-
-    const auto rsp = conn.execute(cmd);
+    const auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Ifconfig, "tls", tls_properties.dump()});
     ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
                                  << rsp.getDataString();
 }
@@ -452,7 +439,7 @@ TEST_P(InterfacesTest, MB46863_NsServerWithoutSupportForIfconfig_ReloadOk) {
     // MB-47411: The prometheus interface was incorrectly deleted as part
     //           of cleaning up unused interfaces
     bool found = false;
-    for (const auto& e : getInterfaces(getAdminConnection())) {
+    for (const auto& e : getInterfaces(*adminConnection)) {
         if (e["type"] == "prometheus") {
             found = true;
         }
@@ -465,7 +452,6 @@ void InterfacesTest::test_mb47707(bool whitelist_localhost_interface) {
             whitelist_localhost_interface;
     reconfigure(memcached_cfg);
 
-    auto& admin = getAdminConnection();
     // Define the interface to use
     nlohmann::json descr = {{"host", "127.0.0.1"},
                             {"port", 0},
@@ -474,7 +460,7 @@ void InterfacesTest::test_mb47707(bool whitelist_localhost_interface) {
                             {"tag", "MB-47707"},
                             {"type", "mcbp"}};
 
-    auto rsp = admin.execute(BinprotGenericCommand{
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Ifconfig, "define", descr.dump()});
     ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
                                  << rsp.getDataString();
@@ -490,7 +476,7 @@ void InterfacesTest::test_mb47707(bool whitelist_localhost_interface) {
                                  << " message " << rsp.getDataString();
 
     // Delete the interface
-    rsp = admin.execute(BinprotGenericCommand{
+    rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Ifconfig, "delete", uuid});
     ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
                                  << rsp.getDataString();

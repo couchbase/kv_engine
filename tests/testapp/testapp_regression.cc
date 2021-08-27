@@ -275,9 +275,8 @@ TEST_P(RegressionTest, MB_32081) {
 /// BinprotSetControlTokenCommand did not use the provided old token,
 /// but always used 0 (override)
 TEST_P(RegressionTest, SetCtrlToken) {
-    auto& conn = getAdminConnection();
-    const auto rsp =
-            conn.execute(BinprotSetControlTokenCommand{32, token - 10});
+    const auto rsp = adminConnection->execute(
+            BinprotSetControlTokenCommand{32, token - 10});
     ASSERT_FALSE(rsp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
 }
@@ -308,7 +307,8 @@ TEST_P(RegressionTest, MB37506) {
         }
     };
 
-    auto& conn = getAdminConnection();
+    auto& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
     conn.selectBucket(bucketName);
 
     // Add the DcpStreamID (which we used to stop parsing after checking)
@@ -329,7 +329,8 @@ TEST_P(RegressionTest, MB37506) {
 /// MB-38243 - Crash caused by server keeping the connection open after
 ///            processing a command where the validator return a failure
 TEST_P(RegressionTest, MB38243) {
-    auto& conn = getAdminConnection();
+    auto& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
     conn.selectBucket(bucketName);
 
     for (int ii = 0; ii < 10; ++ii) {

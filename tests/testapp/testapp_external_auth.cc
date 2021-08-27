@@ -306,12 +306,11 @@ TEST_P(ExternalAuthTest, TestReloadRbacDbDontNukeExternalUsers) {
         EXPECT_TRUE(response.isSuccess()) << "Failed to authenticate";
     }
     // Now lets's reload the RBAC database
-    auto& conn = getAdminConnection();
-    auto response = conn.execute(BinprotRbacRefreshCommand{});
+    auto response = adminConnection->execute(BinprotRbacRefreshCommand{});
     EXPECT_TRUE(response.isSuccess()) << "Failed to refresh DB";
 
     // Verify that the user is still there...
-    response = conn.execute(BinprotGenericCommand{
+    response = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::IoctlGet, "rbac.db.dump?domain=external"});
     ASSERT_TRUE(response.isSuccess());
     auto json = nlohmann::json::parse(response.getDataString());
@@ -353,22 +352,21 @@ TEST_P(ExternalAuthTest, GetActiveUsers) {
 }
 
 TEST_P(ExternalAuthTest, TestImpersonateExternalUser) {
-    auto& conn = getAdminConnection();
-    conn.selectBucket(bucketName);
+    adminConnection->executeInBucket(bucketName, [this](auto& c) {
+        BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Noop);
+        cmd.addFrameInfo(ImpersonateUserFrameInfo{"^satchel"});
+        c.sendCommand(cmd);
 
-    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Noop);
-    cmd.addFrameInfo(ImpersonateUserFrameInfo{"^satchel"});
-    conn.sendCommand(cmd);
+        // Step the auth provider as we're expecting it to fetch the rbac
+        // profile for satchel
+        stepAuthProvider();
 
-    // Step the auth provider as we're expecting it to fetch the rbac profile
-    // for satchel
-    stepAuthProvider();
+        BinprotResponse rsp;
+        c.recvResponse(rsp);
 
-    BinprotResponse rsp;
-    conn.recvResponse(rsp);
-
-    // The next time we call the op it should hit it in the cache..
-    conn.execute(cmd);
+        // The next time we call the op it should hit it in the cache..
+        c.execute(cmd);
+    });
 }
 
 /**

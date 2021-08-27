@@ -31,17 +31,11 @@ protected:
 };
 
 void RemoveTest::verify_MB_22553(const std::string& config) {
-    // default (memcache) bucket only test.
-    if (mcd_env->getTestBucket().getName() != "default_engine") {
-        return;
-    }
-
-    auto& conn = getAdminConnection();
-    conn.deleteBucket(bucketName);
-    mcd_env->getTestBucket().setUpBucket(bucketName, config, conn);
+    DeleteTestBucket();
+    mcd_env->getTestBucket().setUpBucket(bucketName, config, *adminConnection);
 
     // Create a document with an XATTR.
-    conn.reconnect();
+    auto& conn = getConnection();
     setBodyAndXattr(
             conn, "foobar", {{"_rbac", R"({"attribute": "read-only"})"}});
 
@@ -163,12 +157,15 @@ TEST_P(RemoveTest, RemoveWithXattr) {
  * Verify that you cannot get a document (with xattrs) which is deleted
  */
 TEST_P(RemoveTest, MB_22553_DeleteDocWithXAttr_keep_deleted) {
-    verify_MB_22553("keep_deleted=true");}
+    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
+    verify_MB_22553("keep_deleted=true");
+}
 
 /**
  * Verify that you cannot get a document (with xattrs) which is deleted
  * when the memcached bucket isn't using the keep deleted flag
  */
 TEST_P(RemoveTest, MB_22553_DeleteDocWithXAttr) {
+    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
     verify_MB_22553("keep_deleted=false");
 }

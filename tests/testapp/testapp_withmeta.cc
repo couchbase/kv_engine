@@ -197,16 +197,14 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaRefuseUserXattrs) {
         return;
     }
 
-    {
-        auto& conn = getAdminConnection();
-        conn.selectBucket(bucketName);
+    adminConnection->executeInBucket(bucketName, [](auto& connection) {
         const auto setParam = BinprotSetParamCommand(
                 cb::mcbp::request::SetParamPayload::Type::Flush,
                 "allow_sanitize_value_in_deletion",
                 "false");
-        const auto resp = BinprotMutationResponse(conn.execute(setParam));
+        const auto resp = BinprotMutationResponse(connection.execute(setParam));
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    }
+    });
 
     cb::xattr::Blob blob;
     blob.set("user", R"({"band":"Steel Panther"})");
@@ -274,16 +272,14 @@ void WithMetaTest::testDeleteWithMetaAcceptsUserXattrs(bool allowValuePruning,
         return;
     }
 
-    {
-        auto& conn = getAdminConnection();
-        conn.selectBucket(bucketName);
+    adminConnection->executeInBucket(bucketName, [&](auto& connection) {
         const auto setParam = BinprotSetParamCommand(
                 cb::mcbp::request::SetParamPayload::Type::Flush,
                 "allow_sanitize_value_in_deletion",
                 allowValuePruning ? "true" : "false");
-        const auto resp = BinprotMutationResponse(conn.execute(setParam));
+        const auto resp = BinprotMutationResponse(connection.execute(setParam));
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    }
+    });
 
     // Value with User/Sys Xattrs and no Body
     cb::xattr::Blob blob;
@@ -338,16 +334,14 @@ void WithMetaTest::testDeleteWithMetaRejectsBody(bool allowValuePruning,
         return;
     }
 
-    {
-        auto& conn = getAdminConnection();
-        conn.selectBucket(bucketName);
+    adminConnection->executeInBucket(bucketName, [&](auto& connection) {
         const auto setParam = BinprotSetParamCommand(
                 cb::mcbp::request::SetParamPayload::Type::Flush,
                 "allow_sanitize_value_in_deletion",
                 allowValuePruning ? "true" : "false");
-        const auto resp = BinprotMutationResponse(conn.execute(setParam));
+        const auto resp = BinprotMutationResponse(connection.execute(setParam));
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    }
+    });
 
     // Value with User/Sys Xattrs and Body
     if (dtXattr) {

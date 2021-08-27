@@ -41,15 +41,11 @@ protected:
     }
 
     void reloadConfig() {
-        BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Ifconfig);
-        cmd.setKey("tls");
-        cmd.setValue(tls.dump());
-        auto& conn = prepare(connectionMap.getConnection(
-                false, mcd_env->haveIPv4() ? AF_INET : AF_INET6));
-        conn.authenticate("@admin", "password", "PLAIN");
-        auto rsp = conn.execute(cmd);
-        ASSERT_TRUE(rsp.isSuccess())
-                << "Failed to set TLS properties: " << rsp.getDataString();
+        auto rsp = adminConnection->execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::Ifconfig, "tls", tls.dump()});
+        ASSERT_TRUE(rsp.isSuccess()) << "Failed to set TLS properties: "
+                                     << to_string(rsp.getStatus()) << std::endl
+                                     << rsp.getDataString();
     }
 
     void setTlsMinimumSpec(const std::string& version) {

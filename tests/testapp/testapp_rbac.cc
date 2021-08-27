@@ -44,14 +44,9 @@ TEST_P(RbacTest, DontAllowUnknownUsers) {
 }
 
 TEST_P(RbacTest, ReloadRbacData_HaveAccess) {
-    auto& conn = getConnection();
-    conn.authenticate("@admin", "password", "PLAIN");
-    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::RbacRefresh, {}, {});
-    conn.sendCommand(cmd);
-
-    BinprotResponse resp;
-    conn.recvResponse(resp);
-    EXPECT_TRUE(resp.isSuccess());
+    auto rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::RbacRefresh});
+    EXPECT_TRUE(rsp.isSuccess());
 }
 
 TEST_P(RbacTest, ReloadRbacData_NoAccess) {
@@ -67,13 +62,9 @@ TEST_P(RbacTest, ReloadRbacData_NoAccess) {
 }
 
 TEST_P(RbacTest, ReloadSasl_HaveAccess) {
-    auto& conn = getAdminConnection();
-    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::IsaslRefresh);
-    BinprotResponse resp;
-
-    conn.sendCommand(cmd);
-    conn.recvResponse(resp);
-    EXPECT_TRUE(resp.isSuccess());
+    auto rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::IsaslRefresh});
+    EXPECT_TRUE(rsp.isSuccess());
 }
 
 TEST_P(RbacTest, ReloadSasl_NoAccess) {
@@ -100,19 +91,17 @@ TEST_P(RbacTest, ScrubNoAccess) {
 
 TEST_P(RbacTest, Scrub) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Scrub);
-    auto& c = getAdminConnection();
 
-    c.selectBucket(bucketName);
-    BinprotGenericCommand command(cb::mcbp::ClientOpcode::Scrub);
-    BinprotResponse response;
+    adminConnection->executeInBucket(bucketName, [](auto& c) {
+        BinprotGenericCommand command(cb::mcbp::ClientOpcode::Scrub);
+        BinprotResponse response;
+        do {
+            // Retry if scrubber is already running.
+            response = c.execute(command);
+        } while (response.getStatus() == cb::mcbp::Status::Ebusy);
 
-    do {
-        // Retry if scrubber is already running.
-        c.sendCommand(command);
-        c.recvResponse(response);
-    } while (response.getStatus() == cb::mcbp::Status::Ebusy);
-
-    EXPECT_TRUE(response.isSuccess());
+        EXPECT_TRUE(response.isSuccess());
+    });
 }
 
 TEST_P(RbacTest, DropPrivilege) {
@@ -158,21 +147,18 @@ class RbacRoleTest : public TestappClientTest {
 public:
     void SetUp() override {
         TestappClientTest::SetUp();
-        auto& conn = getAdminConnection();
-        conn.createBucket("rbac_test", "", BucketType::Memcached);
+        adminConnection->createBucket("rbac_test", "", BucketType::Memcached);
 
-        conn.reconnect();
-        smith_holder = conn.clone();
-        jones_holder = conn.clone();
-        larry_holder = conn.clone();
+        smith_holder = getConnection().clone();
+        jones_holder = getConnection().clone();
+        larry_holder = getConnection().clone();
     }
 
     void TearDown() override {
         smith_holder.reset();
         jones_holder.reset();
         larry_holder.reset();
-        auto& conn = getAdminConnection();
-        conn.deleteBucket("rbac_test");
+        adminConnection->deleteBucket("rbac_test");
         TestappClientTest::TearDown();
     }
 
@@ -503,10 +489,10 @@ TEST_P(RbacRoleTest, NoAccessToSystemXattrs) {
 }
 
 TEST_P(RbacRoleTest, DontAutoselectBucket) {
-    auto& conn = getAdminConnection();
-    conn.createBucket("larry", "", BucketType::Memcached);
+    adminConnection->createBucket("larry", "", BucketType::Memcached);
 
-    // Re-authenticate as larry
+    // Authenticate as larry
+    auto& conn = getConnection();
     conn.authenticate("larry", "larrypassword", "PLAIN");
 
     // If we try to run a get request it should return no bucket
@@ -514,12 +500,8 @@ TEST_P(RbacRoleTest, DontAutoselectBucket) {
     cmd.setOp(cb::mcbp::ClientOpcode::SubdocGet);
     cmd.setKey("foo");
     cmd.setPath("doc.meta");
-    conn.sendCommand(cmd);
-
-    BinprotResponse resp;
-    conn.recvResponse(resp);
+    const auto resp = conn.execute(cmd);
     EXPECT_EQ(cb::mcbp::Status::NoBucket, resp.getStatus());
 
-    conn.authenticate("@admin", "password", "PLAIN");
-    conn.deleteBucket("larry");
+    adminConnection->deleteBucket("larry");
 }

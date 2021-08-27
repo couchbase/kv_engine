@@ -94,27 +94,52 @@ std::string to_string(ClientSnappySupport snappy) {
                            std::to_string(int(snappy)));
 }
 
+void TestappTest::rebuildAdminConnection() {
+    adminConnection.reset();
+    connectionMap.iterate([](const auto& c) {
+        if (!adminConnection) {
+            adminConnection = c.clone();
+            adminConnection->authenticate(
+                    "@admin", mcd_env->getPassword("@admin"), "PLAIN");
+            adminConnection->unselectBucket();
+
+            std::vector<cb::mcbp::Feature> features = {
+                    {cb::mcbp::Feature::MUTATION_SEQNO,
+                     cb::mcbp::Feature::XATTR,
+                     cb::mcbp::Feature::XERROR,
+                     cb::mcbp::Feature::SELECT_BUCKET,
+                     cb::mcbp::Feature::SubdocReplaceBodyWithXattr,
+                     cb::mcbp::Feature::SNAPPY,
+                     cb::mcbp::Feature::JSON}};
+            adminConnection->setFeatures(features);
+        }
+    });
+    if (!adminConnection) {
+        throw std::runtime_error("Failed to rebuild the admin connection");
+    }
+}
+
 void TestappTest::CreateTestBucket() {
-    auto& conn = connectionMap.getConnection(false);
+    if (!adminConnection) {
+        std::cerr << "TestappTest::CreateTestBucket(): Admin connection not "
+                     "set up"
+                  << std::endl;
+        mcd_env->terminate(EXIT_FAILURE);
+    }
 
-    // Reconnect to the server so we know we're on a "fresh" connection
-    // to the server (and not one that might have been cached by the
-    // idle-timer, but not yet noticed on the client side)
-    conn.reconnect();
-    conn.authenticate("@admin", "password", "PLAIN");
-
-    mcd_env->getTestBucket().setUpBucket(bucketName, "", conn);
-
-    // Reconnect the object to avoid others to reuse the admin creds
-    conn.reconnect();
+    mcd_env->getTestBucket().setUpBucket(bucketName, "", *adminConnection);
 }
 
 void TestappTest::DeleteTestBucket() {
-    auto& conn = connectionMap.getConnection(false);
-    conn.reconnect();
-    conn.authenticate("@admin", "password", "PLAIN");
+    if (!adminConnection) {
+        std::cerr << "TestappTest::DeleteTestBucket(): Admin connection not "
+                     "set up"
+                  << std::endl;
+        mcd_env->terminate(EXIT_FAILURE);
+    }
+
     try {
-        conn.deleteBucket(bucketName);
+        adminConnection->deleteBucket(bucketName);
     } catch (const ConnectionError& error) {
         EXPECT_FALSE(error.isNotFound()) << "Delete bucket [" << bucketName
                                          << "] failed with: " << error.what();
@@ -142,9 +167,10 @@ void TestappTest::doSetUpTestCaseWithConfiguration(nlohmann::json config) {
                   << std::endl;
 
         mcd_env->terminate(EXIT_FAILURE);
-    } else {
-        CreateTestBucket();
     }
+
+    rebuildAdminConnection();
+    CreateTestBucket();
 
     // The connection map should only contain the bootstrap interfaces
     bool error = false;
@@ -161,8 +187,7 @@ void TestappTest::doSetUpTestCaseWithConfiguration(nlohmann::json config) {
         std::exit(EXIT_FAILURE);
     }
 
-    auto createInterface = [](MemcachedConnection& conn,
-                              const std::string& host,
+    auto createInterface = [](const std::string& host,
                               const std::string& family) {
         // Create the SSL interface to use
         BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Ifconfig);
@@ -175,7 +200,7 @@ void TestappTest::doSetUpTestCaseWithConfiguration(nlohmann::json config) {
                                 {"tls", true},
                                 {"tag", "ssl"}};
         cmd.setValue(descr.dump());
-        auto rsp = conn.execute(cmd);
+        auto rsp = adminConnection->execute(cmd);
         if (!rsp.isSuccess()) {
             std::cerr << "Failed to define interface: " << host << " " + family
                       << ": " << to_string(rsp.getStatus()) << std::endl
@@ -188,10 +213,6 @@ void TestappTest::doSetUpTestCaseWithConfiguration(nlohmann::json config) {
     };
 
     try {
-        auto conn = connectionMap.getConnection().clone();
-        conn->connect();
-        conn->authenticate("@admin", "password", "PLAIN");
-
         tls_properties = {
                 {"private key", SOURCE_ROOT "/tests/cert/testapp.pem"},
                 {"certificate chain", SOURCE_ROOT "/tests/cert/testapp.cert"},
@@ -209,7 +230,7 @@ void TestappTest::doSetUpTestCaseWithConfiguration(nlohmann::json config) {
         BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Ifconfig);
         cmd.setKey("tls");
         cmd.setValue(tls_properties.dump());
-        auto rsp = conn->execute(cmd);
+        auto rsp = adminConnection->execute(cmd);
         if (!rsp.isSuccess()) {
             std::cerr << "Failed to set TLS properties: "
                       << to_string(rsp.getStatus()) << std::endl
@@ -219,10 +240,10 @@ void TestappTest::doSetUpTestCaseWithConfiguration(nlohmann::json config) {
 
         auto [ipv4, ipv6] = cb::net::getIpAddresses(false);
         if (!ipv4.empty()) {
-            createInterface(*conn, "127.0.0.1", "inet");
+            createInterface("127.0.0.1", "inet");
         }
         if (!ipv6.empty()) {
-            createInterface(*conn, "::1", "inet6");
+            createInterface("::1", "inet6");
         }
     } catch (const std::exception& exception) {
         std::cerr << "Failed to define SSL bootstrap interfaces: "
@@ -243,6 +264,7 @@ void TestappTest::TearDownTestCase() {
     if (memcachedProcess && memcachedProcess->isRunning()) {
         DeleteTestBucket();
     }
+    adminConnection.reset();
     stop_memcached_server();
 }
 
@@ -323,15 +345,25 @@ ClientJSONSupport McdTestappTest::hasJSONSupport() const {
 }
 
 void TestappTest::setCompressionMode(const std::string& compression_mode) {
-    mcd_env->getTestBucket().setCompressionMode(
-            getAdminConnection(), bucketName, compression_mode);
+    try {
+        mcd_env->getTestBucket().setCompressionMode(
+                *adminConnection, bucketName, compression_mode);
+    } catch (const std::exception&) {
+        rebuildAdminConnection();
+        throw;
+    }
 }
 
 void TestappTest::setMinCompressionRatio(float min_compression_ratio) {
-    mcd_env->getTestBucket().setMinCompressionRatio(
-            getAdminConnection(),
-            bucketName,
-            std::to_string(min_compression_ratio));
+    try {
+        mcd_env->getTestBucket().setMinCompressionRatio(
+                *adminConnection,
+                bucketName,
+                std::to_string(min_compression_ratio));
+    } catch (const std::exception&) {
+        rebuildAdminConnection();
+        throw;
+    }
 }
 
 void TestappTest::waitForAtLeastSeqno(MemcachedConnection& conn,
@@ -1053,42 +1085,27 @@ void TestappTest::ewouldblock_engine_disable() {
 }
 
 void TestappTest::reconfigure() {
-    write_config_to_file(memcached_cfg.dump(2));
-
-    bool network_failure;
-    const auto timeout =
-            std::chrono::steady_clock::now() + std::chrono::seconds{5};
-    BinprotResponse response;
-    do {
-        network_failure = false;
-        try {
-            auto& conn = getAdminConnection();
-            BinprotGenericCommand req{
-                    cb::mcbp::ClientOpcode::ConfigReload, {}, {}};
-            response = conn.execute(req);
-            conn.reconnect();
-        } catch (const std::exception& e) {
-            std::cerr << "Got exception: " << e.what() << std::endl;
-            std::this_thread::sleep_for(std::chrono::milliseconds{10});
-            network_failure = true;
-        }
-    } while (network_failure && std::chrono::steady_clock::now() < timeout);
-    ASSERT_FALSE(network_failure)
-            << "Failed to tell the server to reload the configuration";
-    ASSERT_TRUE(response.isSuccess()) << response.getDataString();
-
-    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Ifconfig);
-    cmd.setKey("tls");
-    cmd.setValue(tls_properties.dump());
-    auto& conn = getAdminConnection();
-    auto rsp = conn.execute(cmd);
-    if (!rsp.isSuccess()) {
-        std::cerr << "Failed to set TLS properties: "
-                  << to_string(rsp.getStatus()) << std::endl
-                  << rsp.getDataString() << std::endl;
-        std::exit(EXIT_FAILURE);
+    if (!adminConnection) {
+        std::cerr << "TestappTest::reconfigure(): Admin connection not "
+                     "set up"
+                  << std::endl;
+        mcd_env->terminate(EXIT_FAILURE);
     }
-    conn.reconnect();
+
+    write_config_to_file(memcached_cfg.dump(2));
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::ConfigReload, {}, {}});
+    ASSERT_TRUE(rsp.isSuccess())
+            << "Failed to reconfigure server: " << to_string(rsp.getStatus())
+            << std::endl
+            << rsp.getDataString();
+
+    rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Ifconfig, "tls", tls_properties.dump()});
+    ASSERT_TRUE(rsp.isSuccess())
+            << "Failed to set TLS properties: " << to_string(rsp.getStatus())
+            << std::endl
+            << rsp.getDataString() << std::endl;
 }
 
 void TestappTest::runCreateXattr(MemcachedConnection& connection,
@@ -1168,8 +1185,10 @@ MemcachedConnection& TestappTest::getConnection() {
     // required (this makes the return value of getConnection predictable
     // (rather than returning whatever happened to be stored in "front" of
     // the map.
-    return prepare(connectionMap.getConnection(
-            isTlsEnabled(), mcd_env->haveIPv4() ? AF_INET : AF_INET6));
+    auto& connection = connectionMap.getConnection(
+            isTlsEnabled(), mcd_env->haveIPv4() ? AF_INET : AF_INET6);
+    connection.connect();
+    return prepare(connection);
 }
 
 MemcachedConnection& TestappTest::getAdminConnection() {
@@ -1193,7 +1212,6 @@ MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
         features.push_back(cb::mcbp::Feature::JSON);
     }
 
-    connection.reconnect();
     connection.setFeatures(features);
     return connection;
 }
@@ -1277,6 +1295,7 @@ ConnectionMap TestappTest::connectionMap;
 uint64_t TestappTest::token;
 std::thread TestappTest::memcached_server_thread;
 std::size_t TestappTest::num_server_starts = 0;
+std::unique_ptr<MemcachedConnection> TestappTest::adminConnection;
 
 int main(int argc, char** argv) {
     if (getenv("COUNT_SOCKETS")) {

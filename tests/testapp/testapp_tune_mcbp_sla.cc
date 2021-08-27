@@ -25,8 +25,7 @@ protected:
 
 std::chrono::nanoseconds TuneMcbpSla::getSlowThreshold(
         cb::mcbp::ClientOpcode opcode) {
-    auto& connection = getAdminConnection();
-    auto json = nlohmann::json::parse(connection.ioctl_get("sla"));
+    auto json = nlohmann::json::parse(adminConnection->ioctl_get("sla"));
 
     auto iter = json.find(to_string(opcode));
     if (iter == json.end()) {
@@ -59,11 +58,9 @@ TEST_P(TuneMcbpSla, NoAccess) {
 }
 
 TEST_P(TuneMcbpSla, InvalidPayload) {
-    auto& connection = getAdminConnection();
-
     // No payload isn't allowed
     try {
-        connection.ioctl_set("sla", "");
+        adminConnection->ioctl_set("sla", "");
         FAIL() << "An empty input string is not allowed";
     } catch (const ConnectionError& e) {
         EXPECT_TRUE(e.isInvalidArguments());
@@ -71,7 +68,7 @@ TEST_P(TuneMcbpSla, InvalidPayload) {
 
     // It must be JSON
     try {
-        connection.ioctl_set("sla", "asdfasdff");
+        adminConnection->ioctl_set("sla", "asdfasdff");
         FAIL() << "The data must be JSON";
     } catch (const ConnectionError& e) {
         EXPECT_TRUE(e.isInvalidArguments());
@@ -79,7 +76,7 @@ TEST_P(TuneMcbpSla, InvalidPayload) {
 
     // It must contain the version tag
     try {
-        connection.ioctl_set("sla", "{}");
+        adminConnection->ioctl_set("sla", "{}");
         FAIL() << "The data must contain the version tag";
     } catch (const ConnectionError& e) {
         EXPECT_TRUE(e.isInvalidArguments());
@@ -90,15 +87,14 @@ TEST_P(TuneMcbpSla, Update) {
     // Try to set everything to 500ms (note that this don't really check
     // if it works if that's the same as the server's default.. but we're
     // trying again later on..
-    getAdminConnection().ioctl_set("sla",
-                                   R"({"version":1, "default":{"slow":500}})");
+    adminConnection->ioctl_set("sla",
+                               R"({"version":1, "default":{"slow":500}})");
     EXPECT_EQ(std::chrono::milliseconds(500),
               getSlowThreshold(cb::mcbp::ClientOpcode::Get));
     EXPECT_EQ(std::chrono::milliseconds(500),
               getSlowThreshold(cb::mcbp::ClientOpcode::Set));
 
-    getAdminConnection().ioctl_set("sla",
-                                   R"({"version":1, "set":{"slow":100}})");
+    adminConnection->ioctl_set("sla", R"({"version":1, "set":{"slow":100}})");
 
     EXPECT_EQ(std::chrono::milliseconds(500),
               getSlowThreshold(cb::mcbp::ClientOpcode::Get));
@@ -106,8 +102,8 @@ TEST_P(TuneMcbpSla, Update) {
               getSlowThreshold(cb::mcbp::ClientOpcode::Set));
 
     // Verify that setting default sets all of them
-    getAdminConnection().ioctl_set("sla",
-                                   R"({"version":1, "default":{"slow":500}})");
+    adminConnection->ioctl_set("sla",
+                               R"({"version":1, "default":{"slow":500}})");
     EXPECT_EQ(std::chrono::milliseconds(500),
               getSlowThreshold(cb::mcbp::ClientOpcode::Get));
     EXPECT_EQ(std::chrono::milliseconds(500),
@@ -116,13 +112,13 @@ TEST_P(TuneMcbpSla, Update) {
 
 TEST_P(TuneMcbpSla, SlowCommandLogging) {
     TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Couchbase);
-    auto& conn = getAdminConnection();
-    conn.ioctl_set(
+    adminConnection->ioctl_set(
             "sla",
             R"({"version":1, "compact_db":{"slow":"1ns"}, "default":{"slow":500}})");
-    conn.selectBucket(bucketName);
-    const auto rsp = conn.execute(BinprotCompactDbCommand());
-    EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+    adminConnection->executeInBucket(bucketName, [](auto& c) {
+        const auto rsp = c.execute(BinprotCompactDbCommand());
+        EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+    });
 
     // "grep" like function to pick out the lines in all the log files
     // containing ": Slow operation: "

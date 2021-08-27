@@ -67,56 +67,56 @@ void TestBucketImpl::createEwbBucket(const std::string& name,
 void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
                                      const std::string& bucketName,
                                      bool value) {
-    conn.selectBucket(bucketName);
+    conn.executeInBucket(bucketName, [&](auto& connection) {
+        // Encode a set_flush_param (like cbepctl)
+        BinprotGenericCommand cmd;
+        cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
+        cmd.setKey("xattr_enabled");
+        cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
+                cb::mcbp::request::SetParamPayload::Type::Flush)));
+        if (value) {
+            cmd.setValue("true");
+        } else {
+            cmd.setValue("false");
+        }
 
-    // Encode a set_flush_param (like cbepctl)
-    BinprotGenericCommand cmd;
-    cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
-    cmd.setKey("xattr_enabled");
-    cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
-            cb::mcbp::request::SetParamPayload::Type::Flush)));
-    if (value) {
-        cmd.setValue("true");
-    } else {
-        cmd.setValue("false");
-    }
-
-    const auto resp = conn.execute(cmd);
-    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        const auto resp = connection.execute(cmd);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    });
 }
 
 void TestBucketImpl::setCompressionMode(MemcachedConnection& conn,
                                         const std::string& bucketName,
                                         const std::string& value) {
-    conn.selectBucket(bucketName);
+    conn.executeInBucket(bucketName, [&](auto& connection) {
+        // Encode a set_flush_param (like cbepctl)
+        BinprotGenericCommand cmd;
+        cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
+        cmd.setKey("compression_mode");
+        cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
+                cb::mcbp::request::SetParamPayload::Type::Flush)));
+        cmd.setValue(value);
 
-    // Encode a set_flush_param (like cbepctl)
-    BinprotGenericCommand cmd;
-    cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
-    cmd.setKey("compression_mode");
-    cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
-            cb::mcbp::request::SetParamPayload::Type::Flush)));
-    cmd.setValue(value);
-
-    const auto resp = conn.execute(cmd);
-    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        const auto resp = connection.execute(cmd);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    });
 }
 
 void TestBucketImpl::setMinCompressionRatio(MemcachedConnection& conn,
                                             const std::string& bucketName,
                                             const std::string& value) {
-    conn.selectBucket(bucketName);
+    conn.executeInBucket(bucketName, [&](auto& connection) {
+        // Encode a set_flush_param (like cbepctl)
+        BinprotGenericCommand cmd;
+        cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
+        cmd.setKey("min_compression_ratio");
+        cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
+                cb::mcbp::request::SetParamPayload::Type::Flush)));
+        cmd.setValue(value);
 
-    // Encode a set_flush_param (like cbepctl)
-    BinprotGenericCommand cmd;
-    cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
-    cmd.setKey("min_compression_ratio");
-    cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
-            cb::mcbp::request::SetParamPayload::Type::Flush)));
-    cmd.setValue(value);
-
-    const auto resp = conn.execute(cmd);
-    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        const auto resp = connection.execute(cmd);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    });
 }
 
 class DefaultBucketImpl : public TestBucketImpl {
@@ -236,25 +236,20 @@ public:
         }
 
         conn.createBucket(name, settings, BucketType::Couchbase);
-        conn.selectBucket(name);
+        conn.executeInBucket(name, [](auto& connection) {
+            // Set the vBucket state. Set a single replica so that any
+            // SyncWrites can be completed.
+            nlohmann::json meta;
+            meta["topology"] = nlohmann::json::array({{"active"}});
+            connection.setVbucket(Vbid(0), vbucket_state_active, meta);
 
-        // Set the vBucket state. Set a single replica so that any SyncWrites
-        // can be completed.
-        conn.setDatatypeJson(true);
-        nlohmann::json meta;
-        meta["topology"] = nlohmann::json::array({{"active"}});
-        conn.setVbucket(Vbid(0), vbucket_state_active, meta);
-
-        // Clear the JSON data type (just in case)
-        conn.setDatatypeJson(false);
-
-        auto auto_retry_tmpfail = conn.getAutoRetryTmpfail();
-        conn.setAutoRetryTmpfail(true);
-        auto resp = conn.execute(
-                BinprotGenericCommand{cb::mcbp::ClientOpcode::EnableTraffic});
-        conn.setAutoRetryTmpfail(auto_retry_tmpfail);
-        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        conn.selectBucket("@no bucket@");
+            auto auto_retry_tmpfail = connection.getAutoRetryTmpfail();
+            connection.setAutoRetryTmpfail(true);
+            auto resp = connection.execute(BinprotGenericCommand{
+                    cb::mcbp::ClientOpcode::EnableTraffic});
+            connection.setAutoRetryTmpfail(auto_retry_tmpfail);
+            ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        });
     }
 
     void setUpBucket(const std::string& name,
@@ -279,32 +274,20 @@ public:
         }
 
         createEwbBucket(name, "ep.so", mergeConfigString(settings), conn);
+        conn.executeInBucket(name, [](auto& connection) {
+            // Set the vBucket state. Set a single replica so that any
+            // SyncWrites can be completed.
+            nlohmann::json meta;
+            meta["topology"] = nlohmann::json::array({{"active"}});
+            connection.setVbucket(Vbid(0), vbucket_state_active, meta);
 
-        BinprotGenericCommand cmd;
-        cmd.setOp(cb::mcbp::ClientOpcode::SelectBucket);
-        cmd.setKey(name);
-        auto resp = conn.execute(cmd);
-        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-
-        cmd.clear();
-        resp.clear();
-
-        // Set the vBucket state. Set a single replica so that any SyncWrites
-        // can be completed.
-        conn.setDatatypeJson(true);
-        nlohmann::json meta;
-        meta["topology"] = nlohmann::json::array({{"active"}});
-        conn.setVbucket(Vbid(0), vbucket_state_active, meta);
-
-        // Clear the JSON data type (just in case)
-        conn.setDatatypeJson(false);
-
-        auto auto_retry_tmpfail = conn.getAutoRetryTmpfail();
-        conn.setAutoRetryTmpfail(true);
-        resp = conn.execute(
-                BinprotGenericCommand{cb::mcbp::ClientOpcode::EnableTraffic});
-        conn.setAutoRetryTmpfail(auto_retry_tmpfail);
-        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+            auto auto_retry_tmpfail = connection.getAutoRetryTmpfail();
+            connection.setAutoRetryTmpfail(true);
+            const auto resp = connection.execute(BinprotGenericCommand{
+                    cb::mcbp::ClientOpcode::EnableTraffic});
+            connection.setAutoRetryTmpfail(auto_retry_tmpfail);
+            ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        });
     }
 
     std::string getName() const override {

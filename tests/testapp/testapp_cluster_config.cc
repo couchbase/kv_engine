@@ -9,8 +9,6 @@
  */
 
 #include "testapp_xattr.h"
-#include <cctype>
-#include <limits>
 #include <thread>
 
 class ClusterConfigTest : public TestappXattrClientTest {
@@ -24,8 +22,7 @@ protected:
     BinprotResponse setClusterConfig(uint64_t token,
                                      const std::string& config,
                                      int64_t revision) {
-        auto& conn = getAdminConnection();
-        return conn.execute(BinprotSetClusterConfigCommand{
+        return adminConnection->execute(BinprotSetClusterConfigCommand{
                 token, config, 1, revision, bucketName});
     }
 
@@ -145,25 +142,24 @@ TEST_P(ClusterConfigTest, Enable_CCCP_Push_Notifications) {
 }
 
 TEST_P(ClusterConfigTest, CccpPushNotification) {
-    auto& conn = getAdminConnection();
-    conn.selectBucket(bucketName);
+    auto& second = getConnection();
 
-    auto second = conn.clone();
+    second.setFeature(cb::mcbp::Feature::UnorderedExecution, true);
+    second.setDuplexSupport(true);
+    second.setClustermapChangeNotification(true);
 
-    second->setFeature(cb::mcbp::Feature::UnorderedExecution, true);
-    second->setDuplexSupport(true);
-    second->setClustermapChangeNotification(true);
-
-    ASSERT_TRUE(
-            conn.execute(BinprotSetClusterConfigCommand{
-                                 token, R"({"rev":666})", 1, 666, bucketName})
-                    .isSuccess());
+    adminConnection->executeInBucket(bucketName, [](auto& c) {
+        ASSERT_TRUE(
+                c.execute(BinprotSetClusterConfigCommand{
+                                  token, R"({"rev":666})", 1, 666, bucketName})
+                        .isSuccess());
+    });
 
     Frame frame;
 
     // Setting a new config should cause the server to push a new config
     // to me!
-    second->recvFrame(frame);
+    second.recvFrame(frame);
     EXPECT_EQ(cb::mcbp::Magic::ServerRequest, frame.getMagic());
 
     auto* request = frame.getRequest();
@@ -192,24 +188,22 @@ TEST_P(ClusterConfigTest, SetGlobalClusterConfig) {
     // Set one for the default bucket
     setClusterConfig(token, R"({"rev":1000})", 1000);
 
-    auto& conn = getAdminConnection();
     // Set the global config
-    auto rsp = conn.execute(BinprotSetClusterConfigCommand{
+    auto rsp = adminConnection->execute(BinprotSetClusterConfigCommand{
             token, R"({"foo" : "bar"})", 1, 100, ""});
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataString();
-    conn.reconnect();
-    conn.authenticate("@admin", "password", "PLAIN");
 
-    rsp = conn.execute(
+    rsp = adminConnection->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::GetClusterConfig});
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataString();
     EXPECT_EQ(R"({"foo" : "bar"})", rsp.getDataString());
 
-    conn.selectBucket(bucketName);
-    rsp = conn.execute(
-            BinprotGenericCommand{cb::mcbp::ClientOpcode::GetClusterConfig});
-    ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataString();
-    EXPECT_EQ(R"({"rev":1000})", rsp.getDataString());
+    adminConnection->executeInBucket(bucketName, [](auto& c) {
+        auto rsp = c.execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::GetClusterConfig});
+        ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+        EXPECT_EQ(R"({"rev":1000})", rsp.getDataString());
+    });
 }
 
 /**
@@ -218,16 +212,14 @@ TEST_P(ClusterConfigTest, SetGlobalClusterConfig) {
 TEST_P(ClusterConfigTest, MB35395) {
     setClusterConfig(token, R"({"rev":1000})", 1000);
 
-    auto& conn = getAdminConnection();
-    conn.deleteBucket(bucketName);
-
     // Recreate the bucket, and the cluster config should be gone!
+    DeleteTestBucket();
     CreateTestBucket();
-    conn.reconnect();
-    conn.authenticate("@admin", "password", "PLAIN");
-    conn.selectBucket(bucketName);
-    auto rsp = conn.execute(
-            BinprotGenericCommand{cb::mcbp::ClientOpcode::GetClusterConfig});
-    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
-    EXPECT_EQ("", rsp.getDataString());
+
+    adminConnection->executeInBucket(bucketName, [](auto& c) {
+        auto rsp = c.execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::GetClusterConfig});
+        ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+        EXPECT_EQ("", rsp.getDataString());
+    });
 }

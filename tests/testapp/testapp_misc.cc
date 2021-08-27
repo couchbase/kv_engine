@@ -70,21 +70,8 @@ TEST_P(MiscTest, UpdateUserPermissionsSuccess) {
   },
   "privileges": []
 }})";
-    auto& conn = getAdminConnection();
-    auto resp = conn.execute(BinprotUpdateUserPermissionsCommand{rbac});
-    EXPECT_TRUE(resp.isSuccess());
-}
-
-/**
- * Send the UpdateUserPermissions with a valid username, but no payload
- * (this means remove).
- *
- * Unfortunately there isn't a way to verify that the user was actually
- * updated as we can't fetch the updated entry.
- */
-TEST_P(MiscTest, DISABLED_UpdateUserPermissionsRemoveUser) {
-    auto& conn = getAdminConnection();
-    auto resp = conn.execute(BinprotUpdateUserPermissionsCommand{""});
+    const auto resp =
+            adminConnection->execute(BinprotUpdateUserPermissionsCommand{rbac});
     EXPECT_TRUE(resp.isSuccess());
 }
 
@@ -95,8 +82,8 @@ TEST_P(MiscTest, DISABLED_UpdateUserPermissionsRemoveUser) {
  * updated as we can't fetch the updated entry.
  */
 TEST_P(MiscTest, UpdateUserPermissionsInvalidPayload) {
-    auto& conn = getAdminConnection();
-    auto resp = conn.execute(BinprotUpdateUserPermissionsCommand{"bogus"});
+    const auto resp = adminConnection->execute(
+            BinprotUpdateUserPermissionsCommand{"bogus"});
     EXPECT_FALSE(resp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 }
@@ -122,23 +109,20 @@ TEST_P(MiscTest, GetRbacDatabase) {
 }
 
 TEST_P(MiscTest, Config_Validate_Empty) {
-    auto& conn = getAdminConnection();
-    auto rsp = conn.execute(
+    const auto rsp = adminConnection->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::ConfigValidate});
     ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
 }
 
 TEST_P(MiscTest, Config_ValidateInvalidJSON) {
-    auto& conn = getAdminConnection();
-    auto rsp = conn.execute(BinprotGenericCommand{
+    const auto rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::ConfigValidate, "", "This isn't JSON"});
     ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
 }
 
 TEST_P(MiscTest, SessionCtrlToken) {
     // Validate that you may successfully set the token to a legal value
-    auto& conn = getAdminConnection();
-    auto rsp = conn.execute(
+    auto rsp = adminConnection->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::GetCtrlToken});
     ASSERT_TRUE(rsp.isSuccess());
 
@@ -147,26 +131,30 @@ TEST_P(MiscTest, SessionCtrlToken) {
     uint64_t new_token = 0x0102030405060708;
 
     // Test that you can set it with the correct ctrl token
-    rsp = conn.execute(BinprotSetControlTokenCommand{new_token, old_token});
+    rsp = adminConnection->execute(
+            BinprotSetControlTokenCommand{new_token, old_token});
     ASSERT_TRUE(rsp.isSuccess());
     EXPECT_EQ(new_token, rsp.getCas());
     old_token = new_token;
 
     // Validate that you can't set 0 as the ctrl token
-    rsp = conn.execute(BinprotSetControlTokenCommand{0ull, old_token});
+    rsp = adminConnection->execute(
+            BinprotSetControlTokenCommand{0ull, old_token});
     ASSERT_FALSE(rsp.isSuccess())
             << "It shouldn't be possible to set token to 0";
 
     // Validate that you can't set it by providing an incorrect cas
-    rsp = conn.execute(BinprotSetControlTokenCommand{1234ull, old_token - 1});
+    rsp = adminConnection->execute(
+            BinprotSetControlTokenCommand{1234ull, old_token - 1});
     ASSERT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
 
     // Validate that you can set it by providing the correct token
-    rsp = conn.execute(BinprotSetControlTokenCommand{0xdeadbeefull, old_token});
+    rsp = adminConnection->execute(
+            BinprotSetControlTokenCommand{0xdeadbeefull, old_token});
     ASSERT_TRUE(rsp.isSuccess());
     ASSERT_EQ(0xdeadbeefull, rsp.getCas());
 
-    rsp = conn.execute(
+    rsp = adminConnection->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::GetCtrlToken});
     ASSERT_TRUE(rsp.isSuccess());
     ASSERT_EQ(0xdeadbeefull, rsp.getCas());
@@ -200,10 +188,10 @@ TEST_P(MiscTest, Version) {
 }
 
 TEST_F(TestappTest, CollectionsSelectBucket) {
-    auto& conn = getAdminConnection();
-
     // Create and select a bucket on which we will be able to hello collections
-    conn.createBucket("collections", "", BucketType::Couchbase);
+    adminConnection->createBucket("collections", "", BucketType::Couchbase);
+
+    auto& conn = getAdminConnection();
     conn.selectBucket("collections");
 
     // Hello collections to enable collections for this connection
@@ -227,6 +215,7 @@ TEST_F(TestappTest, CollectionsSelectBucket) {
                    << to_string(e.getReason());
         }
     }
+    adminConnection->deleteBucket("collections");
 }
 
 /**

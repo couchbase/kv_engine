@@ -387,12 +387,11 @@ TEST_P(AuditTest, AuditX509FailedAuth) {
 }
 
 TEST_P(AuditTest, AuditSelectBucket) {
-    auto& conn = getAdminConnection();
-    conn.createBucket("bucket-1", "", BucketType::Memcached);
-    conn.selectBucket("bucket-1");
-
-    ASSERT_TRUE(searchAuditLogForID(
-            MEMCACHED_AUDIT_SELECT_BUCKET, "@admin", "bucket-1"));
+    adminConnection->createBucket("bucket-1", "", BucketType::Memcached);
+    adminConnection->executeInBucket("bucket-1", [this](auto&) {
+        ASSERT_TRUE(searchAuditLogForID(
+                MEMCACHED_AUDIT_SELECT_BUCKET, "@admin", "bucket-1"));
+    });
 }
 
 // Each subdoc single-lookup should log one (and only one) DOCUMENT_READ
@@ -497,15 +496,13 @@ TEST_P(AuditTest, AuditSubdocMultiMutationDelete) {
 }
 
 TEST_P(AuditTest, AuditConfigReload) {
-    auto& conn = getAdminConnection();
-    auto rsp = conn.execute(
+    auto rsp = adminConnection->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::ConfigReload});
     EXPECT_TRUE(rsp.isSuccess());
 }
 
 TEST_P(AuditTest, AuditPut) {
-    auto& conn = getAdminConnection();
-    auto rsp = conn.execute(BinprotAuditPutCommand{0, R"({})"});
+    auto rsp = adminConnection->execute(BinprotAuditPutCommand{0, R"({})"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataString();
 }
 
@@ -596,7 +593,7 @@ TEST_P(AuditTest, MB3750_AuditImpersonatedUser) {
     auto& conn = getAdminConnection();
     conn.selectBucket(bucketName);
 
-    // We should be allowed to fetch a document (should return enoent
+    // We should be allowed to fetch a document (should return enoent)
     try {
         conn.get("MB3750_AuditImpersonatedUser", Vbid{0});
         FAIL() << "Document should not be here";

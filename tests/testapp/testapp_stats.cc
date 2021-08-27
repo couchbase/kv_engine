@@ -23,11 +23,9 @@ public:
 
 protected:
     void resetBucket() {
-        MemcachedConnection& conn = getConnection();
-        ASSERT_NO_THROW(conn.authenticate("@admin", "password", "PLAIN"));
-        ASSERT_NO_THROW(conn.selectBucket(bucketName));
-        ASSERT_NO_THROW(conn.stats("reset"));
-        ASSERT_NO_THROW(conn.reconnect());
+        adminConnection->executeInBucket(bucketName, [](auto& connection) {
+            connection.stats("reset");
+        });
     }
 };
 
@@ -103,9 +101,6 @@ TEST_P(StatsTest, StatsResetIsPrivileged) {
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied());
     }
-
-    conn.authenticate("@admin", "password", "PLAIN");
-    conn.stats("reset");
 }
 
 TEST_P(StatsTest, TestReset) {
@@ -131,18 +126,17 @@ TEST_P(StatsTest, TestReset) {
 
     // Just ensure that the "reset timings" is detected
     // @todo add a separate test case for cmd timings stats
-    conn.authenticate("@admin", "password", "PLAIN");
-    conn.selectBucket(bucketName);
-    stats = conn.stats("reset timings");
-
-    // Just ensure that the "reset bogus" is detected..
-    try {
-        conn.stats("reset bogus");
-        FAIL()<<"stats reset bogus should throw an exception (non a valid cmd)";
-    } catch (ConnectionError& error) {
-        EXPECT_TRUE(error.isInvalidArguments());
-    }
-    conn.reconnect();
+    adminConnection->executeInBucket(bucketName, [](auto& connection) {
+        connection.stats("reset timings");
+        // Just ensure that the "reset bogus" is detected..
+        try {
+            connection.stats("reset bogus");
+            FAIL() << "stats reset bogus should throw an exception (non a "
+                      "valid cmd)";
+        } catch (ConnectionError& error) {
+            EXPECT_TRUE(error.isInvalidArguments()) << error.what();
+        }
+    });
 }
 
 /**
@@ -291,21 +285,17 @@ TEST_P(StatsTest, MB37147_TestEWBReturnFromStat) {
                 << "' as the underlying engine don't support vbucket stats.\n";
         return;
     }
-    MemcachedConnection& conn = getConnection();
-    conn.authenticate("@admin", "password", "PLAIN");
-    conn.selectBucket(bucketName);
-
-    auto sequence = ewb::encodeSequence({cb::engine_errc::would_block,
-                                         cb::engine_errc::success,
-                                         ewb::Passthrough});
-    conn.configureEwouldBlockEngine(EWBEngineMode::Sequence,
-                                    /*unused*/ {},
-                                    /*unused*/ {},
-                                    sequence);
-
-    auto stats = conn.stats("vbucket");
-
-    EXPECT_FALSE(stats.empty());
+    adminConnection->executeInBucket(bucketName, [](auto& connection) {
+        auto sequence = ewb::encodeSequence({cb::engine_errc::would_block,
+                                             cb::engine_errc::success,
+                                             ewb::Passthrough});
+        connection.configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                              /*unused*/ {},
+                                              /*unused*/ {},
+                                              sequence);
+        auto stats = connection.stats("vbucket");
+        EXPECT_FALSE(stats.empty());
+    });
 }
 
 TEST_P(StatsTest, TestAuditNoAccess) {
@@ -320,15 +310,10 @@ TEST_P(StatsTest, TestAuditNoAccess) {
 }
 
 TEST_P(StatsTest, TestAudit) {
-    MemcachedConnection& conn = getConnection();
-    conn.authenticate("@admin", "password", "PLAIN");
-
-    auto stats = conn.stats("audit");
+    auto stats = adminConnection->stats("audit");
     EXPECT_EQ(2, stats.size());
     EXPECT_EQ(false, stats["enabled"].get<bool>());
     EXPECT_EQ(0, stats["dropped_events"].get<size_t>());
-
-    conn.reconnect();
 }
 
 TEST_P(StatsTest, TestBucketDetailsNoAccess) {
@@ -344,10 +329,7 @@ TEST_P(StatsTest, TestBucketDetailsNoAccess) {
 }
 
 TEST_P(StatsTest, TestBucketDetails) {
-    MemcachedConnection& conn = getConnection();
-    conn.authenticate("@admin", "password", "PLAIN");
-
-    auto stats = conn.stats("bucket_details");
+    auto stats = adminConnection->stats("bucket_details");
     ASSERT_EQ(1, stats.size());
     ASSERT_EQ("bucket details", stats.begin().key());
 
@@ -369,24 +351,22 @@ TEST_P(StatsTest, TestBucketDetails) {
         EXPECT_NE(bucket.end(), bucket.find("name"));
         EXPECT_NE(bucket.end(), bucket.find("type"));
     }
-
-    conn.reconnect();
 }
 
 TEST_P(StatsTest, TestSchedulerInfo) {
-    auto stats = getAdminConnection().stats("worker_thread_info");
+    auto stats = adminConnection->stats("worker_thread_info");
     // We should at least have an entry for the first thread
     EXPECT_NE(stats.end(), stats.find("0"));
 }
 
 TEST_P(StatsTest, TestSchedulerInfo_Aggregate) {
-    auto stats = getAdminConnection().stats("worker_thread_info aggregate");
+    auto stats = adminConnection->stats("worker_thread_info aggregate");
     EXPECT_NE(stats.end(), stats.find("aggregate"));
 }
 
 TEST_P(StatsTest, TestSchedulerInfo_InvalidSubcommand) {
     try {
-        getAdminConnection().stats("worker_thread_info foo");
+        adminConnection->stats("worker_thread_info foo");
         FAIL() << "Invalid subcommand";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isInvalidArguments());
@@ -402,20 +382,20 @@ TEST_P(StatsTest, TestAggregate) {
 }
 
 TEST_P(StatsTest, TestPrivilegedConnections) {
-    MemcachedConnection& conn = getAdminConnection();
-    conn.setAgentName("TestPrivilegedConnections 1.0");
-    conn.setFeatures({cb::mcbp::Feature::XERROR});
-    auto stats = conn.stats("connections");
+    adminConnection->setAgentName("TestPrivilegedConnections 1.0");
+    adminConnection->setFeature(cb::mcbp::Feature::XERROR, true);
+    auto stats = adminConnection->stats("connections");
     // We have at _least_ 2 connections
     ASSERT_LE(2, stats.size());
 
-    stats = conn.stats("connections self");
+    stats = adminConnection->stats("connections self");
     ASSERT_EQ(1, stats.size());
     EXPECT_EQ("TestPrivilegedConnections 1.0",
               stats.front()["agent_name"].get<std::string>());
 
-    stats = conn.stats("connections " +
-                       std::to_string(stats.front()["socket"].get<size_t>()));
+    stats = adminConnection->stats(
+            "connections " +
+            std::to_string(stats.front()["socket"].get<size_t>()));
     ASSERT_EQ(1, stats.size());
     EXPECT_EQ("TestPrivilegedConnections 1.0",
               stats.front()["agent_name"].get<std::string>());
@@ -451,9 +431,8 @@ TEST_P(StatsTest, TestUnprivilegedConnections) {
 }
 
 TEST_P(StatsTest, TestConnectionsInvalidNumber) {
-    MemcachedConnection& conn = getAdminConnection();
     try {
-        auto stats = conn.stats("connections xxx");
+        auto stats = adminConnection->stats("connections xxx");
         FAIL() << "Did not detect incorrect connection number";
 
     } catch (ConnectionError& error) {
@@ -481,24 +460,16 @@ TEST_P(StatsTest, TestResponseStats) {
 
 TEST_P(StatsTest, TracingStatsIsPrivileged) {
     MemcachedConnection& conn = getConnection();
-
     try {
         conn.stats("tracing");
         FAIL() << "tracing is a privileged operation";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied());
     }
-
-    conn.authenticate("@admin", "password", "PLAIN");
-    conn.stats("tracing");
 }
 
 TEST_P(StatsTest, TestTracingStats) {
-    MemcachedConnection& conn = getConnection();
-    conn.authenticate("@admin", "password", "PLAIN");
-
-    auto stats = conn.stats("tracing");
-
+    auto stats = adminConnection->stats("tracing");
     // Just check that we got some stats, no need to check all of them
     // as we don't want memcached to be testing phosphor's logic
     EXPECT_FALSE(stats.empty());
@@ -507,11 +478,7 @@ TEST_P(StatsTest, TestTracingStats) {
 }
 
 TEST_P(StatsTest, TestSingleBucketOpStats) {
-    MemcachedConnection& conn = getConnection();
-    conn.authenticate("@admin", "password", "PLAIN");
-
-    conn.selectBucket(bucketName);
-
+    auto& conn = getConnection();
     std::string key = "key";
 
     // Set a document
@@ -524,7 +491,7 @@ TEST_P(StatsTest, TestSingleBucketOpStats) {
     // mutate to bump stat
     conn.mutate(doc, Vbid(0), MutationType::Set);
     // lookup to bump stat
-    conn.get(key, Vbid(0), {} /* getFrameInfo */);
+    conn.get(key, Vbid(0));
 
     auto stats = conn.stats("");
 

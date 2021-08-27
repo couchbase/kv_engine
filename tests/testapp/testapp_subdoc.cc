@@ -2130,20 +2130,11 @@ INSTANTIATE_TEST_SUITE_P(
 class WorkerConcurrencyTest : public TestappTest {
 public:
     static void SetUpTestCase() {
-        memcached_cfg = generate_config();
         // Change the number of worker threads to one so we guarantee that
         // multiple connections are handled by a single worker.
-        memcached_cfg["threads"] = 1;
-        start_memcached_server();
-
-        if (HasFailure()) {
-            std::cerr << "Error in WorkerConcurrencyTest::SetUpTestCase, "
-                         "terminating process"
-                      << std::endl;
-            mcd_env->terminate(EXIT_FAILURE);
-        } else {
-            CreateTestBucket();
-        }
+        auto cfg = generate_config();
+        cfg["threads"] = 1;
+        doSetUpTestCaseWithConfiguration(cfg);
     }
 };
 

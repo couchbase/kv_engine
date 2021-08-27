@@ -94,9 +94,8 @@ void TestappXattrClientTest::setBodyAndXattr(
 }
 
 void TestappXattrClientTest::setClusterSessionToken(uint64_t nval) {
-    auto& conn = getAdminConnection();
-    const auto response =
-            conn.execute(BinprotSetControlTokenCommand{nval, token});
+    const auto response = adminConnection->execute(
+            BinprotSetControlTokenCommand{nval, token});
 
     if (!response.isSuccess()) {
         throw ConnectionError("TestappClientTest::setClusterSessionToken",
@@ -162,7 +161,7 @@ void TestappXattrClientTest::SetUp() {
     TestappTest::SetUp();
 
     mcd_env->getTestBucket().setXattrEnabled(
-            getAdminConnection(),
+            *adminConnection,
             bucketName,
             ::testing::get<1>(GetParam()) == XattrSupport::Yes);
     if (::testing::get<1>(GetParam()) == XattrSupport::No) {

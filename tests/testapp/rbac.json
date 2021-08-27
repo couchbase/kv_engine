@@ -36,6 +36,21 @@
         "SystemXattrWrite",
         "XattrRead",
         "XattrWrite"
+      ],
+      "bucket": [
+        "DcpConsumer",
+        "DcpProducer",
+        "MetaRead",
+        "MetaWrite",
+        "Read",
+        "SimpleStats",
+        "Insert",
+        "Delete",
+        "Upsert",
+        "SystemXattrRead",
+        "SystemXattrWrite",
+        "XattrRead",
+        "XattrWrite"
       ]
     },
     "privileges": [],

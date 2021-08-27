@@ -35,18 +35,16 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::PrintToStringParamName());
 
 TEST_P(BucketTest, TestCreateBucketAlreadyExists) {
-    auto& conn = getAdminConnection();
     try {
-        conn.createBucket(bucketName, "", BucketType::Memcached);
+        adminConnection->createBucket(bucketName, "", BucketType::Memcached);
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.getReason();
     }
 }
 
 TEST_P(BucketTest, TestDeleteNonexistingBucket) {
-    auto& conn = getAdminConnection();
     try {
-        conn.deleteBucket("ItWouldBeSadIfThisBucketExisted");
+        adminConnection->deleteBucket("ItWouldBeSadIfThisBucketExisted");
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.getReason();
     }
@@ -107,21 +105,20 @@ static void deleteBucket(
 // server won't block bucket deletion (the server don't wait for the client
 // send all of the data, but shut down the connection immediately)
 TEST_P(BucketTest, DeleteWhileClientSendCommand) {
-    auto& conn = getAdminConnection();
-    conn.createBucket("bucket", "", BucketType::Memcached);
+    adminConnection->createBucket("bucket", "", BucketType::Memcached);
 
-    auto second_conn = conn.clone();
-    second_conn->authenticate("@admin", "password", "PLAIN");
-    second_conn->selectBucket("bucket");
+    auto& second_conn = getConnection();
+    second_conn.authenticate("Luke", mcd_env->getPassword("Luke"), "PLAIN");
+    second_conn.selectBucket("bucket");
 
     // We need to get the second connection sitting the `conn_read_packet_body`
     // state in memcached - i.e. waiting to read a variable-amount of data from
     // the client. Simplest is to perform a GET where we don't send the full key
     // length, by only sending a partial frame
-    Frame frame =
-            second_conn->encodeCmdGet("dummy_key_which_we_will_crop", Vbid(0));
-    second_conn->sendPartialFrame(frame, frame.payload.size() - 1);
-    conn.deleteBucket("bucket");
+    auto frame =
+            second_conn.encodeCmdGet("dummy_key_which_we_will_crop", Vbid(0));
+    second_conn.sendPartialFrame(frame, frame.payload.size() - 1);
+    adminConnection->deleteBucket("bucket");
 }
 
 // Test delete of a bucket while we've got a client connected to the bucket
@@ -138,16 +135,17 @@ TEST_P(BucketTest, DeleteWhileClientConnectedAndEWouldBlocked) {
     /// we test with default_engine we only run the test for default_engine
     TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
 
-    auto& conn = getAdminConnection();
-    conn.createBucket("bucket", "default_engine.so", BucketType::EWouldBlock);
+    adminConnection->createBucket(
+            "bucket", "default_engine.so", BucketType::EWouldBlock);
 
     std::vector<std::unique_ptr<MemcachedConnection>> connections;
     std::vector<std::string> lockfiles;
 
+    auto& conn = getConnection();
     for (int jj = 0; jj < 5; ++jj) {
         connections.emplace_back(conn.clone());
         auto& c = connections.back();
-        c->authenticate("@admin", "password", "PLAIN");
+        c->authenticate("Luke", mcd_env->getPassword("Luke"), "PLAIN");
         c->selectBucket("bucket");
 
         auto cwd = cb::io::getcwd();
@@ -165,18 +163,19 @@ TEST_P(BucketTest, DeleteWhileClientConnectedAndEWouldBlocked) {
                 BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, "mykey"});
     }
 
-    deleteBucket(conn, "bucket", [&lockfiles](const std::string& state) {
-        if (lockfiles.empty()) {
-            return;
-        }
-        if (state == "destroying") {
-            for (const auto& f : lockfiles) {
-                cb::io::rmrf(f);
-            }
+    deleteBucket(
+            *adminConnection, "bucket", [&lockfiles](const std::string& state) {
+                if (lockfiles.empty()) {
+                    return;
+                }
+                if (state == "destroying") {
+                    for (const auto& f : lockfiles) {
+                        cb::io::rmrf(f);
+                    }
 
-            lockfiles.clear();
-        }
-    });
+                    lockfiles.clear();
+                }
+            });
 }
 
 static int64_t getTotalSent(MemcachedConnection& conn, intptr_t id) {
@@ -207,16 +206,14 @@ TEST_P(BucketTest, DeleteWhileSendDataAndFullWriteBuffer) {
     /// we test with default_engine we only run the test for default_engine
     TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
 
-    auto& conn = getAdminConnection();
-    const auto id = conn.getServerConnectionId();
-    conn.createBucket("bucket",
-                      "cache_size=67108864;item_size_max=22020096",
-                      BucketType::Memcached);
-    conn.selectBucket("bucket");
+    adminConnection->createBucket("bucket",
+                                  "cache_size=67108864;item_size_max=22020096",
+                                  BucketType::Memcached);
 
-    auto second_conn = conn.clone();
-    second_conn->authenticate("@admin", "password", "PLAIN");
-    second_conn->selectBucket("bucket");
+    auto& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    const auto id = conn.getServerConnectionId();
+    conn.selectBucket("bucket");
 
     // Store the document I want to fetch
     Document document;
@@ -253,24 +250,25 @@ TEST_P(BucketTest, DeleteWhileSendDataAndFullWriteBuffer) {
         }
     }};
 
-    // Wait until the server filled up all of the socket buffers in the
-    // kernel so we don't make any progress when trying to send more data.
-    do {
-        const auto totalSend = getTotalSent(*second_conn, id);
-        std::this_thread::sleep_for(std::chrono::microseconds(100));
-        if (totalSend == getTotalSent(*second_conn, id)) {
-            blocked.store(true);
-        }
-    } while (!blocked);
+    adminConnection->executeInBucket("bucket", [&](auto& c) {
+        // Wait until the server filled up all of the socket buffers in the
+        // kernel so we don't make any progress when trying to send more data.
+        do {
+            const auto totalSend = getTotalSent(c, id);
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+            if (totalSend == getTotalSent(c, id)) {
+                blocked.store(true);
+            }
+        } while (!blocked);
+    });
 
     // The socket is blocked so we may delete the bucket
-    deleteBucket(*second_conn, "bucket", {});
+    deleteBucket(*adminConnection, "bucket", {});
     client.join();
 }
 
 TEST_P(BucketTest, TestListBucket) {
-    auto& conn = getAdminConnection();
-    auto buckets = conn.listBuckets();
+    auto buckets = adminConnection->listBuckets();
     EXPECT_EQ(1, buckets.size());
     EXPECT_EQ(bucketName, buckets[0]);
 }
@@ -290,46 +288,42 @@ TEST_P(BucketTest, TestListBucket_not_authenticated) {
 /// into rbac_test, but be in no_bucket
 TEST_P(BucketTest, TestNoAutoSelectOfBucketForNormalUser) {
     TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
-    auto& conn = getAdminConnection();
-    conn.createBucket("rbac_test", "", BucketType::Memcached);
+    adminConnection->createBucket("rbac_test", "", BucketType::Memcached);
 
-    auto clone = conn.clone();
-    clone->authenticate("smith", "smithpassword", "PLAIN");
-    auto response = clone->execute(
+    auto& conn = getConnection();
+    conn.authenticate("smith", "smithpassword", "PLAIN");
+    auto response = conn.execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, name});
     EXPECT_EQ(cb::mcbp::Status::NoBucket, response.getStatus());
 
-    conn.deleteBucket("rbac_test");
+    adminConnection->deleteBucket("rbac_test");
 }
 
 TEST_P(BucketTest, TestListSomeBuckets) {
     TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
-    auto& conn = getAdminConnection();
-    conn.createBucket("bucket-1", "", BucketType::Memcached);
-    conn.createBucket("bucket-2", "", BucketType::Memcached);
-    conn.createBucket("rbac_test", "", BucketType::Memcached);
+    adminConnection->createBucket("bucket-1", "", BucketType::Memcached);
+    adminConnection->createBucket("bucket-2", "", BucketType::Memcached);
+    adminConnection->createBucket("rbac_test", "", BucketType::Memcached);
 
     const std::vector<std::string> all_buckets = {
             bucketName, "bucket-1", "bucket-2", "rbac_test"};
-    EXPECT_EQ(all_buckets, conn.listBuckets());
+    EXPECT_EQ(all_buckets, adminConnection->listBuckets());
 
     // Reconnect and authenticate as a user with access to only one of them
-    auto clone = conn.clone();
-    clone->authenticate("smith", "smithpassword", "PLAIN");
+    auto& conn = getConnection();
+    conn.authenticate("smith", mcd_env->getPassword("smith"));
     const std::vector<std::string> expected = {"rbac_test"};
-    EXPECT_EQ(expected, clone->listBuckets());
+    EXPECT_EQ(expected, conn.listBuckets());
 
-    conn.deleteBucket("bucket-1");
-    conn.deleteBucket("bucket-2");
-    conn.deleteBucket("rbac_test");
+    adminConnection->deleteBucket("bucket-1");
+    adminConnection->deleteBucket("bucket-2");
+    adminConnection->deleteBucket("rbac_test");
 }
 
 /// Test that one bucket don't leak information into another bucket
 /// and that we can create up to the maximum number of buckets
 /// allowd
 TEST_P(BucketTest, TestBucketIsolationAndMaxBuckets) {
-    auto& connection = getAdminConnection();
-
     size_t totalBuckets = cb::limits::TotalBuckets;
     if (folly::kIsSanitize) {
         // We don't need to test _all_ buckets when running under sanitizers
@@ -339,14 +333,13 @@ TEST_P(BucketTest, TestBucketIsolationAndMaxBuckets) {
     for (std::size_t ii = 1; ii < totalBuckets; ++ii) {
         std::stringstream ss;
         ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
-        GetTestBucket().createBucket(ss.str(), "", connection);
+        GetTestBucket().createBucket(ss.str(), "", *adminConnection);
     }
 
     if (totalBuckets == cb::limits::TotalBuckets) {
         try {
-            auto clone = connection.clone();
-            clone->authenticate("@admin", "password", "PLAIN");
-            GetTestBucket().createBucket("BucketShouldFail", "", connection);
+            GetTestBucket().createBucket(
+                    "BucketShouldFail", "", *adminConnection);
             FAIL() << "It should not be possible to test more than "
                    << cb::limits::TotalBuckets << "buckets";
         } catch (ConnectionError&) {
@@ -364,15 +357,16 @@ TEST_P(BucketTest, TestBucketIsolationAndMaxBuckets) {
         std::stringstream ss;
         ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
         const auto name = ss.str();
-        connection.selectBucket(name);
-        connection.mutate(doc, Vbid(0), MutationType::Add);
+        adminConnection->selectBucket(name);
+        adminConnection->mutate(doc, Vbid(0), MutationType::Add);
     }
 
+    adminConnection->unselectBucket();
     // Delete all buckets
     for (std::size_t ii = 1; ii < totalBuckets; ++ii) {
         std::stringstream ss;
         ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
-        connection.deleteBucket(ss.str());
+        adminConnection->deleteBucket(ss.str());
     }
 }
 
@@ -382,14 +376,10 @@ TEST_P(BucketTest, TestBucketIsolationAndMaxBuckets) {
 TEST_P(BucketTest, TestMemcachedBucketBigObjects) {
     TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
 
-    auto& connection = getAdminConnection();
-
     const size_t item_max_size = 2 * 1024 * 1024; // 2MB
     std::string config = "item_size_max=" + std::to_string(item_max_size);
-
-    ASSERT_NO_THROW(connection.createBucket(
-            "mybucket_000", config, BucketType::Memcached));
-    connection.selectBucket("mybucket_000");
+    adminConnection->createBucket(
+            "mybucket_000", config, BucketType::Memcached);
 
     Document doc;
     doc.info.cas = mcbp::cas::Wildcard;
@@ -400,19 +390,9 @@ TEST_P(BucketTest, TestMemcachedBucketBigObjects) {
     // internal headers (this would be the key and the hash_item struct).
     doc.value.resize(item_max_size - name.length() - 100);
 
-    connection.mutate(doc, Vbid(0), MutationType::Add);
-    connection.get(name, Vbid(0));
-    connection.deleteBucket("mybucket_000");
-}
-
-TEST_P(BucketTest, SelectNoBucket) {
-    auto& connection = getAdminConnection();
-    connection.selectBucket(bucketName);
-    connection.selectBucket("@no bucket@");
-    try {
-        connection.get("foo", Vbid(0));
-        FAIL() << "We should get " + to_string(cb::mcbp::Status::NoBucket);
-    } catch (const ConnectionError& error) {
-        EXPECT_EQ(cb::mcbp::Status::NoBucket, error.getReason());
-    }
+    adminConnection->executeInBucket("mybucket_000", [&](auto& c) {
+        c.mutate(doc, Vbid(0), MutationType::Add);
+        c.get(name, Vbid(0));
+    });
+    adminConnection->deleteBucket("mybucket_000");
 }

@@ -18,8 +18,6 @@ public:
     void SetUp() override {
         memcached_cfg["enforce_tenant_limits_enabled"] = true;
         reconfigure();
-        admin = TestappClientTest::getConnection().clone();
-        admin->authenticate("@admin", "password", "PLAIN");
     }
 
     void TearDown() override {
@@ -34,7 +32,7 @@ public:
     nlohmann::json getTenantStats() {
         bool found = false;
         nlohmann::json ret;
-        admin->stats(
+        adminConnection->stats(
                 [&found, &ret](const auto& key, const auto& value) {
                     if (key != R"({"domain":"local","user":"jones"})") {
                         throw std::runtime_error(
@@ -51,8 +49,6 @@ public:
         }
         return ret;
     }
-
-    std::unique_ptr<MemcachedConnection> admin;
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -62,7 +58,7 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 
 TEST_P(TenantTest, TenantStats) {
     // We should not have any tenants yet
-    admin->stats(
+    adminConnection->stats(
             [](const std::string& key, const std::string& value) -> void {
                 FAIL() << "We just enabled tenant stats so no one should "
                           "exist, but received: "
@@ -70,9 +66,9 @@ TEST_P(TenantTest, TenantStats) {
                        << key << " - " << value;
             },
             "tenants");
-    admin->createBucket("rbac_test", "", BucketType::Memcached);
+    adminConnection->createBucket("rbac_test", "", BucketType::Memcached);
 
-    auto clone = admin->clone();
+    auto clone = getConnection().clone();
     clone->authenticate("jones", "jonespassword", "PLAIN");
 
     auto json = getTenantStats();
@@ -181,7 +177,7 @@ TEST_P(TenantTest, TenantStats) {
 
     // verify that we can request all tenants
     bool found = false;
-    admin->stats(
+    adminConnection->stats(
             [&found](const std::string& key, const std::string& value) -> void {
                 EXPECT_EQ("0", key);
                 EXPECT_NE(std::string::npos,
@@ -200,7 +196,7 @@ TEST_P(TenantTest, TenantStats) {
     limits.num_connections = 5;
     user.setLimits(limits);
     db.upsert(std::move(user));
-    mcd_env->refreshPassordDatabase(*admin);
+    mcd_env->refreshPassordDatabase(*adminConnection);
 
     for (uint64_t ii = 1; ii < limits.num_connections; ++ii) {
         connections.push_back(clone->clone());
@@ -217,5 +213,5 @@ TEST_P(TenantTest, TenantStats) {
     ASSERT_EQ(cb::mcbp::Status::RateLimitedMaxConnections, rsp.getStatus())
             << rsp.getDataString();
 
-    admin->deleteBucket("rbac_test");
+    adminConnection->deleteBucket("rbac_test");
 }
