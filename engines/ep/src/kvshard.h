@@ -59,15 +59,13 @@
  */
 class Configuration;
 class CookieIface;
-class EPBucket;
-class EventuallyPersistentEngine;
 class KVStoreIface;
 
 class KVShard {
 public:
     // Identifier for a KVShard
     using id_type = uint16_t;
-    KVShard(EventuallyPersistentEngine& engine, KVShard::id_type id);
+    KVShard(Configuration& config, id_type numShards, id_type id);
     ~KVShard();
 
     KVStoreIface* getRWUnderlying() {

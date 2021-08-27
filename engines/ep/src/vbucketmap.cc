@@ -23,7 +23,8 @@ VBucketMap::VBucketMap(KVBucket& bucket)
     const auto numShards = engine.getWorkLoadPolicy().getNumShards();
     shards.resize(numShards);
     for (size_t shardId = 0; shardId < numShards; shardId++) {
-        shards[shardId] = std::make_unique<KVShard>(engine, shardId);
+        shards[shardId] = std::make_unique<KVShard>(
+                bucket.getEPEngine().getConfiguration(), numShards, shardId);
     }
 
     auto& config = engine.getConfiguration();
