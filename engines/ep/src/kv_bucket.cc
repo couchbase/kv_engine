@@ -2822,7 +2822,7 @@ KVBucket::CheckpointMemoryState KVBucket::verifyCheckpointMemoryState() {
     return state;
 }
 
-std::pair<bool, size_t> KVBucket::isReductionInCheckpointMemoryNeeded() const {
+size_t KVBucket::getRequiredCheckpointMemoryReduction() const {
     const auto checkpointMemoryRatio = getCheckpointMemoryRatio();
     const auto checkpointQuota = stats.getMaxDataSize() * checkpointMemoryRatio;
     const auto recoveryThreshold =
@@ -2830,7 +2830,7 @@ std::pair<bool, size_t> KVBucket::isReductionInCheckpointMemoryNeeded() const {
     const auto usage = stats.getEstimatedCheckpointMemUsage();
 
     if (usage < recoveryThreshold) {
-        return std::make_pair(false, 0);
+        return 0;
     }
 
     const auto lowerRatio = getCheckpointMemoryRecoveryLowerMark();
@@ -2852,5 +2852,5 @@ std::pair<bool, size_t> KVBucket::isReductionInCheckpointMemoryNeeded() const {
             toMB(checkpointQuota),
             toMB(amountOfMemoryToClear));
 
-    return std::make_pair(true, amountOfMemoryToClear);
+    return amountOfMemoryToClear;
 }

@@ -322,12 +322,7 @@ TEST_F(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
             bucketQuota * store->getCheckpointMemoryRatio();
     EXPECT_LT(stats.getEstimatedCheckpointMemUsage(), checkpointMemoryLimit);
     EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
-    bool hasTriggered{false};
-    size_t amountOfMemoryToClear{0};
-    std::tie(hasTriggered, amountOfMemoryToClear) =
-            store->isReductionInCheckpointMemoryNeeded();
-    EXPECT_FALSE(hasTriggered);
-    EXPECT_EQ(0, amountOfMemoryToClear);
+    EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
 
     // Now store some items so that the mem-usage in checkpoint crosses the
     // checkpoint_upper_mark (default to 50% of the bucket quota as of writing),
@@ -350,10 +345,7 @@ TEST_F(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
     EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
 
     // Checkpoint mem-recovery must trigger (regardless of any LWM)
-    std::tie(hasTriggered, amountOfMemoryToClear) =
-            store->isReductionInCheckpointMemoryNeeded();
-    EXPECT_TRUE(hasTriggered);
-    EXPECT_GT(amountOfMemoryToClear, 0);
+    EXPECT_GT(store->getRequiredCheckpointMemoryReduction(), 0);
 }
 
 void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
@@ -402,20 +394,14 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
         manager->getNextItemsForCursor(cursor.get(), items);
     }
 
-    bool shouldReduceMemory{false};
-    size_t amountOfMemoryToClear{0};
-    std::tie(shouldReduceMemory, amountOfMemoryToClear) =
-            store->isReductionInCheckpointMemoryNeeded();
-    EXPECT_TRUE(shouldReduceMemory);
+    EXPECT_GT(store->getRequiredCheckpointMemoryReduction(), 0);
 
     manager->removeClosedUnrefCheckpoints(*vb);
 
     task->run();
     manager->removeClosedUnrefCheckpoints(*vb);
 
-    std::tie(shouldReduceMemory, amountOfMemoryToClear) =
-            store->isReductionInCheckpointMemoryNeeded();
-    EXPECT_FALSE(shouldReduceMemory);
+    EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
 }
 
 // Test that we correctly apply expelling before cursor dropping.
