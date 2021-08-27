@@ -32,6 +32,36 @@ CheckpointVisitor::CheckpointVisitor(KVBucketIface* store,
 }
 
 void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
+    Expects(memToRelease > 0);
+
+    // Get a list of cursors that can be dropped from the vbucket's CM, so
+    // as to unreference an estimated number of checkpoints.
+    const auto cursors = vb->checkpointManager->getListOfCursorsToDrop();
+    for (const auto& cursor : cursors) {
+        if (!store->getEPEngine().getDcpConnMap().handleSlowStream(
+                    vb->getId(), cursor.lock().get())) {
+            continue;
+        }
+        ++stats.cursorsDropped;
+
+        // @todo MB-48038: The computation here is untouched from the original
+        // code. This is all wrong though. 'releasableByRemoval' is the
+        // point-in-time value of how much is releasable by removing unref
+        // checkpoints, that is not how much has been just made releasable by
+        // the latest cursor dropped. As such, 'memToRelease' shouldn't be
+        // updated as it is. This is being all fixed in a dedicated follow-up.
+        const auto releasableByRemoval =
+                vb->getChkMgrMemUsageOfUnrefCheckpoints();
+        if (releasableByRemoval >= memToRelease) {
+            // Stop dropping cursors if we have made enough checkpoints eligible
+            // for removal. This will stop the execution of this visitor.
+            memToRelease = 0;
+            break;
+        } else {
+            memToRelease -= releasableByRemoval;
+        }
+    }
+
     const auto numItemsRemoved =
             vb->checkpointManager->removeClosedUnrefCheckpoints(*vb);
     if (numItemsRemoved > 0) {

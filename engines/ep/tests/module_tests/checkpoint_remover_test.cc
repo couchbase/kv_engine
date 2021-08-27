@@ -388,10 +388,6 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
     // 2) doesn't hit maxDataSize first
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto& config = engine->getConfiguration();
-    const auto& task = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
-            engine.get(),
-            engine->getEpStats(),
-            engine->getConfiguration().getChkRemoverStime());
 
     auto vb = store->getVBuckets().getBucket(vbid);
     auto* manager =
@@ -423,17 +419,27 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
     }
     flush_vbucket_to_disk(vbid, ii);
 
+    const auto memToClear = store->getRequiredCheckpointMemoryReduction();
+    EXPECT_GT(memToClear, 0);
+
     if (moveCursor) {
+        // Testing ItemExpel
         std::vector<queued_item> items;
         manager->getNextItemsForCursor(cursor.get(), items);
+
+        const auto& remover =
+                std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+                        engine.get(),
+                        engine->getEpStats(),
+                        engine->getConfiguration().getChkRemoverStime());
+        remover->run();
+    } else {
+        // Testing CursorDrop
+        std::atomic<bool> stateFinalizer = false;
+        auto visitor = CheckpointVisitor(
+                store, engine->getEpStats(), stateFinalizer, memToClear);
+        visitor.visitBucket(vb);
     }
-
-    EXPECT_GT(store->getRequiredCheckpointMemoryReduction(), 0);
-
-    manager->removeClosedUnrefCheckpoints(*vb);
-
-    task->run();
-    manager->removeClosedUnrefCheckpoints(*vb);
 
     EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
 }

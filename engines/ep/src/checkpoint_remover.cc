@@ -50,41 +50,6 @@ size_t ClosedUnrefCheckpointRemoverTask::attemptItemExpelling(
     return memoryCleared;
 }
 
-size_t ClosedUnrefCheckpointRemoverTask::attemptCursorDropping(
-        size_t memToClear) {
-    size_t memoryCleared = 0;
-    auto& kvBucket = *engine->getKVBucket();
-    const auto vbuckets = kvBucket.getVBuckets().getVBucketsSortedByChkMgrMem();
-    for (const auto& it : vbuckets) {
-        if (memoryCleared >= memToClear) {
-            break;
-        }
-        const auto vbid = it.first;
-        VBucketPtr vb = kvBucket.getVBucket(vbid);
-        if (!vb) {
-            continue;
-        }
-
-        // Get a list of cursors that can be dropped from the vbucket's CM, so
-        // as to unreference an estimated number of checkpoints.
-        const auto cursors = vb->checkpointManager->getListOfCursorsToDrop();
-        for (const auto& cursor : cursors) {
-            if (memoryCleared >= memToClear) {
-                break;
-            }
-
-            if (engine->getDcpConnMap().handleSlowStream(vbid,
-                                                         cursor.lock().get())) {
-                const auto memoryFreed =
-                        vb->getChkMgrMemUsageOfUnrefCheckpoints();
-                ++stats.cursorsDropped;
-                memoryCleared += memoryFreed;
-            }
-        }
-    }
-    return memoryCleared;
-}
-
 bool ClosedUnrefCheckpointRemoverTask::run() {
     TRACE_EVENT0("ep-engine/task", "ClosedUnrefCheckpointRemoverTask");
 
@@ -103,7 +68,10 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
         return true;
     }
 
-    // Try expelling first, if enabled
+    // Try expelling first, if enabled.
+    // Note: The next call tries to expel from all vbuckets before returning.
+    // The reason behind trying expel first is to avoid dropping cursors if
+    // possible, as that kicks the stream back to backfilling.
     size_t memRecovered{0};
     if (engine->getConfiguration().isChkExpelEnabled()) {
         memRecovered = attemptItemExpelling(memToClear);
@@ -118,14 +86,16 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
 
     // More memory to recover, try CursorDrop + CheckpointRemoval
     const auto leftToClear = memToClear - memRecovered;
-    attemptCursorDropping(leftToClear);
-
-    auto pv = std::make_unique<CheckpointVisitor>(
+    auto visitor = std::make_unique<CheckpointVisitor>(
             kvBucket, stats, available, leftToClear);
 
     // Note: Empirical evidence from perf runs shows that 99.9% of "Checkpoint
-    // Remover" task should complete under 50ms
-    kvBucket->visitAsync(std::move(pv),
+    // Remover" task should complete under 50ms.
+    //
+    // @todo: With changes for MB-48038 we are doing more work in the
+    //  CheckpointVisitor, so the expected duration will probably need to be
+    //  adjusted.
+    kvBucket->visitAsync(std::move(visitor),
                          "Checkpoint Remover",
                          TaskId::ClosedUnrefCheckpointRemoverVisitorTask,
                          std::chrono::milliseconds(50) /*maxExpectedDuration*/);

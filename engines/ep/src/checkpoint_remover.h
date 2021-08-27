@@ -40,17 +40,6 @@ public:
      */
     size_t attemptItemExpelling(size_t memToClear);
 
-    /**
-     * Attempts to make checkpoints eligible for removal by using cursor
-     * dropping from checkpoints.
-     *
-     * @param memToClear The amount of memory (in bytes) that needs to be
-     *   recovered. Used to determine what cursors we have to drop.
-     * @return the amount of memory (in bytes) that has been made eligible
-     *   for recovering-
-     */
-    size_t attemptCursorDropping(size_t memToClear);
-
     bool run() override;
 
     std::string getDescription() const override {
