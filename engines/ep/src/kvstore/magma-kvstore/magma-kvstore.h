@@ -759,6 +759,11 @@ protected:
          * Stats updates made during compaction
          */
         MagmaDbStats magmaDbStats;
+
+        // bool to inform MagmaKVStore::compactionCallBack if the compaction is
+        // an implicit or not. If true any purged seqnos will also update the
+        // in memory purge seqno
+        bool implicitCompaction = false;
     };
 
     /**

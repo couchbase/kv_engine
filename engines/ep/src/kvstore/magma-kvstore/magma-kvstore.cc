@@ -240,11 +240,11 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
 
     if (!cbCtx.ctx) {
         // Don't already have a compaction context (i.e. this is the first
-        // key for an implicit compaction) - atempt to create one.
+        // key for an implicit compaction) - attempt to create one.
 
         // Note that Magma implicit (internal) compactions can start _as soon
         // as_ the Magma instance is Open()'d, which means this method can be
-        // called beforew Warmup has completed - and hence before
+        // called before Warmup has completed - and hence before
         // makeCompactionContextCallback is assigned to a non-empty value.
         // Until warmup *does* complete it isn't possible for us to know how
         // to correctly deal with those keys - for example need to have
@@ -255,10 +255,19 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             return false;
         }
         cbCtx.ctx = makeCompactionContext(vbid);
+        cbCtx.implicitCompaction = true;
     }
 
     auto seqno = magmakv::getSeqNum(metaSlice);
     auto exptime = magmakv::getExpiryTime(metaSlice);
+
+    // function to update the purge seqno when we're dropping a document if this
+    // method is being called for implicit compaction
+    auto maybeUpdatePurgeSeqno = [&cbCtx, &seqno]() -> void {
+        if (cbCtx.implicitCompaction) {
+            cbCtx.ctx->maybeUpdatePurgeSeqno(seqno);
+        }
+    };
 
     if (cbCtx.ctx->droppedKeyCb) {
         // We need to check both committed and prepared documents - if the
@@ -290,6 +299,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                         "{}",
                         userSanitizedItemStr);
             }
+            maybeUpdatePurgeSeqno();
             return true;
         }
     }
@@ -334,6 +344,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                 if (dbStats.purgeSeqno < seqno) {
                     dbStats.purgeSeqno = seqno;
                 }
+                maybeUpdatePurgeSeqno();
                 return true;
             }
         }
@@ -352,6 +363,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                             "DROP prepare {}",
                             userSanitizedItemStr);
                 }
+                maybeUpdatePurgeSeqno();
                 return true;
             }
         }

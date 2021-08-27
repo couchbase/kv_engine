@@ -284,6 +284,10 @@ public:
 
     Flusher* getOneFlusher() override;
 
+    /// Hook that gets called after a the EPBuckets purge seqno has been update
+    /// during an implicit compaction
+    TestingHook<> postPurgeSeqnoImplicitCompactionHook;
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be

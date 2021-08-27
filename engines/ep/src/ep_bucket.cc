@@ -1232,6 +1232,20 @@ std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
         compactionCompletionCallback(ctx);
     };
 
+    ctx->maybeUpdatePurgeSeqno = [this, vbid](uint64_t seqno) -> void {
+        auto vbPtr = getVBucket(vbid);
+        if (!vbPtr) {
+            throw std::runtime_error(
+                    "KVStore::CompactionContext::maybeUpdatePurgeSeqno(): "
+                    "Unable to get vbucket ptr for " +
+                    vbid.to_string());
+        }
+        if (vbPtr && seqno > vbPtr->getPurgeSeqno()) {
+            vbPtr->setPurgeSeqno(seqno);
+        }
+        postPurgeSeqnoImplicitCompactionHook();
+    };
+
     return ctx;
 }
 

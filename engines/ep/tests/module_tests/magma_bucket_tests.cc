@@ -13,6 +13,7 @@
 
 #include "../mock/mock_ep_bucket.h"
 #include "../mock/mock_magma_kvstore.h"
+#include "../tests/module_tests/thread_gate.h"
 #include "checkpoint_manager.h"
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #include "tests/module_tests/test_helpers.h"
@@ -244,6 +245,92 @@ TEST_P(STParamMagmaBucketTest, makeCompactionContextSetupAtWarmup) {
     // final stage
     runReadersUntilWarmedUp();
     EXPECT_NO_THROW(magmaKVStore->makeCompactionContext(vbid));
+}
+
+/**
+ * Test to check that we correctly update the in memory purge seqno when magma
+ * performs an implicit compaction.
+ */
+TEST_P(STParamMagmaBucketTest, CheckImplicitCompactionUpdatePurgeSeqno) {
+    // Function to perform 15 writes so that the next flush will hit the
+    // LSMMaxNumLevel0Tables threshold which will trigger implicit compaction
+    auto perform15Writes = [this]() -> void {
+        for (int i = 0; i < 15; i++) {
+            store_item(
+                    vbid, makeStoredDocKey("key" + std::to_string(i)), "value");
+            flushVBucketToDiskIfPersistent(vbid, 1);
+        }
+    };
+    // Re-set the engine and warmup adding the magma rollback test config
+    // settings, so that we create a checkpoint at every flush
+    resetEngineAndWarmup(magmaRollbackConfig);
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(0, vb->getPurgeSeqno());
+
+    // ensure we meet the LSMMaxNumLevel0Tables threshold
+    perform15Writes();
+
+    auto firstDeletedKey = makeStoredDocKey("keyA");
+    store_item(vbid, firstDeletedKey, "value");
+    delete_item(vbid, firstDeletedKey);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    const auto expectedPurgeSeqno = vb->getHighSeqno();
+
+    // Check that the purge seqno is still 0, but we should have a tombstone on
+    // disk
+    EXPECT_EQ(0, vb->getPurgeSeqno());
+
+    // Time travel 5 days, we want to drop the tombstone for this when we
+    // compact
+    TimeTraveller timmy{60 * 60 * 24 * 5};
+
+    ThreadGate tg(2);
+    auto& bucket = dynamic_cast<EPBucket&>(*store);
+    bucket.postPurgeSeqnoImplicitCompactionHook = [&tg]() -> void {
+        tg.threadUp();
+    };
+
+    // ensure we meet the LSMMaxNumLevel0Tables threshold
+    perform15Writes();
+
+    auto secondDeletedKey = makeStoredDocKey("keyB");
+    // Add a second tombstone to check that we don't drop everything
+    store_item(vbid, secondDeletedKey, "value");
+    delete_item(vbid, secondDeletedKey);
+
+    // And a dummy item because we can't drop the final seqno
+    store_item(vbid, makeStoredDocKey("dummy"), "value");
+    // Flush the dummy value and second deleted value
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Wait till the purge seqno has been set
+    tg.threadUp();
+
+    // Write and flush another value to cause a Sync in magma to occur which
+    // will ensure that firstDeletedKey is no longer visible
+    store_item(vbid, makeStoredDocKey("dummy2"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto magmaKVStore =
+            dynamic_cast<MagmaKVStore*>(store->getRWUnderlying(vbid));
+    ASSERT_TRUE(magmaKVStore);
+
+    // Assert that the first key no longer has a tomb stone
+    auto gv = magmaKVStore->get(DiskDocKey(firstDeletedKey), vbid);
+    ASSERT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+
+    // Assert that the second key is still a tomb stone on disk as it hasn't hit
+    // its purge threshold yet
+    gv = magmaKVStore->get(DiskDocKey(secondDeletedKey), vbid);
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
+    ASSERT_TRUE(gv.item);
+    ASSERT_TRUE(gv.item->isDeleted());
+
+    // Ensure that the purge seqno has been set during the second flush to where
+    // the first tombstone was
+    EXPECT_EQ(expectedPurgeSeqno, vb->getPurgeSeqno());
 }
 
 INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,

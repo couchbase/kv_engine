@@ -165,6 +165,12 @@ struct CompactionContext {
 
     /// Time from which we expire items (if set). Otherwise current time is used
     std::optional<time_t> timeToExpireFrom = {};
+
+    /**
+     * Function to call if the purge seqno might need to be update. This will
+     * only be performed if the param seqno is greater than the current seqno.
+     */
+    std::function<void(uint64_t)> maybeUpdatePurgeSeqno;
 };
 
 
