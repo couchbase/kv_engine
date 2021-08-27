@@ -287,6 +287,13 @@ protected:
      */
     void testHTSyncDeleteCommit();
 
+    /**
+     * MB-48179: Test that a sync delete does advance the max deleted rev
+     * seqno (tracked in the hashtable) when committed (and for
+     * completeness, _does not_ when aborted)
+     */
+    void testSyncDeleteUpdateMaxDelRevSeqno(Resolution res);
+
     void doSyncWriteAndCommit();
     void doSyncDelete();
 

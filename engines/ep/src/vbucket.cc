@@ -880,6 +880,11 @@ ENGINE_ERROR_CODE VBucket::commit(
             DurabilityItemCtx{res.pending->getBySeqno(), nullptr /*cookie*/};
 
     queueItmCtx.hcs = res.pending->getBySeqno();
+    if (res.pending->isDeleted()) {
+        // we are about to commit a sync delete, bump the maxDeletedRevSeqno
+        // just as it would be for a non-sync delete
+        ht.updateMaxDeletedRevSeqno(res.pending->getRevSeqno());
+    }
     auto notify =
             commitStoredValue(res, prepareSeqno, queueItmCtx, commitSeqno);
 
