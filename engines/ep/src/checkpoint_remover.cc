@@ -94,21 +94,17 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
         return true;
     }
 
-    bool shouldReduceMemory{false};
-    size_t memToClear{0};
-    size_t memRecovered{0};
-
     auto* kvBucket = engine->getKVBucket();
-    std::tie(shouldReduceMemory, memToClear) =
-            kvBucket->isReductionInCheckpointMemoryNeeded();
+    const auto memToClear = kvBucket->getRequiredCheckpointMemoryReduction();
 
-    if (!shouldReduceMemory) {
+    if (memToClear == 0) {
         available = true;
         snooze(sleepTime);
         return true;
     }
 
     // Try expelling first, if enabled
+    size_t memRecovered{0};
     if (engine->getConfiguration().isChkExpelEnabled()) {
         memRecovered = attemptItemExpelling(memToClear);
     }

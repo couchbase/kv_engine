@@ -818,8 +818,8 @@ public:
     CheckpointMemoryState verifyCheckpointMemoryState();
 
     /**
-     * Determines whether to attempt to reduce checkpoint memory usage and
-     * computes a memory reduction target. Everything is based on the Checkpoint
+     * Determines if checkpoint memory recovery is necessary and returns a
+     * computed memory reduction target. Everything is based on the Checkpoint
      * Quota and the memory-recovery triggers in configuration.
      *
      * The following diagram depicts the bucket memory where Q is the bucket
@@ -844,11 +844,10 @@ public:
      * If that's the case then this function will return (X - A) as the target
      * amount to free.
      *
-     * @return a boolean value indicating whether to attempt
-     * checkpoint memory reduction, and a calculated memory reduction target (in
-     * bytes)
+     * @return a calculated memory reduction target (in bytes) - 0 if checkpoint
+     *  memory recovery is not need
      */
-    std::pair<bool, size_t> isReductionInCheckpointMemoryNeeded() const;
+    size_t getRequiredCheckpointMemoryReduction() const;
 
 protected:
     GetValue getInternal(const DocKey& key,
