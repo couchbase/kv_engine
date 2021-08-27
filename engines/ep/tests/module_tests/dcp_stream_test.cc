@@ -804,9 +804,11 @@ TEST_P(StreamTest, BackfillOnly) {
         EXPECT_LE(seqno, snapMarker.getEndSeqno());
     }
 
-    // Check that backfill stats have been updated correctly
-    EXPECT_EQ(numItems, stream->getNumBackfillItems());
-    EXPECT_EQ(numItems, *stream->getNumBackfillItemsRemaining());
+    // Check that backfill stats have been updated correctly. There will be at
+    // least numItems but may be higher if those GAT mutations/expirations
+    // got flushed and are in the backfill
+    EXPECT_GE(numItems, stream->getNumBackfillItems());
+    EXPECT_GE(numItems, *stream->getNumBackfillItemsRemaining());
 
     EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
