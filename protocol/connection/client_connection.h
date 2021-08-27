@@ -10,8 +10,7 @@
 #pragma once
 
 #include <engines/ewouldblock_engine/ewouldblock_engine.h>
-#include <folly/io/async/AsyncSocket.h>
-#include <folly/io/async/EventBase.h>
+#include <folly/io/async/DelayedDestruction.h>
 #include <memcached/bucket_type.h>
 #include <memcached/engine_error.h>
 #include <memcached/protocol_binary.h>
@@ -36,6 +35,13 @@ using FrameInfoVector = std::vector<std::unique_ptr<FrameInfo>>;
 using GetFrameInfoFunction = std::function<FrameInfoVector()>;
 
 class AsyncReadCallback;
+namespace folly {
+class AsyncSocket;
+class EventBase;
+} // namespace folly
+using AsyncSocketUniquePtr =
+        std::unique_ptr<folly::AsyncSocket,
+                        folly::DelayedDestruction::Destructor>;
 
 /**
  * The Frame class is used to represent all of the data included in the
@@ -982,8 +988,8 @@ protected:
     std::string ssl_cert_file;
     std::string ssl_key_file;
     std::unique_ptr<AsyncReadCallback> asyncReadCallback;
-    folly::AsyncSocket::UniquePtr asyncSocket;
-    folly::EventBase eventBase;
+    AsyncSocketUniquePtr asyncSocket;
+    std::unique_ptr<folly::EventBase> eventBase;
     std::chrono::milliseconds timeout;
     std::string tag;
     nlohmann::json agentInfo;

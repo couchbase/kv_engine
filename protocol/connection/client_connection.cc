@@ -224,8 +224,11 @@ MemcachedConnection::MemcachedConnection(std::string host,
                                          in_port_t port,
                                          sa_family_t family,
                                          bool ssl)
-    : host(std::move(host)), port(port), family(family), ssl(ssl) {
-
+    : host(std::move(host)),
+      port(port),
+      family(family),
+      ssl(ssl),
+      eventBase(std::make_unique<folly::EventBase>()) {
     if (getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
         // None of the command line commands we had used to have a timeout
         // specified so lets bump it to 30 minutes to make sure that
@@ -254,7 +257,7 @@ MemcachedConnection::~MemcachedConnection() {
 
 void MemcachedConnection::close() {
     asyncSocket.reset();
-    eventBase.loop();
+    eventBase->loop();
     asyncReadCallback.reset();
 }
 
@@ -536,7 +539,7 @@ void MemcachedConnection::connect() {
         SSL_CTX_free(context);
 
         auto* ss = new folly::AsyncSSLSocket(
-                ctx, &eventBase, folly::NetworkSocket(sock), false);
+                ctx, eventBase.get(), folly::NetworkSocket(sock), false);
         asyncSocket.reset(ss);
 
         class HandshakeHandler : public folly::AsyncSSLSocket::HandshakeCB {
@@ -553,12 +556,12 @@ void MemcachedConnection::connect() {
         } handler;
 
         ss->sslConn(&handler);
-        eventBase.loop();
+        eventBase->loop();
         if (!handler.error.empty()) {
             throw std::runtime_error("SSL handshake failed: " + handler.error);
         }
     } else {
-        asyncSocket = folly::AsyncSocket::newSocket(&eventBase,
+        asyncSocket = folly::AsyncSocket::newSocket(eventBase.get(),
                                                     folly::NetworkSocket(sock));
     }
 
@@ -593,7 +596,7 @@ void MemcachedConnection::connect() {
         asyncSocket->setSockOpt<linger>(SOL_SOCKET, SO_LINGER, &sl);
     }
 
-    asyncReadCallback = std::make_unique<AsyncReadCallback>(eventBase);
+    asyncReadCallback = std::make_unique<AsyncReadCallback>(*eventBase);
 }
 
 /// Terminate the loop once we've sent all of the data
@@ -628,9 +631,9 @@ void MemcachedConnection::sendBuffer(const std::vector<iovec>& list) {
                         entry.iov_len});
         }
     } else {
-        WriteCallback writeCallback(eventBase);
+        WriteCallback writeCallback(*eventBase);
         asyncSocket->writev(&writeCallback, list.data(), list.size());
-        if (!eventBase.loop()) {
+        if (!eventBase->loop()) {
             throw std::runtime_error(
                     "MemcachedConnection::sendBuffer(): Failed running the "
                     "event "
@@ -649,10 +652,10 @@ void MemcachedConnection::sendBuffer(cb::const_byte_buffer buf) {
         }
     }
 
-    WriteCallback writeCallback(eventBase);
+    WriteCallback writeCallback(*eventBase);
     asyncSocket->write(&writeCallback, buf.data(), buf.size());
     // Running loop here will terminate once we've sent the data..
-    if (!eventBase.loop()) {
+    if (!eventBase->loop()) {
         throw std::runtime_error(
                 "MemcachedConnection::sendBuffer(): Failed running the event "
                 "pump");
@@ -786,7 +789,7 @@ void MemcachedConnection::recvFrame(Frame& frame,
 
             folly::EventBase& base;
             bool fired{false};
-        } tmo(eventBase);
+        } tmo(*eventBase);
 
         if (readTimeout.count() == 0) {
             // none specified, use default
@@ -795,7 +798,7 @@ void MemcachedConnection::recvFrame(Frame& frame,
             tmo.scheduleTimeout(readTimeout.count(), {});
         }
         asyncSocket->setReadCB(asyncReadCallback.get());
-        if (!eventBase.loop()) {
+        if (!eventBase->loop()) {
             tmo.cancelTimeout();
             throw std::runtime_error(
                     "MemcachedConnection::recvFrame(): Failed running the "
