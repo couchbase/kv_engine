@@ -39,6 +39,14 @@ public:
      */
     ExecutionState shouldInterrupt() override;
 
+    /**
+     * @return The comparator function that the Adaptor has to use for ordering
+     *  vbuckets to visit. The CheckpointVisitor provides a comparator that
+     *  orders from the highest to the lowest CM memory usage.
+     */
+    std::function<bool(const Vbid&, const Vbid&)> getVBucketComparator()
+            const override;
+
 private:
     KVBucketIface* store;
     EPStats& stats;

@@ -67,3 +67,25 @@ CheckpointVisitor::shouldInterrupt() {
     // Rely on the default behaviour otherwise
     return CappedDurationVBucketVisitor::shouldInterrupt();
 }
+
+std::function<bool(const Vbid&, const Vbid&)>
+CheckpointVisitor::getVBucketComparator() const {
+    // Some ep_testsuite failures highlight that accessing vbucket in the VBMap
+    // within the comparator may cause issues as the VBMap may change while
+    // the comparator is being called. Thus, we build-up a vb-ckpt-mem-usage
+    // vector from the current state of VBMap and then we pass it and use it
+    // in the comparator.
+
+    const auto& vbMap = store->getVBuckets();
+    std::vector<size_t> ckptMemUsage(vbMap.getSize());
+    const auto vbuckets = vbMap.getBuckets();
+    for (const auto vbid : vbuckets) {
+        const auto vb = store->getVBucket(vbid);
+        ckptMemUsage[vbid.get()] = vb ? vb->getChkMgrMemUsage() : 0;
+    }
+
+    return [ckptMemUsage = std::move(ckptMemUsage)](const Vbid& vbid1,
+                                                    const Vbid& vbid2) -> bool {
+        return ckptMemUsage.at(vbid1.get()) < ckptMemUsage.at(vbid2.get());
+    };
+}

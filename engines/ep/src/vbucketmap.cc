@@ -72,20 +72,6 @@ std::vector<Vbid> VBucketMap::getBuckets() const {
     return rv;
 }
 
-std::vector<Vbid> VBucketMap::getBucketsSortedByState() const {
-    std::vector<Vbid> rv;
-    for (int state = vbucket_state_active;
-         state <= vbucket_state_dead; ++state) {
-        for (size_t i = 0; i < size; ++i) {
-            VBucketPtr b = getBucket(Vbid(i));
-            if (b && b->getState() == state) {
-                rv.push_back(b->getId());
-            }
-        }
-    }
-    return rv;
-}
-
 std::vector<Vbid> VBucketMap::getBucketsInState(vbucket_state_t state) const {
     std::vector<Vbid> rv;
     for (size_t i = 0; i < size; ++i) {

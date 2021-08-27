@@ -75,7 +75,6 @@ public:
         return size;
     }
     std::vector<Vbid> getBuckets() const;
-    std::vector<Vbid> getBucketsSortedByState() const;
 
     /**
      * Returns a vector containing the vbuckets from the map that are in the

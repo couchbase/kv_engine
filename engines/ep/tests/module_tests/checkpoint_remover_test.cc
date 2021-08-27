@@ -19,6 +19,7 @@
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
 #include "checkpoint_utils.h"
+#include "checkpoint_visitor.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
 #include "test_helpers.h"
@@ -56,6 +57,39 @@ TEST_F(CheckpointRemoverEPTest, GetVBucketsSortedByChkMgrMem) {
         // This vBucket should have a greater memory usage than the one previous
         // to it in the map
         ASSERT_GE(this_vbucket.second, prev_vbucket.second);
+    }
+}
+
+/**
+ * Check that CheckpointVisitor orders vbuckets to visit by "highest checkpoint
+ * mem-usage" order.
+ */
+TEST_F(CheckpointRemoverEPTest, CheckpointVisitorVBucketOrder) {
+    std::deque<Vbid> vbuckets;
+    for (uint16_t i = 0; i < 3; i++) {
+        setVBucketStateAndRunPersistTask(Vbid(i), vbucket_state_active);
+        for (uint16_t j = 0; j < i; j++) {
+            std::string doc_key =
+                    "key_" + std::to_string(i) + "_" + std::to_string(j);
+            store_item(Vbid(i), makeStoredDocKey(doc_key), "value");
+        }
+        vbuckets.emplace_back(vbid);
+    }
+
+    std::atomic<bool> stateFinalizer = true;
+    auto visitor = CheckpointVisitor(
+            store, engine->getEpStats(), stateFinalizer, 1 /*memToClear*/);
+    auto comparator = visitor.getVBucketComparator();
+    std::sort(vbuckets.begin(), vbuckets.end(), comparator);
+
+    ASSERT_EQ(3, vbuckets.size());
+    for (size_t i = 1; i < vbuckets.size(); i++) {
+        auto thisVbid = vbuckets[i];
+        auto prevVbid = vbuckets[i - 1];
+        // This vBucket should have a greater memory usage than the one previous
+        // to it in the map
+        ASSERT_GE(store->getVBucket(thisVbid)->getChkMgrMemUsage(),
+                  store->getVBucket(prevVbid)->getChkMgrMemUsage());
     }
 }
 
