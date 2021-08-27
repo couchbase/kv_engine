@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -213,7 +212,7 @@ TEST_F(TestappTest, CollectionsSelectBucket) {
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
 
     try {
-        conn.selectBucket("default");
+        conn.selectBucket(bucketName);
         if (!GetTestBucket().supportsCollections()) {
             FAIL() << "Select bucket did not throw a not supported error when"
                       "attempting to select a memcache bucket with a "

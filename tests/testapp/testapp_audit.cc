@@ -594,7 +594,7 @@ TEST_P(AuditTest, MB33603_Filtering) {
 
 TEST_P(AuditTest, MB3750_AuditImpersonatedUser) {
     auto& conn = getAdminConnection();
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
 
     // We should be allowed to fetch a document (should return enoent
     try {

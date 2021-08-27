@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -27,7 +26,7 @@ protected:
                                      int64_t revision) {
         auto& conn = getAdminConnection();
         return conn.execute(BinprotSetClusterConfigCommand{
-                token, config, 1, revision, "default"});
+                token, config, 1, revision, bucketName});
     }
 
     void test_MB_17506(bool dedupe);
@@ -147,7 +146,7 @@ TEST_P(ClusterConfigTest, Enable_CCCP_Push_Notifications) {
 
 TEST_P(ClusterConfigTest, CccpPushNotification) {
     auto& conn = getAdminConnection();
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
 
     auto second = conn.clone();
 
@@ -157,7 +156,7 @@ TEST_P(ClusterConfigTest, CccpPushNotification) {
 
     ASSERT_TRUE(
             conn.execute(BinprotSetClusterConfigCommand{
-                                 token, R"({"rev":666})", 1, 666, "default"})
+                                 token, R"({"rev":666})", 1, 666, bucketName})
                     .isSuccess());
 
     Frame frame;
@@ -181,7 +180,7 @@ TEST_P(ClusterConfigTest, CccpPushNotification) {
     auto key = request->getKey();
     const std::string bucket{reinterpret_cast<const char*>(key.data()),
                              key.size()};
-    EXPECT_EQ("default", bucket);
+    EXPECT_EQ(bucketName, bucket);
 
     auto value = request->getValue();
     const std::string config{reinterpret_cast<const char*>(value.data()),
@@ -206,7 +205,7 @@ TEST_P(ClusterConfigTest, SetGlobalClusterConfig) {
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataString();
     EXPECT_EQ(R"({"foo" : "bar"})", rsp.getDataString());
 
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
     rsp = conn.execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::GetClusterConfig});
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataString();
@@ -220,13 +219,13 @@ TEST_P(ClusterConfigTest, MB35395) {
     setClusterConfig(token, R"({"rev":1000})", 1000);
 
     auto& conn = getAdminConnection();
-    conn.deleteBucket("default");
+    conn.deleteBucket(bucketName);
 
     // Recreate the bucket, and the cluster config should be gone!
     CreateTestBucket();
     conn.reconnect();
     conn.authenticate("@admin", "password", "PLAIN");
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
     auto rsp = conn.execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::GetClusterConfig});
     ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());

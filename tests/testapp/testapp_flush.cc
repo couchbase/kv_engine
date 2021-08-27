@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -42,7 +41,7 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 TEST_P(FlushTest, Flush) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
     auto& conn = getAdminConnection();
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
     ASSERT_EQ(cb::mcbp::Status::Success, get(conn));
     const auto response =
             conn.execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Flush});
@@ -53,7 +52,7 @@ TEST_P(FlushTest, Flush) {
 TEST_P(FlushTest, FlushQ) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
     auto& conn = getAdminConnection();
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
     ASSERT_EQ(cb::mcbp::Status::Success, get(conn));
     conn.sendCommand(BinprotGenericCommand{cb::mcbp::ClientOpcode::Flushq});
     ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get(conn));
@@ -62,7 +61,7 @@ TEST_P(FlushTest, FlushQ) {
 TEST_P(FlushTest, FlushWithExtlen) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
     auto& conn = getAdminConnection();
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
     ASSERT_EQ(cb::mcbp::Status::Success, get(conn));
 
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::Flush);
@@ -77,7 +76,7 @@ TEST_P(FlushTest, FlushWithExtlen) {
 TEST_P(FlushTest, FlushQWithExtlen) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
     auto& conn = getAdminConnection();
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
     ASSERT_EQ(cb::mcbp::Status::Success, get(conn));
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::Flushq);
     command.setExtrasValue(static_cast<uint32_t>(htonl(0)));
@@ -89,7 +88,7 @@ TEST_P(FlushTest, FlushQWithExtlen) {
 TEST_P(FlushTest, DelayedFlushNotSupported) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
     auto& conn = getAdminConnection();
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
 
     std::array<cb::mcbp::ClientOpcode, 2> commands{
             {cb::mcbp::ClientOpcode::Flush, cb::mcbp::ClientOpcode::Flushq}};

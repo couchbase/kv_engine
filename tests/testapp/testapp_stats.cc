@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -26,7 +25,7 @@ protected:
     void resetBucket() {
         MemcachedConnection& conn = getConnection();
         ASSERT_NO_THROW(conn.authenticate("@admin", "password", "PLAIN"));
-        ASSERT_NO_THROW(conn.selectBucket("default"));
+        ASSERT_NO_THROW(conn.selectBucket(bucketName));
         ASSERT_NO_THROW(conn.stats("reset"));
         ASSERT_NO_THROW(conn.reconnect());
     }
@@ -133,7 +132,7 @@ TEST_P(StatsTest, TestReset) {
     // Just ensure that the "reset timings" is detected
     // @todo add a separate test case for cmd timings stats
     conn.authenticate("@admin", "password", "PLAIN");
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
     stats = conn.stats("reset timings");
 
     // Just ensure that the "reset bogus" is detected..
@@ -294,7 +293,7 @@ TEST_P(StatsTest, MB37147_TestEWBReturnFromStat) {
     }
     MemcachedConnection& conn = getConnection();
     conn.authenticate("@admin", "password", "PLAIN");
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
 
     auto sequence = ewb::encodeSequence({cb::engine_errc::would_block,
                                          cb::engine_errc::success,
@@ -511,7 +510,7 @@ TEST_P(StatsTest, TestSingleBucketOpStats) {
     MemcachedConnection& conn = getConnection();
     conn.authenticate("@admin", "password", "PLAIN");
 
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
 
     std::string key = "key";
 

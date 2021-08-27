@@ -138,7 +138,7 @@ TEST_F(SslCertTest, LoginEnabledWithCert) {
                 << "Received: " << to_string(error.getReason());
     }
 
-    connection->selectBucket("default");
+    connection->selectBucket(bucketName);
     try {
         connection->get("foo", Vbid(0));
         FAIL() << "document should not exists";
@@ -188,7 +188,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCert) {
                 << "Received: " << to_string(error.getReason());
     }
 
-    connection->selectBucket("default");
+    connection->selectBucket(bucketName);
     try {
         connection->get("foo", Vbid(0));
         FAIL() << "document should not exists";

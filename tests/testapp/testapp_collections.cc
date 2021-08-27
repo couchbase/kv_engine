@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2019-Present Couchbase, Inc.
  *
@@ -23,7 +22,7 @@ class CollectionsTest : public TestappClientTest {
             return;
         }
         auto& conn = getAdminConnection();
-        conn.selectBucket("default");
+        conn.selectBucket(bucketName);
         auto response = conn.execute(BinprotGenericCommand{
                 cb::mcbp::ClientOpcode::CollectionsSetManifest,
                 {},

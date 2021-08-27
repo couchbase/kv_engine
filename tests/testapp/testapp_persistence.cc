@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -166,7 +165,7 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
     // Start off with persistence disabled.
     {
         auto& admin = getAdminConnection();
-        admin.selectBucket("default");
+        admin.selectBucket(bucketName);
         admin.disablePersistence();
     }
 
@@ -200,7 +199,7 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
     // i.e. one iteration of high being written.
     {
         auto& admin = getAdminConnection();
-        admin.selectBucket("default");
+        admin.selectBucket(bucketName);
         admin.enablePersistence();
     }
 

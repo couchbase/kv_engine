@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -24,7 +23,7 @@ public:
         auto& conn = getAdminConnection();
         conn.createBucket("rbac_test", "", BucketType::Memcached);
 
-        conn.selectBucket("default");
+        conn.selectBucket(bucketName);
 
         // Reset the command timers before we start
         conn.execute(
@@ -103,7 +102,7 @@ TEST_P(CmdTimerTest, NoAccess) {
     auto& c = getConnection();
 
     c.authenticate("jones", "jonespassword", "PLAIN");
-    for (const auto& bucket : {"", "/all/", "rbac_test", "default"}) {
+    for (const auto& bucket : {"", "/all/", "rbac_test", bucketName.c_str()}) {
         const auto response = c.execute(BinprotGetCmdTimerCommand{
                 bucket, cb::mcbp::ClientOpcode::Scrub});
         EXPECT_FALSE(response.isSuccess());
@@ -164,7 +163,7 @@ TEST_P(CmdTimerTest, EmptySuccess) {
     auto& c = getAdminConnection();
     c.execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Stat, "reset"});
     const auto response = c.execute(
-            BinprotGetCmdTimerCommand{"default", cb::mcbp::ClientOpcode::Set});
+            BinprotGetCmdTimerCommand{bucketName, cb::mcbp::ClientOpcode::Set});
     EXPECT_TRUE(response.isSuccess());
     EXPECT_EQ(0, getNumberOfOps(response.getDataString()));
 }

@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2019-Present Couchbase, Inc.
  *
@@ -23,7 +22,7 @@ protected:
 
         admin = connectionMap.getConnection().clone();
         admin->authenticate("@admin", "password", "PLAIN");
-        admin->selectBucket("default");
+        admin->selectBucket(bucketName);
         user = connectionMap.getConnection("ssl").clone();
     }
 

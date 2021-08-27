@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -79,7 +78,7 @@ TEST_P(DcpTest, UnorderedExecutionNotSupported) {
 /// DCP connections should not be able to select bucket
 TEST_P(DcpTest, MB35904_DcpCantSelectBucket) {
     auto& conn = getAdminConnection();
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
     auto rsp = conn.execute(BinprotDcpOpenCommand{
             "ewb_internal:1", cb::mcbp::request::DcpOpenPayload::Producer});
     ASSERT_TRUE(rsp.isSuccess());
@@ -93,7 +92,7 @@ TEST_P(DcpTest, MB35904_DcpCantSelectBucket) {
 /// DCP connections should not be able to perform SASL AUTH
 TEST_P(DcpTest, MB35928_DcpCantReauthenticate) {
     auto& conn = getAdminConnection();
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
     auto rsp = conn.execute(BinprotDcpOpenCommand{
             "ewb_internal:1", cb::mcbp::request::DcpOpenPayload::Producer});
     ASSERT_TRUE(rsp.isSuccess());
@@ -115,7 +114,7 @@ TEST_P(DcpTest, MB35928_DcpCantReauthenticate) {
 
 TEST_P(DcpTest, CantDcpOpenTwice) {
     auto& conn = getAdminConnection();
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
     auto rsp = conn.execute(BinprotDcpOpenCommand{
             "ewb_internal:1", cb::mcbp::request::DcpOpenPayload::Producer});
     ASSERT_TRUE(rsp.isSuccess());

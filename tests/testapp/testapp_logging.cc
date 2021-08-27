@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -21,7 +20,7 @@ class LoggingTest : public TestappTest,
 
 TEST_P(LoggingTest, ChangeVerbosity) {
     auto& conn = getAdminConnection();
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
 
     BinprotVerbosityCommand cmd;
     cmd.setLevel(GetParam());

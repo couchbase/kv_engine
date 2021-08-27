@@ -120,7 +120,7 @@ TEST_P(TuneMcbpSla, SlowCommandLogging) {
     conn.ioctl_set(
             "sla",
             R"({"version":1, "compact_db":{"slow":"1ns"}, "default":{"slow":500}})");
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
     const auto rsp = conn.execute(BinprotCompactDbCommand());
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataString();
 

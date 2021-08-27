@@ -37,7 +37,7 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 TEST_P(BucketTest, TestCreateBucketAlreadyExists) {
     auto& conn = getAdminConnection();
     try {
-        conn.createBucket("default", "", BucketType::Memcached);
+        conn.createBucket(bucketName, "", BucketType::Memcached);
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.getReason();
     }
@@ -272,7 +272,7 @@ TEST_P(BucketTest, TestListBucket) {
     auto& conn = getAdminConnection();
     auto buckets = conn.listBuckets();
     EXPECT_EQ(1, buckets.size());
-    EXPECT_EQ(std::string("default"), buckets[0]);
+    EXPECT_EQ(bucketName, buckets[0]);
 }
 
 TEST_P(BucketTest, TestListBucket_not_authenticated) {
@@ -309,8 +309,8 @@ TEST_P(BucketTest, TestListSomeBuckets) {
     conn.createBucket("bucket-2", "", BucketType::Memcached);
     conn.createBucket("rbac_test", "", BucketType::Memcached);
 
-    const std::vector<std::string> all_buckets = {"default", "bucket-1",
-                                                  "bucket-2", "rbac_test"};
+    const std::vector<std::string> all_buckets = {
+            bucketName, "bucket-1", "bucket-2", "rbac_test"};
     EXPECT_EQ(all_buckets, conn.listBuckets());
 
     // Reconnect and authenticate as a user with access to only one of them
@@ -407,7 +407,7 @@ TEST_P(BucketTest, TestMemcachedBucketBigObjects) {
 
 TEST_P(BucketTest, SelectNoBucket) {
     auto& connection = getAdminConnection();
-    connection.selectBucket("default");
+    connection.selectBucket(bucketName);
     connection.selectBucket("@no bucket@");
     try {
         connection.get("foo", Vbid(0));

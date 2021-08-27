@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -310,7 +309,7 @@ TEST_P(RegressionTest, MB37506) {
     };
 
     auto& conn = getAdminConnection();
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
 
     // Add the DcpStreamID (which we used to stop parsing after checking)
     // and add an invalid durability encoding...
@@ -331,7 +330,7 @@ TEST_P(RegressionTest, MB37506) {
 ///            processing a command where the validator return a failure
 TEST_P(RegressionTest, MB38243) {
     auto& conn = getAdminConnection();
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
 
     for (int ii = 0; ii < 10; ++ii) {
         const auto rsp = conn.execute(BinprotGenericCommand{

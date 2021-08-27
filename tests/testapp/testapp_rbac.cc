@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -103,7 +102,7 @@ TEST_P(RbacTest, Scrub) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Scrub);
     auto& c = getAdminConnection();
 
-    c.selectBucket("default");
+    c.selectBucket(bucketName);
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::Scrub);
     BinprotResponse response;
 
@@ -118,7 +117,7 @@ TEST_P(RbacTest, Scrub) {
 
 TEST_P(RbacTest, DropPrivilege) {
     auto& c = getAdminConnection();
-    c.selectBucket("default");
+    c.selectBucket(bucketName);
     c.stats("");
     c.dropPrivilege(cb::rbac::Privilege::SimpleStats);
     try {

@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -355,7 +354,7 @@ TEST_P(ExternalAuthTest, GetActiveUsers) {
 
 TEST_P(ExternalAuthTest, TestImpersonateExternalUser) {
     auto& conn = getAdminConnection();
-    conn.selectBucket("default");
+    conn.selectBucket(bucketName);
 
     BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Noop);
     cmd.addFrameInfo(ImpersonateUserFrameInfo{"^satchel"});
