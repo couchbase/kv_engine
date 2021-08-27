@@ -1257,12 +1257,86 @@ std::optional<Collections::ManifestUid> NexusKVStore::getCollectionsManifestUid(
 
 std::pair<bool, Collections::KVStore::Manifest>
 NexusKVStore::getCollectionsManifest(Vbid vbid) const {
-    return primary->getCollectionsManifest(vbid);
+    auto [primaryResult, primaryManifest] =
+            primary->getCollectionsManifest(vbid);
+    auto [secondaryResult, secondaryManifest] =
+            secondary->getCollectionsManifest(vbid);
+
+    if (primaryResult != secondaryResult) {
+        auto msg = fmt::format(
+                "NexusKVStore::getCollectionsManifest: {}: different result "
+                "primary:{} "
+                "secondary:{}",
+                vbid,
+                primaryResult,
+                secondaryResult);
+        handleError(msg);
+    }
+
+    if (primaryManifest != secondaryManifest) {
+        auto msg = fmt::format(
+                "NexusKVStore::getCollectionsManifest: {}: different manifest "
+                "primary:{} secondary:{}",
+                vbid,
+                primaryManifest,
+                secondaryManifest);
+        handleError(msg);
+    }
+
+    return {primaryResult, primaryManifest};
 }
 
 std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
 NexusKVStore::getDroppedCollections(Vbid vbid) {
-    return primary->getDroppedCollections(vbid);
+    auto [primaryResult, primaryDropped] = primary->getDroppedCollections(vbid);
+    auto [secondaryResult, secondaryDropped] =
+            secondary->getDroppedCollections(vbid);
+
+    if (primaryResult != secondaryResult) {
+        auto msg = fmt::format(
+                "NexusKVStore::getDroppedCollections: {}: primaryResult:{} "
+                "secondaryResult:{}",
+                vbid,
+                primaryResult,
+                secondaryResult);
+        handleError(msg);
+    }
+
+    for (const auto& dc : primaryDropped) {
+        auto itr =
+                std::find(secondaryDropped.begin(), secondaryDropped.end(), dc);
+        //        auto itr = secondaryDropped.find(dc);
+        if (itr == secondaryDropped.end()) {
+            auto msg = fmt::format(
+                    "NexusKVStore::getDroppedCollections: {}: found dropped "
+                    "collection for primary but not secondary, cid:{} start:{} "
+                    "end:{}",
+                    vbid,
+                    dc.collectionId,
+                    dc.startSeqno,
+                    dc.endSeqno);
+            handleError(msg);
+        }
+
+        secondaryDropped.erase(itr);
+    }
+
+    if (!secondaryDropped.empty()) {
+        std::stringstream ss;
+        for (auto& dc : secondaryDropped) {
+            ss << "[cid:" << dc.collectionId << ",start:" << dc.startSeqno
+               << ",end:" << dc.endSeqno << "],";
+        }
+        ss.unget();
+
+        auto msg = fmt::format(
+                "NexusKVStore::getDroppedCollections: {}: found dropped "
+                "collections for secondary but not primary {}",
+                vbid,
+                ss.str());
+    }
+
+    return {primaryResult, primaryDropped};
 }
 
 const KVStoreConfig& NexusKVStore::getConfig() const {
