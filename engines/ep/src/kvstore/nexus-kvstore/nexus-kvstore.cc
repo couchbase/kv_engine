@@ -1577,7 +1577,20 @@ uint64_t NexusKVStore::prepareToDelete(Vbid vbid) {
 }
 
 uint64_t NexusKVStore::getLastPersistedSeqno(Vbid vbid) {
-    return primary->getLastPersistedSeqno(vbid);
+    auto primarySeqno = primary->getLastPersistedSeqno(vbid);
+    auto secondarySeqno = secondary->getLastPersistedSeqno(vbid);
+
+    if (primarySeqno != secondarySeqno) {
+        auto msg = fmt::format(
+                "NexusKVStore::getLastPersistedSeqno: {}: "
+                "difference in seqno primary:{} secondary:{}",
+                vbid,
+                primarySeqno,
+                secondarySeqno);
+        handleError(msg);
+    }
+
+    return primarySeqno;
 }
 
 void NexusKVStore::prepareForDeduplication(std::vector<queued_item>& items) {
