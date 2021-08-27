@@ -16,6 +16,7 @@
 class NexusKVStoreConfig;
 class NexusKVStoreSecondaryPersistenceCallback;
 class NexusRollbackCB;
+class NexusKVStoreSecondaryGetAllKeysCallback;
 
 struct NexusCompactionContext;
 struct NexusRollbackContext;
@@ -238,6 +239,7 @@ protected:
 
     // Friended to let us call handleError to error from associated classes
     friend NexusKVStoreSecondaryPersistenceCallback;
+    friend NexusKVStoreSecondaryGetAllKeysCallback;
     friend NexusRollbackCB;
 
 protected:

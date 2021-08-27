@@ -1339,12 +1339,123 @@ void NexusKVStore::pendingTasks() {
     secondary->pendingTasks();
 }
 
+/**
+ * GetAllKeys callback invocations
+ * Key is stored for comparison with the key that is returned by the secondary
+ * Error code is stored to forward on the error code from the primary to the
+ * secondary (i.e. if we stop scanning the primary after 5 items then the
+ * secondary should stop too).
+ */
+using NexusGetAllKeysCallbackCallbacks =
+        std::deque<std::pair<DiskDocKey, cb::engine_errc>>;
+
+/**
+ * GetAllKeysCallback for use with the primary KVStore. Passes the callback
+ * invocations along to the original callback which will:
+ *
+ * a) do the actual logic with the key
+ * b) return a cancel status if we should stop scanning
+ */
+class NexusKVStorePrimaryGetAllKeysCallback
+    : public StatusCallback<const DiskDocKey&> {
+public:
+    NexusKVStorePrimaryGetAllKeysCallback(
+            std::shared_ptr<StatusCallback<const DiskDocKey&>> cb)
+        : originalCb(std::move(cb)) {
+    }
+
+    void callback(const DiskDocKey& key) override {
+        // Forward on to the original callback first to get the status
+        originalCb->callback(key);
+
+        // Set our status to that of the original callback to stop scanning if
+        // required
+        setStatus(originalCb->getStatus());
+
+        // Store this invocation for later comparison with the secondary
+        callbacks.emplace_back(key, cb::engine_errc(getStatus()));
+    }
+
+    NexusGetAllKeysCallbackCallbacks callbacks;
+    std::shared_ptr<StatusCallback<const DiskDocKey&>> originalCb;
+};
+
+/**
+ * GetAllKeysCallback for use with the secondary KVStore. Invocations are
+ * compared with those made by the primary and the status that the primary
+ * returned is then returned by this callback to stop scanning at the same point
+ */
+class NexusKVStoreSecondaryGetAllKeysCallback
+    : public StatusCallback<const DiskDocKey&> {
+public:
+    NexusKVStoreSecondaryGetAllKeysCallback(
+            const NexusKVStore& kvstore,
+            Vbid vbid,
+            NexusGetAllKeysCallbackCallbacks& primaryCallbacks)
+        : kvstore(kvstore), vbid(vbid), primaryCallbacks(primaryCallbacks) {
+    }
+
+    void callback(const DiskDocKey& key) override {
+        if (primaryCallbacks.empty()) {
+            auto msg = fmt::format(
+                    "NexusSecondaryGetAllKeysCallback::callback: {}: primary "
+                    "made fewer invocations. Secondary key:{}",
+                    vbid,
+                    cb::UserData(key.to_string()));
+            kvstore.handleError(msg);
+        }
+
+        const auto& [primaryKey, primaryResult] = primaryCallbacks.front();
+        if (primaryKey != key) {
+            auto msg = fmt::format(
+                    "NexusSecondaryGetAllKeysCallback::callback: {}: invoked "
+                    "with different key primary:{} secondary:{}",
+                    vbid,
+                    cb::UserData(primaryKey.to_string()),
+                    cb::UserData(key.to_string()));
+            kvstore.handleError(msg);
+        }
+
+        // Set our status so that we stop scanning after the same number of
+        // items as the primary
+        setStatus(primaryResult);
+
+        primaryCallbacks.pop_front();
+    }
+
+    // For logging discrepancies
+    const NexusKVStore& kvstore;
+    Vbid vbid;
+    NexusGetAllKeysCallbackCallbacks& primaryCallbacks;
+};
+
 cb::engine_errc NexusKVStore::getAllKeys(
         Vbid vbid,
         const DiskDocKey& start_key,
         uint32_t count,
         std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) const {
-    return primary->getAllKeys(vbid, start_key, count, cb);
+    auto primaryCallback =
+            std::make_shared<NexusKVStorePrimaryGetAllKeysCallback>(cb);
+    auto secondaryCallback =
+            std::make_shared<NexusKVStoreSecondaryGetAllKeysCallback>(
+                    *this, vbid, primaryCallback->callbacks);
+
+    auto primaryResult =
+            primary->getAllKeys(vbid, start_key, count, primaryCallback);
+    auto secondaryResult =
+            secondary->getAllKeys(vbid, start_key, count, secondaryCallback);
+
+    if (primaryResult != secondaryResult) {
+        auto msg = fmt::format(
+                "NexusKVStore::getAllKeys: {}: different result "
+                "primary:{} secondary:{}",
+                vbid,
+                primaryResult,
+                secondaryResult);
+        handleError(msg);
+    }
+
+    return primaryResult;
 }
 
 bool NexusKVStore::supportsHistoricalSnapshots() const {
