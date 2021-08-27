@@ -39,6 +39,7 @@
 #include "tests/module_tests/vbucket_utils.h"
 #include "warmup.h"
 
+#include <memcached/collections.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>

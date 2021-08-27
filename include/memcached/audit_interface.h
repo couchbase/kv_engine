@@ -10,8 +10,12 @@
  */
 #pragma once
 
-#include <memcached/engine.h>
+#include <memcached/engine_error.h>
 #include <memory>
+
+class StatCollector;
+class CookieIface;
+struct ServerCookieIface;
 
 namespace cb::audit {
 namespace document {

@@ -44,6 +44,7 @@
 #include "vbucketdeletiontask.h"
 #include <executor/executorpool.h>
 
+#include <memcached/collections.h>
 #include <memcached/server_document_iface.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>

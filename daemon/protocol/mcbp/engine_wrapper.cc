@@ -15,6 +15,7 @@
 #include <daemon/mcaudit.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/request.h>
+#include <memcached/collections.h>
 #include <memcached/durability_spec.h>
 #include <memcached/limits.h>
 #include <utilities/logtags.h>

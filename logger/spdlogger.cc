@@ -13,8 +13,6 @@
 #include "logger.h"
 #include "logger_config.h"
 
-#include <memcached/engine.h>
-
 #include <spdlog/async.h>
 #include <spdlog/async_logger.h>
 #include <spdlog/sinks/dist_sink.h>

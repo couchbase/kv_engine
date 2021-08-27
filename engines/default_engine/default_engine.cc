@@ -4,6 +4,7 @@
 #include "default_engine_public.h"
 #include "engine_manager.h"
 
+#include <memcached/collections.h>
 #include <memcached/config_parser.h>
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>

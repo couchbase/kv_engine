@@ -15,6 +15,7 @@
 #include <iostream>
 #include <sstream>
 
+#include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>

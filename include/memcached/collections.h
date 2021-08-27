@@ -10,10 +10,6 @@
  */
 #pragma once
 
-#ifndef MEMCACHED_ENGINE_H
-#error "Please include memcached/engine.h instead"
-#endif
-
 #include "dockey.h"
 #include "engine_common.h"
 #include "engine_error.h"

@@ -21,6 +21,7 @@
 #include "xattr/utils.h"
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
+#include <memcached/collections.h>
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>

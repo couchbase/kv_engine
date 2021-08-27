@@ -52,6 +52,7 @@
 #include <boost/algorithm/string/trim.hpp>
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
+#include <memcached/collections.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/engine.h>
 #include <memcached/limits.h>

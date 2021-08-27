@@ -10,6 +10,7 @@
  */
 #include "nobucket_public.h"
 
+#include <memcached/collections.h>
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
 #include <memcached/engine.h>

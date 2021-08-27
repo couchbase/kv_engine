@@ -12,7 +12,7 @@
 #include "executors.h"
 
 #include <daemon/cookie.h>
-#include <mcbp/protocol/request.h>
+#include <memcached/collections.h>
 
 void collections_get_collection_id_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();

@@ -21,6 +21,7 @@
 #include "string_utils.h"
 #include "vb_visitors.h"
 
+#include <memcached/collections.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/fmt/ostr.h>
 #include <statistics/cbstat_collector.h>

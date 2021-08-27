@@ -75,6 +75,7 @@
 #include <utility>
 
 #include <logger/logger.h>
+#include <memcached/collections.h>
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
 #include <memcached/engine.h>

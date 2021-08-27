@@ -10,8 +10,8 @@
 #pragma once
 #define MEMCACHED_ENGINE_H
 
-#include <memcached/collections.h>
 #include <memcached/engine_common.h>
+#include <memcached/engine_error.h>
 #include <memcached/thread_pool_config.h>
 #include <memcached/types.h>
 #include <memcached/vbucket.h>
@@ -23,6 +23,11 @@
 #include <string_view>
 #include <unordered_set>
 #include <utility>
+
+namespace cb {
+struct EngineErrorGetCollectionIDResult;
+struct EngineErrorGetScopeIDResult;
+} // namespace cb
 
 namespace cb::durability {
 class Requirements;
@@ -584,15 +589,10 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     }
 
     virtual cb::EngineErrorGetCollectionIDResult get_collection_id(
-            const CookieIface& cookie, std::string_view path) {
-        return cb::EngineErrorGetCollectionIDResult{
-                cb::engine_errc::not_supported};
-    }
+            const CookieIface& cookie, std::string_view path);
 
     virtual cb::EngineErrorGetScopeIDResult get_scope_id(
-            const CookieIface& cookie, std::string_view path) {
-        return cb::EngineErrorGetScopeIDResult{cb::engine_errc::not_supported};
-    }
+            const CookieIface& cookie, std::string_view path);
 
     /**
      * Get the scope for the provided key
@@ -605,9 +605,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     virtual cb::EngineErrorGetScopeIDResult get_scope_id(
             const CookieIface& cookie,
             const DocKey& key,
-            std::optional<Vbid> vbid = std::nullopt) const {
-        return cb::EngineErrorGetScopeIDResult(cb::engine_errc::not_supported);
-    }
+            std::optional<Vbid> vbid = std::nullopt) const;
 
     /**
      * Ask the engine what features it supports.

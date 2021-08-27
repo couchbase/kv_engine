@@ -15,7 +15,8 @@
 #include "item.h"
 #include "tests/mock/mock_dcp_consumer.h"
 
-#include "folly/portability/GTest.h"
+#include <folly/portability/GTest.h>
+#include <memcached/protocol_binary.h>
 
 /*
  * DCP callback method to push SystemEvents on to the consumer

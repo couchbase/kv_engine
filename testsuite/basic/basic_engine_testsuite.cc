@@ -14,6 +14,7 @@
 #include <daemon/enginemap.h>
 #include <folly/portability/GTest.h>
 #include <logger/logger.h>
+#include <memcached/collections.h>
 #include <memcached/durability_spec.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
