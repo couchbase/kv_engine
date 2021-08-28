@@ -108,20 +108,20 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
     if (engine->getConfiguration().isChkExpelEnabled()) {
         memRecovered = attemptItemExpelling(memToClear);
     }
-    // If still need to recover more memory, drop cursors
-    if (memToClear > memRecovered) {
-        attemptCursorDropping(memToClear - memRecovered);
+
+    if (memRecovered >= memToClear) {
+        // Recovered enough by ItemExpel, done
+        available = true;
+        snooze(sleepTime);
+        return true;
     }
 
-    // CheckpointVisitor takes a memToRelease arg (positive integer) that is
-    // currently unused, so the behaviour of the visitor stays unchanged (ie, it
-    // frees all the releasable checkpoint memory regardless of any limit / mem
-    // condition).
-    // That behaviour will change in follow-up patches, for now I just pass a
-    // big number that is representative of the behaviour that I've just
-    // described.
+    // More memory to recover, try CursorDrop + CheckpointRemoval
+    const auto leftToClear = memToClear - memRecovered;
+    attemptCursorDropping(leftToClear);
+
     auto pv = std::make_unique<CheckpointVisitor>(
-            kvBucket, stats, available, std::numeric_limits<size_t>::max());
+            kvBucket, stats, available, leftToClear);
 
     // Note: Empirical evidence from perf runs shows that 99.9% of "Checkpoint
     // Remover" task should complete under 50ms

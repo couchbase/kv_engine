@@ -8154,15 +8154,15 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_remover_stime=1;max_checkpoints=2",
                  prepare,
                  cleanup),
-        TestCase(
-                "test dcp replica stream all",
-                test_dcp_replica_stream_all,
-                test_setup,
-                teardown,
-                "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
-                "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
-                prepare,
-                cleanup),
+        TestCase("test dcp replica stream all",
+                 test_dcp_replica_stream_all,
+                 test_setup,
+                 teardown,
+                 "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
+                 "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark="
+                 "0;chk_expel_enabled=false",
+                 prepare,
+                 cleanup),
         TestCase(
                 "test dcp replica stream all with collections enabled stream",
                 test_dcp_replica_stream_all_collection_enabled,
@@ -8227,7 +8227,8 @@ BaseTestCase testsuite_testcases[] = {
                     want.*/
                  "chk_remover_stime=1;chk_max_items=100;"
                  "chk_period=1000000;checkpoint_memory_recovery_upper_mark=0;"
-                 "checkpoint_memory_recovery_lower_mark=0",
+                 "checkpoint_memory_recovery_lower_mark=0;chk_expel_enabled="
+                 "false",
                  prepare,
                  cleanup),
         TestCase("test producer stream request (full merged snapshots)",
@@ -8236,7 +8237,8 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "chk_remover_stime=1;chk_max_items=100;checkpoint_memory_"
                  "recovery_upper_mark=0;"
-                 "checkpoint_memory_recovery_lower_mark=0",
+                 "checkpoint_memory_recovery_lower_mark=0;chk_expel_enabled="
+                 "false",
                  prepare_ep_bucket,
                  cleanup),
         TestCase("test producer stream request (full)",
@@ -8254,7 +8256,8 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "chk_remover_stime=1;chk_max_items=100;dcp_scan_item_limit=50;"
                  "checkpoint_memory_recovery_upper_mark=0;"
-                 "checkpoint_memory_recovery_lower_mark=0",
+                 "checkpoint_memory_recovery_lower_mark=0;chk_expel_enabled="
+                 "false",
                  prepare,
                  cleanup),
         TestCase("test producer stream request (disk only)",
