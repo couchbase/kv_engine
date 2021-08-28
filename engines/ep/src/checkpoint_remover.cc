@@ -112,8 +112,19 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
         attemptCursorDropping(memToClear - memRecovered);
     }
 
+    // I'm fixing a bug that I've introduced at
+    // http://review.couchbase.org/c/kv_engine/+/160152 that may cause to pass
+    // memToRelease=0 to the CheckpointVisitor, which may cause some assertion
+    // to fail and crash memcached. That was the case if we execute here with
+    // (memToClear == memRecovered).
+    // CheckpointVisitor takes a memToRelease arg that is currently unused, so
+    // the behaviour of the visitor stays unchanged (ie, it frees all the
+    // releasable checkpoint memory regardless of any limit / mem condition).
+    // That behaviour will change in follow-up patches, for now I just pass a
+    // big number that is representative of the behaviour that I've just
+    // described.
     auto pv = std::make_unique<CheckpointVisitor>(
-            kvBucket, stats, available, memToClear - memRecovered);
+            kvBucket, stats, available, std::numeric_limits<size_t>::max());
 
     // Note: Empirical evidence from perf runs shows that 99.9% of "Checkpoint
     // Remover" task should complete under 50ms
