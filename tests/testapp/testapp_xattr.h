@@ -26,11 +26,10 @@ protected:
     }
 
     BinprotSubdocResponse subdoc_get(
-            MemcachedConnection& conn,
             const std::string& path,
             protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
             mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None) {
-        return subdoc(conn,
+        return subdoc(*userConnection,
                       cb::mcbp::ClientOpcode::SubdocGet,
                       name,
                       path,
@@ -40,17 +39,15 @@ protected:
     }
 
     BinprotSubdocMultiLookupResponse subdoc_multi_lookup(
-            MemcachedConnection& conn,
             std::vector<BinprotSubdocMultiLookupCommand::LookupSpecifier> specs,
             mcbp::subdoc::doc_flag docFlags = mcbp::subdoc::doc_flag::None);
 
     BinprotSubdocMultiMutationResponse subdoc_multi_mutation(
-            MemcachedConnection& conn,
             std::vector<BinprotSubdocMultiMutationCommand::MutationSpecifier>
                     specs,
             mcbp::subdoc::doc_flag docFlags = mcbp::subdoc::doc_flag::None);
 
-    GetMetaResponse get_meta(MemcachedConnection& conn);
+    GetMetaResponse get_meta();
 
     bool supportSyncRepl() const {
         return mcd_env->getTestBucket().supportsSyncWrites();

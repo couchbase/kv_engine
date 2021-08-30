@@ -13,6 +13,11 @@
 #include <protocol/connection/frameinfo.h>
 #include <xattr/blob.h>
 
+void TestappXattrClientTest::SetUpTestCase() {
+    TestappTest::SetUpTestCase();
+    createUserConnection = true;
+}
+
 bool TestappClientTest::isTlsEnabled() const {
     switch (GetParam()) {
     case TransportProtocols::McbpPlain:

@@ -29,7 +29,6 @@ public:
      * using vattr for the lookup
      */
     void checkCas() {
-        auto& conn = getConnection();
         BinprotSubdocCommand cmd;
         cmd.setOp(cb::mcbp::ClientOpcode::SubdocGet);
         cmd.setKey(name);
@@ -37,7 +36,7 @@ public:
         cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
         cmd.addDocFlags(mcbp::subdoc::doc_flag::None);
 
-        auto resp = conn.execute(cmd);
+        auto resp = userConnection->execute(cmd);
 
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         auto json = nlohmann::json::parse(resp.getDataString());
@@ -106,7 +105,7 @@ TEST_P(WithMetaTest, basicSet) {
 
     MutationInfo resp;
     try {
-        resp = getConnection().mutateWithMeta(document,
+        resp = userConnection->mutateWithMeta(document,
                                               Vbid(0),
                                               mcbp::cas::Wildcard,
                                               /*seqno*/ 1,
@@ -127,7 +126,7 @@ TEST_P(WithMetaTest, basicSetXattr) {
 
     MutationInfo resp;
     try {
-        resp = getConnection().mutateWithMeta(document,
+        resp = userConnection->mutateWithMeta(document,
                                               Vbid(0),
                                               mcbp::cas::Wildcard,
                                               /*seqno*/ 1,
@@ -160,7 +159,7 @@ TEST_P(WithMetaTest, MB36304_DocumetTooBig) {
     std::copy(doc.begin(), doc.end(), std::back_inserter(document.value));
     document.info.datatype = cb::mcbp::Datatype::Snappy;
     try {
-        getConnection().mutateWithMeta(
+        userConnection->mutateWithMeta(
                 document, Vbid(0), mcbp::cas::Wildcard, 1, 0, {});
         FAIL() << "It should not be possible to store documents which exceeds "
                   "the max document size";
@@ -185,9 +184,9 @@ TEST_P(WithMetaTest, MB36304_DocumentMaxSizeWithXattr) {
 
     document.value.resize((20 * 1024 * 1024) + xattrValue.size());
     document.info.datatype = cb::mcbp::Datatype::Xattr;
-    auto& conn = getConnection();
-    conn.mutateWithMeta(document, Vbid(0), mcbp::cas::Wildcard, 1, 0, {});
-    conn.remove(name, Vbid(0));
+    userConnection->mutateWithMeta(
+            document, Vbid(0), mcbp::cas::Wildcard, 1, 0, {});
+    userConnection->remove(name, Vbid(0));
 }
 
 TEST_P(WithMetaTest, MB36321_DeleteWithMetaRefuseUserXattrs) {
@@ -218,10 +217,9 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaRefuseUserXattrs) {
     using cb::mcbp::Datatype;
     document.info.datatype =
             Datatype(uint8_t(Datatype::Xattr) | uint8_t(Datatype::JSON));
-    auto& conn = getConnection();
 
     BinprotDelWithMetaCommand cmd(document, Vbid(0), 0, 0, 1, 0);
-    const auto rsp = BinprotMutationResponse(conn.execute(cmd));
+    const auto rsp = BinprotMutationResponse(userConnection->execute(cmd));
     ASSERT_FALSE(rsp.isSuccess()) << rsp.getStatus();
     auto error = nlohmann::json::parse(rsp.getDataString());
 
@@ -247,14 +245,13 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaAllowSystemXattrs) {
               xattrValue.end(),
               std::back_inserter(document.value));
     document.info.datatype = cb::mcbp::Datatype::Xattr;
-    auto& conn = getConnection();
 
     BinprotDelWithMetaCommand cmd(document, Vbid(0), 0, 0, 1, 0);
-    const auto rsp = BinprotMutationResponse(conn.execute(cmd));
+    const auto rsp = BinprotMutationResponse(userConnection->execute(cmd));
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
 
     // The system xattr should be there
-    auto sresp = subdoc(conn,
+    auto sresp = subdoc(*userConnection,
                         cb::mcbp::ClientOpcode::SubdocGet,
                         name,
                         "_sys.author",
@@ -305,8 +302,8 @@ void WithMetaTest::testDeleteWithMetaAcceptsUserXattrs(bool allowValuePruning,
 
     BinprotDelWithMetaCommand delWithMeta(
             document, Vbid(0), 0, 0 /*delTime*/, 1 /*seqno*/, 0 /*opCas*/);
-    auto& conn = getConnection();
-    const auto resp = BinprotMutationResponse(conn.execute(delWithMeta));
+    const auto resp =
+            BinprotMutationResponse(userConnection->execute(delWithMeta));
     const auto expectedStatus = compressed && ::testing::get<3>(GetParam()) ==
                                                         ClientSnappySupport::No
                                         ? cb::mcbp::Status::Einval
@@ -362,8 +359,8 @@ void WithMetaTest::testDeleteWithMetaRejectsBody(bool allowValuePruning,
 
     BinprotDelWithMetaCommand delWithMeta(
             document, Vbid(0), 0, 0 /*delTime*/, 1 /*seqno*/, 0 /*opCas*/);
-    auto& conn = getConnection();
-    const auto resp = BinprotMutationResponse(conn.execute(delWithMeta));
+    const auto resp =
+            BinprotMutationResponse(userConnection->execute(delWithMeta));
     if (allowValuePruning) {
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     } else {

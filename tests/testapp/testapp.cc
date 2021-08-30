@@ -119,6 +119,20 @@ void TestappTest::rebuildAdminConnection() {
     }
 }
 
+void TestappTest::rebuildUserConnection(bool tls) {
+    userConnection.reset();
+    connectionMap.iterate([&](const auto& c) {
+        if (!userConnection && (c.isSsl() == tls)) {
+            userConnection = c.clone();
+            userConnection->authenticate("Luke", mcd_env->getPassword("Luke"));
+            userConnection->selectBucket(bucketName);
+        }
+    });
+    if (!userConnection) {
+        throw std::runtime_error("Failed to rebuild the user connection");
+    }
+}
+
 void TestappTest::CreateTestBucket() {
     if (!adminConnection) {
         std::cerr << "TestappTest::CreateTestBucket(): Admin connection not "
@@ -138,6 +152,11 @@ void TestappTest::DeleteTestBucket() {
         mcd_env->terminate(EXIT_FAILURE);
     }
 
+    // Disconnect the user connection as we're going to delete the bucket
+    // (this may speed up bucket deletion as the server won't have to run
+    // the logic to disconnect the client first)
+    userConnection.reset();
+
     try {
         adminConnection->deleteBucket(bucketName);
     } catch (const ConnectionError& error) {
@@ -153,6 +172,7 @@ TestBucketImpl& TestappTest::GetTestBucket() {
 // Per-test-case set-up.
 // Called before the first test in this test case.
 void TestappTest::SetUpTestCase() {
+    createUserConnection = false;
     doSetUpTestCaseWithConfiguration(generate_config());
 }
 
@@ -264,6 +284,7 @@ void TestappTest::TearDownTestCase() {
     if (memcachedProcess && memcachedProcess->isRunning()) {
         DeleteTestBucket();
     }
+    userConnection.reset();
     adminConnection.reset();
     stop_memcached_server();
 }
@@ -303,6 +324,23 @@ void TestappTest::SetUp() {
     name.append("_");
     name.append(info->name());
     std::replace(name.begin(), name.end(), '/', '_');
+
+    if (!userConnection && createUserConnection) {
+        rebuildUserConnection(isTlsEnabled());
+    }
+
+    if (userConnection) {
+        // We may have created the connection in a test batch which mix
+        // both SSL and plain connections
+        if (userConnection->isSsl() != isTlsEnabled()) {
+            rebuildUserConnection(isTlsEnabled());
+        }
+        // Update the features
+        prepare(*userConnection);
+        // Make sure that we have the correct bucket as the current
+        // bucket
+        userConnection->selectBucket(bucketName);
+    }
 }
 
 // per test tear-down function.
@@ -1296,6 +1334,8 @@ uint64_t TestappTest::token;
 std::thread TestappTest::memcached_server_thread;
 std::size_t TestappTest::num_server_starts = 0;
 std::unique_ptr<MemcachedConnection> TestappTest::adminConnection;
+std::unique_ptr<MemcachedConnection> TestappTest::userConnection;
+bool TestappTest::createUserConnection = false;
 
 int main(int argc, char** argv) {
     if (getenv("COUNT_SOCKETS")) {

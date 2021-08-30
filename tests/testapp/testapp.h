@@ -248,6 +248,13 @@ protected:
     static std::unique_ptr<MemcachedConnection> adminConnection;
     static void rebuildAdminConnection();
 
+    /// A connection authenticated as "Luke" and connected to the test bucket.
+    /// If you put the connection in a bad state you should reconnect and
+    /// authenticate the connection.
+    static std::unique_ptr<MemcachedConnection> userConnection;
+    static void rebuildUserConnection(bool tls);
+    static bool createUserConnection;
+
     /**
      * Prepare a connection object to be used from a client by reconnecting
      * and performing the initial handshake logic

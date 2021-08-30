@@ -24,7 +24,7 @@ protected:
      * the info member
      */
     void createDocument() {
-        info = getConnection().mutate(document, Vbid(0), MutationType::Add);
+        info = userConnection->mutate(document, Vbid(0), MutationType::Add);
     }
 
     MutationInfo info;
@@ -33,18 +33,20 @@ protected:
 void RemoveTest::verify_MB_22553(const std::string& config) {
     DeleteTestBucket();
     mcd_env->getTestBucket().setUpBucket(bucketName, config, *adminConnection);
+    rebuildUserConnection(TestappXattrClientTest::isTlsEnabled());
+    prepare(*userConnection);
 
     // Create a document with an XATTR.
-    auto& conn = getConnection();
-    setBodyAndXattr(
-            conn, "foobar", {{"_rbac", R"({"attribute": "read-only"})"}});
+    setBodyAndXattr(*userConnection,
+                    "foobar",
+                    {{"_rbac", R"({"attribute": "read-only"})"}});
 
     // Delete the document
-    conn.remove(name, Vbid(0));
+    userConnection->remove(name, Vbid(0));
 
     // The document itself should not be accessible MB-22553
     try {
-        conn.get(name, Vbid(0));
+        userConnection->get(name, Vbid(0));
         FAIL() << "Document with XATTRs should not be accessible after remove";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound())
@@ -52,8 +54,10 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
     }
 
     // It should not be accessible over subdoc.
-    auto resp =
-            subdoc(conn, cb::mcbp::ClientOpcode::SubdocGet, name, "verbosity");
+    auto resp = subdoc(*userConnection,
+                       cb::mcbp::ClientOpcode::SubdocGet,
+                       name,
+                       "verbosity");
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus())
             << "MB-22553: doc with xattr is still accessible";
 }
@@ -74,10 +78,8 @@ INSTANTIATE_TEST_SUITE_P(
  * value)
  */
 TEST_P(RemoveTest, RemoveNonexisting) {
-    auto& conn = getConnection();
-
     try {
-        conn.remove(name, Vbid(0));
+        userConnection->remove(name, Vbid(0));
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
     }
@@ -88,10 +90,8 @@ TEST_P(RemoveTest, RemoveNonexisting) {
  * to the wildcard works
  */
 TEST_P(RemoveTest, RemoveCasWildcard) {
-    auto& conn = getConnection();
-
     createDocument();
-    auto deleted = conn.remove(name, Vbid(0));
+    auto deleted = userConnection->remove(name, Vbid(0));
     EXPECT_NE(info.cas, deleted.cas);
 }
 
@@ -100,10 +100,9 @@ TEST_P(RemoveTest, RemoveCasWildcard) {
  * fails with EEXISTS
  */
 TEST_P(RemoveTest, RemoveWithInvalidCas) {
-    auto& conn = getConnection();
     createDocument();
     try {
-        conn.remove(name, Vbid(0), info.cas + 1);
+        userConnection->remove(name, Vbid(0), info.cas + 1);
         FAIL() << "Invalid cas should return EEXISTS";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
@@ -115,10 +114,8 @@ TEST_P(RemoveTest, RemoveWithInvalidCas) {
  * value works
  */
 TEST_P(RemoveTest, RemoveWithCas) {
-    auto& conn = getConnection();
-
     createDocument();
-    auto deleted = conn.remove(name, Vbid(0), info.cas);
+    auto deleted = userConnection->remove(name, Vbid(0), info.cas);
     EXPECT_NE(info.cas, deleted.cas);
 }
 
@@ -127,23 +124,22 @@ TEST_P(RemoveTest, RemoveWithCas) {
  * document, and that the user attributes will be nuked off
  */
 TEST_P(RemoveTest, RemoveWithXattr) {
-    auto& conn = getConnection();
     setBodyAndXattr(
-            conn,
+            *userConnection,
             document.value,
             {{"meta", R"({"content-type": "application/json; charset=utf-8"})"},
              {"_rbac", R"({"attribute": "read-only"})"}});
-    conn.remove(name, Vbid(0), 0);
+    userConnection->remove(name, Vbid(0), 0);
 
     // The system xattr should have been preserved
-    const auto status = getXattr(conn, "_rbac.attribute", true);
+    const auto status = getXattr(*userConnection, "_rbac.attribute", true);
     if (status.getStatus() == cb::mcbp::Status::Success) {
         EXPECT_EQ("\"read-only\"", status.getValue());
     }
 
     // The user xattr should not be there
     try {
-        if (getXattr(conn, "meta.content_type", true).getStatus() !=
+        if (getXattr(*userConnection, "meta.content_type", true).getStatus() !=
             xattrOperationStatus) {
             FAIL() << "The user xattr should be gone!";
         }

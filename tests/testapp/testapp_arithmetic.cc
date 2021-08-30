@@ -47,17 +47,15 @@ INSTANTIATE_TEST_SUITE_P(
         PrintToStringCombinedName());
 
 TEST_P(ArithmeticTest, TestArithmeticNoCreateOnNotFound) {
-    auto& connection = getConnection();
-
     try {
-        connection.increment(name, 1, 0, 0xffffffff);
+        userConnection->increment(name, 1, 0, 0xffffffff);
         FAIL() << "Document should not be created";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.getReason();
     }
 
     try {
-        connection.decrement(name, 1, 0, 0xffffffff);
+        userConnection->decrement(name, 1, 0, 0xffffffff);
         FAIL() << "Document should not be created";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.getReason();
@@ -65,9 +63,8 @@ TEST_P(ArithmeticTest, TestArithmeticNoCreateOnNotFound) {
 }
 
 TEST_P(ArithmeticTest, TestIncrementCreateOnNotFound) {
-    auto& connection = getConnection();
-    EXPECT_EQ(0, connection.increment(name+"_incr", 1, 0));
-    EXPECT_EQ(0, connection.increment(name+"_decr", 1, 0));
+    EXPECT_EQ(0, userConnection->increment(name + "_incr", 1, 0));
+    EXPECT_EQ(0, userConnection->increment(name + "_decr", 1, 0));
 }
 
 static void incr_decr_loop(MemcachedConnection& connection,
@@ -93,45 +90,42 @@ static void incr_decr_loop(MemcachedConnection& connection,
 }
 
 TEST_P(ArithmeticTest, TestBasicArithmetic_1) {
-    incr_decr_loop(getConnection(), name, 1);
+    incr_decr_loop(*userConnection, name, 1);
 }
 
 TEST_P(ArithmeticTest, TestBasicArithmetic_33) {
-    incr_decr_loop(getConnection(), name, 33);
+    incr_decr_loop(*userConnection, name, 33);
 }
 
 TEST_P(ArithmeticTest, TestDecrementDontWrap) {
-    auto& connection = getConnection();
     for (int ii = 0; ii < 10; ++ii) {
-        EXPECT_EQ(0, connection.decrement(name, 1));
+        EXPECT_EQ(0, userConnection->decrement(name, 1));
     }
 }
 
 TEST_P(ArithmeticTest, TestIncrementDoesWrap) {
-    auto& connection = getConnection();
     uint64_t initial = std::numeric_limits<uint64_t>::max();
 
     // Create the initial value so that we know where we should start off ;)
-    EXPECT_EQ(0, connection.increment(name, 1));
+    EXPECT_EQ(0, userConnection->increment(name, 1));
 
-    EXPECT_EQ(initial, connection.increment(name, initial));
-    EXPECT_EQ(0, connection.increment(name, 1));
-    EXPECT_EQ(initial, connection.increment(name, initial));
-    EXPECT_EQ(0, connection.increment(name, 1));
+    EXPECT_EQ(initial, userConnection->increment(name, initial));
+    EXPECT_EQ(0, userConnection->increment(name, 1));
+    EXPECT_EQ(initial, userConnection->increment(name, initial));
+    EXPECT_EQ(0, userConnection->increment(name, 1));
 }
 
 TEST_P(ArithmeticTest, TestConcurrentAccess) {
-    auto& conn = getConnection();
-    auto conn1 = conn.clone();
-    auto conn2 = conn.clone();
+    auto conn1 = userConnection->clone();
+    auto conn2 = userConnection->clone();
     const int iterationCount = 100;
     const int incrDelta = 7;
     const int decrDelta = -3;
 
     // Create the starting point
     uint64_t expected = std::numeric_limits<uint32_t>::max();
-    ASSERT_EQ(0, conn.increment(name, 0));
-    ASSERT_EQ(expected, conn.increment(name, expected));
+    ASSERT_EQ(0, userConnection->increment(name, 0));
+    ASSERT_EQ(expected, userConnection->increment(name, expected));
 
     std::string doc = name;
 
@@ -180,13 +174,12 @@ TEST_P(ArithmeticTest, TestConcurrentAccess) {
     t2.join();
 
     expected += (iterationCount * incrDelta) + (iterationCount * decrDelta);
-    EXPECT_EQ(expected, conn.increment(name, 0));
+    EXPECT_EQ(expected, userConnection->increment(name, 0));
 }
 
 TEST_P(ArithmeticTest, TestMutationInfo) {
-    auto& conn = getConnection();
     MutationInfo info;
-    ASSERT_EQ(0, conn.increment(name, 0, 0, 0, &info));
+    ASSERT_EQ(0, userConnection->increment(name, 0, 0, 0, &info));
 
     // Not all the backends supports the vbucket seqno and uuid..
     // The cas should be filled out, so we should be able to do a CAS replace
@@ -196,22 +189,20 @@ TEST_P(ArithmeticTest, TestMutationInfo) {
     doc.info.id = name;
     doc.value = memcached_cfg.dump();
 
-    conn.mutate(doc, Vbid(0), MutationType::Replace);
+    userConnection->mutate(doc, Vbid(0), MutationType::Replace);
 }
 
 TEST_P(ArithmeticTest, TestIllegalDatatype) {
-    auto& conn = getConnection();
-
     Document doc;
     doc.info.cas = mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     doc.value = memcached_cfg.dump();
 
-    ASSERT_NO_THROW(conn.mutate(doc, Vbid(0), MutationType::Add));
+    userConnection->mutate(doc, Vbid(0), MutationType::Add);
 
     try {
-        conn.increment(name, 0);
+        userConnection->increment(name, 0);
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isDeltaBadval()) << error.getReason();
     }
@@ -243,7 +234,6 @@ TEST_P(ArithmeticTest, TestIllegalDatatype) {
  *  -> Done
  */
 TEST_P(ArithmeticTest, MB33813) {
-    auto& connection = getConnection();
     std::string key(name + "_inc");
 
     // Make the 3rd request send to the engine return
@@ -257,41 +247,41 @@ TEST_P(ArithmeticTest, MB33813) {
             ewb::Passthrough,
             ewb::Passthrough,
     });
-    connection.configureEwouldBlockEngine(EWBEngineMode::Sequence,
-                                          /*unused*/ {},
-                                          /*unused*/ {},
-                                          sequence);
+    userConnection->configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                               /*unused*/ {},
+                                               /*unused*/ {},
+                                               sequence);
 
-    EXPECT_EQ(1, connection.increment(key, 0, 1));
+    EXPECT_EQ(1, userConnection->increment(key, 0, 1));
 
-    connection.disableEwouldBlockEngine();
+    userConnection->disableEwouldBlockEngine();
 
     Vbid vb(0);
-    Document doc = connection.get(key, vb);
+    Document doc = userConnection->get(key, vb);
     EXPECT_EQ("1", doc.value);
 
-    EXPECT_EQ(2, connection.increment(key, 1));
+    EXPECT_EQ(2, userConnection->increment(key, 1));
 
-    doc = connection.get(key, vb);
+    doc = userConnection->get(key, vb);
     EXPECT_EQ("2", doc.value);
 
     // Sanity check do the same thing but with a decrement
     key = name + "_dec";
-    connection.configureEwouldBlockEngine(EWBEngineMode::Sequence,
-                                          /*unused*/ {},
-                                          /*unused*/ {},
-                                          sequence);
+    userConnection->configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                               /*unused*/ {},
+                                               /*unused*/ {},
+                                               sequence);
 
-    EXPECT_EQ(2, connection.decrement(key, 0, 2));
+    EXPECT_EQ(2, userConnection->decrement(key, 0, 2));
 
-    connection.disableEwouldBlockEngine();
+    userConnection->disableEwouldBlockEngine();
 
-    doc = connection.get(key, vb);
+    doc = userConnection->get(key, vb);
     EXPECT_EQ("2", doc.value);
 
-    EXPECT_EQ(1, connection.decrement(key, 1));
+    EXPECT_EQ(1, userConnection->decrement(key, 1));
 
-    doc = connection.get(key, vb);
+    doc = userConnection->get(key, vb);
     EXPECT_EQ("1", doc.value);
 }
 
@@ -333,8 +323,6 @@ TEST_P(ArithmeticTest, TestOperateOnStoredDocument) {
         return;
     }
 #endif
-    auto& conn = getConnection();
-
     // It is "allowed" for the value to be padded with whitespace
     // before and after the numeric value.
     // but no other characters should be present!
@@ -342,27 +330,26 @@ TEST_P(ArithmeticTest, TestOperateOnStoredDocument) {
         if (std::isspace(ii)) {
             std::string content;
             content = std::string{"0"} + char(ii);
-            test_stored_doc(conn, name, content, false);
+            test_stored_doc(*userConnection, name, content, false);
             content = char(ii) + std::string{"0"};
-            test_stored_doc(conn, name, content, false);
+            test_stored_doc(*userConnection, name, content, false);
         } else if (!std::isdigit(ii)) {
             std::string content;
             if (ii != 0) {
                 content = std::string{"0"} + char(ii);
-                test_stored_doc(conn, name, content, true);
+                test_stored_doc(*userConnection, name, content, true);
             }
 
             if (ii != '-' && ii != '+') {
                 content = char(ii) + std::string{"0"};
-                test_stored_doc(conn, name, content, true);
+                test_stored_doc(*userConnection, name, content, true);
             }
         }
     }
 }
 
 TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
-    auto& conn = getConnection();
-    EXPECT_EQ(0, conn.increment(name, 1));
+    EXPECT_EQ(0, userConnection->increment(name, 1));
 
     // Add an xattr
     {
@@ -372,15 +359,12 @@ TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
         cmd.setPath("meta.author");
         cmd.setValue("\"Trond Norbye\"");
         cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-        conn.sendCommand(cmd);
-
-        BinprotResponse resp;
-        conn.recvResponse(resp);
+        const auto resp = userConnection->execute(cmd);
         ASSERT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
     }
 
     // Perform the normal operation
-    EXPECT_EQ(1, conn.increment(name, 1));
+    EXPECT_EQ(1, userConnection->increment(name, 1));
 
     // The xattr should have been preserved!
     {
@@ -389,34 +373,32 @@ TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
         cmd.setKey(name);
         cmd.setPath("meta.author");
         cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
-        conn.sendCommand(cmd);
+        userConnection->sendCommand(cmd);
 
         BinprotSubdocResponse resp;
-        conn.recvResponse(resp);
+        userConnection->recvResponse(resp);
         ASSERT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
         EXPECT_EQ("\"Trond Norbye\"", resp.getValue());
     }
 }
 
+// Increment and decrement should not update the expiry time on existing
+// documents
 TEST_P(ArithmeticXattrOnTest, MB25402) {
-    // Increment and decrement should not update the expiry time on existing
-    // documents
-    auto& conn = getConnection();
-
     // Start by creating the counter without expiry time
-    conn.increment(name, 1, 0, 0, nullptr);
+    userConnection->increment(name, 1, 0, 0, nullptr);
     // increment the counter (which should already exists causing the expiry
     // time to be ignored)
-    conn.increment(name, 1, 0, 3600, nullptr);
+    userConnection->increment(name, 1, 0, 3600, nullptr);
 
     // Verify that the expiry time is still
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
     cmd.addGet("$document", SUBDOC_FLAG_XATTR_PATH);
-    conn.sendCommand(cmd);
+    userConnection->sendCommand(cmd);
 
     BinprotSubdocMultiLookupResponse multiResp;
-    conn.recvResponse(multiResp);
+    userConnection->recvResponse(multiResp);
 
     auto& results = multiResp.getResults();
 

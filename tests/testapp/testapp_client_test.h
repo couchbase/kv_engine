@@ -44,6 +44,9 @@ class TestappXattrClientTest : public TestappTest,
                                                         XattrSupport,
                                                         ClientJSONSupport,
                                                         ClientSnappySupport>> {
+public:
+    static void SetUpTestCase();
+
 protected:
     TestappXattrClientTest() : xattrOperationStatus(cb::mcbp::Status::Success) {
     }

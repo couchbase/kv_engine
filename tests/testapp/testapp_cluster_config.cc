@@ -40,20 +40,19 @@ void ClusterConfigTest::test_MB_17506(bool dedupe) {
     auto response = setClusterConfig(token, clustermap, 100);
     EXPECT_TRUE(response.isSuccess());
 
-    auto& conn = getConnection();
     BinprotGetCommand command;
     command.setKey("foo");
     command.setVBucket(Vbid(1));
 
     // Execute the first get command. This one should _ALWAYS_ contain a map
-    response = conn.execute(command);
+    response = userConnection->execute(command);
 
     ASSERT_FALSE(response.isSuccess());
     ASSERT_EQ(cb::mcbp::Status::NotMyVbucket, response.getStatus());
     EXPECT_EQ(clustermap, response.getDataString());
 
     // Execute it one more time..
-    response = conn.execute(command);
+    response = userConnection->execute(command);
 
     ASSERT_FALSE(response.isSuccess());
     ASSERT_EQ(cb::mcbp::Status::NotMyVbucket, response.getStatus());
@@ -98,8 +97,7 @@ TEST_P(ClusterConfigTest, GetClusterConfig) {
     ASSERT_TRUE(setClusterConfig(token, config, 100).isSuccess());
 
     BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetClusterConfig, "", ""};
-    auto& conn = getConnection();
-    const auto response = conn.execute(cmd);
+    const auto response = userConnection->execute(cmd);
     EXPECT_TRUE(response.isSuccess()) << to_string(response.getStatus());
     const auto value = response.getDataString();
     EXPECT_EQ(config, value);
