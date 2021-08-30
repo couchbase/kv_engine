@@ -29,8 +29,7 @@ protected:
             const std::string& path,
             protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
             mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None) {
-        return subdoc(*userConnection,
-                      cb::mcbp::ClientOpcode::SubdocGet,
+        return subdoc(cb::mcbp::ClientOpcode::SubdocGet,
                       name,
                       path,
                       {},

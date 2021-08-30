@@ -251,8 +251,7 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaAllowSystemXattrs) {
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
 
     // The system xattr should be there
-    auto sresp = subdoc(*userConnection,
-                        cb::mcbp::ClientOpcode::SubdocGet,
+    auto sresp = subdoc(cb::mcbp::ClientOpcode::SubdocGet,
                         name,
                         "_sys.author",
                         {},

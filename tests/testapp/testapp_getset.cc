@@ -43,8 +43,7 @@ protected:
 void GetSetTest::doTestAppend(bool compressedSource, bool compressedData) {
     // Store an initial source value; along with an XATTR to check it's
     // preserved correctly.
-    setBodyAndXattr(*userConnection,
-                    std::string(1024, 'a'),
+    setBodyAndXattr(std::string(1024, 'a'),
                     {{"xattr", "\"X-value\""}},
                     compressedSource);
 
@@ -71,7 +70,7 @@ void GetSetTest::doTestAppend(bool compressedSource, bool compressedData) {
     std::string expected(1024, 'a');
     expected.append(1024, 'b');
     EXPECT_EQ(expected, stored.value);
-    EXPECT_EQ("\"X-value\"", getXattr(*userConnection, "xattr").getValue());
+    EXPECT_EQ("\"X-value\"", getXattr("xattr").getValue());
 }
 
 void GetSetTest::doTestGetMetaValidJSON(bool compressedSource) {
@@ -103,8 +102,7 @@ void GetSetTest::doTestGetMetaValidJSON(bool compressedSource) {
 void GetSetTest::doTestPrepend(bool compressedSource, bool compressedData) {
     // Store an initial source value; along with an XATTR to check it's
     // preserved correctly.
-    setBodyAndXattr(*userConnection,
-                    std::string(1024, 'a'),
+    setBodyAndXattr(std::string(1024, 'a'),
                     {{"xattr", "\"X-value\""}},
                     compressedSource);
 
@@ -130,7 +128,7 @@ void GetSetTest::doTestPrepend(bool compressedSource, bool compressedData) {
     std::string expected(1024, 'b');
     expected.append(1024, 'a');
     EXPECT_EQ(expected, stored.value);
-    EXPECT_EQ("\"X-value\"", getXattr(*userConnection, "xattr").getValue());
+    EXPECT_EQ("\"X-value\"", getXattr("xattr").getValue());
 }
 
 void GetSetTest::doTestServerDetectsJSON(bool compressedSource) {
@@ -219,9 +217,7 @@ void GetSetTest::doTestServerRejectsLargeSize(bool compressedSource) {
 
 void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
     // Add a document with size 1KB of user data and with 1 user xattr
-    setBodyAndXattr(*userConnection,
-                    std::string(1024, 'a'),
-                    {{"xattr", "\"X-value\""}});
+    setBodyAndXattr(std::string(1024, 'a'), {{"xattr", "\"X-value\""}});
 
     // Now add a value of size that is 10 bytes less than the maximum
     // permitted value. This would ideally succeed if there was no
@@ -251,8 +247,7 @@ void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
     std::string sysXattr = "_sync";
     std::string xattrVal = "{\"eg\":";
     xattrVal.append("\"X-value\"}");
-    setBodyAndXattr(
-            *userConnection, std::string(1024, 'a'), {{sysXattr, xattrVal}});
+    setBodyAndXattr(std::string(1024, 'a'), {{sysXattr, xattrVal}});
 
     userdata.assign(GetTestBucket().getMaximumDocSize() - 250, 'a');
     // Now add a document with value size that is 250 bytes less than the
@@ -279,7 +274,7 @@ void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
     xattrVal.append(std::string("\"}"));
     EXPECT_EQ(1024 * 1024, 4 + 6 + xattrVal.size() + sysXattr.size());
 
-    setBodyAndXattr(*userConnection, userdata, {{sysXattr, xattrVal}});
+    setBodyAndXattr(userdata, {{sysXattr, xattrVal}});
 
     // Default bucket supports xattr, but the max document size is 1MB so we
     // can't store additional data in those buckets if the system xattr
@@ -289,13 +284,12 @@ void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
         // maximum allowed size. This should be allowed as the system
         // xattrs has its own storage limit
         userdata.assign(GetTestBucket().getMaximumDocSize(), 'a');
-        setBodyAndXattr(*userConnection, userdata, {{sysXattr, xattrVal}});
+        setBodyAndXattr(userdata, {{sysXattr, xattrVal}});
 
         // But it should fail if we try to use a user xattr
         e2bigCount = getResponseCount(cb::mcbp::Status::E2big);
         try {
-            setBodyAndXattr(*userConnection,
-                            userdata,
+            setBodyAndXattr(userdata,
                             {{sysXattr, xattrVal}, {"foo", R"({"a":"b"})"}});
             FAIL() << "It should not be possible to add a document whose size "
                       "is greater than the max item size";
@@ -688,8 +682,8 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
     document.value = "a";
     int sucCount = getResponseCount(cb::mcbp::Status::Success);
     userConnection->mutate(document, Vbid(0), MutationType::Add);
-    createXattr(*userConnection, "meta.cas", "\"${Mutation.CAS}\"", true);
-    const auto mutation_cas = getXattr(*userConnection, "meta.cas");
+    createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
+    const auto mutation_cas = getXattr("meta.cas");
     EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue());
 
     document.value = "b";
@@ -697,7 +691,7 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
 
     // The xattr should have been preserved, and the macro should not
     // be expanded more than once..
-    EXPECT_EQ(mutation_cas, getXattr(*userConnection, "meta.cas"));
+    EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
 
     const auto stored = userConnection->get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
@@ -802,8 +796,8 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
     int sucCount = getResponseCount(cb::mcbp::Status::Success);
 
     userConnection->mutate(document, Vbid(0), MutationType::Add);
-    createXattr(*userConnection, "meta.cas", "\"${Mutation.CAS}\"", true);
-    const auto mutation_cas = getXattr(*userConnection, "meta.cas");
+    createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
+    const auto mutation_cas = getXattr("meta.cas");
     EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue());
 
     document.value = "b";
@@ -811,7 +805,7 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
 
     // The xattr should have been preserved, and the macro should not
     // be expanded more than once..
-    EXPECT_EQ(mutation_cas, getXattr(*userConnection, "meta.cas"));
+    EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
 
     const auto stored = userConnection->get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
@@ -909,8 +903,7 @@ TEST_P(GetSetTest, TestCorrectWithXattrs) {
     // with primitives and hence cannot compress it - so skip the test.
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
     // Create a compressed document with a body and xattr
-    setBodyAndXattr(
-            *userConnection, "{\"TestField\":56788}", {{"_sync", "4543"}});
+    setBodyAndXattr("{\"TestField\":56788}", {{"_sync", "4543"}});
     ASSERT_TRUE(mcbp::datatype::is_snappy(
             protocol_binary_datatype_t(document.info.datatype)));
     const auto stored = userConnection->get(name, Vbid(0));

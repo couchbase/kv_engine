@@ -37,9 +37,7 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
     prepare(*userConnection);
 
     // Create a document with an XATTR.
-    setBodyAndXattr(*userConnection,
-                    "foobar",
-                    {{"_rbac", R"({"attribute": "read-only"})"}});
+    setBodyAndXattr("foobar", {{"_rbac", R"({"attribute": "read-only"})"}});
 
     // Delete the document
     userConnection->remove(name, Vbid(0));
@@ -54,10 +52,7 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
     }
 
     // It should not be accessible over subdoc.
-    auto resp = subdoc(*userConnection,
-                       cb::mcbp::ClientOpcode::SubdocGet,
-                       name,
-                       "verbosity");
+    auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocGet, name, "verbosity");
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus())
             << "MB-22553: doc with xattr is still accessible";
 }
@@ -125,21 +120,20 @@ TEST_P(RemoveTest, RemoveWithCas) {
  */
 TEST_P(RemoveTest, RemoveWithXattr) {
     setBodyAndXattr(
-            *userConnection,
             document.value,
             {{"meta", R"({"content-type": "application/json; charset=utf-8"})"},
              {"_rbac", R"({"attribute": "read-only"})"}});
     userConnection->remove(name, Vbid(0), 0);
 
     // The system xattr should have been preserved
-    const auto status = getXattr(*userConnection, "_rbac.attribute", true);
+    const auto status = getXattr("_rbac.attribute", true);
     if (status.getStatus() == cb::mcbp::Status::Success) {
         EXPECT_EQ("\"read-only\"", status.getValue());
     }
 
     // The user xattr should not be there
     try {
-        if (getXattr(*userConnection, "meta.content_type", true).getStatus() !=
+        if (getXattr("meta.content_type", true).getStatus() !=
             xattrOperationStatus) {
             FAIL() << "The user xattr should be gone!";
         }

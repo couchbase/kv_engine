@@ -24,8 +24,7 @@ using namespace cb::mcbp;
 // Negative test: The subdoc operation returns Einval as
 // doc_flag::CreateAsDeleted requires one of doc_flag::Mkdoc/Add.
 void XattrNoDocTest::testRequiresMkdocOrAdd() {
-    auto resp = subdoc(*userConnection,
-                       cb::mcbp::ClientOpcode::SubdocDictAdd,
+    auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
                        name,
                        "txn.deleted",
                        "true",
@@ -47,8 +46,7 @@ TEST_P(XattrNoDocDurabilityTest, RequiresMkdocOrAdd) {
 // body.
 void XattrNoDocTest::testRequiresXattrPath() {
     // Note: subdoc-flags doesn't set SUBDOC_FLAG_XATTR_PATH
-    auto resp = subdoc(*userConnection,
-                       cb::mcbp::ClientOpcode::SubdocDictAdd,
+    auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
                        name,
                        "txn.deleted",
                        "true",
@@ -73,8 +71,7 @@ void XattrNoDocTest::testSinglePathDictAdd() {
     }
 
     // let's add a user XATTR to a non-existing document
-    auto resp = subdoc(*userConnection,
-                       cb::mcbp::ClientOpcode::SubdocDictAdd,
+    auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
                        name,
                        "txn.deleted",
                        "true",
@@ -129,7 +126,7 @@ void XattrNoDocTest::testMultipathDictAdd() {
             doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
             durReqs);
 
-    auto resp = subdocMultiMutation(*userConnection, cmd);
+    auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
     // Check the last path was created correctly.
@@ -174,7 +171,7 @@ void XattrNoDocTest::testMultipathDictUpsert() {
             doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
             durReqs);
 
-    auto resp = subdocMultiMutation(*userConnection, cmd);
+    auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
     resp = subdoc_get("txn", SUBDOC_FLAG_XATTR_PATH, doc_flag::AccessDeleted);
@@ -204,7 +201,7 @@ void XattrNoDocTest::testMultipathArrayPushLast() {
             doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
             durReqs);
 
-    auto resp = subdocMultiMutation(*userConnection, cmd);
+    auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
     resp = subdoc_get("array", SUBDOC_FLAG_XATTR_PATH, doc_flag::AccessDeleted);
@@ -234,7 +231,7 @@ void XattrNoDocTest::testMultipathArrayPushFirst() {
             doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
             durReqs);
 
-    auto resp = subdocMultiMutation(*userConnection, cmd);
+    auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
     resp = subdoc_get("array", SUBDOC_FLAG_XATTR_PATH, doc_flag::AccessDeleted);
@@ -272,7 +269,7 @@ TEST_P(XattrNoDocTest, DISABLED_MultipathArrayInsert) {
             doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
             durReqs);
 
-    auto resp = subdocMultiMutation(*userConnection, cmd);
+    auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
     resp = subdoc_get("array", SUBDOC_FLAG_XATTR_PATH, doc_flag::AccessDeleted);
@@ -294,7 +291,7 @@ void XattrNoDocTest::testMultipathArrayAddUnique() {
             doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
             durReqs);
 
-    auto resp = subdocMultiMutation(*userConnection, cmd);
+    auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
     resp = subdoc_get("array", SUBDOC_FLAG_XATTR_PATH, doc_flag::AccessDeleted);
@@ -324,7 +321,7 @@ void XattrNoDocTest::testMultipathCounter() {
             doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
             durReqs);
 
-    auto resp = subdocMultiMutation(*userConnection, cmd);
+    auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
     // Check the last path was created correctly.
