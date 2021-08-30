@@ -68,7 +68,7 @@ static void handleFollyAsyncSocketException(
 #ifdef WIN32
     // To make it easier to write code on top of this treat
     // the windows specific WSAECONNABORTED as reset
-    if (ex.getErrno() == WSAECONNABORTED) {
+    if (ex.getErrno() == WSAECONNABORTED || ex.getErrno() == WSAECONNRESET) {
         throw std::system_error(
                 std::make_error_code(std::errc::connection_reset), ex.what());
     }
