@@ -264,35 +264,6 @@ protected:
      */
     virtual MemcachedConnection& prepare(MemcachedConnection& connection);
 
-    /**
-     * Create an extended attribute
-     *
-     * @param connection the connection to the server to use
-     * @param path the full path to the attribute (including the key)
-     * @param value The value to store
-     * @param macro is this a macro for expansion or not
-     * @param expectedStatus optional status if success is not expected
-     */
-    void runCreateXattr(MemcachedConnection& connection,
-                        std::string path,
-                        std::string value,
-                        bool macro,
-                        cb::mcbp::Status expectedStatus);
-
-    /**
-     * Get an extended attribute
-     *
-     * @param connection the connection to the server to use
-     * @param path the full path to the attribute to fetch
-     * @param deleted allow get from deleted documents
-     * @param expectedStatus optional status if success is not expected
-     * @return the value stored for the key (it is expected to be there!)
-     */
-    BinprotSubdocResponse runGetXattr(MemcachedConnection& connection,
-                                      std::string path,
-                                      bool deleted,
-                                      cb::mcbp::Status expectedStatus);
-
     int getResponseCount(cb::mcbp::Status statusCode);
 
     static int statResps() {

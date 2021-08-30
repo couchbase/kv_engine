@@ -1146,60 +1146,6 @@ void TestappTest::reconfigure() {
             << rsp.getDataString() << std::endl;
 }
 
-void TestappTest::runCreateXattr(MemcachedConnection& connection,
-                                 std::string path,
-                                 std::string value,
-                                 bool macro,
-                                 cb::mcbp::Status expectedStatus) {
-    BinprotSubdocCommand cmd;
-    cmd.setOp(cb::mcbp::ClientOpcode::SubdocDictAdd);
-    cmd.setKey(name);
-    cmd.setPath(std::move(path));
-    cmd.setValue(std::move(value));
-    if (macro) {
-        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS |
-                         SUBDOC_FLAG_MKDIR_P);
-    } else {
-        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    }
-
-    connection.sendCommand(cmd);
-
-    BinprotResponse resp;
-    connection.recvResponse(resp);
-    EXPECT_EQ(expectedStatus, resp.getStatus());
-}
-
-BinprotSubdocResponse TestappTest::runGetXattr(
-        MemcachedConnection& connection,
-        std::string path,
-        bool deleted,
-        cb::mcbp::Status expectedStatus) {
-    BinprotSubdocCommand cmd;
-    cmd.setOp(cb::mcbp::ClientOpcode::SubdocGet);
-    cmd.setKey(name);
-    cmd.setPath(std::move(path));
-    if (deleted) {
-        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
-        cmd.addDocFlags(mcbp::subdoc::doc_flag::AccessDeleted);
-    } else {
-        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
-    }
-    connection.sendCommand(cmd);
-
-    BinprotSubdocResponse resp;
-    connection.recvResponse(resp);
-    auto status = resp.getStatus();
-    if (deleted && status == cb::mcbp::Status::SubdocSuccessDeleted) {
-        status = cb::mcbp::Status::Success;
-    }
-
-    if (status != expectedStatus) {
-        throw ConnectionError("runGetXattr() failed: ", resp);
-    }
-    return resp;
-}
-
 int TestappTest::getResponseCount(cb::mcbp::Status statusCode) {
     auto stats = getConnection().stats("responses detailed");
     auto responses = stats["responses"];
