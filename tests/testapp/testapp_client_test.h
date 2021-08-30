@@ -78,16 +78,6 @@ protected:
     cb::mcbp::Datatype expectedJSONSnappyDatatype() const;
 
     /**
-     * What response datatype do we expect for documents which are non-JSON and
-     * were stored as Snappy if client supports it?
-     * Will be:
-     * - Raw if the client didn't support Snappy.
-     * - Snappy if client negotiated Snappy (and sent a compressed
-     *   document).
-     */
-    cb::mcbp::Datatype expectedRawSnappyDatatype() const;
-
-    /**
      * Helper function to check datatype is what we expect for this test config;
      * and if datatype says JSON, validate the value /is/ JSON.
      */

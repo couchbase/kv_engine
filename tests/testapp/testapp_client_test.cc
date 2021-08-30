@@ -224,12 +224,6 @@ cb::mcbp::Datatype TestappXattrClientTest::expectedJSONSnappyDatatype() const {
     return datatype;
 }
 
-cb::mcbp::Datatype TestappXattrClientTest::expectedRawSnappyDatatype() const {
-    return hasSnappySupport() == ClientSnappySupport::Yes
-                   ? cb::mcbp::Datatype::Snappy
-                   : cb::mcbp::Datatype::Raw;
-}
-
 /**
  * Helper function to check datatype is what we expect for this test config,
  * and if datatype says JSON; validate the value /is/ JSON.
