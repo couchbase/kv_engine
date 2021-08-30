@@ -976,6 +976,18 @@ void MemcachedConnection::selectBucket(const std::string& bucketName) {
     }
 }
 
+void MemcachedConnection::executeInBucket(
+        const std::string& bucket,
+        std::function<void(MemcachedConnection&)> func) {
+    auto scopeGuard = folly::makeGuard([this] {
+        if (asyncSocket->good()) {
+            unselectBucket();
+        }
+    });
+    selectBucket(bucket);
+    func(*this);
+}
+
 std::string MemcachedConnection::to_string() const {
     std::string ret("Memcached connection ");
     if (family == AF_INET6) {

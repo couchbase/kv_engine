@@ -400,6 +400,21 @@ public:
      */
     void selectBucket(const std::string& name);
 
+    /// Select the no bucket
+    void unselectBucket() {
+        selectBucket("@no bucket@");
+    }
+
+    /**
+     * Select the named bucket and call the provided callback before
+     * unselect bucket
+     *
+     * @param bucket The bucket to execute the command in
+     * @param func The function to execute
+     */
+    void executeInBucket(const std::string& bucket,
+                         std::function<void(MemcachedConnection&)> func);
+
     /**
      * List all of the buckets on the server
      *
