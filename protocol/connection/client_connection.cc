@@ -258,6 +258,8 @@ void MemcachedConnection::close() {
     asyncReadCallback.reset();
 }
 
+std::atomic<size_t> MemcachedConnection::totalSocketsCreated;
+
 SOCKET try_connect_socket(struct addrinfo* next,
                           const std::string& hostname,
                           in_port_t port) {
@@ -302,6 +304,7 @@ SOCKET try_connect_socket(struct addrinfo* next,
                                         std::to_string(port) + ")");
     }
 
+    MemcachedConnection::totalSocketsCreated++;
     // Socket is connected and ready to use
     return sfd;
 }

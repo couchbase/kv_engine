@@ -1266,6 +1266,11 @@ void adjust_memcached_clock(
             cb::mcbp::Status::Success);
 }
 
+static void dumpTotalSocketsCreated() {
+    std::cout << "Testapp created " << MemcachedConnection::totalSocketsCreated
+              << " sockets" << std::endl;
+}
+
 nlohmann::json TestappTest::memcached_cfg;
 nlohmann::json TestappTest::tls_properties;
 ConnectionMap TestappTest::connectionMap;
@@ -1274,6 +1279,9 @@ std::thread TestappTest::memcached_server_thread;
 std::size_t TestappTest::num_server_starts = 0;
 
 int main(int argc, char** argv) {
+    if (getenv("COUNT_SOCKETS")) {
+        atexit(dumpTotalSocketsCreated);
+    }
     setupWindowsDebugCRTAssertHandling();
 
     ::testing::InitGoogleTest(&argc, argv);

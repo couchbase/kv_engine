@@ -19,6 +19,7 @@
 #include <memcached/types.h>
 #include <nlohmann/json.hpp>
 #include <platform/socket.h>
+#include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <functional>
@@ -255,6 +256,8 @@ enum class ExecutionMode { Ordered, Unordered };
  */
 class MemcachedConnection {
 public:
+    static std::atomic<size_t> totalSocketsCreated;
+
     MemcachedConnection() = delete;
 
     MemcachedConnection(const MemcachedConnection&) = delete;
