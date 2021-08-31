@@ -27,11 +27,8 @@ void CappedDurationVBucketVisitor::begin() {
     chunkStart = Clock::now();
 }
 
-InterruptableVBucketVisitor::ExecutionState
-CappedDurationVBucketVisitor::shouldInterrupt() {
-    return Clock::now() > (chunkStart + maxChunkDuration)
-                   ? ExecutionState::Pause
-                   : ExecutionState::Continue;
+bool CappedDurationVBucketVisitor::pauseVisitor() {
+    return Clock::now() > (chunkStart + maxChunkDuration);
 }
 
 PauseResumeVBAdapter::PauseResumeVBAdapter(

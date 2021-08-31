@@ -25,19 +25,11 @@ class CheckpointVisitor : public CappedDurationVBucketVisitor {
 public:
     CheckpointVisitor(KVBucketIface* store,
                       EPStats& stats,
-                      std::atomic<bool>& stateFinalizer,
-                      size_t memToRelease);
+                      std::atomic<bool>& stateFinalizer);
 
     void visitBucket(const VBucketPtr& vb) override;
 
     void complete() override;
-
-    /**
-     * @return ExecutionState::Stop if the memory-recovery target has been hit.
-     *  ExecutionState::Pause if this visitor execution duration-quantum
-     *  has been consumed. ExecutionState::Continue otherwise.
-     */
-    ExecutionState shouldInterrupt() override;
 
 private:
     KVBucketIface* store;
@@ -58,10 +50,4 @@ private:
      *  Visitor accordingly.
      */
     std::atomic<bool>& stateFinalizer;
-
-    /**
-     * Amount of memory (in bytes) that this Visitor has to release from
-     * checkpoints. The Visitor stops its execution once done.
-     */
-    size_t memToRelease;
 };

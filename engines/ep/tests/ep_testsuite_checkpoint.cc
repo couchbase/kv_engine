@@ -154,8 +154,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_checkpoint_timeout,
                  test_setup,
                  teardown,
-                 "chk_max_items=5000;chk_period=600;checkpoint_memory_recovery_"
-                 "upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
+                 "chk_max_items=5000;chk_period=600",
                  prepare,
                  cleanup),
         TestCase("test checkpoint deduplication",
@@ -165,16 +164,14 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_max_items=5000;"
                  "chk_period=600;"
                  "chk_expel_enabled=false",
-                 /* Checkpoint expelling needs to be disabled for this test
-                  * because the test checks that 4500 items created 5 times are
-                  * correctly de-duplicated (i.e. 4 * 4500 items are duplicated
-                  * away). If expelling is enabled it is possible that some
-                  * items will be expelled and hence will not get duplicated
-                  * away.  Therefore the expected number of items in the
-                  * checkpoint will not match.
-                  */
+                /* Checkpoint expelling needs to be disabled for this test because
+                 * the test checks that 4500 items created 5 times are correctly
+                 * de-duplicated (i.e. 4 * 4500 items are duplicated away).
+                 * If expelling is enabled it is possible that some items will be
+                 * expelled and hence will not get duplicated away.  Therefore the
+                 * expected number of items in the checkpoint will not match.
+                 */
                  prepare,
                  cleanup),
 
-        TestCase(
-                nullptr, nullptr, nullptr, nullptr, nullptr, prepare, cleanup)};
+        TestCase(nullptr, nullptr, nullptr, nullptr, nullptr, prepare, cleanup)};

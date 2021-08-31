@@ -2233,11 +2233,10 @@ void KVBucket::visit(VBucketVisitor &visitor)
     }
 }
 
-size_t KVBucket::visitAsync(
-        std::unique_ptr<InterruptableVBucketVisitor> visitor,
-        const char* lbl,
-        TaskId id,
-        std::chrono::microseconds maxExpectedDuration) {
+size_t KVBucket::visitAsync(std::unique_ptr<PausableVBucketVisitor> visitor,
+                            const char* lbl,
+                            TaskId id,
+                            std::chrono::microseconds maxExpectedDuration) {
     auto task = std::make_shared<VBCBAdaptor>(this,
                                               id,
                                               std::move(visitor),
@@ -2275,7 +2274,7 @@ KVBucket::Position KVBucket::endPosition() const
 
 VBCBAdaptor::VBCBAdaptor(KVBucket* s,
                          TaskId id,
-                         std::unique_ptr<InterruptableVBucketVisitor> v,
+                         std::unique_ptr<PausableVBucketVisitor> v,
                          const char* l,
                          bool shutdown)
     : GlobalTask(&s->getEPEngine(), id, 0 /*initialSleepTime*/, shutdown),
@@ -2314,26 +2313,17 @@ bool VBCBAdaptor::run() {
         VBucketPtr vb = store->getVBucket(vbid);
         if (vb) {
             currentvb = vbid.get();
-
-            using State = InterruptableVBucketVisitor::ExecutionState;
-            switch (visitor->shouldInterrupt()) {
-            case State::Continue:
-                break;
-            case State::Pause:
+            if (visitor->pauseVisitor()) {
                 snooze(0);
                 return true;
-            case State::Stop:
-                visitor->complete();
-                return false;
             }
-
             visitor->visitBucket(vb);
         }
         vbucketsToVisit.pop_front();
     }
+    visitor->complete();
 
     // Processed all vBuckets now, do not need to run again.
-    visitor->complete();
     return false;
 }
 
@@ -2820,37 +2810,4 @@ KVBucket::CheckpointMemoryState KVBucket::verifyCheckpointMemoryState() {
     }
 
     return state;
-}
-
-size_t KVBucket::getRequiredCheckpointMemoryReduction() const {
-    const auto checkpointMemoryRatio = getCheckpointMemoryRatio();
-    const auto checkpointQuota = stats.getMaxDataSize() * checkpointMemoryRatio;
-    const auto recoveryThreshold =
-            checkpointQuota * getCheckpointMemoryRecoveryUpperMark();
-    const auto usage = stats.getEstimatedCheckpointMemUsage();
-
-    if (usage < recoveryThreshold) {
-        return 0;
-    }
-
-    const auto lowerRatio = getCheckpointMemoryRecoveryLowerMark();
-    const auto lowerMark = checkpointQuota * lowerRatio;
-    Expects(usage > lowerMark);
-    const size_t amountOfMemoryToClear = usage - lowerMark;
-
-    const auto toMB = [](size_t bytes) { return bytes / (1024 * 1024); };
-    const auto upperRatio = getCheckpointMemoryRecoveryUpperMark();
-    EP_LOG_INFO(
-            "Triggering memory recovery as checkpoint memory usage ({} MB) "
-            "exceeds the upper_mark ({}, "
-            "{} MB) - total checkpoint quota {}, {} MB . Attempting to free {} "
-            "MB of memory.",
-            toMB(usage),
-            upperRatio,
-            toMB(checkpointQuota * upperRatio),
-            checkpointMemoryRatio,
-            toMB(checkpointQuota),
-            toMB(amountOfMemoryToClear));
-
-    return amountOfMemoryToClear;
 }

@@ -46,7 +46,7 @@ class VBCBAdaptor : public GlobalTask {
 public:
     VBCBAdaptor(KVBucket* s,
                 TaskId id,
-                std::unique_ptr<InterruptableVBucketVisitor> v,
+                std::unique_ptr<PausableVBucketVisitor> v,
                 const char* l,
                 bool shutdown);
     VBCBAdaptor(const VBCBAdaptor&) = delete;
@@ -67,18 +67,16 @@ public:
      * Execute the VBCBAdapter task using our visitor.
      *
      * Calls the visitVBucket() method of the visitor object for each vBucket.
-     * Before each visitVBucket() call, calls shouldInterrupt() to check if
-     * visiting should be paused or stopped.
-     * If paused, will sleep for 0s, yielding execution back to the executor -
-     * to allow any higher priority tasks to run. When run() is called again,
-     * will resume from the vBucket it paused at.
-     * While if stopped, the task will just complete and return to the executor.
+     * Before each visitVBucket() call, calls pauseVisitor() to check if
+     * visiting should be paused. If true, will sleep for 0s, yielding execution
+     * back to the executor - to allow any higher priority tasks to run.
+     * When run() is called again, will resume from the vBucket it paused at.
      */
     bool run() override;
 
 private:
     KVBucket* store;
-    std::unique_ptr<InterruptableVBucketVisitor> visitor;
+    std::unique_ptr<PausableVBucketVisitor> visitor;
     const char                 *label;
     std::chrono::microseconds maxDuration;
 
@@ -362,7 +360,7 @@ public:
 
     void visit(VBucketVisitor &visitor) override;
 
-    size_t visitAsync(std::unique_ptr<InterruptableVBucketVisitor> visitor,
+    size_t visitAsync(std::unique_ptr<PausableVBucketVisitor> visitor,
                       const char* lbl,
                       TaskId id,
                       std::chrono::microseconds maxExpectedDuration) override;
@@ -803,38 +801,6 @@ public:
      * CheckpointMemoryState
      */
     CheckpointMemoryState verifyCheckpointMemoryState();
-
-    /**
-     * Determines if checkpoint memory recovery is necessary and returns a
-     * computed memory reduction target. Everything is based on the Checkpoint
-     * Quota and the memory-recovery triggers in configuration.
-     *
-     * The following diagram depicts the bucket memory where Q is the bucket
-     * quota and the labelled vertical lines each show thresholds/stats used in
-     * deciding if memory reduction is needed.
-     *
-     * 0                                                                      Q
-     * ├──────────────┬────────────┬───┬───────┬──────────────────────────────┤
-     * │              │            │   │       │                              │
-     * │              │            │   │       │                              │
-     * └──────────────▼────────────▼───▼───────▼──────────────────────────────┘
-     *                A            B   X       C
-     *
-     * A = checkpoint_memory_recovery_lower_mark
-     * B = checkpoint_memory_recovery_upper_mark
-     * C = checkpoints quota (as defined by checkpoint_memory_ratio)
-     * X = current checkpoint memory used
-     * Q = bucket quota
-     *
-     * Memory reduction is necessary if checkpoint memory usage (X) is greater
-     * than checkpoint_memory_recovery_upper_mark (B).
-     * If that's the case then this function will return (X - A) as the target
-     * amount to free.
-     *
-     * @return a calculated memory reduction target (in bytes) - 0 if checkpoint
-     *  memory recovery is not need
-     */
-    size_t getRequiredCheckpointMemoryReduction() const;
 
 protected:
     GetValue getInternal(const DocKey& key,

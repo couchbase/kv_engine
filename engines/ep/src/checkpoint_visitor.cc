@@ -20,15 +20,12 @@
 
 CheckpointVisitor::CheckpointVisitor(KVBucketIface* store,
                                      EPStats& stats,
-                                     std::atomic<bool>& stateFinalizer,
-                                     size_t memToRelease)
+                                     std::atomic<bool>& stateFinalizer)
     : store(store),
       stats(stats),
       taskStart(std::chrono::steady_clock::now()),
       wasAboveBackfillThreshold(store->isMemUsageAboveBackfillThreshold()),
-      stateFinalizer(stateFinalizer),
-      memToRelease(memToRelease) {
-    Expects(memToRelease > 0);
+      stateFinalizer(stateFinalizer) {
 }
 
 void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
@@ -55,15 +52,4 @@ void CheckpointVisitor::complete() {
         !store->isMemUsageAboveBackfillThreshold()) {
         store->getEPEngine().getDcpConnMap().notifyBackfillManagerTasks();
     }
-}
-
-InterruptableVBucketVisitor::ExecutionState
-CheckpointVisitor::shouldInterrupt() {
-    // First check if it's time to stop the execution
-    if (memToRelease == 0) {
-        return ExecutionState::Stop;
-    }
-
-    // Rely on the default behaviour otherwise
-    return CappedDurationVBucketVisitor::shouldInterrupt();
 }
