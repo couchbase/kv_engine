@@ -18,7 +18,7 @@ class ErrmapTest : public TestappClientTest {
 protected:
     void checkVersion(uint16_t ver, uint16_t result) {
         const auto rsp =
-                getConnection().execute(BinprotGetErrorMapCommand{ver});
+                userConnection->execute(BinprotGetErrorMapCommand{ver});
         if (ver > 0) {
             ASSERT_TRUE(rsp.isSuccess());
             const auto json = nlohmann::json::parse(rsp.getDataString());

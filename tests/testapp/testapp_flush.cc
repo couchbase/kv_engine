@@ -23,8 +23,7 @@ protected:
         doc.info.cas = 0;
         doc.info.flags = 0;
         doc.info.id = name;
-        getConnection().mutate(doc, Vbid{0}, MutationType::Set);
-
+        userConnection->mutate(doc, Vbid{0}, MutationType::Set);
         adminConnection->selectBucket(bucketName);
     }
 
@@ -32,10 +31,10 @@ protected:
         adminConnection->unselectBucket();
     }
 
-    cb::mcbp::Status get(MemcachedConnection& conn) {
+    cb::mcbp::Status getDocument() {
         BinprotGetCommand cmd;
         cmd.setKey(name);
-        return conn.execute(cmd).getStatus();
+        return userConnection->execute(cmd).getStatus();
     }
 };
 
@@ -46,24 +45,26 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 
 TEST_P(FlushTest, Flush) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
-    ASSERT_EQ(cb::mcbp::Status::Success, get(*adminConnection));
+    ASSERT_EQ(cb::mcbp::Status::Success, getDocument());
     const auto response = adminConnection->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::Flush});
     ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
-    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get(*adminConnection));
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, getDocument());
 }
 
 TEST_P(FlushTest, FlushQ) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
-    ASSERT_EQ(cb::mcbp::Status::Success, get(*adminConnection));
+    ASSERT_EQ(cb::mcbp::Status::Success, getDocument());
     adminConnection->sendCommand(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::Flushq});
-    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get(*adminConnection));
+    adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, getDocument());
 }
 
 TEST_P(FlushTest, FlushWithExtlen) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
-    ASSERT_EQ(cb::mcbp::Status::Success, get(*adminConnection));
+    ASSERT_EQ(cb::mcbp::Status::Success, getDocument());
 
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::Flush);
     command.setExtrasValue(uint32_t(htonl(0)));
@@ -71,17 +72,19 @@ TEST_P(FlushTest, FlushWithExtlen) {
     // Ensure it still works
     const auto response = adminConnection->execute(command);
     ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
-    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get(*adminConnection));
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, getDocument());
 }
 
 TEST_P(FlushTest, FlushQWithExtlen) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
-    ASSERT_EQ(cb::mcbp::Status::Success, get(*adminConnection));
+    ASSERT_EQ(cb::mcbp::Status::Success, getDocument());
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::Flushq);
     command.setExtrasValue(static_cast<uint32_t>(htonl(0)));
     adminConnection->sendCommand(command);
+    adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
 
-    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get(*adminConnection));
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, getDocument());
 }
 
 TEST_P(FlushTest, DelayedFlushNotSupported) {

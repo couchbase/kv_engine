@@ -29,7 +29,7 @@ public:
 protected:
     Document document;
 
-    size_t get_cmd_counter(const std::string& name, MemcachedConnection& conn);
+    size_t get_cmd_counter(const std::string& name);
 
     void testHit(bool quiet);
     void testMiss(bool quiet);
@@ -42,9 +42,8 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
 
-size_t TouchTest::get_cmd_counter(const std::string& name,
-                                  MemcachedConnection& conn) {
-    auto stats = conn.statsMap("");
+size_t TouchTest::get_cmd_counter(const std::string& name) {
+    auto stats = userConnection->statsMap("");
     const auto iter = stats.find(name);
     if (iter != stats.cend()) {
         return size_t(std::stoi(iter->second));
@@ -54,8 +53,8 @@ size_t TouchTest::get_cmd_counter(const std::string& name,
 }
 
 void TouchTest::testHit(bool quiet) {
-    auto& conn = getConnection();
-    const auto info = conn.mutate(document, Vbid(0), MutationType::Add);
+    const auto info =
+            userConnection->mutate(document, Vbid(0), MutationType::Add);
 
     // Verify that we can set the expiry time to the same value without
     // getting a new cas value generated
@@ -63,20 +62,20 @@ void TouchTest::testHit(bool quiet) {
     cmd.setQuiet(quiet);
     cmd.setKey(name);
     cmd.setExpirytime(0);
-    conn.sendCommand(cmd);
+    userConnection->sendCommand(cmd);
 
     BinprotGetAndTouchResponse rsp;
-    conn.recvResponse(rsp);
+    userConnection->recvResponse(rsp);
 
     EXPECT_TRUE(rsp.isSuccess());
     EXPECT_EQ(info.cas, rsp.getCas());
 
     // Verify that get_hits and the cas get updated with the gat calls
-    const auto before = get_cmd_counter("get_hits", conn);
+    const auto before = get_cmd_counter("get_hits");
     cmd.setExpirytime(10);
-    conn.sendCommand(cmd);
+    userConnection->sendCommand(cmd);
 
-    conn.recvResponse(rsp);
+    userConnection->recvResponse(rsp);
 
     EXPECT_TRUE(rsp.isSuccess());
     EXPECT_EQ(0xcaffee, rsp.getDocumentFlags());
@@ -84,26 +83,26 @@ void TouchTest::testHit(bool quiet) {
     EXPECT_NE(info.cas, rsp.getCas());
 
     // The stat should have been incremented with 1
-    const auto after = get_cmd_counter("get_hits", conn);
+    const auto after = get_cmd_counter("get_hits");
     EXPECT_EQ(before + 1, after);
 }
 
 void TouchTest::testMiss(bool quiet) {
-    auto& conn = getConnection();
-    const auto before = get_cmd_counter("get_misses", conn);
+    const auto before = get_cmd_counter("get_misses");
     BinprotGetAndTouchCommand cmd;
     cmd.setQuiet(quiet);
     cmd.setKey(name);
     cmd.setExpirytime(10);
-    conn.sendCommand(cmd);
+    userConnection->sendCommand(cmd);
 
     if (quiet) {
         // Send a noop command as not found shoudn't return anything...
-        conn.sendCommand(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
+        userConnection->sendCommand(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
     }
 
     BinprotResponse rsp;
-    conn.recvResponse(rsp);
+    userConnection->recvResponse(rsp);
 
     if (quiet) {
         // this should be the NOOP
@@ -116,7 +115,7 @@ void TouchTest::testMiss(bool quiet) {
         EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
     }
 
-    const auto after = get_cmd_counter("get_misses", conn);
+    const auto after = get_cmd_counter("get_misses");
     EXPECT_EQ(before + 1, after);
 }
 
@@ -137,54 +136,53 @@ TEST_P(TouchTest, Gatq_Miss) {
 }
 
 TEST_P(TouchTest, Touch_Hit) {
-    auto& conn = getConnection();
-    const auto info = conn.mutate(document, Vbid(0), MutationType::Add);
+    const auto info =
+            userConnection->mutate(document, Vbid(0), MutationType::Add);
 
     // Verify that we can set the expiry time to the same value without
     // getting a new cas value generated (we're using 0 as the value)
     BinprotTouchCommand cmd;
     cmd.setKey(name);
-    conn.sendCommand(cmd);
+    userConnection->sendCommand(cmd);
 
     BinprotTouchResponse rsp;
-    conn.recvResponse(rsp);
+    userConnection->recvResponse(rsp);
 
     EXPECT_TRUE(rsp.isSuccess());
     EXPECT_EQ(info.cas, rsp.getCas());
 
     // Verify that we can set it to something else and get a new CAS
     cmd.setExpirytime(10);
-    conn.sendCommand(cmd);
-    conn.recvResponse(rsp);
+    userConnection->sendCommand(cmd);
+    userConnection->recvResponse(rsp);
     EXPECT_TRUE(rsp.isSuccess());
     EXPECT_NE(info.cas, rsp.getCas());
     EXPECT_TRUE(rsp.getDataString().empty());
 }
 
 TEST_P(TouchTest, Touch_Miss) {
-    auto& conn = getConnection();
     BinprotTouchCommand cmd;
     cmd.setKey(name);
     cmd.setExpirytime(10);
-    conn.sendCommand(cmd);
+    userConnection->sendCommand(cmd);
 
     BinprotTouchResponse rsp;
-    conn.recvResponse(rsp);
+    userConnection->recvResponse(rsp);
     EXPECT_FALSE(rsp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
 }
 
 void TouchTest::testGatAndTouch(const std::string& input_doc) {
-    auto& conn = getConnection();
     document.value = input_doc;
-    conn.mutate(document, Vbid(0), MutationType::Add);
+    userConnection->mutate(document, Vbid(0), MutationType::Add);
     auto resp = BinprotGetAndTouchResponse{
-            conn.execute(BinprotGetAndTouchCommand{name})};
+            userConnection->execute(BinprotGetAndTouchCommand{name})};
     EXPECT_TRUE(resp.isSuccess());
     auto value = resp.getData();
     std::string val(reinterpret_cast<const char*>(value.data()), value.size());
     EXPECT_EQ(document.value, val);
-    resp = BinprotGetAndTouchResponse{conn.execute(BinprotTouchCommand{name})};
+    resp = BinprotGetAndTouchResponse{
+            userConnection->execute(BinprotTouchCommand{name})};
     EXPECT_TRUE(resp.isSuccess());
     EXPECT_TRUE(resp.getData().empty());
 }

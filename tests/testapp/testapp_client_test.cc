@@ -13,6 +13,11 @@
 #include <protocol/connection/frameinfo.h>
 #include <xattr/blob.h>
 
+void TestappClientTest::SetUpTestCase() {
+    TestappTest::SetUpTestCase();
+    createUserConnection = true;
+}
+
 void TestappXattrClientTest::SetUpTestCase() {
     TestappTest::SetUpTestCase();
     createUserConnection = true;

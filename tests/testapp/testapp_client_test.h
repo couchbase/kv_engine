@@ -23,6 +23,8 @@ class TestappClientTest
     : public TestappTest,
       public ::testing::WithParamInterface<TransportProtocols> {
 public:
+    static void SetUpTestCase();
+
     bool isTlsEnabled() const override;
 };
 

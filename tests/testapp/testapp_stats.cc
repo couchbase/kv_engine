@@ -35,8 +35,7 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::PrintToStringParamName());
 
 TEST_P(StatsTest, TestDefaultStats) {
-    MemcachedConnection& conn = getConnection();
-    auto stats = conn.stats("");
+    auto stats = userConnection->stats("");
 
     // Don't expect the entire stats set, but we should at least have
     // the uptime
@@ -50,22 +49,21 @@ TEST_P(StatsTest, TestDefaultStats) {
 }
 
 TEST_P(StatsTest, TestGetMeta) {
-    MemcachedConnection& conn = getConnection();
-
     // Set a document
     Document doc;
     doc.info.cas = mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     doc.value = memcached_cfg.dump();
-    conn.mutate(doc, Vbid(0), MutationType::Set);
+    userConnection->mutate(doc, Vbid(0), MutationType::Set);
 
     // Send 10 GET_META, this should not increase the `cmd_get` and `get_hits` stats
     for (int i = 0; i < 10; i++) {
-        auto meta = conn.getMeta(doc.info.id, Vbid(0), GetMetaVersion::V1);
+        auto meta = userConnection->getMeta(
+                doc.info.id, Vbid(0), GetMetaVersion::V1);
         EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
     }
-    auto stats = conn.stats("");
+    auto stats = userConnection->stats("");
 
     auto cmd_get = stats["cmd_get"].get<size_t>();
     EXPECT_EQ(0, cmd_get);
@@ -77,10 +75,11 @@ TEST_P(StatsTest, TestGetMeta) {
     // not increase the `cmd_get` and `get_misses` stats or the `get_hits`
     // stat
     for (int i = 0; i < 10; i++) {
-        auto meta = conn.getMeta("no_key", Vbid(0), GetMetaVersion::V1);
+        auto meta =
+                userConnection->getMeta("no_key", Vbid(0), GetMetaVersion::V1);
         EXPECT_EQ(cb::mcbp::Status::KeyEnoent, meta.first);
     }
-    stats = conn.stats("");
+    stats = userConnection->stats("");
 
     cmd_get = stats["cmd_get"].get<size_t>();
     EXPECT_EQ(0, cmd_get);
@@ -93,10 +92,8 @@ TEST_P(StatsTest, TestGetMeta) {
 }
 
 TEST_P(StatsTest, StatsResetIsPrivileged) {
-    MemcachedConnection& conn = getConnection();
-
     try {
-        conn.stats("reset");
+        userConnection->stats("reset");
         FAIL() << "reset is a privileged operation";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied());
