@@ -37,26 +37,15 @@ public:
     }
 
     void SetUp() override {
-        auto& connection = getConnection();
-        const auto mechs = connection.getSaslMechanisms();
-        connection.authenticate("@admin", "password", mechs);
-        ASSERT_NO_THROW(
-                connection.createBucket(bucket1, "", BucketType::Memcached));
-        ASSERT_NO_THROW(
-                connection.createBucket(bucket2, "", BucketType::Memcached));
-        ASSERT_NO_THROW(
-                connection.createBucket(bucket3, "", BucketType::Couchbase));
-        connection.reconnect();
+        adminConnection->createBucket(bucket1, "", BucketType::Memcached);
+        adminConnection->createBucket(bucket2, "", BucketType::Memcached);
+        adminConnection->createBucket(bucket3, "", BucketType::Couchbase);
     }
 
     void TearDown() override {
-        auto& connection = getConnection();
-        const auto mechs = connection.getSaslMechanisms();
-        connection.authenticate("@admin", "password", mechs);
-        ASSERT_NO_THROW(connection.deleteBucket(bucket1));
-        ASSERT_NO_THROW(connection.deleteBucket(bucket2));
-        ASSERT_NO_THROW(connection.deleteBucket(bucket3));
-        connection.reconnect();
+        adminConnection->deleteBucket(bucket1);
+        adminConnection->deleteBucket(bucket2);
+        adminConnection->deleteBucket(bucket3);
     }
 
 protected:
