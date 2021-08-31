@@ -42,6 +42,7 @@ cb::engine_errc CollectionsDcpTestProducers::system_event(
     last_system_event_version = version;
     last_stream_id = sid;
     last_vbucket = vbucket;
+    last_byseqno = bySeqno;
 
     switch (event) {
     case mcbp::systemevent::id::CreateCollection: {
