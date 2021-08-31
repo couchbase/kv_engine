@@ -451,8 +451,7 @@ TEST_P(StatsTest, TestResponseStats) {
     // 2 successes expected:
     // 1. The previous stats call sending the JSON
     // 2. The previous stats call sending a null packet to mark end of stats
-    EXPECT_EQ(successCount + statResps(),
-              getResponseCount(cb::mcbp::Status::Success));
+    EXPECT_EQ(successCount + 1, getResponseCount(cb::mcbp::Status::Success));
 }
 
 TEST_P(StatsTest, TracingStatsIsPrivileged) {

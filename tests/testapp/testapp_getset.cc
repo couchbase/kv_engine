@@ -61,8 +61,7 @@ void GetSetTest::doTestAppend(bool compressedSource, bool compressedData) {
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
-    EXPECT_EQ(successCount + statResps() + 2,
-              getResponseCount(cb::mcbp::Status::Success));
+    EXPECT_EQ(successCount + 3, getResponseCount(cb::mcbp::Status::Success));
 
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
@@ -119,8 +118,7 @@ void GetSetTest::doTestPrepend(bool compressedSource, bool compressedData) {
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
-    EXPECT_EQ(successCount + statResps() + 2,
-              getResponseCount(cb::mcbp::Status::Success));
+    EXPECT_EQ(successCount + 3, getResponseCount(cb::mcbp::Status::Success));
 
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
@@ -263,8 +261,7 @@ void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
 
     int successCount = getResponseCount(cb::mcbp::Status::Success);
     userConnection->mutate(document, Vbid(0), MutationType::Set);
-    EXPECT_EQ(successCount + statResps() + 1,
-              getResponseCount(cb::mcbp::Status::Success));
+    EXPECT_EQ(successCount + 2, getResponseCount(cb::mcbp::Status::Success));
 
     // Add a system xattr that exceeds the 1MB quota limit. There is some
     // internal overhead in the xattr (4 byte total length field plus 6 bytes
@@ -306,7 +303,7 @@ void GetSetTest::verifyData(MemcachedConnection& conn,
                             cb::mcbp::Datatype expectedDatatype,
                             std::string expectedValue) {
     const auto stored = conn.get(name, Vbid(0));
-    EXPECT_EQ(successCount + statResps() + numOps + 1,
+    EXPECT_EQ(successCount + numOps + 2,
               getResponseCount(cb::mcbp::Status::Success));
 
     EXPECT_TRUE(hasCorrectDatatype(stored, expectedDatatype));
@@ -534,8 +531,7 @@ TEST_P(GetSetTest, TestSet) {
     document.info.cas = info.cas;
     info = userConnection->mutate(document, Vbid(0), MutationType::Set);
     // Check that we correctly increment the status counter stat
-    EXPECT_EQ(successCount + statResps() + 3,
-              getResponseCount(cb::mcbp::Status::Success));
+    EXPECT_EQ(successCount + 4, getResponseCount(cb::mcbp::Status::Success));
 
     // Replace with invalid cas should fail
     document.info.cas = info.cas + 1;
@@ -574,8 +570,7 @@ TEST_P(GetSetTest, TestGetSuccess) {
     EXPECT_TRUE(hasCorrectDatatype(stored, expectedJSONSnappyDatatype()));
 
     // Check that we correctly increment the status counter stat
-    EXPECT_EQ(successCount + statResps() + 1,
-              getResponseCount(cb::mcbp::Status::Success));
+    EXPECT_EQ(successCount + 2, getResponseCount(cb::mcbp::Status::Success));
 
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.flags, stored.info.flags);
@@ -595,8 +590,7 @@ TEST_P(GetSetTest, TestAppend) {
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
-    EXPECT_EQ(successCount + statResps() + 3,
-              getResponseCount(cb::mcbp::Status::Success));
+    EXPECT_EQ(successCount + 4, getResponseCount(cb::mcbp::Status::Success));
 
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.flags, stored.info.flags);
@@ -697,7 +691,6 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat.
-    // * We expect helloResps because of getResponseCount
     // * We expect testSuccessCount successes for each command we ran
     // * Plus 1 more success to account for the stat call in the first
     //   getResponseCount
@@ -706,7 +699,7 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
         // We had 3x xattr operations fail (1x createXattr 2x getXattr)
         testSuccessCount = 3;
     }
-    EXPECT_EQ(sucCount + helloResps() + testSuccessCount + 1,
+    EXPECT_EQ(sucCount + testSuccessCount + 1,
               getResponseCount(cb::mcbp::Status::Success));
 
     // And the rest of the doc should look the same
@@ -732,8 +725,7 @@ TEST_P(GetSetTest, TestAppendCasSuccess) {
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
-    EXPECT_EQ(successCount + statResps() + 3,
-              getResponseCount(cb::mcbp::Status::Success));
+    EXPECT_EQ(successCount + 4, getResponseCount(cb::mcbp::Status::Success));
 
     EXPECT_NE(info.cas, stored.info.cas);
     EXPECT_EQ(document.info.flags, stored.info.flags);
@@ -779,8 +771,7 @@ TEST_P(GetSetTest, TestPrepend) {
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
-    EXPECT_EQ(successCount + statResps() + 3,
-              getResponseCount(cb::mcbp::Status::Success));
+    EXPECT_EQ(successCount + 4, getResponseCount(cb::mcbp::Status::Success));
 
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.flags, stored.info.flags);
@@ -820,7 +811,7 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
         // We had xattr operations fail (1x createXattr 2x getXattr)
         testSuccessCount = 3;
     }
-    EXPECT_EQ(sucCount + helloResps() + testSuccessCount + 1,
+    EXPECT_EQ(sucCount + testSuccessCount + 1,
               getResponseCount(cb::mcbp::Status::Success));
 
     // And the rest of the doc should look the same
@@ -845,8 +836,7 @@ TEST_P(GetSetTest, TestPrependCasSuccess) {
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
-    EXPECT_EQ(successCount + statResps() + 3,
-              getResponseCount(cb::mcbp::Status::Success));
+    EXPECT_EQ(successCount + 4, getResponseCount(cb::mcbp::Status::Success));
 
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.flags, stored.info.flags);

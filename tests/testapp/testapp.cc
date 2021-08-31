@@ -1147,7 +1147,12 @@ void TestappTest::reconfigure() {
 }
 
 int TestappTest::getResponseCount(cb::mcbp::Status statusCode) {
-    auto stats = getConnection().stats("responses detailed");
+    nlohmann::json stats;
+    if (userConnection) {
+        stats = userConnection->stats("responses detailed");
+    } else {
+        stats = getConnection().stats("responses detailed");
+    }
     auto responses = stats["responses"];
     std::stringstream stream;
     stream << std::hex << uint16_t(statusCode);
