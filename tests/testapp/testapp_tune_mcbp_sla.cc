@@ -135,7 +135,16 @@ TEST_P(TuneMcbpSla, SlowCommandLogging) {
                         cb::io::loadFile(p.path().generic_string()), "\n");
                 for (auto& l : lines) {
                     if (l.find(": Slow operation: ") != std::string::npos) {
-                        ret.emplace_back(std::move(l));
+                        // The line may be partial!
+                        auto idx = l.find('{');
+                        if (idx != std::string::npos) {
+                            try {
+                                nlohmann::json::parse(l.substr(idx));
+                                // We've got the complete line.. use it
+                                ret.emplace_back(std::move(l));
+                            } catch (const std::exception& exception) {
+                            }
+                        }
                     }
                 }
             }
