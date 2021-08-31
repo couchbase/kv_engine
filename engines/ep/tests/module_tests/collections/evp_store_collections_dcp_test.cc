@@ -1886,6 +1886,42 @@ TEST_F(CollectionsFilteredDcpTest, MB_47009) {
     EXPECT_EQ(9, stream->getLastReadSeqno());
 }
 
+// Test that a filtered stream-request is denied if the producer has sync-writes
+// enabled
+TEST_F(CollectionsFilteredDcpTest, MB_47009_deny_sync_writes) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Create two collections
+    CollectionsManifest cm;
+    setCollections(
+            cookie,
+            cm.add(CollectionEntry::vegetable).add(CollectionEntry::fruit));
+    flush_vbucket_to_disk(vbid, 2);
+
+    producer = SingleThreadedKVBucketTest::createDcpProducer(
+            cookieP, IncludeDeleteTime::No);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->control(0 /*opaque*/, "enable_sync_writes", "true"));
+
+    uint64_t rollbackSeqno;
+    EXPECT_EQ(cb::engine_errc::not_supported,
+              producer->streamRequest(
+                      0,
+                      1, // opaque
+                      vbid,
+                      0, // start_seqno
+                      ~0ull, // end_seqno
+                      vb->failovers->getLatestEntry().vb_uuid, // vbucket_uuid,
+                      0, // snap_start_seqno,
+                      0, // snap_end_seqno,
+                      &rollbackSeqno,
+                      [](const std::vector<vbucket_failover_t>&) {
+                          return cb::engine_errc::success;
+                      },
+                      R"({"collections":["a"]})"));
+}
+
 // Check that when filtering is on, we don't send snapshots for fully filtered
 // snapshots
 TEST_P(CollectionsDcpParameterizedTest, MB_24572) {
@@ -2614,8 +2650,7 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_EQ(4, vb->getHighSeqno());
 
     ensureDcpWillBackfill();
-    // filter only CollectionEntry::meat
-    createDcpObjects({{R"({"collections":["8"]})"}}, false, 0, true);
+    createDcpObjects("", false, 0, true);
     store_item(
             vbid, StoredDocKey{"dairy::two", CollectionEntry::dairy}, "dairy");
     store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "beef");
@@ -2641,11 +2676,18 @@ TEST_P(CollectionsDcpParameterizedTest,
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
                   cb::engine_errc::success);
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::meat.getId());
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
                   cb::engine_errc::success);
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::meat.getId());
     EXPECT_EQ(producers->last_key, "meat::one");
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
+    EXPECT_EQ(producers->last_key, "dairy::one");
 
     // Persistent bucket has not persisted some mutations, so it gets another
     // marker for the a following Memory snapshot.
@@ -2656,8 +2698,16 @@ TEST_P(CollectionsDcpParameterizedTest,
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
                   cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
+    EXPECT_EQ(producers->last_key, "dairy::two");
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::meat.getId());
     EXPECT_EQ(producers->last_key, "meat::two");
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
+    EXPECT_EQ(producers->last_key, "dairy::three");
 
     // should be no more ops
     EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),

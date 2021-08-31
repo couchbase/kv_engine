@@ -208,6 +208,17 @@ public:
     }
 
     /**
+     * Method to check if the filter represents a collection filter, one which
+     * allows a subset of collections. Note a legacy filter is different, it
+     * allows only the default collection and no system events. Whereas this
+     * returns true is a subset of collections is permitted and their system
+     * events.
+     */
+    bool isCollectionFilter() const {
+        return !isPassThroughFilter() && !isLegacyFilter();
+    }
+
+    /**
      * Dump this to std::cerr
      */
     void dump() const;
