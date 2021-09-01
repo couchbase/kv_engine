@@ -1899,7 +1899,7 @@ TEST_P(ConcurrentCompactPurge, ConcCompactPurgeTombstones) {
                 vb->getManifest().lock(CollectionEntry::fruit).getDiskSize();
         auto stats =
                 kvs->getCollectionStats(*fileHandle, CollectionEntry::fruit);
-        ASSERT_TRUE(stats.first);
+        EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, stats.first);
         EXPECT_EQ(stats.second.diskSize, fruitSz);
     };
 
@@ -3681,10 +3681,10 @@ TEST_P(CollectionsCouchstoreParameterizedTest, TombstonePurge) {
                 vb->getManifest().lock(CollectionEntry::dairy).getDiskSize();
         auto stats =
                 kvs->getCollectionStats(*fileHandle, CollectionEntry::fruit);
-        ASSERT_TRUE(stats.first);
+        EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, stats.first);
         EXPECT_EQ(stats.second.diskSize, fruitSz);
         stats = kvs->getCollectionStats(*fileHandle, CollectionEntry::dairy);
-        ASSERT_TRUE(stats.first);
+        EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, stats.first);
 
         EXPECT_EQ(stats.second.diskSize, dairySz);
     };

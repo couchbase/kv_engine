@@ -1197,9 +1197,9 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
             // getCollectionStats() can still can fail if the data store on disk
             // has been corrupted between the call to makeFileHandle() and
             // getCollectionStats()
-            auto [success, stats] = kvstore->getCollectionStats(
+            auto [status, stats] = kvstore->getCollectionStats(
                     *kvstoreContext, collection.first);
-            if (!success) {
+            if (status == KVStore::GetCollectionStatsStatus::Failed) {
                 EP_LOG_CRITICAL(
                         "Warmup::loadCollectionStatsForShard(): "
                         "getCollectionStats() failed for {}, aborting warmup "
@@ -1208,6 +1208,7 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
                         vbid);
                 return;
             }
+            // For NotFound we're ok to use the default initialised stats
 
             collection.second.setItemCount(stats.itemCount);
             collection.second.setPersistedHighSeqno(stats.highSeqno);

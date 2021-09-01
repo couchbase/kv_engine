@@ -492,13 +492,20 @@ public:
      * all stats).
      * @param kvFileHandle a handle into a KV data file
      * @param collection the id of the collection to lookup
-     * @return pair of bool for success and persisted stats initialised if the
-     * collection stats have been written or default initialised stats
-     * otherwise.
+     * @return pair of GetCollectionStatsStatus and the stats. The status can
+     *         be Success for when stats for the collection were found.
+     *         NotFound for when no stats were found and the returned stats are
+     *         default initialised. Finally Failed can occur for unexpected
+     *         errors.
      */
-    virtual std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
-            const KVFileHandle& kvFileHandle,
-            CollectionID collection) const = 0;
+    enum class GetCollectionStatsStatus {
+        Success = 0,
+        NotFound = 1,
+        Failed = 2
+    };
+    virtual std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
+    getCollectionStats(const KVFileHandle& kvFileHandle,
+                       CollectionID collection) const = 0;
 
     /**
      * Return data that EPBucket requires for the creation of a

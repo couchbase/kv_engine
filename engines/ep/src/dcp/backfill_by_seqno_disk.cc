@@ -235,9 +235,9 @@ DCPBackfillBySeqnoDisk::getHighSeqnoOfCollections(
 
     const auto& handle = *seqnoScanCtx.handle.get();
     for (auto cid : filter) {
-        auto [success, collStats] =
+        auto [status, collStats] =
                 kvStore.getCollectionStats(handle, cid.first);
-        if (!success) {
+        if (status == KVStore::GetCollectionStatsStatus::Failed) {
             EP_LOG_WARN(
                     "DCPBackfillBySeqnoDisk::getHighSeqnoOfCollections(): "
                     "getCollectionStats() failed for {} cid:{}",

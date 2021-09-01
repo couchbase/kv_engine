@@ -55,7 +55,7 @@ StatChecker::~StatChecker() {
     auto fileHandle = kvs->makeFileHandle(vb->getId());
     EXPECT_TRUE(fileHandle);
     auto stats = kvs->getCollectionStats(*fileHandle, entry.uid);
-    EXPECT_TRUE(stats.first);
+    EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, stats.first);
 
     // Regardless of the postCondition the following should all be equal
     auto inMemoryStats = vb->getManifest().lock(entry.uid);

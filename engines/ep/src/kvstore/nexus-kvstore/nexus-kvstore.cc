@@ -82,9 +82,9 @@ Collections::VB::Manifest NexusKVStore::generateSecondaryVBManifest(
         auto collections = secondaryManifest.wlock();
         for (auto& itr : collections) {
             auto& [cid, entry] = itr;
-            auto [statsSuccess, stats] =
+            auto [status, stats] =
                     secondary->getCollectionStats(*secondaryFileHandle, cid);
-            if (statsSuccess) {
+            if (status == GetCollectionStatsStatus::Success) {
                 collections.setDiskSize(cid, stats.diskSize);
             }
         }
@@ -792,7 +792,7 @@ std::unique_ptr<KVFileHandle> NexusKVStore::makeFileHandle(Vbid vbid) const {
     return primary->makeFileHandle(vbid);
 }
 
-std::pair<bool, Collections::VB::PersistedStats>
+std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 NexusKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
                                  CollectionID collection) const {
     return primary->getCollectionStats(kvFileHandle, collection);

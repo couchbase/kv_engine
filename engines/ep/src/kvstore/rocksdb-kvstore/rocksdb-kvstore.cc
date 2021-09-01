@@ -1410,12 +1410,13 @@ std::unique_ptr<KVFileHandle> RocksDBKVStore::makeFileHandle(Vbid vbid) const {
     return std::make_unique<RocksDBHandle>(*this, *rdb);
 }
 
-std::pair<bool, Collections::VB::PersistedStats>
+std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 RocksDBKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
                                    CollectionID collection) const {
     // TODO JWW 2018-07-30 implement this, for testing purposes return dummy
-    // values of 0 to imply the function didn't fail
-    return {true, Collections::VB::PersistedStats()};
+    // values to imply the function didn't fail
+    return {GetCollectionStatsStatus::Success,
+            Collections::VB::PersistedStats()};
 }
 
 std::unique_ptr<BySeqnoScanContext> RocksDBKVStore::initBySeqnoScanContext(

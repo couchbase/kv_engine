@@ -2058,9 +2058,9 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 dcInfo;
         for (auto& dc : dropped) {
             auto handle = makeFileHandle(vbid);
-            auto [success, stats] =
+            auto [status, stats] =
                     getDroppedCollectionStats(vbid, dc.collectionId);
-            if (!success) {
+            if (status == KVStore::GetCollectionStatsStatus::Failed) {
                 logger->warn(
                         "MagmaKVStore::compactDBInternal getCollectionStats() "
                         "failed for dropped collection "
@@ -2563,13 +2563,13 @@ void MagmaKVStore::saveCollectionStats(
     localDbReqs.emplace_back(MagmaLocalReq(key, std::move(encodedStats)));
 }
 
-std::pair<bool, Collections::VB::PersistedStats>
+std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 MagmaKVStore::getDroppedCollectionStats(Vbid vbid, CollectionID cid) {
     auto key = getDroppedCollectionsStatsKey(cid);
     return getCollectionStats(vbid, key);
 }
 
-std::pair<bool, Collections::VB::PersistedStats>
+std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 MagmaKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
                                  CollectionID cid) const {
     const auto& kvfh = static_cast<const MagmaKVFileHandle&>(kvFileHandle);
@@ -2577,13 +2577,13 @@ MagmaKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
     return getCollectionStats(vbid, cid);
 }
 
-std::pair<bool, Collections::VB::PersistedStats>
+std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 MagmaKVStore::getCollectionStats(Vbid vbid, CollectionID cid) const {
     auto key = getCollectionsStatsKey(cid);
     return getCollectionStats(vbid, key);
 }
 
-std::pair<bool, Collections::VB::PersistedStats>
+std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 MagmaKVStore::getCollectionStats(Vbid vbid, magma::Slice keySlice) const {
     Status status;
     std::string stats;
@@ -2592,13 +2592,16 @@ MagmaKVStore::getCollectionStats(Vbid vbid, magma::Slice keySlice) const {
         if (status.ErrorCode() != Status::Code::NotFound) {
             logger->warn("MagmaKVStore::getCollectionStats(): {}",
                          status.Message());
-            return {false, Collections::VB::PersistedStats()};
+            return {KVStore::GetCollectionStatsStatus::Failed,
+                    Collections::VB::PersistedStats()};
         }
         // Return Collections::VB::PersistedStats(true) with everything set to
         // 0 as the collection might have not been persisted to disk yet.
-        return {true, Collections::VB::PersistedStats()};
+        return {KVStore::GetCollectionStatsStatus::NotFound,
+                Collections::VB::PersistedStats()};
     }
-    return {true, Collections::VB::PersistedStats(stats.c_str(), stats.size())};
+    return {KVStore::GetCollectionStatsStatus::Success,
+            Collections::VB::PersistedStats(stats.c_str(), stats.size())};
 }
 
 void MagmaKVStore::deleteDroppedCollectionStats(LocalDbReqs& localDbReqs,

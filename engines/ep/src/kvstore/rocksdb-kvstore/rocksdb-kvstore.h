@@ -282,9 +282,9 @@ public:
 
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) const override;
 
-    std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
-            const KVFileHandle& kvFileHandle,
-            CollectionID collection) const override;
+    std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
+    getCollectionStats(const KVFileHandle& kvFileHandle,
+                       CollectionID collection) const override;
 
     void prepareToCreateImpl(Vbid vbid) override {
         // TODO DJR 2017-05-19 implement this.
