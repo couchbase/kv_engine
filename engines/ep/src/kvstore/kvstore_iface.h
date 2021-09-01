@@ -550,6 +550,19 @@ public:
     virtual const KVStoreConfig& getConfig() const = 0;
 
     /**
+     * Get an item from the KVStore using a seqno for lookup
+     *
+     * @param handle the KVFileHandle for an open file
+     * @param vbucket of the get
+     * @param seq the seqno to look for
+     * @param filter ValueFilter for key+meta or key+meta+value lookup
+     */
+    virtual GetValue getBySeqno(KVFileHandle& handle,
+                                Vbid vbid,
+                                uint64_t seq,
+                                ValueFilter filter) = 0;
+
+    /**
      * Set the number of storage threads based on configuration settings
      */
     virtual void setStorageThreads(

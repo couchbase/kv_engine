@@ -3015,6 +3015,14 @@ Status MagmaDbStats::Unmarshal(const std::string& encoded) {
     return Status::OK();
 }
 
+GetValue MagmaKVStore::getBySeqno(KVFileHandle& handle,
+                                  Vbid vbid,
+                                  uint64_t seq,
+                                  ValueFilter filter) {
+    // @todo: Add support for Magma
+    return GetValue{nullptr, cb::engine_errc::no_such_key};
+}
+
 std::unique_ptr<TransactionContext> MagmaKVStore::begin(
         Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) {
     if (!startTransaction(vbid)) {

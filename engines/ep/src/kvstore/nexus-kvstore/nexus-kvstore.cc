@@ -817,6 +817,13 @@ const KVStoreConfig& NexusKVStore::getConfig() const {
     return primary->getConfig();
 }
 
+GetValue NexusKVStore::getBySeqno(KVFileHandle& handle,
+                                  Vbid vbid,
+                                  uint64_t seq,
+                                  ValueFilter filter) {
+    return primary->getBySeqno(handle, vbid, seq, filter);
+}
+
 void NexusKVStore::setStorageThreads(ThreadPoolConfig::StorageThreadCount num) {
     primary->setStorageThreads(num);
     secondary->setStorageThreads(num);

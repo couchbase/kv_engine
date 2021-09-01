@@ -1900,6 +1900,14 @@ vbucket_state RocksDBKVStore::getPersistedVBucketState(Vbid vbid) {
     return state.vbstate;
 }
 
+GetValue RocksDBKVStore::getBySeqno(KVFileHandle& handle,
+                                    Vbid vbid,
+                                    uint64_t seq,
+                                    ValueFilter filter) {
+    // @todo: Add support for RocksDB
+    return GetValue{nullptr, cb::engine_errc::no_such_key};
+}
+
 std::unique_ptr<TransactionContext> RocksDBKVStore::begin(
         Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) {
     if (!startTransaction(vbid)) {

@@ -105,6 +105,10 @@ public:
     std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
     getDroppedCollections(Vbid vbid) override;
     const KVStoreConfig& getConfig() const override;
+    GetValue getBySeqno(KVFileHandle& handle,
+                        Vbid vbid,
+                        uint64_t seq,
+                        ValueFilter filter) override;
     void setStorageThreads(ThreadPoolConfig::StorageThreadCount num) override;
     std::unique_ptr<TransactionContext> begin(
             Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) override;

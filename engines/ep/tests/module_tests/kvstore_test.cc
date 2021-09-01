@@ -1406,6 +1406,81 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
     EXPECT_EQ(callback->nItems, 2);
 }
 
+TEST_P(KVStoreParamTest, GetBySeqno) {
+    // @todo: move to cover more KVStores, for now only CouchKVStore has support
+    if (GetParam() != "couchdb") {
+        GTEST_SKIP();
+    }
+
+    const int nItems = 5;
+    for (int ii = 1; ii < nItems; ++ii) {
+        auto ctx = kvstore->begin(vbid);
+        auto key = makeStoredDocKey(std::to_string(ii));
+        const std::string value = std::string(ii, 'a');
+        std::unique_ptr<Item> item =
+                std::make_unique<Item>(key,
+                                       0,
+                                       0,
+                                       value.data(),
+                                       value.size(),
+                                       PROTOCOL_BINARY_RAW_BYTES,
+                                       0,
+                                       ii);
+        kvstore->set(*ctx, queued_item(std::move(item)));
+        kvstore->commit(std::move(ctx), flush);
+    }
+
+    auto item = makeCompressibleItem(Vbid(0),
+                                     makeStoredDocKey("compressed"),
+                                     "" /*body*/,
+                                     PROTOCOL_BINARY_RAW_BYTES,
+                                     false /*compressed*/,
+                                     true /*xattr*/);
+    auto ctx = kvstore->begin(vbid);
+    item->setBySeqno(nItems);
+    kvstore->set(*ctx, queued_item(std::move(item)));
+    kvstore->commit(std::move(ctx), flush);
+
+    auto handle = kvstore->makeFileHandle(Vbid(0));
+
+    for (int ii = 1; ii < nItems; ++ii) {
+        auto gv = kvstore->getBySeqno(
+                *handle, Vbid(0), ii, ValueFilter::KEYS_ONLY);
+        EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
+        ASSERT_TRUE(gv.item);
+        EXPECT_EQ(ii, gv.item->getBySeqno());
+        EXPECT_EQ(makeStoredDocKey(std::to_string(ii)), gv.item->getKey());
+        EXPECT_EQ(0, gv.item->getNBytes());
+    }
+
+    for (int ii = 1; ii < nItems; ++ii) {
+        auto gv = kvstore->getBySeqno(
+                *handle, Vbid(0), ii, ValueFilter::VALUES_DECOMPRESSED);
+        EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
+        ASSERT_TRUE(gv.item);
+        EXPECT_EQ(ii, gv.item->getBySeqno());
+        EXPECT_EQ(makeStoredDocKey(std::to_string(ii)), gv.item->getKey());
+        EXPECT_EQ(std::string(ii, 'a'), gv.item->getValueView());
+    }
+
+    // Check compressed
+    {
+        auto gv = kvstore->getBySeqno(
+                *handle, Vbid(0), nItems, ValueFilter::VALUES_COMPRESSED);
+        EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
+        ASSERT_TRUE(gv.item);
+        EXPECT_EQ(nItems, gv.item->getBySeqno());
+        EXPECT_EQ(makeStoredDocKey("compressed"), gv.item->getKey());
+        EXPECT_TRUE(mcbp::datatype::is_snappy(gv.item->getDataType()));
+    }
+
+    // Check an unknown seqno
+    auto gv = kvstore->getBySeqno(
+            *handle, Vbid(0), ~0, ValueFilter::VALUES_DECOMPRESSED);
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+    ASSERT_FALSE(gv.item);
+}
+
 // Test to ensure that the CompactionContext::max_purged_seq is correctly set
 // after calling KVStore::compactDB(). Our KVStoreRocksDB implementation
 // currently doesn't set the purge seqno correctly and is hence skipped.

@@ -317,6 +317,11 @@ public:
 
     const KVStoreConfig& getConfig() const override;
 
+    GetValue getBySeqno(KVFileHandle& handle,
+                        Vbid vbid,
+                        uint64_t seq,
+                        ValueFilter filter) override;
+
     std::unique_ptr<TransactionContext> begin(
             Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) override;
 
