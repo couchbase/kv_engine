@@ -482,6 +482,7 @@ add_library(ep_mocks OBJECT
         tests/mock/mock_ep_bucket.cc
         tests/mock/mock_ephemeral_bucket.cc
         tests/mock/mock_ephemeral_vb.cc
+        tests/mock/mock_kvstore.cc
         tests/mock/mock_replicationthrottle.cc
         tests/mock/mock_stream.cc
         tests/mock/mock_synchronous_ep_engine.cc

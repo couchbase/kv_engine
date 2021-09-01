@@ -176,19 +176,33 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
         return backfill_finished;
     }
 
-    const auto* kvstore = bucket.getROUnderlying(vbid);
-    scan_error_t error =
-            kvstore->scan(static_cast<BySeqnoScanContext&>(*scanCtx));
-
-    if (error == scan_again) {
+    auto* kvstore = bucket.getROUnderlying(vbid);
+    auto& bySeqnoCtx = dynamic_cast<BySeqnoScanContext&>(*scanCtx);
+    switch (kvstore->scan(bySeqnoCtx)) {
+    case scan_success:
+        stream->setBackfillScanLastRead(scanCtx->lastReadSeqno);
+        transitionState(backfill_state_completing);
         return backfill_success;
+    case scan_again:
+        // Scan should run again (e.g. was paused by callback)
+        return backfill_success;
+    case scan_failed:
+        // Scan did not complete successfully. Backfill is missing data,
+        // propogate error to stream and (unsuccessfully) finish scan.
+
+        stream->log(spdlog::level::err,
+                    "DCPBackfillBySeqnoDisk::create(): ({}, startSeqno:{}, "
+                    "maxSeqno:{}) Scan failed at lastReadSeqno:{}. Setting "
+                    "stream to dead state.",
+                    getVBucketId(),
+                    bySeqnoCtx.startSeqno,
+                    bySeqnoCtx.maxSeqno,
+                    bySeqnoCtx.lastReadSeqno);
+        scanCtx.reset();
+        stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
+        return backfill_finished;
     }
-
-    stream->setBackfillScanLastRead(scanCtx->lastReadSeqno);
-
-    transitionState(backfill_state_completing);
-
-    return backfill_success;
+    folly::assume_unreachable();
 }
 
 void DCPBackfillBySeqnoDisk::complete(bool cancelled) {
