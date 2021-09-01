@@ -62,8 +62,10 @@ IF (EP_USE_MAGMA)
     MESSAGE(STATUS "ep-engine: Building magma-kvstore")
 
     add_library(ep-engine_magma STATIC
-            src/kvstore/magma-kvstore/shared/magma-kvstore_metadata.cc)
+            src/kvstore/magma-kvstore/shared/magma-kvstore_metadata.cc
+            src/kvstore/magma-kvstore/shared/magma-kvstore_magma_db_stats.cc)
     target_link_libraries(ep-engine_magma PRIVATE platform)
+    target_link_libraries(ep-engine_magma PUBLIC magma)
     target_include_directories(ep-engine_magma PUBLIC
             src/kvstore/magma-kvstore/shared)
     set_property(TARGET ep-engine_magma PROPERTY POSITION_INDEPENDENT_CODE 1)

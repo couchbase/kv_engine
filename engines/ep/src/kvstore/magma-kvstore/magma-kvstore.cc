@@ -2955,61 +2955,6 @@ uint32_t MagmaKVStore::getExpiryOrPurgeTime(const magma::Slice& slice) {
     return exptime;
 }
 
-void to_json(nlohmann::json& json, const MagmaDbStats& dbStats) {
-    json = nlohmann::json{{"docCount", std::to_string(dbStats.docCount)},
-                          {"purgeSeqno", std::to_string(dbStats.purgeSeqno)}};
-}
-
-void from_json(const nlohmann::json& j, MagmaDbStats& dbStats) {
-    dbStats.docCount = std::stoull(j.at("docCount").get<std::string>());
-    dbStats.purgeSeqno.reset(
-            std::stoull(j.at("purgeSeqno").get<std::string>()));
-}
-
-void MagmaDbStats::Merge(const UserStats& other) {
-    auto otherStats = dynamic_cast<const MagmaDbStats*>(&other);
-    if (!otherStats) {
-        throw std::invalid_argument("MagmaDbStats::Merge: Bad cast of other");
-    }
-
-    docCount += otherStats->docCount;
-    if (otherStats->purgeSeqno > purgeSeqno) {
-        purgeSeqno = otherStats->purgeSeqno;
-    }
-}
-
-std::unique_ptr<magma::UserStats> MagmaDbStats::Clone() {
-    auto cloned = std::make_unique<MagmaDbStats>();
-    cloned->reset(*this);
-    return cloned;
-}
-
-std::string MagmaDbStats::Marshal() {
-    nlohmann::json j = *this;
-    return j.dump();
-}
-
-Status MagmaDbStats::Unmarshal(const std::string& encoded) {
-    nlohmann::json j;
-    try {
-        j = nlohmann::json::parse(encoded);
-    } catch (const nlohmann::json::exception& e) {
-        throw std::logic_error("MagmaDbStats::Unmarshal cannot decode json:" +
-                               encoded + " " + e.what());
-    }
-
-    try {
-        reset(j);
-    } catch (const nlohmann::json::exception& e) {
-        throw std::logic_error(
-                "MagmaDbStats::Unmarshal cannot construct MagmaDbStats from "
-                "json:" +
-                encoded + " " + e.what());
-    }
-
-    return Status::OK();
-}
-
 GetValue MagmaKVStore::getBySeqno(KVFileHandle& handle,
                                   Vbid vbid,
                                   uint64_t seq,
