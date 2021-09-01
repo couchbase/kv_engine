@@ -11,10 +11,10 @@
 
 #pragma once
 
-#include "comparators.h"
 #include "hash_table.h"
 #include "vb_filter.h"
 #include "vbucket_fwd.h"
+#include <platform/comparators.h>
 
 #include <folly/Chrono.h>
 

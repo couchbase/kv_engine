@@ -19,9 +19,9 @@
 #include "active_durability_monitor.h"
 #include "durability_monitor.h"
 #include "item.h"
-#include "monotonic.h"
 #include "monotonic_queue.h"
 #include "passive_durability_monitor.h"
+#include <platform/monotonic.h>
 
 #include <chrono>
 #include <queue>

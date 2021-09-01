@@ -14,9 +14,9 @@
 #include "dcp/dcp-types.h"
 #include "dcp/stream_container.h"
 #include "ep_engine.h"
-#include "monotonic.h"
 #include "utilities/testing_hook.h"
 #include "vb_ready_queue.h"
+#include <platform/monotonic.h>
 
 #include <include/mcbp/protocol/dcp_stream_end_status.h>
 

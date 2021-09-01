@@ -18,7 +18,7 @@
 #include "kvstore/kvstore_priv.h"
 #include "kvstore/kvstore_transaction_context.h"
 #include "libcouchstore/couch_db.h"
-#include "monotonic.h"
+#include <platform/monotonic.h>
 
 #include <folly/SharedMutex.h>
 #include <folly/Synchronized.h>

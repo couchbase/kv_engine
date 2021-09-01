@@ -14,10 +14,10 @@
 #include "checkpoint_types.h"
 #include "cursor.h"
 #include "ep_types.h"
-#include "monotonic.h"
 #include "queue_op.h"
 #include "utilities/testing_hook.h"
 #include "vbucket.h"
+#include <platform/monotonic.h>
 
 #include <memcached/engine_common.h>
 #include <memcached/vbucket.h>

@@ -17,9 +17,9 @@
 #include "dcp/dcp-types.h"
 #include "hash_table.h"
 #include "hlc.h"
-#include "monotonic.h"
 #include "vbucket_fwd.h"
 #include "vbucket_notify_context.h"
+#include <platform/monotonic.h>
 
 #include <folly/SynchronizedPtr.h>
 #include <memcached/engine.h>

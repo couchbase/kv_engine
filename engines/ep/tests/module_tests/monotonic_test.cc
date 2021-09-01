@@ -9,7 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "monotonic.h"
+#include <platform/monotonic.h>
 
 #include <folly/portability/GTest.h>
 
