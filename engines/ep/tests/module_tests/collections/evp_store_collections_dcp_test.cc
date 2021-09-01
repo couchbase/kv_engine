@@ -3031,7 +3031,8 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
         expected--;
     }
 
-    auto checkKVS = [dropAtEnd, expected, &target](KVStoreIface& kvs, Vbid id) {
+    auto checkKVS = [dropAtEnd, expected, &target, &cm](KVStoreIface& kvs,
+                                                        Vbid id) {
         auto [status, dropped] = kvs.getDroppedCollections(id);
         ASSERT_TRUE(status);
         EXPECT_TRUE(dropped.empty());
@@ -3050,6 +3051,10 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
             EXPECT_EQ(expected, stats.itemCount);
             EXPECT_EQ(7, stats.highSeqno);
         }
+
+        auto uid = kvs.getCollectionsManifestUid(*fileHandle);
+        EXPECT_TRUE(uid.has_value());
+        EXPECT_EQ(cm.getUid(), uid.value());
     };
 
     auto* activeKVS = vb->getShard()->getRWUnderlying();

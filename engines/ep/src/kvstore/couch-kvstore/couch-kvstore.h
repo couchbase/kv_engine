@@ -357,6 +357,9 @@ public:
      */
     uint64_t prepareToDeleteImpl(Vbid vbid) override;
 
+    std::optional<Collections::ManifestUid> getCollectionsManifestUid(
+            KVFileHandle& kvFileHandle) override;
+
     /**
      * CouchKVStore implements this method as a read of 3 _local documents
      */

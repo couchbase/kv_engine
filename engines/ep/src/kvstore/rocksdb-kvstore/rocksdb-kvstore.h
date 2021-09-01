@@ -295,6 +295,12 @@ public:
         return 0;
     }
 
+    std::optional<Collections::ManifestUid> getCollectionsManifestUid(
+            KVFileHandle& kvFileHandle) override {
+        // TODO: rocksDb has no collections support, return default manifest-uid
+        return Collections::ManifestUid{0};
+    }
+
     std::pair<bool, Collections::KVStore::Manifest> getCollectionsManifest(
             Vbid vbid) const override {
         // TODO: rocksDb has no collections support, return default manifest

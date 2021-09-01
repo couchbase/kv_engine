@@ -798,6 +798,11 @@ NexusKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
     return primary->getCollectionStats(kvFileHandle, collection);
 }
 
+std::optional<Collections::ManifestUid> NexusKVStore::getCollectionsManifestUid(
+        KVFileHandle& kvFileHandle) {
+    return primary->getCollectionsManifestUid(kvFileHandle);
+}
+
 std::pair<bool, Collections::KVStore::Manifest>
 NexusKVStore::getCollectionsManifest(Vbid vbid) const {
     return primary->getCollectionsManifest(vbid);
