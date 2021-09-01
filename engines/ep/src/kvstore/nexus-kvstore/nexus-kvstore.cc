@@ -1054,7 +1054,7 @@ vbucket_state* NexusKVStore::getCachedVBucketState(Vbid vbid) {
     return primary->getCachedVBucketState(vbid);
 }
 
-vbucket_state NexusKVStore::getPersistedVBucketState(Vbid vbid) {
+vbucket_state NexusKVStore::getPersistedVBucketState(Vbid vbid) const {
     auto primaryVbState = primary->getPersistedVBucketState(vbid);
     auto secondaryVbState = secondary->getPersistedVBucketState(vbid);
 

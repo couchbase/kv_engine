@@ -190,6 +190,20 @@ static std::string getDBFileName(const std::string& dbname,
            std::to_string(rev);
 }
 
+std::string to_string(CouchKVStore::ReadVBStateStatus status) {
+    switch (status) {
+    case CouchKVStore::ReadVBStateStatus::Success:
+        return "Success";
+    case CouchKVStore::ReadVBStateStatus::JsonInvalid:
+        return "JsonInvalid";
+    case CouchKVStore::ReadVBStateStatus::CorruptSnapshot:
+        return "CorruptSnapshot";
+    case CouchKVStore::ReadVBStateStatus::CouchstoreError:
+        return "CouchstoreError";
+    }
+    folly::assume_unreachable();
+}
+
 /// @returns the document ID used to store cid
 std::string CouchKVStore::getCollectionStatsLocalDocId(CollectionID cid) {
     return fmt::format("|{:#x}|", uint32_t(cid));
@@ -4137,7 +4151,7 @@ const KVStoreConfig& CouchKVStore::getConfig() const {
     return configuration;
 }
 
-vbucket_state CouchKVStore::getPersistedVBucketState(Vbid vbid) {
+vbucket_state CouchKVStore::getPersistedVBucketState(Vbid vbid) const {
     DbHolder db(*this);
     const auto errorCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errorCode != COUCHSTORE_SUCCESS) {
@@ -4255,20 +4269,6 @@ void CouchLocalDocRequest::setupValue() {
 
 LocalDoc& CouchLocalDocRequest::getLocalDoc() {
     return doc;
-}
-
-std::string CouchKVStore::to_string(ReadVBStateStatus status) {
-    switch (status) {
-    case ReadVBStateStatus::Success:
-        return "Success";
-    case ReadVBStateStatus::JsonInvalid:
-        return "JsonInvalid";
-    case ReadVBStateStatus::CorruptSnapshot:
-        return "CorruptSnapshot";
-    case ReadVBStateStatus::CouchstoreError:
-        return "CouchstoreError";
-    }
-    folly::assume_unreachable();
 }
 
 std::optional<DbHolder> CouchKVStore::openOrCreate(Vbid vbid) noexcept {

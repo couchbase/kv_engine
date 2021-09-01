@@ -514,7 +514,7 @@ public:
      */
     vbucket_state* getCachedVBucketState(Vbid vbucketId) override;
 
-    vbucket_state getPersistedVBucketState(Vbid vbid) override;
+    vbucket_state getPersistedVBucketState(Vbid vbid) const override;
 
     /**
      * Populate kvstore stats with magma specific stats

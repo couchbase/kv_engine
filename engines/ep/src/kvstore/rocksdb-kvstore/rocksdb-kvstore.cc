@@ -1901,7 +1901,7 @@ const KVStoreConfig& RocksDBKVStore::getConfig() const {
     return configuration;
 }
 
-vbucket_state RocksDBKVStore::getPersistedVBucketState(Vbid vbid) {
+vbucket_state RocksDBKVStore::getPersistedVBucketState(Vbid vbid) const {
     auto handle = getVBHandle(vbid);
     auto state = readVBStateFromDisk(*handle);
     if (!state.status.ok()) {

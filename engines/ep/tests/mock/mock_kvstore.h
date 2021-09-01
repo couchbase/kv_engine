@@ -119,7 +119,7 @@ public:
     MOCK_METHOD(vbucket_state,
                 getPersistedVBucketState,
                 (Vbid vbid),
-                (override));
+                (const, override));
     MOCK_METHOD(size_t, getNumPersistedDeletes, (Vbid vbid), (override));
     MOCK_METHOD(DBFileInfo, getDbFileInfo, (Vbid dbFileId), (override));
     MOCK_METHOD(DBFileInfo, getAggrDbFileInfo, (), (override));

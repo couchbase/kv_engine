@@ -149,6 +149,13 @@ public:
     using PendingRequestQueue = std::deque<CouchRequest>;
     using PendingLocalDocRequestQueue = std::deque<CouchLocalDocRequest>;
 
+    enum class ReadVBStateStatus : uint8_t {
+        Success = 0,
+        JsonInvalid,
+        CorruptSnapshot,
+        CouchstoreError
+    };
+
     /**
      * Constructor - creates a read/write CouchKVStore
      *
@@ -382,7 +389,7 @@ public:
      * @param vbid
      * @return the persisted vbstate
      */
-    vbucket_state getPersistedVBucketState(Vbid vbid) override;
+    vbucket_state getPersistedVBucketState(Vbid vbid) const override;
 
     /// Get the logger used by this bucket
     BucketLogger& getLogger() const {
@@ -823,15 +830,6 @@ protected:
         concurrentCompactionPreLockHook = std::move(hook);
     }
 
-    enum class ReadVBStateStatus : uint8_t {
-        Success = 0,
-        JsonInvalid,
-        CorruptSnapshot,
-        CouchstoreError
-    };
-
-    std::string to_string(ReadVBStateStatus status);
-
     /**
      * Result of the readVBState function
      */
@@ -1078,3 +1076,5 @@ struct CouchKVStoreTransactionContext : public TransactionContext {
      */
     CouchKVStore::PendingLocalDocRequestQueue pendingLocalReqsQ;
 };
+
+std::string to_string(CouchKVStore::ReadVBStateStatus status);

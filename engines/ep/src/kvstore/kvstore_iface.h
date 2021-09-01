@@ -302,7 +302,7 @@ public:
      * update the cachedVBState.
      * @throws exceptions if there was a problem returning the state.
      */
-    virtual vbucket_state getPersistedVBucketState(Vbid vbid) = 0;
+    virtual vbucket_state getPersistedVBucketState(Vbid vbid) const = 0;
 
     /**
      * Get the number of deleted items that are persisted to a vbucket file
