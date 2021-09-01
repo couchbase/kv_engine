@@ -19,19 +19,31 @@
 
 class VBucket;
 
-/**
- * Vbucket visitor that counts active vbuckets.
- */
-class VBucketCountVisitor : public VBucketVisitor {
+class VBucketStatVisitor : public VBucketVisitor {
 public:
-    explicit VBucketCountVisitor(vbucket_state_t state) : desired_state(state) {
+    explicit VBucketStatVisitor(vbucket_state_t state) : desired_state(state) {
     }
 
-    void visitBucket(const VBucketPtr& vb) override;
+    void visitBucket(const VBucketPtr& vb) override = 0;
 
     vbucket_state_t getVBucketState() const {
         return desired_state;
     }
+
+protected:
+    vbucket_state_t desired_state{vbucket_state_dead};
+};
+
+/**
+ * Vbucket visitor that counts active vbuckets.
+ */
+class VBucketCountVisitor : public VBucketStatVisitor {
+public:
+    explicit VBucketCountVisitor(vbucket_state_t state)
+        : VBucketStatVisitor(state) {
+    }
+
+    void visitBucket(const VBucketPtr& vb) override;
 
     size_t getNumItems() const {
         return numItems;
@@ -138,13 +150,6 @@ public:
         return chkPersistRemaining;
     }
 
-    size_t getDatatypeCount(protocol_binary_datatype_t datatype) const {
-        return datatypeCounts[datatype];
-    }
-    size_t getNumDatatypes() const {
-        return datatypeCounts.size();
-    }
-
     uint64_t getRollbackItemCount() const {
         return rollbackItemCount;
     }
@@ -171,9 +176,6 @@ public:
     size_t getSyncWriteAbortedCount() const {
         return syncWriteAbortedCount;
     }
-
-protected:
-    vbucket_state_t desired_state{vbucket_state_dead};
 
 private:
     size_t numItems{0};
@@ -204,7 +206,6 @@ private:
     size_t queueDrain{0};
     size_t pendingWrites{0};
     size_t chkPersistRemaining{0};
-    HashTable::DatatypeCombo datatypeCounts{};
     uint64_t queueAge{0};
     uint64_t rollbackItemCount{0};
     size_t numHpVBReqs{0};
@@ -216,15 +217,42 @@ private:
 };
 
 /**
- * A container class holding VBucketCountVisitors to aggregate stats for
+ * VBucket visitor collecting aggregated datatype stats.
+ *
+ * May be used in tandem with VBucketCountVisitors by adding both to a
+ * VBucketStatAggregator. This allows both sets of stats to be aggregated
+ * in a single sweep of all vbuckets, while still allowing either visitor
+ * to be used alone if required.
+ */
+class DatatypeStatVisitor : public VBucketStatVisitor {
+public:
+    explicit DatatypeStatVisitor(vbucket_state_t state)
+        : VBucketStatVisitor(state) {
+    }
+
+    void visitBucket(const VBucketPtr& vb) override;
+
+    size_t getDatatypeCount(protocol_binary_datatype_t datatype) const {
+        return datatypeCounts[datatype];
+    }
+    size_t getNumDatatypes() const {
+        return datatypeCounts.size();
+    }
+
+private:
+    HashTable::DatatypeCombo datatypeCounts{};
+};
+
+/**
+ * A container class holding VBucketStatVisitors to aggregate stats for
  * different vbucket states.
  */
-class VBucketCountAggregator : public VBucketVisitor  {
+class VBucketStatAggregator : public VBucketVisitor {
 public:
     void visitBucket(const VBucketPtr& vb) override;
 
-    void addVisitor(VBucketCountVisitor* visitor);
+    void addVisitor(VBucketStatVisitor* visitor);
 
 private:
-    std::map<vbucket_state_t, VBucketCountVisitor*> visitorMap;
+    std::map<vbucket_state_t, std::vector<VBucketStatVisitor*>> visitorMap;
 };
