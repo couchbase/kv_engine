@@ -65,26 +65,29 @@ void VBucketCountVisitor::visitBucket(const VBucketPtr& vb) {
         totalHLCDriftExceptionCounters.ahead += driftExceptionCounters.ahead;
         totalHLCDriftExceptionCounters.behind += driftExceptionCounters.behind;
 
-        // Iterate over each datatype combination
-        auto vbDatatypeCounts = vb->ht.getDatatypeCounts();
-        for (uint8_t ii = 0; ii < datatypeCounts.size(); ++ii) {
-            datatypeCounts[ii] += vbDatatypeCounts[ii];
-        }
-
         syncWriteAcceptedCount += vb->getSyncWriteAcceptedCount();
         syncWriteCommittedCount += vb->getSyncWriteCommittedCount();
         syncWriteAbortedCount += vb->getSyncWriteAbortedCount();
     }
 }
 
-void VBucketCountAggregator::visitBucket(const VBucketPtr& vb) {
-    std::map<vbucket_state_t, VBucketCountVisitor*>::iterator it;
-    it = visitorMap.find(vb->getState());
-    if ( it != visitorMap.end() ) {
-        it->second->visitBucket(vb);
+void DatatypeStatVisitor::visitBucket(const VBucketPtr& vb) {
+    // Iterate over each datatype combination
+    auto vbDatatypeCounts = vb->ht.getDatatypeCounts();
+    for (uint8_t ii = 0; ii < datatypeCounts.size(); ++ii) {
+        datatypeCounts[ii] += vbDatatypeCounts[ii];
     }
 }
 
-void VBucketCountAggregator::addVisitor(VBucketCountVisitor* visitor) {
-    visitorMap[visitor->getVBucketState()] = visitor;
+void VBucketStatAggregator::visitBucket(const VBucketPtr& vb) {
+    auto it = visitorMap.find(vb->getState());
+    if (it != visitorMap.end()) {
+        for (auto* visitor : it->second) {
+            visitor->visitBucket(vb);
+        }
+    }
+}
+
+void VBucketStatAggregator::addVisitor(VBucketStatVisitor* visitor) {
+    visitorMap[visitor->getVBucketState()].push_back(visitor);
 }

@@ -1203,11 +1203,17 @@ void KVBucket::getAggregatedVBucketStats(const BucketStatCollector& collector) {
     auto pending = makeVBCountVisitor(vbucket_state_pending);
     auto dead = makeVBCountVisitor(vbucket_state_dead);
 
-    VBucketCountAggregator aggregator;
+    DatatypeStatVisitor activeDatatype(vbucket_state_active);
+    DatatypeStatVisitor replicaDatatype(vbucket_state_replica);
+
+    VBucketStatAggregator aggregator;
     aggregator.addVisitor(active.get());
     aggregator.addVisitor(replica.get());
     aggregator.addVisitor(pending.get());
     aggregator.addVisitor(dead.get());
+
+    aggregator.addVisitor(&activeDatatype);
+    aggregator.addVisitor(&replicaDatatype);
     visit(aggregator);
 
     updateCachedResidentRatio(active->getMemResidentPer(),
@@ -1215,6 +1221,7 @@ void KVBucket::getAggregatedVBucketStats(const BucketStatCollector& collector) {
 
     // And finally actually return the stats using the AddStatFn callback.
     appendAggregatedVBucketStats(*active, *replica, *pending, *dead, collector);
+    appendDatatypeStats(activeDatatype, replicaDatatype, collector);
 }
 
 std::unique_ptr<VBucketCountVisitor> KVBucket::makeVBCountVisitor(
@@ -1367,6 +1374,12 @@ void KVBucket::appendAggregatedVBucketStats(
             Key::ep_clock_cas_drift_threshold_exceeded,
             active.getTotalHLCDriftExceptionCounters().ahead +
                     replica.getTotalHLCDriftExceptionCounters().ahead);
+}
+
+void KVBucket::appendDatatypeStats(const DatatypeStatVisitor& active,
+                                   const DatatypeStatVisitor& replica,
+                                   const BucketStatCollector& collector) {
+    using namespace cb::stats;
 
     for (uint8_t ii = 0; ii < active.getNumDatatypes(); ++ii) {
         auto datatypeStr = mcbp::datatype::to_string(ii);
