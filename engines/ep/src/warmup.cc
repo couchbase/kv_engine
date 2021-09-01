@@ -17,8 +17,6 @@
 #include "collections/collection_persisted_stats.h"
 #include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
-#include "common.h"
-#include "connmap.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"
 #include "ep_vb.h"
@@ -30,17 +28,16 @@
 #include "vb_visitors.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
-
 #include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
 #include <platform/dirutils.h>
 #include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
-
 #include <array>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <random>
 #include <string>
 #include <utility>
@@ -87,11 +84,26 @@ void logWarmupStats(EPBucket& epstore) {
  */
 class LoadStorageKVPairCallback : public StatusCallback<GetValue> {
 public:
-    LoadStorageKVPairCallback(EPBucket& ep,
-                              bool maybeEnableTraffic,
-                              WarmupState::State warmupState);
+    LoadStorageKVPairCallback(
+            EPBucket& ep,
+            bool maybeEnableTraffic,
+            WarmupState::State warmupState,
+            std::optional<const std::chrono::steady_clock::duration>
+                    deltaDeadlineFromNow = std::nullopt);
 
     void callback(GetValue& val) override;
+
+    void updateDeadLine() {
+        if (deltaDeadlineFromNow) {
+            deadline =
+                    (std::chrono::steady_clock::now() + *deltaDeadlineFromNow);
+            pausedDueToDeadLine = false;
+        }
+    };
+
+    bool isPausedDueToDeadLine() const {
+        return pausedDueToDeadLine;
+    };
 
 private:
     bool shouldEject() const;
@@ -101,14 +113,18 @@ private:
     VBucketMap& vbuckets;
     EPStats& stats;
     EPBucket& epstore;
-    time_t startTime;
     bool hasPurged;
+    std::optional<const std::chrono::steady_clock::duration>
+            deltaDeadlineFromNow;
+    std::chrono::steady_clock::time_point deadline;
+    bool pausedDueToDeadLine = false;
 
     /// If true, call EPBucket::maybeEnableTraffic() after each KV pair loaded.
     const bool maybeEnableTraffic;
-
     WarmupState::State warmupState;
 };
+
+using CacheLookupCallBackPtr = std::unique_ptr<StatusCallback<CacheLookup>>;
 
 class LoadValueCallback : public StatusCallback<CacheLookup> {
 public:
@@ -340,39 +356,232 @@ private:
     const std::string description;
 };
 
-class WarmupKeyDump : public GlobalTask {
+class WarmupBackfillTask;
+/**
+ * Implementation of a PauseResumeVBVisitor to be used for the
+ * WarmupBackfillTask WarmupVbucketVisitor keeps record of the current vbucket
+ * being backfilled and the current state of scan context.
+ */
+class WarmupVbucketVisitor : public PauseResumeVBVisitor {
 public:
-    WarmupKeyDump(EPBucket& st, uint16_t sh, Warmup* w)
-        : GlobalTask(&st.getEPEngine(), TaskId::WarmupKeyDump, 0, false),
-          _shardId(sh),
-          _warmup(w),
-          _description("Warmup - key dump: shard " + std::to_string(_shardId)) {
-        _warmup->addToTaskSet(uid);
+    WarmupVbucketVisitor(EPBucket& ep, const WarmupBackfillTask& task)
+        : ep(ep), backfillTask(task){};
+
+    bool visit(VBucket& vb) override;
+
+private:
+    EPBucket& ep;
+    bool needToScanAgain = false;
+    const WarmupBackfillTask& backfillTask;
+    std::unique_ptr<BySeqnoScanContext> currentScanCtx;
+};
+
+/**
+ * Abstract Task to perform a backfill during warmup on a shards vbuckets, in a
+ * pause-resume fashion.
+ *
+ * The task will also transition the warmup's state to the next warmup state
+ * once threadTaskCount has meet the total number of shards.
+ */
+class WarmupBackfillTask : public GlobalTask {
+public:
+    /**
+     * Constructor of WarmupBackfillTask
+     * @param bucket EPBucket the task is back filling for
+     * @param shardId of the shard we're performing the backfill on
+     * @param warmup ref to the warmup class the backfill is for
+     * @param taskId of the the backfill that is to be performed
+     * @param taskDesc description of the task
+     * @param threadTaskCount ref to atomic size_t that keeps count of how many
+     * of the per tasks shards have been completed. If this value is equal to
+     * the number of shards the run() method will transition warmup to the next
+     * state.
+     */
+    WarmupBackfillTask(EPBucket& bucket,
+                       size_t shardId,
+                       Warmup& warmup,
+                       TaskId taskId,
+                       std::string_view taskDesc,
+                       std::atomic<size_t>& threadTaskCount)
+        : GlobalTask(&bucket.getEPEngine(), taskId, 0, true),
+          warmup(warmup),
+          shardId(shardId),
+          description(fmt::format("Warmup - {} shard {}", taskDesc, shardId)),
+          currentNumBackfillTasks(threadTaskCount),
+          filter(warmup.shardVbIds[shardId]),
+          visitor(bucket, *this),
+          epStorePosition(bucket.startPosition()) {
+        warmup.addToTaskSet(uid);
     }
 
     std::string getDescription() const override {
-        return _description;
+        return description;
     }
 
     std::chrono::microseconds maxExpectedDuration() const override {
-        // Runtime is a function of the number of keys in the database; can be
-        // many minutes in large datasets.
-        // Given this large variation; set max duration to a "way out" value
-        // which we don't expect to see.
-        return std::chrono::hours(1);
+        /**
+         * Empirical testing using perf_bucket_warmup() in ep_perfsuite has
+         * shown that 10ms is a sweet spot for back filling maxDuration as it
+         * allows ~1000 items to be loaded before meeting the deadline and
+         * doesn't show a regression as compared with before the back filling
+         * tasks being performed in a pause/resume fashion.
+         */
+        return std::chrono::milliseconds(10);
     }
 
     bool run() override {
-        TRACE_EVENT1("ep-engine/task", "WarmupKeyDump", "shard", _shardId);
-        _warmup->keyDumpforShard(_shardId);
-        _warmup->removeFromTaskSet(uid);
-        return false;
+        TRACE_EVENT1(
+                "ep-engine/task", "WarmupBackfillTask", "shard", getShardId());
+        if (finished || filter.empty() || engine->getEpStats().isShutdown) {
+            if (!finished) {
+                finishTask();
+            }
+            return false;
+        }
+
+        auto& kvBucket = *engine->getKVBucket();
+        epStorePosition =
+                kvBucket.pauseResumeVisit(visitor, epStorePosition, &filter);
+
+        if (epStorePosition == kvBucket.endPosition()) {
+            finishTask();
+        }
+
+        return !finished;
     }
 
+    size_t getShardId() const {
+        return shardId;
+    };
+
+    Warmup& getWarmup() const {
+        return warmup;
+    };
+
+    virtual WarmupState::State getNextState() const = 0;
+    virtual ValueFilter getValueFilter() const = 0;
+    virtual bool maybeEnableTraffic() const = 0;
+    virtual CacheLookupCallBackPtr makeCacheLookupCallback() const = 0;
+
+protected:
+    Warmup& warmup;
+
 private:
-    uint16_t _shardId;
-    Warmup* _warmup;
-    const std::string _description;
+    void finishTask() {
+        // we only need go through all the vbuckets once, so we're
+        finished = true;
+        warmup.removeFromTaskSet(uid);
+        // If this is the last backfill task for this shard then move us
+        // to the next state
+        if (++currentNumBackfillTasks ==
+            engine->getKVBucket()->getVBuckets().getNumShards()) {
+            warmup.transition(getNextState());
+        }
+    }
+
+    bool finished = false;
+    const size_t shardId;
+    const std::string description;
+    std::atomic<size_t>& currentNumBackfillTasks;
+    VBucketFilter filter;
+    WarmupVbucketVisitor visitor;
+    KVBucketIface::Position epStorePosition;
+};
+
+bool WarmupVbucketVisitor::visit(VBucket& vb) {
+    auto* kvstore = ep.getRWUnderlyingByShard(backfillTask.getShardId());
+
+    if (!currentScanCtx) {
+        auto kvLookup = std::make_unique<LoadStorageKVPairCallback>(
+                ep,
+                backfillTask.maybeEnableTraffic(),
+                backfillTask.getWarmup().getWarmupState(),
+                backfillTask.maxExpectedDuration());
+        currentScanCtx = kvstore->initBySeqnoScanContext(
+                std::move(kvLookup),
+                backfillTask.makeCacheLookupCallback(),
+                vb.getId(),
+                0,
+                DocumentFilter::NO_DELETES,
+                backfillTask.getValueFilter(),
+                SnapshotSource::Head);
+        if (!currentScanCtx) {
+            throw std::runtime_error(fmt::format(
+                    "WarmupVbucketVisitor::visit(): {} shardId:{} failed to "
+                    "create BySeqnoScanContext, for backfill task:'{}'",
+                    vb.getId(),
+                    backfillTask.getShardId(),
+                    backfillTask.getDescription()));
+        }
+    }
+    // Update backfill deadline for when we need to next pause
+    auto kvCallback =
+            dynamic_cast<LoadStorageKVPairCallback&>(*currentScanCtx->callback);
+    kvCallback.updateDeadLine();
+
+    ep.getEPEngine().hangWarmupHook();
+
+    auto errorCode = kvstore->scan(*currentScanCtx);
+    if (errorCode == scan_again) {
+        needToScanAgain = kvCallback.isPausedDueToDeadLine();
+        // if the 'scan_again' was due to a OOM (e.i. not due to our deadline
+        // being met)causing warmup to be completed then log this and return
+        // false as we shouldn't keep scanning this vbucket
+        if (!needToScanAgain) {
+            // skip loading remaining VBuckets as memory limit was reached
+            EP_LOG_INFO(
+                    "WarmupVbucketVisitor::visit(): {} shardId:{} "
+                    "lastReadSeqno:{} needToScanAgain:{} vbucket "
+                    "memory limit has been reached",
+                    vb.getId(),
+                    backfillTask.getShardId(),
+                    currentScanCtx->lastReadSeqno,
+                    needToScanAgain);
+            // Backfill canceled due to OOM so destroy the scan ctx
+            currentScanCtx.reset();
+        }
+        return !needToScanAgain;
+    }
+    // Finished backfill for this vbucket so we need to keep the scan ctx,
+    // so that we can create a scan ctx for the next vbucket.
+    currentScanCtx.reset();
+    needToScanAgain = false;
+    return true;
+}
+
+/**
+ * [Value-eviction only]
+ * Task that loads all keys into memory for each vBucket in the given shard in a
+ * pause resume fashion.
+ */
+class WarmupKeyDump : public WarmupBackfillTask {
+public:
+    WarmupKeyDump(EPBucket& bucket,
+                  size_t shardId,
+                  Warmup& warmup,
+                  std::atomic<size_t>& threadTaskCount)
+        : WarmupBackfillTask(bucket,
+                             shardId,
+                             warmup,
+                             TaskId::WarmupKeyDump,
+                             "key dump",
+                             threadTaskCount){};
+
+    WarmupState::State getNextState() const override {
+        return WarmupState::State::CheckForAccessLog;
+    }
+
+    ValueFilter getValueFilter() const override {
+        return ValueFilter::KEYS_ONLY;
+    };
+
+    bool maybeEnableTraffic() const override {
+        return false;
+    };
+
+    CacheLookupCallBackPtr makeCacheLookupCallback() const override {
+        return std::make_unique<NoLookupCallback>();
+    };
 };
 
 class WarmupCheckforAccessLog : public GlobalTask {
@@ -442,78 +651,75 @@ private:
     const std::string _description;
 };
 
-class WarmupLoadingKVPairs : public GlobalTask {
+/**
+ * [Full-eviction only]
+ * Task that loads both keys and values into memory for each vBucket in the
+ * given shard in a pause resume fashion.
+ */
+class WarmupLoadingKVPairs : public WarmupBackfillTask {
 public:
-    WarmupLoadingKVPairs(EPBucket& st, uint16_t sh, Warmup* w)
-        : GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadingKVPairs, 0, false),
-          _shardId(sh),
-          _warmup(w),
-          _description("Warmup - loading KV Pairs: shard " +
-                       std::to_string(_shardId)) {
-        _warmup->addToTaskSet(uid);
-    }
+    WarmupLoadingKVPairs(EPBucket& bucket,
+                         size_t shardId,
+                         Warmup& warmup,
+                         std::atomic<size_t>& threadTaskCount)
+        : WarmupBackfillTask(bucket,
+                             shardId,
+                             warmup,
+                             TaskId::WarmupLoadingKVPairs,
+                             "loading KV Pairs",
+                             threadTaskCount){};
 
-    std::string getDescription() const override {
-        return _description;
-    }
+    WarmupState::State getNextState() const override {
+        return WarmupState::State::Done;
+    };
 
-    std::chrono::microseconds maxExpectedDuration() const override {
-        // Runtime is a function of the number of documents which can
-        // be held in RAM (and need to be laoded from disk),
-        // can be many minutes in large datasets.
-        // Given this large variation; set max duration to a "way out" value
-        // which we don't expect to see.
-        return std::chrono::hours(1);
-    }
+    ValueFilter getValueFilter() const override {
+        return warmup.store.getValueFilterForCompressionMode();
+    };
 
-    bool run() override {
-        TRACE_EVENT0("ep-engine/task", "WarmupLoadingKVPairs");
-        _warmup->loadKVPairsforShard(_shardId);
-        _warmup->removeFromTaskSet(uid);
-        return false;
-    }
+    bool maybeEnableTraffic() const override {
+        return warmup.store.getItemEvictionPolicy() == EvictionPolicy::Full;
+    };
 
-private:
-    uint16_t _shardId;
-    Warmup* _warmup;
-    const std::string _description;
+    CacheLookupCallBackPtr makeCacheLookupCallback() const override {
+        return std::make_unique<LoadValueCallback>(warmup.store.vbMap,
+                                                   warmup.getWarmupState());
+    };
 };
 
-class WarmupLoadingData : public GlobalTask {
+/**
+ * Task that loads values into memory for each vBucket in the given shard in a
+ * pause resume fashion.
+ */
+class WarmupLoadingData : public WarmupBackfillTask {
 public:
-    WarmupLoadingData(EPBucket& st, uint16_t sh, Warmup* w)
-        : GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadingData, 0, false),
-          _shardId(sh),
-          _warmup(w),
-          _description("Warmup - loading data: shard " +
-                       std::to_string(_shardId)) {
-        _warmup->addToTaskSet(uid);
-    }
+    WarmupLoadingData(EPBucket& bucket,
+                      size_t shardId,
+                      Warmup& warmup,
+                      std::atomic<size_t>& threadTaskCount)
+        : WarmupBackfillTask(bucket,
+                             shardId,
+                             warmup,
+                             TaskId::WarmupLoadingData,
+                             "loading data",
+                             threadTaskCount){};
 
-    std::string getDescription() const override {
-        return _description;
-    }
+    WarmupState::State getNextState() const override {
+        return WarmupState::State::Done;
+    };
 
-    std::chrono::microseconds maxExpectedDuration() const override {
-        // Runtime is a function of the number of documents which can
-        // be held in RAM (and need to be laoded from disk),
-        // can be many minutes in large datasets.
-        // Given this large variation; set max duration to a "way out" value
-        // which we don't expect to see.
-        return std::chrono::hours(1);
-    }
+    ValueFilter getValueFilter() const override {
+        return warmup.store.getValueFilterForCompressionMode();
+    };
 
-    bool run() override {
-        TRACE_EVENT0("ep-engine/task", "WarmupLoadingData");
-        _warmup->loadDataforShard(_shardId);
-        _warmup->removeFromTaskSet(uid);
-        return false;
-    }
+    bool maybeEnableTraffic() const override {
+        return true;
+    };
 
-private:
-    uint16_t _shardId;
-    Warmup* _warmup;
-    const std::string _description;
+    CacheLookupCallBackPtr makeCacheLookupCallback() const override {
+        return std::make_unique<LoadValueCallback>(warmup.store.vbMap,
+                                                   warmup.getWarmupState());
+    };
 };
 
 class WarmupCompletion : public GlobalTask {
@@ -692,17 +898,29 @@ std::ostream& operator <<(std::ostream &out, const WarmupState &state)
 }
 
 LoadStorageKVPairCallback::LoadStorageKVPairCallback(
-        EPBucket& ep, bool maybeEnableTraffic, WarmupState::State warmupState)
+        EPBucket& ep,
+        bool maybeEnableTraffic,
+        WarmupState::State warmupState,
+        std::optional<const std::chrono::steady_clock::duration>
+                deltaDeadlineFromNow)
     : vbuckets(ep.vbMap),
       stats(ep.getEPEngine().getEpStats()),
       epstore(ep),
-      startTime(ep_real_time()),
       hasPurged(false),
+      deltaDeadlineFromNow(std::move(deltaDeadlineFromNow)),
+      deadline(std::chrono::steady_clock::time_point::max()),
       maybeEnableTraffic(maybeEnableTraffic),
       warmupState(warmupState) {
 }
 
-void LoadStorageKVPairCallback::callback(GetValue &val) {
+void LoadStorageKVPairCallback::callback(GetValue& val) {
+    if (deltaDeadlineFromNow && std::chrono::steady_clock::now() >= deadline) {
+        pausedDueToDeadLine = true;
+        // Use cb::engine_errc::no_memory to get KVStore to cancel the backfill
+        setStatus(cb::engine_errc::no_memory);
+        return;
+    }
+
     // This callback method is responsible for deleting the Item
     std::unique_ptr<Item> i(std::move(val.item));
 
@@ -1364,41 +1582,19 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
     }
 }
 
-void Warmup::scheduleKeyDump()
-{
+void Warmup::scheduleBackfillTask(MakeBackfillTaskFn makeBackfillTask) {
     threadtask_count = 0;
-    for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
-        ExTask task = std::make_shared<WarmupKeyDump>(store, i, this);
-        ExecutorPool::get()->schedule(task);
+    for (size_t shardId = 0; shardId < store.vbMap.shards.size(); ++shardId) {
+        ExecutorPool::get()->schedule(makeBackfillTask(shardId));
     }
-
 }
 
-void Warmup::keyDumpforShard(uint16_t shardId)
-{
-    const auto* kvstore = store.getROUnderlyingByShard(shardId);
-    for (const auto vbid : shardVbIds[shardId]) {
-        auto ctx = kvstore->initBySeqnoScanContext(
-                std::make_unique<LoadStorageKVPairCallback>(
-                        store, false, state.getState()),
-                std::make_unique<NoLookupCallback>(),
-                vbid,
-                0,
-                DocumentFilter::NO_DELETES,
-                ValueFilter::KEYS_ONLY,
-                SnapshotSource::Head);
-        if (ctx) {
-            auto errorCode = kvstore->scan(*ctx);
-            if (errorCode == scan_again) { // cb::engine_errc::no_memory
-                // skip loading remaining VBuckets as memory limit was reached
-                break;
-            }
-        }
-    }
-
-    if (++threadtask_count == store.vbMap.getNumShards()) {
-        transition(WarmupState::State::CheckForAccessLog);
-    }
+void Warmup::scheduleKeyDump() {
+    auto createTask = [this](size_t shardId) -> ExTask {
+        return std::make_shared<WarmupKeyDump>(
+                store, shardId, *this, threadtask_count);
+    };
+    scheduleBackfillTask(createTask);
 }
 
 void Warmup::scheduleCheckForAccessLog()
@@ -1551,100 +1747,29 @@ size_t Warmup::doWarmup(MutationLog& lf,
     return cookie.loaded;
 }
 
-void Warmup::scheduleLoadingKVPairs()
-{
+void Warmup::scheduleLoadingKVPairs() {
     // We reach here only if keyDump didn't return SUCCESS or if
     // in case of Full Eviction. Either way, set estimated value
     // count equal to the estimated item count, as very likely no
     // keys have been warmed up at this point.
     setEstimatedWarmupCount(estimatedItemCount);
 
-    threadtask_count = 0;
-    for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
-        ExTask task = std::make_shared<WarmupLoadingKVPairs>(store, i, this);
-        ExecutorPool::get()->schedule(task);
-    }
-
+    auto createTask = [this](size_t shardId) -> ExTask {
+        return std::make_shared<WarmupLoadingKVPairs>(
+                store, shardId, *this, threadtask_count);
+    };
+    scheduleBackfillTask(createTask);
 }
 
-void Warmup::loadKVPairsforShard(uint16_t shardId)
-{
-    bool maybe_enable_traffic = false;
-    scan_error_t errorCode = scan_success;
-
-    if (store.getItemEvictionPolicy() == EvictionPolicy::Full) {
-        maybe_enable_traffic = true;
-    }
-
-    const auto* kvstore = store.getROUnderlyingByShard(shardId);
-    ValueFilter valFilter = store.getValueFilterForCompressionMode();
-
-    for (const auto vbid : shardVbIds[shardId]) {
-        auto ctx = kvstore->initBySeqnoScanContext(
-                std::make_unique<LoadStorageKVPairCallback>(
-                        store, maybe_enable_traffic, state.getState()),
-                std::make_unique<LoadValueCallback>(store.vbMap,
-                                                    state.getState()),
-                vbid,
-                0,
-                DocumentFilter::NO_DELETES,
-                valFilter,
-                SnapshotSource::Head);
-        if (ctx) {
-            errorCode = kvstore->scan(*ctx);
-            if (errorCode == scan_again) { // cb::engine_errc::no_memory
-                // skip loading remaining VBuckets as memory limit was reached
-                break;
-            }
-        }
-    }
-    if (++threadtask_count == store.vbMap.getNumShards()) {
-        transition(WarmupState::State::Done);
-    }
-}
-
-void Warmup::scheduleLoadingData()
-{
-    size_t estimatedCount = store.getEPEngine().getEpStats().warmedUpKeys;
+void Warmup::scheduleLoadingData() {
+    auto estimatedCount = store.getEPEngine().getEpStats().warmedUpKeys;
     setEstimatedWarmupCount(estimatedCount);
 
-    threadtask_count = 0;
-    for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
-        ExTask task = std::make_shared<WarmupLoadingData>(store, i, this);
-        ExecutorPool::get()->schedule(task);
-    }
-}
-
-void Warmup::loadDataforShard(uint16_t shardId)
-{
-    scan_error_t errorCode = scan_success;
-
-    const auto* kvstore = store.getROUnderlyingByShard(shardId);
-    ValueFilter valFilter = store.getValueFilterForCompressionMode();
-
-    for (const auto vbid : shardVbIds[shardId]) {
-        auto ctx = kvstore->initBySeqnoScanContext(
-                std::make_unique<LoadStorageKVPairCallback>(
-                        store, true, state.getState()),
-                std::make_unique<LoadValueCallback>(store.vbMap,
-                                                    state.getState()),
-                vbid,
-                0,
-                DocumentFilter::NO_DELETES,
-                valFilter,
-                SnapshotSource::Head);
-        if (ctx) {
-            errorCode = kvstore->scan(*ctx);
-            if (errorCode == scan_again) { // cb::engine_errc::no_memory
-                // skip loading remaining VBuckets as memory limit was reached
-                break;
-            }
-        }
-    }
-
-    if (++threadtask_count == store.vbMap.getNumShards()) {
-        transition(WarmupState::State::Done);
-    }
+    auto createTask = [this](size_t shardId) -> ExTask {
+        return std::make_shared<WarmupLoadingData>(
+                store, shardId, *this, threadtask_count);
+    };
+    scheduleBackfillTask(createTask);
 }
 
 void Warmup::scheduleCompletion() {
