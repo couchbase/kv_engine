@@ -67,6 +67,7 @@ set(memcached_testapp_SOURCES
     testapp_subdoc.cc
     testapp_subdoc_common.cc
     testapp_subdoc_common.h
+    testapp_subdoc_concurrency.cc
     testapp_subdoc_multipath.cc
     testapp_subdoc_perf.cc
     testapp_tenant.cc
