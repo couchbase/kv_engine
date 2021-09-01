@@ -43,7 +43,8 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
         IncludeValue includeValue,
         IncludeXattrs includeXattrs,
         IncludeDeletedUserXattrs includeDeletedUserXattrs,
-        std::optional<std::string_view> jsonFilter) {
+        std::optional<std::string_view> jsonFilter,
+        std::function<void()> preSetActiveHook) {
     auto stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(&engine_),
             std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
@@ -59,6 +60,11 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
             includeXattrs,
             includeDeletedUserXattrs,
             jsonFilter);
+
+    if (preSetActiveHook) {
+        preSetActiveHook();
+    }
+
     stream->setActive();
 
     auto baseStream = std::dynamic_pointer_cast<ActiveStream>(stream);
