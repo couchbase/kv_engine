@@ -368,9 +368,13 @@ cb::engine_errc EventuallyPersistentEngine::get_prometheus_stats(
     try {
         if (cardinality == cb::prometheus::Cardinality::High) {
             doTimingStats(collector);
-            if (cb::engine_errc status =
-                        Collections::Manager::doPrometheusCollectionStats(
-                                *getKVBucket(), collector);
+            cb::engine_errc status;
+            if (status = doEngineStatsHighCardinality(collector);
+                status != cb::engine_errc::success) {
+                return status;
+            }
+            if (status = Collections::Manager::doPrometheusCollectionStats(
+                        *getKVBucket(), collector);
                 status != cb::engine_errc::success) {
                 return cb::engine_errc(status);
             }
@@ -389,7 +393,7 @@ cb::engine_errc EventuallyPersistentEngine::get_prometheus_stats(
 
         } else {
             cb::engine_errc status;
-            if (status = doEngineStats(collector);
+            if (status = doEngineStatsLowCardinality(collector);
                 status != cb::engine_errc::success) {
                 return status;
             }
@@ -2894,21 +2898,20 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
 
 cb::engine_errc EventuallyPersistentEngine::doEngineStats(
         const BucketStatCollector& collector) {
-    configuration.addStats(collector);
+    cb::engine_errc status;
+    if (status = doEngineStatsLowCardinality(collector);
+        status != cb::engine_errc::success) {
+        return status;
+    }
 
-    EPStats &epstats = getEpStats();
+    status = doEngineStatsHighCardinality(collector);
+    return status;
+}
+cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
+        const BucketStatCollector& collector) {
+    EPStats& epstats = getEpStats();
 
     using namespace cb::stats;
-    collector.addStat(Key::ep_storage_age, epstats.dirtyAge);
-    collector.addStat(Key::ep_storage_age_highwat, epstats.dirtyAgeHighWat);
-    collector.addStat(Key::ep_num_workers,
-                      ExecutorPool::get()->getNumWorkersStat());
-
-    if (getWorkloadPriority() == HIGH_BUCKET_PRIORITY) {
-        collector.addStat(Key::ep_bucket_priority, "HIGH");
-    } else if (getWorkloadPriority() == LOW_BUCKET_PRIORITY) {
-        collector.addStat(Key::ep_bucket_priority, "LOW");
-    }
 
     collector.addStat(Key::ep_total_enqueued, epstats.totalEnqueued);
     collector.addStat(Key::ep_total_deduplicated, epstats.totalDeduplicated);
@@ -2950,8 +2953,6 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStats(
     collector.addStat(Key::mem_used, memUsed);
     collector.addStat(Key::mem_used_estimate,
                       stats.getEstimatedTotalMemoryUsed());
-    collector.addStat(Key::ep_mem_low_wat_percent, stats.mem_low_wat_percent);
-    collector.addStat(Key::ep_mem_high_wat_percent, stats.mem_high_wat_percent);
     collector.addStat(Key::bytes, memUsed);
     collector.addStat(Key::ep_kv_size, stats.getCurrentSize());
     collector.addStat(Key::ep_blob_num, stats.getNumBlob());
@@ -2973,8 +2974,6 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStats(
 
     collector.addStat(Key::ep_oom_errors, stats.oom_errors);
     collector.addStat(Key::ep_tmp_oom_errors, stats.tmp_oom_errors);
-    collector.addStat(Key::ep_mem_tracker_enabled,
-                      EPStats::isMemoryTrackingEnabled());
     collector.addStat(Key::ep_bg_fetched, epstats.bg_fetched);
     collector.addStat(Key::ep_bg_meta_fetched, epstats.bg_meta_fetched);
     collector.addStat(Key::ep_bg_remaining_items, epstats.numRemainingBgItems);
@@ -2999,49 +2998,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStats(
     collector.addStat(Key::ep_pending_compactions, epstats.pendingCompactions);
     collector.addStat(Key::ep_rollback_count, epstats.rollbackCount);
 
-    size_t vbDeletions = epstats.vbucketDeletions.load();
-    if (vbDeletions > 0) {
-        collector.addStat(Key::ep_vbucket_del_max_walltime,
-                          epstats.vbucketDelMaxWalltime);
-        collector.addStat(Key::ep_vbucket_del_avg_walltime,
-                          epstats.vbucketDelTotWalltime / vbDeletions);
-    }
-
-    size_t numBgOps = epstats.bgNumOperations.load();
-    if (numBgOps > 0) {
-        collector.addStat(Key::ep_bg_num_samples, epstats.bgNumOperations);
-        collector.addStat(Key::ep_bg_min_wait, epstats.bgMinWait);
-        collector.addStat(Key::ep_bg_max_wait, epstats.bgMaxWait);
-        collector.addStat(Key::ep_bg_wait_avg, epstats.bgWait / numBgOps);
-        collector.addStat(Key::ep_bg_min_load, epstats.bgMinLoad);
-        collector.addStat(Key::ep_bg_max_load, epstats.bgMaxLoad);
-        collector.addStat(Key::ep_bg_load_avg, epstats.bgLoad / numBgOps);
-        collector.addStat(Key::ep_bg_wait, epstats.bgWait);
-        collector.addStat(Key::ep_bg_load, epstats.bgLoad);
-    }
-
     collector.addStat(Key::ep_degraded_mode, isDegradedMode());
-
-    collector.addStat(Key::ep_num_access_scanner_runs, epstats.alogRuns);
-    collector.addStat(Key::ep_num_access_scanner_skips,
-                      epstats.accessScannerSkips);
-    collector.addStat(Key::ep_access_scanner_last_runtime, epstats.alogRuntime);
-    collector.addStat(Key::ep_access_scanner_num_items, epstats.alogNumItems);
-
-    if (kvBucket->isAccessScannerEnabled() && epstats.alogTime.load() != 0)
-    {
-        std::array<char, 20> timestr;
-        struct tm alogTim;
-        hrtime_t alogTime = epstats.alogTime.load();
-        if (cb_gmtime_r((time_t *)&alogTime, &alogTim) == -1) {
-            collector.addStat(Key::ep_access_scanner_task_time, "UNKNOWN");
-        } else {
-            strftime(timestr.data(), 20, "%Y-%m-%d %H:%M:%S", &alogTim);
-            collector.addStat(Key::ep_access_scanner_task_time, timestr.data());
-        }
-    } else {
-        collector.addStat(Key::ep_access_scanner_task_time, "NOT_SCHEDULED");
-    }
 
     if (kvBucket->isExpPagerEnabled()) {
         std::array<char, 20> timestr;
@@ -3056,8 +3013,6 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStats(
     } else {
         collector.addStat(Key::ep_expiry_pager_task_time, "NOT_SCHEDULED");
     }
-
-    collector.addStat(Key::ep_startup_time, startupTime.load());
 
     if (getConfiguration().getBucketType() == "persistent" &&
         getConfiguration().isWarmup()) {
@@ -3095,6 +3050,90 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStats(
     collector.addStat(Key::ep_workload_pattern,
                       workload->stringOfWorkLoadPattern());
 
+    doDiskFailureStats(collector);
+
+    // Note: These are also reported per-shard in 'kvstore' stats, however
+    // we want to be able to graph these over time, and hence need to expose
+    // to ns_sever at the top-level.
+    if (configuration.getBackend() == "couchdb") {
+        doEngineStatsCouchDB(collector, epstats);
+    } else if (configuration.getBackend() == "magma") {
+        doEngineStatsMagma(collector);
+    } else if (configuration.getBackend() == "rocksdb") {
+        doEngineStatsRocksDB(collector);
+    }
+
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
+        const BucketStatCollector& collector) {
+    configuration.addStats(collector);
+
+    EPStats& epstats = getEpStats();
+
+    using namespace cb::stats;
+
+    collector.addStat(Key::ep_startup_time, startupTime.load());
+
+    if (getWorkloadPriority() == HIGH_BUCKET_PRIORITY) {
+        collector.addStat(Key::ep_bucket_priority, "HIGH");
+    } else if (getWorkloadPriority() == LOW_BUCKET_PRIORITY) {
+        collector.addStat(Key::ep_bucket_priority, "LOW");
+    }
+
+    collector.addStat(Key::ep_mem_low_wat_percent, stats.mem_low_wat_percent);
+    collector.addStat(Key::ep_mem_high_wat_percent, stats.mem_high_wat_percent);
+
+    collector.addStat(Key::ep_mem_tracker_enabled,
+                      EPStats::isMemoryTrackingEnabled());
+
+    size_t numBgOps = epstats.bgNumOperations.load();
+    if (numBgOps > 0) {
+        collector.addStat(Key::ep_bg_num_samples, epstats.bgNumOperations);
+        collector.addStat(Key::ep_bg_min_wait, epstats.bgMinWait);
+        collector.addStat(Key::ep_bg_max_wait, epstats.bgMaxWait);
+        collector.addStat(Key::ep_bg_wait_avg, epstats.bgWait / numBgOps);
+        collector.addStat(Key::ep_bg_min_load, epstats.bgMinLoad);
+        collector.addStat(Key::ep_bg_max_load, epstats.bgMaxLoad);
+        collector.addStat(Key::ep_bg_load_avg, epstats.bgLoad / numBgOps);
+        collector.addStat(Key::ep_bg_wait, epstats.bgWait);
+        collector.addStat(Key::ep_bg_load, epstats.bgLoad);
+    }
+
+    collector.addStat(Key::ep_storage_age, epstats.dirtyAge);
+    collector.addStat(Key::ep_storage_age_highwat, epstats.dirtyAgeHighWat);
+    collector.addStat(Key::ep_num_workers,
+                      ExecutorPool::get()->getNumWorkersStat());
+
+    size_t vbDeletions = epstats.vbucketDeletions.load();
+    if (vbDeletions > 0) {
+        collector.addStat(Key::ep_vbucket_del_max_walltime,
+                          epstats.vbucketDelMaxWalltime);
+        collector.addStat(Key::ep_vbucket_del_avg_walltime,
+                          epstats.vbucketDelTotWalltime / vbDeletions);
+    }
+
+    collector.addStat(Key::ep_num_access_scanner_runs, epstats.alogRuns);
+    collector.addStat(Key::ep_num_access_scanner_skips,
+                      epstats.accessScannerSkips);
+    collector.addStat(Key::ep_access_scanner_last_runtime, epstats.alogRuntime);
+    collector.addStat(Key::ep_access_scanner_num_items, epstats.alogNumItems);
+
+    if (kvBucket->isAccessScannerEnabled() && epstats.alogTime.load() != 0) {
+        std::array<char, 20> timestr;
+        struct tm alogTim;
+        hrtime_t alogTime = epstats.alogTime.load();
+        if (cb_gmtime_r((time_t*)&alogTime, &alogTim) == -1) {
+            collector.addStat(Key::ep_access_scanner_task_time, "UNKNOWN");
+        } else {
+            strftime(timestr.data(), 20, "%Y-%m-%d %H:%M:%S", &alogTim);
+            collector.addStat(Key::ep_access_scanner_task_time, timestr.data());
+        }
+    } else {
+        collector.addStat(Key::ep_access_scanner_task_time, "NOT_SCHEDULED");
+    }
+
     collector.addStat(Key::ep_defragmenter_num_visited,
                       epstats.defragNumVisited);
     collector.addStat(Key::ep_defragmenter_num_moved, epstats.defragNumMoved);
@@ -3109,19 +3148,6 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStats(
     collector.addStat(Key::ep_cursors_dropped, epstats.cursorsDropped);
     collector.addStat(Key::ep_mem_freed_by_checkpoint_removal,
                       epstats.memFreedByCheckpointRemoval);
-
-    doDiskFailureStats(collector);
-
-    // Note: These are also reported per-shard in 'kvstore' stats, however
-    // we want to be able to graph these over time, and hence need to expose
-    // to ns_sever at the top-level.
-    if(configuration.getBackend() == "couchdb"){
-        doEngineStatsCouchDB(collector, epstats);
-    } else if(configuration.getBackend() == "magma") {
-        doEngineStatsMagma(collector);
-    } else if(configuration.getBackend() == "rocksdb"){
-        doEngineStatsRocksDB(collector);
-    }
 
     return cb::engine_errc::success;
 }
