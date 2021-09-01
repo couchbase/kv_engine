@@ -20,6 +20,7 @@
 #include <folly/SharedMutex.h>
 #include <memcached/engine.h>
 #include <nlohmann/json_fwd.hpp>
+#include <statistics/cardinality.h>
 #include <list>
 #include <string_view>
 
@@ -368,7 +369,8 @@ public:
      * active,replica buckets.
      */
     virtual void getAggregatedVBucketStats(
-            const BucketStatCollector& collector) = 0;
+            const BucketStatCollector& collector,
+            cb::prometheus::Cardinality cardinality) = 0;
 
     /**
      * Get file statistics
