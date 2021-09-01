@@ -1195,7 +1195,15 @@ void KVBucket::snapshotStats(bool shuttingDown) {
     getOneRWUnderlying()->snapshotStats(snapshotStats);
 }
 
-void KVBucket::getAggregatedVBucketStats(const BucketStatCollector& collector) {
+void KVBucket::getAggregatedVBucketStats(
+        const BucketStatCollector& collector,
+        cb::prometheus::Cardinality cardinality) {
+    // track whether high or low cardinality stats should be collected
+    auto doHigh = cardinality == cb::prometheus::Cardinality::All ||
+                  cardinality == cb::prometheus::Cardinality::High;
+    auto doLow = cardinality == cb::prometheus::Cardinality::All ||
+                 cardinality == cb::prometheus::Cardinality::Low;
+
     // Create visitors for each of the four vBucket states, and collect
     // stats for each.
     auto active = makeVBCountVisitor(vbucket_state_active);
@@ -1207,21 +1215,36 @@ void KVBucket::getAggregatedVBucketStats(const BucketStatCollector& collector) {
     DatatypeStatVisitor replicaDatatype(vbucket_state_replica);
 
     VBucketStatAggregator aggregator;
-    aggregator.addVisitor(active.get());
-    aggregator.addVisitor(replica.get());
-    aggregator.addVisitor(pending.get());
-    aggregator.addVisitor(dead.get());
+    if (doLow) {
+        // aggregate the important stats which need frequent updating
+        aggregator.addVisitor(active.get());
+        aggregator.addVisitor(replica.get());
+        aggregator.addVisitor(pending.get());
+        aggregator.addVisitor(dead.get());
+    }
 
-    aggregator.addVisitor(&activeDatatype);
-    aggregator.addVisitor(&replicaDatatype);
+    if (doHigh) {
+        // aggregate the datatype stats, which produce a lot of results and can
+        // be collected less frequently
+        aggregator.addVisitor(&activeDatatype);
+        aggregator.addVisitor(&replicaDatatype);
+    }
     visit(aggregator);
 
-    updateCachedResidentRatio(active->getMemResidentPer(),
-                              replica->getMemResidentPer());
+    if (doLow) {
+        updateCachedResidentRatio(active->getMemResidentPer(),
+                                  replica->getMemResidentPer());
+        updateCachedResidentRatio(active->getMemResidentPer(),
+                                  replica->getMemResidentPer());
 
-    // And finally actually return the stats using the AddStatFn callback.
-    appendAggregatedVBucketStats(*active, *replica, *pending, *dead, collector);
-    appendDatatypeStats(activeDatatype, replicaDatatype, collector);
+        // And finally actually return the stats using the AddStatFn callback.
+        appendAggregatedVBucketStats(
+                *active, *replica, *pending, *dead, collector);
+    }
+
+    if (doHigh) {
+        appendDatatypeStats(activeDatatype, replicaDatatype, collector);
+    }
 }
 
 std::unique_ptr<VBucketCountVisitor> KVBucket::makeVBCountVisitor(
