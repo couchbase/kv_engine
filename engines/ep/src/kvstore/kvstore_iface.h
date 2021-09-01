@@ -508,6 +508,14 @@ public:
                        CollectionID collection) const = 0;
 
     /**
+     * Note that for disk snapshots that have no manifest yet written, a uid
+     * of zero is returned (the default state).
+     * @return The ManifestUid or nothing if failure occurred
+     */
+    virtual std::optional<Collections::ManifestUid> getCollectionsManifestUid(
+            KVFileHandle& kvFileHandle) = 0;
+
+    /**
      * Return data that EPBucket requires for the creation of a
      * Collections::VB::Manifest
      *

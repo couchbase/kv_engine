@@ -1157,6 +1157,14 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsNoStats) {
     EXPECT_EQ(0, stats.diskSize);
 }
 
+TEST_P(KVStoreParamTestSkipRocks, GetCollectionManifest) {
+    auto kvHandle = kvstore->makeFileHandle(vbid);
+    EXPECT_TRUE(kvHandle);
+    auto uid = kvstore->getCollectionsManifestUid(*kvHandle);
+    EXPECT_TRUE(uid.has_value());
+    EXPECT_EQ(0, uid.value());
+}
+
 TEST_P(KVStoreParamTestSkipRocks, GetCollectionStats) {
     CollectionID cid;
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());

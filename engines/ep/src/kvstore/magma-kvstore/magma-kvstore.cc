@@ -2334,6 +2334,30 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
             vbstate->lastSnapEnd};
 }
 
+std::optional<Collections::ManifestUid> MagmaKVStore::getCollectionsManifestUid(
+        KVFileHandle& kvFileHandle) {
+    auto& kvfh = static_cast<MagmaKVFileHandle&>(kvFileHandle);
+    auto vbid = kvfh.vbid;
+
+    Status status;
+    std::string manifest;
+    std::tie(status, manifest) = readLocalDoc(vbid, manifestKey);
+
+    if (!status.IsOK()) {
+        if (status.ErrorCode() != Status::Code::NotFound) {
+            logger->warn("MagmaKVStore::getCollectionsManifestUid(): {}",
+                         status.Message());
+            return std::nullopt;
+        }
+
+        return Collections::ManifestUid{0};
+    }
+
+    return Collections::KVStore::decodeManifestUid(
+            {reinterpret_cast<const uint8_t*>(manifest.data()),
+             manifest.length()});
+}
+
 std::pair<bool, Collections::KVStore::Manifest>
 MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
     Status status;
