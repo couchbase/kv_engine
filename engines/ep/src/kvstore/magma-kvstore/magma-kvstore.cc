@@ -2459,7 +2459,7 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
 }
 
 std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
-MagmaKVStore::getDroppedCollections(Vbid vbid) {
+MagmaKVStore::getDroppedCollections(Vbid vbid) const {
     Slice keySlice(droppedCollectionsKey);
     auto [status, dropped] = readLocalDoc(vbid, keySlice);
     // Currently we need the NotExists check for the case in which we create the
@@ -2625,7 +2625,8 @@ std::string MagmaKVStore::getCollectionsStatsKey(CollectionID cid) const {
     return std::string{"|" + cid.to_string() + "|"};
 }
 
-std::string MagmaKVStore::getDroppedCollectionsStatsKey(CollectionID cid) {
+std::string MagmaKVStore::getDroppedCollectionsStatsKey(
+        CollectionID cid) const {
     return std::string{"|" + cid.to_string() + "|.deleted"};
 }
 
@@ -2648,7 +2649,7 @@ MagmaKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
 }
 
 std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
-MagmaKVStore::getDroppedCollectionStats(Vbid vbid, CollectionID cid) {
+MagmaKVStore::getDroppedCollectionStats(Vbid vbid, CollectionID cid) const {
     auto key = getDroppedCollectionsStatsKey(cid);
     return getCollectionStats(vbid, key);
 }

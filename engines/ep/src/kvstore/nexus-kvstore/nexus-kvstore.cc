@@ -1442,7 +1442,7 @@ NexusKVStore::getCollectionsManifest(Vbid vbid) const {
 }
 
 std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
-NexusKVStore::getDroppedCollections(Vbid vbid) {
+NexusKVStore::getDroppedCollections(Vbid vbid) const {
     auto [primaryResult, primaryDropped] = primary->getDroppedCollections(vbid);
     auto [secondaryResult, secondaryDropped] =
             secondary->getDroppedCollections(vbid);

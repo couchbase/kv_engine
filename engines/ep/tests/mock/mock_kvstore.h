@@ -194,7 +194,7 @@ public:
                        std::vector<Collections::KVStore::DroppedCollection>>),
             getDroppedCollections,
             (Vbid vbid),
-            (override));
+            (const, override));
     MOCK_METHOD(const KVStoreConfig&, getConfig, (), (const, override));
     MOCK_METHOD(GetValue,
                 getBySeqno,

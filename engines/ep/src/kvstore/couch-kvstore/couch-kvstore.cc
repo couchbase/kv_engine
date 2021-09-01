@@ -3990,7 +3990,7 @@ CouchKVStore::getCollectionsManifest(Db& db) const {
 }
 
 std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
-CouchKVStore::getDroppedCollections(Vbid vbid) {
+CouchKVStore::getDroppedCollections(Vbid vbid) const {
     DbHolder db(*this);
 
     couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);

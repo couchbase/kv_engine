@@ -314,7 +314,7 @@ public:
     }
 
     std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
-    getDroppedCollections(Vbid vbid) override {
+    getDroppedCollections(Vbid vbid) const override {
         // TODO: rocksDb has no collections support, return empty
         return {};
     }

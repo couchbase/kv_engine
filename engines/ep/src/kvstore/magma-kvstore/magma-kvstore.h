@@ -266,7 +266,7 @@ public:
      * @return Bool statis and Stats (defaulted to 0 if not found)
      */
     std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
-    getDroppedCollectionStats(Vbid vbid, CollectionID collection);
+    getDroppedCollectionStats(Vbid vbid, CollectionID collection) const;
 
     /**
      * Increment the kvstore revision.
@@ -302,7 +302,7 @@ public:
      *         empty)
      */
     std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
-    getDroppedCollections(Vbid vbid) override;
+    getDroppedCollections(Vbid vbid) const override;
 
     /**
      * Read local doc to get the vector of dropped collections from the given
@@ -394,7 +394,7 @@ public:
      *
      * @param cid Collection ID
      */
-    std::string getDroppedCollectionsStatsKey(CollectionID cid);
+    std::string getDroppedCollectionsStatsKey(CollectionID cid) const;
 
     /**
      * Save stats for collection cid

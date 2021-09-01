@@ -557,7 +557,7 @@ public:
      */
     virtual std::pair<bool,
                       std::vector<Collections::KVStore::DroppedCollection>>
-    getDroppedCollections(Vbid vbid) = 0;
+    getDroppedCollections(Vbid vbid) const = 0;
 
     /**
      * Get the configuration class from the derived class. We have derived class
