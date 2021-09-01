@@ -366,7 +366,6 @@ TEST_F(MagmaKVStoreTest, MB39669_CompactionBeforeWarmup) {
     // skipped (zero-length meta == local document) and (b) to provide a valid
     // Vbid.
     magmakv::MetaData metadata;
-    metadata.setVbid(0);
     magma::Slice meta{reinterpret_cast<char*>(&metadata), metadata.getLength()};
     // Compaction callback should return false for anything before warmup.
     EXPECT_FALSE(newCompaction->operator()(key, meta, value));

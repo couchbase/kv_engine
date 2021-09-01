@@ -114,7 +114,6 @@ void to_json(nlohmann::json& json, const MetaData& meta) {
             {"exptime", std::to_string(meta.getExptime())},
             {"flags", std::to_string(meta.getFlags())},
             {"valueSize", std::to_string(meta.getValueSize())},
-            {"vbid", std::to_string(meta.getVbid())},
             {"deleteSource", std::to_string(meta.getDeleteSource())},
             {"version",
              std::to_string(static_cast<uint8_t>(meta.getVersion()))},
@@ -140,8 +139,6 @@ void from_json(const nlohmann::json& j, MetaData& meta) {
     meta.setExptime(std::stoul(j.at("exptime").get<std::string>()));
     meta.setFlags(std::stoul(j.at("flags").get<std::string>()));
     meta.setValueSize(std::stoul(j.at("valueSize").get<std::string>()));
-    meta.setVbid(
-            static_cast<uint16_t>(std::stoul(j.at("vbid").get<std::string>())));
     meta.setVersion(MetaData::Version(static_cast<uint8_t>(
             std::stoul(j.at("version").get<std::string>()))));
     meta.setDataType(static_cast<uint8_t>(

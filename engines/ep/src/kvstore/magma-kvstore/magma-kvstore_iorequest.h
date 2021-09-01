@@ -32,10 +32,6 @@ public:
         return docMeta;
     }
 
-    Vbid getVbID() const {
-        return Vbid(docMeta.getVbid());
-    }
-
     size_t getRawKeyLen() const {
         return key.size();
     }

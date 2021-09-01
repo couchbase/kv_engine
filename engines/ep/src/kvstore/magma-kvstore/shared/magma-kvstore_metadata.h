@@ -49,14 +49,6 @@ public:
 
     void setDurabilityDetailsForAbort(cb::uint48_t prepareSeqno);
 
-    uint16_t getVbid() const {
-        return allMeta.v0.vbid;
-    }
-
-    void setVbid(uint16_t vbid) {
-        allMeta.v0.vbid = vbid;
-    }
-
     uint32_t getExptime() const {
         return allMeta.v0.exptime;
     }
@@ -169,13 +161,12 @@ protected:
         uint32_t exptime = 0;
         uint32_t flags = 0;
         uint32_t valueSize = 0;
-        uint16_t vbid = 0;
         uint8_t datatype = 0;
         uint8_t deleted : 1;
         uint8_t deleteSource : 1;
     };
 
-    static_assert(sizeof(MetaDataV0) == 36,
+    static_assert(sizeof(MetaDataV0) == 34,
                   "magmakv::MetaDataV0 is not the expected size.");
 
     /**
@@ -226,7 +217,7 @@ protected:
 };
 #pragma pack()
 
-static_assert(sizeof(MetaData) == 43,
+static_assert(sizeof(MetaData) == 41,
               "magmakv::MetaData is not the expected size.");
 
 void to_json(nlohmann::json& json, const MetaData& meta);

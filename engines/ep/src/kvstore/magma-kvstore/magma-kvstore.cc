@@ -71,7 +71,6 @@ MetaData makeMetaData(const Item& it) {
     metadata.setExptime(it.getExptime());
     metadata.setFlags(it.getFlags());
     metadata.setValueSize(it.getNBytes());
-    metadata.setVbid(it.getVBucketId().get());
     metadata.setDataType(it.getDataType());
 
     if (it.isDeleted() && !it.isPending()) {
@@ -98,7 +97,7 @@ std::string MetaData::to_string() const {
     ss << "bySeqno:" << allMeta.v0.bySeqno << " cas:" << allMeta.v0.cas
        << " exptime:" << allMeta.v0.exptime
        << " revSeqno:" << allMeta.v0.revSeqno << " flags:" << allMeta.v0.flags
-       << " valueSize:" << allMeta.v0.valueSize << " vbid:" << allMeta.v0.vbid
+       << " valueSize:" << allMeta.v0.valueSize
        << " deleted:" << (allMeta.v0.deleted == 0 ? "false" : "true")
        << " deleteSource:"
        << (allMeta.v0.deleted == 0        ? " "
@@ -608,7 +607,7 @@ bool MagmaKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
     auto errCode = saveDocs(ctx, commitData, kvctx);
     if (errCode != static_cast<int>(cb::engine_errc::success)) {
         logger->warn("MagmaKVStore::commit: saveDocs {} errCode:{}",
-                     ctx.pendingReqs.front().getVbID(),
+                     txnCtx->vbid,
                      errCode);
         success = false;
     }
@@ -659,7 +658,7 @@ void MagmaKVStore::commitCallback(MagmaKVStoreTransactionContext& txnCtx,
                         "MagmaKVStore::commitCallback(Delete) {} key:{} "
                         "errCode:{} "
                         "deleteState:{}",
-                        req.getVbID(),
+                        txnCtx.vbid,
                         cb::UserData(req.getKey().to_string()),
                         errCode,
                         to_string(state));
@@ -688,7 +687,7 @@ void MagmaKVStore::commitCallback(MagmaKVStoreTransactionContext& txnCtx,
                         "MagmaKVStore::commitCallback(Set) {} key:{} "
                         "errCode:{} "
                         "setState:{}",
-                        req.getVbID(),
+                        txnCtx.vbid,
                         cb::UserData(req.getKey().to_string()),
                         errCode,
                         to_string(state));
