@@ -88,4 +88,19 @@ private:
             const BySeqnoScanContext& seqnoScanCtx,
             const KVStoreIface& kvStore,
             const Collections::VB::Filter& filter) const;
+
+    /**
+     * Private method for deciding how to call ActiveStream::markDiskSnapshot
+     */
+    bool markDiskSnapshot(ActiveStream& stream,
+                          BySeqnoScanContext& scanCtx,
+                          KVStoreIface& kvs);
+
+    /**
+     * Private method for deciding how to call ActiveStream::markDiskSnapshot
+     * for a legacy stream
+     */
+    bool markLegacyDiskSnapshot(ActiveStream& stream,
+                                BySeqnoScanContext& scanCtx,
+                                KVStoreIface& kvs);
 };

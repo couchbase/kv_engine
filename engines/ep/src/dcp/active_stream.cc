@@ -281,8 +281,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                 log(spdlog::level::level_enum::info,
                     "{} "
                     "ActiveStream::markDiskSnapshot not sending snapshot "
-                    "because"
-                    "it contains no visible items",
+                    "because it contains no visible items",
                     logPrefix);
                 // reregister cursor at original end seqno
                 notifyEmptyBackfill_UNLOCKED(chkCursorSeqno);
@@ -318,10 +317,11 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                     "{} Merging backfill and memory snapshot for a "
                     "replica vbucket, backfill start seqno {}, "
                     "backfill end seqno {}, "
-                    "snapshot end seqno after merge {}",
+                    "snapshot end seqno after merge s:{} - e:{}",
                     logPrefix,
                     startSeqno,
                     endSeqno,
+                    info.range.getStart(),
                     info.range.getEnd());
                 endSeqno = info.range.getEnd();
             }
@@ -488,15 +488,13 @@ void ActiveStream::completeBackfill() {
 
         if (isBackfilling()) {
             log(spdlog::level::level_enum::info,
-                "{} Backfill complete, {}"
-                " items "
-                "read from disk, {}"
-                " from memory, last seqno read: "
-                "{}, pendingBackfill : {}",
+                "{} Backfill complete, {} items read from disk, {} from memory,"
+                " lastReadSeqno:{} lastSentSeqnoAdvance:{}, pendingBackfill:{}",
                 logPrefix,
                 backfillItems.disk.load(),
                 backfillItems.memory.load(),
                 lastReadSeqno.load(),
+                lastSentSeqnoAdvance.load(),
                 pendingBackfill ? "True" : "False");
         } else {
             log(spdlog::level::level_enum::warn,
@@ -1241,8 +1239,14 @@ void ActiveStream::processItems(
                 }
                 /* mark true as it indicates a new checkpoint snapshot */
                 nextSnapshotIsCheckpoint = true;
-            } else if (shouldProcessItem(*qi)) {
+                continue;
+            }
+
+            if (!qi->isCheckPointMetaItem()) {
                 curChkSeqno = qi->getBySeqno();
+            }
+
+            if (shouldProcessItem(*qi)) {
                 lastReadSeqnoUnSnapshotted = qi->getBySeqno();
                 // Check if the item is allowed on the stream, note the filter
                 // updates itself for collection deletion events
@@ -1302,8 +1306,9 @@ void ActiveStream::processItems(
             nextSnapshotIsCheckpoint = false;
 
             queueSeqnoAdvanced();
-        } else if (readyQ.empty() && isSeqnoAdvancedEnabled() &&
-                   isSeqnoGapAtEndOfSnapshot()) {
+        } else if (isSeqnoAdvancedEnabled() &&
+                   (lastReadSeqno.load() < lastReadSeqnoUnSnapshotted) &&
+                   (lastSentSnapEndSeqno.load() == curChkSeqno)) {
             auto vb = engine->getVBucket(getVBucket());
             if (vb) {
                 if (vb->getState() == vbucket_state_replica) {
