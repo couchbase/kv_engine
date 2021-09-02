@@ -48,11 +48,7 @@ TEST_F(DCPBackfillDiskTest, ScanDiskError) {
     // Setup expectations on mock KVStore - expect to initialise the scan
     // context, then a scan() call which we cause to fail, followed by destroy
     // of scan context.
-    auto rw = store->takeRW(0);
-    auto mock = std::make_unique<MockKVStore>();
-    auto& mockKVStore = dynamic_cast<MockKVStore&>(*mock);
-    store->setRW(0, std::move(mock));
-
+    auto& mockKVStore = MockKVStore::replaceRWKVStoreWithMock(*store, 0);
     EXPECT_CALL(mockKVStore, initBySeqnoScanContext(_, _, _, _, _, _, _))
             .Times(1);
     EXPECT_CALL(mockKVStore, scan(An<BySeqnoScanContext&>()))
@@ -103,6 +99,5 @@ TEST_F(DCPBackfillDiskTest, ScanDiskError) {
               streamEndResp->getFlags());
 
     // Replace the MockKVStore with the real one so we can tidy up correctly
-    store->takeRW(0);
-    store->setRW(0, std::move(rw));
+    MockKVStore::restoreOriginalRWKVStore(*store);
 }

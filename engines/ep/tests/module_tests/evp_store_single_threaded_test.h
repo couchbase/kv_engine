@@ -239,6 +239,10 @@ protected:
                                           const nlohmann::json& meta = {},
                                           TransferVB transfer = TransferVB::No);
 
+    void setVBucketToActiveWithValidTopology(
+            nlohmann::json topology = nlohmann::json::array({{"active",
+                                                              "replica"}}));
+
     void cancelAndPurgeTasks();
 
     /**
