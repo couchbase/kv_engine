@@ -111,7 +111,11 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
             2 /*maxCheckpoints*/,
             true /*itemNumBasedNewCheckpoint*/,
             (vbType == VBType::Persistent ? true
-                                          : false) /*persistenceEnabled*/);
+                                          : false) /*persistenceEnabled*/,
+            config.getCheckpointRemovalMode() ==
+                            ::to_string(CheckpointRemoval::Eager)
+                    ? CheckpointRemoval::Eager
+                    : CheckpointRemoval::Lazy);
 
     vbucket->checkpointManager = std::make_unique<MockCheckpointManager>(
             global_stats,

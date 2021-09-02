@@ -28,6 +28,17 @@ public:
             const CheckpointManager& checkpointManager) {
         return checkpointManager.checkpointList.back()->toWrite;
     }
+
+    static std::vector<std::string> getNonMetaItemKeys(
+            const Checkpoint& checkpoint) {
+        std::vector<std::string> keys;
+        for (const auto& item : checkpoint.toWrite) {
+            if (!item->isCheckPointMetaItem()) {
+                keys.push_back(item->getKey().to_string());
+            }
+        }
+        return keys;
+    }
 };
 
 /**

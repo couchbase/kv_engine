@@ -104,6 +104,14 @@ void SingleThreadedKVBucketTest::SetUp() {
     // checkpoints (and may fail if checkpoint state is tested). This parameter
     // is 'seconds' and 86400 is 1 day.
     config_string += ";chk_period=86400";
+    // Lots of single threaded tests currently drive checkpoint removal
+    // directly. While it would be best to make these tests independent of the
+    // checkpoint removal mode, for now default them all to "lazy" to avoid
+    // test breakage. Specific eager tests exist, and over time more will move
+    // to eager by default.
+    if (config_string.find("checkpoint_removal_mode") == std::string::npos) {
+        config_string += ";checkpoint_removal_mode=lazy";
+    }
 
     KVBucketTest::SetUp();
 

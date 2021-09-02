@@ -11,6 +11,7 @@
 
 #include "checkpoint_remover.h"
 #include "bucket_logger.h"
+#include "checkpoint_config.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_visitor.h"
 #include "connmap.h"
@@ -67,6 +68,17 @@ size_t CheckpointDestroyerTask::getMemoryUsage() const {
     return pendingDestructionMemoryUsage.load();
 }
 
+ClosedUnrefCheckpointRemoverTask::ClosedUnrefCheckpointRemoverTask(
+        EventuallyPersistentEngine* e, EPStats& st, size_t interval)
+    : GlobalTask(e, TaskId::ClosedUnrefCheckpointRemoverTask, interval, false),
+      engine(e),
+      stats(st),
+      sleepTime(interval),
+      available(true),
+      shouldScanForUnreferencedCheckpoints(
+              !e->getCheckpointConfig().isEagerCheckpointRemoval()) {
+}
+
 size_t ClosedUnrefCheckpointRemoverTask::attemptCheckpointRemoval(
         size_t memToClear) {
     size_t memoryCleared = 0;
@@ -121,7 +133,8 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
     TRACE_EVENT0("ep-engine/task", "ClosedUnrefCheckpointRemoverTask");
 
     bool inverse = true;
-    if (!available.compare_exchange_strong(inverse, false)) {
+    if (shouldScanForUnreferencedCheckpoints &&
+        !available.compare_exchange_strong(inverse, false)) {
         snooze(sleepTime);
         return true;
     }
@@ -138,7 +151,19 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
     size_t memRecovered{0};
 
     // Try full CheckpointRemoval first, across all vbuckets
-    memRecovered += attemptCheckpointRemoval(memToClear);
+    if (shouldScanForUnreferencedCheckpoints) {
+        memRecovered += attemptCheckpointRemoval(memToClear);
+    } else {
+#if CB_DEVELOPMENT_ASSERTS
+        // if eager checkpoint removal has been configured, calling
+        // attemptCheckpointRemoval here should never, ever, find any
+        // checkpoints to remove; they should always be removed as soon
+        // as they are made eligible, before the lock is released.
+        // This is not cheap to verify, as it requires scanning every
+        // vbucket, so is only checked if dev asserts are on.
+        Expects(attemptCheckpointRemoval(memToClear) == 0);
+#endif
+    }
     if (memRecovered >= memToClear) {
         // Recovered enough by CheckpointRemoval, done
         available = true;

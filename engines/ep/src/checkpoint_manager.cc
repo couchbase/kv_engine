@@ -123,7 +123,8 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
         std::optional<uint64_t> highCompletedSeqno,
         CheckpointType checkpointType) {
     // First, we must close the open checkpoint.
-    auto& oldOpenCkpt = *checkpointList.back();
+    auto* const oldOpenCkptPtr = checkpointList.back().get();
+    auto& oldOpenCkpt = *oldOpenCkptPtr;
     EP_LOG_DEBUG(
             "CheckpointManager::addNewCheckpoint_UNLOCKED: Close "
             "the current open checkpoint: [{}, id:{}, snapStart:{}, "
@@ -176,6 +177,11 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
             --(cursor.currentPos);
         }
     }
+
+    // if the old open checkpoint had no cursors, it is now both closed and
+    // unreferenced. If eager checkpoint removal is enabled, it may be possible
+    // to remove it immediately, if it is now the oldest checkpoint.
+    maybeScheduleDestruction(*oldOpenCkptPtr);
 }
 
 void CheckpointManager::addOpenCheckpoint(
@@ -256,7 +262,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
     // remove it.
     for (const auto& cursor : cursors) {
         if (cursor.first == name) {
-            removeCursor_UNLOCKED(cursor.second.get());
+            removeCursor(lh, cursor.second.get());
             break;
         }
     }
@@ -349,12 +355,12 @@ bool CheckpointManager::removeCursor(CheckpointCursor* cursor) {
     removeCursorPreLockHook();
 
     std::lock_guard<std::mutex> lh(queueLock);
-    return removeCursor_UNLOCKED(cursor);
+    return removeCursor(lh, cursor);
 }
 
 void CheckpointManager::removeBackupPersistenceCursor() {
     std::lock_guard<std::mutex> lh(queueLock);
-    const auto res = removeCursor_UNLOCKED(cursors.at(backupPCursorName).get());
+    const auto res = removeCursor(lh, cursors.at(backupPCursorName).get());
     Expects(res);
 
     // Reset (recreate) the potential stats overcounts as our flush was
@@ -370,7 +376,7 @@ VBucket::AggregatedFlushStats CheckpointManager::resetPersistenceCursor() {
     //  computation right
 
     // 1) Remove the existing pcursor
-    auto remResult = removeCursor_UNLOCKED(persistenceCursor);
+    auto remResult = removeCursor(lh, persistenceCursor);
     Expects(remResult);
     pCursor = Cursor();
     persistenceCursor = nullptr;
@@ -385,7 +391,7 @@ VBucket::AggregatedFlushStats CheckpointManager::resetPersistenceCursor() {
     persistenceCursor = pCursor.lock().get();
 
     // 3) Remove old backup
-    remResult = removeCursor_UNLOCKED(backup);
+    remResult = removeCursor(lh, backup);
     Expects(remResult);
 
     // Swap the stat counts to reset them for the next flush - return the
@@ -396,7 +402,8 @@ VBucket::AggregatedFlushStats CheckpointManager::resetPersistenceCursor() {
     return ret;
 }
 
-bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
+bool CheckpointManager::removeCursor(const std::lock_guard<std::mutex>& lh,
+                                     CheckpointCursor* cursor) {
     if (!cursor) {
         return false;
     }
@@ -414,10 +421,22 @@ bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
 
     cursor->invalidate();
 
+    // find the current checkpoint before erasing the cursor, if there
+    // are no other owners of the cursor it may be destroyed.
+    auto* checkpoint = cursor->currentCheckpoint->get();
     if (cursors.erase(cursor->name) == 0) {
-        throw std::logic_error("CheckpointManager::removeCursor_UNLOCKED: " +
-                               to_string(vb.getId()) +
-                               " Failed to remove cursor: " + cursor->name);
+        throw std::logic_error(
+                "CheckpointManager::removeCursor: " + to_string(vb.getId()) +
+                " Failed to remove cursor: " + cursor->name);
+    }
+
+    if (isEligibleForEagerRemoval(*checkpoint)) {
+        // after removing `cursor`, perhaps the oldest checkpoint is now
+        // unreferenced, and can be removed. BUT - this cursor has been
+        // removed, not just moved to the next checkpoint. Therefore,
+        // multiple checkpoints may be eligible for removal. Check for multiple,
+        // not just the oldest.
+        scheduleDestruction(extractClosedUnrefCheckpoints(lh));
     }
 
     /**
@@ -432,6 +451,43 @@ bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
     }
 
     return true;
+}
+
+bool CheckpointManager::isEligibleForEagerRemoval(
+        const Checkpoint& checkpoint) const {
+    return checkpointConfig.isEagerCheckpointRemoval() &&
+           &checkpoint == checkpointList.front().get() &&
+           checkpoint.isNoCursorsInCheckpoint() &&
+           checkpoint.getState() == checkpoint_state::CHECKPOINT_CLOSED;
+}
+
+void CheckpointManager::maybeScheduleDestruction(const Checkpoint& checkpoint) {
+    if (isEligibleForEagerRemoval(checkpoint)) {
+        CheckpointList forDestruction;
+
+        // checkpoints must be removed in order, only the oldest is eligible
+        // when removing checkpoints one at a time.
+        // When cursors are removed, multiple checkpoints may unreffed and
+        // can be removed together, but that is handled in removeCursor_UNLOCKED
+
+        // using O(1) overload of splice which takes a distance.
+        forDestruction.splice(forDestruction.begin(),
+                              checkpointList,
+                              checkpointList.begin(),
+                              std::next(checkpointList.begin()),
+                              1 /* distance */);
+
+        scheduleDestruction(std::move(forDestruction));
+    }
+}
+
+void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {
+    if (toRemove.empty()) {
+        return;
+    }
+
+    updateStatsForCheckpointRemoval(toRemove);
+    checkpointDisposer(std::move(toRemove));
 }
 
 CheckpointManager::ReleaseResult
@@ -454,11 +510,24 @@ CheckpointManager::removeClosedUnrefCheckpoints() {
         return {0, 0};
     }
 
+    auto released = updateStatsForCheckpointRemoval(toRelease);
+
+    // the provided disposer may queue checkpoints for destruction in a
+    // background task, or may do nothing - in that case toRelease will be
+    // destroyed when it goes out of scope.
+    checkpointDisposer(std::move(toRelease));
+
+    return released;
+}
+
+CheckpointManager::ReleaseResult
+CheckpointManager::updateStatsForCheckpointRemoval(
+        const CheckpointList& toRemove) {
     // Update stats and compute return value
     size_t numNonMetaItemsRemoved = 0;
     size_t numMetaItemsRemoved = 0;
     size_t memoryReleased = 0;
-    for (const auto& checkpoint : toRelease) {
+    for (const auto& checkpoint : toRemove) {
         numNonMetaItemsRemoved += checkpoint->getNumItems();
         numMetaItemsRemoved += checkpoint->getNumMetaItems();
         memoryReleased += checkpoint->getMemConsumption();
@@ -469,18 +538,13 @@ CheckpointManager::removeClosedUnrefCheckpoints() {
     stats.memFreedByCheckpointRemoval += memoryReleased;
 
     EP_LOG_DEBUG(
-            "CheckpointManager::removeClosedUnrefCheckpoints: Removed {} "
+            "CheckpointManager::updateStatsForCheckpointRemoval: Removed {} "
             "checkpoints, {} meta-items, {} non-meta-items, {} bytes from {}",
-            toRelease.size(),
+            toRemove.size(),
             numMetaItemsRemoved,
             numNonMetaItemsRemoved,
             memoryReleased,
             vb.getId());
-
-    // the provided disposer may queue checkpoints for destruction in a
-    // background task, or may do nothing - in that case toRelease will be
-    // destroyed when it goes out of scope.
-    checkpointDisposer(std::move(toRelease));
 
     return {numNonMetaItemsRemoved, memoryReleased};
 }
@@ -1050,6 +1114,8 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
         }
     }
 
+    auto* prevCheckpoint = it->get();
+
     // Remove cursor from its current checkpoint.
     (*it)->decNumOfCursorsInCheckpoint();
 
@@ -1060,6 +1126,11 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
     (*it)->incNumOfCursorsInCheckpoint();
 
     Expects((*cursor.currentPos)->getOperation() == queue_op::empty);
+
+    // by advancing the cursor, the previous checkpoint became unreferenced,
+    // and may be removable now.
+    // only act if the unreffed checkpoint is the oldest closed checkpoint.
+    maybeScheduleDestruction(*prevCheckpoint);
 
     return true;
 }

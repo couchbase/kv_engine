@@ -545,7 +545,7 @@ public:
 
     /**
      * Member std::function variable, to allow us to inject code into
-     * removeCursor_UNLOCKED() for unit MB36146
+     * removeCursor() for unit MB36146
      */
     std::function<void(const CheckpointCursor* cursor, Vbid vbid)>
             runGetItemsHook;
@@ -554,6 +554,36 @@ public:
     TestingHook<> removeCursorPreLockHook;
 
 protected:
+    /**
+     * Checks if eager checkpoint removal is enabled, then checks if the
+     * provided checkpoint is:
+     *  * the oldest checkpoint
+     *  * closed
+     *  * unreferenced
+     */
+    bool isEligibleForEagerRemoval(const Checkpoint& checkpoint) const;
+
+    /**
+     * Checks if the provided checkpoint is eligible for eager removal
+     * (see isEligibleForEagerRemoval(...)) and if so, removes it and schedules
+     * it for destruction on a background task.
+     */
+    void maybeScheduleDestruction(const Checkpoint& checkpoint);
+
+    /**
+     * Schedules the provided checkpoints for destruction on a background task.
+     */
+    void scheduleDestruction(CheckpointList&& toRemove);
+
+    /**
+     * Update stats regarding checkpoints which have been removed from the
+     * manager.
+     * @param toRemove the checkpoints which are about to be removed
+     * @return the number of non-meta items in toRemove
+     */
+    ReleaseResult updateStatsForCheckpointRemoval(
+            const CheckpointList& toRemove);
+
     /**
      * Advance the given cursor. Protected as it's valid to call this from
      * getItemsForCursor but not from anywhere else (as it will return an entire
@@ -600,10 +630,12 @@ protected:
      * Marks the given cursor invalid and removes it from the internal
      * cursor-map.
      *
+     * @param lh lock guard holding the queueLock
      * @param cursor
      * @return true is the cursor was removed, false otherwise
      */
-    bool removeCursor_UNLOCKED(CheckpointCursor* cursor);
+    bool removeCursor(const std::lock_guard<std::mutex>& lh,
+                      CheckpointCursor* cursor);
 
     CursorRegResult registerCursorBySeqno_UNLOCKED(
             const std::lock_guard<std::mutex>& lh,

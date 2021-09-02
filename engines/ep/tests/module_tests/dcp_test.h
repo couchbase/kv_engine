@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include "checkpoint_config.h"
 #include "dcp/dcp-types.h"
 #include "evp_engine_test.h"
 #include "evp_store_single_threaded_test.h"
@@ -51,6 +52,18 @@ protected:
         cb::engine_errc status;
         uint64_t rollbackSeqno;
     };
+
+    /**
+     * Reconfigures the engine with the provided checkpoint removal mode.
+     *
+     * No-op if the current mode is the same as the provided.
+     *
+     * Some DCP tests make assertions about whether a stream will require
+     * backfill or not and manually drive tasks based on this. As a result, some
+     * tests may need to set CheckpointRemoval::Lazy to allow checkpoints to
+     * remain in memory while unreferenced.
+     */
+    void setCheckpointRemovalMode(CheckpointRemoval mode);
 
     /**
      * Helper function to simplify calling producer->streamRequest() - provides

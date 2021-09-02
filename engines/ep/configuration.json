@@ -459,6 +459,18 @@
                 ]
             }
         },
+        "checkpoint_removal_mode": {
+            "default": "eager",
+            "descr": "Should checkpoints be destroyed as soon as possible after becoming unreferenced (eager), or allowed to accumulate up to the checkpoint quota (lazy)",
+            "dynamic": false,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "eager",
+                    "lazy"
+                ]
+            }
+        },
         "ephemeral_full_policy": {
             "default": "auto_delete",
             "descr": "How should an Ephemeral bucket becoming full be handled?",

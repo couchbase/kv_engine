@@ -13,7 +13,23 @@
 
 #include <memcached/types.h>
 
+class Configuration;
 class EventuallyPersistentEngine;
+
+// Flag from configuration indicating whether checkpoints should be removed
+// as soon as they become eligible* ("eager"), or if they should be allowed to
+// remain in the manager until other conditions are met e.g., reaching the
+// checkpoint quota.
+// *checkpoint is the oldest checkpoint, and is closed and not referenced by
+//  any cursors.
+enum class CheckpointRemoval : uint8_t {
+    // Remove checkpoints as soon as possible
+    Eager,
+    // Leave checkpoints in memory until removal is triggered by memory usage
+    Lazy
+};
+
+std::string to_string(CheckpointRemoval mode);
 
 /**
  * A class containing the config parameters for checkpoint.
@@ -28,7 +44,8 @@ public:
                      size_t max_items,
                      size_t max_ckpts,
                      bool item_based_new_ckpt,
-                     bool persistence_enabled);
+                     bool persistence_enabled,
+                     CheckpointRemoval checkpoint_removal_mode);
 
     explicit CheckpointConfig(EventuallyPersistentEngine& e);
 
@@ -52,9 +69,18 @@ public:
         return persistenceEnabled;
     }
 
+    bool isEagerCheckpointRemoval() const {
+        return checkpointRemovalMode == CheckpointRemoval::Eager;
+    }
+
 protected:
     friend class EventuallyPersistentEngine;
     friend class SynchronousEPEngine;
+
+    /**
+     * Helper constructor from config. Only called by other constructors.
+     */
+    explicit CheckpointConfig(Configuration& config);
 
     bool validateCheckpointMaxItemsParam(size_t checkpoint_max_items);
     bool validateCheckpointPeriodParam(size_t checkpoint_period);
@@ -87,4 +113,6 @@ private:
 
     // Flag indicating if persistence is enabled.
     bool persistenceEnabled;
+
+    CheckpointRemoval checkpointRemovalMode = CheckpointRemoval::Eager;
 };

@@ -33,6 +33,10 @@ public:
     void TearDown() override;
 
 protected:
+    // Recreates the CheckpointConfig referenced by the CheckpointManager.
+    // Used if the engine config has been changed and the CheckpointConfig
+    // needs to be updated to match.
+    void recreateCheckpointConfig();
     // Creates a new item with the given key and queues it into the checkpoint
     // manager.
     bool queueNewItem(const std::string& key);
@@ -99,8 +103,11 @@ public:
  * Test fixture dedicated to the memory tracking of internal structures in
  * checkpoint.
  */
-class CheckpointMemoryTrackingTest : public SingleThreadedCheckpointTest {
+class CheckpointMemoryTrackingTest
+    : public SingleThreadedCheckpointTest,
+      public ::testing::WithParamInterface<CheckpointRemoval> {
 public:
+    void SetUp() override;
     /**
      * Verify that the estimated checkpoints mem-usage is tracked correctly
      * at queueing items into the checkpoints.

@@ -24,6 +24,7 @@
 #include <engines/ep/tests/mock/mock_dcp_producer.h>
 #include <engines/ep/tests/mock/mock_stream.h>
 #include <programs/engine_testapp/mock_cookie.h>
+#include <programs/engine_testapp/mock_server.h>
 
 /**
  * Tests if `arg` (an item*, aka void*) is equal to expected, excluding the
@@ -292,6 +293,11 @@ TEST_P(DcpStreamSyncReplTest, PendingDeleteAndMutationWithoutSyncReplica) {
 
 void DcpStreamSyncReplTest::testMutationAndPendingWithoutSyncReplica(
         DocumentState docState) {
+    // this test creates a new checkpoint but relies on the old checkpoint
+    // remaining in memory until the stream has been requested.
+    // This may be restructured to be independent of checkpoint removal mode,
+    // but for now, ensure the test is run with lazy checkpoint removal.
+    setCheckpointRemovalMode(CheckpointRemoval::Lazy);
     // Setup: add a mutation and a pending SyncWrite, store them and setup a
     // DCP stream.
     auto item = store_item(vbid, "key", "XXX");
@@ -458,6 +464,11 @@ TEST_P(DcpStreamSyncReplTest, PendingDeleteAndMutationWithSyncReplica) {
 
 void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
         DocumentState docState) {
+    // this test creates a new checkpoint but relies on the old checkpoint
+    // remaining in memory until the stream has been requested.
+    // This may be restructured to be independent of checkpoint removal mode,
+    // but for now, ensure the test is run with lazy checkpoint removal.
+    setCheckpointRemovalMode(CheckpointRemoval::Lazy);
     // Setup: add a mutation and a pending SyncWrite, store them and setup a
     // DCP stream.
     auto mutation = store_item(vbid, "key", "XXX");

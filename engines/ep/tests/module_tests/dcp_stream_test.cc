@@ -234,6 +234,9 @@ TEST_P(StreamTest, test_verifyProducerCompressionDisabledStats) {
  * by the producer under normal and error conditions
  */
 TEST_P(StreamTest, test_verifyProducerStats) {
+    // this test relies upon old checkpoints remaining in memory to be
+    // picked up by a later stream request - set checkpoint removal to lazy
+    setCheckpointRemovalMode(CheckpointRemoval::Lazy);
     VBucketPtr vb = engine->getKVBucket()->getVBucket(vbid);
     nlohmann::json meta = {
             {"topology", nlohmann::json::array({{"active", "replica"}})}};

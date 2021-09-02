@@ -16,6 +16,30 @@
 #include "configuration.h"
 #include "ep_engine.h"
 
+std::string to_string(CheckpointRemoval mode) {
+    switch (mode) {
+    case CheckpointRemoval::Eager:
+        return "eager";
+    case CheckpointRemoval::Lazy:
+        return "lazy";
+    }
+    return "<unknown>";
+}
+
+CheckpointRemoval mode_from_string(std::string_view strMode) {
+    if (strMode == "eager") {
+        return CheckpointRemoval::Eager;
+    } else if (strMode == "lazy") {
+        return CheckpointRemoval::Lazy;
+    }
+    throw std::invalid_argument("Invalid CheckpointRemoval mode: " +
+                                std::string(strMode));
+}
+
+std::ostream& operator<<(std::ostream& os, const CheckpointRemoval& mode) {
+    return os << to_string(mode);
+}
+
 /**
  * A listener class to update checkpoint related configs at runtime.
  */
@@ -57,21 +81,27 @@ CheckpointConfig::CheckpointConfig(rel_time_t period,
                                    size_t max_items,
                                    size_t max_ckpts,
                                    bool item_based_new_ckpt,
-                                   bool persistence_enabled)
+                                   bool persistence_enabled,
+                                   CheckpointRemoval checkpoint_removal_mode)
     : checkpointPeriod(period),
       checkpointMaxItems(max_items),
       maxCheckpoints(max_ckpts),
       itemNumBasedNewCheckpoint(item_based_new_ckpt),
-      persistenceEnabled(persistence_enabled) {
+      persistenceEnabled(persistence_enabled),
+      checkpointRemovalMode(checkpoint_removal_mode) {
 }
 
-CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine& e) {
-    Configuration& config = e.getConfiguration();
-    checkpointPeriod = config.getChkPeriod();
-    checkpointMaxItems = config.getChkMaxItems();
-    maxCheckpoints = config.getMaxCheckpoints();
-    itemNumBasedNewCheckpoint = config.isItemNumBasedNewChk();
-    persistenceEnabled = config.getBucketType() == "persistent";
+CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine& e)
+    : CheckpointConfig(e.getConfiguration()) {
+}
+
+CheckpointConfig::CheckpointConfig(Configuration& config)
+    : CheckpointConfig(config.getChkPeriod(),
+                       config.getChkMaxItems(),
+                       config.getMaxCheckpoints(),
+                       config.isItemNumBasedNewChk(),
+                       config.getBucketType() == "persistent",
+                       mode_from_string(config.getCheckpointRemovalMode())) {
 }
 
 void CheckpointConfig::addConfigChangeListener(

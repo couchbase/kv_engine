@@ -73,10 +73,9 @@ public:
      * @param s the store
      * @param st the stats
      */
-    ClosedUnrefCheckpointRemoverTask(EventuallyPersistentEngine *e,
-                                     EPStats &st, size_t interval) :
-        GlobalTask(e, TaskId::ClosedUnrefCheckpointRemoverTask, interval, false),
-        engine(e), stats(st), sleepTime(interval), available(true) {}
+    ClosedUnrefCheckpointRemoverTask(EventuallyPersistentEngine* e,
+                                     EPStats& st,
+                                     size_t interval);
 
     /**
      * Attempts to release memory by removing closed/unref checkpoints from all
@@ -115,4 +114,12 @@ private:
     EPStats                   &stats;
     size_t                     sleepTime;
     std::atomic<bool>          available;
+    /*
+     * Whether the task is required to scan all vbuckets to locate unreferenced
+     * checkpoints to remove.
+     * If eager checkpoint removal is enabled, checkpoints are removed as soon
+     * as they become unreferenced, and thus there is no reason to scan for
+     * them.
+     */
+    bool shouldScanForUnreferencedCheckpoints = false;
 };

@@ -26,6 +26,8 @@ class CheckpointManager;
  * A subclass of KVBucketTest which uses a fake ExecutorPool,
  * which will not spawn ExecutorThreads and hence not run any tasks
  * automatically in the background. All tasks must be manually run().
+ *
+ * Tests in this suite test lazy checkpoint removal.
  */
 class CheckpointRemoverTest : public SingleThreadedKVBucketTest {
 public:
