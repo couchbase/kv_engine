@@ -12,14 +12,16 @@
 // mock_cookie.h must be included before ep_test_apis.h as ep_test_apis.h
 // define a macro named check and some of the folly headers also use the
 // name check
+#include <ep_engine.h>
 #include <programs/engine_testapp/mock_cookie.h>
 
 // Usage: (to run just a single test case)
 // make engine_tests EP_TEST_NUM=3
 
-#include "kvstore/couch-kvstore/couch-kvstore-metadata.h"
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
+#include "kvstore/couch-kvstore/couch-kvstore-metadata.h"
+#include "module_tests/thread_gate.h"
 #include <libcouchstore/couch_db.h>
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
@@ -30,6 +32,7 @@
 #include <platform/dirutils.h>
 #include <platform/platform_thread.h>
 #include <platform/platform_time.h>
+#include <programs/engine_testapp/mock_engine.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
@@ -8159,6 +8162,96 @@ static enum test_result test_replace_at_pending_insert(EngineIface* h) {
     return SUCCESS;
 }
 
+/**
+ * Test to ensure that larger buckets don't starve smaller buckets of run time
+ * on the reader threads during warmup, as this can cause artificially long
+ * warmup times.
+ */
+static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
+    const size_t keysPerVbucket = 1500;
+    const size_t numberOfKeyVbucketSmall = 1;
+
+    // 1. Set up second bucket to be which will be smaller than the default
+    std::string smallBucketName("smallBucket");
+    auto smallBucketDir = cb::io::mkdtemp(smallBucketName + "XXXXXX");
+    auto smallBucketConf = testHarness->get_current_testcase()->cfg +
+                           "couch_bucket=" + smallBucketName +
+                           ";dbname=" + smallBucketDir + ".db;";
+    auto* smallBucket = testHarness->create_bucket(true, smallBucketConf);
+    test_setup(smallBucket);
+    auto* slowBucket = h;
+
+    // 2. Write keys to
+    const std::string keyBase("key-");
+    Vbid vb(0);
+    check(set_vbucket_state(slowBucket, vb, vbucket_state_active),
+          "Failed to set vbucket state for vb");
+    write_items(slowBucket, keysPerVbucket, 0, keyBase.c_str(), "value", 0, vb);
+
+    check(set_vbucket_state(smallBucket, vb, vbucket_state_active),
+          "Failed to set vbucket state for vb");
+    write_items(smallBucket,
+                numberOfKeyVbucketSmall,
+                0,
+                keyBase.c_str(),
+                "value",
+                0,
+                vb);
+    // 3. Ensure all documents have been written to disk
+    wait_for_flusher_to_settle(smallBucket);
+    wait_for_flusher_to_settle(slowBucket);
+
+    // 4. Destroy the buckets in memory so we can perform warmup
+    testHarness->destroy_bucket(slowBucket, false);
+    testHarness->destroy_bucket(smallBucket, false);
+
+    // 5. Start warming up the slow bucket first
+    ThreadGate tg(2);
+    {
+        // Create the in memory engine but don't kick of initialization
+        slowBucket = testHarness->create_bucket(false, "");
+        auto* me = dynamic_cast<MockEngine*>(slowBucket);
+        // add a test hook which will slow down the warmup of the bucket
+        dynamic_cast<EventuallyPersistentEngine*>(me->the_engine.get())
+                ->hangWarmupHook = [&tg]() -> void {
+            using namespace std::chrono_literals;
+            // Block the backfill until we can read the stats of the
+            // small bucket
+            tg.threadUp();
+        };
+        // start warmup
+        checkeq(me->the_engine->initialize(
+                        testHarness->get_current_testcase()->cfg.c_str()),
+                cb::engine_errc::success,
+                "Init of bucket did not succeed");
+    }
+    // 6. Create and warmup the small bucket
+    smallBucket = testHarness->create_bucket(true, smallBucketConf);
+
+    // 7. Ensure we can get stats of the vbucket state during warmup
+    checkeq(get_str_stat(smallBucket, "vb_0", "vbucket"),
+            std::string("active"),
+            "vbucket state isn't active");
+    // 8. Ensure of the slow bucket is still warming up
+    checkne(get_str_stat(slowBucket, "ep_warmup_thread", "warmup"),
+            std::string("complete"),
+            "Slow bucket completed before the fast bucket");
+    // Small bucket stats are available, unblock the slow bucket warmup
+    tg.threadUp();
+    // 9. Wait for the small bucket is warmup
+    wait_for_warmup_complete(smallBucket);
+    // 10. Wait for the slow bucket to warmup
+    wait_for_warmup_complete(slowBucket);
+    // 11. Ensure all buckets have the correct count
+    verify_curr_items(smallBucket, numberOfKeyVbucketSmall, "after warmup");
+    verify_curr_items(slowBucket, keysPerVbucket, "after warmup");
+    // 12. Ensure the buckets are destroyed and shutdown at the end of the test
+    testHarness->destroy_bucket(smallBucket, true);
+    cb::io::rmrf(smallBucketDir);
+    testHarness->destroy_bucket(slowBucket, true);
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite";
@@ -9398,6 +9491,15 @@ BaseTestCase testsuite_testcases[] = {
                  // enabled,
                  // but it is currently disabled for Magma
                  prepare_ep_bucket_skip_broken_under_magma,
+                 cleanup),
+
+        TestCase("test reader thread starvation during warmup due to low "
+                 "reader threads",
+                 test_reader_thread_starvation_warmup,
+                 test_setup,
+                 teardown,
+                 "num_reader_threads=1;",
+                 prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
 
         TestCase(

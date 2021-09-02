@@ -57,7 +57,7 @@
 using namespace std::string_literals;
 
 /* Statics definitions */
-double VBucket::mutationMemThreshold = 0.9;
+std::atomic<double> VBucket::mutationMemThreshold = 0.9;
 
 VBucketFilter VBucketFilter::filter_diff(const VBucketFilter& other) const {
     std::vector<Vbid> tmp(acceptable.size() + other.size());
