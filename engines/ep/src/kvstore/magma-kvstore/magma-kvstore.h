@@ -53,24 +53,19 @@ public:
 
     MagmaDbStats(int64_t docCount,
                  uint64_t purgeSeqno) {
-        auto locked = stats.wlock();
-        locked->reset(docCount, purgeSeqno);
+        reset(docCount, purgeSeqno);
     }
 
     MagmaDbStats(const MagmaDbStats& other) = default;
 
     MagmaDbStats& operator=(const MagmaDbStats& other) {
-        auto locked = stats.wlock();
-        auto otherLocked = other.stats.rlock();
-        *locked = *otherLocked;
+        docCount = other.docCount;
+        purgeSeqno = other.purgeSeqno;
         return *this;
     }
 
     void reset(const MagmaDbStats& other) {
-        auto locked = stats.wlock();
-        auto otherLocked = other.stats.rlock();
-        locked->reset(otherLocked->docCount,
-                      otherLocked->purgeSeqno);
+        reset(other.docCount, other.purgeSeqno);
     }
 
     /**
@@ -106,19 +101,13 @@ public:
      */
     magma::Status Unmarshal(const std::string& encoded) override;
 
-    struct Stats {
-        Stats() = default;
+    void reset(int64_t newDocCount, uint64_t newPurgeSeqno) {
+        docCount = newDocCount;
+        purgeSeqno.reset(newPurgeSeqno);
+    }
 
-        void reset(int64_t newDocCount, uint64_t newPurgeSeqno) {
-            docCount = newDocCount;
-            purgeSeqno.reset(newPurgeSeqno);
-        }
-
-        int64_t docCount{0};
-        Monotonic<uint64_t> purgeSeqno{0};
-    };
-
-    folly::Synchronized<Stats> stats;
+    int64_t docCount{0};
+    Monotonic<uint64_t> purgeSeqno{0};
 };
 
 /**

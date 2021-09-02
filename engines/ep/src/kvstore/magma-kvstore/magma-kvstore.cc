@@ -275,15 +275,11 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                                     magmakv::isAbort(keySlice, metaSlice),
                                     cbCtx.ctx->highCompletedSeqno);
 
-            { // Locking scope for magmaDbStats
-                auto dbStats = cbCtx.magmaDbStats.stats.wlock();
-
-                if (magmakv::isPrepared(keySlice, metaSlice)) {
-                    cbCtx.ctx->stats.preparesPurged++;
-                } else {
-                    if (magmakv::isDeleted(metaSlice)) {
-                        cbCtx.ctx->stats.collectionsDeletedItemsPurged++;
-                    }
+            if (magmakv::isPrepared(keySlice, metaSlice)) {
+                cbCtx.ctx->stats.preparesPurged++;
+            } else {
+                if (magmakv::isDeleted(metaSlice)) {
+                    cbCtx.ctx->stats.collectionsDeletedItemsPurged++;
                 }
             }
 
@@ -334,9 +330,9 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                 if (cbCtx.ctx->max_purged_seq < seqno) {
                     cbCtx.ctx->max_purged_seq = seqno;
                 }
-                auto dbStats = cbCtx.magmaDbStats.stats.wlock();
-                if (dbStats->purgeSeqno < seqno) {
-                    dbStats->purgeSeqno = seqno;
+                auto& dbStats = cbCtx.magmaDbStats;
+                if (dbStats.purgeSeqno < seqno) {
+                    dbStats.purgeSeqno = seqno;
                 }
                 return true;
             }
@@ -1173,11 +1169,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                             &magmaDbStats,
                             &beginTime,
                             &saveDocsDuration](WriteOps& postWriteOps) {
-        // Merge in the delta changes
-        {
-            auto lockedStats = magmaDbStats.stats.wlock();
-            lockedStats->docCount = ninserts - ndeletes;
-        }
+        magmaDbStats.docCount = ninserts - ndeletes;
         addStatUpdateToWriteOps(magmaDbStats, postWriteOps);
 
         auto& vbstate = commitData.proposedVBState;
@@ -1664,8 +1656,7 @@ void MagmaKVStore::mergeMagmaDbStatsIntoVBState(vbucket_state& vbstate,
         // No stats available from Magma for this vbid, nothing to do.
         return;
     }
-    auto lockedStats = dbStats->stats.rlock();
-    vbstate.purgeSeqno = lockedStats->purgeSeqno;
+    vbstate.purgeSeqno = dbStats->purgeSeqno;
 
     // We don't update the number of onDiskPrepares because we can't easily
     // track the number for magma
@@ -1777,8 +1768,7 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(
                                  vbid.to_string() + " magma returned invalid " +
                                  "type of UserStats");
     }
-    auto lockedStats = magmaUserStats->stats.rlock();
-    vbstate.purgeSeqno = lockedStats->purgeSeqno;
+    vbstate.purgeSeqno = magmaUserStats->purgeSeqno;
 
     return {status, vbstate, kvstoreRev};
 }
@@ -1919,8 +1909,7 @@ size_t MagmaKVStore::getItemCount(Vbid vbid) {
                             "database file for {}",
                             vbid));
     }
-    auto lockedStats = dbStats->stats.rlock();
-    return lockedStats->docCount;
+    return dbStats->docCount;
 }
 
 cb::engine_errc MagmaKVStore::getAllKeys(
@@ -2201,10 +2190,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         addLocalDbReqs(localDbReqs, writeOps);
         MagmaDbStats magmaDbStats;
 
-        { // locking scope for magmaDbStats
-            auto stats = magmaDbStats.stats.wlock();
-            stats->docCount -= collectionItemsDropped;
-        }
+        magmaDbStats.docCount -= collectionItemsDropped;
 
         addStatUpdateToWriteOps(magmaDbStats, writeOps);
 
@@ -2958,15 +2944,13 @@ uint32_t MagmaKVStore::getExpiryOrPurgeTime(const magma::Slice& slice) {
 }
 
 void to_json(nlohmann::json& json, const MagmaDbStats& dbStats) {
-    auto locked = dbStats.stats.rlock();
-    json = nlohmann::json{{"docCount", std::to_string(locked->docCount)},
-                          {"purgeSeqno", std::to_string(locked->purgeSeqno)}};
+    json = nlohmann::json{{"docCount", std::to_string(dbStats.docCount)},
+                          {"purgeSeqno", std::to_string(dbStats.purgeSeqno)}};
 }
 
 void from_json(const nlohmann::json& j, MagmaDbStats& dbStats) {
-    auto locked = dbStats.stats.wlock();
-    locked->docCount = std::stoull(j.at("docCount").get<std::string>());
-    locked->purgeSeqno.reset(
+    dbStats.docCount = std::stoull(j.at("docCount").get<std::string>());
+    dbStats.purgeSeqno.reset(
             std::stoull(j.at("purgeSeqno").get<std::string>()));
 }
 
@@ -2975,12 +2959,10 @@ void MagmaDbStats::Merge(const UserStats& other) {
     if (!otherStats) {
         throw std::invalid_argument("MagmaDbStats::Merge: Bad cast of other");
     }
-    auto locked = stats.wlock();
-    auto otherLocked = otherStats->stats.rlock();
 
-    locked->docCount += otherLocked->docCount;
-    if (otherLocked->purgeSeqno > locked->purgeSeqno) {
-        locked->purgeSeqno = otherLocked->purgeSeqno;
+    docCount += otherStats->docCount;
+    if (otherStats->purgeSeqno > purgeSeqno) {
+        purgeSeqno = otherStats->purgeSeqno;
     }
 }
 
