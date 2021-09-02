@@ -17,6 +17,7 @@
 
 #include <folly/AtomicHashMap.h>
 #include <memcached/engine_common.h>
+#include <memcached/engine_error.h>
 #include <platform/atomic_duration.h>
 
 #include <atomic>
@@ -272,8 +273,9 @@ public:
     /**
      * Perform any notifications to any pending setVBState operations and mark
      * that vbucket creation is complete.
+     * @param status Status code to send to all waiting cookies.
      */
-    void processCreateVBucketsComplete();
+    void processCreateVBucketsComplete(cb::engine_errc status);
 
     bool setOOMFailure() {
         bool inverse = false;
@@ -445,7 +447,8 @@ private:
             std::numeric_limits<size_t>::max()};
 
     /// All of the cookies which need notifying when create-vbuckets is done
-    std::deque<const CookieIface*> pendingCookies;
+    using PendingCookiesQueue = std::deque<const CookieIface*>;
+    PendingCookiesQueue pendingCookies;
     /// flag to mark once warmup is passed createVbuckets
     bool createVBucketsComplete{false};
     /// A mutex which gives safe access to the cookies and state flag

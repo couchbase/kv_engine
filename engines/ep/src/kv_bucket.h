@@ -287,16 +287,18 @@ public:
     }
 
     /**
-     * Release all cookies blocked for sync write
+     * Release all cookies blocked on pending requests (e.g. SyncWrites,
+     * requests waiting for warmup to complete).
      *
      * This method is called during bucket shutdown to make sure that
-     * all of the cookies waiting for a durable write is released so that
-     * we can continue bucket deletion. As part of bucket deletion one of
-     * the first things we do is to tear down the DCP streams so that
-     * the durable writes will never be notified and would be stuck
-     * waiting for a timeout if we don't explicitly release them.
+     * all of the cookies blocked waiting on a request to complete are released
+     * so that we can continue bucket deletion.
+     * For example, as part of bucket deletion one of the first things we do is
+     * to tear down the DCP streams so that SyncWrites will never be notified
+     * and would be stuck waiting for a timeout if we don't explicitly release
+     * them.
      */
-    void releaseRegisteredSyncWrites();
+    virtual void releaseBlockedCookies();
 
     /**
      * Sets the vbucket or creates a vbucket with the desired state

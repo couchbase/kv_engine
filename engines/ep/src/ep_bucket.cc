@@ -319,7 +319,6 @@ void EPBucket::initializeShards() {
 std::vector<ExTask> EPBucket::deinitialize() {
     stopFlusher();
     stopBgFetcher();
-    stopWarmup();
 
     auto ret = KVBucket::deinitialize();
 
@@ -2225,4 +2224,12 @@ Flusher* EPBucket::getFlusher(Vbid vbid) {
 Flusher* EPBucket::getOneFlusher() {
     Expects(flushers.size() > 0);
     return flushers.front().get();
+}
+
+void EPBucket::releaseBlockedCookies() {
+    KVBucket::releaseBlockedCookies();
+
+    // Stop warmup (if not yet completed) which will unblock any cookies which
+    // were held pending if they were received before populateVBucketMap phase.
+    stopWarmup();
 }

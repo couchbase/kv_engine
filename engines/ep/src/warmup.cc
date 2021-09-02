@@ -1209,6 +1209,13 @@ void Warmup::stop() {
     }
     transition(WarmupState::State::Done, true);
     done();
+
+    // If we haven't already completed populateVBucketMap step, then
+    // unblock (and cancel) any pending cookies so those connections don't
+    // get stuck.
+    // (On a normal, successful warmup these cookies would have already
+    // been notified when populateVBucketMap finished).
+    processCreateVBucketsComplete(cb::engine_errc::disconnect);
 }
 
 void Warmup::scheduleInitialize() {
@@ -1376,21 +1383,21 @@ void Warmup::createVBuckets(uint16_t shardId) {
     }
 }
 
-void Warmup::processCreateVBucketsComplete() {
-    std::unique_lock<std::mutex> lock(pendingCookiesMutex);
-    createVBucketsComplete = true;
-    if (!pendingCookies.empty()) {
-        EP_LOG_INFO(
-                "Warmup::processCreateVBucketsComplete unblocking {} cookie(s)",
-                pendingCookies.size());
-        while (!pendingCookies.empty()) {
-            const CookieIface* c = pendingCookies.front();
-            pendingCookies.pop_front();
-            // drop lock to avoid lock inversion
-            lock.unlock();
-            store.getEPEngine().notifyIOComplete(c, cb::engine_errc::success);
-            lock.lock();
-        }
+void Warmup::processCreateVBucketsComplete(cb::engine_errc status) {
+    PendingCookiesQueue toNotify;
+    {
+        std::unique_lock<std::mutex> lock(pendingCookiesMutex);
+        createVBucketsComplete = true;
+        pendingCookies.swap(toNotify);
+    }
+    if (toNotify.empty()) {
+        return;
+    }
+
+    EP_LOG_INFO("Warmup::processCreateVBucketsComplete unblocking {} cookie(s)",
+                toNotify.size());
+    for (const auto* c : toNotify) {
+        store.getEPEngine().notifyIOComplete(c, status);
     }
 }
 
@@ -1604,7 +1611,7 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
 
         warmedUpVbuckets.clear();
         // Once we have populated the VBMap we can allow setVB state changes
-        processCreateVBucketsComplete();
+        processCreateVBucketsComplete(cb::engine_errc::success);
         if (store.getItemEvictionPolicy() == EvictionPolicy::Value) {
             transition(WarmupState::State::KeyDump);
         } else {

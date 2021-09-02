@@ -6393,7 +6393,7 @@ void EventuallyPersistentEngine::initiate_shutdown() {
 
 void EventuallyPersistentEngine::cancel_all_operations_in_ewb_state() {
     auto eng = acquireEngine(this);
-    kvBucket->releaseRegisteredSyncWrites();
+    kvBucket->releaseBlockedCookies();
 }
 
 cb::mcbp::Status EventuallyPersistentEngine::stopFlusher(const char** msg,
