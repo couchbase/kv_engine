@@ -2344,6 +2344,11 @@ scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) const {
                     "error:{} [{}]",
                     couchstore_strerror(errorCode),
                     couchkvstore_strerrno(db, errorCode));
+            // We don't know how many documents we _should_ have scanned,
+            // it could be 1, could be many more; so just count as a single
+            // "get" failure to the error is propogated up to ns_server (and
+            // can potentially be used to trigger auto-failover).
+            st.numGetFailure++;
             return scan_failed;
         }
     }
