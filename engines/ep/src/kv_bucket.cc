@@ -443,6 +443,9 @@ bool KVBucket::initialize() {
             &engine, stats, checkpointRemoverInterval);
     ExecutorPool::get()->schedule(chkTask);
 
+    ckptDestroyerTask = std::make_shared<CheckpointDestroyerTask>(&engine);
+    ExecutorPool::get()->schedule(ckptDestroyerTask);
+
     durabilityTimeoutTask = std::make_shared<DurabilityTimeoutTask>(
             engine,
             std::chrono::milliseconds(
@@ -2730,6 +2733,13 @@ SeqnoAckCallback KVBucket::makeSeqnoAckCB() const {
     };
 }
 
+CheckpointDisposer KVBucket::makeCheckpointDisposer() const {
+    return [this](CheckpointList&& toDestroy) mutable {
+        Expects(this->ckptDestroyerTask);
+        this->ckptDestroyerTask->queueForDestruction(std::move(toDestroy));
+    };
+}
+
 std::unique_ptr<KVStoreIface> KVBucket::takeRW(size_t shardId) {
     return vbMap.shards[shardId]->takeRW();
 }
@@ -2882,4 +2892,8 @@ size_t KVBucket::getRequiredCheckpointMemoryReduction() const {
             toMB(amountOfMemoryToClear));
 
     return amountOfMemoryToClear;
+}
+
+CheckpointDestroyerTask& KVBucket::getCkptDestroyerTask() {
+    return *ckptDestroyerTask;
 }

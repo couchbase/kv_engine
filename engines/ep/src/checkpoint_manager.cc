@@ -36,14 +36,16 @@ CheckpointManager::CheckpointManager(EPStats& st,
                                      uint64_t lastSnapStart,
                                      uint64_t lastSnapEnd,
                                      uint64_t maxVisibleSeqno,
-                                     FlusherCallback cb)
+                                     FlusherCallback cb,
+                                     CheckpointDisposer checkpointDisposer)
     : stats(st),
       checkpointConfig(config),
       vb(vb),
       numItems(0),
       lastBySeqno(lastSeqno),
       maxVisibleSeqno(maxVisibleSeqno),
-      flusherCB(std::move(cb)) {
+      flusherCB(std::move(cb)),
+      checkpointDisposer(std::move(checkpointDisposer)) {
     std::lock_guard<std::mutex> lh(queueLock);
 
     lastBySeqno.setLabel("CheckpointManager(" + vb.getId().to_string() +
@@ -474,6 +476,11 @@ CheckpointManager::removeClosedUnrefCheckpoints() {
             numNonMetaItemsRemoved,
             memoryReleased,
             vb.getId());
+
+    // the provided disposer may queue checkpoints for destruction in a
+    // background task, or may do nothing - in that case toRelease will be
+    // destroyed when it goes out of scope.
+    checkpointDisposer(std::move(toRelease));
 
     return {numNonMetaItemsRemoved, memoryReleased};
 }

@@ -11,6 +11,7 @@
 #pragma once
 
 #include <boost/container/list.hpp>
+#include <functional>
 #include <memory>
 
 class Checkpoint;
@@ -25,6 +26,19 @@ class VBucket;
 // afford that to be O(N) as that degrades frontend throughput when the CM list
 // is large.
 using CheckpointList = boost::container::list<std::unique_ptr<Checkpoint>>;
+
+/**
+ * Callback function invoked when a checkpoint becomes unreferenced; used
+ * to trigger background deletion.
+ */
+using CheckpointDisposer = std::function<void(CheckpointList&&)>;
+
+/**
+ * As the CheckpointList has already been spliced by the time the disposer is
+ * invoked, doing nothing here just leads to the checkpoints being destroyed
+ * "inline" rather than in a background task.
+ */
+const CheckpointDisposer ImmediateCkptDisposer = [](CheckpointList&&) {};
 
 /**
  * RAII resource, used to reset the state of the CheckpointManager after

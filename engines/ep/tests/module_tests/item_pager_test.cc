@@ -154,10 +154,15 @@ protected:
         // a ref-count of 1. This will not be the case if there's any open
         // checkpoints hanging onto Items. Therefore force the creation of a new
         // checkpoint.
-        store->getVBucket(vbid)->checkpointManager->createNewCheckpoint();
+        auto& cm = *store->getVBucket(vbid)->checkpointManager;
+        cm.createNewCheckpoint();
 
         // Ensure items are flushed to disk (so we can evict them).
         flushDirectlyIfPersistent(vbid);
+
+        // manually drive checkpoint removal and destruction to recover memory.
+        cm.removeClosedUnrefCheckpoints();
+        runCheckpointDestroyer();
 
 #ifdef EP_USE_MAGMA
         // Magma... we need to run explicit compaction to make sure no
@@ -1903,6 +1908,7 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
     vb->checkpointManager->createNewCheckpoint(true);
     flushVBucketToDiskIfPersistent(vbid, itemCount);
     vb->checkpointManager->removeClosedUnrefCheckpoints();
+    runCheckpointDestroyer();
 
     auto& stats = engine->getEpStats();
     // confirm we are now below the low watermark, and can test the item pager

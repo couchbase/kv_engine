@@ -56,6 +56,7 @@ public:
                 [](Vbid) { return; },
                 NoopSyncWriteCompleteCb,
                 NoopSeqnoAckCb,
+                ImmediateCkptDisposer,
                 config,
                 evictionPolicy,
                 std::make_unique<Collections::VB::Manifest>(

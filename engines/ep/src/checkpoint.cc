@@ -17,6 +17,7 @@
 #include "bucket_logger.h"
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
+#include "checkpoint_remover.h"
 #include "ep_time.h"
 #include "stats.h"
 
@@ -679,8 +680,16 @@ void Checkpoint::detachFromManager() {
 
     // stop tracking MemoryCounters against the CM, this also decreases the
     // "parent" value by the values for this Checkpoint.
-    keyIndexMemUsage.changeParent(nullptr);
-    queuedItemsMemUsage.changeParent(nullptr);
+    setMemoryTracker(nullptr);
+}
+
+void Checkpoint::setMemoryTracker(
+        cb::NonNegativeCounter<size_t>* newMemoryUsageTracker) {
+    // This checkpoint is being removed from the Manager, decrease the memory
+    // usage accounted against the Manager, and instead track it against the
+    // new owner (destroyer task).
+    queuedItemsMemUsage.changeParent(newMemoryUsageTracker);
+    keyIndexMemUsage.changeParent(newMemoryUsageTracker);
 }
 
 std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {

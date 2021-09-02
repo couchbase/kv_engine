@@ -27,6 +27,7 @@ MockEphemeralVBucket::MockEphemeralVBucket(
         SyncWriteResolvedCallback syncWriteResolvedCb,
         SyncWriteCompleteCallback syncWriteCb,
         SeqnoAckCallback seqnoAckCb,
+        CheckpointDisposer ckptDisposer,
         Configuration& config,
         EvictionPolicy evictionPolicy,
         std::unique_ptr<Collections::VB::Manifest> manifest)
@@ -43,6 +44,7 @@ MockEphemeralVBucket::MockEphemeralVBucket(
                        syncWriteResolvedCb,
                        syncWriteCb,
                        seqnoAckCb,
+                       ckptDisposer,
                        config,
                        evictionPolicy,
                        std::move(manifest)) {

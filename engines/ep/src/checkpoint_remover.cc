@@ -9,17 +9,63 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "checkpoint_remover.h"
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
-#include "checkpoint_remover.h"
 #include "checkpoint_visitor.h"
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
+#include <executor/executorpool.h>
 
 #include <phosphor/phosphor.h>
+#include <limits>
 #include <memory>
+
+CheckpointDestroyerTask::CheckpointDestroyerTask(EventuallyPersistentEngine* e)
+    : GlobalTask(e,
+                 TaskId::CheckpointDestroyerTask,
+                 std::numeric_limits<int>::max() /* sleepTime */) {
+}
+
+bool CheckpointDestroyerTask::run() {
+    if (engine->getEpStats().isShutdown) {
+        return false;
+    }
+    // sleep forever once done, until notified again
+    snooze(std::numeric_limits<int>::max());
+    notified.store(false);
+    // to hold the lock for as short of a time as possible, swap toDestroy
+    // with a temporary list, and destroy the temporary list outside of the lock
+    CheckpointList temporary;
+    {
+        auto handle = toDestroy.lock();
+        handle->swap(temporary);
+    }
+    return true;
+}
+
+void CheckpointDestroyerTask::queueForDestruction(CheckpointList&& list) {
+    // iterating the list is not ideal, but it should generally be
+    // small (in many cases containing a single item), and correctly tracking
+    // memory usage is useful.
+    for (auto& checkpoint : list) {
+        checkpoint->setMemoryTracker(&pendingDestructionMemoryUsage);
+    }
+    {
+        auto handle = toDestroy.lock();
+        handle->splice(handle->end(), list);
+    }
+    bool expected = false;
+    if (notified.compare_exchange_strong(expected, true)) {
+        ExecutorPool::get()->wake(getId());
+    }
+}
+
+size_t CheckpointDestroyerTask::getMemoryUsage() const {
+    return pendingDestructionMemoryUsage.load();
+}
 
 size_t ClosedUnrefCheckpointRemoverTask::attemptCheckpointRemoval(
         size_t memToClear) {

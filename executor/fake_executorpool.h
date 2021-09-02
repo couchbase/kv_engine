@@ -150,14 +150,22 @@ public:
 
         // Configure a checker to run, some tasks are subtly different
         if (getTaskName() == "Snapshotting vbucket states" ||
-            getTaskName() ==
-                    "Removing closed unreferenced checkpoints from memory" ||
             getTaskName() == "Paging expired items." ||
             getTaskName() == "Adjusting hash table sizes." ||
             getTaskName() == "Generating access log") {
             checker = [=](bool taskRescheduled) {
                 // These tasks all schedule one other task
                 this->oneExecutes(taskRescheduled, 1);
+            };
+        } else if (getTaskName() ==
+                   "Removing closed unreferenced checkpoints from memory") {
+            checker = [=](bool taskRescheduled) {
+                // This task _may_ schedule or wake 1 or 2 subsequent tasks.
+                // 1. A CheckpointVisitor, scanning all vbuckets for
+                //    Checkpoints to remove
+                // 2. A CheckpointDestroyer, to destroy checkpoints made
+                //    unreferenced by cursor dropping
+                this->oneExecutes(taskRescheduled, /*min*/ 0, /*max*/ 2);
             };
         } else if (getTaskName() == "Paging out items.") {
             checker = [=](bool taskRescheduled) {

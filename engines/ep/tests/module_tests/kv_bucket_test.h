@@ -198,6 +198,27 @@ public:
     bool isItemFreqDecayerTaskSnoozed() const;
 
     /**
+     * Schedules the ClosedUnrefCheckpointRemoverTask.
+     */
+    void scheduleCheckpointRemoverTask();
+
+    /**
+     * Schedules the CheckpointDestroyerTask.
+     *
+     * Tests can chose to drive checkpoint removal directly through the manager
+     * or by running the appropriate task.
+     *
+     * Tests which verify the CheckpointDestroyerTask notification/waking
+     * require the task to be scheduled before use.
+     *
+     * For tests which are not testing checkpoint removal directly,
+     * MockCheckpointManager can have an ImmediateCheckpointDisposer set,
+     * which will destroy checkpoints as soon as they are removed, without
+     * queuing them for a background task.
+     */
+    void scheduleCheckpointDestroyerTask();
+
+    /**
      * Convenience method to run the background fetcher task once (in the
      * current thread).
      */

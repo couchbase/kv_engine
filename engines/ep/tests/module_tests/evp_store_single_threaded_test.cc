@@ -24,6 +24,7 @@
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
+#include "checkpoint_remover.h"
 #include "checkpoint_utils.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
@@ -433,6 +434,10 @@ void SingleThreadedKVBucketTest::runCollectionsEraser(Vbid id) {
     // multi-second delay. We don't want to wait around for it so kick it
     // into action by rescheduling without delay.
     scheduleAndRunCollectionsEraser(id);
+}
+
+void SingleThreadedKVBucketTest::runCheckpointDestroyer() {
+    store->getCkptDestroyerTask().run();
 }
 
 bool SingleThreadedKVBucketTest::isBloomFilterEnabled() const {

@@ -9,9 +9,9 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "checkpoint_visitor.h"
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
-#include "checkpoint_visitor.h"
 #include "dcp/dcpconnmap.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"

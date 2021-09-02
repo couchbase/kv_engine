@@ -10,10 +10,57 @@
  */
 #pragma once
 
+#include "checkpoint.h"
+#include "checkpoint_types.h"
 #include <executor/globaltask.h>
+#include <folly/Synchronized.h>
+#include <mutex>
 
 class EPStats;
 class EventuallyPersistentEngine;
+
+/**
+ * Task which destroys and frees checkpoints.
+ *
+ * This task is not responsible for identifying the checkpoints to destroy,
+ * instead the ClosedUnrefCheckpointRemoverTask splices out checkpoints,
+ * handing them to this task.
+ *
+ * In the future, "eager" checkpoint removal may be implemented, directly
+ * handing unreferenced checkpoints to this task at the time they become
+ * unreferenced.
+ */
+class CheckpointDestroyerTask : public GlobalTask {
+public:
+    /**
+     * Construct a CheckpointDestroyerTask.
+     * @param e the engine instance this task is associated with
+     */
+    CheckpointDestroyerTask(EventuallyPersistentEngine* e);
+
+    std::chrono::microseconds maxExpectedDuration() const override {
+        // this duration inherited from the replaced checkpoint visitor.
+        return std::chrono::milliseconds(50);
+    }
+
+    std::string getDescription() const override {
+        return "Destroying closed unreferenced checkpoints";
+    }
+
+    bool run() override;
+
+    void queueForDestruction(CheckpointList&& list);
+
+    size_t getMemoryUsage() const;
+
+private:
+    folly::Synchronized<CheckpointList, std::mutex> toDestroy;
+
+    cb::NonNegativeCounter<size_t> pendingDestructionMemoryUsage;
+    // flag that this task has already been notified to avoid repeated
+    // executorpool wake calls (not necessarily cheap)
+    std::atomic<bool> notified{false};
+};
 
 /**
  * Dispatcher job responsible for removing closed unreferenced checkpoints

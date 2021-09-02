@@ -684,6 +684,24 @@ public:
      */
     void detachFromManager();
 
+    /**
+     * Change where the memory usage of the keyIndex and queued items is
+     * accounted against.
+     *
+     * The locally tracked values are unchanged, but the counters for the
+     * previous owner (the CheckpointManager) are decreased by this Checkpoint's
+     * usage, and the new counter is increased by the same value.
+     *
+     * Upon Checkpoint destruction, the new counter will be decreased, rather
+     * than the old one.
+     *
+     * A null argument sets "no parent"; local stat updates will not be
+     * reflected in a parent counter, until a subsequent non-null parent is
+     * set.
+     */
+    void setMemoryTracker(
+            cb::NonNegativeCounter<size_t>* newMemoryUsageTracker);
+
 private:
     /**
      * Make a CheckpointIndexKey for inserting items into or finding items in

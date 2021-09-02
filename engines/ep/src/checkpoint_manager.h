@@ -138,6 +138,24 @@ public:
         size_t memory = {0};
     };
 
+    /**
+     * Construct a Checkpoint manager, tracking items queued for Vbucket @p vb.
+     *
+     *
+     * @param st EPStats instance to record checkpoint stats in
+     * @param vb the vbucket this manager is to be associated with
+     * @param config checkpoint config, possibly built from the engine config
+     * @param lastSeqno highest existing seqno, new queued items will start
+     *                  at lastSeqno + 1
+     * @param lastSnapStart most recent snapshot start seqno
+     * @param lastSnapEnd most recent snapshot end seqnp
+     * @param maxVisibleSeqno highest seqno of a committed item at the time
+     *                        of construction
+     * @param cb flusher callback, used to trigger the flusher after items have
+     *           been queued
+     * @param checkpointDisposer callback which may be used to queue checkpoints
+     *                           for destruction in a background task
+     */
     CheckpointManager(EPStats& st,
                       VBucket& vb,
                       CheckpointConfig& config,
@@ -145,7 +163,8 @@ public:
                       uint64_t lastSnapStart,
                       uint64_t lastSnapEnd,
                       uint64_t maxVisibleSeqno,
-                      FlusherCallback cb);
+                      FlusherCallback cb,
+                      CheckpointDisposer checkpointDisposer);
 
     virtual ~CheckpointManager();
 
@@ -748,6 +767,13 @@ protected:
     cursor_index cursors;
 
     const FlusherCallback flusherCB;
+    /**
+     * Callback responsible for destroying checkpoints after they have been
+     * removed from the checkpointList.
+     *
+     * The callback may queue checkpoints for destruction by a background task.
+     */
+    const CheckpointDisposer checkpointDisposer;
 
     static constexpr const char* pCursorName = "persistence";
     Cursor pCursor;

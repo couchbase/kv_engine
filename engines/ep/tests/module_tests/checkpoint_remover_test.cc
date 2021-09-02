@@ -436,12 +436,15 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
                         engine->getEpStats(),
                         engine->getConfiguration().getChkRemoverStime());
         remover->run();
+        store->getCkptDestroyerTask().run();
     } else {
         // Testing CursorDrop
         std::atomic<bool> stateFinalizer = false;
         auto visitor = CheckpointVisitor(
                 store, engine->getEpStats(), stateFinalizer, memToClear);
         visitor.visitBucket(vb);
+        store->getCkptDestroyerTask().run();
+
         EXPECT_LT(stats.getNumCheckpoints(), inititalNumCheckpoints);
     }
 
@@ -953,10 +956,85 @@ TEST_F(CheckpointRemoverEPTest, CheckpointRemovalWithoutCursorDrop) {
     auto visitor = CheckpointVisitor(
             store, engine->getEpStats(), stateFinalizer, memToClear);
     visitor.visitBucket(vb);
+    store->getCkptDestroyerTask().run();
 
     EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
     EXPECT_EQ(0, engine->getEpStats().itemsExpelledFromCheckpoints);
     EXPECT_EQ(initialNumItems,
               engine->getEpStats().itemsRemovedFromCheckpoints);
     EXPECT_EQ(0, engine->getEpStats().cursorsDropped);
+}
+
+TEST_F(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    // Schedule the remover and destroyer tasks, ready for use.
+    // They sleep forever, but must be scheduled to be woken later in the test
+    scheduleCheckpointRemoverTask();
+    scheduleCheckpointDestroyerTask();
+
+    // lower the threshold before checkpoint memory recovery is triggered
+    // to minimise the number of items required/time taken for test
+    auto& config = engine->getConfiguration();
+    config.setMaxSize(1024 * 1024 * 10);
+    store->setCheckpointMemoryRatio(0.1);
+
+    auto vb = engine->getVBucket(vbid);
+    auto& cm = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+
+    auto& epstats = engine->getEpStats();
+
+    auto initialMemUsed = epstats.getEstimatedCheckpointMemUsage();
+    auto initialMemUsedCM = cm.getEstimatedMemUsage();
+
+    // Add items to the initial (open) checkpoint until they exceed the
+    // permitted memory usage
+    auto value = std::string(20 * 1024, 'x');
+    int i = 0;
+    while (!store->getRequiredCheckpointMemoryReduction()) {
+        auto item = make_item(
+                vbid, makeStoredDocKey("key_" + std::to_string(i++)), value);
+        EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
+    }
+    EXPECT_EQ(1, cm.getNumCheckpoints());
+
+    cm.createNewCheckpoint();
+    EXPECT_EQ(2, cm.getNumCheckpoints());
+    EXPECT_EQ(0, cm.getNumOpenChkItems());
+
+    // move the persistence cursor out of the old checkpoint
+    flushVBucketToDiskIfPersistent(vbid, i);
+
+    // memory usage should be higher than it started
+    EXPECT_GT(epstats.getEstimatedCheckpointMemUsage(), initialMemUsed);
+    auto peakMemUsedCM = cm.getEstimatedMemUsage();
+    EXPECT_GT(cm.getEstimatedMemUsage(), initialMemUsedCM);
+
+    const auto& destroyer = store->getCkptDestroyerTask();
+    // the destroyer doesn't own anything yet, so should have no mem usage
+    EXPECT_EQ(0, destroyer.getMemoryUsage());
+
+    store->wakeUpCheckpointRemover();
+
+    // run the remover, this queues the checkpoints for destruction
+    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(nonIO, "Removing closed unreferenced checkpoints from memory");
+
+    // the checkpoints should have been disassociated from their manager,
+    // so the tracked memory usage should have decreased...
+    EXPECT_LE(cm.getEstimatedMemUsage(), initialMemUsedCM);
+    // and now the checkpoint mem usage is accounted against the destroyer task
+    EXPECT_EQ(peakMemUsedCM - cm.getEstimatedMemUsage(),
+              destroyer.getMemoryUsage());
+    // but still tracked in epstats; the checkpoints have not been destroyed
+    EXPECT_GT(epstats.getEstimatedCheckpointMemUsage(), initialMemUsed);
+
+    // run the task responsible for actually destroying the checkpoints
+    runNextTask(nonIO, "Destroying closed unreferenced checkpoints");
+
+    // the checkpoints have been destroyed, epstats tracking should be back
+    // down, and the destroyer should have no checkpoint memory associated.
+    EXPECT_LE(epstats.getEstimatedCheckpointMemUsage(), initialMemUsed);
+    EXPECT_EQ(cm.getEstimatedMemUsage(),
+              epstats.getEstimatedCheckpointMemUsage());
+    EXPECT_EQ(0, destroyer.getMemoryUsage());
 }

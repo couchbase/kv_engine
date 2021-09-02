@@ -26,6 +26,7 @@
 #include <cstdlib>
 #include <deque>
 
+class CheckpointDestroyerTask;
 class DurabilityCompletionTask;
 class ReplicationThrottle;
 class VBucketCountVisitor;
@@ -847,6 +848,8 @@ public:
      */
     size_t getRequiredCheckpointMemoryReduction() const;
 
+    CheckpointDestroyerTask& getCkptDestroyerTask();
+
 protected:
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
@@ -926,6 +929,12 @@ protected:
     SeqnoAckCallback makeSeqnoAckCB() const;
 
     /**
+     * Returns the callback function to be invoked once a vbucket has
+     * unreferenced checkpoints which should be destroyed by a background task.
+     */
+    CheckpointDisposer makeCheckpointDisposer() const;
+
+    /**
      * Chech if the given level is a valid Bucket Durability Level for this
      * Bucket.
      *
@@ -945,6 +954,7 @@ protected:
     VBucketMap                      vbMap;
     ExTask itemPagerTask;
     ExTask                          chkTask;
+    std::shared_ptr<CheckpointDestroyerTask> ckptDestroyerTask;
     float                           bfilterResidencyThreshold;
     ExTask                          defragmenterTask;
     ExTask itemCompressorTask;

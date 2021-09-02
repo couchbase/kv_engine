@@ -120,6 +120,9 @@ void KVBucketTest::initialise(std::string config) {
 
     store->initializeExpiryPager(engine->getConfiguration());
 
+    store->ckptDestroyerTask =
+            std::make_shared<CheckpointDestroyerTask>(engine.get());
+
     cookie = create_mock_cookie(engine.get());
 }
 
@@ -325,6 +328,14 @@ void KVBucketTest::initializeExpiryPager() {
 
 bool KVBucketTest::isItemFreqDecayerTaskSnoozed() const {
     return store->isItemFreqDecayerTaskSnoozed();
+}
+
+void KVBucketTest::scheduleCheckpointRemoverTask() {
+    ExecutorPool::get()->schedule(store->chkTask);
+}
+
+void KVBucketTest::scheduleCheckpointDestroyerTask() {
+    ExecutorPool::get()->schedule(store->ckptDestroyerTask);
 }
 
 void KVBucketTest::runBGFetcherTask() {

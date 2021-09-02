@@ -2981,6 +2981,10 @@ TEST_F(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtRemoval) {
     EXPECT_EQ(1, manager.getNumCheckpoints());
     EXPECT_EQ(0, manager.getNumOpenChkItems());
 
+    // removeClosedUnrefCheckpoints queues checkpoints for destruction,
+    // run the destroyer task to recover the memory the checkpoints use.
+    runCheckpointDestroyer();
+
     checkpoint = manager.getCheckpointList().front().get();
     queued = checkpoint->getQueuedItemsMemUsage();
     index = checkpoint->getKeyIndexMemUsage();
