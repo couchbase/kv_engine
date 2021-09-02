@@ -432,10 +432,8 @@ public:
     bool run() override {
         TRACE_EVENT1(
                 "ep-engine/task", "WarmupBackfillTask", "shard", getShardId());
-        if (finished || filter.empty() || engine->getEpStats().isShutdown) {
-            if (!finished) {
-                finishTask();
-            }
+        if (filter.empty() || engine->getEpStats().isShutdown) {
+            finishTask();
             return false;
         }
 
@@ -445,9 +443,10 @@ public:
 
         if (epStorePosition == kvBucket.endPosition()) {
             finishTask();
+            return false;
         }
 
-        return !finished;
+        return true;
     }
 
     size_t getShardId() const {
@@ -467,19 +466,20 @@ protected:
     Warmup& warmup;
 
 private:
+    /**
+     * Finish the current task, transitioning to the next phase of warmup if
+     * backfill has finished for all shards.
+     */
     void finishTask() {
-        // we only need go through all the vbuckets once, so we're
-        finished = true;
         warmup.removeFromTaskSet(uid);
-        // If this is the last backfill task for this shard then move us
-        // to the next state
+        // If this is the last backfill task (all shards have finished) then
+        // move us to the next state.
         if (++currentNumBackfillTasks ==
             engine->getKVBucket()->getVBuckets().getNumShards()) {
             warmup.transition(getNextState());
         }
     }
 
-    bool finished = false;
     const size_t shardId;
     const std::string description;
     std::atomic<size_t>& currentNumBackfillTasks;
@@ -489,7 +489,7 @@ private:
 };
 
 bool WarmupVbucketVisitor::visit(VBucket& vb) {
-    auto* kvstore = ep.getRWUnderlyingByShard(backfillTask.getShardId());
+    auto* kvstore = ep.getROUnderlyingByShard(backfillTask.getShardId());
 
     if (!currentScanCtx) {
         auto kvLookup = std::make_unique<LoadStorageKVPairCallback>(

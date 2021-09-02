@@ -652,12 +652,12 @@ CBSTAT(dcp_count, "ep_dcp_count", count) // redundant in prometheus, is the sum
 STAT(dcp_consumer_count,
      "ep_dcp_consumer_count",
      count,
-     "dcp_count",
+     dcp_count,
      LABEL(type, consumer))
 STAT(dcp_producer_count,
      "ep_dcp_producer_count",
      count,
-     "dcp_count",
+     dcp_count,
      LABEL(type, producer))
 STAT(dcp_total_data_size, "ep_dcp_total_bytes", bytes, , )
 STAT(dcp_total_uncompressed_data_size,
