@@ -269,6 +269,8 @@ public:
     // implemented by querying StorageProperties for the buckets KVStore
     bool isByIdScanSupported() const override;
 
+    void releaseBlockedCookies() override;
+
     bool canEvictFromReplicas() override {
         return true;
     }
