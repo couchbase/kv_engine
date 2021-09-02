@@ -30,6 +30,7 @@
 
 #include <memory>
 
+class CheckpointDestroyerTask;
 class CookieIface;
 class CouchKVStoreConfig;
 class GetValue;
@@ -220,7 +221,13 @@ public:
      * which will destroy checkpoints as soon as they are removed, without
      * queuing them for a background task.
      */
-    void scheduleCheckpointDestroyerTask();
+    void scheduleCheckpointDestroyerTasks();
+
+    /**
+     * Allow test access to all checkpoint destroyer tasks.
+     */
+    const std::vector<std::shared_ptr<CheckpointDestroyerTask>>&
+    getCheckpointDestroyerTasks() const;
 
     /**
      * Convenience method to run the background fetcher task once (in the
@@ -322,6 +329,12 @@ public:
      */
     std::unordered_map<CollectionID, Collections::VB::PersistedStats>
     getCollectionStats(Vbid id, const std::vector<CollectionID>& cids);
+
+    /**
+     * Get the destroyer task responsible for checkpoints from the given
+     * vbucket.
+     */
+    CheckpointDestroyerTask& getCkptDestroyerTask(Vbid vbid) const;
 
 private:
     /**

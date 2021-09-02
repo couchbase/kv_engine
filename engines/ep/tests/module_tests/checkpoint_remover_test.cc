@@ -439,14 +439,14 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
                         engine->getEpStats(),
                         engine->getConfiguration().getChkRemoverStime());
         remover->run();
-        store->getCkptDestroyerTask().run();
+        getCkptDestroyerTask(vbid).run();
     } else {
         // Testing CursorDrop
         std::atomic<bool> stateFinalizer = false;
         auto visitor = CheckpointVisitor(
                 store, engine->getEpStats(), stateFinalizer, memToClear);
         visitor.visitBucket(vb);
-        store->getCkptDestroyerTask().run();
+        getCkptDestroyerTask(vbid).run();
 
         EXPECT_LT(stats.getNumCheckpoints(), inititalNumCheckpoints);
     }
@@ -967,7 +967,7 @@ TEST_F(CheckpointRemoverEPTest, CheckpointRemovalWithoutCursorDrop) {
     auto visitor = CheckpointVisitor(
             store, engine->getEpStats(), stateFinalizer, memToClear);
     visitor.visitBucket(vb);
-    store->getCkptDestroyerTask().run();
+    getCkptDestroyerTask(vbid).run();
 
     EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
     EXPECT_EQ(0, engine->getEpStats().itemsExpelledFromCheckpoints);
@@ -981,7 +981,7 @@ TEST_F(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
     // Schedule the remover and destroyer tasks, ready for use.
     // They sleep forever, but must be scheduled to be woken later in the test
     scheduleCheckpointRemoverTask();
-    scheduleCheckpointDestroyerTask();
+    scheduleCheckpointDestroyerTasks();
 
     // lower the threshold before checkpoint memory recovery is triggered
     // to minimise the number of items required/time taken for test
@@ -1020,7 +1020,7 @@ TEST_F(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
     auto peakMemUsedCM = cm.getEstimatedMemUsage();
     EXPECT_GT(cm.getEstimatedMemUsage(), initialMemUsedCM);
 
-    const auto& destroyer = store->getCkptDestroyerTask();
+    const auto& destroyer = getCkptDestroyerTask(vbid);
     // the destroyer doesn't own anything yet, so should have no mem usage
     EXPECT_EQ(0, destroyer.getMemoryUsage());
 

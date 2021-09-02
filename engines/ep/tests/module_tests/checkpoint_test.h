@@ -137,3 +137,14 @@ public:
  * as expected.
  */
 class CheckpointConfigTest : public SingleThreadedCheckpointTest {};
+
+/**
+ * Test fixture covering the creation of multiple CheckpointDestroyerTasks,
+ * and ensuring work is distributed across them.
+ */
+class ShardedCheckpointDestructionTest
+    : public SingleThreadedKVBucketTest,
+      public ::testing::WithParamInterface<size_t> {
+public:
+    void SetUp() override;
+};

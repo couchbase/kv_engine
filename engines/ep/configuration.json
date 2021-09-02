@@ -205,6 +205,17 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "checkpoint_destruction_tasks": {
+            "default": "1",
+            "descr": "Number of tasks responsible for destroying closed unreferenced checkpoints.",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
+        },
         "checkpoint_memory_ratio": {
             "default": "0.5",
             "descr": "Max ratio of the bucket quota that can be allocated in checkpoints. The system enters a TempOOM phase if hit.",

@@ -452,8 +452,12 @@ bool KVBucket::initialize() {
             &engine, stats, checkpointRemoverInterval);
     ExecutorPool::get()->schedule(chkTask);
 
-    ckptDestroyerTask = std::make_shared<CheckpointDestroyerTask>(&engine);
-    ExecutorPool::get()->schedule(ckptDestroyerTask);
+    auto numCkptDestroyers = config.getCheckpointDestructionTasks();
+    for (size_t i = 0; i < numCkptDestroyers; ++i) {
+        ckptDestroyerTasks.push_back(
+                std::make_shared<CheckpointDestroyerTask>(&engine));
+        ExecutorPool::get()->schedule(ckptDestroyerTasks.back());
+    }
 
     durabilityTimeoutTask = std::make_shared<DurabilityTimeoutTask>(
             engine,
@@ -2748,9 +2752,8 @@ SeqnoAckCallback KVBucket::makeSeqnoAckCB() const {
 }
 
 CheckpointDisposer KVBucket::makeCheckpointDisposer() const {
-    return [this](CheckpointList&& toDestroy) mutable {
-        Expects(this->ckptDestroyerTask);
-        this->ckptDestroyerTask->queueForDestruction(std::move(toDestroy));
+    return [this](CheckpointList&& toDestroy, const Vbid& vbid) mutable {
+        getCkptDestroyerTask(vbid).queueForDestruction(std::move(toDestroy));
     };
 }
 
@@ -2938,6 +2941,7 @@ size_t KVBucket::getRequiredCheckpointMemoryReduction() const {
     return amountOfMemoryToClear;
 }
 
-CheckpointDestroyerTask& KVBucket::getCkptDestroyerTask() {
-    return *ckptDestroyerTask;
+CheckpointDestroyerTask& KVBucket::getCkptDestroyerTask(Vbid vbid) const {
+    Expects(!ckptDestroyerTasks.empty());
+    return *ckptDestroyerTasks[vbid.get() % ckptDestroyerTasks.size()];
 }

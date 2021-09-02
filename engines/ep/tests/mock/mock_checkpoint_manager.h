@@ -39,8 +39,8 @@ public:
                             lastSnapEnd,
                             maxVisibleSeqno,
                             cb,
-                            [this](CheckpointList&& list) {
-                                testCkptDisposer(std::move(list));
+                            [this](CheckpointList&& list, const Vbid& vbid) {
+                                testCkptDisposer(std::move(list), vbid);
                             }) {
         // The checkpoint disposer is const in CheckpointManager and should
         // never change in normal operation.

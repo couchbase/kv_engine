@@ -162,7 +162,7 @@ protected:
 
         // manually drive checkpoint removal and destruction to recover memory.
         cm.removeClosedUnrefCheckpoints();
-        runCheckpointDestroyer();
+        runCheckpointDestroyer(vbid);
 
 #ifdef EP_USE_MAGMA
         // Magma... we need to run explicit compaction to make sure no
@@ -1927,7 +1927,7 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
     vb->checkpointManager->createNewCheckpoint(true);
     flushVBucketToDiskIfPersistent(vbid, itemCount);
     vb->checkpointManager->removeClosedUnrefCheckpoints();
-    runCheckpointDestroyer();
+    runCheckpointDestroyer(vbid);
 
     auto& stats = engine->getEpStats();
     // confirm we are now below the low watermark, and can test the item pager

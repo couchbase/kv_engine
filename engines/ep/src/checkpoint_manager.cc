@@ -509,7 +509,7 @@ void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {
     }
 
     updateStatsForCheckpointRemoval(toRemove);
-    checkpointDisposer(std::move(toRemove));
+    checkpointDisposer(std::move(toRemove), vb.getId());
 }
 
 CheckpointManager::ReleaseResult
@@ -537,7 +537,7 @@ CheckpointManager::removeClosedUnrefCheckpoints() {
     // the provided disposer may queue checkpoints for destruction in a
     // background task, or may do nothing - in that case toRelease will be
     // destroyed when it goes out of scope.
-    checkpointDisposer(std::move(toRelease));
+    checkpointDisposer(std::move(toRelease), vb.getId());
 
     return released;
 }

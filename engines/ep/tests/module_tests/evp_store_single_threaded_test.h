@@ -140,7 +140,7 @@ public:
      * Run the task responsible for destroying Checkpoints after they have
      * been removed from a CheckpointManager.
      */
-    void runCheckpointDestroyer();
+    void runCheckpointDestroyer(Vbid id);
 
     bool isBloomFilterEnabled() const;
 

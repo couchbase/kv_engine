@@ -868,9 +868,19 @@ public:
      */
     size_t getRequiredCheckpointMemoryReduction() const;
 
-    CheckpointDestroyerTask& getCkptDestroyerTask();
+    /**
+     * Returns the callback function to be invoked once a vbucket has
+     * unreferenced checkpoints which should be destroyed by a background task.
+     */
+    CheckpointDisposer makeCheckpointDisposer() const;
 
 protected:
+    /**
+     * Get the checkpoint destroyer task responsible for checkpoints from the
+     * given vbid.
+     */
+    CheckpointDestroyerTask& getCkptDestroyerTask(Vbid vbid) const;
+
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
                          const CookieIface* cookie,
@@ -949,12 +959,6 @@ protected:
     SeqnoAckCallback makeSeqnoAckCB() const;
 
     /**
-     * Returns the callback function to be invoked once a vbucket has
-     * unreferenced checkpoints which should be destroyed by a background task.
-     */
-    CheckpointDisposer makeCheckpointDisposer() const;
-
-    /**
      * Chech if the given level is a valid Bucket Durability Level for this
      * Bucket.
      *
@@ -974,7 +978,24 @@ protected:
     VBucketMap                      vbMap;
     ExTask itemPagerTask;
     ExTask                          chkTask;
-    std::shared_ptr<CheckpointDestroyerTask> ckptDestroyerTask;
+
+    /**
+     * One or more tasks responsible for destroying checkpoints which are
+     * no longer needed.
+     *
+     * Checkpoints are queued for a task to destroy, rather than being
+     * destroyed in the thead of the last user as checkpoints may be
+     * large and expensive to destroy.
+     *
+     * There will always be at least one task; the number is controlled by the
+     * config param "checkpoint_destruction_tasks".
+     * Checkpoints are distributed across the tasks based on vbid
+     * (i.e., taskIndex = vbid % numTasks).
+     * Multiple tasks allows checkpoint destruction to be scaled; under heavy
+     * workloads checkpoints may be created and consumed faster than they can
+     * be destroyed by a single task.
+     */
+    std::vector<std::shared_ptr<CheckpointDestroyerTask>> ckptDestroyerTasks;
     float                           bfilterResidencyThreshold;
     ExTask                          defragmenterTask;
     ExTask itemCompressorTask;

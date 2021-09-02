@@ -131,8 +131,12 @@ void KVBucketTest::initialise(std::string config) {
 
     store->initializeExpiryPager(engine->getConfiguration());
 
-    store->ckptDestroyerTask =
-            std::make_shared<CheckpointDestroyerTask>(engine.get());
+    auto numCkptDestroyers =
+            engine->getConfiguration().getCheckpointDestructionTasks();
+    for (size_t i = 0; i < numCkptDestroyers; ++i) {
+        store->ckptDestroyerTasks.push_back(
+                std::make_shared<CheckpointDestroyerTask>(engine.get()));
+    }
 
     cookie = create_mock_cookie(engine.get());
 }
@@ -345,8 +349,15 @@ void KVBucketTest::scheduleCheckpointRemoverTask() {
     ExecutorPool::get()->schedule(store->chkTask);
 }
 
-void KVBucketTest::scheduleCheckpointDestroyerTask() {
-    ExecutorPool::get()->schedule(store->ckptDestroyerTask);
+void KVBucketTest::scheduleCheckpointDestroyerTasks() {
+    for (const auto& task : store->ckptDestroyerTasks) {
+        ExecutorPool::get()->schedule(task);
+    }
+}
+
+const std::vector<std::shared_ptr<CheckpointDestroyerTask>>&
+KVBucketTest::getCheckpointDestroyerTasks() const {
+    return store->ckptDestroyerTasks;
 }
 
 void KVBucketTest::runBGFetcherTask() {
@@ -585,6 +596,10 @@ KVBucketTest::getCollectionStats(Vbid id,
         }
     }
     return rv;
+}
+
+CheckpointDestroyerTask& KVBucketTest::getCkptDestroyerTask(Vbid vbid) const {
+    return store->getCkptDestroyerTask(vbid);
 }
 
 class KVBucketParamTest : public STParameterizedBucketTest {

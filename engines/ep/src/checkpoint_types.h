@@ -41,18 +41,21 @@ using CheckpointQueue =
         boost::container::list<queued_item,
                                MemoryTrackingAllocator<queued_item>>;
 
+class Vbid;
 /**
  * Callback function invoked when a checkpoint becomes unreferenced; used
  * to trigger background deletion.
  */
-using CheckpointDisposer = std::function<void(CheckpointList&&)>;
+using CheckpointDisposer =
+        std::function<void(CheckpointList&&, const Vbid& vbid)>;
 
 /**
  * As the CheckpointList has already been spliced by the time the disposer is
  * invoked, doing nothing here just leads to the checkpoints being destroyed
  * "inline" rather than in a background task.
  */
-const CheckpointDisposer ImmediateCkptDisposer = [](CheckpointList&&) {};
+const CheckpointDisposer ImmediateCkptDisposer = [](CheckpointList&&,
+                                                    const Vbid&) {};
 
 /**
  * RAII resource, used to reset the state of the CheckpointManager after

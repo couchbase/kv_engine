@@ -2952,7 +2952,8 @@ public:
     }
 };
 
-using MockCheckpointDisposer = testing::MockFunction<void(CheckpointList&&)>;
+using MockCheckpointDisposer =
+        testing::MockFunction<void(CheckpointList&&, const Vbid&)>;
 
 MATCHER(CheckpointMatcher, "") {
     // arg expected to be a Checkpoint
@@ -3009,7 +3010,7 @@ TEST_P(EagerCheckpointDisposalTest, CursorMovement) {
         // remains in the old checkpoint, so it is still reffed - callback
         // should not be triggered
         StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(callback, Call(_)).Times(0);
+        EXPECT_CALL(callback, Call(_, _)).Times(0);
         manager->setCheckpointDisposer(callback.AsStdFunction());
 
         this->manager->createNewCheckpoint();
@@ -3024,7 +3025,8 @@ TEST_P(EagerCheckpointDisposalTest, CursorMovement) {
         StrictMock<MockCheckpointDisposer> callback;
         EXPECT_CALL(
                 callback,
-                Call(MatchCheckpointList({{"cid:0x0:key1", "cid:0x0:key2"}})))
+                Call(MatchCheckpointList({{"cid:0x0:key1", "cid:0x0:key2"}}),
+                     _))
                 .Times(1);
         manager->setCheckpointDisposer(callback.AsStdFunction());
 
@@ -3052,7 +3054,7 @@ TEST_P(EagerCheckpointDisposalTest, NewClosedCheckpointMovesCursor) {
         // Advance cursor, moving it to the end of the checkpoint.
         // checkpoint still reffed, for now
         StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(callback, Call(_)).Times(0);
+        EXPECT_CALL(callback, Call(_, _)).Times(0);
         manager->setCheckpointDisposer(callback.AsStdFunction());
 
         {
@@ -3072,7 +3074,8 @@ TEST_P(EagerCheckpointDisposalTest, NewClosedCheckpointMovesCursor) {
         StrictMock<MockCheckpointDisposer> callback;
         EXPECT_CALL(
                 callback,
-                Call(MatchCheckpointList({{"cid:0x0:key1", "cid:0x0:key2"}})))
+                Call(MatchCheckpointList({{"cid:0x0:key1", "cid:0x0:key2"}}),
+                     _))
                 .Times(1);
         manager->setCheckpointDisposer(callback.AsStdFunction());
 
@@ -3103,7 +3106,8 @@ TEST_P(EagerCheckpointDisposalTest, NewUnreffedClosedCheckpoint) {
         StrictMock<MockCheckpointDisposer> callback;
         EXPECT_CALL(
                 callback,
-                Call(MatchCheckpointList({{"cid:0x0:key1", "cid:0x0:key2"}})))
+                Call(MatchCheckpointList({{"cid:0x0:key1", "cid:0x0:key2"}}),
+                     _))
                 .Times(1);
         manager->setCheckpointDisposer(callback.AsStdFunction());
 
@@ -3128,7 +3132,7 @@ TEST_P(EagerCheckpointDisposalTest, OnlyOldestCkptTriggersCB) {
         // Create a new checkpoint, closing the current open one.
         // No callback triggered, cursor is present.
         StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(callback, Call(_)).Times(0);
+        EXPECT_CALL(callback, Call(_, _)).Times(0);
         manager->setCheckpointDisposer(callback.AsStdFunction());
 
         this->manager->createNewCheckpoint();
@@ -3146,7 +3150,7 @@ TEST_P(EagerCheckpointDisposalTest, OnlyOldestCkptTriggersCB) {
         // The "middle" checkpoint has no cursors, but is not the oldest
         // checkpoint, so cannot trigger checkpoint removal
         StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(callback, Call(_)).Times(0);
+        EXPECT_CALL(callback, Call(_, _)).Times(0);
         manager->setCheckpointDisposer(callback.AsStdFunction());
 
         this->manager->createNewCheckpoint();
@@ -3160,7 +3164,8 @@ TEST_P(EagerCheckpointDisposalTest, OnlyOldestCkptTriggersCB) {
         StrictMock<MockCheckpointDisposer> callback;
         EXPECT_CALL(
                 callback,
-                Call(MatchCheckpointList({{"cid:0x0:key1", "cid:0x0:key2"}})))
+                Call(MatchCheckpointList({{"cid:0x0:key1", "cid:0x0:key2"}}),
+                     _))
                 .Times(1);
         manager->setCheckpointDisposer(callback.AsStdFunction());
 
@@ -3189,7 +3194,7 @@ TEST_P(EagerCheckpointDisposalTest, RemoveCursorTriggersCB) {
         // remains in the old checkpoint, so it is still reffed - callback
         // should not be triggered
         StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(callback, Call(_)).Times(0);
+        EXPECT_CALL(callback, Call(_, _)).Times(0);
         manager->setCheckpointDisposer(callback.AsStdFunction());
 
         this->manager->createNewCheckpoint();
@@ -3202,7 +3207,7 @@ TEST_P(EagerCheckpointDisposalTest, RemoveCursorTriggersCB) {
         // Queue an item and create one more checkpoint. Still can't be removed,
         // as the cursor still exists.
         StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(callback, Call(_)).Times(0);
+        EXPECT_CALL(callback, Call(_, _)).Times(0);
         manager->setCheckpointDisposer(callback.AsStdFunction());
 
         EXPECT_TRUE(this->queueNewItem("key3"));
@@ -3220,7 +3225,8 @@ TEST_P(EagerCheckpointDisposalTest, RemoveCursorTriggersCB) {
         StrictMock<MockCheckpointDisposer> callback;
         EXPECT_CALL(callback,
                     Call(MatchCheckpointList({{"cid:0x0:key1", "cid:0x0:key2"},
-                                              {"cid:0x0:key3"}})))
+                                              {"cid:0x0:key3"}}),
+                         _))
                 .Times(1);
         manager->setCheckpointDisposer(callback.AsStdFunction());
 
@@ -3649,7 +3655,7 @@ TEST_P(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtRemoval) {
 
     // removeClosedUnrefCheckpoints queues checkpoints for destruction,
     // run the destroyer task to recover the memory the checkpoints use.
-    runCheckpointDestroyer();
+    runCheckpointDestroyer(vbid);
 
     checkpoint = manager.getCheckpointList().front().get();
     queued = checkpoint->getQueuedItemsMemUsage();
@@ -3673,9 +3679,9 @@ TEST_P(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     auto vb = store->getVBuckets().getBucket(vbid);
     auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
 
-    scheduleCheckpointDestroyerTask();
+    scheduleCheckpointDestroyerTasks();
 
-    auto& task = store->getCkptDestroyerTask();
+    auto& task = getCkptDestroyerTask(vbid);
 
     auto initialWaketime = task.getWaketime();
 
@@ -3743,10 +3749,107 @@ TEST_P(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     EXPECT_EQ(0, task.getMemoryUsage());
 }
 
+void ShardedCheckpointDestructionTest::SetUp() {
+    if (!config_string.empty()) {
+        config_string += ";";
+    }
+    config_string += "checkpoint_removal_mode=eager";
+    config_string +=
+            ";checkpoint_destruction_tasks=" + std::to_string(GetParam());
+    SingleThreadedKVBucketTest::SetUp();
+}
+
+TEST_P(ShardedCheckpointDestructionTest, ShardedBackgroundTaskIsNotified) {
+    // Verify that eager checkpoint removal notifies the correct destroyer task
+
+    // sanity check that the number of tasks that exist matches the config
+    ASSERT_EQ(GetParam(), getCheckpointDestroyerTasks().size());
+
+    const size_t numVbuckets = 4;
+    // setup 4 vbuckets
+    for (size_t i = 0; i < numVbuckets; ++i) {
+        setVBucketState(Vbid(i), vbucket_state_active);
+    }
+
+    // schedules all the destroyer tasks (number controlled by test param)
+    scheduleCheckpointDestroyerTasks();
+
+    // none of the tasks should be scheduled to run
+    for (const auto& task : getCheckpointDestroyerTasks()) {
+        EXPECT_EQ(task->getWaketime(),
+                  std::chrono::steady_clock::time_point::max());
+    }
+
+    // queue an item, then destroy the checkpoint for each of the vbuckets
+    for (size_t i = 0; i < numVbuckets; ++i) {
+        auto currVbid = Vbid(i);
+
+        auto vb = store->getVBuckets().getBucket(currVbid);
+        auto& manager =
+                static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+
+        auto item = makeCommittedItem(
+                makeStoredDocKey("key" + std::to_string(i)), "value", currVbid);
+        EXPECT_TRUE(manager.queueDirty(
+                item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
+
+        manager.createNewCheckpoint();
+        // advance the persistence cursor, CheckpointDestroyerTask should be
+        // notified.
+        {
+            std::vector<queued_item> items;
+            manager.getItemsForCursor(manager.getPersistenceCursor(),
+                                      items,
+                                      std::numeric_limits<size_t>::max());
+        }
+
+        // get the specific task this vbid is associated with
+        auto& task = getCkptDestroyerTask(vbid);
+        // it should have been scheduled to run
+        EXPECT_LE(task.getWaketime(), std::chrono::steady_clock::now());
+    }
+
+    auto& nonIOQueue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    // check that expected tasks have been notified, and run them
+    const auto& tasks = getCheckpointDestroyerTasks();
+    for (size_t i = 0; i < tasks.size(); ++i) {
+        const auto& task = tasks[i];
+        if (numVbuckets > i) {
+            // there are enough vbuckets that this task should definitely
+            // have been triggered
+            EXPECT_LE(task->getWaketime(), std::chrono::steady_clock::now());
+            runNextTask(nonIOQueue,
+                        "Destroying closed unreferenced checkpoints");
+        } else {
+            // there is a surplus of destroyers - no vbuckets will be allocated
+            // to the excess tasks
+            // e.g.,
+            // task = vbid % numTasks
+            //          4  %   5
+            // none of the 4 vbuckets can map to the 5th task
+            // this task should not have been woken.
+            EXPECT_EQ(task->getWaketime(),
+                      std::chrono::steady_clock::time_point::max());
+        }
+    }
+}
+
 INSTANTIATE_TEST_SUITE_P(EagerAndLazyCheckpointMemoryTrackingTests,
                          CheckpointMemoryTrackingTest,
                          ::testing::Values(CheckpointRemoval::Eager,
                                            CheckpointRemoval::Lazy));
+
+INSTANTIATE_TEST_SUITE_P(MultipleCheckpointDestroyerTests,
+                         ShardedCheckpointDestructionTest,
+                         ::testing::Values(
+                                 // number of destroyer tasks
+                                 1, // Degenerate case, same as pre-sharding
+                                 2, // even distribution
+                                 3, // uneven distribution
+                                 4, // destroyer for each vb
+                                 5 // more destroyers than vbuckets
+                                 ),
+                         ::testing::PrintToStringParamName());
 
 TEST_F(CheckpointConfigTest, MaxCheckpoints_LowerThanMin) {
     auto& config = engine->getConfiguration();
