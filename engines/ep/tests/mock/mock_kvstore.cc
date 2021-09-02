@@ -22,34 +22,68 @@
 
 using namespace ::testing;
 
-MockKVStore::MockKVStore() {
-    // By default, allow a scanContext to be constructed and destroyed.
-    ON_CALL(*this, initBySeqnoScanContext(_, _, _, _, _, _, _))
-            .WillByDefault(Invoke([this](auto cb,
-                                         auto cl,
-                                         Vbid vbid,
-                                         uint64_t startSeqno,
-                                         DocumentFilter options,
-                                         ValueFilter valOptions,
-                                         SnapshotSource source) {
-                vbucket_state state;
-                state.maxVisibleSeqno = 1;
-                std::vector<Collections::KVStore::DroppedCollection> dropped;
-                return std::make_unique<BySeqnoScanContext>(
-                        std::move(cb),
-                        std::move(cl),
-                        vbid,
-                        std::make_unique<KVFileHandle>(),
-                        startSeqno,
-                        1,
-                        0,
-                        options,
-                        valOptions,
-                        1,
-                        state,
-                        dropped,
-                        std::optional<uint64_t>{});
-            }));
+MockKVStore::MockKVStore(std::unique_ptr<KVStoreIface> real)
+    : realKVS(std::move(real)) {
+    if (realKVS) {
+        // If we have a real KVStore, delegate some common methods to it
+        // to aid in mocking.
+        // Note: this could probably be expanded to the entire interface,
+        // however thus far only methods needed by unit tests using the mock
+        // have been implemented.
+        ON_CALL(*this, initBySeqnoScanContext(_, _, _, _, _, _, _))
+                .WillByDefault([this](auto cb,
+                                      auto cl,
+                                      Vbid vbid,
+                                      uint64_t startSeqno,
+                                      DocumentFilter options,
+                                      ValueFilter valOptions,
+                                      SnapshotSource source) {
+                    return this->realKVS->initBySeqnoScanContext(std::move(cb),
+                                                                 std::move(cl),
+                                                                 vbid,
+                                                                 startSeqno,
+                                                                 options,
+                                                                 valOptions,
+                                                                 source);
+                });
+        ON_CALL(*this, getCachedVBucketState(_))
+                .WillByDefault([this](Vbid vbid) {
+                    return this->realKVS->getCachedVBucketState(vbid);
+                });
+        ON_CALL(*this, getAggrDbFileInfo()).WillByDefault([this]() {
+            return this->realKVS->getAggrDbFileInfo();
+        });
+        ON_CALL(*this, getConfig()).WillByDefault([this]() {
+            return this->realKVS->getConfig();
+        });
+    }
 }
 
 MockKVStore::~MockKVStore() = default;
+
+MockKVStore& MockKVStore::replaceRWKVStoreWithMock(KVBucket& bucket,
+                                                   size_t shardId) {
+    auto rw = bucket.takeRW(0);
+    auto mockRw = std::make_unique<MockKVStore>(std::move(rw));
+    auto& mockKVStore = dynamic_cast<MockKVStore&>(*mockRw);
+    bucket.setRW(0, std::move(mockRw));
+    return mockKVStore;
+}
+
+std::unique_ptr<MockKVStore> MockKVStore::restoreOriginalRWKVStore(
+        KVBucket& bucket) {
+    auto rw = bucket.takeRW(0);
+    // Sanity check - read-write from bucket should be an instance of
+    // MockKVStore
+    if (!dynamic_cast<MockKVStore*>(rw.get())) {
+        throw std::logic_error(
+                "MockKVStore::restoreOriginalRWKVStore: Bucket's read-write "
+                "KVS is not an instance of MockKVStore");
+    }
+    // Take ownership of the MockKVStore from the bucket.
+    auto ownedMockKVS = std::unique_ptr<MockKVStore>(
+            dynamic_cast<MockKVStore*>(rw.release()));
+    // Put real KVStore back into bucket, return mock.
+    bucket.setRW(0, std::move(ownedMockKVS->realKVS));
+    return ownedMockKVS;
+}
