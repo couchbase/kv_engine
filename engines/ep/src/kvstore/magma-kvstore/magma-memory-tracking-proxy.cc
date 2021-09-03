@@ -93,6 +93,13 @@ magma::Status MagmaMemoryTrackingProxy::GetDiskSnapshot(
     return magma->GetDiskSnapshot(kvID, snap);
 }
 
+magma::Status MagmaMemoryTrackingProxy::GetSnapshot(
+        const magma::Magma::KVStoreID kvID,
+        std::unique_ptr<magma::Magma::Snapshot>& snap) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->GetSnapshot(kvID, snap);
+}
+
 magma::Status MagmaMemoryTrackingProxy::GetDocs(
         const magma::Magma::KVStoreID kvID,
         magma::Operations<magma::Magma::GetOperation>& getOps,

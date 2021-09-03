@@ -13,6 +13,7 @@
 
 #include "kvstore/kvstore_config.h"
 #include "libmagma/magma.h"
+#include "utilities/testing_hook.h"
 
 #include <memcached/thread_pool_config.h>
 #include <chrono>
@@ -151,7 +152,22 @@ public:
 
     void setMagmaMemQuotaRatio(float value);
 
+    void setMakeDirectoryFn(magma::DirectoryConstructor fn) {
+        magmaCfg.FS.MakeDirectory = fn;
+    }
+
+    void setReadOnly(bool readOnly) {
+        setReadOnlyHook();
+        magmaCfg.ReadOnly = readOnly;
+    }
+
     magma::Magma::Config magmaCfg;
+
+    /**
+     * Called when we attempt to set the config to read only (so that we can
+     * make config adjustments before we open the read only magma instance)
+     */
+    TestingHook<> setReadOnlyHook;
 
 private:
     class ConfigChangeListener;

@@ -537,6 +537,31 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     // Open the magma instance for this shard and populate the vbstate.
     magma = std::make_unique<MagmaMemoryTrackingProxy>(configuration.magmaCfg);
     auto status = magma->Open();
+
+    if (status.ErrorCode() == Status::Code::DiskFull) {
+        // Magma construction needs to recover and replay all WAL ops to provide
+        // us a consistent state. Magma may require disk space to do so. We
+        // are required to provide a read only view of the data for recovery
+        // should a disk become unwriteable. To accomplish this magma has a
+        // read only mode that be constructed to give us a consistent view of
+        // data without performing recovery. This read only instance cannot be
+        // written to so it can only be used in an emergency should the disk be
+        // full.
+        //
+        // It is worth noting that nothing in kv_engine will modify this magma
+        // instance to make it writeable should the disk stop being full. A
+        // restart is required. We /could/ write code to swap the instance but
+        // it's probably not going to be trivial and we don't expect to run out
+        // of disk space very often so it's of questionable worth.
+        logger->warn(
+                "MagmaKVStore::MagmaKVStore: opening in read only mode as "
+                "magma reported a disk full error");
+        configuration.setReadOnly(true);
+        magma = std::make_unique<MagmaMemoryTrackingProxy>(
+                configuration.magmaCfg);
+        status = magma->Open();
+    }
+
     if (!status) {
         std::string err =
                 "MagmaKVStore Magma open failed. Status:" + status.String();
@@ -1379,7 +1404,16 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
 
     // Flush writecache for creating an on-disk snapshot
     auto status = magma->SyncKVStore(vbid.get());
-    if (!status.IsOK()) {
+    if (status.IsOK()) {
+        status = magma->GetDiskSnapshot(vbid.get(), snapshot);
+    } else if (status.ErrorCode() == magma::Status::ReadOnly) {
+        // If magma returns ReadOnly mode here then we've opened it in ReadOnly
+        // mode during warmup as the original open attempt errored with
+        // DiskFull. In the ReadOnly open magma has to replay the WAL ops in
+        // memory and cannot flush them to disk. As such, we have to open the
+        // memory snapshot rather than the disk snapshot here.
+        status = magma->GetSnapshot(vbid.get(), snapshot);
+    } else {
         logger->warn(
                 "MagmaKVStore::initBySeqnoScanContext {} Failed to sync "
                 "kvstore with status {}",
@@ -1387,8 +1421,6 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
                 status.String());
         return nullptr;
     }
-
-    status = magma->GetDiskSnapshot(vbid.get(), snapshot);
 
     if (!status.IsOK()) {
         logger->warn(

@@ -521,3 +521,73 @@ TEST_F(MagmaKVStoreTest, KVStoreRevisionAfterReopen) {
     kvstore = std::make_unique<MockMagmaKVStore>(*kvstoreConfig);
     EXPECT_EQ(kvsRev, kvstore->getKVStoreRevision(vbid));
 }
+
+class MockDirectory : public magma::Directory {
+public:
+    MockDirectory(magma::Status status) : status(status) {
+    }
+
+    magma::Status Open(magma::Directory::OpenMode mode) override {
+        return status;
+    }
+
+    magma::Status Sync() override {
+        return status;
+    }
+
+    magma::Status status;
+};
+
+TEST_F(MagmaKVStoreTest, readOnlyMode) {
+    initialize_kv_store(kvstore.get(), vbid);
+
+    auto doWrite = [this](uint64_t seqno, bool expected) {
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+        auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");
+        qi->setBySeqno(seqno);
+        kvstore->set(*ctx, qi);
+        EXPECT_EQ(expected, kvstore->commit(std::move(ctx), flush));
+    };
+
+    // Add an item to test that we can read it
+    doWrite(1, true /*success*/);
+
+    auto rv = kvstore->get(makeDiskDocKey("key"), Vbid(0));
+    EXPECT_EQ(rv.getStatus(), cb::engine_errc::success);
+
+    kvstore.reset();
+
+    // Invoked on first attempt to open magma
+    kvstoreConfig->setMakeDirectoryFn(
+            [](const std::string& path) -> std::unique_ptr<MockDirectory> {
+                return std::make_unique<MockDirectory>(
+                        magma::Status(magma::Status::DiskFull, ""));
+            });
+
+    // Invoked as we set the config to read only to use the default magma
+    // FileSystem
+    kvstoreConfig->setReadOnlyHook = [this]() {
+        kvstoreConfig->setMakeDirectoryFn(nullptr);
+    };
+
+    kvstore = std::make_unique<MockMagmaKVStore>(*kvstoreConfig);
+
+    // Get should be success
+    rv = kvstore->get(makeDiskDocKey("key"), Vbid(0));
+    EXPECT_EQ(rv.getStatus(), cb::engine_errc::success);
+
+    // So should scan
+    auto scanCtx = kvstore->initBySeqnoScanContext(
+            std::make_unique<GetCallback>(true /*expectcompressed*/),
+            std::make_unique<KVStoreTestCacheCallback>(1, 5, Vbid(0)),
+            vbid,
+            1,
+            DocumentFilter::ALL_ITEMS,
+            ValueFilter::VALUES_COMPRESSED,
+            SnapshotSource::Head);
+    EXPECT_TRUE(scanCtx.get());
+
+    // A write should fail
+    doWrite(2, false /*false*/);
+}
