@@ -1318,6 +1318,97 @@ TEST_P(EPVBucketDurabilityTest, SyncDeleteCommit) {
     EXPECT_EQ(1, ht->getNumItems());
 }
 
+void VBucketDurabilityTest::testSyncDeleteUpdateMaxDelRevSeqno(Resolution res) {
+    // before doing any ops, the max del rel should be zero
+    EXPECT_EQ(0, ht->getMaxDeletedRevSeqno());
+
+    doSyncWriteAndCommit();
+
+    // not changed by a non-delete op
+    EXPECT_EQ(0, ht->getMaxDeletedRevSeqno());
+    auto key = makeStoredDocKey("key");
+
+    auto sv = ht->findOnlyCommitted(key).storedValue;
+    ASSERT_TRUE(sv);
+    // stored item should have rev seqno one greater than the seen max
+    EXPECT_EQ(1, sv->getRevSeqno());
+
+    // prepare a sync delete
+    auto prepared = makePendingItem(key, "prepared");
+    prepared->setDeleted(DeleteSource::Explicit);
+    auto preparedSeqno = vbucket->getHighSeqno() + 1;
+    prepared->setBySeqno(preparedSeqno);
+    VBQueueItemCtx ctx;
+    ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*prepared, 0, ctx));
+
+    // Storing the prepare doesn't touch the max del rev, the item isn't
+    // actually deleted yet!
+    EXPECT_EQ(0, ht->getMaxDeletedRevSeqno());
+
+    sv = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(sv);
+
+    if (res == Resolution::Commit) {
+        EXPECT_EQ(
+                cb::engine_errc::success,
+                vbucket->commit(
+                        key, preparedSeqno, {}, vbucket->lockCollections(key)));
+
+        // committed sync delete has rev seqno one greater than the item it
+        // deleted, and has updated the max deleted rev seqno to that value
+        EXPECT_EQ(2, ht->getMaxDeletedRevSeqno());
+
+        doSyncWriteAndCommit();
+
+        // still not changed by a non-delete op
+        EXPECT_EQ(2, ht->getMaxDeletedRevSeqno());
+
+        sv = ht->findOnlyCommitted(key).storedValue;
+        ASSERT_TRUE(sv);
+        // the new item again has rev seqno one greater than max del rev.
+        // MB-48179: this would fail and instead be 1 as the max del rev had
+        //           not been changed
+        EXPECT_EQ(3, sv->getRevSeqno());
+    } else {
+        EXPECT_EQ(
+                cb::engine_errc::success,
+                vbucket->abort(
+                        key, preparedSeqno, {}, vbucket->lockCollections(key)));
+
+        // an aborted sync delete didn't delete anything, the max del rev
+        // should be untouched
+        EXPECT_EQ(0, ht->getMaxDeletedRevSeqno());
+
+        doSyncWriteAndCommit();
+
+        // still not changed by a non-delete op
+        EXPECT_EQ(0, ht->getMaxDeletedRevSeqno());
+
+        sv = ht->findOnlyCommitted(key).storedValue;
+        ASSERT_TRUE(sv);
+        // the new item is one greater than the _original_ stored value,
+        // not the aborted sync delete prepare.
+        EXPECT_EQ(2, sv->getRevSeqno());
+    }
+}
+
+TEST_P(EPVBucketDurabilityTest, SyncDeleteIncreasesMaxDeletedRevSeqno) {
+    // MB-48179: test that a committed sync delete increases the
+    // maxDeletedRevSeqno. If it does not, the rev seqno might be seen to
+    // go backwards.
+
+    testSyncDeleteUpdateMaxDelRevSeqno(Resolution::Commit);
+}
+
+TEST_P(EPVBucketDurabilityTest,
+       AbortedSyncDeleteDoesntIncreaseMaxDeletedRevSeqno) {
+    // MB-48179: secondary test just to validate that aborts don't alter
+    // the max deleted rev seqno tracked in the hashtable.
+
+    testSyncDeleteUpdateMaxDelRevSeqno(Resolution::Abort);
+}
+
 TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit) {
     testHTSyncDeleteCommit();
 
