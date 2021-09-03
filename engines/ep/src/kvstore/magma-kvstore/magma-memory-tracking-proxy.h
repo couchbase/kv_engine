@@ -111,15 +111,15 @@ public:
     DomainAwareUniquePtr<magma::UserStats> GetKVStoreUserStats(
             magma::Magma::Snapshot& snapshot);
 
-    magma::Status GetLocal(const magma::Magma::KVStoreID kvID,
-                           const magma::Slice& key,
-                           std::string& value,
-                           bool& found);
+    std::pair<magma::Status, DomainAwareUniquePtr<std::string>> GetLocal(
+            const magma::Magma::KVStoreID kvID,
+            const magma::Slice& key,
+            bool& found);
 
-    magma::Status GetLocal(magma::Magma::Snapshot& snapshot,
-                           const magma::Slice& key,
-                           std::string& value,
-                           bool& found);
+    std::pair<magma::Status, DomainAwareUniquePtr<std::string>> GetLocal(
+            magma::Magma::Snapshot& snapshot,
+            const magma::Slice& key,
+            bool& found);
 
     magma::Status GetMaxSeqno(const magma::Magma::KVStoreID kvID,
                               magma::Magma::SeqNo& seqno);
@@ -131,8 +131,7 @@ public:
                                               magma::Slice& value)> itemCb,
                            bool returnValue = false,
                            uint64_t count = 0);
-    void GetStats(
-            magma::Magma::MagmaStats& magmaStats,
+    DomainAwareUniquePtr<magma::Magma::MagmaStats> GetStats(
             std::chrono::milliseconds cacheDuration = std::chrono::seconds(0));
     void GetFileStats(magma::MagmaFileStats& fileStats);
     void GetHistogramStats(magma::MagmaHistogramStats& histogramStats);

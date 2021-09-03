@@ -1911,11 +1911,8 @@ std::pair<Status, std::string> MagmaKVStore::processReadLocalDocResult(
 std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
         Vbid vbid, const Slice& keySlice) const {
     bool found{false};
-    magma::Status retStatus = Status::OK();
-    std::string valString;
-
-    auto status = magma->GetLocal(vbid.get(), keySlice, valString, found);
-    return processReadLocalDocResult(status, vbid, keySlice, valString, found);
+    auto [status, value] = magma->GetLocal(vbid.get(), keySlice, found);
+    return processReadLocalDocResult(status, vbid, keySlice, *value, found);
 }
 
 std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
@@ -1923,11 +1920,8 @@ std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
         magma::Magma::Snapshot& snapshot,
         const Slice& keySlice) const {
     bool found{false};
-    magma::Status retStatus = Status::OK();
-    std::string valString;
-
-    auto status = magma->GetLocal(snapshot, keySlice, valString, found);
-    return processReadLocalDocResult(status, vbid, keySlice, valString, found);
+    auto [status, value] = magma->GetLocal(snapshot, keySlice, found);
+    return processReadLocalDocResult(status, vbid, keySlice, *value, found);
 }
 
 std::string MagmaKVStore::encodeVBState(const vbucket_state& vbstate) const {
@@ -2793,8 +2787,7 @@ bool MagmaKVStore::getStat(std::string_view name, size_t& value) const {
 
 GetStatsMap MagmaKVStore::getStats(
         gsl::span<const std::string_view> keys) const {
-    Magma::MagmaStats magmaStats;
-    magma->GetStats(magmaStats);
+    auto magmaStats = magma->GetStats();
 
     GetStatsMap stats;
     auto fill = [&](std::string_view statName, size_t value) {
@@ -2803,51 +2796,51 @@ GetStatsMap MagmaKVStore::getStats(
             stats.try_emplace(*it, value);
         }
     };
-    fill("memory_quota", magmaStats.MemoryQuota);
-    fill("write_cache_quota", magmaStats.WriteCacheQuota);
+    fill("memory_quota", magmaStats->MemoryQuota);
+    fill("write_cache_quota", magmaStats->WriteCacheQuota);
     fill("failure_get", st.numGetFailure.load());
     fill("failure_compaction", st.numCompactionFailure.load());
-    fill("storage_mem_used", magmaStats.TotalMemUsed);
-    fill("magma_NCompacts", magmaStats.NCompacts);
-    fill("magma_NFlushes", magmaStats.NFlushes);
-    fill("magma_NTTLCompacts", magmaStats.NTTLCompacts);
-    fill("magma_NFileCountCompacts", magmaStats.NFileCountCompacts);
-    fill("magma_NWriterCompacts", magmaStats.NWriterCompacts);
-    fill("magma_BytesOutgoing", magmaStats.BytesOutgoing);
-    fill("magma_NReadBytes", magmaStats.NReadBytes);
-    fill("magma_NReadBytesGet", magmaStats.NReadBytesGet);
-    fill("magma_NGets", magmaStats.NGets);
-    fill("magma_NSets", magmaStats.NSets);
-    fill("magma_NInserts", magmaStats.NInserts);
-    fill("magma_NReadIO", magmaStats.NReadIOs);
-    fill("magma_NReadBytesCompact", magmaStats.NReadBytesCompact);
-    fill("magma_BytesIncoming", magmaStats.BytesIncoming);
-    fill("magma_NWriteBytes", magmaStats.NWriteBytes);
-    fill("magma_NWriteBytesCompact", magmaStats.NWriteBytesCompact);
-    fill("magma_LogicalDataSize", magmaStats.LogicalDataSize);
-    fill("magma_LogicalDiskSize", magmaStats.LogicalDiskSize);
-    fill("magma_TotalDiskUsage", magmaStats.TotalDiskUsage);
-    fill("magma_WALDiskUsage", magmaStats.WalStats.DiskUsed);
-    fill("magma_BlockCacheMemUsed", magmaStats.BlockCacheMemUsed);
-    fill("magma_KeyIndexSize", magmaStats.KeyStats.LogicalDataSize);
+    fill("storage_mem_used", magmaStats->TotalMemUsed);
+    fill("magma_NCompacts", magmaStats->NCompacts);
+    fill("magma_NFlushes", magmaStats->NFlushes);
+    fill("magma_NTTLCompacts", magmaStats->NTTLCompacts);
+    fill("magma_NFileCountCompacts", magmaStats->NFileCountCompacts);
+    fill("magma_NWriterCompacts", magmaStats->NWriterCompacts);
+    fill("magma_BytesOutgoing", magmaStats->BytesOutgoing);
+    fill("magma_NReadBytes", magmaStats->NReadBytes);
+    fill("magma_NReadBytesGet", magmaStats->NReadBytesGet);
+    fill("magma_NGets", magmaStats->NGets);
+    fill("magma_NSets", magmaStats->NSets);
+    fill("magma_NInserts", magmaStats->NInserts);
+    fill("magma_NReadIO", magmaStats->NReadIOs);
+    fill("magma_NReadBytesCompact", magmaStats->NReadBytesCompact);
+    fill("magma_BytesIncoming", magmaStats->BytesIncoming);
+    fill("magma_NWriteBytes", magmaStats->NWriteBytes);
+    fill("magma_NWriteBytesCompact", magmaStats->NWriteBytesCompact);
+    fill("magma_LogicalDataSize", magmaStats->LogicalDataSize);
+    fill("magma_LogicalDiskSize", magmaStats->LogicalDiskSize);
+    fill("magma_TotalDiskUsage", magmaStats->TotalDiskUsage);
+    fill("magma_WALDiskUsage", magmaStats->WalStats.DiskUsed);
+    fill("magma_BlockCacheMemUsed", magmaStats->BlockCacheMemUsed);
+    fill("magma_KeyIndexSize", magmaStats->KeyStats.LogicalDataSize);
     fill("magma_SeqIndex_IndexBlockSize",
-         magmaStats.SeqStats.TotalIndexBlocksSize);
-    fill("magma_WriteCacheMemUsed", magmaStats.WriteCacheMemUsed);
-    fill("magma_WALMemUsed", magmaStats.WALMemUsed);
-    fill("magma_ReadAheadBufferMemUsed", magmaStats.ReadAheadBufferMemUsed);
-    fill("magma_TableObjectMemUsed", magmaStats.TableObjectMemUsed);
-    fill("magma_LSMTreeObjectMemUsed", magmaStats.LSMTreeObjectMemUsed);
-    fill("magma_HistogramMemUsed", magmaStats.HistogramMemUsed);
-    fill("magma_TableMetaMemUsed", magmaStats.TableMetaMemUsed);
-    fill("magma_BufferMemUsed", magmaStats.BufferMemUsed);
-    fill("magma_TotalMemUsed", magmaStats.TotalMemUsed);
-    fill("magma_TotalBloomFilterMemUsed", magmaStats.TotalBloomFilterMemUsed);
-    fill("magma_BlockCacheHits", magmaStats.BlockCacheHits);
-    fill("magma_BlockCacheMisses", magmaStats.BlockCacheMisses);
-    fill("magma_NTablesDeleted", magmaStats.NTablesDeleted);
-    fill("magma_NTablesCreated", magmaStats.NTablesCreated);
-    fill("magma_NTableFiles", magmaStats.NTableFiles);
-    fill("magma_NSyncs", magmaStats.NSyncs);
+         magmaStats->SeqStats.TotalIndexBlocksSize);
+    fill("magma_WriteCacheMemUsed", magmaStats->WriteCacheMemUsed);
+    fill("magma_WALMemUsed", magmaStats->WALMemUsed);
+    fill("magma_ReadAheadBufferMemUsed", magmaStats->ReadAheadBufferMemUsed);
+    fill("magma_TableObjectMemUsed", magmaStats->TableObjectMemUsed);
+    fill("magma_LSMTreeObjectMemUsed", magmaStats->LSMTreeObjectMemUsed);
+    fill("magma_HistogramMemUsed", magmaStats->HistogramMemUsed);
+    fill("magma_TableMetaMemUsed", magmaStats->TableMetaMemUsed);
+    fill("magma_BufferMemUsed", magmaStats->BufferMemUsed);
+    fill("magma_TotalMemUsed", magmaStats->TotalMemUsed);
+    fill("magma_TotalBloomFilterMemUsed", magmaStats->TotalBloomFilterMemUsed);
+    fill("magma_BlockCacheHits", magmaStats->BlockCacheHits);
+    fill("magma_BlockCacheMisses", magmaStats->BlockCacheMisses);
+    fill("magma_NTablesDeleted", magmaStats->NTablesDeleted);
+    fill("magma_NTablesCreated", magmaStats->NTablesCreated);
+    fill("magma_NTableFiles", magmaStats->NTableFiles);
+    fill("magma_NSyncs", magmaStats->NSyncs);
     return stats;
 }
 
@@ -2857,10 +2850,9 @@ void MagmaKVStore::addStats(const AddStatFn& add_stat,
     KVStore::addStats(add_stat, c, args);
     const auto prefix = getStatsPrefix();
 
-    Magma::MagmaStats stats;
-    magma->GetStats(stats);
+    auto stats = magma->GetStats();
     auto statName = prefix + ":magma";
-    add_casted_stat(statName.c_str(), stats.JSON().dump(), add_stat, c);
+    add_casted_stat(statName.c_str(), stats->JSON().dump(), add_stat, c);
 }
 
 void MagmaKVStore::pendingTasks() {
@@ -2941,11 +2933,10 @@ DBFileInfo MagmaKVStore::getDbFileInfo(Vbid vbid) {
 }
 
 DBFileInfo MagmaKVStore::getAggrDbFileInfo() {
-    Magma::MagmaStats stats;
-    magma->GetStats(stats);
+    auto stats = magma->GetStats();
     // @todo MB-42900: Track on-disk-prepare-bytes
     DBFileInfo vbinfo{
-            stats.ActiveDiskUsage, stats.ActiveDataSize, 0 /*prepareBytes*/};
+            stats->ActiveDiskUsage, stats->ActiveDataSize, 0 /*prepareBytes*/};
     return vbinfo;
 }
 

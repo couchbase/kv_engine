@@ -37,6 +37,19 @@ void DomainAwareDelete<magma::Magma::SeqIterator>::operator()(
     delete p;
 }
 
+template <>
+void DomainAwareDelete<magma::Magma::MagmaStats>::operator()(
+        magma::Magma::MagmaStats* p) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    delete p;
+}
+
+template <>
+void DomainAwareDelete<std::string>::operator()(std::string* p) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    delete p;
+}
+
 MagmaMemoryTrackingProxy::MagmaMemoryTrackingProxy(
         magma::Magma::Config& config) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
@@ -144,23 +157,24 @@ MagmaMemoryTrackingProxy::GetKVStoreUserStats(
             magma->GetKVStoreUserStats(snapshot).release()};
 }
 
-magma::Status MagmaMemoryTrackingProxy::GetLocal(
-        const magma::Magma::KVStoreID kvID,
-        const magma::Slice& key,
-        std::string& value,
-        bool& found) {
-    // cb::UseArenaMallocSecondaryDomain domainGuard;
-    // @todo: change value type
-    return magma->GetLocal(kvID, key, value, found);
+std::pair<magma::Status, DomainAwareUniquePtr<std::string>>
+MagmaMemoryTrackingProxy::GetLocal(const magma::Magma::KVStoreID kvID,
+                                   const magma::Slice& key,
+                                   bool& found) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    DomainAwareUniquePtr<std::string> stringPtr(new std::string{});
+    auto status = magma->GetLocal(kvID, key, *stringPtr, found);
+    return {status, std::move(stringPtr)};
 }
-magma::Status MagmaMemoryTrackingProxy::GetLocal(
-        magma::Magma::Snapshot& snapshot,
-        const magma::Slice& key,
-        std::string& value,
-        bool& found) {
-    // cb::UseArenaMallocSecondaryDomain domainGuard;
-    // @todo: change value type
-    return magma->GetLocal(snapshot, key, value, found);
+
+std::pair<magma::Status, DomainAwareUniquePtr<std::string>>
+MagmaMemoryTrackingProxy::GetLocal(magma::Magma::Snapshot& snapshot,
+                                   const magma::Slice& key,
+                                   bool& found) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    DomainAwareUniquePtr<std::string> stringPtr(new std::string{});
+    auto status = magma->GetLocal(snapshot, key, *stringPtr, found);
+    return {status, std::move(stringPtr)};
 }
 
 magma::Status MagmaMemoryTrackingProxy::GetMaxSeqno(
@@ -182,13 +196,16 @@ magma::Status MagmaMemoryTrackingProxy::GetRange(
     return magma->GetRange(kvID, startKey, endKey, itemCb, returnValue, count);
 }
 
-void MagmaMemoryTrackingProxy::GetStats(
-        magma::Magma::MagmaStats& magmaStats,
-        std::chrono::milliseconds cacheDuration) {
-    // cb::UseArenaMallocSecondaryDomain domainGuard;
-    // @todo: MagmaStats internally has at least one std::vector which needs to
-    // be destroyed in the correct domain
-    magma->GetStats(magmaStats, cacheDuration);
+DomainAwareUniquePtr<magma::Magma::MagmaStats>
+MagmaMemoryTrackingProxy::GetStats(std::chrono::milliseconds cacheDuration) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    // MagmaStats internally has at least one std::vector which needs to
+    // be destroyed in the correct domain. Manager the MagmaStats object so it
+    // destructs against the second domain.
+    DomainAwareUniquePtr<magma::Magma::MagmaStats> stats(
+            new magma::Magma::MagmaStats{});
+    magma->GetStats(*stats, cacheDuration);
+    return stats;
 }
 
 void MagmaMemoryTrackingProxy::GetFileStats(magma::MagmaFileStats& fileStats) {
