@@ -127,8 +127,9 @@ void FlushAccounting::StatisticsUpdate::remove(IsSystem isSystem,
 }
 
 FlushAccounting::FlushAccounting(
-        const std::vector<Collections::KVStore::DroppedCollection>& v) {
-    setDroppedCollectionsForStore(v);
+        const std::vector<Collections::KVStore::DroppedCollection>& v,
+        IsCompaction isCompaction) {
+    setDroppedCollectionsForStore(v, isCompaction);
 }
 
 void FlushAccounting::presetStats(CollectionID cid,
@@ -353,9 +354,16 @@ bool FlushAccounting::isLogicallyDeletedInStore(CollectionID cid,
 }
 
 void FlushAccounting::setDroppedCollectionsForStore(
-        const std::vector<Collections::KVStore::DroppedCollection>& v) {
+        const std::vector<Collections::KVStore::DroppedCollection>& v,
+        IsCompaction isCompaction) {
     for (const auto& c : v) {
         droppedInStore.emplace(c.collectionId, c);
+
+        if (isCompaction == IsCompaction::Yes) {
+            // Update the dropped map now as compaction knows ahead of the
+            // replay what collections are dropped.
+            droppedCollections.emplace(c.collectionId, c);
+        }
     }
 }
 
@@ -385,6 +393,22 @@ void FlushAccounting::forEachCollection(
                           flushStats.getPersistedHighSeqno(),
                           flushStats.getDiskSize());
         cb(cid, ps);
+    }
+}
+
+void FlushAccounting::forEachDroppedCollection(
+        std::function<void(CollectionID)> cb) const {
+    // To invoke the callback only for dropped collections iterate the dropped
+    // map and then check in the 'stats' map (and if found do an ordering check)
+    for (const auto& [cid, dropped] : getDroppedCollections()) {
+        auto itr = getStats().find(cid);
+        if (itr == getStats().end() ||
+            dropped.endSeqno > itr->second.getPersistedHighSeqno()) {
+            // collection's endSeqno exceeds the persistedHighSeqno. The drop
+            // is the greatest event against the collection in the batch, we
+            // will invoke the callback.
+            cb(cid);
+        }
     }
 }
 

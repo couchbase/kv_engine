@@ -591,10 +591,10 @@ protected:
     /**
      * Delete the count for collection cid
      *
-     * @param txnCtx TransactionContext containing queues/vbid
+     * @param localDocQueue the queue of pending local writes to update
      * @param cid The collection to delete
      */
-    void deleteCollectionStats(CouchKVStoreTransactionContext& txnCtx,
+    void deleteCollectionStats(PendingLocalDocRequestQueue& localDocQueue,
                                CollectionID cid);
 
 
@@ -917,10 +917,14 @@ protected:
      * collection data in it (or is an empty queue)
      * @param db The database instance to read and update
      * @param hook_ctx The CompactionContext
+     * @param collectionStats object tracking changes to collections during
+     *        replay
      * @return queue that replayPrecommitHook uses for further local doc updates
      */
     PendingLocalDocRequestQueue replayPrecommitProcessDroppedCollections(
-            Db& db, const CompactionContext& hook_ctx);
+            Db& db,
+            const CompactionContext& hook_ctx,
+            const Collections::VB::FlushAccounting& collectionStats);
 
     /**
      * Open the current vbid.couch.rev file if it exists, or atomic-create it.

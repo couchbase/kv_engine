@@ -1753,6 +1753,10 @@ TEST_F(CollectionsTest, ConcCompactDropCollection) {
               store->getRWUnderlying(vbid)
                       ->getKVStoreStat()
                       .numCompactionFailure);
+
+    // No stats for the dropped collection
+    EXPECT_EQ(0,
+              getCollectionStats(vbid, {CollectionEntry::meat.getId()}).size());
 }
 
 // Test reproduces MB-44590, here we have a drop collection and then compaction
@@ -1794,6 +1798,9 @@ TEST_F(CollectionsTest, ConcCompactDropCollectionMB_44590) {
                                      ->getDroppedCollections(vbid);
     ASSERT_TRUE(status);
     EXPECT_TRUE(dropped.empty());
+
+    // No stats for the dropped collection
+    EXPECT_EQ(0, getCollectionStats(vbid, {CollectionID::Default}).size());
 }
 
 // MB-44590 and MB-44694. This test reproduces what was seen in MB-44694, but is
@@ -1870,6 +1877,11 @@ TEST_F(CollectionsTest, ConcCompactDropCollectionMB_44694) {
                                         ->getDroppedCollections(vbid);
     EXPECT_TRUE(status);
     EXPECT_TRUE(dropped.empty());
+
+    // No stats for the dropped collection
+    EXPECT_EQ(0,
+              getCollectionStats(vbid, {CollectionEntry::vegetable.getId()})
+                      .size());
 }
 
 void CollectionsCouchstoreParameterizedTest::ConcCompact(
@@ -2021,6 +2033,13 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
 
     ConcCompact(compactionFunc);
 
+    // Validate the state, no stats should exist for the dropped collections
+    EXPECT_EQ(0,
+              getCollectionStats(vbid,
+                                 {CollectionEntry::defaultC.getId(),
+                                  CollectionEntry::vegetable.getId()})
+                      .size());
+
     // And finally, both default and vegetable should be listed in the dropped
     // collections local doc.
     auto& kvs = *store->getRWUnderlying(vbid);
@@ -2082,6 +2101,77 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
                 ::testing::UnorderedElementsAre(
                         CollectionEntry::defaultC.getId(),
                         CollectionEntry::vegetable.getId()));
+}
+
+TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactResurrectCollection) {
+    CollectionsManifest cm;
+    auto key_1a = StoredDocKey{"key_1", CollectionEntry::defaultC};
+    auto key_2a = StoredDocKey{"key_1", CollectionEntry::vegetable};
+    auto key_1b = StoredDocKey{"key_2", CollectionEntry::defaultC};
+    auto key_2b = StoredDocKey{"key_2", CollectionEntry::vegetable};
+
+    cm.add(CollectionEntry::vegetable);
+    store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    // Store 2 items to each collection, this will help validation at the end
+    store_item(vbid, key_1a, "Value to replace with something smaller");
+    store_item(vbid, key_2a, "Value to replace with something smaller");
+    store_item(vbid, key_1b, "Value to replace with something smaller");
+    store_item(vbid, key_2b, "Value to replace with something smaller");
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    auto preCompactSizes =
+            getCollectionStats(vbid,
+                               {CollectionEntry::defaultC.getId(),
+                                CollectionEntry::vegetable.getId()});
+    EXPECT_EQ(2, preCompactSizes.size());
+    for (const auto& [cid, stats] : preCompactSizes) {
+        // 2 items
+        EXPECT_EQ(2, stats.itemCount) << "Failure for cid:" << cid.to_string();
+    }
+
+    auto compactionFunc = [&cm, &key_1a, &key_2a, this]() {
+        store_item(vbid, key_1a, "Small value");
+        store_item(vbid, key_2a, "Small value");
+        flushVBucketToDiskIfPersistent(vbid, 2);
+
+        cm.remove(CollectionEntry::defaultC);
+        cm.remove(CollectionEntry::vegetable);
+        store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+        flushVBucketToDiskIfPersistent(vbid, 2);
+
+        cm.add(CollectionEntry::defaultC);
+        cm.add(CollectionEntry::vegetable);
+        store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+        store_item(vbid, key_1a, "Still smaller value");
+        store_item(vbid, key_2a, "Still smaller value");
+        flushVBucketToDiskIfPersistent(vbid, 4);
+    };
+
+    ConcCompact(compactionFunc);
+
+    // validate, the new generation of the collections only stores 1 item so
+    // must be smaller
+    auto postCompactSizes =
+            getCollectionStats(vbid,
+                               {CollectionEntry::defaultC.getId(),
+                                CollectionEntry::vegetable.getId()});
+    EXPECT_EQ(2, postCompactSizes.size());
+    EXPECT_EQ(1, postCompactSizes.count(CollectionEntry::defaultC.getId()));
+    EXPECT_EQ(1, postCompactSizes.count(CollectionEntry::vegetable.getId()));
+
+    for (const auto& [cid, stats] : postCompactSizes) {
+        auto itr = preCompactSizes.find(cid);
+        ASSERT_NE(preCompactSizes.end(), itr);
+        // Less disk size
+        EXPECT_LT(stats.diskSize, itr->second.diskSize)
+                << "Failure for cid:" << cid.to_string();
+        // 1 item
+        EXPECT_EQ(1, stats.itemCount) << "Failure for cid:" << cid.to_string();
+        // But a higher seqno
+        EXPECT_GT(stats.highSeqno, itr->second.highSeqno)
+                << "Failure for cid:" << cid.to_string();
+    }
 }
 
 class ConcurrentCompactPurge : public CollectionsTest,

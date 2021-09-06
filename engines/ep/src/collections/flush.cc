@@ -109,15 +109,7 @@ uint32_t Flush::countNonEmptyDroppedCollections() const {
 
 void Flush::forEachDroppedCollection(
         std::function<void(CollectionID)> cb) const {
-    // To invoke the callback only for dropped collections iterate the dropped
-    // map and then check in the 'stats' map (and if found do an ordering check)
-    for (const auto& [cid, dropped] : flushAccounting.getDroppedCollections()) {
-        auto itr = flushAccounting.getStats().find(cid);
-        if (itr == flushAccounting.getStats().end() ||
-            dropped.endSeqno > itr->second.getPersistedHighSeqno()) {
-            cb(cid);
-        }
-    }
+    flushAccounting.forEachDroppedCollection(cb);
 }
 
 // Called from KVStore after a successful commit.

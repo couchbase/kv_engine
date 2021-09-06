@@ -1128,7 +1128,8 @@ couchstore_error_t CouchKVStore::replayPrecommitHook(
         }
 
         PendingLocalDocRequestQueue localDocQueue =
-                replayPrecommitProcessDroppedCollections(db, hook_ctx);
+                replayPrecommitProcessDroppedCollections(
+                        db, hook_ctx, collectionStats);
 
         try {
             // forEachCollection which had item(s) copied in the replay(s) the
@@ -1173,7 +1174,9 @@ couchstore_error_t CouchKVStore::replayPrecommitHook(
 
 CouchKVStore::PendingLocalDocRequestQueue
 CouchKVStore::replayPrecommitProcessDroppedCollections(
-        Db& db, const CompactionContext& hook_ctx) {
+        Db& db,
+        const CompactionContext& hook_ctx,
+        const Collections::VB::FlushAccounting& collectionStats) {
     PendingLocalDocRequestQueue localDocQueue;
 
     // Do we need to generate a new dropped collection 'list'? One which loses
@@ -1211,6 +1214,14 @@ CouchKVStore::replayPrecommitProcessDroppedCollections(
                     CouchLocalDocRequest::IsDeleted{});
         }
     }
+
+    // Any collections which were dropped in the replay need to have their stats
+    // deleted from the target file - without doing this the compacted file
+    // would incorrectly retain stats of the dropped collections.
+    collectionStats.forEachDroppedCollection(
+            [this, &localDocQueue](CollectionID id) {
+                this->deleteCollectionStats(localDocQueue, id);
+            });
 
     return localDocQueue;
 }
@@ -1879,6 +1890,18 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
         return true;
     }
 
+    // Get the dropped collections from the source file so the copy hook can
+    // account (ignore) any items that belong to dropped collections. This is
+    // done after seek end, so we read the most recent state.
+    auto [getDroppedStatus, droppedCollections] = getDroppedCollections(source);
+    if (getDroppedStatus != COUCHSTORE_SUCCESS) {
+        throw std::runtime_error(
+                "CouchKVStore::tryToCatchUpDbFile: getDroppedConnections"
+                "error: " +
+                std::string(couchstore_strerror(getDroppedStatus)));
+        return getDroppedStatus;
+    }
+
     if (cb::couchstore::seek(source, start.headerPosition) !=
         COUCHSTORE_SUCCESS) {
         throw std::runtime_error("Failed to move back to the current position");
@@ -1901,24 +1924,14 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
                 end.updateSeqNum,
                 copyWithoutLock ? "without" : "while");
 
-    // Get the latest dropped collections from the source so the copy hook can
-    // account for items that belong to dropped collections
-    auto [getDroppedStatus, droppedCollections] = getDroppedCollections(source);
-    if (getDroppedStatus != COUCHSTORE_SUCCESS) {
-        throw std::runtime_error(
-                "CouchKVStore::tryToCatchUpDbFile: getDroppedConnections"
-                "error: " +
-                std::string(couchstore_strerror(getDroppedStatus)));
-        return getDroppedStatus;
-    }
-
     // Create a FlushAccounting object which can account for items moving from
     // source to destination. This is constructed with the set of dropped
     // collections from the source database (note that the target has been
     // compacted and has no dropped collections remaining). The dropped
     // collections must be known so that the accounting can 'ignore' items of
     // dropped collections (e.g. replace becomes insert etc...)
-    Collections::VB::FlushAccounting collectionStats(droppedCollections);
+    Collections::VB::FlushAccounting collectionStats(droppedCollections,
+                                                     IsCompaction::Yes);
 
     err = cb::couchstore::replay(
             source,
@@ -3353,10 +3366,10 @@ void CouchKVStore::saveCollectionStats(
                                           stats.getLebEncodedStats());
 }
 
-void CouchKVStore::deleteCollectionStats(CouchKVStoreTransactionContext& txnCtx,
-                                         CollectionID cid) {
-    txnCtx.pendingLocalReqsQ.emplace_back(getCollectionStatsLocalDocId(cid),
-                                          CouchLocalDocRequest::IsDeleted{});
+void CouchKVStore::deleteCollectionStats(
+        PendingLocalDocRequestQueue& pendingLocalReqsQ, CollectionID cid) {
+    pendingLocalReqsQ.emplace_back(getCollectionStatsLocalDocId(cid),
+                                   CouchLocalDocRequest::IsDeleted{});
 }
 
 std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
@@ -4068,7 +4081,7 @@ couchstore_error_t CouchKVStore::updateDroppedCollections(
         Collections::VB::Flush& collectionsFlush) {
     // Delete the stats doc for dropped collections
     collectionsFlush.forEachDroppedCollection([this, &txnCtx](CollectionID id) {
-        this->deleteCollectionStats(txnCtx, id);
+        this->deleteCollectionStats(txnCtx.pendingLocalReqsQ, id);
     });
 
     auto [getDroppedStatus, dropped] = getDroppedCollections(db);
