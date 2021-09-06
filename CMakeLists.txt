@@ -139,7 +139,8 @@ if (CB_PCH)
         # Need to give the target a SOURCE to make cmake happy so just including
         # an empty .cc file.
         add_library(${pch_lib} OBJECT precompiled_headers.cc)
-        target_link_libraries(${pch_lib} PUBLIC Folly::headers)
+        target_link_libraries(${pch_lib} PUBLIC Folly::headers
+                                         PRIVATE nlohmann_json::nlohmann_json)
         target_include_directories(${pch_lib} PUBLIC ${gtest_SOURCE_DIR}/include)
         target_precompile_headers(${pch_lib} PUBLIC precompiled_headers.h)
     endforeach()
