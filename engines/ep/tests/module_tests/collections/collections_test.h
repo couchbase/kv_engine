@@ -74,7 +74,10 @@ class CollectionsPersistentParameterizedTest
     : public CollectionsParameterizedTest {};
 
 class CollectionsCouchstoreParameterizedTest
-    : public CollectionsParameterizedTest {};
+    : public CollectionsParameterizedTest {
+public:
+    void ConcCompact(std::function<void()> concurrentFunc);
+};
 
 class CollectionsEphemeralParameterizedTest
     : public CollectionsParameterizedTest {};

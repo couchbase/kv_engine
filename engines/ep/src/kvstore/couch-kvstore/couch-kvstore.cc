@@ -1291,14 +1291,16 @@ static couchstore_error_t replayPreCopyHook(
                                         docInfo->getTotalSize(),
                                         di->db_seq,
                                         oldIsDeleted,
-                                        di->getTotalSize());
+                                        di->getTotalSize(),
+                                        IsCompaction::Yes);
 
         } else {
             collectionStats.updateStats(diskDocKey.getDocKey(),
                                         docInfo->db_seq,
                                         isCommitted,
                                         isDeleted,
-                                        docInfo->getTotalSize());
+                                        docInfo->getTotalSize(),
+                                        IsCompaction::Yes);
         }
     }
     return COUCHSTORE_SUCCESS;

@@ -43,7 +43,6 @@ public:
      */
     FlushAccounting(
             const std::vector<Collections::KVStore::DroppedCollection>& v);
-
     /**
      * preset the statistics of the collection. Subsequent updateStats calls
      * then account against preset values.
@@ -62,6 +61,7 @@ public:
      * @param isCommitted the prepare/commit state of the item flushed
      * @param isDelete alive/delete state of the item flushed
      * @param size bytes used on disk of the item flushed
+     * @param isCompaction Yes if the call originates from compaction replay
      * @param wantsDropped should we update dropped stats?
      */
     void updateStats(const DocKey& key,
@@ -69,6 +69,7 @@ public:
                      IsCommitted isCommitted,
                      IsDeleted isDelete,
                      size_t size,
+                     IsCompaction isCompaction = IsCompaction::No,
                      WantsDropped wantsDropped = WantsDropped::No);
 
     /**
@@ -83,6 +84,7 @@ public:
      * @param oldSeqno The seqno of the old 'version' of the item
      * @param oldIsDelete alive/delete state of the old 'version' of the item
      * @param oldSize bytes used on disk of the old 'version' of the item
+     * @param isCompaction Yes if the call originates from compaction replay
      * @param wantsDropped should we update dropped stats?
      * @return bool should collections meta be updated due to stats change?
      */
@@ -94,6 +96,7 @@ public:
                      uint64_t oldSeqno,
                      IsDeleted oldIsDelete,
                      size_t oldSize,
+                     IsCompaction isCompaction = IsCompaction::No,
                      WantsDropped wantsDropped = WantsDropped::No);
 
     /**
@@ -112,9 +115,11 @@ public:
      * items - tells this Flush object about the collections that have been
      * dropped (and to be purged). Note if a KVStore knows there are no dropped
      * collections in storage, they can omit the call.
+     * @param v vector of DroppedCollection objects representing persisted
+     *        dropped collections.
      */
     void setDroppedCollectionsForStore(
-            const std::vector<Collections::KVStore::DroppedCollection>& v);
+            const std::vector<Collections::KVStore::DroppedCollection>&);
 
     /**
      * For each collection that we have stats tracked for, call the given
@@ -289,6 +294,19 @@ private:
             CollectionID cid,
             uint64_t seqno,
             WantsDropped wantsDropped = WantsDropped::No);
+
+    /**
+     * Helper for updateStats
+     * Processes the collection create or drop event that was seen by
+     * updateStats and applies changes to the stats maps.
+     * @param cid The collection associated with the event
+     * @param isDelete Yes/No - drop vs create collection
+     * @param isCompaction Yes if called from compaction replay
+     * @return true if isDelete is Yes (i.e. drop collection)
+     */
+    bool processSystemEvent(CollectionID cid,
+                            IsDeleted isDelete,
+                            IsCompaction isCompaction);
 
     /**
      * A map of collections that have had items flushed and the statistics

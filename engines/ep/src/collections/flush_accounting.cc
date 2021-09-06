@@ -141,11 +141,28 @@ void FlushAccounting::presetStats(CollectionID cid,
     Expects(inserted && "presetStats must insert unique collections");
 }
 
+bool FlushAccounting::processSystemEvent(CollectionID cid,
+                                         IsDeleted isDelete,
+                                         IsCompaction isCompaction) {
+    // If the update comes from compaction (where replay is copying data) then
+    // unconditionally remove the collection from the stats map. A create or
+    // or drop collection is the start or end of the collection - in both cases
+    // we don't need what is in the map. For create collection if this does
+    // remove an entry, then we have a resurrect case and must account following
+    // items against 0. For drop, we will be removing the stats from storage.
+    if (isCompaction == IsCompaction::Yes) {
+        stats.erase(cid);
+    }
+
+    return isDelete == IsDeleted::Yes;
+}
+
 void FlushAccounting::updateStats(const DocKey& key,
                                   uint64_t seqno,
                                   IsCommitted isCommitted,
                                   IsDeleted isDelete,
                                   size_t size,
+                                  IsCompaction isCompaction,
                                   WantsDropped wantsDropped) {
     auto [isSystemEvent, cid] = getCollectionID(key);
 
@@ -154,12 +171,10 @@ void FlushAccounting::updateStats(const DocKey& key,
         return;
     }
 
-    // Skip tracking the 'stats' of the delete collection event, if we did the
-    // empty collection detection will fail because the high-seqno of the
-    // collection will change to be equal to the drop-event's seqno. Empty
-    // collection detection relies on start-seqno == high-seqno.
-    if (isDelete == IsDeleted::Yes && isSystemEvent) {
-        // Delete collection event - no tracking
+    // System events have extra handling and may terminate the stat update
+    if (isSystemEvent && processSystemEvent(*cid, isDelete, isCompaction)) {
+        // This was a drop collection event, we don't update the collection
+        // stats for this case.
         return;
     }
 
@@ -169,6 +184,9 @@ void FlushAccounting::updateStats(const DocKey& key,
 
     // If we want the dropped stats then getStatsAndMaybeSetPersistedHighSeqno
     // would have returned a reference to stats in droppedCollections.
+    // if we did the empty collection  detection will fail because the
+    // high-seqno of the collection will change to be equal to the drop-event's
+    // seqno. Empty collection detection relies on start-seqno == high-seqno.
     if (!isLogicallyDeleted(cid.value(), seqno) ||
         wantsDropped == WantsDropped::Yes) {
         collsFlushStats.insert(isSystemEvent ? IsSystem::Yes : IsSystem::No,
@@ -186,17 +204,20 @@ bool FlushAccounting::updateStats(const DocKey& key,
                                   uint64_t oldSeqno,
                                   IsDeleted oldIsDelete,
                                   size_t oldSize,
+                                  IsCompaction isCompaction,
                                   WantsDropped wantsDropped) {
     bool updateMeta = false;
 
-    // Same logic and comment as updateStats above.
+    // Same logic (and comments) apply as per the above updateStats function.
     auto [systemEvent, cid] = getCollectionID(key);
     auto isSystemEvent = systemEvent ? IsSystem::Yes : IsSystem::No;
     if (!cid) {
         return false;
     }
 
-    if (isDelete == IsDeleted::Yes && isSystemEvent == IsSystem::Yes) {
+    // System events have extra handling and may terminate the stat update
+    if (isSystemEvent == IsSystem::Yes &&
+        processSystemEvent(*cid, isDelete, isCompaction)) {
         return false;
     }
 
@@ -339,9 +360,9 @@ void FlushAccounting::setDroppedCollectionsForStore(
 }
 
 // Called from KVStore during flush or compaction replay
-// This method iterates through the statistics gathered by the Flush and uses
-// the std::function callback to have the KVStore implementation write them to
-// storage, e.g. a local document.
+// This method iterates through the statistics gathered by the Flush/replay and
+// uses the std::function callback to have the KVStore implementation write them
+// to storage, e.g. a local document.
 void FlushAccounting::forEachCollection(
         std::function<void(CollectionID, const PersistedStats&)> cb) const {
     // For each collection modified in the flush run ask the VBM for the

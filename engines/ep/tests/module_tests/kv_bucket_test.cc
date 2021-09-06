@@ -22,6 +22,7 @@
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
 #include "collections/vbucket_manifest_handles.h"
+#include "collections/collection_persisted_stats.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/flow-control-manager.h"
 #include "ep_bucket.h"
@@ -536,6 +537,21 @@ void KVBucketTest::writeDocToReplica(Vbid vbid,
                           GenerateBySeqno::No,
                           GenerateCas::No,
                           vb->lockCollections(key)));
+}
+
+std::unordered_map<CollectionID, Collections::VB::PersistedStats>
+KVBucketTest::getCollectionStats(Vbid id,
+                                 const std::vector<CollectionID>& cids) {
+    std::unordered_map<CollectionID, Collections::VB::PersistedStats> rv;
+    auto& kvs = *store->getRWUnderlying(id);
+    auto handle = kvs.makeFileHandle(id);
+    for (auto cid : cids) {
+        auto stats = kvs.getCollectionStats(*handle, cid);
+        if (stats.first == KVStore::GetCollectionStatsStatus::Success) {
+            rv[cid] = stats.second;
+        }
+    }
+    return rv;
 }
 
 class KVBucketParamTest : public STParameterizedBucketTest {

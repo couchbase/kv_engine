@@ -44,6 +44,7 @@ enum class IsSystem : char { No, Yes };
 enum class IsDeleted : char { No, Yes };
 enum class IsCommitted : char { No, Yes };
 enum class WantsDropped : char { No, Yes };
+enum class IsCompaction : char { No, Yes };
 
 /// Types of write operations that can be issued to a KVStore.
 enum class WriteOperation : char {

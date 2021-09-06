@@ -645,8 +645,13 @@ void Flush::updateStats(const DocKey& key,
                         IsDeleted isDelete,
                         size_t size,
                         WantsDropped wantsDropped) {
-    flushAccounting.updateStats(
-            key, seqno, isCommitted, isDelete, size, wantsDropped);
+    flushAccounting.updateStats(key,
+                                seqno,
+                                isCommitted,
+                                isDelete,
+                                size,
+                                IsCompaction::No,
+                                wantsDropped);
 }
 
 void Flush::updateStats(const DocKey& key,
@@ -666,6 +671,7 @@ void Flush::updateStats(const DocKey& key,
                                     oldSeqno,
                                     oldIsDelete,
                                     oldSize,
+                                    IsCompaction::No,
                                     wantsDropped)) {
         setReadyForCommit();
     }

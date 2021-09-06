@@ -41,6 +41,9 @@ class VBucket;
 
 namespace Collections {
 class Manager;
+namespace VB {
+struct PersistedStats;
+}
 }
 
 /**
@@ -287,6 +290,13 @@ public:
      * Initialise test objects - e.g. engine/store/cookie
      */
     void initialise(std::string config);
+
+    /**
+     * @return the stats for the given collections using
+     *         KVStore::getCollectionStats
+     */
+    std::unordered_map<CollectionID, Collections::VB::PersistedStats>
+    getCollectionStats(Vbid id, const std::vector<CollectionID>& cids);
 
 private:
     /**

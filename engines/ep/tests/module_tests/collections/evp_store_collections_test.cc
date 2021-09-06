@@ -1871,6 +1871,218 @@ TEST_F(CollectionsTest, ConcCompactDropCollectionMB_44694) {
     EXPECT_TRUE(dropped.empty());
 }
 
+void CollectionsCouchstoreParameterizedTest::ConcCompact(
+        std::function<void()> concurrentFunc) {
+    replaceCouchKVStoreWithMock();
+
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+
+    // Wrap the given hook with a function that will reset
+    kvstore.setConcurrentCompactionPreLockHook(
+            [&kvstore, concurrentFunc](auto& compactionKey) {
+                concurrentFunc();
+                kvstore.setConcurrentCompactionPreLockHook({});
+            });
+    runCompaction(vbid, 0, false);
+
+    // Check that the compaction didn't fail.
+    EXPECT_EQ(0, kvstore.getKVStoreStat().numCompactionFailure);
+}
+
+TEST_P(CollectionsCouchstoreParameterizedTest,
+       ConcCompactDocSizeDecrease_MB47460) {
+    // Setup - create a second collection; then write a key to each of
+    // default and vegetable collections.
+    CollectionsManifest cm;
+    auto key1 = StoredDocKey{"mb47460", CollectionEntry::defaultC};
+    auto key2 = StoredDocKey{"mb47460", CollectionEntry::vegetable};
+    cm.add(CollectionEntry::vegetable);
+    store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto value = std::string{
+            "A large value which will be replaced with a shorter one in the "
+            "concurrent compaction hook below"};
+    store_item(vbid, key1, value);
+    store_item(vbid, key2, value);
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Grab the stats before compaction
+    auto preCompactSizes =
+            getCollectionStats(vbid,
+                               {CollectionEntry::defaultC.getId(),
+                                CollectionEntry::vegetable.getId()});
+
+    // Setup testing hooks so key in each collection  is modified with a
+    // *smaller* value, which will cause a second (incremental) compaction -
+    // replay to occur. Before the fix a counter would throw an underflow
+    // exception and compaction would fail.
+    auto compactionFunc = [&key1, &key2, this]() {
+        store_item(vbid, key1, "Small replacement value");
+        store_item(vbid, key2, "Small replacement value");
+        flushVBucketToDiskIfPersistent(vbid, 2);
+    };
+
+    ConcCompact(compactionFunc);
+
+    // Validate the updated diskSizes
+    auto postCompactSizes =
+            getCollectionStats(vbid,
+                               {CollectionEntry::defaultC.getId(),
+                                CollectionEntry::vegetable.getId()});
+    for (const auto& [cid, stats] : postCompactSizes) {
+        auto itr = preCompactSizes.find(cid);
+        ASSERT_NE(preCompactSizes.end(), itr);
+        EXPECT_LT(stats.diskSize, itr->second.diskSize);
+    }
+}
+
+// Check that increase a document works as expected
+TEST_P(CollectionsCouchstoreParameterizedTest,
+       ConcCompactDocSizeIncrease_MB47460) {
+    // Setup - create a second collection; then write a key to each of
+    // default and vegetable collections.
+    CollectionsManifest cm;
+    auto key1 = StoredDocKey{"mb47460", CollectionEntry::defaultC};
+    auto key2 = StoredDocKey{"mb47460", CollectionEntry::vegetable};
+    cm.add(CollectionEntry::vegetable);
+    store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, key1, "Small value");
+    store_item(vbid, key2, "Small value");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Grab the stats before compaction
+    auto preCompactSizes =
+            getCollectionStats(vbid,
+                               {CollectionEntry::defaultC.getId(),
+                                CollectionEntry::vegetable.getId()});
+
+    // Setup testing hooks so key in each collection  is modified with a
+    // *smaller* value, which will cause a second (incremental) compaction -
+    // replay to occur.
+    auto compactionFunc = [&cm, &key1, &key2, this]() {
+        auto value = std::string{
+                "A large value which will be replaces the a shorter one we "
+                "stored earlier"};
+        store_item(vbid, key1, value);
+        store_item(vbid, key2, value);
+        flushVBucketToDiskIfPersistent(vbid, 2);
+    };
+
+    ConcCompact(compactionFunc);
+
+    // Validate the updated diskSizes, diskSize must increase
+    auto postCompactSizes =
+            getCollectionStats(vbid,
+                               {CollectionEntry::defaultC.getId(),
+                                CollectionEntry::vegetable.getId()});
+    for (const auto& [cid, stats] : postCompactSizes) {
+        auto itr = preCompactSizes.find(cid);
+        ASSERT_NE(preCompactSizes.end(), itr);
+        EXPECT_GT(stats.diskSize, itr->second.diskSize);
+    }
+}
+
+// This is the case that triggered MB_47460, an underflow would occur when a
+// collection disk size decreased and then was dropped during the concurrent
+// compaction
+TEST_P(CollectionsCouchstoreParameterizedTest,
+       ConcCompactDocSizeDecreaseDropCollection_MB47460) {
+    CollectionsManifest cm;
+    auto key1 = StoredDocKey{"mb47460", CollectionEntry::defaultC};
+    auto key2 = StoredDocKey{"mb47460", CollectionEntry::vegetable};
+    cm.add(CollectionEntry::vegetable);
+    store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto value = std::string{
+            "A large value which will be replaced with a shorter one in the "
+            "concurrent compaction hook below"};
+    store_item(vbid, key1, value);
+    store_item(vbid, key2, value);
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Setup testing hooks so key in each collection  is modified with a
+    // *smaller* value, which will cause a second (incremental) compaction -
+    // replay to occur.
+    auto compactionFunc = [&cm, &key1, &key2, this]() {
+        // Decrease the size and then remove the collections
+        store_item(vbid, key1, "Small value");
+        store_item(vbid, key2, "Small value");
+        cm.remove(CollectionEntry::defaultC);
+        cm.remove(CollectionEntry::vegetable);
+        store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+        flushVBucketToDiskIfPersistent(vbid, 4);
+    };
+
+    ConcCompact(compactionFunc);
+
+    // And finally, both default and vegetable should be listed in the dropped
+    // collections local doc.
+    auto& kvs = *store->getRWUnderlying(vbid);
+    auto [droppedRead, droppedCollections] = kvs.getDroppedCollections(vbid);
+    EXPECT_TRUE(droppedRead);
+    ASSERT_EQ(2, droppedCollections.size());
+    // Order of collections in this document doesn't matter, so just check
+    // they are present
+    std::vector<CollectionID> droppedCids;
+    for (const auto& d : droppedCollections) {
+        droppedCids.push_back(d.collectionId);
+    }
+    EXPECT_THAT(droppedCids,
+                ::testing::UnorderedElementsAre(
+                        CollectionEntry::defaultC.getId(),
+                        CollectionEntry::vegetable.getId()));
+}
+
+TEST_P(CollectionsCouchstoreParameterizedTest,
+       ConcCompactDocSizeIncreaseDropCollection_MB47460) {
+    CollectionsManifest cm;
+    auto key1 = StoredDocKey{"mb47460", CollectionEntry::defaultC};
+    auto key2 = StoredDocKey{"mb47460", CollectionEntry::vegetable};
+    cm.add(CollectionEntry::vegetable);
+    store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, key1, "Small value");
+    store_item(vbid, key2, "Small value");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    auto compactionFunc = [&cm, &key1, &key2, this]() {
+        // Increase the size and then remove the collections
+        auto value =
+                std::string{"A large value which to replace the small value"};
+        store_item(vbid, key1, value);
+        store_item(vbid, key2, value);
+        cm.remove(CollectionEntry::defaultC);
+        cm.remove(CollectionEntry::vegetable);
+        store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+        flushVBucketToDiskIfPersistent(vbid, 4);
+    };
+
+    ConcCompact(compactionFunc);
+
+    // Both default and vegetable should be listed in the dropped collections
+    // local doc.
+    auto& kvs = *store->getRWUnderlying(vbid);
+    auto [droppedRead, droppedCollections] = kvs.getDroppedCollections(vbid);
+    EXPECT_TRUE(droppedRead);
+    ASSERT_EQ(2, droppedCollections.size());
+    // Order of collections in this document doesn't matter, so just check
+    // they are present
+    std::vector<CollectionID> droppedCids;
+    for (const auto& d : droppedCollections) {
+        droppedCids.push_back(d.collectionId);
+    }
+    EXPECT_THAT(droppedCids,
+                ::testing::UnorderedElementsAre(
+                        CollectionEntry::defaultC.getId(),
+                        CollectionEntry::vegetable.getId()));
+}
+
 class ConcurrentCompactPurge : public CollectionsTest,
                                public ::testing::WithParamInterface<bool> {
 public:
