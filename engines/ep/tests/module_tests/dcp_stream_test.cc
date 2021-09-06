@@ -1297,19 +1297,7 @@ protected:
         StreamTest::SetUp();
         store_item(vbid, key, "value");
 
-        /* Create new checkpoint so that we can remove the current checkpoint
-         * and force a backfill in the DCP stream */
-        CheckpointManager& ckpt_mgr = *vb0->checkpointManager;
-        ckpt_mgr.createNewCheckpoint();
-
-        /* Wait for removal of the old checkpoint, this also would imply that
-         * the items are persisted (in case of persistent buckets) */
-        {
-            std::chrono::microseconds uSleepTime(128);
-            while (numItems != ckpt_mgr.removeClosedUnrefCheckpoints().count) {
-                uSleepTime = decayingSleep(uSleepTime);
-            }
-        }
+        removeCheckpoint(numItems);
 
         /* Set up a DCP stream for the backfill */
         setup_dcp_stream();
