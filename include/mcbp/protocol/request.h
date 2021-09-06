@@ -182,6 +182,10 @@ public:
         return reinterpret_cast<Header*>(this)->getValue();
     }
 
+    std::string_view getValueString() const {
+        return reinterpret_cast<const Header*>(this)->getValueString();
+    }
+
     cb::const_byte_buffer getFrame() const {
         return reinterpret_cast<const Header*>(this)->getFrame();
     }

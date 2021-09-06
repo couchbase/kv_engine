@@ -199,6 +199,11 @@ public:
         return {const_cast<uint8_t*>(cbb.data()), cbb.size()};
     }
 
+    std::string_view getValueString() const {
+        const auto val = getValue();
+        return {reinterpret_cast<const char*>(val.data()), val.size()};
+    }
+
     /**
      * Get the byte buffer of the entire packet where this header and body
      * spans
