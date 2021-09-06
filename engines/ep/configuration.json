@@ -178,7 +178,7 @@
             }
         },
         "compaction_expire_from_start": {
-            "default": "false",
+            "default": "true",
             "descr": "Should compaction expire items that were logically deleted at the start of the compaction (true) or at the point in time at which they were visited (false)?",
             "dynamic": true,
             "type": "bool"
