@@ -135,7 +135,8 @@ TEST_P(TuneMcbpSla, SlowCommandLogging) {
                         auto idx = l.find('{');
                         if (idx != std::string::npos) {
                             try {
-                                nlohmann::json::parse(l.substr(idx));
+                                const auto json =
+                                        nlohmann::json::parse(l.substr(idx));
                                 // We've got the complete line.. use it
                                 ret.emplace_back(std::move(l));
                             } catch (const std::exception& exception) {

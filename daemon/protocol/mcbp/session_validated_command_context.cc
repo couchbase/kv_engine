@@ -107,7 +107,7 @@ SetVbucketCommandContext::SetVbucketCommandContext(Cookie& cookie)
         if (extras.size() == 1) {
             // This is the new encoding for the SetVBucket state.
             state = vbucket_state_t(extras.front());
-            auto val = req.getValue();
+            auto val = req.getValueString();
             if (!val.empty()) {
                 if (state != vbucket_state_active) {
                     throw std::invalid_argument(

@@ -335,6 +335,9 @@ static std::string getRequirements(const std::string& key,
         case nlohmann::json::value_t::null:
         case nlohmann::json::value_t::object:
             break;
+        case nlohmann::json::value_t::binary:
+            throw std::runtime_error(
+                    "getRequirements(): binary value not supported");
         }
 
         ss << "        ->add(\"" << reqKey << "\", (" << type << ")" << value
