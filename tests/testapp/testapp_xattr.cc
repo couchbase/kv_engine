@@ -2138,10 +2138,12 @@ TEST_P(XattrTest, MB40980_InputMacroExpansion) {
     EXPECT_TRUE(tnx["exptime"].is_number());
     EXPECT_TRUE(tnx["revid"].is_string());
 
-    EXPECT_NE(cb::from_hex(original["CAS"]), cb::from_hex(modified["CAS"]));
+    EXPECT_NE(cb::from_hex(original["CAS"].get<std::string>()),
+              cb::from_hex(modified["CAS"].get<std::string>()));
     EXPECT_EQ(original["exptime"].get<uint64_t>(),
               tnx["exptime"].get<uint64_t>());
-    EXPECT_EQ(cb::from_hex(original["CAS"]), cb::from_hex(tnx["CAS"]));
+    EXPECT_EQ(cb::from_hex(original["CAS"].get<std::string>()),
+              cb::from_hex(tnx["CAS"].get<std::string>()));
     EXPECT_EQ(original["revid"], tnx["revid"]);
 
     EXPECT_EQ(original, tnx["doc"]);

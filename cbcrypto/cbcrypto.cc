@@ -1048,7 +1048,7 @@ static void decodeJsonMeta(const nlohmann::json& json,
         throw std::runtime_error(
                 "cb::crypto::decodeJsonMeta: cipher not specified");
     }
-    cipher = cb::crypto::to_cipher(*it);
+    cipher = cb::crypto::to_cipher(it->get<std::string>());
 
     it = json.find("key");
     if (it == json.end()) {
