@@ -28,8 +28,7 @@ class MagmaDbStats : public magma::UserStats {
 public:
     explicit MagmaDbStats() = default;
 
-    MagmaDbStats(int64_t docCount,
-                 uint64_t purgeSeqno) {
+    MagmaDbStats(int64_t docCount, uint64_t purgeSeqno) {
         reset(docCount, purgeSeqno);
     }
 

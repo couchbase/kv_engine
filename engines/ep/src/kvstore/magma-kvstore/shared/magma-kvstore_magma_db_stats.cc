@@ -21,7 +21,7 @@ void to_json(nlohmann::json& json, const MagmaDbStats& dbStats) {
 void from_json(const nlohmann::json& j, MagmaDbStats& dbStats) {
     dbStats.docCount = std::stoull(j.at("docCount").get<std::string>());
     dbStats.purgeSeqno.reset(
-        std::stoull(j.at("purgeSeqno").get<std::string>()));
+            std::stoull(j.at("purgeSeqno").get<std::string>()));
 }
 
 void MagmaDbStats::Merge(const UserStats& other) {
@@ -53,15 +53,15 @@ magma::Status MagmaDbStats::Unmarshal(const std::string& encoded) {
         j = nlohmann::json::parse(encoded);
     } catch (const nlohmann::json::exception& e) {
         throw std::logic_error("MagmaDbStats::Unmarshal cannot decode json:" +
-            encoded + " " + e.what());
+                               encoded + " " + e.what());
     }
 
     try {
         reset(j);
     } catch (const nlohmann::json::exception& e) {
         throw std::logic_error(
-            "MagmaDbStats::Unmarshal cannot construct MagmaDbStats from "
-            "json:" +
+                "MagmaDbStats::Unmarshal cannot construct MagmaDbStats from "
+                "json:" +
                 encoded + " " + e.what());
     }
 
