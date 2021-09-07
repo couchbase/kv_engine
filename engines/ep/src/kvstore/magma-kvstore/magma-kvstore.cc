@@ -1622,8 +1622,8 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
 
             CacheLookup lookup(diskKey, seqno, ctx.vbid);
 
-            ctx.lookup->callback(lookup);
-            if (ctx.lookup->getStatus() ==
+            ctx.getCacheCallback().callback(lookup);
+            if (ctx.getCacheCallback().getStatus() ==
                 static_cast<int>(cb::engine_errc::key_already_exists)) {
                 ctx.lastReadSeqno = seqno;
                 if (logger->should_log(spdlog::level::TRACE)) {
@@ -1636,7 +1636,7 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
                             seqno);
                 }
                 continue;
-            } else if (ctx.lookup->getStatus() ==
+            } else if (ctx.getCacheCallback().getStatus() ==
                        static_cast<int>(cb::engine_errc::no_memory)) {
                 logger->warn(
                         "MagmaKVStore::scan lookup->callback {} "
@@ -1680,8 +1680,8 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
         }
 
         GetValue rv(std::move(itm), cb::engine_errc::success, -1, onlyKeys);
-        ctx.callback->callback(rv);
-        auto callbackStatus = ctx.callback->getStatus();
+        ctx.getValueCallback().callback(rv);
+        auto callbackStatus = ctx.getValueCallback().getStatus();
         if (callbackStatus == static_cast<int>(cb::engine_errc::no_memory)) {
             if (logger->should_log(spdlog::level::TRACE)) {
                 logger->TRACE(

@@ -59,11 +59,11 @@ ScanContext::ScanContext(
       handle(std::move(handle)),
       docFilter(docFilter),
       valFilter(valFilter),
-      callback(std::move(cb)),
-      lookup(std::move(cl)),
       logger(getGlobalBucketLogger().get()),
       collectionsContext(droppedCollections),
-      maxSeqno(maxSeqno) {
+      maxSeqno(maxSeqno),
+      callback(std::move(cb)),
+      lookup(std::move(cl)) {
     Expects(callback != nullptr);
     Expects(lookup != nullptr);
 }

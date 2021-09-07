@@ -265,19 +265,19 @@ public:
 
     virtual ~ScanContext() = default;
 
-    const StatusCallback<GetValue>& getValueCallback() const {
+    virtual const StatusCallback<GetValue>& getValueCallback() const {
         return *callback;
     }
 
-    StatusCallback<GetValue>& getValueCallback() {
+    virtual StatusCallback<GetValue>& getValueCallback() {
         return *callback;
     }
 
-    const StatusCallback<CacheLookup>& getCacheCallback() const {
+    virtual const StatusCallback<CacheLookup>& getCacheCallback() const {
         return *lookup;
     }
 
-    StatusCallback<CacheLookup>& getCacheCallback() {
+    virtual StatusCallback<CacheLookup>& getCacheCallback() {
         return *lookup;
     }
 
@@ -286,11 +286,13 @@ public:
     std::unique_ptr<KVFileHandle> handle;
     const DocumentFilter docFilter;
     const ValueFilter valFilter;
-    std::unique_ptr<StatusCallback<GetValue>> callback;
-    std::unique_ptr<StatusCallback<CacheLookup>> lookup;
     BucketLogger* logger;
     const Collections::VB::ScanContext collectionsContext;
     int64_t maxSeqno;
+
+protected:
+    std::unique_ptr<StatusCallback<GetValue>> callback;
+    std::unique_ptr<StatusCallback<CacheLookup>> lookup;
 };
 
 class BySeqnoScanContext : public ScanContext {

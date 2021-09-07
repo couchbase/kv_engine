@@ -1568,9 +1568,9 @@ scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) const {
 
             CacheLookup lookup(key, byseqno, ctx.vbid);
 
-            ctx.lookup->callback(lookup);
+            ctx.getCacheCallback().callback(lookup);
 
-            auto status = cb::engine_errc{ctx.lookup->getStatus()};
+            auto status = cb::engine_errc{ctx.getCacheCallback().getStatus()};
             if (status == cb::engine_errc::key_already_exists) {
                 ctx.lastReadSeqno = byseqno;
                 continue;
@@ -1580,8 +1580,8 @@ scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) const {
         }
 
         GetValue rv(std::move(itm), cb::engine_errc::success, -1, onlyKeys);
-        ctx.callback->callback(rv);
-        auto status = cb::engine_errc{ctx.callback->getStatus()};
+        ctx.getValueCallback().callback(rv);
+        auto status = cb::engine_errc{ctx.getValueCallback().getStatus()};
 
         if (status == cb::engine_errc::no_memory) {
             return scan_again;
