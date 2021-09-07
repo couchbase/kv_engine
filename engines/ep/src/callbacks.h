@@ -39,6 +39,14 @@ public:
         return vbid;
     }
 
+    bool operator==(const CacheLookup& other) const {
+        return key == other.key && bySeqno == other.bySeqno &&
+               vbid == other.vbid;
+    }
+    bool operator!=(const CacheLookup& other) const {
+        return !operator==(other);
+    }
+
 private:
     DiskDocKey key;
     int64_t bySeqno;

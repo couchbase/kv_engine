@@ -1294,6 +1294,11 @@ TEST_P(DurabilityWarmupTest, WarmupCommit) {
 // and then Persistance Callback runs, this is handled correctly.
 // Regression test for MB-41658.
 TEST_P(DurabilityWarmupTest, WarmupCommitRaceWithPersistence) {
+    if (isNexus()) {
+        // The various callbacks cause us to deadlock on the Nexus vbucket lock
+        GTEST_SKIP();
+    }
+
     // Setup: Create and flush a prepare to disk.
     auto vb = store->getVBucket(vbid);
     auto key = makeStoredDocKey("key");

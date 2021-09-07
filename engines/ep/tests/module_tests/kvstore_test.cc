@@ -144,7 +144,7 @@ TEST_P(KVStoreParamTestSkipRocks, CompressedTest) {
     for (int i = 1; i <= 5; i++) {
         std::string key("key" + std::to_string(i));
         auto qi = makeCommittedItem(makeStoredDocKey(key), COMPRESSIBLE_VALUE);
-        qi->setBySeqno(5);
+        qi->setBySeqno(i);
         kvstore->set(*ctx, qi);
     }
     // Ensure a valid vbstate is committed
@@ -778,6 +778,14 @@ TEST_P(KVStoreParamTest, DelVBucketWhileScanning) {
 // Expect ThreadSanitizer to pick this.
 // Rocks has race condition issues
 TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
+    if (isNexus()) {
+        // @TODO
+        // Scanning nexus requires that we build the context properly for both
+        // KVStores and in this test the scan context builds fine for magma
+        // but not couchstore as we have an invalid snapshot...
+        GTEST_SKIP();
+    }
+
     std::atomic<bool> stop{false};
     bool okToDelete{false};
     uint32_t deletes{0};

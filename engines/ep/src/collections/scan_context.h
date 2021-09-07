@@ -36,6 +36,15 @@ public:
             const std::vector<Collections::KVStore::DroppedCollection>&
                     droppedCollections);
 
+    bool operator==(const ScanContext& other) const {
+        return dropped == other.dropped && startSeqno == other.startSeqno &&
+               endSeqno == other.endSeqno;
+    }
+
+    bool operator!=(const ScanContext& other) const {
+        return !operator==(other);
+    }
+
     /// @return true if the key@seqno belongs to a dropped collection
     bool isLogicallyDeleted(const DocKey& key, uint64_t seqno) const;
 

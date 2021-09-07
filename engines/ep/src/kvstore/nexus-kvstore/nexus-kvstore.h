@@ -17,6 +17,8 @@ class NexusKVStoreConfig;
 class NexusKVStoreSecondaryPersistenceCallback;
 class NexusRollbackCB;
 class NexusKVStoreSecondaryGetAllKeysCallback;
+class NexusSecondaryScanCallback;
+class NexusSecondaryCacheLookup;
 
 struct NexusCompactionContext;
 struct NexusRollbackContext;
@@ -241,6 +243,8 @@ protected:
     friend NexusKVStoreSecondaryPersistenceCallback;
     friend NexusKVStoreSecondaryGetAllKeysCallback;
     friend NexusRollbackCB;
+    friend NexusSecondaryScanCallback;
+    friend NexusSecondaryCacheLookup;
 
 protected:
     NexusKVStoreConfig& configuration;
