@@ -41,18 +41,6 @@ simulate a memory allocation failure.
 This variable is used by a unit test to have the config library
 simulate a failure reading stuff from disk.
 
-## `COUCHBASE_CBSASL_SECRETS`
-
-This variable should contain a JSON description of some secrets
-which may be used in order to decrypt the CBSASL files. The
-JSON looks like:
-
-    {
-        "cipher" : "the cipher to use",
-        "key" : "base64 encoded key",
-        "iv" : "base64 encoded iv"
-    }
-
 ## `COUCHBASE_ENABLE_PRIVILEGE_DEBUG`
 
 By setting this environment variable all privilege checks returns

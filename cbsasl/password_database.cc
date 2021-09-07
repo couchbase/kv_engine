@@ -33,26 +33,7 @@ std::string PasswordDatabase::read_password_file(const std::string& filename) {
         return contents;
     }
 
-    auto ret = cb::io::loadFile(filename, std::chrono::seconds{5});
-
-    // The password file may be encrypted
-    auto* env = getenv("COUCHBASE_CBSASL_SECRETS");
-    if (env == nullptr) {
-        return ret;
-    }
-
-    nlohmann::json json;
-    try {
-        json = nlohmann::json::parse(env);
-    } catch (const nlohmann::json::exception& e) {
-        std::stringstream ss;
-        ss << "cbsasl_read_password_file: Invalid json specified in "
-              "COUCHBASE_CBSASL_SECRETS. Parse failed with: '"
-           << e.what() << "'";
-        throw std::runtime_error(ss.str());
-    }
-
-    return cb::crypto::decrypt(json, ret);
+    return cb::io::loadFile(filename, std::chrono::seconds{5});
 }
 
 void PasswordDatabase::write_password_file(const std::string& filename,
@@ -64,26 +45,7 @@ void PasswordDatabase::write_password_file(const std::string& filename,
     }
 
     std::ofstream of(filename, std::ios::binary);
-
-    auto* env = getenv("COUCHBASE_CBSASL_SECRETS");
-    if (env == nullptr) {
-        of.write(content.data(), content.size());
-    } else {
-        nlohmann::json json;
-        try {
-            json = nlohmann::json::parse(env);
-        } catch (const nlohmann::json::exception& e) {
-            std::stringstream ss;
-            ss << "cbsasl_write_password_file: Invalid json specified in "
-                  "COUCHBASE_CBSASL_SECRETS. Parse failed with: '"
-               << e.what() << "'";
-            throw std::runtime_error(ss.str());
-        }
-
-        auto enc = cb::crypto::encrypt(json, content);
-        of.write(enc.data(), enc.size());
-    }
-
+    of.write(content.data(), content.size());
     of.flush();
     of.close();
 }
