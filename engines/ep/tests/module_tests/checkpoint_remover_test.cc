@@ -624,7 +624,7 @@ TEST_F(CheckpointRemoverEPTest, expelsOnlyIfOldestCheckpointIsReferenced) {
     // Can now expel the 2 items in (ckpt_start, cursor)
     auto result = cm->expelUnreferencedCheckpointItems();
 
-    EXPECT_EQ(2, result.expelCount);
+    EXPECT_EQ(2, result.count);
 
     /* items in first checkpoint
      *
@@ -731,7 +731,7 @@ TEST_F(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
     flushVBucketToDiskIfPersistent(vbid, 3);
 
     auto result = cm->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(2, result.expelCount);
+    EXPECT_EQ(2, result.count);
 
     EXPECT_EQ(cb::engine_errc::success,
               vb->commit(prepareKey,
@@ -772,7 +772,7 @@ TEST_F(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
     flushVBucketToDiskIfPersistent(vbid, 3);
 
     auto result = cm->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(2, result.expelCount);
+    EXPECT_EQ(2, result.count);
 
     store_item(vbid, makeStoredDocKey("key_2"), "value");
 
@@ -833,7 +833,7 @@ TEST_F(CheckpointRemoverEPTest,
     // expel from the checkpoint. This will invalidate keyIndex entries
     // for all expelled items.
     auto result = cm->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(2, result.expelCount);
+    EXPECT_EQ(2, result.count);
 
     EXPECT_EQ(1, cm->getNumCheckpoints());
 

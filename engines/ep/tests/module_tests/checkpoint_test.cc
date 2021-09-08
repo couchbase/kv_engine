@@ -1755,10 +1755,9 @@ void CheckpointTest::testExpelCheckpointItems() {
      * 1003 - 3rd item (key2)
      */
 
-    CheckpointManager::ExpelResult expelResult =
-            this->manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(1, expelResult.expelCount);
-    EXPECT_LT(0, expelResult.estimateOfFreeMemory);
+    const auto expelResult = manager->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(1, expelResult.count);
+    EXPECT_LT(0, expelResult.memory);
     EXPECT_EQ(1, this->global_stats.itemsExpelledFromCheckpoints);
 
     /*
@@ -1828,10 +1827,9 @@ TEST_P(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
         ASSERT_FALSE(isLastMutationItem);
     }
 
-    CheckpointManager::ExpelResult expelResult =
-            this->manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(1, expelResult.expelCount);
-    EXPECT_LT(0, expelResult.estimateOfFreeMemory);
+    const auto expelResult = manager->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(1, expelResult.count);
+    EXPECT_LT(0, expelResult.memory);
     EXPECT_EQ(1, this->global_stats.itemsExpelledFromCheckpoints);
 
     // Item count doens't change
@@ -1907,10 +1905,9 @@ void CheckpointTest::testExpelCursorPointingToLastItem() {
     // has the highest seqno for the checkpoint so we move the expel point back
     // one. That item isn't a metadata item nor is it's successor item
     // (1002) the same seqno as itself (1001) so can expel from there.
-    CheckpointManager::ExpelResult expelResult =
-            this->manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(1, expelResult.expelCount);
-    EXPECT_GT(expelResult.estimateOfFreeMemory, 0);
+    const auto expelResult = manager->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(1, expelResult.count);
+    EXPECT_GT(expelResult.memory, 0);
     EXPECT_EQ(1, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
@@ -1939,10 +1936,9 @@ void CheckpointTest::testExpelCursorPointingToChkptStart() {
      * 1001 - checkpoint start  <<<<<<< persistenceCursor
      */
 
-    CheckpointManager::ExpelResult expelResult =
-            this->manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(0, expelResult.expelCount);
-    EXPECT_EQ(0, expelResult.estimateOfFreeMemory);
+    const auto expelResult = manager->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(0, expelResult.count);
+    EXPECT_EQ(0, expelResult.memory);
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
@@ -2000,10 +1996,9 @@ void CheckpointTest::testDontExpelIfCursorAtMetadataItemWithSameSeqno() {
      */
 
     // We should not expel any items due to dcpCursor1
-    CheckpointManager::ExpelResult expelResult =
-            this->manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(0, expelResult.expelCount);
-    EXPECT_EQ(0, expelResult.estimateOfFreeMemory);
+    const auto expelResult = manager->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(0, expelResult.count);
+    EXPECT_EQ(0, expelResult.memory);
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
@@ -2082,10 +2077,9 @@ void CheckpointTest::testDoNotExpelIfHaveSameSeqnoAfterMutation() {
 
     // We should not expel any items due to dcpCursor1 as we end up
     // moving the expel point back to the dummy item.
-    CheckpointManager::ExpelResult expelResult =
-            this->manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(0, expelResult.expelCount);
-    EXPECT_EQ(0, expelResult.estimateOfFreeMemory);
+    const auto expelResult = manager->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(0, expelResult.count);
+    EXPECT_EQ(0, expelResult.memory);
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
@@ -2151,7 +2145,7 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
             this->manager->getMemoryUsage();
 
     const auto expelResult = manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(1, expelResult.expelCount);
+    EXPECT_EQ(1, expelResult.count);
     EXPECT_EQ(1, global_stats.itemsExpelledFromCheckpoints);
 
     /*
@@ -2188,12 +2182,11 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
     const size_t reductionInCheckpointMemoryUsage =
             checkpointMemoryUsageBeforeExpel - checkpointMemoryUsageAfterExpel;
     const size_t checkpointListSaving =
-            (perElementOverhead * expelResult.expelCount);
+            (perElementOverhead * expelResult.count);
     // List saving + 1 mutation
     const size_t expectedMemoryRecovered = checkpointListSaving + sizeOfItem;
 
-    EXPECT_EQ(expectedMemoryRecovered,
-              expelResult.estimateOfFreeMemory - extra);
+    EXPECT_EQ(expectedMemoryRecovered, expelResult.memory - extra);
     EXPECT_EQ(expectedMemoryRecovered, reductionInCheckpointMemoryUsage);
 }
 
@@ -2768,7 +2761,7 @@ TEST_P(CheckpointTest, MB_47516) {
     //    from this point can return the incorrect seqno
     auto expel = this->manager->expelUnreferencedCheckpointItems();
     // Only 1 mutation gets expelled
-    EXPECT_EQ(1, expel.expelCount);
+    EXPECT_EQ(1, expel.count);
 
     // Note in this test we don't need to call createNewCheckpoint, the damage
     // was done without.
@@ -2902,8 +2895,7 @@ TEST_F(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtExpelling) {
     ASSERT_EQ(2, pos->getBySeqno());
 
     // Expelling set-vbstate + m:1
-    const auto numExpelled =
-            manager.expelUnreferencedCheckpointItems().expelCount;
+    const auto numExpelled = manager.expelUnreferencedCheckpointItems().count;
     EXPECT_EQ(2, numExpelled);
 
     // Expel post-conditions

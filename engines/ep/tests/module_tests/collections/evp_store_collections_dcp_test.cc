@@ -2535,7 +2535,7 @@ void MB48010CollectionsDCPParamTest::SetUp() {
     // IMPORTANT: Run expel so that some flushed items are removed from memory
     // The DCP stream has to run a backfill for the snapshot
     auto expel = vb->checkpointManager->expelUnreferencedCheckpointItems();
-    EXPECT_NE(0, expel.expelCount);
+    EXPECT_NE(0, expel.count);
 
     if (ephemeral()) {
         // Nuke the dcp stuff without restart - which would break the test for

@@ -483,7 +483,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(VBucket& vb) {
     return numNonMetaItemsRemoved;
 }
 
-CheckpointManager::ExpelResult
+CheckpointManager::ReleaseResult
 CheckpointManager::expelUnreferencedCheckpointItems() {
     // trigger the overheadChangedCallback if the overhead is different
     // when this helper is destroyed - which occurs _after_ the destruction

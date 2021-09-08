@@ -42,10 +42,10 @@ size_t ClosedUnrefCheckpointRemoverTask::attemptItemExpelling(
                 "Expelled {} unreferenced checkpoint items "
                 "from {} "
                 "and estimated to have recovered {} bytes.",
-                expelResult.expelCount,
+                expelResult.count,
                 vb->getId(),
-                expelResult.estimateOfFreeMemory);
-        memoryCleared += expelResult.estimateOfFreeMemory;
+                expelResult.memory);
+        memoryCleared += expelResult.memory;
     }
     return memoryCleared;
 }

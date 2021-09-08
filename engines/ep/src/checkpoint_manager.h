@@ -130,10 +130,12 @@ public:
         UniqueFlushHandle flushHandle;
     };
 
-    /// Return type of expelUnreferencedCheckpointItems()
-    struct ExpelResult {
-        size_t expelCount = {0};
-        size_t estimateOfFreeMemory = {0};
+    // Used as return type of functions responsible for memory releasing.
+    struct ReleaseResult {
+        // Used to store the number of elements released
+        size_t count = {0};
+        // Used to store the number of bytes released
+        size_t memory = {0};
     };
 
     CheckpointManager(EPStats& st,
@@ -162,11 +164,11 @@ public:
      * Attempt to expel (i.e. eject from memory) items in the oldest checkpoint
      * that still has cursor registered in it.  This is to help avoid very large
      * checkpoints which consume a large amount of memory.
-     * @returns  ExpelResult - this is a structure containing two elements.  The
-     * first element is the number of that have been expelled. The second
-     * element is an estimate of the amount of memory that will be recovered.
+     *
+     * @return ReleaseResult, with the number of items expelled and an estimate
+     *  of released memory
      */
-    ExpelResult expelUnreferencedCheckpointItems();
+    ReleaseResult expelUnreferencedCheckpointItems();
 
     /**
      * Register the cursor for getting items whose bySeqno values are between
