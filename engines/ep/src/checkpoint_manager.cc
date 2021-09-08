@@ -448,7 +448,8 @@ bool CheckpointManager::isCheckpointCreationForHighMemUsage(
     return forceCreation;
 }
 
-size_t CheckpointManager::removeClosedUnrefCheckpoints(VBucket& vb) {
+CheckpointManager::ReleaseResult
+CheckpointManager::removeClosedUnrefCheckpoints(VBucket& vb) {
     // This function is executed periodically by the non-IO dispatcher.
 
     // We need to acquire the CM lock for extracting checkpoints from the
@@ -464,7 +465,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(VBucket& vb) {
     // CM lock released here
 
     if (toRelease.empty()) {
-        return 0;
+        return {0, 0};
     }
 
     // Update stats and compute return value
@@ -480,7 +481,16 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(VBucket& vb) {
     stats.itemsRemovedFromCheckpoints.fetch_add(numNonMetaItemsRemoved);
     stats.memFreedByCheckpointRemoval += memoryReleased;
 
-    return numNonMetaItemsRemoved;
+    EP_LOG_DEBUG(
+            "CheckpointManager::removeClosedUnrefCheckpoints: Removed {} "
+            "checkpoints, {} meta-items, {} non-meta-items, {} bytes from {}",
+            toRelease.size(),
+            numMetaItemsRemoved,
+            numNonMetaItemsRemoved,
+            memoryReleased,
+            vb.getId());
+
+    return {numNonMetaItemsRemoved, memoryReleased};
 }
 
 CheckpointManager::ReleaseResult

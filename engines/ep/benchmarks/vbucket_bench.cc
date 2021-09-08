@@ -384,7 +384,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
             std::vector<queued_item> items;
             ckptMgr->getItemsForPersistence(items, numCkptToRemovePerIteration);
 
-            numUnrefItems += ckptMgr->removeClosedUnrefCheckpoints(*vb);
+            numUnrefItems += ckptMgr->removeClosedUnrefCheckpoints(*vb).count;
             numCkptRemoverRuns++;
 
             // Break when all but the last item (in last checkpoint) is removed

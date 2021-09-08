@@ -156,9 +156,10 @@ public:
      * frees up their used memory.
      *
      * @param vb the vbucket that this checkpoint manager belongs to.
-     * @return the number of non-meta items that are purged from checkpoint
+     * @return ReleaseResult, with the number of items removed and an estimate
+     *  of released memory
      */
-    size_t removeClosedUnrefCheckpoints(VBucket& vb);
+    ReleaseResult removeClosedUnrefCheckpoints(VBucket& vb);
 
     /**
      * Attempt to expel (i.e. eject from memory) items in the oldest checkpoint

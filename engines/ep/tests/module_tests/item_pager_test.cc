@@ -648,7 +648,9 @@ TEST_P(STItemPagerTest, test_memory_limit) {
         vb->checkpointManager->createNewCheckpoint();
         // Reflush
         flush_vbucket_to_disk(vbid);
-        EXPECT_EQ(1, vb->checkpointManager->removeClosedUnrefCheckpoints(*vb));
+        EXPECT_EQ(
+                1,
+                vb->checkpointManager->removeClosedUnrefCheckpoints(*vb).count);
     }
 
     // Now set max_size to be mem_used + 10% (we need some headroom)

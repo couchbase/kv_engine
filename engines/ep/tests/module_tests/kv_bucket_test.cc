@@ -250,7 +250,7 @@ void KVBucketTest::removeCheckpoint(VBucket& vb, int numItems) {
     int itemsRemoved = 0;
 
     while (true) {
-        auto removed = ckpt_mgr.removeClosedUnrefCheckpoints(vb);
+        auto removed = ckpt_mgr.removeClosedUnrefCheckpoints(vb).count;
         itemsRemoved += removed;
 
         if (itemsRemoved >= numItems || !removed) {

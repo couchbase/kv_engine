@@ -758,7 +758,7 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
     // Remove the first checkpoint (to force a DCP backfill).
     auto& manager = *vb->checkpointManager;
     const auto openCkptId = manager.getOpenCheckpointId();
-    ASSERT_EQ(2, manager.removeClosedUnrefCheckpoints(*vb));
+    ASSERT_EQ(2, manager.removeClosedUnrefCheckpoints(*vb).count);
     // No new checkpoint created
     ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
     /* State is now:
@@ -904,7 +904,7 @@ TEST_P(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
             vbid, pStream->getCursor().lock().get()));
     auto& manager = *vb->checkpointManager;
     const auto openCkptId = manager.getOpenCheckpointId();
-    ASSERT_EQ(2, manager.removeClosedUnrefCheckpoints(*vb));
+    ASSERT_EQ(2, manager.removeClosedUnrefCheckpoints(*vb).count);
     // No new checkpoint created
     ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
 

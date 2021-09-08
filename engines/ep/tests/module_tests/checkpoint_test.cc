@@ -531,7 +531,7 @@ TEST_P(CheckpointTest, CursorOffsetOnCheckpointClose) {
 
     // Both previous checkpoints are unreferenced. Close them. This will
     // cause the offset of this cursor to be recalculated.
-    EXPECT_EQ(2, manager->removeClosedUnrefCheckpoints(*vbucket));
+    EXPECT_EQ(2, manager->removeClosedUnrefCheckpoints(*vbucket).count);
 
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
 
@@ -1566,7 +1566,7 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
 
     // We are now in a position to remove the checkpoint that had the
     // mutation in it.
-    EXPECT_EQ(1, manager->removeClosedUnrefCheckpoints(*vbucket));
+    EXPECT_EQ(1, manager->removeClosedUnrefCheckpoints(*vbucket).count);
 
     // Should be back to the initialSize
     EXPECT_EQ(initialSize, this->manager->getMemoryUsage());
@@ -1645,7 +1645,7 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
 
     // We are now in a position to remove the checkpoint that had the
     // mutation in it.
-    EXPECT_EQ(1, manager->removeClosedUnrefCheckpoints(*vbucket));
+    EXPECT_EQ(1, manager->removeClosedUnrefCheckpoints(*vbucket).count);
 
     // Should be back to the initialOverhead
     EXPECT_EQ(initialOverhead, this->manager->getMemoryOverhead());
@@ -2960,7 +2960,7 @@ TEST_F(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtRemoval) {
                               items,
                               std::numeric_limits<size_t>::max());
     // Remove closed checkpoint
-    EXPECT_EQ(initialNumItems, manager.removeClosedUnrefCheckpoints(*vb));
+    EXPECT_EQ(initialNumItems, manager.removeClosedUnrefCheckpoints(*vb).count);
     EXPECT_EQ(1, manager.getNumCheckpoints());
     EXPECT_EQ(0, manager.getNumOpenChkItems());
 

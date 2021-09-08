@@ -36,7 +36,8 @@ void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
 
     // Get a list of cursors that can be dropped from the vbucket's CM, so
     // as to unreference an estimated number of checkpoints.
-    const auto cursors = vb->checkpointManager->getListOfCursorsToDrop();
+    auto& manager = *vb->checkpointManager;
+    const auto cursors = manager.getListOfCursorsToDrop();
     for (const auto& cursor : cursors) {
         if (!store->getEPEngine().getDcpConnMap().handleSlowStream(
                     vb->getId(), cursor.lock().get())) {
@@ -62,13 +63,7 @@ void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
         }
     }
 
-    const auto numItemsRemoved =
-            vb->checkpointManager->removeClosedUnrefCheckpoints(*vb);
-    if (numItemsRemoved > 0) {
-        EP_LOG_DEBUG("Removed {} items from unreferenced checkpoints from {}",
-                     numItemsRemoved,
-                     vb->getId());
-    }
+    manager.removeClosedUnrefCheckpoints(*vb);
 }
 
 void CheckpointVisitor::complete() {

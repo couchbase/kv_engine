@@ -2383,7 +2383,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
     // Now remove the earlier checkpoint
-    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb));
+    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb).count);
 
     store->setVBucketState(vbid, vbucket_state_replica);
 
