@@ -366,9 +366,70 @@ TEST_F(MagmaKVStoreTest, MB39669_CompactionBeforeWarmup) {
     // skipped (zero-length meta == local document) and (b) to provide a valid
     // Vbid.
     magmakv::MetaData metadata;
-    magma::Slice meta{reinterpret_cast<char*>(&metadata), metadata.getLength()};
+    auto encoded = metadata.encode();
+    magma::Slice meta{encoded};
     // Compaction callback should return false for anything before warmup.
     EXPECT_FALSE(newCompaction->operator()(key, meta, value));
+}
+
+TEST_F(MagmaKVStoreTest, MetadataEncoding) {
+    // Set a bunch of fields to various values to test that we can read them
+    // back after encoding and decoding.
+    magmakv::MetaData metadata;
+    metadata.setExptime(111111);
+    metadata.setDeleted(true, true);
+    metadata.setBySeqno(222222);
+    metadata.setValueSize(333333);
+    metadata.setDataType(2);
+    metadata.setFlags(444444);
+    metadata.setCas(555555);
+    metadata.setRevSeqno(666666);
+
+    auto encoded = metadata.encode();
+    auto decoded = magmakv::MetaData(encoded);
+
+    // Corectness, are we the same after as before
+    EXPECT_EQ(metadata, decoded);
+
+    // Size should be smaller encoded (as some values get leb128 encoded and
+    // will be smaller due to the values chosen above)
+    auto totalSizeOfV0 = 1 /*sizeof(magmakv::MetaData::MetaDataV0*/ + 34;
+    EXPECT_LT(encoded.size(), totalSizeOfV0);
+
+    auto v0EncodedSize = encoded.size();
+
+    // Now test V1 (extension of V0 for prepare namespace)
+    metadata.setVersion(magmakv::MetaData::Version::V1);
+    metadata.setDurabilityDetailsForPrepare(true, 2);
+
+    encoded = metadata.encode();
+    decoded = magmakv::MetaData(encoded);
+
+    // Again, should the same after as before
+    EXPECT_EQ(metadata, decoded);
+
+    // Again, things should be smaller, but the potential size decrease in V1
+    // rom leb128 encoding gets masked by the size decrease in V0...
+    auto sizeOfV1 = 6 /*sizeof(magmakv::MetaData::MetaDataV1)*/;
+    auto totalSizeOfV1 = totalSizeOfV0 + sizeOfV1;
+    EXPECT_LT(encoded.size(), totalSizeOfV1);
+
+    auto v1v0EncodedSizeDiff = encoded.size() - v0EncodedSize;
+    EXPECT_LT(v1v0EncodedSizeDiff, sizeOfV1);
+
+    // Now test an abort (with max length prepare seqno)
+    metadata.setDurabilityDetailsForAbort(7777777);
+
+    encoded = metadata.encode();
+    decoded = magmakv::MetaData(encoded);
+
+    // Again, should the same after as before
+    EXPECT_EQ(metadata, decoded);
+
+    // Again, things should be smaller, but the potential size decrease in V1
+    // rom leb128 encoding gets masked by the size decrease in V0...
+    v1v0EncodedSizeDiff = encoded.size() - v0EncodedSize;
+    EXPECT_LT(v1v0EncodedSizeDiff, sizeOfV1);
 }
 
 TEST_F(MagmaKVStoreTest, ScanReadsVBStateFromSnapshot) {
@@ -475,8 +536,8 @@ TEST_F(MagmaKVStoreTest, ScanReadDroppedCollectionsFromSnapshot) {
 TEST_F(MagmaKVStoreTest, MagmaGetExpiryTimeAlive) {
     magmakv::MetaData expiredItem;
     expiredItem.setExptime(10);
-    magma::Slice expiredItemSlice = {reinterpret_cast<char*>(&expiredItem),
-                                     expiredItem.getLength()};
+    auto encoded = expiredItem.encode();
+    magma::Slice expiredItemSlice = {encoded};
 
     EXPECT_EQ(10, kvstore->getExpiryOrPurgeTime(expiredItemSlice));
 }
@@ -485,8 +546,8 @@ TEST_F(MagmaKVStoreTest, MagmaGetExpiryTimeTombstone) {
     magmakv::MetaData tombstone;
     tombstone.setExptime(10);
     tombstone.setDeleted(true, false /*deleteSource*/);
-    magma::Slice tombstoneSlice = {reinterpret_cast<char*>(&tombstone),
-                                   tombstone.getLength()};
+    auto encoded = tombstone.encode();
+    magma::Slice tombstoneSlice = {encoded};
 
     EXPECT_EQ(10 + kvstoreConfig->getMetadataPurgeAge(),
               kvstore->getExpiryOrPurgeTime(tombstoneSlice));

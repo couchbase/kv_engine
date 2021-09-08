@@ -123,9 +123,15 @@ public:
     std::string to_string() const;
 
     /**
-     * @return the length of the metadata for the given version
+     * Encode the metadata into a std::string. The encoding leb128 encodes
+     * various fields that may not always be populated or may generally have
+     * low values.
+     *
+     * @return encoded metadata
      */
-    size_t getLength() const;
+    std::string encode() const;
+
+    bool operator==(const MetaData& other) const;
 
 protected:
     /**
@@ -136,8 +142,11 @@ protected:
     public:
         VersionStorage() = default;
 
-        static std::pair<VersionStorage, std::string_view> parse(
+        static std::pair<VersionStorage, std::string_view> decode(
                 std::string_view buf);
+
+        // See magmakv::MetaData::encode() documentation
+        std::string encode() const;
 
         Version version = Version::V0;
     };
@@ -151,16 +160,19 @@ protected:
     public:
         MetaDataV0() = default;
 
-        static std::pair<MetaDataV0, std::string_view> parse(
+        static std::pair<MetaDataV0, std::string_view> decode(
                 std::string_view buf);
+
+        // See magmakv::MetaData::encode() documentation
+        std::string encode() const;
+
+        bool operator==(const MetaDataV0& other) const;
 
         cb::uint48_t bySeqno = 0;
         uint64_t cas = 0;
-        cb::uint48_t revSeqno = 0;
-        uint32_t exptime = 0;
-        uint32_t flags = 0;
         uint32_t valueSize = 0;
         uint8_t datatype = 0;
+
         struct V0Bits {
             V0Bits() : deleted(0), deleteSource(0) {
             }
@@ -168,6 +180,11 @@ protected:
             uint8_t deleted : 1;
             uint8_t deleteSource : 1;
         } bits;
+
+        // The leb128 encoded fields get added at the end of the encoded meta
+        cb::uint48_t revSeqno = 0;
+        uint32_t exptime = 0;
+        uint32_t flags = 0;
     };
 
     static_assert(sizeof(MetaDataV0) == 34,
@@ -184,8 +201,13 @@ protected:
     public:
         MetaDataV1() = default;
 
-        static std::pair<MetaDataV1, std::string_view> parse(
+        bool operator==(const MetaDataV1& other) const;
+
+        static std::pair<MetaDataV1, std::string_view> decode(
                 std::string_view buf);
+
+        // See magmakv::MetaData::encode() documentation
+        std::string encode() const;
 
         union durabilityDetails {
             // Need to supply a default constructor or the compiler will

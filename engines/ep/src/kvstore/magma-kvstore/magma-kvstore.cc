@@ -130,8 +130,12 @@ std::string MetaData::to_string() const {
  * Helper functions to pull metadata stuff out of the metadata slice.
  * The are used down in magma and are passed in as part of the configuration.
  */
+static const MetaData getDocMeta(std::string_view meta) {
+    return MetaData(meta);
+}
+
 static const MetaData getDocMeta(const Slice& metaSlice) {
-    return MetaData(std::string_view(metaSlice.Data(), metaSlice.Len()));
+    return getDocMeta(std::string_view{metaSlice.Data(), metaSlice.Len()});
 }
 
 static uint64_t getSeqNum(const Slice& metaSlice) {
@@ -168,7 +172,7 @@ static bool isAbort(const Slice& keySlice, const Slice& metaSlice) {
 
 MagmaRequest::MagmaRequest(queued_item it, std::shared_ptr<BucketLogger> logger)
     : IORequest(std::move(it)),
-      docMeta(magmakv::makeMetaData(*item)),
+      docMeta(magmakv::makeMetaData(*item).encode()),
       docBody(item->getValue()) {
     if (logger->should_log(spdlog::level::TRACE)) {
         logger->TRACE("MagmaRequest:{}", to_string());
@@ -177,7 +181,8 @@ MagmaRequest::MagmaRequest(queued_item it, std::shared_ptr<BucketLogger> logger)
 
 std::string MagmaRequest::to_string() {
     std::stringstream ss;
-    ss << "Key:" << key.to_string() << " docMeta:" << docMeta.to_string()
+    ss << "Key:" << key.to_string()
+       << " docMeta:" << magmakv::getDocMeta(getDocMeta()).to_string()
        << " itemOldExists:" << (itemOldExists ? "true" : "false")
        << " itemOldIsDelete:" << (itemOldIsDelete ? "true" : "false");
     return ss.str();
@@ -657,8 +662,8 @@ void MagmaKVStore::commitCallback(MagmaKVStoreTransactionContext& txnCtx,
                                   kvstats_ctx&) {
     const auto flushSuccess = (errCode == Status::Code::Ok);
     for (const auto& req : txnCtx.pendingReqs) {
-        size_t mutationSize =
-                req.getRawKeyLen() + req.getBodySize() + req.getMetaSize();
+        size_t mutationSize = req.getRawKeyLen() + req.getBodySize() +
+                              req.getDocMeta().size();
         st.io_num_write++;
         st.io_document_write_bytes += mutationSize;
 
@@ -1035,7 +1040,7 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
                                              const Slice& valueSlice,
                                              ValueFilter filter) const {
     auto key = makeDiskDocKey(keySlice);
-    auto& meta = *reinterpret_cast<const magmakv::MetaData*>(metaSlice.Data());
+    auto meta = magmakv::getDocMeta(metaSlice);
 
     const bool includeValue = (filter != ValueFilter::KEYS_ONLY ||
                                key.getDocKey().isInSystemCollection()) &&
@@ -1110,7 +1115,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                     "docExists:{} tombstone:{}",
                     vbid,
                     cb::UserData{diskDocKey.to_string()},
-                    req->getDocMeta().getBySeqno(),
+                    magmakv::getDocMeta(req->getDocMeta()).getBySeqno(),
                     req->isDelete(),
                     docExists,
                     isTombstone);
@@ -1132,7 +1137,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                         isTombstone ? IsDeleted::Yes : IsDeleted::No;
                 commitData.collections.updateStats(
                         docKey,
-                        req->getDocMeta().getBySeqno(),
+                        magmakv::getDocMeta(req->getDocMeta()).getBySeqno(),
                         isCommitted,
                         isDeleted,
                         req->getBodySize(),
@@ -1143,7 +1148,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
             } else {
                 commitData.collections.updateStats(
                         docKey,
-                        req->getDocMeta().getBySeqno(),
+                        magmakv::getDocMeta(req->getDocMeta()).getBySeqno(),
                         isCommitted,
                         isDeleted,
                         req->getBodySize(),
@@ -1152,7 +1157,9 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
         } else {
             // Tell Collections::Flush that it may need to record this seqno
             commitData.collections.maybeUpdatePersistedHighSeqno(
-                    docKey, req->getDocMeta().getBySeqno(), req->isDelete());
+                    docKey,
+                    magmakv::getDocMeta(req->getDocMeta()).getBySeqno(),
+                    req->isDelete());
         }
 
         if (docExists) {
@@ -1265,24 +1272,26 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     // becomes available. This will allow us to pass pendingReqs
     // in and create the WriteOperation from the pendingReqs queue.
     for (auto& req : ctx.pendingReqs) {
-        auto& docMeta = req.getDocMeta();
         Slice valSlice{req.getBodyData(), req.getBodySize()};
-        if (req.getDocMeta().getBySeqno() > lastSeqno) {
-            lastSeqno = req.getDocMeta().getBySeqno();
+
+        auto docMeta = req.getDocMeta();
+        auto decodedMeta = magmakv::getDocMeta(docMeta);
+        if (decodedMeta.getBySeqno() > lastSeqno) {
+            lastSeqno = decodedMeta.getBySeqno();
         }
 
         switch (commitData.writeOp) {
         case WriteOperation::Insert:
             writeOps.emplace_back(Magma::WriteOperation::NewDocInsert(
                     {req.getRawKey(), req.getRawKeyLen()},
-                    {reinterpret_cast<char*>(&docMeta), docMeta.getLength()},
+                    {docMeta.data(), docMeta.size()},
                     valSlice,
                     &req));
             break;
         case WriteOperation::Upsert:
             writeOps.emplace_back(Magma::WriteOperation::NewDocUpsert(
                     {req.getRawKey(), req.getRawKeyLen()},
-                    {reinterpret_cast<char*>(&docMeta), docMeta.getLength()},
+                    {docMeta.data(), docMeta.size()},
                     valSlice,
                     &req));
             break;

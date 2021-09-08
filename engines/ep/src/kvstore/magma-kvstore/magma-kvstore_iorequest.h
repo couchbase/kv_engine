@@ -28,7 +28,7 @@ public:
      */
     MagmaRequest(queued_item it, std::shared_ptr<BucketLogger> logger);
 
-    magmakv::MetaData& getDocMeta() {
+    const std::string_view getDocMeta() const {
         return docMeta;
     }
 
@@ -46,10 +46,6 @@ public:
 
     char* getBodyData() const {
         return docBody ? const_cast<char*>(docBody->getData()) : nullptr;
-    }
-
-    size_t getMetaSize() const {
-        return sizeof(magmakv::MetaData);
     }
 
     void markOldItemExists() {
@@ -71,7 +67,7 @@ public:
     std::string to_string();
 
 private:
-    magmakv::MetaData docMeta;
+    std::string docMeta;
     value_t docBody;
     bool itemOldExists{false};
     bool itemOldIsDelete{false};
