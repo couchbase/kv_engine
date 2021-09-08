@@ -2310,11 +2310,12 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
     case Status::TransientIO:
     case Status::Busy:
     case Status::DiskFull:
+    case Status::NotFound:
         logger->critical("MagmaKVStore::rollback Rollback {} status:{}",
                          vbid,
                          status.String());
         // Fall through
-    case Status::NotFound:
+    case Status::CheckpointNotFound:
         // magma->Rollback returns non-success in the case where we have no
         // rollback points (and should reset the vBucket to 0). This isn't a
         // critical error so don't log it
