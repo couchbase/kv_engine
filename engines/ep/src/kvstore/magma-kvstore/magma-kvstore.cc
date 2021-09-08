@@ -98,16 +98,16 @@ std::string MetaData::to_string() const {
        << " exptime:" << allMeta.v0.exptime
        << " revSeqno:" << allMeta.v0.revSeqno << " flags:" << allMeta.v0.flags
        << " valueSize:" << allMeta.v0.valueSize
-       << " deleted:" << (allMeta.v0.deleted == 0 ? "false" : "true")
+       << " deleted:" << (allMeta.v0.bits.deleted == 0 ? "false" : "true")
        << " deleteSource:"
-       << (allMeta.v0.deleted == 0        ? " "
-           : allMeta.v0.deleteSource == 0 ? "Explicit"
-                                          : "TTL")
+       << (allMeta.v0.bits.deleted == 0        ? " "
+           : allMeta.v0.bits.deleteSource == 0 ? "Explicit"
+                                               : "TTL")
        << " version:" << static_cast<uint8_t>(getVersion())
        << " datatype:" << allMeta.v0.datatype;
 
     if (getVersion() == Version::V1) {
-        if (allMeta.v0.deleted) {
+        if (allMeta.v0.bits.deleted) {
             // abort
             ss << " prepareSeqno:"
                << allMeta.v1.durabilityDetails.completed.prepareSeqno;

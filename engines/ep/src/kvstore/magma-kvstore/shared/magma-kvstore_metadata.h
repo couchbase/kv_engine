@@ -58,8 +58,8 @@ public:
     }
 
     void setDeleted(bool deleted, bool deleteSource) {
-        allMeta.v0.deleted = deleted;
-        allMeta.v0.deleteSource = deleteSource;
+        allMeta.v0.bits.deleted = deleted;
+        allMeta.v0.bits.deleteSource = deleteSource;
     }
 
     int64_t getBySeqno() const {
@@ -79,7 +79,7 @@ public:
     }
 
     bool isDeleted() const {
-        return allMeta.v0.deleted;
+        return allMeta.v0.bits.deleted;
     }
 
     uint8_t getDatatype() const {
@@ -115,7 +115,7 @@ public:
     }
 
     bool getDeleteSource() const {
-        return allMeta.v0.deleteSource;
+        return allMeta.v0.bits.deleteSource;
     }
 
     bool isSyncDelete() const;
@@ -149,8 +149,7 @@ protected:
      */
     class MetaDataV0 {
     public:
-        MetaDataV0() : deleted(0), deleteSource(0) {
-        }
+        MetaDataV0() = default;
 
         static std::pair<MetaDataV0, std::string_view> parse(
                 std::string_view buf);
@@ -162,8 +161,13 @@ protected:
         uint32_t flags = 0;
         uint32_t valueSize = 0;
         uint8_t datatype = 0;
-        uint8_t deleted : 1;
-        uint8_t deleteSource : 1;
+        struct V0Bits {
+            V0Bits() : deleted(0), deleteSource(0) {
+            }
+
+            uint8_t deleted : 1;
+            uint8_t deleteSource : 1;
+        } bits;
     };
 
     static_assert(sizeof(MetaDataV0) == 34,
