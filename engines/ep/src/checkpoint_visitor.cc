@@ -34,9 +34,18 @@ CheckpointVisitor::CheckpointVisitor(KVBucketIface* store,
 void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
     Expects(memToRelease > 0);
 
-    // Get a list of cursors that can be dropped from the vbucket's CM, so
-    // as to unreference an estimated number of checkpoints.
+    // First, try to release existing closed/unref checkpoints (if any)
     auto& manager = *vb->checkpointManager;
+    auto released = manager.removeClosedUnrefCheckpoints(*vb);
+    if (released.memory >= memToRelease) {
+        // We hit our release target, all done, don't need to drop any cursor.
+        memToRelease = 0;
+        return;
+    }
+    memToRelease -= released.memory;
+
+    // Get a list of cursors that can be dropped from the vbucket's CM and do
+    // CursorDrop/CheckpointRemoval until the released target is hit.
     const auto cursors = manager.getListOfCursorsToDrop();
     for (const auto& cursor : cursors) {
         if (!store->getEPEngine().getDcpConnMap().handleSlowStream(
@@ -45,25 +54,14 @@ void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
         }
         ++stats.cursorsDropped;
 
-        // @todo MB-48038: The computation here is untouched from the original
-        // code. This is all wrong though. 'releasableByRemoval' is the
-        // point-in-time value of how much is releasable by removing unref
-        // checkpoints, that is not how much has been just made releasable by
-        // the latest cursor dropped. As such, 'memToRelease' shouldn't be
-        // updated as it is. This is being all fixed in a dedicated follow-up.
-        const auto releasableByRemoval =
-                vb->getChkMgrMemUsageOfUnrefCheckpoints();
-        if (releasableByRemoval >= memToRelease) {
-            // Stop dropping cursors if we have made enough checkpoints eligible
-            // for removal. This will stop the execution of this visitor.
+        released = manager.removeClosedUnrefCheckpoints(*vb);
+        if (released.memory >= memToRelease) {
+            // We hit our release target, all done.
             memToRelease = 0;
-            break;
-        } else {
-            memToRelease -= releasableByRemoval;
+            return;
         }
+        memToRelease -= released.memory;
     }
-
-    manager.removeClosedUnrefCheckpoints(*vb);
 }
 
 void CheckpointVisitor::complete() {

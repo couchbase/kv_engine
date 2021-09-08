@@ -887,3 +887,58 @@ TEST_F(CheckpointRemoverEPTest, MB_48233) {
     // so we wouldn't expel anything
     ASSERT_GT(stats.itemsExpelledFromCheckpoints, 0);
 }
+
+TEST_F(CheckpointRemoverEPTest, CheckpointRemovalWithoutCursorDrop) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto& config = engine->getConfiguration();
+
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+
+    auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+    createDcpStream(*producer);
+    auto& activeStream =
+            reinterpret_cast<ActiveStream&>(*producer->findStream(vbid));
+    auto cursor = activeStream.getCursor().lock();
+
+    config.setChkExpelEnabled(true);
+    config.setMaxSize(1024 * 1024 * 100);
+    const auto value = std::string(1024 * 1024, 'x');
+    auto ret = cb::engine_errc::success;
+    for (size_t i = 0; ret != cb::engine_errc::no_memory; ++i) {
+        auto item = make_item(
+                vbid, makeStoredDocKey("key_" + std::to_string(i)), value);
+        ret = store->set(item, cookie);
+    }
+
+    // Create a new checkpoint to move all cursors into it
+    manager.createNewCheckpoint(true);
+
+    const auto initialNumItems = vb->getNumItems();
+    flush_vbucket_to_disk(vbid, initialNumItems);
+
+    // Move the DCP cursor to make some checkpoints eligible for removal without
+    // dropping the cursor
+    {
+        std::vector<queued_item> items;
+        manager.getNextItemsForCursor(cursor.get(), items);
+    }
+
+    ASSERT_NE(0, store->getRequiredCheckpointMemoryReduction());
+    ASSERT_EQ(0, engine->getEpStats().itemsExpelledFromCheckpoints);
+    ASSERT_EQ(0, engine->getEpStats().itemsRemovedFromCheckpoints);
+    ASSERT_EQ(0, engine->getEpStats().cursorsDropped);
+
+    const auto memToClear = store->getRequiredCheckpointMemoryReduction();
+    EXPECT_GT(memToClear, 0);
+    std::atomic<bool> stateFinalizer = false;
+    auto visitor = CheckpointVisitor(
+            store, engine->getEpStats(), stateFinalizer, memToClear);
+    visitor.visitBucket(vb);
+
+    EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
+    EXPECT_EQ(0, engine->getEpStats().itemsExpelledFromCheckpoints);
+    EXPECT_EQ(initialNumItems,
+              engine->getEpStats().itemsRemovedFromCheckpoints);
+    EXPECT_EQ(0, engine->getEpStats().cursorsDropped);
+}
