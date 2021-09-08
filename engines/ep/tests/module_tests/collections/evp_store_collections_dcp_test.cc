@@ -2462,11 +2462,14 @@ TEST_P(CollectionsDcpParameterizedTest,
 class MB48010CollectionsDCPParamTest : public CollectionsDcpParameterizedTest {
 public:
     void SetUp() override;
-
-    void writeDocToReplica(Vbid vbid,
-                           StoredDocKey key,
-                           uint64_t seqno,
-                           bool prepare);
+    /**
+     * Allow for variation of the test, the test writes mutations 1 to 4.
+     * The presence of 3 and 4 on the stream allows for different examples of
+     * the monotonic violation.
+     * @param partOfStream if true, mutation 3 will be written to the dairy
+     *        collection and thus 'transmitted' on the stream.
+     */
+    void writeMutation3(bool partOfStream = false);
 };
 
 /**
@@ -2561,66 +2564,31 @@ void MB48010CollectionsDCPParamTest::SetUp() {
     // no bearing on the snapshot
     EXPECT_EQ(cb::engine_errc::would_block,
               producer->stepWithBorderGuard(*producers));
+}
 
-    // Seqno 3 is not part of the stream
-    writeDocToReplica(vbid,
-                      makeStoredDocKey("k1", CollectionEntry::fruit.getId()),
-                      3,
-                      false);
+void MB48010CollectionsDCPParamTest::writeMutation3(bool partOfStream) {
+    auto cid = partOfStream ? CollectionEntry::dairy.getId()
+                            : CollectionEntry::fruit.getId();
+    auto key = makeStoredDocKey("m3", cid);
+    writeDocToReplica(vbid, key, 3, false);
     notifyAndRunToCheckpoint(*producer, *producers, true);
-
-    // Before fix we got a seqno advance here, but nothing should be sent
+    if (partOfStream) {
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                      cb::engine_errc::success);
+    }
+    // Nothing on stream
     EXPECT_EQ(cb::engine_errc::would_block,
               producer->stepWithBorderGuard(*producers));
 }
 
-void MB48010CollectionsDCPParamTest::writeDocToReplica(Vbid vbid,
-                                                       StoredDocKey key,
-                                                       uint64_t seqno,
-                                                       bool prepare) {
-    auto item = make_item(vbid, key, "value");
-    item.setCas(1);
-    item.setBySeqno(seqno);
-    uint64_t seq = 0;
-
-    auto vb = store->getVBucket(vbid);
-    ASSERT_TRUE(vb);
-
-    if (!prepare) {
-        EXPECT_EQ(cb::engine_errc::success,
-                  vb->setWithMeta(std::ref(item),
-                                  0,
-                                  &seq,
-                                  cookie,
-                                  *engine,
-                                  CheckConflicts::No,
-                                  /*allowExisting*/ true,
-                                  GenerateBySeqno::No,
-                                  GenerateCas::No,
-                                  vb->lockCollections(key)));
-        return;
-    }
-
-    using namespace cb::durability;
-    item.setPendingSyncWrite(
-            Requirements{Level::Majority, Timeout::Infinity()});
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->prepare(std::ref(item),
-                          0,
-                          &seq,
-                          cookie,
-                          *engine,
-                          CheckConflicts::No,
-                          /*allowExisting*/ true,
-                          GenerateBySeqno::No,
-                          GenerateCas::No,
-                          vb->lockCollections(key)));
-}
-
 TEST_P(MB48010CollectionsDCPParamTest,
        replica_merged_snapshot_ends_on_mutation) {
+    writeMutation3();
+
+    // Mutation 4 is also for the stream and is processed in a different run
+    // of the checkpoint processor task
     writeDocToReplica(vbid,
-                      makeStoredDocKey("k1", CollectionEntry::dairy.getId()),
+                      makeStoredDocKey("m4", CollectionEntry::dairy.getId()),
                       4,
                       false);
 
@@ -2630,8 +2598,10 @@ TEST_P(MB48010CollectionsDCPParamTest,
 
 TEST_P(MB48010CollectionsDCPParamTest,
        replica_merged_snapshot_ends_on_non_collection_mutation) {
+    writeMutation3();
+
     writeDocToReplica(vbid,
-                      makeStoredDocKey("k1", CollectionEntry::fruit.getId()),
+                      makeStoredDocKey("m4", CollectionEntry::fruit.getId()),
                       4,
                       false);
 
@@ -2641,8 +2611,10 @@ TEST_P(MB48010CollectionsDCPParamTest,
 
 TEST_P(MB48010CollectionsDCPParamTest,
        replica_merged_snapshot_ends_on_prepare) {
+    writeMutation3();
+
     writeDocToReplica(vbid,
-                      makeStoredDocKey("k1", CollectionEntry::dairy.getId()),
+                      makeStoredDocKey("m4", CollectionEntry::dairy.getId()),
                       4,
                       true);
 
@@ -2652,10 +2624,40 @@ TEST_P(MB48010CollectionsDCPParamTest,
 
 TEST_P(MB48010CollectionsDCPParamTest,
        replica_merged_snapshot_ends_on_non_collection_prepare) {
+    writeMutation3();
+
     writeDocToReplica(vbid,
-                      makeStoredDocKey("k1", CollectionEntry::fruit.getId()),
+                      makeStoredDocKey("m4", CollectionEntry::fruit.getId()),
                       4,
                       true);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced);
+    EXPECT_EQ(4, producers->last_byseqno);
+}
+
+// Another variant of MB48010.
+// Mutation is part of the stream and incorrectly triggered a seqno-advance
+// Mutation 4 then violated the monotonicity of the stream (due to the seqno
+// advance which moved the stream to the end of the snapshot).
+TEST_P(MB48010CollectionsDCPParamTest,
+       replica_merged_snapshot_ends_on_mutation_v2) {
+    writeMutation3(true);
+    writeDocToReplica(vbid,
+                      makeStoredDocKey("m4", CollectionEntry::dairy.getId()),
+                      4,
+                      false);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ(4, producers->last_byseqno);
+}
+
+TEST_P(MB48010CollectionsDCPParamTest,
+       replica_merged_snapshot_ends_on_non_collection_mutation_v2) {
+    writeMutation3(true);
+    writeDocToReplica(vbid,
+                      makeStoredDocKey("m4", CollectionEntry::fruit.getId()),
+                      4,
+                      false);
 
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced);
     EXPECT_EQ(4, producers->last_byseqno);

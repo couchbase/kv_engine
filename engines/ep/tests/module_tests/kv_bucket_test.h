@@ -166,6 +166,22 @@ public:
                             bool retryOnEWouldBlock = true);
 
     /**
+     * Use the vbucket setWithMeta function to write a mutation to a replica.
+     * This allows tests to populate replicas directly without having to drive
+     * a PassiveStream. The Item's value is set to "value" and internally the
+     * function expects a successful store.
+     *
+     * @param vbid vbucket id where the key needs to be stored
+     * @param key the key to store
+     * @param seqno the seqno of the item
+     * @param prepare true write a prepare, false a mutation
+     */
+    void writeDocToReplica(Vbid vbid,
+                           StoredDocKey key,
+                           uint64_t seqno,
+                           bool prepare);
+
+    /**
      * Schedules the ItemPager according to the current config. Allows testing
      * of the item pager from subclasses, without KVBucket having to grant
      * friendship to many different test classes.

@@ -1310,8 +1310,7 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
 
             queueSeqnoAdvanced();
         } else if (isSeqnoAdvancedEnabled() &&
-                   (lastReadSeqno.load() < lastReadSeqnoUnSnapshotted) &&
-                   (lastSentSnapEndSeqno.load() == curChkSeqno)) {
+                   isSeqnoGapAtEndOfSnapshot(curChkSeqno)) {
             auto vb = engine->getVBucket(getVBucket());
             if (vb) {
                 if (vb->getState() == vbucket_state_replica) {
@@ -1463,7 +1462,7 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
         pushToReadyQ(std::move(item));
     }
 
-    if (isSeqnoAdvancedEnabled() && isSeqnoGapAtEndOfSnapshot()) {
+    if (isSeqnoAdvancedEnabled() && isSeqnoGapAtEndOfSnapshot(curChkSeqno)) {
         queueSeqnoAdvanced();
     }
 }
@@ -2190,7 +2189,7 @@ bool ActiveStream::isSeqnoAdvancedEnabled() const {
 }
 
 bool ActiveStream::isSeqnoAdvancedNeededBackFill() const {
-    if (!isSeqnoAdvancedEnabled() || !isSeqnoGapAtEndOfSnapshot()) {
+    if (!isSeqnoAdvancedEnabled() || !isSeqnoGapAtEndOfSnapshot(maxScanSeqno)) {
         return false;
     }
     /**
@@ -2216,6 +2215,7 @@ bool ActiveStream::isSeqnoAdvancedNeededBackFill() const {
     return isCurrentSnapshotCompleted();
 }
 
-bool ActiveStream::isSeqnoGapAtEndOfSnapshot() const {
-    return (lastSentSnapEndSeqno.load() > lastReadSeqno.load());
+bool ActiveStream::isSeqnoGapAtEndOfSnapshot(uint64_t streamSeqno) const {
+    return (lastSentSnapEndSeqno.load() > lastReadSeqno.load()) &&
+           lastSentSnapEndSeqno.load() == streamSeqno;
 }

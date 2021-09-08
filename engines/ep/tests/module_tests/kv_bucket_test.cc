@@ -21,6 +21,7 @@
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "couch-kvstore/couch-kvstore-config.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "dcp/dcpconnmap.h"
@@ -489,6 +490,49 @@ unique_request_ptr KVBucketTest::createObserveRequest(
                         {/* extras */},
                         {/* key */},
                         valueStr);
+}
+
+void KVBucketTest::writeDocToReplica(Vbid vbid,
+                                     StoredDocKey key,
+                                     uint64_t seqno,
+                                     bool prepare) {
+    auto item = make_item(vbid, key, "value");
+    item.setCas(1);
+    item.setBySeqno(seqno);
+    uint64_t seq = 0;
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    if (!prepare) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->setWithMeta(std::ref(item),
+                                  0,
+                                  &seq,
+                                  cookie,
+                                  *engine,
+                                  CheckConflicts::No,
+                                  /*allowExisting*/ true,
+                                  GenerateBySeqno::No,
+                                  GenerateCas::No,
+                                  vb->lockCollections(key)));
+        return;
+    }
+
+    using namespace cb::durability;
+    item.setPendingSyncWrite(
+            Requirements{Level::Majority, Timeout::Infinity()});
+    EXPECT_EQ(cb::engine_errc::success,
+              vb->prepare(std::ref(item),
+                          0,
+                          &seq,
+                          cookie,
+                          *engine,
+                          CheckConflicts::No,
+                          /*allowExisting*/ true,
+                          GenerateBySeqno::No,
+                          GenerateCas::No,
+                          vb->lockCollections(key)));
 }
 
 class KVBucketParamTest : public STParameterizedBucketTest {
