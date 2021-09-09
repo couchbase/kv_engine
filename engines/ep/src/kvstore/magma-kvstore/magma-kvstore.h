@@ -11,11 +11,11 @@
 
 #pragma once
 
+#include "kv_magma_common/magma-kvstore_magma_db_stats.h"
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"
 #include "libmagma/magma.h"
 #include "rollback_result.h"
-#include "shared/magma-kvstore_magma_db_stats.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
 

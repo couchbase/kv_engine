@@ -12,8 +12,8 @@
 #pragma once
 
 #include "item.h"
+#include "kv_magma_common/magma-kvstore_metadata.h"
 #include "kvstore/kvstore_priv.h"
-#include "shared/magma-kvstore_metadata.h"
 
 class BucketLogger;
 
