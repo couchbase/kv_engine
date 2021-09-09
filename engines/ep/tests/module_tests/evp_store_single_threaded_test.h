@@ -455,6 +455,29 @@ public:
                 std::make_tuple("persistent_magma"s, "value_only"s),
                 std::make_tuple("persistent_magma"s, "full_eviction"s));
     }
+
+    static auto nexusConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+                std::make_tuple("persistent_nexus_couchstore_magma"s,
+                                "value_only"),
+                std::make_tuple("persistent_nexus_couchstore_magma"s,
+                                "full_eviction"),
+                std::make_tuple("persistent_nexus_magma_couchstore"s,
+                                "value_only"),
+                std::make_tuple("persistent_nexus_magma_couchstore"s,
+                                "full_eviction"));
+    }
+
+#endif
+
+#ifdef EP_USE_ROCKSDB
+    static auto rocksDbConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+                std::make_tuple("persistent_rocksdb"s, "value_only"s),
+                std::make_tuple("persistent_rocksdb"s, "full_eviction"s));
+    }
 #endif
 
     static auto persistentAllBackendsConfigValues() {

@@ -2193,11 +2193,29 @@ TEST_P(DurabilityWarmupTest, promotedReplicaCompleteSnapshotHPS_Disk) {
     testPromotedReplicaCompleteSnapshotHPS(CheckpointType::Disk);
 }
 
-INSTANTIATE_TEST_SUITE_P(
-        FullOrValue,
-        DurabilityWarmupTest,
-        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
-        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(CouchstoreFullOrValue,
+                         DurabilityWarmupTest,
+                         STParameterizedBucketTest::couchstoreConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+#ifdef EP_USE_MAGMA
+INSTANTIATE_TEST_SUITE_P(MagmaFullOrValue,
+                         DurabilityWarmupTest,
+                         STParameterizedBucketTest::magmaConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(NexusFullOrValue,
+                         DurabilityWarmupTest,
+                         STParameterizedBucketTest::nexusConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+#endif
+
+#ifdef EP_USE_ROCKSDB
+INSTANTIATE_TEST_SUITE_P(RocksFullOrValue,
+                         DurabilityWarmupTest,
+                         STParameterizedBucketTest::rocksDbConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+#endif
 
 class MB_34718_WarmupTest : public STParameterizedBucketTest {};
 
