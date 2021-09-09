@@ -279,6 +279,14 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
             result.tryBackfill = true;
             break;
         } else if (startBySeqno <= en) {
+            // MB-47551 Skip this checkpoint if it is closed and the requested
+            // start is the high seqno. The cursor should go to an open
+            // checkpoint ready for new mutations.
+            if ((*itr)->getState() == CHECKPOINT_CLOSED &&
+                startBySeqno == uint64_t(lastBySeqno.load())) {
+                continue;
+            }
+
             // Requested sequence number lies within this checkpoint.
             // Calculate which item to position the cursor at.
             ChkptQueueIterator iitr = (*itr)->begin();

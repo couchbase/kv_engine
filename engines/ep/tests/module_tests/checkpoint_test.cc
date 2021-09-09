@@ -2774,6 +2774,43 @@ TEST_P(CheckpointTest, MB_47516) {
     EXPECT_EQ(1002, cursor.seqno);
 }
 
+// In the case of open/closed checkpoints cursors placed at the high-seqno
+// should not reference the closed checkpoint.
+TEST_P(CheckpointTest, MB_47551) {
+    // 1) Receive a snapshot, two items is plenty for the test
+    this->manager->createSnapshot(1001, 1002, 1002, CheckpointType::Disk, 1002);
+    ASSERT_TRUE(this->queueNewItem("k1001")); // 1001
+    ASSERT_TRUE(this->queueNewItem("k1002")); // 1002
+
+    // No as if vb-state changed, new checkpoint
+    this->manager->createNewCheckpoint();
+
+    // 0, mid-way and high-seqno-1 request - expect the closed CP, data is
+    // available
+    for (uint64_t seqno : {0, 500, 1001}) {
+        auto cursor = this->manager->registerCursorBySeqno("MB-47551", seqno);
+        if (seqno == 1001) {
+            EXPECT_FALSE(cursor.tryBackfill) << seqno;
+            EXPECT_EQ(1002, cursor.seqno) << seqno;
+        } else {
+            EXPECT_TRUE(cursor.tryBackfill) << seqno;
+            EXPECT_EQ(1001, cursor.seqno) << seqno;
+        }
+
+        // Cursor should be in the closed checkpoint, it has the items we need
+        EXPECT_EQ(1, cursor.cursor.lock()->getId());
+    }
+
+    // But high-seqno should use the open CP
+    auto cursor2 = this->manager->registerCursorBySeqno("cursor2", 1002);
+
+    // And we expect to be in the open checkpoint, so we don't hold the closed
+    // one. Possibly don't need backfill=true, but DCP streams handle this case
+    EXPECT_TRUE(cursor2.tryBackfill);
+    EXPECT_EQ(1003, cursor2.seqno);
+    EXPECT_EQ(2, cursor2.cursor.lock()->getId());
+}
+
 INSTANTIATE_TEST_SUITE_P(
         AllVBTypesAllEvictionModes,
         CheckpointTest,
