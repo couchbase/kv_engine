@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include <gmock/gmock-generated-matchers.h>
+#include <gmock/gmock-matchers.h>
 
 /**
  * Implementation details for checkpoint_test and related subclasses.
