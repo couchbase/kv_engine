@@ -231,8 +231,8 @@ add_custom_target(generated_source_files
 
 # Collections library for things required outside of ep-engine
 ADD_LIBRARY(ep-engine_collections STATIC
-  ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_flatbuffers_schema.cc
-  src/collections/collection_persisted_stats.cc)
+        ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_flatbuffers_schema.cc
+        src/collections/collection_persisted_stats.cc)
 
 SET_PROPERTY(TARGET ep-engine_collections PROPERTY POSITION_INDEPENDENT_CODE 1)
 
@@ -243,6 +243,17 @@ target_link_libraries(ep-engine_collections PRIVATE platform)
 TARGET_INCLUDE_DIRECTORIES(ep-engine_collections
                            PUBLIC
                            ${CMAKE_CURRENT_BINARY_DIR}/src/)
+
+add_library(ep-engine_storage_common STATIC
+            src/kvstore/storage_common/storage_common/local_doc_parser.cc)
+SET_PROPERTY(TARGET ep-engine_storage_common PROPERTY POSITION_INDEPENDENT_CODE 1)
+kv_enable_pch(ep-engine_storage_common)
+target_link_libraries(ep-engine_storage_common PRIVATE
+        ep-engine_collections
+        ${FLATBUFFERS_LIBRARIES}
+        Folly::headers)
+target_include_directories(ep-engine_storage_common PUBLIC
+                           src/kvstore/storage_common)
 
 SET(COUCH_KVSTORE_SOURCE src/kvstore/couch-kvstore/couch-fs-stats.cc
         src/kvstore/couch-kvstore/couch-kvstore.cc
