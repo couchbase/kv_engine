@@ -446,19 +446,33 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
 
 // Test that we correctly apply expelling before cursor dropping.
 TEST_F(CheckpointRemoverEPTest, expelButNoCursorDrop) {
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.memFreedByCheckpointRemoval);
+    ASSERT_EQ(0, stats.memFreedByCheckpointItemExpel);
+
     testExpellingOccursBeforeCursorDropping(true);
-    EXPECT_NE(0, engine->getEpStats().itemsExpelledFromCheckpoints);
-    EXPECT_EQ(0, engine->getEpStats().cursorsDropped);
+    EXPECT_NE(0, stats.itemsExpelledFromCheckpoints);
+    EXPECT_EQ(0, stats.cursorsDropped);
+    EXPECT_EQ(0, stats.memFreedByCheckpointRemoval);
+    EXPECT_GT(stats.memFreedByCheckpointItemExpel, 0);
 }
 
 // Test that we correctly trigger cursor dropping when have checkpoint
 // with cursor at the start and so cannot use expelling.
 TEST_F(CheckpointRemoverEPTest, notExpelButCursorDrop) {
-    engine->getConfiguration().setChkMaxItems(10);
-    engine->getConfiguration().setMaxCheckpoints(20);
+    auto& config = engine->getConfiguration();
+    config.setChkMaxItems(10);
+    config.setMaxCheckpoints(20);
+
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.memFreedByCheckpointItemExpel);
+    ASSERT_EQ(0, stats.memFreedByCheckpointRemoval);
+
     testExpellingOccursBeforeCursorDropping(false);
     EXPECT_EQ(0, engine->getEpStats().itemsExpelledFromCheckpoints);
     EXPECT_EQ(1, engine->getEpStats().cursorsDropped);
+    EXPECT_EQ(0, stats.memFreedByCheckpointItemExpel);
+    EXPECT_GT(stats.memFreedByCheckpointRemoval, 0);
 }
 
 // Test written for MB-36366. With the fix removed this test failed because

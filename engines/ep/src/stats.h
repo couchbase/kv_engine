@@ -301,6 +301,9 @@ public:
     //! Amount of memory we have freed by checkpoint removal
     std::atomic<size_t> memFreedByCheckpointRemoval;
 
+    //! Amount of memory we have freed by checkpoint item expel
+    Counter memFreedByCheckpointItemExpel;
+
     //! Number of times we needed to kick in the pager
     Counter pagerRuns;
     //! Number of times the expiry pager runs for purging expired items

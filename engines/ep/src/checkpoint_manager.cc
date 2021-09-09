@@ -626,6 +626,8 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
      */
     estimatedMemRecovered += expelledItems.get_allocator().getBytesAllocated();
 
+    stats.memFreedByCheckpointItemExpel += estimatedMemRecovered;
+
     /*
      * We are now outside of the queueLock when the method exits,
      * expelledItems will go out of scope and so the reference count

@@ -7156,6 +7156,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_couch_bucket",
               "ep_cursors_dropped",
               "ep_mem_freed_by_checkpoint_removal",
+              "ep_mem_freed_by_checkpoint_item_expel",
               "ep_data_read_failed",
               "ep_data_write_failed",
               "ep_data_traffic_enabled",

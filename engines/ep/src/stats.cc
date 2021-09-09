@@ -57,6 +57,7 @@ EPStats::EPStats()
       mem_high_wat_percent(0),
       cursorsDropped(0),
       memFreedByCheckpointRemoval(0),
+      memFreedByCheckpointItemExpel(0),
       pagerRuns(0),
       expiryPagerRuns(0),
       freqDecayerRuns(0),
