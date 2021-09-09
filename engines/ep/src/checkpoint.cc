@@ -522,7 +522,8 @@ void Checkpoint::addItemToCheckpoint(const queued_item& qi) {
     }
 }
 
-CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last) {
+std::pair<CheckpointQueue, size_t> Checkpoint::expelItems(
+        const ChkptQueueIterator& last) {
     CheckpointQueue expelledItems(toWrite.get_allocator());
 
     // Expel from the the first item after the checkpoint_start item (included)
@@ -551,6 +552,8 @@ CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last) {
             ChkptQueueIterator::const_underlying_iterator{first},
             ChkptQueueIterator::const_underlying_iterator{std::next(last)});
 
+    size_t itemsMemory = 0;
+
     // Note: No key-index in disk checkpoints
     if (getState() == CHECKPOINT_OPEN && !isDiskCheckpoint()) {
         // If the checkpoint is open, for every expelled the corresponding
@@ -572,7 +575,7 @@ CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last) {
                                               : toWrite.end());
             }
 
-            queuedItemsMemUsage -= expelled->size();
+            itemsMemory += expelled->size();
         }
     } else {
         /*
@@ -582,11 +585,13 @@ CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last) {
         const auto addSize = [](size_t a, queued_item qi) {
             return a + qi->size();
         };
-        queuedItemsMemUsage -= std::accumulate(
+        itemsMemory = std::accumulate(
                 expelledItems.begin(), expelledItems.end(), 0, addSize);
     }
 
-    return expelledItems;
+    queuedItemsMemUsage -= itemsMemory;
+
+    return {expelledItems, itemsMemory};
 }
 
 CheckpointIndexKeyType Checkpoint::makeIndexKey(const queued_item& item) const {

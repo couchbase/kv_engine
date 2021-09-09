@@ -504,7 +504,9 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
             overheadChangedCallback(post - pre);
         }
     });
+
     CheckpointQueue expelledItems;
+    size_t estimatedMemRecovered{0};
     {
         std::lock_guard<std::mutex> lh(queueLock);
 
@@ -593,7 +595,8 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
          * queue thereby ensuring they still have a reference whilst
          * the queuelock is being held.
          */
-        expelledItems = oldestCheckpoint->expelItems(iterator);
+        std::tie(expelledItems, estimatedMemRecovered) =
+                oldestCheckpoint->expelItems(iterator);
     }
 
     // If called currentCheckpoint->expelItems but did not manage to expel
@@ -605,8 +608,8 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
     stats.itemsExpelledFromCheckpoints.fetch_add(expelledItems.size());
 
     /*
-     * Calculate an *estimate* of the amount of memory we will recover.
-     * This is comprised of two parts:
+     * The estimate of the amount of memory recovered by expel is comprised of
+     * two parts:
      * 1. Memory used by each item to be expelled.  For each item this
      *    is calculated as the sizeof(Item) + key size + value size.
      * 2. Memory used to hold the items in the checkpoint list.
@@ -621,16 +624,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
      * its reference count will drop to zero on exiting the function
      * allowing the memory to be freed.
      */
-
-    // Part 1 of calculating the estimate (see comment above).
-    size_t estimateOfAmountOfRecoveredMemory{0};
-    for (const auto& ei : expelledItems) {
-        estimateOfAmountOfRecoveredMemory += ei->size();
-    }
-
-    // Part 2 of calculating the estimate (see comment above).
-    estimateOfAmountOfRecoveredMemory +=
-            expelledItems.get_allocator().getBytesAllocated();
+    estimatedMemRecovered += expelledItems.get_allocator().getBytesAllocated();
 
     /*
      * We are now outside of the queueLock when the method exits,
@@ -638,7 +632,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
      * of expelled items will go to zero and hence will be deleted
      * outside of the queuelock.
      */
-    return {expelledItems.size(), estimateOfAmountOfRecoveredMemory};
+    return {expelledItems.size(), estimatedMemRecovered};
 }
 
 std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {

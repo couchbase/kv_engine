@@ -638,9 +638,11 @@ public:
      * Expel those items in the checkpoint where all cursors have passed.
      *
      * @param lastToExpel Iterator to the last item to expel (inclusive)
-     * @return a CheckpointQueue of items that have been expelled.
+     * @return the expelled items and an estimate of the amount of memory
+     *  released
      */
-    CheckpointQueue expelItems(const ChkptQueueIterator& lastToExpel);
+    std::pair<CheckpointQueue, size_t> expelItems(
+            const ChkptQueueIterator& lastToExpel);
 
     /// @return true if this is a disk checkpoint (replica streaming from disk)
     bool isDiskCheckpoint() const {
