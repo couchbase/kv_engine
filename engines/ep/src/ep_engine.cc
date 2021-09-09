@@ -2954,6 +2954,12 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
 
     size_t memUsed = stats.getPreciseTotalMemoryUsed();
     collector.addStat(Key::mem_used, memUsed);
+    collector.addStat(Key::mem_used_primary,
+                      cb::ArenaMalloc::getEstimatedAllocated(
+                              arena, cb::MemoryDomain::Primary));
+    collector.addStat(Key::mem_used_secondary,
+                      cb::ArenaMalloc::getEstimatedAllocated(
+                              arena, cb::MemoryDomain::Secondary));
     collector.addStat(Key::mem_used_estimate,
                       stats.getEstimatedTotalMemoryUsed());
     collector.addStat(Key::bytes, memUsed);

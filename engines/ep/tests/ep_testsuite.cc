@@ -7390,6 +7390,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_workload_pattern",
               "ep_xattr_enabled",
               "mem_used",
+              "mem_used_primary",
+              "mem_used_secondary",
               "mem_used_estimate",
               "rollback_item_count",
               "vb_active_curr_items",
