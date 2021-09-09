@@ -7,20 +7,19 @@ add_library(statistics STATIC
             prometheus_collector.cc
             )
 kv_enable_pch(statistics)
-
 add_sanitizers(statistics)
-
 add_dependencies(statistics generated_source_files)
 
 target_include_directories(statistics
-        PUBLIC ${PROMETHEUS_INCLUDE_DIR}
-               ${Memcached_BINARY_DIR}/engines/ep/src)
+        PUBLIC ${Memcached_BINARY_DIR}/engines/ep/src)
 
 target_link_libraries(statistics
         PUBLIC
                 platform
+                prometheus-cpp::core # ep-engine and core need the include path
         PRIVATE
                 Folly::headers
                 mcd_util
                 spdlog
-                ${PROMETHEUS_LIBRARIES})
+                prometheus-cpp::pull
+                )
