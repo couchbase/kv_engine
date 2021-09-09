@@ -13,6 +13,10 @@
 
 #include "configuration.h"
 
+#ifdef EP_USE_MAGMA
+#include "kvstore/magma-kvstore/magma-kvstore_config.h"
+#endif
+
 #include <platform/dirutils.h>
 
 NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
@@ -37,6 +41,18 @@ NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
     // Nexus needs compaction to expire items from the same time point to assert
     // that items expired by both KVStores are the same.
     config.setCompactionExpireFromStart(true);
+
+#ifdef EP_USE_MAGMA
+    if (primaryBackend == "magma") {
+        dynamic_cast<MagmaKVStoreConfig&>(*primaryConfig)
+                .setMagmaCheckpointEveryBatch(true);
+    }
+
+    if (secondaryBackend == "magma") {
+        dynamic_cast<MagmaKVStoreConfig&>(*secondaryConfig)
+                .setMagmaCheckpointEveryBatch(true);
+    }
+#endif
 
     auto errorHandling = config.getNexusErrorHandling();
     if (errorHandling == "abort") {

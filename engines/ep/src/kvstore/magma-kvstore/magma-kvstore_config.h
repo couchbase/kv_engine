@@ -76,9 +76,14 @@ public:
     size_t getMagmaInitialWalBufferSize() const {
         return magmaInitialWalBufferSize;
     }
+
     bool getMagmaCheckpointEveryBatch() const {
         return magmaCheckpointEveryBatch;
     }
+    void setMagmaCheckpointEveryBatch(bool value) {
+        magmaCheckpointEveryBatch = value;
+    }
+
     bool getMagmaEnableUpsert() const {
         return magmaEnableUpsert;
     }
