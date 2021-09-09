@@ -188,7 +188,7 @@ void CheckpointManager::addOpenCheckpoint(
             checkpointList.empty() ? 1 : checkpointList.back()->getId() + 1;
 
     EP_LOG_DEBUG(
-            "CheckpointManager::addNewCheckpoint_UNLOCKED: Create "
+            "CheckpointManager::addOpenCheckpoint: Create "
             "a new open checkpoint: [{}, id:{}, snapStart:{}, snapEnd:{}, "
             "visibleSnapEnd:{}, hcs:{}, type:{}]",
             vbucketId,
@@ -241,7 +241,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
     if (openCkpt.getHighSeqno() < startBySeqno) {
         throw std::invalid_argument(
-                "CheckpointManager::registerCursorBySeqno:"
+                "CheckpointManager::registerCursorBySeqno_UNLOCKED:"
                 " startBySeqno (which is " +
                 std::to_string(startBySeqno) +
                 ") is less than last "
@@ -310,7 +310,8 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
          *  and there is already an assert above for this case.
          */
         throw std::logic_error(
-                "CheckpointManager::registerCursorBySeqno the sequences number "
+                "CheckpointManager::registerCursorBySeqno_UNLOCKED the "
+                "sequences number "
                 "is higher than anything currently assigned");
     }
     return result;
@@ -322,7 +323,8 @@ void CheckpointManager::registerBackupPersistenceCursor(
     Expects(persistenceCursor);
     if (cursors.find(backupPCursorName) != cursors.end()) {
         throw std::logic_error(
-                "CheckpointManager::registerBackupPCursor: Backup cursor "
+                "CheckpointManager::registerBackupPersistenceCursor: Backup "
+                "cursor "
                 "already exists");
     }
 
