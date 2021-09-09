@@ -20,14 +20,13 @@
 
 extern const std::string collections_kvstore_schema;
 
-couchstore_error_t read_collection_leb128_metadata(const sized_buf* v,
-                                                   std::string& out) {
+std::string read_collection_leb128_metadata(std::string_view buf) {
     uint64_t count = 0;
     uint64_t seqno = 0;
     uint64_t diskSize = 0;
 
     auto decoded1 = cb::mcbp::unsigned_leb128<uint64_t>::decode(
-            {reinterpret_cast<uint8_t*>(v->buf), v->size});
+            {reinterpret_cast<const uint8_t*>(buf.data()), buf.size()});
     count = decoded1.first;
 
     if (decoded1.second.size()) {
@@ -43,25 +42,22 @@ couchstore_error_t read_collection_leb128_metadata(const sized_buf* v,
     std::stringstream ss;
     ss << R"({"item_count":)" << count << R"(, "high_seqno":)" << seqno
        << R"(, "disk_size":)" << diskSize << "}";
-    out = ss.str();
-
-    return COUCHSTORE_SUCCESS;
+    return ss.str();
 }
 
 template <class RootType>
-couchstore_error_t read_collection_flatbuffer_collections(
+std::pair<bool, std::string> read_collection_flatbuffer_collections(
         const std::string& name,
         const std::string& rootType,
-        const sized_buf* v,
-        std::string& out) {
-    flatbuffers::Verifier verifier(reinterpret_cast<uint8_t*>(v->buf), v->size);
+        std::string_view value) {
+    flatbuffers::Verifier verifier(
+            reinterpret_cast<const uint8_t*>(value.data()), value.size());
     if (!verifier.VerifyBuffer<RootType>(nullptr)) {
         std::cerr << "WARNING: \"" << name << "\" root:" << rootType
                   << ", contains invalid "
                      "flatbuffers data of size:"
-                  << v->size << std::endl;
-        ;
-        return COUCHSTORE_ERROR_CORRUPT;
+                  << value.size() << std::endl;
+        return {false, ""};
     }
 
     // Use flatbuffers::Parser to generate JSON output of the binary blob
@@ -77,34 +73,35 @@ couchstore_error_t read_collection_flatbuffer_collections(
     parser.Parse(collections_kvstore_schema.c_str());
     parser.SetRootType(rootType.c_str());
     std::string jsongen;
-    GenerateText(parser, v->buf, &out);
-    return COUCHSTORE_SUCCESS;
+    std::string ret;
+    GenerateText(parser, value.data(), &ret);
+    return {true, ret};
 }
 
-couchstore_error_t maybe_decode_local_doc(const sized_buf* id,
-                                          const sized_buf* v,
-                                          std::string& decodedData) {
+std::pair<bool, std::string> maybe_decode_local_doc(std::string_view key,
+                                                    std::string_view value) {
     // Check for known non-JSON meta-data documents
-    if (strncmp(id->buf, "_local/collections/open", id->size) == 0) {
+    if (strncmp(key.data(), "_local/collections/open", key.size()) == 0) {
         return read_collection_flatbuffer_collections<
                 Collections::KVStore::OpenCollections>(
-                id->buf, "OpenCollections", v, decodedData);
-    } else if (strncmp(id->buf, "_local/collections/dropped", id->size) == 0) {
+                key.data(), "OpenCollections", value);
+    } else if (strncmp(key.data(), "_local/collections/dropped", key.size()) ==
+               0) {
         return read_collection_flatbuffer_collections<
                 Collections::KVStore::DroppedCollections>(
-                id->buf, "DroppedCollections", v, decodedData);
-    } else if (strncmp(id->buf, "_local/scope/open", id->size) == 0) {
+                key.data(), "DroppedCollections", value);
+    } else if (strncmp(key.data(), "_local/scope/open", key.size()) == 0) {
         return read_collection_flatbuffer_collections<
-                Collections::KVStore::Scopes>(
-                id->buf, "Scopes", v, decodedData);
-    } else if (strncmp(id->buf, "_local/collections/manifest", id->size) == 0) {
+                Collections::KVStore::Scopes>(key.data(), "Scopes", value);
+    } else if (strncmp(key.data(), "_local/collections/manifest", key.size()) ==
+               0) {
         return read_collection_flatbuffer_collections<
                 Collections::KVStore::CommittedManifest>(
-                id->buf, "CommittedManifest", v, decodedData);
-    } else if (id->buf[0] == '|') {
-        return read_collection_leb128_metadata(v, decodedData);
+                key.data(), "CommittedManifest", value);
+    } else if (key.data()[0] == '|') {
+        return {true /*success*/, read_collection_leb128_metadata(value)};
     }
 
-    // Nothing todo
-    return COUCHSTORE_SUCCESS;
+    // Nothing to do
+    return {true /*success*/, std::string(value)};
 }

@@ -11,15 +11,16 @@
 
 #pragma once
 
-#include <libcouchstore/couch_db.h>
+#include <string>
+#include <string_view>
+#include <utility>
 
 /**
  * Decodes the local doc if it needs decoding (determined by the key)
  * @param id key
  * @param v value
  * @param decodedData [out]
- * @return status
+ * @return pair of bool status and decoded doc
  */
-couchstore_error_t maybe_decode_local_doc(const sized_buf* id,
-                                          const sized_buf* v,
-                                          std::string& decodedData);
+std::pair<bool, std::string> maybe_decode_local_doc(std::string_view key,
+                                                    std::string_view value);
