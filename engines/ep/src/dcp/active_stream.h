@@ -649,9 +649,12 @@ private:
     /**
      * Method to check if there's a seqno gap between the snapEnd and the seqno
      * of the last item in the snapshot.
-     * @return true if lastSeqno in the snapshot < the snapEnd.
+     * @param how far the stream has read, e.g. the last read item from
+     *        checkpoint or last item read from disk. This value is used to
+     *        ensure the stream has now reached the end of the current snapshot.
+     * @return true if lastReadSeqno < snapEnd and snapEnd == streamSeqno
      */
-    bool isSeqnoGapAtEndOfSnapshot() const;
+    bool isSeqnoGapAtEndOfSnapshot(uint64_t streamSeqno) const;
 
     /**
      * Method to check if a SeqnoAdvanced is needed at the end of backfill

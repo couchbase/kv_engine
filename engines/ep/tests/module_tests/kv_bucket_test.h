@@ -21,6 +21,7 @@
 
 #include "callbacks.h"
 #include "ep_types.h"
+#include "storeddockey_fwd.h"
 
 #include <folly/portability/GTest.h>
 #include <memcached/durability_spec.h>
@@ -165,6 +166,22 @@ public:
                             uint32_t& deleted,
                             uint8_t& datatype,
                             bool retryOnEWouldBlock = true);
+
+    /**
+     * Use the vbucket setWithMeta function to write a mutation to a replica.
+     * This allows tests to populate replicas directly without having to drive
+     * a PassiveStream. The Item's value is set to "value" and internally the
+     * function expects a successful store.
+     *
+     * @param vbid vbucket id where the key needs to be stored
+     * @param key the key to store
+     * @param seqno the seqno of the item
+     * @param prepare true write a prepare, false a mutation
+     */
+    void writeDocToReplica(Vbid vbid,
+                           StoredDocKey key,
+                           uint64_t seqno,
+                           bool prepare);
 
     /**
      * Schedules the ItemPager according to the current config. Allows testing
