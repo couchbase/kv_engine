@@ -447,7 +447,7 @@ public:
         // Reduce the iteration count to speed up the unit tests
         UserFactory::setDefaultHmacIterationCount(10);
 
-        for (const auto [u, p] : users) {
+        for (const auto& [u, p] : users) {
             if (u != "jones") {
                 passwordDatabase.upsert(UserFactory::create(u, p));
             }
