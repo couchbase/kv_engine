@@ -32,7 +32,18 @@ public:
         engine(e), stats(st), sleepTime(interval), available(true) {}
 
     /**
-     * Attempts to free memory by using item expelling from checkpoints.
+     * Attempts to release memory by removing closed/unref checkpoints from all
+     * vbuckets in decreasing checkpoint-mem-usage order.
+     *
+     * @param memToRelease The amount of memory (in bytes) that needs to be
+     *   released.
+     * @return the amount of memory (in bytes) that was released.
+     */
+    size_t attemptCheckpointRemoval(size_t memToRelease);
+
+    /**
+     * Attempts to free memory by using item expelling from checkpoints from all
+     * vbuckets in decreasing checkpoint-mem-usage order.
      *
      * @param memToClear The amount of memory (in bytes) that needs to be
      *   recovered.

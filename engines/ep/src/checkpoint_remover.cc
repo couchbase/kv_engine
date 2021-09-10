@@ -21,6 +21,27 @@
 #include <phosphor/phosphor.h>
 #include <memory>
 
+size_t ClosedUnrefCheckpointRemoverTask::attemptCheckpointRemoval(
+        size_t memToClear) {
+    size_t memoryCleared = 0;
+    auto& bucket = *engine->getKVBucket();
+    const auto vbuckets = bucket.getVBuckets().getVBucketsSortedByChkMgrMem();
+    for (const auto& it : vbuckets) {
+        if (memoryCleared >= memToClear) {
+            break;
+        }
+
+        auto vb = bucket.getVBucket(it.first);
+        if (!vb) {
+            continue;
+        }
+
+        memoryCleared +=
+                vb->checkpointManager->removeClosedUnrefCheckpoints(*vb).memory;
+    }
+    return memoryCleared;
+}
+
 size_t ClosedUnrefCheckpointRemoverTask::attemptItemExpelling(
         size_t memToClear) {
     size_t memoryCleared = 0;
@@ -68,13 +89,23 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
         return true;
     }
 
-    // Try expelling first, if enabled.
-    // Note: The next call tries to expel from all vbuckets before returning.
-    // The reason behind trying expel first is to avoid dropping cursors if
-    // possible, as that kicks the stream back to backfilling.
     size_t memRecovered{0};
+
+    // Try full CheckpointRemoval first, across all vbuckets
+    memRecovered += attemptCheckpointRemoval(memToClear);
+    if (memRecovered >= memToClear) {
+        // Recovered enough by CheckpointRemoval, done
+        available = true;
+        snooze(sleepTime);
+        return true;
+    }
+
+    // Try expelling, if enabled.
+    // Note: The next call tries to expel from all vbuckets before returning.
+    // The reason behind trying expel here is to avoid dropping cursors if
+    // possible, as that kicks the stream back to backfilling.
     if (engine->getConfiguration().isChkExpelEnabled()) {
-        memRecovered = attemptItemExpelling(memToClear);
+        memRecovered += attemptItemExpelling(memToClear);
     }
 
     if (memRecovered >= memToClear) {
