@@ -49,7 +49,7 @@
 #include "../mock/mock_magma_kvstore.h"
 #endif
 
-#include <gmock/gmock-matchers.h>
+#include <gmock/gmock-generated-matchers.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_cookie.h>

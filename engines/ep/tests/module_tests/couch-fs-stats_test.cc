@@ -45,9 +45,6 @@ INSTANTIATE_TYPED_TEST_SUITE_P(CouchstoreOpsTest,
 /* NOOP to suppress compiler warning for an unused variable defined when
  * registering BufferedWrappedOpsTest in wrapped_fileops_test.h
  */
-#if 0
-// GTest 1.11.0 don't like this.. Disable for now
 INSTANTIATE_TYPED_TEST_SUITE_P(CouchstoreOpsTest,
                                BufferedWrappedOpsTest,
                                testing::Types<>);
-#endif
