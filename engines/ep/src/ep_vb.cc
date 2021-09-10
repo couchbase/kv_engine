@@ -1079,13 +1079,12 @@ void EPVBucket::collectionsRolledBack(KVBucket& bucket) {
 
     manifest = std::make_unique<Collections::VB::Manifest>(
             bucket.getSharedCollectionsManager(), persistedManifest);
-    auto kvstoreContext = kvstore.makeFileHandle(getId());
     auto wh = manifest->wlock();
     // For each collection in the VB, reload the stats to the point before
     // the rollback seqno
     for (auto& collection : wh) {
         auto [status, stats] =
-                kvstore.getCollectionStats(*kvstoreContext, collection.first);
+                kvstore.getCollectionStats(getId(), collection.first);
         if (status == KVStore::GetCollectionStatsStatus::Failed) {
             EP_LOG_WARN(
                     "EPVBucket::collectionsRolledBack(): getCollectionStats() "

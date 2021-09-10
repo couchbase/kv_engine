@@ -100,6 +100,8 @@ public:
     std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
     getCollectionStats(const KVFileHandle& kvFileHandle,
                        CollectionID collection) const override;
+    std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
+    getCollectionStats(Vbid vbid, CollectionID collection) const override;
     std::optional<Collections::ManifestUid> getCollectionsManifestUid(
             KVFileHandle& kvFileHandle) override;
     std::pair<bool, Collections::KVStore::Manifest> getCollectionsManifest(

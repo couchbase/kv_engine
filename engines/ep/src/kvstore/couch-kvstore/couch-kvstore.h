@@ -340,6 +340,9 @@ public:
     getCollectionStats(const KVFileHandle& kvFileHandle,
                        CollectionID collection) const override;
 
+    std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
+    getCollectionStats(Vbid vbid, CollectionID collection) const override;
+
     /**
      * prepareToCreate will increment the revision number of the vbucket, but is
      * a no-op if readOnly()
@@ -586,9 +589,6 @@ protected:
     void deleteCollectionStats(CouchKVStoreTransactionContext& txnCtx,
                                CollectionID cid);
 
-    /// Get the collection stats for the given collection
-    std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
-    getCollectionStats(Db& db, CollectionID collection) const;
 
     /// Get the collection stats from the local doc named statDocName
     std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>

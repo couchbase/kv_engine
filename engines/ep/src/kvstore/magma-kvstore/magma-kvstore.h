@@ -244,15 +244,8 @@ public:
     getCollectionStats(const KVFileHandle& kvFileHandle,
                        CollectionID collection) const override;
 
-    /**
-     * Get the alive collection stats for the given collection
-     *
-     * @param vbid
-     * @param collection to find stats for
-     * @return Bool status and Stats (defaulted to 0 if not found)
-     */
     std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
-    getCollectionStats(Vbid, CollectionID collection) const;
+    getCollectionStats(Vbid, CollectionID collection) const override;
 
     /**
      * Get the collection stats for the given key

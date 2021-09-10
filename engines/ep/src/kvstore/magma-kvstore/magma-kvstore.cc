@@ -2111,7 +2111,6 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                               Collections::VB::PersistedStats>>
                 dcInfo;
         for (auto& dc : dropped) {
-            auto handle = makeFileHandle(vbid);
             auto [status, stats] =
                     getDroppedCollectionStats(vbid, dc.collectionId);
             if (status == KVStore::GetCollectionStatsStatus::Failed) {
@@ -2636,17 +2635,18 @@ void MagmaKVStore::saveCollectionStats(
 }
 
 std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
-MagmaKVStore::getDroppedCollectionStats(Vbid vbid, CollectionID cid) {
-    auto key = getDroppedCollectionsStatsKey(cid);
-    return getCollectionStats(vbid, key);
-}
-
-std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 MagmaKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
                                  CollectionID cid) const {
+    // TODO: update this to use snapshot
     const auto& kvfh = static_cast<const MagmaKVFileHandle&>(kvFileHandle);
     auto vbid = kvfh.vbid;
     return getCollectionStats(vbid, cid);
+}
+
+std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
+MagmaKVStore::getDroppedCollectionStats(Vbid vbid, CollectionID cid) {
+    auto key = getDroppedCollectionsStatsKey(cid);
+    return getCollectionStats(vbid, key);
 }
 
 std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>

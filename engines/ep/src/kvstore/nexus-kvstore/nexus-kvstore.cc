@@ -79,16 +79,13 @@ Collections::VB::Manifest NexusKVStore::generateSecondaryVBManifest(
     // Having generated the Manifest object we now need to correct the disk
     // sizes as they may differ between KVStores. We'll load the disk sizes of
     // each collection now...
-    auto secondaryFileHandle = secondary->makeFileHandle(vbid);
-    if (secondaryFileHandle) {
-        auto collections = secondaryManifest.wlock();
-        for (auto& itr : collections) {
-            auto& [cid, entry] = itr;
-            auto [status, stats] =
-                    secondary->getCollectionStats(*secondaryFileHandle, cid);
-            if (status == GetCollectionStatsStatus::Success) {
-                collections.setDiskSize(cid, stats.diskSize);
-            }
+
+    auto collections = secondaryManifest.wlock();
+    for (auto& itr : collections) {
+        auto& [cid, entry] = itr;
+        auto [status, stats] = secondary->getCollectionStats(vbid, cid);
+        if (status == GetCollectionStatsStatus::Success) {
+            collections.setDiskSize(cid, stats.diskSize);
         }
     }
 
@@ -128,28 +125,11 @@ void NexusKVStore::doCollectionsMetadataChecks(
     for (const auto& collection : primaryKVStoreManifest.collections) {
         auto& cid = collection.metaData.cid;
 
-        auto primaryHandle = primary->makeFileHandle(vbid);
-        if (!primaryHandle) {
-            auto msg = fmt::format(
-                    "NexusKVStore::doCollectionsMetadataChecks: {}: issue "
-                    "getting primary file handle",
-                    vbid);
-            handleError(msg);
-        }
-
         auto [primaryResult, primaryStats] =
-                primary->getCollectionStats(*primaryHandle, cid);
-        auto secondaryHandle = secondary->makeFileHandle(vbid);
-        if (!secondaryHandle) {
-            auto msg = fmt::format(
-                    "NexusKVStore::doCollectionsMetadataChecks: {}: issue "
-                    "getting secondary file handle",
-                    vbid);
-            handleError(msg);
-        }
+                primary->getCollectionStats(vbid, cid);
 
         auto [secondaryResult, secondaryStats] =
-                secondary->getCollectionStats(*secondaryHandle, cid);
+                secondary->getCollectionStats(vbid, cid);
         if (primaryResult != secondaryResult) {
             auto msg = fmt::format(
                     "NexusKVStore::doCollectionsMetadataChecks: {}: issue "
@@ -1056,6 +1036,11 @@ std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 NexusKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
                                  CollectionID collection) const {
     return primary->getCollectionStats(kvFileHandle, collection);
+}
+
+std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
+NexusKVStore::getCollectionStats(Vbid vbid, CollectionID collection) const {
+    return primary->getCollectionStats(vbid, collection);
 }
 
 std::optional<Collections::ManifestUid> NexusKVStore::getCollectionsManifestUid(

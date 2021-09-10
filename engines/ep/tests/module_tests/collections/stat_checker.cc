@@ -52,9 +52,7 @@ StatChecker::~StatChecker() {
         return;
     }
     auto kvs = vb->getShard()->getRWUnderlying();
-    auto fileHandle = kvs->makeFileHandle(vb->getId());
-    EXPECT_TRUE(fileHandle);
-    auto stats = kvs->getCollectionStats(*fileHandle, entry.uid);
+    auto stats = kvs->getCollectionStats(vb->getId(), entry.uid);
     EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, stats.first);
 
     // Regardless of the postCondition the following should all be equal

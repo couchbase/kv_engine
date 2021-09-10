@@ -1608,15 +1608,12 @@ void CollectionsEraserPersistentOnly::testEmptyCollections(
         EXPECT_EQ(2, handle.getHighSeqno(CollectionEntry::fruit));
         EXPECT_EQ(2, handle.getPersistedHighSeqno(CollectionEntry::fruit));
 
-        auto fileHandle = kvs.makeFileHandle(vbid);
-        ASSERT_TRUE(fileHandle);
-        auto stats =
-                kvs.getCollectionStats(*fileHandle, CollectionEntry::dairy);
+        auto stats = kvs.getCollectionStats(vbid, CollectionEntry::dairy);
         EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, stats.first);
         EXPECT_EQ(0, stats.second.itemCount);
         EXPECT_EQ(vb->getHighSeqno() - 1, stats.second.highSeqno);
         EXPECT_NE(0, stats.second.diskSize);
-        stats = kvs.getCollectionStats(*fileHandle, CollectionEntry::fruit);
+        stats = kvs.getCollectionStats(vbid, CollectionEntry::fruit);
         EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, stats.first);
         EXPECT_EQ(0, stats.second.itemCount);
         EXPECT_EQ(vb->getHighSeqno(), stats.second.highSeqno);
@@ -1659,15 +1656,12 @@ void CollectionsEraserPersistentOnly::testEmptyCollections(
 
     if (!isMagma()) {
         // magma keeps the disk stats until next compaction completes
-        auto fileHandle = kvs.makeFileHandle(vbid);
-        ASSERT_TRUE(fileHandle);
-        auto stats =
-                kvs.getCollectionStats(*fileHandle, CollectionEntry::fruit);
+        auto stats = kvs.getCollectionStats(vbid, CollectionEntry::fruit);
         EXPECT_EQ(KVStore::GetCollectionStatsStatus::NotFound, stats.first);
         EXPECT_EQ(0, stats.second.itemCount);
         EXPECT_EQ(0, stats.second.highSeqno);
         EXPECT_EQ(0, stats.second.diskSize);
-        stats = kvs.getCollectionStats(*fileHandle, CollectionEntry::dairy);
+        stats = kvs.getCollectionStats(vbid, CollectionEntry::dairy);
         EXPECT_EQ(KVStore::GetCollectionStatsStatus::NotFound, stats.first);
         EXPECT_EQ(0, stats.second.itemCount);
         EXPECT_EQ(0, stats.second.highSeqno);

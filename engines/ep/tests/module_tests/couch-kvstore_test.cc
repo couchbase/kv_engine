@@ -343,14 +343,14 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(
     EXPECT_EQ(keys, cl.callbacks);
 
     // Check item count
-    auto kvstoreContext = kvstore2->makeFileHandle(Vbid(0));
-    auto [status, stats] = kvstore2->getCollectionStats(*kvstoreContext, cid);
+    auto [status, stats] = kvstore2->getCollectionStats(Vbid(0), cid);
     EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, status);
     auto deletedCount = deletedRange.second - deletedRange.first;
     EXPECT_EQ(keys - deletedCount, stats.itemCount);
     EXPECT_EQ(keys + (deletedCount - 1), stats.highSeqno);
     EXPECT_NE(0, stats.diskSize);
 
+    auto kvstoreContext = kvstore2->makeFileHandle(Vbid(0));
     auto uid = kvstore2->getCollectionsManifestUid(*kvstoreContext);
     EXPECT_TRUE(uid.has_value());
     EXPECT_EQ(0, uid.value());

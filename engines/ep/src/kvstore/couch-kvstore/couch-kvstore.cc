@@ -1304,7 +1304,8 @@ couchstore_error_t CouchKVStore::replayPreCopyLocalDoc(
         // This is a collection statistics doc, obtain collection-ID
         auto cid = getCollectionIdFromStatsDocId(documentId);
         // and load the stats
-        auto [status, currentStats] = getCollectionStats(target, cid);
+        auto [status, currentStats] =
+                getCollectionStats(target, getCollectionStatsLocalDocId(cid));
         if (status == GetCollectionStatsStatus::Failed) {
             logger.warn(
                     "CouchKVStore::replayPreCopyLocalDoc: failed loading stats "
@@ -1809,7 +1810,8 @@ couchstore_error_t CouchKVStore::maybePatchMetaData(
         // that in the case of a first compaction after upgrade from pre 7.0
         // we get the correct disk (because we use the dbinfo.space_used). The
         // target file could return a value too small in that case (MB-45917)
-        auto [status, currentStats] = getCollectionStats(source, cid);
+        auto [status, currentStats] =
+                getCollectionStats(source, getCollectionStatsLocalDocId(cid));
         if (status == KVStore::GetCollectionStatsStatus::Failed) {
             logger.warn(
                     "CouchKVStore::maybePatchMetaData: Failed to load "
@@ -3383,11 +3385,12 @@ std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 CouchKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
                                  CollectionID collection) const {
     const auto& db = static_cast<const CouchKVFileHandle&>(kvFileHandle);
-    return getCollectionStats(*db.getDb(), collection);
+    return getCollectionStats(*db.getDb(),
+                              getCollectionStatsLocalDocId(collection));
 }
 
 std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
-CouchKVStore::getCollectionStats(Db& db, CollectionID collection) const {
+CouchKVStore::getCollectionStats(Vbid vbid, CollectionID collection) const {
     if (!collection.isUserCollection()) {
         logger.warn(
                 "CouchKVStore::getCollectionStats stats are not available for "
@@ -3396,7 +3399,19 @@ CouchKVStore::getCollectionStats(Db& db, CollectionID collection) const {
         return {KVStore::GetCollectionStatsStatus::Failed,
                 Collections::VB::PersistedStats{}};
     }
-    return getCollectionStats(db, getCollectionStatsLocalDocId(collection));
+    auto fileHandle = makeFileHandle(vbid);
+    if (!fileHandle) {
+        logger.warn(
+                "CouchKVStore::getCollectionStats unable to get file handle "
+                "for "
+                "{}",
+                vbid);
+        return {KVStore::GetCollectionStatsStatus::Failed,
+                Collections::VB::PersistedStats{}};
+    }
+    const auto& db = static_cast<const CouchKVFileHandle&>(*fileHandle);
+    return getCollectionStats(*db.getDb(),
+                              getCollectionStatsLocalDocId(collection));
 }
 
 std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>

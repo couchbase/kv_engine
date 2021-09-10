@@ -286,6 +286,9 @@ public:
     getCollectionStats(const KVFileHandle& kvFileHandle,
                        CollectionID collection) const override;
 
+    std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
+    getCollectionStats(Vbid vbid, CollectionID collection) const override;
+
     void prepareToCreateImpl(Vbid vbid) override {
         // TODO DJR 2017-05-19 implement this.
     }

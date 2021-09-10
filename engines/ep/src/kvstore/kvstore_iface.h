@@ -508,6 +508,21 @@ public:
                        CollectionID collection) const = 0;
 
     /**
+     * Retrieve the stored stats for the given collection, does not error
+     * for collection not found as that's a legitimate state (and returns 0 for
+     * all stats).
+     * @param vbid of the vbucket to get collections stats from
+     * @param collection the id of the collection to lookup
+     * @return pair of GetCollectionStatsStatus and the stats. The status can
+     *         be Success for when stats for the collection were found.
+     *         NotFound for when no stats were found and the returned stats are
+     *         default initialised. Finally Failed can occur for unexpected
+     *         errors.
+     */
+    virtual std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
+    getCollectionStats(Vbid vbid, CollectionID collection) const = 0;
+
+    /**
      * Note that for disk snapshots that have no manifest yet written, a uid
      * of zero is returned (the default state).
      * @return The ManifestUid or nothing if failure occurred

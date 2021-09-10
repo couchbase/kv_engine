@@ -3193,13 +3193,13 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
         EXPECT_TRUE(fileHandle);
 
         if (dropAtEnd) {
-            auto [status, stats] = kvs.getCollectionStats(*fileHandle, target);
+            auto [status, stats] = kvs.getCollectionStats(id, target);
             EXPECT_EQ(KVStore::GetCollectionStatsStatus::NotFound, status);
             EXPECT_EQ(0, stats.itemCount);
             EXPECT_EQ(0, stats.highSeqno);
             EXPECT_EQ(0, stats.diskSize);
         } else {
-            auto [status, stats] = kvs.getCollectionStats(*fileHandle, target);
+            auto [status, stats] = kvs.getCollectionStats(id, target);
             EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, status);
             EXPECT_EQ(expected, stats.itemCount);
             EXPECT_EQ(7, stats.highSeqno);
@@ -3368,9 +3368,8 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     EXPECT_EQ(highSeqno, stats.highSeqno);
 
     auto kvstore = store->getRWUnderlying(vbid);
-    auto kvstoreHandle = kvstore->makeFileHandle(vbid);
     auto [status, diskStats] =
-            kvstore->getCollectionStats(*kvstoreHandle, target.getId());
+            kvstore->getCollectionStats(vbid, target.getId());
     ASSERT_EQ(status, KVStore::GetCollectionStatsStatus::Success);
     EXPECT_EQ(highSeqno, diskStats.highSeqno);
     EXPECT_EQ(systemeventSize + itemSize, diskStats.diskSize);
@@ -3389,9 +3388,8 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     highSeqno++;
     EXPECT_EQ(highSeqno, stats.highSeqno);
 
-    kvstoreHandle = kvstore->makeFileHandle(vbid);
     std::tie(status, diskStats) =
-            kvstore->getCollectionStats(*kvstoreHandle, target.getId());
+            kvstore->getCollectionStats(vbid, target.getId());
     EXPECT_EQ(highSeqno, diskStats.highSeqno);
     EXPECT_EQ(systemeventSize + itemSize, diskStats.diskSize);
     EXPECT_EQ(0, diskStats.itemCount);

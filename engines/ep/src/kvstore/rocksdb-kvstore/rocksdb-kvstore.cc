@@ -1419,6 +1419,14 @@ RocksDBKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
             Collections::VB::PersistedStats()};
 }
 
+std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
+RocksDBKVStore::getCollectionStats(Vbid vbid, CollectionID collection) const {
+    // TODO JWW 2018-07-30 implement this, for testing purposes return dummy
+    // values to imply the function didn't fail
+    return {GetCollectionStatsStatus::Success,
+            Collections::VB::PersistedStats()};
+}
+
 std::unique_ptr<BySeqnoScanContext> RocksDBKVStore::initBySeqnoScanContext(
         std::unique_ptr<StatusCallback<GetValue>> cb,
         std::unique_ptr<StatusCallback<CacheLookup>> cl,

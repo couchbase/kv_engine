@@ -1894,12 +1894,10 @@ TEST_P(ConcurrentCompactPurge, ConcCompactPurgeTombstones) {
 
     auto compareDiskStatMemoryVsPersisted = [vb]() {
         auto kvs = vb->getShard()->getRWUnderlying();
-        auto fileHandle = kvs->makeFileHandle(vb->getId());
-        ASSERT_TRUE(fileHandle);
         auto fruitSz =
                 vb->getManifest().lock(CollectionEntry::fruit).getDiskSize();
         auto stats =
-                kvs->getCollectionStats(*fileHandle, CollectionEntry::fruit);
+                kvs->getCollectionStats(vb->getId(), CollectionEntry::fruit);
         EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, stats.first);
         EXPECT_EQ(stats.second.diskSize, fruitSz);
     };
@@ -3668,17 +3666,15 @@ TEST_P(CollectionsCouchstoreParameterizedTest, TombstonePurge) {
 
     auto compareDiskStatMemoryVsPersisted = [vb]() {
         auto kvs = vb->getShard()->getRWUnderlying();
-        auto fileHandle = kvs->makeFileHandle(vb->getId());
-        ASSERT_TRUE(fileHandle);
         auto fruitSz =
                 vb->getManifest().lock(CollectionEntry::fruit).getDiskSize();
         auto dairySz =
                 vb->getManifest().lock(CollectionEntry::dairy).getDiskSize();
         auto stats =
-                kvs->getCollectionStats(*fileHandle, CollectionEntry::fruit);
+                kvs->getCollectionStats(vb->getId(), CollectionEntry::fruit);
         EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, stats.first);
         EXPECT_EQ(stats.second.diskSize, fruitSz);
-        stats = kvs->getCollectionStats(*fileHandle, CollectionEntry::dairy);
+        stats = kvs->getCollectionStats(vb->getId(), CollectionEntry::dairy);
         EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, stats.first);
 
         EXPECT_EQ(stats.second.diskSize, dairySz);

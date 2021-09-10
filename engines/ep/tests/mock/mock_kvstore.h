@@ -175,6 +175,11 @@ public:
                 getCollectionStats,
                 (const KVFileHandle& kvFileHandle, CollectionID collection),
                 (const, override));
+    MOCK_METHOD((std::pair<KVStore::GetCollectionStatsStatus,
+                           Collections::VB::PersistedStats>),
+                getCollectionStats,
+                (Vbid vbid, CollectionID collection),
+                (const, override));
     MOCK_METHOD((std::optional<Collections::ManifestUid>),
                 getCollectionsManifestUid,
                 (KVFileHandle & kvFileHandle),

@@ -1149,8 +1149,7 @@ TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
 TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsNoStats) {
     auto kvHandle = kvstore->makeFileHandle(vbid);
     EXPECT_TRUE(kvHandle);
-    auto [status, stats] =
-            kvstore->getCollectionStats(*kvHandle, CollectionID(99));
+    auto [status, stats] = kvstore->getCollectionStats(vbid, CollectionID(99));
     EXPECT_EQ(KVStore::GetCollectionStatsStatus::NotFound, status);
     EXPECT_EQ(0, stats.itemCount);
     EXPECT_EQ(0, stats.highSeqno);
@@ -1176,7 +1175,7 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStats) {
 
     auto kvHandle = kvstore->makeFileHandle(vbid);
     EXPECT_TRUE(kvHandle);
-    auto [status, stats] = kvstore->getCollectionStats(*kvHandle, cid);
+    auto [status, stats] = kvstore->getCollectionStats(vbid, cid);
     EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, status);
     EXPECT_EQ(1, stats.itemCount);
     EXPECT_EQ(1, stats.highSeqno);
@@ -1231,7 +1230,7 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsFailed) {
     // Corrupt couchdb file under
     corruptCouchKVStoreDataFile();
 
-    auto [status, stats] = kvstore->getCollectionStats(*kvHandle, cid);
+    auto [status, stats] = kvstore->getCollectionStats(vbid, cid);
     EXPECT_EQ(KVStore::GetCollectionStatsStatus::Failed, status);
     // check values for sanity and to use the variable
     EXPECT_EQ(0, stats.itemCount);
