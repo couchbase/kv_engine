@@ -7,6 +7,7 @@ add_library(audit_generator_utilities OBJECT
             generator_module.h
             generator_utilities.cc
             generator_utilities.h)
+target_link_libraries(audit_generator_utilities PRIVATE nlohmann_json::nlohmann_json)
 kv_enable_pch(audit_generator_utilities)
 
 add_executable(auditevent_generator

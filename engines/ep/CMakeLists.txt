@@ -89,8 +89,10 @@ IF (WIN32)
 ENDIF (WIN32)
 
 add_executable(gencode tools/gencode.cc)
+target_link_libraries(gencode PRIVATE nlohmann_json::nlohmann_json)
 kv_enable_pch(gencode)
 add_executable(genconfig tools/genconfig.cc)
+target_link_libraries(genconfig PRIVATE nlohmann_json::nlohmann_json)
 kv_enable_pch(genconfig)
 
 add_executable(pid_runner tools/pid_runner.cc $<TARGET_OBJECTS:ep_objs>)
