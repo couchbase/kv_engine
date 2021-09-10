@@ -218,6 +218,14 @@ public:
         purge_seqno = to;
     }
 
+    /**
+     * Set the purge seqno, but only if to is greater than the current value
+     * @param to the desired value to attempt to store
+     */
+    void maybeSetPurgeSeqno(uint64_t to) {
+        purge_seqno.storeIfBigger(to);
+    }
+
     void setPersistedSnapshot(const snapshot_range_t& range) {
         std::lock_guard<std::mutex> lh(snapshotMutex);
         persistedRange = range;

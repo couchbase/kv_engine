@@ -1270,7 +1270,9 @@ void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
     }
 
     try {
-        vb->setPurgeSeqno(ctx.max_purged_seq);
+        postCompactionCompletionStatsUpdateHook();
+
+        vb->maybeSetPurgeSeqno(ctx.max_purged_seq);
         vb->decrNumTotalItems(ctx.stats.collectionsItemsPurged);
 
         updateCollectionStatePostCompaction(
@@ -1278,11 +1280,9 @@ void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
                 ctx.stats.collectionSizeUpdates,
                 ctx.eraserContext->doesOnDiskDroppedDataExist());
 
-        postCompactionCompletionStatsUpdateHook();
-
     } catch (std::exception&) {
         // Re-apply our pre-compaction stats snapshot
-        vb->setPurgeSeqno(prePurgeSeqno);
+        vb->maybeSetPurgeSeqno(prePurgeSeqno);
         vb->setNumTotalItems(preNumTotalItems);
 
         updateCollectionStatePostCompaction(

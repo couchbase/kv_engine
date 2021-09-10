@@ -15,9 +15,12 @@
 #include "../mock/mock_magma_kvstore.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
+
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
+#include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/thread_gate.h"
+#include <utilities/test_manifest.h>
 
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
@@ -331,6 +334,93 @@ TEST_P(STParamMagmaBucketTest, CheckImplicitCompactionUpdatePurgeSeqno) {
 
     // Ensure that the purge seqno has been set during the second flush to where
     // the first tombstone was
+    EXPECT_EQ(expectedPurgeSeqno, vb->getPurgeSeqno());
+}
+
+/**
+ * Test that implicit/explicit compaction overlapping handles setting the purge
+ * seqno correctly.
+ */
+TEST_P(STParamMagmaBucketTest,
+       CheckExplicitAndImplicitCompactionUpdatePurgeSeqno) {
+    // Function to perform 15 writes so that the next flush will hit the
+    // LSMMaxNumLevel0Tables threshold which will trigger implicit compaction
+    auto perform15Writes = [this]() -> void {
+        for (int i = 0; i < 15; i++) {
+            store_item(
+                    vbid, makeStoredDocKey("key" + std::to_string(i)), "value");
+            flushVBucketToDiskIfPersistent(vbid, 1);
+        }
+    };
+    // Re-set the engine and warmup adding the magma rollback test config
+    // settings, so that we create a checkpoint at every flush
+    resetEngineAndWarmup(magmaRollbackConfig);
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(0, vb->getPurgeSeqno());
+
+    // Test will drop a collection and keep one for writing. Create fruit now
+    // and later it will be dropped
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    vb->updateFromManifest(makeManifest(cm));
+    store_item(vbid,
+               makeStoredDocKey("f1", CollectionEntry::fruit.getId()),
+               "value");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Item in default collection (will be purged)
+    auto firstDeletedKey = makeStoredDocKey("keyA");
+    store_item(vbid, firstDeletedKey, "value");
+    delete_item(vbid, firstDeletedKey);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    const auto expectedPurgeSeqno = vb->getHighSeqno();
+
+    // Check that the purge seqno is still 0, but we should have a tombstone on
+    // disk
+    EXPECT_EQ(0, vb->getPurgeSeqno());
+
+    // Time travel 5 days, we want to drop the tombstone for this when we
+    // compact
+    TimeTraveller timmy{60 * 60 * 24 * 5};
+
+    ThreadGate tg(2);
+    auto& bucket = dynamic_cast<EPBucket&>(*store);
+    bucket.postPurgeSeqnoImplicitCompactionHook = [&tg]() -> void {
+        tg.threadUp();
+    };
+
+    auto& mockEPBucket = dynamic_cast<MockEPBucket&>(*store);
+    mockEPBucket.setPostCompactionCompletionHook(
+            [&tg, this, perform15Writes]() {
+                // ensure we meet the LSMMaxNumLevel0Tables threshold
+                perform15Writes();
+
+                auto secondDeletedKey = makeStoredDocKey("keyB");
+                // Add a second tombstone to check that we don't drop everything
+                store_item(vbid, secondDeletedKey, "value");
+                delete_item(vbid, secondDeletedKey);
+
+                // And a dummy item because we can't drop the final seqno
+                store_item(vbid, makeStoredDocKey("dummy"), "value");
+                // Flush the dummy value and second deleted value
+                flushVBucketToDiskIfPersistent(vbid, 2);
+                tg.threadUp();
+            });
+
+    auto magmaKVStore =
+            dynamic_cast<MagmaKVStore*>(store->getRWUnderlying(vbid));
+    ASSERT_TRUE(magmaKVStore);
+
+    // Drop the fruit collection and run compaction - explicit compaction runs
+    // and will interleave an implicit compaction from the completion hook
+    cm.remove(CollectionEntry::fruit);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    runCollectionsEraser(vbid);
+
     EXPECT_EQ(expectedPurgeSeqno, vb->getPurgeSeqno());
 }
 

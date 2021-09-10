@@ -412,8 +412,8 @@ protected:
             compactionTasks;
 
     /**
-     * Testing hook called after we updated stats in the compactionCompletion
-     * function
+     * Testing hook called from EPBucket::compactionCompletionCallback function
+     * before we update the stats.
      */
     TestingHook<> postCompactionCompletionStatsUpdateHook;
 };
