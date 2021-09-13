@@ -62,8 +62,8 @@ kv_enable_pch(audit_generator_unit_test)
 add_sanitizers(audit_generator_unit_test)
 target_link_libraries(audit_generator_unit_test
         PRIVATE
-                gtest
-                gtest_main
+                GTest::gtest
+                GTest::gtest_main
                 mcd_util
                 platform)
 add_test(NAME audit_generator_unit_test

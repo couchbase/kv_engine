@@ -4,5 +4,5 @@ target_include_directories(histo-test-bench
         SYSTEM PRIVATE ${benchmark_SOURCE_DIR}/include)
 target_link_libraries(histo-test-bench PRIVATE benchmark
         hdr_histogram_static
-        mcd_util memcached_daemon gtest)
+        mcd_util memcached_daemon GTest::gtest)
 add_sanitizers(histo-test-bench)

@@ -58,8 +58,8 @@ kv_enable_pch(mcbp_unit_tests)
 target_link_libraries(mcbp_unit_tests
         PRIVATE
                 Folly::headers
-                gtest
-                gtest_main
+                GTest::gtest
+                GTest::gtest_main
                 mcbp)
 add_test(NAME mcbp_unit_tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}

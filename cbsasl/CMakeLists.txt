@@ -44,8 +44,8 @@ target_link_libraries(cbsasl_unit_test
         PRIVATE
                 cbsasl
                 cbcrypto
-                gtest
-                gtest_main
+                GTest::gtest
+                GTest::gtest_main
                 platform)
 add_test(NAME cbsasl_unit_test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}

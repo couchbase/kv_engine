@@ -11,8 +11,8 @@ target_link_libraries(memcached_audit_test PRIVATE
                       memcached_logger
                       mcd_time
                       platform
-                      gtest
-                      gtest_main
+                      GTest::gtest
+                      GTest::gtest_main
                       mcd_util)
 add_test(NAME memcached-audit-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
@@ -22,7 +22,7 @@ add_sanitizers(memcached_audit_test)
 cb_add_test_executable(memcached_auditd_tests testauditd.cc)
 kv_enable_pch(memcached_auditd_tests)
 target_link_libraries(memcached_auditd_tests PRIVATE
-                      auditd memcached_logger mcd_util mcd_time platform gtest)
+                      auditd memcached_logger mcd_util mcd_time platform GTest::gtest)
 add_dependencies(memcached_auditd_tests generate_audit_descriptors)
 add_sanitizers(memcached_auditd_tests)
 add_test(NAME memcached-auditd-test

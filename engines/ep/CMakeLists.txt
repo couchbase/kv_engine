@@ -72,10 +72,6 @@ IF (EP_USE_MAGMA)
     list(APPEND EP_STORAGE_LIBS ep-engine_magma_common)
 ENDIF (EP_USE_MAGMA)
 
-INCLUDE_DIRECTORIES(AFTER SYSTEM
-                    ${gtest_SOURCE_DIR}/include
-                    ${gmock_SOURCE_DIR}/include)
-
 # For debugging without compiler optimizations uncomment line below..
 #SET (CMAKE_BUILD_TYPE DEBUG)
 
@@ -510,7 +506,7 @@ endif()
 
 add_library(ep_mocks OBJECT ${MOCK_SOURCE})
 set_property(TARGET ep_mocks PROPERTY POSITION_INDEPENDENT_CODE 1)
-target_link_libraries(ep_mocks PUBLIC platform spdlog)
+target_link_libraries(ep_mocks PUBLIC platform spdlog GTest::gmock)
 add_sanitizers(ep_mocks)
 cb_enable_unity_build(ep_mocks)
 kv_enable_pch(ep_mocks)
@@ -556,8 +552,8 @@ TARGET_LINK_LIBRARIES(ep_engine_benchmarks
                 engine_utilities
                 ep-engine_collections
                 mcd_executor
-                gtest
-                gmock
+                GTest::gtest
+                GTest::gmock
                 hdr_histogram_static
                 JSON_checker
                 mcbp

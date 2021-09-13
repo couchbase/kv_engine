@@ -22,7 +22,7 @@ kv_enable_pch(cbcrypto_test)
 target_link_libraries(cbcrypto_test PRIVATE
                       cbcrypto
                       platform
-                      gtest gtest_main)
+                      GTest::gtest GTest::gtest_main)
 
 add_test(NAME cbcrypto-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}

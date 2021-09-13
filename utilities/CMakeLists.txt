@@ -76,9 +76,9 @@ kv_enable_pch(utilities_testapp)
 target_link_libraries(utilities_testapp PRIVATE
                       mcd_util
                       platform
-                      gtest
-                      gtest_main
-                      gmock)
+                      GTest::gtest
+                      GTest::gtest_main
+                      GTest::gmock)
 add_sanitizers(utilities_testapp)
 add_test(NAME memcached-utilities-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}

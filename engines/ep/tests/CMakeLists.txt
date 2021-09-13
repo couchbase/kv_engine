@@ -137,8 +137,8 @@ target_link_libraries(ep-engine_ep_unit_tests PRIVATE
         engine_utilities
         ep-engine_collections
         mcd_executor
-        gtest
-        gmock
+        GTest::gtest
+        GTest::gmock
         hdr_histogram_static
         JSON_checker
         memcached_logger
@@ -176,9 +176,9 @@ TARGET_INCLUDE_DIRECTORIES(ep-engine_couch-fs-stats_test
         ${Couchstore_SOURCE_DIR}
         ${Couchstore_SOURCE_DIR}/src)
 target_link_libraries(ep-engine_couch-fs-stats_test PRIVATE
-        gtest
-        gtest_main
-        gmock
+        GTest::gtest
+        GTest::gtest_main
+        GTest::gmock
         mcd_util
         platform
         phosphor)
@@ -192,7 +192,7 @@ cb_add_test_executable(ep-engine_string_utils_test
         module_tests/string_utils_test.cc
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/string_utils.cc)
 kv_enable_pch(ep-engine_string_utils_test)
-target_link_libraries(ep-engine_string_utils_test PRIVATE gtest gtest_main platform)
+target_link_libraries(ep-engine_string_utils_test PRIVATE GTest::gtest GTest::gtest_main platform)
 
 ADD_TEST(NAME ep-engine_couch-fs-stats_test COMMAND ep-engine_couch-fs-stats_test)
 gtest_discover_tests(ep-engine_ep_unit_tests

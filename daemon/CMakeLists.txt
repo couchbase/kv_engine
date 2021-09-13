@@ -263,11 +263,11 @@ cb_add_test_executable(client_cert_config_test
                client_cert_config.cc
                client_cert_config.h)
 target_link_libraries(client_cert_config_test PRIVATE
-        gtest
-        gtest_main
-        platform
-        mcd_util
-        ${OPENSSL_LIBRARIES})
+                      GTest::gtest
+                      GTest::gtest_main
+                      platform
+                      mcd_util
+                      ${OPENSSL_LIBRARIES})
 add_test(NAME client_cert_config_test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND client_cert_config_test)
@@ -292,7 +292,7 @@ cb_enable_unity_build(memcached_unit_tests)
 add_sanitizers(memcached_unit_tests)
 target_link_libraries(memcached_unit_tests PRIVATE
                       memcached_daemon
-                      gtest)
+                      GTest::gtest)
 add_test(NAME memcached_unit_tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_unit_tests)

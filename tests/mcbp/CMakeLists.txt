@@ -1,4 +1,3 @@
-include_directories(AFTER SYSTEM ${gtest_SOURCE_DIR}/include)
 cb_add_test_executable(memcached_mcbp_test
                mcbp_frame_extra.cc
                mcbp_dcp_test.cc
@@ -22,7 +21,7 @@ target_link_libraries(memcached_mcbp_test
         PRIVATE
                 memcached_daemon
                 platform
-                gtest)
+                GTest::gtest)
 add_sanitizers(memcached_mcbp_test)
 cb_enable_unity_build(memcached_mcbp_test)
 kv_enable_pch(memcached_mcbp_test)

@@ -11,8 +11,8 @@ kv_enable_pch(memcached-hostutils-test)
 target_link_libraries(memcached-hostutils-test PRIVATE
                       cbsocket
                       platform
-                      gtest
-                      gtest_main)
+                      GTest::gtest
+                      GTest::gtest_main)
 add_test(NAME memcached-hostutils-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached-hostutils-test)

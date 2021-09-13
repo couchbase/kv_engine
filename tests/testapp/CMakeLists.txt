@@ -12,8 +12,8 @@ target_link_libraries(testapp_auth_provider PUBLIC platform)
 target_link_libraries(testapp_auth_provider_test
         PRIVATE
                 cbsasl
-                gtest
-                gtest_main
+                GTest::gtest
+                GTest::gtest_main
                 mcbp)
 
 add_test(NAME testapp_auth_provider_test
@@ -93,8 +93,8 @@ target_link_libraries(memcached_testapp PRIVATE
     cbsasl
     platform
     platform_cb_malloc_arena
-    gtest
-    gtest_main
+    GTest::gtest
+    GTest::gtest_main
     ${SNAPPY_LIBRARIES}
     ${LIBEVENT_LIBRARIES}
     ${COUCHBASE_NETWORK_LIBS})

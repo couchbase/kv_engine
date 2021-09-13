@@ -3,8 +3,8 @@ cb_add_test_executable(memcached_statistics_test
 kv_enable_pch(memcached_statistics_test)
 target_link_libraries(memcached_statistics_test
         PRIVATE
-                gmock
-                gtest_main
+                GTest::gmock
+                GTest::gtest_main
                 memcached_daemon
                 memcached_logger
                 statistics)

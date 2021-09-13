@@ -10,6 +10,6 @@ target_link_libraries(cluster_framework PUBLIC
                       mc_client_connection
                       mcd_test_util
                       platform
-                      gtest)
+                      GTest::gtest)
 cb_enable_unity_build(cluster_framework)
 kv_enable_pch(cluster_framework)
