@@ -697,9 +697,13 @@ protected:
      *
      * @param lh Lock to CM mutex
      * @param vb Ref to the vbucket owning this CM
+     * @param force Flag passed to the inner checkpoint creation function to
+     *  force the creation of a new checkpoint. Still creation would happen
+     *  iff pre-conditions are met.
      */
     void maybeCreateNewCheckpoint(const std::lock_guard<std::mutex>& lh,
-                                  VBucket& vb);
+                                  VBucket& vb,
+                                  bool force);
 
     /**
      * Remove all the closed/unref checkpoints (only the ones already processed
