@@ -313,8 +313,6 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
     // We enter here for a legacy DCP stream
     // but bail if syncReplication and ! manifest 0 (more work needed to
     // get all markDiskSnapshot parameters)
-    // TODO: MB-48094 Add new version of getCollectionsManifestUid to magma to
-    // read from snapshots rather than using a MagmaKVFileHandle
     const auto uid = kvs.getCollectionsManifestUid(*scanCtx.handle);
 
     if (!uid.has_value()) {
@@ -356,8 +354,6 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
     // sync replication is not enabled.
 
     // Step 1. get the default collection high-seqno
-    // TODO: MB-48094 Add new version of getCollectionStats to magma to
-    // read from snapshots rather than using a MagmaKVFileHandle
     const auto [status, stats] =
             kvs.getCollectionStats(*scanCtx.handle, CollectionID::Default);
 
@@ -384,8 +380,6 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
     }
 
     // Step 2. get the item @ the high-seqno
-    // TODO: MB-48094 Add new version of getBySeqno to magma to read from
-    // snapshots rather than using a MagmaKVFileHandle
     const auto gv = kvs.getBySeqno(*scanCtx.handle,
                                    stream.getVBucket(),
                                    stats.highSeqno,

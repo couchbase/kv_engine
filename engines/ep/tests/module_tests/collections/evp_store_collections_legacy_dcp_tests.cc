@@ -24,7 +24,7 @@ public:
     CollectionsLegacyDcpTest() = default;
 
     void SetUp() override {
-        SingleThreadedKVBucketTest::SetUp();
+        STParameterizedBucketTest::SetUp();
         producers = std::make_unique<CollectionsDcpTestProducers>();
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active);
@@ -317,9 +317,8 @@ TEST_P(CollectionsLegacyDcpTest, sync_replication_stream_ends) {
               cb::mcbp::DcpStreamEndStatus::BackfillFail);
 }
 
-// No magma support or ephemeral
-// @todo: MB-48037 include magma support
+// No ephemeral support
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsLegacyDcpTest,
-                         STParameterizedBucketTest::couchstoreConfigValues(),
+                         STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

@@ -1415,46 +1415,16 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
         handle = makeFileHandle(vbid);
     }
 
-    std::unique_ptr<Magma::Snapshot> snapshot;
-
-    // Flush writecache for creating an on-disk snapshot
-    auto status = magma->SyncKVStore(vbid.get());
-    if (status.IsOK()) {
-        status = magma->GetDiskSnapshot(vbid.get(), snapshot);
-    } else if (status.ErrorCode() == magma::Status::ReadOnly) {
-        // If magma returns ReadOnly mode here then we've opened it in ReadOnly
-        // mode during warmup as the original open attempt errored with
-        // DiskFull. In the ReadOnly open magma has to replay the WAL ops in
-        // memory and cannot flush them to disk. As such, we have to open the
-        // memory snapshot rather than the disk snapshot here.
-        status = magma->GetSnapshot(vbid.get(), snapshot);
-    } else {
+    if (!handle) {
         logger->warn(
-                "MagmaKVStore::initBySeqnoScanContext {} Failed to sync "
-                "kvstore with status {}",
-                vbid,
-                status.String());
-        return nullptr;
-    }
-
-    if (!status.IsOK()) {
-        logger->warn(
-                "MagmaKVStore::initBySeqnoScanContext {} Failed to get magma snapshot "
-                "with status {}",
-                vbid,
-                status.String());
-        return nullptr;
-    }
-
-    if (!snapshot.get()) {
-        logger->error(
-                "MagmaKVStore::initBySeqnoScanContext {} Failed to get magma snapshot,"
-                " no pointer returned",
+                "MagmaKVStore::initBySeqnoScanContext {} Failed to get file "
+                "handle",
                 vbid);
         return nullptr;
     }
 
-    auto itr = magma->NewSeqIterator(*snapshot);
+    auto& snapshot = *dynamic_cast<MagmaKVFileHandle&>(*handle).snapshot;
+    auto itr = magma->NewSeqIterator(snapshot);
     if (!itr) {
         logger->warn(
                 "MagmaKVStore::initBySeqnoScanContext {} Failed to get magma seq "
@@ -1463,7 +1433,7 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
         return nullptr;
     }
 
-    auto readState = readVBStateFromDisk(vbid, *snapshot);
+    auto readState = readVBStateFromDisk(vbid, snapshot);
     if (!readState.status.IsOK()) {
         logger->warn(
                 "MagmaKVStore::initBySeqnoScanContext {} failed to read "
@@ -1477,7 +1447,7 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
     uint64_t purgeSeqno = readState.vbstate.purgeSeqno;
     uint64_t nDocsToRead = highSeqno - startSeqno + 1;
 
-    auto [getDroppedStatus, dropped] = getDroppedCollections(vbid, *snapshot);
+    auto [getDroppedStatus, dropped] = getDroppedCollections(vbid, snapshot);
     if (!getDroppedStatus.OK()) {
         logger->warn(
                 "MagmaKVStore::initBySeqnoScanContext {} failed to get "
@@ -2310,7 +2280,51 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
 }
 
 std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) const {
-    return std::make_unique<MagmaKVFileHandle>(vbid);
+    std::unique_ptr<magma::Magma::Snapshot> snapshot;
+    // Flush writecache for creating an on-disk snapshot
+    auto status = magma->SyncKVStore(vbid.get());
+    if (!status && status.ErrorCode() != magma::Status::ReadOnly) {
+        logger->warn(
+                "MagmaKVStore::makeFileHandle {} Failed to sync "
+                "kvstore with status {}",
+                vbid,
+                status);
+        return nullptr;
+    }
+
+    if (status.IsOK()) {
+        status = magma->GetDiskSnapshot(vbid.get(), snapshot);
+    } else if (status.ErrorCode() == magma::Status::ReadOnly) {
+        logger->warn(
+                "MagmaKVStore::makeFileHandle {} creating in memory snapshot "
+                "as magma is in read-only mode",
+                vbid);
+        // If magma returns ReadOnly mode here then we've opened it in ReadOnly
+        // mode during warmup as the original open attempt errored with
+        // DiskFull. In the ReadOnly open magma has to replay the WAL ops in
+        // memory and cannot flush them to disk. As such, we have to open the
+        // memory snapshot rather than the disk snapshot here.
+        status = magma->GetSnapshot(vbid.get(), snapshot);
+    }
+
+    if (!status) {
+        logger->warn(
+                "MagmaKVStore::makeFileHandle {} Failed to get magma snapshot "
+                "with status {}",
+                vbid,
+                status);
+        return nullptr;
+    }
+
+    if (!snapshot) {
+        logger->error(
+                "MagmaKVStore::makeFileHandle {} Failed to get magma snapshot,"
+                " no pointer returned",
+                vbid);
+        return nullptr;
+    }
+
+    return std::make_unique<MagmaKVFileHandle>(vbid, std::move(snapshot));
 }
 
 RollbackResult MagmaKVStore::rollback(Vbid vbid,
@@ -2394,12 +2408,9 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
 std::optional<Collections::ManifestUid> MagmaKVStore::getCollectionsManifestUid(
         KVFileHandle& kvFileHandle) {
     auto& kvfh = static_cast<MagmaKVFileHandle&>(kvFileHandle);
-    auto vbid = kvfh.vbid;
 
-    Status status;
-    std::string manifest;
-    std::tie(status, manifest) = readLocalDoc(vbid, manifestKey);
-
+    auto [status, manifest] =
+            readLocalDoc(kvfh.vbid, *kvfh.snapshot, manifestKey);
     if (!status.IsOK()) {
         if (status.ErrorCode() != Status::Code::NotFound) {
             logger->warn("MagmaKVStore::getCollectionsManifestUid(): {}",
@@ -2668,10 +2679,9 @@ void MagmaKVStore::saveCollectionStats(
 std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 MagmaKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
                                  CollectionID cid) const {
-    // TODO: update this to use snapshot
     const auto& kvfh = static_cast<const MagmaKVFileHandle&>(kvFileHandle);
-    auto vbid = kvfh.vbid;
-    return getCollectionStats(vbid, cid);
+    return getCollectionStats(
+            kvfh.vbid, getCollectionsStatsKey(cid), kvfh.snapshot.get());
 }
 
 std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
@@ -2687,10 +2697,17 @@ MagmaKVStore::getCollectionStats(Vbid vbid, CollectionID cid) const {
 }
 
 std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
-MagmaKVStore::getCollectionStats(Vbid vbid, magma::Slice keySlice) const {
+MagmaKVStore::getCollectionStats(Vbid vbid,
+                                 magma::Slice keySlice,
+                                 magma::Magma::Snapshot* snapshot) const {
     Status status;
     std::string stats;
-    std::tie(status, stats) = readLocalDoc(vbid, keySlice);
+    if (snapshot) {
+        std::tie(status, stats) = readLocalDoc(vbid, *snapshot, keySlice);
+    } else {
+        std::tie(status, stats) = readLocalDoc(vbid, keySlice);
+    }
+
     if (!status.IsOK()) {
         if (status.ErrorCode() != Status::Code::NotFound) {
             logger->warn("MagmaKVStore::getCollectionStats(): {}",
@@ -3085,8 +3102,26 @@ GetValue MagmaKVStore::getBySeqno(KVFileHandle& handle,
                                   Vbid vbid,
                                   uint64_t seq,
                                   ValueFilter filter) {
-    // @todo: Add support for Magma
-    return GetValue{nullptr, cb::engine_errc::no_such_key};
+    auto& snapshot = *dynamic_cast<const MagmaKVFileHandle&>(handle).snapshot;
+    GetValue rv(nullptr, cb::engine_errc::no_such_key);
+    bool found;
+    auto [status, key, meta, value] = magma->GetBySeqno(snapshot, seq, found);
+    if (!status.IsOK()) {
+        logger->warn(
+                "MagmaKVStore::getBySeqno {} Failed to get seqno:{} kvstore "
+                "with status {}",
+                vbid,
+                seq,
+                status);
+        return rv;
+    }
+
+    if (found) {
+        rv.item = makeItem(vbid, *key, *meta, *value, filter);
+        rv.setStatus(cb::engine_errc::success);
+        return rv;
+    }
+    return rv;
 }
 
 std::unique_ptr<TransactionContext> MagmaKVStore::begin(

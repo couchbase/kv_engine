@@ -219,6 +219,22 @@ void MagmaMemoryTrackingProxy::GetHistogramStats(
     magma->GetHistogramStats(histogramStats);
 }
 
+std::tuple<magma::Status,
+           DomainAwareUniquePtr<std::string>,
+           DomainAwareUniquePtr<std::string>,
+           DomainAwareUniquePtr<std::string>>
+MagmaMemoryTrackingProxy::GetBySeqno(magma::Magma::Snapshot& snapshot,
+                                     const magma::Magma::SeqNo seqno,
+                                     bool& found) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    DomainAwareUniquePtr<std::string> key(new std::string{});
+    DomainAwareUniquePtr<std::string> meta(new std::string{});
+    DomainAwareUniquePtr<std::string> value(new std::string{});
+    auto status =
+            magma->GetBySeqno(snapshot, seqno, *key, *meta, *value, found);
+    return {status, std::move(key), std::move(meta), std::move(value)};
+}
+
 DomainAwareUniquePtr<magma::Magma::SeqIterator>
 MagmaMemoryTrackingProxy::NewSeqIterator(magma::Magma::Snapshot& snapshot) {
     cb::UseArenaMallocSecondaryDomain domainGuard;

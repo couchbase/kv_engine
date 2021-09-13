@@ -235,9 +235,12 @@ public:
 
     class MagmaKVFileHandle : public ::KVFileHandle {
     public:
-        MagmaKVFileHandle(Vbid vbid) : vbid(vbid) {
+        MagmaKVFileHandle(Vbid vbid,
+                          std::unique_ptr<magma::Magma::Snapshot> snapshot)
+            : vbid(vbid), snapshot(std::move(snapshot)) {
         }
         Vbid vbid;
+        std::unique_ptr<magma::Magma::Snapshot> snapshot;
     };
 
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) const override;
@@ -254,10 +257,14 @@ public:
      *
      * @param vbid
      * @param keySlice Stats key to lookup
-     * @return Bool status and Stats (defaulted to 0 if not found)
+     * @param snapshot if not null collection stats will be collected from the
+     * local store of the snapshot
+     * @return pair of status and if success valid collection PersistedStats
      */
     std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
-    getCollectionStats(Vbid, magma::Slice keySlice) const;
+    getCollectionStats(Vbid,
+                       magma::Slice keySlice,
+                       magma::Magma::Snapshot* snapshot = nullptr) const;
 
     /**
      * Get the dropped collection stats for the given collection

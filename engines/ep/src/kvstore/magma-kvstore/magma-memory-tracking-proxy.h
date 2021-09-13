@@ -131,6 +131,14 @@ public:
                                               magma::Slice& value)> itemCb,
                            bool returnValue = false,
                            uint64_t count = 0);
+
+    std::tuple<magma::Status,
+               DomainAwareUniquePtr<std::string>,
+               DomainAwareUniquePtr<std::string>,
+               DomainAwareUniquePtr<std::string>>
+    GetBySeqno(magma::Magma::Snapshot& snapshot,
+               const magma::Magma::SeqNo seqno,
+               bool& found);
     DomainAwareUniquePtr<magma::Magma::MagmaStats> GetStats(
             std::chrono::milliseconds cacheDuration = std::chrono::seconds(0));
     void GetFileStats(magma::MagmaFileStats& fileStats);
