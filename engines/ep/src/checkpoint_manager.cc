@@ -1162,15 +1162,24 @@ void CheckpointManager::checkOpenCheckpoint(
     // (2) current open checkpoint has reached the max number of items allowed
     // (3) the age of the current open checkpoint is greater than the threshold
     //     @todo MB-48038: allow disabling the time-based trigger via config
+    // (4) current open checkpoint has reached its max size (in bytes)
+    const auto numItems = openCkpt.getNumItems();
     const auto numItemsTrigger =
             checkpointConfig.isItemNumBasedNewCheckpoint() &&
-            openCkpt.getNumItems() >= checkpointConfig.getCheckpointMaxItems();
+            numItems >= checkpointConfig.getCheckpointMaxItems();
+
     const auto openCkptAge = ep_real_time() - openCkpt.getCreationTime();
     const auto timeTrigger =
-            (openCkpt.getNumItems() > 0) &&
+            (numItems > 0) &&
             (openCkptAge >= checkpointConfig.getCheckpointPeriod());
 
-    if (forceCreation || numItemsTrigger || timeTrigger) {
+    // Note: The condition ensures that we always allow at least 1 non-meta item
+    //  in the open checkpoint, regardless of any setting.
+    const auto memTrigger =
+            (openCkpt.getMemConsumption() >= vb.getCheckpointMaxSize()) &&
+            (numItems > 0);
+
+    if (forceCreation || numItemsTrigger || timeTrigger || memTrigger) {
         addNewCheckpoint_UNLOCKED();
     }
 }

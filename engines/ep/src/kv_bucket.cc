@@ -2865,6 +2865,10 @@ size_t KVBucket::getCheckpointMaxSize() const {
     return checkpointMaxSize;
 }
 
+size_t KVBucket::getVBMapSize() const {
+    return vbMap.getSize();
+}
+
 KVBucket::CheckpointMemoryState KVBucket::getCheckpointMemoryState() const {
     const auto checkpointQuota = stats.getMaxDataSize() * checkpointMemoryRatio;
     const auto recoveryThreshold =

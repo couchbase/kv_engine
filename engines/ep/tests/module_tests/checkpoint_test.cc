@@ -1267,6 +1267,110 @@ TEST_F(SingleThreadedCheckpointTest,
             false, dcp_marker_flag_t::MARKER_FLAG_MEMORY);
 }
 
+TEST_F(SingleThreadedCheckpointTest, CheckpointMaxSize_AutoSetup) {
+    auto& config = engine->getConfiguration();
+    const uint32_t _1GB = 1024 * 1024 * 1024;
+    config.setMaxSize(_1GB);
+    const auto ckptMemRatio = 0.4f;
+    config.setCheckpointMemoryRatio(ckptMemRatio);
+    const auto maxCheckpoints = 20;
+    config.setMaxCheckpoints(maxCheckpoints);
+    config.setCheckpointMaxSize(0); // 0 triggers auto-setup
+
+    setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = *vb->checkpointManager;
+
+    ASSERT_EQ(_1GB, config.getMaxSize());
+    ASSERT_EQ(ckptMemRatio, store->getCheckpointMemoryRatio());
+    ASSERT_EQ(maxCheckpoints,
+              manager.getCheckpointConfig().getMaxCheckpoints());
+
+    const auto cmQuota = _1GB * ckptMemRatio;
+    const auto expected = cmQuota / store->getVBMapSize() / maxCheckpoints;
+    EXPECT_EQ(expected, store->getCheckpointMaxSize());
+}
+
+TEST_F(SingleThreadedCheckpointTest, MemUsageCheckpointCreation) {
+    auto& config = engine->getConfiguration();
+    config.setMaxSize(1024 * 1024 * 100);
+
+    // Disable item/time based checkpoint creation
+    config.setItemNumBasedNewChk(false);
+    config.setChkPeriod(3600);
+    config.setMaxCheckpoints(20);
+    // Note: This test also verifies that a value > 0 is just set (*)
+    const uint32_t _10MB = 1024 * 1024 * 10;
+    config.setCheckpointMaxSize(_10MB);
+
+    setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = *vb->checkpointManager;
+
+    const auto& ckptConfig = manager.getCheckpointConfig();
+    ASSERT_FALSE(ckptConfig.isItemNumBasedNewCheckpoint());
+    ASSERT_EQ(3600, ckptConfig.getCheckpointPeriod());
+    ASSERT_EQ(20, ckptConfig.getMaxCheckpoints());
+    ASSERT_EQ(_10MB, store->getCheckpointMaxSize()); // (*)
+
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+
+    const size_t numItems = 5;
+    const std::string value(_10MB, '!');
+    for (size_t i = 1; i <= numItems; ++i) {
+        auto item = makeCommittedItem(
+                makeStoredDocKey("key" + std::to_string(i)), value, vbid);
+        EXPECT_TRUE(manager.queueDirty(
+                item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
+    }
+
+    // Checkpoints must be created based on checkpoint_max_size.
+    // Before enabling the feature all items were queued into a single
+    // checkpoint.
+    EXPECT_EQ(numItems, manager.getNumCheckpoints());
+}
+
+TEST_F(SingleThreadedCheckpointTest,
+       MemUsageCheckpointCreation_CkptSizeSmallerThanItemSize) {
+    auto& config = engine->getConfiguration();
+    config.setMaxSize(1024 * 1024 * 100);
+
+    // Disable item/time based checkpoint creation
+    config.setItemNumBasedNewChk(false);
+    config.setChkPeriod(3600);
+    config.setMaxCheckpoints(20);
+    // Set checkpoint max size to something very low
+    config.setCheckpointMaxSize(1);
+
+    setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = *vb->checkpointManager;
+
+    const auto& ckptConfig = manager.getCheckpointConfig();
+    ASSERT_FALSE(ckptConfig.isItemNumBasedNewCheckpoint());
+    ASSERT_EQ(3600, ckptConfig.getCheckpointPeriod());
+    ASSERT_EQ(20, ckptConfig.getMaxCheckpoints());
+    ASSERT_EQ(1, store->getCheckpointMaxSize());
+
+    // 1 empty checkpoint
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(0, manager.getNumOpenChkItems());
+
+    // Value is much bigger than the checkpoint max size
+    const std::string value(1024, '!');
+    store_item(vbid, makeStoredDocKey("key1"), value);
+
+    // Still, the item must be queued in the existing open checkpoint (ie, we
+    // must not create another checkpoint).
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(1, manager.getNumOpenChkItems());
+
+    // The next store must create a new checkpoint
+    store_item(vbid, makeStoredDocKey("key2"), value);
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+    EXPECT_EQ(1, manager.getNumOpenChkItems());
+}
+
 // Test that when the same client registers twice, the first cursor 'dies'
 TEST_P(CheckpointTest, reRegister) {
     auto dcpCursor1 = this->manager->registerCursorBySeqno("name", 0);

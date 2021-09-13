@@ -1684,6 +1684,12 @@ public:
             Collections::VB::WriteHandle& writeHandle,
             const Collections::VB::ManifestEntry& droppedEntry) const = 0;
 
+    /**
+     * @return The max size (in bytes) for a single checkpoint as defined by
+     *  the bucket configuration.
+     */
+    size_t getCheckpointMaxSize() const;
+
     std::unique_ptr<FailoverTable> failovers;
 
     std::atomic<size_t>  opsCreate;

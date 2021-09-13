@@ -809,6 +809,12 @@ public:
 
     size_t getCheckpointMaxSize() const;
 
+    /**
+     * @return The size of the vb-map, ie how many checkpoint this bucket can
+     *  manage.
+     */
+    size_t getVBMapSize() const;
+
     enum class CheckpointMemoryState : uint8_t {
         Available,
         NeedsRecovery,

@@ -196,6 +196,7 @@
         },
         "chk_period": {
             "default": "5",
+            "descr": "Age of the open checkpoint (in seconds) that may trigger checkpoint creation.",
             "dynamic": true,
             "type": "size_t"
         },

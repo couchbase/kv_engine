@@ -404,6 +404,9 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
 
     config.setChkExpelEnabled(true);
     config.setMaxSize(1024 * 1024 * 100);
+    // Disable the mem-based checkpoint creation in this test, we would end up
+    // doing straight CheckpointRemoval rather than ItemExpel/CursorDrop
+    config.setCheckpointMaxSize(std::numeric_limits<size_t>::max());
     const auto chkptMemRecoveryLimit =
             config.getMaxSize() * store->getCheckpointMemoryRatio() *
             store->getCheckpointMemoryRecoveryUpperMark();
@@ -899,14 +902,18 @@ TEST_F(CheckpointRemoverEPTest, MB_48233) {
     flush_vbucket_to_disk(vbid, store->getVBucket(vbid)->getNumItems());
 
     const auto& stats = engine->getEpStats();
-    ASSERT_EQ(0, stats.itemsExpelledFromCheckpoints);
+    ASSERT_EQ(0,
+              stats.itemsExpelledFromCheckpoints +
+                      stats.itemsRemovedFromCheckpoints);
 
     // Run the remover a second time.
     remover->run();
 
     // Before the fix a second execution just returns by Task::available=false,
-    // so we wouldn't expel anything
-    ASSERT_GT(stats.itemsExpelledFromCheckpoints, 0);
+    // so we wouldn't remove anything
+    ASSERT_GT(stats.itemsExpelledFromCheckpoints +
+                      stats.itemsRemovedFromCheckpoints,
+              0);
 }
 
 TEST_F(CheckpointRemoverEPTest, CheckpointRemovalWithoutCursorDrop) {
