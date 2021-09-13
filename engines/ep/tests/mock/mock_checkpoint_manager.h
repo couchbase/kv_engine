@@ -97,7 +97,7 @@ public:
 
     void forceNewCheckpoint() {
         std::lock_guard<std::mutex> lh(queueLock);
-        checkOpenCheckpoint_UNLOCKED(lh, true, false);
+        checkOpenCheckpoint(lh, true);
     }
 
     bool incrCursor(CheckpointCursor& cursor) {

@@ -671,15 +671,14 @@ protected:
     bool moveCursorToNextCheckpoint(CheckpointCursor &cursor);
 
     /**
-     * Check the current open checkpoint to see if we need to create the new open checkpoint.
-     * @param forceCreation is to indicate if a new checkpoint is created due to online update or
-     * high memory usage.
-     * @param timeBound is to indicate if time bound should be considered in creating a new
-     * checkpoint.
+     * Check out the current open checkpoint state and create a new open
+     * checkpoint if necessary.
+     *
+     * @param forceCreation is to indicate if a new checkpoint is created due to
+     *  online update or high memory usage.
      */
-    void checkOpenCheckpoint_UNLOCKED(const std::lock_guard<std::mutex>& lh,
-                                      bool forceCreation,
-                                      bool timeBound);
+    void checkOpenCheckpoint(const std::lock_guard<std::mutex>& lh,
+                             bool forceCreation);
 
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
 

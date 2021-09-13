@@ -770,7 +770,7 @@ bool CheckpointManager::queueDirty(
 
     if (vb.getState() == vbucket_state_active && canCreateNewCheckpoint) {
         // Only the master active vbucket can create a next open checkpoint.
-        checkOpenCheckpoint_UNLOCKED(lh, false, true);
+        checkOpenCheckpoint(lh, false);
     }
 
     auto* openCkpt = &getOpenCheckpoint_UNLOCKED(lh);
@@ -814,7 +814,7 @@ bool CheckpointManager::queueDirty(
         // To process this item, create a new (empty) checkpoint which we can
         // then re-attempt the enqueuing.
         // Note this uses the lastBySeqno for snapStart / End.
-        checkOpenCheckpoint_UNLOCKED(lh, /*force*/ true, false);
+        checkOpenCheckpoint(lh, /*force*/ true);
         openCkpt = &getOpenCheckpoint_UNLOCKED(lh);
         result = openCkpt->queueDirty(qi);
         if (result.status != QueueDirtyStatus::SuccessNewItem) {
@@ -1172,25 +1172,26 @@ size_t CheckpointManager::getNumOpenChkItems() const {
     return getOpenCheckpoint_UNLOCKED(lh).getNumItems();
 }
 
-void CheckpointManager::checkOpenCheckpoint_UNLOCKED(
-        const std::lock_guard<std::mutex>& lh,
-        bool forceCreation,
-        bool timeBound) {
+void CheckpointManager::checkOpenCheckpoint(
+        const std::lock_guard<std::mutex>& lh, bool forceCreation) {
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
 
-    timeBound = timeBound && (ep_real_time() - openCkpt.getCreationTime()) >=
-                                     checkpointConfig.getCheckpointPeriod();
     // Create the new open checkpoint if any of the following conditions is
     // satisfied:
     // (1) force creation due to online update, high memory usage, or enqueueing
-    //     an op we cannot de-dupe (i.e. an abort, commit, or prepare).
-    // (2) current checkpoint is reached to the max number of items allowed.
-    // (3) time elapsed since the creation of the current checkpoint is greater
-    //     than the threshold
-    if (forceCreation ||
-        (checkpointConfig.isItemNumBasedNewCheckpoint() &&
-         openCkpt.getNumItems() >= checkpointConfig.getCheckpointMaxItems()) ||
-        (openCkpt.getNumItems() > 0 && timeBound)) {
+    //     an op we cannot de-dupe (i.e. an abort, commit, or prepare)
+    // (2) current open checkpoint has reached the max number of items allowed
+    // (3) the age of the current open checkpoint is greater than the threshold
+    //     @todo MB-48038: allow disabling the time-based trigger via config
+    const auto numItemsTrigger =
+            checkpointConfig.isItemNumBasedNewCheckpoint() &&
+            openCkpt.getNumItems() >= checkpointConfig.getCheckpointMaxItems();
+    const auto openCkptAge = ep_real_time() - openCkpt.getCreationTime();
+    const auto timeTrigger =
+            (openCkpt.getNumItems() > 0) &&
+            (openCkptAge >= checkpointConfig.getCheckpointPeriod());
+
+    if (forceCreation || numItemsTrigger || timeTrigger) {
         addNewCheckpoint_UNLOCKED();
     }
 }
@@ -1702,7 +1703,7 @@ void CheckpointManager::maybeCreateNewCheckpoint(
 
         // Create a new checkpoint if required.
         const auto forceCreation = isCheckpointCreationForHighMemUsage(lh, vb);
-        checkOpenCheckpoint_UNLOCKED(lh, forceCreation, true);
+        checkOpenCheckpoint(lh, forceCreation);
     }
 }
 
