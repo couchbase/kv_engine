@@ -219,6 +219,14 @@ size_t EPStats::getEstimatedCheckpointMemUsage() const {
     return std::max(int64_t(0), result);
 }
 
+size_t EPStats::getNumCheckpoints() const {
+    int64_t result = 0;
+    for (const auto& core : coreLocal) {
+        result += core->numCheckpoints;
+    }
+    return std::max(int64_t(0), result);
+}
+
 size_t EPStats::getCollectionMemUsed(CollectionID cid) const {
     size_t result = 0;
     for (const auto& core : coreLocal) {

@@ -419,6 +419,9 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
     }
     flush_vbucket_to_disk(vbid, ii);
 
+    const auto inititalNumCheckpoints = stats.getNumCheckpoints();
+    EXPECT_GT(inititalNumCheckpoints, 0);
+
     const auto memToClear = store->getRequiredCheckpointMemoryReduction();
     EXPECT_GT(memToClear, 0);
 
@@ -439,6 +442,7 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
         auto visitor = CheckpointVisitor(
                 store, engine->getEpStats(), stateFinalizer, memToClear);
         visitor.visitBucket(vb);
+        EXPECT_LT(stats.getNumCheckpoints(), inititalNumCheckpoints);
     }
 
     EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());

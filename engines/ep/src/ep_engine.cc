@@ -3162,6 +3162,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
                       epstats.memFreedByCheckpointRemoval);
     collector.addStat(Key::ep_mem_freed_by_checkpoint_item_expel,
                       epstats.memFreedByCheckpointItemExpel);
+    collector.addStat(Key::ep_num_checkpoints, epstats.getNumCheckpoints());
 
     return cb::engine_errc::success;
 }

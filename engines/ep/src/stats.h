@@ -87,6 +87,9 @@ public:
 
     //! Estimate of the total amount of memory used by checkpoints
     Counter estimatedCheckpointMemUsage;
+
+    //! Total number of checkpoints across all vbuckets
+    Counter numCheckpoints;
 };
 
 /**
@@ -172,6 +175,9 @@ public:
 
     /// @returns estimate of the total amount of memory used by checkpoints
     size_t getEstimatedCheckpointMemUsage() const;
+
+    /// @returns the total number of checkpoints across all vbuckets
+    size_t getNumCheckpoints() const;
 
     /// @returns total size of stored objects for a single collection.
     size_t getCollectionMemUsed(CollectionID cid) const;

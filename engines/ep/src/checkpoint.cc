@@ -191,7 +191,10 @@ Checkpoint::Checkpoint(
       checkpointType(checkpointType),
       highCompletedSeqno(std::move(highCompletedSeqno)),
       memOverheadChangedCallback(memOverheadChangedCallback) {
-    stats.coreLocal.get()->memOverhead.fetch_add(sizeof(Checkpoint));
+    auto& core = stats.coreLocal.get();
+    core->memOverhead.fetch_add(sizeof(Checkpoint));
+    core->numCheckpoints++;
+
     // the memOverheadChangedCallback uses the accurately tracked overhead
     // from trackingAllocator. The above memOverhead stat is "manually"
     // accounted in queueDirty, and approximates the overhead based on
@@ -209,9 +212,12 @@ Checkpoint::~Checkpoint() {
      * of queued_items in the checkpoint.
      */
     auto queueMemOverhead = sizeof(queued_item) * toWrite.size();
-    stats.coreLocal.get()->memOverhead.fetch_sub(
-            sizeof(Checkpoint) + keyIndexMemUsage + queueMemOverhead);
+    auto& core = stats.coreLocal.get();
+    core->memOverhead.fetch_sub(sizeof(Checkpoint) + keyIndexMemUsage +
+                                queueMemOverhead);
     memOverheadChangedCallback(-getMemoryOverhead());
+
+    core->numCheckpoints--;
 }
 
 QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
