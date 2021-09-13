@@ -543,6 +543,8 @@ cb::engine_errc EventuallyPersistentEngine::setCheckpointParam(
             config.setCheckpointMemoryRecoveryUpperMark(std::stof(val));
         } else if (key == "checkpoint_memory_recovery_lower_mark") {
             config.setCheckpointMemoryRecoveryLowerMark(std::stof(val));
+        } else if (key == "checkpoint_max_size") {
+            config.setCheckpointMaxSize(std::stoull(val));
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::no_such_key;

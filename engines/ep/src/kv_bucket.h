@@ -795,6 +795,20 @@ public:
 
     float getCheckpointMemoryRecoveryLowerMark() const;
 
+    /**
+     * Sets the maximum size (in bytes) for a single checkpoint.
+     * '0' triggers EP auto-setup, where the value is determined based on other
+     * system parameters (eg, num of vbuckets, checkpoint quota, max num of
+     * checkpoints per vbucket, etc..) for optimal balance and checkpoint memory
+     * releasing capabilities.
+     *
+     * @param size
+     * @return success if the operation succeeds, an error code otherwise
+     */
+    cb::engine_errc setCheckpointMaxSize(size_t size);
+
+    size_t getCheckpointMaxSize() const;
+
     enum class CheckpointMemoryState : uint8_t {
         Available,
         NeedsRecovery,
@@ -1055,6 +1069,13 @@ protected:
      * Requires synchronization as it stores a dynamic configuration param.
      */
     std::atomic<float> checkpointMemoryRecoveryLowerMark;
+
+    /**
+     * Maximum size (in bytes) for a single checkpoint.
+     *
+     * @todo MB-48529: Move to CheckpointConfig
+     */
+    std::atomic<size_t> checkpointMaxSize;
 
     friend class KVBucketTest;
 

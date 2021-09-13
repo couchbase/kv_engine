@@ -202,6 +202,7 @@ Available params for "set":
     checkpoint_memory_ratio      - Max ratio of the bucket quota that can be allocated in checkpoints.
     checkpoint_memory_recovery_upper_mark - Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that triggers attempt of memory releasing from checkpoint.
     checkpoint_memory_recovery_lower_mark - Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that represents the target of checkpoint memory recovery. Memory recovery yields when reached.
+    checkpoint_max_size          - Max size (in bytes) of a single checkpoint. '0' for EPEngine auto-setup.
 
   Available params for set flush_param:
     access_scanner_enabled       - Enable or disable access scanner task (true/false)

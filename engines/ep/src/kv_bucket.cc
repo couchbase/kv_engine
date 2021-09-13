@@ -12,6 +12,7 @@
 #include "kv_bucket.h"
 #include "access_scanner.h"
 #include "bucket_logger.h"
+#include "checkpoint_config.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
 #include "collections/manager.h"
@@ -134,6 +135,8 @@ public:
             store.setCompactionExpMemThreshold(value);
         } else if (key.compare("max_ttl") == 0) {
             store.setMaxTtl(value);
+        } else if (key == "checkpoint_max_size") {
+            store.setCheckpointMaxSize(value);
         } else {
             EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
@@ -423,6 +426,12 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
 
     config.addValueChangedListener(
             "checkpoint_memory_recovery_lower_mark",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    // Note: setting via setter for handling auto-setup. See setter for details.
+    setCheckpointMaxSize(config.getCheckpointMaxSize());
+    config.addValueChangedListener(
+            "checkpoint_max_size",
             std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
@@ -2828,6 +2837,32 @@ cb::engine_errc KVBucket::setCheckpointMemoryRecoveryLowerMark(float ratio) {
 
 float KVBucket::getCheckpointMemoryRecoveryLowerMark() const {
     return checkpointMemoryRecoveryLowerMark;
+}
+
+cb::engine_errc KVBucket::setCheckpointMaxSize(size_t size) {
+    if (size > 0) {
+        checkpointMaxSize = size;
+        return cb::engine_errc::success;
+    }
+
+    // Note: This is NOT perfect in the general case.
+    // VBMap::getSize() returns the capacity of the VBMap, not the actual number
+    // of vbuckets in the map. For perfect sizing we would need to recompute
+    // at any vbmap size change (ie, bucket creation / deletion). @todo MB-48038
+    const auto numVBuckets = vbMap.getSize();
+    const auto& config = engine.getConfiguration();
+    const auto checkpointQuota = config.getMaxSize() * checkpointMemoryRatio;
+    const auto numCheckpointsPerVB = config.getMaxCheckpoints();
+
+    Expects(numVBuckets > 0);
+    Expects(numCheckpointsPerVB > 0);
+    checkpointMaxSize = (checkpointQuota / numVBuckets) / numCheckpointsPerVB;
+
+    return cb::engine_errc::success;
+}
+
+size_t KVBucket::getCheckpointMaxSize() const {
+    return checkpointMaxSize;
 }
 
 KVBucket::CheckpointMemoryState KVBucket::getCheckpointMemoryState() const {

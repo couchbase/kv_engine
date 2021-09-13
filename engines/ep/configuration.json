@@ -240,6 +240,12 @@
                 }
             }
         },
+        "checkpoint_max_size": {
+            "default": "0",
+            "descr": "Max size (in bytes) of a single checkpoint. '0' for EPEngine auto-setup.",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "collections_drop_compaction_delay" : {
             "default": "5000",
             "descr": "How many milliseconds before compaction runs following the drop of a collection",
