@@ -502,34 +502,3 @@ TEST_P(StatsTest, TestSingleBucketOpStats) {
     EXPECT_EQ(1, int(*lookup));
     EXPECT_EQ(1, int(*mutation));
 }
-
-/**
- * Subclass of StatsTest which doesn't have a default bucket; hence connections
- * will intially not be associated with any bucket.
- */
-class NoBucketStatsTest : public StatsTest {
-public:
-    static void SetUpTestCase() {
-        StatsTest::SetUpTestCase();
-    }
-
-    // Setup as usual, but delete the default bucket before starting the
-    // testcase and reconnect) so the user isn't associated with any bucket.
-    void SetUp() override {
-        StatsTest::SetUp();
-        DeleteTestBucket();
-        getConnection().reconnect();
-    }
-
-    // Reverse of above - re-create the default bucket to keep the parent
-    // classes happy.
-    void TearDown() override {
-        CreateTestBucket();
-        StatsTest::TearDown();
-    }
-};
-
-INSTANTIATE_TEST_SUITE_P(TransportProtocols,
-                         NoBucketStatsTest,
-                         ::testing::Values(TransportProtocols::McbpSsl),
-                         ::testing::PrintToStringParamName());
