@@ -545,6 +545,18 @@ TEST_P(STParamMagmaBucketTest,
     EXPECT_EQ(expectedPurgeSeqno, vb->getPurgeSeqno());
 }
 
+/**
+ * Test to ensure we don't crash due to an exception being raised during an
+ * implicit compaction. To test this just throw inside the
+ * postPurgeSeqnoImplicitCompactionHook.
+ */
+TEST_P(STParamMagmaBucketTest, MB_48441) {
+    setupForImplicitCompactionTest(
+            []() {},
+            []() {},
+            []() { throw std::runtime_error("this should be caught"); });
+}
+
 INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
                          STParamMagmaBucketTest,
                          STParameterizedBucketTest::magmaConfigValues(),

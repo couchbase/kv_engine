@@ -651,10 +651,7 @@ protected:
         ~MagmaCompactionCB() override;
         bool operator()(const magma::Slice& keySlice,
                         const magma::Slice& metaSlice,
-                        const magma::Slice& valueSlice) override {
-            return magmaKVStore.compactionCallBack(
-                    *this, keySlice, metaSlice, valueSlice);
-        }
+                        const magma::Slice& valueSlice) override;
         const magma::UserStats* GetUserStats() override {
             return &magmaDbStats;
         }

@@ -201,6 +201,22 @@ MagmaKVStore::MagmaCompactionCB::~MagmaCompactionCB() {
     magmaKVStore.logger->debug("MagmaCompactionCB destructor");
 }
 
+bool MagmaKVStore::MagmaCompactionCB::operator()(
+        const magma::Slice& keySlice,
+        const magma::Slice& metaSlice,
+        const magma::Slice& valueSlice) {
+    // catch any exceptions from the compaction callback and log them, as we
+    // don't want to crash magma given it runs on a backend thread.
+    try {
+        return magmaKVStore.compactionCallBack(
+                *this, keySlice, metaSlice, valueSlice);
+    } catch (std::exception& e) {
+        magmaKVStore.logger->warn(
+                "MagmaKVStore::compactionCallBack() threw:'{}'", e.what());
+    }
+    return false;
+}
+
 struct MagmaKVStoreTransactionContext : public TransactionContext {
     MagmaKVStoreTransactionContext(KVStore& kvstore,
                                    Vbid vbid,
