@@ -675,6 +675,15 @@ public:
 
     void addStats(const AddStatFn& add_stat, const CookieIface* cookie);
 
+    /**
+     * Remove association with a CheckpointManager.
+     *
+     * After this is called, stats will no longer be accounted against
+     * the checkpoint manager, and the Checkpoint shall not have any further
+     * items queued.
+     */
+    void detachFromManager();
+
 private:
     /**
      * Make a CheckpointIndexKey for inserting items into or finding items in
@@ -682,8 +691,9 @@ private:
      */
     CheckpointIndexKeyType makeIndexKey(const queued_item& item) const;
 
-    // Reference to the CheckpointManager that owns this Checkpoint
-    CheckpointManager& manager;
+    // Pointer to the CheckpointManager that owns this Checkpoint.
+    // Will be made null when removing the checkpoint from the manager.
+    CheckpointManager* manager = nullptr;
 
     EPStats& stats;
     uint64_t                       checkpointId;

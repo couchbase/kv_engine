@@ -170,7 +170,7 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
                        std::optional<uint64_t> highCompletedSeqno,
                        Vbid vbid,
                        CheckpointType checkpointType)
-    : manager(manager),
+    : manager(&manager),
       stats(st),
       checkpointId(id),
       snapStartSeqno(snapStart),
@@ -212,9 +212,14 @@ Checkpoint::~Checkpoint() {
     auto& core = stats.coreLocal.get();
     core->memOverhead.fetch_sub(sizeof(Checkpoint) + keyIndexMemUsage +
                                 queueMemOverhead);
-    manager.overheadChangedCallback(-getMemoryOverhead());
-
     core->numCheckpoints--;
+
+    if (manager) {
+        // If this checkpoint is still associated with a manger, detach it
+        // now to ensure all manager stats are updated before the checkpoint
+        // goes away.
+        detachFromManager();
+    }
 }
 
 QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
@@ -225,13 +230,14 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                 std::to_string(getState()) + ") is not OPEN");
     }
 
+    Expects(manager);
     QueueDirtyResult rv;
     // trigger the overheadChangedCallback if the overhead is different
     // when this helper is destroyed
     auto overheadCheck = gsl::finally([pre = getMemoryOverhead(), this]() {
         auto post = getMemoryOverhead();
         if (pre != post) {
-            manager.overheadChangedCallback(post - pre);
+            manager->overheadChangedCallback(post - pre);
         }
     });
 
@@ -299,7 +305,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                 // this Checkpoint and see if the existing item for this key is
                 // to the "left" of the cursor (i.e. has already been
                 // processed).
-                for (auto& cursor : manager.cursors) {
+                for (auto& cursor : manager->cursors) {
                     if ((*(cursor.second->currentCheckpoint)).get() != this) {
                         // Cursor is in another checkpoint, doesn't need
                         // updating here
@@ -356,10 +362,10 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                     // a single item (we de-dupe below). Track this in an
                     // AggregatedFlushStats in CheckpointManager so that we can
                     // undo these stat updates if the flush fails.
-                    auto backupPCursor = manager.cursors.find(
+                    auto backupPCursor = manager->cursors.find(
                             CheckpointManager::backupPCursorName);
 
-                    if (backupPCursor == manager.cursors.end()) {
+                    if (backupPCursor == manager->cursors.end()) {
                         decrCursorIfSameKey();
 
                         // We're not mid-flush, don't need to adjust any stats
@@ -374,7 +380,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                         // the stats we'll use the new item and the flush
                         // will pick up the new item too so we have to match
                         // the original (oldItem) increment with a decrement
-                        manager.persistenceFailureStatOvercounts.accountItem(
+                        manager->persistenceFailureStatOvercounts.accountItem(
                                 *oldItem);
                     }
 
@@ -463,7 +469,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
     if (qi->getOperation() == queue_op::checkpoint_start ||
         qi->getOperation() == queue_op::checkpoint_end ||
         qi->getOperation() == queue_op::set_vbucket_state) {
-        manager.notifyFlusher();
+        manager->notifyFlusher();
     }
 
     return rv;
@@ -662,6 +668,19 @@ void Checkpoint::addStats(const AddStatFn& add_stat,
                      vbucketId.get(),
                      getId());
     add_casted_stat(buf.data(), getVisibleSnapshotEndSeqno(), add_stat, cookie);
+}
+
+void Checkpoint::detachFromManager() {
+    Expects(manager);
+    // decrease the manager memory overhead by the total amount of this
+    // checkpoint
+    manager->overheadChangedCallback(-getMemoryOverhead());
+    manager = nullptr;
+
+    // stop tracking MemoryCounters against the CM, this also decreases the
+    // "parent" value by the values for this Checkpoint.
+    keyIndexMemUsage.changeParent(nullptr);
+    queuedItemsMemUsage.changeParent(nullptr);
 }
 
 std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {

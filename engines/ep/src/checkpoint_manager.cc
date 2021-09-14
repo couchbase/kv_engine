@@ -458,6 +458,7 @@ CheckpointManager::removeClosedUnrefCheckpoints() {
         numNonMetaItemsRemoved += checkpoint->getNumItems();
         numMetaItemsRemoved += checkpoint->getNumMetaItems();
         memoryReleased += checkpoint->getMemConsumption();
+        checkpoint->detachFromManager();
     }
     numItems.fetch_sub(numNonMetaItemsRemoved + numMetaItemsRemoved);
     stats.itemsRemovedFromCheckpoints.fetch_add(numNonMetaItemsRemoved);
