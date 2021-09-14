@@ -327,7 +327,7 @@ nlohmann::json KVStore::getPersistedStats() const {
     std::string dbname = getConfig().getDBName();
     const auto fname = cb::io::sanitizePath(dbname + "/stats.json");
     if (!cb::io::isFile(fname)) {
-        return nlohmann::json();
+        return {};
     }
 
     std::string buffer;
@@ -338,7 +338,7 @@ nlohmann::json KVStore::getPersistedStats() const {
                 "KVStore::getPersistedStats: Failed to load the engine "
                 "session stats due to IO exception \"{}\"",
                 exception.what());
-        return nlohmann::json();
+        return {};
     }
 
     nlohmann::json json;
@@ -349,7 +349,7 @@ nlohmann::json KVStore::getPersistedStats() const {
                 "KVStore::getPersistedStats:"
                 " Failed to parse the session stats json doc!!!: \"{}\"",
                 exception.what());
-        return nlohmann::json();
+        return {};
     }
 
     return json;

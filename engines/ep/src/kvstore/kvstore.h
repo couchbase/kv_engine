@@ -27,7 +27,6 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
-#include <list>
 #include <map>
 #include <string_view>
 #include <unordered_map>
@@ -573,13 +572,13 @@ private:
  */
 class KVStore : public KVStoreIface {
 public:
-    virtual ~KVStore();
+    ~KVStore() override;
 
     /**
      * Called when the engine is going away so we can shutdown any backend tasks
      * the underlying store create to prevent them from racing with destruction.
      */
-    virtual void deinitialize() {
+    void deinitialize() override {
     }
 
     /**
@@ -590,9 +589,9 @@ public:
      * @param c the cookie to pass to the callback function
      * @param args are additional arguments to be parsed, can be empty
      */
-    virtual void addStats(const AddStatFn& add_stat,
-                          const void* c,
-                          const std::string& args) const;
+    void addStats(const AddStatFn& add_stat,
+                  const void* c,
+                  const std::string& args) const override;
 
     /**
      * Request the specified statistic name from the kvstore.
@@ -602,7 +601,7 @@ public:
      * @return True if the stat exists, is of type size_t and was successfully
      *         returned, else false.
      */
-    virtual bool getStat(std::string_view name, size_t& value) const {
+    bool getStat(std::string_view name, size_t& value) const override {
         return false;
     }
 
@@ -613,7 +612,7 @@ public:
     /// map refer to the same string keys that the input string_view refers to.
     /// Hence the map is ok to use only as long as the string keys live.
     ///
-    virtual GetStatsMap getStats(gsl::span<const std::string_view> keys) const;
+    GetStatsMap getStats(gsl::span<const std::string_view> keys) const override;
 
     /**
      * Show kvstore specific timing stats.
@@ -621,17 +620,17 @@ public:
      * @param add_stat the callback function to add statistics
      * @param c the cookie to pass to the callback function
      */
-    virtual void addTimingStats(const AddStatFn& add_stat,
-                                const CookieIface* c) const;
+    void addTimingStats(const AddStatFn& add_stat,
+                        const CookieIface* c) const override;
 
     /**
      * Resets kvstore specific stats
      */
-    virtual void resetStats() {
+    void resetStats() override {
         st.reset();
     }
 
-    virtual size_t getMemFootPrint() const {
+    size_t getMemFootPrint() const override {
         return st.getMemFootPrint();
     }
 
@@ -639,9 +638,9 @@ public:
      * Needed to prevent the convenience version of get below from hiding the
      * interface version.
      */
-    virtual GetValue get(const DiskDocKey& key,
-                         Vbid vb,
-                         ValueFilter filter) const = 0;
+    GetValue get(const DiskDocKey& key,
+                 Vbid vb,
+                 ValueFilter filter) const override = 0;
     /**
      * Convenience version of get() which fetches the value uncompressed.
      */
@@ -654,7 +653,7 @@ public:
      *
      * @param size  The new max bucket quota size.
      */
-    virtual void setMaxDataSize(size_t size) {
+    void setMaxDataSize(size_t size) override {
         // Might be overloaded to do some work
     }
 
@@ -664,7 +663,7 @@ public:
      * @param vb vbucket id of a document
      * @param itms list of items whose documents are going to be retrieved.
      */
-    virtual void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) const {
+    void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) const override {
         throw std::runtime_error("Backend does not support getMulti()");
     }
 
@@ -691,17 +690,17 @@ public:
      *         completed. (Note: finding zero docments in the given range is
      *         considered successful).
      */
-    virtual void getRange(Vbid vb,
-                          const DiskDocKey& startKey,
-                          const DiskDocKey& endKey,
-                          ValueFilter filter,
-                          const GetRangeCb& cb) const {
+    void getRange(Vbid vb,
+                  const DiskDocKey& startKey,
+                  const DiskDocKey& endKey,
+                  ValueFilter filter,
+                  const GetRangeCb& cb) const override {
         throw std::runtime_error("Backend does not support getRange()");
     }
 
-    nlohmann::json getPersistedStats() const;
+    nlohmann::json getPersistedStats() const override;
 
-    bool snapshotStats(const nlohmann::json& stats);
+    bool snapshotStats(const nlohmann::json& stats) override;
 
     /**
      * Abort compaction for the provided vbucket if it is running
@@ -712,46 +711,47 @@ public:
      *               held).
      * @param vbucket The vbucket of interest
      */
-    virtual void abortCompactionIfRunning(std::unique_lock<std::mutex>& vbLock,
-                                          Vbid vbid){};
+    void abortCompactionIfRunning(std::unique_lock<std::mutex>& vbLock,
+                                  Vbid vbid) override{};
 
-    void prepareForDeduplication(std::vector<queued_item>& items);
+    void prepareForDeduplication(std::vector<queued_item>& items) override;
 
-    uint64_t getLastPersistedSeqno(Vbid vbid);
+    uint64_t getLastPersistedSeqno(Vbid vbid) override;
 
-    const KVStoreStats& getKVStoreStat() const {
+    const KVStoreStats& getKVStoreStat() const override {
         return st;
     }
 
     /// Does the backend support historical snapshots
-    virtual bool supportsHistoricalSnapshots() const {
+    bool supportsHistoricalSnapshots() const override {
         return false;
     }
 
-    uint64_t prepareToDelete(Vbid vbid);
+    uint64_t prepareToDelete(Vbid vbid) override;
 
-    void prepareToCreate(Vbid vbid);
+    void prepareToCreate(Vbid vbid) override;
 
-    void setSystemEvent(TransactionContext& txnCtx, const queued_item);
+    void setSystemEvent(TransactionContext& txnCtx, const queued_item) override;
 
-    void delSystemEvent(TransactionContext& txnCtx, const queued_item);
+    void delSystemEvent(TransactionContext& txnCtx, const queued_item) override;
 
-    void setMakeCompactionContextCallback(MakeCompactionContextCallback cb) {
+    void setMakeCompactionContextCallback(
+            MakeCompactionContextCallback cb) override {
         makeCompactionContextCallback = cb;
     }
 
     /**
      * Set the number of storage threads based on configuration settings
      */
-    virtual void setStorageThreads(ThreadPoolConfig::StorageThreadCount num) {
+    void setStorageThreads(ThreadPoolConfig::StorageThreadCount num) override {
         // ignored by default
     }
 
-    void setPostFlushHook(std::function<void()> hook) {
+    void setPostFlushHook(std::function<void()> hook) override {
         postFlushHook = hook;
     }
 
-    void endTransaction(Vbid vbid);
+    void endTransaction(Vbid vbid) override;
 
     /**
      * Validate if the given vBucket is in a transaction
