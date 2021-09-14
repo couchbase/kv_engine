@@ -107,3 +107,9 @@ public:
      */
     void testEstimatedCheckpointMemUsage();
 };
+
+/**
+ * Test fixture for checking out that checkpoint configuration is applied
+ * as expected.
+ */
+class CheckpointConfigTest : public SingleThreadedCheckpointTest {};

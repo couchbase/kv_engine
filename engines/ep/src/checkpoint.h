@@ -37,9 +37,6 @@
 #define MAX_CHECKPOINT_PERIOD 3600 // 3600 sec.
 #define DEFAULT_CHECKPOINT_PERIOD 5 // 5 sec.
 
-#define DEFAULT_MAX_CHECKPOINTS 2
-#define MAX_CHECKPOINTS_UPPER_BOUND 5
-
 /**
  * The state of a given checkpoint.
  */

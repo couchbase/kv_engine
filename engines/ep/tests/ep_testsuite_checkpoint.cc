@@ -76,7 +76,7 @@ static enum test_result test_validate_checkpoint_params(EngineIface* h) {
             "param");
     checkeq(cb::engine_errc::invalid_arguments,
             set_param(
-                    h, EngineParamCategory::Checkpoint, "max_checkpoints", "6"),
+                    h, EngineParamCategory::Checkpoint, "max_checkpoints", "1"),
             "Expected to have an invalid value error for max_checkpoints "
             "param");
 

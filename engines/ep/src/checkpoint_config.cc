@@ -44,10 +44,11 @@ private:
     CheckpointConfig& config;
 };
 
+// Test only
 CheckpointConfig::CheckpointConfig()
     : checkpointPeriod(DEFAULT_CHECKPOINT_PERIOD),
       checkpointMaxItems(DEFAULT_CHECKPOINT_ITEMS),
-      maxCheckpoints(DEFAULT_MAX_CHECKPOINTS),
+      maxCheckpoints(2),
       itemNumBasedNewCheckpoint(true),
       persistenceEnabled(true) { /* empty */
 }
@@ -119,20 +120,6 @@ bool CheckpointConfig::validateCheckpointPeriodParam(size_t checkpoint_period) {
     return true;
 }
 
-bool CheckpointConfig::validateMaxCheckpointsParam(size_t max_checkpoints) {
-    if (max_checkpoints < DEFAULT_MAX_CHECKPOINTS ||
-        max_checkpoints > MAX_CHECKPOINTS_UPPER_BOUND) {
-        EP_LOG_WARN(
-                "New max_checkpoints param value {} is not ranged "
-                "betweeen the min allowed value {} and max value {}",
-                max_checkpoints,
-                DEFAULT_MAX_CHECKPOINTS,
-                MAX_CHECKPOINTS_UPPER_BOUND);
-        return false;
-    }
-    return true;
-}
-
 void CheckpointConfig::setCheckpointPeriod(size_t value) {
     if (!validateCheckpointPeriodParam(value)) {
         value = DEFAULT_CHECKPOINT_PERIOD;
@@ -148,8 +135,6 @@ void CheckpointConfig::setCheckpointMaxItems(size_t value) {
 }
 
 void CheckpointConfig::setMaxCheckpoints(size_t value) {
-    if (!validateMaxCheckpointsParam(value)) {
-        value = DEFAULT_MAX_CHECKPOINTS;
-    }
+    Expects(value >= 2);
     maxCheckpoints = value;
 }

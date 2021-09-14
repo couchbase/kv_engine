@@ -21,6 +21,7 @@ class EventuallyPersistentEngine;
 
 class CheckpointConfig {
 public:
+    // Test only
     CheckpointConfig();
 
     CheckpointConfig(rel_time_t period,
@@ -52,12 +53,11 @@ public:
     }
 
 protected:
-    friend class CheckpointConfigChangeListener;
     friend class EventuallyPersistentEngine;
+    friend class SynchronousEPEngine;
 
     bool validateCheckpointMaxItemsParam(size_t checkpoint_max_items);
     bool validateCheckpointPeriodParam(size_t checkpoint_period);
-    bool validateMaxCheckpointsParam(size_t max_checkpoints);
 
     void setCheckpointPeriod(size_t value);
     void setCheckpointMaxItems(size_t value);

@@ -106,7 +106,7 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
     checkpoint_config = CheckpointConfig(
             DEFAULT_CHECKPOINT_PERIOD,
             DEFAULT_CHECKPOINT_ITEMS,
-            DEFAULT_MAX_CHECKPOINTS,
+            2 /*maxCheckpoints*/,
             true /*itemNumBasedNewCheckpoint*/,
             (vbType == VBType::Persistent ? true
                                           : false) /*persistenceEnabled*/);

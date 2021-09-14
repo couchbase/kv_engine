@@ -2973,3 +2973,26 @@ TEST_F(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtRemoval) {
               engine->getEpStats().getEstimatedCheckpointMemUsage());
     EXPECT_EQ(queued + index, manager.getEstimatedMemUsage());
 }
+
+TEST_F(CheckpointConfigTest, MaxCheckpoints_LowerThanMin) {
+    auto& config = engine->getConfiguration();
+    try {
+        config.setMaxCheckpoints(1);
+    } catch (const std::range_error& e) {
+        EXPECT_THAT(e.what(),
+                    testing::HasSubstr("Validation Error, max_checkpoints "
+                                       "takes values between 2"));
+        return;
+    }
+    FAIL();
+}
+
+TEST_F(CheckpointConfigTest, MaxCheckpoints) {
+    auto& config = engine->getConfiguration();
+    config.setMaxCheckpoints(1000);
+
+    setVBucketState(vbid, vbucket_state_active);
+    auto& manager = *store->getVBuckets().getBucket(vbid)->checkpointManager;
+
+    EXPECT_EQ(1000, manager.getCheckpointConfig().getMaxCheckpoints());
+}
