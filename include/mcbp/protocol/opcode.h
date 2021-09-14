@@ -444,6 +444,11 @@ bool is_preserve_ttl_supported(ClientOpcode opcode);
 /// Is the command currently supported but deprecated
 bool is_deprecated(ClientOpcode opcode);
 
+std::ostream& operator<<(std::ostream& out,
+                         const cb::mcbp::ClientOpcode& opcode);
+std::ostream& operator<<(std::ostream& out,
+                         const cb::mcbp::ServerOpcode& opcode);
+
 } // namespace cb::mcbp
 
 /**
@@ -460,6 +465,3 @@ std::string to_string(cb::mcbp::ServerOpcode opcode);
  * @throws std::invalid_argument for unknown opcodes
  */
 cb::mcbp::ClientOpcode to_opcode(const std::string& string);
-
-std::ostream& operator<<(std::ostream& out, cb::mcbp::ClientOpcode opcode);
-std::ostream& operator<<(std::ostream& out, cb::mcbp::ServerOpcode opcode);

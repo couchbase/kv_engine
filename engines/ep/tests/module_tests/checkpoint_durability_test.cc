@@ -16,7 +16,6 @@
 #include "ep_vb.h"
 #include "test_helpers.h"
 
-#include <gmock/gmock-generated-matchers.h>
 #include <tests/mock/mock_checkpoint_manager.h>
 
 /**

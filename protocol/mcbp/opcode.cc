@@ -1273,6 +1273,18 @@ bool is_preserve_ttl_supported(ClientOpcode opcode) {
             cb::to_hex(uint8_t(opcode)));
 }
 
+std::ostream& operator<<(std::ostream& out,
+                         const cb::mcbp::ClientOpcode& opcode) {
+    out << ::to_string(opcode);
+    return out;
+}
+
+std::ostream& operator<<(std::ostream& out,
+                         const cb::mcbp::ServerOpcode& opcode) {
+    out << ::to_string(opcode);
+    return out;
+}
+
 } // namespace cb::mcbp
 
 std::string to_string(cb::mcbp::ClientOpcode opcode) {
@@ -1652,14 +1664,4 @@ cb::mcbp::ClientOpcode to_opcode(const std::string& string) {
 
     throw std::invalid_argument("to_opcode(): unknown opcode: \"" + string +
                                 "\"");
-}
-
-std::ostream& operator<<(std::ostream& out, cb::mcbp::ClientOpcode opcode) {
-    out << to_string(opcode);
-    return out;
-}
-
-std::ostream& operator<<(std::ostream& out, cb::mcbp::ServerOpcode opcode) {
-    out << to_string(opcode);
-    return out;
 }

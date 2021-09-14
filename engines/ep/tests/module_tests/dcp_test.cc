@@ -56,6 +56,14 @@
 #include <thread>
 #include <unordered_map>
 
+// For some reason g++ 10.2.0 fails building googletest 1.11.0 due to not
+// finding the ostream operator... workaround that for now..
+namespace std::chrono {
+void PrintTo(const std::chrono::duration<long int>& val, ostream* os) {
+    *os << val.count();
+}
+} // namespace std::chrono
+
 /**
  * The DCP tests wants to mock around with the notify_io_complete
  * method. Previously we copied in a new notify_io_complete method, but
