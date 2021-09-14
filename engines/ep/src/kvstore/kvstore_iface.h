@@ -419,6 +419,10 @@ public:
      * @param options DocumentFilter for the scan - e.g. return deleted items
      * @param valOptions ValueFilter - e.g. return the document body
      * @param source - Should a historical or the current head be used
+     * @param fileHandle optional pointer to a KVFileHandle to data store that
+     *                   scan context is for. If fileHandle is a nullptr then
+     *                   the method will create a new KVFileHandle for the scan
+     *                   context.
      * @return a BySeqnoScanContext, null if there's an error
      */
     virtual std::unique_ptr<BySeqnoScanContext> initBySeqnoScanContext(
@@ -428,7 +432,8 @@ public:
             uint64_t startSeqno,
             DocumentFilter options,
             ValueFilter valOptions,
-            SnapshotSource source) const = 0;
+            SnapshotSource source,
+            std::unique_ptr<KVFileHandle> fileHandle = nullptr) const = 0;
 
     /**
      * Create a KVStore id range Scan Context with the given options.

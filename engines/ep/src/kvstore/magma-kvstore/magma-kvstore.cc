@@ -1400,14 +1400,18 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
         uint64_t startSeqno,
         DocumentFilter options,
         ValueFilter valOptions,
-        SnapshotSource source) const {
+        SnapshotSource source,
+        std::unique_ptr<KVFileHandle> fileHandle) const {
     if (source == SnapshotSource::Historical) {
         throw std::runtime_error(
                 "MagmaKVStore::initBySeqnoScanContext: historicalSnapshot not "
                 "implemented");
     }
 
-    auto handle = makeFileHandle(vbid);
+    auto handle = std::move(fileHandle);
+    if (!handle) {
+        handle = makeFileHandle(vbid);
+    }
 
     std::unique_ptr<Magma::Snapshot> snapshot;
 

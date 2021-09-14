@@ -447,19 +447,30 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
     // a new scan. So we create a new BySeqnoScanContext with callbacks bespoke
     // to the needs of this function and take the handle from the scanCtx
     // TODO : MB-48096 Optimize backfill range
-    auto scanForHighestCommitttedItem = std::make_unique<BySeqnoScanContext>(
+    auto scanForHighestCommitttedItem = kvs.initBySeqnoScanContext(
             std::make_unique<FindMaxCommittedItem>(stats.highSeqno),
             std::make_unique<NoLookupCallback>(),
             scanCtx.vbid,
-            std::move(scanCtx.handle), // scan the already open file
             startSeqno,
-            stats.highSeqno,
-            0,
             DocumentFilter::ALL_ITEMS,
             ValueFilter::KEYS_ONLY,
-            0,
-            vbucket_state{},
-            std::vector<Collections::KVStore::DroppedCollection>{});
+            SnapshotSource::Head,
+            std::move(scanCtx.handle));
+    if (!scanForHighestCommitttedItem) {
+        stream.log(spdlog::level::level_enum::err,
+                   "({}) DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot "
+                   "initBySeqnoScanContext() didn't return a scan context",
+                   stream.getVBucket());
+        // scan_again can be returned, but that is expected when the scan goes
+        // past the end default collection high seqno
+        stream.setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
+        return false;
+    }
+    // Amend the max seqno to be the high seqno of the default collection
+    // as initBySeqnoScanContext() will set it to be the high seqno of the
+    // vbucket. This helps to ensure we finish the scan before needing to call
+    // the get value callback.
+    scanForHighestCommitttedItem->maxSeqno = stats.highSeqno;
 
     const auto scanStatus = kvs.scan(*scanForHighestCommitttedItem);
     if (scanStatus == scan_failed) {

@@ -30,22 +30,26 @@ MockKVStore::MockKVStore(std::unique_ptr<KVStoreIface> real)
         // Note: this could probably be expanded to the entire interface,
         // however thus far only methods needed by unit tests using the mock
         // have been implemented.
-        ON_CALL(*this, initBySeqnoScanContext(_, _, _, _, _, _, _))
-                .WillByDefault([this](auto cb,
-                                      auto cl,
-                                      Vbid vbid,
-                                      uint64_t startSeqno,
-                                      DocumentFilter options,
-                                      ValueFilter valOptions,
-                                      SnapshotSource source) {
-                    return this->realKVS->initBySeqnoScanContext(std::move(cb),
-                                                                 std::move(cl),
-                                                                 vbid,
-                                                                 startSeqno,
-                                                                 options,
-                                                                 valOptions,
-                                                                 source);
-                });
+        ON_CALL(*this, initBySeqnoScanContext(_, _, _, _, _, _, _, _))
+                .WillByDefault(
+                        [this](auto cb,
+                               auto cl,
+                               Vbid vbid,
+                               uint64_t startSeqno,
+                               DocumentFilter options,
+                               ValueFilter valOptions,
+                               SnapshotSource source,
+                               std::unique_ptr<KVFileHandle> fileHandle) {
+                            return this->realKVS->initBySeqnoScanContext(
+                                    std::move(cb),
+                                    std::move(cl),
+                                    vbid,
+                                    startSeqno,
+                                    options,
+                                    valOptions,
+                                    source,
+                                    std::move(fileHandle));
+                        });
         ON_CALL(*this, getCachedVBucketState(_))
                 .WillByDefault([this](Vbid vbid) {
                     return this->realKVS->getCachedVBucketState(vbid);

@@ -147,7 +147,8 @@ public:
                  uint64_t startSeqno,
                  DocumentFilter options,
                  ValueFilter valOptions,
-                 SnapshotSource source),
+                 SnapshotSource source,
+                 std::unique_ptr<KVFileHandle> fileHandle),
                 (const, override));
     MOCK_METHOD(std::unique_ptr<ByIdScanContext>,
                 initByIdScanContext,

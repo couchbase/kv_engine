@@ -321,7 +321,8 @@ public:
             uint64_t startSeqno,
             DocumentFilter options,
             ValueFilter valOptions,
-            SnapshotSource source) const override;
+            SnapshotSource source,
+            std::unique_ptr<KVFileHandle> fileHandle = nullptr) const override;
 
     std::unique_ptr<ByIdScanContext> initByIdScanContext(
             std::unique_ptr<StatusCallback<GetValue>> cb,

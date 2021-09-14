@@ -50,7 +50,7 @@ TEST_F(DCPBackfillDiskTest, ScanDiskError) {
     // context, then a scan() call which we cause to fail, followed by destroy
     // of scan context.
     auto& mockKVStore = MockKVStore::replaceRWKVStoreWithMock(*store, 0);
-    EXPECT_CALL(mockKVStore, initBySeqnoScanContext(_, _, _, _, _, _, _))
+    EXPECT_CALL(mockKVStore, initBySeqnoScanContext(_, _, _, _, _, _, _, _))
             .Times(1);
     EXPECT_CALL(mockKVStore, scan(An<BySeqnoScanContext&>()))
             .WillOnce(Return(scan_failed));

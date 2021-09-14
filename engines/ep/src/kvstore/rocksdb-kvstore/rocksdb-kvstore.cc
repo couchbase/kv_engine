@@ -247,7 +247,7 @@ using ColumnFamilyPtr =
 
 // The 'VBHandle' class is a wrapper around the ColumnFamilyHandles
 // for a VBucket.
-class VBHandle {
+class VBHandle : public KVFileHandle {
 public:
     VBHandle(rocksdb::DB& rdb,
              rocksdb::ColumnFamilyHandle* defaultCFH,
@@ -1434,7 +1434,8 @@ std::unique_ptr<BySeqnoScanContext> RocksDBKVStore::initBySeqnoScanContext(
         uint64_t startSeqno,
         DocumentFilter options,
         ValueFilter valOptions,
-        SnapshotSource source) const {
+        SnapshotSource source,
+        std::unique_ptr<KVFileHandle> fileHandle) const {
     if (source == SnapshotSource::Historical) {
         throw std::runtime_error(
                 "RocksDBKVStore::initBySeqnoScanContext: historicalSnapshot "
@@ -1445,13 +1446,18 @@ std::unique_ptr<BySeqnoScanContext> RocksDBKVStore::initBySeqnoScanContext(
     // find, we approximate this value with the seqno difference + 1
     // as scan is supposed to be inclusive at both ends,
     // seqnos 2 to 4 covers 3 docs not 4 - 2 = 2
-    auto handle = getVBHandle(vbid);
-    auto diskState = readVBStateFromDisk(*handle.get());
+    auto handle = std::move(fileHandle);
+    if (!handle) {
+        handle = makeFileHandle(vbid);
+    }
+
+    auto vbHandle = getVBHandle(vbid);
+    auto diskState = readVBStateFromDisk(*vbHandle);
     return std::make_unique<BySeqnoScanContext>(
             std::move(cb),
             std::move(cl),
             vbid,
-            makeFileHandle(vbid),
+            std::move(handle),
             startSeqno,
             diskState.vbstate.highSeqno,
             0, /*TODO RDB: pass the real purge-seqno*/

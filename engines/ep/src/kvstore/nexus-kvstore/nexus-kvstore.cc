@@ -1359,14 +1359,16 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
         uint64_t startSeqno,
         DocumentFilter options,
         ValueFilter valOptions,
-        SnapshotSource source) const {
+        SnapshotSource source,
+        std::unique_ptr<KVFileHandle> fileHandle) const {
     return primary->initBySeqnoScanContext(std::move(cb),
                                            std::move(cl),
                                            vbid,
                                            startSeqno,
                                            options,
                                            valOptions,
-                                           source);
+                                           source,
+                                           std::move(fileHandle));
 }
 
 std::unique_ptr<ByIdScanContext> NexusKVStore::initByIdScanContext(

@@ -2813,7 +2813,7 @@ protected:
                 case InjectErrorFunc::InitScanContext:
                     // Configure the mock to return an empty scan context.
                     EXPECT_CALL(mockKVStore,
-                                initBySeqnoScanContext(_, _, _, _, _, _, _))
+                                initBySeqnoScanContext(_, _, _, _, _, _, _, _))
                             .WillOnce(Return(ByMove(
                                     std::unique_ptr<BySeqnoScanContext>())));
                     break;
@@ -2821,7 +2821,7 @@ protected:
                     // First expect an initBySeqnoScanContext call, but that can
                     // perform default action in MockKVStore (succeed).
                     EXPECT_CALL(mockKVStore,
-                                initBySeqnoScanContext(_, _, _, _, _, _, _))
+                                initBySeqnoScanContext(_, _, _, _, _, _, _, _))
                             .Times(1);
                     EXPECT_CALL(mockKVStore, scan(An<BySeqnoScanContext&>()))
                             .WillOnce(Return(scan_failed));

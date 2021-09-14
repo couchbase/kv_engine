@@ -2103,8 +2103,12 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
         uint64_t startSeqno,
         DocumentFilter options,
         ValueFilter valOptions,
-        SnapshotSource source) const {
-    auto handle = makeFileHandle(vbid);
+        SnapshotSource source,
+        std::unique_ptr<KVFileHandle> fileHandle) const {
+    auto handle = std::move(fileHandle);
+    if (!handle) {
+        handle = makeFileHandle(vbid);
+    }
 
     if (!handle) {
         // makeFileHandle/openDb will of logged details of failure.
