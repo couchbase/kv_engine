@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include "testapp_binprot.h"
 #include "testapp_environment.h"
 
 #include <folly/portability/GTest.h>

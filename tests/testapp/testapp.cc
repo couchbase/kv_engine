@@ -8,6 +8,7 @@
  */
 
 #include "testapp.h"
+#include "testapp_binprot.h"
 
 #include <JSON_checker.h>
 #include <boost/filesystem.hpp>

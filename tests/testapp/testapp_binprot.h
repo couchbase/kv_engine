@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -9,14 +8,6 @@
  *   the file licenses/APL2.txt.
  */
 #pragma once
-
-// Utility functions used to build up packets in the memcached binary protocol
-#include <protocol/connection/client_connection.h>
-
-#include <folly/portability/GTest.h>
-#include <sys/types.h>
-#include <algorithm>
-#include <cstdlib>
 
 #include <memcached/protocol_binary.h>
 
@@ -29,9 +20,3 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
 void mcbp_validate_response_header(cb::mcbp::Response& response,
                                    cb::mcbp::ClientOpcode cmd,
                                    cb::mcbp::Status status);
-
-::testing::AssertionResult mcbp_validate_response_header(
-        const cb::mcbp::Response& response,
-        cb::mcbp::ClientOpcode cmd,
-        cb::mcbp::Status status,
-        bool mutation_seqno_enabled);

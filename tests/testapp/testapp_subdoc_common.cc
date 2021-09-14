@@ -14,6 +14,7 @@
  */
 
 #include "testapp_subdoc_common.h"
+#include "testapp_binprot.h"
 
 std::ostream& operator<<(std::ostream& os, const BinprotSubdocCommand& obj) {
     os << "[cmd:" << to_string(cb::mcbp::ClientOpcode(obj.getOp()))

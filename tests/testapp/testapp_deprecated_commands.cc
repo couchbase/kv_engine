@@ -10,6 +10,7 @@
  */
 
 #include "testapp.h"
+#include "testapp_binprot.h"
 
 #include <folly/portability/GTest.h>
 #include <mcbp/protocol/framebuilder.h>
