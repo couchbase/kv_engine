@@ -1176,6 +1176,63 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
                                                  << rollbackPoint;
 }
 
+TEST_P(RollbackDcpTest, test_rollback_zero_MB_48398) {
+    const int nitems = 41;
+    const int seqno0 = 0; // expect final rollback to be to 0
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+
+    // Store items, followed by failover entry - then one more seqno
+    std::string key = "anykey_";
+    EXPECT_TRUE(store_items(
+            nitems, vbid, {key, DocKeyEncodesCollectionId::No}, "value"));
+    flush_vbucket_to_disk(vbid, nitems);
+    // Add an entry for this seqno
+    vb->failovers->createEntry(nitems);
+
+    store_item(vbid, {"rogue1", DocKeyEncodesCollectionId::No}, "value");
+    store->setVBucketState(vbid, vbStateAtRollback);
+    flush_vbucket_to_disk(vbid, 1);
+
+    addStream(nitems + 1);
+
+    // Reject the streams's seqno - as in the MB the replica had created a new
+    // failover entry at warmup, which this test simulates.
+    // Tell the stream to rollback to 0, it will obey and not attempt a second
+    // stream request because the high-seqno does not match the failover's seq
+    // Before fixing the MB, this would retry with a different uuid and the
+    // invalid seqno.
+    responseRollback(seqno0);
+
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+
+    // All keys now gone
+    for (int ii = 0; ii < nitems; ii++) {
+        std::string key = "anykey_" + std::to_string(ii);
+        auto result = store->get(
+                {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
+        EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
+                << "Problem with " << key;
+    }
+    auto result = store->get(
+            {"rogue1", DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
+    EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
+            << "Problem with " << key;
+
+    // Expected a rollback to 0 which is a VB reset, so discard the now dead
+    // vb and obtain replacement
+    vb = store->getVBucket(vbid);
+
+    // Rollback complete and will have posted a new StreamRequest
+    stepForStreamRequest(seqno0, vb->failovers->getLatestEntry().vb_uuid);
+    EXPECT_EQ(seqno0, vb->getHighSeqno())
+            << "VB hasn't rolled back to " << seqno0;
+
+    EXPECT_EQ(0, vb->getNumItems());
+    EXPECT_EQ(0, vb->getNumTotalItems());
+}
+
 void RollbackDcpTest::writeBaseItems() {
     const int items = 1;
     const int flushes = 1;
