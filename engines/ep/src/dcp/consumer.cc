@@ -1088,24 +1088,44 @@ bool DcpConsumer::handleRollbackResponse(Vbid vbid,
         return false;
     }
 
-    auto entries = vb->failovers->getNumEntries();
-    if (rollbackSeqno == 0 && entries > 1) {
-        logger->info(
-                "({}) Received rollback request. Rollback to 0 yet have {} "
-                "entries remaining. Retrying with previous failover entry",
-                vbid,
-                entries);
-        vb->failovers->removeLatestEntry();
+    // Can we avoid rolling back to zero?
+    // If another failover entry is available, confirm that the upper bound
+    // matches the start seqno of the request, if so we can try that uuid.
+    if (rollbackSeqno == 0 && vb->failovers->getNumEntries() > 1) {
+        // Get the seqno from the latest entry, this is the 'upper' bound of the
+        // next entry. If the seqno equals the stream start point we can use it
+        auto entry = vb->failovers->getLatestEntry();
+        if (entry.by_seqno == stream->getStartSeqno()) {
+            vb->failovers->removeLatestEntry();
+            entry = vb->failovers->getLatestEntry();
+            logger->info(
+                    "({}) Received rollback request. Rollback to 0, have {} "
+                    "entries remaining. Retrying with previous failover "
+                    "vb_uuid:{}",
+                    vbid,
+                    vb->failovers->getNumEntries(),
+                    entry.vb_uuid);
 
-        stream->streamRequest(vb->failovers->getLatestEntry().vb_uuid);
-    } else {
-        logger->info("({}) Received rollback request. Rolling back to seqno:{}",
-                     vbid,
-                     rollbackSeqno);
-        ExTask task = std::make_shared<RollbackTask>(
-                &engine_, opaque, vbid, rollbackSeqno, shared_from_this());
-        ExecutorPool::get()->schedule(task);
+            stream->streamRequest(entry.vb_uuid);
+            return true;
+        } else {
+            logger->info(
+                    "({}) Cannot avoid rollback to 0, vb_uuid:{} cannot be used"
+                    " as entry.by_seqno:{} does not match stream "
+                    "start_seqno:{}",
+                    vbid,
+                    entry.vb_uuid,
+                    entry.by_seqno,
+                    stream->getStartSeqno());
+        }
     }
+
+    logger->info("({}) Received rollback request. Rolling back to seqno:{}",
+                 vbid,
+                 rollbackSeqno);
+    ExTask task = std::make_shared<RollbackTask>(
+            &engine_, opaque, vbid, rollbackSeqno, shared_from_this());
+    ExecutorPool::get()->schedule(task);
     return true;
 }
 
