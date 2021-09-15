@@ -26,7 +26,18 @@ using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
 using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
-class STParamMagmaBucketTest : public STParamPersistentBucketTest {};
+class STParamMagmaBucketTest : public STParamPersistentBucketTest {
+public:
+    /**
+     * Setup for implicit compaction test that stores some items as specified
+     * by a lambda function and runs an implicit compaction. Callers can then
+     * test the post-compaction state.
+     *
+     * @param storeItemsForTest Lambda storing items we care about testing
+     */
+    void setupForImplicitCompactionTest(
+            std::function<void()> storeItemsForTest);
+};
 
 /**
  * We flush if we have at least:
@@ -251,11 +262,8 @@ TEST_P(STParamMagmaBucketTest, makeCompactionContextSetupAtWarmup) {
     EXPECT_NO_THROW(magmaKVStore->makeCompactionContext(vbid));
 }
 
-/**
- * Test to check that we correctly update the in memory purge seqno when magma
- * performs an implicit compaction.
- */
-TEST_P(STParamMagmaBucketTest, CheckImplicitCompactionUpdatePurgeSeqno) {
+void STParamMagmaBucketTest::setupForImplicitCompactionTest(
+        std::function<void()> storeItemsForTest) {
     // Function to perform 15 writes so that the next flush will hit the
     // LSMMaxNumLevel0Tables threshold which will trigger implicit compaction
     auto perform15Writes = [this]() -> void {
@@ -269,18 +277,18 @@ TEST_P(STParamMagmaBucketTest, CheckImplicitCompactionUpdatePurgeSeqno) {
     // settings, so that we create a checkpoint at every flush
     resetEngineAndWarmup(magmaRollbackConfig);
 
-    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
     auto vb = store->getVBucket(vbid);
     ASSERT_EQ(0, vb->getPurgeSeqno());
 
     // ensure we meet the LSMMaxNumLevel0Tables threshold
     perform15Writes();
 
-    auto firstDeletedKey = makeStoredDocKey("keyA");
-    store_item(vbid, firstDeletedKey, "value");
-    delete_item(vbid, firstDeletedKey);
-    flushVBucketToDiskIfPersistent(vbid, 1);
-    const auto expectedPurgeSeqno = vb->getHighSeqno();
+    storeItemsForTest();
 
     // Check that the purge seqno is still 0, but we should have a tombstone on
     // disk
@@ -299,10 +307,10 @@ TEST_P(STParamMagmaBucketTest, CheckImplicitCompactionUpdatePurgeSeqno) {
     // ensure we meet the LSMMaxNumLevel0Tables threshold
     perform15Writes();
 
-    auto secondDeletedKey = makeStoredDocKey("keyB");
-    // Add a second tombstone to check that we don't drop everything
-    store_item(vbid, secondDeletedKey, "value");
-    delete_item(vbid, secondDeletedKey);
+    auto deletedNotPurgedKey = makeStoredDocKey("keyB");
+    // Add a tombstone to check that we don't drop everything
+    store_item(vbid, deletedNotPurgedKey, "value");
+    delete_item(vbid, deletedNotPurgedKey);
 
     // And a dummy item because we can't drop the final seqno
     store_item(vbid, makeStoredDocKey("dummy"), "value");
@@ -321,19 +329,40 @@ TEST_P(STParamMagmaBucketTest, CheckImplicitCompactionUpdatePurgeSeqno) {
             dynamic_cast<MagmaKVStore*>(store->getRWUnderlying(vbid));
     ASSERT_TRUE(magmaKVStore);
 
-    // Assert that the first key no longer has a tomb stone
-    auto gv = magmaKVStore->get(DiskDocKey(firstDeletedKey), vbid);
-    ASSERT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
-
-    // Assert that the second key is still a tomb stone on disk as it hasn't hit
-    // its purge threshold yet
-    gv = magmaKVStore->get(DiskDocKey(secondDeletedKey), vbid);
+    // Assert that the deletedNotPurgedKey key is still a tombstone on disk as
+    // it hasn't hit the purge threshold yet
+    auto gv = magmaKVStore->get(DiskDocKey(deletedNotPurgedKey), vbid);
     ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
     ASSERT_TRUE(gv.item);
     ASSERT_TRUE(gv.item->isDeleted());
+}
+
+/**
+ * Test to check that we correctly update the in memory purge seqno when magma
+ * performs an implicit compaction.
+ */
+TEST_P(STParamMagmaBucketTest, CheckImplicitCompactionUpdatePurgeSeqno) {
+    uint64_t expectedPurgeSeqno;
+    auto purgedKey = makeStoredDocKey("keyA");
+
+    setupForImplicitCompactionTest([this, &expectedPurgeSeqno, &purgedKey]() {
+        store_item(vbid, purgedKey, "value");
+        delete_item(vbid, purgedKey);
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        auto vb = store->getVBucket(vbid);
+        expectedPurgeSeqno = vb->getHighSeqno();
+    });
+
+    auto magmaKVStore =
+            dynamic_cast<MagmaKVStore*>(store->getRWUnderlying(vbid));
+    ASSERT_TRUE(magmaKVStore);
+    // Assert that the first key no longer has a tomb stone
+    auto gv = magmaKVStore->get(DiskDocKey(purgedKey), vbid);
+    ASSERT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     // Ensure that the purge seqno has been set during the second flush to where
     // the first tombstone was
+    auto vb = store->getVBucket(vbid);
     EXPECT_EQ(expectedPurgeSeqno, vb->getPurgeSeqno());
 }
 
