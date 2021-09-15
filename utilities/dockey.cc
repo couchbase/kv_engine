@@ -63,9 +63,15 @@ ScopeID ScopeIDNetworkOrder::to_host() const {
 }
 
 std::string DocKey::to_string() const {
-    // Get the sid of the key and add it to the string
-    auto [cid, key] = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
-            {data(), size()});
+    CollectionID cid = CollectionID::Default;
+    cb::const_byte_buffer key{data(), size()};
+
+    if (encoding == DocKeyEncodesCollectionId::Yes) {
+        // Get the cid of the key and add it to the string
+        std::tie(cid, key) =
+                cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
+                        {data(), size()});
+    }
 
     std::string_view remainingKey{reinterpret_cast<const char*>(key.data()),
                                   key.size()};
@@ -84,13 +90,13 @@ std::string DocKey::to_string() const {
             remainingKey = {reinterpret_cast<const char*>(keySuffix.data()),
                             keySuffix.size()};
             return fmt::format(FMT_STRING("cid:{:#x}:{:#x}:{:#x}:{}"),
-                               cid,
+                               uint32_t(cid),
                                systemEventID,
                                cidOrSid,
                                remainingKey);
         }
     }
-    return fmt::format(FMT_STRING("cid:{:#x}:{}"), cid, remainingKey);
+    return fmt::format(FMT_STRING("cid:{:#x}:{}"), uint32_t(cid), remainingKey);
 }
 
 CollectionID DocKey::getCollectionID() const {

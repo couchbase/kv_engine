@@ -169,3 +169,27 @@ TEST_F(DocKeyTest, no_prepare) {
         // do nothing - expected to throw
     }
 }
+
+TEST_F(DocKeyTest, to_string) {
+    std::array<uint8_t, 3> data1 = {{'k', 'e', 'y'}};
+    std::array<uint8_t, 4> data2 = {{CollectionID::Default, 'k', 'e', 'y'}};
+    std::array<uint8_t, 4> data3 = {{8, 'k', 'e', 'y'}};
+    std::array<uint8_t, 6> data4 = {
+            {CollectionID::System, 0, 8, 'k', 'e', 'y'}};
+
+    DocKey key1(data1.data(), data1.size(), DocKeyEncodesCollectionId::No);
+    DocKey key2(data2.data(), data2.size(), DocKeyEncodesCollectionId::Yes);
+    DocKey key3(data3.data(), data3.size(), DocKeyEncodesCollectionId::Yes);
+    DocKey key4(data4.data(), data4.size(), DocKeyEncodesCollectionId::Yes);
+
+    EXPECT_EQ("cid:0x0:key", key1.to_string());
+    EXPECT_EQ("cid:0x0:key", key2.to_string());
+    EXPECT_EQ("cid:0x8:key", key3.to_string());
+
+    // More complex for key4, we expect to see
+    // 0x1 - to indicate system namespace
+    // 0x0 - event type
+    // 0x8 - id event affects
+    // Then the rest of the key
+    EXPECT_EQ("cid:0x1:0x0:0x8:key", key4.to_string());
+}
