@@ -22,6 +22,7 @@
 #include "couch-kvstore/couch-kvstore-metadata.h"
 #include "ep_engine.h"
 #include "ep_time.h"
+#include "failover-table.h"
 #include "item.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_cookie.h"
@@ -3818,6 +3819,33 @@ TEST_F(CollectionsTest, MB_45899) {
 
     // No changes made, collection doesn't exist in vb1
     EXPECT_EQ(copyStats, summary.find(CollectionID::Default)->second);
+}
+
+// MB-48398 identified that we may warmup and push collection changes onto an
+// active vbucket, these should be done against a new UUID to protect against
+// the vbucket becoming a replica and joining to another active with the wrong
+// state.
+TEST_P(CollectionsPersistentParameterizedTest, WarmupWithANewUUID_MB_48398) {
+    // VB must be flushed at least once as active
+    store_item(vbid, StoredDocKey{"k1", CollectionID::Default}, "v1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Set the manifest with the fruit collection, but do not flush!
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    setCollections(cookie, cm); // seq 2
+    store_item(vbid, StoredDocKey{"k1", CollectionEntry::fruit}, "v1");
+    auto uuid = store->getVBucket(vbid)->failovers->getLatestUUID();
+
+    // Forget all the collection change - warmup
+    resetEngineAndWarmup();
+
+    // VB is back to active and has a new UUID and warmup updated the collection
+    // state
+    auto vb = store->getVBucket(vbid);
+    EXPECT_EQ(vbucket_state_active, vb->getState());
+    EXPECT_NE(uuid, vb->failovers->getLatestUUID());
+    EXPECT_EQ(cm.getUid(), vb->lockCollections().getManifestUid());
 }
 
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
