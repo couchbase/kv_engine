@@ -408,9 +408,7 @@ public:
                uint64_t visibleSnapEnd,
                std::optional<uint64_t> highCompletedSeqno,
                Vbid vbid,
-               CheckpointType checkpointType,
-               const std::function<void(int64_t delta)>&
-                       memOverheadChangedCallback);
+               CheckpointType checkpointType);
 
     ~Checkpoint();
 
@@ -787,9 +785,6 @@ private:
     // and allows the flusher to get the max value irrespective of
     // de-duplication.
     std::optional<uint64_t> maxDeletedRevSeqno;
-
-    // Reference to callback owned by checkpoint manager for stat tracking
-    const std::function<void(int64_t delta)>& memOverheadChangedCallback;
 
     friend std::ostream& operator <<(std::ostream& os, const Checkpoint& m);
 };

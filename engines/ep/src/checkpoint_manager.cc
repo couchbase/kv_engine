@@ -207,8 +207,7 @@ void CheckpointManager::addOpenCheckpoint(
                                              visibleSnapEnd,
                                              highCompletedSeqno,
                                              vb.getId(),
-                                             checkpointType,
-                                             overheadChangedCallback);
+                                             checkpointType);
     // Add an empty-item into the new checkpoint.
     // We need this because every CheckpointCursor will point to this empty-item
     // at creation. So, the cursor will point at the first actual non-meta item

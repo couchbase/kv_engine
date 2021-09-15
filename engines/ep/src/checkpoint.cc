@@ -161,17 +161,15 @@ std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c) {
     return os;
 }
 
-Checkpoint::Checkpoint(
-        CheckpointManager& manager,
-        EPStats& st,
-        uint64_t id,
-        uint64_t snapStart,
-        uint64_t snapEnd,
-        uint64_t visibleSnapEnd,
-        std::optional<uint64_t> highCompletedSeqno,
-        Vbid vbid,
-        CheckpointType checkpointType,
-        const std::function<void(int64_t)>& memOverheadChangedCallback)
+Checkpoint::Checkpoint(CheckpointManager& manager,
+                       EPStats& st,
+                       uint64_t id,
+                       uint64_t snapStart,
+                       uint64_t snapEnd,
+                       uint64_t visibleSnapEnd,
+                       std::optional<uint64_t> highCompletedSeqno,
+                       Vbid vbid,
+                       CheckpointType checkpointType)
     : manager(manager),
       stats(st),
       checkpointId(id),
@@ -189,17 +187,16 @@ Checkpoint::Checkpoint(
       keyIndexMemUsage(st, manager),
       queuedItemsMemUsage(st, manager),
       checkpointType(checkpointType),
-      highCompletedSeqno(std::move(highCompletedSeqno)),
-      memOverheadChangedCallback(memOverheadChangedCallback) {
+      highCompletedSeqno(std::move(highCompletedSeqno)) {
     auto& core = stats.coreLocal.get();
     core->memOverhead.fetch_add(sizeof(Checkpoint));
     core->numCheckpoints++;
 
-    // the memOverheadChangedCallback uses the accurately tracked overhead
+    // the overheadChangedCallback uses the accurately tracked overhead
     // from trackingAllocator. The above memOverhead stat is "manually"
     // accounted in queueDirty, and approximates the overhead based on
     // key sizes and the size of queued_item and index_entry.
-    memOverheadChangedCallback(getMemoryOverhead());
+    manager.overheadChangedCallback(getMemoryOverhead());
 }
 
 Checkpoint::~Checkpoint() {
@@ -215,7 +212,7 @@ Checkpoint::~Checkpoint() {
     auto& core = stats.coreLocal.get();
     core->memOverhead.fetch_sub(sizeof(Checkpoint) + keyIndexMemUsage +
                                 queueMemOverhead);
-    memOverheadChangedCallback(-getMemoryOverhead());
+    manager.overheadChangedCallback(-getMemoryOverhead());
 
     core->numCheckpoints--;
 }
@@ -229,12 +226,12 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
     }
 
     QueueDirtyResult rv;
-    // trigger the memOverheadChangedCallback if the overhead is different
+    // trigger the overheadChangedCallback if the overhead is different
     // when this helper is destroyed
     auto overheadCheck = gsl::finally([pre = getMemoryOverhead(), this]() {
         auto post = getMemoryOverhead();
         if (pre != post) {
-            memOverheadChangedCallback(post - pre);
+            manager.overheadChangedCallback(post - pre);
         }
     });
 
