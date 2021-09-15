@@ -280,12 +280,6 @@ bool KVStoreParamTest::supportsFetchingAsSnappy() const {
     return isCouchstore();
 }
 
-class KVStoreParamTestSkipMagma : public KVStoreParamTest {
-public:
-    KVStoreParamTestSkipMagma() : KVStoreParamTest() {
-    }
-};
-
 // Test basic set / get of a document
 TEST_P(KVStoreParamTest, BasicTest) {
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
@@ -1518,19 +1512,6 @@ static std::string kvstoreTestParams[] = {
 INSTANTIATE_TEST_SUITE_P(KVStoreParam,
                          KVStoreParamTest,
                          ::testing::ValuesIn(kvstoreTestParams),
-                         [](const ::testing::TestParamInfo<std::string>& info) {
-                             return info.param;
-                         });
-
-static std::string kvstoreTestParamsSkipMagma[] = {
-#ifdef EP_USE_ROCKSDB
-        "rocksdb",
-#endif
-        "couchdb"};
-
-INSTANTIATE_TEST_SUITE_P(KVStoreParam,
-                         KVStoreParamTestSkipMagma,
-                         ::testing::ValuesIn(kvstoreTestParamsSkipMagma),
                          [](const ::testing::TestParamInfo<std::string>& info) {
                              return info.param;
                          });
