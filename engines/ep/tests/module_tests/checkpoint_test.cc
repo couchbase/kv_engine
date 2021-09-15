@@ -58,7 +58,7 @@ void CheckpointTest::createManager(int64_t lastSeqno) {
     range = {0, 0};
     vbucket->checkpointManager = std::make_unique<MockCheckpointManager>(
             global_stats,
-            vbid,
+            *vbucket,
             checkpoint_config,
             lastSeqno,
             range.getStart(),
@@ -1308,7 +1308,7 @@ TEST_P(CheckpointTest, takeAndResetCursors) {
     // Second manager
     auto manager2 = std::make_unique<MockCheckpointManager>(
             this->global_stats,
-            this->vbucket->getId(),
+            *vbucket,
             this->checkpoint_config,
             0,
             0 /*lastSnapStart*/,

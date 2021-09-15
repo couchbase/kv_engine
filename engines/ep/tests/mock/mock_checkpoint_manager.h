@@ -21,7 +21,7 @@
 class MockCheckpointManager : public CheckpointManager {
 public:
     MockCheckpointManager(EPStats& st,
-                          Vbid vbucket,
+                          VBucket& vbucket,
                           CheckpointConfig& config,
                           int64_t lastSeqno,
                           uint64_t lastSnapStart,

@@ -139,7 +139,7 @@ public:
     };
 
     CheckpointManager(EPStats& st,
-                      Vbid vbucket,
+                      VBucket& vb,
                       CheckpointConfig& config,
                       int64_t lastSeqno,
                       uint64_t lastSnapStart,
@@ -729,7 +729,10 @@ protected:
     EPStats                 &stats;
     CheckpointConfig        &checkpointConfig;
     mutable std::mutex       queueLock;
-    const Vbid vbucketId;
+
+    // Ref to the owning vbucket.
+    // Non-const as required by some usage that ideally we would remove. @todo
+    VBucket& vb;
 
     // Total number of items (including meta items) in /all/ checkpoints managed
     // by this object.

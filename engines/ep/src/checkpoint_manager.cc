@@ -30,7 +30,7 @@ constexpr const char* CheckpointManager::pCursorName;
 constexpr const char* CheckpointManager::backupPCursorName;
 
 CheckpointManager::CheckpointManager(EPStats& st,
-                                     Vbid vbucket,
+                                     VBucket& vb,
                                      CheckpointConfig& config,
                                      int64_t lastSeqno,
                                      uint64_t lastSnapStart,
@@ -39,14 +39,14 @@ CheckpointManager::CheckpointManager(EPStats& st,
                                      FlusherCallback cb)
     : stats(st),
       checkpointConfig(config),
-      vbucketId(vbucket),
+      vb(vb),
       numItems(0),
       lastBySeqno(lastSeqno),
       maxVisibleSeqno(maxVisibleSeqno),
       flusherCB(std::move(cb)) {
     std::lock_guard<std::mutex> lh(queueLock);
 
-    lastBySeqno.setLabel("CheckpointManager(" + vbucketId.to_string() +
+    lastBySeqno.setLabel("CheckpointManager(" + vb.getId().to_string() +
                          ")::lastBySeqno");
 
     // Note: this is the last moment in the CheckpointManager lifetime
@@ -124,12 +124,12 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
             "CheckpointManager::addNewCheckpoint_UNLOCKED: Close "
             "the current open checkpoint: [{}, id:{}, snapStart:{}, "
             "snapEnd:{}]",
-            vbucketId,
+            vb.getId(),
             oldOpenCkpt.getId(),
             oldOpenCkpt.getMinimumCursorSeqno(),
             oldOpenCkpt.getHighSeqno());
     queued_item qi = createCheckpointItem(
-            oldOpenCkpt.getId(), vbucketId, queue_op::checkpoint_end);
+            oldOpenCkpt.getId(), vb.getId(), queue_op::checkpoint_end);
     oldOpenCkpt.queueDirty(qi);
     ++numItems;
     oldOpenCkpt.setState(CHECKPOINT_CLOSED);
@@ -191,7 +191,7 @@ void CheckpointManager::addOpenCheckpoint(
             "CheckpointManager::addOpenCheckpoint: Create "
             "a new open checkpoint: [{}, id:{}, snapStart:{}, snapEnd:{}, "
             "visibleSnapEnd:{}, hcs:{}, type:{}]",
-            vbucketId,
+            vb.getId(),
             id,
             snapStart,
             snapEnd,
@@ -206,7 +206,7 @@ void CheckpointManager::addOpenCheckpoint(
                                              snapEnd,
                                              visibleSnapEnd,
                                              highCompletedSeqno,
-                                             vbucketId,
+                                             vb.getId(),
                                              checkpointType,
                                              overheadChangedCallback);
     // Add an empty-item into the new checkpoint.
@@ -218,7 +218,7 @@ void CheckpointManager::addOpenCheckpoint(
     // Note: We don't include the empty-item in 'numItems'
 
     // This item represents the start of the new checkpoint
-    qi = createCheckpointItem(id, vbucketId, queue_op::checkpoint_start);
+    qi = createCheckpointItem(id, vb.getId(), queue_op::checkpoint_start);
     ckpt->queueDirty(qi);
     ++numItems;
 
@@ -407,13 +407,13 @@ bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
 
     EP_LOG_DEBUG("Remove the checkpoint cursor with the name \"{}\" from {}",
                  cursor->name,
-                 vbucketId);
+                 vb.getId());
 
     cursor->invalidate();
 
     if (cursors.erase(cursor->name) == 0) {
         throw std::logic_error("CheckpointManager::removeCursor_UNLOCKED: " +
-                               to_string(vbucketId) +
+                               to_string(vb.getId()) +
                                " Failed to remove cursor: " + cursor->name);
     }
 
@@ -424,7 +424,7 @@ bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
      */
     if (runGetItemsHook) {
         queueLock.unlock();
-        runGetItemsHook(cursor, vbucketId);
+        runGetItemsHook(cursor, vb.getId());
         queueLock.lock();
     }
 
@@ -549,7 +549,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
         if (lowestCursor->currentCheckpoint->get() != oldestCheckpoint) {
             std::stringstream ss;
             ss << "CheckpointManager::expelUnreferencedCheckpointItems: ("
-               << vbucketId
+               << vb.getId()
                << ") lowest found cursor is not in the oldest "
                   "checkpoint. Oldest checkpoint ID: "
                << oldestCheckpoint->getId()
@@ -804,7 +804,7 @@ bool CheckpointManager::queueDirty(
             // original (active) vBucket on some other node should not have
             // put duplicate mutations in the same Checkpoint.
             throw std::logic_error(
-                    "CheckpointManager::queueDirty(" + vbucketId.to_string() +
+                    "CheckpointManager::queueDirty(" + vb.getId().to_string() +
                     ") - got Ckpt::queueDirty() status:" +
                     to_string(result.status) + " when vbstate is non-active:" +
                     std::to_string(vb.getState()));
@@ -818,7 +818,7 @@ bool CheckpointManager::queueDirty(
         result = openCkpt->queueDirty(qi);
         if (result.status != QueueDirtyStatus::SuccessNewItem) {
             throw std::logic_error("CheckpointManager::queueDirty(vb:" +
-                                   vbucketId.to_string() +
+                                   vb.getId().to_string() +
                                    ") - got Ckpt::queueDirty() status:" +
                                    to_string(result.status) +
                                    " even after creating a new Checkpoint.");
@@ -881,8 +881,8 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
     std::lock_guard<std::mutex> lh(queueLock);
 
     // Create the setVBState operation, and enqueue it.
-    queued_item item = createCheckpointItem(/*id*/0, vbucketId,
-                                            queue_op::set_vbucket_state);
+    queued_item item = createCheckpointItem(
+            /*id*/ 0, vb.getId(), queue_op::set_vbucket_state);
 
     // We need to set the cas of the item as two subsequent set_vbucket_state
     // items will have the same seqno and the flusher needs a way to determine
@@ -908,7 +908,7 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
                 "CheckpointManager::queueSetVBState: {} "
                 "expected: SuccessNewItem, got: {} with byte "
                 "diff of: {} after queueDirty.",
-                vbucketId.to_string(),
+                vb.getId().to_string(),
                 to_string(result.status),
                 result.successExistingByteDiff);
         throw std::logic_error(msg);
@@ -929,7 +929,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     std::lock_guard<std::mutex> lh(queueLock);
     if (!cursorPtr) {
         EP_LOG_WARN("getItemsForCursor(): Caller had a null cursor {}",
-                    vbucketId);
+                    vb.getId());
         return {};
     }
 
@@ -1077,7 +1077,7 @@ bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
 
 void CheckpointManager::notifyFlusher() {
     if (flusherCB) {
-        Vbid vbid = vbucketId;
+        Vbid vbid = vb.getId();
         flusherCB->callback(vbid);
     }
 }
@@ -1436,10 +1436,11 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
     std::array<char, 256> buf;
 
     try {
+        const auto vbucketId = vb.getId();
         checked_snprintf(buf.data(),
                          buf.size(),
                          "vb_%d:open_checkpoint_id",
-                         vbucketId.get());
+                         vb.getId().get());
         add_casted_stat(buf.data(), getOpenCheckpointId(lh), add_stat, cookie);
         checked_snprintf(buf.data(),
                          buf.size(),

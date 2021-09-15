@@ -66,7 +66,7 @@ VBucketPtr MockEphemeralBucket::makeVBucket(
             vptr->checkpointManager->getOverheadChangedCallback();
     vptr->checkpointManager = std::make_unique<MockCheckpointManager>(
             stats,
-            id,
+            *vptr,
             engine.getCheckpointConfig(),
             lastSeqno,
             lastSnapStart,

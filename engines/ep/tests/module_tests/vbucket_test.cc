@@ -113,7 +113,7 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
 
     vbucket->checkpointManager = std::make_unique<MockCheckpointManager>(
             global_stats,
-            vbid,
+            *vbucket,
             checkpoint_config,
             lastSeqno,
             range.getStart(),
