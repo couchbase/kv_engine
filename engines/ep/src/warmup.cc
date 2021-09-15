@@ -1577,7 +1577,7 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
             Expects(lockedVb.owns_lock());
             Expects(!lockedVb);
 
-            vbPtr->checkpointManager->queueSetVBState(*vbPtr);
+            vbPtr->checkpointManager->queueSetVBState();
             if (itr->second->getState() == vbucket_state_active) {
                 // For all active vbuckets, call through to the manager so
                 // that they are made 'current' with the manifest.

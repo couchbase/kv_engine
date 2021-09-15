@@ -170,7 +170,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_NormalWrite) {
     manager.createNewCheckpoint();
     ASSERT_EQ(2, list.size());
     const auto openCkptId = manager.getOpenCheckpointId();
-    ASSERT_EQ(1, manager.removeClosedUnrefCheckpoints(vb).count);
+    ASSERT_EQ(1, manager.removeClosedUnrefCheckpoints().count);
     // No new checkpoint created
     ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
     ASSERT_EQ(1, list.size());
@@ -276,7 +276,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
     // Steps to ensure backfill when we re-create the stream in the following
     manager.createNewCheckpoint();
     ASSERT_EQ(3, list.size());
-    EXPECT_EQ(3, manager.removeClosedUnrefCheckpoints(vb).count);
+    EXPECT_EQ(3, manager.removeClosedUnrefCheckpoints().count);
     ASSERT_EQ(1, list.size());
     ASSERT_EQ(0, manager.getNumOpenChkItems());
 

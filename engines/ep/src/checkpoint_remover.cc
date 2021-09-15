@@ -37,7 +37,7 @@ size_t ClosedUnrefCheckpointRemoverTask::attemptCheckpointRemoval(
         }
 
         memoryCleared +=
-                vb->checkpointManager->removeClosedUnrefCheckpoints(*vb).memory;
+                vb->checkpointManager->removeClosedUnrefCheckpoints().memory;
     }
     return memoryCleared;
 }

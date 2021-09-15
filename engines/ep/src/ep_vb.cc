@@ -965,7 +965,6 @@ uint64_t EPVBucket::addSystemEventItem(
     qi->setQueuedTime();
 
     checkpointManager->queueDirty(
-            *this,
             qi,
             getGenerateBySeqno(seqno),
             GenerateCas::Yes,

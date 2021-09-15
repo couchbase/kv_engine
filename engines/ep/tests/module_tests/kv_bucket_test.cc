@@ -250,7 +250,7 @@ void KVBucketTest::removeCheckpoint(VBucket& vb, int numItems) {
     int itemsRemoved = 0;
 
     while (true) {
-        auto removed = ckpt_mgr.removeClosedUnrefCheckpoints(vb).count;
+        auto removed = ckpt_mgr.removeClosedUnrefCheckpoints().count;
         itemsRemoved += removed;
 
         if (itemsRemoved >= numItems || !removed) {
@@ -268,7 +268,7 @@ void KVBucketTest::flushAndRemoveCheckpoints(Vbid vbid) {
 
     dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
 
-    ckpt_mgr.removeClosedUnrefCheckpoints(vb);
+    ckpt_mgr.removeClosedUnrefCheckpoints();
 }
 
 void KVBucketTest::flushAndExpelFromCheckpoints(Vbid vbid) {

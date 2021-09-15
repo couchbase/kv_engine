@@ -322,7 +322,7 @@ void DCPTest::removeCheckpoint(int numItems) {
     std::chrono::microseconds uSleepTime(128);
     int itemsRemoved = 0;
     while (true) {
-        itemsRemoved += ckpt_mgr.removeClosedUnrefCheckpoints(*vb0).count;
+        itemsRemoved += ckpt_mgr.removeClosedUnrefCheckpoints().count;
         if (itemsRemoved >= numItems) {
             break;
         }

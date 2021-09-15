@@ -99,11 +99,10 @@ bool CheckpointTest::queueNewItem(const std::string& key) {
                             /*revSeq*/ 0,
                             /*bySeq*/ 0)};
     qi->setQueuedTime(std::chrono::steady_clock::now());
-    return this->manager->queueDirty(*this->vbucket,
-                                     qi,
-                                     GenerateBySeqno::Yes,
-                                     GenerateCas::Yes,
-                                     /*preLinkDocCtx*/ nullptr);
+    return manager->queueDirty(qi,
+                               GenerateBySeqno::Yes,
+                               GenerateCas::Yes,
+                               /*preLinkDocCtx*/ nullptr);
 }
 
 bool CheckpointTest::queueReplicatedItem(const std::string& key,
@@ -114,11 +113,10 @@ bool CheckpointTest::queueReplicatedItem(const std::string& key,
                             /*revSeq*/ 0,
                             seqno)};
     qi->setCas(1);
-    return this->manager->queueDirty(*this->vbucket,
-                                     qi,
-                                     GenerateBySeqno::No,
-                                     GenerateCas::No,
-                                     /*preLinkDocCtx*/ nullptr);
+    return manager->queueDirty(qi,
+                               GenerateBySeqno::No,
+                               GenerateCas::No,
+                               /*preLinkDocCtx*/ nullptr);
 }
 
 // Sanity check test fixture
@@ -150,11 +148,10 @@ TEST_P(CheckpointTest, OneOpenCkpt) {
 
     // No set_ops in queue, expect queueDirty to return true (increase
     // persistence queue size).
-    EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
-                                          qi,
-                                          GenerateBySeqno::Yes,
-                                          GenerateCas::Yes,
-                                          /*preLinkDocCtx*/ nullptr));
+    EXPECT_TRUE(manager->queueDirty(qi,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::Yes,
+                                    /*preLinkDocCtx*/ nullptr));
     EXPECT_EQ(1, this->manager->getNumCheckpoints()); // Single open checkpoint.
     // 1x op_set
     EXPECT_EQ(1, this->manager->getNumOpenChkItems());
@@ -170,11 +167,10 @@ TEST_P(CheckpointTest, OneOpenCkpt) {
                              queue_op::mutation,
                              /*revSeq*/ 21,
                              /*bySeq*/ 0));
-    EXPECT_FALSE(this->manager->queueDirty(*this->vbucket,
-                                           qi2,
-                                           GenerateBySeqno::Yes,
-                                           GenerateCas::Yes,
-                                           /*preLinkDocCtx*/ nullptr));
+    EXPECT_FALSE(manager->queueDirty(qi2,
+                                     GenerateBySeqno::Yes,
+                                     GenerateCas::Yes,
+                                     /*preLinkDocCtx*/ nullptr));
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
     EXPECT_EQ(1, this->manager->getNumOpenChkItems());
     EXPECT_EQ(1002, qi2->getBySeqno());
@@ -189,11 +185,10 @@ TEST_P(CheckpointTest, OneOpenCkpt) {
                              queue_op::mutation,
                              /*revSeq*/ 0,
                              /*bySeq*/ 0));
-    EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
-                                          qi3,
-                                          GenerateBySeqno::Yes,
-                                          GenerateCas::Yes,
-                                          /*preLinkDocCtx*/ nullptr));
+    EXPECT_TRUE(manager->queueDirty(qi3,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::Yes,
+                                    /*preLinkDocCtx*/ nullptr));
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
     EXPECT_EQ(2, this->manager->getNumOpenChkItems());
     EXPECT_EQ(1003, qi3->getBySeqno());
@@ -226,11 +221,10 @@ TEST_P(CheckpointTest, Delete) {
                             /*revSeq*/ 10,
                             /*byseq*/ 0}};
     qi->setDeleted();
-    EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
-                                          qi,
-                                          GenerateBySeqno::Yes,
-                                          GenerateCas::Yes,
-                                          /*preLinkDocCtx*/ nullptr));
+    EXPECT_TRUE(manager->queueDirty(qi,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::Yes,
+                                    /*preLinkDocCtx*/ nullptr));
 
     EXPECT_EQ(1, this->manager->getNumCheckpoints());  // Single open checkpoint.
     EXPECT_EQ(1, this->manager->getNumOpenChkItems()); // 1x op_del
@@ -531,7 +525,7 @@ TEST_P(CheckpointTest, CursorOffsetOnCheckpointClose) {
 
     // Both previous checkpoints are unreferenced. Close them. This will
     // cause the offset of this cursor to be recalculated.
-    EXPECT_EQ(2, manager->removeClosedUnrefCheckpoints(*vbucket).count);
+    EXPECT_EQ(2, manager->removeClosedUnrefCheckpoints().count);
 
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
 
@@ -743,7 +737,7 @@ TEST_P(CheckpointTest, CursorMovement) {
     uint64_t curr_open_chkpt_id = this->manager->getOpenCheckpointId();
 
     /* Run the checkpoint remover so that new open checkpoint is created */
-    manager->removeClosedUnrefCheckpoints(*vbucket);
+    manager->removeClosedUnrefCheckpoints();
     EXPECT_EQ(curr_open_chkpt_id + 1, this->manager->getOpenCheckpointId());
 
     /* Get items for persistence cursor */
@@ -833,12 +827,10 @@ TEST_P(CheckpointTest, SeqnoAndHLCOrdering) {
                                  queue_op::mutation,
                                  /*revSeq*/ 0,
                                  /*bySeq*/ 0));
-                EXPECT_TRUE(
-                        this->manager->queueDirty(*this->vbucket,
-                                                  qi,
-                                                  GenerateBySeqno::Yes,
-                                                  GenerateCas::Yes,
-                                                  /*preLinkDocCtx*/ nullptr));
+                EXPECT_TRUE(manager->queueDirty(qi,
+                                                GenerateBySeqno::Yes,
+                                                GenerateCas::Yes,
+                                                /*preLinkDocCtx*/ nullptr));
 
                 // Save seqno/cas
                 threadsData.emplace_back(qi->getBySeqno(), qi->getCas());
@@ -903,7 +895,7 @@ TEST_P(CheckpointTest, CursorUpdateForExistingItemWithMetaItemAtHead) {
     ASSERT_EQ(1, this->manager->getNumItems());
     ASSERT_TRUE(this->queueNewItem("key"));
     ASSERT_EQ(2, this->manager->getNumItems());
-    this->manager->queueSetVBState(*this->vbucket);
+    manager->queueSetVBState();
 
     ASSERT_EQ(3, this->manager->getNumItems());
 
@@ -942,7 +934,7 @@ TEST_P(CheckpointTest, CursorUpdateForExistingItemWithMetaItemAtHead) {
 TEST_P(CheckpointTest, CursorUpdateForExistingItemWithNonMetaItemAtHead) {
     // Setup the checkpoint and cursor.
     ASSERT_EQ(1, this->manager->getNumItems());
-    this->manager->queueSetVBState(*this->vbucket);
+    manager->queueSetVBState();
     ASSERT_EQ(2, this->manager->getNumItems());
 
     // Advance persistence cursor so all items have been consumed.
@@ -1488,11 +1480,10 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
                                  Vbid(0)));
 
     // Add the queued_item to the checkpoint
-    this->manager->queueDirty(*this->vbucket,
-                              qiSmall,
-                              GenerateBySeqno::Yes,
-                              GenerateCas::Yes,
-                              /*preLinkDocCtx*/ nullptr);
+    manager->queueDirty(qiSmall,
+                        GenerateBySeqno::Yes,
+                        GenerateCas::Yes,
+                        /*preLinkDocCtx*/ nullptr);
 
     // The queue (toWrite) is implemented as std:list, therefore
     // when we add an item it results in the creation of 3 pointers -
@@ -1529,11 +1520,10 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
                                Vbid(0)));
 
     // Add the queued_item to the checkpoint
-    this->manager->queueDirty(*this->vbucket,
-                              qiBig,
-                              GenerateBySeqno::Yes,
-                              GenerateCas::Yes,
-                              /*preLinkDocCtx*/ nullptr);
+    manager->queueDirty(qiBig,
+                        GenerateBySeqno::Yes,
+                        GenerateCas::Yes,
+                        /*preLinkDocCtx*/ nullptr);
 
     // Check that checkpoint size is the initial size plus the addition of
     // qiBig.
@@ -1566,7 +1556,7 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
 
     // We are now in a position to remove the checkpoint that had the
     // mutation in it.
-    EXPECT_EQ(1, manager->removeClosedUnrefCheckpoints(*vbucket).count);
+    EXPECT_EQ(1, manager->removeClosedUnrefCheckpoints().count);
 
     // Should be back to the initialSize
     EXPECT_EQ(initialSize, this->manager->getMemoryUsage());
@@ -1612,11 +1602,10 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
                                  Vbid(0)));
 
     // Add the queued_item to the checkpoint
-    this->manager->queueDirty(*this->vbucket,
-                              qiSmall,
-                              GenerateBySeqno::Yes,
-                              GenerateCas::Yes,
-                              /*preLinkDocCtx*/ nullptr);
+    manager->queueDirty(qiSmall,
+                        GenerateBySeqno::Yes,
+                        GenerateCas::Yes,
+                        /*preLinkDocCtx*/ nullptr);
 
     // Re-measure the checkpoint overhead
     const auto updatedOverhead = this->manager->getMemoryOverhead();
@@ -1645,7 +1634,7 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
 
     // We are now in a position to remove the checkpoint that had the
     // mutation in it.
-    EXPECT_EQ(1, manager->removeClosedUnrefCheckpoints(*vbucket).count);
+    EXPECT_EQ(1, manager->removeClosedUnrefCheckpoints().count);
 
     // Should be back to the initialOverhead
     EXPECT_EQ(initialOverhead, this->manager->getMemoryOverhead());
@@ -1672,11 +1661,10 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadHeapAllocatedKeyTest) {
                                  Vbid(0)));
 
     // Add the queued_item to the checkpoint
-    this->manager->queueDirty(*this->vbucket,
-                              qiSmall,
-                              GenerateBySeqno::Yes,
-                              GenerateCas::Yes,
-                              /*preLinkDocCtx*/ nullptr);
+    manager->queueDirty(qiSmall,
+                        GenerateBySeqno::Yes,
+                        GenerateCas::Yes,
+                        /*preLinkDocCtx*/ nullptr);
 
     auto overhead = this->manager->getMemoryOverhead() - initialOverhead;
     EXPECT_LT(keySize, overhead);
@@ -1712,11 +1700,10 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadDiskCheckpointTest) {
                                  Vbid(0)));
 
     // Add the queued_item to the checkpoint
-    this->manager->queueDirty(*this->vbucket,
-                              qiSmall,
-                              GenerateBySeqno::Yes,
-                              GenerateCas::Yes,
-                              /*preLinkDocCtx*/ nullptr);
+    manager->queueDirty(qiSmall,
+                        GenerateBySeqno::Yes,
+                        GenerateCas::Yes,
+                        /*preLinkDocCtx*/ nullptr);
 
     // The queue (toWrite) is implemented as std:list, therefore when we add an
     // item it results in the creation of 3 pointers - forward ptr, backward ptr
@@ -2024,7 +2011,7 @@ void CheckpointTest::testDoNotExpelIfHaveSameSeqnoAfterMutation() {
     createManager();
 
     // Add a meta data operation
-    this->manager->queueSetVBState(*this->vbucket);
+    manager->queueSetVBState();
 
     const int itemCount{2};
     for (auto ii = 0; ii < itemCount; ++ii) {
@@ -2112,11 +2099,10 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
         sizeOfItem = item->size();
 
         // Add the queued_item to the checkpoint
-        this->manager->queueDirty(*this->vbucket,
-                                  item,
-                                  GenerateBySeqno::Yes,
-                                  GenerateCas::Yes,
-                                  /*preLinkDocCtx*/ nullptr);
+        manager->queueDirty(item,
+                            GenerateBySeqno::Yes,
+                            GenerateCas::Yes,
+                            /*preLinkDocCtx*/ nullptr);
     }
 
     ASSERT_EQ(1, this->manager->getNumCheckpoints()); // Single open checkpoint.
@@ -2231,15 +2217,13 @@ TEST_P(CheckpointTest, MetaItemsSeqnoWeaklyMonotonicSetVbStateBeforeEnd) {
                             queue_op::mutation,
                             /*revSeq*/ 0,
                             /*bySeq*/ 0));
-    EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
-                                          qi,
-                                          GenerateBySeqno::Yes,
-                                          GenerateCas::Yes,
-                                          /*preLinkDocCtx*/ nullptr));
+    EXPECT_TRUE(manager->queueDirty(qi,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::Yes,
+                                    /*preLinkDocCtx*/ nullptr));
 
     // Queue a setVBucketState
-    auto& vb = *this->vbucket;
-    cm.queueSetVBState(vb);
+    cm.queueSetVBState();
 
     // Close our checkpoint to create a checkpoint_end, another dummy item, and
     // a checkpoint_start
@@ -2262,8 +2246,7 @@ TEST_P(CheckpointTest, MetaItemsSeqnoWeaklyMonotonicSetVbStateAfterStart) {
     auto& cm = *this->manager;
 
     // Queue a setVBucketState
-    auto& vb = *this->vbucket;
-    cm.queueSetVBState(vb);
+    cm.queueSetVBState();
 
     // Queue a normal set
     queued_item qi(new Item(makeStoredDocKey("key1"),
@@ -2271,11 +2254,10 @@ TEST_P(CheckpointTest, MetaItemsSeqnoWeaklyMonotonicSetVbStateAfterStart) {
                             queue_op::mutation,
                             /*revSeq*/ 0,
                             /*bySeq*/ 0));
-    EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
-                                          qi,
-                                          GenerateBySeqno::Yes,
-                                          GenerateCas::Yes,
-                                          /*preLinkDocCtx*/ nullptr));
+    EXPECT_TRUE(manager->queueDirty(qi,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::Yes,
+                                    /*preLinkDocCtx*/ nullptr));
 
     // Close our checkpoint to create a checkpoint_end, another dummy item, and
     // a checkpoint_start
@@ -2303,11 +2285,10 @@ TEST_P(CheckpointTest, CursorPlacedAtCkptStartSeqnoCorrectly) {
                             queue_op::mutation,
                             /*revSeq*/ 0,
                             /*bySeq*/ 0));
-    EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
-                                          qi,
-                                          GenerateBySeqno::Yes,
-                                          GenerateCas::Yes,
-                                          /*preLinkDocCtx*/ nullptr));
+    EXPECT_TRUE(manager->queueDirty(qi,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::Yes,
+                                    /*preLinkDocCtx*/ nullptr));
 
     // Close our checkpoint to create a checkpoint_end, another dummy item, and
     // a checkpoint_start
@@ -2319,11 +2300,10 @@ TEST_P(CheckpointTest, CursorPlacedAtCkptStartSeqnoCorrectly) {
                               queue_op::mutation,
                               /*revSeq*/ 0,
                               /*bySeq*/ 0));
-    EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
-                                          qi,
-                                          GenerateBySeqno::Yes,
-                                          GenerateCas::Yes,
-                                          /*preLinkDocCtx*/ nullptr));
+    EXPECT_TRUE(manager->queueDirty(qi,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::Yes,
+                                    /*preLinkDocCtx*/ nullptr));
 
     // Try to register a cursor at seqno 2 (i.e. the first item in the second
     // checkpoint).
@@ -2747,7 +2727,7 @@ TEST_P(CheckpointTest, MB_47516) {
 
     // 2) A set-vbstate needs to occur - this happens when a takeover stream is
     //    accepted and queues the new vbstate.
-    this->manager->queueSetVBState(*vbucket);
+    manager->queueSetVBState();
 
     // 3) ... in older branches we would explicitly call setOpenCheckpointId.
     //    Which is what the vbstate change also did. In mad-hatter it was that
@@ -2854,7 +2834,7 @@ void CheckpointMemoryTrackingTest::testEstimatedCheckpointMemUsage() {
         auto item = makeCommittedItem(
                 makeStoredDocKey("key" + std::to_string(i)), "value", vbid);
         EXPECT_TRUE(vb->checkpointManager->queueDirty(
-                *vb, item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
+                item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
         // Our estimated mem-usage must account for the queued item + the
         // allocation for the key-index
         itemsAlloc += item->size();
@@ -2997,7 +2977,7 @@ TEST_F(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtRemoval) {
                               items,
                               std::numeric_limits<size_t>::max());
     // Remove closed checkpoint
-    EXPECT_EQ(initialNumItems, manager.removeClosedUnrefCheckpoints(*vb).count);
+    EXPECT_EQ(initialNumItems, manager.removeClosedUnrefCheckpoints().count);
     EXPECT_EQ(1, manager.getNumCheckpoints());
     EXPECT_EQ(0, manager.getNumOpenChkItems());
 

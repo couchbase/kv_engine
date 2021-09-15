@@ -41,8 +41,7 @@ void CheckpointDurabilityTest::test_AvoidDeDuplication(
     ASSERT_EQ(1, manager->getNumCheckpoints());
 
     // Setup: enqueue a first item.
-    ASSERT_TRUE(manager->queueDirty(*this->vbucket,
-                                    first,
+    ASSERT_TRUE(manager->queueDirty(first,
                                     GenerateBySeqno::Yes,
                                     GenerateCas::Yes,
                                     /*preLinkDocCtx*/ nullptr));
@@ -50,8 +49,7 @@ void CheckpointDurabilityTest::test_AvoidDeDuplication(
     ASSERT_EQ(1, manager->getNumOpenChkItems());
 
     // Test: enqueue second item
-    EXPECT_TRUE(manager->queueDirty(*this->vbucket,
-                                    second,
+    EXPECT_TRUE(manager->queueDirty(second,
                                     GenerateBySeqno::Yes,
                                     GenerateCas::Yes,
                                     /*preLinkDocCtx*/ nullptr));

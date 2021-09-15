@@ -1239,13 +1239,9 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
     }
 
     VBNotifyCtx notifyCtx;
-        notifyCtx.notifyFlusher =
-                checkpointManager->queueDirty(*this,
-                                              item,
-                                              ctx.genBySeqno,
-                                              ctx.genCas,
-                                              ctx.preLinkDocumentContext);
-        notifyCtx.notifyReplication = true;
+    notifyCtx.notifyFlusher = checkpointManager->queueDirty(
+            item, ctx.genBySeqno, ctx.genCas, ctx.preLinkDocumentContext);
+    notifyCtx.notifyReplication = true;
     notifyCtx.bySeqno = item->getBySeqno();
     notifyCtx.syncWrite = item->isPending() ? SyncWriteOperation::Yes
                                             : SyncWriteOperation::No;

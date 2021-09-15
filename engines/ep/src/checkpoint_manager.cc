@@ -432,7 +432,7 @@ bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
 }
 
 bool CheckpointManager::isCheckpointCreationForHighMemUsage(
-        const std::lock_guard<std::mutex>& lh, const VBucket& vbucket) {
+        const std::lock_guard<std::mutex>& lh) {
     bool forceCreation = false;
     auto memoryUsed = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
 
@@ -450,14 +450,14 @@ bool CheckpointManager::isCheckpointCreationForHighMemUsage(
 
     if (memoryUsed > stats.mem_high_wat && allCursorsInOpenCheckpoint &&
         (openCkpt.getNumItems() >= MIN_CHECKPOINT_ITEMS ||
-         openCkpt.getNumItems() == vbucket.ht.getNumInMemoryItems())) {
+         openCkpt.getNumItems() == vb.ht.getNumInMemoryItems())) {
         forceCreation = true;
     }
     return forceCreation;
 }
 
 CheckpointManager::ReleaseResult
-CheckpointManager::removeClosedUnrefCheckpoints(VBucket& vb) {
+CheckpointManager::removeClosedUnrefCheckpoints() {
     // This function is executed periodically by the non-IO dispatcher.
 
     // We need to acquire the CM lock for extracting checkpoints from the
@@ -467,8 +467,8 @@ CheckpointManager::removeClosedUnrefCheckpoints(VBucket& vb) {
     CheckpointList toRelease;
     {
         std::lock_guard<std::mutex> lh(queueLock);
-        const auto force = isCheckpointCreationForHighMemUsage(lh, vb);
-        maybeCreateNewCheckpoint(lh, vb, force);
+        const auto force = isCheckpointCreationForHighMemUsage(lh);
+        maybeCreateNewCheckpoint(lh, force);
         toRelease = extractClosedUnrefCheckpoints(lh);
     }
     // CM lock released here
@@ -750,10 +750,8 @@ bool CheckpointManager::isEligibleForCheckpointRemovalAfterPersistence() const {
     return false;
 }
 
-void CheckpointManager::updateStatsForNewQueuedItem_UNLOCKED(
-        const std::lock_guard<std::mutex>& lh,
-        VBucket& vb,
-        const queued_item& qi) {
+void CheckpointManager::updateStatsForNewQueuedItem(
+        const std::lock_guard<std::mutex>& lh, const queued_item& qi) {
     ++stats.totalEnqueued;
     if (checkpointConfig.isPersistenceEnabled()) {
         ++stats.diskQueueSize;
@@ -762,7 +760,6 @@ void CheckpointManager::updateStatsForNewQueuedItem_UNLOCKED(
 }
 
 bool CheckpointManager::queueDirty(
-        VBucket& vb,
         queued_item& qi,
         const GenerateBySeqno generateBySeqno,
         const GenerateCas generateCas,
@@ -770,7 +767,7 @@ bool CheckpointManager::queueDirty(
         std::function<void(int64_t)> assignedSeqnoCallback) {
     std::lock_guard<std::mutex> lh(queueLock);
 
-    maybeCreateNewCheckpoint(lh, vb, false);
+    maybeCreateNewCheckpoint(lh, false);
 
     auto* openCkpt = &getOpenCheckpoint_UNLOCKED(lh);
 
@@ -862,7 +859,7 @@ bool CheckpointManager::queueDirty(
         ++numItems;
         // FALLTHROUGH
     case QueueDirtyStatus::SuccessPersistAgain:
-        updateStatsForNewQueuedItem_UNLOCKED(lh, vb, qi);
+        updateStatsForNewQueuedItem(lh, qi);
         return true;
     case QueueDirtyStatus::FailureDuplicateItem:
         throw std::logic_error(
@@ -873,7 +870,7 @@ bool CheckpointManager::queueDirty(
     folly::assume_unreachable();
 }
 
-void CheckpointManager::queueSetVBState(VBucket& vb) {
+void CheckpointManager::queueSetVBState() {
     // Grab the vbstate before the queueLock (avoid a lock inversion)
     auto vbstate = vb.getTransitionState();
 
@@ -902,7 +899,7 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
 
     if (result.status == QueueDirtyStatus::SuccessNewItem) {
         ++numItems;
-        updateStatsForNewQueuedItem_UNLOCKED(lh, vb, item);
+        updateStatsForNewQueuedItem(lh, item);
     } else {
         auto msg = fmt::format(
                 "CheckpointManager::queueSetVBState: {} "
@@ -1690,7 +1687,7 @@ FlushHandle::~FlushHandle() {
 }
 
 void CheckpointManager::maybeCreateNewCheckpoint(
-        const std::lock_guard<std::mutex>& lh, VBucket& vb, bool force) {
+        const std::lock_guard<std::mutex>& lh, bool force) {
     // Only the active can shape the CheckpointList
     if (vb.getState() != vbucket_state_active) {
         return;

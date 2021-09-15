@@ -491,7 +491,7 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
 
     // Remove our first checkpoint to backfill the prepare
     const auto openCkptId = ckptMgr.getOpenCheckpointId();
-    ASSERT_EQ(1, ckptMgr.removeClosedUnrefCheckpoints(*vb).count);
+    ASSERT_EQ(1, ckptMgr.removeClosedUnrefCheckpoints().count);
     // No new checkpoint created
     ASSERT_EQ(openCkptId, ckptMgr.getOpenCheckpointId());
 
@@ -711,7 +711,7 @@ void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
     // Need to close the previously existing checkpoints so that we can backfill
     // from disk
     const auto openCkptId = mockCkptMgr.getOpenCheckpointId();
-    auto size = mockCkptMgr.removeClosedUnrefCheckpoints(*vb).count;
+    auto size = mockCkptMgr.removeClosedUnrefCheckpoints().count;
     // No new checkpoint created
     ASSERT_EQ(openCkptId, mockCkptMgr.getOpenCheckpointId());
     ASSERT_EQ(4, size);
@@ -5666,7 +5666,7 @@ void DurabilityActiveStreamTest::removeCheckpoint(VBucket& vb, int numItems) {
     int itemsRemoved = 0;
 
     while (true) {
-        auto removed = ckpt_mgr.removeClosedUnrefCheckpoints(vb).count;
+        auto removed = ckpt_mgr.removeClosedUnrefCheckpoints().count;
         itemsRemoved += removed;
 
         if (itemsRemoved >= numItems || !removed) {

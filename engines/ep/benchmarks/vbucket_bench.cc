@@ -355,8 +355,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
 
     // Pre-fill CM with the defined number of checkpoints
     for (size_t i = 0; i < numCheckpoints; ++i) {
-        ckptMgr->queueDirty(*vb,
-                            qi,
+        ckptMgr->queueDirty(qi,
                             GenerateBySeqno::Yes,
                             GenerateCas::Yes,
                             /*preLinkDocCtx*/ nullptr);
@@ -384,7 +383,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
             std::vector<queued_item> items;
             ckptMgr->getItemsForPersistence(items, numCkptToRemovePerIteration);
 
-            numUnrefItems += ckptMgr->removeClosedUnrefCheckpoints(*vb).count;
+            numUnrefItems += ckptMgr->removeClosedUnrefCheckpoints().count;
             numCkptRemoverRuns++;
 
             // Break when all but the last item (in last checkpoint) is removed
@@ -405,8 +404,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
         tg.threadUp();
         auto begin = std::chrono::steady_clock::now();
         while (!bgDone) {
-            ckptMgr->queueDirty(*vb,
-                                qi,
+            ckptMgr->queueDirty(qi,
                                 GenerateBySeqno::Yes,
                                 GenerateCas::Yes,
                                 /*preLinkDocCtx*/ nullptr);
@@ -459,7 +457,7 @@ void CheckpointBench::createCheckpointsAndMoveCursor(size_t numCheckpoints) {
                          0 /*bySeqno*/)};
         item->setQueuedTime();
         EXPECT_TRUE(manager.queueDirty(
-                vb, item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
+                item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
     }
     ASSERT_EQ(numCheckpoints, manager.getNumCheckpoints());
     ASSERT_EQ(numCheckpoints, manager.getHighSeqno());

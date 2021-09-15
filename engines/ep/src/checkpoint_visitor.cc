@@ -36,7 +36,7 @@ void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
 
     // First, try to release existing closed/unref checkpoints (if any)
     auto& manager = *vb->checkpointManager;
-    auto released = manager.removeClosedUnrefCheckpoints(*vb);
+    auto released = manager.removeClosedUnrefCheckpoints();
     if (released.memory >= memToRelease) {
         // We hit our release target, all done, don't need to drop any cursor.
         memToRelease = 0;
@@ -54,7 +54,7 @@ void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
         }
         ++stats.cursorsDropped;
 
-        released = manager.removeClosedUnrefCheckpoints(*vb);
+        released = manager.removeClosedUnrefCheckpoints();
         if (released.memory >= memToRelease) {
             // We hit our release target, all done.
             memToRelease = 0;

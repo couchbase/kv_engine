@@ -670,13 +670,13 @@ TEST_F(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
         // clear out the first checkpoint containing a set vbstate
         cm->forceNewCheckpoint();
         flush_vbucket_to_disk(vbid, 0);
-        cm->removeClosedUnrefCheckpoints(*vb);
+        cm->removeClosedUnrefCheckpoints();
     }
 
     // queue a single item into checkpoint
     store_item(vbid, makeStoredDocKey("key_1"), "value");
     // queue a set vbstate meta item into checkpoint
-    cm->queueSetVBState(*vb);
+    cm->queueSetVBState();
 
     cm->forceNewCheckpoint();
 
@@ -733,7 +733,7 @@ TEST_F(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
         // clear out the first checkpoint containing a set vbstate
         cm->forceNewCheckpoint();
         flush_vbucket_to_disk(vbid, 0);
-        cm->removeClosedUnrefCheckpoints(*vb);
+        cm->removeClosedUnrefCheckpoints();
     }
 
     store_item(vbid, makeStoredDocKey("key_1"), "value");
@@ -774,7 +774,7 @@ TEST_F(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
         // clear out the first checkpoint containing a set vbstate
         cm->forceNewCheckpoint();
         flush_vbucket_to_disk(vbid, 0);
-        cm->removeClosedUnrefCheckpoints(*vb);
+        cm->removeClosedUnrefCheckpoints();
     }
 
     store_item(vbid, makeStoredDocKey("key_1"), "value");
@@ -820,7 +820,7 @@ TEST_F(CheckpointRemoverEPTest,
         // clear out the first checkpoint containing a set vbstate
         cm->forceNewCheckpoint();
         flush_vbucket_to_disk(vbid, 0);
-        cm->removeClosedUnrefCheckpoints(*vb);
+        cm->removeClosedUnrefCheckpoints();
     }
 
     // expelling will not remove items preceded by an item with the same seqno

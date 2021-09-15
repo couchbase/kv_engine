@@ -129,8 +129,7 @@ bool queueNewItem(VBucket& vbucket, const std::string& key) {
                             /*bySeq*/ 0)};
     qi->setQueuedTime();
     auto handle = vbucket.lockCollections(qi->getKey());
-    return vbucket.checkpointManager->queueDirty(vbucket,
-                                                 qi,
+    return vbucket.checkpointManager->queueDirty(qi,
                                                  GenerateBySeqno::Yes,
                                                  GenerateCas::Yes,
                                                  /*preLinkDocCtx*/ nullptr);

@@ -1090,7 +1090,7 @@ void KVBucket::scheduleVBStatePersist(Vbid vbid) {
         return;
     }
 
-    vb->checkpointManager->queueSetVBState(*vb);
+    vb->checkpointManager->queueSetVBState();
 }
 
 cb::engine_errc KVBucket::deleteVBucket(Vbid vbid, const CookieIface* c) {

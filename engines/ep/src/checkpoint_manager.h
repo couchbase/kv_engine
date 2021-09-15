@@ -155,11 +155,10 @@ public:
      * Removes closed unreferenced checkpoints from the checkpoint-list and
      * frees up their used memory.
      *
-     * @param vb the vbucket that this checkpoint manager belongs to.
      * @return ReleaseResult, with the number of items removed and an estimate
      *  of released memory
      */
-    ReleaseResult removeClosedUnrefCheckpoints(VBucket& vb);
+    ReleaseResult removeClosedUnrefCheckpoints();
 
     /**
      * Attempt to expel (i.e. eject from memory) items in the oldest checkpoint
@@ -209,7 +208,7 @@ public:
 
     /**
      * Queue an item to be written to persistent layer.
-     * @param vb the vbucket that a new item is pushed into.
+     *
      * @param qi item to be persisted.
      * @param generateBySeqno yes/no generate the seqno for the item
      * @param preLinkDocumentContext A context object needed for the
@@ -222,8 +221,7 @@ public:
      * @return true if an item queued increases the size of persistence queue
      *        by 1.
      */
-    bool queueDirty(VBucket& vb,
-                    queued_item& qi,
+    bool queueDirty(queued_item& qi,
                     const GenerateBySeqno generateBySeqno,
                     const GenerateCas generateCas,
                     PreLinkDocumentContext* preLinkDocumentContext,
@@ -231,9 +229,8 @@ public:
 
     /*
      * Queue writing of the VBucket's state to persistent layer.
-     * @param vb the vbucket that a new item is pushed into.
      */
-    void queueSetVBState(VBucket& vb);
+    void queueSetVBState();
 
     /**
      * Add all outstanding items for the given cursor name to the vector. Only
@@ -558,14 +555,15 @@ protected:
     uint64_t getLastClosedCheckpointId_UNLOCKED(
             const std::lock_guard<std::mutex>& lh);
 
-    // Helper method for queueing methods - update the global and per-VBucket
-    // stats after queueing a new item to a checkpoint.
-    // Must be called with queueLock held (LockHolder passed in as argument to
-    // 'prove' this).
-    void updateStatsForNewQueuedItem_UNLOCKED(
-            const std::lock_guard<std::mutex>& lh,
-            VBucket& vb,
-            const queued_item& qi);
+    /**
+     * Helper method for queueing methods - update the global and per-VBucket
+     * stats after queueing a new item to a checkpoint.
+     *
+     * @param lh Lock to CM::queueLock
+     * @param qi
+     */
+    void updateStatsForNewQueuedItem(const std::lock_guard<std::mutex>& lh,
+                                     const queued_item& qi);
 
     /**
      * function to invoke whenever memory usage changes due to a new
@@ -683,7 +681,7 @@ protected:
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
 
     bool isCheckpointCreationForHighMemUsage(
-            const std::lock_guard<std::mutex>& lh, const VBucket& vbucket);
+            const std::lock_guard<std::mutex>& lh);
 
     void resetCursors();
 
@@ -696,13 +694,11 @@ protected:
      * met and proceeds trying creating a new checkpoint.
      *
      * @param lh Lock to CM mutex
-     * @param vb Ref to the vbucket owning this CM
      * @param force Flag passed to the inner checkpoint creation function to
      *  force the creation of a new checkpoint. Still creation would happen
      *  iff pre-conditions are met.
      */
     void maybeCreateNewCheckpoint(const std::lock_guard<std::mutex>& lh,
-                                  VBucket& vb,
                                   bool force);
 
     /**
