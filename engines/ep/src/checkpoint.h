@@ -738,12 +738,28 @@ private:
      */
     class MemoryCounter {
     public:
-        MemoryCounter(EPStats& stats, CheckpointManager& manager)
-            : local(0), stats(stats), manager(manager) {
+        MemoryCounter(EPStats& stats,
+                      cb::NonNegativeCounter<size_t>* parentUsage)
+            : local(0), stats(stats), parentUsage(parentUsage) {
         }
         ~MemoryCounter();
         MemoryCounter& operator+=(size_t size);
         MemoryCounter& operator-=(size_t size);
+
+        /**
+         * Change where the local counter is aggregated.
+         *
+         * Checkpoints are owned by a CheckpointManager until they are
+         * destroyed, so the parent will currently never need changing.
+         *
+         * TODO: MB-47462 Introduction of eager checkpoint removal will mean
+         * checkpoints can be detached from a checkpoint manager.
+         * changeParent can then be used to account the checkpoint memory
+         * against a "detatched checkpoint" memory usage counter
+         *
+         */
+        void changeParent(cb::NonNegativeCounter<size_t>* newParent);
+
         operator size_t() const {
             return local;
         }
@@ -752,8 +768,9 @@ private:
         cb::NonNegativeCounter<size_t> local;
         // Used to update the "global" bucket counter in EPStats
         EPStats& stats;
-        // Used to update the vb level counter in CheckpointManager
-        CheckpointManager& manager;
+        // Pointer to a parent counter which needs updating when the
+        // local value changes. Null indicates "no parent"
+        cb::NonNegativeCounter<size_t>* parentUsage;
     };
 
     // Record the memory overhead of maintaining the keyIndex and metaKeyIndex.

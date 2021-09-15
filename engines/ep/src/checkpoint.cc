@@ -184,8 +184,8 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
       toWrite(trackingAllocator),
       committedKeyIndex(keyIndexTrackingAllocator),
       preparedKeyIndex(keyIndexTrackingAllocator),
-      keyIndexMemUsage(st, manager),
-      queuedItemsMemUsage(st, manager),
+      keyIndexMemUsage(st, &manager.estimatedMemUsage),
+      queuedItemsMemUsage(st, &manager.estimatedMemUsage),
       checkpointType(checkpointType),
       highCompletedSeqno(std::move(highCompletedSeqno)) {
     auto& core = stats.coreLocal.get();
@@ -689,20 +689,37 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
 }
 
 Checkpoint::MemoryCounter::~MemoryCounter() {
-    manager.estimatedMemUsage -= local;
+    if (parentUsage) {
+        *parentUsage -= local;
+    }
     stats.coreLocal.get()->estimatedCheckpointMemUsage.fetch_sub(local);
 }
 
 Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator+=(size_t size) {
     local += size;
-    manager.estimatedMemUsage += size;
+    if (parentUsage) {
+        *parentUsage += size;
+    }
     stats.coreLocal.get()->estimatedCheckpointMemUsage.fetch_add(size);
     return *this;
 }
 
 Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator-=(size_t size) {
     local -= size;
-    manager.estimatedMemUsage -= size;
+    if (parentUsage) {
+        *parentUsage -= size;
+    }
     stats.coreLocal.get()->estimatedCheckpointMemUsage.fetch_sub(size);
     return *this;
+}
+
+void Checkpoint::MemoryCounter::changeParent(
+        cb::NonNegativeCounter<size_t>* newParent) {
+    if (parentUsage) {
+        *parentUsage -= local;
+    }
+    parentUsage = newParent;
+    if (parentUsage) {
+        *parentUsage += local;
+    }
 }
