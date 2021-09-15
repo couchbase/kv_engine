@@ -384,9 +384,11 @@ protected:
 // Test that the ItemPager is scheduled when the Server Quota is reached, and
 // that items are successfully paged out.
 TEST_P(STItemPagerTest, ServerQuotaReached) {
-    // MB-41568 Disabled
-    if (hasMagma()) {
-        return;
+    // Can't run Nexus version of this test because GetStats doesn't point to
+    // magma and memory is too tight to run with both storage engines active.
+    // TODO: MB-47604 - Need to analyze why not working for Nexus
+    if (isNexus()) {
+        GTEST_SKIP();
     }
     size_t count = populateUntilTmpFail(vbid);
     ASSERT_GE(count, 50) << "Too few documents stored";
