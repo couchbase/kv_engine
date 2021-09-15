@@ -138,3 +138,11 @@ TEST_P(CheckpointDurabilityTest,
     EXPECT_EQ(1, manager->getNumCheckpoints());
     EXPECT_EQ(2, manager->getNumOpenChkItems());
 }
+
+INSTANTIATE_TEST_SUITE_P(
+        AllEvictionModes,
+        CheckpointDurabilityTest,
+        ::testing::Combine(
+                ::testing::Values(VBucketTestBase::VBType::Persistent),
+                ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
+        VBucketTest::PrintToStringParamName);
