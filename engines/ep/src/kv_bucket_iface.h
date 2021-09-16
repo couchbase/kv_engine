@@ -896,13 +896,12 @@ protected:
     /**
      * Load the prepared SyncWrites from disk for the given vBucket.
      *
-     * @param vbStateLh vBucket state lock
      * @param vb vBucket for which we will load SyncWrites
      *
      * @returns number of prepares loaded
      */
     virtual LoadPreparedSyncWritesResult loadPreparedSyncWrites(
-            folly::SharedMutex::WriteHolder& vbStateLh, VBucket& vb) = 0;
+            VBucket& vb) = 0;
 
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be

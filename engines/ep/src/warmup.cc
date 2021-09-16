@@ -1534,10 +1534,9 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
         // Our EPBucket function will do the load for us as we re-use the code
         // for rollback.
         auto& vb = *(itr->second);
-        folly::SharedMutex::WriteHolder vbStateLh(vb.getStateLock());
 
         auto [itemsVisited, preparesLoaded, success] =
-                store.loadPreparedSyncWrites(vbStateLh, vb);
+                store.loadPreparedSyncWrites(vb);
         if (!success) {
             EP_LOG_CRITICAL(
                     "Warmup::loadPreparedSyncWrites(): "

@@ -1823,7 +1823,7 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
 // have a Commit persisted to disk) will be registered with the Durability
 // Monitor.
 EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
-        folly::SharedMutex::WriteHolder& vbStateLh, VBucket& vb) {
+        VBucket& vb) {
     /// Disk load callback for scan.
     struct LoadSyncWrites : public StatusCallback<GetValue> {
         LoadSyncWrites(EPVBucket& vb, uint64_t highPreparedSeqno)
@@ -1899,7 +1899,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
         // We don't need to warm up anything for this vBucket as all of our
         // prepares have been completed, but we do need to create the DM
         // with our vbucket_state.
-        epVb.loadOutstandingPrepares(vbStateLh, *vbState, std::move(prepares));
+        epVb.loadOutstandingPrepares(*vbState, std::move(prepares));
         // No prepares loaded
         return {0, 0, true};
     }
@@ -2016,7 +2016,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
             });
 
     auto numPrepares = prepares.size();
-    epVb.loadOutstandingPrepares(vbStateLh, *vbState, std::move(prepares));
+    epVb.loadOutstandingPrepares(*vbState, std::move(prepares));
     return {storageCB.itemsVisited, numPrepares, true};
 }
 

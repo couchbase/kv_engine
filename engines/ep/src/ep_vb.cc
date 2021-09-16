@@ -850,7 +850,6 @@ MutationStatus EPVBucket::insertFromWarmup(Item& itm,
 }
 
 void EPVBucket::loadOutstandingPrepares(
-        const folly::SharedMutex::WriteHolder& vbStateLock,
         const vbucket_state& vbs,
         std::vector<queued_item>&& outstandingPrepares) {
     // First insert all prepares into the HashTable, updating their type

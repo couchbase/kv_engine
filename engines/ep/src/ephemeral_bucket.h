@@ -105,8 +105,7 @@ public:
         // No op
     }
 
-    LoadPreparedSyncWritesResult loadPreparedSyncWrites(
-            folly::SharedMutex::WriteHolder& vbStateLh, VBucket& vb) override {
+    LoadPreparedSyncWritesResult loadPreparedSyncWrites(VBucket& vb) override {
         // No op, return 0 prepares loaded
         return {0, 0, true};
     }
