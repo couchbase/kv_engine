@@ -238,6 +238,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                                       const magma::Slice& keySlice,
                                       const magma::Slice& metaSlice,
                                       const magma::Slice& valueSlice) {
+    // This callback is operating on the secondary memory domain
     Expects(currEngine == ObjectRegistry::getCurrentEngine());
     // If we are compacting the localDb, items don't have metadata so
     // we always keep everything.
@@ -275,6 +276,19 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         cbCtx.ctx = makeCompactionContext(vbid);
         cbCtx.implicitCompaction = true;
     }
+    return compactionCore(
+            cbCtx, keySlice, metaSlice, valueSlice, userSanitizedItemStr);
+}
+
+// Compaction core code which runs on the primary memory domain as it now will
+// create items for KV
+bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
+                                  const magma::Slice& keySlice,
+                                  const magma::Slice& metaSlice,
+                                  const magma::Slice& valueSlice,
+                                  std::string_view userSanitizedItemStr) {
+    // Run on primary domain so that we can create objects to pass to KV
+    cb::UseArenaMallocPrimaryDomain domainGuard;
 
     auto seqno = magmakv::getSeqNum(metaSlice);
     auto exptime = magmakv::getExpiryTime(metaSlice);
@@ -286,7 +300,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             cbCtx.ctx->maybeUpdatePurgeSeqno(seqno);
         }
     };
-
+    auto vbid = cbCtx.vbid;
     if (cbCtx.ctx->droppedKeyCb) {
         // We need to check both committed and prepared documents - if the
         // collection has been logically deleted then we need to discard
@@ -312,9 +326,10 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
 
             if (logger->should_log(spdlog::level::TRACE)) {
                 logger->TRACE(
-                        "MagmaKVStore::MagmaCompactionCallback: DROP "
+                        "MagmaKVStore::compactionCore: {} DROP "
                         "collections "
                         "{}",
+                        vbid,
                         userSanitizedItemStr);
             }
             return true;
@@ -325,7 +340,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         uint64_t maxSeqno;
         auto status = magma->GetMaxSeqno(vbid.get(), maxSeqno);
         if (!status) {
-            throw std::runtime_error("MagmaCompactionCallback: Failed : " +
+            throw std::runtime_error("MagmaKVStore::compactionCore: Failed : " +
                                      vbid.to_string() + " " + status.String());
         }
 
@@ -335,9 +350,11 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             bool drop = false;
             if (cbCtx.ctx->compactConfig.drop_deletes) {
                 if (logger->should_log(spdlog::level::TRACE)) {
-                    logger->TRACE("MagmaCompactionCB: {} DROP drop_deletes {}",
-                                  vbid,
-                                  userSanitizedItemStr);
+                    logger->TRACE(
+                            "MagmaKVStore::compactionCore: {} DROP "
+                            "drop_deletes {}",
+                            vbid,
+                            userSanitizedItemStr);
                 }
                 drop = true;
             }
@@ -345,7 +362,8 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             if (exptime && exptime < cbCtx.ctx->compactConfig.purge_before_ts) {
                 if (logger->should_log(spdlog::level::TRACE)) {
                     logger->TRACE(
-                            "MagmaCompactionCB: {} DROP expired tombstone {}",
+                            "MagmaKVStore::compactionCore: {} DROP expired "
+                            "tombstone {}",
                             vbid,
                             userSanitizedItemStr);
                 }
@@ -376,8 +394,9 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
 
                 if (logger->should_log(spdlog::level::TRACE)) {
                     logger->TRACE(
-                            "MagmaKVStore::MagmaCompactionCallback: "
+                            "MagmaKVStore::compactionCore: {}"
                             "DROP prepare {}",
+                            vbid,
                             userSanitizedItemStr);
                 }
                 return true;
@@ -412,16 +431,18 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             cbCtx.ctx->expiryCallback->callback(*(itm.get()), timeToExpireFrom);
 
             if (logger->should_log(spdlog::level::TRACE)) {
-                logger->TRACE("MagmaCompactionCB: {} expiry callback {}",
-                              vbid,
-                              userSanitizedItemStr);
+                logger->TRACE(
+                        "MagmaKVStore::compactionCore: {} expiry callback {}",
+                        vbid,
+                        userSanitizedItemStr);
             }
         }
     }
 
     if (logger->should_log(spdlog::level::TRACE)) {
-        logger->TRACE(
-                "MagmaCompactionCB: {} KEEP {}", vbid, userSanitizedItemStr);
+        logger->TRACE("MagmaKVStore::compactionCore: {} KEEP {}",
+                      vbid,
+                      userSanitizedItemStr);
     }
     return false;
 }
@@ -486,8 +507,10 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaBloomFilterAccuracyForBottomLevel();
 
     configuration.setStore(this);
-
-    magma::SetMaxOpenFiles(configuration.getMaxFileDescriptors());
+    {
+        cb::UseArenaMallocSecondaryDomain domainGuard;
+        magma::SetMaxOpenFiles(configuration.getMaxFileDescriptors());
+    }
 
     // To save memory only allocate counters for the number of vBuckets that
     // this shard will have to deal with
@@ -1214,21 +1237,24 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     // and stat updates as WriteOps is non-owning.
     LocalDbReqs localDbReqs;
     MagmaDbStats magmaDbStats;
+    WriteOps postWriteOps;
     int64_t lastSeqno = 0;
 
     auto beginTime = std::chrono::steady_clock::now();
     std::chrono::microseconds saveDocsDuration;
 
-    auto postWriteDocsCB = [this,
-                            &commitData,
-                            &localDbReqs,
-                            &lastSeqno,
-                            &vbid,
-                            &ninserts,
-                            &ndeletes,
-                            &magmaDbStats,
-                            &beginTime,
-                            &saveDocsDuration](WriteOps& postWriteOps) {
+    auto postWriteDocsCB =
+            [this,
+             &commitData,
+             &localDbReqs,
+             &lastSeqno,
+             &vbid,
+             &ninserts,
+             &ndeletes,
+             &magmaDbStats,
+             &beginTime,
+             &saveDocsDuration,
+             &postWriteOps]() -> std::pair<Status, Magma::WriteOpsCPtr> {
         magmaDbStats.docCount = ninserts - ndeletes;
         addStatUpdateToWriteOps(magmaDbStats, postWriteOps);
 
@@ -1255,7 +1281,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                         "collections meta, got status {}",
                         vbid,
                         status.String());
-                return status;
+                return {status, nullptr};
             }
         }
 
@@ -1272,8 +1298,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                 std::chrono::duration_cast<std::chrono::microseconds>(
                         now - beginTime);
         beginTime = now;
-
-        return Status::OK();
+        return {Status::OK(), &postWriteOps};
     };
 
     auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(txnCtx);

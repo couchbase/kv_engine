@@ -117,10 +117,19 @@ magma::Status MagmaMemoryTrackingProxy::GetDocs(
         const magma::Magma::KVStoreID kvID,
         magma::Operations<magma::Magma::GetOperation>& getOps,
         magma::Magma::GetDocCallback cb) {
-    cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->GetDocs(kvID, getOps, cb);
-}
+    auto wrappedCallback = [&cb](bool found,
+                                 magma::Status status,
+                                 const magma::Magma::GetOperation& op,
+                                 const magma::Slice& metaSlice,
+                                 const magma::Slice& valueSlice) {
+        // Run the callers callback in primary domain
+        cb::UseArenaMallocPrimaryDomain domainGuard;
+        cb(found, status, op, metaSlice, valueSlice);
+    };
 
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->GetDocs(kvID, getOps, wrappedCallback);
+}
 void MagmaMemoryTrackingProxy::executeOnKVStoreList(
         std::function<void(const std::vector<magma::Magma::KVStoreID>&)>
                 callback) {
@@ -192,8 +201,16 @@ magma::Status MagmaMemoryTrackingProxy::GetRange(
                            magma::Slice& value)> itemCb,
         bool returnValue,
         uint64_t count) {
+    auto wrappedCallback = [&itemCb](magma::Slice& key,
+                                     magma::Slice& meta,
+                                     magma::Slice& value) {
+        cb::UseArenaMallocPrimaryDomain domainGuard;
+        itemCb(key, meta, value);
+    };
+
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->GetRange(kvID, startKey, endKey, itemCb, returnValue, count);
+    return magma->GetRange(
+            kvID, startKey, endKey, wrappedCallback, returnValue, count);
 }
 
 DomainAwareUniquePtr<magma::Magma::MagmaStats>
@@ -251,10 +268,17 @@ magma::Status MagmaMemoryTrackingProxy::Rollback(
         const magma::Magma::KVStoreID kvID,
         magma::Magma::SeqNo rollbackSeqno,
         magma::Magma::RollbackCallback callback) {
-    cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->Rollback(kvID, rollbackSeqno, callback);
-}
+    auto wrappedCallback = [&callback](const magma::Slice& keySlice,
+                                       const uint64_t seqno,
+                                       const magma::Slice& metaSlice) {
+        // Run the callers callback in primary domain
+        cb::UseArenaMallocPrimaryDomain domainGuard;
+        callback(keySlice, seqno, metaSlice);
+    };
 
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->Rollback(kvID, rollbackSeqno, wrappedCallback);
+}
 void MagmaMemoryTrackingProxy::SetFragmentationRatio(double fragRatio) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     magma->SetFragmentationRatio(fragRatio);
@@ -288,7 +312,32 @@ magma::Status MagmaMemoryTrackingProxy::WriteDocs(
         const magma::Magma::KVStoreRevision kvsRev,
         const magma::Magma::WriteDocsCallback docCallback,
         const magma::Magma::PostWriteDocsCallback postCallback) {
+    magma::Magma::WriteDocsCallback wrappedDocCallback = nullptr;
+    magma::Magma::PostWriteDocsCallback wrappedPostCallback = nullptr;
+
+    if (docCallback) {
+        wrappedDocCallback = [&docCallback](
+                                     const magma::Magma::WriteOperation& op,
+                                     const bool docExists,
+                                     const magma::Slice oldMeta) {
+            // Run the callers callback in primary domain
+            cb::UseArenaMallocPrimaryDomain domainGuard;
+            docCallback(op, docExists, oldMeta);
+        };
+    }
+
+    if (postCallback) {
+        wrappedPostCallback = [&postCallback]() {
+            // Run the callers callback in primary domain
+            cb::UseArenaMallocPrimaryDomain domainGuard;
+            return postCallback();
+        };
+    }
+
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->WriteDocs(
-            kvID, docOperations, kvsRev, docCallback, postCallback);
+    return magma->WriteDocs(kvID,
+                            docOperations,
+                            kvsRev,
+                            wrappedDocCallback,
+                            wrappedPostCallback);
 }

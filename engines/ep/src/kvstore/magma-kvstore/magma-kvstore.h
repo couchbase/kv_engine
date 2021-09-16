@@ -692,6 +692,15 @@ protected:
                             const magma::Slice& valueSlice);
 
     /**
+     * Called from compactionCallback and operates on the primary memory domain
+     */
+    bool compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
+                        const magma::Slice& keySlice,
+                        const magma::Slice& metaSlice,
+                        const magma::Slice& valueSlice,
+                        std::string_view userSanitizedItemStr);
+
+    /**
      * Get the MagmaDbStats from the Magma::KVStore
      * @param vbid
      * @return The MagmaDbStats (empty optional returned if they don't exist in
