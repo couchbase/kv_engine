@@ -96,22 +96,6 @@ void KVShard::dropVBucketAndSetupDeferredDeletion(Vbid id,
     vbPtr->setupDeferredDeletion(cookie);
 }
 
-std::vector<Vbid> KVShard::getVBucketsSortedByState() {
-    std::vector<Vbid> rv;
-    for (int state = vbucket_state_active;
-         state <= vbucket_state_dead;
-         ++state) {
-        for (const auto& b : vbuckets) {
-            auto vb = b.lock();
-            auto vbPtr = vb.get();
-            if (vbPtr && vbPtr->getState() == state) {
-                rv.push_back(vbPtr->getId());
-            }
-        }
-    }
-    return rv;
-}
-
 std::vector<Vbid> KVShard::getVBuckets() {
     std::vector<Vbid> rv;
     for (const auto& b : vbuckets) {

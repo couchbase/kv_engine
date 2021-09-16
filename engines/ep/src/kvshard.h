@@ -112,7 +112,6 @@ public:
         return kvConfig->getShardId();
     }
 
-    std::vector<Vbid> getVBucketsSortedByState();
     std::vector<Vbid> getVBuckets();
 
 private:
