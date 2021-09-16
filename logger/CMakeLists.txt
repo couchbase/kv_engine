@@ -24,7 +24,4 @@ add_test(NAME memcached-spdlogger-test
 
 cb_add_test_executable(memcached_logger_benchmark logger_benchmark.cc)
 kv_enable_pch(memcached_logger_benchmark)
-target_include_directories(memcached_logger_benchmark
-                           SYSTEM PRIVATE
-                           ${benchmark_SOURCE_DIR}/include)
-target_link_libraries(memcached_logger_benchmark PRIVATE benchmark memcached_logger)
+target_link_libraries(memcached_logger_benchmark PRIVATE benchmark::benchmark memcached_logger)

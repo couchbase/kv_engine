@@ -33,12 +33,9 @@ if(MSVC)
     target_compile_options(memcached_mcbp_test PRIVATE "/bigobj")
 endif()
 
-cb_add_test_executable(memcached_mcbp_bench
-        mcbp_bench.cc)
+cb_add_test_executable(memcached_mcbp_bench mcbp_bench.cc)
 kv_enable_pch(memcached_mcbp_bench)
-target_include_directories(memcached_mcbp_bench
-    SYSTEM PRIVATE
-    ${benchmark_SOURCE_DIR}/include)
 target_link_libraries(memcached_mcbp_bench PRIVATE
-                      benchmark memcached_daemon)
+                      memcached_daemon
+                      benchmark::benchmark benchmark::benchmark_main)
 add_sanitizers(memcached_mcbp_bench)

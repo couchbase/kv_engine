@@ -232,5 +232,3 @@ BENCHMARK_TEMPLATE(HistogramReset, HdrHistogramEmpty);
 
 BENCHMARK_TEMPLATE(HistogramAggregation, TimingHistogram)->Arg(100);
 BENCHMARK_TEMPLATE(HistogramAggregation, HdrHistogramBench)->Arg(100);
-
-BENCHMARK_MAIN();

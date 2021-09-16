@@ -547,7 +547,7 @@ kv_enable_pch(ep_engine_benchmarks)
 
 TARGET_LINK_LIBRARIES(ep_engine_benchmarks
         PRIVATE
-                benchmark
+                benchmark::benchmark
                 cbcompress
                 engine_utilities
                 ep-engine_collections
@@ -569,8 +569,6 @@ TARGET_LINK_LIBRARIES(ep_engine_benchmarks
                 ${MALLOC_LIBRARIES}
                 ${EP_STORAGE_LIBS}
                 ${LIBEVENT_LIBRARIES})
-target_include_directories(ep_engine_benchmarks SYSTEM PRIVATE
-                           ${benchmark_SOURCE_DIR}/include)
 TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
                            tests
                            benchmarks
@@ -635,7 +633,4 @@ if(CB_ENABLE_HEADER_INCLUDE_CHECK)
     endif()
 
     add_header_object_library(NAME ep_headers_obj HEADERS ${ep_headers})
-
-    target_include_directories(ep_headers_obj PUBLIC
-                               ${benchmark_SOURCE_DIR}/include)
 endif(CB_ENABLE_HEADER_INCLUDE_CHECK)
