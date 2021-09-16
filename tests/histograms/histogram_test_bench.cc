@@ -152,7 +152,7 @@ static void HistogramAdd(benchmark::State& state) {
     using namespace std::chrono;
     T testHisto;
 
-    if (state.thread_index == 0) {
+    if (state.thread_index() == 0) {
         // make sure the vector of values is set up
         GetNextLogNormalValue();
     }

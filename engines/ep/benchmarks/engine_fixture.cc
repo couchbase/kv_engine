@@ -24,7 +24,7 @@
 #include <thread>
 
 void EngineFixture::SetUp(const benchmark::State& state) {
-    if (state.thread_index == 0) {
+    if (state.thread_index() == 0) {
         {
             NonBucketAllocationGuard guard;
             ExecutorPool::create(ExecutorPool::Backend::Fake);
@@ -47,7 +47,7 @@ void EngineFixture::SetUp(const benchmark::State& state) {
 }
 
 void EngineFixture::TearDown(const benchmark::State& state) {
-    if (state.thread_index == 0) {
+    if (state.thread_index() == 0) {
         executorPool->cancelAndClearAll();
         executorPool->unregisterTaskable(engine->getTaskable(), true /*force*/);
         destroy_mock_cookie(cookie);

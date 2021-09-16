@@ -39,7 +39,7 @@ protected:
 
     void TearDown(const benchmark::State& state) override {
         EngineFixture::TearDown(state);
-        if (state.thread_index == 0) {
+        if (state.thread_index() == 0) {
             memoryTracker->destroyInstance();
         }
     }

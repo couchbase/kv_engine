@@ -448,7 +448,7 @@ BENCHMARK_DEFINE_F(VBReadyQueueBench, PopAllSanity)(benchmark::State& state) {
 // goal of this benchmark is to measure push and pop time when heavily
 // contended. Pushes are not guaranteed to be unique
 BENCHMARK_DEFINE_F(VBReadyQueueBench, MPSCRandom)(benchmark::State& state) {
-    if (state.thread_index == 0) {
+    if (state.thread_index() == 0) {
         // Lets run our consumer in a separate (not GoogleBenchmark thread)
         // because our use of condition variables to drain the queue when it is
         // not empty just does not work with the thread gating GoogleBenchmark
@@ -460,7 +460,7 @@ BENCHMARK_DEFINE_F(VBReadyQueueBench, MPSCRandom)(benchmark::State& state) {
     runProducer(state,
                 [&state]() { return Vbid(folly::Random::rand32() % 1024); });
 
-    if (state.thread_index == 0) {
+    if (state.thread_index() == 0) {
         stopConsumer();
         syncObject.notify_all();
         consumerThread.join();

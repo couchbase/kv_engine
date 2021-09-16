@@ -24,7 +24,7 @@ protected:
     void SetUp(const benchmark::State& state) override;
 
     void TearDown(const benchmark::State& state) override {
-        if (state.thread_index == 0) {
+        if (state.thread_index() == 0) {
             if (cb::logger::isInitialized()) {
                 cb::logger::shutdown();
             } else {
@@ -37,7 +37,7 @@ protected:
 };
 
 void LoggerBench::SetUp(const benchmark::State& state) {
-    if (state.thread_index == 0) {
+    if (state.thread_index() == 0) {
         cb::logger::Config config{};
         config.cyclesize = 2048;
         config.buffersize = 8192;
@@ -57,7 +57,7 @@ void LoggerBench::SetUp(const benchmark::State& state) {
 class LoggerBench_Blackhole : public LoggerBench {
 protected:
     void SetUp(const benchmark::State& state) override {
-        if (state.thread_index == 0) {
+        if (state.thread_index() == 0) {
             cb::logger::createBlackholeLogger();
         }
     }
@@ -85,7 +85,7 @@ BENCHMARK_DEFINE_F(LoggerBench, LogToLoggerWithDisabledLogLevel)
  */
 BENCHMARK_DEFINE_F(LoggerBench, LogToLoggerWithEnabledLogLevel)
 (benchmark::State& state) {
-    if (state.thread_index == 0) {
+    if (state.thread_index() == 0) {
         cb::logger::get()->set_level(spdlog::level::level_enum::trace);
     }
     while (state.KeepRunning()) {

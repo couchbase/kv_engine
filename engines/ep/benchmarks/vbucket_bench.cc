@@ -67,14 +67,14 @@ protected:
                     // 100MB bucket quota - bump to ~1GB.
                     ";max_size=1000000000";
         EngineFixture::SetUp(state);
-        if (state.thread_index == 0) {
+        if (state.thread_index() == 0) {
             engine->getKVBucket()->setVBucketState(Vbid(0),
                                                    vbucket_state_active);
         }
     }
 
     void TearDown(const benchmark::State& state) override {
-        if (state.thread_index == 0) {
+        if (state.thread_index() == 0) {
             ASSERT_EQ(cb::engine_errc::success,
                       engine->getKVBucket()->deleteVBucket(vbid, nullptr));
             executorPool->runNextTask(
@@ -94,7 +94,7 @@ protected:
 class MemTrackingVBucketBench : public VBucketBench {
 protected:
     void SetUp(const benchmark::State& state) override {
-        if (state.thread_index == 0) {
+        if (state.thread_index() == 0) {
             memoryTracker = BenchmarkMemoryTracker::getInstance();
             memoryTracker->reset();
         }
@@ -102,7 +102,7 @@ protected:
     }
 
     void TearDown(const benchmark::State& state) override {
-        if (state.thread_index == 0) {
+        if (state.thread_index() == 0) {
             memoryTracker->destroyInstance();
         }
         VBucketBench::TearDown(state);
@@ -122,14 +122,14 @@ protected:
                 "max_size=1000000000;max_checkpoints=100000000;chk_max_items=1";
 
         EngineFixture::SetUp(state);
-        if (state.thread_index == 0) {
+        if (state.thread_index() == 0) {
             engine->getKVBucket()->setVBucketState(Vbid(0),
                                                    vbucket_state_active);
         }
     }
 
     void TearDown(const benchmark::State& state) override {
-        if (state.thread_index == 0) {
+        if (state.thread_index() == 0) {
             engine->getKVBucket()->deleteVBucket(vbid, nullptr);
         }
         EngineFixture::TearDown(state);

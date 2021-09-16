@@ -26,7 +26,7 @@ protected:
     void SetUp(const benchmark::State& state) override {
         varConfig = "backend=couchdb;max_vbuckets=1024";
         EngineFixture::SetUp(state);
-        if (state.thread_index == 0) {
+        if (state.thread_index() == 0) {
             const auto vbCount = state.range(0);
             vbids.reserve(vbCount);
 
@@ -59,7 +59,7 @@ protected:
     }
 
     void TearDown(const benchmark::State& state) override {
-        if (state.thread_index == 0) {
+        if (state.thread_index() == 0) {
             const auto vbCount = state.range(0);
             for (int i = 0; i < vbCount; i++) {
                 ASSERT_EQ(

@@ -73,7 +73,7 @@ public:
     /// Setup the ExecutorPool. After this method returns, the calling
     // thread is safe to use `pool`.
     void setupPool(const benchmark::State& state, int nonIOCount) {
-        if (state.thread_index == 0) {
+        if (state.thread_index() == 0) {
             // Create the pool with the specified number of IO threads.
             // Note: Don't actually need any Reader/Writer/AuxIO threads here,
             // but ExecutorPool cannot handle having a count of zero :(
@@ -94,7 +94,7 @@ public:
     }
 
     void shutdownPool(const benchmark::State& state) {
-        if (state.thread_index == 0) {
+        if (state.thread_index() == 0) {
             poolSem.reset();
             poolPtr.store(nullptr);
             pool->unregisterTaskable(taskable, false);
@@ -130,7 +130,7 @@ public:
     void bench_OneShotScheduleRun(benchmark::State& state) {
         // Create one "NonIO" thread per "benchmark" thread (such that there
         // is a pair of benchmark and NonIO threads to consume/produce).
-        setupPool(state, state.threads);
+        setupPool(state, state.threads());
 
         folly::Baton cv;
         cb::RelaxedAtomic<int64_t> producerCount{0};
@@ -185,7 +185,7 @@ public:
     void bench_LongLivedScheduleRun(benchmark::State& state) {
         // Create one "NonIO" thread per "benchmark" thread (such that there
         // is a pair of benchmark and NonIO threads to consume/produce).
-        setupPool(state, state.threads);
+        setupPool(state, state.threads());
 
         folly::Baton cv;
         cb::RelaxedAtomic<int64_t> producerCount{0};
@@ -203,7 +203,7 @@ public:
 
         // Create and schedule N / Nthreads tasks (initial sleep time is
         // forever).
-        const auto tasksPerThread = state.range(0) / state.threads;
+        const auto tasksPerThread = state.range(0) / state.threads();
         std::vector<ExTask> tasks;
         for (int i = 0; i < tasksPerThread; i++) {
             tasks.push_back(std::make_shared<LambdaTask>(
@@ -259,7 +259,7 @@ public:
         // ever run anything).
         setupPool(state, 1);
 
-        const auto tasksPerThread = state.range(0) / state.threads;
+        const auto tasksPerThread = state.range(0) / state.threads();
         ASSERT_NE(0, tasksPerThread) << "Must have at least 1 task per thread";
 
         std::random_device randomDevice;
@@ -438,10 +438,10 @@ protected:
  */
 BENCHMARK_DEFINE_F(PureFollyExecutorBench, OneShotScheduleRun)
 (benchmark::State& state) {
-    if (state.thread_index == 0) {
+    if (state.thread_index() == 0) {
         // Create one "NonIO" thread per "benchmark" thread (such that there is
         // a pair of benchmark and NonIO threads to consume/produce).
-        makePool(state.threads, 0);
+        makePool(state.threads(), 0);
     }
 
     folly::Baton cv;
@@ -465,7 +465,7 @@ BENCHMARK_DEFINE_F(PureFollyExecutorBench, OneShotScheduleRun)
     }
     state.SetItemsProcessed(consumerCount);
 
-    if (state.thread_index == 0) {
+    if (state.thread_index() == 0) {
         shutdownPool();
     }
 }
@@ -476,7 +476,7 @@ BENCHMARK_DEFINE_F(PureFollyExecutorBench, OneShotScheduleRun)
  */
 BENCHMARK_DEFINE_F(PureFollyExecutorBench, TimeoutAddCancel)
 (benchmark::State& state) {
-    if (state.thread_index == 0) {
+    if (state.thread_index() == 0) {
         // Create a single IO thread, giving us a single EventBase +
         // HHWheelTimer to manage the timeouts.
         makePool(0, 1);
@@ -497,7 +497,7 @@ BENCHMARK_DEFINE_F(PureFollyExecutorBench, TimeoutAddCancel)
     // we will cancel it before the timeout.
     std::uniform_int_distribution<> timeoutDistribution(10000, 30000);
 
-    size_t taskIndex = state.thread_index;
+    size_t taskIndex = state.thread_index();
     int64_t tasksSnoozed = 0;
     while (state.KeepRunning()) {
         auto* eventBase = ioPool->getEventBase();
@@ -531,15 +531,15 @@ BENCHMARK_DEFINE_F(PureFollyExecutorBench, TimeoutAddCancel)
         }
 
         tasksSnoozed++;
-        taskIndex += state.threads;
+        taskIndex += state.threads();
         if (taskIndex >= tasks.size()) {
-            taskIndex = state.thread_index;
+            taskIndex = state.thread_index();
         }
     }
 
     state.SetItemsProcessed(tasksSnoozed);
 
-    if (state.thread_index == 0) {
+    if (state.thread_index() == 0) {
         // Sanity check - no Callbacks should have been executed.
         for (auto& t : tasks) {
             if (t.expired) {

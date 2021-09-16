@@ -32,13 +32,13 @@ public:
     }
 
     void SetUp(benchmark::State& state) override {
-        if (state.thread_index == 0) {
+        if (state.thread_index() == 0) {
             ht.resize(numItems);
         }
     }
 
     void TearDown(benchmark::State& state) override {
-        if (state.thread_index == 0) {
+        if (state.thread_index() == 0) {
             ht.clear();
         }
     }
@@ -105,7 +105,7 @@ public:
     void waitForAllThreadsThenExecuteOnce(benchmark::State& state,
                                           std::function<void()> func) {
         std::unique_lock<std::mutex> lock(mutex);
-        if (++waiters < state.threads) {
+        if (++waiters < state.threads()) {
             // Last thread to enter - execute the given function.
             func();
             waiters = 0;
@@ -144,9 +144,9 @@ public:
 // in having such items present in the HashTable.
 BENCHMARK_DEFINE_F(HashTableBench, FindForRead)(benchmark::State& state) {
     // Populate the HashTable with numItems.
-    if (state.thread_index == 0) {
+    if (state.thread_index() == 0) {
         sharedItems = createUniqueItems(
-                "Thread" + std::to_string(state.thread_index) + "::", 50);
+                "Thread" + std::to_string(state.thread_index()) + "::", 50);
         for (auto& item : sharedItems) {
             ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
         }
@@ -167,9 +167,9 @@ BENCHMARK_DEFINE_F(HashTableBench, FindForRead)(benchmark::State& state) {
 // in having such items present in the HashTable.
 BENCHMARK_DEFINE_F(HashTableBench, FindForWrite)(benchmark::State& state) {
     // Populate the HashTable with numItems.
-    if (state.thread_index == 0) {
+    if (state.thread_index() == 0) {
         sharedItems = createUniqueItems(
-                "Thread" + std::to_string(state.thread_index) + "::", 50);
+                "Thread" + std::to_string(state.thread_index()) + "::", 50);
         for (auto& item : sharedItems) {
             ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
         }
@@ -189,7 +189,7 @@ BENCHMARK_DEFINE_F(HashTableBench, Insert)(benchmark::State& state) {
     // To ensure we insert and not replace items, create a per-thread items
     // vector so each thread inserts a different set of items.
     auto items = createUniqueItems("Thread" +
-                                   std::to_string(state.thread_index) + "::");
+                                   std::to_string(state.thread_index()) + "::");
 
     while (state.KeepRunning()) {
         const auto index = state.iterations() % numItems;
@@ -216,7 +216,7 @@ BENCHMARK_DEFINE_F(HashTableBench, Insert)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(HashTableBench, Replace)(benchmark::State& state) {
     // Populate the HashTable with numItems.
     auto items = createUniqueItems("Thread" +
-                                   std::to_string(state.thread_index) + "::");
+                                   std::to_string(state.thread_index()) + "::");
     for (auto& item : items) {
         ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
     }
@@ -232,7 +232,7 @@ BENCHMARK_DEFINE_F(HashTableBench, Replace)(benchmark::State& state) {
 
 BENCHMARK_DEFINE_F(HashTableBench, Delete)(benchmark::State& state) {
     auto items = createUniqueItems("Thread" +
-                                   std::to_string(state.thread_index) + "::");
+                                   std::to_string(state.thread_index()) + "::");
 
     while (state.KeepRunning()) {
         const auto index = state.iterations() % numItems;
@@ -286,7 +286,7 @@ BENCHMARK_DEFINE_F(HashTableBench, MultiCollectionInsert)
     }
 
     auto items = createUniqueItems(
-            "Thread" + std::to_string(state.thread_index) + "::",
+            "Thread" + std::to_string(state.thread_index()) + "::",
             0,
             collections);
 
@@ -329,7 +329,7 @@ BENCHMARK_DEFINE_F(HashTableBench, HTStatsEpilogue)(benchmark::State& state) {
     }
 
     auto items = createUniqueItems(
-            "Thread" + std::to_string(state.thread_index) + "::",
+            "Thread" + std::to_string(state.thread_index()) + "::",
             0,
             collections);
 
