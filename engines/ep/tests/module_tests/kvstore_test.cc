@@ -778,14 +778,6 @@ TEST_P(KVStoreParamTest, DelVBucketWhileScanning) {
 // Expect ThreadSanitizer to pick this.
 // Rocks has race condition issues
 TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
-    if (isNexus()) {
-        // @TODO
-        // Scanning nexus requires that we build the context properly for both
-        // KVStores and in this test the scan context builds fine for magma
-        // but not couchstore as we have an invalid snapshot...
-        GTEST_SKIP();
-    }
-
     std::atomic<bool> stop{false};
     bool okToDelete{false};
     uint32_t deletes{0};
@@ -801,6 +793,8 @@ TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
             auto ctx = kvstore->begin(vbid,
                                       std::make_unique<PersistenceCallback>());
             auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");
+            flush.proposedVBState.lastSnapStart = seqno;
+            flush.proposedVBState.lastSnapEnd = seqno;
             qi->setBySeqno(seqno++);
             kvstore->set(*ctx, qi);
             auto ok = kvstore->commit(std::move(ctx), flush);
