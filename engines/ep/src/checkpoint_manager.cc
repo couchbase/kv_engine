@@ -431,31 +431,6 @@ bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
     return true;
 }
 
-bool CheckpointManager::isCheckpointCreationForHighMemUsage(
-        const std::lock_guard<std::mutex>& lh) {
-    bool forceCreation = false;
-    auto memoryUsed = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
-
-    const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
-
-    // @todo: This function is broken as CM::cursor tracks all cursors, the
-    // persistence (and backup) one included. So:
-    // -> allCursorsInOpenCheckpoint = false, always
-    // -> forceCreation = false, always
-    // This will be fixed within MB-47386.
-    //
-    // pesistence and conn cursors are all currently in the open checkpoint?
-    bool allCursorsInOpenCheckpoint =
-            (cursors.size() + 1) == openCkpt.getNumCursorsInCheckpoint();
-
-    if (memoryUsed > stats.mem_high_wat && allCursorsInOpenCheckpoint &&
-        (openCkpt.getNumItems() >= MIN_CHECKPOINT_ITEMS ||
-         openCkpt.getNumItems() == vb.ht.getNumInMemoryItems())) {
-        forceCreation = true;
-    }
-    return forceCreation;
-}
-
 CheckpointManager::ReleaseResult
 CheckpointManager::removeClosedUnrefCheckpoints() {
     // This function is executed periodically by the non-IO dispatcher.
@@ -467,8 +442,7 @@ CheckpointManager::removeClosedUnrefCheckpoints() {
     CheckpointList toRelease;
     {
         std::lock_guard<std::mutex> lh(queueLock);
-        const auto force = isCheckpointCreationForHighMemUsage(lh);
-        maybeCreateNewCheckpoint(lh, force);
+        maybeCreateNewCheckpoint(lh);
         toRelease = extractClosedUnrefCheckpoints(lh);
     }
     // CM lock released here
@@ -767,7 +741,7 @@ bool CheckpointManager::queueDirty(
         std::function<void(int64_t)> assignedSeqnoCallback) {
     std::lock_guard<std::mutex> lh(queueLock);
 
-    maybeCreateNewCheckpoint(lh, false);
+    maybeCreateNewCheckpoint(lh);
 
     auto* openCkpt = &getOpenCheckpoint_UNLOCKED(lh);
 
@@ -1687,7 +1661,7 @@ FlushHandle::~FlushHandle() {
 }
 
 void CheckpointManager::maybeCreateNewCheckpoint(
-        const std::lock_guard<std::mutex>& lh, bool force) {
+        const std::lock_guard<std::mutex>& lh) {
     // Only the active can shape the CheckpointList
     if (vb.getState() != vbucket_state_active) {
         return;
@@ -1699,7 +1673,7 @@ void CheckpointManager::maybeCreateNewCheckpoint(
         // CM state pre-conditions allow creating a new checkpoint.
 
         // Create a new checkpoint if required.
-        checkOpenCheckpoint(lh, force);
+        checkOpenCheckpoint(lh, false);
     }
 }
 

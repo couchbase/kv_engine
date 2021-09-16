@@ -672,16 +672,12 @@ protected:
      * Check out the current open checkpoint state and create a new open
      * checkpoint if necessary.
      *
-     * @param forceCreation is to indicate if a new checkpoint is created due to
-     *  online update or high memory usage.
+     * @param forceCreation Flag to force the creation a new checkpoint
      */
     void checkOpenCheckpoint(const std::lock_guard<std::mutex>& lh,
                              bool forceCreation);
 
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
-
-    bool isCheckpointCreationForHighMemUsage(
-            const std::lock_guard<std::mutex>& lh);
 
     void resetCursors();
 
@@ -694,12 +690,8 @@ protected:
      * met and proceeds trying creating a new checkpoint.
      *
      * @param lh Lock to CM mutex
-     * @param force Flag passed to the inner checkpoint creation function to
-     *  force the creation of a new checkpoint. Still creation would happen
-     *  iff pre-conditions are met.
      */
-    void maybeCreateNewCheckpoint(const std::lock_guard<std::mutex>& lh,
-                                  bool force);
+    void maybeCreateNewCheckpoint(const std::lock_guard<std::mutex>& lh);
 
     /**
      * Remove all the closed/unref checkpoints (only the ones already processed
