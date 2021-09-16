@@ -252,6 +252,17 @@
                 }
             }
         },
+        "checkpoint_remover_task_count": {
+            "default": "1",
+            "descr": "Number of concurrent tasks performing ItemExpel and CursorDrop/CheckpointRemoval",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
+        },
         "checkpoint_max_size": {
             "default": "0",
             "descr": "Max size (in bytes) of a single checkpoint. '0' for EPEngine auto-setup.",

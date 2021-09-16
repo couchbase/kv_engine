@@ -113,12 +113,18 @@ void KVBucketTest::initialise(std::string config) {
 
     store = engine->getKVBucket();
 
-    store->chkTask = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
-            engine.get(),
-            engine->getEpStats(),
-            engine->getConfiguration().getChkRemoverStime());
+    auto& epConfig = engine->getConfiguration();
+    const auto numChkMemRemTasks = epConfig.getCheckpointRemoverTaskCount();
+    for (size_t id = 0; id < numChkMemRemTasks; ++id) {
+        auto task = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+                engine.get(),
+                engine->getEpStats(),
+                epConfig.getChkRemoverStime(),
+                id);
+        store->chkRemovers.emplace_back(task);
+    }
 
-    store->initializeExpiryPager(engine->getConfiguration());
+    store->initializeExpiryPager(epConfig);
 
     auto numCkptDestroyers =
             engine->getConfiguration().getCheckpointDestructionTasks();
@@ -335,7 +341,9 @@ bool KVBucketTest::isItemFreqDecayerTaskSnoozed() const {
 }
 
 void KVBucketTest::scheduleCheckpointRemoverTask() {
-    ExecutorPool::get()->schedule(store->chkTask);
+    for (auto& task : store->chkRemovers) {
+        ExecutorPool::get()->schedule(task);
+    }
 }
 
 void KVBucketTest::scheduleCheckpointDestroyerTasks() {

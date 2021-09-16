@@ -70,19 +70,23 @@ size_t CheckpointDestroyerTask::getMemoryUsage() const {
 }
 
 ClosedUnrefCheckpointRemoverTask::ClosedUnrefCheckpointRemoverTask(
-        EventuallyPersistentEngine* e, EPStats& st, size_t interval)
+        EventuallyPersistentEngine* e,
+        EPStats& st,
+        size_t interval,
+        size_t removerId)
     : GlobalTask(e, TaskId::ClosedUnrefCheckpointRemoverTask, interval, false),
       engine(e),
       stats(st),
       sleepTime(interval),
-      removalMode(e->getCheckpointConfig().getCheckpointRemoval()) {
+      removalMode(e->getCheckpointConfig().getCheckpointRemoval()),
+      removerId(removerId) {
 }
 
 std::pair<ClosedUnrefCheckpointRemoverTask::ReductionRequired, size_t>
 ClosedUnrefCheckpointRemoverTask::attemptCheckpointRemoval() {
     size_t memReleased = 0;
     auto& bucket = *engine->getKVBucket();
-    const auto vbuckets = bucket.getVBuckets().getVBucketsSortedByChkMgrMem();
+    const auto vbuckets = getVbucketsSortedByChkMem();
     for (const auto& it : vbuckets) {
         const auto vbid = it.first;
         auto vb = bucket.getVBucket(vbid);
@@ -107,10 +111,10 @@ ClosedUnrefCheckpointRemoverTask::attemptCheckpointRemoval() {
 ClosedUnrefCheckpointRemoverTask::ReductionRequired
 ClosedUnrefCheckpointRemoverTask::attemptItemExpelling() {
     auto& bucket = *engine->getKVBucket();
-    const auto vbuckets = bucket.getVBuckets().getVBucketsSortedByChkMgrMem();
+    const auto vbuckets = getVbucketsSortedByChkMem();
     for (const auto& it : vbuckets) {
         const auto vbid = it.first;
-        VBucketPtr vb = bucket.getVBucket(vbid);
+        auto vb = bucket.getVBucket(vbid);
         if (!vb) {
             continue;
         }
@@ -136,10 +140,10 @@ ClosedUnrefCheckpointRemoverTask::attemptItemExpelling() {
 ClosedUnrefCheckpointRemoverTask::ReductionRequired
 ClosedUnrefCheckpointRemoverTask::attemptCursorDropping() {
     auto& bucket = *engine->getKVBucket();
-    const auto vbuckets = bucket.getVBuckets().getVBucketsSortedByChkMgrMem();
+    const auto vbuckets = getVbucketsSortedByChkMem();
     for (const auto& it : vbuckets) {
         const auto vbid = it.first;
-        VBucketPtr vb = bucket.getVBucket(vbid);
+        auto vb = bucket.getVBucket(vbid);
         if (!vb) {
             continue;
         }
@@ -210,9 +214,16 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
         snooze(sleepTime);
     });
 
-    if (bucket.getRequiredCheckpointMemoryReduction() == 0) {
+    const auto bytesToFree = bucket.getRequiredCheckpointMemoryReduction();
+    if (bytesToFree == 0) {
         return true;
     }
+
+    EP_LOG_INFO(
+            "{} Triggering checkpoint memory recovery - attempting to free {} "
+            "MB",
+            getDescription(),
+            bytesToFree / (1024 * 1024));
 
     switch (removalMode) {
     case CheckpointRemoval::Lazy: {
@@ -252,4 +263,30 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
     attemptCursorDropping();
 
     return true;
+}
+
+std::vector<std::pair<Vbid, size_t>>
+ClosedUnrefCheckpointRemoverTask::getVbucketsSortedByChkMem() const {
+    std::vector<std::pair<Vbid, size_t>> res;
+    const auto& bucket = *engine->getKVBucket();
+    const auto numRemovers = bucket.getCheckpointRemoverTaskCount();
+    const auto& vbMap = bucket.getVBuckets();
+    for (size_t vbid = 0; vbid < vbMap.getSize(); ++vbid) {
+        // Skip if not in shard
+        if (vbid % numRemovers != removerId) {
+            continue;
+        }
+
+        auto vb = vbMap.getBucket(Vbid(vbid));
+        if (vb) {
+            res.emplace_back(vb->getId(), vb->getChkMgrMemUsage());
+        }
+    }
+
+    std::sort(res.begin(),
+              res.end(),
+              [](std::pair<Vbid, size_t> a, std::pair<Vbid, size_t> b) {
+                  return a.second > b.second;
+              });
+    return res;
 }

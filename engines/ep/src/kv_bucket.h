@@ -874,6 +874,10 @@ public:
      */
     CheckpointDisposer makeCheckpointDisposer() const;
 
+    size_t getCheckpointRemoverTaskCount() const {
+        return chkRemovers.size();
+    }
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the
@@ -977,7 +981,9 @@ protected:
     EPStats                        &stats;
     VBucketMap                      vbMap;
     ExTask itemPagerTask;
-    ExTask                          chkTask;
+
+    // Checkpoint removers; the number is determined by the related config param
+    std::vector<std::shared_ptr<GlobalTask>> chkRemovers;
 
     /**
      * One or more tasks responsible for destroying checkpoints which are
@@ -996,6 +1002,7 @@ protected:
      * be destroyed by a single task.
      */
     std::vector<std::shared_ptr<CheckpointDestroyerTask>> ckptDestroyerTasks;
+
     float                           bfilterResidencyThreshold;
     ExTask                          defragmenterTask;
     ExTask itemCompressorTask;

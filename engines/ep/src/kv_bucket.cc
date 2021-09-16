@@ -447,10 +447,14 @@ bool KVBucket::initialize() {
     ExTask htrTask = std::make_shared<HashtableResizerTask>(*this, 10);
     ExecutorPool::get()->schedule(htrTask);
 
-    size_t checkpointRemoverInterval = config.getChkRemoverStime();
-    chkTask = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
-            &engine, stats, checkpointRemoverInterval);
-    ExecutorPool::get()->schedule(chkTask);
+    const auto checkpointRemoverInterval = config.getChkRemoverStime();
+    const auto numChkRemovers = config.getCheckpointRemoverTaskCount();
+    for (size_t id = 0; id < numChkRemovers; ++id) {
+        auto task = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+                &engine, stats, checkpointRemoverInterval, id);
+        chkRemovers.emplace_back(task);
+        ExecutorPool::get()->schedule(task);
+    }
 
     auto numCkptDestroyers = config.getCheckpointDestructionTasks();
     for (size_t i = 0; i < numCkptDestroyers; ++i) {
@@ -2524,8 +2528,10 @@ void KVBucket::attemptToFreeMemory() {
 }
 
 void KVBucket::wakeUpCheckpointRemover() {
-    if (chkTask && chkTask->getState() == TASK_SNOOZED) {
-        ExecutorPool::get()->wake(chkTask->getId());
+    for (const auto& task : chkRemovers) {
+        if (task && task->getState() == TASK_SNOOZED) {
+            ExecutorPool::get()->wake(task->getId());
+        }
     }
 }
 
@@ -2915,7 +2921,7 @@ size_t KVBucket::getRequiredCheckpointMemoryReduction() const {
 
     const auto toMB = [](size_t bytes) { return bytes / (1024 * 1024); };
     const auto upperRatio = getCheckpointMemoryRecoveryUpperMark();
-    EP_LOG_INFO(
+    EP_LOG_DEBUG(
             "Triggering memory recovery as checkpoint memory usage ({} MB) "
             "exceeds the upper_mark ({}, "
             "{} MB) - total checkpoint quota {}, {} MB . Attempting to free {} "

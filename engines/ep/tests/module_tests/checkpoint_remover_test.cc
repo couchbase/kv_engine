@@ -24,6 +24,11 @@
 #include "test_helpers.h"
 
 void CheckpointRemoverTest::SetUp() {
+    if (!config_string.empty()) {
+        config_string += ";";
+    }
+    config_string += "max_vbuckets=8;checkpoint_remover_task_count=2";
+
     SingleThreadedKVBucketTest::SetUp();
 }
 
@@ -32,30 +37,54 @@ size_t CheckpointRemoverTest::getMaxCheckpointItems(VBucket& vb) {
 }
 
 /**
- * Check that the VBucketMap.getVBucketsSortedByChkMgrMem() returns the
- * correct ordering of vBuckets, sorted from largest memory usage to smallest.
+ * Checks that CheckpointRemoverTask orders vbuckets to visit by "highest
+ * checkpoint mem-usage" order. Also verifies that vbuckets are sharded across
+ * tasks.
  */
-TEST_F(CheckpointRemoverEPTest, GetVBucketsSortedByChkMgrMem) {
-    for (uint16_t i = 0; i < 3; i++) {
-        setVBucketStateAndRunPersistTask(Vbid(i), vbucket_state_active);
-        for (uint16_t j = 0; j < i; j++) {
-            std::string doc_key =
-                    "key_" + std::to_string(i) + "_" + std::to_string(j);
-            store_item(Vbid(i), makeStoredDocKey(doc_key), "value");
+TEST_F(CheckpointRemoverTest, CheckpointRemoverVBucketOrder) {
+    const auto numVBuckets = 5;
+    for (uint16_t vbid = 0; vbid < numVBuckets; ++vbid) {
+        setVBucketStateAndRunPersistTask(Vbid(vbid), vbucket_state_active);
+        // Note: higher the vbid higher the num of items loaded.
+        for (uint16_t seqno = 0; seqno < vbid; ++seqno) {
+            store_item(Vbid(vbid),
+                       makeStoredDocKey("key_" + std::to_string(vbid) + "_" +
+                                        std::to_string(seqno)),
+                       "value");
         }
     }
 
-    auto map = store->getVBuckets().getVBucketsSortedByChkMgrMem();
+    auto& config = engine->getConfiguration();
+    const auto numRemovers = 2;
+    ASSERT_EQ(numRemovers, config.getCheckpointRemoverTaskCount());
 
-    // The map should be 3 elements long, since we created 3 vBuckets
-    ASSERT_EQ(3, map.size());
+    for (uint8_t removerId = 0; removerId < numRemovers; ++removerId) {
+        const auto remover = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+                engine.get(),
+                engine->getEpStats(),
+                engine->getConfiguration().getChkRemoverStime(),
+                removerId);
 
-    for (size_t i = 1; i < map.size(); i++) {
-        auto this_vbucket = map[i];
-        auto prev_vbucket = map[i - 1];
-        // This vBucket should have a greater memory usage than the one previous
-        // to it in the map
-        ASSERT_GE(this_vbucket.second, prev_vbucket.second);
+        // std::vector<std::pair<Vbid, size_t>>
+        const auto vbuckets = remover->getVbucketsSortedByChkMem();
+
+        // Usual modulo computation for shards, expected:
+        // - vbids {0, 2, 4} -> removerId 0
+        // - vbid {1, 3} -> removerId 1
+        // .. and all in descending checkpoint mem-usage order
+        if (removerId == 0) {
+            ASSERT_EQ(3, vbuckets.size());
+            EXPECT_EQ(4, vbuckets.at(0).first.get());
+            EXPECT_EQ(2, vbuckets.at(1).first.get());
+            EXPECT_EQ(0, vbuckets.at(2).first.get());
+            EXPECT_GE(vbuckets.at(0).second, vbuckets.at(1).second);
+            EXPECT_GE(vbuckets.at(1).second, vbuckets.at(2).second);
+        } else {
+            ASSERT_EQ(2, vbuckets.size());
+            EXPECT_EQ(3, vbuckets.at(0).first.get());
+            EXPECT_EQ(1, vbuckets.at(1).first.get());
+            EXPECT_GE(vbuckets.at(0).second, vbuckets.at(1).second);
+        }
     }
 }
 
@@ -407,7 +436,8 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
     const auto remover = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
             engine.get(),
             engine->getEpStats(),
-            engine->getConfiguration().getChkRemoverStime());
+            engine->getConfiguration().getChkRemoverStime(),
+            0);
     remover->run();
     getCkptDestroyerTask(vbid).run();
 
@@ -460,7 +490,8 @@ TEST_F(CheckpointRemoverEPTest, DISABLED_noCursorDropWhenTargetMet) {
     const auto& task = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
             engine.get(),
             engine->getEpStats(),
-            engine->getConfiguration().getChkRemoverStime());
+            engine->getConfiguration().getChkRemoverStime(),
+            0);
 
     auto vb = store->getVBuckets().getBucket(vbid);
     auto* checkpointManager =
@@ -851,7 +882,8 @@ TEST_F(CheckpointRemoverEPTest, MB_48233) {
     const auto remover = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
             engine.get(),
             engine->getEpStats(),
-            engine->getConfiguration().getChkRemoverStime());
+            engine->getConfiguration().getChkRemoverStime(),
+            0);
     remover->run();
 
     auto& config = engine->getConfiguration();
@@ -931,7 +963,8 @@ TEST_F(CheckpointRemoverEPTest, CheckpointRemovalWithoutCursorDrop) {
     const auto remover = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
             engine.get(),
             engine->getEpStats(),
-            engine->getConfiguration().getChkRemoverStime());
+            engine->getConfiguration().getChkRemoverStime(),
+            0);
     remover->run();
     getCkptDestroyerTask(vbid).run();
 
@@ -996,7 +1029,8 @@ TEST_F(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
 
     // run the remover, this queues the checkpoints for destruction
     auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
-    runNextTask(nonIO, "Removing closed unreferenced checkpoints from memory");
+    runNextTask(nonIO, "ClosedUnrefCheckpointRemoverTask:0");
+    runNextTask(nonIO, "ClosedUnrefCheckpointRemoverTask:1");
 
     // the checkpoints should have been disassociated from their manager,
     // so the tracked memory usage should have decreased...

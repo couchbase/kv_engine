@@ -69,18 +69,20 @@ private:
 class ClosedUnrefCheckpointRemoverTask : public GlobalTask {
 public:
     /**
-     * Construct ClosedUnrefCheckpointRemover.
-     * @param s the store
+     * @param e the engine
      * @param st the stats
+     * @param interval
+     * @param removerId of this task's instance, defined in [0, num_removers -1]
      */
     ClosedUnrefCheckpointRemoverTask(EventuallyPersistentEngine* e,
                                      EPStats& st,
-                                     size_t interval);
+                                     size_t interval,
+                                     size_t removerId);
 
     bool run() override;
 
     std::string getDescription() const override {
-        return "Removing closed unreferenced checkpoints from memory";
+        return "ClosedUnrefCheckpointRemoverTask:" + std::to_string(removerId);
     }
 
     std::chrono::microseconds maxExpectedDuration() const override {
@@ -88,6 +90,14 @@ public:
         // under 250ms 99.99999% of the time.
         return std::chrono::milliseconds(250);
     }
+
+    /**
+     * @return a vector of vbid/mem pair in descending order by checkpoint
+     * memory usage. Note that the task is "sharded", so only the vbuckets that
+     * belong to this task's shard are returned. See the removerId member for
+     * details on sharding.
+     */
+    std::vector<std::pair<Vbid, size_t>> getVbucketsSortedByChkMem() const;
 
 protected:
     enum class ReductionRequired : uint8_t { No, Yes };
@@ -116,7 +126,6 @@ protected:
      */
     ReductionRequired attemptCursorDropping();
 
-private:
     EventuallyPersistentEngine *engine;
     EPStats                   &stats;
     size_t                     sleepTime;
@@ -125,4 +134,9 @@ private:
     // If eager checkpoint removal is enabled, checkpoints are removed as soon
     // as they become unreferenced and thus there's no reason to scan for them.
     const CheckpointRemoval removalMode;
+
+    // This task is "sharded" by (vbid % numRemovers == removerId), ie each task
+    // instance determines what vbuckets to process by picking only vbuckets
+    // that verify that equation. Note that removerId is in {0, numRemovers - 1}
+    const size_t removerId;
 };

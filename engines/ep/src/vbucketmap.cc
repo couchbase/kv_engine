@@ -83,27 +83,6 @@ std::vector<Vbid> VBucketMap::getBucketsInState(vbucket_state_t state) const {
     return rv;
 }
 
-std::vector<std::pair<Vbid, size_t>> VBucketMap::getVBucketsSortedByChkMgrMem() const {
-    std::vector<std::pair<Vbid, size_t>> rv;
-    for (size_t i = 0; i < size; ++i) {
-        VBucketPtr b = getBucket(Vbid(i));
-        if (b) {
-            rv.push_back(std::make_pair(b->getId(), b->getChkMgrMemUsage()));
-        }
-    }
-
-    struct SortCtx {
-        static bool compareSecond(std::pair<Vbid, size_t> a,
-                                  std::pair<Vbid, size_t> b) {
-            return (a.second < b.second);
-        }
-    };
-
-    std::sort(rv.begin(), rv.end(), SortCtx::compareSecond);
-
-    return rv;
-}
-
 KVShard* VBucketMap::getShardByVbId(Vbid id) const {
     return shards[id.get() % shards.size()].get();
 }
