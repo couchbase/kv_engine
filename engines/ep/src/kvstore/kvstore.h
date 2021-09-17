@@ -763,6 +763,20 @@ public:
     void checkIfInTransaction(Vbid vbid, std::string_view caller);
 
 protected:
+    /**
+     * Process the vbstate snapshot strings which are store in the vbstate
+     * document. Check for validity and return a status + decoded snapshot.
+     *
+     * @param vb vbid
+     * @param state state
+     * @return tuple of:
+     *     bool - invalid (false) or valid (true)
+     *     uint64_t - snapshot start
+     *     uint64_t - snapshot end
+     */
+    std::tuple<bool, uint64_t, uint64_t> processVbstateSnapshot(
+            Vbid vb, vbucket_state state) const;
+
     /// Get a string to use as the prefix for the stats. This is typically
     /// "ro_<shard id>" for the read only store, and "rw_<shard id>" for the
     /// read write store.

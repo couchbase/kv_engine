@@ -841,18 +841,6 @@ protected:
     };
 
     /**
-     * Process the vbstate snapshot strings which are stored in the vbstate
-     * document. Check for validity and return a status + decoded snapshot.
-     */
-    std::tuple<ReadVBStateStatus, uint64_t, uint64_t> processVbstateSnapshot(
-            Vbid vb,
-            vbucket_state_t state,
-            int64_t version,
-            uint64_t snapStart,
-            uint64_t snapEnd,
-            uint64_t highSeqno) const;
-
-    /**
      * Read the vbucket_state from disk.
      */
     ReadVBStateResult readVBState(Db* db, Vbid vbid) const;

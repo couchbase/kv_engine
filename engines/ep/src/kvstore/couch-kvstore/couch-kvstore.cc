@@ -3195,44 +3195,6 @@ void CouchKVStore::commitCallback(TransactionContext& txnCtx,
     }
 }
 
-std::tuple<CouchKVStore::ReadVBStateStatus, uint64_t, uint64_t>
-CouchKVStore::processVbstateSnapshot(Vbid vb,
-                                     vbucket_state_t state,
-                                     int64_t version,
-                                     uint64_t snapStart,
-                                     uint64_t snapEnd,
-                                     uint64_t highSeqno) const {
-    ReadVBStateStatus status = ReadVBStateStatus::Success;
-
-    // All upgrade paths we now expect start and end
-    if (!(highSeqno >= snapStart && highSeqno <= snapEnd)) {
-        // very likely MB-34173, log this occurrence.
-        // log the state, range and version
-        logger.warn(
-                "CouchKVStore::processVbstateSnapshot {} {} with invalid "
-                "snapshot range. Found version:{}, highSeqno:{}, start:{}, "
-                "end:{}",
-                vb,
-                VBucket::toString(state),
-                version,
-                highSeqno,
-                snapStart,
-                snapEnd);
-
-        if (state == vbucket_state_active) {
-            // Reset the snapshot range to match what the flusher would
-            // normally set, that is start and end equal the high-seqno
-            snapStart = snapEnd = highSeqno;
-        } else {
-            // Flag that the VB is corrupt, it needs rebuilding
-            status = ReadVBStateStatus::CorruptSnapshot;
-            snapStart = 0, snapEnd = 0;
-        }
-    }
-
-    return {status, snapStart, snapEnd};
-}
-
 CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db,
                                                           Vbid vbId) const {
     sized_buf id;
@@ -3324,13 +3286,13 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db,
     }
 
     ReadVBStateStatus status = ReadVBStateStatus::Success;
-    std::tie(status, vbState.lastSnapStart, vbState.lastSnapEnd) =
-            processVbstateSnapshot(vbId,
-                                   vbState.transition.state,
-                                   vbState.version,
-                                   vbState.lastSnapStart,
-                                   vbState.lastSnapEnd,
-                                   uint64_t(highSeqno));
+    bool snapshotValid;
+    std::tie(snapshotValid, vbState.lastSnapStart, vbState.lastSnapEnd) =
+            processVbstateSnapshot(vbId, vbState);
+
+    if (!snapshotValid) {
+        status = ReadVBStateStatus::CorruptSnapshot;
+    }
 
     couchstore_free_local_document(ldoc);
 

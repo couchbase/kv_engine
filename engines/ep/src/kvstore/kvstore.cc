@@ -597,3 +597,38 @@ void KVStore::checkIfInTransaction(Vbid vbid, std::string_view caller) {
                 vbid));
     }
 }
+
+std::tuple<bool, uint64_t, uint64_t> KVStore::processVbstateSnapshot(
+        Vbid vb, vbucket_state vbState) const {
+    bool status = true;
+    uint64_t snapStart = vbState.lastSnapStart;
+    uint64_t snapEnd = vbState.lastSnapEnd;
+    uint64_t highSeqno = vbState.highSeqno;
+
+    // All upgrade paths we now expect start and end
+    if (!(highSeqno >= snapStart && highSeqno <= snapEnd)) {
+        // very likely MB-34173, log this occurrence.
+        // log the state, range and version
+        EP_LOG_WARN(
+                "KVStore::processVbstateSnapshot {} {} with invalid snapshot "
+                "range. Found version:{}, highSeqno:{}, start:{}, end:{}",
+                vb,
+                VBucket::toString(vbState.transition.state),
+                vbState.version,
+                highSeqno,
+                snapStart,
+                snapEnd);
+
+        if (vbState.transition.state == vbucket_state_active) {
+            // Reset the snapshot range to match what the flusher would
+            // normally set, that is start and end equal the high-seqno
+            snapStart = snapEnd = highSeqno;
+        } else {
+            // Flag that the VB is corrupt, it needs rebuilding
+            status = false;
+            snapStart = 0, snapEnd = 0;
+        }
+    }
+
+    return {status, snapStart, snapEnd};
+}
