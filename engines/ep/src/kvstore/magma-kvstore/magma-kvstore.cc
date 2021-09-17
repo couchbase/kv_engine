@@ -1309,12 +1309,12 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     }
 
     // Not checking the result here as the first flush may not find a manifest
-    // and getCollectionsManifest returns a default constructed one in that case
-    // (with manifest uid of 0).
-    auto manifestResult = getCollectionsManifest(vbid);
+    // uid and getCollectionsManifestUid returns a default constructed one in
+    // that case (uid of 0).
+    auto manifestResult = getCollectionsManifestUid(vbid);
 
     commitData.collections.setDroppedCollectionsForStore(dropped);
-    commitData.collections.setManifestUid(manifestResult.second.manifestUid);
+    commitData.collections.setManifestUid(manifestResult.second);
 
     auto status = magma->WriteDocs(vbid.get(),
                                    writeOps,
@@ -2408,17 +2408,36 @@ std::optional<Collections::ManifestUid> MagmaKVStore::getCollectionsManifestUid(
              manifest.length()});
 }
 
-std::pair<bool, Collections::KVStore::Manifest>
-MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
+std::pair<Status, std::string> MagmaKVStore::getCollectionsManifestUidDoc(
+        Vbid vbid) const {
     Status status;
 
     std::string manifest;
     std::tie(status, manifest) = readLocalDoc(vbid, manifestKey);
     if (!(status.IsOK() || status.ErrorCode() == Status::NotFound)) {
-        return {false,
-                Collections::KVStore::Manifest{
-                        Collections::KVStore::Manifest::Default{}}};
+        return {status, std::string{}};
     }
+    return {status, std::move(manifest)};
+}
+
+std::pair<bool, Collections::ManifestUid>
+MagmaKVStore::getCollectionsManifestUid(Vbid vbid) const {
+    auto [status, uidDoc] = getCollectionsManifestUidDoc(vbid);
+    if (status) {
+        return {true,
+                Collections::KVStore::decodeManifestUid(
+                        {reinterpret_cast<const uint8_t*>(uidDoc.data()),
+                         uidDoc.length()})};
+    }
+    return {false, Collections::ManifestUid{}};
+}
+
+std::pair<bool, Collections::KVStore::Manifest>
+MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
+    Status status;
+
+    std::string manifest;
+    std::tie(status, manifest) = getCollectionsManifestUidDoc(vbid);
 
     std::string openCollections;
     std::tie(status, openCollections) = readLocalDoc(vbid, openCollectionsKey);

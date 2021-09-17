@@ -687,6 +687,26 @@ protected:
      */
     std::optional<MagmaDbStats> getMagmaDbStats(Vbid vbid) const;
 
+    /**
+     * Get the manifest UID which is stored as a metadata document, this returns
+     * the flatbuffer data stored in a string
+     *
+     *  @return pair, first is the status and second is the data if status is
+     *          success.
+     */
+    std::pair<magma::Status, std::string> getCollectionsManifestUidDoc(
+            Vbid vbid) const;
+
+    /**
+     * Get the manifest UID which is stored as a metadata document, this returns
+     * the decoded value
+     *
+     *  @return pair, first is the status and second is the data if status is
+     *          true.
+     */
+    std::pair<bool, Collections::ManifestUid> getCollectionsManifestUid(
+            Vbid vbid) const;
+
     MagmaKVStoreConfig& configuration;
 
     /**
