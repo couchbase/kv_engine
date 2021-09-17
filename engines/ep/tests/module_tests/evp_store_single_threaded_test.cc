@@ -3900,7 +3900,8 @@ TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
         ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
         ASSERT_TRUE(itm->isDeleted());
         itm->setExpTime(0);
-        itm->setBySeqno(itm->getBySeqno() + 1);
+        auto seqno = itm->getBySeqno() + 1;
+        itm->setBySeqno(seqno);
 
         auto ctx =
                 kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
@@ -3908,6 +3909,8 @@ TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
         // will destroy it later
         kvstore->del(*ctx, queued_item(std::move(itm)));
         VB::Commit f(epstore.getVBucket(vbid)->getManifest());
+        f.proposedVBState.lastSnapStart = seqno;
+        f.proposedVBState.lastSnapEnd = seqno;
         kvstore->commit(std::move(ctx), f);
     }
 
@@ -3917,11 +3920,14 @@ TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
     {
         auto key2 = makeStoredDocKey("key2");
         auto itm = makeCommittedItem(key2, "value");
+        auto seqno = 4;
         itm->setBySeqno(4);
         auto ctx =
                 kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         kvstore->del(*ctx, itm);
         VB::Commit f(epstore.getVBucket(vbid)->getManifest());
+        f.proposedVBState.lastSnapStart = seqno;
+        f.proposedVBState.lastSnapEnd = seqno;
         kvstore->commit(std::move(ctx), f);
     }
 

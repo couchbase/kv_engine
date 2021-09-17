@@ -110,7 +110,7 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     const std::string key{"key"};
     const std::string value{"value"};
     kvstore->set(*ctx, makeCommittedItem(makeStoredDocKey(key), value));
-
+    flush.proposedVBState.transition.state = vbucket_state_active;
     EXPECT_TRUE(kvstore->commit(std::move(ctx), flush));
 
     CompactionConfig compactionConfig;

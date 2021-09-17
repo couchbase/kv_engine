@@ -1296,6 +1296,7 @@ TEST_P(KVStoreParamTestSkipRocks, SyncDeletePrepareNotPurgedByTimestamp) {
     dummyItem->setBySeqno(2);
     kvstore->set(*tc, dummyItem);
 
+    flush.proposedVBState.transition.state = vbucket_state_active;
     EXPECT_TRUE(kvstore->commit(std::move(tc), flush));
 
     CompactionConfig compactionConfig;
@@ -1382,6 +1383,8 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
         qi->setBySeqno(seqno++);
         kvstore->set(*ctx, qi);
     }
+
+    flush.proposedVBState.transition.state = vbucket_state_active;
     kvstore->commit(std::move(ctx), flush);
 
     CompactionConfig compactionConfig;
@@ -1493,6 +1496,7 @@ TEST_P(KVStoreParamTestSkipRocks, purgeSeqnoAfterCompaction) {
     auto qi2 = makeCommittedItem(key2, "value");
     qi2->setBySeqno(seqno++);
     kvstore->set(*ctx, qi2);
+    flush.proposedVBState.transition.state = vbucket_state_active;
     ASSERT_TRUE(kvstore->commit(std::move(ctx), flush));
 
     CompactionConfig compactionConfig;

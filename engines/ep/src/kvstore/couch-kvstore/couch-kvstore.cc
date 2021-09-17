@@ -1486,7 +1486,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                     "CouchKVStore::compactDBInternal ({}) Failed to obtain "
                     "vbState for the highCompletedSeqno. Won't prune prepares",
                     vbid);
-            hook_ctx->highCompletedSeqno = 0;
+            return CompactDBInternalStatus::Failed;
         }
         auto [getDroppedStatus, droppedCollections] =
                 getDroppedCollections(*sourceDb);
