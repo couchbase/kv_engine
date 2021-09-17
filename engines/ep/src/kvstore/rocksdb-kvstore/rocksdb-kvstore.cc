@@ -1118,6 +1118,16 @@ RocksDBKVStore::DiskState RocksDBKVStore::readVBStateFromDisk(
                     e.what());
             return {};
         }
+
+        bool snapshotValid;
+        std::tie(snapshotValid, vbState.lastSnapStart, vbState.lastSnapEnd) =
+                processVbstateSnapshot(vbid, vbState);
+
+        if (!snapshotValid) {
+            status = rocksdb::Status::Corruption(
+                    "RocksDBKVStore::readVBStateFromDisk: " + vbid.to_string() +
+                    " detected corrupt snapshot.");
+        }
     }
 
     return {status, vbState};

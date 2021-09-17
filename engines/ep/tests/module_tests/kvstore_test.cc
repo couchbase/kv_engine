@@ -774,6 +774,17 @@ TEST_P(KVStoreParamTest, DelVBucketWhileScanning) {
     kvstore->scan(*scanCtx);
 }
 
+TEST_P(KVStoreParamTest, InvalidSnapshotDetected) {
+    // Store item without setting the snapshot constraints
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+    auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");
+    qi->setBySeqno(1);
+    kvstore->set(*ctx, qi);
+    EXPECT_TRUE(kvstore->commit(std::move(ctx), flush));
+
+    EXPECT_THROW(kvstore->getPersistedVBucketState(vbid), std::exception);
+}
+
 // Verify thread-safeness for 'delVBucket' concurrent operations.
 // Expect ThreadSanitizer to pick this.
 // Rocks has race condition issues

@@ -79,6 +79,8 @@ TEST_F(MagmaKVStoreRollbackTest, Rollback) {
         for (int j = 0; j < 5; j++) {
             auto key = makeStoredDocKey("key" + std::to_string(seqno));
             auto qi = makeCommittedItem(key, "value");
+            flush.proposedVBState.lastSnapStart = seqno;
+            flush.proposedVBState.lastSnapEnd = seqno;
             qi->setBySeqno(seqno++);
             kvstore->set(*ctx, qi);
         }
@@ -607,6 +609,8 @@ TEST_F(MagmaKVStoreTest, readOnlyMode) {
                 kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");
         qi->setBySeqno(seqno);
+        flush.proposedVBState.lastSnapStart = seqno;
+        flush.proposedVBState.lastSnapEnd = seqno;
         kvstore->set(*ctx, qi);
         EXPECT_EQ(expected, kvstore->commit(std::move(ctx), flush));
     };

@@ -1793,6 +1793,17 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) const {
     vbucket_state vbstate = j;
     mergeMagmaDbStatsIntoVBState(vbstate, vbid);
 
+    bool snapshotValid;
+    std::tie(snapshotValid, vbstate.lastSnapStart, vbstate.lastSnapEnd) =
+            processVbstateSnapshot(vbid, vbstate);
+
+    if (!snapshotValid) {
+        status = magma::Status(magma::Status::Corruption,
+                               "MagmaKVStore::readVBStateFromDisk " +
+                                       vbid.to_string() +
+                                       " corrupt snapshot detected.");
+    }
+
     return {status, vbstate, kvstoreRev};
 }
 
