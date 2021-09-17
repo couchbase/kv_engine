@@ -136,14 +136,17 @@ protected:
     }
 
     /**
-     * Creates the given number of checkpoints in CM and moves cursor to the
-     * open checkpoint.
+     * Loads the given number of items in CM and moves cursor to the end of the
+     * open checkpoint queue.
      *
-     * @param numCheckpoints
+     * @param numItems
+     * @param valueSize
      */
-    void createCheckpointsAndMoveCursor(size_t numCheckpoints);
+    void loadItemsAndMoveCursor(size_t numItems, size_t valueSize);
 
     CheckpointList extractClosedUnrefCheckpoints(CheckpointManager&);
+
+    std::pair<CheckpointQueue, size_t> extractItemsToExpel(CheckpointManager&);
 };
 
 /**
@@ -436,34 +439,39 @@ CheckpointList CheckpointBench::extractClosedUnrefCheckpoints(
     return manager.extractClosedUnrefCheckpoints(lh);
 }
 
-void CheckpointBench::createCheckpointsAndMoveCursor(size_t numCheckpoints) {
+std::pair<CheckpointQueue, size_t> CheckpointBench::extractItemsToExpel(
+        CheckpointManager& manager) {
+    std::lock_guard<std::mutex> lh(manager.queueLock);
+    return manager.extractItemsToExpel(lh);
+}
+
+void CheckpointBench::loadItemsAndMoveCursor(size_t numItems,
+                                             size_t valueSize) {
     auto& vb = *engine->getKVBucket()->getVBucket(vbid);
     auto& manager = *vb.checkpointManager;
 
-    // Clean up everything and start from scat every iteration
     manager.clear(0 /*seqno*/);
     ASSERT_EQ(0, manager.getHighSeqno());
     ASSERT_EQ(1, manager.getNumItems());
 
-    // Note: Testclass sets chk_max_items=1, load N items will end up with
-    // N checkpoints
-    for (size_t i = 0; i < numCheckpoints; ++i) {
+    const std::string value(valueSize, 'x');
+    for (size_t i = 0; i < numItems; ++i) {
         queued_item item{
                 new Item(StoredDocKey(std::string("key") + std::to_string(i),
                                       CollectionID::Default),
-                         vbid,
-                         queue_op::mutation,
-                         0 /*revSeqno*/,
-                         0 /*bySeqno*/)};
+                         0,
+                         0,
+                         value.c_str(),
+                         value.size(),
+                         PROTOCOL_BINARY_RAW_BYTES)};
+        item->setVBucketId(vbid);
         item->setQueuedTime();
         EXPECT_TRUE(manager.queueDirty(
                 item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
     }
-    ASSERT_EQ(numCheckpoints, manager.getNumCheckpoints());
-    ASSERT_EQ(numCheckpoints, manager.getHighSeqno());
-    ASSERT_GT(manager.getNumItems(), numCheckpoints);
+    ASSERT_EQ(numItems, manager.getHighSeqno());
 
-    // Make all closed checkpoints eligible for removal
+    // Make all possible items eligible for removal
     flushAllItems(vbid);
 }
 
@@ -487,9 +495,13 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractClosedUnrefCheckpoints)
     const size_t numCheckpoints = state.range(0);
     auto& manager = *engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
 
+    ASSERT_EQ(1, manager.getCheckpointConfig().getCheckpointMaxItems());
+
     while (state.KeepRunning()) {
         state.PauseTiming();
-        createCheckpointsAndMoveCursor(numCheckpoints);
+
+        loadItemsAndMoveCursor(numCheckpoints, 0);
+        ASSERT_EQ(numCheckpoints, manager.getNumCheckpoints());
 
         // Benchmark
         {
@@ -518,9 +530,13 @@ BENCHMARK_DEFINE_F(CheckpointBench, GetCursorsToDrop)
     const size_t numCheckpoints = state.range(0);
     auto& manager = *engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
 
+    ASSERT_EQ(1, manager.getCheckpointConfig().getCheckpointMaxItems());
+
     while (state.KeepRunning()) {
         state.PauseTiming();
-        createCheckpointsAndMoveCursor(numCheckpoints);
+
+        loadItemsAndMoveCursor(numCheckpoints, 0);
+        ASSERT_EQ(numCheckpoints, manager.getNumCheckpoints());
 
         // Benchmark
         {
@@ -529,6 +545,49 @@ BENCHMARK_DEFINE_F(CheckpointBench, GetCursorsToDrop)
             state.PauseTiming();
 
             EXPECT_EQ(0, cursors.size());
+        }
+
+        // Need to resume here, gbench will fail when it's time to exit the
+        // loop otherwise.
+        state.ResumeTiming();
+    }
+}
+
+BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
+(benchmark::State& state) {
+    const size_t numItems = state.range(0);
+
+    // Ensure all items in the open checkpoint - avoid checkpoint creation
+    ASSERT_LE(numItems, MAX_CHECKPOINT_ITEMS);
+    auto& config = engine->getConfiguration();
+    const size_t _1B = 1000 * 1000 * 1000;
+    config.setCheckpointMaxSize(_1B);
+    config.setChkMaxItems(MAX_CHECKPOINT_ITEMS);
+    config.setChkPeriod(MAX_CHECKPOINT_PERIOD);
+
+    auto& bucket = *engine->getKVBucket();
+    auto& manager = *bucket.getVBucket(vbid)->checkpointManager;
+    const auto& ckptConfig = manager.getCheckpointConfig();
+    ASSERT_EQ(_1B, bucket.getCheckpointMaxSize());
+    ASSERT_EQ(MAX_CHECKPOINT_ITEMS, ckptConfig.getCheckpointMaxItems());
+    ASSERT_EQ(MAX_CHECKPOINT_PERIOD, ckptConfig.getCheckpointPeriod());
+
+    while (state.KeepRunning()) {
+        state.PauseTiming();
+
+        // High-seqno never expelled, so load numItems+1 for expelling numItems
+        loadItemsAndMoveCursor(numItems + 1, 1024);
+        ASSERT_EQ(1, manager.getNumCheckpoints());
+
+        // Benchmark
+        {
+            state.ResumeTiming();
+            const auto res = extractItemsToExpel(manager);
+            // Don't account deallocation, so pause before res goes out of scope
+            state.PauseTiming();
+
+            EXPECT_EQ(numItems, res.first.size());
+            EXPECT_GT(res.second, 0);
         }
 
         // Need to resume here, gbench will fail when it's time to exit the
@@ -614,6 +673,15 @@ BENCHMARK_REGISTER_F(CheckpointBench, ExtractClosedUnrefCheckpoints)
 
 // Arguments: numCheckpoints
 BENCHMARK_REGISTER_F(CheckpointBench, GetCursorsToDrop)
+        ->Args({1})
+        ->Args({10})
+        ->Args({100})
+        ->Args({1000})
+        ->Args({10000})
+        ->Iterations(1);
+
+// Arguments: numItems
+BENCHMARK_REGISTER_F(CheckpointBench, ExtractItemsToExpel)
         ->Args({1})
         ->Args({10})
         ->Args({100})
