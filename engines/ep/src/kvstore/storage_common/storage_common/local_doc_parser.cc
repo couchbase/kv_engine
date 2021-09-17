@@ -13,9 +13,9 @@
 
 #include "flatbuffers/idl.h"
 
+#include "local_doc_constants.h"
 #include <collections/kvstore_generated.h>
 #include <mcbp/protocol/unsigned_leb128.h>
-
 #include <iostream>
 
 extern const std::string collections_kvstore_schema;
@@ -81,20 +81,18 @@ std::pair<bool, std::string> read_collection_flatbuffer_collections(
 std::pair<bool, std::string> maybe_decode_local_doc(std::string_view key,
                                                     std::string_view value) {
     // Check for known non-JSON meta-data documents
-    if (strncmp(key.data(), "_local/collections/open", key.size()) == 0) {
+    if (key == LocalDocKey::openCollections) {
         return read_collection_flatbuffer_collections<
                 Collections::KVStore::OpenCollections>(
                 key.data(), "OpenCollections", value);
-    } else if (strncmp(key.data(), "_local/collections/dropped", key.size()) ==
-               0) {
+    } else if (key == LocalDocKey::droppedCollections) {
         return read_collection_flatbuffer_collections<
                 Collections::KVStore::DroppedCollections>(
                 key.data(), "DroppedCollections", value);
-    } else if (strncmp(key.data(), "_local/scope/open", key.size()) == 0) {
+    } else if (key == LocalDocKey::openScopes) {
         return read_collection_flatbuffer_collections<
                 Collections::KVStore::Scopes>(key.data(), "Scopes", value);
-    } else if (strncmp(key.data(), "_local/collections/manifest", key.size()) ==
-               0) {
+    } else if (key == LocalDocKey::manifest) {
         return read_collection_flatbuffer_collections<
                 Collections::KVStore::CommittedManifest>(
                 key.data(), "CommittedManifest", value);

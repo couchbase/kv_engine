@@ -42,10 +42,10 @@ public:
      */
     void upgrade(OutputCouchFile& output) const;
 
-    std::string getLocalDocument(const std::string& documentName) const;
+    std::string getLocalDocument(std::string_view documentName) const;
 
 private:
-    bool doesLocalDocumentExist(const std::string& documentName) const;
+    bool doesLocalDocumentExist(std::string_view documentName) const;
 
     bool isCompletelyNamespaced() const;
 
@@ -53,6 +53,6 @@ private:
 
     std::optional<bool> getSupportsNamespaces() const;
 
-    LocalDocPtr openLocalDocument(const std::string& documentName) const;
+    LocalDocPtr openLocalDocument(std::string_view documentName) const;
 };
 } // end namespace Collections

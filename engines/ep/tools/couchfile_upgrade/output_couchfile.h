@@ -68,7 +68,7 @@ protected:
      */
     std::string moveDocToCollection(const sized_buf in, CollectionID cid) const;
 
-    void writeLocalDocument(const std::string& documentName,
+    void writeLocalDocument(std::string_view documentName,
                             const std::string& value) const;
 
     void writeSupportsNamespaces(const std::string& vbs, bool value) const;

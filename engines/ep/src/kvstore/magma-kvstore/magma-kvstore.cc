@@ -18,6 +18,7 @@
 #include "item.h"
 #include "kv_magma_common/magma-kvstore_metadata.h"
 #include "kvstore/kvstore_transaction_context.h"
+#include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "magma-kvstore_config.h"
 #include "magma-kvstore_iorequest.h"
 #include "magma-memory-tracking-proxy.h"
@@ -40,13 +41,6 @@ class Snapshot;
 
 using namespace magma;
 using namespace std::chrono_literals;
-
-// Keys to localdb docs
-static const std::string vbstateKey = "_vbstate";
-static const std::string manifestKey = "_collections/manifest";
-static const std::string openCollectionsKey = "_collections/open";
-static const std::string openScopesKey = "_scopes/open";
-static const std::string droppedCollectionsKey = "_collections/dropped";
 
 // Unfortunately, turning on logging for the tests is limited to debug
 // mode. While we are in the midst of dropping in magma, this provides
@@ -1737,7 +1731,7 @@ uint64_t MagmaKVStore::getKVStoreRevision(Vbid vbid) const {
 }
 
 MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) const {
-    Slice keySlice(vbstateKey);
+    Slice keySlice(LocalDocKey::vbstate);
     auto kvstoreRev = getKVStoreRevision(vbid);
     auto [status, valString] = readLocalDoc(vbid, keySlice);
 
@@ -1779,7 +1773,7 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) const {
 
 MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(
         Vbid vbid, magma::Magma::Snapshot& snapshot) const {
-    Slice keySlice(vbstateKey);
+    Slice keySlice(LocalDocKey::vbstate);
     std::string val;
     auto status = Status::OK();
     auto kvstoreRev = getKVStoreRevision(vbid);
@@ -1856,7 +1850,7 @@ void MagmaKVStore::addVBStateUpdateToLocalDbReqs(LocalDbReqs& localDbReqs,
     logger->TRACE("MagmaKVStore::addVBStateUpdateToLocalDbReqs vbstate:{}",
                   vbstateString);
     localDbReqs.emplace_back(
-            MagmaLocalReq(vbstateKey, std::move(vbstateString)));
+            MagmaLocalReq(LocalDocKey::vbstate, std::move(vbstateString)));
 }
 
 std::pair<Status, std::string> MagmaKVStore::processReadLocalDocResult(
@@ -2223,11 +2217,11 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         WriteOps writeOps;
         if (fbData.data()) {
             localDbReqs.emplace_back(
-                    MagmaLocalReq(droppedCollectionsKey, fbData));
+                    MagmaLocalReq(LocalDocKey::droppedCollections, fbData));
         } else {
             // Need to ensure the 'dropped' list on disk is now gone
-            localDbReqs.emplace_back(
-                    MagmaLocalReq::makeDeleted(droppedCollectionsKey));
+            localDbReqs.emplace_back(MagmaLocalReq::makeDeleted(
+                    LocalDocKey::droppedCollections));
         }
 
         addLocalDbReqs(localDbReqs, writeOps);
@@ -2410,7 +2404,7 @@ std::optional<Collections::ManifestUid> MagmaKVStore::getCollectionsManifestUid(
     auto& kvfh = static_cast<MagmaKVFileHandle&>(kvFileHandle);
 
     auto [status, manifest] =
-            readLocalDoc(kvfh.vbid, *kvfh.snapshot, manifestKey);
+            readLocalDoc(kvfh.vbid, *kvfh.snapshot, LocalDocKey::manifest);
     if (!status.IsOK()) {
         if (status.ErrorCode() != Status::Code::NotFound) {
             logger->warn("MagmaKVStore::getCollectionsManifestUid(): {}",
@@ -2431,7 +2425,7 @@ std::pair<Status, std::string> MagmaKVStore::getCollectionsManifestUidDoc(
     Status status;
 
     std::string manifest;
-    std::tie(status, manifest) = readLocalDoc(vbid, manifestKey);
+    std::tie(status, manifest) = readLocalDoc(vbid, LocalDocKey::manifest);
     if (!(status.IsOK() || status.ErrorCode() == Status::NotFound)) {
         return {status, std::string{}};
     }
@@ -2458,7 +2452,8 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
     std::tie(status, manifest) = getCollectionsManifestUidDoc(vbid);
 
     std::string openCollections;
-    std::tie(status, openCollections) = readLocalDoc(vbid, openCollectionsKey);
+    std::tie(status, openCollections) =
+            readLocalDoc(vbid, LocalDocKey::openCollections);
     if (!(status.IsOK() || status.ErrorCode() == Status::NotFound)) {
         return {false,
                 Collections::KVStore::Manifest{
@@ -2466,7 +2461,7 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
     }
 
     std::string openScopes;
-    std::tie(status, openScopes) = readLocalDoc(vbid, openScopesKey);
+    std::tie(status, openScopes) = readLocalDoc(vbid, LocalDocKey::openScopes);
     if (!(status.IsOK() || status.ErrorCode() == Status::NotFound)) {
         return {false,
                 Collections::KVStore::Manifest{
@@ -2475,7 +2470,7 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
 
     std::string droppedCollections;
     std::tie(status, droppedCollections) =
-            readLocalDoc(vbid, droppedCollectionsKey);
+            readLocalDoc(vbid, LocalDocKey::droppedCollections);
     if (!(status.IsOK() || status.ErrorCode() == Status::NotFound)) {
         return {false,
                 Collections::KVStore::Manifest{
@@ -2497,7 +2492,7 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
 
 std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
 MagmaKVStore::getDroppedCollections(Vbid vbid) const {
-    Slice keySlice(droppedCollectionsKey);
+    Slice keySlice(LocalDocKey::droppedCollections);
     auto [status, dropped] = readLocalDoc(vbid, keySlice);
     // Currently we need the NotExists check for the case in which we create the
     // (magma)KVStore (done at first flush).
@@ -2516,7 +2511,7 @@ MagmaKVStore::getDroppedCollections(Vbid vbid) const {
 std::pair<magma::Status, std::vector<Collections::KVStore::DroppedCollection>>
 MagmaKVStore::getDroppedCollections(Vbid vbid,
                                     magma::Magma::Snapshot& snapshot) const {
-    Slice keySlice(droppedCollectionsKey);
+    Slice keySlice(LocalDocKey::droppedCollections);
     auto [status, dropped] = readLocalDoc(vbid, snapshot, keySlice);
     return {status,
             Collections::KVStore::decodeDroppedCollections(
@@ -2560,14 +2555,14 @@ magma::Status MagmaKVStore::updateCollectionsMeta(
 void MagmaKVStore::updateManifestUid(LocalDbReqs& localDbReqs,
                                      Collections::VB::Flush& collectionsFlush) {
     auto buf = collectionsFlush.encodeManifestUid();
-    localDbReqs.emplace_back(MagmaLocalReq(manifestKey, buf));
+    localDbReqs.emplace_back(MagmaLocalReq(LocalDocKey::manifest, buf));
 }
 
 magma::Status MagmaKVStore::updateOpenCollections(
         Vbid vbid,
         LocalDbReqs& localDbReqs,
         Collections::VB::Flush& collectionsFlush) {
-    Slice keySlice(openCollectionsKey);
+    Slice keySlice(LocalDocKey::openCollections);
     auto [status, collections] = readLocalDoc(vbid, keySlice);
 
     if (status.IsOK() || status.ErrorCode() == Status::Code::NotFound) {
@@ -2575,7 +2570,8 @@ magma::Status MagmaKVStore::updateOpenCollections(
                 {reinterpret_cast<const uint8_t*>(collections.data()),
                  collections.length()});
 
-        localDbReqs.emplace_back(MagmaLocalReq(openCollectionsKey, buf));
+        localDbReqs.emplace_back(
+                MagmaLocalReq(LocalDocKey::openCollections, buf));
         return Status::OK();
     }
 
@@ -2653,7 +2649,8 @@ magma::Status MagmaKVStore::updateDroppedCollections(
     }
 
     auto buf = collectionsFlush.encodeDroppedCollections(dropped);
-    localDbReqs.emplace_back(MagmaLocalReq(droppedCollectionsKey, buf));
+    localDbReqs.emplace_back(
+            MagmaLocalReq(LocalDocKey::droppedCollections, buf));
 
     return Status::OK();
 }
@@ -2740,14 +2737,14 @@ magma::Status MagmaKVStore::updateScopes(
         Vbid vbid,
         LocalDbReqs& localDbReqs,
         Collections::VB::Flush& collectionsFlush) {
-    Slice keySlice(openScopesKey);
+    Slice keySlice(LocalDocKey::openScopes);
     auto [status, scopes] = readLocalDoc(vbid, keySlice);
 
     if (status.IsOK() || status.ErrorCode() == Status::Code::NotFound) {
         auto buf = collectionsFlush.encodeOpenScopes(
                 {reinterpret_cast<const uint8_t*>(scopes.data()),
                  scopes.length()});
-        localDbReqs.emplace_back(MagmaLocalReq(openScopesKey, buf));
+        localDbReqs.emplace_back(MagmaLocalReq(LocalDocKey::openScopes, buf));
         return Status::OK();
     }
 

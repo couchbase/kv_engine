@@ -13,6 +13,7 @@
 #include "configuration.h"
 #include "kvstore/magma-kvstore/kv_magma_common/magma-kvstore_metadata.h"
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
+#include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "kvstore_test.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"
@@ -333,7 +334,7 @@ TEST_F(MagmaKVStoreTest, badDelRequest) {
 TEST_F(MagmaKVStoreTest, initializeWithHeaderButNoVBState) {
     initialize_kv_store(kvstore.get(), vbid);
 
-    EXPECT_TRUE(kvstore->deleteLocalDoc(vbid, "_vbstate").IsOK());
+    EXPECT_TRUE(kvstore->deleteLocalDoc(vbid, LocalDocKey::vbstate).IsOK());
 
     vbucket_state defaultState;
     auto* vbstate = kvstore->getCachedVBucketState(vbid);
@@ -558,17 +559,17 @@ TEST_F(MagmaKVStoreTest, MagmaGetExpiryTimeTombstone) {
 TEST_F(MagmaKVStoreTest, ReadLocalDocErrorCode) {
     initialize_kv_store(kvstore.get(), vbid);
 
-    auto res = kvstore->readLocalDoc(vbid, "_vbstate");
+    auto res = kvstore->readLocalDoc(vbid, LocalDocKey::vbstate);
     EXPECT_EQ(magma::Status::Code::Ok, res.first.ErrorCode());
 
-    EXPECT_TRUE(kvstore->deleteLocalDoc(vbid, "_vbstate").IsOK());
-    res = kvstore->readLocalDoc(vbid, "_vbstate");
+    EXPECT_TRUE(kvstore->deleteLocalDoc(vbid, LocalDocKey::vbstate).IsOK());
+    res = kvstore->readLocalDoc(vbid, LocalDocKey::vbstate);
     EXPECT_EQ(magma::Status::Code::NotFound, res.first.ErrorCode());
 
     auto kvsRev = kvstore->prepareToDelete(Vbid(0));
     kvstore->delVBucket(vbid, kvsRev);
 
-    res = kvstore->readLocalDoc(vbid, "_vbstate");
+    res = kvstore->readLocalDoc(vbid, LocalDocKey::vbstate);
     EXPECT_EQ(magma::Status::Code::NotExists, res.first.ErrorCode());
 }
 

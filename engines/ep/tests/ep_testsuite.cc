@@ -21,6 +21,7 @@
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 #include "kvstore/couch-kvstore/couch-kvstore-metadata.h"
+#include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "module_tests/thread_gate.h"
 #include <libcouchstore/couch_db.h>
 #include <memcached/engine.h>
@@ -6376,8 +6377,8 @@ static void write_vb_state(std::string dbdir,
     const auto vbStateStr = json.dump();
 
     LocalDoc vbstate;
-    vbstate.id.buf = (char*)"_local/vbstate";
-    vbstate.id.size = sizeof("_local/vbstate") - 1;
+    vbstate.id.buf = const_cast<char*>(LocalDocKey::vbstate.data());
+    vbstate.id.size = LocalDocKey::vbstate.size();
     vbstate.json.buf = (char*)vbStateStr.c_str();
     vbstate.json.size = vbStateStr.size();
     vbstate.deleted = 0;

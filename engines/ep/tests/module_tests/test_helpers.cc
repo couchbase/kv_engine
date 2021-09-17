@@ -14,6 +14,7 @@
 #include "checkpoint_manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "item.h"
+#include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "vbucket.h"
 
 #include <boost/filesystem.hpp>
@@ -237,7 +238,7 @@ void modifyCouchstoreVBState(
 
     ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to open new database";
 
-    std::string key{"_local/vbstate"};
+    std::string key{LocalDocKey::vbstate};
     LocalDoc* doc = nullptr;
     err = couchstore_open_local_document(handle, key.data(), key.size(), &doc);
 

@@ -22,6 +22,7 @@
 #include "kvstore/kvstore_config.h"
 #include "kvstore/kvstore_transaction_context.h"
 #include "kvstore/persistence_callback.h"
+#include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "rollback_result.h"
 #include "statistics/cbstat_collector.h"
 #include "vb_commit.h"
@@ -113,7 +114,7 @@ static sized_buf to_sized_buf(const DiskDocKey& key) {
 
 static std::pair<couchstore_error_t, nlohmann::json> getLocalVbState(Db& db) {
     auto [status, doc] =
-            cb::couchstore::openLocalDocument(db, "_local/vbstate");
+            cb::couchstore::openLocalDocument(db, LocalDocKey::vbstate);
     if (status == COUCHSTORE_SUCCESS) {
         try {
             auto view = std::string_view{doc->json.buf, doc->json.size};
@@ -345,14 +346,6 @@ CouchRequest::CouchRequest(queued_item it)
 }
 
 CouchRequest::~CouchRequest() = default;
-
-namespace Collections {
-static constexpr const char* manifestName = "_local/collections/manifest";
-static constexpr const char* openCollectionsName = "_local/collections/open";
-static constexpr const char* scopesName = "_local/scope/open";
-static constexpr const char* droppedCollectionsName =
-        "_local/collections/dropped";
-} // namespace Collections
 
 CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config)
     : CouchKVStore(config, *couchstore_get_default_file_ops()) {
@@ -1167,7 +1160,8 @@ couchstore_error_t CouchKVStore::replayPrecommitHook(
             return COUCHSTORE_ERROR_CANCEL;
         }
 
-        localDocQueue.emplace_back("_local/vbstate", json.dump());
+        localDocQueue.emplace_back(std::string{LocalDocKey::vbstate},
+                                   json.dump());
 
         return updateLocalDocuments(db, localDocQueue);
     } catch (const std::exception&) {
@@ -1207,13 +1201,14 @@ CouchKVStore::replayPrecommitProcessDroppedCollections(
         //    deleted.
         if (fbData.data()) {
             hook_ctx.eraserContext->setOnDiskDroppedDataExists(true);
-            localDocQueue.emplace_back(Collections::droppedCollectionsName,
-                                       fbData);
+            localDocQueue.emplace_back(
+                    std::string{LocalDocKey::droppedCollections}, fbData);
         } else {
             // Need to ensure the 'dropped' list on disk is now gone
             hook_ctx.eraserContext->setOnDiskDroppedDataExists(false);
-            localDocQueue.emplace_back(Collections::droppedCollectionsName,
-                                       CouchLocalDocRequest::IsDeleted{});
+            localDocQueue.emplace_back(
+                    std::string{LocalDocKey::droppedCollections},
+                    CouchLocalDocRequest::IsDeleted{});
         }
     }
 
@@ -1521,7 +1516,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                                 ->needToUpdateCollectionsMetadata()) {
                         // Need to ensure the 'dropped' list on disk is now gone
                         localDocQueue.emplace_back(
-                                Collections::droppedCollectionsName,
+                                std::string{LocalDocKey::droppedCollections},
                                 CouchLocalDocRequest::IsDeleted{});
                         hook_ctx->eraserContext->setOnDiskDroppedDataExists(
                                 false);
@@ -1816,7 +1811,8 @@ couchstore_error_t CouchKVStore::maybePatchMetaData(
         // only update if at least one of the prepare stats is already there
         if (updateVbState) {
             const auto doc = json.dump();
-            localDocQueue.emplace_back("_local/vbstate", json.dump());
+            localDocQueue.emplace_back(std::string{LocalDocKey::vbstate},
+                                       json.dump());
         }
     }
 
@@ -1985,7 +1981,7 @@ bool CouchKVStore::writeVBucketState(Vbid vbucketId,
 
     auto& db = *handle;
     auto errorCode = updateLocalDocument(
-            *db, "_local/vbstate", makeJsonVBState(vbstate));
+            *db, LocalDocKey::vbstate, makeJsonVBState(vbstate));
     if (errorCode != COUCHSTORE_SUCCESS) {
         ++st.numVbSetFailure;
         logger.warn(
@@ -3063,7 +3059,7 @@ couchstore_error_t CouchKVStore::saveDocs(
     vbucket_state& state = kvctx.commitData.proposedVBState;
     state.onDiskPrepares += kvctx.onDiskPrepareDelta;
     state.updateOnDiskPrepareBytes(kvctx.onDiskPrepareBytesDelta);
-    txnCtx.pendingLocalReqsQ.emplace_back("_local/vbstate",
+    txnCtx.pendingLocalReqsQ.emplace_back(std::string{LocalDocKey::vbstate},
                                           makeJsonVBState(state));
 
     kvctx.commitData.collections.saveCollectionStats(
@@ -3211,8 +3207,8 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db,
 
     vbucket_state vbState;
 
-    id.buf = (char *)"_local/vbstate";
-    id.size = sizeof("_local/vbstate") - 1;
+    id.buf = const_cast<char*>(LocalDocKey::vbstate.data());
+    id.size = LocalDocKey::vbstate.size();
     auto couchStoreStatus =
             couchstore_open_local_document(db, (void*)id.buf, id.size, &ldoc);
 
@@ -3887,7 +3883,7 @@ std::optional<Collections::ManifestUid> CouchKVStore::getCollectionsManifestUid(
         KVFileHandle& kvFileHandle) {
     auto& couchKvHandle = static_cast<CouchKVFileHandle&>(kvFileHandle);
     auto db = couchKvHandle.getDb();
-    auto manifestRes = readLocalDoc(*db, Collections::manifestName);
+    auto manifestRes = readLocalDoc(*db, LocalDocKey::manifest);
     if (manifestRes.status != COUCHSTORE_SUCCESS) {
         if (manifestRes.status == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
             return Collections::ManifestUid{0};
@@ -3921,7 +3917,7 @@ CouchKVStore::getCollectionsManifest(Vbid vbid) const {
 
 std::pair<couchstore_error_t, Collections::KVStore::Manifest>
 CouchKVStore::getCollectionsManifest(Db& db) const {
-    auto manifestRes = readLocalDoc(db, Collections::manifestName);
+    auto manifestRes = readLocalDoc(db, LocalDocKey::manifest);
     if (manifestRes.status != COUCHSTORE_SUCCESS &&
         manifestRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
         return {manifestRes.status,
@@ -3929,7 +3925,7 @@ CouchKVStore::getCollectionsManifest(Db& db) const {
                         Collections::KVStore::Manifest::Default{}}};
     }
 
-    auto collectionsRes = readLocalDoc(db, Collections::openCollectionsName);
+    auto collectionsRes = readLocalDoc(db, LocalDocKey::openCollections);
     if (collectionsRes.status != COUCHSTORE_SUCCESS &&
         collectionsRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
         return {collectionsRes.status,
@@ -3937,7 +3933,7 @@ CouchKVStore::getCollectionsManifest(Db& db) const {
                         Collections::KVStore::Manifest::Default{}}};
     }
 
-    auto scopesRes = readLocalDoc(db, Collections::scopesName);
+    auto scopesRes = readLocalDoc(db, LocalDocKey::openScopes);
     if (scopesRes.status != COUCHSTORE_SUCCESS &&
         scopesRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
         return {scopesRes.status,
@@ -3945,7 +3941,7 @@ CouchKVStore::getCollectionsManifest(Db& db) const {
                         Collections::KVStore::Manifest::Default{}}};
     }
 
-    auto droppedRes = readLocalDoc(db, Collections::droppedCollectionsName);
+    auto droppedRes = readLocalDoc(db, LocalDocKey::droppedCollections);
     if (droppedRes.status != COUCHSTORE_SUCCESS &&
         droppedRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
         return {droppedRes.status,
@@ -3988,7 +3984,7 @@ CouchKVStore::getDroppedCollections(Vbid vbid) const {
 std::pair<couchstore_error_t,
           std::vector<Collections::KVStore::DroppedCollection>>
 CouchKVStore::getDroppedCollections(Db& db) const {
-    auto droppedRes = readLocalDoc(db, Collections::droppedCollectionsName);
+    auto droppedRes = readLocalDoc(db, LocalDocKey::droppedCollections);
 
     if (droppedRes.status == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
         // Doc not found case, remap to success as that means there are no
@@ -4040,7 +4036,7 @@ couchstore_error_t CouchKVStore::updateCollectionsMeta(
 void CouchKVStore::updateManifestUid(CouchKVStoreTransactionContext& txnCtx,
                                      Collections::VB::Flush& collectionsFlush) {
     // write back, no read required
-    txnCtx.pendingLocalReqsQ.emplace_back(Collections::manifestName,
+    txnCtx.pendingLocalReqsQ.emplace_back(std::string{LocalDocKey::manifest},
                                           collectionsFlush.encodeManifestUid());
 }
 
@@ -4048,7 +4044,7 @@ couchstore_error_t CouchKVStore::updateOpenCollections(
         CouchKVStoreTransactionContext& txnCtx,
         Db& db,
         Collections::VB::Flush& collectionsFlush) {
-    auto collectionsRes = readLocalDoc(db, Collections::openCollectionsName);
+    auto collectionsRes = readLocalDoc(db, LocalDocKey::openCollections);
 
     if (collectionsRes.status != COUCHSTORE_SUCCESS &&
         collectionsRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
@@ -4058,7 +4054,7 @@ couchstore_error_t CouchKVStore::updateOpenCollections(
     cb::const_byte_buffer empty;
 
     txnCtx.pendingLocalReqsQ.emplace_back(
-            Collections::openCollectionsName,
+            std::string{LocalDocKey::openCollections},
             collectionsFlush.encodeOpenCollections(
                     collectionsRes.doc.getLocalDoc()
                             ? collectionsRes.doc.getBuffer()
@@ -4084,7 +4080,8 @@ couchstore_error_t CouchKVStore::updateDroppedCollections(
             collectionsFlush.encodeDroppedCollections(dropped);
     if (encodedDroppedCollections.data()) {
         txnCtx.pendingLocalReqsQ.emplace_back(
-                Collections::droppedCollectionsName, encodedDroppedCollections);
+                std::string{LocalDocKey::droppedCollections},
+                encodedDroppedCollections);
     }
 
     return COUCHSTORE_SUCCESS;
@@ -4094,7 +4091,7 @@ couchstore_error_t CouchKVStore::updateScopes(
         CouchKVStoreTransactionContext& txnCtx,
         Db& db,
         Collections::VB::Flush& collectionsFlush) {
-    auto scopesRes = readLocalDoc(db, Collections::scopesName);
+    auto scopesRes = readLocalDoc(db, LocalDocKey::openScopes);
 
     if (scopesRes.status != COUCHSTORE_SUCCESS &&
         scopesRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
@@ -4103,7 +4100,7 @@ couchstore_error_t CouchKVStore::updateScopes(
 
     cb::const_byte_buffer empty;
     txnCtx.pendingLocalReqsQ.emplace_back(
-            Collections::scopesName,
+            std::string{LocalDocKey::openScopes},
             collectionsFlush.encodeOpenScopes(
                     scopesRes.doc.getLocalDoc() ? scopesRes.doc.getBuffer()
                                                 : empty));

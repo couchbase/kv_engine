@@ -13,6 +13,7 @@
 
 #include "collections/collection_persisted_stats.h"
 #include "input_couchfile.h"
+#include "kvstore/storage_common/storage_common/local_doc_constants.h"
 
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <nlohmann/json.hpp>
@@ -103,10 +104,10 @@ void OutputCouchFile::setCollectionStatsMadHatter(
     writeLocalDocument(docName, stats.getLebEncodedStatsMadHatter());
 }
 
-void OutputCouchFile::writeLocalDocument(const std::string& documentName,
+void OutputCouchFile::writeLocalDocument(std::string_view documentName,
                                          const std::string& value) const {
     LocalDoc localDoc;
-    localDoc.id.buf = const_cast<char*>(documentName.c_str());
+    localDoc.id.buf = const_cast<char*>(documentName.data());
     localDoc.id.size = documentName.size();
     localDoc.json.buf = const_cast<char*>(value.c_str());
     localDoc.json.size = value.size();
@@ -117,14 +118,16 @@ void OutputCouchFile::writeLocalDocument(const std::string& documentName,
         throw std::runtime_error(
                 "OutputCouchFile::writeLocalDocument failed "
                 "couchstore_open_local_document documentName:" +
-                documentName + " value:" + value + " errcode:" +
-                std::to_string(errcode));
+                std::string(documentName) + " value:" + value +
+                " errcode:" + std::to_string(errcode));
     }
-    verbose("writeLocalDocument(" + documentName + ", " + value + ") success");
+    verbose("writeLocalDocument(" + std::string(documentName) + ", " + value +
+            ") success");
 }
 
 void OutputCouchFile::writeUpgradeBegin(const InputCouchFile& input) const {
-    writeSupportsNamespaces(input.getLocalDocument("_local/vbstate"), false);
+    writeSupportsNamespaces(input.getLocalDocument(LocalDocKey::vbstate),
+                            false);
 }
 
 void OutputCouchFile::writeUpgradeComplete(const InputCouchFile& input) const {
@@ -140,7 +143,7 @@ void OutputCouchFile::writeUpgradeComplete(const InputCouchFile& input) const {
     setCollectionStats(collection,
                        {info.doc_count, info.last_sequence, info.space_used});
 
-    writeSupportsNamespaces(input.getLocalDocument("_local/vbstate"), true);
+    writeSupportsNamespaces(input.getLocalDocument(LocalDocKey::vbstate), true);
 }
 
 void OutputCouchFile::writeUpgradeCompleteMadHatter(
@@ -157,7 +160,7 @@ void OutputCouchFile::writeUpgradeCompleteMadHatter(
     setCollectionStatsMadHatter(
             collection, {info.doc_count, info.last_sequence, info.space_used});
 
-    writeSupportsNamespaces(input.getLocalDocument("_local/vbstate"), true);
+    writeSupportsNamespaces(input.getLocalDocument(LocalDocKey::vbstate), true);
 }
 
 void OutputCouchFile::writeSupportsNamespaces(const std::string& vbs,
@@ -172,7 +175,7 @@ void OutputCouchFile::writeSupportsNamespaces(const std::string& vbs,
                 vbs + " exception:" + e.what());
     }
     json[NamespacesSupportedKey] = value;
-    writeLocalDocument("_local/vbstate", json.dump());
+    writeLocalDocument(LocalDocKey::vbstate, json.dump());
 }
 
 OutputCouchFile::BufferedOutputDocuments::Document::Document(

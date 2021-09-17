@@ -13,6 +13,7 @@
 #include <optional>
 
 #include "input_couchfile.h"
+#include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "output_couchfile.h"
 
 namespace Collections {
@@ -23,7 +24,7 @@ InputCouchFile::InputCouchFile(OptionsSet options, const std::string& filename)
 
 InputCouchFile::PreflightStatus InputCouchFile::preflightChecks(
         std::ostream& os) const {
-    if (!doesLocalDocumentExist("_local/vbstate")) {
+    if (!doesLocalDocumentExist(LocalDocKey::vbstate)) {
         os << "filename:" << filename
            << " does not have a \"_local/vbstate\" document\n";
         return PreflightStatus::InputFileCannotBeProcessed;
@@ -92,20 +93,20 @@ void InputCouchFile::upgrade(OutputCouchFile& output) const {
 }
 
 bool InputCouchFile::doesLocalDocumentExist(
-        const std::string& documentName) const {
+        std::string_view documentName) const {
     return openLocalDocument(documentName) != nullptr;
 }
 
 std::string InputCouchFile::getLocalDocument(
-        const std::string& documentName) const {
+        std::string_view documentName) const {
     auto result = openLocalDocument(documentName);
     if (!result) {
         throw std::runtime_error(
                 "InputCouchFile::getLocalDocument openLocalDocument(" +
-                documentName + ") failed");
+                std::string(documentName) + ") failed");
     }
 
-    verbose("getLocalDocument(" + documentName + ")");
+    verbose("getLocalDocument(" + std::string(documentName) + ")");
     return std::string(result->json.buf, result->json.size);
 }
 
@@ -120,7 +121,7 @@ bool InputCouchFile::isPartiallyNamespaced() const {
 }
 
 std::optional<bool> InputCouchFile::getSupportsNamespaces() const {
-    auto vbstate = getLocalDocument("_local/vbstate");
+    auto vbstate = getLocalDocument(LocalDocKey::vbstate);
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(vbstate);
@@ -143,9 +144,9 @@ std::optional<bool> InputCouchFile::getSupportsNamespaces() const {
 }
 
 LocalDocPtr InputCouchFile::openLocalDocument(
-        const std::string& documentName) const {
+        std::string_view documentName) const {
     sized_buf id;
-    id.buf = const_cast<char*>(documentName.c_str());
+    id.buf = const_cast<char*>(documentName.data());
     id.size = documentName.size();
     LocalDoc* localDoc = nullptr;
     auto errcode =
@@ -158,8 +159,8 @@ LocalDocPtr InputCouchFile::openLocalDocument(
         return {};
     default:
         throw std::runtime_error("InputCouchFile::localDocumentExists(" +
-                                 documentName + ") error:" +
-                                 std::to_string(errcode));
+                                 std::string(documentName) +
+                                 ") error:" + std::to_string(errcode));
     }
 
     return {};
