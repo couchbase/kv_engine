@@ -34,9 +34,11 @@ public:
      * test the post-compaction state.
      *
      * @param storeItemsForTest Lambda storing items we care about testing
+     * @param postTimeTravelFn Labmda for doing things after the time travel
      */
     void setupForImplicitCompactionTest(
-            std::function<void()> storeItemsForTest);
+            std::function<void()> storeItemsForTest,
+            std::function<void()> postTimeTravelFn = []() {});
 };
 
 /**
@@ -263,7 +265,8 @@ TEST_P(STParamMagmaBucketTest, makeCompactionContextSetupAtWarmup) {
 }
 
 void STParamMagmaBucketTest::setupForImplicitCompactionTest(
-        std::function<void()> storeItemsForTest) {
+        std::function<void()> storeItemsForTest,
+        std::function<void()> postTimeTravelFn) {
     // Function to perform 16 writes so that we hit the LSMMaxNumLevel0Tables
     // threshold which will trigger implicit compaction
     auto performWritesForImplicitCompaction = [this]() -> void {
@@ -301,6 +304,8 @@ void STParamMagmaBucketTest::setupForImplicitCompactionTest(
     // Time travel 5 days, we want to drop the tombstone for this when we
     // compact
     TimeTraveller timmy{60 * 60 * 24 * 5};
+
+    postTimeTravelFn();
 
     ThreadGate tg(2);
     auto& bucket = dynamic_cast<EPBucket&>(*store);
@@ -399,6 +404,45 @@ TEST_P(STParamMagmaBucketTest,
     ASSERT_TRUE(magmaKVStore);
     // Assert that the first key no longer has a tomb stone
     auto gv = magmaKVStore->get(DiskDocKey(purgedKey, true /*prepare*/), vbid);
+    ASSERT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+
+    // Ensure that the purge seqno has been set during the second flush to where
+    // the first tombstone was
+    auto vb = store->getVBucket(vbid);
+    EXPECT_EQ(expectedPurgeSeqno, vb->getPurgeSeqno());
+}
+
+TEST_P(STParamMagmaBucketTest,
+       CheckImplicitCompactionDoesNotUpdatePurgeSeqnoForLogicallyDeletedItem) {
+    uint64_t expectedPurgeSeqno;
+    auto purgedKey = makeStoredDocKey("keyA", CollectionEntry::fruit.getId());
+    CollectionsManifest cm;
+
+    setupForImplicitCompactionTest(
+            [this, &expectedPurgeSeqno, &purgedKey, &cm]() {
+                auto vb = store->getVBucket(vbid);
+                expectedPurgeSeqno = vb->getHighSeqno();
+
+                cm.add(CollectionEntry::fruit);
+                vb->updateFromManifest(makeManifest(cm));
+                store_item(vbid, purgedKey, "value");
+                flushVBucketToDiskIfPersistent(vbid, 2);
+            },
+            [this, &cm]() {
+                // Now remove the collection (which won't get purged as this is
+                // run after the time travel. This can't be purged or it moves
+                // the purge seqno and invalidates the test
+                auto vb = store->getVBucket(vbid);
+                cm.remove(CollectionEntry::fruit);
+                vb->updateFromManifest(makeManifest(cm));
+                flushVBucketToDiskIfPersistent(vbid, 1);
+            });
+
+    auto magmaKVStore =
+            dynamic_cast<MagmaKVStore*>(store->getRWUnderlying(vbid));
+    ASSERT_TRUE(magmaKVStore);
+    // Assert that the collection key no longer has a tomb stone
+    auto gv = magmaKVStore->get(DiskDocKey(purgedKey), vbid);
     ASSERT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     // Ensure that the purge seqno has been set during the second flush to where

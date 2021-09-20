@@ -301,7 +301,6 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                         "{}",
                         userSanitizedItemStr);
             }
-            maybeUpdatePurgeSeqno();
             return true;
         }
     }
