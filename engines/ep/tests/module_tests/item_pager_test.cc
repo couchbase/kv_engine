@@ -304,7 +304,11 @@ protected:
         // For Ephemeral fail_new_data buckets we have no item pager, instead
         // the Expiry pager is used.
         if (std::get<1>(GetParam()) == "fail_new_data") {
-            initializeExpiryPager();
+            // change the config and allow the listener to enable the task
+            // (ensures the config is consistent with reality, rather than
+            // directly enabling the task).
+            engine->getConfiguration().parseConfiguration(
+                    "exp_pager_enabled=true", get_mock_server_api());
             ++initialNonIoTasks;
         } else {
             // Everyone else uses the ItemPager.
@@ -1464,11 +1468,14 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
 class STExpiryPagerTest : virtual public STBucketQuotaTest {
 protected:
     void SetUp() override {
-        STBucketQuotaTest::SetUp();
-
-        // Setup expiry pager - this adds one to the number of nonIO tasks
-        initializeExpiryPager();
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+        // enable expiry pager - this adds one to the expected number of nonIO
+        // tasks
+        config_string += "exp_pager_enabled=true";
         ++initialNonIoTasks;
+        STBucketQuotaTest::SetUp();
 
         // Sanity check - should be no nonIO tasks ready to run, and initial
         // count in futureQ.

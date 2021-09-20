@@ -476,8 +476,7 @@ public:
     }
 
     size_t getExpiryPagerSleeptime() override {
-        std::lock_guard<std::mutex> lh(expiryPager.mutex);
-        return expiryPager.sleeptime;
+        return expiryPagerTask->getSleepTime().count();
     }
 
     size_t getTransactionTimePerItem() override {
@@ -626,8 +625,7 @@ public:
     }
 
     bool isExpPagerEnabled() override {
-        std::lock_guard<std::mutex> lh(expiryPager.mutex);
-        return expiryPager.enabled;
+        return expiryPagerTask->isEnabled();
     }
 
     bool isWarmingUp() override;
@@ -971,13 +969,9 @@ protected:
 
     std::mutex vbsetMutex;
     double backfillMemoryThreshold;
-    struct ExpiryPagerDelta {
-        ExpiryPagerDelta() : sleeptime(0), task(0), enabled(true) {}
-        std::mutex mutex;
-        size_t sleeptime;
-        size_t task;
-        bool enabled;
-    } expiryPager;
+
+    std::shared_ptr<ExpiredItemPager> expiryPagerTask;
+
     struct ALogTask {
         ALogTask()
             : sleeptime(0),

@@ -100,6 +100,15 @@ void KVBucketTest::initialise(std::string config) {
     if (config.find("backend=magma") != std::string::npos) {
         config += ";" + magmaConfig;
     }
+
+    // unless otherwise specified in the config, default to disabling
+    // the expiry pager. Tests which do not cover the expiry pager often
+    // make expectations about the executor futurepool, and don't expect the
+    // expiry pager to be present.
+    if (config.find("exp_pager_enabled") == std::string::npos) {
+        config += ";exp_pager_enabled=false";
+    }
+
     engine = SynchronousEPEngine::build(config);
 
     store = engine->getKVBucket();
@@ -108,6 +117,8 @@ void KVBucketTest::initialise(std::string config) {
             engine.get(),
             engine->getEpStats(),
             engine->getConfiguration().getChkRemoverStime());
+
+    store->initializeExpiryPager(engine->getConfiguration());
 
     cookie = create_mock_cookie(engine.get());
 }

@@ -266,15 +266,41 @@ ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine* e,
               e, TaskId::ExpiredItemPager, static_cast<double>(stime), false),
       engine(e),
       stats(st),
-      sleepTime(static_cast<double>(stime)),
       pagerSemaphore(std::make_shared<cb::Semaphore>()) {
-    double initialSleep = sleepTime;
-    if (taskTime != -1) {
+    auto cfg = config.wlock();
+    cfg->sleepTime = std::chrono::seconds(stime);
+    cfg->initialRunTime = taskTime;
+    updateWakeTimeFromCfg(*cfg);
+}
+
+void ExpiredItemPager::updateSleepTime(std::chrono::seconds sleepTime) {
+    auto cfg = config.wlock();
+    cfg->sleepTime = sleepTime;
+    updateWakeTimeFromCfg(*cfg);
+}
+void ExpiredItemPager::updateInitialRunTime(ssize_t initialRunTime) {
+    auto cfg = config.wlock();
+    cfg->initialRunTime = initialRunTime;
+    updateWakeTimeFromCfg(*cfg);
+}
+
+std::chrono::seconds ExpiredItemPager::getSleepTime() const {
+    return config.rlock()->sleepTime;
+}
+
+bool ExpiredItemPager::isEnabled() const {
+    return config.rlock()->enabled;
+}
+
+void ExpiredItemPager::updateWakeTimeFromCfg(
+        const ExpiredItemPager::Config& cfg) {
+    auto initialSleep = double(cfg.sleepTime.count());
+    if (cfg.initialRunTime != -1) {
         /*
          * Ensure task start time will always be within a range of (0, 23).
          * A validator is already in place in the configuration file.
          */
-        size_t startTime = taskTime % 24;
+        size_t startTime = cfg.initialRunTime % 24;
 
         /*
          * The following logic calculates the amount of time this task
@@ -296,9 +322,8 @@ ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine* e,
         timeTarget.tm_sec = 0;
 
         initialSleep = difftime(mktime(&timeTarget), mktime(&timeNow));
-        snooze(initialSleep);
     }
-
+    snooze(initialSleep);
     updateExpPagerTime(initialSleep);
 }
 
@@ -335,8 +360,9 @@ bool ExpiredItemPager::run() {
                              TaskId::ExpiredItemPagerVisitor,
                              maxExpectedDurationForVisitorTask);
     }
-    snooze(sleepTime);
-    updateExpPagerTime(sleepTime);
+    auto sleepTime = config.rlock()->sleepTime;
+    snooze(sleepTime.count());
+    updateExpPagerTime(sleepTime.count());
 
     return true;
 }

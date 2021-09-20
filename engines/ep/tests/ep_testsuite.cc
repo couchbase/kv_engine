@@ -690,6 +690,11 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
     std::string targetTaskTime1{make_time_string(std::chrono::system_clock::now() +
                                                  update_by)};
 
+    // clear the initial task time, and test setting stime results in an exact
+    // result of
+    //   task_time = now + stime
+    set_param(
+            h, EngineParamCategory::Flush, "exp_pager_initial_run_time", "-1");
     set_param(h,
               EngineParamCategory::Flush,
               "exp_pager_stime",

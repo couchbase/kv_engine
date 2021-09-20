@@ -12,7 +12,9 @@
 
 #include <executor/globaltask.h>
 
+#include <folly/Synchronized.h>
 #include <memcached/types.h> // for ssize_t
+#include <chrono>
 
 typedef std::pair<int64_t, int64_t> row_range_t;
 
@@ -145,6 +147,34 @@ public:
     ExpiredItemPager(EventuallyPersistentEngine *e, EPStats &st,
                      size_t stime, ssize_t taskTime = -1);
 
+    /**
+     * Update the periodic sleep interval of the task.
+     */
+    void updateSleepTime(std::chrono::seconds sleepTime);
+
+    /**
+     * Update the initial runtime of the task.
+     *
+     * Runtime provided as a hour of the day (GMT) 0-23, or -1.
+     * If -1, the task will not wait for a specific time of day before running
+     * for the first time, it will just follow the periodic sleep interval.
+     */
+    void updateInitialRunTime(ssize_t initialRunTime);
+
+    std::chrono::seconds getSleepTime() const;
+
+    /**
+     * Lock the config for writing, and return a handle.
+     *
+     * Used when other operations need synchronising with config changes
+     * (e.g., scheduling or cancelling the task)
+     */
+    auto wlockConfig() {
+        return config.wlock();
+    }
+
+    bool isEnabled() const;
+
     bool run() override;
 
     std::string getDescription() const override {
@@ -158,6 +188,15 @@ public:
     }
 
 private:
+    struct Config {
+        std::chrono::seconds sleepTime = std::chrono::seconds(0);
+        ssize_t initialRunTime = -1;
+        bool enabled = false;
+    };
+
+    void updateWakeTimeFromCfg(const Config& cfg);
+
+    folly::Synchronized<Config> config;
     /**
      *  This function is to update the next expiry pager
      *  task time, based on the current snooze time.
@@ -166,7 +205,6 @@ private:
 
     EventuallyPersistentEngine     *engine;
     EPStats                        &stats;
-    double                          sleepTime;
     // used to avoid creating more paging visitors while any are still running
     std::shared_ptr<cb::Semaphore> pagerSemaphore;
 };

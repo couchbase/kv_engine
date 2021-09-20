@@ -52,6 +52,7 @@
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
 
+#include <chrono>
 #include <cstring>
 #include <ctime>
 #include <map>
@@ -2077,16 +2078,8 @@ void KVBucket::setBackfillMemoryThreshold(double threshold) {
 }
 
 void KVBucket::setExpiryPagerSleeptime(size_t val) {
-    std::lock_guard<std::mutex> lh(expiryPager.mutex);
-
-    ExecutorPool::get()->cancel(expiryPager.task);
-
-    expiryPager.sleeptime = val;
-    if (expiryPager.enabled) {
-        ExTask expTask = std::make_shared<ExpiredItemPager>(
-                &engine, stats, expiryPager.sleeptime);
-        expiryPager.task = ExecutorPool::get()->schedule(expTask);
-    } else {
+    expiryPagerTask->updateSleepTime(std::chrono::seconds(val));
+    if (!expiryPagerTask->isEnabled()) {
         EP_LOG_DEBUG(
                 "Expiry pager disabled, "
                 "enabling it will make exp_pager_stime ({})"
@@ -2096,49 +2089,42 @@ void KVBucket::setExpiryPagerSleeptime(size_t val) {
 }
 
 void KVBucket::setExpiryPagerTasktime(ssize_t val) {
-    std::lock_guard<std::mutex> lh(expiryPager.mutex);
-    if (expiryPager.enabled) {
-        ExecutorPool::get()->cancel(expiryPager.task);
-        ExTask expTask = std::make_shared<ExpiredItemPager>(
-                &engine, stats, expiryPager.sleeptime, val);
-        expiryPager.task = ExecutorPool::get()->schedule(expTask);
-    } else {
+    expiryPagerTask->updateInitialRunTime(val);
+    if (!expiryPagerTask->isEnabled()) {
         EP_LOG_DEBUG(
                 "Expiry pager disabled, "
-                "enabling it will make exp_pager_stime ({})"
+                "enabling it will make exp_pager_initial_run_time ({})"
                 "to go into effect!",
                 val);
     }
 }
 
 void KVBucket::enableExpiryPager() {
-    std::lock_guard<std::mutex> lh(expiryPager.mutex);
-    if (!expiryPager.enabled) {
-        expiryPager.enabled = true;
-
-        ExecutorPool::get()->cancel(expiryPager.task);
-        ExTask expTask = std::make_shared<ExpiredItemPager>(
-                &engine, stats, expiryPager.sleeptime);
-        expiryPager.task = ExecutorPool::get()->schedule(expTask);
-    } else {
+    // hold the config handle while scheduling the task to avoid
+    // racing with another thread cancelling it.
+    auto cfg = expiryPagerTask->wlockConfig();
+    if (cfg->enabled) {
         EP_LOG_DEBUG_RAW("Expiry Pager already enabled!");
+        return;
     }
+    cfg->enabled = true;
+    ExecutorPool::get()->cancel(expiryPagerTask->getId());
+    ExecutorPool::get()->schedule(expiryPagerTask);
 }
 
 void KVBucket::disableExpiryPager() {
-    std::lock_guard<std::mutex> lh(expiryPager.mutex);
-    if (expiryPager.enabled) {
-        ExecutorPool::get()->cancel(expiryPager.task);
-        expiryPager.enabled = false;
-    } else {
+    auto cfg = expiryPagerTask->wlockConfig();
+    if (!cfg->enabled) {
         EP_LOG_DEBUG_RAW("Expiry Pager already disabled!");
+        return;
     }
+    cfg->enabled = false;
+    ExecutorPool::get()->cancel(expiryPagerTask->getId());
 }
 
 void KVBucket::wakeUpExpiryPager() {
-    std::lock_guard<std::mutex> lh(expiryPager.mutex);
-    if (expiryPager.enabled) {
-        ExecutorPool::get()->wake(expiryPager.task);
+    if (expiryPagerTask->isEnabled()) {
+        ExecutorPool::get()->wake(expiryPagerTask->getId());
     }
 }
 
@@ -2598,12 +2584,15 @@ void KVBucket::notifyReplication(const Vbid vbid,
 }
 
 void KVBucket::initializeExpiryPager(Configuration& config) {
-    {
-        std::lock_guard<std::mutex> elh(expiryPager.mutex);
-        expiryPager.enabled = config.isExpPagerEnabled();
-    }
+    expiryPagerTask = std::make_shared<ExpiredItemPager>(
+            &engine,
+            stats,
+            config.getExpPagerStime(),
+            config.getExpPagerInitialRunTime());
 
-    setExpiryPagerSleeptime(config.getExpPagerStime());
+    if (config.isExpPagerEnabled()) {
+        enableExpiryPager();
+    }
 
     config.addValueChangedListener(
             "exp_pager_stime",
