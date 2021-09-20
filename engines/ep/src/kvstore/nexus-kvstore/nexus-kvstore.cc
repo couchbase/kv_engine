@@ -52,7 +52,26 @@ void NexusKVStore::addStats(const AddStatFn& add_stat,
 }
 
 bool NexusKVStore::getStat(std::string_view name, size_t& value) const {
-    return primary->getStat(name, value);
+    // As far as I can tell stats exist for either the primary or secondary, and
+    // names aren't common between the two... We'll assert for now that that
+    // must be the case as it makes things a little simpler here to return.
+    auto primaryResult = primary->getStat(name, value);
+
+    size_t secondaryValue;
+    auto secondaryResult = secondary->getStat(name, secondaryValue);
+
+    if (primaryResult) {
+        Expects(!secondaryResult);
+        return primaryResult;
+    }
+
+    if (secondaryResult) {
+        Expects(!primaryResult);
+        value = secondaryValue;
+        return primaryResult;
+    }
+
+    return false;
 }
 
 GetStatsMap NexusKVStore::getStats(
