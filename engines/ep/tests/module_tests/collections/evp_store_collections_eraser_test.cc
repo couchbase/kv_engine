@@ -1642,7 +1642,6 @@ void CollectionsEraserPersistentOnly::testEmptyCollections(
         expected += 2;
     }
 
-    vb->checkpointManager->dump();
     flushVBucketToDiskIfPersistent(vbid, expected);
 
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
