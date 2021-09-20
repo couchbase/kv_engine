@@ -686,7 +686,6 @@ PassiveDurabilityMonitor& VBucket::getPassiveDM() {
 void VBucket::processDurabilityTimeout(
         const std::chrono::steady_clock::time_point asOf) {
     folly::SharedMutex::ReadHolder lh(stateLock);
-    // @todo-durability: Add support for DurabilityMonitor at Replica
     if (getState() != vbucket_state_active) {
         return;
     }
