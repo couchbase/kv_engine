@@ -288,6 +288,13 @@ void STParamMagmaBucketTest::setupForImplicitCompactionTest(
     // ensure we meet the LSMMaxNumLevel0Tables threshold
     perform15Writes();
 
+    // Delete at least one thing to trigger the implicit compaction in cases
+    // where we are testing with non-deleted items
+    auto dummyKey = makeStoredDocKey("keyA");
+    store_item(vbid, dummyKey, "value");
+    delete_item(vbid, dummyKey);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
     storeItemsForTest();
 
     // Check that the purge seqno is still 0, but we should have a tombstone on
@@ -346,9 +353,6 @@ TEST_P(STParamMagmaBucketTest, CheckImplicitCompactionUpdatePurgeSeqno) {
     auto purgedKey = makeStoredDocKey("keyA");
 
     setupForImplicitCompactionTest([this, &expectedPurgeSeqno, &purgedKey]() {
-        store_item(vbid, purgedKey, "value");
-        delete_item(vbid, purgedKey);
-        flushVBucketToDiskIfPersistent(vbid, 1);
         auto vb = store->getVBucket(vbid);
         expectedPurgeSeqno = vb->getHighSeqno();
     });
@@ -358,6 +362,46 @@ TEST_P(STParamMagmaBucketTest, CheckImplicitCompactionUpdatePurgeSeqno) {
     ASSERT_TRUE(magmaKVStore);
     // Assert that the first key no longer has a tomb stone
     auto gv = magmaKVStore->get(DiskDocKey(purgedKey), vbid);
+    ASSERT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+
+    // Ensure that the purge seqno has been set during the second flush to where
+    // the first tombstone was
+    auto vb = store->getVBucket(vbid);
+    EXPECT_EQ(expectedPurgeSeqno, vb->getPurgeSeqno());
+}
+
+TEST_P(STParamMagmaBucketTest,
+       CheckImplicitCompactionDoesNotUpdatePurgeSeqnoForPrepare) {
+    uint64_t expectedPurgeSeqno;
+    auto purgedKey = makeStoredDocKey("keyPrepare");
+
+    setupForImplicitCompactionTest([this, &expectedPurgeSeqno, &purgedKey]() {
+        auto vb = store->getVBucket(vbid);
+        expectedPurgeSeqno = vb->getHighSeqno();
+
+        store_item(vbid,
+                   purgedKey,
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::sync_write_pending} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES,
+                   {cb::durability::Requirements()});
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->seqnoAcknowledged(
+                          folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                          "replica",
+                          vb->getHighSeqno() /*prepareSeqno*/));
+        vb->processResolvedSyncWrites();
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    });
+
+    auto magmaKVStore =
+            dynamic_cast<MagmaKVStore*>(store->getRWUnderlying(vbid));
+    ASSERT_TRUE(magmaKVStore);
+    // Assert that the first key no longer has a tomb stone
+    auto gv = magmaKVStore->get(DiskDocKey(purgedKey, true /*prepare*/), vbid);
     ASSERT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     // Ensure that the purge seqno has been set during the second flush to where
