@@ -8280,6 +8280,74 @@ static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
     return SUCCESS;
 }
 
+/**
+ * Verify that a SyncWrite which is not committed within its durability timeout
+ * is aborted.
+ * Tests at the engine level, ensuring the background task runs and identifies
+ * the SyncWrite has exceeded timeout.
+ */
+static enum test_result test_sync_write_timeout(EngineIface* h) {
+    auto* cookie1 = testHarness->create_cookie(h);
+    testHarness->set_ewouldblock_handling(cookie1, false);
+
+    const auto vbid = Vbid(0);
+
+    // Add a replica in topology. By doing that, no SW will ever be Committed
+    check(set_vbucket_state(h,
+                            vbid,
+                            vbucket_state_active,
+                            {R"({"topology":[["active", "replica"]]})"}),
+          "set_vbucket_state failed");
+
+    // Perform a sequence of SyncWrites with timeouts. Each should wait
+    // (return would_block) until at least as long as the specified durability
+    // timeout before failing with "sync_write_ambiguous".
+    // Issuing >1 to verify that timeout task is correctly re-scheduled after
+    // each timeout.
+    // The insert should return would_block as durability requirements cannot
+    // be satisfied with a single node, so the Sync Write will stay pending
+    // until it times out.
+    using namespace cb::durability;
+    const uint16_t timeous_ms = 10;
+    for (int i = 0; i < 3; i++) {
+        auto key = std::string("key_") + std::to_string(i);
+        const auto start = std::chrono::steady_clock::now();
+
+        checkeq(cb::engine_errc::would_block,
+                store(h,
+                      cookie1,
+                      StoreSemantics::Set,
+                      key.c_str(),
+                      "add-value",
+                      nullptr,
+                      0,
+                      vbid,
+                      0,
+                      0,
+                      DocumentState::Alive,
+                      {{Level::Majority, Timeout{timeous_ms}}}),
+                "durable add failed");
+
+        // Wait for the cookie to be notified - should occur no sooner than
+        // timeout.
+        auto status = mock_waitfor_cookie(cookie1);
+        const auto end = std::chrono::steady_clock::now();
+
+        checkeq(cb::engine_errc::sync_write_ambiguous,
+                status,
+                "SyncWrite with timeout did not return ambiguous");
+
+        checkge(std::chrono::duration_cast<std::chrono::milliseconds>(end -
+                                                                      start)
+                        .count(),
+                std::chrono::milliseconds{timeous_ms}.count(),
+                "SyncWrite was aborted before its durability timeout");
+    }
+
+    testHarness->destroy_cookie(cookie1);
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char* default_dbname = "./ep_testsuite.db";
@@ -9534,6 +9602,14 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "num_reader_threads=1;",
                  prepare_ep_bucket_skip_broken_under_rocks,
+                 cleanup),
+
+        TestCase("test sync write timeout",
+                 test_sync_write_timeout,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
                  cleanup),
 
         TestCase(
