@@ -92,8 +92,6 @@ MetaData makeMetaData(const Item& it) {
 
 std::string MetaData::to_string() const {
     std::stringstream ss;
-    auto level = static_cast<cb::durability::Level>(getDurabilityLevel());
-    cb::durability::Requirements req(level, {});
     ss << "bySeqno:" << allMeta.v0.bySeqno << " cas:" << allMeta.v0.cas
        << " exptime:" << allMeta.v0.exptime
        << " revSeqno:" << allMeta.v0.revSeqno << " flags:" << allMeta.v0.flags
