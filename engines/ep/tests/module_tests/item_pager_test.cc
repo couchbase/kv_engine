@@ -53,6 +53,9 @@ using WakeCkptRemover = EPBucket::WakeCkptRemover;
 class STBucketQuotaTest : public STParameterizedBucketTest {
 protected:
     void SetUp() override {
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
         config_string +=
                 "ht_size=47;"
                 "magma_checkpoint_interval=0;"
@@ -291,8 +294,11 @@ protected:
 class STItemPagerTest : virtual public STBucketQuotaTest {
 protected:
     void SetUp() override {
-        config_string += "concurrent_pagers=" +
-                         std::to_string(getNumConcurrentPagers()) + ";";
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+        config_string +=
+                "concurrent_pagers=" + std::to_string(getNumConcurrentPagers());
         STBucketQuotaTest::SetUp();
 
         // For Ephemeral fail_new_data buckets we have no item pager, instead
@@ -2014,7 +2020,10 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25991_ExpiryNonResident) {
 class MB_32669 : public STValueEvictionExpiryPagerTest {
 public:
     void SetUp() override {
-        config_string += "compression_mode=active;";
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+        config_string += "compression_mode=active";
         STValueEvictionExpiryPagerTest::SetUp();
         store->enableItemCompressor();
         initialNonIoTasks++;
@@ -2339,9 +2348,12 @@ class STFullEvictionNoBloomFilterPagerTest : virtual public STExpiryPagerTest,
                                              virtual public STItemPagerTest {
 public:
     void SetUp() override {
-        config_string += "bfilter_enabled=false;";
-        config_string += "concurrent_pagers=" +
-                         std::to_string(getNumConcurrentPagers()) + ";";
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+        config_string += "bfilter_enabled=false";
+        config_string += ";concurrent_pagers=" +
+                         std::to_string(getNumConcurrentPagers());
 
         STExpiryPagerTest::SetUp();
 
