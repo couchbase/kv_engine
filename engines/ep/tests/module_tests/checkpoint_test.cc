@@ -2252,32 +2252,15 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
         EXPECT_EQ(1002, (*manager->getPersistenceCursorPos())->getBySeqno());
     }
 
-    // Get the memory usage after expelling
-    auto checkpointMemoryUsageAfterExpel = this->manager->getMemoryUsage();
-
-    size_t extra = 0;
-    // A list is comprised of 3 pointers (forward, backwards and
-    // pointer to the element).
-    const size_t perElementOverhead = extra + (3 * sizeof(uintptr_t));
-#if WIN32
-    // On windows for an empty list we still allocate space for
-    // containing one element.
-    extra = perElementOverhead;
-#if _DEBUG
-    // additional 16 bytes overhead in an empty list with Debug CRT.
-    extra += 16;
-#endif
-#endif
-
-    const size_t reductionInCheckpointMemoryUsage =
-            checkpointMemoryUsageBeforeExpel - checkpointMemoryUsageAfterExpel;
+    // In our code the per-list-element memory overhead is computed as of 3
     const size_t checkpointListSaving =
-            (perElementOverhead * expelResult.count);
+            (3 * sizeof(uintptr_t)) * expelResult.count;
     // List saving + 1 mutation
     const size_t expectedMemoryRecovered = checkpointListSaving + sizeOfItem;
 
-    EXPECT_EQ(expectedMemoryRecovered, expelResult.memory - extra);
-    EXPECT_EQ(expectedMemoryRecovered, reductionInCheckpointMemoryUsage);
+    EXPECT_EQ(expectedMemoryRecovered, expelResult.memory);
+    EXPECT_EQ(expectedMemoryRecovered,
+              checkpointMemoryUsageBeforeExpel - manager->getMemoryUsage());
 }
 
 TEST_P(CheckpointTest, testExpelCheckpointItemsMemoryRecoveredMemory) {

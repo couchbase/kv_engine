@@ -498,15 +498,14 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
     });
 
     CheckpointQueue expelledItems;
-    size_t estimatedMemRecovered{0};
+    size_t expelledItemsMem{0};
     {
         std::lock_guard<std::mutex> lh(queueLock);
 
         // The method returns the expelled items in the expelledItems queue
         // thereby ensuring they still have a reference whilst the queuelock is
         // being held.
-        std::tie(expelledItems, estimatedMemRecovered) =
-                extractItemsToExpel(lh);
+        std::tie(expelledItems, expelledItemsMem) = extractItemsToExpel(lh);
     }
 
     // If called currentCheckpoint->expelItems but did not manage to expel
@@ -517,34 +516,35 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
 
     stats.itemsExpelledFromCheckpoints.fetch_add(expelledItems.size());
 
-    /*
-     * The estimate of the amount of memory recovered by expel is comprised of
-     * two parts:
-     * 1. Memory used by each item to be expelled.  For each item this
-     *    is calculated as the sizeof(Item) + key size + value size.
-     * 2. Memory used to hold the items in the checkpoint list.
-     *    The checkpoint list will be shorter by expelledItems.size().
-     *    This saving is equal to the memory allocated by the
-     *    expelledItems list.  Note: On Windows this is not strictly
-     *    true as we allocate space for size + 1.  However as its
-     *    an estimate we do not need to adjust.
-     *
-     * It is an optimistic estimate as it assumes that each queued_item
-     * is not referenced by anyone else (e.g. a DCP stream) and therefore
-     * its reference count will drop to zero on exiting the function
-     * allowing the memory to be freed.
-     */
-    estimatedMemRecovered += expelledItems.get_allocator().getBytesAllocated();
+    // Mem-usage estimation of expelled items is the sum of:
+    // 1. Memory used by all items. For each item this is calculated as
+    //    sizeof(Item) + key size + value size.
+    // 2. Memory used to hold the items in the checkpoint list.
+    //
+    // The latter is computed as 3 pointers per element in the list, ie forward,
+    // backwards and element pointers per each list node.
+    // Note: Although quite accurate, that is still an estimation. For example,
+    // debugging on Windows shows that space for 1 extra element is allocated
+    // for an empty list, plus extra 16 bytes on Debug CRT.
+    //
+    // This is an optimistic estimate as it assumes that the reference count of
+    // each queued_item drops to zero as soon as the 'expelledItems' container
+    // goes out of scope, thus allowing memory to be freed. Which might not be
+    // immediately the case if any component (eg, a DCP stream) still references
+    // the queued items.
+    const auto estimatedMemRecovered =
+            expelledItemsMem + ((3 * sizeof(uintptr_t)) * expelledItems.size());
 
     stats.memFreedByCheckpointItemExpel += estimatedMemRecovered;
 
-    /*
-     * We are now outside of the queueLock when the method exits,
-     * expelledItems will go out of scope and so the reference count
-     * of expelled items will go to zero and hence will be deleted
-     * outside of the queuelock.
-     */
-    return {expelledItems.size(), estimatedMemRecovered};
+    const auto res = ReleaseResult{expelledItems.size(), estimatedMemRecovered};
+
+    // queueLock already released here, deallocation is lock-free
+    // Note: Making the call manually (rather than waiting the out-of-scope) as
+    //  this is handy for surrounding with a trace block if necessary.
+    expelledItems.clear();
+
+    return res;
 }
 
 std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
