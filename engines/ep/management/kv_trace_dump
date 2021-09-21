@@ -14,8 +14,8 @@
 
 
 import argparse
-import distutils.spawn
 import os
+import shutil
 import subprocess
 import sys
 
@@ -39,20 +39,18 @@ if args.mcctl:
     mcctl_bin = args.mcctl
 else:
     # 2. Try the path
-    mcctl_bin = distutils.spawn.find_executable('mcctl')
-    # find_executable() has the odd behaviour that it always looks in the
-    # current working directory first, and returns that relative path if
-    # it is. We don't want that though.
-    if not mcctl_bin or mcctl_bin == "mcctl":
+    mcctl_bin = shutil.which("mcctl")
+    # on windows, the current working directory will always be prepended to
+    # the path used by `which()`.
+    # If the executable is found in the cwd `which` returns a relative path
+    # to it. We don't want that though.
+    if not mcctl_bin or os.path.normpath(mcctl_bin) == "mcctl":
         # 3. Look for mcctl in the same directory as the path used to invoke
         # kv_trace_dump, which should be INSTALL_DIR/bin. Note: that
         # location will likely be a symlink on Unix, but we still want that
         # location, not the location the symlink points to.
-        mcctl_bin = os.path.normpath(
-            os.path.join(
-                os.getcwd(), sys.argv[0], "..", "mcctl"
-            )
-        )
+        script_dir = os.path.dirname(sys.argv[0])
+        mcctl_bin = os.path.abspath(os.path.join(script_dir, "mcctl"))
 
 if not os.path.isfile(mcctl_bin):
     print("Error: No mcctl program found at {} - cannot continue.".format(
