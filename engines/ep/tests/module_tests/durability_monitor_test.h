@@ -192,6 +192,14 @@ protected:
                               int64_t expectedHCS) const;
 
     /**
+     * Makes a pending item with key "key" and value "value" and the given
+     * seqno and durability level.
+     */
+    queued_item makePendingWithSeqno(
+            int64_t seqno,
+            cb::durability::Level level = cb::durability::Level::Majority);
+
+    /**
      * Check durability possible/impossible at DM::addSyncWrite under the
      * test conditions defined by input args.
      *
@@ -210,7 +218,7 @@ protected:
      * @return true if durability is possible, false otherwise
      */
     bool testDurabilityPossible(const nlohmann::json::array_t& topology,
-                                queued_item& item,
+                                queued_item item,
                                 uint8_t expectedFirstChainSize,
                                 uint8_t expectedFirstChainMajority,
                                 uint8_t expectedSecondChainSize = 0,

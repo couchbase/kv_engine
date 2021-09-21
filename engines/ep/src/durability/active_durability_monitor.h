@@ -374,15 +374,6 @@ protected:
     void abort(const ActiveSyncWrite& sw);
 
     /**
-     * Test only (for now; shortly this will be probably needed at rollback).
-     * Removes all SyncWrites from the tracked container. Replication chain
-     * iterators stay valid.
-     *
-     * @returns the number of SyncWrites removed from tracking
-     */
-    size_t wipeTracked();
-
-    /**
      * Test only: Hook which if non-empty is called from seqnoAckReceived()
      * after calling State::processSeqnoAck.
      */

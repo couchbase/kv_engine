@@ -249,9 +249,18 @@ void ActiveDurabilityMonitorTest::testSeqnoAckReceived(
     }
 }
 
+queued_item ActiveDurabilityMonitorTest::makePendingWithSeqno(
+        int64_t seqno, cb::durability::Level level) {
+    auto item = makePendingItem(makeStoredDocKey("key"),
+                                "value",
+                                cb::durability::Requirements(level, {}));
+    item->setBySeqno(seqno);
+    return item;
+}
+
 bool ActiveDurabilityMonitorTest::testDurabilityPossible(
         const nlohmann::json::array_t& topology,
-        queued_item& item,
+        queued_item item,
         uint8_t expectedFirstChainSize,
         uint8_t expectedFirstChainMajority,
         uint8_t expectedSecondChainSize,
@@ -282,14 +291,6 @@ bool ActiveDurabilityMonitorTest::testDurabilityPossible(
     }
 
     adm.addSyncWrite(nullptr /*cookie*/, item);
-    // @todo: There is an open issue (MB-33395) that requires that we wipe
-    //     out the tracked container before resetting the replication chain
-    //     (note some tests call this function multiple times).
-    //     We can remove this step as soon as MB-33395 is fixed.
-    // Note: This is also an implicit check on the number of tracked items.
-    if (const auto numTracked = monitor->getNumTracked()) {
-        EXPECT_EQ(numTracked /*numRemoved*/, adm.wipeTracked());
-    }
     return true;
 }
 
@@ -1509,77 +1510,54 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
  */
 
 TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_NoReplica) {
-    auto item = makePendingItem(
-            makeStoredDocKey("key"),
-            "value",
-            cb::durability::Requirements(
-                    cb::durability::Level::PersistToMajority, {}));
-    item->setBySeqno(1);
-    {
-        SCOPED_TRACE("");
-        EXPECT_TRUE(testDurabilityPossible({{"active"}},
-                                           item,
-                                           1 /*expectedFirstChainSize*/,
-                                           1 /*expectedFirstChainMajority*/));
-    }
+    EXPECT_TRUE(testDurabilityPossible(
+            {{"active"}},
+            makePendingWithSeqno(1, cb::durability::Level::PersistToMajority),
+            1 /*expectedFirstChainSize*/,
+            1 /*expectedFirstChainMajority*/));
 }
 
 TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_NoReplica) {
-    auto item = makePendingItem(
-            makeStoredDocKey("key"),
-            "value",
-            cb::durability::Requirements(
-                    cb::durability::Level::PersistToMajority, {}));
-    item->setBySeqno(1);
-    {
-        SCOPED_TRACE("");
-        EXPECT_TRUE(testDurabilityPossible({{active}, {replica1}},
-                                           item,
-                                           1 /*expectedFirstChainSize*/,
-                                           1 /*expectedFirstChainMajority*/,
-                                           1 /*expectedSecondChainSize*/,
-                                           1 /*expectedSecondChainMajority*/));
-    }
+    EXPECT_TRUE(testDurabilityPossible(
+            {{active}, {replica1}},
+            makePendingWithSeqno(1, cb::durability::Level::PersistToMajority),
+            1 /*expectedFirstChainSize*/,
+            1 /*expectedFirstChainMajority*/,
+            1 /*expectedSecondChainSize*/,
+            1 /*expectedSecondChainMajority*/));
 }
 
 TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_1Replica) {
-    auto item = makePendingItem(makeStoredDocKey("key"), "value");
-
-    item->setBySeqno(1);
     {
         SCOPED_TRACE("");
         EXPECT_TRUE(testDurabilityPossible({{"active", "replica"}},
-                                           item,
+                                           makePendingWithSeqno(1),
                                            2 /*expectedFirstChainSize*/,
                                            2 /*expectedFirstChainMajority*/));
     }
 
-    item->setBySeqno(2);
     {
         SCOPED_TRACE("");
         EXPECT_FALSE(testDurabilityPossible({{"active", nullptr}},
-                                            item,
+                                            makePendingWithSeqno(2),
                                             1 /*expectedFirstChainSize*/,
                                             2 /*expectedFirstChainMajority*/));
     }
 }
 
 TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_1Replica) {
-    auto item = makePendingItem(makeStoredDocKey("key"), "value");
-
-    item->setBySeqno(1);
     {
         SCOPED_TRACE("");
         EXPECT_TRUE(
                 testDurabilityPossible({{active, replica1}, {active, replica2}},
-                                       item,
+                                       makePendingWithSeqno(1),
                                        2 /*expectedFirstChainSize*/,
                                        2 /*expectedFirstChainMajority*/,
                                        2 /*expectedSecondChainSize*/,
                                        2 /*expectedSecondChainMajority*/));
     }
 
-    item->setBySeqno(2);
+    auto item = makePendingWithSeqno(2);
     {
         SCOPED_TRACE("");
         EXPECT_FALSE(
@@ -1604,29 +1582,27 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_1Replica) {
 }
 
 TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_2Replicas) {
-    auto item = makePendingItem(makeStoredDocKey("key"), "value");
-
-    item->setBySeqno(1);
     {
         SCOPED_TRACE("");
+        auto item = makePendingWithSeqno(1);
         EXPECT_TRUE(testDurabilityPossible({{"active", "replica1", "replica2"}},
                                            item,
                                            3 /*expectedFirstChainSize*/,
                                            2 /*expectedFirstChainMajority*/));
     }
 
-    item->setBySeqno(2);
     {
         SCOPED_TRACE("");
+        auto item = makePendingWithSeqno(2);
         EXPECT_TRUE(testDurabilityPossible({{"active", "replica1", nullptr}},
                                            item,
                                            2 /*expectedFirstChainSize*/,
                                            2 /*expectedFirstChainMajority*/));
     }
 
-    item->setBySeqno(3);
     {
         SCOPED_TRACE("");
+        auto item = makePendingWithSeqno(3);
         EXPECT_FALSE(testDurabilityPossible({{"active", nullptr, nullptr}},
                                             item,
                                             1 /*expectedFirstChainSize*/,
@@ -1635,21 +1611,18 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_2Replicas) {
 }
 
 TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_2Replicas) {
-    auto item = makePendingItem(makeStoredDocKey("key"), "value");
-
-    item->setBySeqno(1);
     {
         SCOPED_TRACE("");
         EXPECT_TRUE(testDurabilityPossible(
                 {{active, replica1, replica2}, {active, replica3, replica4}},
-                item,
+                makePendingWithSeqno(1),
                 3 /*expectedFirstChainSize*/,
                 2 /*expectedFirstChainMajority*/,
                 3 /*expectedSecondChainSize*/,
                 2 /*expectedSecondChainMajority*/));
     }
 
-    item->setBySeqno(2);
+    auto item = makePendingWithSeqno(2);
     {
         SCOPED_TRACE("");
         EXPECT_TRUE(testDurabilityPossible(
@@ -1672,24 +1645,22 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_2Replicas) {
                 2 /*expectedSecondChainMajority*/));
     }
 
-    item->setBySeqno(4);
     {
         SCOPED_TRACE("");
         EXPECT_TRUE(testDurabilityPossible(
                 {{active, replica1, replica2}, {active, replica3, nullptr}},
-                item,
+                makePendingWithSeqno(4),
                 3 /*expectedFirstChainSize*/,
                 2 /*expectedFirstChainMajority*/,
                 2 /*expectedSecondChainSize*/,
                 2 /*expectedSecondChainMajority*/));
     }
 
-    item->setBySeqno(5);
     {
         SCOPED_TRACE("");
         EXPECT_FALSE(testDurabilityPossible(
                 {{active, replica1, replica2}, {active, nullptr, nullptr}},
-                item,
+                makePendingWithSeqno(5),
                 3 /*expectedFirstChainSize*/,
                 2 /*expectedFirstChainMajority*/,
                 1 /*expectedSecondChainSize*/,
@@ -1702,29 +1673,25 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_3Replicas) {
     // non-consecutive positions.
     // Not sure if ns_server can set something like that (e.g. {A, u, R2, u}),
     // but better that we cover the most general case.
-    auto item = makePendingItem(makeStoredDocKey("key"), "value");
-
-    item->setBySeqno(1);
     {
         SCOPED_TRACE("");
         EXPECT_TRUE(testDurabilityPossible(
                 {{"active", "replica1", "replica2", "replica3"}},
-                item,
+                makePendingWithSeqno(1),
                 4 /*expectedFirstChainSize*/,
                 3 /*expectedFirstChainMajority*/));
     }
 
-    item->setBySeqno(2);
     {
         SCOPED_TRACE("");
         EXPECT_TRUE(testDurabilityPossible(
                 {{"active", "replica1", nullptr, "replica3"}},
-                item,
+                makePendingWithSeqno(2),
                 3 /*expectedFirstChainSize*/,
                 3 /*expectedFirstChainMajority*/));
     }
 
-    item->setBySeqno(3);
+    auto item = makePendingWithSeqno(3);
     {
         SCOPED_TRACE("");
         EXPECT_FALSE(testDurabilityPossible(
@@ -1755,41 +1722,37 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_3Replicas) {
     // non-consecutive positions.
     // Not sure if ns_server can set something like that (e.g. {A, u, R2, u}),
     // but better that we cover the most general case.
-    auto item = makePendingItem(makeStoredDocKey("key"), "value");
-
-    item->setBySeqno(1);
     {
         SCOPED_TRACE("");
         EXPECT_TRUE(
                 testDurabilityPossible({{active, replica1, replica2, replica3},
                                         {active, replica4, replica5, replica6}},
-                                       item,
+                                       makePendingWithSeqno(1),
                                        4 /*expectedFirstChainSize*/,
                                        3 /*expectedFirstChainMajority*/,
                                        4 /*expectedSecondChainSize*/,
                                        3 /*expectedSecondChainMajority*/));
     }
 
-    item->setBySeqno(2);
     {
         SCOPED_TRACE("");
         EXPECT_TRUE(
                 testDurabilityPossible({{active, replica1, nullptr, replica3},
                                         {active, replica4, replica5, replica6}},
-                                       item,
+                                       makePendingWithSeqno(2),
                                        3 /*expectedFirstChainSize*/,
                                        3 /*expectedFirstChainMajority*/,
                                        4 /*expectedSecondChainSize*/,
                                        3 /*expectedSecondChainMajority*/));
     }
 
-    item->setBySeqno(3);
+    auto item3 = makePendingWithSeqno(3);
     {
         SCOPED_TRACE("");
         EXPECT_FALSE(
                 testDurabilityPossible({{active, nullptr, nullptr, replica3},
                                         {active, replica3, replica5, replica6}},
-                                       item,
+                                       item3,
                                        2 /*expectedFirstChainSize*/,
                                        3 /*expectedFirstChainMajority*/,
                                        4 /*expectedSecondChainSize*/,
@@ -1801,7 +1764,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_3Replicas) {
         EXPECT_FALSE(
                 testDurabilityPossible({{active, nullptr, nullptr, nullptr},
                                         {active, replica4, replica5, replica6}},
-                                       item,
+                                       item3,
                                        1 /*expectedFirstChainSize*/,
                                        3 /*expectedFirstChainMajority*/,
                                        4 /*expectedSecondChainSize*/,
@@ -1813,20 +1776,20 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_3Replicas) {
         EXPECT_TRUE(
                 testDurabilityPossible({{active, replica1, replica2, replica3},
                                         {active, replica4, nullptr, replica6}},
-                                       item,
+                                       item3,
                                        4 /*expectedFirstChainSize*/,
                                        3 /*expectedFirstChainMajority*/,
                                        3 /*expectedSecondChainSize*/,
                                        3 /*expectedSecondChainMajority*/));
     }
 
-    item->setBySeqno(4);
+    auto item4 = makePendingWithSeqno(4);
     {
         SCOPED_TRACE("");
         EXPECT_FALSE(
                 testDurabilityPossible({{active, replica1, replica2, replica3},
                                         {active, nullptr, nullptr, replica6}},
-                                       item,
+                                       item4,
                                        4 /*expectedFirstChainSize*/,
                                        3 /*expectedFirstChainMajority*/,
                                        2 /*expectedSecondChainSize*/,
@@ -1838,7 +1801,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_3Replicas) {
         EXPECT_FALSE(
                 testDurabilityPossible({{active, replica1, replica2, replica3},
                                         {active, nullptr, nullptr, nullptr}},
-                                       item,
+                                       item4,
                                        4 /*expectedFirstChainSize*/,
                                        3 /*expectedFirstChainMajority*/,
                                        1 /*expectedSecondChainSize*/,

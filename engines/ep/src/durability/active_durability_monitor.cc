@@ -1083,23 +1083,6 @@ std::unordered_set<int64_t> ActiveDurabilityMonitor::getTrackedSeqnos() const {
     return ret;
 }
 
-size_t ActiveDurabilityMonitor::wipeTracked() {
-    auto s = state.wlock();
-    // Note: Cannot just do Container::clear as it would invalidate every
-    //     existing Replication Chain iterator
-    size_t removed{0};
-    auto it = s->trackedWrites.begin();
-    while (it != s->trackedWrites.end()) {
-        // Note: 'it' will be invalidated, so it will need to be reset
-        const auto next = std::next(it);
-        // Status does not matter, just nuking trackedWrites
-        s->removeSyncWrite(it, SyncWriteStatus::Pending);
-        removed++;
-        it = next;
-    }
-    return removed;
-}
-
 std::vector<queued_item> ActiveDurabilityMonitor::getTrackedWrites() const {
     std::vector<queued_item> items;
     auto s = state.rlock();
