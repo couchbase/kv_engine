@@ -91,34 +91,40 @@ MetaData makeMetaData(const Item& it) {
 }
 
 std::string MetaData::to_string() const {
-    std::stringstream ss;
-    ss << "bySeqno:" << allMeta.v0.bySeqno << " cas:" << allMeta.v0.cas
-       << " exptime:" << allMeta.v0.exptime
-       << " revSeqno:" << allMeta.v0.revSeqno << " flags:" << allMeta.v0.flags
-       << " valueSize:" << allMeta.v0.valueSize
-       << " deleted:" << (allMeta.v0.bits.deleted == 0 ? "false" : "true")
-       << " deleteSource:"
-       << (allMeta.v0.bits.deleted == 0        ? " "
-           : allMeta.v0.bits.deleteSource == 0 ? "Explicit"
-                                               : "TTL")
-       << " version:" << static_cast<uint8_t>(getVersion())
-       << " datatype:" << allMeta.v0.datatype;
+    fmt::memory_buffer memoryBuffer;
+    fmt::format_to(
+            memoryBuffer,
+            "bySeqno:{} cas:{} exptime:{} revSeqno:{} flags:{} valueSize:{} "
+            "deleted:{} deleteSource:{} version:{} datatype:{}",
+            allMeta.v0.bySeqno,
+            allMeta.v0.cas,
+            allMeta.v0.exptime,
+            allMeta.v0.revSeqno,
+            allMeta.v0.flags,
+            allMeta.v0.valueSize,
+            allMeta.v0.bits.deleted != 0,
+            (allMeta.v0.bits.deleted == 0        ? " "
+             : allMeta.v0.bits.deleteSource == 0 ? "Explicit"
+                                                 : "TTL"),
+            static_cast<uint8_t>(getVersion()),
+            allMeta.v0.datatype);
 
     if (getVersion() == Version::V1) {
         if (allMeta.v0.bits.deleted) {
             // abort
-            ss << " prepareSeqno:"
-               << allMeta.v1.durabilityDetails.completed.prepareSeqno;
+            fmt::format_to(memoryBuffer,
+                           " prepareSeqno:{}",
+                           allMeta.v1.durabilityDetails.completed.prepareSeqno);
         } else {
             // prepare
-            ss << " durabilityLevel:"
-               << allMeta.v1.durabilityDetails.pending.level;
-            ss << " syncDelete:"
-               << allMeta.v1.durabilityDetails.pending.isDelete;
+            fmt::format_to(memoryBuffer,
+                           " durabilityLevel:{} syncDelete:{}",
+                           allMeta.v1.durabilityDetails.pending.level,
+                           allMeta.v1.durabilityDetails.pending.isDelete);
         }
     }
 
-    return ss.str();
+    return fmt::to_string(memoryBuffer);
 }
 
 /**
@@ -178,12 +184,11 @@ MagmaRequest::MagmaRequest(queued_item it, std::shared_ptr<BucketLogger> logger)
 }
 
 std::string MagmaRequest::to_string() {
-    std::stringstream ss;
-    ss << "Key:" << key.to_string()
-       << " docMeta:" << magmakv::getDocMeta(getDocMeta()).to_string()
-       << " itemOldExists:" << (itemOldExists ? "true" : "false")
-       << " itemOldIsDelete:" << (itemOldIsDelete ? "true" : "false");
-    return ss.str();
+    return fmt::format("Key:{} docMeta:{} itemOldExists:{} itemOldIsDelete:{}",
+                       key.to_string(),
+                       magmakv::getDocMeta(getDocMeta()).to_string(),
+                       itemOldExists,
+                       itemOldIsDelete);
 }
 
 static DiskDocKey makeDiskDocKey(const Slice& key) {
