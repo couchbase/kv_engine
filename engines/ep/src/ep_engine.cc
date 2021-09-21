@@ -50,6 +50,8 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
+#include <boost/filesystem.hpp>
+#include <folly/portability/Unistd.h>
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/collections.h>
@@ -1933,6 +1935,96 @@ private:
     EventuallyPersistentEngine &engine;
 };
 
+size_t EventuallyPersistentEngine::getShardCount() {
+    auto configShardCount = configuration.getMaxNumShards();
+    if (configuration.getBackend() != "magma") {
+        return configuration.getMaxNumShards();
+    }
+
+    auto diskShardCount = getShardCountFromDisk();
+    if (!diskShardCount) {
+        return configShardCount;
+    }
+
+    return diskShardCount.value();
+}
+
+constexpr std::string_view magmaShardFile = "/magmaShardCount";
+
+std::optional<size_t> EventuallyPersistentEngine::getShardCountFromDisk() {
+    Expects(configuration.getBackend() == "magma");
+
+    // Look for the file
+    const auto shardFile = boost::filesystem::path(
+            configuration.getDbname().append(magmaShardFile));
+    if (boost::filesystem::exists(shardFile)) {
+        boost::filesystem::ifstream ifs(shardFile);
+        std::string data;
+        std::getline(ifs, data);
+        EP_LOG_INFO("Found shard file for magma with {} shards", data);
+        uint64_t shards;
+        if (safe_strtoull(data, shards)) {
+            return shards;
+        }
+
+        auto msg = "Couldn't read shard file or found invalid data";
+        EP_LOG_CRITICAL_RAW(msg);
+        throw std::logic_error(msg);
+    }
+
+    return {};
+}
+
+void EventuallyPersistentEngine::maybeSaveShardCount(WorkLoadPolicy& workload) {
+    if (configuration.getBackend() == "magma") {
+        // We should have created this directory already
+        Expects(boost::filesystem::exists(configuration.getDbname()));
+
+        const auto shardFilePath = boost::filesystem::path(
+                configuration.getDbname().append(magmaShardFile));
+
+        if (boost::filesystem::exists(shardFilePath)) {
+            // File already exists, don't overwrite it (we should have the same
+            // of shards, it's just pointless).
+            return;
+        }
+
+        auto* file = fopen(shardFilePath.string().c_str(), "w");
+        if (!file) {
+            throw std::runtime_error(
+                    "EventuallyPersistentEngine::maybeSaveShardCount: Could "
+                    "not load magma shard file");
+        }
+
+        auto shardStr = std::to_string(workload.getNumShards());
+
+        auto count = fwrite(shardStr.data(), shardStr.size(), 1, file);
+        if (!count) {
+            throw std::runtime_error(
+                    "EventuallyPersistentEngine::maybeSaveShardCount: Error "
+                    "writing shard count to file");
+        }
+
+        auto ret = fflush(file);
+        if (ret != 0) {
+            throw std::runtime_error(
+                    "EventuallyPersistentEngine::maybeSaveShardCount: Error "
+                    "flushing shard file: " +
+                    std::to_string(ret));
+        }
+
+        ret = fclose(file);
+        if (ret != 0) {
+            throw std::runtime_error(
+                    "EventuallyPersistentEngine::maybeSaveShardCount: Error "
+                    "closing shard file: " +
+                    std::to_string(ret));
+        }
+
+        Ensures(boost::filesystem::exists(shardFilePath));
+    }
+}
+
 cb::engine_errc EventuallyPersistentEngine::initialize(const char* config) {
     auto switchToEngine = acquireEngine(this);
     resetStats();
@@ -2020,9 +2112,16 @@ cb::engine_errc EventuallyPersistentEngine::initialize(const char* config) {
             "allow_sanitize_value_in_deletion",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
-    auto numShards = configuration.getMaxNumShards();
+    // The number of shards for a magma bucket cannot be changed after the first
+    // bucket instantiation. This is because the number of shards determines
+    // the on disk structure of the data. To solve this problem we store a file
+    // to the data directory on first bucket creation that tells us how many
+    // shards are to be used. We read this file here if it exists and use that
+    // number, if not, this should be the first bucket creation.
     workload = std::make_unique<WorkLoadPolicy>(
-            configuration.getMaxNumWorkers(), numShards);
+            configuration.getMaxNumWorkers(), getShardCount());
+
+    maybeSaveShardCount(*workload);
 
     const auto& confResMode = configuration.getConflictResolutionType();
     if (!setConflictResolutionMode(confResMode)) {
@@ -6493,6 +6592,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteVBucketInner(
         break;
 
     case cb::engine_errc::not_my_vbucket:
+
         EP_LOG_WARN(
                 "Deletion of {} failed because the vbucket doesn't exist!!!",
                 vbid);

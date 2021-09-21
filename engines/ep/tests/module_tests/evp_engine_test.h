@@ -37,6 +37,16 @@ protected:
 
     void TearDown() override;
 
+    /**
+     * Set up the engine. Does not touch file or executor pool
+     */
+    void initializeEngine();
+
+    /**
+     * Shutdown the engine. Does not touch files or executor pool
+     */
+    void shutdownEngine();
+
     /* Helper methods for tests */
 
     /* Stores an item into the given vbucket. */
@@ -133,6 +143,8 @@ public:
                 "persistent_couchstore");
     }
 };
+
+class EPEnginePersistentTest : public EPEngineParamTest {};
 
 /*
  * EPEngine-level test fixture for Durability.

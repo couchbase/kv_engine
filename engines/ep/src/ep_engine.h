@@ -1273,6 +1273,24 @@ protected:
                                                const cb::mcbp::Request& request,
                                                const AddResponseFn& response);
 
+    /**
+     * Get the configured shard count for the bucket
+     * @return shard count
+     */
+    size_t getShardCount();
+
+    /**
+     * Attempt to read the shard count from disk
+     * @return empty optional if it does not exist
+     */
+    std::optional<size_t> getShardCountFromDisk();
+
+    /**
+     * Save the shard count to disk if it does not exist
+     * @param workload
+     */
+    void maybeSaveShardCount(WorkLoadPolicy& workload);
+
 private:
     void doEngineStatsCouchDB(const BucketStatCollector& collector, const EPStats& epstats);
     void doEngineStatsMagma(const BucketStatCollector& collector);

@@ -25,6 +25,7 @@
 #include <executor/cb3_taskqueue.h>
 
 #include <boost/algorithm/string/join.hpp>
+#include <boost/filesystem.hpp>
 #include <configuration_impl.h>
 #include <platform/dirutils.h>
 #include <chrono>
@@ -50,6 +51,10 @@ void EventuallyPersistentEngineTest::SetUp() {
         ExecutorPool::create();
     }
 
+    initializeEngine();
+}
+
+void EventuallyPersistentEngineTest::initializeEngine() {
     // Setup an engine with a single active vBucket.
     EXPECT_EQ(cb::engine_errc::success,
               create_ep_engine_instance(get_mock_server_api, &handle))
@@ -90,13 +95,23 @@ void EventuallyPersistentEngineTest::SetUp() {
 }
 
 void EventuallyPersistentEngineTest::TearDown() {
+    shutdownEngine();
+    ExecutorPool::shutdown();
+    // Cleanup any files we created - ignore if they don't exist
+    try {
+        cb::io::rmrf(test_dbname);
+    } catch (std::system_error& e) {
+        if (e.code() != std::error_code(ENOENT, std::system_category())) {
+            throw e;
+        }
+    }
+}
+
+void EventuallyPersistentEngineTest::shutdownEngine() {
     destroy_mock_cookie(cookie);
     // Need to force the destroy (i.e. pass true) because
     // NonIO threads may have been disabled (see DCPTest subclass).
     engine->destroy(true);
-    ExecutorPool::shutdown();
-    // Cleanup any files we created.
-    cb::io::rmrf(test_dbname);
 }
 
 queued_item EventuallyPersistentEngineTest::store_item(
@@ -366,6 +381,92 @@ TEST_P(DurabilityTest, DurabilityStateStats) {
     EXPECT_EQ(4, stats.size());
     expectStatsForVB(vb);
 }
+
+TEST_P(EPEnginePersistentTest, ShardCountsOnSecondBucketInit) {
+    auto originalShardCount = engine->getWorkLoadPolicy().getNumShards();
+    auto newShardCount = originalShardCount + 1;
+
+    // We populate the config with shards from this value in the initialize fn
+    numShards = newShardCount;
+    shutdownEngine();
+    initializeEngine();
+
+    if (bucketType == "persistent_magma") {
+        EXPECT_EQ(originalShardCount,
+                  engine->getWorkLoadPolicy().getNumShards());
+    } else {
+        EXPECT_EQ(newShardCount, engine->getWorkLoadPolicy().getNumShards());
+    }
+}
+
+TEST_P(EPEnginePersistentTest, EngineInitReadOnlyDataDir) {
+    store_item(vbid, "key", "value");
+
+    shutdownEngine();
+
+    // As we're modifying the directory we still need execute permissions or we
+    // can't even look in it.
+    boost::filesystem::permissions(test_dbname,
+                                   boost::filesystem::others_read |
+                                           boost::filesystem::owner_read |
+                                           boost::filesystem::group_read |
+                                           boost::filesystem::others_exe |
+                                           boost::filesystem::owner_exe |
+                                           boost::filesystem::group_exe);
+
+    std::string config = config_string;
+    config += "dbname=" + test_dbname;
+    config += ";max_vbuckets=" + std::to_string(numVbuckets) +
+              ";max_num_shards=" + std::to_string(numShards) + ";";
+
+    // Set the bucketType
+    config += generateBucketTypeConfig(bucketType);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              create_ep_engine_instance(get_mock_server_api, &handle))
+            << "Failed to create ep engine instance";
+    engine = reinterpret_cast<EventuallyPersistentEngine*>(handle);
+    ObjectRegistry::onSwitchThread(engine);
+
+    // Should come up fine, but in some sort of read only mode
+    EXPECT_EQ(cb::engine_errc::success, engine->initialize(config.c_str()));
+
+    // Set the filesystem permissions back for the next test
+    boost::filesystem::permissions(test_dbname, boost::filesystem::all_all);
+
+    // Reset our cookie to have a ptr to the new engine which is required when
+    // we destroy it in TearDown()
+    cookie = create_mock_cookie(engine);
+}
+
+// Tests that engine initializes fine even if the data dir doesn't exist
+TEST_P(EPEnginePersistentTest, EngineInitNoDataDir) {
+    shutdownEngine();
+
+    cb::io::rmrf(test_dbname);
+
+    std::string config = config_string;
+    config += "dbname=" + test_dbname + ";";
+
+    // Set the bucketType
+    config += generateBucketTypeConfig(bucketType);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              create_ep_engine_instance(get_mock_server_api, &handle))
+            << "Failed to create ep engine instance";
+    engine = reinterpret_cast<EventuallyPersistentEngine*>(handle);
+    ObjectRegistry::onSwitchThread(engine);
+
+    EXPECT_EQ(cb::engine_errc::success, engine->initialize(config.c_str()));
+    cookie = create_mock_cookie(engine);
+}
+
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         EPEnginePersistentTest,
+                         EPEngineParamTest::persistentConfigValues(),
+                         [](const ::testing::TestParamInfo<std::string>& info) {
+                             return info.param;
+                         });
 
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
                          DurabilityTest,
