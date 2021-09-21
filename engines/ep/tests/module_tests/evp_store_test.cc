@@ -1687,7 +1687,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     auto task = mockEPBucket->getCompactionTask(vbid);
     EXPECT_FALSE(task);
 
-    CompactionConfig config1{100, 1, 1, true};
+    CompactionConfig config1{100, 1, true, true};
     EXPECT_EQ(cb::engine_errc::would_block,
               mockEPBucket->scheduleCompaction(
                       vbid, config1, nullptr, std::chrono::seconds(0)));
@@ -1700,7 +1700,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     EXPECT_FALSE(task); // no task anymore
 
     // Schedule again
-    CompactionConfig config2{200, 2, 0, true};
+    CompactionConfig config2{200, 2, false, true};
     EXPECT_EQ(cb::engine_errc::would_block,
               mockEPBucket->scheduleCompaction(
                       vbid, config2, nullptr, std::chrono::seconds(0)));
@@ -1710,7 +1710,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
 
     // Set our trigger function - this is invoked in the middle of run after
     // the task has copied the config and logically compaction is running.
-    CompactionConfig config3{300, 3, 0, false};
+    CompactionConfig config3{300, 3, false, false};
     task->setRunningCallback([this, &config3, mockEPBucket]() {
         EXPECT_EQ(cb::engine_errc::would_block,
                   mockEPBucket->scheduleCompaction(
@@ -1731,7 +1731,9 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     // task is now done
     EXPECT_FALSE(task->run());
     EXPECT_FALSE(mockEPBucket->getCompactionTask(vbid));
-    EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookie));
+    // Check that compaction run due to the status code changing, but this won't
+    // be success as we haven't compacted anything
+    EXPECT_EQ(cb::engine_errc::failed, mock_waitfor_cookie(cookie));
 }
 
 class EPBucketTestCouchstore : public EPBucketTest {

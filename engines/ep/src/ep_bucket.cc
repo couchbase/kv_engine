@@ -1308,11 +1308,18 @@ void EPBucket::updateCollectionStatePostCompaction(
     vb.getManifest().setDropInProgress(onDiskDroppedCollectionDataExists);
 }
 
-void EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
+bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
     auto ctx = makeCompactionContext(vb->getId(), config, vb->getPurgeSeqno());
     auto* shard = vbMap.getShardByVbId(vb->getId());
     auto* store = shard->getRWUnderlying();
-    bool result = store->compactDB(vb.getLock(), ctx);
+    bool result = false;
+    try {
+        result = store->compactDB(vb.getLock(), ctx);
+    } catch (const std::exception& e) {
+        EP_LOG_WARN("EPBucket::compactInternal(): compactDB() threw:'{}'",
+                    e.what());
+        return false;
+    }
 
     if (getEPEngine().getConfiguration().isBfilterEnabled() && result) {
         vb->swapFilter();
@@ -1341,6 +1348,7 @@ void EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
             ctx->stats.post.items,
             ctx->stats.post.deletedItems,
             ctx->stats.post.purgeSeqno);
+    return result;
 }
 
 // Running on WriterTask - CompactTask
@@ -1355,8 +1363,12 @@ bool EPBucket::doCompact(Vbid vbid,
         return true;
     }
 
+    bool success = false;
     if (vb) {
-        compactInternal(vb, config);
+        success = compactInternal(vb, config);
+        if (!success) {
+            err = cb::engine_errc::failed;
+        }
     } else if (!cookies.empty()) {
         // The memcached core won't call back into the engine if the error
         // code returned in notifyIOComplete is != success so we need to

@@ -324,11 +324,19 @@ bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
         auto diskKey = makeDiskDocKey(keySlice);
         if (cbCtx.ctx->eraserContext->isLogicallyDeleted(diskKey.getDocKey(),
                                                          seqno)) {
-            // Inform vb that the key@seqno is dropped
-            cbCtx.ctx->droppedKeyCb(diskKey,
-                                    seqno,
-                                    magmakv::isAbort(keySlice, metaSlice),
-                                    cbCtx.ctx->highCompletedSeqno);
+            try {
+                // Inform vb that the key@seqno is dropped
+                cbCtx.ctx->droppedKeyCb(diskKey,
+                                        seqno,
+                                        magmakv::isAbort(keySlice, metaSlice),
+                                        cbCtx.ctx->highCompletedSeqno);
+            } catch (const std::exception& e) {
+                logger->warn(
+                        "MagmaKVStore::compactionCallBack(): droppedKeyCb "
+                        "exception: {}",
+                        e.what());
+                return false;
+            }
 
             if (magmakv::isPrepared(keySlice, metaSlice)) {
                 cbCtx.ctx->stats.preparesPurged++;
@@ -2263,7 +2271,13 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     // seqno.
     if (ctx->completionCallback) {
         ctx->stats.collectionsItemsPurged = collectionItemsDropped;
-        ctx->completionCallback(*ctx);
+        try {
+            ctx->completionCallback(*ctx);
+        } catch (const std::exception& e) {
+            logger->critical("CompactionContext::completionCallback {}",
+                             e.what());
+            return false;
+        }
     }
 
     if (ctx->eraserContext->needToUpdateCollectionsMetadata()) {
@@ -2280,10 +2294,11 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         auto [collDroppedStatus, droppedCollections] =
                 getDroppedCollections(vbid);
         if (!collDroppedStatus) {
-            throw std::runtime_error(
-                    fmt::format("MagmaKVStore::compactDbInternal {} failed "
-                                "getDroppedCollections",
-                                vbid));
+            logger->critical(
+                    "MagmaKVStore::compactDbInternal {} failed "
+                    "getDroppedCollections",
+                    vbid);
+            return false;
         }
 
         // 2) Generate a new flatbuffer document to write back

@@ -312,8 +312,9 @@ protected:
      * Compaction of a database file
      *
      * @param config the configuration to use for running compaction
+     * @return bool if the compaction was successful or not
      */
-    void compactInternal(LockedVBucketPtr& vb, CompactionConfig& config);
+    bool compactInternal(LockedVBucketPtr& vb, CompactionConfig& config);
 
     /**
      * Callback to be called on completion of the compaction (just before the

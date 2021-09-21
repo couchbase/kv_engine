@@ -1009,7 +1009,7 @@ static int time_purge_hook(Db& d,
 bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                              std::shared_ptr<CompactionContext> hook_ctx) {
     if (!hook_ctx->droppedKeyCb) {
-        throw std::runtime_error(
+        throw std::invalid_argument(
                 "CouchKVStore::compactDB: droppedKeyCb must be set ");
     }
 

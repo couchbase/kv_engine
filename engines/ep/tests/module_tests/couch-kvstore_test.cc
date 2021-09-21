@@ -2643,6 +2643,15 @@ TEST_F(CouchstoreTest, PersistAbortAbortStats) {
     }
 }
 
+TEST_F(CouchstoreTest, EnsureCompactionThrowsIfdroppedKeyCbIsntSepcified) {
+    std::mutex mutex;
+    std::unique_lock<std::mutex> lock(mutex);
+    CompactionConfig config;
+    auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+    ctx->droppedKeyCb = nullptr;
+    EXPECT_THROW(kvstore->compactDB(lock, ctx), std::invalid_argument);
+}
+
 TEST(CouchKVStoreStatic, collectionStatsNames) {
     EXPECT_EQ(
             "|0x0|",
