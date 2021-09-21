@@ -223,7 +223,7 @@ target_link_libraries(memcached_daemon
                       cbsasl
                       cbcompress
                       engine_utilities
-                      gsl_lite
+                      gsl::gsl-lite
                       platform_cb_malloc_arena
                       JSON_checker
                       memcached_rbac
