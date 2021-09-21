@@ -2318,8 +2318,11 @@ TEST_P(CollectionsParameterizedTest,
     TimeTraveller docBrown(2000);
 
     // Now run the pager to force expiry of our little lamb
-    auto task = std::make_shared<ExpiredItemPager>(
-            engine.get(), engine->getEpStats(), 0);
+    auto task = std::make_shared<ExpiredItemPager>(engine.get(),
+                                                   engine->getEpStats(),
+                                                   0,
+                                                   -1 /* taskTime */,
+                                                   1 /* concurrency */);
     static_cast<ExpiredItemPager*>(task.get())->run();
     runNextTask(*task_executor->getLpTaskQ()[NONIO_TASK_IDX],
                 "Expired item remover no vbucket assigned");

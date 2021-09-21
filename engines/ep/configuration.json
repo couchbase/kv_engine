@@ -294,6 +294,18 @@
                 }
             }
         },
+        "expiry_pager_concurrency": {
+            "default": "2",
+            "descr": "Number of tasks which are created to scan for and delete expired items",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1,
+                    "max": 128
+                }
+            }
+        },
         "conflict_resolution_type": {
             "default": "seqno",
             "desr": "Conflict resolution mode to use for this Bucket",

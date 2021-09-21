@@ -2600,7 +2600,8 @@ void KVBucket::initializeExpiryPager(Configuration& config) {
             &engine,
             stats,
             config.getExpPagerStime(),
-            config.getExpPagerInitialRunTime());
+            config.getExpPagerInitialRunTime(),
+            config.getExpiryPagerConcurrency());
 
     if (config.isExpPagerEnabled()) {
         enableExpiryPager();

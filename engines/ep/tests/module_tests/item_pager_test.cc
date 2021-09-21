@@ -304,6 +304,8 @@ protected:
         }
         config_string +=
                 "concurrent_pagers=" + std::to_string(getNumConcurrentPagers());
+        config_string += ";expiry_pager_concurrency=" +
+                         std::to_string(getNumConcurrentExpiryPagers());
         STBucketQuotaTest::SetUp();
 
         // For Ephemeral fail_new_data buckets we have no item pager, instead
@@ -391,7 +393,21 @@ protected:
         numConcurrentPagers = num;
     }
 
+    int getNumConcurrentExpiryPagers() const {
+        return numConcurrentExpiryPagers;
+    }
+
+    /**
+     * Set the configured number of expiry PagingVisitors to run concurrently.
+     *
+     * Should be set before calling STItemPagerTest::SetUp()
+     */
+    void setNumConcurrentExpiryPagers(size_t num) {
+        numConcurrentExpiryPagers = num;
+    }
+
     size_t numConcurrentPagers = 1;
+    int numConcurrentExpiryPagers = 1;
     /// Has the item pager been scheduled to run?
     bool itemPagerScheduled = false;
 };
@@ -1499,8 +1515,11 @@ protected:
         auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
         runNextTask(lpNonioQ, "Paging expired items.");
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
-        EXPECT_EQ(initialNonIoTasks + 1, lpNonioQ.getFutureQueueSize());
-        runNextTask(lpNonioQ, "Expired item remover no vbucket assigned");
+        auto pagers = engine->getConfiguration().getExpiryPagerConcurrency();
+        EXPECT_EQ(initialNonIoTasks + pagers, lpNonioQ.getFutureQueueSize());
+        for (size_t i = 0; i < pagers; ++i) {
+            runNextTask(lpNonioQ, "Expired item remover no vbucket assigned");
+        }
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
         EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
     }
@@ -2231,6 +2250,7 @@ class MultiPagingVisitorTest : public STItemPagerTest {
 protected:
     void SetUp() override {
         setNumConcurrentPagers(4);
+        setNumConcurrentExpiryPagers(4);
         STItemPagerTest::SetUp();
     }
 };
@@ -2287,6 +2307,55 @@ TEST_P(MultiPagingVisitorTest, ItemPagerCreatesMultiplePagers) {
 
     for (size_t i = 0; i < numConcurrentPagers; ++i) {
         runNextTask(lpNonioQ, "Item pager no vbucket assigned");
+    }
+}
+
+/**
+ * Test that the ExpiryPager correctly creates multiple PagingVisitors
+ * as configured.
+ */
+TEST_P(MultiPagingVisitorTest, ExpiryPagerCreatesMultiplePagers) {
+    std::vector<Vbid> vbids{Vbid(0), Vbid(1), Vbid(2), Vbid(3)};
+
+    for (const auto& vbid : vbids) {
+        store->setVBucketState(vbid, vbucket_state_active);
+    }
+
+    auto& stats = engine->getEpStats();
+    const uint32_t expiry = ep_abs_time(ep_current_time() - 10);
+    std::string value = "foobar";
+
+    for (int i = 0; i < 4; ++i) {
+        auto key = makeStoredDocKey("key_" + std::to_string(i));
+        auto item = make_item(Vbid(i), key, value, expiry);
+        ASSERT_EQ(cb::engine_errc::success, storeItem(item));
+    }
+
+    store->enableExpiryPager();
+    store->wakeUpExpiryPager();
+
+    // enabling the expiry pager schedules another task
+
+    initialNonIoTasks++;
+
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+    ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
+
+    // Run the parent ItemPager task, and then N PagingVisitor tasks
+    runNextTask(lpNonioQ, "Paging expired items.");
+    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+
+    auto numConcurrentPagers =
+            engine->getConfiguration().getExpiryPagerConcurrency();
+    EXPECT_EQ(initialNonIoTasks + numConcurrentExpiryPagers,
+              lpNonioQ.getFutureQueueSize());
+
+    for (size_t i = 0; i < numConcurrentPagers; ++i) {
+        runNextTask(lpNonioQ, "Expired item remover no vbucket assigned");
+        // each task should only visit one of the vbuckets, and there's
+        // one expired item per vbucket - expired count should increase by one
+        EXPECT_EQ(i + 1, stats.expired_pager);
     }
 }
 

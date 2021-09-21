@@ -150,7 +150,6 @@ public:
 
         // Configure a checker to run, some tasks are subtly different
         if (getTaskName() == "Snapshotting vbucket states" ||
-            getTaskName() == "Paging expired items." ||
             getTaskName() == "Adjusting hash table sizes." ||
             getTaskName() == "Generating access log") {
             checker = [=](bool taskRescheduled) {
@@ -167,7 +166,8 @@ public:
                 //    unreferenced by cursor dropping
                 this->oneExecutes(taskRescheduled, /*min*/ 0, /*max*/ 2);
             };
-        } else if (getTaskName() == "Paging out items.") {
+        } else if (getTaskName() == "Paging out items." ||
+                   getTaskName() == "Paging expired items.") {
             checker = [=](bool taskRescheduled) {
                 // This task _may_ schedule N subsequent tasks.
                 // Bound it at 10 as a sanity check. If tests wish to configure
