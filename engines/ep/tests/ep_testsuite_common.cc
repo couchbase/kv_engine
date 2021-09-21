@@ -73,8 +73,6 @@ engine_test_t* BaseTestCase::getTest() {
 
     if (cfg != nullptr) {
         ss << cfg << ";";
-    } else {
-        ss << ";";
     }
 
     // Default to the suite's dbname if the test config didn't already

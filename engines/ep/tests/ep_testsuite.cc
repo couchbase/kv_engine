@@ -8270,7 +8270,7 @@ static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
 
 // Test manifest //////////////////////////////////////////////////////////////
 
-const char *default_dbname = "./ep_testsuite";
+const char* default_dbname = "./ep_testsuite.db";
 
 BaseTestCase testsuite_testcases[] = {
         // ep-engine specific functionality
