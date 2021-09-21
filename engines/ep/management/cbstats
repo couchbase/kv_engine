@@ -28,7 +28,12 @@ from collections import defaultdict
 from difflib import SequenceMatcher
 from operator import itemgetter
 
-from natsort import natsorted
+try:
+    from natsort import natsorted
+except:
+    # MB-48540: natsort relies on distutils. Until cbpy is once again packaged with distutils, fall back to
+    # normal ("not-natural") sort.
+    natsorted = sorted
 
 BIG_VALUE = 2 ** 60
 SMALL_VALUE = - (2 ** 60)
