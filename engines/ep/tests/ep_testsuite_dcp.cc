@@ -8057,7 +8057,7 @@ static enum test_result testDcpOsoBackfill(EngineIface* h) {
 
 // Test manifest //////////////////////////////////////////////////////////////
 
-const char *default_dbname = "./ep_testsuite_dcp";
+const char* default_dbname = "./ep_testsuite_dcp.db";
 
 BaseTestCase testsuite_testcases[] = {
 

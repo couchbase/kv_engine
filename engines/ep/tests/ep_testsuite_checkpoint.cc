@@ -126,7 +126,7 @@ static enum test_result test_checkpoint_deduplication(EngineIface* h) {
 
 // Test manifest //////////////////////////////////////////////////////////////
 
-const char *default_dbname = "./ep_testsuite_checkpoint";
+const char* default_dbname = "./ep_testsuite_checkpoint.db";
 
 BaseTestCase testsuite_testcases[] = {
         TestCase("checkpoint: create a new checkpoint",

@@ -3086,7 +3086,7 @@ static enum test_result test_expiration_options(EngineIface* h) {
 
 // Test manifest //////////////////////////////////////////////////////////////
 
-const char *default_dbname = "./ep_testsuite_xdcr";
+const char* default_dbname = "./ep_testsuite_xdcr.db";
 
 BaseTestCase testsuite_testcases[] = {
 

@@ -2253,7 +2253,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
 // Test manifest //////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-const char *default_dbname = "./ep_testsuite_basic";
+const char* default_dbname = "./ep_testsuite_basic.db";
 
 BaseTestCase testsuite_testcases[] = {
         TestCase("test alloc limit",
