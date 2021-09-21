@@ -25,7 +25,7 @@ struct DcpMessageProducersIface;
 /**
  * Test fixture for unit tests related to DCP.
  */
-class DCPTest : public EventuallyPersistentEngineTest {
+class DCPTest : virtual public EventuallyPersistentEngineTest {
 protected:
     void SetUp() override;
 

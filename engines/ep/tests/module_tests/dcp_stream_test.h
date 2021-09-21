@@ -20,31 +20,8 @@ class MockPassiveStream;
 
 /**
  * Test fixture for DCP stream tests.
- * The std::string template param specifies the type of bucket to test -
- * "persistent" or "ephemeral".
  */
-class StreamTest : public DCPTest,
-                   public ::testing::WithParamInterface<std::string> {
-public:
-    static auto allConfigValues() {
-        using namespace std::string_literals;
-        return ::testing::Values(
-#ifdef EP_USE_MAGMA
-                "persistent_magma",
-#endif
-                "persistent_couchstore",
-                "ephemeral");
-    }
-
-    static auto persistentConfigValues() {
-        using namespace std::string_literals;
-        return ::testing::Values(
-#ifdef EP_USE_MAGMA
-                "persistent_magma",
-#endif
-                "persistent_couchstore");
-    }
-
+class StreamTest : public DCPTest, virtual public EPEngineParamTest {
 protected:
     void SetUp() override;
 

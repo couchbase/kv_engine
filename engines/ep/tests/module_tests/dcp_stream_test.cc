@@ -57,14 +57,7 @@ using namespace std::string_view_literals;
 using ::testing::ElementsAre;
 
 void StreamTest::SetUp() {
-    bucketType = getBucketType(GetParam());
-    if (bucketType == "persistent") {
-        config_string += generateBackendConfig(GetParam());
-    }
-
-    if (bucketType == "persistent_magma") {
-        bucketType += magmaConfig;
-    }
+    bucketType = GetParam();
     DCPTest::SetUp();
     vb0 = engine->getVBucket(Vbid(0));
     EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";

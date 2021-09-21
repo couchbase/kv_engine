@@ -79,7 +79,10 @@ protected:
 
     EngineIface* handle;
     EventuallyPersistentEngine* engine;
-    std::string bucketType;
+
+    // Default to persistent couchstore buckets for tests that don't care about
+    // being parameterized on backend.
+    std::string bucketType = "persistent_couchstore";
 
     /**
      * Maximum number vBuckets to create (reduced from normal production count
@@ -98,14 +101,36 @@ protected:
     MockCookie* cookie = nullptr;
 };
 
-/* Tests parameterised over ephemeral and persistent buckets
- *
+/**
+ * Tests parameterised over ephemeral and persistent buckets.
+ * The std::string template param specifies the type of bucket to test -
+ * "persistent_<backend>" or "ephemeral".
  */
-class SetParamTest : public EventuallyPersistentEngineTest,
-                     public ::testing::WithParamInterface<std::string> {
+class EPEngineParamTest : virtual public EventuallyPersistentEngineTest,
+                          public ::testing::WithParamInterface<std::string> {
+public:
     void SetUp() override {
         bucketType = GetParam();
         EventuallyPersistentEngineTest::SetUp();
+    }
+
+    static auto allConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+#ifdef EP_USE_MAGMA
+                "persistent_magma",
+#endif
+                "persistent_couchstore",
+                "ephemeral");
+    }
+
+    static auto persistentConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+#ifdef EP_USE_MAGMA
+                "persistent_magma",
+#endif
+                "persistent_couchstore");
     }
 };
 

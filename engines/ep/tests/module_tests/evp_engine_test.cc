@@ -31,7 +31,7 @@
 #include <thread>
 
 EventuallyPersistentEngineTest::EventuallyPersistentEngineTest()
-    : test_dbname(dbnameFromCurrentGTestInfo()), bucketType("persistent") {
+    : test_dbname(dbnameFromCurrentGTestInfo()) {
 }
 
 void EventuallyPersistentEngineTest::SetUp() {
@@ -62,14 +62,18 @@ void EventuallyPersistentEngineTest::SetUp() {
     if (!config.empty()) {
         config += ";";
     }
-    config += "dbname=" + test_dbname;
+    config += "dbname=" + test_dbname + ";";
 
     // Set the bucketType
-    config += ";bucket_type=" + bucketType;
+    config += generateBucketTypeConfig(bucketType);
 
     // Setup vBucket and Shard count
     config += ";max_vbuckets=" + std::to_string(numVbuckets) +
               ";max_num_shards=" + std::to_string(numShards);
+
+    if (bucketType == "persistent_magma") {
+        config += ";" + magmaConfig;
+    }
 
     EXPECT_EQ(cb::engine_errc::success, engine->initialize(config.c_str()))
             << "Failed to initialize engine.";
@@ -142,7 +146,7 @@ void EventuallyPersistentEngineTest::store_committed_item(
             engine->storeInner(cookie, *item, cas, StoreSemantics::Set, false));
 }
 
-TEST_P(SetParamTest, requirements_bucket_type) {
+TEST_P(EPEngineParamTest, requirements_bucket_type) {
     std::string bucketType = engine->getConfiguration().getBucketType();
 
     struct value_t {
@@ -182,7 +186,7 @@ TEST_P(SetParamTest, requirements_bucket_type) {
  * is updated then the compression mode in the engine is
  * also updated correctly
  */
-TEST_P(SetParamTest, compressionModeConfigTest) {
+TEST_P(EPEngineParamTest, compressionModeConfigTest) {
     Configuration& config = engine->getConfiguration();
 
     config.setCompressionMode("off");
@@ -219,7 +223,7 @@ TEST_P(SetParamTest, compressionModeConfigTest) {
  * is updated then the min compression ratio in the engine is
  * also updated correctly
  */
-TEST_P(SetParamTest, minCompressionRatioConfigTest) {
+TEST_P(EPEngineParamTest, minCompressionRatioConfigTest) {
     Configuration& config = engine->getConfiguration();
 
     config.setMinCompressionRatio(1.8f);
@@ -245,7 +249,7 @@ TEST_P(SetParamTest, minCompressionRatioConfigTest) {
               engine->setFlushParam("min_compression_ratio", "-1", msg));
 }
 
-TEST_P(SetParamTest, DynamicConfigValuesModifiable) {
+TEST_P(EPEngineParamTest, DynamicConfigValuesModifiable) {
     Configuration& config = engine->getConfiguration();
 
     // For each dynamic config variable (should be possible to change at
@@ -295,8 +299,8 @@ TEST_P(SetParamTest, DynamicConfigValuesModifiable) {
 
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
-                         SetParamTest,
-                         ::testing::Values("persistent", "ephemeral"),
+                         EPEngineParamTest,
+                         EPEngineParamTest::allConfigValues(),
                          [](const ::testing::TestParamInfo<std::string>& info) {
                              return info.param;
                          });
@@ -365,7 +369,7 @@ TEST_P(DurabilityTest, DurabilityStateStats) {
 
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
                          DurabilityTest,
-                         ::testing::Values("persistent", "ephemeral"),
+                         EPEngineParamTest::allConfigValues(),
                          [](const ::testing::TestParamInfo<std::string>& info) {
                              return info.param;
                          });
