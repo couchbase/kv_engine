@@ -75,7 +75,7 @@ void EventuallyPersistentEngineTest::SetUp() {
             << "Failed to initialize engine.";
 
     // Wait for warmup to complete.
-    while (engine->getKVBucket()->isWarmingUp()) {
+    while (engine->getKVBucket()->isWarmupLoadingData()) {
         std::this_thread::sleep_for(std::chrono::microseconds(10));
     }
 

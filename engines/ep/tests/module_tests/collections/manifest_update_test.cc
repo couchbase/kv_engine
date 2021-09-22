@@ -89,7 +89,7 @@ TEST_P(CollectionsManifestUpdatePersistent, update_fail_warmup) {
         // CheckedExecutor throws because warm-up stops short
         EXPECT_STREQ("CheckedExecutor failed fetchNextTask", e.what());
     }
-    EXPECT_FALSE(store->getWarmup()->isComplete());
+    EXPECT_FALSE(store->getWarmup()->isFinishedLoading());
 
     // Warmup failed so we would not be able to diverge
 }

@@ -675,7 +675,7 @@ public:
     virtual void updateCachedResidentRatio(size_t activePerc,
                                            size_t replicaPerc) = 0;
 
-    virtual bool isWarmingUp() = 0;
+    virtual bool isWarmupLoadingData() = 0;
 
     virtual bool isMemUsageAboveBackfillThreshold() = 0;
 

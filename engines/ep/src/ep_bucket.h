@@ -231,7 +231,7 @@ public:
 
     Warmup* getWarmup() const override;
 
-    bool isWarmingUp() override;
+    bool isWarmupLoadingData() override;
 
     bool isWarmupOOMFailure() override;
 

@@ -247,7 +247,7 @@ public:
     /**
      * The completeWarmup boolean is read by ::SetUp, if true the following
      * method(s) are called
-     *  engine->getKVBucket()->getWarmup()->setComplete();
+     *  engine->getKVBucket()->getWarmup()->setFinishedLoading();
      *
      * The result is that it appears that warmup has completed, allowing tests
      * to call certain methods which are guarded around isWarmupComplete.

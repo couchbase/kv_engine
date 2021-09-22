@@ -967,7 +967,7 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
     }
 
     bool stopLoading = false;
-    if (i && !epstore.getWarmup()->isComplete()) {
+    if (i && !epstore.getWarmup()->isFinishedLoading()) {
         VBucketPtr vb = vbuckets.getBucket(i->getVBucketId());
         if (!vb) {
             setStatus(cb::engine_errc::not_my_vbucket);
@@ -1065,7 +1065,7 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
     if (stopLoading) {
         // warmup has completed, return cb::engine_errc::no_memory to
         // cancel remaining data dumps from couchstore
-        if (epstore.getWarmup()->setComplete()) {
+        if (epstore.getWarmup()->setFinishedLoading()) {
             epstore.getWarmup()->setWarmupTime();
             epstore.warmupCompleted();
             logWarmupStats(epstore);
@@ -1818,7 +1818,7 @@ void Warmup::scheduleCompletion() {
 
 void Warmup::done()
 {
-    if (setComplete()) {
+    if (setFinishedLoading()) {
         setWarmupTime();
         store.warmupCompleted();
         logWarmupStats(store);
@@ -1902,7 +1902,7 @@ void Warmup::addStats(const AddStatFn& add_stat, const CookieIface* c) const {
     addStat(nullptr, "enabled", add_stat, c);
     const char* stateName = state.toString();
     addStat("state", stateName, add_stat, c);
-    if (warmupComplete.load()) {
+    if (finishedLoading.load()) {
         addStat("thread", "complete", add_stat, c);
     } else {
         addStat("thread", "running", add_stat, c);

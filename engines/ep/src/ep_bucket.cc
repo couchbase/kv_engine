@@ -2047,8 +2047,8 @@ Warmup* EPBucket::getWarmup() const {
     return warmupTask.get();
 }
 
-bool EPBucket::isWarmingUp() {
-    return warmupTask && !warmupTask->isComplete();
+bool EPBucket::isWarmupLoadingData() {
+    return warmupTask && !warmupTask->isFinishedLoading();
 }
 
 bool EPBucket::isWarmupOOMFailure() {
@@ -2182,7 +2182,7 @@ void EPBucket::warmupCompleted() {
 
 void EPBucket::stopWarmup() {
     // forcefully stop current warmup task
-    if (isWarmingUp()) {
+    if (isWarmupLoadingData()) {
         EP_LOG_INFO(
                 "Stopping warmup while engine is loading "
                 "data from underlying storage, shutdown = {}",

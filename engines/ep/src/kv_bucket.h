@@ -628,7 +628,7 @@ public:
         return expiryPagerTask->isEnabled();
     }
 
-    bool isWarmingUp() override;
+    bool isWarmupLoadingData() override;
 
     bool isWarmupOOMFailure() override;
 

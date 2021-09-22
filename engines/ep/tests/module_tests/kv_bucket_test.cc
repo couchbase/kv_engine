@@ -81,7 +81,7 @@ void KVBucketTest::SetUp() {
     initialise(config_string);
 
     if (completeWarmup && engine->getKVBucket()->getWarmup()) {
-        engine->getKVBucket()->getWarmup()->setComplete();
+        engine->getKVBucket()->getWarmup()->setFinishedLoading();
         engine->getKVBucket()->getWarmup()->processCreateVBucketsComplete(
                 cb::engine_errc::success);
     }

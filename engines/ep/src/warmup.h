@@ -212,11 +212,10 @@ private:
  *    LoadingKVPairs
  *    Done
  *
- * Note that once warmup is complete (Warmup::isComplete() returns true) the
- * warmup will conclude the phase and short-cut to Done.
- * When Warmup::isComplete() returns true:
- *  1) all CRUD operations are fully processed.
- *  2) DCP consumers can be created.
+ * Note that once warmup is complete (Warmup::isFinishedLoading() returns true)
+ * the warmup will conclude the phase and short-cut to Done. When
+ * Warmup::isFinishedLoading() returns true: 1) all CRUD operations are fully
+ * processed. 2) DCP consumers can be created.
  */
 class Warmup {
 public:
@@ -250,13 +249,13 @@ public:
                     const std::map<Vbid, vbucket_state>& vbmap,
                     StatusCallback<GetValue>& cb);
 
-    bool isComplete() const {
-        return warmupComplete.load();
+    bool isFinishedLoading() const {
+        return finishedLoading.load();
     }
 
-    bool setComplete() {
+    bool setFinishedLoading() {
         bool inverse = false;
-        return warmupComplete.compare_exchange_strong(inverse, true);
+        return finishedLoading.compare_exchange_strong(inverse, true);
     }
 
     /**
@@ -441,7 +440,15 @@ private:
     std::atomic<size_t> estimatedItemCount{std::numeric_limits<size_t>::max()};
     bool cleanShutdown{false};
     bool corruptAccessLog{false};
-    std::atomic<bool> warmupComplete{false};
+
+    /**
+     * Has the data loading finished? This was historically called
+     * warmupCompleted and many operations are blocked until this flag is set to
+     * true. A warmup is not necessarily "complete" in its entirety though if we
+     * stopped loading due to hitting some memory threshold (such as the LWM of
+     * a full eviction bucket).
+     */
+    std::atomic<bool> finishedLoading{false};
     std::atomic<bool> warmupOOMFailure{false};
     std::atomic<size_t> estimatedWarmupCount{
             std::numeric_limits<size_t>::max()};

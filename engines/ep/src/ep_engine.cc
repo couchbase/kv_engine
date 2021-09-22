@@ -3027,7 +3027,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         if (wp == nullptr) {
             throw std::logic_error("EPEngine::doEngineStats: warmup is NULL");
         }
-        if (!kvBucket->isWarmingUp()) {
+        if (!kvBucket->isWarmupLoadingData()) {
             collector.addStat(Key::ep_warmup_thread, "complete");
         } else {
             collector.addStat(Key::ep_warmup_thread, "running");
@@ -5951,7 +5951,7 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
         const AddResponseFn& response) {
     switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::EnableTraffic:
-        if (kvBucket->isWarmingUp()) {
+        if (kvBucket->isWarmupLoadingData()) {
             // engine is still warming up, do not turn on data traffic yet
             setErrorContext(cookie, "Persistent engine is still warming up!");
             return cb::engine_errc::temporary_failure;
@@ -6013,7 +6013,7 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
 }
 
 bool EventuallyPersistentEngine::isDegradedMode() const {
-    return kvBucket->isWarmingUp() || !trafficEnabled.load();
+    return kvBucket->isWarmupLoadingData() || !trafficEnabled.load();
 }
 
 cb::engine_errc EventuallyPersistentEngine::doDcpVbTakeoverStats(
@@ -6332,7 +6332,7 @@ cb::engine_errc EventuallyPersistentEngine::dcpOpen(
         handler = dcpConnMap_->newProducer(cookie, connName, flags);
     } else {
         // dont accept dcp consumer open requests during warm up
-        if (!kvBucket->isWarmingUp()) {
+        if (!kvBucket->isWarmupLoadingData()) {
             // Check if consumer_name specified in value; if so use in Consumer
             // object.
             nlohmann::json jsonValue;

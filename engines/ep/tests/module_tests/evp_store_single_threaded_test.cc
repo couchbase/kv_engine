@@ -195,7 +195,7 @@ void SingleThreadedKVBucketTest::cancelAndPurgeTasks() {
 
 void SingleThreadedKVBucketTest::runReadersUntilWarmedUp() {
     auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
-    while (engine->getKVBucket()->isWarmingUp()) {
+    while (engine->getKVBucket()->isWarmupLoadingData()) {
         runNextTask(readerQueue);
     }
 }

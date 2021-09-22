@@ -2042,7 +2042,7 @@ void KVBucket::reset() {
     EP_LOG_INFO_RAW("KVBucket::reset(): Successfully flushed bucket");
 }
 
-bool KVBucket::isWarmingUp() {
+bool KVBucket::isWarmupLoadingData() {
     return false;
 }
 

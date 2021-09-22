@@ -385,7 +385,7 @@ void WarmupTest::testOperationsInterlockedWithWarmup(bool abortWarmup) {
     }
 
     // finish warmup so the test can exit
-    while (engine->getKVBucket()->isWarmingUp()) {
+    while (engine->getKVBucket()->isWarmupLoadingData()) {
         CheckedExecutor executor(task_executor, readerQueue);
         executor.runCurrentTask();
     }
@@ -458,7 +458,7 @@ TEST_F(WarmupTest, MB_32577) {
     // at this point we want to stop as this is when we want to send a delete
     // request using DCP
     auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
-    while (store->isWarmingUp()) {
+    while (store->isWarmupLoadingData()) {
         if (warmupPtr->getWarmupState() ==
             WarmupState::State::LoadingCollectionCounts) {
             break;
@@ -476,7 +476,7 @@ TEST_F(WarmupTest, MB_32577) {
     // The core will block all DCP commands for non-DCP connections
 
     // finish warmup so we can check the number of items in the engine
-    while (store->isWarmingUp()) {
+    while (store->isWarmupLoadingData()) {
         runNextTask(readerQueue);
     }
 
@@ -2426,7 +2426,7 @@ TEST_F(WarmupDiskTest, noDataFileCollectionCountsTest) {
 
     bool runDiskFailure = true;
     // run through the stages of warmup
-    while (getKVBucket()->isWarmingUp()) {
+    while (getKVBucket()->isWarmupLoadingData()) {
         // if check this is the state of warmup that we want to fail
         // only run the disruption the for the first task though as we
         // have two shards
@@ -2478,7 +2478,7 @@ TEST_F(WarmupDiskTest, diskFailureBeforeLoadPrepares) {
 
     bool runDiskFailure = true;
     // run through the stages of warmup
-    while (getKVBucket()->isWarmingUp()) {
+    while (getKVBucket()->isWarmupLoadingData()) {
         // if check this is the state of warmup that we want to fail
         // only run the disruption the for the first task though as we
         // have two shards
@@ -2524,7 +2524,7 @@ TEST_F(WarmupDiskTest, readOnlyDataFileSetVbucketStateTest) {
 
     bool runDiskFailure = true;
     // run through the stages of warmup
-    while (getKVBucket()->isWarmingUp()) {
+    while (getKVBucket()->isWarmupLoadingData()) {
         // if check this is the state of warmup that we want to fail
         // only run the disruption the for the first task though as we
         // have two shards
@@ -2543,7 +2543,7 @@ TEST_F(WarmupDiskTest, readOnlyDataFileSetVbucketStateTest) {
     // Check that we finished warmuo
     EXPECT_EQ(WarmupState::State::Done,
               getKVBucket()->getWarmup()->getWarmupState());
-    EXPECT_FALSE(getKVBucket()->isWarmingUp());
+    EXPECT_FALSE(getKVBucket()->isWarmupLoadingData());
     // Ensure we don't enable traffic
     EXPECT_TRUE(getKVBucket()->hasWarmupSetVbucketStateFailed());
     sendEnableTrafficRequest();
@@ -2747,7 +2747,7 @@ TEST_F(WarmupTest, CrashWarmupAfterInitialize) {
             // run the task
             executor.runCurrentTask();
             executor.completeCurrentTask();
-        } while (kvBucket->isWarmingUp() &&
+        } while (kvBucket->isWarmupLoadingData() &&
                  WarmupState::State::CreateVBuckets !=
                          warmup->getWarmupState());
         ASSERT_EQ(WarmupState::State::CreateVBuckets, warmup->getWarmupState());
@@ -2855,7 +2855,7 @@ protected:
         // (essentially bucket stops and doesn't proceed).
         auto kvBucket = engine->getKVBucket();
         auto warmup = kvBucket->getWarmup();
-        EXPECT_TRUE(kvBucket->isWarmingUp());
+        EXPECT_TRUE(kvBucket->isWarmupLoadingData());
         EXPECT_EQ(injectState, warmup->getWarmupState());
 
         // Clean up (ensures that original KVStore is in place for bucket
