@@ -147,6 +147,8 @@ public:
                       uint64_t maxVisibleSeqno,
                       FlusherCallback cb);
 
+    virtual ~CheckpointManager();
+
     uint64_t getOpenCheckpointId();
 
     uint64_t getLastClosedCheckpointId();
