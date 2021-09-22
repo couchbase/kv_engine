@@ -468,7 +468,7 @@
             "type": "size_t"
         },
         "durability_timeout_mode": {
-            "default": "polling",
+            "default": "event-driven",
             "descr": "How should durability timeouts be scheduled? polling=periodic task running every 'durability_timeout_task_interval'; event-driven=per-VBucket tasks scheduled based on when next SyncWrite will time out.",
             "dynamic": false,
             "type": "std::string",
