@@ -1346,7 +1346,8 @@ void Warmup::createVBuckets(uint16_t shardId) {
                                    vbs.maxVisibleSeqno);
 
             if (vbs.transition.state == vbucket_state_active &&
-                !cleanShutdown) {
+                (!cleanShutdown ||
+                 store.getCollectionsManager().needsUpdating(*vb))) {
                 if (static_cast<uint64_t>(vbs.highSeqno) == vbs.lastSnapEnd) {
                     vb->failovers->createEntry(vbs.lastSnapEnd);
                 } else {
@@ -1356,10 +1357,11 @@ void Warmup::createVBuckets(uint16_t shardId) {
                 auto entry = vb->failovers->getLatestEntry();
                 EP_LOG_INFO(
                         "Warmup::createVBuckets: {} created new failover entry "
-                        "with uuid:{} and seqno:{} due to unclean shutdown",
+                        "with uuid:{} and seqno:{} due to {}",
                         vbid,
                         entry.vb_uuid,
-                        entry.by_seqno);
+                        entry.by_seqno,
+                        !cleanShutdown ? "unclean shutdown" : "manifest uid");
             }
             EPBucket* bucket = &this->store;
             vb->setFreqSaturatedCallback(
