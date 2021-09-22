@@ -167,6 +167,14 @@ public:
     cb::EngineErrorGetScopeIDResult isScopeIDValid(ScopeID sid) const;
 
     /**
+     * Method to check if the vbucket needs collection state updating from the
+     * current manifest
+     * @param vb Vbucket to check
+     * @return true if the VB will need updating to the current manifest
+     */
+    bool needsUpdating(const VBucket& vb) const;
+
+    /**
      * Update the vbucket's manifest with the current Manifest. This is a no-op
      * if they are equal.
      * The Manager is locked to prevent current changing whilst this update

@@ -268,6 +268,12 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::isScopeIDValid(
     return cb::EngineErrorGetScopeIDResult{manifestLocked->getUid()};
 }
 
+bool Collections::Manager::needsUpdating(const VBucket& vb) const {
+    // If the currentUid is ahead or equal, requires an update
+    return currentManifest.rlock()->getUid() >
+           vb.getManifest().lock().getManifestUid();
+}
+
 void Collections::Manager::maybeUpdate(VBucket& vb) const {
     // Lock manager updates, errors are logged by VB::Manifest
     currentManifest.withRLock(
