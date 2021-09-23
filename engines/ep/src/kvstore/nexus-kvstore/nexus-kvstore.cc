@@ -1998,16 +1998,72 @@ std::unique_ptr<KVFileHandle> NexusKVStore::makeFileHandle(Vbid vbid) const {
 std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 NexusKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
                                  CollectionID collection) const {
-    // @TODO MB-47604: Implement
     auto& nexusFileHandle =
             dynamic_cast<const NexusKVFileHandle&>(kvFileHandle);
-    return primary->getCollectionStats(*nexusFileHandle.primaryFileHandle,
-                                       collection);
+
+    const auto [primaryResult, primaryStats] = primary->getCollectionStats(
+            *nexusFileHandle.primaryFileHandle, collection);
+    const auto [secondaryResult, secondaryStats] =
+            secondary->getCollectionStats(*nexusFileHandle.secondaryFileHandle,
+                                          collection);
+
+    if (primaryResult != secondaryResult) {
+        auto msg = fmt::format(
+                "NexusKVStore::getCollectionStats: issue getting stats for {} "
+                "primary:{} secondary:{}",
+                collection,
+                primaryResult,
+                secondaryResult);
+        handleError(msg);
+    }
+
+    // Can't check disk size as that may differ
+    if (primaryStats.itemCount != secondaryStats.itemCount ||
+        primaryStats.highSeqno != secondaryStats.highSeqno) {
+        auto msg = fmt::format(
+                "NexusKVStore::getCollectionStats: difference in stats for "
+                "collection {} primary:{} secondary:{}",
+                collection,
+                primaryStats,
+                secondaryStats);
+        handleError(msg);
+    }
+
+    return {primaryResult, primaryStats};
 }
 
 std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 NexusKVStore::getCollectionStats(Vbid vbid, CollectionID collection) const {
-    return primary->getCollectionStats(vbid, collection);
+    const auto [primaryResult, primaryStats] =
+            primary->getCollectionStats(vbid, collection);
+    const auto [secondaryResult, secondaryStats] =
+            secondary->getCollectionStats(vbid, collection);
+
+    if (primaryResult != secondaryResult) {
+        auto msg = fmt::format(
+                "NexusKVStore::getCollectionStats: {} issue getting stats for "
+                "{} primary:{} secondary:{}",
+                vbid,
+                collection,
+                primaryResult,
+                secondaryResult);
+        handleError(msg);
+    }
+
+    // Can't check disk size as that may differ
+    if (primaryStats.itemCount != secondaryStats.itemCount ||
+        primaryStats.highSeqno != secondaryStats.highSeqno) {
+        auto msg = fmt::format(
+                "NexusKVStore::getCollectionStats: {} difference in stats for "
+                "collection {} primary:{} secondary:{}",
+                vbid,
+                collection,
+                primaryStats,
+                secondaryStats);
+        handleError(msg);
+    }
+
+    return {primaryResult, primaryStats};
 }
 
 std::optional<Collections::ManifestUid> NexusKVStore::getCollectionsManifestUid(
