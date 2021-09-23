@@ -32,6 +32,18 @@
 
 #include <utility>
 
+class NexusKVFileHandle : public KVFileHandle {
+public:
+    NexusKVFileHandle(std::unique_ptr<KVFileHandle> primary,
+                      std::unique_ptr<KVFileHandle> secondary)
+        : primaryFileHandle(std::move(primary)),
+          secondaryFileHandle(std::move(secondary)) {
+    }
+
+    std::unique_ptr<KVFileHandle> primaryFileHandle;
+    std::unique_ptr<KVFileHandle> secondaryFileHandle;
+};
+
 NexusKVStore::NexusKVStore(NexusKVStoreConfig& config) : configuration(config) {
     primary = KVStoreFactory::create(configuration.getPrimaryConfig());
     secondary = KVStoreFactory::create(configuration.getSecondaryConfig());
@@ -474,22 +486,26 @@ GetValue NexusKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
                                      const DiskDocKey& key,
                                      Vbid vb,
                                      ValueFilter filter) const {
-    auto lh = getLock(vb);
-
-    auto primaryGetValue =
-            primary->getWithHeader(kvFileHandle, key, vb, filter);
-
     if (skipGetWithHeaderChecksForRollback) {
         // We're calling this from rollback, and the primary KVStore will have
         // been rolled back already and we're looking for the pre-rollback seqno
         // state of a doc in the callback in EPBucket. Any comparison here would
-        // be invalid so we just return early.
-        return primaryGetValue;
+        // be invalid so we just return early. We use the raw file handle passed
+        // in here rather than case to the Nexus variant as rollback will invoke
+        // this with a file handle that it create (i.e. a primary or secondary
+        // specific one).
+        return primary->getWithHeader(kvFileHandle, key, vb, filter);
     }
 
-    auto secondaryHandle = secondary->makeFileHandle(vb);
-    auto secondaryGetValue =
-            secondary->getWithHeader(*secondaryHandle, key, vb, filter);
+    auto& nexusFileHandle =
+            dynamic_cast<const NexusKVFileHandle&>(kvFileHandle);
+    auto lh = getLock(vb);
+
+    auto primaryGetValue = primary->getWithHeader(
+            *nexusFileHandle.primaryFileHandle, key, vb, filter);
+
+    auto secondaryGetValue = secondary->getWithHeader(
+            *nexusFileHandle.secondaryFileHandle, key, vb, filter);
 
     doPostGetChecks(__FUNCTION__, vb, key, primaryGetValue, secondaryGetValue);
     return primaryGetValue;
@@ -1858,7 +1874,7 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
     // should be running that can modify the file handle that we grab here. We
     // need this in the NexusScanContext as it's exposed to callers
     // to use
-    auto handle = primary->makeFileHandle(vbid);
+    auto handle = makeFileHandle(vbid);
     if (!handle) {
         auto msg = fmt::format(
                 "NexusKVStore::initBySeqnoScanContext: {}: "
@@ -1974,13 +1990,18 @@ scan_error_t NexusKVStore::scan(ByIdScanContext& sctx) const {
 }
 
 std::unique_ptr<KVFileHandle> NexusKVStore::makeFileHandle(Vbid vbid) const {
-    return primary->makeFileHandle(vbid);
+    return std::make_unique<NexusKVFileHandle>(primary->makeFileHandle(vbid),
+                                               secondary->makeFileHandle(vbid));
 }
 
 std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
 NexusKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
                                  CollectionID collection) const {
-    return primary->getCollectionStats(kvFileHandle, collection);
+    // @TODO MB-47604: Implement
+    auto& nexusFileHandle =
+            dynamic_cast<const NexusKVFileHandle&>(kvFileHandle);
+    return primary->getCollectionStats(*nexusFileHandle.primaryFileHandle,
+                                       collection);
 }
 
 std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
@@ -1990,7 +2011,11 @@ NexusKVStore::getCollectionStats(Vbid vbid, CollectionID collection) const {
 
 std::optional<Collections::ManifestUid> NexusKVStore::getCollectionsManifestUid(
         KVFileHandle& kvFileHandle) {
-    return primary->getCollectionsManifestUid(kvFileHandle);
+    // @TODO MB-47604: Implement
+    auto& nexusFileHandle =
+            dynamic_cast<const NexusKVFileHandle&>(kvFileHandle);
+    return primary->getCollectionsManifestUid(
+            *nexusFileHandle.primaryFileHandle);
 }
 
 std::pair<bool, Collections::KVStore::Manifest>
@@ -2085,7 +2110,9 @@ GetValue NexusKVStore::getBySeqno(KVFileHandle& handle,
                                   Vbid vbid,
                                   uint64_t seq,
                                   ValueFilter filter) {
-    return primary->getBySeqno(handle, vbid, seq, filter);
+    auto& nexusFileHandle = dynamic_cast<NexusKVFileHandle&>(handle);
+    return primary->getBySeqno(
+            *nexusFileHandle.primaryFileHandle, vbid, seq, filter);
 }
 
 void NexusKVStore::setStorageThreads(ThreadPoolConfig::StorageThreadCount num) {
