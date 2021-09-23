@@ -29,6 +29,7 @@
 #include "vbucket_state.h"
 
 #include <utilities/logtags.h>
+#include <utilities/string_utilities.h>
 
 #include <utility>
 
@@ -2011,11 +2012,23 @@ NexusKVStore::getCollectionStats(Vbid vbid, CollectionID collection) const {
 
 std::optional<Collections::ManifestUid> NexusKVStore::getCollectionsManifestUid(
         KVFileHandle& kvFileHandle) {
-    // @TODO MB-47604: Implement
     auto& nexusFileHandle =
             dynamic_cast<const NexusKVFileHandle&>(kvFileHandle);
-    return primary->getCollectionsManifestUid(
+    const auto primaryResult = primary->getCollectionsManifestUid(
             *nexusFileHandle.primaryFileHandle);
+    const auto secondaryResult = secondary->getCollectionsManifestUid(
+            *nexusFileHandle.secondaryFileHandle);
+
+    if (primaryResult != secondaryResult) {
+        auto msg = fmt::format(
+                "NexusKVStore::getCollectionsManifestUid: Difference in "
+                "collection stats primary:{} secondary:{}",
+                primaryResult,
+                secondaryResult);
+        handleError(msg);
+    }
+
+    return primaryResult;
 }
 
 std::pair<bool, Collections::KVStore::Manifest>

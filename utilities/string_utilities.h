@@ -11,10 +11,11 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <string>
-#include <vector>
 #include <platform/sized_buffer.h>
+#include <ostream>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 /**
  * Splits a string
@@ -82,3 +83,12 @@ std::string to_string(cb::byte_buffer buf);
  * @return the string representation of the byte buffer
  */
 std::string to_string(cb::const_byte_buffer buf);
+
+template <typename T>
+std::ostream& operator<<(std::ostream& ostr, const std::optional<T>& optional) {
+    if (optional) {
+        return ostr << *optional;
+    }
+
+    return ostr << "<none>";
+}
