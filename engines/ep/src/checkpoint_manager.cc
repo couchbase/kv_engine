@@ -518,14 +518,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
             return {};
         }
 
-        const auto lowestCursorEntry =
-                std::min_element(cursors.begin(),
-                                 cursors.end(),
-                                 [](const auto& a, const auto& b) {
-                                     // Compare by CheckpointCursor.
-                                     return *a.second < *b.second;
-                                 });
-        const auto lowestCursor = lowestCursorEntry->second;
+        const auto lowestCursor = getLowestCursor(lh);
 
         // Sanity check - if the oldest checkpoint is referenced, the cursor
         // with the lowest seqno should be in that checkpoint.
