@@ -27,6 +27,7 @@
 #include "flusher.h"
 #include "kvstore/kvstore.h"
 #include "programs/engine_testapp/mock_cookie.h"
+#include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"
 #include "vbucket_state.h"
 #include "warmup.h"
@@ -282,17 +283,12 @@ void WarmupTest::testOperationsInterlockedWithWarmup(bool abortWarmup) {
     auto* statsCookie3 = create_mock_cookie(engine.get());
     auto* delVbCookie = create_mock_cookie(engine.get());
 
-    std::unordered_map<MockCookie*, int> notifications;
-    notifications[setVBStateCookie] = setVBStateCookie->getNumIoNotifications();
-    notifications[setVBStateCookie] = setVBStateCookie->getNumIoNotifications();
-    notifications[getFailoverCookie] =
-            getFailoverCookie->getNumIoNotifications();
-    notifications[getFailoverCookie] =
-            getFailoverCookie->getNumIoNotifications();
-    notifications[statsCookie1] = statsCookie1->getNumIoNotifications();
-    notifications[statsCookie2] = statsCookie2->getNumIoNotifications();
-    notifications[statsCookie3] = statsCookie3->getNumIoNotifications();
-    notifications[delVbCookie] = delVbCookie->getNumIoNotifications();
+    std::array<MockCookie*, 6> notifications{{setVBStateCookie,
+                                              getFailoverCookie,
+                                              statsCookie1,
+                                              statsCookie2,
+                                              statsCookie3,
+                                              delVbCookie}};
 
     auto dummyAddStats = [](std::string_view, std::string_view, const void*) {
 
@@ -350,8 +346,7 @@ void WarmupTest::testOperationsInterlockedWithWarmup(bool abortWarmup) {
     const auto expectedStatus = abortWarmup ? cb::engine_errc::disconnect
                                             : cb::engine_errc::success;
     for (const auto& n : notifications) {
-        EXPECT_EQ(n.second + 1, n.first->getNumIoNotifications());
-        EXPECT_EQ(expectedStatus, n.first->getStatus());
+        EXPECT_EQ(expectedStatus, mock_waitfor_cookie(n));
     }
 
     if (!abortWarmup) {
@@ -391,7 +386,7 @@ void WarmupTest::testOperationsInterlockedWithWarmup(bool abortWarmup) {
     }
 
     for (const auto& n : notifications) {
-        destroy_mock_cookie(n.first);
+        destroy_mock_cookie(n);
     }
 }
 

@@ -16,7 +16,6 @@
 #include <platform/socket.h>
 #include <atomic>
 #include <bitset>
-#include <condition_variable>
 #include <mutex>
 #include <string>
 
@@ -112,7 +111,6 @@ public:
     std::mutex& getMutex();
     void lock();
     void unlock();
-    void wait();
 
     /// decrement the ref count and signal the bucket that we're disconnecting
     void disconnect();
@@ -121,14 +119,6 @@ public:
         return {inflated_payload.data(), inflated_payload.size()};
     }
 
-    uint64_t getNumIoNotifications() const {
-        return num_io_notifications;
-    }
-    void handleIoComplete(cb::engine_errc completeStatus);
-
-    void setStatus(cb::engine_errc newStatus);
-    cb::engine_errc getStatus() const;
-
     std::string getAuthedUser() const {
         return authenticatedUser;
     }
@@ -136,8 +126,6 @@ public:
     in_port_t getParentPort() const {
         return parent_port;
     }
-
-    void waitForNotifications(std::unique_lock<std::mutex>& lock);
 
     using CheckPrivilegeFunction = std::function<cb::rbac::PrivilegeAccess(
             const CookieIface&,
@@ -158,16 +146,12 @@ protected:
 
     void* engine_data{nullptr};
     uint32_t sfd{};
-    cb::engine_errc status{cb::engine_errc::success};
     bool handle_ewouldblock{true};
     bool handle_mutation_extras{true};
     std::bitset<8> enabled_datatypes;
     bool handle_collections_support{false};
     std::mutex mutex;
-    std::condition_variable cond;
     std::atomic<uint8_t> references{1};
-    uint64_t num_io_notifications{};
-    uint64_t num_processed_notifications{};
     std::string authenticatedUser{"nobody"};
     in_port_t parent_port{666};
     DcpConnHandlerIface* connHandlerIface = nullptr;

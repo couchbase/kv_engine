@@ -181,7 +181,7 @@ public:
     }
 
     void waitfor_cookie(const CookieIface* cookie) override {
-        cookie_to_mock_cookie(cookie)->wait();
+        mock_waitfor_cookie(cookie);
     }
 
     void set_pre_link_function(PreLinkFunction function) override {

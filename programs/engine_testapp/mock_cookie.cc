@@ -15,12 +15,14 @@
 MockCookie::CheckPrivilegeFunction MockCookie::checkPrivilegeFunction;
 
 MockCookie::MockCookie(EngineIface* e) : engine(e) {
+    mock_register_cookie(*this);
 }
 
 MockCookie::~MockCookie() {
     if (engine) {
         engine->disconnect(*this);
     }
+    mock_unregister_cookie(*this);
 }
 
 MockCookie* create_mock_cookie(EngineIface* engine) {
@@ -86,41 +88,10 @@ void MockCookie::unlock() {
     mutex.unlock();
 }
 
-void MockCookie::wait() {
-    std::unique_lock<std::mutex> lock(mutex, std::adopt_lock);
-    if (!lock.owns_lock()) {
-        throw std::logic_error("MockCookie::wait(): cookie should be locked!");
-    }
-    waitForNotifications(lock);
-    lock.release();
-}
-
-void MockCookie::waitForNotifications(std::unique_lock<std::mutex>& lock) {
-    cond.wait(lock, [this]() {
-        return num_processed_notifications != num_io_notifications;
-    });
-    num_processed_notifications = num_io_notifications;
-}
-
 void MockCookie::disconnect() {
     if (engine) {
         engine->disconnect(*this);
     }
-}
-
-void MockCookie::setStatus(cb::engine_errc newStatus) {
-    status = newStatus;
-}
-
-cb::engine_errc MockCookie::getStatus() const {
-    return status;
-}
-void MockCookie::handleIoComplete(cb::engine_errc completeStatus) {
-    lock();
-    setStatus(completeStatus);
-    num_io_notifications++;
-    cond.notify_all();
-    unlock();
 }
 
 cb::rbac::PrivilegeAccess MockCookie::testPrivilege(

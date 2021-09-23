@@ -24,6 +24,7 @@
 
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
+#include <programs/engine_testapp/mock_server.h>
 #include <utilities/test_manifest.h>
 
 #include <fstream>
@@ -59,9 +60,8 @@ TEST_P(CollectionsManifestUpdatePersistent, update_fail_persist) {
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     runNextTask(lpAuxioQ);
 
-    auto mockCookie = cookie_to_mock_cookie(cookie);
     EXPECT_EQ(cb::engine_errc::cannot_apply_collections_manifest,
-              mockCookie->getStatus());
+              mock_waitfor_cookie(cookie));
 }
 
 TEST_P(CollectionsManifestUpdatePersistent, update_fail_warmup) {

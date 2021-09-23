@@ -72,8 +72,6 @@ static void dcpHandleResponse(EngineIface* h,
     }
 }
 
-static bool wait_started(false);
-
 struct SeqnoRange {
     uint64_t start;
     uint64_t end;
@@ -1316,18 +1314,6 @@ static void dcp_waiting_step(EngineIface* h,
                 bytes_read += producers.last_packet_size;
                 break;
             case cb::mcbp::ClientOpcode::Invalid:
-                /* No messages were ready on the last step call, so we
-                 * wait till the conn is notified of new item.
-                 * Note that we check for 0 because we clear the
-                 * producers.last_op value below.
-                 */
-                testHarness->lock_cookie(cookie);
-                /* waitfor_cookie() waits on a condition variable. But
-                   the api expects the cookie to be locked before
-                   calling it */
-                wait_started = true;
-                testHarness->waitfor_cookie(cookie);
-                testHarness->unlock_cookie(cookie);
                 break;
             default:
                 // Aborting ...
@@ -1983,24 +1969,12 @@ static enum test_result test_dcp_producer_stream_req_open(EngineIface* h) {
 
     tdc.openConnection();
 
+    /* Now create a stream */
+    tdc.openStreams();
+
     /* Create a separate thread that does tries to get any DCP items */
     std::thread dcp_step_thread(
             dcp_waiting_step, h, cookie, 0, num_items, std::ref(tdc.producers));
-
-    /* We need to wait till the 'dcp_waiting_step' thread begins its wait */
-    while (true) {
-        /* Busy wait is ok here. To do a non busy wait we must use
-         another condition variable which is an overkill here */
-        testHarness->lock_cookie(cookie);
-        if (wait_started) {
-            testHarness->unlock_cookie(cookie);
-            break;
-        }
-        testHarness->unlock_cookie(cookie);
-    }
-
-    /* Now create a stream */
-    tdc.openStreams();
 
     /* Write items */
     write_items(h, num_items, 0);

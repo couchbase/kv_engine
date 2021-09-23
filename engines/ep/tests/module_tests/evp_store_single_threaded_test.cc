@@ -531,12 +531,10 @@ cb::engine_errc SingleThreadedKVBucketTest::setCollections(
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
 
-    cookie_to_mock_cookie(c)->setStatus(cb::engine_errc::failed);
-
     runNextTask(lpAuxioQ);
 
     // Cookie now success
-    EXPECT_EQ(cb::engine_errc::success, cookie_to_mock_cookie(c)->getStatus());
+    EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(c));
 
     status = engine->set_collection_manifest(*c, json);
     EXPECT_EQ(cb::engine_errc::success, status);

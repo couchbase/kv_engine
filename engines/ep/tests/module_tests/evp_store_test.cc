@@ -488,27 +488,16 @@ TEST_P(EPBucketTest, MB_21976) {
     GetValue gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
     EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
-    // Mark the status of the cookie so that we can see if notify is called
-    auto* mockCookie = cookie_to_mock_cookie(cookie);
-    Expects(cookie);
-    mockCookie->lock();
-    mockCookie->setStatus(cb::engine_errc::too_big);
-    mockCookie->unlock();
-
     auto* deleteCookie = create_mock_cookie(engine.get());
 
-    // lock the cookie, waitfor will release and enter the internal cond-var
-    // lock_mock_cookie(deleteCookie);
     EXPECT_EQ(cb::engine_errc::would_block,
               store->deleteVBucket(vbid, deleteCookie));
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     runNextTask(lpAuxioQ, "Removing (dead) vb:0 from memory and disk");
 
-    // Check the status of the cookie to see if the cookie status has changed
-    // to cb::engine_errc::not_my_vbucket, which means the notify was sent
-    EXPECT_EQ(cb::engine_errc::not_my_vbucket,
-              cookie_to_mock_cookie(cookie)->getStatus());
+    // Cookie should be notified with not_my_vbucket.
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket, mock_waitfor_cookie(cookie));
 
     destroy_mock_cookie(deleteCookie);
 }
@@ -902,8 +891,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
     }
     EXPECT_EQ(expectedItems, vb->getNumItems());
 
-    EXPECT_EQ(cb::engine_errc::success,
-              cookie_to_mock_cookie(cookie)->getStatus());
+    EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookie));
 }
 
 TEST_P(EPBucketFullEvictionTest, ExpiryFindsPrepareWithSameCas) {
@@ -1724,7 +1712,6 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     // the task has copied the config and logically compaction is running.
     CompactionConfig config3{300, 3, 0, false};
     task->setRunningCallback([this, &config3, mockEPBucket]() {
-        cookie_to_mock_cookie(cookie)->setStatus(cb::engine_errc::failed);
         EXPECT_EQ(cb::engine_errc::would_block,
                   mockEPBucket->scheduleCompaction(
                           vbid, config3, cookie, std::chrono::seconds(0)));
@@ -1734,8 +1721,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     EXPECT_TRUE(task->run());
 
     // Compaction for the cookie not yet executed
-    EXPECT_EQ(cb::engine_errc::failed,
-              cookie_to_mock_cookie(cookie)->getStatus());
+    EXPECT_FALSE(mock_cookie_notified(cookie));
 
     // config3 is now the current config
     EXPECT_EQ(config3, task->getCurrentConfig());
@@ -1745,8 +1731,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     // task is now done
     EXPECT_FALSE(task->run());
     EXPECT_FALSE(mockEPBucket->getCompactionTask(vbid));
-    EXPECT_EQ(cb::engine_errc::success,
-              cookie_to_mock_cookie(cookie)->getStatus());
+    EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookie));
 }
 
 class EPBucketTestCouchstore : public EPBucketTest {

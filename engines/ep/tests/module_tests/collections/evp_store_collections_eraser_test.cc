@@ -18,6 +18,7 @@
 #include "item.h"
 #include "kvstore/kvstore.h"
 #include "programs/engine_testapp/mock_cookie.h"
+#include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
@@ -1702,8 +1703,6 @@ TEST_P(CollectionsEraserPersistentOnly, DropManyCompactOnce) {
     std::vector<CookieIface*> cookies;
     for (int ii = 0; ii < nCookies; ii++) {
         cookies.push_back(create_mock_cookie());
-        cookie_to_mock_cookie(cookies.back())
-                ->setStatus(cb::engine_errc::failed);
         // Now schedule as if a command had requested (i.e. set a cookie)
         store->scheduleCompaction(
                 vbid, {}, cookies.back(), std::chrono::seconds(0));
@@ -1715,8 +1714,7 @@ TEST_P(CollectionsEraserPersistentOnly, DropManyCompactOnce) {
                 "Compact DB file " + std::to_string(vbid.get()));
 
     for (auto* cookie : cookies) {
-        EXPECT_EQ(cb::engine_errc::success,
-                  cookie_to_mock_cookie(cookie)->getStatus());
+        EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookie));
         destroy_mock_cookie(cookie);
     }
 }

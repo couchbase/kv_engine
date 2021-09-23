@@ -10,6 +10,7 @@
 
 #include "mock_engine.h"
 #include "mock_cookie.h"
+#include "mock_server.h"
 
 #include <memcached/collections.h>
 #include <memcached/durability_spec.h>
@@ -27,12 +28,12 @@ static std::pair<cb::engine_errc, T> do_blocking_engine_call(
 
     auto ret = engine_function();
     while (ret.first == cb::engine_errc::would_block && c->isEwouldblock()) {
-        c->waitForNotifications(lock);
+        const auto status = mock_waitfor_cookie(c);
 
-        if (c->getStatus() == cb::engine_errc::success) {
+        if (status == cb::engine_errc::success) {
             ret = engine_function();
         } else {
-            return std::make_pair(cb::engine_errc(c->getStatus()), T());
+            return {status, T()};
         }
     }
 
@@ -51,12 +52,12 @@ static cb::EngineErrorCasPair call_engine_and_handle_EWOULDBLOCK(
 
     auto ret = engine_function();
     while (ret.status == cb::engine_errc::would_block && c->isEwouldblock()) {
-        c->waitForNotifications(lock);
+        const auto status = mock_waitfor_cookie(c);
 
-        if (c->getStatus() == cb::engine_errc::success) {
+        if (status == cb::engine_errc::success) {
             ret = engine_function();
         } else {
-            return {c->getStatus(), 0};
+            return {status, 0};
         }
     }
 
@@ -75,12 +76,12 @@ static cb::engine_errc call_engine_and_handle_EWOULDBLOCK(
 
     auto ret = engine_function();
     while (ret == cb::engine_errc::would_block && c->isEwouldblock()) {
-        c->waitForNotifications(lock);
+        const auto status = mock_waitfor_cookie(c);
 
-        if (c->getStatus() == cb::engine_errc::success) {
+        if (status == cb::engine_errc::success) {
             ret = engine_function();
         } else {
-            return c->getStatus();
+            return status;
         }
     }
 

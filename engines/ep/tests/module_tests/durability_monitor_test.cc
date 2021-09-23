@@ -1829,7 +1829,8 @@ TEST_P(ActiveDurabilityMonitorTest, dropOnlyKey) {
     // Should have notified the client
     auto* mockCookie = cookie_to_mock_cookie(cookie);
     ASSERT_TRUE(mockCookie);
-    EXPECT_EQ(cb::engine_errc::sync_write_ambiguous, mockCookie->getStatus());
+    EXPECT_EQ(cb::engine_errc::sync_write_ambiguous,
+              mock_waitfor_cookie(mockCookie));
 }
 
 void ActiveDurabilityMonitorTest::testDropFirstKey() {

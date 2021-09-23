@@ -30,6 +30,7 @@
 #include <cstring>
 #include <ctime>
 #include <list>
+#include <queue>
 #include <mutex>
 
 #define REALTIME_MAXDELTA 60*60*24*3
@@ -40,6 +41,21 @@ std::atomic<time_t> process_started;     /* when the mock server was started */
 std::atomic<rel_time_t> time_travel_offset;
 
 spdlog::level::level_enum log_level = spdlog::level::level_enum::info;
+
+/// Queue of notification status for each cookie
+using CookieNotifyQueue = std::queue<cb::engine_errc>;
+
+/// Map of Cookie to its queued notifications.
+using CookieToNotificationsMap = std::unordered_map<const CookieIface*,
+                                                    CookieNotifyQueue>;
+
+/// CookieToNotificationsMap guarded by a mutex to allow concurrent waiting
+/// and signalling on a new status being added for a given cookie.
+folly::Synchronized<CookieToNotificationsMap, std::mutex> cookieNotifications;
+
+/// Condition variable used with cookieNotifications to allow waiting on
+/// notify_io_complete being called for a given cookie.
+std::condition_variable cookieNotificationSignal;
 
 /* Forward declarations */
 
@@ -173,6 +189,49 @@ uint32_t mock_get_privilege_context_revision() {
     return privilege_context_revision;
 }
 
+void mock_register_cookie(CookieIface& cookie) {
+    auto [it, inserted] = cookieNotifications.lock()->try_emplace(&cookie);
+    if (!inserted) {
+        throw std::logic_error(fmt::format(
+                "mock_register_cookie(): Cookie '{}' already exists in "
+                "cookieNotifications map.",
+                reinterpret_cast<void*>(&cookie)));
+    }
+}
+
+void mock_unregister_cookie(CookieIface& cookie) {
+    auto locked = cookieNotifications.lock();
+    auto it = locked->find(&cookie);
+    if (it == locked->end()) {
+        throw std::logic_error(fmt::format(
+                "mock_unregister_cookie(): Cookie '{}' does not exist "
+                "in cookieNotifications map.",
+                reinterpret_cast<const void*>(&cookie)));
+    }
+    locked->erase(it);
+}
+
+cb::engine_errc mock_waitfor_cookie(const CookieIface* cookie) {
+    Expects(cookie);
+    // Wait for at least one element to be present in this cookie's
+    // notification queue.
+    // Using at() here as the cookie should have been registered in
+    // cookieNotifications when it was created.
+    auto locked = cookieNotifications.lock();
+    cookieNotificationSignal.wait(locked.getUniqueLock(), [&locked, cookie] {
+        return !locked->at(cookie).empty();
+    });
+    auto& notificationQueue = (*locked)[cookie];
+    auto status = notificationQueue.front();
+    notificationQueue.pop();
+    return status;
+}
+
+bool mock_cookie_notified(const CookieIface* cookie) {
+    Expects(cookie);
+    return !cookieNotifications.lock()->at(cookie).empty();
+}
+
 struct MockServerCookieApi : public ServerCookieIface {
     void setDcpConnHandler(const CookieIface& cookie,
                            DcpConnHandlerIface* handler) override {
@@ -262,8 +321,13 @@ struct MockServerCookieApi : public ServerCookieIface {
 
     void notify_io_complete(const CookieIface& cookie,
                             cb::engine_errc status) override {
-        auto& c = cookie_to_mock_cookie(cookie);
-        c.handleIoComplete(status);
+        {
+            auto locked = cookieNotifications.lock();
+            // Using at() here as the cookie should have been registered in
+            // cookieNotifications when it was created.
+            locked->at(&cookie).push(status);
+        }
+        cookieNotificationSignal.notify_all();
     }
 
     void scheduleDcpStep(const CookieIface& cookie) override {

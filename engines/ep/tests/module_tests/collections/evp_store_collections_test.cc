@@ -1263,14 +1263,12 @@ TEST_F(CollectionsWarmupTest, MB_38125) {
     // Cannot set the manifest yet - command follows ewouldblock pattern
     auto status = engine->set_collection_manifest(*cookie, std::string{cm});
     EXPECT_EQ(cb::engine_errc::would_block, status);
-    cookie_to_mock_cookie(cookie)->setStatus(cb::engine_errc::failed);
 
     // Now get the engine warmed up
     runReadersUntilWarmedUp();
 
     // cookie now notified and setCollections can go ahead
-    EXPECT_EQ(cb::engine_errc::success,
-              cookie_to_mock_cookie(cookie)->getStatus());
+    EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookie));
     setCollections(cookie, cm);
 
     auto vb = store->getVBucket(vbid);
