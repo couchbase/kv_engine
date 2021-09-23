@@ -34,6 +34,23 @@ public:
             EventuallyPersistentEngine* engine,
             bool want_old_thread_local = false,
             cb::MemoryDomain domain = cb::MemoryDomain::Primary);
+
+    /**
+     * Switch memory tracking for the calling thread to the specified engine
+     * with the specified memory domain. Use of a nullptr will disable memory
+     * tracking for the calling thread.
+     *
+     * @param engine the engine or nullptr to disable tracking
+     * @param want_old_thread_local true if the old engine pointer is required
+     *        this is an extra thread-local read which can be avoided.
+     * @param domain the domain to set
+     *
+     * @return the previous engine (if want_old_thread_local=true) and domain
+     */
+    static std::pair<EventuallyPersistentEngine*, cb::MemoryDomain>
+    switchToEngine(EventuallyPersistentEngine* engine,
+                   bool want_old_thread_local = false,
+                   cb::MemoryDomain domain = cb::MemoryDomain::Primary);
 };
 
 /**

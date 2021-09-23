@@ -102,10 +102,10 @@ EventuallyPersistentEngine* ObjectRegistry::getCurrentEngine() {
     return th;
 }
 
-EventuallyPersistentEngine* ObjectRegistry::onSwitchThread(
-        EventuallyPersistentEngine* engine,
-        bool want_old_thread_local,
-        cb::MemoryDomain domain) {
+std::pair<EventuallyPersistentEngine*, cb::MemoryDomain>
+ObjectRegistry::switchToEngine(EventuallyPersistentEngine* engine,
+                               bool want_old_thread_local,
+                               cb::MemoryDomain domain) {
     EventuallyPersistentEngine* old_engine = nullptr;
 
     if (want_old_thread_local) {
@@ -115,14 +115,25 @@ EventuallyPersistentEngine* ObjectRegistry::onSwitchThread(
     // Set the engine so that onDeleteItem etc... can update their stats
     th = engine;
 
-    // Next tell ArenaMalloc what todo so that we can account memory to the
-    // bucket
+    cb::MemoryDomain old_domain = cb::MemoryDomain::None;
+
+    // Next tell ArenaMalloc what to do. We can account memory to the
+    // engine and domain - or disable tracking.
     if (engine) {
-        cb::ArenaMalloc::switchToClient(engine->getArenaMallocClient(), domain);
+        old_domain = cb::ArenaMalloc::switchToClient(
+                engine->getArenaMallocClient(), domain);
     } else {
-        cb::ArenaMalloc::switchFromClient();
+        old_domain = cb::ArenaMalloc::switchFromClient();
     }
-    return old_engine;
+
+    return {old_engine, old_domain};
+}
+
+EventuallyPersistentEngine* ObjectRegistry::onSwitchThread(
+        EventuallyPersistentEngine* engine,
+        bool want_old_thread_local,
+        cb::MemoryDomain domain) {
+    return switchToEngine(engine, want_old_thread_local, domain).first;
 }
 
 NonBucketAllocationGuard::NonBucketAllocationGuard()
