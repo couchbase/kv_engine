@@ -379,7 +379,23 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
         return false;
     }
 
-    // Step 2. get the item @ the high-seqno
+    // Step 2. At this point we're not a replication steam. So check that
+    // there's something to backfill, if the stats item count is 0 then the
+    // default collection not have any visible items in it. Returning now will
+    // save us from scanning though all items in the vbucket trying to find the
+    // default collections max visible seqno as it doesn't have one.
+    if (stats.itemCount == 0) {
+        stream.log(spdlog::level::level_enum::info,
+                   "({}) DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot "
+                   "collection {} has no visible items so will not backfill",
+                   stream.getVBucket(),
+                   CollectionID::Default,
+                   startSeqno,
+                   stats.highSeqno);
+        return false;
+    }
+
+    // Step 3. get the item @ the high-seqno
     const auto gv = kvs.getBySeqno(*scanCtx.handle,
                                    stream.getVBucket(),
                                    stats.highSeqno,
@@ -395,13 +411,13 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
         return false;
     }
 
-    // Step 3. If this is a committed item, done.
+    // Step 4. If this is a committed item, done.
     if (gv.item->isCommitted()) {
         return stream.markDiskSnapshot(
                 startSeqno, stats.highSeqno, {}, stats.highSeqno, {});
     }
 
-    // Step 4. The *slow* path, have to find the highest committed seqno. This
+    // Step 5. The *slow* path, have to find the highest committed seqno. This
     // basic implementation will scan the seqno index (not reading values).
     // Possible improvements if required could be to do a key index scan in the
     // default collection range (maybe if the default collection was a small %
@@ -440,7 +456,6 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
     // Less than pretty, but we want to scan the already open file, no opening
     // a new scan. So we create a new BySeqnoScanContext with callbacks bespoke
     // to the needs of this function and take the handle from the scanCtx
-    // TODO : MB-48096 Optimize backfill range
     auto scanForHighestCommitttedItem = kvs.initBySeqnoScanContext(
             std::make_unique<FindMaxCommittedItem>(stats.highSeqno),
             std::make_unique<NoLookupCallback>(),

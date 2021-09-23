@@ -317,6 +317,102 @@ TEST_P(CollectionsLegacyDcpTest, sync_replication_stream_ends) {
               cb::mcbp::DcpStreamEndStatus::BackfillFail);
 }
 
+TEST_P(CollectionsLegacyDcpTest,
+       default_collection_has_no_commits_default_high_seqno_one) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+
+    auto item = makePendingItem(StoredDocKey{"d1", CollectionEntry::defaultC},
+                                "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+    item = makePendingItem(StoredDocKey{"f1", CollectionEntry::fruit}, "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+    store_item(vbid, StoredDocKey{"f2", CollectionEntry::fruit}, "value");
+
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    // Now DCP with backfill
+    ensureDcpWillBackfill();
+
+    // Make cookie look like a non-collection client
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
+    createDcpObjects({});
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid, false);
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+}
+
+TEST_P(CollectionsLegacyDcpTest,
+       default_collection_has_no_commits_default_high_seqno_four) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+
+    auto diskKey = StoredDocKey{"f1", CollectionEntry::fruit};
+    auto item = makePendingItem(diskKey, "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+
+    store_item(vbid, StoredDocKey{"f2", CollectionEntry::fruit}, "value");
+
+    item = makePendingItem(StoredDocKey{"d1", CollectionEntry::defaultC},
+                           "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    // Now DCP with backfill
+    ensureDcpWillBackfill();
+
+    // Make cookie look like a non-collection client
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
+    createDcpObjects({});
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid, false);
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+}
+
+TEST_P(CollectionsLegacyDcpTest,
+       default_collection_has_no_items_but_fuit_does) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+
+    store_item(vbid, StoredDocKey{"f2", CollectionEntry::fruit}, "value");
+    auto item = makePendingItem(StoredDocKey{"d1", CollectionEntry::defaultC},
+                                "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 3);
+
+    // Now DCP with backfill
+    ensureDcpWillBackfill();
+
+    // Make cookie look like a non-collection client
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
+    createDcpObjects({});
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid, false);
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+}
+
 // No ephemeral support
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsLegacyDcpTest,
