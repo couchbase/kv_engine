@@ -2180,8 +2180,37 @@ GetValue NexusKVStore::getBySeqno(KVFileHandle& handle,
                                   uint64_t seq,
                                   ValueFilter filter) {
     auto& nexusFileHandle = dynamic_cast<NexusKVFileHandle&>(handle);
-    return primary->getBySeqno(
+
+    auto primaryGetValue = primary->getBySeqno(
             *nexusFileHandle.primaryFileHandle, vbid, seq, filter);
+    const auto secondaryGetValue = secondary->getBySeqno(
+            *nexusFileHandle.secondaryFileHandle, vbid, seq, filter);
+
+    if (primaryGetValue.getStatus() != secondaryGetValue.getStatus()) {
+        auto msg = fmt::format(
+                "NexusKVStore::getBySeqno: {} seqno:{} status mismatch "
+                "primary:{} "
+                "secondary:{}",
+                vbid,
+                seq,
+                primaryGetValue.getStatus(),
+                secondaryGetValue.getStatus());
+        handleError(msg);
+    }
+
+    if (primaryGetValue.getStatus() == cb::engine_errc::success &&
+        !compareItem(*primaryGetValue.item, *secondaryGetValue.item)) {
+        auto msg = fmt::format(
+                "NexusKVStore::{}: {} seqno:{} item mismatch primary:{} "
+                "secondary:{}",
+                vbid,
+                seq,
+                *primaryGetValue.item,
+                *secondaryGetValue.item);
+        handleError(msg);
+    }
+
+    return primaryGetValue;
 }
 
 void NexusKVStore::setStorageThreads(ThreadPoolConfig::StorageThreadCount num) {
