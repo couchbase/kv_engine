@@ -111,6 +111,9 @@ void SingleThreadedKVBucketTest::SetUp() {
 }
 
 void SingleThreadedKVBucketTest::TearDown() {
+    // Can only reliably do these checks when running with jemalloc as the
+    // allocator
+#if defined(HAVE_JEMALLOC)
     if (hasMagma()) {
         // Expect something in the secondary domain - what cannot be predicted
         EXPECT_NE(0,
@@ -124,6 +127,12 @@ void SingleThreadedKVBucketTest::TearDown() {
                           engine->getArenaMallocClient(),
                           cb::MemoryDomain::Secondary));
     }
+    // Something in primary for all backends
+    EXPECT_NE(
+            0,
+            cb::ArenaMalloc::getPreciseAllocated(engine->getArenaMallocClient(),
+                                                 cb::MemoryDomain::Primary));
+#endif
     shutdownAndPurgeTasks(engine.get());
     KVBucketTest::TearDown();
 }

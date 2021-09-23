@@ -489,17 +489,20 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
 
     doCheckpointEveryBatch = configuration.getMagmaCheckpointEveryBatch();
 
-    // If currEngine is null, which can happen with some tests,
-    // that is ok because a null currEngine means we are operating
-    // in a global environment.
-    configuration.magmaCfg.ExecutionEnv = currEngine;
+    // The execution environment is the current engine creating the KVStore and
+    // magma must track in the Secondary MemoryDomain.
+    // If currEngine is null, which can happen with some tests, that is okay
+    // because a null currEngine means we are operating in a global environment.
+    configuration.magmaCfg.ExecutionEnv = {currEngine,
+                                           int(cb::MemoryDomain::Secondary)};
+
     configuration.magmaCfg.SwitchExecutionEnvFunc =
-            [](void* env) -> EventuallyPersistentEngine* {
-        auto eng = static_cast<EventuallyPersistentEngine*>(env);
-        return ObjectRegistry::onSwitchThread(
-                eng,
-                true,
-                eng ? cb::MemoryDomain::Secondary : cb::MemoryDomain::Primary);
+            [](std::pair<void*, int> env) -> std::pair<void*, int> {
+        Expects(env.second <= int(cb::MemoryDomain::None));
+        auto eng = static_cast<EventuallyPersistentEngine*>(env.first);
+        auto oldState = ObjectRegistry::switchToEngine(
+                eng, true, cb::MemoryDomain(env.second));
+        return {oldState.first, int(oldState.second)};
     };
 
     configuration.magmaCfg.MakeCompactionCallback =
