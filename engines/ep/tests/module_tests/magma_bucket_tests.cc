@@ -27,6 +27,13 @@ using MoreAvailable = EPBucket::MoreAvailable;
 using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 class STParamMagmaBucketTest : public STParamPersistentBucketTest {
+private:
+    // Default function to be called if no function is given to
+    // setupForImplicitCompactionTest. This is a bit hacky but some of our gcc
+    // versions error due to a 'is already defined' error if we use a default
+    // empty lambda of [] () {}.
+    static void doNothing(){};
+
 public:
     /**
      * Setup for implicit compaction test that stores some items as specified
@@ -35,10 +42,19 @@ public:
      *
      * @param storeItemsForTest Lambda storing items we care about testing
      * @param postTimeTravelFn Labmda for doing things after the time travel
+     * @param runPostCompactionFn Lambda to run during the post implicit
+     * compaction hook
      */
     void setupForImplicitCompactionTest(
             std::function<void()> storeItemsForTest,
-            std::function<void()> postTimeTravelFn = []() {});
+            std::function<void()> postTimeTravelFn = doNothing,
+            std::function<void()> runPostCompactionFn = doNothing);
+
+    /**
+     * Function to perform 15 writes so that the next flush will hit the
+     * LSMMaxNumLevel0Tables threshold which will trigger implicit compaction
+     */
+    void performWritesForImplicitCompaction();
 };
 
 /**
@@ -264,18 +280,17 @@ TEST_P(STParamMagmaBucketTest, makeCompactionContextSetupAtWarmup) {
     EXPECT_NO_THROW(magmaKVStore->makeCompactionContext(vbid));
 }
 
+void STParamMagmaBucketTest::performWritesForImplicitCompaction() {
+    for (int i = 0; i < 15; i++) {
+        store_item(vbid, makeStoredDocKey("key" + std::to_string(i)), "value");
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    }
+}
+
 void STParamMagmaBucketTest::setupForImplicitCompactionTest(
         std::function<void()> storeItemsForTest,
-        std::function<void()> postTimeTravelFn) {
-    // Function to perform 16 writes so that we hit the LSMMaxNumLevel0Tables
-    // threshold which will trigger implicit compaction
-    auto performWritesForImplicitCompaction = [this]() -> void {
-        for (int i = 0; i < 16; i++) {
-            store_item(
-                    vbid, makeStoredDocKey("key" + std::to_string(i)), "value");
-            flushVBucketToDiskIfPersistent(vbid, 1);
-        }
-    };
+        std::function<void()> postTimeTravelFn,
+        std::function<void()> runPostCompactionFn) {
     // Re-set the engine and warmup adding the magma rollback test config
     // settings, so that we create a checkpoint at every flush
     resetEngineAndWarmup(magmaRollbackConfig);
@@ -309,8 +324,10 @@ void STParamMagmaBucketTest::setupForImplicitCompactionTest(
 
     ThreadGate tg(2);
     auto& bucket = dynamic_cast<EPBucket&>(*store);
-    bucket.postPurgeSeqnoImplicitCompactionHook = [&tg]() -> void {
+    bucket.postPurgeSeqnoImplicitCompactionHook =
+            [&tg, &runPostCompactionFn]() -> void {
         tg.threadUp();
+        runPostCompactionFn();
     };
 
     auto deletedNotPurgedKey = makeStoredDocKey("keyB");
@@ -354,7 +371,7 @@ TEST_P(STParamMagmaBucketTest, CheckImplicitCompactionUpdatePurgeSeqno) {
     uint64_t expectedPurgeSeqno;
     auto purgedKey = makeStoredDocKey("keyA");
 
-    setupForImplicitCompactionTest([this, &expectedPurgeSeqno, &purgedKey]() {
+    setupForImplicitCompactionTest([this, &expectedPurgeSeqno]() {
         auto vb = store->getVBucket(vbid);
         expectedPurgeSeqno = vb->getHighSeqno();
     });
@@ -457,15 +474,6 @@ TEST_P(STParamMagmaBucketTest,
  */
 TEST_P(STParamMagmaBucketTest,
        CheckExplicitAndImplicitCompactionUpdatePurgeSeqno) {
-    // Function to perform 15 writes so that the next flush will hit the
-    // LSMMaxNumLevel0Tables threshold which will trigger implicit compaction
-    auto perform15Writes = [this]() -> void {
-        for (int i = 0; i < 15; i++) {
-            store_item(
-                    vbid, makeStoredDocKey("key" + std::to_string(i)), "value");
-            flushVBucketToDiskIfPersistent(vbid, 1);
-        }
-    };
     // Re-set the engine and warmup adding the magma rollback test config
     // settings, so that we create a checkpoint at every flush
     resetEngineAndWarmup(magmaRollbackConfig);
@@ -506,22 +514,21 @@ TEST_P(STParamMagmaBucketTest,
     };
 
     auto& mockEPBucket = dynamic_cast<MockEPBucket&>(*store);
-    mockEPBucket.setPostCompactionCompletionHook(
-            [&tg, this, perform15Writes]() {
-                // ensure we meet the LSMMaxNumLevel0Tables threshold
-                perform15Writes();
+    mockEPBucket.setPostCompactionCompletionHook([&tg, this]() {
+        // ensure we meet the LSMMaxNumLevel0Tables threshold
+        performWritesForImplicitCompaction();
 
-                auto secondDeletedKey = makeStoredDocKey("keyB");
-                // Add a second tombstone to check that we don't drop everything
-                store_item(vbid, secondDeletedKey, "value");
-                delete_item(vbid, secondDeletedKey);
+        auto secondDeletedKey = makeStoredDocKey("keyB");
+        // Add a second tombstone to check that we don't drop everything
+        store_item(vbid, secondDeletedKey, "value");
+        delete_item(vbid, secondDeletedKey);
 
-                // And a dummy item because we can't drop the final seqno
-                store_item(vbid, makeStoredDocKey("dummy"), "value");
-                // Flush the dummy value and second deleted value
-                flushVBucketToDiskIfPersistent(vbid, 2);
-                tg.threadUp();
-            });
+        // And a dummy item because we can't drop the final seqno
+        store_item(vbid, makeStoredDocKey("dummy"), "value");
+        // Flush the dummy value and second deleted value
+        flushVBucketToDiskIfPersistent(vbid, 2);
+        tg.threadUp();
+    });
 
     auto magmaKVStore =
             dynamic_cast<MagmaKVStore*>(store->getRWUnderlying(vbid));
