@@ -601,7 +601,7 @@ std::pair<CheckpointQueue, size_t> Checkpoint::expelItems(
 
     queuedItemsMemUsage -= itemsMemory;
 
-    return {expelledItems, itemsMemory};
+    return {std::move(expelledItems), itemsMemory};
 }
 
 CheckpointIndexKeyType Checkpoint::makeIndexKey(const queued_item& item) const {
