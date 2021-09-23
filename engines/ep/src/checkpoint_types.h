@@ -10,8 +10,13 @@
  */
 #pragma once
 
+#include "ep_types.h"
+
 #include <boost/container/list.hpp>
+#include <platform/memory_tracking_allocator.h>
+
 #include <functional>
+#include <list>
 #include <memory>
 
 class Checkpoint;
@@ -26,6 +31,12 @@ class VBucket;
 // afford that to be O(N) as that degrades frontend throughput when the CM list
 // is large.
 using CheckpointList = boost::container::list<std::unique_ptr<Checkpoint>>;
+
+// List is used for queueing mutations as vector incurs shift operations for
+// de-duplication.  We template the list on a queued_item and our own
+// memory allocator which allows memory usage to be tracked.
+using CheckpointQueue =
+        std::list<queued_item, MemoryTrackingAllocator<queued_item>>;
 
 /**
  * Callback function invoked when a checkpoint becomes unreferenced; used

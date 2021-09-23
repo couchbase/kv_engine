@@ -502,86 +502,11 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
     {
         std::lock_guard<std::mutex> lh(queueLock);
 
-        Checkpoint* oldestCheckpoint = checkpointList.front().get();
-
-        if (oldestCheckpoint->getNumCursorsInCheckpoint() == 0) {
-            // The oldest checkpoint is unreferenced, and may be deleted
-            // as a whole by the ClosedUnrefCheckpointRemoverTask,
-            // expelling everything from it one by one would be a waste of time.
-            // Cannot expel from checkpoints which are not the oldest without
-            // leaving gaps in the items a cursor would read.
-            return {};
-        }
-
-        if (oldestCheckpoint->getNumItems() == 0) {
-            // There are no mutation items in the checkpoint to expel.
-            return {};
-        }
-
-        const auto lowestCursor = getLowestCursor(lh);
-
-        // Sanity check - if the oldest checkpoint is referenced, the cursor
-        // with the lowest seqno should be in that checkpoint.
-        if (lowestCursor->currentCheckpoint->get() != oldestCheckpoint) {
-            std::stringstream ss;
-            ss << "CheckpointManager::expelUnreferencedCheckpointItems: ("
-               << vb.getId()
-               << ") lowest found cursor is not in the oldest "
-                  "checkpoint. Oldest checkpoint ID: "
-               << oldestCheckpoint->getId()
-               << " lowSeqno: " << oldestCheckpoint->getMinimumCursorSeqno()
-               << " highSeqno: " << oldestCheckpoint->getHighSeqno()
-               << " snapStart: " << oldestCheckpoint->getSnapshotStartSeqno()
-               << " snapEnd: " << oldestCheckpoint->getSnapshotEndSeqno()
-               << ". Lowest cursor: " << lowestCursor->name
-               << " seqno: " << (*lowestCursor->currentPos)->getBySeqno()
-               << " ckptID: " << lowestCursor->getId();
-            throw std::logic_error(ss.str());
-        }
-
-        // Note: Important check as this avoid to decrement the begin() iterator
-        // in the following steps.
-        if (lowestCursor->currentPos == oldestCheckpoint->begin()) {
-            // Lowest cursor is at the checkpoint empty item, nothing to expel
-            return {};
-        }
-
-        // Never expel items pointed by cursor.
-        auto iterator = std::prev(lowestCursor->currentPos);
-
-        /*
-         * Walk backwards over the checkpoint if not yet reached the dummy item,
-         * and pointing to an item that either:
-         * 1. has a seqno equal to the checkpoint's high seqno, or
-         * 2. has a subsequent entry with the same seqno (i.e. we don't want
-         *    to expel some items but not others with the same seqno), or
-         * 3. is pointing to a metadata item.
-         */
-        while ((iterator != oldestCheckpoint->begin()) &&
-               (((*iterator)->getBySeqno() ==
-                 int64_t(oldestCheckpoint->getHighSeqno())) ||
-                (std::next(iterator) != oldestCheckpoint->end() &&
-                 (*iterator)->getBySeqno() ==
-                         (*std::next(iterator))->getBySeqno()) ||
-                ((*iterator)->isCheckPointMetaItem()))) {
-            --iterator;
-        }
-
-        // If pointing to the dummy item then cannot expel anything and so just
-        // return.
-        if (iterator == oldestCheckpoint->begin()) {
-            return {};
-        }
-
-        /*
-         * Now have the checkpoint and the expelUpToAndIncluding
-         * cursor we can expel the relevant checkpoint items.  The
-         * method returns the expelled items in the expelledItems
-         * queue thereby ensuring they still have a reference whilst
-         * the queuelock is being held.
-         */
+        // The method returns the expelled items in the expelledItems queue
+        // thereby ensuring they still have a reference whilst the queuelock is
+        // being held.
         std::tie(expelledItems, estimatedMemRecovered) =
-                oldestCheckpoint->expelItems(iterator);
+                extractItemsToExpel(lh);
     }
 
     // If called currentCheckpoint->expelItems but did not manage to expel
@@ -1749,4 +1674,80 @@ std::shared_ptr<CheckpointCursor> CheckpointManager::getLowestCursor(
                 return *a.second < *b.second;
             });
     return entry->second;
+}
+
+std::pair<CheckpointQueue, size_t> CheckpointManager::extractItemsToExpel(
+        const std::lock_guard<std::mutex>& lh) {
+    Checkpoint* oldestCheckpoint = checkpointList.front().get();
+
+    if (oldestCheckpoint->getNumCursorsInCheckpoint() == 0) {
+        // The oldest checkpoint is unreferenced, and may be deleted
+        // as a whole by the ClosedUnrefCheckpointRemoverTask,
+        // expelling everything from it one by one would be a waste of time.
+        // Cannot expel from checkpoints which are not the oldest without
+        // leaving gaps in the items a cursor would read.
+        return {};
+    }
+
+    if (oldestCheckpoint->getNumItems() == 0) {
+        // There are no mutation items in the checkpoint to expel.
+        return {};
+    }
+
+    const auto lowestCursor = getLowestCursor(lh);
+
+    // Sanity check - if the oldest checkpoint is referenced, the cursor
+    // with the lowest seqno should be in that checkpoint.
+    if (lowestCursor->currentCheckpoint->get() != oldestCheckpoint) {
+        std::stringstream ss;
+        ss << "CheckpointManager::expelUnreferencedCheckpointItems: ("
+           << vb.getId()
+           << ") lowest found cursor is not in the oldest "
+              "checkpoint. Oldest checkpoint ID: "
+           << oldestCheckpoint->getId()
+           << " lowSeqno: " << oldestCheckpoint->getMinimumCursorSeqno()
+           << " highSeqno: " << oldestCheckpoint->getHighSeqno()
+           << " snapStart: " << oldestCheckpoint->getSnapshotStartSeqno()
+           << " snapEnd: " << oldestCheckpoint->getSnapshotEndSeqno()
+           << ". Lowest cursor: " << lowestCursor->name
+           << " seqno: " << (*lowestCursor->currentPos)->getBySeqno()
+           << " ckptID: " << lowestCursor->getId();
+        throw std::logic_error(ss.str());
+    }
+
+    // Note: Important check as this avoids decrementing the begin() iterator
+    // in the following steps.
+    if (lowestCursor->currentPos == oldestCheckpoint->begin()) {
+        // Lowest cursor is at the checkpoint empty item, nothing to expel
+        return {};
+    }
+
+    // Never expel items pointed by cursor.
+    auto iterator = std::prev(lowestCursor->currentPos);
+
+    /*
+     * Walk backwards over the checkpoint if not yet reached the dummy item,
+     * and pointing to an item that either:
+     * 1. has a seqno equal to the checkpoint's high seqno, or
+     * 2. has a subsequent entry with the same seqno (i.e. we don't want
+     *    to expel some items but not others with the same seqno), or
+     * 3. is pointing to a metadata item.
+     */
+    while ((iterator != oldestCheckpoint->begin()) &&
+           (((*iterator)->getBySeqno() ==
+             int64_t(oldestCheckpoint->getHighSeqno())) ||
+            (std::next(iterator) != oldestCheckpoint->end() &&
+             (*iterator)->getBySeqno() ==
+                     (*std::next(iterator))->getBySeqno()) ||
+            ((*iterator)->isCheckPointMetaItem()))) {
+        --iterator;
+    }
+
+    // If pointing to the dummy item then cannot expel anything and so just
+    // return.
+    if (iterator == oldestCheckpoint->begin()) {
+        return {};
+    }
+
+    return oldestCheckpoint->expelItems(iterator);
 }

@@ -734,6 +734,18 @@ protected:
     std::shared_ptr<CheckpointCursor> getLowestCursor(
             const std::lock_guard<std::mutex>& lh);
 
+    /**
+     * Extracts all the items in the oldest checkpoint that still has cursors
+     * registered in it and returns the removed chuck to the caller.
+     * This function includes all the ItemExpel logic tha needs to execute under
+     * CM::queueLock.
+     *
+     * @param lh Lock to CM mutex
+     * @return the container of expelled items and an estimate of mem released
+     */
+    std::pair<CheckpointQueue, size_t> extractItemsToExpel(
+            const std::lock_guard<std::mutex>& lh);
+
     CheckpointList checkpointList;
     EPStats                 &stats;
     CheckpointConfig        &checkpointConfig;
