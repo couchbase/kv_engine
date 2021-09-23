@@ -2767,6 +2767,82 @@ TEST_F(WarmupTest, CrashWarmupAfterInitialize) {
     EXPECT_EQ(1, failoverEntry.by_seqno);
 }
 
+// MB-48373
+// This originally manifested as a scan error during the (warmup) backill of a
+// full eviction bucket. The scan error cropped up because a DCP consumer came
+// along during the warmup and the connected active told a replica vBucket to
+// rollback. This rollback was to 0 and as such the vBucket was deleted and
+// recreated. The file then didn't exist on disk when the (warmup) backfill
+// came to scan this vBucket. The fix is/was to just prevent the connection
+// of consumers until we complete all of the warmup tasks. We do this by
+// checking that warmup has entired the Done state before allowing consumer
+// connections.
+TEST_F(WarmupTest, ConsumerDuringWarmup) {
+    // Write to two vBuckets on two different shards (we have 2 by default) so
+    // that we can have two tasks that load data which allows us to check
+    // at the same point in MB-48373 that a DCP connection can't be created
+    setVBucketToActiveWithValidTopology();
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    setVBucketStateAndRunPersistTask(Vbid(1), vbucket_state_active);
+    store_item(Vbid(1), makeStoredDocKey("key1"), "value");
+    flushVBucketToDiskIfPersistent(Vbid(1), 1);
+
+    resetEngineAndEnableWarmup();
+    auto* warmupPtr = store->getWarmup();
+    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    while (store->isWarmupLoadingData()) {
+        if (warmupPtr->getWarmupState() == WarmupState::State::LoadingData) {
+            break;
+        }
+        runNextTask(readerQueue);
+    }
+
+    // We've run until LoadingData (for the first shard)
+    EXPECT_EQ(warmupPtr->getWarmupState(), WarmupState::State::LoadingData);
+
+    // Consumer should fail - not finished warmup
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
+              engine->dcpOpen(cookie,
+                              /*opaque:unused*/ {},
+                              /*seqno:unused*/ {},
+                              0 /*flags - consumer*/,
+                              "consumer",
+                              {}));
+
+    // Run for next shard, this is where the data loading was originally
+    // completed in MB-48373
+    runNextTask(readerQueue);
+    EXPECT_EQ(warmupPtr->getWarmupState(), WarmupState::State::LoadingData);
+
+    // Still fails, not finished warmup
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
+              engine->dcpOpen(cookie,
+                              /*opaque:unused*/ {},
+                              /*seqno:unused*/ {},
+                              0 /*flags - consumer*/,
+                              "consumer",
+                              {}));
+
+    // Move to Done now
+    runNextTask(readerQueue);
+    EXPECT_EQ(warmupPtr->getWarmupState(), WarmupState::State::Done);
+
+    // Have to run again in the Done state to mark things as complete and stop
+    // finish warmup
+    runNextTask(readerQueue);
+
+    // Opening the connection should now work
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->dcpOpen(cookie,
+                              /*opaque:unused*/ {},
+                              /*seqno:unused*/ {},
+                              0 /*flags - consumer*/,
+                              "consumer",
+                              {}));
+}
+
 INSTANTIATE_TEST_SUITE_P(FullOrValue,
                          MB_34718_WarmupTest,
                          STParameterizedBucketTest::persistentConfigValues(),

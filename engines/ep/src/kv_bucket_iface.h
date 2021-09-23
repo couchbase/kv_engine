@@ -675,7 +675,15 @@ public:
     virtual void updateCachedResidentRatio(size_t activePerc,
                                            size_t replicaPerc) = 0;
 
+    /**
+     * Has warmup loaded enough data to serve ops?
+     */
     virtual bool isWarmupLoadingData() = 0;
+
+    /**
+     * All aspects of warmup have finished - loading data + any background tasks
+     */
+    virtual bool isWarmupComplete() = 0;
 
     virtual bool isMemUsageAboveBackfillThreshold() = 0;
 

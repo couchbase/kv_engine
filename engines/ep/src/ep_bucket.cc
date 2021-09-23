@@ -2051,6 +2051,10 @@ bool EPBucket::isWarmupLoadingData() {
     return warmupTask && !warmupTask->isFinishedLoading();
 }
 
+bool EPBucket::isWarmupComplete() {
+    return warmupTask && warmupTask->isComplete();
+}
+
 bool EPBucket::isWarmupOOMFailure() {
     return warmupTask && warmupTask->hasOOMFailure();
 }

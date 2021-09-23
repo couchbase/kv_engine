@@ -2058,6 +2058,10 @@ bool KVBucket::isWarmupLoadingData() {
     return false;
 }
 
+bool KVBucket::isWarmupComplete() {
+    return false;
+}
+
 bool KVBucket::isWarmupOOMFailure() {
     return false;
 }

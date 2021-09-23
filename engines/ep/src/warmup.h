@@ -249,6 +249,10 @@ public:
                     const std::map<Vbid, vbucket_state>& vbmap,
                     StatusCallback<GetValue>& cb);
 
+    bool isComplete() const {
+        return finishedLoading && state.getState() == WarmupState::State::Done;
+    }
+
     bool isFinishedLoading() const {
         return finishedLoading.load();
     }

@@ -233,6 +233,8 @@ public:
 
     bool isWarmupLoadingData() override;
 
+    bool isWarmupComplete() override;
+
     bool isWarmupOOMFailure() override;
 
     bool hasWarmupSetVbucketStateFailed() const override;

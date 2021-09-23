@@ -157,6 +157,12 @@ public:
         return nullptr;
     }
 
+    bool isWarmupComplete() override {
+        // Nothing to do for warmup, so return true to allow DCP consumers to be
+        // made
+        return true;
+    }
+
 protected:
     std::unique_ptr<VBucketCountVisitor> makeVBCountVisitor(
             vbucket_state_t state) override;
