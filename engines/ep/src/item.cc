@@ -157,8 +157,14 @@ std::ostream& operator<<(std::ostream& os, const queue_op& op) {
 }
 
 bool operator==(const Item& lhs, const Item& rhs) {
-    return (lhs.metaData == rhs.metaData) && (*lhs.value == *rhs.value) &&
-           (lhs.key == rhs.key) && (lhs.bySeqno == rhs.bySeqno) &&
+    bool valueEqual = false;
+    if (!lhs.value && !rhs.value) {
+        valueEqual = true;
+    } else if (lhs.value && rhs.value) {
+        valueEqual = *lhs.value == *rhs.value;
+    }
+
+    return (lhs.metaData == rhs.metaData) && valueEqual &&
            // Note: queuedTime is *not* compared. The rationale is it is
            // simply used for stats (measureing queue duration) and hence can
            // be ignored from an "equivilence" pov.
