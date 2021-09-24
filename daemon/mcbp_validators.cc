@@ -1408,47 +1408,21 @@ static Status get_ctrl_token_validator(Cookie& cookie) {
 }
 
 static Status ioctl_get_validator(Cookie& cookie) {
-    auto status = McbpValidator::verify_header(cookie,
-                                               0,
-                                               ExpectedKeyLen::NonZero,
-                                               ExpectedValueLen::Zero,
-                                               ExpectedCas::NotSet,
-                                               PROTOCOL_BINARY_RAW_BYTES);
-    if (status != Status::Success) {
-        return status;
-    }
-    if (cookie.getHeader().getKeylen() > IOCTL_KEY_LENGTH) {
-        cookie.setErrorContext("Request key length exceeds maximum");
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::NonZero,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::NotSet,
+                                        PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status ioctl_set_validator(Cookie& cookie) {
-    auto status = McbpValidator::verify_header(cookie,
-                                               0,
-                                               ExpectedKeyLen::NonZero,
-                                               ExpectedValueLen::Any,
-                                               ExpectedCas::NotSet,
-                                               PROTOCOL_BINARY_RAW_BYTES);
-    if (status != Status::Success) {
-        return status;
-    }
-
-    auto& req = cookie.getHeader().getRequest();
-
-    if (req.getKey().size() > IOCTL_KEY_LENGTH) {
-        cookie.setErrorContext("Request key length exceeds maximum");
-        return Status::Einval;
-    }
-
-    if (req.getValue().size() > IOCTL_VAL_LENGTH) {
-        cookie.setErrorContext("Request value length exceeds maximum");
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::NonZero,
+                                        ExpectedValueLen::Any,
+                                        ExpectedCas::NotSet,
+                                        PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status audit_put_validator(Cookie& cookie) {
@@ -1479,23 +1453,12 @@ static Status config_reload_validator(Cookie& cookie) {
 }
 
 static Status config_validate_validator(Cookie& cookie) {
-    auto status = McbpValidator::verify_header(cookie,
-                                               0,
-                                               ExpectedKeyLen::Zero,
-                                               ExpectedValueLen::NonZero,
-                                               ExpectedCas::NotSet,
-                                               PROTOCOL_BINARY_RAW_BYTES);
-    if (status != Status::Success) {
-        return status;
-    }
-    auto& header = cookie.getHeader();
-    const auto bodylen = header.getBodylen();
-
-    if (bodylen > CONFIG_VALIDATE_MAX_LENGTH) {
-        cookie.setErrorContext("Request value length exceeds maximum");
-        return Status::Einval;
-    }
-    return Status::Success;
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::Zero,
+                                        ExpectedValueLen::NonZero,
+                                        ExpectedCas::NotSet,
+                                        PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status observe_seqno_validator(Cookie& cookie) {

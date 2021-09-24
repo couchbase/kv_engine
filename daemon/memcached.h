@@ -22,13 +22,6 @@
 /** Maximum length of a key. */
 #define KEY_MAX_LENGTH 250
 
-/* Maximum length of config which can be validated */
-#define CONFIG_VALIDATE_MAX_LENGTH (64 * 1024)
-
-/* Maximum IOCTL get/set key and payload (body) length */
-#define IOCTL_KEY_LENGTH 128
-#define IOCTL_VAL_LENGTH 128
-
 class Bucket;
 class Cookie;
 class Connection;

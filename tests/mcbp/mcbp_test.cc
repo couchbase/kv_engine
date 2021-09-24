@@ -1381,9 +1381,6 @@ public:
     }
 
 protected:
-    // #defined in memcached.h..
-    const int IOCTL_KEY_LENGTH = 128;
-
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::IoctlGet,
                                        static_cast<void*>(&request));
@@ -1397,15 +1394,6 @@ TEST_P(IoctlGetValidatorTest, CorrectMessage) {
 TEST_P(IoctlGetValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(2);
     request.message.header.request.setBodylen(12);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(IoctlGetValidatorTest, InvalidKey) {
-    request.message.header.request.setKeylen(0);
-    request.message.header.request.setBodylen(0);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-    request.message.header.request.setKeylen(IOCTL_KEY_LENGTH + 1);
-    request.message.header.request.setBodylen(IOCTL_KEY_LENGTH + 1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1437,10 +1425,6 @@ public:
     }
 
 protected:
-    // #defined in memcached.h..
-    const int IOCTL_KEY_LENGTH = 128;
-    const int IOCTL_VAL_LENGTH = 128;
-
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::IoctlSet,
                                        static_cast<void*>(&request));
@@ -1461,9 +1445,6 @@ TEST_P(IoctlSetValidatorTest, InvalidKey) {
     request.message.header.request.setKeylen(0);
     request.message.header.request.setBodylen(0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-    request.message.header.request.setKeylen(IOCTL_KEY_LENGTH + 1);
-    request.message.header.request.setBodylen(IOCTL_KEY_LENGTH + 1);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(IoctlSetValidatorTest, InvalidDatatype) {
@@ -1474,16 +1455,6 @@ TEST_P(IoctlSetValidatorTest, InvalidDatatype) {
 TEST_P(IoctlSetValidatorTest, InvalidCas) {
     request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(IoctlSetValidatorTest, InvalidBody) {
-    request.message.header.request.setBodylen(IOCTL_VAL_LENGTH + 11);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(IoctlSetValidatorTest, ValidBody) {
-    request.message.header.request.setBodylen(IOCTL_VAL_LENGTH + 10);
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 // test AUDIT_PUT
@@ -2657,40 +2628,6 @@ TEST_P(CommandSpecificErrorContextTest, SetCtrlToken) {
     *req = 0;
     EXPECT_EQ("New CAS must be set",
               validate_error_context(cb::mcbp::ClientOpcode::SetCtrlToken));
-}
-
-TEST_P(CommandSpecificErrorContextTest, IoctlGet) {
-    // Maximum IOCTL_KEY_LENGTH is 128
-    header.setExtlen(0);
-    header.setKeylen(129);
-    header.setBodylen(129);
-    EXPECT_EQ("Request key length exceeds maximum",
-              validate_error_context(cb::mcbp::ClientOpcode::IoctlGet));
-}
-
-TEST_P(CommandSpecificErrorContextTest, IoctlSet) {
-    // Maximum IOCTL_KEY_LENGTH is 128
-    header.setExtlen(0);
-    header.setKeylen(129);
-    header.setBodylen(129);
-    EXPECT_EQ("Request key length exceeds maximum",
-              validate_error_context(cb::mcbp::ClientOpcode::IoctlSet));
-
-    // Maximum IOTCL_VAL_LENGTH is 128
-    header.setExtlen(0);
-    header.setKeylen(1);
-    header.setBodylen(130);
-    EXPECT_EQ("Request value length exceeds maximum",
-              validate_error_context(cb::mcbp::ClientOpcode::IoctlSet));
-}
-
-TEST_P(CommandSpecificErrorContextTest, ConfigValidate) {
-    // Maximum value length is 65536
-    header.setExtlen(0);
-    header.setKeylen(0);
-    header.setBodylen(65537);
-    EXPECT_EQ("Request value length exceeds maximum",
-              validate_error_context(cb::mcbp::ClientOpcode::ConfigValidate));
 }
 
 TEST_P(CommandSpecificErrorContextTest, ObserveSeqno) {
