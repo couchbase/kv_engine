@@ -264,10 +264,10 @@ TEST_P(STParamMagmaBucketTest, makeCompactionContextSetupAtWarmup) {
 
 void STParamMagmaBucketTest::setupForImplicitCompactionTest(
         std::function<void()> storeItemsForTest) {
-    // Function to perform 15 writes so that the next flush will hit the
-    // LSMMaxNumLevel0Tables threshold which will trigger implicit compaction
-    auto perform15Writes = [this]() -> void {
-        for (int i = 0; i < 15; i++) {
+    // Function to perform 16 writes so that we hit the LSMMaxNumLevel0Tables
+    // threshold which will trigger implicit compaction
+    auto performWritesForImplicitCompaction = [this]() -> void {
+        for (int i = 0; i < 16; i++) {
             store_item(
                     vbid, makeStoredDocKey("key" + std::to_string(i)), "value");
             flushVBucketToDiskIfPersistent(vbid, 1);
@@ -284,9 +284,6 @@ void STParamMagmaBucketTest::setupForImplicitCompactionTest(
 
     auto vb = store->getVBucket(vbid);
     ASSERT_EQ(0, vb->getPurgeSeqno());
-
-    // ensure we meet the LSMMaxNumLevel0Tables threshold
-    perform15Writes();
 
     // Delete at least one thing to trigger the implicit compaction in cases
     // where we are testing with non-deleted items
@@ -311,9 +308,6 @@ void STParamMagmaBucketTest::setupForImplicitCompactionTest(
         tg.threadUp();
     };
 
-    // ensure we meet the LSMMaxNumLevel0Tables threshold
-    perform15Writes();
-
     auto deletedNotPurgedKey = makeStoredDocKey("keyB");
     // Add a tombstone to check that we don't drop everything
     store_item(vbid, deletedNotPurgedKey, "value");
@@ -323,6 +317,9 @@ void STParamMagmaBucketTest::setupForImplicitCompactionTest(
     store_item(vbid, makeStoredDocKey("dummy"), "value");
     // Flush the dummy value and second deleted value
     flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // ensure we meet the LSMMaxNumLevel0Tables threshold
+    performWritesForImplicitCompaction();
 
     // Wait till the purge seqno has been set
     tg.threadUp();
