@@ -136,7 +136,7 @@ struct CompactionContext {
                       std::optional<time_t> timeToExpireFrom = {})
         : vbid(vbid),
           compactConfig(config),
-          max_purged_seq(purgeSeq),
+          rollbackPurgeSeqno(purgeSeq),
           timeToExpireFrom(timeToExpireFrom) {
     }
     Vbid vbid;
@@ -144,7 +144,15 @@ struct CompactionContext {
     /// The configuration for this compaction.
     const CompactionConfig compactConfig;
 
-    uint64_t max_purged_seq;
+    /**
+     * The purgeSeqno from the VBucket/DCP perspective. This purge seqno relates
+     * to the point at which DCP consumers connecting with lower start seqnos
+     * would have to roll back to zero. The KVStore may purge seqnos higher
+     * than this but only for items that are not required to rebuild a replica.
+     * Such items currently include completed prepares and logical deletetions
+     * (items belonging to dropped collections).
+     */
+    uint64_t rollbackPurgeSeqno;
     BloomFilterCBPtr bloomFilterCallback;
     ExpiredItemsCBPtr expiryCallback;
     struct CompactionStats stats;

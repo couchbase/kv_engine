@@ -1271,7 +1271,7 @@ void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
     try {
         postCompactionCompletionStatsUpdateHook();
 
-        vb->maybeSetPurgeSeqno(ctx.max_purged_seq);
+        vb->maybeSetPurgeSeqno(ctx.rollbackPurgeSeqno);
         vb->decrNumTotalItems(ctx.stats.collectionsItemsPurged);
 
         updateCollectionStatePostCompaction(

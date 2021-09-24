@@ -372,8 +372,8 @@ bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
 
             if (drop) {
                 cbCtx.ctx->stats.tombstonesPurged++;
-                if (cbCtx.ctx->max_purged_seq < seqno) {
-                    cbCtx.ctx->max_purged_seq = seqno;
+                if (cbCtx.ctx->rollbackPurgeSeqno < seqno) {
+                    cbCtx.ctx->rollbackPurgeSeqno = seqno;
                 }
                 auto& dbStats = cbCtx.magmaDbStats;
                 if (dbStats.purgeSeqno < seqno) {
@@ -2307,7 +2307,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 " collectionsDeletedItemsPurged:{}"
                 " tombstonesPurged:{}"
                 " preparesPurged:{}",
-                ctx->max_purged_seq,
+                ctx->rollbackPurgeSeqno,
                 ctx->stats.collectionsItemsPurged,
                 ctx->stats.collectionsDeletedItemsPurged,
                 ctx->stats.tombstonesPurged,
