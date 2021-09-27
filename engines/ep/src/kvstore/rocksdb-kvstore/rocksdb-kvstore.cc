@@ -413,7 +413,6 @@ RocksDBKVStore::~RocksDBKVStore() {
 
 void RocksDBKVStore::openDB() {
     auto dbname = getDBSubdir();
-    createDataDir(dbname);
 
     std::vector<std::string> cfs;
     auto status = rocksdb::DB::ListColumnFamilies(dbOptions, dbname, &cfs);

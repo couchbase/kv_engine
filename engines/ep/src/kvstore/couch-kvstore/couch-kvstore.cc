@@ -388,19 +388,16 @@ std::shared_ptr<CouchKVStore::RevisionMap> CouchKVStore::makeRevisionMap(
 CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
                            FileOpsInterface& ops)
     : CouchKVStore(config, ops, makeRevisionMap(config)) {
-    // 1) Create the data directory
-    createDataDir(dbname);
-
-    // 2) populate the dbFileRevMap which can remove old revisions, this returns
+    // 1) populate the dbFileRevMap which can remove old revisions, this returns
     //    a map, which the keys (vbid) will be needed for step 3 and 4.
     auto map = populateRevMapAndRemoveStaleFiles();
 
-    // 3) clean up any .compact files
+    // 2) clean up any .compact files
     for (const auto& id : map) {
         maybeRemoveCompactFile(dbname, id.first);
     }
 
-    // 4) continue to intialise the store (reads vbstate etc...)
+    // 3) continue to intialise the store (reads vbstate etc...)
     initialize(map);
 }
 

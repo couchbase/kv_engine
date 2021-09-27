@@ -296,6 +296,19 @@ protected:
             }
         }
 
+        // We don't call engine intialize which normally creates the data
+        // directory for us in these tests, manually create the data directory.
+        try {
+            cb::io::mkdirp(test_dbname + "-node_1");
+            cb::io::mkdirp(test_dbname + "-node_2");
+            cb::io::mkdirp(test_dbname + "-node_3");
+        } catch (const std::system_error& error) {
+            throw std::runtime_error(
+                    fmt::format("Failed to create data directory [{}]: {}",
+                                test_dbname,
+                                error.code().message()));
+        }
+
         auto meta = nlohmann::json{
                 {"topology", nlohmann::json::array({{"active", "replica"}})}};
         ASSERT_EQ(cb::engine_errc::success,

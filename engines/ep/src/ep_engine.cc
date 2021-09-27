@@ -65,6 +65,7 @@
 #include <platform/cb_arena_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <platform/compress.h>
+#include <platform/dirutils.h>
 #include <platform/platform_time.h>
 #include <platform/scope_timer.h>
 #include <platform/string_hex.h>
@@ -1943,6 +1944,17 @@ cb::engine_errc EventuallyPersistentEngine::initialize(const char* config) {
                     config);
             return cb::engine_errc::failed;
         }
+    }
+
+    // Create the bucket data directory, ns_server should have created the
+    // process level one but they expect us to create the bucket level one.
+    try {
+        cb::io::mkdirp(configuration.getDbname());
+    } catch (const std::system_error& error) {
+        throw std::runtime_error(
+                fmt::format("Failed to create data directory [{}]:{}",
+                            configuration.getDbname(),
+                            error.code().message()));
     }
 
     name = configuration.getCouchBucket();

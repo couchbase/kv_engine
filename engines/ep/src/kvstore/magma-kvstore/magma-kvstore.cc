@@ -558,9 +558,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
         return std::make_unique<MagmaDbStats>();
     };
 
-    // Create the data directory.
-    createDataDir(configuration.magmaCfg.Path);
-
     // Create a logger that is prefixed with magma so that all code from
     // wrapper down through magma uses this logger. As the spdlog API does not
     // set their log functions to virtual and magma needs to maintain some

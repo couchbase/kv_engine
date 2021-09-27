@@ -213,17 +213,6 @@ std::unique_ptr<KVStoreIface> KVStoreFactory::create(KVStoreConfig& config) {
     return {};
 }
 
-void KVStore::createDataDir(const std::string& dbname) {
-    try {
-        cb::io::mkdirp(dbname);
-    } catch (const std::system_error& error) {
-        std::stringstream ss;
-        ss << "Failed to create data directory ["
-           << dbname << "]: " << error.code().message();
-        throw std::runtime_error(ss.str());
-    }
-}
-
 bool KVStore::needsToBePersisted(Vbid vbid, const vbucket_state& newVbstate) {
     /*
      * The vbucket state information is to be persisted only if there is no

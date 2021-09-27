@@ -75,6 +75,17 @@ void KVBucketTest::SetUp() {
         }
     }
 
+    // These tests don't init the engine normally so we need to create the data
+    // directory manually.
+    try {
+        cb::io::mkdirp(test_dbname);
+    } catch (const std::system_error& error) {
+        throw std::runtime_error(
+                fmt::format("Failed to create data directory [{}]:{}",
+                            test_dbname,
+                            error.code().message()));
+    }
+
     if (!ExecutorPool::exists()) {
         ExecutorPool::create();
     }

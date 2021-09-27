@@ -791,8 +791,6 @@ protected:
     /// read write store.
     std::string getStatsPrefix() const;
 
-    void createDataDir(const std::string& dbname);
-
     /**
      * @param vbid
      * @param newVbstate

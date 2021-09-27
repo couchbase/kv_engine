@@ -28,6 +28,7 @@
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
 
+#include <platform/dirutils.h>
 #include <utilities/logtags.h>
 #include <utilities/string_utilities.h>
 
@@ -46,6 +47,15 @@ public:
 };
 
 NexusKVStore::NexusKVStore(NexusKVStoreConfig& config) : configuration(config) {
+    try {
+        cb::io::mkdirp(configuration.getPrimaryConfig().getDBName());
+        cb::io::mkdirp(configuration.getSecondaryConfig().getDBName());
+    } catch (const std::system_error& error) {
+        throw std::runtime_error(
+                fmt::format("Failed to create nexus data directories {}",
+                            error.code().message()));
+    }
+
     primary = KVStoreFactory::create(configuration.getPrimaryConfig());
     secondary = KVStoreFactory::create(configuration.getSecondaryConfig());
 
