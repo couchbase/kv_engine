@@ -1548,21 +1548,12 @@ static Status delete_bucket_validator(Cookie& cookie) {
 }
 
 static Status select_bucket_validator(Cookie& cookie) {
-    auto status = McbpValidator::verify_header(cookie,
-                                               0,
-                                               ExpectedKeyLen::Any,
-                                               ExpectedValueLen::Zero,
-                                               ExpectedCas::Any,
-                                               PROTOCOL_BINARY_RAW_BYTES);
-    if (status != Status::Success) {
-        return status;
-    }
-    if (cookie.getHeader().getKeylen() > MAX_BUCKET_NAME_LENGTH) {
-        cookie.setErrorContext("Request key length exceeds maximum");
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::Any,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::Any,
+                                        PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status get_all_vb_seqnos_validator(Cookie& cookie) {

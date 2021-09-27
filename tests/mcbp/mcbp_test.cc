@@ -2647,15 +2647,6 @@ TEST_P(CommandSpecificErrorContextTest, CreateBucket) {
               validate_error_context(cb::mcbp::ClientOpcode::CreateBucket));
 }
 
-TEST_P(CommandSpecificErrorContextTest, SelectBucket) {
-    // Select Bucket has maximum key length of 1023
-    header.setExtlen(0);
-    header.setKeylen(101);
-    header.setBodylen(101);
-    EXPECT_EQ("Request key length exceeds maximum",
-              validate_error_context(cb::mcbp::ClientOpcode::SelectBucket));
-}
-
 TEST_P(CommandSpecificErrorContextTest, GetAllVbSeqnos) {
     // Extlen must be zero or sizeof(vbucket_state_t)
     header.setExtlen(sizeof(vbucket_state_t) + 1);
