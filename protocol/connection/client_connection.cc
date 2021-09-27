@@ -312,9 +312,9 @@ SOCKET try_connect_socket(struct addrinfo* next,
     return sfd;
 }
 
-SOCKET cb::net::new_socket(const std::string& host,
-                           in_port_t port,
-                           sa_family_t family) {
+static SOCKET new_socket(const std::string& host,
+                         in_port_t port,
+                         sa_family_t family) {
     struct addrinfo hints = {};
     hints.ai_flags = AI_PASSIVE;
     hints.ai_protocol = IPPROTO_TCP;
@@ -468,7 +468,7 @@ void MemcachedConnection::connect() {
         asyncSocket.reset();
     }
 
-    auto sock = cb::net::new_socket(host, port, family);
+    auto sock = new_socket(host, port, family);
     if (sock == INVALID_SOCKET) {
         auto error = cb::net::get_socket_error();
         std::string msg("Failed to connect to: ");

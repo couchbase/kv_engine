@@ -1019,20 +1019,3 @@ protected:
 
     Featureset effective_features;
 };
-
-namespace cb::net {
-/**
- * Create a new socket and connect it to the given host
- *
- * @param host The name of the host to try to connect to. If
- *             empty (or set to localhost) it'll be replaced
- *             with "127.0.0.1" or "::1" depending on the value
- *             of family
- * @param port The port number to connect to
- * @param family The socket family to create (AF_INET/AF_INET6/AF_UNSPEC)
- * @return The connected socket or INVALID_SOCKET if we failed to connect
- *         to the socket
- *
- */
-SOCKET new_socket(const std::string& host, in_port_t port, sa_family_t family);
-} // namespace cb::net

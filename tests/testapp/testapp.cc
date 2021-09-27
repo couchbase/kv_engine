@@ -653,11 +653,11 @@ SOCKET connect_to_server_plain() {
         throw std::runtime_error(
                 "create_connect_plain_socket: Can't connect to port == -1");
     }
-    auto s = cb::net::new_socket("", port, AF_INET);
-    if (s == INVALID_SOCKET) {
-        ADD_FAILURE() << "Failed to connect socket to 127.0.0.1:" << port;
-    }
-    return s;
+    MemcachedConnection connection("127.0.0.1", port, AF_INET, false);
+    connection.connect();
+    connection.authenticate("Luke", mcd_env->getPassword("Luke"));
+    connection.selectBucket("default");
+    return connection.releaseSocket();
 }
 
 /*
