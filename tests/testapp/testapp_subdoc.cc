@@ -58,8 +58,7 @@ const int MAX_SUBDOC_PATH_COMPONENTS = 32;
 
 // Non JSON document, optionally compressed. Subdoc commands should fail.
 void SubdocTestappTest::test_subdoc_get_binary(bool compress,
-                                               cb::mcbp::ClientOpcode cmd,
-                                               MemcachedConnection& conn) {
+                                               cb::mcbp::ClientOpcode cmd) {
     const std::string not_JSON{"not; json"};
     store_document("binary", not_JSON);
 
@@ -77,25 +76,20 @@ void SubdocTestappTest::test_subdoc_get_binary(bool compress,
 
 TEST_P(SubdocTestappTest, SubdocGet_BinaryRaw) {
     test_subdoc_get_binary(/*compress*/ false,
-                           cb::mcbp::ClientOpcode::SubdocGet,
-                           getConnection());
+                           cb::mcbp::ClientOpcode::SubdocGet);
 }
 TEST_P(SubdocTestappTest, SubdocGet_BinaryCompressed) {
     test_subdoc_get_binary(
-            /*compress*/ true,
-            cb::mcbp::ClientOpcode::SubdocGet,
-            getConnection());
+            /*compress*/ true, cb::mcbp::ClientOpcode::SubdocGet);
 }
 
 TEST_P(SubdocTestappTest, SubdocExists_BinaryRaw) {
     test_subdoc_get_binary(/*compress*/ false,
-                           cb::mcbp::ClientOpcode::SubdocExists,
-                           getConnection());
+                           cb::mcbp::ClientOpcode::SubdocExists);
 }
 TEST_P(SubdocTestappTest, SubdocExists_BinaryCompressed) {
     test_subdoc_get_binary(/*compress*/ true,
-                           cb::mcbp::ClientOpcode::SubdocExists,
-                           getConnection());
+                           cb::mcbp::ClientOpcode::SubdocExists);
 }
 
 // retrieve from a JSON document consisting of a toplevel array.

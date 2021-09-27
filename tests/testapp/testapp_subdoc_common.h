@@ -61,9 +61,7 @@ protected:
     void test_subdoc_fetch_dict_simple(bool compressed,
                                        cb::mcbp::ClientOpcode cmd);
 
-    void test_subdoc_get_binary(bool compress,
-                                cb::mcbp::ClientOpcode cmd,
-                                MemcachedConnection& conn);
+    void test_subdoc_get_binary(bool compress, cb::mcbp::ClientOpcode cmd);
 
     void test_subdoc_stats_command(cb::mcbp::ClientOpcode cmd,
                                    SubdocStatTraits traits,
