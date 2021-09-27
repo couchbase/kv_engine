@@ -761,14 +761,6 @@ bool NexusKVStore::snapshotVBucket(Vbid vbucketId,
     auto primaryVbState = primary->getPersistedVBucketState(vbucketId);
     auto secondaryVbState = secondary->getPersistedVBucketState(vbucketId);
 
-    if (!getStorageProperties().hasPrepareCounting()) {
-        // Can't compare prepare counts so zero them out
-        primaryVbState.onDiskPrepares = 0;
-        secondaryVbState.onDiskPrepares = 0;
-        primaryVbState.setOnDiskPrepareBytes(0);
-        secondaryVbState.setOnDiskPrepareBytes(0);
-    }
-
     if (!compareVBucketState(primaryVbState, secondaryVbState)) {
         auto msg = fmt::format(
                 "NexusKVStore::snapshotVBucket: {} difference in vbstate "
