@@ -19,10 +19,8 @@ void dcp_commit_executor(Cookie& cookie) {
 
     if (ret == cb::engine_errc::success) {
         const auto& req = cookie.getRequest();
-        auto extdata = req.getExtdata();
         using cb::mcbp::request::DcpCommitPayload;
-        const auto& extras =
-                *reinterpret_cast<const DcpCommitPayload*>(extdata.data());
+        const auto& extras = req.getCommandSpecifics<DcpCommitPayload>();
         ret = dcpCommit(cookie,
                         req.getOpaque(),
                         req.getVBucket(),

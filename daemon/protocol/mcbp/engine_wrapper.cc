@@ -886,17 +886,15 @@ cb::engine_errc bucket_compact_database(Cookie& cookie) {
     auto& connection = cookie.getConnection();
 
     const auto& req = cookie.getRequest();
-    auto extras = req.getExtdata();
-    const auto* payload =
-            reinterpret_cast<const cb::mcbp::request::CompactDbPayload*>(
-                    extras.data());
+    const auto& payload =
+            req.getCommandSpecifics<cb::mcbp::request::CompactDbPayload>();
 
     auto ret = connection.getBucket().getEngine().compactDatabase(
             cookie,
             req.getVBucket(),
-            payload->getPurgeBeforeTs(),
-            payload->getPurgeBeforeSeq(),
-            payload->getDropDeletes() != 0);
+            payload.getPurgeBeforeTs(),
+            payload.getPurgeBeforeSeq(),
+            payload.getDropDeletes() != 0);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} compactDatabase() returned cb::engine_errc::disconnect",

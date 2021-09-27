@@ -226,10 +226,8 @@ void set_cluster_config_executor(Cookie& cookie) {
         return;
     }
 
-    auto extras = req.getExtdata();
     using cb::mcbp::request::SetClusterConfigPayload;
-    const auto& ext = *reinterpret_cast<
-            const cb::mcbp::request::SetClusterConfigPayload*>(extras.data());
+    const auto& ext = req.getCommandSpecifics<SetClusterConfigPayload>();
     const ClustermapVersion version = {ext.getEpoch(), ext.getRevision()};
 
     bool failed = false;

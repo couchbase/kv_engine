@@ -476,9 +476,9 @@ static Status dcp_open_validator(Cookie& cookie) {
             DcpOpenPayload::NoValueWithUnderlyingDatatype |
             DcpOpenPayload::PiTR | DcpOpenPayload::IncludeDeletedUserXattrs;
 
-    auto ext = cookie.getHeader().getExtdata();
-    const auto* payload = reinterpret_cast<const DcpOpenPayload*>(ext.data());
-    const auto flags = payload->getFlags();
+    const auto& payload =
+            cookie.getRequest().getCommandSpecifics<DcpOpenPayload>();
+    const auto flags = payload.getFlags();
 
     if (flags & ~mask) {
         LOG_INFO(
@@ -598,11 +598,9 @@ static Status dcp_add_stream_validator(Cookie& cookie) {
     }
 
     auto& req = cookie.getRequest();
-    auto extras = req.getExtdata();
-    const auto* payload =
-            reinterpret_cast<const DcpAddStreamPayload*>(extras.data());
+    const auto& payload = req.getCommandSpecifics<DcpAddStreamPayload>();
 
-    const uint32_t flags = payload->getFlags();
+    const uint32_t flags = payload.getFlags();
     const auto mask = DCP_ADD_STREAM_FLAG_TAKEOVER |
                       DCP_ADD_STREAM_FLAG_DISKONLY |
                       DCP_ADD_STREAM_FLAG_LATEST |
@@ -701,15 +699,15 @@ static Status dcp_snapshot_marker_validator(Cookie& cookie) {
     // If v2.x validate the value length is expected
     auto expectedValueLen = ExpectedValueLen::Zero;
     if (header.getExtlen() == sizeof(DcpSnapshotMarkerV2xPayload)) {
-        const auto* payload =
-                reinterpret_cast<const DcpSnapshotMarkerV2xPayload*>(
-                        header.getExtdata().data());
+        const auto& payload =
+                header.getRequest()
+                        .getCommandSpecifics<DcpSnapshotMarkerV2xPayload>();
         size_t expectedLen = sizeof(DcpSnapshotMarkerV2_0Value);
         expectedValueLen = ExpectedValueLen::Any;
-        if (payload->getVersion() != DcpSnapshotMarkerV2xVersion::Zero) {
+        if (payload.getVersion() != DcpSnapshotMarkerV2xVersion::Zero) {
             cookie.setErrorContext(
                     "Unsupported dcp snapshot version:" +
-                    std::to_string(uint32_t(payload->getVersion())));
+                    std::to_string(uint32_t(payload.getVersion())));
             return Status::Einval;
         }
 
@@ -748,16 +746,15 @@ static Status dcp_system_event_validator(Cookie& cookie) {
         return status;
     }
 
-    auto extras = cookie.getHeader().getExtdata();
-    const auto* payload =
-            reinterpret_cast<const DcpSystemEventPayload*>(extras.data());
+    const auto& payload =
+            cookie.getRequest().getCommandSpecifics<DcpSystemEventPayload>();
 
-    if (!payload->isValidEvent()) {
+    if (!payload.isValidEvent()) {
         cookie.setErrorContext("Invalid system event id");
         return Status::Einval;
     }
 
-    if (!payload->isValidVersion()) {
+    if (!payload.isValidVersion()) {
         cookie.setErrorContext("Invalid system event version");
         return Status::Einval;
     }
@@ -783,10 +780,9 @@ static Status dcp_mutation_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    auto extras = cookie.getHeader().getExtdata();
-    const auto* payload =
-            reinterpret_cast<const DcpMutationPayload*>(extras.data());
-    if (payload->getBySeqno() == 0) {
+    const auto& payload =
+            cookie.getRequest().getCommandSpecifics<DcpMutationPayload>();
+    if (payload.getBySeqno() == 0) {
         cookie.setErrorContext("Invalid seqno(0) for DCP mutation");
         return Status::Einval;
     }
@@ -876,10 +872,9 @@ static Status dcp_set_vbucket_state_validator(Cookie& cookie) {
         return status;
     }
 
-    auto extras = cookie.getHeader().getRequest().getExtdata();
-    const auto* payload =
-            reinterpret_cast<const DcpSetVBucketState*>(extras.data());
-    if (!payload->isValid()) {
+    const auto& payload =
+            cookie.getRequest().getCommandSpecifics<DcpSetVBucketState>();
+    if (!payload.isValid()) {
         cookie.setErrorContext("Request body state invalid");
         return Status::Einval;
     }
@@ -955,16 +950,15 @@ static Status dcp_prepare_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    auto extras = cookie.getHeader().getExtdata();
-    const auto* payload =
-            reinterpret_cast<const DcpPreparePayload*>(extras.data());
+    const auto& payload =
+            cookie.getRequest().getCommandSpecifics<DcpPreparePayload>();
 
-    if (payload->getBySeqno() == 0) {
+    if (payload.getBySeqno() == 0) {
         cookie.setErrorContext("Invalid seqno(0) for DCP prepare");
         return Status::Einval;
     }
 
-    if (!isValidDurabilityLevel(payload->getDurabilityLevel())) {
+    if (!isValidDurabilityLevel(payload.getDurabilityLevel())) {
         cookie.setErrorContext("Invalid durability specifier");
         return Status::Einval;
     }
@@ -1062,8 +1056,6 @@ static Status get_cluster_config_validator(Cookie& cookie) {
 }
 
 static Status set_cluster_config_validator(Cookie& cookie) {
-    auto& header = cookie.getHeader();
-
     using cb::mcbp::request::SetClusterConfigPayload;
 
     auto status = McbpValidator::verify_header(
@@ -1078,9 +1070,8 @@ static Status set_cluster_config_validator(Cookie& cookie) {
         return status;
     }
 
-    auto extdata = header.getExtdata();
     const auto& payload =
-            *reinterpret_cast<const SetClusterConfigPayload*>(extdata.data());
+            cookie.getRequest().getCommandSpecifics<SetClusterConfigPayload>();
     if (payload.getRevision() < 1) {
         cookie.setErrorContext("Revision number must not be less than 1");
         return Status::Einval;
@@ -1388,9 +1379,9 @@ static Status set_ctrl_token_validator(Cookie& cookie) {
         return status;
     }
 
-    auto extras = cookie.getRequest().getExtdata();
-    auto* payload = reinterpret_cast<const SetCtrlTokenPayload*>(extras.data());
-    if (payload->getCas() == 0) {
+    const auto& payload =
+            cookie.getRequest().getCommandSpecifics<SetCtrlTokenPayload>();
+    if (payload.getCas() == mcbp::cas::Wildcard) {
         cookie.setErrorContext("New CAS must be set");
         return Status::Einval;
     }
@@ -1696,7 +1687,7 @@ static Status get_errmap_validator(Cookie& cookie) {
         return status;
     }
 
-    auto& request = cookie.getHeader().getRequest();
+    const auto& request = cookie.getRequest();
     if (request.getVBucket() != Vbid(0)) {
         cookie.setErrorContext("Request vbucket id must be 0");
         return Status::Einval;
@@ -1779,7 +1770,7 @@ static Status collections_set_manifest_validator(Cookie& cookie) {
     if (status != Status::Success) {
         return status;
     }
-    if (cookie.getHeader().getRequest().getVBucket() != Vbid(0)) {
+    if (cookie.getRequest().getVBucket() != Vbid(0)) {
         cookie.setErrorContext("Request vbucket id must be 0");
         return Status::Einval;
     }
@@ -1797,7 +1788,7 @@ static Status collections_get_manifest_validator(Cookie& cookie) {
     if (status != Status::Success) {
         return status;
     }
-    if (cookie.getHeader().getRequest().getVBucket() != Vbid(0)) {
+    if (cookie.getRequest().getVBucket() != Vbid(0)) {
         cookie.setErrorContext("Request vbucket id must be 0");
         return Status::Einval;
     }
@@ -1833,13 +1824,13 @@ static Status collections_get_id_validator(Cookie& cookie) {
 }
 
 static Status adjust_timeofday_validator(Cookie& cookie) {
-    auto status = McbpValidator::verify_header(
-            cookie,
-            sizeof(cb::mcbp::request::AdjustTimePayload),
-            ExpectedKeyLen::Zero,
-            ExpectedValueLen::Zero,
-            ExpectedCas::NotSet,
-            PROTOCOL_BINARY_RAW_BYTES);
+    using cb::mcbp::request::AdjustTimePayload;
+    auto status = McbpValidator::verify_header(cookie,
+                                               sizeof(AdjustTimePayload),
+                                               ExpectedKeyLen::Zero,
+                                               ExpectedValueLen::Zero,
+                                               ExpectedCas::NotSet,
+                                               PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
     }
@@ -1850,10 +1841,9 @@ static Status adjust_timeofday_validator(Cookie& cookie) {
         return Status::NotSupported;
     }
 
-    auto extras = cookie.getHeader().getExtdata();
-    using cb::mcbp::request::AdjustTimePayload;
-    auto* payload = reinterpret_cast<const AdjustTimePayload*>(extras.data());
-    if (!payload->isValid()) {
+    const auto& payload =
+            cookie.getRequest().getCommandSpecifics<AdjustTimePayload>();
+    if (!payload.isValid()) {
         cookie.setErrorContext("Unexpected value for TimeType");
     }
 
@@ -2118,9 +2108,9 @@ static Status set_param_validator(Cookie& cookie) {
         return status;
     }
 
-    auto extras = cookie.getHeader().getExtdata();
-    auto* payload = reinterpret_cast<const SetParamPayload*>(extras.data());
-    if (!payload->validate()) {
+    const auto& payload =
+            cookie.getRequest().getCommandSpecifics<SetParamPayload>();
+    if (!payload.validate()) {
         cookie.setErrorContext("Invalid param type specified");
     }
 
@@ -2128,13 +2118,13 @@ static Status set_param_validator(Cookie& cookie) {
 }
 
 static Status return_meta_validator(Cookie& cookie) {
-    auto status = McbpValidator::verify_header(
-            cookie,
-            sizeof(cb::mcbp::request::ReturnMetaPayload),
-            ExpectedKeyLen::NonZero,
-            ExpectedValueLen::Any,
-            ExpectedCas::Any,
-            PROTOCOL_BINARY_RAW_BYTES);
+    using cb::mcbp::request::ReturnMetaPayload;
+    auto status = McbpValidator::verify_header(cookie,
+                                               sizeof(ReturnMetaPayload),
+                                               ExpectedKeyLen::NonZero,
+                                               ExpectedValueLen::Any,
+                                               ExpectedCas::Any,
+                                               PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
     }
@@ -2143,15 +2133,12 @@ static Status return_meta_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    using cb::mcbp::request::ReturnMetaPayload;
-    using cb::mcbp::request::ReturnMetaType;
-    auto* payload = reinterpret_cast<const ReturnMetaPayload*>(
-            cookie.getHeader().getRequest().getExtdata().data());
-
-    switch (payload->getMutationType()) {
-    case ReturnMetaType::Set:
-    case ReturnMetaType::Add:
-    case ReturnMetaType::Del:
+    const auto& payload =
+            cookie.getRequest().getCommandSpecifics<ReturnMetaPayload>();
+    switch (payload.getMutationType()) {
+    case cb::mcbp::request::ReturnMetaType::Set:
+    case cb::mcbp::request::ReturnMetaType::Add:
+    case cb::mcbp::request::ReturnMetaType::Del:
         return Status::Success;
     }
 
@@ -2199,10 +2186,9 @@ static Status compact_db_validator(Cookie& cookie) {
         return status;
     }
 
-    const auto extras = cookie.getHeader().getRequest().getExtdata();
-    const auto* payload =
-            reinterpret_cast<const CompactDbPayload*>(extras.data());
-    if (!payload->validate()) {
+    const auto& payload =
+            cookie.getRequest().getCommandSpecifics<CompactDbPayload>();
+    if (!payload.validate()) {
         cookie.setErrorContext("Padding bytes should be set to 0");
         return Status::Einval;
     }

@@ -21,10 +21,8 @@
 
 static inline cb::engine_errc do_dcp_mutation(Cookie& cookie) {
     const auto& req = cookie.getRequest();
-    const auto extdata = req.getExtdata();
     const auto& extras =
-            *reinterpret_cast<const cb::mcbp::request::DcpMutationPayload*>(
-                    extdata.data());
+            req.getCommandSpecifics<cb::mcbp::request::DcpMutationPayload>();
     const auto datatype = uint8_t(req.getDatatype());
     const auto nmeta = extras.getNmeta();
     auto value = req.getValue();

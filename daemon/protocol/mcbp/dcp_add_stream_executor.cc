@@ -22,11 +22,9 @@ void dcp_add_stream_executor(Cookie& cookie) {
         auto& req = cookie.getRequest();
 
         using cb::mcbp::request::DcpAddStreamPayload;
-        auto extras = req.getExtdata();
-        const auto* payload =
-                reinterpret_cast<const DcpAddStreamPayload*>(extras.data());
+        const auto& payload = req.getCommandSpecifics<DcpAddStreamPayload>();
         ret = dcpAddStream(
-                cookie, req.getOpaque(), req.getVBucket(), payload->getFlags());
+                cookie, req.getOpaque(), req.getVBucket(), payload.getFlags());
     }
 
     if (ret != cb::engine_errc::success) {

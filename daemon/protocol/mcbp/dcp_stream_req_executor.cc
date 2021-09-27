@@ -35,17 +35,16 @@ void dcp_stream_req_executor(Cookie& cookie) {
 
     if (ret == cb::engine_errc::success) {
         const auto& request = cookie.getRequest();
-        auto extras = request.getExtdata();
         using cb::mcbp::request::DcpStreamReqPayload;
-        const auto* payload =
-                reinterpret_cast<const DcpStreamReqPayload*>(extras.data());
+        const auto& payload =
+                request.getCommandSpecifics<DcpStreamReqPayload>();
 
-        uint32_t flags = payload->getFlags();
-        uint64_t start_seqno = payload->getStartSeqno();
-        uint64_t end_seqno = payload->getEndSeqno();
-        uint64_t vbucket_uuid = payload->getVbucketUuid();
-        uint64_t snap_start_seqno = payload->getSnapStartSeqno();
-        uint64_t snap_end_seqno = payload->getSnapEndSeqno();
+        uint32_t flags = payload.getFlags();
+        uint64_t start_seqno = payload.getStartSeqno();
+        uint64_t end_seqno = payload.getEndSeqno();
+        uint64_t vbucket_uuid = payload.getVbucketUuid();
+        uint64_t snap_start_seqno = payload.getSnapStartSeqno();
+        uint64_t snap_end_seqno = payload.getSnapEndSeqno();
 
         // Collection enabled DCP allows a value containing stream config data.
         std::optional<std::string_view> collections;

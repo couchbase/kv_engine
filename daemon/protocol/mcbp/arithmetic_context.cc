@@ -24,8 +24,7 @@ using cb::mcbp::request::ArithmeticPayload;
 ArithmeticCommandContext::ArithmeticCommandContext(Cookie& cookie,
                                                    const cb::mcbp::Request& req)
     : SteppableCommandContext(cookie),
-      extras(*reinterpret_cast<const ArithmeticPayload*>(
-              req.getExtdata().data())),
+      extras(req.getCommandSpecifics<ArithmeticPayload>()),
       cas(req.getCas()),
       vbucket(req.getVBucket()),
       increment(req.getClientOpcode() == cb::mcbp::ClientOpcode::Increment ||

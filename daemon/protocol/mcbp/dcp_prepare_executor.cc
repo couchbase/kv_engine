@@ -22,10 +22,8 @@ void dcp_prepare_executor(Cookie& cookie) {
 
     if (ret == cb::engine_errc::success) {
         const auto& req = cookie.getRequest();
-        const auto extdata = req.getExtdata();
         const auto& extras =
-                *reinterpret_cast<const cb::mcbp::request::DcpPreparePayload*>(
-                        extdata.data());
+                req.getCommandSpecifics<cb::mcbp::request::DcpPreparePayload>();
         const auto datatype = uint8_t(req.getDatatype());
         const auto value = req.getValue();
 

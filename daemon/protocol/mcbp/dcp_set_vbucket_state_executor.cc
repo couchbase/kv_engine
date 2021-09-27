@@ -22,13 +22,11 @@ void dcp_set_vbucket_state_executor(Cookie& cookie) {
     if (ret == cb::engine_errc::success) {
         using cb::mcbp::request::DcpSetVBucketState;
         auto& request = cookie.getRequest();
-        auto extras = request.getExtdata();
-        const auto* payload =
-                reinterpret_cast<const DcpSetVBucketState*>(extras.data());
+        const auto& payload = request.getCommandSpecifics<DcpSetVBucketState>();
         ret = dcpSetVbucketState(cookie,
                                  request.getOpaque(),
                                  request.getVBucket(),
-                                 vbucket_state_t(payload->getState()));
+                                 vbucket_state_t(payload.getState()));
     }
 
     if (ret != cb::engine_errc::success) {

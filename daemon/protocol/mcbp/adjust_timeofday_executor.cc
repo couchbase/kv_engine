@@ -24,18 +24,18 @@
  * unless the environment variable MEMCACHED_UNIT_TESTS is set.
  */
 void adjust_timeofday_executor(Cookie& cookie) {
-    auto extras = cookie.getRequest().getExtdata();
     using cb::mcbp::request::AdjustTimePayload;
-    auto* payload = reinterpret_cast<const AdjustTimePayload*>(extras.data());
+    const auto& payload =
+            cookie.getRequest().getCommandSpecifics<AdjustTimePayload>();
 
-    switch (payload->getTimeType()) {
+    switch (payload.getTimeType()) {
     case AdjustTimePayload::TimeType::TimeOfDay:
-        cb_set_timeofday_offset(gsl::narrow_cast<int>(payload->getOffset()));
+        cb_set_timeofday_offset(gsl::narrow_cast<int>(payload.getOffset()));
         mc_time_clock_tick();
         cookie.sendResponse(cb::mcbp::Status::Success);
         return;
     case AdjustTimePayload::TimeType::Uptime:
-        cb_set_uptime_offset(payload->getOffset());
+        cb_set_uptime_offset(payload.getOffset());
         mc_time_clock_tick();
         cookie.sendResponse(cb::mcbp::Status::Success);
         return;

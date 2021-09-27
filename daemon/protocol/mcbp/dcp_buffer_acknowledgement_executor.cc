@@ -23,14 +23,13 @@ void dcp_buffer_acknowledgement_executor(Cookie& cookie) {
 
         if (ret == cb::engine_errc::success) {
             auto& req = cookie.getRequest();
-            auto extras = req.getExtdata();
-            using Payload = cb::mcbp::request::DcpBufferAckPayload;
-            const auto* payload =
-                    reinterpret_cast<const Payload*>(extras.data());
+            using cb::mcbp::request::DcpBufferAckPayload;
+            const auto& payload =
+                    req.getCommandSpecifics<DcpBufferAckPayload>();
             ret = dcpBufferAcknowledgement(cookie,
                                            req.getOpaque(),
                                            req.getVBucket(),
-                                           payload->getBufferBytes());
+                                           payload.getBufferBytes());
         }
     }
 

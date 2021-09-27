@@ -6233,8 +6233,7 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
     using cb::mcbp::request::ReturnMetaPayload;
     using cb::mcbp::request::ReturnMetaType;
 
-    auto* payload =
-            reinterpret_cast<const ReturnMetaPayload*>(req.getExtdata().data());
+    const auto& payload = req.getCommandSpecifics<ReturnMetaPayload>();
 
     if (isDegradedMode()) {
         return cb::engine_errc::temporary_failure;
@@ -6242,9 +6241,9 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
 
     auto cas = req.getCas();
     auto datatype = uint8_t(req.getDatatype());
-    auto mutate_type = payload->getMutationType();
-    auto flags = payload->getFlags();
-    auto exp = payload->getExpiration();
+    auto mutate_type = payload.getMutationType();
+    auto flags = payload.getFlags();
+    auto exp = payload.getExpiration();
     if (exp != 0) {
         exp = ep_abs_time(ep_reltime(exp));
     }
@@ -6423,9 +6422,8 @@ cb::engine_errc EventuallyPersistentEngine::getRandomKey(
     CollectionID cid{CollectionID::Default};
 
     if (request.getExtlen()) {
-        const auto& payload =
-                reinterpret_cast<const cb::mcbp::request::GetRandomKeyPayload&>(
-                        *request.getExtdata().data());
+        const auto& payload = request.getCommandSpecifics<
+                cb::mcbp::request::GetRandomKeyPayload>();
         cid = payload.getCollectionId();
     }
 

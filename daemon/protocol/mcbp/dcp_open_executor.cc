@@ -21,9 +21,8 @@ void dcp_open_executor(Cookie& cookie) {
     using cb::mcbp::request::DcpOpenPayload;
 
     auto& request = cookie.getHeader().getRequest();
-    auto ext = request.getExtdata();
-    const auto* payload = reinterpret_cast<const DcpOpenPayload*>(ext.data());
-    const uint32_t flags = payload->getFlags();
+    const auto& payload = request.getCommandSpecifics<DcpOpenPayload>();
+    const uint32_t flags = payload.getFlags();
 
     auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
@@ -65,7 +64,7 @@ void dcp_open_executor(Cookie& cookie) {
                 ret = dcpOpen(
                         cookie,
                         request.getOpaque(),
-                        payload->getSeqno(),
+                        payload.getSeqno(),
                         flags,
                         {reinterpret_cast<const char*>(key.data()), key.size()},
                         {reinterpret_cast<const char*>(value.data()),

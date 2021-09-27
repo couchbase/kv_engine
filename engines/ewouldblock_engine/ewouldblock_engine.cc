@@ -522,13 +522,11 @@ public:
         const auto opcode = req.getClientOpcode();
         if (opcode == cb::mcbp::ClientOpcode::EwouldblockCtl) {
             using cb::mcbp::request::EWB_Payload;
-            auto extras = req.getExtdata();
-            const auto* payload =
-                    reinterpret_cast<const EWB_Payload*>(extras.data());
-            const auto mode = static_cast<EWBEngineMode>(payload->getMode());
-            const auto value = payload->getValue();
+            const auto& payload = req.getCommandSpecifics<EWB_Payload>();
+            const auto mode = static_cast<EWBEngineMode>(payload.getMode());
+            const auto value = payload.getValue();
             const auto injected_error =
-                    static_cast<cb::engine_errc>(payload->getInjectError());
+                    static_cast<cb::engine_errc>(payload.getInjectError());
             auto k = req.getKey();
             const std::string key(reinterpret_cast<const char*>(k.data()),
                                   k.size());

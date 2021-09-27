@@ -21,16 +21,15 @@ void dcp_system_event_executor(Cookie& cookie) {
     if (ret == cb::engine_errc::success) {
         using cb::mcbp::request::DcpSystemEventPayload;
         const auto& request = cookie.getRequest();
-        auto extras = request.getExtdata();
-        const auto* payload =
-                reinterpret_cast<const DcpSystemEventPayload*>(extras.data());
+        const auto& payload =
+                request.getCommandSpecifics<DcpSystemEventPayload>();
 
         ret = dcpSystemEvent(cookie,
                              request.getOpaque(),
                              request.getVBucket(),
-                             mcbp::systemevent::id(payload->getEvent()),
-                             payload->getBySeqno(),
-                             mcbp::systemevent::version(payload->getVersion()),
+                             mcbp::systemevent::id(payload.getEvent()),
+                             payload.getBySeqno(),
+                             mcbp::systemevent::version(payload.getVersion()),
                              request.getKey(),
                              request.getValue());
     }

@@ -22,10 +22,8 @@ void dcp_expiration_executor(Cookie& cookie) {
     if (ret == cb::engine_errc::success) {
         const auto& req = cookie.getRequest();
         const auto datatype = uint8_t(req.getDatatype());
-        const auto extdata = req.getExtdata();
         using cb::mcbp::request::DcpExpirationPayload;
-        const auto& extras =
-                *reinterpret_cast<const DcpExpirationPayload*>(extdata.data());
+        const auto& extras = req.getCommandSpecifics<DcpExpirationPayload>();
 
         auto value = req.getValue();
 

@@ -31,12 +31,11 @@ static cb::engine_errc dcp_deletion_v1_executor(Cookie& cookie) {
     if (extras.size() != sizeof(DcpDeletionV1Payload)) {
         return cb::engine_errc::invalid_arguments;
     }
-    auto* payload =
-            reinterpret_cast<const DcpDeletionV1Payload*>(extras.data());
 
-    const uint64_t by_seqno = payload->getBySeqno();
-    const uint64_t rev_seqno = payload->getRevSeqno();
-    const uint16_t nmeta = payload->getNmeta();
+    const auto& payload = request.getCommandSpecifics<DcpDeletionV1Payload>();
+    const uint64_t by_seqno = payload.getBySeqno();
+    const uint64_t rev_seqno = payload.getRevSeqno();
+    const uint16_t nmeta = payload.getNmeta();
 
     auto value = request.getValue();
     cb::const_byte_buffer meta{value.data() + value.size() - nmeta, nmeta};
@@ -81,12 +80,10 @@ static cb::engine_errc dcp_deletion_v2_executor(Cookie& cookie) {
     if (extras.size() != sizeof(DcpDeletionV2Payload)) {
         return cb::engine_errc::invalid_arguments;
     }
-    auto* payload =
-            reinterpret_cast<const DcpDeletionV2Payload*>(extras.data());
-
-    const uint64_t by_seqno = payload->getBySeqno();
-    const uint64_t rev_seqno = payload->getRevSeqno();
-    const uint32_t delete_time = payload->getDeleteTime();
+    const auto& payload = request.getCommandSpecifics<DcpDeletionV2Payload>();
+    const uint64_t by_seqno = payload.getBySeqno();
+    const uint64_t rev_seqno = payload.getRevSeqno();
+    const uint32_t delete_time = payload.getDeleteTime();
 
     auto value = request.getValue();
     uint32_t priv_bytes = 0;

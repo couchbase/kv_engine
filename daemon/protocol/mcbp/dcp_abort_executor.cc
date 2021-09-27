@@ -17,10 +17,8 @@ void dcp_abort_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(cb::engine_errc::success);
     if (ret == cb::engine_errc::success) {
         const auto& req = cookie.getRequest();
-        auto extdata = req.getExtdata();
         using cb::mcbp::request::DcpAbortPayload;
-        const auto& extras =
-                *reinterpret_cast<const DcpAbortPayload*>(extdata.data());
+        const auto& extras = req.getCommandSpecifics<DcpAbortPayload>();
         ret = dcpAbort(cookie,
                        req.getOpaque(),
                        req.getVBucket(),

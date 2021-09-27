@@ -19,11 +19,9 @@ void dcp_seqno_acknowledged_executor(Cookie& cookie) {
 
     if (ret == cb::engine_errc::success) {
         const auto& req = cookie.getRequest();
-        auto extdata = req.getExtdata();
         using cb::mcbp::request::DcpSeqnoAcknowledgedPayload;
         const auto& extras =
-                *reinterpret_cast<const DcpSeqnoAcknowledgedPayload*>(
-                        extdata.data());
+                req.getCommandSpecifics<DcpSeqnoAcknowledgedPayload>();
         ret = dcpSeqnoAcknowledged(cookie,
                                    req.getOpaque(),
                                    req.getVBucket(),

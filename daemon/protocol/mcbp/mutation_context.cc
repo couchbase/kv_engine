@@ -28,8 +28,7 @@ MutationCommandContext::MutationCommandContext(Cookie& cookie,
       operation(req.getCas() == 0 ? op_ : StoreSemantics::CAS),
       vbucket(req.getVBucket()),
       input_cas(req.getCas()),
-      extras(*reinterpret_cast<const cb::mcbp::request::MutationPayload*>(
-              req.getExtdata().data())),
+      extras(req.getCommandSpecifics<cb::mcbp::request::MutationPayload>()),
       datatype(uint8_t(req.getDatatype())),
       state(State::ValidateInput),
       store_if_predicate(cookie.getConnection().selectedBucketIsXattrEnabled()

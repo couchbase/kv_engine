@@ -20,14 +20,13 @@ void dcp_stream_end_executor(Cookie& cookie) {
 
     if (ret == cb::engine_errc::success) {
         auto& request = cookie.getRequest();
-        auto extras = request.getExtdata();
         using cb::mcbp::request::DcpStreamEndPayload;
-        const auto* payload =
-                reinterpret_cast<const DcpStreamEndPayload*>(extras.data());
+        const auto& payload =
+                request.getCommandSpecifics<DcpStreamEndPayload>();
         ret = dcpStreamEnd(cookie,
                            request.getOpaque(),
                            request.getVBucket(),
-                           payload->getStatus());
+                           payload.getStatus());
     }
 
     if (ret != cb::engine_errc::success) {

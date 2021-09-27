@@ -166,6 +166,28 @@ public:
         return reinterpret_cast<Header*>(this)->getExtdata();
     }
 
+    /**
+     * Helper method to get the command specific part of a request
+     * as a given class.
+     *
+     * The command validator is the first part of the code which looks at the
+     * packet and it MUST check all length fields in the packet that they
+     * all adds up (and as part of that verify that the size of the extdata
+     * contains the correct size). All that happens while validating the
+     * packet header and _BEFORE_ this method is called.
+     */
+    template <class T>
+    const T& getCommandSpecifics() const {
+#ifdef DEBUG
+        if (sizeof(*T) > getExtdata().size()) {
+            throw std::runtime_error(
+                    "Request::getCommandSpecifics(): Invalid extras size "
+                    "provided");
+        }
+#endif
+        return *reinterpret_cast<const T*>(getExtdata().data());
+    }
+
     cb::const_byte_buffer getKey() const {
         return reinterpret_cast<const Header*>(this)->getKey();
     }

@@ -43,9 +43,8 @@ cb::engine_errc SessionValidatedCommandContext::step() {
 static EngineParamCategory getParamCategory(Cookie& cookie) {
     const auto& req = cookie.getRequest();
     using cb::mcbp::request::SetParamPayload;
-    auto extras = req.getExtdata();
-    auto* payload = reinterpret_cast<const SetParamPayload*>(extras.data());
-    switch (payload->getParamType()) {
+    const auto& payload = req.getCommandSpecifics<SetParamPayload>();
+    switch (payload.getParamType()) {
     case SetParamPayload::Type::Flush:
         return EngineParamCategory::Flush;
     case SetParamPayload::Type::Replication:
@@ -58,7 +57,7 @@ static EngineParamCategory getParamCategory(Cookie& cookie) {
         return EngineParamCategory::Vbucket;
     }
     throw std::invalid_argument("getParamCategory(): Invalid param provided: " +
-                                std::to_string(int(payload->getParamType())));
+                                std::to_string(int(payload.getParamType())));
 }
 
 SetParameterCommandContext::SetParameterCommandContext(Cookie& cookie)
