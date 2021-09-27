@@ -1491,6 +1491,21 @@ cb::engine_errc NexusKVStore::getAllKeys(
         handleError(msg);
     }
 
+    if (!secondaryCallback->primaryCallbacks.empty()) {
+        std::stringstream ss;
+        for (auto& [key, errc] : secondaryCallback->primaryCallbacks) {
+            ss << cb::UserData(key.to_string()) << ",";
+        }
+        ss.unget();
+
+        auto msg = fmt::format(
+                "NexusKVStore::getAllKeys: {}: callbacks made by primary but "
+                "not secondary: {}",
+                vbid,
+                ss.str());
+        handleError(msg);
+    }
+
     return primaryResult;
 }
 
