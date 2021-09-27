@@ -28,6 +28,12 @@ public:
         document.info.id = name;
         document.info.expiration = 0;
         document.value = memcached_cfg.dump();
+        userConnection->setFeature(cb::mcbp::Feature::Tracing, false);
+    }
+
+    static void SetUpTestCase() {
+        TestappTest::SetUpTestCase();
+        createUserConnection = true;
     }
 
 protected:
@@ -35,62 +41,52 @@ protected:
 };
 
 TEST_F(TracingTest, NoDataUnlessRequested) {
-    MemcachedConnection& conn = getConnection();
-
     // Enable Tracing feature on Server
     setTracingFeatureOnServer(true);
 
-    // Turn OFF feature from client
-    conn.setFeature(cb::mcbp::Feature::Tracing, false);
-
     // Tracing is NOT explicitly requested, so no trace data
-    conn.mutate(document, Vbid(0), MutationType::Add);
-    EXPECT_FALSE(conn.getTraceData());
-    EXPECT_FALSE(conn.hasFeature(cb::mcbp::Feature::Tracing));
+    userConnection->mutate(document, Vbid(0), MutationType::Add);
+    EXPECT_FALSE(userConnection->getTraceData());
+    EXPECT_FALSE(userConnection->hasFeature(cb::mcbp::Feature::Tracing));
 }
 
 TEST_F(TracingTest, ValidDataOnRequest) {
-    MemcachedConnection& conn = getConnection();
     // Enable Tracing feature on Server
     setTracingFeatureOnServer(true);
 
     // Request Trace Info
-    conn.setFeature(cb::mcbp::Feature::Tracing, true);
+    userConnection->setFeature(cb::mcbp::Feature::Tracing, true);
 
     // Expect some trace data
     auto start = std::chrono::steady_clock::now();
-    conn.mutate(document, Vbid(0), MutationType::Add);
+    userConnection->mutate(document, Vbid(0), MutationType::Add);
     auto end = std::chrono::steady_clock::now();
     auto duration =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    auto traceData = conn.getTraceData();
+    auto traceData = userConnection->getTraceData();
     EXPECT_TRUE(traceData);
-    EXPECT_TRUE(conn.hasFeature(cb::mcbp::Feature::Tracing));
+    EXPECT_TRUE(userConnection->hasFeature(cb::mcbp::Feature::Tracing));
 
     // expect the above operation to complete in <= overall time
     EXPECT_LE(*traceData, duration);
 }
 
 TEST_F(TracingTest, NoDataWhenDisabledOnServer) {
-    MemcachedConnection& conn = getConnection();
-
     // Disable Tracing feature on Server
     setTracingFeatureOnServer(false);
 
     // Tracing is disabled on server, so no trace data
-    conn.mutate(document, Vbid(0), MutationType::Add);
-    EXPECT_FALSE(conn.getTraceData());
-    EXPECT_FALSE(conn.hasFeature(cb::mcbp::Feature::Tracing));
+    userConnection->mutate(document, Vbid(0), MutationType::Add);
+    EXPECT_FALSE(userConnection->getTraceData());
+    EXPECT_FALSE(userConnection->hasFeature(cb::mcbp::Feature::Tracing));
 }
 
 TEST_F(TracingTest, FailOnFeatureRequestWhenDisabledOnServer) {
-    MemcachedConnection& conn = getConnection();
-
     // Disable Tracing feature on Server
     setTracingFeatureOnServer(false);
 
     // Request Tracing Data
     // This will fail as the feature is disabled on Server
-    EXPECT_THROW(conn.setFeature(cb::mcbp::Feature::Tracing, true),
+    EXPECT_THROW(userConnection->setFeature(cb::mcbp::Feature::Tracing, true),
                  std::runtime_error);
 }

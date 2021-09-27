@@ -12,7 +12,13 @@
 
 using cb::mcbp::ClientOpcode;
 
-class NotSupportedTest : public TestappTest {};
+class NotSupportedTest : public TestappTest {
+public:
+    static void SetUpTestCase() {
+        TestappTest::SetUpTestCase();
+        createUserConnection = true;
+    }
+};
 
 TEST_F(NotSupportedTest, VerifyNotSupported) {
     std::vector<ClientOpcode> opcodes = {
@@ -48,7 +54,7 @@ TEST_F(NotSupportedTest, VerifyNotSupported) {
              ClientOpcode::DeregisterTapClient_Unsupported}};
 
     for (const auto opcode : opcodes) {
-        auto rsp = getConnection().execute(BinprotGenericCommand(opcode));
+        const auto rsp = userConnection->execute(BinprotGenericCommand(opcode));
         ASSERT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus())
                 << "Unexpected response packet: "
                 << rsp.getResponse().toJSON(false);

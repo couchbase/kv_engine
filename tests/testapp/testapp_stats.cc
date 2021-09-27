@@ -101,24 +101,22 @@ TEST_P(StatsTest, StatsResetIsPrivileged) {
 }
 
 TEST_P(StatsTest, TestReset) {
-    MemcachedConnection& conn = getConnection();
-
-    auto stats = conn.stats("");
+    auto stats = userConnection->stats("");
     ASSERT_FALSE(stats.empty());
 
     auto before = stats["cmd_get"].get<size_t>();
 
     for (int ii = 0; ii < 10; ++ii) {
-        EXPECT_THROW(conn.get("foo", Vbid(0)), ConnectionError);
+        EXPECT_THROW(userConnection->get("foo", Vbid(0)), ConnectionError);
     }
 
-    stats = conn.stats("");
+    stats = userConnection->stats("");
     EXPECT_NE(before, stats["cmd_get"].get<size_t>());
 
     // the cmd_get counter does work.. now check that reset sets it back..
     resetBucket();
 
-    stats = conn.stats("");
+    stats = userConnection->stats("");
     EXPECT_EQ(0, stats["cmd_get"].get<size_t>());
 
     // Just ensure that the "reset timings" is detected
@@ -144,7 +142,8 @@ TEST_P(StatsTest, TestReset) {
  */
 TEST_P(StatsTest, Test_MB_17815) {
     MemcachedConnection& conn = getConnection();
-
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
     auto stats = conn.stats("");
     EXPECT_EQ(0, stats["cmd_set"].get<size_t>());
 
@@ -183,6 +182,8 @@ TEST_P(StatsTest, Test_MB_17815) {
  */
 TEST_P(StatsTest, Test_MB_17815_Append) {
     MemcachedConnection& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
 
     auto stats = conn.stats("");
     EXPECT_EQ(0, stats["cmd_set"].get<size_t>());
@@ -227,6 +228,8 @@ TEST_P(StatsTest, Test_MB_17815_Append) {
  */
 TEST_P(StatsTest, Test_MB_29259_Append) {
     MemcachedConnection& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
 
     auto stats = conn.stats("");
     EXPECT_EQ(0, stats["cmd_set"].get<size_t>());
@@ -251,6 +254,8 @@ TEST_P(StatsTest, Test_MB_29259_Append) {
 
 TEST_P(StatsTest, TestAppend) {
     MemcachedConnection& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
 
     // Set a document
     Document doc;
@@ -371,8 +376,7 @@ TEST_P(StatsTest, TestSchedulerInfo_InvalidSubcommand) {
 }
 
 TEST_P(StatsTest, TestAggregate) {
-    MemcachedConnection& conn = getConnection();
-    auto stats = conn.stats("aggregate");
+    auto stats = userConnection->stats("aggregate");
     // Don't expect the entire stats set, but we should at least have
     // the uptime
     EXPECT_NE(stats.end(), stats.find("uptime"));
@@ -401,6 +405,7 @@ TEST_P(StatsTest, TestPrivilegedConnections) {
 TEST_P(StatsTest, TestUnprivilegedConnections) {
     // Everyone should be allowed to see its own connection details
     MemcachedConnection& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
     conn.setAgentName("TestUnprivilegedConnections 1.0");
     conn.setFeatures({cb::mcbp::Feature::XERROR});
     auto stats = conn.stats("connections");
@@ -438,8 +443,7 @@ TEST_P(StatsTest, TestConnectionsInvalidNumber) {
 }
 
 TEST_P(StatsTest, TestSubdocExecute) {
-    MemcachedConnection& conn = getConnection();
-    auto stats = conn.stats("subdoc_execute");
+    auto stats = userConnection->stats("subdoc_execute");
 
     // json returned should have zero samples as no ops have been performed
     EXPECT_TRUE(stats.is_object());
@@ -474,7 +478,6 @@ TEST_P(StatsTest, TestTracingStats) {
 }
 
 TEST_P(StatsTest, TestSingleBucketOpStats) {
-    auto& conn = getConnection();
     std::string key = "key";
 
     // Set a document
@@ -485,11 +488,11 @@ TEST_P(StatsTest, TestSingleBucketOpStats) {
     doc.value = "asdf";
 
     // mutate to bump stat
-    conn.mutate(doc, Vbid(0), MutationType::Set);
+    userConnection->mutate(doc, Vbid(0), MutationType::Set);
     // lookup to bump stat
-    conn.get(key, Vbid(0));
+    userConnection->get(key, Vbid(0));
 
-    auto stats = conn.stats("");
+    auto stats = userConnection->stats("");
 
     EXPECT_FALSE(stats.empty());
 

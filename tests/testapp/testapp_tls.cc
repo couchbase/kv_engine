@@ -57,8 +57,8 @@ protected:
         try {
             connection->setTlsProtocol(version);
             connection->reconnect();
-            const auto rsp = connection->execute(
-                    BinprotGenericCommand(cb::mcbp::ClientOpcode::Noop));
+            const auto rsp = connection->execute(BinprotGenericCommand(
+                    cb::mcbp::ClientOpcode::SaslListMechs));
             ASSERT_TRUE(rsp.isSuccess()) << "Failed with version " << version;
         } catch (const std::exception& e) {
             FAIL() << "Failed with version \"" << version << "\": " << e.what();
