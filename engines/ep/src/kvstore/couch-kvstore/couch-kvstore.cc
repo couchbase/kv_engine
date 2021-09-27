@@ -3893,7 +3893,7 @@ CouchKVStore::ReadLocalDocResult CouchKVStore::readLocalDoc(
 }
 
 std::optional<Collections::ManifestUid> CouchKVStore::getCollectionsManifestUid(
-        KVFileHandle& kvFileHandle) {
+        KVFileHandle& kvFileHandle) const {
     auto& couchKvHandle = static_cast<CouchKVFileHandle&>(kvFileHandle);
     auto db = couchKvHandle.getDb();
     auto manifestRes = readLocalDoc(*db, LocalDocKey::manifest);
@@ -4362,7 +4362,7 @@ std::optional<DbHolder> CouchKVStore::openOrCreate(Vbid vbid) noexcept {
 GetValue CouchKVStore::getBySeqno(KVFileHandle& handle,
                                   Vbid vbid,
                                   uint64_t seq,
-                                  ValueFilter filter) {
+                                  ValueFilter filter) const {
     auto& couchKvHandle = static_cast<CouchKVFileHandle&>(handle);
     auto& db = couchKvHandle.getDbHolder();
 

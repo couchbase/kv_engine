@@ -57,7 +57,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
         return backfill_snooze;
     }
 
-    auto* kvstore = bucket.getRWUnderlying(vbid);
+    auto* kvstore = bucket.getROUnderlying(vbid);
     if (!kvstore) {
         stream->log(spdlog::level::level_enum::warn,
                     "DCPBackfillBySeqnoDisk::create(): couldn't get KVStore "
@@ -263,7 +263,7 @@ DCPBackfillBySeqnoDisk::getHighSeqnoOfCollections(
 
 bool DCPBackfillBySeqnoDisk::markDiskSnapshot(ActiveStream& stream,
                                               BySeqnoScanContext& scanCtx,
-                                              KVStoreIface& kvs) {
+                                              const KVStoreIface& kvs) {
     if (stream.getFilter().isLegacyFilter()) {
         return markLegacyDiskSnapshot(stream, scanCtx, kvs);
     }
@@ -309,7 +309,7 @@ bool DCPBackfillBySeqnoDisk::markDiskSnapshot(ActiveStream& stream,
 //     so that's the starting point for figuring this out.
 bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                                     BySeqnoScanContext& scanCtx,
-                                                    KVStoreIface& kvs) {
+                                                    const KVStoreIface& kvs) {
     // We enter here for a legacy DCP stream
     // but bail if syncReplication and ! manifest 0 (more work needed to
     // get all markDiskSnapshot parameters)

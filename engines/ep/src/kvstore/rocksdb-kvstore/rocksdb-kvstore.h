@@ -300,7 +300,7 @@ public:
     }
 
     std::optional<Collections::ManifestUid> getCollectionsManifestUid(
-            KVFileHandle& kvFileHandle) override {
+            KVFileHandle& kvFileHandle) const override {
         // TODO: rocksDb has no collections support, return default manifest-uid
         return Collections::ManifestUid{0};
     }
@@ -324,7 +324,7 @@ public:
     GetValue getBySeqno(KVFileHandle& handle,
                         Vbid vbid,
                         uint64_t seq,
-                        ValueFilter filter) override;
+                        ValueFilter filter) const override;
 
     std::unique_ptr<TransactionContext> begin(
             Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) override;

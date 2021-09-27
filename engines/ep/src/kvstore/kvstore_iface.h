@@ -533,7 +533,7 @@ public:
      * @return The ManifestUid or nothing if failure occurred
      */
     virtual std::optional<Collections::ManifestUid> getCollectionsManifestUid(
-            KVFileHandle& kvFileHandle) = 0;
+            KVFileHandle& kvFileHandle) const = 0;
 
     /**
      * Return data that EPBucket requires for the creation of a
@@ -580,7 +580,7 @@ public:
     virtual GetValue getBySeqno(KVFileHandle& handle,
                                 Vbid vbid,
                                 uint64_t seq,
-                                ValueFilter filter) = 0;
+                                ValueFilter filter) const = 0;
 
     /**
      * Set the number of storage threads based on configuration settings

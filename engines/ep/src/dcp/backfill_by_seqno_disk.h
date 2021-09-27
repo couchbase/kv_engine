@@ -94,7 +94,7 @@ private:
      */
     bool markDiskSnapshot(ActiveStream& stream,
                           BySeqnoScanContext& scanCtx,
-                          KVStoreIface& kvs);
+                          const KVStoreIface& kvs);
 
     /**
      * Private method for deciding how to call ActiveStream::markDiskSnapshot
@@ -102,5 +102,5 @@ private:
      */
     bool markLegacyDiskSnapshot(ActiveStream& stream,
                                 BySeqnoScanContext& scanCtx,
-                                KVStoreIface& kvs);
+                                const KVStoreIface& kvs);
 };

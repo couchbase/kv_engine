@@ -2067,7 +2067,7 @@ NexusKVStore::getCollectionStats(Vbid vbid, CollectionID collection) const {
 }
 
 std::optional<Collections::ManifestUid> NexusKVStore::getCollectionsManifestUid(
-        KVFileHandle& kvFileHandle) {
+        KVFileHandle& kvFileHandle) const {
     auto& nexusFileHandle =
             dynamic_cast<const NexusKVFileHandle&>(kvFileHandle);
     const auto primaryResult = primary->getCollectionsManifestUid(
@@ -2178,7 +2178,7 @@ const KVStoreConfig& NexusKVStore::getConfig() const {
 GetValue NexusKVStore::getBySeqno(KVFileHandle& handle,
                                   Vbid vbid,
                                   uint64_t seq,
-                                  ValueFilter filter) {
+                                  ValueFilter filter) const {
     auto& nexusFileHandle = dynamic_cast<NexusKVFileHandle&>(handle);
 
     auto primaryGetValue = primary->getBySeqno(

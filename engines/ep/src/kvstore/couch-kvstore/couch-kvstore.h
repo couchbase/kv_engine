@@ -369,7 +369,7 @@ public:
     uint64_t prepareToDeleteImpl(Vbid vbid) override;
 
     std::optional<Collections::ManifestUid> getCollectionsManifestUid(
-            KVFileHandle& kvFileHandle) override;
+            KVFileHandle& kvFileHandle) const override;
 
     /**
      * CouchKVStore implements this method as a read of 3 _local documents
@@ -406,7 +406,7 @@ public:
     GetValue getBySeqno(KVFileHandle& handle,
                         Vbid vbid,
                         uint64_t seq,
-                        ValueFilter filter) override;
+                        ValueFilter filter) const override;
 
     /**
      * @return the local document name for the collections stats

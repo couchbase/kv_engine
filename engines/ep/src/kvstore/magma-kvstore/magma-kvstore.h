@@ -286,7 +286,7 @@ public:
     uint64_t prepareToDeleteImpl(Vbid vbid) override;
 
     std::optional<Collections::ManifestUid> getCollectionsManifestUid(
-            KVFileHandle& kvFileHandle) override;
+            KVFileHandle& kvFileHandle) const override;
 
     /**
      * Retrieve the manifest from the local db.
@@ -576,7 +576,7 @@ public:
     GetValue getBySeqno(KVFileHandle& handle,
                         Vbid vbid,
                         uint64_t seq,
-                        ValueFilter filter) override;
+                        ValueFilter filter) const override;
 
     std::unique_ptr<TransactionContext> begin(
             Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) override;

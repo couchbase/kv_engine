@@ -1927,7 +1927,7 @@ vbucket_state RocksDBKVStore::getPersistedVBucketState(Vbid vbid) const {
 GetValue RocksDBKVStore::getBySeqno(KVFileHandle& handle,
                                     Vbid vbid,
                                     uint64_t seq,
-                                    ValueFilter filter) {
+                                    ValueFilter filter) const {
     // @todo: Add support for RocksDB
     return GetValue{nullptr, cb::engine_errc::no_such_key};
 }

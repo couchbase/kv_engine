@@ -184,7 +184,7 @@ public:
     MOCK_METHOD((std::optional<Collections::ManifestUid>),
                 getCollectionsManifestUid,
                 (KVFileHandle & kvFileHandle),
-                (override));
+                (const, override));
     MOCK_METHOD((std::pair<bool, Collections::KVStore::Manifest>),
                 getCollectionsManifest,
                 (Vbid vbid),
@@ -202,7 +202,7 @@ public:
                  Vbid vbid,
                  uint64_t seq,
                  ValueFilter filter),
-                (override));
+                (const, override));
     MOCK_METHOD(void,
                 setStorageThreads,
                 (ThreadPoolConfig::StorageThreadCount num),

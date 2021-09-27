@@ -109,7 +109,7 @@ public:
     std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
     getCollectionStats(Vbid vbid, CollectionID collection) const override;
     std::optional<Collections::ManifestUid> getCollectionsManifestUid(
-            KVFileHandle& kvFileHandle) override;
+            KVFileHandle& kvFileHandle) const override;
     std::pair<bool, Collections::KVStore::Manifest> getCollectionsManifest(
             Vbid vbid) const override;
     std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
@@ -118,7 +118,7 @@ public:
     GetValue getBySeqno(KVFileHandle& handle,
                         Vbid vbid,
                         uint64_t seq,
-                        ValueFilter filter) override;
+                        ValueFilter filter) const override;
     void setStorageThreads(ThreadPoolConfig::StorageThreadCount num) override;
     std::unique_ptr<TransactionContext> begin(
             Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) override;

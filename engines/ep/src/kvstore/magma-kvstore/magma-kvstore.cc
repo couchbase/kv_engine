@@ -2443,7 +2443,7 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
 }
 
 std::optional<Collections::ManifestUid> MagmaKVStore::getCollectionsManifestUid(
-        KVFileHandle& kvFileHandle) {
+        KVFileHandle& kvFileHandle) const {
     auto& kvfh = static_cast<MagmaKVFileHandle&>(kvFileHandle);
 
     auto [status, manifest] =
@@ -3141,7 +3141,7 @@ uint32_t MagmaKVStore::getExpiryOrPurgeTime(const magma::Slice& slice) {
 GetValue MagmaKVStore::getBySeqno(KVFileHandle& handle,
                                   Vbid vbid,
                                   uint64_t seq,
-                                  ValueFilter filter) {
+                                  ValueFilter filter) const {
     auto& snapshot = *dynamic_cast<const MagmaKVFileHandle&>(handle).snapshot;
     GetValue rv(nullptr, cb::engine_errc::no_such_key);
     bool found;
