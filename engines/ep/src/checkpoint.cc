@@ -302,10 +302,13 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
 
                 rv.status = QueueDirtyStatus::SuccessExistingItem;
 
-                // Given the key already exists, need to check all cursors in
-                // this Checkpoint and see if the existing item for this key is
-                // to the "left" of the cursor (i.e. has already been
-                // processed).
+                // In the following loop we perform various operations in
+                // preparation for removing the item being dedup'ed:
+                //
+                // 1. We avoid invalid cursors by repositioning any cursor that
+                //    points to the item being removed.
+                // 2. Specifically and only for the Persistence cursor, we need
+                //    to do some computation for correct stats update at caller.
                 for (auto& cursor : manager->cursors) {
                     if ((*(cursor.second->currentCheckpoint)).get() != this) {
                         // Cursor is in another checkpoint, doesn't need
@@ -313,26 +316,26 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                         continue;
                     }
 
-                    auto decrCursorIfSameKey = [&cursor, &oldPos]() {
-                        // If a cursor points to the existing item for the same
-                        // key, shift it left by 1
-                        if (cursor.second->currentPos.getUnderlyingIterator() ==
-                            oldPos) {
-                            cursor.second->decrPos();
-                        }
-                    };
+                    // Save the original cursor pos before the cursor is
+                    // possibly repositioned
+                    const auto originalCursorPos = cursor.second->currentPos;
 
+                    // Reposition the cursor to the previous item if it points
+                    // to the item being dedup'ed. Done for all cursors.
+                    if (originalCursorPos.getUnderlyingIterator() == oldPos) {
+                        // Note: We never deduplicate meta-items
+                        Expects(!(*originalCursorPos)->isCheckPointMetaItem());
+                        cursor.second->decrPos();
+                    }
+
+                    // The logic below is specific to the Persistence cursor,
+                    // so skip it for any other cursor.
                     if (cursor.second->name != CheckpointManager::pCursorName) {
-                        decrCursorIfSameKey();
-
-                        // Persistence cursor requires some special logic below,
-                        // other cursors are all "fixed up" so go to the
-                        // next
                         continue;
                     }
 
-                    const auto& cursor_item = *(cursor.second->currentPos);
-                    auto cursorSeqno = cursor_item->getBySeqno();
+                    // Code path executed only for Persistence cursor
+
                     // If the cursor item is non-meta, then we need to return
                     // persist again if the existing item is either before or on
                     // the cursor - as the cursor points to the "last processed"
@@ -340,13 +343,15 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                     // need to return persist again if the existing item is
                     // strictly less than the cursor, as meta-items can share a
                     // seqno with a non-meta item but are logically before them.
-                    if (cursor_item->isCheckPointMetaItem()) {
-                        --cursorSeqno;
-                    }
+                    //
+                    // Note: For correct computation we need to use the original
+                    // cursor seqno.
+                    const auto originalCursorSeqno =
+                            (*originalCursorPos)->isCheckPointMetaItem()
+                                    ? (*originalCursorPos)->getBySeqno() - 1
+                                    : (*originalCursorPos)->getBySeqno();
 
-                    if (existingSeqno > cursorSeqno) {
-                        decrCursorIfSameKey();
-
+                    if (existingSeqno > originalCursorSeqno) {
                         // Old mutation comes after the cursor, nothing else to
                         // do here
                         continue;
@@ -363,17 +368,15 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                     // a single item (we de-dupe below). Track this in an
                     // AggregatedFlushStats in CheckpointManager so that we can
                     // undo these stat updates if the flush fails.
-                    auto backupPCursor = manager->cursors.find(
+                    const auto backupPCursor = manager->cursors.find(
                             CheckpointManager::backupPCursorName);
 
                     if (backupPCursor == manager->cursors.end()) {
-                        decrCursorIfSameKey();
-
                         // We're not mid-flush, don't need to adjust any stats
                         continue;
                     }
 
-                    auto backupPCursorSeqno =
+                    const auto backupPCursorSeqno =
                             (*(*backupPCursor->second).currentPos)
                                     ->getBySeqno();
                     if (backupPCursorSeqno <= existingSeqno) {
@@ -384,8 +387,6 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                         manager->persistenceFailureStatOvercounts.accountItem(
                                 *oldItem);
                     }
-
-                    decrCursorIfSameKey();
                 }
 
                 if (rv.status == QueueDirtyStatus::SuccessExistingItem) {
