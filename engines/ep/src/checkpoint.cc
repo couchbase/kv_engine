@@ -566,7 +566,8 @@ void Checkpoint::addItemToCheckpoint(const queued_item& qi) {
     }
 }
 
-CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last) {
+CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last,
+                                       size_t distance) {
     CheckpointQueue expelledItems(toWrite.get_allocator());
 
     // Expel from the the first item after the checkpoint_start item (included)
@@ -588,12 +589,23 @@ CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last) {
     // Record the seqno of the last item to be expelled.
     highestExpelledSeqno = (*last)->getBySeqno();
 
+    // Note: If reaching here the logic ensures that we have at least one item
+    // to expel. Thus, the lowest expected position for 'last' is at the item
+    // next to checkpoint_start, which has distance=2.
+    Expects(distance >= 2);
+    // 'distance' is the distance toWrite.begin->last and we need the distance
+    // first->std::next(last). So:
+    // -2 as 'first' is 2 hops from toWrite.begin()
+    // +1 as our range-end is std::next(last)
+    distance = distance - 2 + 1;
+
     expelledItems.splice(
             ChkptQueueIterator::const_underlying_iterator{
                     expelledItems.begin()},
             toWrite,
             ChkptQueueIterator::const_underlying_iterator{first},
-            ChkptQueueIterator::const_underlying_iterator{std::next(last)});
+            ChkptQueueIterator::const_underlying_iterator{std::next(last)},
+            distance);
 
     // Note: No key-index in disk checkpoints
     if (getState() == CHECKPOINT_OPEN && isMemoryCheckpoint()) {

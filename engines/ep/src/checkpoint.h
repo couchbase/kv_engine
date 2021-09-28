@@ -510,12 +510,13 @@ public:
     void addItemToCheckpoint(const queued_item& qi);
 
     /**
-     * Expel those items in the checkpoint where all cursors have passed.
+     * Expels items in the [checkpoint_start + 1, last].
      *
-     * @param lastToExpel Iterator to the last item to expel (inclusive)
+     * @param last Iterator to the last item to expel (inclusive)
+     * @param distance The distance between CheckpointQueue.begin() and last
      * @return the expelled items
      */
-    CheckpointQueue expelItems(const ChkptQueueIterator& lastToExpel);
+    CheckpointQueue expelItems(const ChkptQueueIterator& last, size_t distance);
 
     /// @return true if this is a disk checkpoint (replica streaming from disk)
     bool isDiskCheckpoint() const {

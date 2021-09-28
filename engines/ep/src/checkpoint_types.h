@@ -36,8 +36,10 @@ using CheckpointList = boost::container::list<std::unique_ptr<Checkpoint>>;
 // List is used for queueing mutations as vector incurs shift operations for
 // de-duplication.  We template the list on a queued_item and our own
 // memory allocator which allows memory usage to be tracked.
+// Boost list rather than std list for the same reason as for CheckpointList.
 using CheckpointQueue =
-        std::list<queued_item, MemoryTrackingAllocator<queued_item>>;
+        boost::container::list<queued_item,
+                               MemoryTrackingAllocator<queued_item>>;
 
 /**
  * Callback function invoked when a checkpoint becomes unreferenced; used

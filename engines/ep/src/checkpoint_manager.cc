@@ -1898,6 +1898,11 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
 
     // Never expel items pointed by cursor.
     auto iterator = std::prev(lowestCursor->currentPos);
+    // The distance between CheckpointQueue.begin() and 'iterator'.
+    auto distance = lowestCursor->getDistance();
+    // Note: If reached here lowestCursor points to some position > begin()
+    Expects(distance > 0);
+    --distance;
 
     /*
      * Walk backwards over the checkpoint if not yet reached the dummy item,
@@ -1915,6 +1920,8 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
                      (*std::next(iterator))->getBySeqno()) ||
             ((*iterator)->isCheckPointMetaItem()))) {
         --iterator;
+        Expects(distance > 0);
+        --distance;
     }
 
     // If pointing to the dummy item then cannot expel anything and so just
@@ -1923,7 +1930,7 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
         return {};
     }
 
-    auto expelledItems = oldestCheckpoint->expelItems(iterator);
+    auto expelledItems = oldestCheckpoint->expelItems(iterator, distance);
 
     // Re-compute the distance for all cursors that reside in the touched
     // checkpoint
