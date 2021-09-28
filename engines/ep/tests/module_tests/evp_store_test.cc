@@ -1367,6 +1367,24 @@ TEST_P(EPBucketTest, expiredItemCount) {
     EXPECT_EQ(1, store->getVBucket(vbid)->numExpiredItems);
 }
 
+// MB-48577, Replace operations are blocked until traffic has been enabled.
+TEST_P(EPBucketTest, replaceRequiresEnabledTraffic) {
+    auto key = makeStoredDocKey("key");
+    auto item = make_item(vbid, key, "value2");
+    store_item(vbid, key, "value1");
+    flush_vbucket_to_disk(vbid);
+    engine->public_enableTraffic(false);
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
+              engine->storeIfInner(
+                            cookie, item, 0, StoreSemantics::Replace, {}, false)
+                      .status);
+    engine->public_enableTraffic(true);
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->storeIfInner(
+                            cookie, item, 0, StoreSemantics::Replace, {}, false)
+                      .status);
+}
+
 TEST_P(EPBucketBloomFilterParameterizedTest, store_if_throws) {
     // You can't keep returning GetItemInfo
     cb::StoreIfPredicate predicate =

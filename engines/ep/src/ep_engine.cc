@@ -2502,6 +2502,11 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         break;
 
     case StoreSemantics::Replace:
+        // MB-48577: Don't permit replace until traffic is enabled
+        if (isDegradedMode()) {
+            return {cb::engine_errc::temporary_failure, cas};
+        }
+
         item.setPreserveTtl(preserveTtl);
         status = kvBucket->replace(item, cookie, predicate);
         break;
