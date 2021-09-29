@@ -1284,10 +1284,10 @@
             "descr": "If the number of storage threads = 0, then we set the number of storage threads based on the number of writer threads up to a maximum of 20 threads and use magma_flusher_thread_percentage to determine the ratio of flusher and compactor threads.",
             "type": "size_t"
         },
-        "magma_checkpoint_every_batch": {
+        "magma_sync_every_batch": {
             "default": "false",
             "dynamic": false,
-            "descr": "Couchstore generates a potential commit point at the end of every batch of items. During normal operation, Magma checkpoints are take at every magma_checkpoint_interval. Many of the tests require more frequent checkpoints so this configuration parameter makes sure every batch generates a checkpoint. Should be used for testing only!",
+            "descr": "Couchstore generates a commit point at the end of every batch of items. During normal operation, Magma checkpoints are taken at every magma_checkpoint_interval. Many of the tests require more frequent checkpoints so this configuration parameter makes sure every batch generates a checkpoint. Each checkpoint generated in this way is a \"Sync\" checkpoint and isn't going to be useful for rollback as it only the latest checkpoint is a \"Sync\" checkpoiont. A \"Rollback\" checkpoint will be made instead if we set magma_checkpoint_interval to 0. The \"Rollback\" checkpoints are stored in the checkpoint queue as potential rollback points. Should be used for testing only!",
             "type": "bool"
         },
         "magma_enable_wal": {

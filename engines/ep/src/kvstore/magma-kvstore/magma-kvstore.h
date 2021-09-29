@@ -745,8 +745,11 @@ protected:
     std::vector<Monotonic<uint64_t>> kvstoreRevList;
 
     // For testing, we need to simulate couchstore where every batch
-    // is a potential rollback point.
-    bool doCheckpointEveryBatch{false};
+    // is a potential rollback point. We do this by Syncing after every batch
+    // but that only creates a Sync checkpoint rather than a Rollback checkpoint
+    // in magma. To create Rollback checkpoints on every flush we need to also
+    // set the checkpoint_interval to 0.
+    bool doSyncEveryBatch{false};
 
     // Using upsert for Set means we can't keep accurate document totals.
     // This is used for testing only!

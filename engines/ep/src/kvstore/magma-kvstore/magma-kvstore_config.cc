@@ -62,7 +62,7 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaMaxWriteCache = config.getMagmaMaxWriteCache();
     magmaEnableDirectIo = config.isMagmaEnableDirectIo();
     magmaInitialWalBufferSize = config.getMagmaInitialWalBufferSize();
-    magmaCheckpointEveryBatch = config.isMagmaCheckpointEveryBatch();
+    magmaSyncEveryBatch = config.isMagmaSyncEveryBatch();
     magmaEnableUpsert = config.isMagmaEnableUpsert();
     magmaExpiryFragThreshold = config.getMagmaExpiryFragThreshold();
     magmaExpiryPurgerInterval =

@@ -8486,10 +8486,10 @@ BaseTestCase testsuite_testcases[] = {
                 // one checkpoint in less than 2mins.
                 // 'magma_max_checkpoints=10' the max number of checkpoints that
                 // can be rolled back.
-                // 'magma_checkpoint_every_batch=true' makes magma behaviour
+                // 'magma_sync_every_batch=true' makes magma behaviour
                 // like couchstore, creating a checkpoint for every flush batch.
                 "dcp_enable_noop=false;magma_checkpoint_interval=0;"
-                "magma_max_checkpoints=10;magma_checkpoint_every_batch=true",
+                "magma_max_checkpoints=10;magma_sync_every_batch=true",
                 // TODO RDB: implement getItemCount.
                 // Needs the 'vb_replica_curr_items' stat.
                 prepare_skip_broken_under_rocks,

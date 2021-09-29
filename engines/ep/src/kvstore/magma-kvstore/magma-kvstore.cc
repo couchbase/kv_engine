@@ -526,7 +526,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
         configuration.magmaCfg.EnableUpdateStatusForSet = true;
     }
 
-    doCheckpointEveryBatch = configuration.getMagmaCheckpointEveryBatch();
+    doSyncEveryBatch = configuration.getMagmaSyncEveryBatch();
 
     // The execution environment is the current engine creating the KVStore and
     // magma must track in the Secondary MemoryDomain.
@@ -1380,7 +1380,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     }
 
     // Only used for unit testing
-    if (doCheckpointEveryBatch) {
+    if (doSyncEveryBatch) {
         auto chkStatus = magma->Sync(true);
         if (!chkStatus) {
             logger->critical(
@@ -2285,7 +2285,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
             return false;
         }
 
-        if (doCheckpointEveryBatch) {
+        if (doSyncEveryBatch) {
             status = magma->Sync(true);
             if (!status) {
                 logger->critical(
@@ -3032,7 +3032,7 @@ Status MagmaKVStore::writeVBStateToDisk(Vbid vbid,
         return status;
     }
 
-    if (doCheckpointEveryBatch) {
+    if (doSyncEveryBatch) {
         status = magma->Sync(true);
         if (!status) {
             ++st.numVbSetFailure;

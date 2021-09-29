@@ -77,11 +77,11 @@ public:
         return magmaInitialWalBufferSize;
     }
 
-    bool getMagmaCheckpointEveryBatch() const {
-        return magmaCheckpointEveryBatch;
+    bool getMagmaSyncEveryBatch() const {
+        return magmaSyncEveryBatch;
     }
-    void setMagmaCheckpointEveryBatch(bool value) {
-        magmaCheckpointEveryBatch = value;
+    void setMagmaSyncEveryBatch(bool value) {
+        magmaSyncEveryBatch = value;
     }
 
     bool getMagmaEnableUpsert() const {
@@ -242,7 +242,7 @@ private:
 
     // Used in testing to make sure each batch is flushed to disk to simulate
     // how couchstore flushes each batch to disk.
-    bool magmaCheckpointEveryBatch;
+    bool magmaSyncEveryBatch;
 
     // When true, the kv_engine will utilize Magma's upsert capabiltiy
     // but accurate document counts for the data store or collections can

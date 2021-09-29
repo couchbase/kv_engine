@@ -46,7 +46,7 @@ NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
     if (primaryBackend == "magma") {
 #ifdef EP_USE_MAGMA
         dynamic_cast<MagmaKVStoreConfig&>(*primaryConfig)
-                .setMagmaCheckpointEveryBatch(true);
+                .setMagmaSyncEveryBatch(true);
 #endif
     } else if (primaryBackend == "couchdb") {
         // Couchstore has an optimization that forces rollback to zero should
@@ -59,7 +59,7 @@ NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
     if (secondaryBackend == "magma") {
 #ifdef EP_USE_MAGMA
         dynamic_cast<MagmaKVStoreConfig&>(*secondaryConfig)
-                .setMagmaCheckpointEveryBatch(true);
+                .setMagmaSyncEveryBatch(true);
 #endif
     } else if (primaryBackend == "couchdb") {
         // Couchstore has an optimization that forces rollback to zero should
