@@ -52,6 +52,9 @@ public:
     std::chrono::milliseconds getMagmaCheckpointInterval() const {
         return magmaCheckpointInterval;
     }
+    void setMagmaCheckpointInterval(std::chrono::milliseconds val) {
+        magmaCheckpointInterval = val;
+    }
     float getMagmaCheckpointThreshold() const {
         return magmaCheckpointThreshold;
     }
