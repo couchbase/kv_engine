@@ -132,6 +132,56 @@ public:
      */
     void setClientCertData(MemcachedConnection& connection);
 
+    /**
+     * Attempts to store a document with the given key, value, flags and expiry
+     * time (and optionally compress the value before storing it)
+     *
+     * @param key Document key
+     * @param value Document value. Supports up to maximum size server allows.
+     * @param flags Document flag
+     * @param exptime Document expiry time
+     * @param compress Should the value be compressed before storing
+     */
+    static void store_document(std::string key,
+                               std::string value,
+                               uint32_t flags = 0,
+                               uint32_t exptime = 0,
+                               bool compress = false);
+
+    /**
+     * Attempts to delete the object with the given key.
+     * @param key key to remove
+     * @param ignore_missing do not fail if key did not exist
+     */
+    static void delete_object(const std::string& key,
+                              bool ignore_missing = false);
+
+    /**
+     * Attempts to get the given key and checks if it's flags matches
+     * {expected_flags}.
+     */
+    static void validate_flags(const std::string& key, uint32_t expected_flags);
+
+    // Attempts to fetch the document with the given key.
+    // Returns a pair of {status, value}; where status is the response code from
+    // the server and value is the documents value (if status == SUCCESS).
+    static std::pair<cb::mcbp::Status, std::string> fetch_value(
+            const std::string& key);
+
+    /**
+     * Attempts to get the given key and checks if it's value matches
+     * {expected_value}. Given that the ordering in the JSON documents may be
+     * different we'll convert both to JSON and back and compare the result
+     * (they're logically equal)
+     */
+    static void validate_json_document(const std::string& key,
+                                       const std::string& expected_value);
+
+    // Attempts to fetch the document with the given key.
+    // Expects the fetch is successful, and checks if the datatype what we
+    // expect
+    void validate_datatype(const std::string& key, cb::mcbp::Datatype datatype);
+
 protected:
     // per test setup function.
     void SetUp() override;
@@ -357,69 +407,6 @@ protected:
 
 SOCKET connect_to_server_plain();
 void reconnect_to_server();
-
-// Attempts to fetch the document with the given key.
-// Returns a pair of {status, value}; where status is the response code from
-// the server and value is the documents value (if status == SUCCESS).
-std::pair<cb::mcbp::Status, std::string> fetch_value(const std::string& key);
-
-// Attempts to fetch the document with the given key.
-// Expects the fetch is successful, and checks if the datatype is json/raw
-void validate_datatype_is_json(const std::string& key, bool isJson);
-
-/**
- * Attempts to get the given key and checks if it's value matches
- * {expected_value}. Given that the ordering in the JSON documents may be
- * different we'll convert both to JSON and back and compare the result
- * (they're logically equal)
- */
-void validate_json_document(const std::string& key,
-                            const std::string& expected_value);
-void validate_json_document(MemcachedConnection& connection,
-                            const std::string& key,
-                            const std::string& expected_value);
-
-/* Attempts to get the given key and checks if it's flags matches
- * {expected_flags}.
- */
-void validate_flags(const std::string& key, uint32_t expected_flags);
-
-/**
- * Attempts to store a document with the given key, value, flags and expiry
- * time (and optionally compress the value before storing it)
- *
- * @param key Document key
- * @param value Document value. Supports up to maximum size server allows.
- * @param flags Document flag
- * @param exptime Document expiry time
- * @param compress Should the value be compressed before storing
- */
-void store_document(const std::string& key,
-                    const std::string& value,
-                    uint32_t flags = 0,
-                    uint32_t exptime = 0,
-                    bool compress = false);
-
-/* Attempts to delete the object with the given key.
- * @param key key to remove
- * @param ignore_missing do not fail if key did not exist
- */
-void delete_object(const std::string& key, bool ignore_missing = false);
-
-/**
- * Attempts to store an object with a datatype
- *
- * @param key The documents key
- * @param value The documents value
- * @param flags The documents flags
- * @param expiration The documents expiration (0 == never)
- * @param datatype The datatype to use
- */
-void store_object_w_datatype(const std::string& key,
-                             std::string_view value,
-                             uint32_t flags,
-                             uint32_t expiration,
-                             cb::mcbp::Datatype datatype);
 
 // Enables / disables the JSON feature.
 void set_json_feature(bool enable);

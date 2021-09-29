@@ -141,7 +141,8 @@ TEST_P(ClusterConfigTest, Enable_CCCP_Push_Notifications) {
 
 TEST_P(ClusterConfigTest, CccpPushNotification) {
     auto& second = getConnection();
-
+    second.authenticate("Luke", mcd_env->getPassword("Luke"));
+    second.selectBucket(bucketName);
     second.setFeature(cb::mcbp::Feature::UnorderedExecution, true);
     second.setDuplexSupport(true);
     second.setClustermapChangeNotification(true);

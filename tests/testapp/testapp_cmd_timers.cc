@@ -139,19 +139,6 @@ TEST_P(CmdTimerTest, NonexistentBucket) {
 }
 
 /**
- * A nonauth user should be automatically connected to the default bucket
- * (yes, we still have that in our unit tests).
- */
-TEST_P(CmdTimerTest, DefaultBucket) {
-    auto& c = getConnection();
-    c.reconnect();
-    const auto response = c.execute(
-            BinprotGetCmdTimerCommand{"", cb::mcbp::ClientOpcode::Scrub});
-    EXPECT_TRUE(response.isSuccess());
-    EXPECT_EQ(1, getNumberOfOps(response.getDataString()));
-}
-
-/**
  * Attempting to fetch timings for an empty histogram should succeed (but return
  * no samples)
  */

@@ -280,7 +280,7 @@ static void test_getq_impl(const char* key, ClientOpcode cmd) {
     response.setOpaque(0xdeadbeef);
     mcbp_validate_response_header(response, cmd, Status::Success);
 
-    delete_object(key);
+    TestappTest::delete_object(key);
 }
 
 TEST_P(DeprecatedCommandsTests, GetQ) {
@@ -356,10 +356,10 @@ void test_concat_impl(const std::string& key, ClientOpcode cmd) {
             *reinterpret_cast<Response*>(blob.data()), cmd, Status::NotStored);
 
     if (cmd == ClientOpcode::Appendq) {
-        store_document(key, "hello");
+        TestappTest::store_document(key, "hello");
         command = mcbp_storage_command(cmd, key, "world", 0, 0);
     } else {
-        store_document(key, "world");
+        TestappTest::store_document(key, "world");
         command = mcbp_storage_command(cmd, key, "hello", 0, 0);
     }
 
@@ -368,11 +368,11 @@ void test_concat_impl(const std::string& key, ClientOpcode cmd) {
     // success should not return value
     test_noop();
 
-    auto ret = fetch_value(key);
+    auto ret = TestappTest::fetch_value(key);
     EXPECT_EQ(Status::Success, ret.first);
     EXPECT_EQ("helloworld", ret.second);
     // Cleanup
-    delete_object(key);
+    TestappTest::delete_object(key);
 }
 
 TEST_P(DeprecatedCommandsTests, AppendQ) {

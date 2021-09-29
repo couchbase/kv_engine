@@ -69,8 +69,6 @@ TEST_P(RegressionTest, MB_26196) {
  * This test verifies that the fix did not affect the normal Add semantics
  */
 TEST_P(RegressionTest, MB_26828_AddIsUnaffected) {
-    auto& conn = getConnection();
-
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
 
@@ -80,12 +78,12 @@ TEST_P(RegressionTest, MB_26828_AddIsUnaffected) {
             SUBDOC_FLAG_MKDIR_P,
             "cron_timers",
             R"({"callback_func": "NDtimerCallback", "payload": "doc_id_610"})");
-    auto resp = conn.execute(cmd);
+    auto resp = userConnection->execute(cmd);
 
     EXPECT_TRUE(resp.isSuccess()) << "Expected to work for Add";
     // If we try it one more time, it should fail as we want to
     // _ADD_ the doc if it isn't there
-    resp = conn.execute(cmd);
+    resp = userConnection->execute(cmd);
     EXPECT_FALSE(resp.isSuccess()) << "Add should fail when it isn't there";
     EXPECT_EQ(cb::mcbp::Status::KeyEexists, resp.getStatus());
 }
@@ -103,7 +101,6 @@ TEST_P(RegressionTest, MB_26828_AddIsUnaffected) {
  * This test verifies that the fix resolved the problem
  */
 TEST_P(RegressionTest, MB_26828_SetIsFixed) {
-    auto& conn = getConnection();
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
 
@@ -117,10 +114,10 @@ TEST_P(RegressionTest, MB_26828_SetIsFixed) {
             ewb::Passthrough,
             ewb::Passthrough,
     });
-    conn.configureEwouldBlockEngine(EWBEngineMode::Sequence,
-                                    /*unused*/ {},
-                                    /*unused*/ {},
-                                    sequence);
+    userConnection->configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                               /*unused*/ {},
+                                               /*unused*/ {},
+                                               sequence);
 
     cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
 
@@ -129,12 +126,12 @@ TEST_P(RegressionTest, MB_26828_SetIsFixed) {
             SUBDOC_FLAG_MKDIR_P,
             "cron_timers",
             R"({"callback_func": "NDtimerCallback", "payload": "doc_id_610"})");
-    auto resp = conn.execute(cmd);
+    auto resp = userConnection->execute(cmd);
 
     EXPECT_TRUE(resp.isSuccess());
     // Reset connection to make sure we're not affected by any ewb logic
-    conn.reconnect();
-    resp = conn.execute(cmd);
+    rebuildUserConnection(false);
+    resp = userConnection->execute(cmd);
     EXPECT_TRUE(resp.isSuccess());
 }
 
@@ -150,8 +147,6 @@ TEST_P(RegressionTest, MB_26828_SetIsFixed) {
  *   4. Fetch the expiry time of the document and verifies that it is unchanged
  */
 TEST_P(RegressionTest, MB_31070) {
-    auto& conn = getConnection();
-
     Document document;
     document.info.cas = mcbp::cas::Wildcard;
     document.info.flags = 0xcaffee;
@@ -159,13 +154,14 @@ TEST_P(RegressionTest, MB_31070) {
     document.info.expiration = 30;
     document.value = "hello";
 
-    conn.mutate(document, Vbid(0), MutationType::Set);
+    userConnection->mutate(document, Vbid(0), MutationType::Set);
 
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
     cmd.addGet("$document.exptime", SUBDOC_FLAG_XATTR_PATH);
 
-    auto multiResp = BinprotSubdocMultiLookupResponse(conn.execute(cmd));
+    auto multiResp =
+            BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
 
     auto& results = multiResp.getResults();
 
@@ -176,9 +172,9 @@ TEST_P(RegressionTest, MB_31070) {
 
     document.value = " world";
     document.info.expiration = 0;
-    conn.mutate(document, Vbid(0), MutationType::Append);
+    userConnection->mutate(document, Vbid(0), MutationType::Append);
 
-    multiResp = BinprotSubdocMultiLookupResponse(conn.execute(cmd));
+    multiResp = BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
 
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
@@ -194,8 +190,6 @@ TEST_P(RegressionTest, MB_31070) {
  * correct and everything looks fine.
  */
 TEST_P(RegressionTest, MB_31149) {
-    auto& conn = getConnection();
-
     Document document;
     document.info.cas = mcbp::cas::Wildcard;
     document.info.flags = 0xcaffee;
@@ -203,10 +197,11 @@ TEST_P(RegressionTest, MB_31149) {
     document.info.expiration = 30;
     document.value = "hello";
 
-    conn.mutate(document, Vbid(0), MutationType::Set);
+    userConnection->mutate(document, Vbid(0), MutationType::Set);
     document.info.expiration = 0;
     document.value = " world";
-    const auto info = conn.mutate(document, Vbid(0), MutationType::Append);
+    const auto info =
+            userConnection->mutate(document, Vbid(0), MutationType::Append);
 
     EXPECT_NE(0, info.cas);
 }
@@ -223,18 +218,15 @@ TEST_P(RegressionTest, MB_31149) {
  */
 TEST_P(RegressionTest, MB_32078) {
     auto& connection = getConnection();
+    connection.authenticate("Luke", mcd_env->getPassword("Luke"));
+    connection.selectBucket(bucketName);
     connection.store("MB-32078-testkey", Vbid(0), "value");
 
     connection.configureEwouldBlockEngine(
             EWBEngineMode::CasMismatch, cb::engine_errc::key_already_exists, 1);
 
-    BinprotGenericCommand cmd(
-            cb::mcbp::ClientOpcode::Append, "MB-32078-testkey", "+");
-    connection.sendCommand(cmd);
-
-    BinprotResponse response;
-    connection.recvResponse(response);
-
+    const auto response = connection.execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Append, "MB-32078-testkey", "+"});
     EXPECT_EQ(cb::mcbp::Status::Success, response.getStatus());
     EXPECT_STREQ("value+",
                  connection.get("MB-32078-testkey", Vbid(0)).value.c_str());
@@ -263,6 +255,8 @@ TEST_P(RegressionTest, MB_32081) {
              0x3a, 0x22, 0x74, 0x65, 0x73, 0x74, 0x22, 0x7d}}; // |
 
     auto& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
     Frame frame;
     frame.payload = std::move(packet);
 
@@ -286,6 +280,8 @@ TEST_P(RegressionTest, SetCtrlToken) {
  */
 TEST_P(RegressionTest, MB35528) {
     auto& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
     conn.setDatatypeJson(true);
     conn.increment(name, 1, 0, 0, nullptr);
     const auto info = conn.get(name, Vbid{0});
@@ -341,12 +337,11 @@ TEST_P(RegressionTest, MB38243) {
 }
 
 TEST_P(RegressionTest, MB39441) {
-    auto& conn = getConnection();
-    conn.setFeature(cb::mcbp::Feature::JSON, true);
+    userConnection->setFeature(cb::mcbp::Feature::JSON, true);
 
-    conn.store("customer123",
-               Vbid{0},
-               R"({
+    userConnection->store("customer123",
+                          Vbid{0},
+                          R"({
   "name": "Douglas Reynholm",
   "email": "douglas@reynholmindustries.com",
   "addresses": {
@@ -376,9 +371,10 @@ TEST_P(RegressionTest, MB39441) {
   }
 }
 )",
-               cb::mcbp::Datatype::JSON);
+                          cb::mcbp::Datatype::JSON);
 
-    auto socket = conn.releaseSocket();
+    auto socket = userConnection->releaseSocket();
+    rebuildUserConnection(false);
     const auto command = std::vector<uint8_t>{
             {0x80, 0xd1, 0x00, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
              0x70, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -424,20 +420,20 @@ TEST_P(RegressionTest, MB39441) {
 /// cookie was no longer part of the cookies array when we checked if it was
 /// safe to kill the object during shutdown
 TEST_P(RegressionTest, MB40076) {
-    auto& conn = getConnection();
-
-    conn.sendCommand(
+    userConnection->sendCommand(
             BinprotEWBCommand{EWBEngineMode::ThrowException, {}, {}, {}});
-    auto s = conn.releaseSocket();
+    auto s = userConnection->releaseSocket();
     char byte;
     EXPECT_EQ(0, cb::net::recv(s, &byte, 1, 0));
     cb::net::closesocket(s);
+    rebuildUserConnection(false);
 }
 
 TEST_P(RegressionTest, MB44460) {
     auto& conn = getConnection();
     auto admin = conn.clone();
     admin->authenticate("@admin", "password", "PLAIN");
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
     auto stats = conn.stats("connections self");
     ASSERT_EQ(1, stats.size());
     const auto connectionid = stats.front()["socket"].get<size_t>();
@@ -475,14 +471,13 @@ TEST_P(RegressionTest, MB44460) {
  */
 TEST_P(RegressionTest, MB11548_ExpiryRelativeWithClockChangeBackwards) {
     time_t now = time(nullptr);
-    auto& conn = getConnection();
     const auto clock_shift = (int)(0 - ((now - get_server_start_time()) * 2));
-    conn.store(name, Vbid{0}, "value", cb::mcbp::Datatype::Raw, 120);
-    conn.adjustMemcachedClock(
+    userConnection->store(name, Vbid{0}, "value", cb::mcbp::Datatype::Raw, 120);
+    userConnection->adjustMemcachedClock(
             clock_shift,
             cb::mcbp::request::AdjustTimePayload::TimeType::TimeOfDay);
-    conn.get(name, Vbid{0});
-    conn.adjustMemcachedClock(
+    userConnection->get(name, Vbid{0});
+    userConnection->adjustMemcachedClock(
             0, cb::mcbp::request::AdjustTimePayload::TimeType::TimeOfDay);
 }
 
@@ -491,11 +486,10 @@ TEST_P(RegressionTest, MB11548_ExpiryRelativeWithClockChangeBackwards) {
 TEST_P(RegressionTest, MB10114_append_e2big_wont_delete_doc) {
     // Disable ewouldblock_engine - not wanted / needed for this MB regression
     // test.
-    auto& conn = getConnection();
-    conn.configureEwouldBlockEngine(
+    userConnection->configureEwouldBlockEngine(
             EWBEngineMode::Next_N, cb::engine_errc::would_block, 0);
     const std::string key{"mb-10114"};
-    conn.store(key, Vbid{0}, "world");
+    userConnection->store(key, Vbid{0}, "world");
 
     Document document;
     document.info.id = key;
@@ -503,7 +497,7 @@ TEST_P(RegressionTest, MB10114_append_e2big_wont_delete_doc) {
 
     while (true) {
         try {
-            conn.mutate(document, Vbid{0}, MutationType::Append);
+            userConnection->mutate(document, Vbid{0}, MutationType::Append);
         } catch (ConnectionError& error) {
             if (error.isTooBig()) {
                 break;
@@ -513,15 +507,14 @@ TEST_P(RegressionTest, MB10114_append_e2big_wont_delete_doc) {
     }
 
     // We should be able to delete it
-    conn.remove(key, Vbid{0});
+    userConnection->remove(key, Vbid{0});
 }
 
 /**
  * Test that opcode 255 is rejected and the server doesn't crash
  */
 TEST_P(RegressionTest, MB16333_opcode_255_detected) {
-    auto& conn = getConnection();
-    auto rsp = conn.execute(
+    auto rsp = userConnection->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::Invalid});
     ASSERT_EQ(cb::mcbp::Status::UnknownCommand, rsp.getStatus());
 }
@@ -546,10 +539,9 @@ TEST_P(RegressionTest, MB47151) {
              0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46,
              0x46, 0x46, 0x46, 0x46, 0x24, 0x00, 0x09, 0x00, 0x04, 0x00}};
 
-    auto& conn = getConnection();
-    conn.sendFrame(frame);
+    userConnection->sendFrame(frame);
     BinprotResponse rsp;
-    conn.recvResponse(rsp);
+    userConnection->recvResponse(rsp);
     EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataString();
     EXPECT_EQ(R"({"error":{"context":"Multi lookup spec truncated"}})",
               rsp.getDataString());

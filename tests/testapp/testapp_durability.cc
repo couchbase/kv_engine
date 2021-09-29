@@ -22,7 +22,7 @@ class DurabilityTest : public TestappClientTest {
 protected:
     void SetUp() override {
         TestappTest::SetUp();
-        getConnection().store(name, Vbid{0}, "123");
+        userConnection->store(name, Vbid{0}, "123");
     }
 
     /**
@@ -66,11 +66,10 @@ protected:
         Frame frame;
         frame.payload = std::move(buffer);
 
-        auto& conn = getConnection();
-        conn.sendFrame(frame);
+        userConnection->sendFrame(frame);
 
         BinprotResponse resp;
-        conn.recvResponse(resp);
+        userConnection->recvResponse(resp);
 
         EXPECT_EQ(expectedStatus, resp.getStatus());
         EXPECT_NE(0xdeadbeef, ntohll(resp.getCas()));
@@ -120,9 +119,7 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
  */
 
 TEST_P(DurabilityTest, AddMaybeSupported) {
-    auto& conn = getConnection();
-    conn.remove(name, Vbid{0});
-
+    userConnection->remove(name, Vbid{0});
     executeMutationCommand(ClientOpcode::Add);
 }
 
@@ -181,8 +178,7 @@ TEST_P(DurabilityTest, AckResponseHandled) {
     Frame rspFrame;
     rspFrame.payload = std::move(rspBuffer);
 
-    auto& conn = getConnection();
-    conn.sendFrame(rspFrame);
+    userConnection->sendFrame(rspFrame);
 
     // Send something else, a GAT in this case, to test that the connection is
     // still up
@@ -201,10 +197,10 @@ TEST_P(DurabilityTest, AckResponseHandled) {
 
     Frame reqFrame;
     reqFrame.payload = std::move(reqBuffer);
-    conn.sendFrame(reqFrame);
+    userConnection->sendFrame(reqFrame);
 
     BinprotResponse resp;
-    conn.recvResponse(resp);
+    userConnection->recvResponse(resp);
 
     EXPECT_EQ(Status::NotSupported, resp.getStatus());
     EXPECT_NE(0xdeadbeef, ntohll(resp.getCas()));
@@ -215,7 +211,7 @@ protected:
     void SetUp() override {
         DurabilityTest::SetUp();
         // Store a JSON document instead
-        getConnection().store(name,
+        userConnection->store(name,
                               Vbid{0},
                               R"({"tag":"value","array":[0,1,2],"counter":0})");
     }
@@ -242,11 +238,10 @@ protected:
         Frame frame;
         frame.payload = std::move(command);
 
-        auto& conn = getConnection();
-        conn.sendFrame(frame);
+        userConnection->sendFrame(frame);
 
         BinprotResponse resp;
-        conn.recvResponse(resp);
+        userConnection->recvResponse(resp);
 
         EXPECT_EQ(expectedStatus, resp.getStatus());
     }

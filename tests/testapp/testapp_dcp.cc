@@ -33,7 +33,8 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
  */
 TEST_P(DcpTest, MB24145_RollbackShouldContainSeqno) {
     auto& conn = getConnection();
-
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
     conn.sendCommand(BinprotDcpOpenCommand{
             "ewb_internal:1", cb::mcbp::request::DcpOpenPayload::Producer});
 
@@ -65,6 +66,8 @@ TEST_P(DcpTest, UnorderedExecutionNotSupported) {
     // we should extend this test to validate all of the
     // various commands.
     auto& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
     conn.setUnorderedExecutionMode(ExecutionMode::Unordered);
     conn.sendCommand(BinprotDcpOpenCommand{
             "ewb_internal:1", cb::mcbp::request::DcpOpenPayload::Producer});

@@ -122,6 +122,11 @@ TEST_P(ArithmeticTest, TestConcurrentAccess) {
     const int incrDelta = 7;
     const int decrDelta = -3;
 
+    conn1->authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn1->selectBucket(bucketName);
+    conn2->authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn2->selectBucket(bucketName);
+
     // Create the starting point
     uint64_t expected = std::numeric_limits<uint32_t>::max();
     ASSERT_EQ(0, userConnection->increment(name, 0));

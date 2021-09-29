@@ -75,7 +75,7 @@ nlohmann::json make_flat_dict(int nelements) {
 
 static void test_subdoc_multi_lookup_getmulti() {
     auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS + 1);
-    store_document("dict", dict.dump());
+    TestappTest::store_document("dict", dict.dump());
 
     // Lookup the maximum number of allowed paths - should succeed.
     SubdocMultiLookupCmd lookup;
@@ -101,7 +101,7 @@ static void test_subdoc_multi_lookup_getmulti() {
     expect_subdoc_cmd(lookup, cb::mcbp::Status::SubdocInvalidCombo, expected);
     reconnect_to_server();
 
-    delete_object("dict");
+    TestappTest::delete_object("dict");
 }
 // Test multi-path lookup - multiple GET lookups
 TEST_P(SubdocTestappTest, SubdocMultiLookup_GetMulti) {
@@ -212,7 +212,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddMulti) {
 // Test multi-path mutation command - test maximum supported SUBDOC_DICT_ADD
 // paths.
 static void test_subdoc_multi_mutation_dict_add_max() {
-    store_document("dict", "{}");
+    TestappTest::store_document("dict", "{}");
 
     SubdocMultiMutationCmd mutation;
     mutation.key = "dict";
@@ -229,13 +229,13 @@ static void test_subdoc_multi_mutation_dict_add_max() {
 
     // Check the update actually occurred.
     auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS);
-    validate_json_document("dict", dict.dump());
+    TestappTest::validate_json_document("dict", dict.dump());
 
-    delete_object("dict");
+    TestappTest::delete_object("dict");
 
     // Try with one more mutation spec - should fail and document should be
     // unmodified.
-    store_document("dict", "{}");
+    TestappTest::store_document("dict", "{}");
     auto max_id = std::to_string(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS);
     mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocDictAdd,
                               SUBDOC_FLAG_NONE,
@@ -246,9 +246,9 @@ static void test_subdoc_multi_mutation_dict_add_max() {
     reconnect_to_server();
 
     // Document should be unmodified.
-    validate_json_document("dict", "{}");
+    TestappTest::validate_json_document("dict", "{}");
 
-    delete_object("dict");
+    TestappTest::delete_object("dict");
 }
 TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddMax) {
     test_subdoc_multi_mutation_dict_add_max();
@@ -352,7 +352,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddCAS) {
 // Test multi-path mutation command - create a bunch of dictionary elements
 // then delete them. (Not a very useful operation but should work).
 void test_subdoc_multi_mutation_dictadd_delete() {
-    store_document("dict", R"({"count":0,"items":{}})");
+    TestappTest::store_document("dict", R"({"count":0,"items":{}})");
 
     // 1. Add a series of paths, then remove two of them.
     SubdocMultiMutationCmd mutation;
@@ -391,7 +391,8 @@ void test_subdoc_multi_mutation_dictadd_delete() {
                        {6, cb::mcbp::Status::Success, "1"}});
 
     // Document should have been updated.
-    validate_json_document("dict", R"({"count":1,"items":{"2":2}})");
+    TestappTest::validate_json_document("dict",
+                                        R"({"count":1,"items":{"2":2}})");
 
     // 2. Delete the old 'items' dictionary and create a new one.
     mutation.specs.clear();
@@ -419,9 +420,10 @@ void test_subdoc_multi_mutation_dictadd_delete() {
                       cb::mcbp::Status::Success,
                       {{4, cb::mcbp::Status::Success, "2"}});
 
-    validate_json_document("dict", R"({"count":2,"items":{"4":4,"5":5}})");
+    TestappTest::validate_json_document("dict",
+                                        R"({"count":2,"items":{"4":4,"5":5}})");
 
-    delete_object("dict");
+    TestappTest::delete_object("dict");
 }
 
 TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddDelete) {
@@ -585,7 +587,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_MaxResultSpecValue) {
 // Test that flags are preserved by subdoc multipath mutation operations.
 TEST_P(SubdocTestappTest, SubdocMultiMutation_Flags) {
     const uint32_t flags = 0xcafebabe;
-    store_object_w_datatype("array", "[]", flags, 0, cb::mcbp::Datatype::Raw);
+    store_document("array", "[]", flags, 0, false);
 
     SubdocMultiMutationCmd mutation;
     mutation.key = "array";
@@ -683,11 +685,7 @@ TEST_P(SubdocTestappTest, MB_30278_SubdocBacktickMultiMutation) {
 TEST_P(SubdocTestappTest, WholedocMutationUpdatesDatatype) {
     // store an initial json document
     store_document("item", "{}");
-
-    bool jsonSupported = hasJSONSupport() == ClientJSONSupport::Yes;
-
-    // check datatype is json (if supported)
-    validate_datatype_is_json("item", jsonSupported);
+    validate_datatype("item", cb::mcbp::Datatype::JSON);
 
     // do a wholedoc mutation setting a non-json value
     {
@@ -702,7 +700,7 @@ TEST_P(SubdocTestappTest, WholedocMutationUpdatesDatatype) {
     }
 
     // check the datatype has been updated
-    validate_datatype_is_json("item", false);
+    validate_datatype("item", cb::mcbp::Datatype::Raw);
 
     // wholedoc mutation to set a json doc again
     {
@@ -717,7 +715,7 @@ TEST_P(SubdocTestappTest, WholedocMutationUpdatesDatatype) {
     }
 
     // check datatype is back to json
-    validate_datatype_is_json("item", jsonSupported);
+    validate_datatype("item", cb::mcbp::Datatype::JSON);
     validate_json_document("item", R"({"json":"goodness"})");
 
     delete_object("item");
@@ -726,11 +724,7 @@ TEST_P(SubdocTestappTest, WholedocMutationUpdatesDatatype) {
 TEST_P(SubdocTestappTest, TestSubdocOpAfterWholedocSetNonJson) {
     // store an initial json document
     store_document("item", "{}");
-
-    bool jsonSupported = hasJSONSupport() == ClientJSONSupport::Yes;
-
-    // check datatype is json (if supported)
-    validate_datatype_is_json("item", jsonSupported);
+    validate_datatype("item", cb::mcbp::Datatype::JSON);
 
     std::vector<cb::mcbp::ClientOpcode> mutationOpcodes = {
             cb::mcbp::ClientOpcode::SubdocDictAdd,
@@ -776,10 +770,8 @@ TEST_P(SubdocTestappTest,
     // store an initial json document
     store_document("item", "{}");
 
-    bool jsonSupported = hasJSONSupport() == ClientJSONSupport::Yes;
-
     // check datatype is json (if supported)
-    validate_datatype_is_json("item", jsonSupported);
+    validate_datatype("item", cb::mcbp::Datatype::JSON);
 
     // do a wholedoc mutation setting a non-json value
     {
@@ -794,7 +786,7 @@ TEST_P(SubdocTestappTest,
     }
 
     // check the datatype has been updated
-    validate_datatype_is_json("item", false);
+    validate_datatype("item", cb::mcbp::Datatype::Raw);
 
     // expect that any Subdoc lookup op will fail
     {

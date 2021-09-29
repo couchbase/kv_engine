@@ -268,6 +268,9 @@ TEST_P(AuditTest, splitJsonData) {
  */
 TEST_P(AuditTest, AuditIllegalPacket) {
     auto& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
+
     // A set command should have 8 bytes of extra;
     auto rsp = conn.execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Set, "AuditTest::AuditIllegalPacket"});
@@ -398,6 +401,8 @@ TEST_P(AuditTest, AuditSelectBucket) {
 // event.
 TEST_P(AuditTest, AuditSubdocLookup) {
     auto& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
     conn.store("doc", Vbid(0), "{\"foo\": 1}");
     BinprotSubdocCommand cmd(cb::mcbp::ClientOpcode::SubdocGet,
                              "doc",
@@ -423,6 +428,8 @@ TEST_P(AuditTest, AuditSubdocLookup) {
 // event.
 TEST_P(AuditTest, AuditSubdocMutation) {
     auto& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
     BinprotSubdocCommand cmd(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                              "doc",
                              "foo",
@@ -447,6 +454,8 @@ TEST_P(AuditTest, AuditSubdocMutation) {
 // event.
 TEST_P(AuditTest, AuditSubdocMultiMutation) {
     auto& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
     BinprotSubdocMultiMutationCommand cmd(
             "doc",
             {{cb::mcbp::ClientOpcode::SubdocDictUpsert,
@@ -476,6 +485,8 @@ TEST_P(AuditTest, AuditSubdocMultiMutation) {
 // Check that a delete via subdoc is audited correctly.
 TEST_P(AuditTest, AuditSubdocMultiMutationDelete) {
     auto& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
     conn.store("doc", Vbid(0), "foo");
 
     BinprotSubdocMultiMutationCommand cmd(

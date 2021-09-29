@@ -707,87 +707,70 @@ static void set_feature(cb::mcbp::Feature feature, bool enable) {
     }
 }
 
-std::pair<cb::mcbp::Status, std::string> fetch_value(const std::string& key) {
-    std::vector<uint8_t> blob;
-    BinprotGetCommand cmd;
-    cmd.setKey(key);
-    cmd.encode(blob);
-    safe_send(blob);
-
-    blob.resize(0);
-    safe_recv_packet(blob);
-    BinprotGetResponse rsp;
-    rsp.assign(std::move(blob));
-    return std::make_pair(rsp.getStatus(), rsp.getDataString());
+std::pair<cb::mcbp::Status, std::string> TestappTest::fetch_value(
+        const std::string& key) {
+    if (!userConnection) {
+        rebuildUserConnection(false);
+    }
+    const auto rsp = BinprotGetResponse{userConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, key})};
+    return {rsp.getStatus(), rsp.getDataString()};
 }
 
-void validate_datatype_is_json(const std::string& key, bool isJson) {
-    std::vector<uint8_t> blob;
-    BinprotGetCommand cmd;
-    cmd.setKey(key);
-    cmd.encode(blob);
-    safe_send(blob);
+void TestappTest::validate_datatype(const std::string& key,
+                                    cb::mcbp::Datatype datatype) {
+    if (!userConnection) {
+        rebuildUserConnection(false);
+    }
+    bool addedJson = false;
+    if (!userConnection->hasFeature(cb::mcbp::Feature::JSON)) {
+        addedJson = true;
+        userConnection->setFeature(cb::mcbp::Feature::JSON, true);
+    }
 
-    blob.resize(0);
-    safe_recv_packet(blob);
-    BinprotGetResponse rsp;
-    rsp.assign(std::move(blob));
-    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-    EXPECT_EQ(isJson, rsp.getDatatype() & PROTOCOL_BINARY_DATATYPE_JSON);
+    const auto info = userConnection->get(key, Vbid{0});
+    if (addedJson) {
+        userConnection->setFeature(cb::mcbp::Feature::JSON, false);
+    }
+
+    EXPECT_EQ(datatype, info.info.datatype);
 }
 
-void validate_json_document(const std::string& key,
-                            const std::string& expected_value) {
-    auto pair = fetch_value(key);
-    EXPECT_EQ(cb::mcbp::Status::Success, pair.first);
-    const auto exp = nlohmann::json::parse(expected_value).dump();
-    const auto val = nlohmann::json::parse(pair.second).dump();
-    EXPECT_EQ(exp, val);
-}
-
-void validate_json_document(MemcachedConnection& connection,
-                            const std::string& key,
-                            const std::string& expected_value) {
-    const auto info = connection.get(key, Vbid{0});
+void TestappTest::validate_json_document(const std::string& key,
+                                         const std::string& expected_value) {
+    if (!userConnection) {
+        rebuildUserConnection(false);
+    }
+    const auto info = userConnection->get(key, Vbid{0});
     const auto exp = nlohmann::json::parse(expected_value).dump();
     const auto val = nlohmann::json::parse(info.value).dump();
     EXPECT_EQ(exp, val);
 }
 
-void validate_flags(const std::string& key, uint32_t expected_flags) {
-    std::vector<uint8_t> blob;
-    BinprotGetCommand cmd;
-    cmd.setKey(key);
-    cmd.encode(blob);
-    safe_send(blob);
-
-    blob.resize(0);
-    safe_recv_packet(blob);
-    BinprotGetResponse rsp;
-    rsp.assign(std::move(blob));
+void TestappTest::validate_flags(const std::string& key,
+                                 uint32_t expected_flags) {
+    if (!userConnection) {
+        rebuildUserConnection(false);
+    }
+    auto rsp = BinprotGetResponse{userConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, key})};
+    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+                                 << rsp.getDataString();
     EXPECT_EQ(expected_flags, rsp.getDocumentFlags());
 }
 
-void delete_object(const std::string& key, bool ignore_missing) {
-    std::vector<uint8_t> blob;
-    BinprotRemoveCommand cmd;
-    cmd.setKey(key);
-    cmd.encode(blob);
-    safe_send(blob);
-
-    blob.resize(0);
-    safe_recv_packet(blob);
-    BinprotRemoveResponse rsp;
-    rsp.assign(std::move(blob));
-
+void TestappTest::delete_object(const std::string& key, bool ignore_missing) {
+    if (!userConnection) {
+        rebuildUserConnection(false);
+    }
+    auto rsp = userConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Delete, key});
     if (ignore_missing && rsp.getStatus() == cb::mcbp::Status::KeyEnoent) {
-        /* Ignore. Just using this for cleanup then */
         return;
     }
-    mcbp_validate_response_header(
-            const_cast<cb::mcbp::Response&>(rsp.getResponse()),
-            cb::mcbp::ClientOpcode::Delete,
-            cb::mcbp::Status::Success);
+
+    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+                                 << rsp.getDataString();
 }
 
 void TestappTest::start_memcached_server() {
@@ -804,67 +787,36 @@ void TestappTest::start_memcached_server() {
     parse_portnumber_file();
 }
 
-void store_object_w_datatype(const std::string& key,
-                             std::string_view value,
-                             uint32_t flags,
-                             uint32_t expiration,
-                             cb::mcbp::Datatype datatype) {
-    cb::mcbp::request::MutationPayload extras;
-    static_assert(sizeof(extras) == 8, "Unexpected extras size");
-    extras.setFlags(flags);
-    extras.setExpiration(expiration);
+void TestappTest::store_document(std::string key,
+                                 std::string value,
+                                 uint32_t flags,
+                                 uint32_t expiration,
+                                 bool compress) {
+    Document document;
 
-    std::vector<uint8_t> buffer(sizeof(cb::mcbp::Request) + sizeof(extras) +
-                                key.size() + value.size());
-    cb::mcbp::FrameBuilder<cb::mcbp::Request> builder(
-            {buffer.data(), buffer.size()});
-
-    builder.setMagic(cb::mcbp::Magic::ClientRequest);
-    builder.setOpcode(cb::mcbp::ClientOpcode::Set);
-    builder.setDatatype(datatype);
-    builder.setOpaque(0xdeadbeef);
-    builder.setExtras(extras.getBuffer());
-    builder.setKey({reinterpret_cast<const uint8_t*>(key.data()), key.size()});
-    builder.setValue(
-            {reinterpret_cast<const uint8_t*>(value.data()), value.size()});
-
-    safe_send(builder.getFrame()->getFrame());
-
-    std::vector<uint8_t> blob;
-    safe_recv_packet(blob);
-    mcbp_validate_response_header(
-            *reinterpret_cast<cb::mcbp::Response*>(blob.data()),
-            cb::mcbp::ClientOpcode::Set,
-            cb::mcbp::Status::Success);
-}
-
-void store_document(const std::string& key,
-                    const std::string& value,
-                    uint32_t flags,
-                    uint32_t exptime,
-                    bool compress) {
+    document.info.cas = mcbp::cas::Wildcard;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.info.expiration = expiration;
+    document.info.flags = flags;
+    document.info.id = std::move(key);
+    document.value = std::move(value);
     if (compress) {
-        bool disable_snappy = false;
-        if (enabled_hello_features.count(cb::mcbp::Feature::SNAPPY) == 0) {
-            // We need to enable snappy
-            set_feature(cb::mcbp::Feature::SNAPPY, true);
-            disable_snappy = true;
-        }
-        cb::compression::Buffer deflated;
-        cb::compression::deflate(
-                cb::compression::Algorithm::Snappy, value, deflated);
+        document.compress();
+    }
 
-        store_object_w_datatype(key.c_str(),
-                                deflated,
-                                flags,
-                                exptime,
-                                cb::mcbp::Datatype::Snappy);
-        if (disable_snappy) {
-            set_feature(cb::mcbp::Feature::SNAPPY, false);
-        }
-    } else {
-        store_object_w_datatype(
-                key.c_str(), value, flags, exptime, cb::mcbp::Datatype::Raw);
+    if (!userConnection) {
+        rebuildUserConnection(false);
+    }
+
+    bool addedSnappy = false;
+    if (compress && !userConnection->hasFeature(cb::mcbp::Feature::SNAPPY)) {
+        addedSnappy = true;
+        userConnection->setFeature(cb::mcbp::Feature::SNAPPY, true);
+    }
+
+    userConnection->mutate(document, Vbid{0}, MutationType::Set);
+    if (addedSnappy) {
+        userConnection->setFeature(cb::mcbp::Feature::SNAPPY, false);
     }
 }
 
@@ -1141,11 +1093,12 @@ void TestappTest::reconfigure() {
 
 int TestappTest::getResponseCount(cb::mcbp::Status statusCode) {
     nlohmann::json stats;
-    if (userConnection) {
-        stats = userConnection->stats("responses detailed");
-    } else {
-        stats = getConnection().stats("responses detailed");
+
+    if (!userConnection) {
+        rebuildUserConnection(false);
     }
+
+    stats = userConnection->stats("responses detailed");
     auto responses = stats["responses"];
     std::stringstream stream;
     stream << std::hex << uint16_t(statusCode);

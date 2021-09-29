@@ -52,6 +52,7 @@ protected:
         mcd_env->getTestBucket().setBucketCreateMode(
                 TestBucketImpl::BucketCreateMode::Clean);
         ShutdownTest::SetUp();
+        rebuildUserConnection(false);
     }
 
     void TearDown() override {
@@ -65,11 +66,11 @@ protected:
 
     // Helper functions for tests /////////////////////////////////////////////
     Document storeAndPersistItem(std::string key) {
-        return TestappTest::storeAndPersistItem(getConnection(), vbid, key);
+        return TestappTest::storeAndPersistItem(*userConnection, vbid, key);
     }
 
     void waitForAtLeastSeqno(uint64_t uuid, uint64_t seqno) {
-        TestappTest::waitForAtLeastSeqno(getConnection(), vbid, uuid, seqno);
+        TestappTest::waitForAtLeastSeqno(*userConnection, vbid, uuid, seqno);
     }
 
     void shutdownMemcached(ShutdownMode mode) {
@@ -83,10 +84,7 @@ protected:
             auto& admin = getAdminConnection();
             BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Shutdown);
             cmd.setCas(token);
-            admin.sendCommand(cmd);
-
-            BinprotResponse rsp;
-            admin.recvResponse(rsp);
+            const auto rsp = admin.execute(cmd);
             EXPECT_TRUE(rsp.isSuccess());
             break;
         }
@@ -119,9 +117,10 @@ TEST_P(PersistToTest, PersistedAfterShutdown) {
     // Restart memcached, and attempt to read the item we persisted.
     ShutdownTest::SetUp();
 
-    MemcachedConnection& conn = getConnection();
     try {
-        auto doc2 = conn.get(doc.info.id, vbid);
+        rebuildUserConnection(false);
+        userConnection->setMutationSeqnoSupport(true);
+        auto doc2 = userConnection->get(doc.info.id, vbid);
         EXPECT_EQ(doc, doc2);
     } catch (const ConnectionError& e) {
         FAIL() << e.what();
@@ -169,8 +168,7 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
         admin.disablePersistence();
     }
 
-    MemcachedConnection& conn = getConnection();
-    conn.setMutationSeqnoSupport(true);
+    userConnection->setMutationSeqnoSupport(true);
 
     // Store our series of documents:1, high=1, 2, high=2, 3, ...
     Document high;
@@ -182,7 +180,7 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
         Document doc;
         doc.info.id = std::to_string(i);
         doc.value = doc.info.id;
-        auto mutation = conn.mutate(doc, vbid, MutationType::Set);
+        auto mutation = userConnection->mutate(doc, vbid, MutationType::Set);
         uuid = mutation.vbucketuuid;
 
         // It was observed that this test originally did not clear up the old
@@ -192,7 +190,7 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
         EXPECT_EQ(i * 2 + 1, mutation.seqno);
 
         high.value = doc.info.id;
-        conn.mutate(high, vbid, MutationType::Set);
+        userConnection->mutate(high, vbid, MutationType::Set);
     }
 
     // Re-enable persistence, and check we've stored to at least seqno 2 -
@@ -214,17 +212,19 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
     // Restart memcached.
     ShutdownTest::SetUp();
 
+    rebuildUserConnection(false);
+    userConnection->setMutationSeqnoSupport(true);
+
     // Read "high" to determine how far we got, and then validate that (1)
     // all previous documents exist and (2) no more than 1 extra document exists
     // after high.
     {
-        MemcachedConnection& conn = getConnection();
-        high = conn.get("high", vbid);
+        high = userConnection->get("high", vbid);
 
         // Check that all keys up to "high" exist:
         size_t highNumber = std::stoi(high.value);
         for (size_t i = 0; i < highNumber; i++) {
-            conn.get(std::to_string(i), vbid);
+            userConnection->get(std::to_string(i), vbid);
         }
 
         // We permit the key one above "high" to not exist - see state (b)
@@ -234,7 +234,7 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
         for (size_t i = highNumber + 2; i < docCount; i++) {
             auto key = std::to_string(i);
             try {
-                conn.get(key, vbid);
+                userConnection->get(key, vbid);
             } catch (ConnectionError&) {
                 // expect the get to fail.
                 continue;

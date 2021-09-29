@@ -197,7 +197,7 @@ static void subdoc_create_dict(const std::string& name, size_t elements) {
     dict.pop_back();
     dict.push_back('}');
 
-    store_document(name, dict);
+    TestappTest::store_document(name, dict);
 }
 
 // Baseline test case for Dict test; this 'test' just creates the document to

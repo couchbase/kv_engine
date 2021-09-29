@@ -92,8 +92,8 @@ TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
     }
 
     // Validate correct data was written.
-    validate_json_document(*userConnection, "a", expected_a);
-    validate_json_document(*userConnection, "b", expected_b);
+    validate_json_document("a", expected_a);
+    validate_json_document("b", expected_b);
 
     userConnection->remove("a", Vbid{0});
     userConnection->remove("b", Vbid{0});

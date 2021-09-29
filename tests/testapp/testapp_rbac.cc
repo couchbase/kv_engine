@@ -117,14 +117,8 @@ TEST_P(RbacTest, DropPrivilege) {
 }
 
 TEST_P(RbacTest, MB23909_ErrorIncudingErrorInfo) {
-    auto& conn = getConnection();
-    conn.reconnect();
-    conn.setXerrorSupport(true);
-    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::RbacRefresh, {}, {});
-    conn.sendCommand(cmd);
-
-    BinprotResponse resp;
-    conn.recvResponse(resp);
+    const auto resp = userConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::RbacRefresh});
     ASSERT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
     auto json = nlohmann::json::parse(resp.getDataString());
 
@@ -137,9 +131,9 @@ TEST_P(RbacTest, MB23909_ErrorIncudingErrorInfo) {
     //       else (just add a check for the length of an UUID)
     EXPECT_EQ(36, ref.size());
 
-    const std::string expected{"Authorization failure: can't execute "
-                               "RBAC_REFRESH operation without the "
-                               "SecurityManagement privilege"};
+    const std::string expected{
+            "Authorization failure: can't execute RBAC_REFRESH operation "
+            "without the SecurityManagement privilege"};
     EXPECT_EQ(expected, json["error"]["context"]);
 }
 

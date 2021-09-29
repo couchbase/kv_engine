@@ -21,20 +21,21 @@ class CollectionsTest : public TestappClientTest {
             mcd_env->getTestBucket().getName() == "default_engine") {
             return;
         }
-        auto& conn = getAdminConnection();
-        conn.selectBucket(bucketName);
-        auto response = conn.execute(BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::CollectionsSetManifest,
-                {},
-                R"({"uid" : "7f",
+
+        adminConnection->executeInBucket(bucketName, [&](auto& conn) {
+            auto response = conn.execute(BinprotGenericCommand{
+                    cb::mcbp::ClientOpcode::CollectionsSetManifest,
+                    {},
+                    R"({"uid" : "7f",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[]}]})"});
 
-        // The manifest sticks, so if we set it again with the same uid, that
-        // is invalid, just assert erange and carry on
-        if (!response.isSuccess()) {
-            ASSERT_EQ(cb::mcbp::Status::Erange, response.getStatus());
-        }
+            // The manifest sticks, so if we set it again with the same uid,
+            // that is invalid, just assert erange and carry on
+            if (!response.isSuccess()) {
+                ASSERT_EQ(cb::mcbp::Status::Erange, response.getStatus());
+            }
+        });
     }
 };
 
@@ -53,10 +54,8 @@ TEST_P(CollectionsTest, ManifestUidInResponse) {
         expectedUid = "0";
     }
 
-    auto& conn = getConnection();
-
     // Force the unknown collection error and check the JSON
-    auto response = conn.execute(BinprotGenericCommand{
+    auto response = userConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::CollectionsGetID, "_default.error"});
     ASSERT_FALSE(response.isSuccess());
     ASSERT_EQ(cb::mcbp::Status::UnknownCollection, response.getStatus());

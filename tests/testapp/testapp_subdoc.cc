@@ -1784,7 +1784,7 @@ TEST_P(SubdocTestappTest, SubdocArrayPushLast_NotMyVbucket) {
 TEST_P(SubdocTestappTest, SubdocFlags) {
     const char array[] = "[0]";
     const uint32_t flags = 0xcafebabe;
-    store_object_w_datatype("array", array, flags, 0, cb::mcbp::Datatype::Raw);
+    store_document("array", array, flags);
 
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocReplace, "array", "[0]", "1"));
@@ -1800,7 +1800,7 @@ TEST_P(SubdocTestappTest, SubdocLockedItem) {
     store_document("item", "{}");
 
     // Lock the object
-    auto doc = getConnection().get_and_lock("item", Vbid(0), 10);
+    auto doc = userConnection->get_and_lock("item", Vbid(0), 10);
 
     // Construct the subdoc command
     BinprotSubdocCommand sd_cmd(

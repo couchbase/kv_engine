@@ -434,7 +434,6 @@ public:
             {"smith", "smithpassword"},
             {"larry", "larrypassword"},
             {"legacy", "new"},
-            {"default", ""},
             {"jones", "jonespassword"},
             {"Luke", "Skywalker"}};
 

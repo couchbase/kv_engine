@@ -15,7 +15,13 @@
 #include <protocol/connection/frameinfo.h>
 
 // Test fixture for new MCBP miscellaneous commands
-class MiscTest : public TestappClientTest {};
+class MiscTest : public TestappClientTest {
+public:
+    static void SetUpTestCase() {
+        TestappTest::SetUpTestCase();
+        createUserConnection = true;
+    }
+};
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          MiscTest,
@@ -25,10 +31,8 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 TEST_P(MiscTest, GetFailoverLog) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::GetFailoverLog);
 
-    auto& connection = getConnection();
-
     // Test existing VBucket
-    auto response = connection.getFailoverLog(Vbid(0));
+    auto response = userConnection->getFailoverLog(Vbid(0));
     auto header = response.getResponse();
     EXPECT_EQ(cb::mcbp::Magic::ClientResponse, header.getMagic());
     EXPECT_EQ(cb::mcbp::ClientOpcode::GetFailoverLog, header.getClientOpcode());
@@ -43,7 +47,7 @@ TEST_P(MiscTest, GetFailoverLog) {
     EXPECT_EQ(response.getData().size(), 0x10);
 
     // Test non-existing VBucket
-    response = connection.getFailoverLog(Vbid(1));
+    response = userConnection->getFailoverLog(Vbid(1));
     header = response.getResponse();
     EXPECT_EQ(cb::mcbp::Magic::ClientResponse, header.getMagic());
     EXPECT_EQ(cb::mcbp::ClientOpcode::GetFailoverLog, header.getClientOpcode());
@@ -181,7 +185,7 @@ TEST_P(MiscTest, ExceedMaxPacketSize) {
 }
 
 TEST_P(MiscTest, Version) {
-    const auto rsp = getConnection().execute(
+    const auto rsp = userConnection->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::Version});
     EXPECT_EQ(cb::mcbp::ClientOpcode::Version, rsp.getOp());
     EXPECT_TRUE(rsp.isSuccess());
