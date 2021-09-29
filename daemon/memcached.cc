@@ -28,7 +28,6 @@
 #include "nobucket_taskable.h"
 #include "opentelemetry.h"
 #include "protocol/mcbp/engine_wrapper.h"
-#include "runtime.h"
 #include "settings.h"
 #include "stats.h"
 #include "tenant_manager.h"
@@ -208,10 +207,6 @@ void associate_initial_bucket(Connection& connection) {
     }
 
     connection.setBucketIndex(0);
-
-    if (is_default_bucket_enabled()) {
-        associate_bucket(connection, "default");
-    }
 }
 
 static void populate_log_level() {
@@ -699,8 +694,6 @@ static void initialize_sasl() {
     using namespace cb::sasl;
     logging::set_log_callback(sasl_log_callback);
     server::initialize();
-    set_default_bucket_enabled(
-            mechanism::plain::authenticate("default", "") == Error::OK);
 
     if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
         // Speed up the unit tests ;)

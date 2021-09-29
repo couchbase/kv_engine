@@ -20,7 +20,6 @@
 #include "mcaudit.h"
 #include "memcached.h"
 #include "protocol/mcbp/engine_wrapper.h"
-#include "runtime.h"
 #include "sendbuffer.h"
 #include "settings.h"
 #include "ssl_utils.h"
@@ -393,21 +392,9 @@ void Connection::setBucketIndex(int index, Cookie* cookie) {
             // representing the users context in the desired bucket.
             privilegeContext =
                     cb::rbac::createContext(user, all_buckets[index].name);
-        } else if (is_default_bucket_enabled() &&
-                   strcmp("default", all_buckets[index].name) == 0) {
-            // We've just connected to the _default_ bucket, _AND_ the client
-            // is unknown.
-            // Personally I think the "default bucket" concept is a really
-            // really bad idea, but we need to be backwards compatible for
-            // a while... lets look up a profile named "default" and
-            // assign that. It should only contain access to the default
-            // bucket.
-            privilegeContext = cb::rbac::createContext({"default", user.domain},
-                                                       all_buckets[index].name);
         } else {
-            // The user has not authenticated, and this isn't for the
-            // "default bucket". Assign an empty profile which won't give
-            // you any privileges.
+            // The user has not authenticated. Assign an empty profile which
+            // won't give you any privileges.
             privilegeContext = cb::rbac::PrivilegeContext{user.domain};
         }
     } catch (const cb::rbac::Exception&) {
@@ -1141,8 +1128,6 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
                     LOG_WARNING("{}: Disconnecting client: {}",
                                 instance.getId(),
                                 reason);
-                } else if (is_default_bucket_enabled()) {
-                    associate_bucket(instance, "default");
                 }
                 break;
             case cb::x509::Status::Success:
@@ -1156,20 +1141,7 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
                     disconnect = true;
                 }
             }
-        } else {
-            // Client did not provide a X.509 certificate, and we're not
-            // using mandatory mode (if so openssl would disconnect before
-            // getting here)
-            if (is_default_bucket_enabled()) {
-                // We've not configured the socket to try to authenticate from
-                // the peer certificate
-                associate_bucket(instance, "default");
-            }
         }
-    } else if (is_default_bucket_enabled()) {
-        // We've not configured the socket to try to authenticate from
-        // the peer certificate
-        associate_bucket(instance, "default");
     }
 
     if (disconnect) {

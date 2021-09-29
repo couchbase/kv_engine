@@ -15,10 +15,10 @@
 
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
+#include <daemon/front_end_thread.h>
 #include <daemon/mc_time.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
-#include <daemon/runtime.h>
 #include <daemon/server_socket.h>
 #include <daemon/settings.h>
 #include <daemon/stats.h>

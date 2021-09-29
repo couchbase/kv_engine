@@ -18,7 +18,6 @@
 #include "logger/logger.h"
 #include "memcached.h"
 #include "memcached_audit_events.h"
-#include "runtime.h"
 #include "settings.h"
 
 #include <folly/Synchronized.h>

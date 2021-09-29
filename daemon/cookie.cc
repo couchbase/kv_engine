@@ -20,7 +20,6 @@
 #include "mcbp_executors.h"
 #include "memcached.h"
 #include "opentelemetry.h"
-#include "runtime.h"
 #include "settings.h"
 
 #include <logger/logger.h>
@@ -485,10 +484,9 @@ cb::mcbp::Status Cookie::validate() {
 
     auto opcode = request.getClientOpcode();
 
-    if (!connection.isAuthenticated() && !is_default_bucket_enabled()) {
-        // We're not authenticated and the default bucket isn't enabled. To
-        // reduce the attack vector we'll only allow certain commands to
-        // be executed
+    if (!connection.isAuthenticated()) {
+        // We're not authenticated. To reduce the attack vector we'll only
+        // allow certain commands to be executed
         const std::array<cb::mcbp::ClientOpcode, 5> whitelist{
                 {cb::mcbp::ClientOpcode::Hello,
                  cb::mcbp::ClientOpcode::SaslListMechs,

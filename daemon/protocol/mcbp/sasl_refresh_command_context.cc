@@ -14,7 +14,6 @@
 #include <cbsasl/user.h>
 #include <daemon/connection.h>
 #include <daemon/one_shot_task.h>
-#include <daemon/runtime.h>
 #include <daemon/settings.h>
 #include <daemon/tenant_manager.h>
 #include <executor/executorpool.h>
@@ -34,8 +33,6 @@ cb::engine_errc SaslRefreshCommandContext::doSaslRefresh() {
 
         switch (server::reload_password_database(usercallback)) {
         case Error::OK:
-            set_default_bucket_enabled(
-                    mechanism::plain::authenticate("default", "") == Error::OK);
             return cb::engine_errc::success;
         case Error::NO_MEM:
             return cb::engine_errc::no_memory;

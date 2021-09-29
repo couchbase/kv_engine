@@ -132,3 +132,7 @@ protected:
         folly::Synchronized<std::vector<Entry>, std::mutex> connections;
     } new_conn_queue;
 };
+
+class Hdr1sfMicroSecHistogram;
+
+extern std::vector<Hdr1sfMicroSecHistogram> scheduler_info;

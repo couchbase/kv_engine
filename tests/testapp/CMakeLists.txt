@@ -54,7 +54,6 @@ set(memcached_testapp_SOURCES
     testapp_logging.cc
     testapp_maxconn.cc
     testapp_misc.cc
-    testapp_no_autoselect_default_bucket.cc
     testapp_not_supported.cc
     testapp_persistence.cc
     testapp_rbac.cc
