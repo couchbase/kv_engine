@@ -785,12 +785,13 @@ void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
 
     if (isPersistent()) {
         auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+        using namespace testing;
 
         // Magma will make two calls here. One for the first value that
         // logically does not exist anymore, and one for the updated value.
         if (isMagma()) {
             EXPECT_CALL(*bucket,
-                        dropKey(vbid,
+                        dropKey(Ref(*bucket->getVBucket(vbid)),
                                 DiskDocKey(key),
                                 1 + seqnoOffset,
                                 false /*isAbort*/,
@@ -799,7 +800,7 @@ void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
         }
 
         EXPECT_CALL(*bucket,
-                    dropKey(vbid,
+                    dropKey(Ref(*bucket->getVBucket(vbid)),
                             DiskDocKey(key),
                             2 + seqnoOffset,
                             false /*isAbort*/,
@@ -880,12 +881,13 @@ void CollectionsEraserTest::testScopePurgedItemsCorrectAfterDrop(
 
     if (isPersistent()) {
         auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+        using namespace testing;
 
         // Magma will make two calls here. One for the first value that
         // logically does not exist anymore, and one for the updated value.
         if (isMagma()) {
             EXPECT_CALL(*bucket,
-                        dropKey(vbid,
+                        dropKey(Ref(*bucket->getVBucket(vbid)),
                                 DiskDocKey(key),
                                 1 + seqnoOffset,
                                 false /*isAbort*/,
@@ -894,7 +896,7 @@ void CollectionsEraserTest::testScopePurgedItemsCorrectAfterDrop(
         }
 
         EXPECT_CALL(*bucket,
-                    dropKey(vbid,
+                    dropKey(Ref(*bucket->getVBucket(vbid)),
                             DiskDocKey(key),
                             2 + seqnoOffset,
                             false /*isAbort*/,

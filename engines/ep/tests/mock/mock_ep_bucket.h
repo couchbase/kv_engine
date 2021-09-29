@@ -26,7 +26,7 @@ public:
 
     MOCK_METHOD(void,
                 dropKey,
-                (Vbid, const DiskDocKey&, int64_t, bool, int64_t),
+                (VBucket&, const DiskDocKey&, int64_t, bool, int64_t),
                 (override));
 
     /**

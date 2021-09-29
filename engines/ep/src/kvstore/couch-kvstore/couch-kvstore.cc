@@ -830,7 +830,8 @@ static int notify_expired_item(DocInfo& info,
         }
     }
 
-    auto it = makeItemFromDocInfo(ctx.vbid, info, metadata, data, false);
+    auto vbid = ctx.getVBucket()->getId();
+    auto it = makeItemFromDocInfo(vbid, info, metadata, data, false);
 
     ctx.expiryCallback->callback(*it, currtime);
 
@@ -991,14 +992,12 @@ static int time_purge_hook(Db& d,
         auto key = makeDiskDocKey(info->id);
 
         try {
-            ctx.bloomFilterCallback->callback(
-                    ctx.vbid, key.getDocKey(), deleted);
+            auto vbid = ctx.getVBucket()->getId();
+            ctx.bloomFilterCallback->callback(vbid, key.getDocKey(), deleted);
         } catch (std::runtime_error& re) {
             EP_LOG_WARN(
                     "time_purge_hook: exception occurred when invoking the "
-                    "bloomfilter callback on {}"
-                    " - Details: {}",
-                    ctx.vbid,
+                    "bloomfilter callback - Details: {}",
                     re.what());
         }
     }
@@ -1013,11 +1012,11 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                 "CouchKVStore::compactDB: droppedKeyCb must be set ");
     }
 
-    auto vbid = hook_ctx->vbid.get();
+    auto vbid = hook_ctx->getVBucket()->getId();
     // Note that this isn't racy as we'll hold the vbucket lock when we're
     // calling the method for doing the check and when we'll set it to
     // true
-    if (vbCompactionRunning[getCacheSlot(hook_ctx->vbid)]) {
+    if (vbCompactionRunning[getCacheSlot(vbid)]) {
         EP_LOG_INFO(
                 "CouchKVStore::compactDB: compaction already running for {}",
                 vbid);
@@ -1028,7 +1027,7 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
 
     // Open the source VBucket database file
     DbHolder sourceDb(*this);
-    auto errCode = openDB(hook_ctx->vbid,
+    auto errCode = openDB(vbid,
                           sourceDb,
                           (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY,
                           statCollectingFileOpsCompaction.get());
@@ -1037,20 +1036,19 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                 "CouchKVStore::compactDB openDB error:{}, {}, "
                 "fileRev:{}",
                 couchstore_strerror(errCode),
-                hook_ctx->vbid,
+                vbid,
                 sourceDb.getFileRev());
         return false;
     }
     const auto compact_file =
-            getDBFileName(dbname, hook_ctx->vbid, sourceDb.getFileRev()) +
-            ".compact";
+            getDBFileName(dbname, vbid, sourceDb.getFileRev()) + ".compact";
 
-    vbCompactionRunning[getCacheSlot(hook_ctx->vbid)] = true;
-    vbAbortCompaction[getCacheSlot(hook_ctx->vbid)] = false;
+    vbCompactionRunning[getCacheSlot(vbid)] = true;
+    vbAbortCompaction[getCacheSlot(vbid)] = false;
 
     auto status = CompactDBInternalStatus::Failed;
     try {
-        TRACE_EVENT1("CouchKVStore", "compactDB", "vbid", hook_ctx->vbid.get());
+        TRACE_EVENT1("CouchKVStore", "compactDB", "vbid", vbid.get());
         const auto start = std::chrono::steady_clock::now();
         status = compactDBInternal(
                 sourceDb, compact_file, vbLock, hook_ctx.get());
@@ -1064,7 +1062,7 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                 "CouchKVStore::compactDB: exception while performing "
                 "compaction for {}"
                 " - Details: {}",
-                hook_ctx->vbid,
+                vbid,
                 le.what());
         status = CompactDBInternalStatus::Failed;
     }
@@ -1073,18 +1071,17 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
         switch (status) {
         case CompactDBInternalStatus::Failed:
             logger.error("CouchKVStore::compactDB: compaction failed for {}",
-                         hook_ctx->vbid);
+                         vbid);
             ++st.numCompactionFailure;
             break;
         case CompactDBInternalStatus::Aborted:
-            logger.info("CouchKVStore::compactDB: aborted for {}",
-                        hook_ctx->vbid);
+            logger.info("CouchKVStore::compactDB: aborted for {}", vbid);
             break;
         case CompactDBInternalStatus::Success:
             break;
         }
 
-        removeCompactFile(compact_file, hook_ctx->vbid);
+        removeCompactFile(compact_file, vbid);
     }
 
     // Make sure we own the lock when we'll clear the variables (in the
@@ -1093,8 +1090,8 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
     if (!vbLock.owns_lock()) {
         vbLock.lock();
     }
-    vbCompactionRunning[getCacheSlot(hook_ctx->vbid)] = false;
-    vbAbortCompaction[getCacheSlot(hook_ctx->vbid)] = false;
+    vbCompactionRunning[getCacheSlot(vbid)] = false;
+    vbAbortCompaction[getCacheSlot(vbid)] = false;
 
     return status == CompactDBInternalStatus::Success;
 }
@@ -1352,7 +1349,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
     vbLock.unlock();
 
     auto* def_iops = statCollectingFileOpsCompaction.get();
-    const auto vbid = hook_ctx->vbid;
+    const auto vbid = hook_ctx->getVBucket()->getId();
     const auto new_rev = sourceDb.getFileRev() + 1;
     const auto dbfile = getDBFileName(dbname, vbid, sourceDb.getFileRev());
 
@@ -1382,7 +1379,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
     // up an old and stale file header at the end of the file!)
     // (couchstore don't remove the target file before starting compaction
     // as callers _may_ use the existence of those for locking purposes)
-    removeCompactFile(compact_file, hook_ctx->vbid);
+    removeCompactFile(compact_file, vbid);
 
     couchstore_error_t errCode;
 

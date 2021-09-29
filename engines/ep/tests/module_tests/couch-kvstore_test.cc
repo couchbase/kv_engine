@@ -17,6 +17,8 @@
 #include "collections/collection_persisted_stats.h"
 #include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
+#include "ep_vb.h"
+#include "failover-table.h"
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/couch-kvstore/couch-kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"
@@ -30,6 +32,7 @@
 #include "tools/couchfile_upgrade/input_couchfile.h"
 #include "tools/couchfile_upgrade/output_couchfile.h"
 #include "vbucket_bgfetch_item.h"
+#include "vbucket_test.h"
 
 #include <folly/portability/GMock.h>
 #include <platform/dirutils.h>
@@ -58,7 +61,8 @@ public:
     void runCompaction(KVStoreIface& kvstore, CompactionConfig config) {
         std::mutex mutex;
         std::unique_lock<std::mutex> lock(mutex);
-        auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+        auto vb = TestEPVBucketFactory::makeVBucket(vbid);
+        auto ctx = std::make_shared<CompactionContext>(vb, config, 0);
         EXPECT_TRUE(kvstore.compactDB(lock, ctx));
     }
 };
@@ -116,10 +120,9 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     CompactionConfig compactionConfig;
     compactionConfig.purge_before_seq = 0;
     compactionConfig.purge_before_ts = 0;
-    compactionConfig.drop_deletes = 0;
-    auto cctx =
-            std::make_shared<CompactionContext>(Vbid(0), compactionConfig, 0);
-
+    compactionConfig.drop_deletes = false;
+    auto vb = TestEPVBucketFactory::makeVBucket(vbid);
+    auto cctx = std::make_shared<CompactionContext>(vb, compactionConfig, 0);
     {
         auto vbLock = getVbLock();
         EXPECT_TRUE(kvstore->compactDB(vbLock, cctx));
@@ -533,6 +536,32 @@ public:
         cb::io::rmrf(data_dir.c_str());
     }
 
+    EPStats globalStats;
+    VBucketPtr makeVBucket() {
+        Configuration conf;
+        return std::make_unique<EPVBucket>(
+                vbid,
+                vbucket_state_active,
+                globalStats,
+                *std::make_unique<CheckpointConfig>(conf),
+                /*kvshard*/ nullptr,
+                /*lastSeqno*/ 1000,
+                /*lastSnapStart*/ 0,
+                /*lastSnapEnd*/ 0,
+                /*table*/ nullptr,
+                std::make_shared<DummyCB>(),
+                /*newSeqnoCb*/ nullptr,
+                [](Vbid) { return; },
+                NoopSyncWriteCompleteCb,
+                NoopSyncWriteTimeoutFactory,
+                NoopSeqnoAckCb,
+                ImmediateCkptDisposer,
+                conf,
+                EvictionPolicy::Value,
+                std::make_unique<Collections::VB::Manifest>(
+                        std::make_shared<Collections::Manager>()));
+    }
+
 protected:
     void generate_items(size_t count) {
         for (unsigned i(0); i < count; i++) {
@@ -868,8 +897,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
     CompactionConfig config;
     config.purge_before_seq = 0;
     config.purge_before_ts = 0;
-    config.drop_deletes = 0;
-    auto cctx = std::make_shared<CompactionContext>(vbid, config, 0);
+    config.drop_deletes = false;
+    auto vb = makeVBucket();
+    auto cctx = std::make_shared<CompactionContext>(vb, config, 0);
 
     {
         /* Establish Logger expectation */
@@ -1223,7 +1253,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTest) {
     populate_items(1);
 
     CompactionConfig config;
-    auto cctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+    auto vb = TestEPVBucketFactory::makeVBucket(vbid);
+    auto cctx = std::make_shared<CompactionContext>(vb, config, 0);
 
     {
         /* Establish FileOps expectation */
@@ -1415,8 +1446,9 @@ public:
     void runCompaction() {
         std::mutex mutex;
         std::unique_lock<std::mutex> lock(mutex);
-        CompactionConfig config;
-        auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+        CompactionConfig compactConfig;
+        auto vb = TestEPVBucketFactory::makeVBucket(vbid);
+        auto ctx = std::make_shared<CompactionContext>(vb, compactConfig, 0);
 
         // We have some tests in this test suite that check that collection
         // stats are updated. The manfiest stats are normally updated via the
@@ -1657,7 +1689,8 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
 // we wouldn't potentially get a database header without the _local/document
 TEST_F(CouchstoreTest, MB40415_regression_test) {
     CompactionConfig config;
-    auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+    auto vb = TestEPVBucketFactory::makeVBucket(vbid);
+    auto ctx = std::make_shared<CompactionContext>(vb, config, 0);
 
     // Verify that if we would "fail" the precommit hook for some reason
     // the entire compaction would fail...
@@ -2063,7 +2096,8 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushing) {
     std::mutex mutex;
     std::unique_lock<std::mutex> lock(mutex);
     CompactionConfig config;
-    auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+    auto vb = TestEPVBucketFactory::makeVBucket(vbid);
+    auto ctx = std::make_shared<CompactionContext>(vb, config, 0);
     kvstore->compactDB(lock, ctx);
     ASSERT_GT(ii, 1) << "There should at least be two callbacks";
     ASSERT_LT(ii, 12) << "There should be up to 10 catch up without holding "
@@ -2109,7 +2143,8 @@ TEST_F(CouchstoreTest, MB_39946_diskSize_could_underflow) {
     std::mutex mutex;
     std::unique_lock<std::mutex> lock(mutex);
     CompactionConfig config;
-    auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+    auto vb = TestEPVBucketFactory::makeVBucket(vbid);
+    auto ctx = std::make_shared<CompactionContext>(vb, config, 0);
     kvstore->compactDB(lock, ctx);
 
     kvstore->setConcurrentCompactionPostLockHook([](const std::string&) {});
@@ -2163,7 +2198,8 @@ TEST_F(CouchstoreTest, MB43121) {
             });
 
     CompactionConfig config;
-    auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+    auto vb = TestEPVBucketFactory::makeVBucket(vbid);
+    auto ctx = std::make_shared<CompactionContext>(vb, config, 0);
     ASSERT_FALSE(kvstore->compactDB(lock, ctx)) << "Compaciton should fail";
     ASSERT_TRUE(aborted) << "Callback not called";
     ASSERT_FALSE(filename.empty()) << "A filename should be set";
@@ -2647,7 +2683,8 @@ TEST_F(CouchstoreTest, EnsureCompactionThrowsIfdroppedKeyCbIsntSepcified) {
     std::mutex mutex;
     std::unique_lock<std::mutex> lock(mutex);
     CompactionConfig config;
-    auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+    auto vb = TestEPVBucketFactory::makeVBucket(vbid);
+    auto ctx = std::make_shared<CompactionContext>(vb, config, 0);
     ctx->droppedKeyCb = nullptr;
     EXPECT_THROW(kvstore->compactDB(lock, ctx), std::invalid_argument);
 }

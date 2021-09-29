@@ -29,12 +29,12 @@ MockEPBucket::MockEPBucket(EventuallyPersistentEngine& theEngine)
             std::make_unique<::testing::NiceMock<MockReplicationThrottle>>(
                     replicationThrottle.release());
     ON_CALL(*this, dropKey)
-            .WillByDefault([this](Vbid vbid,
+            .WillByDefault([this](VBucket& vb,
                                   const DiskDocKey& key,
                                   int64_t seqno,
                                   bool isAbort,
                                   int64_t pcs) {
-                EPBucket::dropKey(vbid, key, seqno, isAbort, pcs);
+                EPBucket::dropKey(vb, key, seqno, isAbort, pcs);
             });
 }
 

@@ -2118,18 +2118,16 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                                      std::shared_ptr<CompactionContext> ctx) {
     std::chrono::steady_clock::time_point start =
             std::chrono::steady_clock::now();
-
+    auto vbid = ctx->getVBucket()->getId();
     logger->info(
             "MagmaKVStore::compactDBInternal: {} purge_before_ts:{} "
             "purge_before_seq:{} drop_deletes:{} "
             "retain_erroneous_tombstones:{}",
-            ctx->vbid,
+            vbid,
             ctx->compactConfig.purge_before_ts,
             ctx->compactConfig.purge_before_seq,
             ctx->compactConfig.drop_deletes,
             ctx->compactConfig.retain_erroneous_tombstones);
-
-    Vbid vbid = ctx->vbid;
 
     auto [getDroppedStatus, dropped] = getDroppedCollections(vbid);
     if (!getDroppedStatus) {
@@ -2154,9 +2152,9 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     }
     ctx->highCompletedSeqno = diskState.vbstate.persistedCompletedSeqno;
 
-    auto compactionCB = [this, ctx](const Magma::KVStoreID kvID) {
+    auto compactionCB = [this, vbid, ctx](const Magma::KVStoreID kvID) {
         return std::make_unique<MagmaKVStore::MagmaCompactionCB>(
-                *this, ctx->vbid, ctx);
+                *this, vbid, ctx);
     };
 
     uint64_t collectionItemsDropped = 0;
@@ -3046,7 +3044,7 @@ std::shared_ptr<CompactionContext> MagmaKVStore::makeImplicitCompactionContext(
             "MagmaKVStore::makeImplicitCompactionContext {} purge_before_ts:{} "
             "purge_before_seq:{}"
             " drop_deletes:{} retain_erroneous_tombstones:{}",
-            ctx->vbid,
+            vbid,
             ctx->compactConfig.purge_before_ts,
             ctx->compactConfig.purge_before_seq,
             ctx->compactConfig.drop_deletes,

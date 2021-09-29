@@ -338,7 +338,7 @@ protected:
     void stopWarmup();
 
     /// function which is passed down to compactor for dropping keys
-    virtual void dropKey(Vbid vbid,
+    virtual void dropKey(VBucket& vb,
                          const DiskDocKey& key,
                          int64_t bySeqno,
                          bool isAbort,

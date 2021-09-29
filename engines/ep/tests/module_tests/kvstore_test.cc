@@ -12,6 +12,8 @@
 
 #include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
+#include "ep_vb.h"
+#include "failover-table.h"
 #include "item.h"
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/couch-kvstore/couch-kvstore.h"
@@ -30,6 +32,7 @@
 #include "thread_gate.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
+#include "vbucket_test.h"
 #include <boost/filesystem.hpp>
 #include <executor/workload.h>
 #include <folly/portability/GTest.h>
@@ -44,6 +47,33 @@ using namespace testing;
 
 // Value to use when testing Snappy compression.
 static const std::string COMPRESSIBLE_VALUE = "xxyyzzxxyyzzxxyyzzxxyyzz";
+
+std::shared_ptr<VBucket> TestEPVBucketFactory::makeVBucket(Vbid vbid) {
+    Configuration config;
+    static auto globalStats = std::make_unique<EPStats>();
+    static auto checkpointConfig = std::make_unique<CheckpointConfig>(config);
+    return std::make_shared<EPVBucket>(
+            vbid,
+            vbucket_state_active,
+            *globalStats,
+            *checkpointConfig,
+            /*kvshard*/ nullptr,
+            /*lastSeqno*/ 1000,
+            /*lastSnapStart*/ 0,
+            /*lastSnapEnd*/ 0,
+            /*table*/ nullptr,
+            std::make_shared<DummyCB>(),
+            /*newSeqnoCb*/ nullptr,
+            [](Vbid) { return; },
+            NoopSyncWriteCompleteCb,
+            NoopSyncWriteTimeoutFactory,
+            NoopSeqnoAckCb,
+            ImmediateCkptDisposer,
+            config,
+            EvictionPolicy::Value,
+            std::make_unique<Collections::VB::Manifest>(
+                    std::make_shared<Collections::Manager>()));
+}
 
 void KVStoreTestCacheCallback::callback(CacheLookup& lookup) {
     EXPECT_EQ(vb, lookup.getVBucketId());
@@ -929,7 +959,8 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
         config.purge_before_ts = 0;
 
         config.drop_deletes = false;
-        auto cctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+        auto vb = TestEPVBucketFactory::makeVBucket(vbid);
+        auto cctx = std::make_shared<CompactionContext>(vb, config, 0);
         for (int i = 0; i < 10; i++) {
             auto lock = getVbLock();
             EXPECT_TRUE(kvstore->compactDB(lock, cctx));
@@ -1326,7 +1357,8 @@ TEST_P(KVStoreParamTestSkipRocks, SyncDeletePrepareNotPurgedByTimestamp) {
     compactionConfig.purge_before_seq = 0;
     compactionConfig.purge_before_ts = 2;
     compactionConfig.drop_deletes = false;
-    auto cctx = std::make_shared<CompactionContext>(vbid, compactionConfig, 0);
+    auto vb = TestEPVBucketFactory::makeVBucket(vbid);
+    auto cctx = std::make_shared<CompactionContext>(vb, compactionConfig, 0);
     {
         auto lock = getVbLock();
         EXPECT_TRUE(kvstore->compactDB(lock, cctx));
@@ -1414,7 +1446,8 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
     compactionConfig.purge_before_seq = 0;
     compactionConfig.purge_before_ts = 0;
     compactionConfig.drop_deletes = false;
-    auto cctx = std::make_shared<CompactionContext>(vbid, compactionConfig, 0);
+    auto vb = TestEPVBucketFactory::makeVBucket(vbid);
+    auto cctx = std::make_shared<CompactionContext>(vb, compactionConfig, 0);
     {
         auto lock = getVbLock();
         EXPECT_TRUE(kvstore->compactDB(lock, cctx));
@@ -1524,7 +1557,8 @@ TEST_P(KVStoreParamTestSkipRocks, purgeSeqnoAfterCompaction) {
 
     CompactionConfig compactionConfig;
     compactionConfig.drop_deletes = true;
-    auto cctx = std::make_shared<CompactionContext>(vbid, compactionConfig, 0);
+    auto vb = TestEPVBucketFactory::makeVBucket(vbid);
+    auto cctx = std::make_shared<CompactionContext>(vb, compactionConfig, 0);
     {
         auto lock = getVbLock();
         EXPECT_TRUE(kvstore->compactDB(lock, cctx));

@@ -572,6 +572,96 @@ TEST_P(STParamMagmaBucketTest, MagmaMemQuotaDynamicUpdate) {
     EXPECT_EQ(0.3f, config.getMagmaMemQuotaRatio());
 }
 
+/*
+ * Test for MB-47566 to ensure that compaction running at the same time as a
+ * vbucket being rolled back doesn't cause us to throw an underflow exception
+ *
+ * This test can also replicate the old functionality of compaction completion
+ * callback to trigger an underflow. By setting runWithFix=false;
+ */
+TEST_P(STParamMagmaBucketTest, MB_47566) {
+    const bool runWithFix = true;
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Add collection and write a documents to it. Then drop the collection so
+    // when compaction runs we will drop an item.
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    ASSERT_TRUE(store_items(
+            5, vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value"));
+    flushVBucketToDiskIfPersistent(vbid, 5);
+
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Switch the vbucket to a replica so we can perform rollback
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    auto& epBucket = dynamic_cast<EPBucket&>(*engine->getKVBucket());
+    ThreadGate compactionGate(2);
+    ThreadGate compactionCompletionGate(2);
+
+    CompactionConfig config;
+    // Set drop deletes so we get rid of the fruit collection's documents
+    config.drop_deletes = true;
+    // Create a compaction context and cache the real compaction completion
+    // callback
+    auto ctx = epBucket.makeCompactionContext(vbid, config, 0);
+    auto realCompletionCallback = ctx->completionCallback;
+    // Create a new compaction completion callback that wait for the main
+    // thread to have performed the rollback before calling the real compaction
+    // completion callback
+    ctx->completionCallback = [this,
+                               &compactionCompletionGate,
+                               runWithFix,
+                               realCompletionCallback](CompactionContext& ctx) {
+        compactionCompletionGate.threadUp();
+        if (runWithFix) {
+            realCompletionCallback(ctx);
+        } else {
+            auto vb = engine->getVBucket(vbid);
+            vb->maybeSetPurgeSeqno(ctx.getRollbackPurgeSeqno());
+            vb->decrNumTotalItems(ctx.stats.collectionsItemsPurged);
+        }
+    };
+
+    // Lambda to perform the compaction on another thread
+    auto tPerformCompaction = [this,
+                               ctx,
+                               &epBucket,
+                               &compactionGate,
+                               &compactionCompletionGate]() {
+        ObjectRegistry::onSwitchThread(engine.get());
+        auto* kvstore = epBucket.getRWUnderlying(vbid);
+        auto vb = store->getLockedVBucket(vbid, std::try_to_lock);
+        auto& lock = vb.getLock();
+        compactionGate.threadUp();
+        bool result = false;
+        // Ensure that the compaction doesn't throw and completes successfully
+        EXPECT_NO_THROW(result = kvstore->compactDB(lock, ctx));
+        EXPECT_TRUE(result);
+        // if for some reason the compaction failed and the compaction callback
+        // wasn't called ensure we don't hang the main thread by calling
+        // threadUp()
+        if (!result && !compactionCompletionGate.isComplete()) {
+            compactionCompletionGate.threadUp();
+        }
+    };
+    // Start compaction thread
+    std::thread compactionThread(tPerformCompaction);
+    // Wait till the compaction task is about to compact
+    compactionGate.threadUp();
+    // Now that compaction has been started reset the vbucket by rolling back to
+    // seqno 0
+    EXPECT_NE(TaskStatus::Abort, epBucket.rollback(vbid, 0));
+    // After we've run rollback let the compaction callback run
+    compactionCompletionGate.threadUp();
+    // Wait for compaction thread to complete
+    compactionThread.join();
+}
+
 INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
                          STParamMagmaBucketTest,
                          STParameterizedBucketTest::magmaConfigValues(),

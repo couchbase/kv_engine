@@ -4619,7 +4619,8 @@ TEST_P(STPassiveStreamCouchstoreTest, VBStateNotLostAfterFlushFailure) {
     auto& underlying = *store->getRWUnderlying(vbid);
 
     CompactionConfig cc;
-    auto context = std::make_shared<CompactionContext>(vbid, cc, 1);
+    auto context =
+            std::make_shared<CompactionContext>(store->getVBucket(vbid), cc, 1);
     underlying.compactDB(res.getLock(), context);
     EXPECT_EQ(0, underlying.getCachedVBucketState(vbid)->onDiskPrepares);
 }

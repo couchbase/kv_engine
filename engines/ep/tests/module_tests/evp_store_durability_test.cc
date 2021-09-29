@@ -2695,7 +2695,8 @@ TEST_P(DurabilityEPBucketTest, DoNotExpirePendingItem) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     CompactionConfig config;
-    auto cctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+    auto cctx = std::make_shared<CompactionContext>(
+            store->getVBucket(vbid), config, 0);
 
     cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
@@ -2772,7 +2773,8 @@ TEST_P(DurabilityEPBucketTest,
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     CompactionConfig config;
-    auto cctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+    auto cctx = std::make_shared<CompactionContext>(
+            store->getVBucket(vbid), config, 0);
     cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
     auto* kvstore = store->getOneRWUnderlying();
@@ -2856,7 +2858,8 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     CompactionConfig config;
-    auto cctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+    auto cctx = std::make_shared<CompactionContext>(
+            store->getVBucket(vbid), config, 0);
     cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
     // Sanity - prepare exists before compaction
@@ -2951,7 +2954,8 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
                "metadata purge interval passed.";
 
     CompactionConfig config;
-    auto cctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+    auto cctx = std::make_shared<CompactionContext>(
+            store->getVBucket(vbid), config, 0);
     cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
     {
@@ -2967,8 +2971,8 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 
     config.purge_before_ts = std::numeric_limits<uint64_t>::max();
-    cctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
     {
+        auto cctx = std::make_shared<CompactionContext>(vb, config, 0);
         auto vb = store->getLockedVBucket(vbid);
         EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));
     }
@@ -2997,7 +3001,8 @@ void DurabilityCouchstoreBucketTest::
 
     // Trigger compaction
     CompactionConfig config;
-    auto cctx = std::make_shared<CompactionContext>(vbid, config, 0);
+    auto cctx = std::make_shared<CompactionContext>(
+            store->getVBucket(vbid), config, 0);
     cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
     auto& kvstore = dynamic_cast<CouchKVStore&>(*store->getOneRWUnderlying());

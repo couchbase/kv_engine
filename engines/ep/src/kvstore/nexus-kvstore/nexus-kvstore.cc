@@ -877,7 +877,8 @@ NexusCompactionContext NexusKVStore::calculateCompactionOrder(
 
 bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                              std::shared_ptr<CompactionContext> primaryCtx) {
-    auto vbid = primaryCtx->vbid;
+    auto primaryVbPtr = primaryCtx->getVBucket();
+    auto vbid = primaryVbPtr->getId();
 
     // Need to take the lock for this vBucket to prevent concurrent flushes
     // from changing the on disk state that a compaction might see (and
@@ -902,7 +903,7 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
     // Create a new context to avoid calling things like the completion callback
     // which sets in memory state after the secondary compacts
     auto secondaryCtx = std::make_shared<CompactionContext>(
-            vbid,
+            std::move(primaryVbPtr),
             primaryCtx->compactConfig,
             primaryCtx->getRollbackPurgeSeqno());
 

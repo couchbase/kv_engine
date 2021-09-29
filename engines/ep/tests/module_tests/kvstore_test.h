@@ -29,6 +29,11 @@
 class KVStoreConfig;
 class KVStore;
 
+class TestEPVBucketFactory {
+public:
+    static std::shared_ptr<VBucket> makeVBucket(Vbid vbid);
+};
+
 /**
  * Test fixture for KVStore tests.
  */

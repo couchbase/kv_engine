@@ -1164,7 +1164,7 @@ void EPBucket::flushOneDelOrSet(TransactionContext& txnCtx,
     }
 }
 
-void EPBucket::dropKey(Vbid vbid,
+void EPBucket::dropKey(VBucket& vb,
                        const DiskDocKey& diskKey,
                        int64_t bySeqno,
                        bool isAbort,
@@ -1177,11 +1177,6 @@ void EPBucket::dropKey(Vbid vbid,
         return;
     }
 
-    auto vb = getVBucket(vbid);
-    if (!vb) {
-        return;
-    }
-
     auto docKey = diskKey.getDocKey();
     if (docKey.isInSystemCollection()) {
         throw std::logic_error("EPBucket::dropKey called for a system key");
@@ -1189,11 +1184,11 @@ void EPBucket::dropKey(Vbid vbid,
 
     if (diskKey.isPrepared() && bySeqno > highCompletedSeqno) {
         // ... drop it from the DurabilityMonitor
-        vb->dropPendingKey(docKey, bySeqno);
+        vb.dropPendingKey(docKey, bySeqno);
     }
 
     // ... drop it from the VB (hashtable)
-    vb->dropKey(docKey, bySeqno);
+    vb.dropKey(docKey, bySeqno);
 }
 
 std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
@@ -1210,8 +1205,13 @@ std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
         expireFrom = ep_real_time();
     }
 
+    auto vb = getVBucket(vbid);
+    if (!vb) {
+        return nullptr;
+    }
+
     auto ctx = std::make_shared<CompactionContext>(
-            vbid, config, purgeSeqno, expireFrom);
+            std::move(vb), config, purgeSeqno, expireFrom);
 
     BloomFilterCBPtr filter(new BloomFilterCallback(*this));
     ctx->bloomFilterCallback = filter;
@@ -1219,27 +1219,28 @@ std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
     ExpiredItemsCBPtr expiry(new ExpiredItemsCallback(*this));
     ctx->expiryCallback = expiry;
 
-    ctx->droppedKeyCb = [this, vbid](const DiskDocKey& diskKey,
-                                     int64_t bySeqno,
-                                     bool isAbort,
-                                     int64_t highCompletedSeqno) {
-        dropKey(vbid, diskKey, bySeqno, isAbort, highCompletedSeqno);
+    // take a raw ref to the context as if the function is being called we know
+    // it's not out of scope, so there's no need to add a ref to it.
+    ctx->droppedKeyCb = [this, &ctxRef = *ctx](const DiskDocKey& diskKey,
+                                               int64_t bySeqno,
+                                               bool isAbort,
+                                               int64_t highCompletedSeqno) {
+        dropKey(*ctxRef.getVBucket(),
+                diskKey,
+                bySeqno,
+                isAbort,
+                highCompletedSeqno);
     };
 
     ctx->completionCallback = [this](CompactionContext& ctx) {
         compactionCompletionCallback(ctx);
     };
 
-    ctx->maybeUpdateVBucketPurgeSeqno = [this, vbid](uint64_t seqno) -> void {
-        auto vbPtr = getVBucket(vbid);
-        if (!vbPtr) {
-            throw std::runtime_error(fmt::format(
-                    "KVStore::CompactionContext::maybeUpdatePurgeSeqno(): "
-                    "Unable to get vbucket ptr for {} seqno:{}",
-                    vbid,
-                    seqno));
-        }
-        vbPtr->maybeSetPurgeSeqno(seqno);
+    // take a raw ref to the context as if the function is being called we know
+    // it's not out of scope, so there's no need to add a ref to it.
+    ctx->maybeUpdateVBucketPurgeSeqno =
+            [this, &ctxRef = *ctx](uint64_t seqno) -> void {
+        ctxRef.getVBucket()->maybeSetPurgeSeqno(seqno);
         postPurgeSeqnoImplicitCompactionHook();
     };
 
@@ -1247,10 +1248,7 @@ std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
 }
 
 void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
-    auto vb = getVBucket(ctx.vbid);
-    if (!vb) {
-        return;
-    }
+    auto vb = ctx.getVBucket();
 
     // Grab a pre-compaction snapshot of the stats
     auto prePurgeSeqno = vb->getPurgeSeqno();

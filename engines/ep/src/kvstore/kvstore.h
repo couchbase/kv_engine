@@ -18,6 +18,7 @@
 #include "kvstore_fwd.h"
 #include "kvstore_iface.h"
 #include "utilities/testing_hook.h"
+#include "vbucket_fwd.h"
 
 #include <memcached/engine_common.h>
 #include <memcached/thread_pool_config.h>
@@ -30,6 +31,7 @@
 #include <map>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 /* Forward declarations */
@@ -221,21 +223,28 @@ public:
 };
 
 struct CompactionContext {
-    CompactionContext(Vbid vbid,
+    CompactionContext(VBucketPtr vb,
                       CompactionConfig config,
                       uint64_t purgeSeq,
                       std::optional<time_t> timeToExpireFrom = {})
-        : vbid(vbid),
-          compactConfig(std::move(config)),
+        : compactConfig(std::move(config)),
           timeToExpireFrom(timeToExpireFrom),
-          purgedItemCtx(std::make_unique<PurgedItemCtx>(purgeSeq)) {
+          purgedItemCtx(std::make_unique<PurgedItemCtx>(purgeSeq)),
+          vb(vb) {
     }
 
     uint64_t getRollbackPurgeSeqno() const {
         return purgedItemCtx->rollbackPurgeSeqnoCtx->getRollbackPurgeSeqno();
     }
 
-    Vbid vbid;
+    VBucketPtr getVBucket() const {
+        auto vbPtr = vb.lock();
+        if (!vbPtr) {
+            throw std::runtime_error(
+                    "CompactionContext::getVBucket() vbucket no longer exists");
+        }
+        return vbPtr;
+    }
 
     /// The configuration for this compaction.
     const CompactionConfig compactConfig;
@@ -275,6 +284,10 @@ struct CompactionContext {
      * purging items.
      */
     std::unique_ptr<PurgedItemCtx> purgedItemCtx;
+
+private:
+    /// Pointer to the in memory vbucket that we're compacting for
+    std::weak_ptr<VBucket> vb;
 };
 
 struct kvstats_ctx {
