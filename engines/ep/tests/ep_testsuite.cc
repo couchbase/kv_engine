@@ -5229,17 +5229,18 @@ static enum test_result test_control_data_traffic(EngineIface* h) {
 }
 
 static enum test_result test_memory_condition(EngineIface* h) {
-    char data[1024];
-    memset(&data, 'x', sizeof(data)-1);
-    data[1023] = '\0';
+    std::string data(1024 * 1024, 'x');
 
-    //Write 10 times as much data as the bucket quota
-    for (uint64_t j = 0; j < 26214400; ++j) {
+    // Disable persistence so this test isn't racy
+    stop_persistence(h);
+    auto j = 0;
+
+    while (true) {
         std::string key("key-");
-        key += std::to_string(j);
+        key += std::to_string(j++);
 
-        cb::engine_errc err =
-                store(h, nullptr, StoreSemantics::Set, key.c_str(), data);
+        cb::engine_errc err = store(
+                h, nullptr, StoreSemantics::Set, key.c_str(), data.data());
 
         std::string checkMsg("Failed for reason ");
         checkMsg += to_string(err);
@@ -5253,6 +5254,7 @@ static enum test_result test_memory_condition(EngineIface* h) {
             break;
         }
     }
+    start_persistence(h);
     wait_for_flusher_to_settle(h);
 
     return SUCCESS;
