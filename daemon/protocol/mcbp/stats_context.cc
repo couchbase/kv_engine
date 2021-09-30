@@ -249,6 +249,24 @@ static cb::engine_errc stat_aggregate_executor(const std::string& arg,
 }
 
 /**
+ * Handler for the <code>clocks</code> command to retrieve
+ * information about the clocks in the system.
+ *
+ * @param arg - should be empty
+ * @param cookie the command context
+ */
+static cb::engine_errc stat_clocks_executor(const std::string& arg,
+                                            Cookie& cookie) {
+    if (!arg.empty()) {
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    CBStatCollector collector(appendStatsFn, &cookie);
+    server_clock_stats(collector);
+    return cb::engine_errc::success;
+}
+
+/**
  * Handler for the <code>stats connection[ fd]</code> command to retrieve
  * information about connection specific details. An fd specified as "self"
  * means the calling connection.
@@ -540,6 +558,7 @@ static std::unordered_map<std::string, struct command_stat_handler>
                 {"aggregate", {false, true, true, stat_aggregate_executor}},
                 {"connections",
                  {false, false, true, stat_connections_executor}},
+                {"clocks", {false, false, true, stat_clocks_executor}},
                 {"json_validate",
                  {false, true, true, stat_json_validate_executor}},
                 {"snappy_decompress",

@@ -18,6 +18,9 @@
 #include "server_socket.h"
 #include "settings.h"
 
+#include <fmt/chrono.h>
+#include <folly/Chrono.h>
+#include <platform/timeutils.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
 #include <statistics/prometheus.h>
@@ -32,6 +35,7 @@ static void server_global_stats(const StatCollector& collector) {
     collector.addStat(Key::uptime, now);
     collector.addStat(Key::stat_reset, getStatsResetTime());
     collector.addStat(Key::time, mc_time_convert_to_abs_time(now));
+
     collector.addStat(Key::version, get_server_version());
     collector.addStat(Key::memcached_version, MEMCACHED_VERSION);
 
@@ -42,6 +46,26 @@ static void server_global_stats(const StatCollector& collector) {
                       stats.system_conns.load(std::memory_order_relaxed));
     collector.addStat(Key::total_connections, stats.total_conns);
     collector.addStat(Key::connection_structures, stats.conn_structs);
+}
+
+/// Add global stats related to clocks and time.
+void server_clock_stats(const StatCollector& collector) {
+    using namespace cb::stats;
+
+    const auto fineClockOverhead =
+            cb::estimateClockOverhead<std::chrono::steady_clock>();
+    collector.addStat(Key::clock_fine_overhead_ns,
+                      fineClockOverhead.overhead.count());
+
+    const auto coarseClockOverhead =
+            cb::estimateClockOverhead<folly::chrono::coarse_steady_clock>();
+    collector.addStat(Key::clock_coarse_overhead_ns,
+                      coarseClockOverhead.overhead.count());
+    // Note that measurementPeriod is the for fine and coarse - it's the
+    // period of the clock we use to _measure_ the given clock with - and hence
+    // just report it once.
+    collector.addStat(Key::clock_measurement_period_ns,
+                      coarseClockOverhead.measurementPeriod.count());
 }
 
 /// add stats aggregated over all buckets

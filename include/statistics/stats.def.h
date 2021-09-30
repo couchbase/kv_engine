@@ -425,6 +425,15 @@ STAT(stat_reset,
      , ) // TODO: String indicating when stats were reset. Change
          //  to a numeric stat for Prometheus?
 STAT(time, , seconds, , )
+
+// The following 3 stats are not exposed to prometheus as we don't expect their
+// values to change over time, assuming the system's clock configuration is
+// constant. However it is useful to have them show in cbstats so we can read
+// their current values either ad-hoc via cbstats or via cbcollect_info.
+CBSTAT(clock_fine_overhead_ns, , none)
+CBSTAT(clock_coarse_overhead_ns, , none)
+CBSTAT(clock_measurement_period_ns, , none)
+
 STAT(version, , none, , ) // version string
 STAT(memcached_version, , none, , ) // version string
 STAT(daemon_connections, , count, , )

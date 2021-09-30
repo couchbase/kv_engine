@@ -37,6 +37,8 @@
 #include <cbsasl/logging.h>
 #include <cbsasl/mechanism.h>
 #include <executor/executorpool.h>
+#include <fmt/chrono.h>
+#include <folly/Chrono.h>
 #include <folly/CpuId.h>
 #include <folly/io/async/EventBase.h>
 #include <folly/portability/Unistd.h>
@@ -52,6 +54,7 @@
 #include <platform/scope_timer.h>
 #include <platform/strerror.h>
 #include <platform/sysinfo.h>
+#include <platform/timeutils.h>
 #include <statistics/prometheus.h>
 #include <utilities/breakpad.h>
 #include <utilities/openssl_utils.h>
@@ -860,6 +863,20 @@ int memcached_main(int argc, char** argv) {
                                            breakpad_changed_listener);
     cb::breakpad::initialize(Settings::instance().getBreakpadSettings(),
                              Settings::instance().getLoggerConfig());
+
+    // Simple benchmark of clock performance - the system clock can have a
+    // significant impact on opration latency (given we time all sorts of
+    // things), so printing this at startup allows us to determine
+    // if we have a "slow" clock or not..
+    const auto fineClock =
+            cb::estimateClockOverhead<std::chrono::steady_clock>();
+    LOG_INFO("Fine clock overhead: {}", fineClock.overhead);
+    const auto coarseClock =
+            cb::estimateClockOverhead<folly::chrono::coarse_steady_clock>();
+    LOG_INFO("Coarse clock overhead: {})", coarseClock.overhead);
+    // Note: benchmark measurementPeriod is the same across all tested clocks,
+    // to just report once.
+    LOG_INFO("(Clock measurement period: {})", coarseClock.measurementPeriod);
 
     LOG_INFO("Using SLA configuration: {}", cb::mcbp::sla::to_json().dump());
 

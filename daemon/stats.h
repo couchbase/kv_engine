@@ -202,6 +202,8 @@ class Bucket;
 cb::engine_errc server_stats(const StatCollector& collector,
                              const Bucket& bucket);
 
+void server_clock_stats(const StatCollector& collector);
+
 class Timings;
 /**
  * Add per-opcode timings stats to the given collector.

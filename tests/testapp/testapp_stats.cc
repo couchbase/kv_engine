@@ -12,6 +12,8 @@
 #include <gsl/gsl-lite.hpp>
 #include <protocol/mcbp/ewb_encode.h>
 
+using namespace std::string_view_literals;
+
 class StatsTest : public TestappClientTest {
 public:
     void SetUp() override {
@@ -504,4 +506,37 @@ TEST_P(StatsTest, TestSingleBucketOpStats) {
 
     EXPECT_EQ(1, int(*lookup));
     EXPECT_EQ(1, int(*mutation));
+}
+
+/// Test that all stats which should be present in the "clocks" group are,
+/// and they have values of the correct type.
+TEST_P(StatsTest, TestClocksStats) {
+    auto stats = userConnection->stats("clocks");
+
+    std::array<std::string_view, 3> keys{{"clock_fine_overhead_ns"sv,
+                                          "clock_coarse_overhead_ns"sv,
+                                          "clock_measurement_period_ns"sv}};
+    for (auto key : keys) {
+        auto it = stats.find(key);
+        EXPECT_NE(stats.end(), it) << "Expected key '" << key << "' not found.";
+        uint64_t value;
+        try {
+            value = it->get<uint64_t>();
+        } catch (const std::exception& e) {
+            FAIL() << "Caught exception when converting value for key'" << key
+                   << "' to uint64_t:" << e.what();
+        }
+        // Just check that numeric value is non-zero for all stats.
+        EXPECT_NE(0, value);
+
+        // Remove each found item, allowing us to check for no extra stat
+        // keys at the end.
+        stats.erase(it);
+    }
+
+    // Check for any unexpected extra stats.
+    for (auto& [key, value] : stats.items()) {
+        ADD_FAILURE() << "Unexpected stat in 'clocks' group: '" << key << "': '"
+                      << value << "'";
+    }
 }
