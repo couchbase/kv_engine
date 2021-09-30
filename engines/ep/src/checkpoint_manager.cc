@@ -566,24 +566,23 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
         }
     });
 
-    CheckpointQueue expelledItems;
-    size_t expelledItemsMem{0};
+    ExtractItemsResult extractRes;
     {
         std::lock_guard<std::mutex> lh(queueLock);
 
         // The method returns the expelled items in the expelledItems queue
         // thereby ensuring they still have a reference whilst the queuelock is
         // being held.
-        std::tie(expelledItems, expelledItemsMem) = extractItemsToExpel(lh);
+        extractRes = extractItemsToExpel(lh);
     }
 
-    // If called currentCheckpoint->expelItems but did not manage to expel
-    // anything then just return.
-    if (expelledItems.empty()) {
+    const auto numItemsExpelled = extractRes.getNumItems();
+    if (numItemsExpelled == 0) {
+        // Nothing expelled, done
         return {};
     }
 
-    stats.itemsExpelledFromCheckpoints.fetch_add(expelledItems.size());
+    stats.itemsExpelledFromCheckpoints.fetch_add(numItemsExpelled);
 
     // Mem-usage estimation of expelled items is the sum of:
     // 1. Memory used by all items. For each item this is calculated as
@@ -602,18 +601,15 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
     // immediately the case if any component (eg, a DCP stream) still references
     // the queued items.
     const auto estimatedMemRecovered =
-            expelledItemsMem + ((3 * sizeof(uintptr_t)) * expelledItems.size());
+            extractRes.getMemory() +
+            ((3 * sizeof(uintptr_t)) * numItemsExpelled);
 
     stats.memFreedByCheckpointItemExpel += estimatedMemRecovered;
 
-    const auto res = ReleaseResult{expelledItems.size(), estimatedMemRecovered};
+    // extractRes is going out-of-scope, queueLock already released here,
+    // deallocation is lock-free
 
-    // queueLock already released here, deallocation is lock-free
-    // Note: Making the call manually (rather than waiting the out-of-scope) as
-    //  this is handy for surrounding with a trace block if necessary.
-    expelledItems.clear();
-
-    return res;
+    return {numItemsExpelled, estimatedMemRecovered};
 }
 
 std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
@@ -1752,7 +1748,29 @@ std::shared_ptr<CheckpointCursor> CheckpointManager::getLowestCursor(
     return entry->second;
 }
 
-std::pair<CheckpointQueue, size_t> CheckpointManager::extractItemsToExpel(
+CheckpointManager::ExtractItemsResult::ExtractItemsResult() = default;
+
+CheckpointManager::ExtractItemsResult::ExtractItemsResult(
+        CheckpointQueue&& items, size_t memory)
+    : items(std::move(items)), memory(memory) {
+}
+
+CheckpointManager::ExtractItemsResult::ExtractItemsResult(
+        CheckpointManager::ExtractItemsResult&& other) = default;
+
+CheckpointManager::ExtractItemsResult&
+CheckpointManager::ExtractItemsResult::operator=(ExtractItemsResult&& other) =
+        default;
+
+size_t CheckpointManager::ExtractItemsResult::getNumItems() const {
+    return items.size();
+}
+
+size_t CheckpointManager::ExtractItemsResult::getMemory() const {
+    return memory;
+}
+
+CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
         const std::lock_guard<std::mutex>& lh) {
     Checkpoint* oldestCheckpoint = checkpointList.front().get();
 
@@ -1825,5 +1843,7 @@ std::pair<CheckpointQueue, size_t> CheckpointManager::extractItemsToExpel(
         return {};
     }
 
-    return oldestCheckpoint->expelItems(iterator);
+    auto expelRes = oldestCheckpoint->expelItems(iterator);
+
+    return {std::move(expelRes.first), expelRes.second};
 }

@@ -769,15 +769,43 @@ protected:
             const std::lock_guard<std::mutex>& lh);
 
     /**
+     * Return type of extractItemsToExpel().
+     * RAII resource, for now is just a wrapper around the CheckpointQueue of
+     * expelled items that are released when the resource goes out-of-scope.
+     *
+     * @todo expand description in follow-up where this is effectively used
+     */
+    class ExtractItemsResult {
+    public:
+        ExtractItemsResult();
+        ExtractItemsResult(CheckpointQueue&& items, size_t memory);
+
+        ExtractItemsResult(const ExtractItemsResult&) = delete;
+        ExtractItemsResult& operator=(const ExtractItemsResult&) = delete;
+
+        ExtractItemsResult(ExtractItemsResult&& other);
+        ExtractItemsResult& operator=(ExtractItemsResult&& other);
+
+        size_t getNumItems() const;
+        size_t getMemory() const;
+
+    private:
+        // Container of expelled items
+        CheckpointQueue items;
+        // Estimate of memory recovered
+        size_t memory{0};
+    };
+
+    /**
      * Extracts all the items in the oldest checkpoint that still has cursors
      * registered in it and returns the removed chuck to the caller.
      * This function includes all the ItemExpel logic tha needs to execute under
      * CM::queueLock.
      *
      * @param lh Lock to CM mutex
-     * @return the container of expelled items and an estimate of mem released
+     * @return ExtractItemsResult, see struct definition
      */
-    std::pair<CheckpointQueue, size_t> extractItemsToExpel(
+    ExtractItemsResult extractItemsToExpel(
             const std::lock_guard<std::mutex>& lh);
 
     CheckpointList checkpointList;

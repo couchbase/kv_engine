@@ -155,7 +155,8 @@ protected:
 
     CheckpointList extractClosedUnrefCheckpoints(CheckpointManager&);
 
-    std::pair<CheckpointQueue, size_t> extractItemsToExpel(CheckpointManager&);
+    CheckpointManager::ExtractItemsResult extractItemsToExpel(
+            CheckpointManager&);
 };
 
 /**
@@ -448,7 +449,7 @@ CheckpointList CheckpointBench::extractClosedUnrefCheckpoints(
     return manager.extractClosedUnrefCheckpoints(lh);
 }
 
-std::pair<CheckpointQueue, size_t> CheckpointBench::extractItemsToExpel(
+CheckpointManager::ExtractItemsResult CheckpointBench::extractItemsToExpel(
         CheckpointManager& manager) {
     std::lock_guard<std::mutex> lh(manager.queueLock);
     return manager.extractItemsToExpel(lh);
@@ -638,8 +639,8 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
             // Don't account deallocation, so pause before res goes out of scope
             state.PauseTiming();
 
-            EXPECT_EQ(numItems, res.first.size());
-            EXPECT_GT(res.second, 0);
+            EXPECT_EQ(numItems, res.getNumItems());
+            EXPECT_GT(res.getMemory(), 0);
         }
 
         // Need to resume here, gbench will fail when it's time to exit the
