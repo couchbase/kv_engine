@@ -39,10 +39,7 @@
 /**
  * The state of a given checkpoint.
  */
-enum checkpoint_state {
-    CHECKPOINT_OPEN, //!< The checkpoint is open.
-    CHECKPOINT_CLOSED  //!< The checkpoint is not open.
-};
+enum checkpoint_state : uint8_t { CHECKPOINT_OPEN = 0, CHECKPOINT_CLOSED };
 
 const char* to_string(enum checkpoint_state);
 

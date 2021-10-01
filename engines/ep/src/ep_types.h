@@ -57,12 +57,12 @@ enum class WriteOperation : char {
     Insert
 };
 
-enum class CheckpointType : char {
+enum class CheckpointType : uint8_t {
     /**
      * Disk checkpoints are received from disk snapshots from active nodes but
      * may exist on an active node due to replica promotion.
      */
-    Disk,
+    Disk = 0,
 
     /**
      * Default checkpoint type

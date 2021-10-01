@@ -39,6 +39,13 @@ public:
         }
         return keys;
     }
+
+    static void setOpenCheckpointType(CheckpointManager& checkpointManager,
+                                      CheckpointType type) {
+        auto& checkpoint = *checkpointManager.checkpointList.back();
+        Expects(checkpoint.getState() == CHECKPOINT_OPEN);
+        checkpoint.setCheckpointType(type);
+    }
 };
 
 /**

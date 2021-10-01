@@ -27,8 +27,10 @@ class CookieIface;
 
 const char* to_string(enum checkpoint_state s) {
     switch (s) {
-        case CHECKPOINT_OPEN: return "CHECKPOINT_OPEN";
-        case CHECKPOINT_CLOSED: return "CHECKPOINT_CLOSED";
+    case CHECKPOINT_OPEN:
+        return "Open";
+    case CHECKPOINT_CLOSED:
+        return "Closed";
     }
     return "<unknown>";
 }

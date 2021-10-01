@@ -92,6 +92,11 @@ uint64_t CheckpointManager::getLastClosedCheckpointId() {
     return getLastClosedCheckpointId_UNLOCKED(lh);
 }
 
+CheckpointType CheckpointManager::getOpenCheckpointType() const {
+    std::lock_guard<std::mutex> lh(queueLock);
+    return getOpenCheckpoint_UNLOCKED(lh).getCheckpointType();
+}
+
 Checkpoint& CheckpointManager::getOpenCheckpoint_UNLOCKED(
         const std::lock_guard<std::mutex>&) const {
     // During its lifetime, the checkpointList can only be in one of the

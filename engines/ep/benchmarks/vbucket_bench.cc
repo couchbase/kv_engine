@@ -22,6 +22,7 @@
 #include "kv_bucket.h"
 #include "stored_value_factories.h"
 
+#include "../tests/module_tests/checkpoint_utils.h"
 #include "../tests/module_tests/thread_gate.h"
 
 #include <executor/fake_executorpool.h>
@@ -134,6 +135,14 @@ protected:
         }
         EngineFixture::TearDown(state);
     }
+
+    /**
+     * Store the given key/value pair.
+     *
+     * @param key
+     * @param value
+     */
+    void queueItem(const std::string& key, const std::string& value);
 
     /**
      * Loads the given number of items in CM and moves cursor to the end of the
@@ -445,6 +454,21 @@ std::pair<CheckpointQueue, size_t> CheckpointBench::extractItemsToExpel(
     return manager.extractItemsToExpel(lh);
 }
 
+void CheckpointBench::queueItem(const std::string& key,
+                                const std::string& value) {
+    queued_item item{new Item(StoredDocKey(key, CollectionID::Default),
+                              0,
+                              0,
+                              value.c_str(),
+                              value.size(),
+                              PROTOCOL_BINARY_RAW_BYTES)};
+    item->setVBucketId(vbid);
+    item->setQueuedTime();
+    auto& manager = *engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
+    EXPECT_TRUE(manager.queueDirty(
+            item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
+}
+
 void CheckpointBench::loadItemsAndMoveCursor(size_t numItems,
                                              size_t valueSize) {
     auto& vb = *engine->getKVBucket()->getVBucket(vbid);
@@ -456,18 +480,7 @@ void CheckpointBench::loadItemsAndMoveCursor(size_t numItems,
 
     const std::string value(valueSize, 'x');
     for (size_t i = 0; i < numItems; ++i) {
-        queued_item item{
-                new Item(StoredDocKey(std::string("key") + std::to_string(i),
-                                      CollectionID::Default),
-                         0,
-                         0,
-                         value.c_str(),
-                         value.size(),
-                         PROTOCOL_BINARY_RAW_BYTES)};
-        item->setVBucketId(vbid);
-        item->setQueuedTime();
-        EXPECT_TRUE(manager.queueDirty(
-                item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
+        queueItem("key" + std::to_string(i), value);
     }
     ASSERT_EQ(numItems, manager.getHighSeqno());
 
@@ -557,7 +570,9 @@ BENCHMARK_DEFINE_F(CheckpointBench, GetCursorsToDrop)
 
 BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
 (benchmark::State& state) {
-    const size_t numItems = state.range(0);
+    const auto ckptType = CheckpointType(state.range(0));
+    const auto ckptState = checkpoint_state(state.range(1));
+    const size_t numItems = state.range(2);
 
     // Ensure all items in the open checkpoint - avoid checkpoint creation
     ASSERT_LE(numItems, MAX_CHECKPOINT_ITEMS);
@@ -577,9 +592,44 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
     while (state.KeepRunning()) {
         state.PauseTiming();
 
-        // High-seqno never expelled, so load numItems+1 for expelling numItems
+        // Checkpoint high-seqno never expelled, so load numItems+1 for
+        // expelling numItems
         loadItemsAndMoveCursor(numItems + 1, 1024);
         ASSERT_EQ(1, manager.getNumCheckpoints());
+        ASSERT_EQ(numItems + 1, manager.getNumOpenChkItems());
+        // Note: Checkpoint type set after loading items, as the above call
+        //  resets the CM before loading, so any previous setup is lost
+        CheckpointManagerTestIntrospector::setOpenCheckpointType(manager,
+                                                                 ckptType);
+        ASSERT_EQ(ckptType, manager.getOpenCheckpointType());
+
+        switch (ckptState) {
+        case CHECKPOINT_OPEN: {
+            // Nothing else to do
+            break;
+        }
+        case CHECKPOINT_CLOSED: {
+            // Expel operates always on the oldest checkpoint and only if it is
+            // referenced, so:
+            //  - Load items in the current open checkpoint (already done above)
+            //  - Load 1 extra item in the same checkpoint to prevent the cursor
+            //    leaving the checkpoint (see next step)
+            //  - Close the checkpoint. This creates a new open/empty checkpoint
+            //    and the cursor stays in the closed one as there is the 1 extra
+            //    item for the cursor to process in that closed checkpoint.
+            // All the items eligible for expel will be in the closed checkpoint
+            queueItem("extra", "");
+            manager.createNewCheckpoint(true);
+            ASSERT_EQ(2, manager.getNumCheckpoints());
+            ASSERT_EQ(0, manager.getNumOpenChkItems());
+            // numItems + 1
+            // + extra
+            // + 2 meta-items in closed checkpoint
+            // + 1 meta-items in open checkpoint
+            ASSERT_EQ(numItems + 5, manager.getNumItems());
+            break;
+        }
+        }
 
         // Benchmark
         {
@@ -596,6 +646,10 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
         // loop otherwise.
         state.ResumeTiming();
     }
+
+    state.SetLabel(("type:" + to_string(ckptType) + " state:" +
+                    to_string(ckptState) + " items:" + std::to_string(numItems))
+                           .c_str());
 }
 
 // Run with couchstore backend(0); item counts from 1..10,000,000
@@ -682,11 +736,19 @@ BENCHMARK_REGISTER_F(CheckpointBench, GetCursorsToDrop)
         ->Args({10000})
         ->Iterations(1);
 
+static void ExtractItemsArgs(benchmark::internal::Benchmark* b) {
+    for (auto items = 1; items <= 10000; items *= 10) {
+        for (const auto type : {CheckpointType::Disk, CheckpointType::Memory}) {
+            for (const auto state : {CHECKPOINT_OPEN, CHECKPOINT_CLOSED}) {
+                b->Args({std::underlying_type<CheckpointType>::type(type),
+                         state,
+                         items});
+            }
+        }
+    }
+}
+
 // Arguments: numItems
 BENCHMARK_REGISTER_F(CheckpointBench, ExtractItemsToExpel)
-        ->Args({1})
-        ->Args({10})
-        ->Args({100})
-        ->Args({1000})
-        ->Args({10000})
+        ->Apply(ExtractItemsArgs)
         ->Iterations(1);

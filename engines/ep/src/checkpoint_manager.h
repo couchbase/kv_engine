@@ -172,6 +172,8 @@ public:
 
     uint64_t getLastClosedCheckpointId();
 
+    CheckpointType getOpenCheckpointType() const;
+
     /**
      * Removes closed unreferenced checkpoints from the checkpoint-list and
      * frees up their used memory.
