@@ -21,6 +21,8 @@
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/json_utilities.h>
+#include <utilities/string_utilities.h>
+#include <utilities/terminal_color.h>
 #include <utilities/terminate_handler.h>
 #include <csignal>
 #include <cstdlib>
@@ -43,6 +45,14 @@ public:
     }
 } terminateOnErrorWriteCallback;
 
+/// Set to true if TLS mode is requested. We'll use the same TLS configuration
+/// on all connections we're trying to create
+bool tls = false;
+/// The TLS certificate file if provided
+std::string tls_certificate_file;
+/// The TLS private key file if provided
+std::string tls_private_key_file;
+
 static void usage() {
     std::cerr << R"(Usage: dcpdrain [options]
 
@@ -56,6 +66,9 @@ Options:
   -u or --user username          The name of the user to authenticate as
   -P or --password password      The passord to use for authentication
                                  (use '-' to read from standard input)
+  --tls[=cert,key]               Use TLS and optionally try to authenticate
+                                 by using the provided certificate and
+                                 private key.
   -B or --buffer-size size       Specify the DCP buffer size to use
                                  [Default = 13421772]. Set to 0 to disable
                                  DCP flow control (may use k or m to specify
@@ -207,7 +220,9 @@ void setupVBMap(const std::string& host,
                 const std::string& bucket,
                 bool enableCollections,
                 std::shared_ptr<folly::EventBase> base) {
-    MemcachedConnection connection(host, in_port, family, false, base);
+    MemcachedConnection connection(host, in_port, family, tls, base);
+    connection.setSslCertFile(tls_certificate_file);
+    connection.setSslKeyFile(tls_private_key_file);
     connection.connect();
 
     if (!user.empty()) {
@@ -234,7 +249,7 @@ void setupVBMap(const std::string& host,
                   << to_string(rsp.getStatus()) << std::endl;
         std::exit(EXIT_FAILURE);
     }
-    auto json = nlohmann::json::parse(rsp.getDataString());
+    auto json = rsp.getDataJson();
     auto vbservermap = json["vBucketServerMap"];
 
     auto nodes = vbservermap["serverList"];
@@ -246,8 +261,13 @@ void setupVBMap(const std::string& host,
         if (h.find("$HOST") != std::string::npos) {
             h = host;
         }
-        auto c = std::make_unique<MemcachedConnection>(
-                h, p, family, false, base);
+
+        if (p == 11210 && tls) {
+            // @todo we should look this up from the cccp payload
+            p = 11207;
+        }
+
+        auto c = std::make_unique<MemcachedConnection>(h, p, family, tls, base);
         c->connect();
 
         if (!user.empty()) {
@@ -273,9 +293,12 @@ void setupVBMap(const std::string& host,
 int main(int argc, char** argv) {
     // Make sure that we dump callstacks on the console
     install_backtrace_terminate_handler();
+#ifndef WIN32
+    setTerminalColorSupport(isatty(STDERR_FILENO) && isatty(STDOUT_FILENO));
+#endif
 
     int cmd;
-    std::string port{"11210"};
+    std::string port;
     std::string host{"localhost"};
     std::string user{};
     std::string password{};
@@ -307,6 +330,7 @@ int main(int argc, char** argv) {
             {"bucket", required_argument, nullptr, 'b'},
             {"password", required_argument, nullptr, 'P'},
             {"user", required_argument, nullptr, 'u'},
+            {"tls=", optional_argument, nullptr, 't'},
             {"help", no_argument, nullptr, 0},
             {"buffer-size", required_argument, nullptr, 'B'},
             {"control", required_argument, nullptr, 'c'},
@@ -353,6 +377,34 @@ int main(int argc, char** argv) {
             break;
         case 'P':
             password.assign(optarg);
+            break;
+        case 't':
+            tls = true;
+            if (optarg) {
+                auto parts = split_string(optarg, ",");
+                if (parts.size() != 2) {
+                    std::cerr << TerminalColor::Red
+                              << "Incorrect format for --tls=certificate,key"
+                              << TerminalColor::Reset << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                tls_certificate_file = std::move(parts.front());
+                tls_private_key_file = std::move(parts.back());
+
+                if (!cb::io::isFile(tls_certificate_file)) {
+                    std::cerr << TerminalColor::Red << "Certificate file "
+                              << tls_certificate_file << " does not exists"
+                              << TerminalColor::Reset << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+
+                if (!cb::io::isFile(tls_private_key_file)) {
+                    std::cerr << TerminalColor::Red << "Private key file "
+                              << tls_private_key_file << " does not exists"
+                              << TerminalColor::Reset << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+            }
             break;
         case 'B':
             buffersize = strtoul(optarg);
@@ -446,6 +498,9 @@ int main(int argc, char** argv) {
 
     auto event_base = std::make_shared<folly::EventBase>();
     try {
+        if (port.empty()) {
+            port = tls ? "11207" : "11210";
+        }
         in_port_t in_port;
         sa_family_t fam;
         std::tie(host, in_port, fam) = cb::inet::parse_hostname(host, port);
@@ -466,7 +521,7 @@ int main(int argc, char** argv) {
             }
 
             auto c = std::make_unique<MemcachedConnection>(
-                    host, in_port, family, false, event_base);
+                    host, in_port, family, tls, event_base);
             c->connect();
 
             if (!user.empty()) {
