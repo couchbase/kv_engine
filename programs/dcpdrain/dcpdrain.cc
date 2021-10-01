@@ -13,7 +13,6 @@
 #include <getopt.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <nlohmann/json.hpp>
-#include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <platform/socket.h>
 #include <programs/getpass.h>
@@ -53,6 +52,12 @@ std::string tls_certificate_file;
 /// The TLS private key file if provided
 std::string tls_private_key_file;
 
+/// We're going to use the same buffersize on all connections
+size_t buffersize = 13421772;
+
+/// When set to true we'll print out each message we see
+bool verbose = false;
+
 static void usage() {
     std::cerr << R"(Usage: dcpdrain [options]
 
@@ -75,7 +80,6 @@ Options:
                                  kilo or megabytes).
   -c or --control key=value      Add a control message
   -C or --csv                    Print out the result as csv (ms;bytes;#items)
-  -M or --memcached              Connect to a memcached bucket (no cccp)
   -N or --name                   The dcp name to use
   -v or --verbose                Add more output
   -4 or --ipv4                   Connect over IPv4
@@ -107,28 +111,202 @@ Options:
     exit(EXIT_FAILURE);
 }
 
-size_t stream_end = 0;
-size_t mutations = 0;
-size_t buffersize = 13421772;
-size_t current_buffer_window = 0;
-size_t total_bytes = 0;
-size_t max_vbuckets = 0;
-size_t totalStreams = 0;
-bool verbose = false;
+/// The DcpConnection class is responsible for a single DCP connection to
+/// the server and may consist of a number of DCP streams.
+/// We may have multiple DCP connections to the same server.
+class DcpConnection {
+public:
+    DcpConnection(const std::string& hostname,
+                  std::vector<uint16_t> v,
+                  std::shared_ptr<folly::EventBase> eb)
+        : vbuckets(std::move(v)) {
+        auto [host, port, family] = cb::inet::parse_hostname(hostname, {});
+        connection = std::make_unique<MemcachedConnection>(
+                host, port, family, tls, eb);
+        connection->connect();
+    }
 
-static void handleDcpNoop(const cb::mcbp::Request& header,
-                          MemcachedConnection& connection) {
-    cb::mcbp::Response resp = {};
-    resp.setMagic(cb::mcbp::Magic::ClientResponse);
-    resp.setOpaque(header.getOpaque());
-    resp.setOpcode(header.getClientOpcode());
+    MemcachedConnection& getConnection() {
+        return *connection;
+    }
 
-    auto iob = folly::IOBuf::createCombined(sizeof(resp));
-    std::memcpy(iob->writableData(), &resp, sizeof(resp));
-    iob->append(sizeof(resp));
-    connection.getUnderlyingAsyncSocket().writeChain(
-            &terminateOnErrorWriteCallback, std::move(iob));
-}
+    void enterMessagePump(std::string streamRequestValue,
+                          std::optional<nlohmann::json>& streamIdConfig,
+                          uint32_t streamRequestFlags) {
+        if (vbuckets.empty()) {
+            return;
+        }
+        int streamsPerVb = streamIdConfig ? streamIdConfig.value().size() : 1;
+
+        std::unique_ptr<folly::IOBuf> head;
+        folly::IOBuf* tailp = nullptr;
+
+        for (int ii = 0; ii < streamsPerVb; ii++) {
+            for (auto vb : vbuckets) {
+                totalStreams++;
+                BinprotDcpStreamRequestCommand streamRequestCommand;
+                streamRequestCommand.setDcpFlags(streamRequestFlags);
+                streamRequestCommand.setDcpReserved(0);
+                streamRequestCommand.setDcpStartSeqno(0);
+                streamRequestCommand.setDcpEndSeqno(~0);
+                streamRequestCommand.setDcpVbucketUuid(0);
+                streamRequestCommand.setDcpSnapStartSeqno(0);
+                streamRequestCommand.setDcpSnapEndSeqno(0);
+                streamRequestCommand.setVBucket(Vbid(vb));
+
+                if (!streamRequestValue.empty()) {
+                    streamRequestCommand.setValue(
+                            std::string_view{streamRequestValue});
+                }
+
+                if (streamIdConfig) {
+                    streamRequestCommand.setValue(streamIdConfig.value()[ii]);
+                }
+
+                std::vector<uint8_t> vec;
+                streamRequestCommand.encode(vec);
+                auto iob = folly::IOBuf::createCombined(vec.size());
+                std::memcpy(iob->writableData(), vec.data(), vec.size());
+                iob->append(vec.size());
+                if (tailp) {
+                    tailp->appendChain(std::move(iob));
+                } else {
+                    head = std::move(iob);
+                    tailp = head.get();
+                }
+            }
+        }
+        connection->getUnderlyingAsyncSocket().writeChain(
+                &terminateOnErrorWriteCallback, std::move(head));
+        connection->enterMessagePumpMode(
+                [this](const cb::mcbp::Header& header) {
+                    if (verbose) {
+                        std::cout << header.toJSON(true).dump() << std::endl;
+                    }
+                    if (header.isRequest()) {
+                        handleRequest(header.getRequest());
+                    } else {
+                        handleResponse(header.getResponse());
+                    }
+                });
+    }
+
+    size_t getMutations() const {
+        return mutations;
+    }
+
+    size_t getMutationBytes() const {
+        return mutation_bytes;
+    }
+
+    size_t getTotalBytesReceived() const {
+        return connection->getUnderlyingAsyncSocket().getAppBytesReceived();
+    }
+
+protected:
+    std::unique_ptr<MemcachedConnection> connection;
+    std::vector<uint16_t> vbuckets;
+
+    void handleRequest(const cb::mcbp::Request& req) {
+        bool dcpmsg = false;
+
+        switch (req.getClientOpcode()) {
+        case cb::mcbp::ClientOpcode::DcpStreamEnd:
+            ++stream_end;
+            if (stream_end == vbuckets.size()) {
+                // we got all we wanted
+                connection->getUnderlyingAsyncSocket().setReadCB(nullptr);
+                connection->getUnderlyingAsyncSocket().close();
+            }
+            dcpmsg = true;
+            break;
+        case cb::mcbp::ClientOpcode::DcpNoop:
+            handleDcpNoop(req);
+            break;
+        case cb::mcbp::ClientOpcode::DcpMutation:
+            ++mutations;
+            mutation_bytes += req.getBodylen();
+            dcpmsg = true;
+            break;
+
+        case cb::mcbp::ClientOpcode::DcpAddStream:
+        case cb::mcbp::ClientOpcode::DcpCloseStream:
+        case cb::mcbp::ClientOpcode::DcpStreamReq:
+        case cb::mcbp::ClientOpcode::DcpGetFailoverLog:
+        case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
+        case cb::mcbp::ClientOpcode::DcpDeletion:
+        case cb::mcbp::ClientOpcode::DcpExpiration:
+        case cb::mcbp::ClientOpcode::DcpFlush_Unsupported:
+        case cb::mcbp::ClientOpcode::DcpSetVbucketState:
+        case cb::mcbp::ClientOpcode::DcpBufferAcknowledgement:
+        case cb::mcbp::ClientOpcode::DcpControl:
+        case cb::mcbp::ClientOpcode::DcpSystemEvent:
+        case cb::mcbp::ClientOpcode::DcpPrepare:
+        case cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged:
+        case cb::mcbp::ClientOpcode::DcpCommit:
+        case cb::mcbp::ClientOpcode::DcpAbort:
+        case cb::mcbp::ClientOpcode::DcpSeqnoAdvanced:
+        case cb::mcbp::ClientOpcode::DcpOsoSnapshot:
+            dcpmsg = true;
+            break;
+
+        default:
+            std::cerr << "Received unexpected message: " << req.toJSON(false)
+                      << std::endl;
+        }
+
+        if (dcpmsg && buffersize > 0) {
+            current_buffer_window +=
+                    req.getBodylen() + sizeof(cb::mcbp::Header);
+            if (current_buffer_window > (buffersize / 2)) {
+                sendBufferAck();
+            }
+        }
+    }
+
+    void handleResponse(const cb::mcbp::Response& response) {
+        // Do nothing
+    }
+
+    void handleDcpNoop(const cb::mcbp::Request& header) {
+        cb::mcbp::Response resp = {};
+        resp.setMagic(cb::mcbp::Magic::ClientResponse);
+        resp.setOpaque(header.getOpaque());
+        resp.setOpcode(header.getClientOpcode());
+
+        auto iob = folly::IOBuf::createCombined(sizeof(resp));
+        std::memcpy(iob->writableData(), &resp, sizeof(resp));
+        iob->append(sizeof(resp));
+        connection->getUnderlyingAsyncSocket().writeChain(
+                &terminateOnErrorWriteCallback, std::move(iob));
+    }
+
+    void sendBufferAck() {
+        // send buffer ack
+        std::array<uint8_t, sizeof(cb::mcbp::Header) + 4> backing;
+        cb::mcbp::RequestBuilder builder({backing.data(), backing.size()});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement);
+        cb::mcbp::request::DcpBufferAckPayload payload;
+        payload.setBufferBytes(current_buffer_window);
+        builder.setExtras(payload.getBuffer());
+
+        auto packet = builder.getFrame()->getFrame();
+        auto iob = folly::IOBuf::createCombined(packet.size());
+        std::memcpy(iob->writableData(), packet.data(), packet.size());
+        iob->append(packet.size());
+        connection->getUnderlyingAsyncSocket().writeChain(
+                &terminateOnErrorWriteCallback, std::move(iob));
+        current_buffer_window = 0;
+    }
+
+    size_t mutation_bytes = 0;
+    size_t stream_end = 0;
+    size_t mutations = 0;
+    size_t current_buffer_window = 0;
+    size_t max_vbuckets = 0;
+    size_t totalStreams = 0;
+};
 
 std::string calculateThroughput(size_t bytes, size_t sec) {
     if (sec > 1) {
@@ -205,12 +383,10 @@ std::pair<std::string, std::string> parseControlMessage(std::string value) {
                                                     value.substr(idx + 1));
 }
 
-// The vbucket map is a vector of pairs where the first entry is a connection
-// to a node, and the second entry is a vector containing all of the vbuckets
-// located on that node
-std::vector<
-        std::pair<std::unique_ptr<MemcachedConnection>, std::vector<uint16_t>>>
-        vbmap;
+/// The vucketmap is a vector of pairs where the first entry is the
+/// hostname (and port) and the second entry is a vector containing
+/// all of the vbuckets there
+std::vector<std::pair<std::string, std::vector<uint16_t>>> vbucketmap;
 
 void setupVBMap(const std::string& host,
                 in_port_t in_port,
@@ -226,7 +402,7 @@ void setupVBMap(const std::string& host,
     connection.connect();
 
     if (!user.empty()) {
-        connection.authenticate(user, password, connection.getSaslMechanisms());
+        connection.authenticate(user, password, "PLAIN");
     }
 
     std::vector<cb::mcbp::Feature> features = {
@@ -267,26 +443,17 @@ void setupVBMap(const std::string& host,
             p = 11207;
         }
 
-        auto c = std::make_unique<MemcachedConnection>(h, p, family, tls, base);
-        c->connect();
-
-        if (!user.empty()) {
-            c->authenticate(user, password, c->getSaslMechanisms());
-        }
-
-        c->setFeatures(features);
-        c->selectBucket(bucket);
-
-        vbmap.emplace_back(
-                std::make_pair<std::unique_ptr<MemcachedConnection>,
-                               std::vector<uint16_t>>(std::move(c), {}));
+        h += ":" + std::to_string(p);
+        vbucketmap.emplace_back(
+                std::make_pair<std::string, std::vector<uint16_t>>(std::move(h),
+                                                                   {}));
     }
 
     auto map = vbservermap["vBucketMap"];
-    max_vbuckets = 0;
+    size_t max_vbuckets = 0;
     for (const auto& e : map) {
         int nodeidx = e[0].get<int>();
-        vbmap[nodeidx].second.emplace_back(max_vbuckets++);
+        vbucketmap[nodeidx].second.emplace_back(max_vbuckets++);
     }
 }
 
@@ -305,7 +472,6 @@ int main(int argc, char** argv) {
     std::string bucket{};
     sa_family_t family = AF_UNSPEC;
     bool csv = false;
-    bool memcached = false;
     std::vector<std::pair<std::string, std::string>> controls;
     std::string name = "dcpdrain";
     bool enableOso{false};
@@ -335,7 +501,6 @@ int main(int argc, char** argv) {
             {"buffer-size", required_argument, nullptr, 'B'},
             {"control", required_argument, nullptr, 'c'},
             {"csv", no_argument, nullptr, 'C'},
-            {"memcached", no_argument, nullptr, 'M'},
             {"name", required_argument, nullptr, 'N'},
             {"verbose", no_argument, nullptr, 'v'},
             {"enable-oso", no_argument, nullptr, enableOsoOptionId},
@@ -418,9 +583,6 @@ int main(int argc, char** argv) {
         case 'C':
             csv = true;
             break;
-        case 'M':
-            memcached = true;
-            break;
         case 'N':
             name = optarg;
             break;
@@ -443,11 +605,6 @@ int main(int argc, char** argv) {
             usage();
             return EXIT_FAILURE;
         }
-    }
-
-    if (memcached) {
-        // memcached don't implement flow control
-        buffersize = 0;
     }
 
     if (password == "-") {
@@ -497,6 +654,7 @@ int main(int argc, char** argv) {
 #endif
 
     auto event_base = std::make_shared<folly::EventBase>();
+    std::vector<std::unique_ptr<DcpConnection>> connections;
     try {
         if (port.empty()) {
             port = tls ? "11207" : "11210";
@@ -509,46 +667,37 @@ int main(int argc, char** argv) {
             family = fam;
         }
 
-        if (memcached) {
-            std::vector<cb::mcbp::Feature> features = {
-                    {cb::mcbp::Feature::MUTATION_SEQNO,
-                     cb::mcbp::Feature::XATTR,
-                     cb::mcbp::Feature::XERROR,
-                     cb::mcbp::Feature::SNAPPY,
-                     cb::mcbp::Feature::JSON}};
-            if (enableCollections) {
-                features.push_back(cb::mcbp::Feature::Collections);
-            }
+        setupVBMap(host,
+                   in_port,
+                   family,
+                   user,
+                   password,
+                   bucket,
+                   enableCollections,
+                   event_base);
 
-            auto c = std::make_unique<MemcachedConnection>(
-                    host, in_port, family, tls, event_base);
-            c->connect();
-
-            if (!user.empty()) {
-                c->authenticate(user, password, c->getSaslMechanisms());
-            }
-
-            c->setFeatures(features);
-            c->selectBucket(bucket);
-
-            vbmap.emplace_back(
-                    std::make_pair<std::unique_ptr<MemcachedConnection>,
-                                   std::vector<uint16_t>>(std::move(c), {}));
-            vbmap[0].second.emplace_back(max_vbuckets++);
-        } else {
-            setupVBMap(host,
-                       in_port,
-                       family,
-                       user,
-                       password,
-                       bucket,
-                       enableCollections,
-                       event_base);
+        std::vector<cb::mcbp::Feature> features = {
+                {cb::mcbp::Feature::MUTATION_SEQNO,
+                 cb::mcbp::Feature::XATTR,
+                 cb::mcbp::Feature::XERROR,
+                 cb::mcbp::Feature::SNAPPY,
+                 cb::mcbp::Feature::JSON}};
+        if (enableCollections) {
+            features.push_back(cb::mcbp::Feature::Collections);
         }
 
-        // set up all of the connections
-        for (const auto& [c, vbuckets] : vbmap) {
-            auto rsp = c->execute(BinprotDcpOpenCommand{
+        for (const auto& [h, vb] : vbucketmap) {
+            connections.emplace_back(
+                    std::make_unique<DcpConnection>(h, vb, event_base));
+            auto& c = connections.back()->getConnection();
+            if (!user.empty()) {
+                c.authenticate(user, password, "PLAIN");
+            }
+
+            c.setFeatures(features);
+            c.selectBucket(bucket);
+
+            auto rsp = c.execute(BinprotDcpOpenCommand{
                     name, cb::mcbp::request::DcpOpenPayload::Producer});
             if (!rsp.isSuccess()) {
                 std::cerr << "Failed to open DCP stream: "
@@ -566,10 +715,10 @@ int main(int argc, char** argv) {
                     std::cout << "Using DCP flow control with buffer size: "
                               << buffersize << std::endl;
                 }
-                if (!c->execute(BinprotGenericCommand{
-                                        cb::mcbp::ClientOpcode::DcpControl,
-                                        "connection_buffer_size",
-                                        std::to_string(buffersize)})
+                if (!c.execute(BinprotGenericCommand{
+                                       cb::mcbp::ClientOpcode::DcpControl,
+                                       "connection_buffer_size",
+                                       std::to_string(buffersize)})
                              .isSuccess()) {
                     std::cerr << "Failed to set connection buffer size to "
                               << buffersize << std::endl;
@@ -578,169 +727,35 @@ int main(int argc, char** argv) {
             }
 
             auto ctrls = controls;
-            if (!memcached) {
-                if (ctrls.empty()) {
-                    ctrls = {{"enable_noop", "true"},
-                             {"set_noop_interval", "1"},
-                             {"set_priority", "high"},
-                             {"supports_cursor_dropping_vulcan", "true"},
-                             {"supports_hifi_MFU", "true"},
-                             {"send_stream_end_on_client_close_stream", "true"},
-                             {"enable_expiry_opcode", "true"}};
-                }
-
-                if (streamIdConfig) {
-                    ctrls.emplace_back(
-                            std::make_pair("enable_stream_id", "true"));
-                }
-
-                if (enableOso) {
-                    ctrls.emplace_back(std::make_pair(
-                            "enable_out_of_order_snapshots", "true"));
-                }
-
-                setControlMessages(*c, ctrls);
+            if (ctrls.empty()) {
+                ctrls = {{"enable_noop", "true"},
+                         {"set_noop_interval", "1"},
+                         {"set_priority", "high"},
+                         {"supports_cursor_dropping_vulcan", "true"},
+                         {"supports_hifi_MFU", "true"},
+                         {"send_stream_end_on_client_close_stream", "true"},
+                         {"enable_expiry_opcode", "true"}};
             }
+
+            if (streamIdConfig) {
+                ctrls.emplace_back(std::make_pair("enable_stream_id", "true"));
+            }
+
+            if (enableOso) {
+                ctrls.emplace_back(std::make_pair(
+                        "enable_out_of_order_snapshots", "true"));
+            }
+
+            setControlMessages(c, ctrls);
         }
 
-        for (const auto& [c, vbuckets] : vbmap) {
-            int streamsPerVb =
-                    streamIdConfig ? streamIdConfig.value().size() : 1;
-
-            std::unique_ptr<folly::IOBuf> head;
-            folly::IOBuf* tailp = nullptr;
-
-            for (int ii = 0; ii < streamsPerVb; ii++) {
-                for (auto vb : vbuckets) {
-                    totalStreams++;
-                    BinprotDcpStreamRequestCommand streamRequestCommand;
-                    streamRequestCommand.setDcpFlags(streamRequestFlags);
-                    streamRequestCommand.setDcpReserved(0);
-                    streamRequestCommand.setDcpStartSeqno(0);
-                    streamRequestCommand.setDcpEndSeqno(~0);
-                    streamRequestCommand.setDcpVbucketUuid(0);
-                    streamRequestCommand.setDcpSnapStartSeqno(0);
-                    streamRequestCommand.setDcpSnapEndSeqno(0);
-                    streamRequestCommand.setVBucket(Vbid(vb));
-
-                    if (!streamRequestValue.empty()) {
-                        streamRequestCommand.setValue(
-                                std::string_view{streamRequestValue});
-                    }
-
-                    if (streamIdConfig) {
-                        streamRequestCommand.setValue(
-                                streamIdConfig.value()[ii]);
-                    }
-
-                    std::vector<uint8_t> vec;
-                    streamRequestCommand.encode(vec);
-                    auto iob = folly::IOBuf::createCombined(vec.size());
-                    std::memcpy(iob->writableData(), vec.data(), vec.size());
-                    iob->append(vec.size());
-                    if (tailp) {
-                        tailp->appendChain(std::move(iob));
-                    } else {
-                        head = std::move(iob);
-                        tailp = head.get();
-                    }
-                }
-            }
-            c->getUnderlyingAsyncSocket().writeChain(
-                    &terminateOnErrorWriteCallback, std::move(head));
-            c->enterMessagePumpMode([connection = c.get()](
-                                            const cb::mcbp::Header& header) {
-                if (verbose) {
-                    std::cout << "< " << header.toJSON(true) << std::endl;
-                }
-
-                if (header.isRequest()) {
-                    const auto& req = header.getRequest();
-                    bool dcpmsg = false;
-
-                    switch (req.getClientOpcode()) {
-                    case cb::mcbp::ClientOpcode::DcpStreamEnd:
-                        ++stream_end;
-                        dcpmsg = true;
-                        break;
-                    case cb::mcbp::ClientOpcode::DcpNoop:
-                        handleDcpNoop(header.getRequest(), *connection);
-                        break;
-                    case cb::mcbp::ClientOpcode::DcpMutation:
-                        ++mutations;
-                        dcpmsg = true;
-                        break;
-
-                    case cb::mcbp::ClientOpcode::DcpAddStream:
-                    case cb::mcbp::ClientOpcode::DcpCloseStream:
-                    case cb::mcbp::ClientOpcode::DcpStreamReq:
-                    case cb::mcbp::ClientOpcode::DcpGetFailoverLog:
-                    case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
-                    case cb::mcbp::ClientOpcode::DcpDeletion:
-                    case cb::mcbp::ClientOpcode::DcpExpiration:
-                    case cb::mcbp::ClientOpcode::DcpFlush_Unsupported:
-                    case cb::mcbp::ClientOpcode::DcpSetVbucketState:
-                    case cb::mcbp::ClientOpcode::DcpBufferAcknowledgement:
-                    case cb::mcbp::ClientOpcode::DcpControl:
-                    case cb::mcbp::ClientOpcode::DcpSystemEvent:
-                    case cb::mcbp::ClientOpcode::DcpPrepare:
-                    case cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged:
-                    case cb::mcbp::ClientOpcode::DcpCommit:
-                    case cb::mcbp::ClientOpcode::DcpAbort:
-                    case cb::mcbp::ClientOpcode::DcpSeqnoAdvanced:
-                    case cb::mcbp::ClientOpcode::DcpOsoSnapshot:
-                        dcpmsg = true;
-                        break;
-
-                    default:
-                        std::cerr << "Received unexpected message: "
-                                  << req.toJSON(false) << std::endl;
-                    }
-
-                    if (dcpmsg && buffersize > 0) {
-                        current_buffer_window +=
-                                header.getBodylen() + sizeof(cb::mcbp::Header);
-                        if (current_buffer_window > (buffersize / 2)) {
-                            // send buffer ack
-                            std::array<uint8_t, sizeof(cb::mcbp::Header) + 4>
-                                    backing;
-                            cb::mcbp::RequestBuilder builder(
-                                    {backing.data(), backing.size()});
-                            builder.setMagic(cb::mcbp::Magic::ClientRequest);
-                            builder.setOpcode(cb::mcbp::ClientOpcode::
-                                                      DcpBufferAcknowledgement);
-                            cb::mcbp::request::DcpBufferAckPayload payload;
-                            payload.setBufferBytes(current_buffer_window);
-                            builder.setExtras(payload.getBuffer());
-
-                            auto packet = builder.getFrame()->getFrame();
-
-                            auto iob =
-                                    folly::IOBuf::createCombined(packet.size());
-                            std::memcpy(iob->writableData(),
-                                        packet.data(),
-                                        packet.size());
-                            iob->append(packet.size());
-                            connection->getUnderlyingAsyncSocket().writeChain(
-                                    &terminateOnErrorWriteCallback,
-                                    std::move(iob));
-                            current_buffer_window = 0;
-                        }
-                    }
-
-                    total_bytes +=
-                            header.getBodylen() + sizeof(cb::mcbp::Header);
-                }
-
-                if (stream_end == totalStreams) {
-                    // Received all stream end messages.. shut down our read
-                    // side and wait for our send pipe to be drained to cause
-                    // the bufferevent loop to stop
-                    connection->getUnderlyingAsyncSocket().setReadCB(nullptr);
-                    connection->getUnderlyingAsyncSocket().close();
-                }
-            });
+        // Now that they're all set up; go ahead and tell them to enter
+        // the message pump!
+        for (auto& c : connections) {
+            c->enterMessagePump(
+                    streamRequestValue, streamIdConfig, streamRequestFlags);
         }
+
     } catch (const ConnectionError& ex) {
         std::cerr << ex.what() << std::endl;
         return EXIT_FAILURE;
@@ -756,19 +771,27 @@ int main(int argc, char** argv) {
     const auto duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
 
+    size_t total_bytes = 0;
+    size_t mutations = 0;
+    size_t mutation_bytes = 0;
+    for (const auto& c : connections) {
+        total_bytes += c->getTotalBytesReceived();
+        mutations += c->getMutations();
+        mutation_bytes += c->getMutationBytes();
+    }
+
     if (csv) {
         std::cout << duration.count() << ';' << total_bytes << ';' << mutations
                   << std::endl;
     } else {
         std::cout << "Took " << duration.count() << " ms - " << mutations
                   << " mutations with a total of " << total_bytes
-                  << " bytes received ("
+                  << " bytes received (overhead "
+                  << total_bytes - mutation_bytes << ") ("
                   << calculateThroughput(total_bytes, duration.count() / 1000)
                   << ")" << std::endl;
     }
 
-    /// Need to destruct MemcachedConnections before the libevent 'base'
-    /// eventbase as MemcachedConnection refers to the event.
-    vbmap.clear();
+    connections.clear();
     return EXIT_SUCCESS;
 }
