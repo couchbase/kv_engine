@@ -114,15 +114,26 @@ public:
 
     void readDataAvailable(size_t len) noexcept override {
         available += len;
-        try {
-            if (getNextFrame()) {
-                // We have received at least one full packet
+        if (frameReceivedCallback) {
+            auto* header = getNextFrame();
+            size_t consumed = 0;
+            while (header) {
+                consumed += sizeof(*header) + header->getBodylen();
+                frameReceivedCallback(*header);
+                header = getNextFrame(consumed);
+            }
+            drain(consumed);
+        } else {
+            try {
+                if (getNextFrame()) {
+                    // We have received at least one full packet
+                    base.terminateLoopSoon();
+                }
+            } catch (const std::exception&) {
+                // There is a something wrong with the packet on the stream
+                // We'll throw the exception once we return from folly
                 base.terminateLoopSoon();
             }
-        } catch (const std::exception&) {
-            // There is a something wrong with the packet on the stream
-            // We'll throw the exception once we return from folly
-            base.terminateLoopSoon();
         }
     }
 
@@ -139,22 +150,27 @@ public:
     /**
      * Try to get the next memcached frame from the input buffer
      *
+     * @param offset The offset in the buffer (to allow parsing multiple
+     *               packets without having to repack the buffer between
+     *               each iteration)
      * @return The next frame if available or nullptr if we don't have
      *         the full frame available
      * @throws std::runtime_error if there is a format error on the
      *                            header of the packet
      */
-    cb::mcbp::Header* getNextFrame() {
-        if (available < sizeof(cb::mcbp::Header)) {
+    cb::mcbp::Header* getNextFrame(size_t offset = 0) {
+        if ((available - offset) < sizeof(cb::mcbp::Header)) {
             return nullptr;
         }
 
-        auto* hdr = reinterpret_cast<cb::mcbp::Header*>(backing.data());
+        auto* hdr =
+                reinterpret_cast<cb::mcbp::Header*>(backing.data() + offset);
         if (!hdr->isValid()) {
             throw std::runtime_error("Invalid header received!");
         }
 
-        if (available < (sizeof(cb::mcbp::Header) + hdr->getBodylen())) {
+        if ((available - offset) <
+            (sizeof(cb::mcbp::Header) + hdr->getBodylen())) {
             return nullptr;
         }
         return hdr;
@@ -162,9 +178,6 @@ public:
 
     /// Drain a number of bytes from the backing store
     void drain(size_t nb) {
-        // This isn't the most efficient thing, but most of the commands
-        // in memcached returns a single response so this won't be called
-        // that often
         if ((available - nb) > 0) {
             std::memmove(backing.data(), backing.data() + nb, available - nb);
         }
@@ -177,6 +190,13 @@ public:
         }
     }
 
+    void setFrameReceivedCallback(
+            std::function<void(const cb::mcbp::Header& header)> func) {
+        frameReceivedCallback = std::move(func);
+    }
+
+    std::function<void(const cb::mcbp::Header& header)> frameReceivedCallback;
+
     /// Set to true once we see EOF
     bool eof = false;
     /// Contains the exception if we encountered a read error
@@ -188,6 +208,12 @@ public:
     /// The number of bytes currently available in backing
     size_t available = 0;
 };
+
+void MemcachedConnection::enterMessagePumpMode(
+        std::function<void(const cb::mcbp::Header&)> messageCallback) {
+    asyncReadCallback->setFrameReceivedCallback(std::move(messageCallback));
+    asyncSocket->setReadCB(asyncReadCallback.get());
+}
 
 ::std::ostream& operator<<(::std::ostream& os, const DocumentInfo& info) {
     return os << "id:" << info.id << " flags:" << info.flags
@@ -223,12 +249,13 @@ void Document::compress() {
 MemcachedConnection::MemcachedConnection(std::string host,
                                          in_port_t port,
                                          sa_family_t family,
-                                         bool ssl)
+                                         bool ssl,
+                                         std::shared_ptr<folly::EventBase> eb)
     : host(std::move(host)),
       port(port),
       family(family),
       ssl(ssl),
-      eventBase(std::make_unique<folly::EventBase>()) {
+      eventBase(eb ? std::move(eb) : std::make_shared<folly::EventBase>()) {
     if (getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
         // None of the command line commands we had used to have a timeout
         // specified so lets bump it to 30 minutes to make sure that

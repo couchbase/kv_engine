@@ -280,7 +280,8 @@ public:
     MemcachedConnection(std::string host,
                         in_port_t port,
                         sa_family_t family,
-                        bool ssl);
+                        bool ssl,
+                        std::shared_ptr<folly::EventBase> eb = {});
 
     ~MemcachedConnection();
 
@@ -950,6 +951,18 @@ public:
             int64_t clock_shift,
             cb::mcbp::request::AdjustTimePayload::TimeType timeType);
 
+    /// Get the underlying folly AsyncSocket (for use in the message pump
+    /// or advanced usage)
+    folly::AsyncSocket& getUnderlyingAsyncSocket() const {
+        return *asyncSocket.get();
+    }
+
+    /// Install the read callback used by this instance and set it
+    /// in a mode where it'll fire the provided callback for every
+    /// freme it reads off the network.
+    void enterMessagePumpMode(
+            std::function<void(const cb::mcbp::Header&)> messageCallback);
+
 protected:
     void sendBuffer(const std::vector<iovec>& buf);
     void sendBuffer(cb::const_byte_buffer buf);
@@ -989,7 +1002,7 @@ protected:
     std::string ssl_key_file;
     std::unique_ptr<AsyncReadCallback> asyncReadCallback;
     AsyncSocketUniquePtr asyncSocket;
-    std::unique_ptr<folly::EventBase> eventBase;
+    std::shared_ptr<folly::EventBase> eventBase;
     std::chrono::milliseconds timeout;
     std::string tag;
     nlohmann::json agentInfo;
