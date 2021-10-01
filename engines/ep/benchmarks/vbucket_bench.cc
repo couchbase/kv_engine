@@ -500,8 +500,10 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractClosedUnrefCheckpoints)
     while (state.KeepRunning()) {
         state.PauseTiming();
 
-        loadItemsAndMoveCursor(numCheckpoints, 0);
-        ASSERT_EQ(numCheckpoints, manager.getNumCheckpoints());
+        // Open checkpoint never removed, so create numCheckpoints+1 for
+        // removing numCheckpoints
+        loadItemsAndMoveCursor(numCheckpoints + 1, 0);
+        ASSERT_EQ(numCheckpoints + 1, manager.getNumCheckpoints());
 
         // Benchmark
         {
@@ -511,7 +513,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractClosedUnrefCheckpoints)
             // out of scope
             state.PauseTiming();
 
-            EXPECT_EQ(numCheckpoints - 1, list.size());
+            EXPECT_EQ(numCheckpoints, list.size());
         }
 
         // Need to resume here, gbench will fail when it's time to exit the
