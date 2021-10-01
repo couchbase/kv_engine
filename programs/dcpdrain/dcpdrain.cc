@@ -8,10 +8,9 @@
  *   the file licenses/APL2.txt.
  */
 
-#include <event2/buffer.h>
-#include <event2/util.h>
+#include <folly/io/IOBuf.h>
+#include <folly/io/async/AsyncSocket.h>
 #include <getopt.h>
-#include <libevent/utilities.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <nlohmann/json.hpp>
 #include <platform/compress.h>
@@ -27,6 +26,22 @@
 #include <cstdlib>
 #include <iostream>
 #include <vector>
+
+/// Callback class to send to folly to error out if an error occurs while
+/// trying to send data on the wire.
+class TerminateOnErrorWriteCallback : public folly::AsyncWriter::WriteCallback {
+public:
+    void writeSuccess() noexcept override {
+    }
+    void writeErr(size_t bytesWritten,
+                  const folly::AsyncSocketException& ex) noexcept override {
+        std::cerr << "Failed to send data the server: " << ex.what()
+                  << std::endl
+                  << "Terminate process." << std::endl;
+        std::cerr.flush();
+        std::_Exit(EXIT_FAILURE);
+    }
+} terminateOnErrorWriteCallback;
 
 static void usage() {
     std::cerr << R"(Usage: dcpdrain [options]
@@ -79,42 +94,6 @@ Options:
     exit(EXIT_FAILURE);
 }
 
-bool isPacketAvailable(evbuffer* input) {
-    auto size = evbuffer_get_length(input);
-    if (size < sizeof(cb::mcbp::Header)) {
-        return false;
-    }
-
-    const auto* header = reinterpret_cast<const cb::mcbp::Header*>(
-            evbuffer_pullup(input, sizeof(cb::mcbp::Header)));
-    if (!header) {
-        throw std::runtime_error(
-                "isPacketAvailable(): Failed to reallocate event "
-                "input buffer: " +
-                std::to_string(sizeof(cb::mcbp::Header)));
-    }
-
-    if (!header->isValid()) {
-        std::cerr << header->toJSON(false) << std::endl;
-        throw std::runtime_error(
-                "isPacketAvailable(): Invalid packet header detected");
-    }
-
-    const auto framesize = sizeof(*header) + header->getBodylen();
-    if (size >= framesize) {
-        // We've got the entire buffer available.. make sure it is continuous
-        if (!evbuffer_pullup(input, framesize)) {
-            throw std::runtime_error(
-                    "isPacketAvailable(): Failed to reallocate "
-                    "event input buffer: " +
-                    std::to_string(framesize));
-        }
-        return true;
-    }
-
-    return false;
-}
-
 size_t stream_end = 0;
 size_t mutations = 0;
 size_t buffersize = 13421772;
@@ -124,111 +103,18 @@ size_t max_vbuckets = 0;
 size_t totalStreams = 0;
 bool verbose = false;
 
-static void handleDcpNoop(const cb::mcbp::Request& header, bufferevent* bev) {
+static void handleDcpNoop(const cb::mcbp::Request& header,
+                          MemcachedConnection& connection) {
     cb::mcbp::Response resp = {};
     resp.setMagic(cb::mcbp::Magic::ClientResponse);
     resp.setOpaque(header.getOpaque());
     resp.setOpcode(header.getClientOpcode());
-    if (bufferevent_write(bev, &resp, sizeof(resp)) == -1) {
-        throw std::runtime_error("Failed to send DcpNoop response");
-    }
-}
 
-void read_callback(bufferevent* bev, void*) {
-    static cb::compression::Buffer buffer;
-
-    auto* input = bufferevent_get_input(bev);
-    while (isPacketAvailable(input)) {
-        const auto* header = reinterpret_cast<const cb::mcbp::Header*>(
-                evbuffer_pullup(input, sizeof(cb::mcbp::Header)));
-
-        if (verbose) {
-            std::cout << "< " << header->toJSON(false) << std::endl;
-        }
-
-        if (header->isRequest()) {
-            const auto& req = header->getRequest();
-            bool dcpmsg = false;
-
-            switch (req.getClientOpcode()) {
-            case cb::mcbp::ClientOpcode::DcpStreamEnd:
-                ++stream_end;
-                dcpmsg = true;
-                break;
-            case cb::mcbp::ClientOpcode::DcpNoop:
-                handleDcpNoop(header->getRequest(), bev);
-                break;
-            case cb::mcbp::ClientOpcode::DcpMutation:
-                ++mutations;
-                dcpmsg = true;
-                break;
-
-            case cb::mcbp::ClientOpcode::DcpAddStream:
-            case cb::mcbp::ClientOpcode::DcpCloseStream:
-            case cb::mcbp::ClientOpcode::DcpStreamReq:
-            case cb::mcbp::ClientOpcode::DcpGetFailoverLog:
-            case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
-            case cb::mcbp::ClientOpcode::DcpDeletion:
-            case cb::mcbp::ClientOpcode::DcpExpiration:
-            case cb::mcbp::ClientOpcode::DcpFlush_Unsupported:
-            case cb::mcbp::ClientOpcode::DcpSetVbucketState:
-            case cb::mcbp::ClientOpcode::DcpBufferAcknowledgement:
-            case cb::mcbp::ClientOpcode::DcpControl:
-            case cb::mcbp::ClientOpcode::DcpSystemEvent:
-            case cb::mcbp::ClientOpcode::DcpPrepare:
-            case cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged:
-            case cb::mcbp::ClientOpcode::DcpCommit:
-            case cb::mcbp::ClientOpcode::DcpAbort:
-            case cb::mcbp::ClientOpcode::DcpSeqnoAdvanced:
-            case cb::mcbp::ClientOpcode::DcpOsoSnapshot:
-                dcpmsg = true;
-                break;
-
-            default:
-                std::cerr << "Received unexpected message: "
-                          << req.toJSON(false) << std::endl;
-            }
-
-            if (dcpmsg && buffersize > 0) {
-                current_buffer_window +=
-                        header->getBodylen() + sizeof(cb::mcbp::Header);
-                if (current_buffer_window > (buffersize / 2)) {
-                    // send buffer ack
-                    std::array<uint8_t, sizeof(cb::mcbp::Header) + 4> backing;
-                    cb::mcbp::RequestBuilder builder(
-                            {backing.data(), backing.size()});
-                    builder.setMagic(cb::mcbp::Magic::ClientRequest);
-                    builder.setOpcode(
-                            cb::mcbp::ClientOpcode::DcpBufferAcknowledgement);
-                    cb::mcbp::request::DcpBufferAckPayload payload;
-                    payload.setBufferBytes(current_buffer_window);
-                    builder.setExtras(payload.getBuffer());
-
-                    auto packet = builder.getFrame()->getFrame();
-                    bufferevent_write(bev, packet.data(), packet.size());
-                    current_buffer_window = 0;
-                }
-            }
-
-            total_bytes += header->getBodylen() + sizeof(cb::mcbp::Header);
-        }
-
-        evbuffer_drain(input, header->getBodylen() + sizeof(cb::mcbp::Header));
-        if (stream_end == totalStreams) {
-            // Received all stream end messages.. shut down our read
-            // side and wait for our send pipe to be drained to cause
-            // the bufferevent loop to stop
-            bufferevent_disable(bev, EV_READ);
-            cb::net::shutdown(bufferevent_getfd(bev), SHUT_RDWR);
-        }
-    }
-}
-
-void event_callback(bufferevent* bev, short event, void*) {
-    if (((event & BEV_EVENT_EOF) == BEV_EVENT_EOF) ||
-        ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR)) {
-        std::cerr << "Other side closed connection: " << event << std::endl;
-    }
+    auto iob = folly::IOBuf::createCombined(sizeof(resp));
+    std::memcpy(iob->writableData(), &resp, sizeof(resp));
+    iob->append(sizeof(resp));
+    connection.getUnderlyingAsyncSocket().writeChain(
+            &terminateOnErrorWriteCallback, std::move(iob));
 }
 
 std::string calculateThroughput(size_t bytes, size_t sec) {
@@ -319,8 +205,9 @@ void setupVBMap(const std::string& host,
                 const std::string& user,
                 const std::string& password,
                 const std::string& bucket,
-                bool enableCollections) {
-    MemcachedConnection connection(host, in_port, family, false);
+                bool enableCollections,
+                std::shared_ptr<folly::EventBase> base) {
+    MemcachedConnection connection(host, in_port, family, false, base);
     connection.connect();
 
     if (!user.empty()) {
@@ -359,7 +246,8 @@ void setupVBMap(const std::string& host,
         if (h.find("$HOST") != std::string::npos) {
             h = host;
         }
-        auto c = std::make_unique<MemcachedConnection>(h, p, family, false);
+        auto c = std::make_unique<MemcachedConnection>(
+                h, p, family, false, base);
         c->connect();
 
         if (!user.empty()) {
@@ -556,8 +444,7 @@ int main(int argc, char** argv) {
     }
 #endif
 
-    cb::libevent::unique_event_base_ptr base(event_base_new());
-    std::vector<cb::libevent::unique_bufferevent_ptr> events;
+    auto event_base = std::make_shared<folly::EventBase>();
     try {
         in_port_t in_port;
         sa_family_t fam;
@@ -579,7 +466,7 @@ int main(int argc, char** argv) {
             }
 
             auto c = std::make_unique<MemcachedConnection>(
-                    host, in_port, family, false);
+                    host, in_port, family, false, event_base);
             c->connect();
 
             if (!user.empty()) {
@@ -600,7 +487,8 @@ int main(int argc, char** argv) {
                        user,
                        password,
                        bucket,
-                       enableCollections);
+                       enableCollections,
+                       event_base);
         }
 
         // set up all of the connections
@@ -634,45 +522,38 @@ int main(int argc, char** argv) {
                 }
             }
 
+            auto ctrls = controls;
             if (!memcached) {
-                if (controls.empty()) {
-                    controls = {
-                            {{"enable_noop", "true"},
+                if (ctrls.empty()) {
+                    ctrls = {{"enable_noop", "true"},
                              {"set_noop_interval", "1"},
                              {"set_priority", "high"},
                              {"supports_cursor_dropping_vulcan", "true"},
                              {"supports_hifi_MFU", "true"},
                              {"send_stream_end_on_client_close_stream", "true"},
-                             {"enable_expiry_opcode", "true"}}};
+                             {"enable_expiry_opcode", "true"}};
                 }
 
                 if (streamIdConfig) {
-                    controls.emplace_back(
+                    ctrls.emplace_back(
                             std::make_pair("enable_stream_id", "true"));
                 }
 
                 if (enableOso) {
-                    controls.emplace_back(std::make_pair(
+                    ctrls.emplace_back(std::make_pair(
                             "enable_out_of_order_snapshots", "true"));
                 }
 
-                setControlMessages(*c, controls);
+                setControlMessages(*c, ctrls);
             }
+        }
 
-            auto socket = c->releaseSocket();
-            evutil_make_socket_nonblocking(socket);
-
-            auto* bev = bufferevent_socket_new(
-                    base.get(),
-                    socket,
-                    BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS);
-
-            events.emplace_back(bev);
-            bufferevent_setcb(bev, read_callback, {}, event_callback, nullptr);
-            bufferevent_enable(bev, EV_READ);
-
+        for (const auto& [c, vbuckets] : vbmap) {
             int streamsPerVb =
                     streamIdConfig ? streamIdConfig.value().size() : 1;
+
+            std::unique_ptr<folly::IOBuf> head;
+            folly::IOBuf* tailp = nullptr;
 
             for (int ii = 0; ii < streamsPerVb; ii++) {
                 for (auto vb : vbuckets) {
@@ -699,9 +580,111 @@ int main(int argc, char** argv) {
 
                     std::vector<uint8_t> vec;
                     streamRequestCommand.encode(vec);
-                    bufferevent_write(bev, vec.data(), vec.size());
+                    auto iob = folly::IOBuf::createCombined(vec.size());
+                    std::memcpy(iob->writableData(), vec.data(), vec.size());
+                    iob->append(vec.size());
+                    if (tailp) {
+                        tailp->appendChain(std::move(iob));
+                    } else {
+                        head = std::move(iob);
+                        tailp = head.get();
+                    }
                 }
             }
+            c->getUnderlyingAsyncSocket().writeChain(
+                    &terminateOnErrorWriteCallback, std::move(head));
+            c->enterMessagePumpMode([connection = c.get()](
+                                            const cb::mcbp::Header& header) {
+                if (verbose) {
+                    std::cout << "< " << header.toJSON(true) << std::endl;
+                }
+
+                if (header.isRequest()) {
+                    const auto& req = header.getRequest();
+                    bool dcpmsg = false;
+
+                    switch (req.getClientOpcode()) {
+                    case cb::mcbp::ClientOpcode::DcpStreamEnd:
+                        ++stream_end;
+                        dcpmsg = true;
+                        break;
+                    case cb::mcbp::ClientOpcode::DcpNoop:
+                        handleDcpNoop(header.getRequest(), *connection);
+                        break;
+                    case cb::mcbp::ClientOpcode::DcpMutation:
+                        ++mutations;
+                        dcpmsg = true;
+                        break;
+
+                    case cb::mcbp::ClientOpcode::DcpAddStream:
+                    case cb::mcbp::ClientOpcode::DcpCloseStream:
+                    case cb::mcbp::ClientOpcode::DcpStreamReq:
+                    case cb::mcbp::ClientOpcode::DcpGetFailoverLog:
+                    case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
+                    case cb::mcbp::ClientOpcode::DcpDeletion:
+                    case cb::mcbp::ClientOpcode::DcpExpiration:
+                    case cb::mcbp::ClientOpcode::DcpFlush_Unsupported:
+                    case cb::mcbp::ClientOpcode::DcpSetVbucketState:
+                    case cb::mcbp::ClientOpcode::DcpBufferAcknowledgement:
+                    case cb::mcbp::ClientOpcode::DcpControl:
+                    case cb::mcbp::ClientOpcode::DcpSystemEvent:
+                    case cb::mcbp::ClientOpcode::DcpPrepare:
+                    case cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged:
+                    case cb::mcbp::ClientOpcode::DcpCommit:
+                    case cb::mcbp::ClientOpcode::DcpAbort:
+                    case cb::mcbp::ClientOpcode::DcpSeqnoAdvanced:
+                    case cb::mcbp::ClientOpcode::DcpOsoSnapshot:
+                        dcpmsg = true;
+                        break;
+
+                    default:
+                        std::cerr << "Received unexpected message: "
+                                  << req.toJSON(false) << std::endl;
+                    }
+
+                    if (dcpmsg && buffersize > 0) {
+                        current_buffer_window +=
+                                header.getBodylen() + sizeof(cb::mcbp::Header);
+                        if (current_buffer_window > (buffersize / 2)) {
+                            // send buffer ack
+                            std::array<uint8_t, sizeof(cb::mcbp::Header) + 4>
+                                    backing;
+                            cb::mcbp::RequestBuilder builder(
+                                    {backing.data(), backing.size()});
+                            builder.setMagic(cb::mcbp::Magic::ClientRequest);
+                            builder.setOpcode(cb::mcbp::ClientOpcode::
+                                                      DcpBufferAcknowledgement);
+                            cb::mcbp::request::DcpBufferAckPayload payload;
+                            payload.setBufferBytes(current_buffer_window);
+                            builder.setExtras(payload.getBuffer());
+
+                            auto packet = builder.getFrame()->getFrame();
+
+                            auto iob =
+                                    folly::IOBuf::createCombined(packet.size());
+                            std::memcpy(iob->writableData(),
+                                        packet.data(),
+                                        packet.size());
+                            iob->append(packet.size());
+                            connection->getUnderlyingAsyncSocket().writeChain(
+                                    &terminateOnErrorWriteCallback,
+                                    std::move(iob));
+                            current_buffer_window = 0;
+                        }
+                    }
+
+                    total_bytes +=
+                            header.getBodylen() + sizeof(cb::mcbp::Header);
+                }
+
+                if (stream_end == totalStreams) {
+                    // Received all stream end messages.. shut down our read
+                    // side and wait for our send pipe to be drained to cause
+                    // the bufferevent loop to stop
+                    connection->getUnderlyingAsyncSocket().setReadCB(nullptr);
+                    connection->getUnderlyingAsyncSocket().close();
+                }
+            });
         }
     } catch (const ConnectionError& ex) {
         std::cerr << ex.what() << std::endl;
@@ -712,7 +695,7 @@ int main(int argc, char** argv) {
     }
 
     const auto start = std::chrono::steady_clock::now();
-    event_base_loop(base.get(), 0);
+    event_base->loop();
     const auto stop = std::chrono::steady_clock::now();
 
     const auto duration =
