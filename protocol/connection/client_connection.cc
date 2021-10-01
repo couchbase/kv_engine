@@ -139,12 +139,16 @@ public:
 
     void readEOF() noexcept override {
         eof = true;
-        base.terminateLoopSoon();
+        if (!frameReceivedCallback) {
+            base.terminateLoopSoon();
+        }
     }
 
     void readErr(const folly::AsyncSocketException& ex) noexcept override {
         exception = ex;
-        base.terminateLoopSoon();
+        if (!frameReceivedCallback) {
+            base.terminateLoopSoon();
+        }
     }
 
     /**

@@ -74,6 +74,7 @@ Options:
   --tls[=cert,key]               Use TLS and optionally try to authenticate
                                  by using the provided certificate and
                                  private key.
+  --num-connections=num          The number of connections to use to each host
   -B or --buffer-size size       Specify the DCP buffer size to use
                                  [Default = 13421772]. Set to 0 to disable
                                  DCP flow control (may use k or m to specify
@@ -109,6 +110,25 @@ Options:
 )";
 
     exit(EXIT_FAILURE);
+}
+
+std::string calculateThroughput(size_t bytes, size_t sec) {
+    if (sec > 1) {
+        bytes /= sec;
+    }
+
+    std::vector<const char*> suffix = {"B/s", "kB/s", "MB/s", "GB/s"};
+    int ii = 0;
+
+    while (bytes > 10240) {
+        bytes /= 1024;
+        ++ii;
+        if (ii == 3) {
+            break;
+        }
+    }
+
+    return std::to_string(bytes) + suffix[ii];
 }
 
 /// The DcpConnection class is responsible for a single DCP connection to
@@ -189,6 +209,7 @@ public:
                         handleResponse(header.getResponse());
                     }
                 });
+        start = std::chrono::steady_clock::now();
     }
 
     size_t getMutations() const {
@@ -203,9 +224,25 @@ public:
         return connection->getUnderlyingAsyncSocket().getAppBytesReceived();
     }
 
+    void reportConnectionStats() {
+        const auto duration =
+                std::chrono::duration_cast<std::chrono::milliseconds>(stop -
+                                                                      start);
+
+        size_t total_bytes = getTotalBytesReceived();
+        std::cout << "Connection took " << duration.count() << " ms - "
+                  << mutations << " mutations with a total of " << total_bytes
+                  << " bytes received (overhead "
+                  << total_bytes - mutation_bytes << ") ("
+                  << calculateThroughput(total_bytes, duration.count() / 1000)
+                  << ")" << std::endl;
+    }
+
 protected:
     std::unique_ptr<MemcachedConnection> connection;
     std::vector<uint16_t> vbuckets;
+    std::chrono::steady_clock::time_point start;
+    std::chrono::steady_clock::time_point stop;
 
     void handleRequest(const cb::mcbp::Request& req) {
         bool dcpmsg = false;
@@ -217,6 +254,7 @@ protected:
                 // we got all we wanted
                 connection->getUnderlyingAsyncSocket().setReadCB(nullptr);
                 connection->getUnderlyingAsyncSocket().close();
+                stop = std::chrono::steady_clock::now();
             }
             dcpmsg = true;
             break;
@@ -307,25 +345,6 @@ protected:
     size_t max_vbuckets = 0;
     size_t totalStreams = 0;
 };
-
-std::string calculateThroughput(size_t bytes, size_t sec) {
-    if (sec > 1) {
-        bytes /= sec;
-    }
-
-    std::vector<const char*> suffix = {"B/s", "kB/s", "MB/s", "GB/s"};
-    int ii = 0;
-
-    while (bytes > 10240) {
-        bytes /= 1024;
-        ++ii;
-        if (ii == 3) {
-            break;
-        }
-    }
-
-    return std::to_string(bytes) + suffix[ii];
-}
 
 static unsigned long strtoul(const char* arg) {
     try {
@@ -479,6 +498,7 @@ int main(int argc, char** argv) {
     std::string streamRequestFileName;
     std::string streamIdFileName;
     uint32_t streamRequestFlags = DCP_ADD_STREAM_FLAG_LATEST;
+    size_t num_connections = 1;
 
     cb::net::initialize();
 
@@ -502,6 +522,7 @@ int main(int argc, char** argv) {
             {"control", required_argument, nullptr, 'c'},
             {"csv", no_argument, nullptr, 'C'},
             {"name", required_argument, nullptr, 'N'},
+            {"num-connections", required_argument, nullptr, 'n'},
             {"verbose", no_argument, nullptr, 'v'},
             {"enable-oso", no_argument, nullptr, enableOsoOptionId},
             {"disable-collections",
@@ -570,6 +591,9 @@ int main(int argc, char** argv) {
                     exit(EXIT_FAILURE);
                 }
             }
+            break;
+        case 'n':
+            num_connections = strtoul(optarg);
             break;
         case 'B':
             buffersize = strtoul(optarg);
@@ -687,66 +711,89 @@ int main(int argc, char** argv) {
         }
 
         for (const auto& [h, vb] : vbucketmap) {
-            connections.emplace_back(
-                    std::make_unique<DcpConnection>(h, vb, event_base));
-            auto& c = connections.back()->getConnection();
-            if (!user.empty()) {
-                c.authenticate(user, password, "PLAIN");
-            }
+            // We'll use a number fixed number of connections to each host
+            // so we need to redistribute the vbuckets across the connections
+            // to this host.
+            std::vector<std::vector<uint16_t>> perConnVbuckets{num_connections};
 
-            c.setFeatures(features);
-            c.selectBucket(bucket);
-
-            auto rsp = c.execute(BinprotDcpOpenCommand{
-                    name, cb::mcbp::request::DcpOpenPayload::Producer});
-            if (!rsp.isSuccess()) {
-                std::cerr << "Failed to open DCP stream: "
-                          << to_string(rsp.getStatus()) << std::endl
-                          << "\t" << rsp.getDataString() << std::endl;
-                return EXIT_FAILURE;
-            }
-
-            if (buffersize == 0) {
-                if (verbose) {
-                    std::cout << "Not using DCP flow control" << std::endl;
-                }
+            if (num_connections == 1) {
+                perConnVbuckets[0] = vb;
             } else {
-                if (verbose) {
-                    std::cout << "Using DCP flow control with buffer size: "
-                              << buffersize << std::endl;
-                }
-                if (!c.execute(BinprotGenericCommand{
-                                       cb::mcbp::ClientOpcode::DcpControl,
-                                       "connection_buffer_size",
-                                       std::to_string(buffersize)})
-                             .isSuccess()) {
-                    std::cerr << "Failed to set connection buffer size to "
-                              << buffersize << std::endl;
-                    std::exit(EXIT_FAILURE);
+                // spread the vbuckets across the connections
+                int idx = 0;
+                for (auto vbucket : vb) {
+                    perConnVbuckets[idx++ % perConnVbuckets.size()]
+                            .emplace_back(vbucket);
                 }
             }
 
-            auto ctrls = controls;
-            if (ctrls.empty()) {
-                ctrls = {{"enable_noop", "true"},
-                         {"set_noop_interval", "1"},
-                         {"set_priority", "high"},
-                         {"supports_cursor_dropping_vulcan", "true"},
-                         {"supports_hifi_MFU", "true"},
-                         {"send_stream_end_on_client_close_stream", "true"},
-                         {"enable_expiry_opcode", "true"}};
-            }
+            int idx = 0;
+            for (auto vbuckets : perConnVbuckets) {
+                connections.emplace_back(std::make_unique<DcpConnection>(
+                        h, vbuckets, event_base));
+                auto& c = connections.back()->getConnection();
+                if (!user.empty()) {
+                    c.authenticate(user, password, "PLAIN");
+                }
 
-            if (streamIdConfig) {
-                ctrls.emplace_back(std::make_pair("enable_stream_id", "true"));
-            }
+                c.setFeatures(features);
+                c.selectBucket(bucket);
 
-            if (enableOso) {
-                ctrls.emplace_back(std::make_pair(
-                        "enable_out_of_order_snapshots", "true"));
-            }
+                std::string nm =
+                        (idx++ == 0) ? name : name + ":" + std::to_string(idx);
+                auto rsp = c.execute(BinprotDcpOpenCommand{
+                        std::move(nm),
+                        cb::mcbp::request::DcpOpenPayload::Producer});
+                if (!rsp.isSuccess()) {
+                    std::cerr << "Failed to open DCP stream: "
+                              << to_string(rsp.getStatus()) << std::endl
+                              << "\t" << rsp.getDataString() << std::endl;
+                    return EXIT_FAILURE;
+                }
 
-            setControlMessages(c, ctrls);
+                if (buffersize == 0) {
+                    if (verbose) {
+                        std::cout << "Not using DCP flow control" << std::endl;
+                    }
+                } else {
+                    if (verbose) {
+                        std::cout << "Using DCP flow control with buffer size: "
+                                  << buffersize << std::endl;
+                    }
+                    if (!c.execute(BinprotGenericCommand{
+                                           cb::mcbp::ClientOpcode::DcpControl,
+                                           "connection_buffer_size",
+                                           std::to_string(buffersize)})
+                                 .isSuccess()) {
+                        std::cerr << "Failed to set connection buffer size to "
+                                  << buffersize << std::endl;
+                        std::exit(EXIT_FAILURE);
+                    }
+                }
+
+                auto ctrls = controls;
+                if (ctrls.empty()) {
+                    ctrls = {{"set_priority", "high"},
+                             {"supports_cursor_dropping_vulcan", "true"},
+                             {"supports_hifi_MFU", "true"},
+                             {"send_stream_end_on_client_close_stream", "true"},
+                             {"enable_expiry_opcode", "true"},
+                             {"set_noop_interval", "1"},
+                             {"enable_noop", "true"}};
+                }
+
+                if (streamIdConfig) {
+                    ctrls.emplace_back(
+                            std::make_pair("enable_stream_id", "true"));
+                }
+
+                if (enableOso) {
+                    ctrls.emplace_back(std::make_pair(
+                            "enable_out_of_order_snapshots", "true"));
+                }
+
+                setControlMessages(c, ctrls);
+            }
         }
 
         // Now that they're all set up; go ahead and tell them to enter
@@ -778,6 +825,9 @@ int main(int argc, char** argv) {
         total_bytes += c->getTotalBytesReceived();
         mutations += c->getMutations();
         mutation_bytes += c->getMutationBytes();
+        if (!csv && connections.size() > 1) {
+            c->reportConnectionStats();
+        }
     }
 
     if (csv) {
