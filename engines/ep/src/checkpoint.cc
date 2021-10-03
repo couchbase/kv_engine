@@ -542,8 +542,7 @@ void Checkpoint::addItemToCheckpoint(const queued_item& qi) {
     }
 }
 
-std::pair<CheckpointQueue, size_t> Checkpoint::expelItems(
-        const ChkptQueueIterator& last) {
+CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last) {
     CheckpointQueue expelledItems(toWrite.get_allocator());
 
     // Expel from the the first item after the checkpoint_start item (included)
@@ -572,10 +571,8 @@ std::pair<CheckpointQueue, size_t> Checkpoint::expelItems(
             ChkptQueueIterator::const_underlying_iterator{first},
             ChkptQueueIterator::const_underlying_iterator{std::next(last)});
 
-    size_t itemsMemory = 0;
-
     // Note: No key-index in disk checkpoints
-    if (getState() == CHECKPOINT_OPEN && !isDiskCheckpoint()) {
+    if (getState() == CHECKPOINT_OPEN && isMemoryCheckpoint()) {
         // If the checkpoint is open, for every expelled the corresponding
         // keyIndex entry must be invalidated.
         for (const auto& expelled : expelledItems) {
@@ -594,24 +591,10 @@ std::pair<CheckpointQueue, size_t> Checkpoint::expelItems(
                                               ? toWrite.begin()
                                               : toWrite.end());
             }
-
-            itemsMemory += expelled->size();
         }
-    } else {
-        /*
-         * Reduce the queuedItems memory usage by the size of the items
-         * being expelled from memory.
-         */
-        const auto addSize = [](size_t a, queued_item qi) {
-            return a + qi->size();
-        };
-        itemsMemory = std::accumulate(
-                expelledItems.begin(), expelledItems.end(), 0, addSize);
     }
 
-    queuedItemsMemUsage -= itemsMemory;
-
-    return {std::move(expelledItems), itemsMemory};
+    return expelledItems;
 }
 
 CheckpointIndexKeyType Checkpoint::makeIndexKey(const queued_item& item) const {
@@ -700,6 +683,10 @@ void Checkpoint::setMemoryTracker(
     // new owner (destroyer task).
     queuedItemsMemUsage.changeParent(newMemoryUsageTracker);
     keyIndexMemUsage.changeParent(newMemoryUsageTracker);
+}
+
+void Checkpoint::applyQueuedItemsMemUsageDecrement(size_t size) {
+    queuedItemsMemUsage -= size;
 }
 
 std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {

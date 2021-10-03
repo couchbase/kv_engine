@@ -513,15 +513,18 @@ public:
      * Expel those items in the checkpoint where all cursors have passed.
      *
      * @param lastToExpel Iterator to the last item to expel (inclusive)
-     * @return the expelled items and an estimate of the amount of memory
-     *  released
+     * @return the expelled items
      */
-    std::pair<CheckpointQueue, size_t> expelItems(
-            const ChkptQueueIterator& lastToExpel);
+    CheckpointQueue expelItems(const ChkptQueueIterator& lastToExpel);
 
     /// @return true if this is a disk checkpoint (replica streaming from disk)
     bool isDiskCheckpoint() const {
         return checkpointType == CheckpointType::Disk;
+    }
+
+    /// @return true if this is a memory checkpoint
+    bool isMemoryCheckpoint() const {
+        return checkpointType == CheckpointType::Memory;
     }
 
     CheckpointType getCheckpointType() const {
@@ -581,6 +584,14 @@ public:
      */
     void setMemoryTracker(
             cb::NonNegativeCounter<size_t>* newMemoryUsageTracker);
+
+    /**
+     * Decrease this checkpoint queuedItemsMemUsage stat by the given size.
+     * Used at expel for updating that stat once memory is released.
+     *
+     * @param size
+     */
+    void applyQueuedItemsMemUsageDecrement(size_t size);
 
 private:
     /**

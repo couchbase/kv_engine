@@ -635,12 +635,12 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
         // Benchmark
         {
             state.ResumeTiming();
-            const auto res = extractItemsToExpel(manager);
+            auto res = extractItemsToExpel(manager);
             // Don't account deallocation, so pause before res goes out of scope
             state.PauseTiming();
 
             EXPECT_EQ(numItems, res.getNumItems());
-            EXPECT_GT(res.getMemory(), 0);
+            EXPECT_GT(res.deleteItems(), 0);
         }
 
         // Need to resume here, gbench will fail when it's time to exit the

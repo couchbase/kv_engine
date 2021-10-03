@@ -791,9 +791,9 @@ protected:
     public:
         ExtractItemsResult();
         ExtractItemsResult(CheckpointQueue&& items,
-                           size_t memory,
                            CheckpointManager* manager,
-                           std::shared_ptr<CheckpointCursor> expelCursor);
+                           std::shared_ptr<CheckpointCursor> expelCursor,
+                           Checkpoint* checkpoint);
 
         ~ExtractItemsResult();
 
@@ -804,15 +804,21 @@ protected:
         ExtractItemsResult& operator=(ExtractItemsResult&& other);
 
         size_t getNumItems() const;
-        size_t getMemory() const;
         const CheckpointCursor& getExpelCursor() const;
+
+        /**
+         * Erases all the owned items.
+         * Note: This is a O(N) deallocation.
+         *
+         * @return an estimate of memory released
+         */
+        size_t deleteItems();
+
+        Checkpoint* getCheckpoint() const;
 
     private:
         // Container of expelled items
         CheckpointQueue items;
-
-        // Estimate of memory recovered
-        size_t memory{0};
 
         // Ref to the CM. Used at destruction for removing the expel-cursor.
         CheckpointManager* manager{nullptr};
@@ -824,6 +830,9 @@ protected:
         // Cursor always registered at Checkpoint::begin. The cursor is removed
         // when expel has completed all its logical steps.
         std::shared_ptr<CheckpointCursor> expelCursor{nullptr};
+
+        // Pointer to the checkpoint on which expel has operated.
+        Checkpoint* checkpoint{nullptr};
     };
 
     /**
