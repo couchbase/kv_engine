@@ -50,15 +50,6 @@ protected:
                     Vbid vbid,
                     const std::string& key);
 
-    /**
-     * Create a collection enabled key
-     *
-     * @param cid The collection identifier
-     * @param key The key to encode
-     * @return a key which may be used on a collection enabled connection
-     */
-    static std::string createKey(CollectionID cid, const std::string& key);
-
     static std::unique_ptr<Cluster> cluster;
 };
 
