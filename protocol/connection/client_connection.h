@@ -576,7 +576,7 @@ public:
      */
     void recvFrame(Frame& frame);
 
-    void sendCommand(const BinprotCommand& command);
+    size_t sendCommand(const BinprotCommand& command);
 
     void recvResponse(BinprotResponse& response);
 
@@ -859,6 +859,58 @@ public:
     }
 
     Document getRandomKey(Vbid vbid);
+
+    void dcpOpenProducer(const std::string& name);
+    void dcpOpenConsumer(const std::string& name);
+    void dcpControl(const std::string& key, const std::string& value);
+    void dcpStreamRequest(Vbid vbid,
+                          uint32_t flags,
+                          uint64_t startSeq,
+                          uint64_t endSeq,
+                          uint64_t vbUuid,
+                          uint64_t snapStart,
+                          uint64_t snapEnd);
+    void dcpStreamRequest(Vbid vbid,
+                          uint32_t flags,
+                          uint64_t startSeq,
+                          uint64_t endSeq,
+                          uint64_t vbUuid,
+                          uint64_t snapStart,
+                          uint64_t snapEnd,
+                          const nlohmann::json& value);
+
+    /* following dcp functions are for working with a consumer */
+    void dcpAddStream(Vbid vbid, uint32_t flags = 0);
+
+    /**
+     * Send a success response for a DcpStreamRequest
+     * Includes a value encoding a failover table
+     * @param opaque request/response opaque
+     * @param failovers vector of pair representing failover table. The pair
+     *        encodes first = uuid, second = seqno
+     */
+    void dcpStreamRequestResponse(
+            uint32_t opaque,
+            const std::vector<std::pair<uint64_t, uint64_t>>& failovers);
+    /**
+     * Send the V2 marker with max visible seqno set to end
+     */
+    size_t dcpSnapshotMarkerV2(uint32_t opaque,
+                               uint64_t start,
+                               uint64_t end,
+                               uint32_t flags);
+    size_t dcpMutation(const Document& doc,
+                       uint32_t opaque,
+                       uint64_t seqno,
+                       uint64_t revSeqno = 0,
+                       uint32_t lockTime = 0,
+                       uint8_t nru = 0);
+    size_t dcpDeletionV2(const Document& doc,
+                         uint32_t opaque,
+                         uint64_t seqno,
+                         uint64_t revSeqno = 0,
+                         uint32_t deleteTime = 0);
+    void recvDcpBufferAck(uint32_t expected);
 
 protected:
     void read(Frame& frame, size_t bytes);
