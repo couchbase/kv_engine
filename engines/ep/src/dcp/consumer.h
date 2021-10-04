@@ -247,6 +247,10 @@ public:
                             uint64_t prepareSeqno,
                             uint64_t abortSeqno) override;
 
+    ENGINE_ERROR_CODE control(uint32_t opaque,
+                              cb::const_char_buffer key,
+                              cb::const_char_buffer value) override;
+
     bool doRollback(uint32_t opaque, Vbid vbid, uint64_t rollbackSeqno);
 
     /**

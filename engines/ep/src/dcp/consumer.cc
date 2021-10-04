@@ -19,6 +19,7 @@
 
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
+#include "common.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/passive_stream.h"
 #include "dcp/response.h"
@@ -1892,4 +1893,25 @@ std::shared_ptr<PassiveStream> DcpConsumer::removeStream(Vbid vbid) {
     auto eraseResult = streams.erase(vbid).first;
     engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbid);
     return eraseResult;
+}
+
+ENGINE_ERROR_CODE DcpConsumer::control(uint32_t opaque,
+                                       cb::const_char_buffer key,
+                                       cb::const_char_buffer value) {
+    if (engine_.getConfiguration().isDcpConsumerControlEnabled()) {
+        if (key == "connection_buffer_size") {
+            uint32_t result{0};
+            std::string valueStr(value.data(), value.size());
+            if (parseUint32(valueStr.c_str(), &result)) {
+                logger->warn("changing flow control buffer size:{}", result);
+                setFlowControlBufSize(result);
+                return ENGINE_SUCCESS;
+            }
+        }
+
+        logger->warn("Invalid ctrl parameter {} {}", key, value);
+        return ENGINE_EINVAL;
+    }
+
+    return ConnHandler::control(opaque, key, value);
 }
