@@ -210,6 +210,22 @@ protected:
     std::vector<uint8_t> extras;
 };
 
+/**
+ * Simple response based on command allowing client to initiate a response to
+ * server.
+ */
+class BinprotCommandResponse : public BinprotGenericCommand {
+public:
+    BinprotCommandResponse(cb::mcbp::ClientOpcode opcode,
+                           uint32_t opaque,
+                           cb::mcbp::Status status = cb::mcbp::Status::Success);
+    BinprotCommandResponse& setStatus(cb::mcbp::Status);
+    void encode(std::vector<uint8_t>& buf) const override;
+
+private:
+    cb::mcbp::Status status{cb::mcbp::Status::Success};
+};
+
 class BinprotResponse {
 public:
     bool isSuccess() const;
@@ -698,7 +714,7 @@ public:
     void encode(std::vector<uint8_t>& buf) const override;
     Encoded encode() const override;
 
-private:
+protected:
     void encodeHeader(std::vector<uint8_t>& buf) const;
 
     /** This contains our copied value (i.e. setValue) */
@@ -897,6 +913,61 @@ protected:
 class BinprotDcpControlCommand : public BinprotGenericCommand {
 public:
     BinprotDcpControlCommand();
+};
+
+class BinprotDcpMutationCommand : public BinprotMutationCommand {
+public:
+    BinprotDcpMutationCommand(std::string key,
+                              std::string_view value,
+                              uint32_t opaque,
+                              uint8_t datatype,
+                              uint32_t expiry,
+                              uint64_t cas,
+                              uint64_t seqno,
+                              uint64_t revSeqno,
+                              uint32_t flags,
+                              uint32_t lockTime,
+                              uint8_t nru);
+
+    BinprotDcpMutationCommand& setBySeqno(uint64_t);
+    BinprotDcpMutationCommand& setRevSeqno(uint64_t);
+    BinprotDcpMutationCommand& setNru(uint8_t);
+    BinprotDcpMutationCommand& setLockTime(uint32_t);
+
+    void encode(std::vector<uint8_t>& buf) const override;
+    Encoded encode() const override;
+
+private:
+    void encodeHeader(std::vector<uint8_t>& buf) const;
+    uint64_t bySeqno = 0;
+    uint64_t revSeqno = 0;
+    uint32_t lockTime = 0;
+    uint8_t nru = 0;
+};
+
+class BinprotDcpDeletionV2Command : public BinprotMutationCommand {
+public:
+    BinprotDcpDeletionV2Command(std::string key,
+                                std::string_view value,
+                                uint32_t opaque,
+                                uint8_t datatype,
+                                uint64_t cas,
+                                uint64_t seqno,
+                                uint64_t revSeqno,
+                                uint32_t deleteTime);
+
+    BinprotDcpDeletionV2Command& setBySeqno(uint64_t);
+    BinprotDcpDeletionV2Command& setRevSeqno(uint64_t);
+    BinprotDcpDeletionV2Command& setDeleteTime(uint32_t);
+
+    void encode(std::vector<uint8_t>& buf) const override;
+    Encoded encode() const override;
+
+private:
+    void encodeHeader(std::vector<uint8_t>& buf) const;
+    uint64_t bySeqno = 0;
+    uint64_t revSeqno = 0;
+    uint32_t deleteTime = 0;
 };
 
 class BinprotGetFailoverLogCommand : public BinprotGenericCommand {

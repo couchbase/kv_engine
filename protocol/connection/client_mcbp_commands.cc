@@ -158,6 +158,29 @@ uint32_t BinprotCommand::ExpiryValue::getValue() const {
     return value;
 }
 
+BinprotCommandResponse::BinprotCommandResponse(cb::mcbp::ClientOpcode opcode,
+                                               uint32_t opaque,
+                                               cb::mcbp::Status status) {
+    setOp(opcode);
+    setOpaque(opaque);
+    setStatus(status);
+}
+
+BinprotCommandResponse& BinprotCommandResponse::setStatus(
+        cb::mcbp::Status status) {
+    this->status = status;
+    return *this;
+}
+
+void BinprotCommandResponse::encode(std::vector<uint8_t>& buf) const {
+    BinprotGenericCommand::encode(buf);
+    auto& rsp = *reinterpret_cast<cb::mcbp::Response*>(buf.data());
+    rsp.setMagic(cb::mcbp::Magic::ClientResponse);
+    rsp.setStatus(status);
+    rsp.setOpaque(opaque);
+    rsp.setOpcode(opcode);
+}
+
 void BinprotGenericCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, value.size(), extras.size());
     buf.insert(buf.end(), extras.begin(), extras.end());
@@ -1778,6 +1801,194 @@ void BinprotDcpAddStreamCommand::encode(std::vector<uint8_t>& buf) const {
 
 BinprotDcpControlCommand::BinprotDcpControlCommand()
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::DcpControl) {
+}
+
+BinprotDcpMutationCommand::BinprotDcpMutationCommand(std::string key,
+                                                     std::string_view value,
+                                                     uint32_t opaque,
+                                                     uint8_t datatype,
+                                                     uint32_t expiry,
+                                                     uint64_t cas,
+                                                     uint64_t seqno,
+                                                     uint64_t revSeqno,
+                                                     uint32_t flags,
+                                                     uint32_t lockTime,
+                                                     uint8_t nru) {
+    setOp(cb::mcbp::ClientOpcode::DcpMutation);
+    setKey(std::move(key));
+    setValue(value);
+    setOpaque(opaque);
+    setDatatype(uint8_t(datatype));
+    setExpiry(expiry);
+    setCas(cas);
+    setBySeqno(seqno);
+    setRevSeqno(revSeqno);
+    setDocumentFlags(flags);
+    setLockTime(lockTime);
+    setNru(nru);
+}
+
+BinprotDcpMutationCommand& BinprotDcpMutationCommand::setBySeqno(
+        uint64_t seqno) {
+    bySeqno = seqno;
+    return *this;
+}
+
+BinprotDcpMutationCommand& BinprotDcpMutationCommand::setRevSeqno(
+        uint64_t seqno) {
+    revSeqno = seqno;
+    return *this;
+}
+
+BinprotDcpMutationCommand& BinprotDcpMutationCommand::setNru(uint8_t nru) {
+    this->nru = nru;
+    return *this;
+}
+
+BinprotDcpMutationCommand& BinprotDcpMutationCommand::setLockTime(
+        uint32_t lockTime) {
+    this->lockTime = lockTime;
+    return *this;
+}
+
+void BinprotDcpMutationCommand::encode(std::vector<uint8_t>& buf) const {
+    encodeHeader(buf);
+    buf.insert(buf.end(), key.begin(), key.end());
+    buf.insert(buf.end(), value.begin(), value.end());
+    for (const auto& vbuf : value_refs) {
+        buf.insert(buf.end(), vbuf.begin(), vbuf.end());
+    }
+}
+
+BinprotCommand::Encoded BinprotDcpMutationCommand::encode() const {
+    Encoded ret;
+    auto& hdrbuf = ret.header;
+    encodeHeader(hdrbuf);
+
+    hdrbuf.insert(hdrbuf.end(), key.begin(), key.end());
+    hdrbuf.insert(hdrbuf.end(), value.begin(), value.end());
+
+    ret.bufs.assign(value_refs.begin(), value_refs.end());
+    return ret;
+}
+
+void BinprotDcpMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
+    if (key.empty()) {
+        throw std::invalid_argument(
+                "BinprotDcpMutationCommand::encode: Key is missing!");
+    }
+    if (!value.empty() && !value_refs.empty()) {
+        throw std::invalid_argument(
+                "BinprotDcpMutationCommand::encode: Both value and value_refs "
+                "have items!");
+    }
+
+    size_t value_size = value.size();
+    for (const auto& vbuf : value_refs) {
+        value_size += vbuf.size();
+    }
+
+    writeHeader(buf, value_size, sizeof(cb::mcbp::request::DcpMutationPayload));
+    auto* header = reinterpret_cast<cb::mcbp::Request*>(buf.data());
+    header->setDatatype(cb::mcbp::Datatype(datatype));
+
+    cb::mcbp::request::DcpMutationPayload payload;
+    payload.setBySeqno(bySeqno);
+    payload.setRevSeqno(revSeqno);
+    payload.setFlags(flags);
+    payload.setExpiration(expiry.getValue());
+    payload.setLockTime(lockTime);
+    payload.setNru(nru);
+
+    auto buffer = payload.getBuffer();
+    buf.insert(buf.end(), buffer.begin(), buffer.end());
+}
+
+BinprotDcpDeletionV2Command::BinprotDcpDeletionV2Command(std::string key,
+                                                         std::string_view value,
+                                                         uint32_t opaque,
+                                                         uint8_t datatype,
+                                                         uint64_t cas,
+                                                         uint64_t seqno,
+                                                         uint64_t revSeqno,
+                                                         uint32_t deleteTime) {
+    setOp(cb::mcbp::ClientOpcode::DcpDeletion);
+    setKey(std::move(key));
+    setValue(value);
+    setOpaque(opaque);
+    setDatatype(uint8_t(datatype));
+    setCas(cas);
+    setBySeqno(seqno);
+    setRevSeqno(revSeqno);
+    setDeleteTime(deleteTime);
+}
+
+BinprotDcpDeletionV2Command& BinprotDcpDeletionV2Command::setBySeqno(
+        uint64_t seqno) {
+    bySeqno = seqno;
+    return *this;
+}
+
+BinprotDcpDeletionV2Command& BinprotDcpDeletionV2Command::setRevSeqno(
+        uint64_t seqno) {
+    revSeqno = seqno;
+    return *this;
+}
+
+BinprotDcpDeletionV2Command& BinprotDcpDeletionV2Command::setDeleteTime(
+        uint32_t deleteTime) {
+    this->deleteTime = deleteTime;
+    return *this;
+}
+
+void BinprotDcpDeletionV2Command::encode(std::vector<uint8_t>& buf) const {
+    encodeHeader(buf);
+    buf.insert(buf.end(), key.begin(), key.end());
+    buf.insert(buf.end(), value.begin(), value.end());
+    for (const auto& vbuf : value_refs) {
+        buf.insert(buf.end(), vbuf.begin(), vbuf.end());
+    }
+}
+
+BinprotCommand::Encoded BinprotDcpDeletionV2Command::encode() const {
+    Encoded ret;
+    auto& hdrbuf = ret.header;
+    encodeHeader(hdrbuf);
+
+    hdrbuf.insert(hdrbuf.end(), key.begin(), key.end());
+    hdrbuf.insert(hdrbuf.end(), value.begin(), value.end());
+
+    ret.bufs.assign(value_refs.begin(), value_refs.end());
+    return ret;
+}
+
+void BinprotDcpDeletionV2Command::encodeHeader(
+        std::vector<uint8_t>& buf) const {
+    if (key.empty()) {
+        throw std::invalid_argument(
+                "BinprotDcpDeletionV2Command::encode: Key is missing!");
+    }
+    if (!value.empty() && !value_refs.empty()) {
+        throw std::invalid_argument(
+                "BinprotDcpDeletionV2Command::encode: Both value and "
+                "value_refs have items!");
+    }
+
+    size_t value_size = value.size();
+    for (const auto& vbuf : value_refs) {
+        value_size += vbuf.size();
+    }
+
+    writeHeader(
+            buf, value_size, sizeof(cb::mcbp::request::DcpDeletionV2Payload));
+    auto* header = reinterpret_cast<cb::mcbp::Request*>(buf.data());
+    header->setDatatype(cb::mcbp::Datatype(datatype));
+
+    cb::mcbp::request::DcpDeletionV2Payload payload{
+            bySeqno, revSeqno, deleteTime};
+
+    auto buffer = payload.getBuffer();
+    buf.insert(buf.end(), buffer.begin(), buffer.end());
 }
 
 BinprotDelWithMetaCommand::BinprotDelWithMetaCommand(Document doc,
