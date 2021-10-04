@@ -348,6 +348,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/ephemeral_tombstone_purger.cc
             src/ephemeral_vb.cc
             src/ephemeral_vb_count_visitor.cc
+            src/error_handler.cc
             src/environment.cc
             src/ext_meta_parser.cc
             src/failover-table.cc

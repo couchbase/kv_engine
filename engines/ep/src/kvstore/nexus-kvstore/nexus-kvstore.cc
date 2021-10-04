@@ -2351,17 +2351,10 @@ void NexusKVStore::prepareToCreateImpl(Vbid vbid) {
 }
 
 void NexusKVStore::handleError(std::string_view msg) const {
-    // Always worth logging
-    EP_LOG_CRITICAL("{}", msg);
-
-    switch (configuration.getErrorHandlingMethod()) {
-    case NexusErrorHandlingMethod::Log:
-        return;
-    case NexusErrorHandlingMethod::Abort:
-        std::abort();
-    case NexusErrorHandlingMethod::Throw:
-        throw std::logic_error(std::string(msg));
-    }
+    cb::handleError(*getGlobalBucketLogger(),
+                    spdlog::level::critical,
+                    msg,
+                    configuration.getErrorHandlingMethod());
 }
 
 void NexusKVStore::endTransaction(Vbid vbid) {

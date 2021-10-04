@@ -75,16 +75,6 @@ NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
                 .setMidpointRollbackOptimisation(false);
     }
 
-    auto errorHandling = config.getNexusErrorHandling();
-    if (errorHandling == "abort") {
-        errorHandlingMethod = NexusErrorHandlingMethod::Abort;
-    } else if (errorHandling == "log") {
-        errorHandlingMethod = NexusErrorHandlingMethod::Log;
-    } else if (errorHandling == "throw") {
-        errorHandlingMethod = NexusErrorHandlingMethod::Throw;
-    } else {
-        throw std::logic_error(
-                "NexusKVStoreConfig::NexusKVStoreConfig invalid errorHandling "
-                "parameter given");
-    }
+    errorHandlingMethod =
+            cb::getErrorHandlingMethod(config.getNexusErrorHandling());
 }
