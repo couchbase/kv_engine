@@ -334,6 +334,12 @@ public:
         return allowSanitizeValueInDeletion.load();
     }
 
+    /**
+     * Force streams to buffer?
+     * @return true if streams should always buffer operations
+     */
+    bool shouldBufferOperations() const;
+
 protected:
     /**
      * Records when the consumer last received a message from producer.
@@ -666,6 +672,8 @@ protected:
      * Non-const as the related configuration param is dynamic.
      */
     std::atomic_bool allowSanitizeValueInDeletion;
+
+    bool alwaysBufferOperations{false};
 
     static const std::string noopCtrlMsg;
     static const std::string noopIntervalCtrlMsg;

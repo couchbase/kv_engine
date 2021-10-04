@@ -60,7 +60,8 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
       cur_snapshot_type(Snapshot::None),
       cur_snapshot_ack(false),
       cur_snapshot_prepare(false),
-      vb_manifest_uid(vb_manifest_uid) {
+      vb_manifest_uid(vb_manifest_uid),
+      alwaysBufferOperations(c->shouldBufferOperations()) {
     std::lock_guard<std::mutex> lh(streamMutex);
     streamRequest_UNLOCKED(vb_uuid);
     itemsReady.store(true);
@@ -323,7 +324,7 @@ cb::engine_errc PassiveStream::messageReceived(
             vb_);
         return cb::engine_errc::disconnect;
     case ReplicationThrottle::Status::Process:
-        if (buffer.empty()) {
+        if (buffer.empty() && !alwaysBufferOperations) {
             /* Process the response here itself rather than buffering it */
             cb::engine_errc ret = cb::engine_errc::success;
             switch (dcpResponse->getEvent()) {

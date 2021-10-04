@@ -332,4 +332,6 @@ protected:
     // Flag indicating if the most recent call to processMessage
     // backed off due to ENOMEM. Only used for limiting logging
     std::atomic<bool> isNoMemory{false};
+
+    bool alwaysBufferOperations{false};
 };
