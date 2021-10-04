@@ -355,6 +355,17 @@ struct DocKey : DocKeyInterface<DocKey> {
      */
     std::string to_string() const;
 
+    /**
+     * Encode into a std::string a key with collection prefix following the mcbp
+     * protocol.
+     *
+     * @param cid The collection identifier
+     * @param key The key to encode
+     * @return a key which may be used on a collection enabled connection
+     */
+    static std::string makeWireEncodedString(CollectionID cid,
+                                             const std::string& key);
+
 private:
     cb::const_byte_buffer buffer;
     DocKeyEncodesCollectionId encoding{DocKeyEncodesCollectionId::No};
