@@ -1907,6 +1907,15 @@ ENGINE_ERROR_CODE DcpConsumer::control(uint32_t opaque,
                 setFlowControlBufSize(result);
                 return ENGINE_SUCCESS;
             }
+        } else if (key == "always_buffer_operations") {
+            alwaysBufferOperations = value == "true";
+            // Warn about this because only tests should be here
+            logger->warn(
+                    "always_buffer_operations:{} results in "
+                    "alwaysBufferOperations:{}",
+                    value,
+                    alwaysBufferOperations ? "true" : "false");
+            return ENGINE_SUCCESS;
         }
 
         logger->warn("Invalid ctrl parameter {} {}", key, value);
@@ -1914,4 +1923,8 @@ ENGINE_ERROR_CODE DcpConsumer::control(uint32_t opaque,
     }
 
     return ConnHandler::control(opaque, key, value);
+}
+
+bool DcpConsumer::shouldBufferOperations() const {
+    return alwaysBufferOperations;
 }

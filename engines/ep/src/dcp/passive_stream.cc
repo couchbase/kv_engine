@@ -64,7 +64,8 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
       cur_snapshot_type(Snapshot::None),
       cur_snapshot_ack(false),
       cur_snapshot_prepare(false),
-      vb_manifest_uid(vb_manifest_uid) {
+      vb_manifest_uid(vb_manifest_uid),
+      alwaysBufferOperations(c->shouldBufferOperations()) {
     LockHolder lh(streamMutex);
     streamRequest_UNLOCKED(vb_uuid);
     itemsReady.store(true);
@@ -327,7 +328,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
             vb_);
         return ENGINE_DISCONNECT;
     case ReplicationThrottle::Status::Process:
-        if (buffer.empty()) {
+        if (buffer.empty() && !alwaysBufferOperations) {
             /* Process the response here itself rather than buffering it */
             ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
             switch (dcpResponse->getEvent()) {
