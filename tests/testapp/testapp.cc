@@ -134,7 +134,7 @@ std::string to_string(ClientSnappySupport snappy) {
                            std::to_string(int(snappy)));
 }
 
-void TestappTest::CreateTestBucket() {
+void TestappTest::CreateTestBucket(const std::string& bucketConf) {
     auto& conn = connectionMap.getConnection(false);
 
     // Reconnect to the server so we know we're on a "fresh" connection
@@ -143,7 +143,7 @@ void TestappTest::CreateTestBucket() {
     conn.reconnect();
     conn.authenticate("@admin", "password", "PLAIN");
 
-    mcd_env->getTestBucket().setUpBucket(bucketName, "", conn);
+    mcd_env->getTestBucket().setUpBucket(bucketName, bucketConf, conn);
 
     // Reconnect the object to avoid others to reuse the admin creds
     conn.reconnect();
@@ -168,8 +168,13 @@ TestBucketImpl& TestappTest::GetTestBucket() {
 // Per-test-case set-up.
 // Called before the first test in this test case.
 void TestappTest::SetUpTestCase() {
+    doSetUpTestCaseWithConfiguration(generate_config(0));
+}
+
+void TestappTest::doSetUpTestCaseWithConfiguration(
+        nlohmann::json config, const std::string& bucketConf) {
     token = 0xdeadbeef;
-    memcached_cfg = generate_config(0);
+    memcached_cfg = std::move(config);
     start_memcached_server();
 
     if (HasFailure()) {
@@ -178,7 +183,7 @@ void TestappTest::SetUpTestCase() {
 
         exit(EXIT_FAILURE);
     } else {
-        CreateTestBucket();
+        CreateTestBucket(bucketConf);
     }
 }
 
