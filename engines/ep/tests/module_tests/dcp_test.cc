@@ -160,6 +160,15 @@ protected:
 };
 
 void DCPTest::SetUp() {
+    // Lots of stream tests make assertions about checkpoint manager state.
+    // Ideally these should be made independent of checkpoint removal mode,
+    // but for now configure lazy checkpoint removal for these tests
+    if (config_string.find("checkpoint_removal_mode") == std::string::npos) {
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+        config_string += "checkpoint_removal_mode=lazy";
+    }
     EventuallyPersistentEngineTest::SetUp();
 
     // Set AuxIO threads to zero, so that the producer's
@@ -253,13 +262,6 @@ void DCPTest::setup_dcp_stream(
 
 cb::engine_errc DCPTest::destroy_dcp_stream() {
     return producer->closeStream(/*opaque*/ 0, vb0->getId());
-}
-
-void DCPTest::setCheckpointRemovalMode(CheckpointRemoval mode) {
-    engine->getConfiguration().parseConfiguration(
-            ("checkpoint_removal_mode=" + to_string(mode)).c_str(),
-            get_mock_server_api());
-    engine->getCheckpointConfig() = CheckpointConfig(*engine);
 }
 
 DCPTest::StreamRequestResult DCPTest::doStreamRequest(DcpProducer& producer,
