@@ -3450,14 +3450,29 @@ std::pair<AddStatus, std::optional<VBNotifyCtx>> VBucket::processAdd(
                            ? AddStatus::UnDel
                            : AddStatus::Success;
 
-        if (v->isTempDeletedItem()) {
-            itm.setRevSeqno(v->getRevSeqno() + 1);
+        // this is an add operation; if we have reached this stage then
+        // either:
+        //  * there is an existing committed version of the item but it is:
+        //    * deleted
+        //    * temporary and deleted
+        //    * logically deleted (collections)
+        //    * expired
+        // or:
+        //  * there is no existing committed version of this item
+        //
+        // The presence or absence of a completed prepare (ephemeral) does not
+        // change what revSeqno we should use. An incomplete prepare would
+        // have blocked this operation already as sync write in progress.
+        if (committed && !committed->isTempNonExistentItem()) {
+            // the new item's revSeqno can be set to exactly one greater than
+            // the old deleted value.
+            itm.setRevSeqno(committed->getRevSeqno() + 1);
         } else {
+            // This item may have previously existed and been deleted, but is
+            // no longer available. To ensure rev seqno monotonicity, set the
+            // rev seqno of the new item to one greater than any previously seen
+            // delete.
             itm.setRevSeqno(ht.getMaxDeletedRevSeqno() + 1);
-        }
-
-        if (!v->isTempItem()) {
-            itm.setRevSeqno(v->getRevSeqno() + 1);
         }
 
         std::tie(v, std::ignore, rv.second) =
