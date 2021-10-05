@@ -38,6 +38,20 @@ public:
         }
     }
 
+    void stringValueChanged(const std::string& key,
+                            const char* value) override {
+        if (key == "vbucket_mapping_sanity_checking_error_mode") {
+            config.setVBucketMappingErrorHandlingMethod(
+                    cb::getErrorHandlingMethod(value));
+        }
+    }
+
+    void booleanValueChanged(const std::string& key, bool b) override {
+        if (key == "vbucket_mapping_sanity_checking") {
+            config.setSanityCheckVBucketMapping(b);
+        }
+    }
+
 private:
     MagmaKVStoreConfig& config;
 };
@@ -96,6 +110,17 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             std::make_unique<ConfigChangeListener>(*this));
     config.addValueChangedListener(
             "persistent_metadata_purge_age",
+            std::make_unique<ConfigChangeListener>(*this));
+
+    sanityCheckVBucketMapping = config.isVbucketMappingSanityChecking();
+    vBucketMappingErrorHandlingMethod = cb::getErrorHandlingMethod(
+            config.getVbucketMappingSanityCheckingErrorMode());
+
+    config.addValueChangedListener(
+            "vbucket_mapping_sanity_checking",
+            std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "vbucket_mapping_sanity_checking_error_mode",
             std::make_unique<ConfigChangeListener>(*this));
 }
 

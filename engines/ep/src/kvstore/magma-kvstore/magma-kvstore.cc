@@ -13,6 +13,7 @@
 
 #include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
+#include "dockey_validator.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "item.h"
@@ -800,6 +801,13 @@ std::vector<vbucket_state*> MagmaKVStore::listPersistedVbuckets() {
 
 void MagmaKVStore::set(TransactionContext& txnCtx, queued_item item) {
     checkIfInTransaction(txnCtx.vbid, "MagmaKVStore::set");
+    if (configuration.isSanityCheckingVBucketMapping()) {
+        validateKeyMapping("MagmaKVStore::set",
+                           configuration.getVBucketMappingErrorHandlingMethod(),
+                           item->getKey(),
+                           item->getVBucketId(),
+                           configuration.getMaxVBuckets());
+    }
 
     auto& ctx = static_cast<MagmaKVStoreTransactionContext&>(txnCtx);
     ctx.pendingReqs.emplace_back(std::move(item), logger);
@@ -1000,6 +1008,13 @@ void MagmaKVStore::getRange(Vbid vbid,
 
 void MagmaKVStore::del(TransactionContext& txnCtx, queued_item item) {
     checkIfInTransaction(txnCtx.vbid, "MagmaKVStore::del");
+    if (configuration.isSanityCheckingVBucketMapping()) {
+        validateKeyMapping("MagmaKVStore::del",
+                           configuration.getVBucketMappingErrorHandlingMethod(),
+                           item->getKey(),
+                           item->getVBucketId(),
+                           configuration.getMaxVBuckets());
+    }
 
     auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(txnCtx);
     ctx.pendingReqs.emplace_back(std::move(item), logger);

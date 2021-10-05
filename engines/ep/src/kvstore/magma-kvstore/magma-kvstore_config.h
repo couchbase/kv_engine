@@ -12,6 +12,8 @@
 #pragma once
 
 #include "kvstore/kvstore_config.h"
+
+#include "error_handler.h"
 #include "libmagma/magma.h"
 #include "utilities/testing_hook.h"
 
@@ -167,6 +169,20 @@ public:
     void setReadOnly(bool readOnly) {
         setReadOnlyHook();
         magmaCfg.ReadOnly = readOnly;
+    }
+
+    bool isSanityCheckingVBucketMapping() const {
+        return sanityCheckVBucketMapping;
+    }
+    void setSanityCheckVBucketMapping(bool value) {
+        sanityCheckVBucketMapping.store(value);
+    }
+
+    cb::ErrorHandlingMethod getVBucketMappingErrorHandlingMethod() const {
+        return vBucketMappingErrorHandlingMethod;
+    }
+    void setVBucketMappingErrorHandlingMethod(cb::ErrorHandlingMethod value) {
+        vBucketMappingErrorHandlingMethod = value;
     }
 
     magma::Magma::Config magmaCfg;
@@ -341,4 +357,15 @@ private:
      * the current transaction will trigger the WAL fsync.
      */
     size_t magmaGroupCommitMaxTransactionCount;
+
+    /**
+     * Should we validate that the key - vBucket mapping is correct?
+     */
+    std::atomic_bool sanityCheckVBucketMapping;
+
+    /**
+     * The method in which errors are handled should the key - vBucket mapping
+     * be incorrect.
+     */
+    std::atomic<cb::ErrorHandlingMethod> vBucketMappingErrorHandlingMethod;
 };
