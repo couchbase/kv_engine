@@ -527,22 +527,24 @@ protected:
                 auto& ctl = consumer.flowControl;
                 if (ctl.isEnabled()) {
                     ctl.incrFreedBytes(bytes);
-                    consumer.scheduleNotifyIfNecessary();
+                    if (notify) {
+                        consumer.scheduleNotifyIfNecessary();
+                    }
                 }
             }
         }
 
         /**
-         * If the user no longer wants this instance to perform the update
-         * calling release() means this instance will skip the update.
+         * Skip notification for this instance of UpdateFlowControl
          */
-        void release() {
-            bytes = 0;
+        void skipNotify() {
+            notify = false;
         }
 
     private:
         DcpConsumer& consumer;
         uint32_t bytes;
+        bool notify{true};
     };
 
     /**

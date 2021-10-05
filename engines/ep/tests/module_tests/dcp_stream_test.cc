@@ -2223,11 +2223,13 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
     //     C++ exception with description "Monotonic<x> invariant failed:
     //     new value (<seqno>) breaks invariant on current value
     //     (<nextFrontEndSeqno>)" thrown in the test body.
-    uint32_t bytesProcessed{0};
-    ASSERT_NO_THROW(EXPECT_EQ(all_processed,
-                              stream->processBufferedMessages(
-                                      bytesProcessed, 100 /*batchSize*/)));
-    EXPECT_GT(bytesProcessed, 0);
+    try {
+        auto rval = stream->processBufferedMessages(100 /*batchSize*/);
+        EXPECT_EQ(all_processed, rval.first);
+        EXPECT_EQ(0, rval.second);
+    } catch (const std::exception& e) {
+        FAIL() << "Exception was thrown " << e.what();
+    }
 
     frontEndThread.join();
 
@@ -2279,8 +2281,9 @@ void SingleThreadedPassiveStreamTest::mb_33773(
               engine->getReplicationThrottle().getStatus());
 
     // Push mutations
-    EXPECT_EQ(0, stream->getNumBufferItems());
+    size_t expectedItems = 0, expectedBufferBytes = 0;
     for (size_t seqno = snapStart; seqno < snapEnd; seqno++) {
+        EXPECT_EQ(expectedItems++, stream->getNumBufferItems());
         EXPECT_EQ(cb::engine_errc::success,
                   consumer->mutation(
                           opaque,
@@ -2288,7 +2291,7 @@ void SingleThreadedPassiveStreamTest::mb_33773(
                           {},
                           0,
                           0,
-                          0,
+                          1 /*cas*/,
                           vbid,
                           0,
                           seqno,
@@ -2297,6 +2300,9 @@ void SingleThreadedPassiveStreamTest::mb_33773(
                           0,
                           {},
                           0));
+        EXPECT_GT(consumer->getFlowControl().getFreedBytes(),
+                  expectedBufferBytes);
+        expectedBufferBytes = consumer->getFlowControl().getFreedBytes();
     }
     // and check they were buffered.
     ASSERT_EQ(snapEnd - snapStart, stream->getNumBufferItems());
@@ -2381,9 +2387,6 @@ void SingleThreadedPassiveStreamTest::mb_33773(
     if (mode == mb_33773Mode::noMemoryAndClosed) {
         // Check the hook updated this counter
         EXPECT_NE(0, flowControlBytesFreed);
-        // And check that consumer flow control is even bigger now
-        EXPECT_GT(consumer->getFlowControl().getFreedBytes(),
-                  flowControlBytesFreed);
     } else {
         // The items are still buffered
         EXPECT_EQ(snapEnd - snapStart, stream->getNumBufferItems());

@@ -38,6 +38,7 @@ set(memcached_testapp_SOURCES
     testapp_cmd_timers.cc
     testapp_collections.cc
     testapp_dcp.cc
+    testapp_dcp_consumer.cc
     testapp_deprecated_commands.cc
     testapp_durability.cc
     testapp_environment.cc

@@ -134,7 +134,7 @@ void TestappTest::rebuildUserConnection(bool tls) {
     }
 }
 
-void TestappTest::CreateTestBucket() {
+void TestappTest::CreateTestBucket(const std::string& bucketConf) {
     if (!adminConnection) {
         std::cerr << "TestappTest::CreateTestBucket(): Admin connection not "
                      "set up"
@@ -142,7 +142,8 @@ void TestappTest::CreateTestBucket() {
         mcd_env->terminate(EXIT_FAILURE);
     }
 
-    mcd_env->getTestBucket().setUpBucket(bucketName, "", *adminConnection);
+    mcd_env->getTestBucket().setUpBucket(
+            bucketName, bucketConf, *adminConnection);
 }
 
 void TestappTest::DeleteTestBucket() {
@@ -177,7 +178,8 @@ void TestappTest::SetUpTestCase() {
     doSetUpTestCaseWithConfiguration(generate_config());
 }
 
-void TestappTest::doSetUpTestCaseWithConfiguration(nlohmann::json config) {
+void TestappTest::doSetUpTestCaseWithConfiguration(
+        nlohmann::json config, const std::string& bucketConf) {
     token = 0xdeadbeef;
     memcached_cfg = std::move(config);
     remove(mcd_env->getPortnumberFile().c_str());
@@ -191,7 +193,7 @@ void TestappTest::doSetUpTestCaseWithConfiguration(nlohmann::json config) {
     }
 
     rebuildAdminConnection();
-    CreateTestBucket();
+    CreateTestBucket(bucketConf);
 
     // The connection map should only contain the bootstrap interfaces
     bool error = false;

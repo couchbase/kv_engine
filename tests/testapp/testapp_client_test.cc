@@ -35,7 +35,8 @@ bool TestappClientTest::isTlsEnabled() const {
 
 void TestappXattrClientTest::setBodyAndXattr(
         const std::string& startValue,
-        std::initializer_list<std::pair<std::string, std::string>> xattrList,
+        std::initializer_list<std::pair<const std::string, std::string>>
+                xattrList,
         bool compressValue) {
     document.info.flags = 0xcaffee;
     document.info.id = name;
@@ -45,16 +46,10 @@ void TestappXattrClientTest::setBodyAndXattr(
         // Combine the body and Extended Attribute into a single value -
         // this allows us to store already compressed documents which
         // have XATTRs.
-        cb::xattr::Blob xattrs;
-        for (auto& kv : xattrList) {
-            xattrs.set(kv.first, kv.second);
-        }
-        auto encoded = xattrs.finalize();
-        ASSERT_TRUE(cb::xattr::validate(encoded)) << "Invalid xattr encoding";
         document.info.cas = 10; // withMeta requires a non-zero CAS.
         document.info.datatype = cb::mcbp::Datatype::Xattr;
-        document.value = encoded;
-        document.value.append(startValue);
+        document.value =
+                cb::xattr::make_wire_encoded_string(startValue, xattrList);
         if (compressValue) {
             // Compress the complete body.
             document.compress();
@@ -94,7 +89,8 @@ void TestappXattrClientTest::setBodyAndXattr(
 
 void TestappXattrClientTest::setBodyAndXattr(
         const std::string& value,
-        std::initializer_list<std::pair<std::string, std::string>> xattrList) {
+        std::initializer_list<std::pair<const std::string, std::string>>
+                xattrList) {
     setBodyAndXattr(
             value, xattrList, hasSnappySupport() == ClientSnappySupport::Yes);
 }

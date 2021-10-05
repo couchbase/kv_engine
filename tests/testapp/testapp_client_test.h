@@ -126,7 +126,7 @@ protected:
      */
     void setBodyAndXattr(
             const std::string& startValue,
-            std::initializer_list<std::pair<std::string, std::string>>
+            std::initializer_list<std::pair<const std::string, std::string>>
                     xattrList,
             bool compressValue);
 
@@ -139,7 +139,7 @@ protected:
      */
     void setBodyAndXattr(
             const std::string& value,
-            std::initializer_list<std::pair<std::string, std::string>>
+            std::initializer_list<std::pair<const std::string, std::string>>
                     xattrList);
 
     void setClusterSessionToken(uint64_t new_value);
