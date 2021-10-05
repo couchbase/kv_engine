@@ -20,6 +20,7 @@
 #include <xattr/visibility.h>
 
 #include <string>
+#include <unordered_map>
 
 namespace cb {
 /**
@@ -119,5 +120,18 @@ size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc);
  */
 XATTR_PUBLIC_API
 size_t get_body_size(uint8_t datatype, cb::const_char_buffer value);
+
+/**
+ * Make a wire encoded XATTR value in a std::string. This will encode the given
+ * 'body' and xattrs as per the mcbp protocol
+ *
+ * @param body the 'body' of the document
+ * @param xattMap map of XATTR key -> value pairs to encode in the output
+ *        document/string.
+ */
+XATTR_PUBLIC_API
+std::string make_wire_encoded_string(
+        const std::string& body,
+        const std::unordered_map<std::string, std::string>& xattrMap);
 }
 }
