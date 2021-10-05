@@ -1232,7 +1232,7 @@ std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
         compactionCompletionCallback(ctx);
     };
 
-    ctx->maybeUpdatePurgeSeqno = [this, vbid](uint64_t seqno) -> void {
+    ctx->maybeUpdateVBucketPurgeSeqno = [this, vbid](uint64_t seqno) -> void {
         auto vbPtr = getVBucket(vbid);
         if (!vbPtr) {
             throw std::runtime_error(fmt::format(

@@ -174,10 +174,11 @@ struct CompactionContext {
     std::optional<time_t> timeToExpireFrom = {};
 
     /**
-     * Function to call if the purge seqno might need to be update. This will
-     * only be performed if the param seqno is greater than the current seqno.
+     * Function to call if the (in-memory) VBucket purge seqno might need to be
+     * updated. This will only be performed if the param seqno is greater than
+     * the current seqno.
      */
-    std::function<void(uint64_t)> maybeUpdatePurgeSeqno;
+    std::function<void(uint64_t)> maybeUpdateVBucketPurgeSeqno;
 };
 
 

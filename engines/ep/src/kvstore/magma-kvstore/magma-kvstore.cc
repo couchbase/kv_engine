@@ -301,7 +301,7 @@ bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
     // method is being called for implicit compaction
     auto maybeUpdatePurgeSeqno = [&cbCtx, &seqno]() -> void {
         if (cbCtx.implicitCompaction) {
-            cbCtx.ctx->maybeUpdatePurgeSeqno(seqno);
+            cbCtx.ctx->maybeUpdateVBucketPurgeSeqno(seqno);
         }
     };
     auto vbid = cbCtx.vbid;
