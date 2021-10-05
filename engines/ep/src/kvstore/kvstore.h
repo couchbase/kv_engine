@@ -202,7 +202,7 @@ public:
      * @param type The type of the item purged
      * @param seqno The seqno of the item purged
      */
-    void purgedItem(PurgedItemType type, uint64_t seqno) {
+    virtual void purgedItem(PurgedItemType type, uint64_t seqno) {
         switch (type) {
         case PurgedItemType::Tombstone:
             // Only tombstones need to move the rollback purge seqno

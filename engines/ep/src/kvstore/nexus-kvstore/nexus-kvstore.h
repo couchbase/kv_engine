@@ -13,12 +13,15 @@
 
 #include "kvstore/kvstore.h"
 
+#include <platform/non_negative_counter.h>
+
 class NexusKVStoreConfig;
 class NexusKVStoreSecondaryPersistenceCallback;
 class NexusRollbackCB;
 class NexusKVStoreSecondaryGetAllKeysCallback;
 class NexusSecondaryScanCallback;
 class NexusSecondaryCacheLookup;
+class NexusPurgedItemCtx;
 
 struct NexusCompactionContext;
 struct NexusRollbackContext;
@@ -246,10 +249,35 @@ protected:
     friend NexusSecondaryScanCallback;
     friend NexusSecondaryCacheLookup;
 
+    // Friended to allow us to update the purgeSeqno
+    friend NexusPurgedItemCtx;
+
 protected:
     NexusKVStoreConfig& configuration;
     std::unique_ptr<KVStoreIface> primary;
     std::unique_ptr<KVStoreIface> secondary;
+
+    /**
+     * We want to make all comparisons possible, but without limiting the set of
+     * features that the underlying KVStores support. Magma implicit compaction
+     * will potentially purge items that the other KVStore has not yet purged on
+     * a background thread. We don't want to disable it as it is instrumental to
+     * the way in which magma buckets work, so we track a purgeSeqno which tells
+     * us the highest seqno purged (any seqno lower may have been purged and the
+     * result of any such comparison may be different). We track only one purge
+     * seqno here (the highest seqno purged by any KVStore) rather than one per
+     * KVStore as the comparison is only guaranteed to be valid if the seqno is
+     * higher than the purge seqno of both KVStores.
+     */
+    AtomicMonotonic<uint64_t, IgnorePolicy> purgeSeqno;
+
+    /**
+     * When we skip checks due to the purge seqno moving we increment this
+     * counter as a general sanity check.
+     *
+     * Mutable as this may get incremented in const functions (logically const)
+     */
+    mutable cb::NonNegativeCounter<uint64_t> skippedChecksDueToPurging;
 
     /**
      * During rollback we make a call to getWithHeader in EPDiskRollbackCB for

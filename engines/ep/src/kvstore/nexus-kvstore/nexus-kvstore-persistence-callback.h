@@ -97,6 +97,15 @@ public:
             kvstore.handleError(msg);
         }
 
+        if (kvstore.purgeSeqno != 0) {
+            // All bets are off now as we have purged something. This means that
+            // a flush against one KVStore may be an Insert and against another
+            // it may be an Update. We could technically work out if a
+            // comparison was valid or not but we'd need the original item (that
+            // would be getting replaced in one of the KVStores) to do that.
+            return;
+        }
+
         // And check the state
         if (itr->second != m) {
             auto msg = fmt::format(
@@ -122,6 +131,15 @@ public:
                     item.getVBucketId(),
                     cb::UserData(diskKey.to_string()));
             kvstore.handleError(msg);
+        }
+
+        if (kvstore.purgeSeqno != 0) {
+            // All bets are off now as we have purged something. This means that
+            // a flush against one KVStore may be an Insert and against another
+            // it may be an Update. We could technically work out if a
+            // comparison was valid or not but we'd need the original item (that
+            // would be getting replaced in one of the KVStores) to do that.
+            return;
         }
 
         // And check the state
