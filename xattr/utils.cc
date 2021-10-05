@@ -169,4 +169,20 @@ size_t get_body_size(uint8_t datatype, std::string_view value) {
 
     return value.size() - get_body_offset(value);
 }
+
+std::string make_wire_encoded_string(
+        const std::string& body,
+        const std::unordered_map<std::string, std::string>& xattrSet) {
+    Blob xattrs;
+    for (const auto& [key, value] : xattrSet) {
+        xattrs.set(key, value);
+    }
+    std::string encoded{xattrs.finalize()};
+    if (!cb::xattr::validate(encoded)) {
+        throw std::logic_error(
+                "cb::xattr::make_wire_encoded_string Invalid xattr encoding");
+    }
+    encoded.append(body);
+    return encoded;
+}
 } // namespace cb::xattr
