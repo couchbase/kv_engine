@@ -25,11 +25,13 @@
 #include "dcp/flow-control-manager.h"
 #include "dcp/msg_producers_border_guard.h"
 #include "dcp/producer.h"
+#include "dockey_validator.h"
 #include "environment.h"
 #include "ep_bucket.h"
 #include "ep_engine_public.h"
 #include "ep_vb.h"
 #include "ephemeral_bucket.h"
+#include "error_handler.h"
 #include "ext_meta_parser.h"
 #include "failover-table.h"
 #include "flusher.h"
@@ -852,6 +854,10 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             }
         } else if (key == "compaction_expire_from_start") {
             getConfiguration().setCompactionExpireFromStart(cb_stob(val));
+        } else if (key == "vbucket_mapping_sanity_checking") {
+            getConfiguration().setVbucketMappingSanityChecking(cb_stob(val));
+        } else if (key == "vbucket_mapping_sanity_checking_error_mode") {
+            getConfiguration().setVbucketMappingSanityCheckingErrorMode(val);
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::invalid_arguments;
@@ -1916,6 +1922,10 @@ public:
         if (key == "compression_mode") {
             std::string value_str{value, strlen(value)};
             engine.setCompressionMode(value_str);
+        } else if (key == "vbucket_mapping_sanity_checking_error_mode") {
+            std::string value_str{value, strlen(value)};
+            engine.vBucketMappingErrorHandlingMethod =
+                    cb::getErrorHandlingMethod(value_str);
         }
     }
 
@@ -1928,6 +1938,8 @@ public:
     void booleanValueChanged(const std::string& key, bool b) override {
         if (key == "allow_sanitize_value_in_deletion") {
             engine.allowSanitizeValueInDeletion.store(b);
+        } else if (key == "vbucket_mapping_sanity_checking") {
+            engine.sanityCheckVBucketMapping = b;
         }
     }
 
@@ -2202,6 +2214,17 @@ cb::engine_errc EventuallyPersistentEngine::initialize(const char* config) {
             "min_compression_ratio",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
+    sanityCheckVBucketMapping = configuration.isVbucketMappingSanityChecking();
+    vBucketMappingErrorHandlingMethod = cb::getErrorHandlingMethod(
+            configuration.getVbucketMappingSanityCheckingErrorMode());
+
+    configuration.addValueChangedListener(
+            "vbucket_mapping_sanity_checking",
+            std::make_unique<EpEngineValueChangeListener>(*this));
+    configuration.addValueChangedListener(
+            "vbucket_mapping_sanity_checking_error_mode",
+            std::make_unique<EpEngineValueChangeListener>(*this));
+
     return cb::engine_errc::success;
 }
 
@@ -2297,6 +2320,14 @@ cb::engine_errc EventuallyPersistentEngine::itemDelete(
         Vbid vbucket,
         std::optional<cb::durability::Requirements> durability,
         mutation_descr_t& mut_info) {
+    if (sanityCheckVBucketMapping) {
+        validateKeyMapping("EventuallyPersistentEngine::itemDelete",
+                           vBucketMappingErrorHandlingMethod,
+                           key,
+                           vbucket,
+                           kvBucket->getVBMapSize());
+    }
+
     // Check if this is a in-progress durable delete which has now completed -
     // (see 'case EWOULDBLOCK' at the end of this function where we record
     // the fact we must block the client until the SycnWrite is durable).
@@ -2551,6 +2582,14 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             std::forward_as_tuple(stats.storeCmdHisto),
             std::forward_as_tuple(cookie, cb::tracing::Code::Store));
+
+    if (sanityCheckVBucketMapping) {
+        validateKeyMapping("EventuallyPersistentEngine::storeIfInner",
+                           vBucketMappingErrorHandlingMethod,
+                           item.getKey(),
+                           item.getVBucketId(),
+                           kvBucket->getVBMapSize());
+    }
 
     // MB-37374: Ensure that documents in deleted state have no user value.
     if (mcbp::datatype::is_xattr(item.getDataType()) && item.isDeleted()) {

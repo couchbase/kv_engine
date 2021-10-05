@@ -13,6 +13,7 @@
 
 #include "configuration.h"
 #include "ep_engine_public.h"
+#include "error_handler.h"
 #include "permitted_vb_states.h"
 #include "stats.h"
 #include "storeddockey.h"
@@ -1370,6 +1371,17 @@ protected:
      * Non-const as the related configuration param is dynamic.
      */
     std::atomic_bool allowSanitizeValueInDeletion;
+
+    /**
+     * Should we validate that the key - vBucket mapping is correct?
+     */
+    std::atomic_bool sanityCheckVBucketMapping{false};
+
+    /**
+     * The method in which errors are handled should the key - vBucket mapping
+     * be incorrect.
+     */
+    std::atomic<cb::ErrorHandlingMethod> vBucketMappingErrorHandlingMethod;
 
     cb::ArenaMallocClient arena;
 };

@@ -333,6 +333,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/defragmenter.cc
             src/defragmenter_visitor.cc
             src/diskdockey.cc
+            src/dockey_validator.cc
             src/durability/active_durability_monitor.cc
             src/durability/durability_completion_task.cc
             src/durability/durability_monitor.cc

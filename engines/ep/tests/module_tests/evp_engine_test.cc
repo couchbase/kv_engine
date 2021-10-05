@@ -117,6 +117,7 @@ void EventuallyPersistentEngineTest::shutdownEngine() {
 queued_item EventuallyPersistentEngineTest::store_item(
         Vbid vbid, const std::string& key, const std::string& value) {
     auto item = makeCommittedItem(makeStoredDocKey(key), value);
+    item->setVBucketId(vbid);
     uint64_t cas;
     EXPECT_EQ(
             cb::engine_errc::success,
@@ -310,6 +311,23 @@ TEST_P(EPEngineParamTest, DynamicConfigValuesModifiable) {
             }
         }
     });
+}
+
+TEST_P(EPEngineParamTest, VBucketSanityChecking) {
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "vbucket_mapping_sanity_checking", "true", msg));
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            engine->setFlushParam("vbucket_mapping_sanity_checking_error_mode",
+                                  "throw",
+                                  msg));
+
+    EXPECT_THROW(store_item(Vbid(0), "key", "value"), std::logic_error);
+
+    engine->getKVBucket()->setVBucketState(Vbid(1), vbucket_state_active);
+    EXPECT_NO_THROW(store_item(Vbid(1), "key", "value"));
 }
 
 // Test cases which run for persistent and ephemeral buckets

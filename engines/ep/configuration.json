@@ -1520,6 +1520,25 @@
             "descr": "Should we have to rollback more than half of the seqnos seen by this vBucket we will instead rollback to 0 and re-stream from the active if set to true",
             "type": "bool"
         },
+        "vbucket_mapping_sanity_checking": {
+            "default": "false",
+            "dynamic": true,
+            "descr": "Are vBucket mappings (key -> vBucket) checked by the server? This is a sanity checking mode which crc32 hashes the key to ensure that the client is supplying the expected vBucket for each key.",
+            "type": "bool"
+        },
+        "vbucket_mapping_sanity_checking_error_mode": {
+            "default": "log",
+            "dynamic": true,
+            "descr": "See vbucket_mapping_sanity_checking. This parameter governs how found errors are dealt with. Were we to recommend these sanity checks to a customer then a log or throw handling would likely be most appropriate, for in-house testing an abort on error is far more useful as it is immediately noticeable in test frameworks and provides the maximum amount of information.",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "abort",
+                    "throw",
+                    "log"
+                ]
+            }
+        },
         "warmup": {
             "default": "true",
             "dynamic": false,
