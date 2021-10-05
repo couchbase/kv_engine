@@ -3085,3 +3085,86 @@ TEST_P(EPVBucketDurabilityTest,
             << "Should have zero items once delete persistence callback "
                "has run.";
 }
+
+TEST_P(VBucketDurabilityTest, SyncAddUsesCommittedValueRevSeqno) {
+    // MB-48713: verify that sync add uses an existing committed item's
+    // rev seqno, rather than that of any existing prepare.
+
+    // before doing any ops, the max del rel should be zero
+    ASSERT_EQ(0, ht->getMaxDeletedRevSeqno());
+
+    auto key = makeStoredDocKey("key");
+    std::string value = "value";
+
+    // store the item initially
+    if (getEvictionPolicy() == EvictionPolicy::Full) {
+        EXPECT_EQ(AddStatus::AddTmpAndBgFetch, doPrepareSyncAdd(key, value));
+        // this is a vbucket level test, fake a bgfetch not finding anything
+        // on disk
+        addOneTemp(key);
+        // even though there definitely is not a deleted version of this
+        // item on disk, this results in UnDel, as it is replacing a
+        // temporary item (which is considered "committed") with a prepare
+        // This seems wrong, but is not relevant to this test.
+        // Expecting it anyway, so if that is changed this test will fail and
+        // be updated
+        EXPECT_EQ(AddStatus::UnDel, doPrepareSyncAdd(key, value));
+    } else {
+        EXPECT_EQ(AddStatus::Success, doPrepareSyncAdd(key, value));
+    }
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vbucket->commit(key,
+                              vbucket->getHighSeqno() /* preparedSeqno */,
+                              {},
+                              vbucket->lockCollections(key)));
+
+    // max del rev not changed by a non-delete op
+    EXPECT_EQ(0, ht->getMaxDeletedRevSeqno());
+
+    auto sv = ht->findOnlyCommitted(key).storedValue;
+    ASSERT_TRUE(sv);
+    // stored item should have rev seqno one greater than the seen max del rev
+    EXPECT_EQ(1, sv->getRevSeqno());
+
+    // non-sync delete the item
+    ASSERT_EQ(MutationStatus::WasDirty,
+              public_processSoftDelete(key, {}).first);
+
+    // committed, deleted item has rev seqno one greater than the item it
+    // deleted, and has updated the max deleted rev seqno to that value
+    sv = ht->findOnlyCommitted(key).storedValue;
+    ASSERT_TRUE(sv);
+    // stored item should have rev seqno one greater than the seen max del rev
+    EXPECT_EQ(2, sv->getRevSeqno());
+    EXPECT_EQ(2, ht->getMaxDeletedRevSeqno());
+
+    if (persistent()) {
+        // Persistent buckets correctly find that the prepare is replacing
+        // an existing committed item, indicating that the add must
+        // be logically an UnDel
+        EXPECT_EQ(AddStatus::UnDel, doPrepareSyncAdd(key, value));
+    } else {
+        // Ephemeral does not check for the existence of a committed value
+        // if a completed prepared value is found. Thus, Succcess for what is
+        // logically an UnDel
+        EXPECT_EQ(AddStatus::Success, doPrepareSyncAdd(key, value));
+    }
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vbucket->commit(key,
+                              vbucket->getHighSeqno() /* preparedSeqno */,
+                              {},
+                              vbucket->lockCollections(key)));
+
+    // still not changed by a non-delete op
+    EXPECT_EQ(2, ht->getMaxDeletedRevSeqno());
+
+    sv = ht->findOnlyCommitted(key).storedValue;
+    ASSERT_TRUE(sv);
+    // the new item again has rev seqno one greater than max del rev.
+    // MB-48713: this would fail and instead be 2 as the second sync add prepare
+    // used the first prepare's revSeqno +1, instead of using the committed
+    // values.
+    EXPECT_EQ(3, sv->getRevSeqno());
+}
