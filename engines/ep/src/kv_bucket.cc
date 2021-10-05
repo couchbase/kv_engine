@@ -2120,26 +2120,15 @@ void KVBucket::setExpiryPagerTasktime(ssize_t val) {
 }
 
 void KVBucket::enableExpiryPager() {
-    // hold the config handle while scheduling the task to avoid
-    // racing with another thread cancelling it.
-    auto cfg = expiryPagerTask->wlockConfig();
-    if (cfg->enabled) {
+    if (!expiryPagerTask->enable()) {
         EP_LOG_DEBUG_RAW("Expiry Pager already enabled!");
-        return;
     }
-    cfg->enabled = true;
-    ExecutorPool::get()->cancel(expiryPagerTask->getId());
-    ExecutorPool::get()->schedule(expiryPagerTask);
 }
 
 void KVBucket::disableExpiryPager() {
-    auto cfg = expiryPagerTask->wlockConfig();
-    if (!cfg->enabled) {
+    if (!expiryPagerTask->disable()) {
         EP_LOG_DEBUG_RAW("Expiry Pager already disabled!");
-        return;
     }
-    cfg->enabled = false;
-    ExecutorPool::get()->cancel(expiryPagerTask->getId());
 }
 
 void KVBucket::wakeUpExpiryPager() {

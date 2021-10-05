@@ -15,6 +15,7 @@
 #include <folly/Synchronized.h>
 #include <memcached/types.h> // for ssize_t
 #include <chrono>
+#include <memory>
 
 typedef std::pair<int64_t, int64_t> row_range_t;
 
@@ -134,7 +135,8 @@ private:
  * Dispatcher job responsible for purging expired items from
  * memory and disk.
  */
-class ExpiredItemPager : public GlobalTask {
+class ExpiredItemPager : public GlobalTask,
+                         public std::enable_shared_from_this<ExpiredItemPager> {
 public:
 
     /**
@@ -167,14 +169,20 @@ public:
     std::chrono::seconds getSleepTime() const;
 
     /**
-     * Lock the config for writing, and return a handle.
+     * Enable and schedule the expiry pager task.
      *
-     * Used when other operations need synchronising with config changes
-     * (e.g., scheduling or cancelling the task)
+     * @return true if the task was scheduled, false if it was already
+     *              enabled
      */
-    auto wlockConfig() {
-        return config.wlock();
-    }
+    bool enable();
+
+    /**
+     * Disable and cancel the expiry pager task.
+     *
+     * @return true if the task was cancelled, false if it was already
+     *              disabled
+     */
+    bool disable();
 
     bool isEnabled() const;
 
@@ -196,8 +204,7 @@ private:
         ssize_t initialRunTime = -1;
         bool enabled = false;
     };
-
-    void updateWakeTimeFromCfg(const Config& cfg);
+    std::chrono::seconds calculateWakeTimeFromCfg(const Config& cfg);
 
     folly::Synchronized<Config> config;
     /**

@@ -1177,6 +1177,33 @@ TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
     pool->cancel(task->getId());
 }
 
+TEST_F(KVBucketTest, ExpiryConfigChangeWakesTask) {
+    // schedule the expiry pager task.
+    store->enableExpiryPager();
+    // check that the task has a longer runtime to start with
+    ASSERT_GT(store->getExpiryPagerSleeptime(), 100);
+
+    // check the task has not run yet.
+    auto& epstats = engine->getEpStats();
+    ASSERT_EQ(0, epstats.expiryPagerRuns);
+
+    // try to change the config to get the task to run asap
+    store->setExpiryPagerSleeptime(0);
+
+    using namespace std::chrono;
+    using namespace std::chrono_literals;
+    auto deadline = steady_clock::now() + 5s;
+
+    while (epstats.expiryPagerRuns == 0 &&
+           std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
+    }
+
+    // check that the task has run before our deadline - it wouldn't have
+    // if the config change did not wake the task through the pool.
+    EXPECT_GT(epstats.expiryPagerRuns, 0);
+}
+
 void KVBucketTest::storeAndDeleteItem(Vbid vbid,
                                       const DocKey& key,
                                       std::string value) {

@@ -272,29 +272,52 @@ ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine* e,
     auto cfg = config.wlock();
     cfg->sleepTime = std::chrono::seconds(stime);
     cfg->initialRunTime = taskTime;
-    updateWakeTimeFromCfg(*cfg);
+    snooze(calculateWakeTimeFromCfg(*cfg).count());
 }
 
 void ExpiredItemPager::updateSleepTime(std::chrono::seconds sleepTime) {
     auto cfg = config.wlock();
     cfg->sleepTime = sleepTime;
-    updateWakeTimeFromCfg(*cfg);
+    ExecutorPool::get()->snooze(getId(),
+                                calculateWakeTimeFromCfg(*cfg).count());
 }
 void ExpiredItemPager::updateInitialRunTime(ssize_t initialRunTime) {
     auto cfg = config.wlock();
     cfg->initialRunTime = initialRunTime;
-    updateWakeTimeFromCfg(*cfg);
+    ExecutorPool::get()->snooze(getId(),
+                                calculateWakeTimeFromCfg(*cfg).count());
 }
 
 std::chrono::seconds ExpiredItemPager::getSleepTime() const {
     return config.rlock()->sleepTime;
 }
 
+bool ExpiredItemPager::enable() {
+    auto cfg = config.wlock();
+    if (cfg->enabled) {
+        return false;
+    }
+    cfg->enabled = true;
+    snooze(calculateWakeTimeFromCfg(*cfg).count());
+    ExecutorPool::get()->schedule(shared_from_this());
+    return true;
+}
+
+bool ExpiredItemPager::disable() {
+    auto cfg = config.wlock();
+    if (!cfg->enabled) {
+        return false;
+    }
+    cfg->enabled = false;
+    ExecutorPool::get()->cancel(getId());
+    return true;
+}
+
 bool ExpiredItemPager::isEnabled() const {
     return config.rlock()->enabled;
 }
 
-void ExpiredItemPager::updateWakeTimeFromCfg(
+std::chrono::seconds ExpiredItemPager::calculateWakeTimeFromCfg(
         const ExpiredItemPager::Config& cfg) {
     auto initialSleep = double(cfg.sleepTime.count());
     if (cfg.initialRunTime != -1) {
@@ -325,8 +348,9 @@ void ExpiredItemPager::updateWakeTimeFromCfg(
 
         initialSleep = difftime(mktime(&timeTarget), mktime(&timeNow));
     }
-    snooze(initialSleep);
     updateExpPagerTime(initialSleep);
+    using namespace std::chrono;
+    return duration_cast<seconds>(duration<double>(initialSleep));
 }
 
 bool ExpiredItemPager::run() {
@@ -373,9 +397,15 @@ bool ExpiredItemPager::run() {
                                  maxExpectedDurationForVisitorTask);
         }
     }
-    auto sleepTime = config.rlock()->sleepTime;
-    snooze(sleepTime.count());
-    updateExpPagerTime(sleepTime.count());
+    {
+        // hold the lock while calling snooze - avoids a config change updating
+        // the sleep time immediately after we read it, then this snooze
+        // here overwriting the wake time with the old value
+        auto cfg = config.rlock();
+        auto sleepTime = cfg->sleepTime.count();
+        snooze(sleepTime);
+        updateExpPagerTime(sleepTime);
+    }
 
     return true;
 }
