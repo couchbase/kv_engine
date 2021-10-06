@@ -202,8 +202,8 @@ bool ActiveStream::isTakeoverWait() const {
 void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
                                   uint64_t lastProcessedSeqno) {
     try {
-        CursorRegResult result =
-                chkptmgr.registerCursorBySeqno(name_, lastProcessedSeqno);
+        CursorRegResult result = chkptmgr.registerCursorBySeqno(
+                name_, lastProcessedSeqno, CheckpointCursor::Droppable::Yes);
 
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::registerCursor name \"{}\", backfill:{}, "
@@ -1645,7 +1645,9 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
         CursorRegResult registerResult;
         try {
             registerResult = vbucket->checkpointManager->registerCursorBySeqno(
-                    name_, lastReadSeqno.load());
+                    name_,
+                    lastReadSeqno.load(),
+                    CheckpointCursor::Droppable::Yes);
         } catch (std::exception& error) {
             log(spdlog::level::level_enum::warn,
                 "{} Failed to register "
@@ -1780,7 +1782,9 @@ void ActiveStream::notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno) {
         try {
             CursorRegResult result =
                     vbucket->checkpointManager->registerCursorBySeqno(
-                            name_, lastSeenSeqno);
+                            name_,
+                            lastSeenSeqno,
+                            CheckpointCursor::Droppable::Yes);
             log(spdlog::level::level_enum::info,
                 "{} ActiveStream::notifyEmptyBackfill "
                 "Re-registering dropped cursor with name \"{}\", "

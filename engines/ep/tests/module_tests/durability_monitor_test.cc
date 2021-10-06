@@ -971,7 +971,8 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedConcurrentDataRace) {
     // Setup: Register a cursor at end of checkpoint to be able to validate
     // subsequent commits.
     auto* ckptMgr = vb->checkpointManager.get();
-    auto cursor = ckptMgr->registerCursorBySeqno("test", vb->getHighSeqno());
+    auto cursor = ckptMgr->registerCursorBySeqno(
+            "test", vb->getHighSeqno(), CheckpointCursor::Droppable::Yes);
 
     // Test: the first seqnoAckRecieved(1) (from replica A) commits
     // SyncWrite(1), and the second seqnoAckReceived(2) from replica B commits

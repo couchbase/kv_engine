@@ -751,8 +751,8 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
     // vBucket stats that throw assertions in development builds to identify
     // correctness issues. At this point we aim to persist everything fully
     // (1.2) before performing any other operations.
-    auto cursorResult =
-            vbucket->checkpointManager->registerCursorBySeqno("persistence", 0);
+    auto cursorResult = vbucket->checkpointManager->registerCursorBySeqno(
+            "persistence", 0, CheckpointCursor::Droppable::No);
     std::vector<queued_item> out;
     vbucket->checkpointManager->getItemsForCursor(
             cursorResult.cursor.lock().get(), out, 1);

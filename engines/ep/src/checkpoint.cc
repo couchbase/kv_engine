@@ -53,11 +53,13 @@ std::string to_string(QueueDirtyStatus value) {
 
 CheckpointCursor::CheckpointCursor(std::string n,
                                    CheckpointList::iterator checkpoint,
-                                   ChkptQueueIterator pos)
+                                   ChkptQueueIterator pos,
+                                   Droppable droppable)
     : name(std::move(n)),
       currentCheckpoint(checkpoint),
       currentPos(pos),
-      numVisits(0) {
+      numVisits(0),
+      droppable(droppable) {
     (*currentCheckpoint)->incNumOfCursorsInCheckpoint();
 }
 
@@ -67,7 +69,8 @@ CheckpointCursor::CheckpointCursor(const CheckpointCursor& other,
       currentCheckpoint(other.currentCheckpoint),
       currentPos(other.currentPos),
       numVisits(other.numVisits.load()),
-      isValid(other.isValid) {
+      isValid(other.isValid),
+      droppable(other.droppable) {
     if (isValid) {
         (*currentCheckpoint)->incNumOfCursorsInCheckpoint();
     }

@@ -50,7 +50,8 @@ MockActiveStream::MockActiveStream(
 void MockActiveStream::public_registerCursor(CheckpointManager& manager,
                                              const std::string& name,
                                              int64_t seqno) {
-    auto registerResult = manager.registerCursorBySeqno(name, seqno);
+    auto registerResult = manager.registerCursorBySeqno(
+            name, seqno, CheckpointCursor::Droppable::Yes);
     cursor = registerResult.cursor;
 }
 

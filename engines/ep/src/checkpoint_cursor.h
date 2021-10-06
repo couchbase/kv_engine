@@ -40,9 +40,12 @@ class CheckpointCursor {
     friend class CheckpointCursorIntrospector;
 
 public:
+    enum class Droppable : uint8_t { No, Yes };
+
     CheckpointCursor(std::string n,
                      CheckpointList::iterator checkpoint,
-                     ChkptQueueIterator pos);
+                     ChkptQueueIterator pos,
+                     Droppable droppable);
 
     // The implicitly generated copy-ctor would miss to increment the
     // checkpoint-cursor count, so we make sure that nobody can accidentally
@@ -78,6 +81,10 @@ public:
 
     const StoredDocKey& getKey() const;
 
+    bool isDroppable() const {
+        return droppable == Droppable::Yes;
+    }
+
 private:
     /**
      * Move the cursor's iterator back one if it is not currently pointing to
@@ -111,6 +118,9 @@ private:
      * Is the cursor pointing to a valid checkpoint
      */
     bool isValid = true;
+
+    /// Indicates whether checkpoint memory recovery can drop this cursor
+    const Droppable droppable;
 
     friend bool operator<(const CheckpointCursor& a, const CheckpointCursor& b);
     friend std::ostream& operator<<(std::ostream& os,

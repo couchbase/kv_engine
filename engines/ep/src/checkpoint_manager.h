@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "checkpoint_cursor.h"
 #include "checkpoint_types.h"
 #include "cursor.h"
 #include "ep_types.h"
@@ -197,13 +198,16 @@ public:
      * Register the cursor for getting items whose bySeqno values are between
      * startBySeqno and endBySeqno, and close the open checkpoint if endBySeqno
      * belongs to the open checkpoint.
-     * @param startBySeqno start bySeqno.
-     * @return Cursor registration result which consists of (1) the bySeqno with
-     * which the cursor can start and (2) flag indicating if the cursor starts
-     * with the first item on a checkpoint.
+     *
+     * @param name of the new cursor.
+     * @param startBySeqno The seqno where to place the cursor
+     * @param droppable Whether the new cursor can be removed by cursor-dropping
+     * @return CursorRegResult, see struct for details
      */
-    CursorRegResult registerCursorBySeqno(const std::string& name,
-                                          uint64_t startBySeqno);
+    CursorRegResult registerCursorBySeqno(
+            const std::string& name,
+            uint64_t startBySeqno,
+            CheckpointCursor::Droppable droppable);
 
     /**
      * Remove the cursor for a given connection.
@@ -639,10 +643,20 @@ protected:
     bool removeCursor(const std::lock_guard<std::mutex>& lh,
                       CheckpointCursor* cursor);
 
-    CursorRegResult registerCursorBySeqno_UNLOCKED(
+    /**
+     * Register a cursor within the checkpoint.
+     *
+     * @param lh lock guard holding the queueLock
+     * @param name of the new cursor
+     * @param startBySeqno The seqno where to place the cursor
+     * @param droppable Whether the new cursor can be removed by cursor-dropping
+     * @return CursorRegResult, see struct for details
+     */
+    CursorRegResult registerCursorBySeqno(
             const std::lock_guard<std::mutex>& lh,
             const std::string& name,
-            uint64_t startBySeqno);
+            uint64_t startBySeqno,
+            CheckpointCursor::Droppable droppable);
 
     /**
      * Called by getItemsForCursor() for registering a copy of the persistence

@@ -559,7 +559,8 @@ std::vector<queued_item> CheckpointRemoverEPTest::getItemsWithCursor(
         const std::string& name, uint64_t startBySeqno, bool expectBackfill) {
     auto vb = engine->getVBucket(vbid);
     auto* cm = static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
-    auto regRes = cm->registerCursorBySeqno("SomeName", startBySeqno);
+    auto regRes = cm->registerCursorBySeqno(
+            "SomeName", startBySeqno, CheckpointCursor::Droppable::Yes);
     EXPECT_EQ(expectBackfill, regRes.tryBackfill);
     auto cursor = regRes.cursor.lock();
 
@@ -627,7 +628,8 @@ TEST_F(CheckpointRemoverEPTest, expelsOnlyIfOldestCheckpointIsReferenced) {
     // Now, put a cursor in the first checkpoint. Now, expelling should remove
     // items from it as it is the oldest checkpoint.
 
-    auto regRes = cm->registerCursorBySeqno("Cursor3", 0);
+    auto regRes = cm->registerCursorBySeqno(
+            "Cursor3", 0, CheckpointCursor::Droppable::Yes);
     auto cursor = regRes.cursor.lock();
 
     /* items in first checkpoint
@@ -704,14 +706,16 @@ TEST_F(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
      */
 
     // Put a cursor in the second checkpoint
-    auto regResA = cm->registerCursorBySeqno("CursorA", 0);
+    auto regResA = cm->registerCursorBySeqno(
+            "CursorA", 0, CheckpointCursor::Droppable::Yes);
     auto cursorA = regResA.cursor.lock();
     for (int i = 0; i < 5; i++) {
         cm->incrCursor(*cursorA);
     }
 
     // Put a cursor on the *last* item of the first checkpoint
-    auto regResB = cm->registerCursorBySeqno("CursorB", 0);
+    auto regResB = cm->registerCursorBySeqno(
+            "CursorB", 0, CheckpointCursor::Droppable::Yes);
     auto cursorB = regResB.cursor.lock();
     for (int i = 0; i < 3; i++) {
         cm->incrCursor(*cursorB);

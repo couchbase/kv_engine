@@ -64,7 +64,10 @@ CheckpointManager::CheckpointManager(EPStats& st,
 
     if (checkpointConfig.isPersistenceEnabled()) {
         // Register the persistence cursor
-        pCursor = registerCursorBySeqno_UNLOCKED(lh, pCursorName, lastBySeqno)
+        pCursor = registerCursorBySeqno(lh,
+                                        pCursorName,
+                                        lastBySeqno,
+                                        CheckpointCursor::Droppable::No)
                           .cursor;
         persistenceCursor = pCursor.lock().get();
     }
@@ -244,20 +247,23 @@ void CheckpointManager::addOpenCheckpoint(
 }
 
 CursorRegResult CheckpointManager::registerCursorBySeqno(
-        const std::string& name, uint64_t startBySeqno) {
+        const std::string& name,
+        uint64_t startBySeqno,
+        CheckpointCursor::Droppable droppable) {
     std::lock_guard<std::mutex> lh(queueLock);
-    return registerCursorBySeqno_UNLOCKED(lh, name, startBySeqno);
+    return registerCursorBySeqno(lh, name, startBySeqno, droppable);
 }
 
-CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
+CursorRegResult CheckpointManager::registerCursorBySeqno(
         const std::lock_guard<std::mutex>& lh,
         const std::string& name,
-        uint64_t startBySeqno) {
+        uint64_t startBySeqno,
+        CheckpointCursor::Droppable droppable) {
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
     if (openCkpt.getHighSeqno() < startBySeqno) {
         throw std::invalid_argument(
-                "CheckpointManager::registerCursorBySeqno_UNLOCKED:"
-                " startBySeqno (which is " +
+                "CheckpointManager::registerCursorBySeqno: startBySeqno (which "
+                "is " +
                 std::to_string(startBySeqno) +
                 ") is less than last "
                 "checkpoint highSeqno (which is " +
@@ -285,9 +291,8 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
         if (startBySeqno < st) {
             // Requested sequence number is before the start of this
             // checkpoint, position cursor at the checkpoint start.
-            auto cursor = std::make_shared<CheckpointCursor>(name,
-                                                             itr,
-                                                             (*itr)->begin());
+            auto cursor = std::make_shared<CheckpointCursor>(
+                    name, itr, (*itr)->begin(), droppable);
             cursors[name] = cursor;
             result.seqno = st;
             result.cursor.setCursor(cursor);
@@ -318,8 +323,8 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
                 --iitr;
             }
 
-            auto cursor =
-                    std::make_shared<CheckpointCursor>(name, itr, iitr);
+            auto cursor = std::make_shared<CheckpointCursor>(
+                    name, itr, iitr, droppable);
             cursors[name] = cursor;
             result.cursor.setCursor(cursor);
             break;
@@ -333,8 +338,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
          *  and there is already an assert above for this case.
          */
         throw std::logic_error(
-                "CheckpointManager::registerCursorBySeqno_UNLOCKED the "
-                "sequences number "
+                "CheckpointManager::registerCursorBySeqno the sequences number "
                 "is higher than anything currently assigned");
     }
     return result;
@@ -649,7 +653,8 @@ std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
             // eligible for expel.
             // At the time of writing that kind of change is out of scope, so
             // making that a @todo for now.
-            if (cursor->getId() < specialCursor.getId()) {
+            if (cursor->isDroppable() &&
+                cursor->getId() < specialCursor.getId()) {
                 cursorsToDrop.emplace_back(cursor);
             }
         }
@@ -661,7 +666,7 @@ std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
         const auto id = getOpenCheckpointId(lh);
         for (const auto& pair : cursors) {
             const auto cursor = pair.second;
-            if (cursor->getId() < id) {
+            if (cursor->isDroppable() && cursor->getId() < id) {
                 cursorsToDrop.emplace_back(cursor);
             }
         }
