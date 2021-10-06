@@ -287,7 +287,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         if (!makeCompactionContextCallback) {
             return false;
         }
-        cbCtx.ctx = makeCompactionContext(vbid);
+        cbCtx.ctx = makeImplicitCompactionContext(vbid);
         cbCtx.implicitCompaction = true;
     }
     return compactionCore(
@@ -2981,11 +2981,11 @@ void MagmaKVStore::pendingTasks() {
     }
 }
 
-std::shared_ptr<CompactionContext> MagmaKVStore::makeCompactionContext(
+std::shared_ptr<CompactionContext> MagmaKVStore::makeImplicitCompactionContext(
         Vbid vbid) {
     if (!makeCompactionContextCallback) {
         throw std::runtime_error(
-                "MagmaKVStore::makeCompactionContext: Have not set "
+                "MagmaKVStore::makeImplicitCompactionContext: Have not set "
                 "makeCompactionContextCallback to create a CompactionContext");
     }
 
@@ -2994,10 +2994,10 @@ std::shared_ptr<CompactionContext> MagmaKVStore::makeCompactionContext(
 
     auto [status, dropped] = getDroppedCollections(vbid);
     if (!status) {
-        throw std::runtime_error(
-                fmt::format("MagmaKVStore::makeCompactionContext: {} failed to "
-                            "get the dropped collections",
-                            vbid));
+        throw std::runtime_error(fmt::format(
+                "MagmaKVStore::makeImplicitCompactionContext: {} failed to "
+                "get the dropped collections",
+                vbid));
     }
     ctx->eraserContext =
             std::make_unique<Collections::VB::EraserContext>(dropped);
@@ -3005,7 +3005,7 @@ std::shared_ptr<CompactionContext> MagmaKVStore::makeCompactionContext(
     auto readState = readVBStateFromDisk(vbid);
     if (!readState.status.IsOK()) {
         std::stringstream ss;
-        ss << "MagmaKVStore::makeCompactionContext " << vbid
+        ss << "MagmaKVStore::makeImplicitCompactionContext " << vbid
            << " failed to read vbstate from disk. Status:"
            << readState.status.String();
         throw std::runtime_error(ss.str());
@@ -3014,7 +3014,7 @@ std::shared_ptr<CompactionContext> MagmaKVStore::makeCompactionContext(
     }
 
     logger->debug(
-            "MagmaKVStore::makeCompactionContext {} purge_before_ts:{} "
+            "MagmaKVStore::makeImplicitCompactionContext {} purge_before_ts:{} "
             "purge_before_seq:{}"
             " drop_deletes:{} retain_erroneous_tombstones:{}",
             ctx->vbid,

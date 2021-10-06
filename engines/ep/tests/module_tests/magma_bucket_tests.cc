@@ -234,7 +234,7 @@ TEST_P(STParamMagmaBucketTest, implicitCompactionContext) {
     ASSERT_TRUE(gv.item->isDeleted());
 
     // And compact
-    auto cctx = magmaKVStore->makeCompactionContext(vbid);
+    auto cctx = magmaKVStore->makeImplicitCompactionContext(vbid);
 
     {
         auto vb = store->getLockedVBucket(vbid);
@@ -272,12 +272,13 @@ TEST_P(STParamMagmaBucketTest, makeCompactionContextSetupAtWarmup) {
     auto magmaKVStore =
             dynamic_cast<MagmaKVStore*>(store->getRWUnderlying(vbid));
     ASSERT_TRUE(magmaKVStore);
-    ASSERT_THROW(magmaKVStore->makeCompactionContext(vbid), std::runtime_error);
+    ASSERT_THROW(magmaKVStore->makeImplicitCompactionContext(vbid),
+                 std::runtime_error);
 
     // Run warmup, and we should set the makeCompactionContextCallback in the
     // final stage
     runReadersUntilWarmedUp();
-    EXPECT_NO_THROW(magmaKVStore->makeCompactionContext(vbid));
+    EXPECT_NO_THROW(magmaKVStore->makeImplicitCompactionContext(vbid));
 }
 
 void STParamMagmaBucketTest::performWritesForImplicitCompaction() {
