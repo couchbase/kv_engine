@@ -133,11 +133,15 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
     TRACE_EVENT0("ep-engine/task", "ClosedUnrefCheckpointRemoverTask");
 
     bool inverse = true;
-    if (shouldScanForUnreferencedCheckpoints &&
-        !available.compare_exchange_strong(inverse, false)) {
+    if (!available.compare_exchange_strong(inverse, false)) {
+        // a CheckpointVisitor is still running, exit now to avoid constructing
+        // another.
         snooze(sleepTime);
         return true;
     }
+    // available has now been set to false, past this point CheckpointVisitor
+    // should be constructed (which will clear available) or available manually
+    // reset to true.
 
     auto* kvBucket = engine->getKVBucket();
     const auto memToClear = kvBucket->getRequiredCheckpointMemoryReduction();

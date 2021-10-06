@@ -11,6 +11,7 @@
 
 #include "checkpoint_visitor.h"
 #include "bucket_logger.h"
+#include "checkpoint_config.h"
 #include "checkpoint_manager.h"
 #include "dcp/dcpconnmap.h"
 #include "ep_engine.h"
@@ -36,13 +37,19 @@ void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
 
     // First, try to release existing closed/unref checkpoints (if any)
     auto& manager = *vb->checkpointManager;
-    auto released = manager.removeClosedUnrefCheckpoints();
-    if (released.memory >= memToRelease) {
-        // We hit our release target, all done, don't need to drop any cursor.
-        memToRelease = 0;
-        return;
+    if (!manager.getCheckpointConfig().isEagerCheckpointRemoval()) {
+        // if eager checkpoint removal is configured, there would be no
+        // closed unreferenced checkpoints to remove - they will have been
+        // removed at the moment they became eligible.
+        auto released = manager.removeClosedUnrefCheckpoints();
+        if (released.memory >= memToRelease) {
+            // We hit our release target, all done, don't need to drop any
+            // cursor.
+            memToRelease = 0;
+            return;
+        }
+        memToRelease -= released.memory;
     }
-    memToRelease -= released.memory;
 
     // Get a list of cursors that can be dropped from the vbucket's CM and do
     // CursorDrop/CheckpointRemoval until the released target is hit.
@@ -54,7 +61,7 @@ void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
         }
         ++stats.cursorsDropped;
 
-        released = manager.removeClosedUnrefCheckpoints();
+        auto released = manager.removeClosedUnrefCheckpoints();
         if (released.memory >= memToRelease) {
             // We hit our release target, all done.
             memToRelease = 0;
