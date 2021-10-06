@@ -336,6 +336,7 @@ bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
                         vbid,
                         userSanitizedItemStr);
             }
+            cbCtx.ctx->purgedItem(PurgedItemType::LogicalDelete, seqno);
             return true;
         }
     }
@@ -376,14 +377,12 @@ bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
 
             if (drop) {
                 cbCtx.ctx->stats.tombstonesPurged++;
-                if (cbCtx.ctx->rollbackPurgeSeqno < seqno) {
-                    cbCtx.ctx->rollbackPurgeSeqno = seqno;
-                }
                 auto& dbStats = cbCtx.magmaDbStats;
                 if (dbStats.purgeSeqno < seqno) {
                     dbStats.purgeSeqno = seqno;
                 }
                 maybeUpdatePurgeSeqno();
+                cbCtx.ctx->purgedItem(PurgedItemType::Tombstone, seqno);
                 return true;
             }
         }
@@ -403,6 +402,7 @@ bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
                             vbid,
                             userSanitizedItemStr);
                 }
+                cbCtx.ctx->purgedItem(PurgedItemType::Prepare, seqno);
                 return true;
             }
         }

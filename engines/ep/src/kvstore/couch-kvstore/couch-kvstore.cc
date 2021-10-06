@@ -892,6 +892,7 @@ static int time_purge_hook(Db& d,
             }
         }
         // No need to make 'disk-size' changes here as the collection has gone.
+        ctx.purgedItem(PurgedItemType::LogicalDelete, info->db_seq);
         return COUCHSTORE_COMPACT_DROP_ITEM;
     } else if (docKey.isInSystemCollection()) {
         ctx.eraserContext->processSystemEvent(
@@ -922,13 +923,10 @@ static int time_purge_hook(Db& d,
             }
 
             if (purgeItem) {
-                // Maybe update purge seqno
-                if (ctx.rollbackPurgeSeqno < info->db_seq) {
-                    ctx.rollbackPurgeSeqno = info->db_seq;
-                }
                 // Update stats and return
                 ctx.stats.tombstonesPurged++;
                 maybeAccountForPurgedCollectionData();
+                ctx.purgedItem(PurgedItemType::Tombstone, info->db_seq);
                 return COUCHSTORE_COMPACT_DROP_ITEM;
             }
         }
@@ -947,6 +945,7 @@ static int time_purge_hook(Db& d,
                 // as the stat doc will have already been deleted (for
                 // couchstore)
                 maybeAccountForPurgedCollectionData();
+                ctx.purgedItem(PurgedItemType::Prepare, info->db_seq);
                 return COUCHSTORE_COMPACT_DROP_ITEM;
             }
 

@@ -129,6 +129,18 @@ struct CompactionConfig {
     bool retain_erroneous_tombstones = false;
 };
 
+/**
+ * Type of item purged
+ */
+enum class PurgedItemType {
+    // Tombstone - deleted document
+    Tombstone = 0,
+    // Logical deletion - item belonging to dropped collection
+    LogicalDelete,
+    // Prepare - complete prepare (seqno lower than PCS)
+    Prepare,
+};
+
 struct CompactionContext {
     CompactionContext(Vbid vbid,
                       const CompactionConfig& config,
@@ -139,6 +151,34 @@ struct CompactionContext {
           rollbackPurgeSeqno(purgeSeq),
           timeToExpireFrom(timeToExpireFrom) {
     }
+
+    /**
+     * Process a purged item
+     *
+     * @param type The type of the item purged
+     * @param seqno The seqno of the item purged
+     */
+    void purgedItem(PurgedItemType type, uint64_t seqno) {
+        switch (type) {
+        case PurgedItemType::Tombstone:
+            // Only tombstones need to move the rollback purge seqno
+            updateRollbackPurgeSeqno(seqno);
+            break;
+        case PurgedItemType::LogicalDelete:
+        case PurgedItemType::Prepare:
+            break;
+        }
+    }
+
+    /**
+     * Update the rollback purge seqno
+     *
+     * @param seqno The seqno of the item purged
+     */
+    void updateRollbackPurgeSeqno(uint64_t seqno) {
+        rollbackPurgeSeqno = std::max(rollbackPurgeSeqno, seqno);
+    }
+
     Vbid vbid;
 
     /// The configuration for this compaction.
