@@ -39,7 +39,11 @@
 
 class Snapshot;
 
-using namespace magma;
+using magma::Magma;
+using magma::MagmaFileStats;
+using magma::MagmaHistogramStats;
+using magma::Slice;
+using magma::Status;
 using namespace std::chrono_literals;
 
 // Unfortunately, turning on logging for the tests is limited to debug
