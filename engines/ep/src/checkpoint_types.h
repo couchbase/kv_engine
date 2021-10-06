@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include "checkpoint_iterator.h"
 #include "ep_types.h"
 
 #include <boost/container/list.hpp>
@@ -87,3 +88,7 @@ private:
 };
 
 using UniqueFlushHandle = std::unique_ptr<FlushHandle>;
+
+// Iterator for the Checkpoint queue.  The iterator is templated on the
+// queue type (CheckpointQueue).
+using ChkptQueueIterator = CheckpointIterator<CheckpointQueue>;

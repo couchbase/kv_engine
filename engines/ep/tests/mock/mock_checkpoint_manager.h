@@ -13,6 +13,7 @@
 
 #include "checkpoint.h"
 #include "checkpoint_config.h"
+#include "checkpoint_cursor.h"
 #include "checkpoint_manager.h"
 
 /*

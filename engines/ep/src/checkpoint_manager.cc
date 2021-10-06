@@ -14,6 +14,7 @@
 #include "bucket_logger.h"
 #include "checkpoint.h"
 #include "checkpoint_config.h"
+#include "checkpoint_cursor.h"
 #include "ep_time.h"
 #include "pre_link_document_context.h"
 #include "stats.h"

@@ -84,7 +84,11 @@ void CheckpointCursor::invalidate() {
     isValid = false;
 }
 
-void CheckpointCursor::decrPos() {
+const StoredDocKey& CheckpointCursor::getKey() const {
+    return (*currentPos)->getKey();
+}
+
+void CheckpointCursor::CheckpointCursor::decrPos() {
     if (currentPos != (*currentCheckpoint)->begin()) {
         --currentPos;
     }
