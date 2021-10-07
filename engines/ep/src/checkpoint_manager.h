@@ -69,6 +69,7 @@ class CheckpointManager {
     friend class Checkpoint;
     friend class CheckpointBench;
     friend class CheckpointManagerTestIntrospector;
+    friend class CheckpointTest;
     friend class Consumer;
     friend class EventuallyPersistentEngine;
 
@@ -549,6 +550,9 @@ public:
      */
     bool hasNonMetaItemsForCursor(const CheckpointCursor& cursor);
 
+    // @return the number of cursors registered in all checkpoints
+    size_t getNumCursors() const;
+
     /**
      * Member std::function variable, to allow us to inject code into
      * removeCursor() for unit MB36146
@@ -782,17 +786,16 @@ protected:
     std::shared_ptr<CheckpointCursor> getLowestCursor(
             const std::lock_guard<std::mutex>& lh);
 
-    /**
-     * Return type of extractItemsToExpel().
-     * RAII resource, for now is just a wrapper around the CheckpointQueue of
-     * expelled items that are released when the resource goes out-of-scope.
-     *
-     * @todo expand description in follow-up where this is effectively used
-     */
+    /// Return type of extractItemsToExpel().
     class ExtractItemsResult {
     public:
         ExtractItemsResult();
-        ExtractItemsResult(CheckpointQueue&& items, size_t memory);
+        ExtractItemsResult(CheckpointQueue&& items,
+                           size_t memory,
+                           CheckpointManager* manager,
+                           std::shared_ptr<CheckpointCursor> expelCursor);
+
+        ~ExtractItemsResult();
 
         ExtractItemsResult(const ExtractItemsResult&) = delete;
         ExtractItemsResult& operator=(const ExtractItemsResult&) = delete;
@@ -802,12 +805,25 @@ protected:
 
         size_t getNumItems() const;
         size_t getMemory() const;
+        const CheckpointCursor& getExpelCursor() const;
 
     private:
         // Container of expelled items
         CheckpointQueue items;
+
         // Estimate of memory recovered
         size_t memory{0};
+
+        // Ref to the CM. Used at destruction for removing the expel-cursor.
+        CheckpointManager* manager{nullptr};
+
+        // This cursor is registered at expel for ensuring that the checkpoint
+        // touched is not removed between locked CM calls. That allows to
+        // logically split ItemExpel in multiple locked calls into the
+        // checkpoint.
+        // Cursor always registered at Checkpoint::begin. The cursor is removed
+        // when expel has completed all its logical steps.
+        std::shared_ptr<CheckpointCursor> expelCursor{nullptr};
     };
 
     /**

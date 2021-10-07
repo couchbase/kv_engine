@@ -84,6 +84,15 @@ protected:
     // Test estimate for the amount of memory recovered by expelling is correct.
     void testExpelCheckpointItemsMemoryRecovered();
 
+    // Proxy to the related protected CM function
+    CheckpointManager::ExtractItemsResult extractItemsToExpel();
+
+    // Common base setup for expel-cursor tests
+    void expelCursorSetup();
+
+    // Tests that the extract-items step at ItemExpel registers the expel-cursor
+    CheckpointManager::ExtractItemsResult testExpelCursorRegistered();
+
     // Owned by VBucket
     MockCheckpointManager* manager;
     // Owned by CheckpointManager

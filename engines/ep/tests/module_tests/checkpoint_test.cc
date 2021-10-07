@@ -3219,6 +3219,101 @@ TEST_P(CheckpointTest, MB_47551) {
     EXPECT_EQ(2, cursor2.cursor.lock()->getId());
 }
 
+CheckpointManager::ExtractItemsResult CheckpointTest::extractItemsToExpel() {
+    std::lock_guard<std::mutex> lh(manager->queueLock);
+    return manager->extractItemsToExpel(lh);
+}
+
+void CheckpointTest::expelCursorSetup() {
+    ASSERT_EQ(1000, manager->getHighSeqno());
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+    ASSERT_EQ(0, manager->getNumOpenChkItems());
+
+    // Queue 2 items
+    EXPECT_TRUE(queueNewItem("key1"));
+    EXPECT_TRUE(queueNewItem("key2"));
+    EXPECT_EQ(2, manager->getNumOpenChkItems());
+    EXPECT_EQ(1002, manager->getHighSeqno());
+
+    // Ensure that we have at least 1 cursor in the checkpoint (expel will yield
+    // to checkpoint-removal otherwise) and ensure that we have some items
+    // eligible for expelling. We would skip the code path under test otherwise.
+    EXPECT_EQ(1, manager->getNumOfCursors());
+    EXPECT_TRUE(cursor);
+    std::vector<queued_item> out;
+    manager->getItemsForCursor(cursor, out, std::numeric_limits<size_t>::max());
+    EXPECT_EQ(3, out.size()); // checkpoint_start + mutations
+    EXPECT_FALSE(manager->hasClosedCheckpointWhichCanBeRemoved());
+
+    // [e:1001 cs:1001 m:1001 m:1002)
+    //                        ^
+    const auto pos = *CheckpointCursorIntrospector::getCurrentPos(*cursor);
+    EXPECT_EQ(queue_op::mutation, pos->getOperation());
+    EXPECT_EQ(1002, pos->getBySeqno());
+}
+
+CheckpointManager::ExtractItemsResult
+CheckpointTest::testExpelCursorRegistered() {
+    expelCursorSetup();
+
+    auto res = extractItemsToExpel();
+    EXPECT_EQ(1, res.getNumItems());
+
+    // [e:1001 cs:1001 x m:1002)
+    //  ^                ^
+    const auto& expelCursor = res.getExpelCursor();
+    const auto pos = *CheckpointCursorIntrospector::getCurrentPos(expelCursor);
+    EXPECT_EQ(queue_op::empty, pos->getOperation());
+    EXPECT_EQ(1001, pos->getBySeqno());
+
+    return res;
+}
+
+TEST_P(CheckpointTest, ExpelCursor_Registered) {
+    testExpelCursorRegistered();
+}
+
+TEST_P(CheckpointTest, ExpelCursor_Removed) {
+    expelCursorSetup();
+    ASSERT_EQ(1, manager->getNumCursors());
+
+    // The operation registers the expel-cursor and removes it once done, so the
+    // final numCursors must not change
+    const auto res = manager->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(1, res.count);
+    EXPECT_EQ(1, manager->getNumCursors());
+}
+
+TEST_P(CheckpointTest, ExpelCursor_NeverDrop) {
+    const auto res = testExpelCursorRegistered();
+    // [e:1001 cs:1001 x m:1002)
+    //  ^                ^
+
+    // We never drop cursors in the open checkpoint, so close the existing one
+    // and ensure that the expel cursor is still in the closed checkpoint.
+    // Note: cursors that are at the end of the checkpoint being closed are
+    //  bumped to the new checkpoint. By logic that can never happen for the
+    //  expel-cursor as it always points to the empty item.
+    manager->createNewCheckpoint(true);
+    // [e:1001 cs:1001 x m:1002] [e:1003 cs:1003)
+    //  ^                         ^
+    ASSERT_EQ(2, manager->getNumCheckpoints());
+    ASSERT_EQ(2, manager->getNumCursors());
+    const auto& expelCursor = res.getExpelCursor();
+    const auto expelCursorPos =
+            *CheckpointCursorIntrospector::getCurrentPos(expelCursor);
+    EXPECT_EQ(queue_op::empty, expelCursorPos->getOperation());
+    EXPECT_EQ(1001, expelCursorPos->getBySeqno());
+    ASSERT_TRUE(cursor);
+    const auto cursorPos =
+            *CheckpointCursorIntrospector::getCurrentPos(*cursor);
+    EXPECT_EQ(queue_op::empty, cursorPos->getOperation());
+    EXPECT_EQ(1003, cursorPos->getBySeqno());
+
+    const auto toDrop = manager->getListOfCursorsToDrop();
+    EXPECT_EQ(0, toDrop.size());
+}
+
 INSTANTIATE_TEST_SUITE_P(
         AllVBTypesAllEvictionModes,
         CheckpointTest,

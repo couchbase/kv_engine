@@ -154,15 +154,20 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
                       highCompletedSeqno,
                       checkpointType);
 
-    /* If cursors reached to the end of its current checkpoint, move it to the
-       next checkpoint. DCP cursors can skip a "checkpoint end" meta item.
-       This is needed so that the checkpoint remover can remove the
-       closed checkpoints and hence reduce the memory usage and so to ensure
-       that we do not leave a cursor at the checkpoint_end. This also ensures
-       that where possible we will drop a checkpoint instead of running
-       expelling which is faster.*/
-    for (auto& cur_it : cursors) {
-        CheckpointCursor& cursor = *cur_it.second;
+    // @todo MB-48681: verify this logic on the backup-persistence-cursor
+    //
+    // If cursors reached to the end of its current checkpoint, move it to the
+    // next checkpoint.
+    // DCP cursors can skip a "checkpoint end" meta item. This is needed so that
+    // the checkpoint remover can remove the closed checkpoints and hence reduce
+    // the memory usage and so to ensure that we do not leave a cursor at the
+    // checkpoint_end. This also ensures that where possible we will drop a
+    // checkpoint instead of running expelling which is faster.
+    //
+    // Note: The expel-cursor (if registered) is always placed at checkpoint
+    //  begin, so it's logically not possible to touch it here.
+    for (auto& it : cursors) {
+        CheckpointCursor& cursor = *it.second;
         ++(cursor.currentPos);
         if (cursor.currentPos != (*(cursor.currentCheckpoint))->end() &&
             (*(cursor.currentPos))->getOperation() ==
@@ -478,7 +483,7 @@ void CheckpointManager::maybeScheduleDestruction(const Checkpoint& checkpoint) {
         // checkpoints must be removed in order, only the oldest is eligible
         // when removing checkpoints one at a time.
         // When cursors are removed, multiple checkpoints may unreffed and
-        // can be removed together, but that is handled in removeCursor_UNLOCKED
+        // can be removed together, but that is handled in removeCursor()
 
         // using O(1) overload of splice which takes a distance.
         forDestruction.splice(forDestruction.begin(),
@@ -612,7 +617,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
     stats.memFreedByCheckpointItemExpel += estimatedMemRecovered;
 
     // extractRes is going out-of-scope, queueLock already released here,
-    // deallocation is lock-free
+    // expelled-items deallocation is lock-free
 
     return {numItemsExpelled, estimatedMemRecovered};
 }
@@ -632,7 +637,8 @@ std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
         // checkpoints after that.
         // So in the end it comes by logic that here we want remove only the
         // cursors that reside in the checkpoints up to the last one before the
-        // checkpoint pointed by special-cursor.
+        // checkpoint pointed by special-cursor. Which also implies by logic
+        // that we never drop cursors in the open checkpoint.
         // Note that the invariant applies that (backup-pcursor <= pcursor), if
         // the backup cursor exists. So that can be exploited to simplify
         // the logic further here.
@@ -1648,6 +1654,11 @@ bool CheckpointManager::hasNonMetaItemsForCursor(
     return false;
 }
 
+size_t CheckpointManager::getNumCursors() const {
+    std::lock_guard<std::mutex> lh(queueLock);
+    return cursors.size();
+}
+
 std::ostream& operator <<(std::ostream& os, const CheckpointManager& m) {
     os << "CheckpointManager[" << &m << "] with numItems:"
        << m.getNumItems() << " checkpoints:" << m.checkpointList.size()
@@ -1757,16 +1768,36 @@ std::shared_ptr<CheckpointCursor> CheckpointManager::getLowestCursor(
 CheckpointManager::ExtractItemsResult::ExtractItemsResult() = default;
 
 CheckpointManager::ExtractItemsResult::ExtractItemsResult(
-        CheckpointQueue&& items, size_t memory)
-    : items(std::move(items)), memory(memory) {
+        CheckpointQueue&& items,
+        size_t memory,
+        CheckpointManager* manager,
+        std::shared_ptr<CheckpointCursor> expelCursor)
+    : items(std::move(items)),
+      memory(memory),
+      manager(manager),
+      expelCursor(std::move(expelCursor)) {
+}
+
+CheckpointManager::ExtractItemsResult::~ExtractItemsResult() {
+    if (manager) {
+        manager->removeCursor(expelCursor.get());
+    }
 }
 
 CheckpointManager::ExtractItemsResult::ExtractItemsResult(
-        CheckpointManager::ExtractItemsResult&& other) = default;
+        CheckpointManager::ExtractItemsResult&& other) {
+    *this = std::move(other);
+}
 
 CheckpointManager::ExtractItemsResult&
-CheckpointManager::ExtractItemsResult::operator=(ExtractItemsResult&& other) =
-        default;
+CheckpointManager::ExtractItemsResult::operator=(ExtractItemsResult&& other) {
+    items = std::move(other.items);
+    memory = other.memory;
+    manager = other.manager;
+    other.manager = nullptr;
+    expelCursor = std::move(other.expelCursor);
+    return *this;
+}
 
 size_t CheckpointManager::ExtractItemsResult::getNumItems() const {
     return items.size();
@@ -1774,6 +1805,11 @@ size_t CheckpointManager::ExtractItemsResult::getNumItems() const {
 
 size_t CheckpointManager::ExtractItemsResult::getMemory() const {
     return memory;
+}
+
+const CheckpointCursor& CheckpointManager::ExtractItemsResult::getExpelCursor()
+        const {
+    return *expelCursor;
 }
 
 CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
@@ -1851,5 +1887,23 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
 
     auto expelRes = oldestCheckpoint->expelItems(iterator);
 
-    return {std::move(expelRes.first), expelRes.second};
+    // Register the expel-cursor at checkpoint begin. That is for preventing
+    // that the checkpoint is removed in the middle of an expel run when the
+    // CM::queueLock is released.
+    // Note: Previous validation ensures that lowestCursor points to the oldest
+    //  checkpoint at this point
+    const auto name = "expel-cursor";
+    Expects(cursors.find(name) == cursors.end());
+    const auto pos = (*lowestCursor->currentCheckpoint)->begin();
+    const auto cursor =
+            std::make_shared<CheckpointCursor>(name,
+                                               lowestCursor->currentCheckpoint,
+                                               pos,
+                                               CheckpointCursor::Droppable::No);
+    cursors[name] = cursor;
+
+    return {std::move(expelRes.first),
+            expelRes.second,
+            this,
+            std::move(cursor)};
 }
