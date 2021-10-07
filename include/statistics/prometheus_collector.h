@@ -60,6 +60,12 @@ public:
     }
 
     void addStat(const cb::stats::StatDef& k,
+                 float v,
+                 const Labels& labels) const override {
+        addStat(k, double(v), labels);
+    }
+
+    void addStat(const cb::stats::StatDef& k,
                  double v,
                  const Labels& labels) const override;
 

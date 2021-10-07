@@ -46,6 +46,10 @@ public:
                 (const, override));
     MOCK_METHOD(void,
                 addStat,
+                (const cb::stats::StatDef& k, float v, const Labels& labels),
+                (const, override));
+    MOCK_METHOD(void,
+                addStat,
                 (const cb::stats::StatDef& k, double v, const Labels& labels),
                 (const, override));
     MOCK_METHOD(void,

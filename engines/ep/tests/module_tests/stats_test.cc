@@ -388,7 +388,7 @@ TEST_F(StatTest, CollectorMapsTypesCorrectly) {
     testTypes(int8_t(), int64_t());
 
     testTypes(double(), double());
-    testTypes(float(), double());
+    testTypes(float(), float());
 }
 
 MATCHER_P(StatDefNameMatcher,
@@ -419,6 +419,8 @@ TEST_F(StatTest, ConfigStatDefinitions) {
     EXPECT_CALL(collector, addStat(_, Matcher<double>(_), _))
             .Times(AnyNumber());
 
+    EXPECT_CALL(collector, addStat(_, Matcher<float>(_), _)).Times(AnyNumber());
+
     EXPECT_CALL(collector, addStat(_, Matcher<bool>(_), _)).Times(AnyNumber());
 
     EXPECT_CALL(collector, addStat(_, Matcher<std::string_view>(_), _))
@@ -446,7 +448,7 @@ TEST_F(StatTest, ConfigStatDefinitions) {
     auto threshold = config.getBfilterResidencyThreshold();
     EXPECT_CALL(collector,
                 addStat(StatDefNameMatcher("ep_bfilter_residency_threshold"),
-                        Matcher<double>(threshold),
+                        Matcher<float>(threshold),
                         _));
 
     // test a bool stat

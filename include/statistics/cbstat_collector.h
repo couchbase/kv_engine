@@ -55,6 +55,9 @@ public:
                  uint64_t v,
                  const Labels& labels) const override;
     void addStat(const cb::stats::StatDef& k,
+                 float v,
+                 const Labels& labels) const override;
+    void addStat(const cb::stats::StatDef& k,
                  double v,
                  const Labels& labels) const override;
     void addStat(const cb::stats::StatDef& k,

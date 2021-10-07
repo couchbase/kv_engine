@@ -64,6 +64,11 @@ void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
     forwardToParent(k, v, labels);
 }
 void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
+                                    float v,
+                                    const Labels& labels) const {
+    forwardToParent(k, v, labels);
+}
+void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
                                     double v,
                                     const Labels& labels) const {
     forwardToParent(k, v, labels);

@@ -10,8 +10,6 @@
  */
 #pragma once
 
-#include "collector_test.h"
-
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 
@@ -20,15 +18,13 @@
 
 #include <unordered_map>
 
-class PrometheusStatTest : public CollectorTest {
+/**
+ * Base fixture for tests involving stat collectors (Prometheus/CBstats).
+ */
+class CollectorTest : public ::testing::Test {
 public:
-    using StatMap = std::unordered_map<std::string, prometheus::MetricFamily>;
-
-    // Convenience holder for metrics for the high and low cardinality
-    // prometheus endpoints
-    struct EndpointMetrics {
-        StatMap high;
-        StatMap low;
-    };
-    EndpointMetrics getMetrics() const;
+    void SetUp() override {
+        Test::SetUp();
+        cb::logger::createConsoleLogger();
+    }
 };

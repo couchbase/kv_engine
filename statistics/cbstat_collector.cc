@@ -67,6 +67,14 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
 }
 
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
+                              float v,
+                              const Labels& labels) const {
+    fmt::memory_buffer buf;
+    format_to(buf, "{}", v);
+    addStat(k, {buf.data(), buf.size()}, labels);
+}
+
+void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               double v,
                               const Labels& labels) const {
     fmt::memory_buffer buf;
