@@ -1530,7 +1530,7 @@ TEST_P(KVStoreParamTestSkipRocks, purgeSeqnoAfterCompaction) {
         EXPECT_TRUE(kvstore->compactDB(lock, cctx));
     }
     EXPECT_EQ(1, cctx->stats.tombstonesPurged);
-    EXPECT_EQ(1, cctx->rollbackPurgeSeqno);
+    EXPECT_EQ(1, cctx->getRollbackPurgeSeqno());
 }
 
 static std::string kvstoreTestParams[] = {

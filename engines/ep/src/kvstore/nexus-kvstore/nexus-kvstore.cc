@@ -879,7 +879,9 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
     // Create a new context to avoid calling things like the completion callback
     // which sets in memory state after the secondary compacts
     auto secondaryCtx = std::make_shared<CompactionContext>(
-            vbid, primaryCtx->compactConfig, primaryCtx->rollbackPurgeSeqno);
+            vbid,
+            primaryCtx->compactConfig,
+            primaryCtx->getRollbackPurgeSeqno());
 
     // Don't set the NexusExpiryCB cb member to avoid forwarding expiries to
     // the engine (we will do so for the primary)

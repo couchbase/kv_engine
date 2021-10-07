@@ -141,6 +141,42 @@ enum class PurgedItemType {
     Prepare,
 };
 
+/**
+ * RollbackPurgeSeqnoCtx implements common behaviours to all KVStores that are
+ * executed when we update the rollbackPurgeSeqno. This allows us to subclass
+ * PurgedItemContext for KVStores with specific additional behaviours.
+ */
+class RollbackPurgeSeqnoCtx {
+public:
+    RollbackPurgeSeqnoCtx(uint64_t rollbackPurgeSeqno)
+        : rollbackPurgeSeqno(rollbackPurgeSeqno) {
+    }
+
+    /**
+     * Update the rollback purge seqno
+     *
+     * @param seqno The seqno of the item purged
+     */
+    void updateRollbackPurgeSeqno(uint64_t seqno) {
+        rollbackPurgeSeqno = std::max(rollbackPurgeSeqno, seqno);
+    }
+
+    uint64_t getRollbackPurgeSeqno() const {
+        return rollbackPurgeSeqno;
+    }
+
+protected:
+    /**
+     * The purgeSeqno from the VBucket/DCP perspective. This purge seqno relates
+     * to the point at which DCP consumers connecting with lower start seqnos
+     * would have to roll back to zero. The KVStore may purge seqnos higher
+     * than this but only for items that are not required to rebuild a replica.
+     * Such items currently include completed prepares and logical deletetions
+     * (items belonging to dropped collections).
+     */
+    uint64_t rollbackPurgeSeqno;
+};
+
 struct CompactionContext {
     CompactionContext(Vbid vbid,
                       CompactionConfig config,
@@ -148,8 +184,13 @@ struct CompactionContext {
                       std::optional<time_t> timeToExpireFrom = {})
         : vbid(vbid),
           compactConfig(std::move(config)),
-          rollbackPurgeSeqno(purgeSeq),
-          timeToExpireFrom(timeToExpireFrom) {
+          timeToExpireFrom(timeToExpireFrom),
+          rollbackPurgeSeqnoCtx(
+                  std::make_unique<RollbackPurgeSeqnoCtx>(purgeSeq)) {
+    }
+
+    uint64_t getRollbackPurgeSeqno() const {
+        return rollbackPurgeSeqnoCtx->getRollbackPurgeSeqno();
     }
 
     /**
@@ -162,7 +203,7 @@ struct CompactionContext {
         switch (type) {
         case PurgedItemType::Tombstone:
             // Only tombstones need to move the rollback purge seqno
-            updateRollbackPurgeSeqno(seqno);
+            rollbackPurgeSeqnoCtx->updateRollbackPurgeSeqno(seqno);
             break;
         case PurgedItemType::LogicalDelete:
         case PurgedItemType::Prepare:
@@ -170,29 +211,10 @@ struct CompactionContext {
         }
     }
 
-    /**
-     * Update the rollback purge seqno
-     *
-     * @param seqno The seqno of the item purged
-     */
-    void updateRollbackPurgeSeqno(uint64_t seqno) {
-        rollbackPurgeSeqno = std::max(rollbackPurgeSeqno, seqno);
-    }
-
     Vbid vbid;
 
     /// The configuration for this compaction.
     const CompactionConfig compactConfig;
-
-    /**
-     * The purgeSeqno from the VBucket/DCP perspective. This purge seqno relates
-     * to the point at which DCP consumers connecting with lower start seqnos
-     * would have to roll back to zero. The KVStore may purge seqnos higher
-     * than this but only for items that are not required to rebuild a replica.
-     * Such items currently include completed prepares and logical deletetions
-     * (items belonging to dropped collections).
-     */
-    uint64_t rollbackPurgeSeqno;
     BloomFilterCBPtr bloomFilterCallback;
     ExpiredItemsCBPtr expiryCallback;
     struct CompactionStats stats;
@@ -219,8 +241,14 @@ struct CompactionContext {
      * the current seqno.
      */
     std::function<void(uint64_t)> maybeUpdateVBucketPurgeSeqno;
-};
 
+    /**
+     * Overridable ctx object that tracks the rollbackPurgeSeqno. KVStores may
+     * override it to add additional behaves that they may wish to execute when
+     * updating the purge seqno.
+     */
+    std::unique_ptr<RollbackPurgeSeqnoCtx> rollbackPurgeSeqnoCtx;
+};
 
 struct kvstats_ctx {
     explicit kvstats_ctx(VB::Commit& commitData) : commitData(commitData) {

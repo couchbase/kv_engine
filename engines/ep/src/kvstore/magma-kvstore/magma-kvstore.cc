@@ -2341,7 +2341,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 " collectionsDeletedItemsPurged:{}"
                 " tombstonesPurged:{}"
                 " preparesPurged:{}",
-                ctx->rollbackPurgeSeqno,
+                ctx->getRollbackPurgeSeqno(),
                 ctx->stats.collectionsItemsPurged,
                 ctx->stats.collectionsDeletedItemsPurged,
                 ctx->stats.tombstonesPurged,

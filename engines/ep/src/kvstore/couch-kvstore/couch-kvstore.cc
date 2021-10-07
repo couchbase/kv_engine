@@ -843,7 +843,7 @@ static int time_purge_hook(Db& d,
                            CompactionContext& ctx) {
     if (info == nullptr) {
         // Compaction finished
-        return couchstore_set_purge_seq(&d, ctx.rollbackPurgeSeqno);
+        return couchstore_set_purge_seq(&d, ctx.getRollbackPurgeSeqno());
     }
 
     auto metadata = MetaDataFactory::createMetaData(info->rev_meta);
@@ -1611,7 +1611,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                                *targetDb,
                                vbLock,
                                true, // copy without lock
-                               hook_ctx->rollbackPurgeSeqno,
+                               hook_ctx->getRollbackPurgeSeqno(),
                                prepareStats,
                                vbid,
                                *hook_ctx)) {
@@ -1631,7 +1631,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                        *targetDb,
                        vbLock,
                        false, // copy with lock
-                       hook_ctx->rollbackPurgeSeqno,
+                       hook_ctx->getRollbackPurgeSeqno(),
                        prepareStats,
                        vbid,
                        *hook_ctx);
