@@ -40,3 +40,37 @@ public:
 protected:
     MagmaDbStats& dbStats;
 };
+
+/**
+ * Magma implicit compaction specific update function for the rollback purge
+ * seqno. See also MagmaRollbackPurgeSeqnoCtx and CompactionContext.
+ *
+ * Explicit compactions updated the in memory purge seqno at the end of a
+ * compaction. This purge seqno is used to turn away DcpConsumers that have
+ * fallen too far behind before we open the file to scan. Implicit compaction
+ * is driven entirely by magma though and does not have a corresponding
+ * completion callback. Instead, implicit compaction moves the in memory
+ * vBucket purge seqno whenever we move the rollbackPurgeSeqno. This class
+ * encapsulates the logic to perform the in memory update whenever we update the
+ * rollbackPurgeSeqno.
+ */
+class MagmaImplicitCompactionPurgedItemContext
+    : public MagmaRollbackPurgeSeqnoCtx {
+public:
+    MagmaImplicitCompactionPurgedItemContext(
+            uint64_t purgeSeqno,
+            MagmaDbStats& dbStats,
+            std::function<void(uint64_t)>& maybeUpdateVBucketPurgeSeqno)
+        : MagmaRollbackPurgeSeqnoCtx(purgeSeqno, dbStats),
+          maybeUpdateVBucketPurgeSeqno(maybeUpdateVBucketPurgeSeqno) {
+    }
+
+    void updateRollbackPurgeSeqno(uint64_t seqno) override {
+        MagmaRollbackPurgeSeqnoCtx::updateRollbackPurgeSeqno(seqno);
+
+        maybeUpdateVBucketPurgeSeqno(seqno);
+    }
+
+protected:
+    std::function<void(uint64_t)>& maybeUpdateVBucketPurgeSeqno;
+};

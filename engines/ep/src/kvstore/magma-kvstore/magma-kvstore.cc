@@ -299,7 +299,11 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         }
         cbCtx.ctx = makeImplicitCompactionContext(vbid);
         cbCtx.implicitCompaction = true;
-        cbCtx.setCtxPurgedItemCtx();
+        cbCtx.ctx->purgedItemCtx->rollbackPurgeSeqnoCtx =
+                std::make_unique<MagmaImplicitCompactionPurgedItemContext>(
+                        cbCtx.ctx->getRollbackPurgeSeqno(),
+                        cbCtx.magmaDbStats,
+                        cbCtx.ctx->maybeUpdateVBucketPurgeSeqno);
     }
     return compactionCore(
             cbCtx, keySlice, metaSlice, valueSlice, userSanitizedItemStr);
@@ -318,13 +322,6 @@ bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
     auto seqno = magmakv::getSeqNum(metaSlice);
     auto exptime = magmakv::getExpiryTime(metaSlice);
 
-    // function to update the purge seqno when we're dropping a document if this
-    // method is being called for implicit compaction
-    auto maybeUpdatePurgeSeqno = [&cbCtx, &seqno]() -> void {
-        if (cbCtx.implicitCompaction) {
-            cbCtx.ctx->maybeUpdateVBucketPurgeSeqno(seqno);
-        }
-    };
     auto vbid = cbCtx.vbid;
     if (cbCtx.ctx->droppedKeyCb) {
         // We need to check both committed and prepared documents - if the
@@ -407,7 +404,6 @@ bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
 
             if (drop) {
                 cbCtx.ctx->stats.tombstonesPurged++;
-                maybeUpdatePurgeSeqno();
                 cbCtx.ctx->purgedItemCtx->purgedItem(PurgedItemType::Tombstone,
                                                      seqno);
                 return true;
