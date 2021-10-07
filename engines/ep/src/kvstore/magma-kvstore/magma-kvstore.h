@@ -648,6 +648,11 @@ protected:
                           Vbid vbid,
                           std::shared_ptr<CompactionContext> ctx = nullptr);
 
+        /**
+         * Set the PurgedItemCtx to the magma type
+         */
+        void setCtxPurgedItemCtx();
+
         ~MagmaCompactionCB() override;
         bool operator()(const magma::Slice& keySlice,
                         const magma::Slice& metaSlice,

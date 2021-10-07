@@ -152,12 +152,14 @@ public:
         : rollbackPurgeSeqno(rollbackPurgeSeqno) {
     }
 
+    virtual ~RollbackPurgeSeqnoCtx() = default;
+
     /**
      * Update the rollback purge seqno
      *
      * @param seqno The seqno of the item purged
      */
-    void updateRollbackPurgeSeqno(uint64_t seqno) {
+    virtual void updateRollbackPurgeSeqno(uint64_t seqno) {
         rollbackPurgeSeqno = std::max(rollbackPurgeSeqno, seqno);
     }
 
@@ -189,6 +191,9 @@ public:
         : rollbackPurgeSeqnoCtx(
                   std::make_unique<RollbackPurgeSeqnoCtx>(purgeSeq)) {
     }
+
+    virtual ~PurgedItemCtx() = default;
+
     /**
      * Process a purged item
      *

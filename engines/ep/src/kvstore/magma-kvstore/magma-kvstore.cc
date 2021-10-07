@@ -22,6 +22,7 @@
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "magma-kvstore_config.h"
 #include "magma-kvstore_iorequest.h"
+#include "magma-kvstore_rollback_purge_seqno_ctx.h"
 #include "magma-memory-tracking-proxy.h"
 #include "objectregistry.h"
 #include "vb_commit.h"
@@ -200,10 +201,19 @@ MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
         std::shared_ptr<CompactionContext> ctx)
     : magmaKVStore(magmaKVStore), vbid(vbid), ctx(std::move(ctx)) {
     magmaKVStore.logger->TRACE("MagmaCompactionCB constructor");
+    setCtxPurgedItemCtx();
 }
 
 MagmaKVStore::MagmaCompactionCB::~MagmaCompactionCB() {
     magmaKVStore.logger->debug("MagmaCompactionCB destructor");
+}
+
+void MagmaKVStore::MagmaCompactionCB::setCtxPurgedItemCtx() {
+    if (ctx) {
+        ctx->purgedItemCtx->rollbackPurgeSeqnoCtx =
+                std::make_unique<MagmaRollbackPurgeSeqnoCtx>(
+                        ctx->getRollbackPurgeSeqno(), magmaDbStats);
+    }
 }
 
 bool MagmaKVStore::MagmaCompactionCB::operator()(
@@ -289,6 +299,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         }
         cbCtx.ctx = makeImplicitCompactionContext(vbid);
         cbCtx.implicitCompaction = true;
+        cbCtx.setCtxPurgedItemCtx();
     }
     return compactionCore(
             cbCtx, keySlice, metaSlice, valueSlice, userSanitizedItemStr);
@@ -396,10 +407,6 @@ bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
 
             if (drop) {
                 cbCtx.ctx->stats.tombstonesPurged++;
-                auto& dbStats = cbCtx.magmaDbStats;
-                if (dbStats.purgeSeqno < seqno) {
-                    dbStats.purgeSeqno = seqno;
-                }
                 maybeUpdatePurgeSeqno();
                 cbCtx.ctx->purgedItemCtx->purgedItem(PurgedItemType::Tombstone,
                                                      seqno);
