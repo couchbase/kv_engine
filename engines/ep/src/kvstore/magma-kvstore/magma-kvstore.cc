@@ -262,6 +262,15 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         logger->TRACE("MagmaCompactionCB: {} {}", vbid, userSanitizedItemStr);
     }
 
+    if (cbCtx.magmaKVStore.configuration.isSanityCheckingVBucketMapping()) {
+        validateKeyMapping("MagmaKVStore::compactionCallback",
+                           cbCtx.magmaKVStore.configuration
+                                   .getVBucketMappingErrorHandlingMethod(),
+                           makeDiskDocKey(keySlice).getDocKey(),
+                           vbid,
+                           configuration.getMaxVBuckets());
+    }
+
     if (!cbCtx.ctx) {
         // Don't already have a compaction context (i.e. this is the first
         // key for an implicit compaction) - attempt to create one.
@@ -1621,6 +1630,15 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
 
         auto diskKey = makeDiskDocKey(keySlice);
 
+        if (configuration.isSanityCheckingVBucketMapping()) {
+            validateKeyMapping(
+                    "MagmaKVStore::scan",
+                    configuration.getVBucketMappingErrorHandlingMethod(),
+                    diskKey.getDocKey(),
+                    ctx.vbid,
+                    configuration.getMaxVBuckets());
+        }
+
         if (magmakv::isDeleted(metaSlice) &&
             ctx.docFilter == DocumentFilter::NO_DELETES) {
             if (logger->should_log(spdlog::level::TRACE)) {
@@ -2393,6 +2411,16 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
                                               const uint64_t seqno,
                                               const Slice& metaSlice) {
                 auto diskKey = makeDiskDocKey(keySlice);
+
+                if (configuration.isSanityCheckingVBucketMapping()) {
+                    validateKeyMapping(
+                            "MagmaKVStore::rollback",
+                            configuration
+                                    .getVBucketMappingErrorHandlingMethod(),
+                            diskKey.getDocKey(),
+                            vbid,
+                            configuration.getMaxVBuckets());
+                }
 
                 if (logger->should_log(spdlog::level::TRACE)) {
                     logger->TRACE(
