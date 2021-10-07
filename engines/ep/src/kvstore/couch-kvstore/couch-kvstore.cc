@@ -837,13 +837,13 @@ static int notify_expired_item(DocInfo& info,
     return COUCHSTORE_SUCCESS;
 }
 
-static int time_purge_hook(Db* d,
+static int time_purge_hook(Db& d,
                            DocInfo* info,
                            sized_buf item,
-                           CompactionContext* ctx) {
+                           CompactionContext& ctx) {
     if (info == nullptr) {
         // Compaction finished
-        return couchstore_set_purge_seq(d, ctx->rollbackPurgeSeqno);
+        return couchstore_set_purge_seq(&d, ctx.rollbackPurgeSeqno);
     }
 
     auto metadata = MetaDataFactory::createMetaData(info->rev_meta);
@@ -858,50 +858,50 @@ static int time_purge_hook(Db* d,
     const auto& docKey = diskKey.getDocKey();
 
     // Define a helper function for updating the collection sizes
-    auto maybeAccountForPurgedCollectionData = [ctx, docKey, info] {
+    auto maybeAccountForPurgedCollectionData = [&ctx, docKey, info] {
         if (!docKey.isInSystemCollection()) {
-            auto itr = ctx->stats.collectionSizeUpdates.emplace(
+            auto itr = ctx.stats.collectionSizeUpdates.emplace(
                     docKey.getCollectionID(), 0);
             itr.first->second += info->getTotalSize();
         }
     };
 
-    if (ctx->eraserContext->isLogicallyDeleted(docKey, int64_t(info->db_seq))) {
+    if (ctx.eraserContext->isLogicallyDeleted(docKey, int64_t(info->db_seq))) {
         // Inform vb that the key@seqno is dropped
         try {
-            ctx->droppedKeyCb(diskKey,
-                              int64_t(info->db_seq),
-                              metadata->isAbort(),
-                              ctx->highCompletedSeqno);
+            ctx.droppedKeyCb(diskKey,
+                             int64_t(info->db_seq),
+                             metadata->isAbort(),
+                             ctx.highCompletedSeqno);
         } catch (const std::exception& e) {
             EP_LOG_WARN("time_purge_hook: droppedKeyCb exception: {}",
                         e.what());
             return COUCHSTORE_ERROR_INVALID_ARGUMENTS;
         }
         if (metadata->isPrepare()) {
-            ctx->stats.preparesPurged++;
-            ctx->stats.prepareBytesPurged += info->getTotalSize();
+            ctx.stats.preparesPurged++;
+            ctx.stats.prepareBytesPurged += info->getTotalSize();
 
             // Track nothing for the individual collection as the stats doc has
             // already been deleted.
         } else {
             if (!info->deleted) {
-                ctx->stats.collectionsItemsPurged++;
+                ctx.stats.collectionsItemsPurged++;
             } else {
-                ctx->stats.collectionsDeletedItemsPurged++;
+                ctx.stats.collectionsDeletedItemsPurged++;
             }
         }
         // No need to make 'disk-size' changes here as the collection has gone.
         return COUCHSTORE_COMPACT_DROP_ITEM;
     } else if (docKey.isInSystemCollection()) {
-        ctx->eraserContext->processSystemEvent(
+        ctx.eraserContext->processSystemEvent(
                 docKey, SystemEvent(metadata->getFlags()));
     }
 
     if (info->deleted) {
-        const auto infoDb = cb::couchstore::getHeader(*d);
+        const auto infoDb = cb::couchstore::getHeader(d);
         if (info->db_seq != infoDb.updateSeqNum) {
-            bool purgeItem = ctx->compactConfig.drop_deletes;
+            bool purgeItem = ctx.compactConfig.drop_deletes;
 
             /**
              * MB-30015: Found a tombstone whose expiry time is 0. Log this
@@ -914,20 +914,20 @@ static int time_purge_hook(Db* d,
                         " expiry time of 0");
             }
 
-            if (exptime < ctx->compactConfig.purge_before_ts &&
-                (exptime || !ctx->compactConfig.retain_erroneous_tombstones) &&
-                (!ctx->compactConfig.purge_before_seq ||
-                 info->db_seq <= ctx->compactConfig.purge_before_seq)) {
+            if (exptime < ctx.compactConfig.purge_before_ts &&
+                (exptime || !ctx.compactConfig.retain_erroneous_tombstones) &&
+                (!ctx.compactConfig.purge_before_seq ||
+                 info->db_seq <= ctx.compactConfig.purge_before_seq)) {
                 purgeItem = true;
             }
 
             if (purgeItem) {
                 // Maybe update purge seqno
-                if (ctx->rollbackPurgeSeqno < info->db_seq) {
-                    ctx->rollbackPurgeSeqno = info->db_seq;
+                if (ctx.rollbackPurgeSeqno < info->db_seq) {
+                    ctx.rollbackPurgeSeqno = info->db_seq;
                 }
                 // Update stats and return
-                ctx->stats.tombstonesPurged++;
+                ctx.stats.tombstonesPurged++;
                 maybeAccountForPurgedCollectionData();
                 return COUCHSTORE_COMPACT_DROP_ITEM;
             }
@@ -938,9 +938,9 @@ static int time_purge_hook(Db* d,
         // Disk so we do not need to send a Prepare message to keep things
         // consistent on a replica.
         if (metadata->isPrepare()) {
-            if (info->db_seq <= ctx->highCompletedSeqno) {
-                ctx->stats.preparesPurged++;
-                ctx->stats.prepareBytesPurged += info->getTotalSize();
+            if (info->db_seq <= ctx.highCompletedSeqno) {
+                ctx.stats.preparesPurged++;
+                ctx.stats.prepareBytesPurged += info->getTotalSize();
 
                 // Decrement individual collection disk sizes as we track
                 // prepares in the value. We don't do this at collection drop
@@ -958,8 +958,8 @@ static int time_purge_hook(Db* d,
         }
 
         time_t timeToExpireFrom;
-        if (ctx->timeToExpireFrom) {
-            timeToExpireFrom = ctx->timeToExpireFrom.value();
+        if (ctx.timeToExpireFrom) {
+            timeToExpireFrom = ctx.timeToExpireFrom.value();
         } else {
             timeToExpireFrom = ep_real_time();
         }
@@ -969,7 +969,7 @@ static int time_purge_hook(Db* d,
             metadata->setDeleteSource(DeleteSource::TTL);
             try {
                 ret = notify_expired_item(
-                        *info, *metadata, item, *ctx, timeToExpireFrom);
+                        *info, *metadata, item, ctx, timeToExpireFrom);
             } catch (const std::bad_alloc&) {
                 EP_LOG_WARN_RAW("time_purge_hook: memory allocation failed");
                 return COUCHSTORE_ERROR_ALLOC_FAIL;
@@ -984,19 +984,19 @@ static int time_purge_hook(Db* d,
         }
     }
 
-    if (ctx->bloomFilterCallback) {
+    if (ctx.bloomFilterCallback) {
         bool deleted = info->deleted;
         auto key = makeDiskDocKey(info->id);
 
         try {
-            ctx->bloomFilterCallback->callback(
-                    ctx->vbid, key.getDocKey(), deleted);
+            ctx.bloomFilterCallback->callback(
+                    ctx.vbid, key.getDocKey(), deleted);
         } catch (std::runtime_error& re) {
             EP_LOG_WARN(
                     "time_purge_hook: exception occurred when invoking the "
                     "bloomfilter callback on {}"
                     " - Details: {}",
-                    ctx->vbid,
+                    ctx.vbid,
                     re.what());
         }
     }
@@ -1418,7 +1418,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                 compact_file.c_str(),
                 flags,
                 [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
-                    return time_purge_hook(&db, docInfo, value, hook_ctx);
+                    return time_purge_hook(db, docInfo, value, *hook_ctx);
                 },
                 {},
                 def_iops,
@@ -1510,7 +1510,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                 compact_file.c_str(),
                 flags,
                 [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
-                    return time_purge_hook(&db, docInfo, value, hook_ctx);
+                    return time_purge_hook(db, docInfo, value, *hook_ctx);
                 },
                 {},
                 def_iops,
