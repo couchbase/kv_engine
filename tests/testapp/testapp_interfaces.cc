@@ -328,6 +328,29 @@ TEST_P(InterfacesTest, TlsPropertiesEncryptedCert) {
     EXPECT_EQ("set", json["password"]) << json.dump(2);
 }
 
+TEST_P(InterfacesTest, TlsPropertiesEncryptedCertInvalidPassphrase) {
+    nlohmann::json tls_properties = {
+            {"private key", SOURCE_ROOT "/tests/cert/encrypted-testapp.pem"},
+            {"certificate chain", SOURCE_ROOT "/tests/cert/testapp.cert"},
+            {"minimum version", "TLS 1"},
+            {"cipher list",
+             {{"TLS 1.2", "HIGH"},
+              {"TLS 1.3",
+               "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_"
+               "AES_"
+               "128_GCM_SHA256:TLS_AES_128_CCM_8_SHA256:TLS_AES_128_CCM_"
+               "SHA256"}}},
+            {"cipher order", true},
+            {"client cert auth", "disabled"},
+            {"password",
+             cb::base64::encode("This is the wrong passphrase", false)}};
+
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Ifconfig, "tls", tls_properties.dump()});
+    ASSERT_FALSE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+                                  << rsp.getDataString();
+}
+
 /// ns_server revoked the commitment to implement MB-46863 for 7.1,
 /// but wanted to keep the interfaces in memcached.json for now.
 /// To work around their limitations we added back backwards compatibility.
