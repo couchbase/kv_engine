@@ -537,6 +537,10 @@ CheckpointManager::removeClosedUnrefCheckpoints() {
     // the provided disposer may queue checkpoints for destruction in a
     // background task, or may do nothing - in that case toRelease will be
     // destroyed when it goes out of scope.
+    //
+    // Note: The current behaviour in production is that checkpoints are queued
+    // for destruction into the DestroyerTask. The in-place deallocation happens
+    // only in some test code currently.
     checkpointDisposer(std::move(toRelease), vb.getId());
 
     return released;

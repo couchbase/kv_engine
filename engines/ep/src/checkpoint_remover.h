@@ -97,6 +97,16 @@ public:
      */
     size_t attemptItemExpelling(size_t memToClear);
 
+    /**
+     * Attempts to make checkpoints eligible for removal by dropping cursors
+     * from all vbuckets in decreasing checkpoint-mem-usage order.
+     *
+     * @param memToClear The amount of memory (in bytes) that needs to be
+     *   recovered.
+     * @return the amount of memory (in bytes) that was recovered.
+     */
+    size_t attemptCursorDropping(size_t memToClear);
+
     bool run() override;
 
     std::string getDescription() const override {
@@ -113,7 +123,6 @@ private:
     EventuallyPersistentEngine *engine;
     EPStats                   &stats;
     size_t                     sleepTime;
-    std::atomic<bool>          available;
     /*
      * Whether the task is required to scan all vbuckets to locate unreferenced
      * checkpoints to remove.

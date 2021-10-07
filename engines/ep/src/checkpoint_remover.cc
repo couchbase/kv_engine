@@ -10,16 +10,17 @@
  */
 
 #include "checkpoint_remover.h"
+
 #include "bucket_logger.h"
 #include "checkpoint_config.h"
 #include "checkpoint_manager.h"
-#include "checkpoint_visitor.h"
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include <executor/executorpool.h>
 
+#include <folly/ScopeGuard.h>
 #include <phosphor/phosphor.h>
 #include <limits>
 #include <memory>
@@ -74,7 +75,6 @@ ClosedUnrefCheckpointRemoverTask::ClosedUnrefCheckpointRemoverTask(
       engine(e),
       stats(st),
       sleepTime(interval),
-      available(true),
       shouldScanForUnreferencedCheckpoints(
               !e->getCheckpointConfig().isEagerCheckpointRemoval()) {
 }
@@ -129,26 +129,69 @@ size_t ClosedUnrefCheckpointRemoverTask::attemptItemExpelling(
     return memoryCleared;
 }
 
+size_t ClosedUnrefCheckpointRemoverTask::attemptCursorDropping(
+        size_t memToClear) {
+    size_t memReleased = 0;
+    auto& kvBucket = *engine->getKVBucket();
+    const auto vbuckets = kvBucket.getVBuckets().getVBucketsSortedByChkMgrMem();
+    for (const auto& it : vbuckets) {
+        const auto vbid = it.first;
+        VBucketPtr vb = kvBucket.getVBucket(vbid);
+        if (!vb) {
+            continue;
+        }
+
+        // Get a list of cursors that can be dropped from the vbucket's CM and
+        // do CursorDrop/CheckpointRemoval until the released target is hit.
+        auto& manager = *vb->checkpointManager;
+        const auto cursors = manager.getListOfCursorsToDrop();
+        for (const auto& cursor : cursors) {
+            if (!kvBucket.getEPEngine().getDcpConnMap().handleSlowStream(
+                        vb->getId(), cursor.lock().get())) {
+                continue;
+            }
+            ++stats.cursorsDropped;
+
+            // Note: The call remove checkpoints from the CheckpointList and
+            // moves them to the Destroyer for deallocation. Thus, here
+            // 'memReleased' is an estimation of what is being released, not
+            // what has been already released.
+            const auto res = manager.removeClosedUnrefCheckpoints();
+            memReleased += res.memory;
+            EP_LOG_DEBUG(
+                    "{} Dropping cursor made {} bytes eligible for "
+                    "deallocation",
+                    vb->getId(),
+                    res.memory);
+            if (memReleased >= memToClear) {
+                // We hit our release target, all done.
+                break;
+            }
+        }
+    }
+    return memReleased;
+}
+
 bool ClosedUnrefCheckpointRemoverTask::run() {
     TRACE_EVENT0("ep-engine/task", "ClosedUnrefCheckpointRemoverTask");
 
-    bool inverse = true;
-    if (!available.compare_exchange_strong(inverse, false)) {
-        // a CheckpointVisitor is still running, exit now to avoid constructing
-        // another.
+    auto& bucket = *engine->getKVBucket();
+    const auto wasAboveBackfillThreshold =
+            bucket.isMemUsageAboveBackfillThreshold();
+
+    const auto onReturn = folly::makeGuard([&]() {
+        // Wake up any sleeping backfill tasks if the memory usage is lowered
+        // below the backfill threshold by checkpoint memory recovery.
+        if (wasAboveBackfillThreshold &&
+            !bucket.isMemUsageAboveBackfillThreshold()) {
+            engine->getDcpConnMap().notifyBackfillManagerTasks();
+        }
+
         snooze(sleepTime);
-        return true;
-    }
-    // available has now been set to false, past this point CheckpointVisitor
-    // should be constructed (which will clear available) or available manually
-    // reset to true.
+    });
 
-    auto* kvBucket = engine->getKVBucket();
-    const auto memToClear = kvBucket->getRequiredCheckpointMemoryReduction();
-
+    const auto memToClear = bucket.getRequiredCheckpointMemoryReduction();
     if (memToClear == 0) {
-        available = true;
-        snooze(sleepTime);
         return true;
     }
 
@@ -157,8 +200,13 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
     // Try full CheckpointRemoval first, across all vbuckets
     if (shouldScanForUnreferencedCheckpoints) {
         memRecovered += attemptCheckpointRemoval(memToClear);
-    } else {
+        if (memRecovered >= memToClear) {
+            // Recovered enough by CheckpointRemoval, done
+            return true;
+        }
+    }
 #if CB_DEVELOPMENT_ASSERTS
+    else {
         // if eager checkpoint removal has been configured, calling
         // attemptCheckpointRemoval here should never, ever, find any
         // checkpoints to remove; they should always be removed as soon
@@ -166,46 +214,25 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
         // This is not cheap to verify, as it requires scanning every
         // vbucket, so is only checked if dev asserts are on.
         Expects(attemptCheckpointRemoval(memToClear) == 0);
+    }
 #endif
-    }
-    if (memRecovered >= memToClear) {
-        // Recovered enough by CheckpointRemoval, done
-        available = true;
-        snooze(sleepTime);
-        return true;
-    }
 
     // Try expelling, if enabled.
     // Note: The next call tries to expel from all vbuckets before returning.
     // The reason behind trying expel here is to avoid dropping cursors if
     // possible, as that kicks the stream back to backfilling.
     if (engine->getConfiguration().isChkExpelEnabled()) {
-        memRecovered += attemptItemExpelling(memToClear);
-    }
-
-    if (memRecovered >= memToClear) {
-        // Recovered enough by ItemExpel, done
-        available = true;
-        snooze(sleepTime);
-        return true;
+        memRecovered += attemptItemExpelling(memToClear - memRecovered);
+        if (memRecovered >= memToClear) {
+            // Recovered enough by ItemExpel, done
+            return true;
+        }
     }
 
     // More memory to recover, try CursorDrop + CheckpointRemoval
-    const auto leftToClear = memToClear - memRecovered;
-    auto visitor = std::make_unique<CheckpointVisitor>(
-            kvBucket, stats, available, leftToClear);
+    // Note: Checkpoints made eligible for removal are queued into the Destroyer
+    // task for deallocation
+    attemptCursorDropping(memToClear - memRecovered);
 
-    // Note: Empirical evidence from perf runs shows that 99.9% of "Checkpoint
-    // Remover" task should complete under 50ms.
-    //
-    // @todo: With changes for MB-48038 we are doing more work in the
-    //  CheckpointVisitor, so the expected duration will probably need to be
-    //  adjusted.
-    kvBucket->visitAsync(std::move(visitor),
-                         "Checkpoint Remover",
-                         TaskId::ClosedUnrefCheckpointRemoverVisitorTask,
-                         std::chrono::milliseconds(50) /*maxExpectedDuration*/);
-
-    snooze(sleepTime);
     return true;
 }
