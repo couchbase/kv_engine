@@ -143,11 +143,11 @@ enum class PurgedItemType {
 
 struct CompactionContext {
     CompactionContext(Vbid vbid,
-                      const CompactionConfig& config,
+                      CompactionConfig config,
                       uint64_t purgeSeq,
                       std::optional<time_t> timeToExpireFrom = {})
         : vbid(vbid),
-          compactConfig(config),
+          compactConfig(std::move(config)),
           rollbackPurgeSeqno(purgeSeq),
           timeToExpireFrom(timeToExpireFrom) {
     }
