@@ -1402,6 +1402,118 @@ TEST_F(SingleThreadedCheckpointTest,
     EXPECT_EQ(1, manager.getNumOpenChkItems());
 }
 
+std::shared_ptr<CheckpointCursor>
+SingleThreadedCheckpointTest::testCursorDistance_Register() {
+    setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = *vb->checkpointManager;
+
+    // e:0 cs:0 vbs:1
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(0, manager.getNumOpenChkItems());
+    EXPECT_EQ(0, manager.getHighSeqno());
+
+    auto cursor = manager.registerCursorBySeqno(
+                                 "cursor", 0, CheckpointCursor::Droppable::Yes)
+                          .cursor.lock();
+    EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
+    EXPECT_EQ(0, cursor->getDistance());
+
+    // e:0 cs:0 vbs:1 m:1 m:2
+    const std::string value("value");
+    store_item(vbid, makeStoredDocKey("key1"), value);
+    store_item(vbid, makeStoredDocKey("key2"), value);
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(2, manager.getNumOpenChkItems());
+    EXPECT_EQ(2, manager.getHighSeqno());
+
+    cursor = manager.registerCursorBySeqno(
+                            "cursor", 1, CheckpointCursor::Droppable::Yes)
+                     .cursor.lock();
+    EXPECT_EQ(queue_op::mutation, (*cursor->getPos())->getOperation());
+    EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(3, cursor->getDistance());
+
+    cursor = manager.registerCursorBySeqno(
+                            "cursor", 2, CheckpointCursor::Droppable::Yes)
+                     .cursor.lock();
+    EXPECT_EQ(queue_op::mutation, (*cursor->getPos())->getOperation());
+    EXPECT_EQ(2, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(4, cursor->getDistance());
+
+    return cursor;
+}
+
+TEST_F(SingleThreadedCheckpointTest, CursorDistance_Register) {
+    testCursorDistance_Register();
+}
+
+TEST_F(SingleThreadedCheckpointTest, CursorDistance_MoveToNewCheckpoint) {
+    auto cursor = testCursorDistance_Register();
+
+    // State here:
+    // [e:0 cs:0 vbs:1 m:1 m:2)
+    //                     ^
+
+    auto& manager = *store->getVBuckets().getBucket(vbid)->checkpointManager;
+    manager.createNewCheckpoint(true);
+    std::vector<queued_item> out;
+    manager.getItemsForCursor(
+            cursor.get(), out, std::numeric_limits<size_t>::max());
+
+    // [e:0 cs:0 vbs:1 m:1 m:2] [e:3 cs:3)
+    //                               ^
+    ASSERT_EQ(2, manager.getNumCheckpoints());
+    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(2, manager.getHighSeqno());
+    ASSERT_EQ(queue_op::checkpoint_start, (*cursor->getPos())->getOperation());
+    ASSERT_EQ(3, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(1, cursor->getDistance());
+}
+
+TEST_F(SingleThreadedCheckpointTest, CursorDistance_Deduplication) {
+    auto cursor = testCursorDistance_Register();
+
+    // State here:
+    // [e:0 cs:0 vbs:1 m:1 m:2)
+    //                     ^
+
+    // Dedup some item before the one pointed by cursor
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+
+    // [e:0 cs:0 vbs:1 x m:2 m:3)
+    //                   ^
+    const auto& manager =
+            *store->getVBuckets().getBucket(vbid)->checkpointManager;
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumOpenChkItems());
+    ASSERT_EQ(3, manager.getHighSeqno());
+    ASSERT_EQ(queue_op::mutation, (*cursor->getPos())->getOperation());
+    ASSERT_EQ(2, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(3, cursor->getDistance());
+}
+
+TEST_F(SingleThreadedCheckpointTest, CursorDistance_Expel) {
+    auto cursor = testCursorDistance_Register();
+
+    // State here:
+    // [e:0 cs:0 vbs:1 m:1 m:2)
+    //                     ^
+    ASSERT_EQ(4, cursor->getDistance());
+
+    // Expel
+    // [e:0 cs:0 x x m:2)
+    //               ^
+    ASSERT_EQ(2, flushAndExpelFromCheckpoints(vbid));
+
+    const auto& manager =
+            *store->getVBuckets().getBucket(vbid)->checkpointManager;
+    ASSERT_EQ(2, manager.getHighSeqno());
+    ASSERT_EQ(queue_op::mutation, (*cursor->getPos())->getOperation());
+    ASSERT_EQ(2, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(2, cursor->getDistance());
+}
+
 // Test that when the same client registers twice, the first cursor 'dies'
 TEST_P(CheckpointTest, reRegister) {
     auto dcpCursor1 = manager->registerCursorBySeqno(

@@ -106,6 +106,14 @@ class SingleThreadedCheckpointTest : public SingleThreadedKVBucketTest {
 public:
     void closeReplicaCheckpointOnMemorySnapshotEnd(bool highMem,
                                                    uint32_t snapshotType);
+
+    /**
+     * Tests that the cursor distance is computed correctly when the cursor is
+     * registered
+     *
+     * @return the new cursor
+     */
+    std::shared_ptr<CheckpointCursor> testCursorDistance_Register();
 };
 
 /**

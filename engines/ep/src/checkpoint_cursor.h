@@ -42,10 +42,18 @@ class CheckpointCursor {
 public:
     enum class Droppable : uint8_t { No, Yes };
 
+    /**
+     * @param name String representation of the cursor
+     * @param checkpoint Iterator to the checkpoint where the cursor is placed
+     * @param pos Item position within the checkpoint
+     * @param droppable Whether checkpoint memory recovery can drop this cursor
+     * @param distance Distance from checkpoint begin
+     */
     CheckpointCursor(std::string n,
                      CheckpointList::iterator checkpoint,
                      ChkptQueueIterator pos,
-                     Droppable droppable);
+                     Droppable droppable,
+                     size_t distance);
 
     // The implicitly generated copy-ctor would miss to increment the
     // checkpoint-cursor count, so we make sure that nobody can accidentally
@@ -85,6 +93,22 @@ public:
         return droppable == Droppable::Yes;
     }
 
+    void setDistance(size_t val) {
+        distance = val;
+    }
+
+    void decrDistance() {
+        --distance;
+    }
+
+    size_t getDistance() const {
+        return distance;
+    }
+
+    ChkptQueueIterator getPos() const {
+        return currentPos;
+    }
+
 private:
     /**
      * Move the cursor's iterator back one if it is not currently pointing to
@@ -121,6 +145,9 @@ private:
 
     /// Indicates whether checkpoint memory recovery can drop this cursor
     const Droppable droppable;
+
+    // Distance from the begin of the current checkpoint
+    cb::NonNegativeCounter<size_t> distance{0};
 
     friend bool operator<(const CheckpointCursor& a, const CheckpointCursor& b);
     friend std::ostream& operator<<(std::ostream& os,

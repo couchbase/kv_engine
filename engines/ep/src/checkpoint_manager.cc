@@ -288,16 +288,16 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
     result.seqno = std::numeric_limits<uint64_t>::max();
     result.tryBackfill = false;
 
-    auto itr = checkpointList.begin();
-    for (; itr != checkpointList.end(); ++itr) {
-        uint64_t en = (*itr)->getHighSeqno();
-        uint64_t st = (*itr)->getMinimumCursorSeqno();
+    auto ckptIt = checkpointList.begin();
+    for (; ckptIt != checkpointList.end(); ++ckptIt) {
+        uint64_t en = (*ckptIt)->getHighSeqno();
+        uint64_t st = (*ckptIt)->getMinimumCursorSeqno();
 
         if (startBySeqno < st) {
             // Requested sequence number is before the start of this
-            // checkpoint, position cursor at the checkpoint start.
+            // checkpoint, position cursor at the checkpoint begin.
             auto cursor = std::make_shared<CheckpointCursor>(
-                    name, itr, (*itr)->begin(), droppable);
+                    name, ckptIt, (*ckptIt)->begin(), droppable, 0);
             cursors[name] = cursor;
             result.seqno = st;
             result.cursor.setCursor(cursor);
@@ -307,29 +307,36 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
             // MB-47551 Skip this checkpoint if it is closed and the requested
             // start is the high seqno. The cursor should go to an open
             // checkpoint ready for new mutations.
-            if ((*itr)->getState() == CHECKPOINT_CLOSED &&
+            if ((*ckptIt)->getState() == CHECKPOINT_CLOSED &&
                 startBySeqno == uint64_t(lastBySeqno.load())) {
                 continue;
             }
 
             // Requested sequence number lies within this checkpoint.
-            // Calculate which item to position the cursor at.
-            ChkptQueueIterator iitr = (*itr)->begin();
-            while (++iitr != (*itr)->end() &&
-                    (startBySeqno >=
-                     static_cast<uint64_t>((*iitr)->getBySeqno()))) {
+            // Calculate which item to position the cursor at and the distance
+            // from checkpoint begin.
+            ChkptQueueIterator pos = (*ckptIt)->begin();
+            size_t distance = 0;
+            while (++pos != (*ckptIt)->end() &&
+                   (startBySeqno >=
+                    static_cast<uint64_t>((*pos)->getBySeqno()))) {
+                ++distance;
             }
 
-            if (iitr == (*itr)->end()) {
-                --iitr;
-                result.seqno = static_cast<uint64_t>((*iitr)->getBySeqno()) + 1;
+            // Note: There is an early-increment on 'pos' in the while-loop
+            // above, so the final position is std::prev(pos). While 'distance'
+            // is already consistent with std::prev(pos).
+
+            if (pos == (*ckptIt)->end()) {
+                --pos;
+                result.seqno = static_cast<uint64_t>((*pos)->getBySeqno()) + 1;
             } else {
-                result.seqno = static_cast<uint64_t>((*iitr)->getBySeqno());
-                --iitr;
+                result.seqno = static_cast<uint64_t>((*pos)->getBySeqno());
+                --pos;
             }
 
             auto cursor = std::make_shared<CheckpointCursor>(
-                    name, itr, iitr, droppable);
+                    name, ckptIt, pos, droppable, distance);
             cursors[name] = cursor;
             result.cursor.setCursor(cursor);
             break;
@@ -1055,13 +1062,20 @@ bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
         return false;
     }
 
-    if (++(cursor.currentPos) != (*(cursor.currentCheckpoint))->end()) {
+    // Move forward
+    cursor.incrPos();
+
+    if (cursor.currentPos != (*cursor.currentCheckpoint)->end()) {
         return true;
     }
+
     if (!moveCursorToNextCheckpoint(cursor)) {
-        --(cursor.currentPos);
+        // There is no further checkpoint to move the cursor to, reset it to the
+        // original position
+        cursor.decrPos();
         return false;
     }
+
     return incrCursor(cursor);
 }
 
@@ -1133,32 +1147,31 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
         return false;
     }
 
-    auto& it = cursor.currentCheckpoint;
-    if ((*it)->getState() == CHECKPOINT_OPEN) {
+    const auto prev = cursor.currentCheckpoint;
+    if ((*prev)->getState() == CHECKPOINT_OPEN) {
         return false;
-    } else if ((*it)->getState() == CHECKPOINT_CLOSED) {
-        if (std::next(it) == checkpointList.end()) {
-            return false;
-        }
     }
 
-    auto* prevCheckpoint = it->get();
+    Expects((*prev)->getState() == CHECKPOINT_CLOSED);
+    const auto next = std::next(prev);
+    // There must be at least an open checkpoint
+    Expects(next != checkpointList.end());
 
-    // Remove cursor from its current checkpoint.
-    (*it)->decNumOfCursorsInCheckpoint();
+    // Adjust counters for current/next checkpoint
+    (*prev)->decNumOfCursorsInCheckpoint();
+    (*next)->incNumOfCursorsInCheckpoint();
 
-    // Move the cursor to the next checkpoint.
-    ++it;
-    cursor.currentPos = (*it)->begin();
-    // Add cursor to its new current checkpoint.
-    (*it)->incNumOfCursorsInCheckpoint();
+    // Move the cursor to the next checkpoint
+    cursor.currentCheckpoint = next;
+    cursor.currentPos = (*next)->begin();
+    cursor.setDistance(0);
 
     Expects((*cursor.currentPos)->getOperation() == queue_op::empty);
 
     // by advancing the cursor, the previous checkpoint became unreferenced,
     // and may be removable now.
     // only act if the unreffed checkpoint is the oldest closed checkpoint.
-    maybeScheduleDestruction(*prevCheckpoint);
+    maybeScheduleDestruction(**prev);
 
     return true;
 }
@@ -1912,6 +1925,20 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
 
     auto expelledItems = oldestCheckpoint->expelItems(iterator);
 
+    // Re-compute the distance for all cursors that reside in the touched
+    // checkpoint
+    const auto numExpelledItems = expelledItems.size();
+    // Note: Logic ensures that we have done some useful work if reached here
+    Expects(numExpelledItems > 0);
+    for (auto& it : cursors) {
+        CheckpointCursor& cursor = *it.second;
+        if (cursor.currentCheckpoint->get() == oldestCheckpoint) {
+            const auto oldDistance = cursor.getDistance();
+            Expects(numExpelledItems < oldDistance);
+            cursor.setDistance(oldDistance - numExpelledItems);
+        }
+    }
+
     // Register the expel-cursor at checkpoint begin. That is for preventing
     // that the checkpoint is removed in the middle of an expel run when the
     // CM::queueLock is released.
@@ -1924,7 +1951,8 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
             std::make_shared<CheckpointCursor>(name,
                                                lowestCursor->currentCheckpoint,
                                                pos,
-                                               CheckpointCursor::Droppable::No);
+                                               CheckpointCursor::Droppable::No,
+                                               0);
     cursors[name] = cursor;
 
     return {std::move(expelledItems),

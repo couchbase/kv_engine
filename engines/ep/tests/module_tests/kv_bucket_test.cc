@@ -296,10 +296,10 @@ void KVBucketTest::flushAndRemoveCheckpoints(Vbid vbid) {
     ckpt_mgr.removeClosedUnrefCheckpoints();
 }
 
-void KVBucketTest::flushAndExpelFromCheckpoints(Vbid vbid) {
+size_t KVBucketTest::flushAndExpelFromCheckpoints(Vbid vbid) {
     dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
     auto& vb = *store->getVBucket(vbid);
-    vb.checkpointManager->expelUnreferencedCheckpointItems();
+    return vb.checkpointManager->expelUnreferencedCheckpointItems().count;
 }
 
 void KVBucketTest::delete_item(Vbid vbid, const DocKey& key) {

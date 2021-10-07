@@ -120,7 +120,11 @@ public:
 
     void flushAndRemoveCheckpoints(Vbid vbid);
 
-    void flushAndExpelFromCheckpoints(Vbid vbid);
+    /**
+     * @param vbid
+     * @return the number of expelled items
+     */
+    size_t flushAndExpelFromCheckpoints(Vbid vbid);
 
     /* Delete the given item from the given vbucket, verifying it was
      * successfully deleted.

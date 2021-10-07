@@ -51,15 +51,17 @@ std::string to_string(QueueDirtyStatus value) {
                                 std::to_string(int(value)));
 }
 
-CheckpointCursor::CheckpointCursor(std::string n,
+CheckpointCursor::CheckpointCursor(std::string name,
                                    CheckpointList::iterator checkpoint,
                                    ChkptQueueIterator pos,
-                                   Droppable droppable)
-    : name(std::move(n)),
+                                   Droppable droppable,
+                                   size_t distance)
+    : name(std::move(name)),
       currentCheckpoint(checkpoint),
       currentPos(pos),
       numVisits(0),
-      droppable(droppable) {
+      droppable(droppable),
+      distance(distance) {
     (*currentCheckpoint)->incNumOfCursorsInCheckpoint();
 }
 
@@ -70,7 +72,8 @@ CheckpointCursor::CheckpointCursor(const CheckpointCursor& other,
       currentPos(other.currentPos),
       numVisits(other.numVisits.load()),
       isValid(other.isValid),
-      droppable(other.droppable) {
+      droppable(other.droppable),
+      distance(other.distance) {
     if (isValid) {
         (*currentCheckpoint)->incNumOfCursorsInCheckpoint();
     }
@@ -91,16 +94,16 @@ const StoredDocKey& CheckpointCursor::getKey() const {
     return (*currentPos)->getKey();
 }
 
-void CheckpointCursor::CheckpointCursor::decrPos() {
-    if (currentPos != (*currentCheckpoint)->begin()) {
-        --currentPos;
-    }
+void CheckpointCursor::decrPos() {
+    Expects(currentPos != (*currentCheckpoint)->begin());
+    --currentPos;
+    --distance;
 }
 
 void CheckpointCursor::incrPos() {
-    if (currentPos != (*currentCheckpoint)->end()) {
-        ++currentPos;
-    }
+    Expects(currentPos != (*currentCheckpoint)->end());
+    ++currentPos;
+    ++distance;
 }
 
 uint64_t CheckpointCursor::getId() const {
@@ -330,11 +333,32 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                     const auto originalCursorPos = cursor.second->currentPos;
 
                     // Reposition the cursor to the previous item if it points
-                    // to the item being dedup'ed. Done for all cursors.
+                    // to the item being dedup'ed. That also decrements the
+                    // cursor's distance accordingly.
+                    // Or, just update the cursor's distance if necessary.
+                    // See CheckpointCursor::distance for details.
+                    // Done for all cursors.
                     if (originalCursorPos.getUnderlyingIterator() == oldPos) {
                         // Note: We never deduplicate meta-items
                         Expects(!(*originalCursorPos)->isCheckPointMetaItem());
                         cursor.second->decrPos();
+                    } else {
+                        // The cursor is not being repositioned, so the only
+                        // thing that we need to do (if necessary) case is
+                        // decrementing the cursor's distance.
+                        //
+                        // Note: We don't care here whether the cursor points
+                        // to a meta or non-meta item here. Eg, imagine that m:1
+                        // is being dedup'ed and cursor_seqno is 2:
+                        //
+                        // [e:0 cs:0 vbs:1 m:1 vbs:2 m:2)
+                        //
+                        // .. then we need to decrement the cursor's distance
+                        // regardless of whether cursor points to vbs:2 or m:2.
+                        if (existingSeqno <
+                            (*originalCursorPos)->getBySeqno()) {
+                            cursor.second->decrDistance();
+                        }
                     }
 
                     // The logic below is specific to the Persistence cursor,
