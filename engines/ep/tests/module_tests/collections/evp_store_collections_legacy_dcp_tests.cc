@@ -13,6 +13,7 @@
  * Tests for legacy DCP streams
  */
 
+#include "collections/vbucket_manifest_handles.h"
 #include "kv_bucket.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "tests/mock/mock_dcp_producer.h"
@@ -317,8 +318,271 @@ TEST_P(CollectionsLegacyDcpTest, sync_replication_stream_ends) {
               cb::mcbp::DcpStreamEndStatus::BackfillFail);
 }
 
+TEST_P(CollectionsLegacyDcpTest,
+       default_collection_has_no_commits_default_high_seqno_one_non_inf) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+
+    auto item = makePendingItem(StoredDocKey{"d1", CollectionEntry::defaultC},
+                                "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+    item = makePendingItem(StoredDocKey{"f1", CollectionEntry::fruit}, "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+    store_item(vbid, StoredDocKey{"f2", CollectionEntry::fruit}, "value");
+
+    flushVBucketToDiskIfPersistent(vbid, 4);
+    auto highSeqno = vb->getHighSeqno();
+
+    // Now DCP with backfill
+    ensureDcpWillBackfill();
+
+    // Make cookie look like a non-collection client
+    mock_set_collections_support(cookieP, false);
+    mock_set_collections_support(cookieC, false);
+
+    createDcpObjects({}, false, 0, false, highSeqno);
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
+    EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
+}
+
+TEST_P(CollectionsLegacyDcpTest,
+       default_collection_has_no_commits_default_high_seqno_four_non_inf) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+
+    auto diskKey = StoredDocKey{"f1", CollectionEntry::fruit};
+    auto item = makePendingItem(diskKey, "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+
+    store_item(vbid, StoredDocKey{"f2", CollectionEntry::fruit}, "value");
+
+    item = makePendingItem(StoredDocKey{"d1", CollectionEntry::defaultC},
+                           "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+
+    flushVBucketToDiskIfPersistent(vbid, 4);
+    auto highSeqno = vb->getHighSeqno();
+
+    // Now DCP with backfill
+    ensureDcpWillBackfill();
+
+    // Make cookie look like a non-collection client
+    mock_set_collections_support(cookieP, false);
+    mock_set_collections_support(cookieC, false);
+
+    createDcpObjects({}, false, 0, false, highSeqno);
+    // Stream does nothing yet, and is now in-memory. The scheduled backfill
+    // finds no default collection data exists and ends early
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
+    store_item(vbid, StoredDocKey{"f3", CollectionEntry::fruit}, "value");
+
+    // Stream continues
+    store_item(vbid, StoredDocKey{"d2", CollectionEntry::defaultC}, "value");
+    highSeqno = vb->getHighSeqno();
+    uint64_t rollbackSeqno;
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            producer->streamRequest(0,
+                                    1, // opaque
+                                    vbid,
+                                    0, // start_seqno
+                                    highSeqno, // end_seqno
+                                    0, // vbucket_uuid,
+                                    0, // snap_start_seqno,
+                                    0, // snap_end_seqno,
+                                    &rollbackSeqno,
+                                    [](const std::vector<vbucket_failover_t>&) {
+                                        return cb::engine_errc::success;
+                                    },
+                                    {}));
+    auto vb0Stream = producer->findStream(Vbid(0));
+    ASSERT_NE(nullptr, vb0Stream.get());
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid, false);
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_TRUE(vb0Stream->isInMemory());
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(highSeqno, producers->last_snap_end_seqno);
+    EXPECT_EQ(MARKER_FLAG_MEMORY, producers->last_flags & MARKER_FLAG_MEMORY);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("d2", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(highSeqno, producers->last_byseqno);
+}
+
+TEST_P(CollectionsLegacyDcpTest,
+       default_collection_has_no_items_but_fruit_does_inf_and_non_inf) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+
+    store_item(vbid, StoredDocKey{"f2", CollectionEntry::fruit}, "value");
+    auto item = makePendingItem(StoredDocKey{"d1", CollectionEntry::defaultC},
+                                "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 3);
+    auto highSeqno = vb->getHighSeqno();
+
+    // Now DCP with backfill
+    ensureDcpWillBackfill();
+
+    // Make cookie look like a non-collection client
+    mock_set_collections_support(cookieP, false);
+    mock_set_collections_support(cookieC, false);
+
+    createDcpObjects({});
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid, false);
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+
+    createDcpObjects({}, false, 0, false, highSeqno);
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
+    EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
+}
+
+TEST_P(CollectionsLegacyDcpTest,
+       default_collection_one_prepare_no_collections_sync_write) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto item = makePendingItem(StoredDocKey{"d1", CollectionEntry::defaultC},
+                                "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Now DCP with backfill
+    ensureDcpWillBackfill();
+
+    // Make cookie look like a non-collection client
+    mock_set_collections_support(cookieP, false);
+    mock_set_collections_support(cookieC, false);
+
+    createDcpObjects({}, false, 0, true /*sync replication*/);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(1, producers->last_snap_end_seqno);
+    EXPECT_EQ(MARKER_FLAG_DISK, producers->last_flags & MARKER_FLAG_DISK);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpPrepare);
+    EXPECT_EQ("d1", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(1, producers->last_byseqno);
+}
+
+TEST_P(CollectionsLegacyDcpTest,
+       default_collection_high_seqno_prepare_max_visable_seqno_less_than_hcs) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid);
+
+    store_item(vbid, StoredDocKey{"d1", CollectionEntry::defaultC}, "value");
+    flushVBucketToDiskIfPersistent(vbid);
+
+    const auto keyd1Seqno = vb->getHighSeqno();
+    {
+        auto key = StoredDocKey{"f1", CollectionEntry::fruit};
+        auto item = makePendingItem(key, "value");
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
+                  store->set(*item, cookie));
+        flushVBucketToDiskIfPersistent(vbid);
+
+        EXPECT_EQ(
+                cb::engine_errc::success,
+                vb->commit(
+                        key, vb->getHighSeqno(), {}, vb->lockCollections(key)));
+    }
+    auto item = makePendingItem(StoredDocKey{"d2", CollectionEntry::defaultC},
+                                "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Now DCP with backfill
+    ensureDcpWillBackfill();
+
+    // Make cookie look like a non-collection client
+    mock_set_collections_support(cookieP, false);
+    mock_set_collections_support(cookieC, false);
+
+    createDcpObjects({}, false, 0, false /*sync replication*/, keyd1Seqno);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(keyd1Seqno, producers->last_snap_end_seqno);
+    EXPECT_EQ(MARKER_FLAG_DISK, producers->last_flags & MARKER_FLAG_DISK);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("d1", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(keyd1Seqno, producers->last_byseqno);
+    // Ensure there's no more items
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
+}
+
+TEST_P(CollectionsLegacyDcpTest,
+       ensure_backfill_continues_after_collection_drop) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+
+    store_item(vbid, StoredDocKey{"f2", CollectionEntry::fruit}, "value");
+    auto item = makePendingItem(StoredDocKey{"d1", CollectionEntry::defaultC},
+                                "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 3);
+    auto highSeqno = vb->getHighSeqno();
+
+    item = makePendingItem(StoredDocKey{"d2", CollectionEntry::defaultC},
+                           "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+
+    // Now DCP with backfill
+    ensureDcpWillBackfill();
+
+    // Make cookie look like a non-collection client
+    mock_set_collections_support(cookieP, false);
+    mock_set_collections_support(cookieC, false);
+
+    createDcpObjects({}, false, 0, false /*sync replication*/, highSeqno);
+    setCollections(cookie, cm.remove(CollectionEntry::defaultC));
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid, false);
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
+}
+
 // No magma support or ephemeral
 // @todo: MB-48037 include magma support
+
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsLegacyDcpTest,
                          STParameterizedBucketTest::couchstoreConfigValues(),
