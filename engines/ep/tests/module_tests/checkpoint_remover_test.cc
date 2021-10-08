@@ -19,7 +19,6 @@
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
 #include "checkpoint_utils.h"
-#include "checkpoint_visitor.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
 #include "test_helpers.h"
@@ -57,39 +56,6 @@ TEST_F(CheckpointRemoverEPTest, GetVBucketsSortedByChkMgrMem) {
         // This vBucket should have a greater memory usage than the one previous
         // to it in the map
         ASSERT_GE(this_vbucket.second, prev_vbucket.second);
-    }
-}
-
-/**
- * Check that CheckpointVisitor orders vbuckets to visit by "highest checkpoint
- * mem-usage" order.
- */
-TEST_F(CheckpointRemoverEPTest, CheckpointVisitorVBucketOrder) {
-    std::deque<Vbid> vbuckets;
-    for (uint16_t i = 0; i < 3; i++) {
-        setVBucketStateAndRunPersistTask(Vbid(i), vbucket_state_active);
-        for (uint16_t j = 0; j < i; j++) {
-            std::string doc_key =
-                    "key_" + std::to_string(i) + "_" + std::to_string(j);
-            store_item(Vbid(i), makeStoredDocKey(doc_key), "value");
-        }
-        vbuckets.emplace_back(vbid);
-    }
-
-    std::atomic<bool> stateFinalizer = true;
-    auto visitor = CheckpointVisitor(
-            store, engine->getEpStats(), stateFinalizer, 1 /*memToClear*/);
-    auto comparator = visitor.getVBucketComparator();
-    std::sort(vbuckets.begin(), vbuckets.end(), comparator);
-
-    ASSERT_EQ(3, vbuckets.size());
-    for (size_t i = 1; i < vbuckets.size(); i++) {
-        auto thisVbid = vbuckets[i];
-        auto prevVbid = vbuckets[i - 1];
-        // This vBucket should have a greater memory usage than the one previous
-        // to it in the map
-        ASSERT_GE(store->getVBucket(thisVbid)->getChkMgrMemUsage(),
-                  store->getVBucket(prevVbid)->getChkMgrMemUsage());
     }
 }
 
@@ -432,22 +398,18 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
         // Testing ItemExpel
         std::vector<queued_item> items;
         manager->getNextItemsForCursor(cursor.get(), items);
+    } // Testing CursorDrop otherwise
 
-        const auto& remover =
-                std::make_shared<ClosedUnrefCheckpointRemoverTask>(
-                        engine.get(),
-                        engine->getEpStats(),
-                        engine->getConfiguration().getChkRemoverStime());
-        remover->run();
-        getCkptDestroyerTask(vbid).run();
+    const auto remover = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+            engine.get(),
+            engine->getEpStats(),
+            engine->getConfiguration().getChkRemoverStime());
+    remover->run();
+    getCkptDestroyerTask(vbid).run();
+
+    if (moveCursor) {
+        EXPECT_EQ(stats.getNumCheckpoints(), inititalNumCheckpoints);
     } else {
-        // Testing CursorDrop
-        std::atomic<bool> stateFinalizer = false;
-        auto visitor = CheckpointVisitor(
-                store, engine->getEpStats(), stateFinalizer, memToClear);
-        visitor.visitBucket(vb);
-        getCkptDestroyerTask(vbid).run();
-
         EXPECT_LT(stats.getNumCheckpoints(), inititalNumCheckpoints);
     }
 
@@ -961,12 +923,12 @@ TEST_F(CheckpointRemoverEPTest, CheckpointRemovalWithoutCursorDrop) {
     ASSERT_EQ(0, engine->getEpStats().itemsRemovedFromCheckpoints);
     ASSERT_EQ(0, engine->getEpStats().cursorsDropped);
 
-    const auto memToClear = store->getRequiredCheckpointMemoryReduction();
-    EXPECT_GT(memToClear, 0);
-    std::atomic<bool> stateFinalizer = false;
-    auto visitor = CheckpointVisitor(
-            store, engine->getEpStats(), stateFinalizer, memToClear);
-    visitor.visitBucket(vb);
+    ASSERT_GT(store->getRequiredCheckpointMemoryReduction(), 0);
+    const auto remover = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+            engine.get(),
+            engine->getEpStats(),
+            engine->getConfiguration().getChkRemoverStime());
+    remover->run();
     getCkptDestroyerTask(vbid).run();
 
     EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
