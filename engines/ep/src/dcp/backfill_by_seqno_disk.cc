@@ -11,6 +11,8 @@
 
 #include "dcp/backfill_by_seqno_disk.h"
 #include "collections/collection_persisted_stats.h"
+#include "collections/vbucket_manifest.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/active_stream_impl.h"
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
@@ -379,6 +381,48 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
         return false;
     }
 
+    // Lambda function to check if we should end the stream if there are no more
+    // items within the collection and we've checked pass the streams end seqno.
+    auto endStreamIfNeeded = [&]() -> void {
+        // If this stream's end is inf+, when we don't need to check if we
+        // need to end the stream
+        if (stream.getEndSeqno() == ~0ull) {
+            return;
+        }
+        // Get hold of the vbucket ptr so we can get hold of the collections
+        // manifest
+        auto vb = bucket.getVBucket(vbid);
+        if (!vb) {
+            stream.log(spdlog::level::level_enum::warn,
+                       "({}) DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot "
+                       "unable to get vbucket",
+                       stream.getVBucket());
+            stream.setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
+            return;
+        }
+        // lock the default manifests stats so we can read the high seqno of the
+        // default collection
+        auto handle = vb->getManifest().lock(CollectionID::Default);
+        if (!handle.valid()) {
+            stream.log(spdlog::level::level_enum::warn,
+                       "({}) DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(): "
+                       "failed "
+                       "to find Default collection, in the manifest",
+                       stream.getVBucket());
+            // We can't end the stream early as the collection is being dropped
+            // but there might still be seqno's for the DCP Client
+            return;
+        }
+
+        // End the stream if all the default collection's mutations are on disk
+        // with "endSeqno" representing the end of the scan range for the
+        // backfill
+        if (stream.getEndSeqno() <= endSeqno &&
+            handle.getHighSeqno() <= endSeqno) {
+            stream.setDead(cb::mcbp::DcpStreamEndStatus::Ok);
+        }
+    };
+
     // Step 2. At this point we're not a replication steam. So check that
     // there's something to backfill, if the stats item count is 0 then the
     // default collection not have any visible items in it. Returning now will
@@ -392,6 +436,7 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                    CollectionID::Default,
                    startSeqno,
                    stats.highSeqno);
+        endStreamIfNeeded();
         return false;
     }
 
@@ -504,6 +549,7 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
         return stream.markDiskSnapshot(
                 startSeqno, cb.maxVisibleSeqno, {}, cb.maxVisibleSeqno, {});
     } else {
+        endStreamIfNeeded();
         // Found nothing committed at all
         return false;
     }

@@ -36,14 +36,16 @@ public:
             std::optional<std::string_view> collections,
             Vbid id = Vbid(0),
             cb::engine_errc expectedError = cb::engine_errc::success,
-            uint32_t flags = 0);
+            uint32_t flags = 0,
+            uint64_t streamEndSeqno = ~0ull);
 
     void createDcpConsumer();
 
     void createDcpObjects(std::optional<std::string_view> collections,
                           bool enableOutOfOrderSnapshots = false,
                           uint32_t flags = 0,
-                          bool enableSyncRep = false);
+                          bool enableSyncRep = false,
+                          uint64_t streamEndSeqno = ~0ull);
 
     void TearDown() override;
 

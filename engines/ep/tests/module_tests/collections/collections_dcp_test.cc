@@ -63,7 +63,8 @@ void CollectionsDcpTest::createDcpStream(
         std::optional<std::string_view> collections,
         Vbid id,
         cb::engine_errc expectedError,
-        uint32_t flags) {
+        uint32_t flags,
+        uint64_t streamEndSeqno) {
     uint64_t rollbackSeqno;
     ASSERT_EQ(cb::engine_errc(expectedError),
               producer->streamRequest(
@@ -71,7 +72,7 @@ void CollectionsDcpTest::createDcpStream(
                       1, // opaque
                       id,
                       0, // start_seqno
-                      ~0ull, // end_seqno
+                      streamEndSeqno,
                       0, // vbucket_uuid,
                       0, // snap_start_seqno,
                       0, // snap_end_seqno,
@@ -107,7 +108,8 @@ void CollectionsDcpTest::createDcpObjects(
         std::optional<std::string_view> collections,
         bool enableOutOfOrderSnapshots,
         uint32_t flags,
-        bool enableSyncRep) {
+        bool enableSyncRep,
+        uint64_t streamEndSeqno) {
     createDcpConsumer();
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);
@@ -130,7 +132,8 @@ void CollectionsDcpTest::createDcpObjects(
                   producer->control(1, "consumer_name", "mock_replication"));
     }
 
-    createDcpStream(collections, vbid, cb::engine_errc::success, flags);
+    createDcpStream(
+            collections, vbid, cb::engine_errc::success, flags, streamEndSeqno);
 }
 
 void CollectionsDcpTest::TearDown() {
