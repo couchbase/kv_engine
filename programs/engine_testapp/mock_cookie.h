@@ -144,7 +144,7 @@ public:
 protected:
     static CheckPrivilegeFunction checkPrivilegeFunction;
 
-    void* engine_data{nullptr};
+    std::atomic<void*> engine_data{nullptr};
     uint32_t sfd{};
     bool handle_ewouldblock{true};
     bool handle_mutation_extras{true};

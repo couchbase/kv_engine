@@ -687,8 +687,10 @@ protected:
      * Pointer to engine-specific data which the engine has requested the server
      * to persist for the life of the connection.
      * See SERVER_COOKIE_API::{get,store}_engine_specific()
+     * Atomic so it can safely be read / updated from engine background threads
+     * in addition to front-end threads.
      */
-    void* engine_storage{nullptr};
+    std::atomic<void*> engine_storage{nullptr};
 
     /**
      * Log a preformatted response text
