@@ -12,6 +12,7 @@
 #include "collection_persisted_stats.h"
 
 #include <mcbp/protocol/unsigned_leb128.h>
+#include <ostream>
 
 namespace Collections::VB {
 
