@@ -30,7 +30,7 @@ void mock_register_cookie(CookieIface& cookie);
 void mock_unregister_cookie(CookieIface& cookie);
 
 /**
- * Wait for at at least one call of notify_io_complete to have been make
+ * Wait for at least one call to notify_io_complete to have been made
  * for the given cookie.
  * Returns immediately if notify_io_complete has already been called,
  * returning the result of that notify_io_complete.
