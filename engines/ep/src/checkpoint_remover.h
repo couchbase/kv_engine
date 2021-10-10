@@ -77,36 +77,6 @@ public:
                                      EPStats& st,
                                      size_t interval);
 
-    /**
-     * Attempts to release memory by removing closed/unref checkpoints from all
-     * vbuckets in decreasing checkpoint-mem-usage order.
-     *
-     * @param memToRelease The amount of memory (in bytes) that needs to be
-     *   released.
-     * @return the amount of memory (in bytes) that was released.
-     */
-    size_t attemptCheckpointRemoval(size_t memToRelease);
-
-    /**
-     * Attempts to free memory by using item expelling from checkpoints from all
-     * vbuckets in decreasing checkpoint-mem-usage order.
-     *
-     * @param memToClear The amount of memory (in bytes) that needs to be
-     *   recovered.
-     * @return the amount of memory (in bytes) that was recovered.
-     */
-    size_t attemptItemExpelling(size_t memToClear);
-
-    /**
-     * Attempts to make checkpoints eligible for removal by dropping cursors
-     * from all vbuckets in decreasing checkpoint-mem-usage order.
-     *
-     * @param memToClear The amount of memory (in bytes) that needs to be
-     *   recovered.
-     * @return the amount of memory (in bytes) that was recovered.
-     */
-    size_t attemptCursorDropping(size_t memToClear);
-
     bool run() override;
 
     std::string getDescription() const override {
@@ -118,6 +88,33 @@ public:
         // under 250ms 99.99999% of the time.
         return std::chrono::milliseconds(250);
     }
+
+protected:
+    enum class ReductionRequired : uint8_t { No, Yes };
+
+    /**
+     * Attempts to release memory by removing closed/unref checkpoints from all
+     * vbuckets in decreasing checkpoint-mem-usage order.
+     *
+     * @return Whether further memory reduction is required and bytes released
+     */
+    std::pair<ReductionRequired, size_t> attemptCheckpointRemoval();
+
+    /**
+     * Attempts to free memory by using item expelling from checkpoints from all
+     * vbuckets in decreasing checkpoint-mem-usage order.
+     *
+     * @return Whether further memory reduction is required
+     */
+    ReductionRequired attemptItemExpelling();
+
+    /**
+     * Attempts to make checkpoints eligible for removal by dropping cursors
+     * from all vbuckets in decreasing checkpoint-mem-usage order.
+     *
+     * @return Whether further memory reduction is required
+     */
+    ReductionRequired attemptCursorDropping();
 
 private:
     EventuallyPersistentEngine *engine;

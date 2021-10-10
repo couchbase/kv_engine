@@ -79,38 +79,39 @@ ClosedUnrefCheckpointRemoverTask::ClosedUnrefCheckpointRemoverTask(
               !e->getCheckpointConfig().isEagerCheckpointRemoval()) {
 }
 
-size_t ClosedUnrefCheckpointRemoverTask::attemptCheckpointRemoval(
-        size_t memToClear) {
-    size_t memoryCleared = 0;
+std::pair<ClosedUnrefCheckpointRemoverTask::ReductionRequired, size_t>
+ClosedUnrefCheckpointRemoverTask::attemptCheckpointRemoval() {
+    size_t memReleased = 0;
     auto& bucket = *engine->getKVBucket();
     const auto vbuckets = bucket.getVBuckets().getVBucketsSortedByChkMgrMem();
     for (const auto& it : vbuckets) {
-        if (memoryCleared >= memToClear) {
-            break;
-        }
-
-        auto vb = bucket.getVBucket(it.first);
+        const auto vbid = it.first;
+        auto vb = bucket.getVBucket(vbid);
         if (!vb) {
             continue;
         }
 
-        memoryCleared +=
+        // Note: The call removes checkpoints from the CheckpointList and the
+        // disposer provided here allows to deallocate them in-place.
+        memReleased +=
                 vb->checkpointManager->removeClosedUnrefCheckpoints().memory;
+
+        if (bucket.getRequiredCheckpointMemoryReduction() == 0) {
+            // All done
+            return {ReductionRequired::No, memReleased};
+        }
     }
-    return memoryCleared;
+
+    return {ReductionRequired::Yes, memReleased};
 }
 
-size_t ClosedUnrefCheckpointRemoverTask::attemptItemExpelling(
-        size_t memToClear) {
-    size_t memoryCleared = 0;
-    auto& kvBucket = *engine->getKVBucket();
-    const auto vbuckets = kvBucket.getVBuckets().getVBucketsSortedByChkMgrMem();
+ClosedUnrefCheckpointRemoverTask::ReductionRequired
+ClosedUnrefCheckpointRemoverTask::attemptItemExpelling() {
+    auto& bucket = *engine->getKVBucket();
+    const auto vbuckets = bucket.getVBuckets().getVBucketsSortedByChkMgrMem();
     for (const auto& it : vbuckets) {
-        if (memoryCleared >= memToClear) {
-            break;
-        }
         const auto vbid = it.first;
-        VBucketPtr vb = kvBucket.getVBucket(vbid);
+        VBucketPtr vb = bucket.getVBucket(vbid);
         if (!vb) {
             continue;
         }
@@ -122,21 +123,24 @@ size_t ClosedUnrefCheckpointRemoverTask::attemptItemExpelling(
                 "from {} "
                 "and estimated to have recovered {} bytes.",
                 expelResult.count,
-                vb->getId(),
+                vbid,
                 expelResult.memory);
-        memoryCleared += expelResult.memory;
+
+        if (bucket.getRequiredCheckpointMemoryReduction() == 0) {
+            // All done
+            return ReductionRequired::No;
+        }
     }
-    return memoryCleared;
+    return ReductionRequired::Yes;
 }
 
-size_t ClosedUnrefCheckpointRemoverTask::attemptCursorDropping(
-        size_t memToClear) {
-    size_t memReleased = 0;
-    auto& kvBucket = *engine->getKVBucket();
-    const auto vbuckets = kvBucket.getVBuckets().getVBucketsSortedByChkMgrMem();
+ClosedUnrefCheckpointRemoverTask::ReductionRequired
+ClosedUnrefCheckpointRemoverTask::attemptCursorDropping() {
+    auto& bucket = *engine->getKVBucket();
+    const auto vbuckets = bucket.getVBuckets().getVBucketsSortedByChkMgrMem();
     for (const auto& it : vbuckets) {
         const auto vbid = it.first;
-        VBucketPtr vb = kvBucket.getVBucket(vbid);
+        VBucketPtr vb = bucket.getVBucket(vbid);
         if (!vb) {
             continue;
         }
@@ -146,8 +150,8 @@ size_t ClosedUnrefCheckpointRemoverTask::attemptCursorDropping(
         auto& manager = *vb->checkpointManager;
         const auto cursors = manager.getListOfCursorsToDrop();
         for (const auto& cursor : cursors) {
-            if (!kvBucket.getEPEngine().getDcpConnMap().handleSlowStream(
-                        vb->getId(), cursor.lock().get())) {
+            if (!engine->getDcpConnMap().handleSlowStream(
+                        vbid, cursor.lock().get())) {
                 continue;
             }
             ++stats.cursorsDropped;
@@ -157,19 +161,19 @@ size_t ClosedUnrefCheckpointRemoverTask::attemptCursorDropping(
             // 'memReleased' is an estimation of what is being released, not
             // what has been already released.
             const auto res = manager.removeClosedUnrefCheckpoints();
-            memReleased += res.memory;
             EP_LOG_DEBUG(
                     "{} Dropping cursor made {} bytes eligible for "
                     "deallocation",
                     vb->getId(),
                     res.memory);
-            if (memReleased >= memToClear) {
-                // We hit our release target, all done.
-                break;
+
+            if (bucket.getRequiredCheckpointMemoryReduction() == 0) {
+                // All done
+                return ReductionRequired::No;
             }
         }
     }
-    return memReleased;
+    return ReductionRequired::Yes;
 }
 
 bool ClosedUnrefCheckpointRemoverTask::run() {
@@ -190,17 +194,14 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
         snooze(sleepTime);
     });
 
-    const auto memToClear = bucket.getRequiredCheckpointMemoryReduction();
-    if (memToClear == 0) {
+    if (bucket.getRequiredCheckpointMemoryReduction() == 0) {
         return true;
     }
 
-    size_t memRecovered{0};
-
-    // Try full CheckpointRemoval first, across all vbuckets
     if (shouldScanForUnreferencedCheckpoints) {
-        memRecovered += attemptCheckpointRemoval(memToClear);
-        if (memRecovered >= memToClear) {
+        // "Lazy" mode path.
+        // Try full CheckpointRemoval first, across all vbuckets.
+        if (attemptCheckpointRemoval().first == ReductionRequired::No) {
             // Recovered enough by CheckpointRemoval, done
             return true;
         }
@@ -213,7 +214,7 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
         // as they are made eligible, before the lock is released.
         // This is not cheap to verify, as it requires scanning every
         // vbucket, so is only checked if dev asserts are on.
-        Expects(attemptCheckpointRemoval(memToClear) == 0);
+        Expects(attemptCheckpointRemoval().second == 0);
     }
 #endif
 
@@ -222,17 +223,14 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
     // The reason behind trying expel here is to avoid dropping cursors if
     // possible, as that kicks the stream back to backfilling.
     if (engine->getConfiguration().isChkExpelEnabled()) {
-        memRecovered += attemptItemExpelling(memToClear - memRecovered);
-        if (memRecovered >= memToClear) {
+        if (attemptItemExpelling() == ReductionRequired::No) {
             // Recovered enough by ItemExpel, done
             return true;
         }
     }
 
     // More memory to recover, try CursorDrop + CheckpointRemoval
-    // Note: Checkpoints made eligible for removal are queued into the Destroyer
-    // task for deallocation
-    attemptCursorDropping(memToClear - memRecovered);
+    attemptCursorDropping();
 
     return true;
 }
