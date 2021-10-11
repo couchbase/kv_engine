@@ -558,6 +558,17 @@ TEST_P(STParamMagmaBucketTest, MB_48441) {
             []() { throw std::runtime_error("this should be caught"); });
 }
 
+TEST_P(STParamMagmaBucketTest, MagmaMemQuotaDynamicUpdate) {
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
+            store->getRWUnderlying(vbid)->getConfig());
+    ASSERT_EQ(0.1f, config.getMagmaMemQuotaRatio());
+
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam("magma_mem_quota_ratio", "0.3", msg));
+    EXPECT_EQ(0.3f, config.getMagmaMemQuotaRatio());
+}
+
 INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
                          STParamMagmaBucketTest,
                          STParameterizedBucketTest::magmaConfigValues(),

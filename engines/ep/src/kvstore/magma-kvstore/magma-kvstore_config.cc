@@ -111,6 +111,9 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     config.addValueChangedListener(
             "persistent_metadata_purge_age",
             std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "magma_mem_quota_ratio",
+            std::make_unique<ConfigChangeListener>(*this));
 
     sanityCheckVBucketMapping = config.isVbucketMappingSanityChecking();
     vBucketMappingErrorHandlingMethod = cb::getErrorHandlingMethod(
