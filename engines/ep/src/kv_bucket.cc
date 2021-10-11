@@ -2958,3 +2958,11 @@ CheckpointDestroyerTask& KVBucket::getCkptDestroyerTask(Vbid vbid) const {
     Expects(!ckptDestroyerTasks.empty());
     return *ckptDestroyerTasks[vbid.get() % ckptDestroyerTasks.size()];
 }
+
+size_t KVBucket::getCheckpointPendingDestructionMemoryUsage() const {
+    size_t memoryUsage = 0;
+    for (const auto& task : ckptDestroyerTasks) {
+        memoryUsage += task->getMemoryUsage();
+    }
+    return memoryUsage;
+}

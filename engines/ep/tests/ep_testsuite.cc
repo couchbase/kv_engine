@@ -7164,6 +7164,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_chk_persistence_remains",
               "ep_chk_remover_stime",
               "ep_checkpoint_destruction_tasks",
+              "ep_checkpoint_memory_pending_destruction",
               "ep_checkpoint_memory_ratio",
               "ep_checkpoint_memory_recovery_upper_mark",
               "ep_checkpoint_memory_recovery_lower_mark",

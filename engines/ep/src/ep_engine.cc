@@ -3107,6 +3107,9 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
     kvBucket->getAggregatedVBucketStats(collector,
                                         cb::prometheus::Cardinality::Low);
 
+    collector.addStat(Key::ep_checkpoint_memory_pending_destruction,
+                      kvBucket->getCheckpointPendingDestructionMemoryUsage());
+
     kvBucket->getFileStats(collector);
 
     collector.addStat(Key::ep_persist_vbstate_total,

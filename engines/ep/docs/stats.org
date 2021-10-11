@@ -403,24 +403,26 @@ The following ratios are encoded as 4-digit integers, e.g.:
 
 ** vBucket total stats
 
-| Stat                              | Description                                    |
-|-----------------------------------+------------------------------------------------|
-| ep_vb_total                       | Total vBuckets (count)                         |
-| curr_items_tot                    | Total number of items                          |
-| curr_items                        | Number of active items in memory               |
-| curr_temp_items                   | Number of temporary items in memory            |
-| vb_dead_num                       | Number of dead vBuckets                        |
-| ep_diskqueue_items                | Total items in disk queue                      |
-| ep_diskqueue_memory               | Total memory used in disk queue                |
-| ep_diskqueue_fill                 | Total enqueued items on disk queue             |
-| ep_diskqueue_drain                | Total drained items on disk queue              |
-| ep_diskqueue_pending              | Total bytes of pending writes                  |
-| ep_persist_vbstate_total          | Total VB persist state to disk                 |
-| ep_meta_data_memory               | Total memory used by meta data                 |
-| ep_meta_data_disk                 | Total disk used by meta data                   |
-| ep_checkpoint_memory              | Memory of items in all checkpoints             |
-| ep_checkpoint_memory_unreferenced | Memory of items in unref checkpoints           |
-| ep_checkpoint_memory_overhead     | Memory of all checkpoints structures           |
+| Stat                                     | Description                                    |
+|------------------------------------------+------------------------------------------------|
+| ep_vb_total                              | Total vBuckets (count)                         |
+| curr_items_tot                           | Total number of items                          |
+| curr_items                               | Number of active items in memory               |
+| curr_temp_items                          | Number of temporary items in memory            |
+| vb_dead_num                              | Number of dead vBuckets                        |
+| ep_diskqueue_items                       | Total items in disk queue                      |
+| ep_diskqueue_memory                      | Total memory used in disk queue                |
+| ep_diskqueue_fill                        | Total enqueued items on disk queue             |
+| ep_diskqueue_drain                       | Total drained items on disk queue              |
+| ep_diskqueue_pending                     | Total bytes of pending writes                  |
+| ep_persist_vbstate_total                 | Total VB persist state to disk                 |
+| ep_meta_data_memory                      | Total memory used by meta data                 |
+| ep_meta_data_disk                        | Total disk used by meta data                   |
+| ep_checkpoint_memory                     | Memory of items in all checkpoints             |
+| ep_checkpoint_memory_unreferenced        | Memory of items in unref checkpoints           |
+| ep_checkpoint_memory_overhead            | Memory of all checkpoints structures           |
+| ep_checkpoint_memory_pending_destruction | Memory of checkpoint structures awaiting       |
+|                                          | destruction by a background task               |
 
 *** Active vBucket class stats
 

@@ -878,6 +878,8 @@ public:
         return chkRemovers.size();
     }
 
+    size_t getCheckpointPendingDestructionMemoryUsage() const;
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the
