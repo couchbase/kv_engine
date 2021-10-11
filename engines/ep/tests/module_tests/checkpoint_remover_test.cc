@@ -27,7 +27,13 @@ void CheckpointRemoverTest::SetUp() {
     if (!config_string.empty()) {
         config_string += ";";
     }
-    config_string += "max_vbuckets=8;checkpoint_remover_task_count=2";
+    // Note: By MB-47386 the default max_checkpoints has be set to 10 but we
+    // still run this testsuite with the original max_checkpoints=2. Reason is
+    // that a bunch of (logic) tests inspect the inner checkpoint queues and
+    // rely on max_checkpoints=2 for knowing where to find items. Note that
+    // max_checkpoints doesn't have any logic-change implication.
+    config_string +=
+            "max_vbuckets=8;checkpoint_remover_task_count=2;max_checkpoints=2";
 
     SingleThreadedKVBucketTest::SetUp();
 }

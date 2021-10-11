@@ -752,7 +752,7 @@
             }
         },
         "max_checkpoints": {
-            "default": "2",
+            "default": "10",
             "descr": "Max number of checkpoints in each VBucket.",
             "dynamic": true,
             "type": "size_t",
