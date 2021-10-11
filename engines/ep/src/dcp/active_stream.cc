@@ -915,7 +915,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
     result.highCompletedSeqno = itemsForCursor.highCompletedSeqno;
     result.visibleSeqno = itemsForCursor.visibleSeqno;
     if (vb.checkpointManager->hasClosedCheckpointWhichCanBeRemoved()) {
-        engine->getKVBucket()->wakeUpCheckpointRemover();
+        engine->getKVBucket()->wakeUpCheckpointMemRecoveryTask();
     }
     return result;
 }
@@ -2101,7 +2101,7 @@ bool ActiveStream::removeCheckpointCursor() {
              * Although the cursor has been removed from the cursor map
              * the underlying shared_ptr can still be valid due to other
              * uses of the cursor not yet going out of scope
-             * (e.g. ClosedUnrefCheckpointRemoverTask).  Therefore
+             * (e.g. CheckpointMemRecoveryTask).  Therefore
              * cursor.lock().get() may not return the nullptr, so reset the
              * cursor to ensure that it is not used.
              */

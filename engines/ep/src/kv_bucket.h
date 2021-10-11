@@ -601,7 +601,7 @@ public:
 
     void attemptToFreeMemory() override;
 
-    void wakeUpCheckpointRemover() override;
+    void wakeUpCheckpointMemRecoveryTask() override;
 
     void runDefragmenterTask() override;
 
@@ -1015,7 +1015,7 @@ protected:
     VBucketMap                      vbMap;
     ExTask itemPagerTask;
 
-    // Checkpoint removers; the number is determined by the related config param
+    // Checkpoint recovery tasks. The number is determined by config param
     std::vector<std::shared_ptr<GlobalTask>> chkRemovers;
 
     /**

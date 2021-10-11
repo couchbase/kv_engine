@@ -2722,7 +2722,7 @@ cb::engine_errc EventuallyPersistentEngine::storeInner(
 cb::engine_errc EventuallyPersistentEngine::memoryCondition() {
     // Trigger necessary task(s) to free memory down below high watermark.
     getKVBucket()->attemptToFreeMemory();
-    getKVBucket()->wakeUpCheckpointRemover();
+    getKVBucket()->wakeUpCheckpointMemRecoveryTask();
 
     if (stats.getEstimatedTotalMemoryUsed() < stats.getMaxDataSize()) {
         // Still below bucket_quota - treat as temporary failure.

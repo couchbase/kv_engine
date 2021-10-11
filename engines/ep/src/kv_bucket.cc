@@ -450,7 +450,7 @@ bool KVBucket::initialize() {
     const auto checkpointRemoverInterval = config.getChkRemoverStime();
     const auto numChkRemovers = config.getCheckpointRemoverTaskCount();
     for (size_t id = 0; id < numChkRemovers; ++id) {
-        auto task = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+        auto task = std::make_shared<CheckpointMemRecoveryTask>(
                 &engine, stats, checkpointRemoverInterval, id);
         chkRemovers.emplace_back(task);
         ExecutorPool::get()->schedule(task);
@@ -2556,7 +2556,7 @@ void KVBucket::attemptToFreeMemory() {
     static_cast<ItemPager*>(itemPagerTask.get())->scheduleNow();
 }
 
-void KVBucket::wakeUpCheckpointRemover() {
+void KVBucket::wakeUpCheckpointMemRecoveryTask() {
     for (const auto& task : chkRemovers) {
         if (task && task->getState() == TASK_SNOOZED) {
             ExecutorPool::get()->wake(task->getId());
@@ -2936,7 +2936,7 @@ KVBucket::CheckpointMemoryState KVBucket::verifyCheckpointMemoryState() {
         break;
     case CheckpointMemoryState::NeedsRecovery:
     case CheckpointMemoryState::Full:
-        wakeUpCheckpointRemover();
+        wakeUpCheckpointMemRecoveryTask();
         break;
     }
 

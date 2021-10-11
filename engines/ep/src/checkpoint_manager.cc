@@ -1911,7 +1911,7 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
 
     if (oldestCheckpoint->getNumCursorsInCheckpoint() == 0) {
         // The oldest checkpoint is unreferenced, and may be deleted
-        // as a whole by the ClosedUnrefCheckpointRemoverTask,
+        // as a whole by the CheckpointMemRecoveryTask,
         // expelling everything from it one by one would be a waste of time.
         // Cannot expel from checkpoints which are not the oldest without
         // leaving gaps in the items a cursor would read.

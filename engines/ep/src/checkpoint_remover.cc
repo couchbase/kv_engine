@@ -69,12 +69,12 @@ size_t CheckpointDestroyerTask::getMemoryUsage() const {
     return pendingDestructionMemoryUsage.load();
 }
 
-ClosedUnrefCheckpointRemoverTask::ClosedUnrefCheckpointRemoverTask(
+CheckpointMemRecoveryTask::CheckpointMemRecoveryTask(
         EventuallyPersistentEngine* e,
         EPStats& st,
         size_t interval,
         size_t removerId)
-    : GlobalTask(e, TaskId::ClosedUnrefCheckpointRemoverTask, interval, false),
+    : GlobalTask(e, TaskId::CheckpointMemRecoveryTask, interval, false),
       engine(e),
       stats(st),
       sleepTime(interval),
@@ -82,8 +82,8 @@ ClosedUnrefCheckpointRemoverTask::ClosedUnrefCheckpointRemoverTask(
       removerId(removerId) {
 }
 
-std::pair<ClosedUnrefCheckpointRemoverTask::ReductionRequired, size_t>
-ClosedUnrefCheckpointRemoverTask::attemptCheckpointRemoval() {
+std::pair<CheckpointMemRecoveryTask::ReductionRequired, size_t>
+CheckpointMemRecoveryTask::attemptCheckpointRemoval() {
     size_t memReleased = 0;
     auto& bucket = *engine->getKVBucket();
     const auto vbuckets = getVbucketsSortedByChkMem();
@@ -108,8 +108,8 @@ ClosedUnrefCheckpointRemoverTask::attemptCheckpointRemoval() {
     return {ReductionRequired::Yes, memReleased};
 }
 
-ClosedUnrefCheckpointRemoverTask::ReductionRequired
-ClosedUnrefCheckpointRemoverTask::attemptItemExpelling() {
+CheckpointMemRecoveryTask::ReductionRequired
+CheckpointMemRecoveryTask::attemptItemExpelling() {
     auto& bucket = *engine->getKVBucket();
     const auto vbuckets = getVbucketsSortedByChkMem();
     for (const auto& it : vbuckets) {
@@ -137,8 +137,8 @@ ClosedUnrefCheckpointRemoverTask::attemptItemExpelling() {
     return ReductionRequired::Yes;
 }
 
-ClosedUnrefCheckpointRemoverTask::ReductionRequired
-ClosedUnrefCheckpointRemoverTask::attemptCursorDropping() {
+CheckpointMemRecoveryTask::ReductionRequired
+CheckpointMemRecoveryTask::attemptCursorDropping() {
     auto& bucket = *engine->getKVBucket();
     const auto vbuckets = getVbucketsSortedByChkMem();
     for (const auto& it : vbuckets) {
@@ -196,8 +196,8 @@ ClosedUnrefCheckpointRemoverTask::attemptCursorDropping() {
     return ReductionRequired::Yes;
 }
 
-bool ClosedUnrefCheckpointRemoverTask::run() {
-    TRACE_EVENT0("ep-engine/task", "ClosedUnrefCheckpointRemoverTask");
+bool CheckpointMemRecoveryTask::run() {
+    TRACE_EVENT0("ep-engine/task", "CheckpointMemRecoveryTask");
 
     snooze(sleepTime);
     auto& bucket = *engine->getKVBucket();
@@ -267,7 +267,7 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
 }
 
 std::vector<std::pair<Vbid, size_t>>
-ClosedUnrefCheckpointRemoverTask::getVbucketsSortedByChkMem() const {
+CheckpointMemRecoveryTask::getVbucketsSortedByChkMem() const {
     std::vector<std::pair<Vbid, size_t>> res;
     const auto& bucket = *engine->getKVBucket();
     const auto numRemovers = bucket.getCheckpointRemoverTaskCount();

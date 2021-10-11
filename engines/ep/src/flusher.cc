@@ -261,7 +261,7 @@ bool Flusher::flushVB() {
 
         // Flushing may move the persistence cursor to a new checkpoint.
         if (res.wakeupCkptRemover == EPBucket::WakeCkptRemover::Yes) {
-            store->wakeUpCheckpointRemover();
+            store->wakeUpCheckpointMemRecoveryTask();
         }
 
         // Return false (don't re-wake) if the lpVbs is empty (i.e. nothing to
@@ -291,7 +291,7 @@ bool Flusher::flushVB() {
 
     // Flushing may move the persistence cursor to a new checkpoint.
     if (res.wakeupCkptRemover == EPBucket::WakeCkptRemover::Yes) {
-        store->wakeUpCheckpointRemover();
+        store->wakeUpCheckpointMemRecoveryTask();
     }
 
     // Return more (as we may have low priority vBuckets to flush)

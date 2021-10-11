@@ -324,7 +324,7 @@ BENCHMARK_DEFINE_F(VBucketBench, CreateDeleteStoredValue)
  * started with deallocating checkpoint memory under lock.
  *
  * This benchmark measures resource contention between a mc:worker (frontend
- * thread) executing CM::queueDirty and the ClosedUnrefCheckpointRemoverTask
+ * thread) executing CM::queueDirty and the CheckpointMemRecoveryTask
  * when the number of checkpoint eligible for removing is high.
  */
 BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)

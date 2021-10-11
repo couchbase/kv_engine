@@ -938,7 +938,7 @@ TEST_P(StreamTest, MB_32329CursorDroppingResetCursor) {
 
     /*
      * Increase the use_count of the cursor shared pointer, this replicates
-     * the behaviour of the ClosedUnrefCheckpointRemoverTask (see
+     * the behaviour of the CheckpointMemRecoveryTask (see
      * cursorDroppingIfNeeded) which calls lock() on the cursor before
      * calling DcpConnMap::handleSlowStream.
      */

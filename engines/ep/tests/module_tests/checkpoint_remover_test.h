@@ -56,7 +56,7 @@ protected:
      * recovery.  It then adds items to a checkpoint, flushes those items
      * to disk.  Then depending on whether the moveCursor parameter is
      * true will move the cursor past 90% of the items added.  It then
-     * invokes the run method of ClosedUnrefCheckpointRemoverTask, which
+     * invokes the run method of CheckpointMemRecoveryTask, which
      * first attempts to recover memory by expelling followed, if necessary,
      * by cursor dropping, and the subsequent removal of closed unreferenced
      * checkpoints.

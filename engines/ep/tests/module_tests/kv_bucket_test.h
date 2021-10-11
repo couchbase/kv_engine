@@ -211,7 +211,7 @@ public:
     bool isItemFreqDecayerTaskSnoozed() const;
 
     /**
-     * Schedules the ClosedUnrefCheckpointRemoverTask.
+     * Schedules the CheckpointMemRecoveryTask.
      */
     void scheduleCheckpointRemoverTask();
 

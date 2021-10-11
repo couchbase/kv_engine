@@ -65,7 +65,7 @@ TEST_F(CheckpointRemoverTest, CheckpointRemoverVBucketOrder) {
     ASSERT_EQ(numRemovers, config.getCheckpointRemoverTaskCount());
 
     for (uint8_t removerId = 0; removerId < numRemovers; ++removerId) {
-        const auto remover = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+        const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
                 engine.get(),
                 engine->getEpStats(),
                 engine->getConfiguration().getChkRemoverStime(),
@@ -431,8 +431,8 @@ TEST_F(CheckpointRemoverEPTest, MemoryRecoveryEnd) {
 
     // run the remover to trigger expelling
     auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
-    runNextTask(nonIO, "ClosedUnrefCheckpointRemoverTask:0");
-    runNextTask(nonIO, "ClosedUnrefCheckpointRemoverTask:1");
+    runNextTask(nonIO, "CheckpointMemRecoveryTask:0");
+    runNextTask(nonIO, "CheckpointMemRecoveryTask:1");
 
     // some items should have been expelled
     EXPECT_GT(stats.itemsExpelledFromCheckpoints, 0);
@@ -501,7 +501,7 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
         manager->getNextItemsForCursor(cursor.get(), items);
     } // Testing CursorDrop otherwise
 
-    const auto remover = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+    const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
             engine.get(),
             engine->getEpStats(),
             engine->getConfiguration().getChkRemoverStime(),
@@ -555,7 +555,7 @@ TEST_F(CheckpointRemoverEPTest, notExpelButCursorDrop) {
 TEST_F(CheckpointRemoverEPTest, DISABLED_noCursorDropWhenTargetMet) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto& config = engine->getConfiguration();
-    const auto& task = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+    const auto& task = std::make_shared<CheckpointMemRecoveryTask>(
             engine.get(),
             engine->getEpStats(),
             engine->getConfiguration().getChkRemoverStime(),
@@ -945,7 +945,7 @@ TEST_F(CheckpointRemoverEPTest, MB_48233) {
     // Run the remover one first time. Before the fix this step leaves the
     // Task::available flag set to false, which prevent any further execution
     // of the removal logic at the next runs.
-    const auto remover = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+    const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
             engine.get(),
             engine->getEpStats(),
             engine->getConfiguration().getChkRemoverStime(),
@@ -1026,7 +1026,7 @@ TEST_F(CheckpointRemoverEPTest, CheckpointRemovalWithoutCursorDrop) {
     ASSERT_EQ(0, engine->getEpStats().cursorsDropped);
 
     ASSERT_GT(store->getRequiredCheckpointMemoryReduction(), 0);
-    const auto remover = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+    const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
             engine.get(),
             engine->getEpStats(),
             engine->getConfiguration().getChkRemoverStime(),
@@ -1091,12 +1091,12 @@ TEST_F(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
     // the destroyer doesn't own anything yet, so should have no mem usage
     EXPECT_EQ(0, destroyer.getMemoryUsage());
 
-    store->wakeUpCheckpointRemover();
+    store->wakeUpCheckpointMemRecoveryTask();
 
-    // run the remover, this queues the checkpoints for destruction
+    // run the recovery task, this queues the checkpoints for destruction
     auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
-    runNextTask(nonIO, "ClosedUnrefCheckpointRemoverTask:0");
-    runNextTask(nonIO, "ClosedUnrefCheckpointRemoverTask:1");
+    runNextTask(nonIO, "CheckpointMemRecoveryTask:0");
+    runNextTask(nonIO, "CheckpointMemRecoveryTask:1");
 
     // the checkpoints should have been disassociated from their manager,
     // so the tracked memory usage should have decreased...

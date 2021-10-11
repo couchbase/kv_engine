@@ -156,7 +156,7 @@ public:
                 // These tasks all schedule one other task
                 this->oneExecutes(taskRescheduled, 1);
             };
-        } else if (getTaskName() == "ClosedUnrefCheckpointRemoverTask:0") {
+        } else if (getTaskName() == "CheckpointMemRecoveryTask:0") {
             checker = [=](bool taskRescheduled) {
                 // This task _may_ schedule or wake a CheckpointDestroyer, to
                 // destroy checkpoints made unreferenced by cursor dropping

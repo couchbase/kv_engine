@@ -754,7 +754,7 @@ public:
      */
     virtual void attemptToFreeMemory() = 0;
 
-    virtual void wakeUpCheckpointRemover() = 0;
+    virtual void wakeUpCheckpointMemRecoveryTask() = 0;
 
     virtual void runDefragmenterTask() = 0;
 

@@ -23,7 +23,7 @@ class EventuallyPersistentEngine;
  * Task which destroys and frees checkpoints.
  *
  * This task is not responsible for identifying the checkpoints to destroy,
- * instead the ClosedUnrefCheckpointRemoverTask splices out checkpoints,
+ * instead the CheckpointMemRecoveryTask splices out checkpoints,
  * handing them to this task.
  *
  * In the future, "eager" checkpoint removal may be implemented, directly
@@ -63,10 +63,9 @@ private:
 };
 
 /**
- * Dispatcher job responsible for removing closed unreferenced checkpoints
- * from memory.
+ * Dispatcher job responsible for ItemExpel and CursorDrop/CheckpointRemoval
  */
-class ClosedUnrefCheckpointRemoverTask : public GlobalTask {
+class CheckpointMemRecoveryTask : public GlobalTask {
 public:
     /**
      * @param e the engine
@@ -74,15 +73,15 @@ public:
      * @param interval
      * @param removerId of this task's instance, defined in [0, num_removers -1]
      */
-    ClosedUnrefCheckpointRemoverTask(EventuallyPersistentEngine* e,
-                                     EPStats& st,
-                                     size_t interval,
-                                     size_t removerId);
+    CheckpointMemRecoveryTask(EventuallyPersistentEngine* e,
+                              EPStats& st,
+                              size_t interval,
+                              size_t removerId);
 
     bool run() override;
 
     std::string getDescription() const override {
-        return "ClosedUnrefCheckpointRemoverTask:" + std::to_string(removerId);
+        return "CheckpointMemRecoveryTask:" + std::to_string(removerId);
     }
 
     std::chrono::microseconds maxExpectedDuration() const override {
