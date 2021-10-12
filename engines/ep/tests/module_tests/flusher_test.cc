@@ -21,6 +21,8 @@
 #include <folly/portability/GTest.h>
 #include <programs/engine_testapp/mock_server.h>
 
+using namespace std::string_literals;
+
 class FlusherTest : public ::testing::Test {
 protected:
     void SetUp() override {
@@ -28,7 +30,8 @@ protected:
             NonBucketAllocationGuard guard;
             ExecutorPool::create(ExecutorPool::Backend::Fake);
         }
-        engine = SynchronousEPEngine::build({});
+        const auto config = "dbname="s + dbnameFromCurrentGTestInfo();
+        engine = SynchronousEPEngine::build(config);
         task_executor = reinterpret_cast<SingleThreadedExecutorPool*>(
                 ExecutorPool::get());
 

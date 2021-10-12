@@ -572,6 +572,10 @@ public:
         return *testBucket;
     }
 
+    std::string getTestDir() const override {
+        return test_directory.generic_string();
+    }
+
     std::string getDbPath() const override {
         return static_cast<EpBucketImpl*>(testBucket.get())
                 ->dbPath.generic_string();

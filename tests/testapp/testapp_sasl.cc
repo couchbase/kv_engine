@@ -12,8 +12,11 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <boost/filesystem.hpp>
 #include <cbcrypto/cbcrypto.h>
 #include <algorithm>
+
+using namespace std::string_literals;
 
 class SaslTest : public TestappClientTest {
 public:
@@ -39,7 +42,10 @@ public:
     void SetUp() override {
         adminConnection->createBucket(bucket1, "", BucketType::Memcached);
         adminConnection->createBucket(bucket2, "", BucketType::Memcached);
-        adminConnection->createBucket(bucket3, "", BucketType::Couchbase);
+        const auto dbname =
+                boost::filesystem::path{mcd_env->getTestDir()} / bucket3;
+        const auto config = "dbname="s + dbname.generic_string();
+        adminConnection->createBucket(bucket3, config, BucketType::Couchbase);
     }
 
     void TearDown() override {

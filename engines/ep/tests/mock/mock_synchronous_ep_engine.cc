@@ -24,6 +24,7 @@
 #include "objectregistry.h"
 #include <platform/cb_arena_malloc.h>
 #include <platform/cbassert.h>
+#include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <string>
 
@@ -131,6 +132,23 @@ SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
     // switch current thread to this new engine, so all sub-created objects
     // are accounted in it's mem_used.
     ObjectRegistry::onSwitchThread(engine.get());
+
+    // Similarly to EPEngine::initialize, create the data directory.
+    const auto dbName = engine->getConfiguration().getDbname();
+    if (dbName.empty()) {
+        throw std::runtime_error(
+                fmt::format("SynchronousEPEngine::build(): Invalid "
+                            "configuration: dbname must be a non-empty value"));
+    }
+    try {
+        cb::io::mkdirp(dbName);
+    } catch (const std::system_error& error) {
+        throw std::runtime_error(
+                fmt::format("SynchronousEPEngine::build(): Failed to create "
+                            "data directory [{}]:{}",
+                            dbName,
+                            error.code().message()));
+    }
 
     engine->setKVBucket(
             engine->public_makeMockBucket(engine->getConfiguration()));

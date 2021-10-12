@@ -36,8 +36,14 @@ public:
     void setKVBucket(std::unique_ptr<KVBucket> store);
     void setDcpConnMap(std::unique_ptr<DcpConnMap> dcpConnMap);
 
-    /// Constructs a SynchronousEPEngine instance, along with the necessary
-    /// sub-components.
+    /**
+     * Constructs a SynchronousEPEngine instance, along with the necessary
+     * sub-components.
+     * Similar in scope as EventuallyPersistentEngine ctor +
+     * EventuallyPersistentEngine::initialize(), with the main difference
+     * being none of the asynchronous parts of ::initialize() are performed
+     * (background tasks, etc...)
+     */
     static SynchronousEPEngineUniquePtr build(const std::string& config);
 
     /* Allow us to call normally protected methods */

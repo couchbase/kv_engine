@@ -1271,12 +1271,13 @@ TEST_F(SingleThreadedExecutorPoolTest, ignore_duplicate_schedule) {
 
 template <>
 ExecutorPoolEpEngineTest<TestExecutorPool>::ExecutorPoolEpEngineTest() {
-    config = "executor_pool_backend=cb3";
+    config = "executor_pool_backend=cb3;dbname=" + dbnameFromCurrentGTestInfo();
 }
 
 template <>
 ExecutorPoolEpEngineTest<FollyExecutorPool>::ExecutorPoolEpEngineTest() {
-    config = "executor_pool_backend=folly";
+    config = "executor_pool_backend=folly;dbname=" +
+             dbnameFromCurrentGTestInfo();
 }
 
 template <typename T>

@@ -184,6 +184,9 @@ public:
      */
     virtual TestBucketImpl& getTestBucket() = 0;
 
+    /// @returns the base directory this test uses.
+    virtual std::string getTestDir() const = 0;
+
     /**
      * @return The dbPath of a persistent bucket (throws if not persistent)
      */

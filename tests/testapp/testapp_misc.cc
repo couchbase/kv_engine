@@ -193,7 +193,7 @@ TEST_P(MiscTest, Version) {
 
 TEST_F(TestappTest, CollectionsSelectBucket) {
     // Create and select a bucket on which we will be able to hello collections
-    adminConnection->createBucket("collections", "", BucketType::Couchbase);
+    mcd_env->getTestBucket().createBucket("collections", "", *adminConnection);
 
     auto& conn = getAdminConnection();
     conn.selectBucket("collections");

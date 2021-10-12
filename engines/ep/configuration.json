@@ -343,7 +343,7 @@
             "type": "bool"
         },
         "dbname": {
-            "default": "./test",
+            "default": "",
             "descr": "Path to on-disk storage.",
             "dynamic": false,
             "type": "std::string"

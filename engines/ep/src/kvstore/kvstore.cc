@@ -181,6 +181,14 @@ void KVStoreStats::reset() {
 }
 
 std::unique_ptr<KVStoreIface> KVStoreFactory::create(KVStoreConfig& config) {
+    // Directory for kvstore files should exist already (see
+    // EventuallyPersistentEngine::initialize).
+    if (!cb::io::isDirectory(config.getDBName())) {
+        throw std::runtime_error(fmt::format(
+                "KVStoreFactory ctor: Specified dbname '{}' is not a directory",
+                config.getDBName()));
+    }
+
     std::string backend = config.getBackend();
     if (backend == "couchdb") {
         auto rw = std::make_unique<CouchKVStore>(

@@ -2049,23 +2049,28 @@ cb::engine_errc EventuallyPersistentEngine::initialize(const char* config) {
             return cb::engine_errc::failed;
         }
     }
-
-    // Create the bucket data directory, ns_server should have created the
-    // process level one but they expect us to create the bucket level one.
-    try {
-        cb::io::mkdirp(configuration.getDbname());
-    } catch (const std::system_error& error) {
-        throw std::runtime_error(
-                fmt::format("Failed to create data directory [{}]:{}",
-                            configuration.getDbname(),
-                            error.code().message()));
-    }
-
     name = configuration.getCouchBucket();
 
     if (config != nullptr) {
         EP_LOG_INFO(R"(EPEngine::initialize: using configuration:"{}")",
                     config);
+    }
+
+    // Create the bucket data directory, ns_server should have created the
+    // process level one but they expect us to create the bucket level one.
+    const auto dbName = configuration.getDbname();
+    if (dbName.empty()) {
+        EP_LOG_WARN_RAW(
+                "Invalid configuration: dbname must be a non-empty value");
+        return cb::engine_errc::failed;
+    }
+    try {
+        cb::io::mkdirp(dbName);
+    } catch (const std::system_error& error) {
+        EP_LOG_WARN("Failed to create data directory [{}]:{}",
+                    dbName,
+                    error.code().message());
+        return cb::engine_errc::failed;
     }
 
     auto& env = Environment::get();
