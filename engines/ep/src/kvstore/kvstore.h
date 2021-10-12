@@ -177,22 +177,18 @@ protected:
     uint64_t rollbackPurgeSeqno;
 };
 
-struct CompactionContext {
-    CompactionContext(Vbid vbid,
-                      CompactionConfig config,
-                      uint64_t purgeSeq,
-                      std::optional<time_t> timeToExpireFrom = {})
-        : vbid(vbid),
-          compactConfig(std::move(config)),
-          timeToExpireFrom(timeToExpireFrom),
-          rollbackPurgeSeqnoCtx(
+/**
+ * PurgedItemContext implements common behaviours to all KVStores that are
+ * executed when we purge an item. A KVStore calls purgedItem for each item
+ * purged along with the type of the item and the seqno of it. This allows us to
+ * subclass PurgedItemContext for KVStores with specific additional behaviours.
+ */
+class PurgedItemCtx {
+public:
+    PurgedItemCtx(uint64_t purgeSeq)
+        : rollbackPurgeSeqnoCtx(
                   std::make_unique<RollbackPurgeSeqnoCtx>(purgeSeq)) {
     }
-
-    uint64_t getRollbackPurgeSeqno() const {
-        return rollbackPurgeSeqnoCtx->getRollbackPurgeSeqno();
-    }
-
     /**
      * Process a purged item
      *
@@ -209,6 +205,29 @@ struct CompactionContext {
         case PurgedItemType::Prepare:
             break;
         }
+    }
+
+    /**
+     * Overridable ctx object that tracks the rollbackPurgeSeqno. KVStores may
+     * override it to add additional behaves that they may wish to execute when
+     * updating the purge seqno.
+     */
+    std::unique_ptr<RollbackPurgeSeqnoCtx> rollbackPurgeSeqnoCtx;
+};
+
+struct CompactionContext {
+    CompactionContext(Vbid vbid,
+                      CompactionConfig config,
+                      uint64_t purgeSeq,
+                      std::optional<time_t> timeToExpireFrom = {})
+        : vbid(vbid),
+          compactConfig(std::move(config)),
+          timeToExpireFrom(timeToExpireFrom),
+          purgedItemCtx(std::make_unique<PurgedItemCtx>(purgeSeq)) {
+    }
+
+    uint64_t getRollbackPurgeSeqno() const {
+        return purgedItemCtx->rollbackPurgeSeqnoCtx->getRollbackPurgeSeqno();
     }
 
     Vbid vbid;
@@ -243,11 +262,14 @@ struct CompactionContext {
     std::function<void(uint64_t)> maybeUpdateVBucketPurgeSeqno;
 
     /**
-     * Overridable ctx object that tracks the rollbackPurgeSeqno. KVStores may
-     * override it to add additional behaves that they may wish to execute when
-     * updating the purge seqno.
+     * Context object used to udpate status we track when we purge an item.
+     * By default this will use a PurgedItemContext which updates a
+     * rollbackPurgeSeqno for specific items. This behaviour is common to all
+     * KVStores. KVStore can overwrite purgedItemContext with some subclass to
+     * implement additional functionality that may/may not need to be done when
+     * purging items.
      */
-    std::unique_ptr<RollbackPurgeSeqnoCtx> rollbackPurgeSeqnoCtx;
+    std::unique_ptr<PurgedItemCtx> purgedItemCtx;
 };
 
 struct kvstats_ctx {
