@@ -669,6 +669,21 @@ void NexusKVStore::getRange(Vbid vb,
         primaryGetValues.pop_front();
         secondaryGetValues.pop_front();
     }
+
+    if (!secondaryGetValues.empty()) {
+        std::stringstream ss;
+        for (auto& gv : secondaryGetValues) {
+            ss << *gv.item << ",";
+        }
+        ss.unget();
+
+        auto msg = fmt::format(
+                "NexusKVStore::getRange: {}: secondary callbacks not made by "
+                "primary:{}",
+                vb,
+                cb::UserData(ss.str()));
+        handleError(msg);
+    }
 }
 
 void NexusKVStore::del(TransactionContext& txnCtx, queued_item item) {
