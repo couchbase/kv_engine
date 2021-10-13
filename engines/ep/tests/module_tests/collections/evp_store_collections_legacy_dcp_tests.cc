@@ -410,8 +410,8 @@ TEST_P(CollectionsLegacyDcpTest,
     auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid, false);
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_TRUE(vb0Stream->isInMemory());
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(0, producers->last_snap_start_seqno);
     EXPECT_EQ(highSeqno, producers->last_snap_end_seqno);
     EXPECT_EQ(MARKER_FLAG_MEMORY, producers->last_flags & MARKER_FLAG_MEMORY);
@@ -542,6 +542,64 @@ TEST_P(CollectionsLegacyDcpTest,
     EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
 }
 
+TEST_P(CollectionsLegacyDcpTest, default_collection_no_items_in_memory_only) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    ASSERT_TRUE(store_items(
+            5, vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value"));
+
+    createDcpObjects({}, false, 0, false, vb->getHighSeqno());
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
+}
+
+TEST_P(CollectionsLegacyDcpTest, default_collection_one_items_in_memory_only) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    store_item(vbid, StoredDocKey{"d", CollectionEntry::defaultC}, "value");
+    ASSERT_TRUE(store_items(
+            5, vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value"));
+
+    createDcpObjects({}, false, 0, false, vb->getHighSeqno() / 2);
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(2, producers->last_snap_end_seqno);
+    EXPECT_EQ(MARKER_FLAG_MEMORY, producers->last_flags & MARKER_FLAG_MEMORY);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("d", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(2, producers->last_byseqno);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
+}
+
+TEST_P(CollectionsLegacyDcpTest,
+       default_collection_prepare_item_in_memory_only) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    ASSERT_TRUE(store_items(
+            5, vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value"));
+
+    auto item = makePendingItem(StoredDocKey{"d", CollectionEntry::defaultC},
+                                "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+
+    createDcpObjects({}, false, 0, false, vb->getHighSeqno());
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
+}
+
 TEST_P(CollectionsLegacyDcpTest,
        ensure_backfill_continues_after_collection_drop) {
     VBucketPtr vb = store->getVBucket(vbid);
@@ -577,6 +635,107 @@ TEST_P(CollectionsLegacyDcpTest,
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid, false);
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
 }
+
+TEST_P(CollectionsDcpParameterizedTest, stream_end_in_memory_stream) {
+    auto vb = store->getVBucket(vbid);
+
+    ASSERT_TRUE(store_items(
+            3, vbid, StoredDocKey{"d", CollectionEntry::defaultC}, "value"));
+    auto highSeqno = vb->getHighSeqno();
+    createDcpObjects({}, false, 0, false /*sync replication*/, highSeqno);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(highSeqno, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("d0", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(1, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("d1", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(2, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("d2", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(highSeqno, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
+}
+
+TEST_P(CollectionsDcpParameterizedTest,
+       stream_end_in_memory_stream_with_one_item_in_default_collection) {
+    auto vb = store->getVBucket(vbid);
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+
+    store_item(vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value");
+
+    createDcpObjects({}, false, 0, false /*sync replication*/, 4);
+
+    store_item(vbid, StoredDocKey{"d", CollectionEntry::defaultC}, "value");
+    auto highSeqno = vb->getHighSeqno();
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(highSeqno, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("d", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(highSeqno, producers->last_byseqno);
+
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+
+    store_item(vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value");
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
+}
+
+TEST_P(CollectionsDcpParameterizedTest,
+       stream_end_in_memory_stream_with_one_item_in_default_collection_sync_write) {
+    auto vb = store->getVBucket(vbid);
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+
+    store_item(vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value");
+    createDcpObjects({}, false, 0, true /*sync replication*/, 5);
+    {
+        auto key = StoredDocKey{"d", CollectionEntry::defaultC};
+        auto item = makePendingItem(key, "value");
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
+                  store->set(*item, cookie));
+        EXPECT_EQ(
+                cb::engine_errc::success,
+                vb->commit(
+                        key, vb->getHighSeqno(), {}, vb->lockCollections(key)));
+    }
+    auto highSeqno = vb->getHighSeqno();
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(highSeqno, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpPrepare);
+    EXPECT_EQ("d", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(highSeqno - 1, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpCommit);
+    EXPECT_EQ("cid:0x0:d", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(highSeqno, producers->last_commit_seqno);
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+
+    store_item(vbid, StoredDocKey{"d", CollectionEntry::fruit}, "value");
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
+}
+
 // No ephemeral support
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsLegacyDcpTest,

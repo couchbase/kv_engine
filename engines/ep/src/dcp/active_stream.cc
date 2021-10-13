@@ -704,9 +704,7 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
 
 std::unique_ptr<DcpResponse> ActiveStream::inMemoryPhase(
         DcpProducer& producer) {
-    if (lastSentSeqno.load() >= end_seqno_) {
-        endStream(cb::mcbp::DcpStreamEndStatus::Ok);
-    } else if (readyQ.empty()) {
+    if (readyQ.empty()) {
         if (pendingBackfill) {
             // Moving the state from InMemory to Backfilling will result in a
             // backfill being scheduled
@@ -1324,6 +1322,11 @@ void ActiveStream::processItems(
                         highNonVisibleSeqno.value(),
                         highNonVisibleSeqno.value());
             }
+        }
+        // if we've processed past the stream's end seqno then transition to the
+        // stream to the dead state and add a stream end to the ready queue
+        if (curChkSeqno >= getEndSeqno()) {
+            endStream(cb::mcbp::DcpStreamEndStatus::Ok);
         }
     }
 

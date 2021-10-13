@@ -3575,6 +3575,109 @@ TEST_F(CollectionsFilteredDcpTest, MB_47753) {
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
 }
 
+TEST_P(CollectionsDcpParameterizedTest,
+       stream_end_in_memory_replication_collection_sync_write) {
+    auto vb = store->getVBucket(vbid);
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+
+    store_item(vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value");
+    createDcpObjects({""}, false, 0, true /*sync replication*/, 5);
+    {
+        auto key = StoredDocKey{"d", CollectionEntry::defaultC};
+        auto item = makePendingItem(key, "value");
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
+                  store->set(*item, cookie));
+        EXPECT_EQ(
+                cb::engine_errc::success,
+                vb->commit(
+                        key, vb->getHighSeqno(), {}, vb->lockCollections(key)));
+    }
+    auto highSeqno = vb->getHighSeqno();
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(highSeqno, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(1, producers->last_byseqno);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("f", producers->last_key);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    EXPECT_EQ(2, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpPrepare);
+    EXPECT_EQ("d", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(3, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpCommit);
+    EXPECT_EQ("cid:0x0:d", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(highSeqno, producers->last_commit_seqno);
+
+    store_item(vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value");
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(5, producers->last_snap_start_seqno);
+    EXPECT_EQ(5, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("f", producers->last_key);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    EXPECT_EQ(5, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
+}
+
+TEST_P(CollectionsDcpParameterizedTest,
+       stream_end_in_memory_replication_collection_sync_write_just_fruit) {
+    auto vb = store->getVBucket(vbid);
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+
+    store_item(vbid, StoredDocKey{"d", CollectionEntry::defaultC}, "value");
+    createDcpObjects({{R"({"collections":["9"]})"}},
+                     false,
+                     0,
+                     false /*sync replication*/,
+                     5);
+    {
+        auto key = StoredDocKey{"f", CollectionEntry::fruit};
+        auto item = makePendingItem(key, "value");
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
+                  store->set(*item, cookie));
+        EXPECT_EQ(
+                cb::engine_errc::success,
+                vb->commit(
+                        key, vb->getHighSeqno(), {}, vb->lockCollections(key)));
+    }
+    auto highSeqno = vb->getHighSeqno();
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(highSeqno, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(1, producers->last_byseqno);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("f", producers->last_key);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    EXPECT_EQ(highSeqno, producers->last_byseqno);
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+    EXPECT_EQ(4, vb->getHighSeqno());
+    store_item(vbid, StoredDocKey{"d", CollectionEntry::defaultC}, "value");
+    EXPECT_EQ(5, vb->getHighSeqno());
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,
