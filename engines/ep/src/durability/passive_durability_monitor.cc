@@ -164,11 +164,11 @@ void PassiveDurabilityMonitor::addSyncWrite(
     if (durReq.getLevel() == cb::durability::Level::None) {
         throwException<std::invalid_argument>(__func__, "Level::None");
     }
-    if (durReq.getTimeout().isDefault()) {
+    if (!durReq.getTimeout().isInfinite()) {
         throwException<std::invalid_argument>(
                 __func__,
-                "timeout is default (explicit value should have been specified "
-                "by Active node)");
+                "timeout is not infinite (PassiveDM cannot safely timeout "
+                "SyncWrites)");
     }
 
     auto s = state.wlock();

@@ -3311,10 +3311,10 @@ TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
 
     // seqno:3 A new prepare
     auto key1 = makeStoredDocKey("crikey3");
-    auto pending3 = makePendingItem(
-            key1,
-            "pending",
-            {cb::durability::Level::Majority, cb::durability::Timeout(5000)});
+    auto pending3 = makePendingItem(key1,
+                                    "pending",
+                                    {cb::durability::Level::Majority,
+                                     cb::durability::Timeout::Infinity()});
     pending3->setCas(1);
     pending3->setBySeqno(3);
     EXPECT_EQ(cb::engine_errc::success, store->prepare(*pending3, cookie));
@@ -3361,10 +3361,10 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
     const std::string value(1024, 'x'); // 1KB value to use for documents.
 
     auto key = makeStoredDocKey("key");
-    auto item = makePendingItem(
-            key,
-            "value",
-            {cb::durability::Level::Majority, cb::durability::Timeout(1)});
+    auto item = makePendingItem(key,
+                                "value",
+                                {cb::durability::Level::Majority,
+                                 cb::durability::Timeout::Infinity()});
 
     item->setCas();
     item->setBySeqno(seqno);

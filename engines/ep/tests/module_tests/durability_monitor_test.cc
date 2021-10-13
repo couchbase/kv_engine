@@ -1988,10 +1988,13 @@ void DurabilityMonitorTest::addSyncWrite(const std::vector<int64_t>& seqnos,
                                          const int64_t expectedHPS,
                                          const int64_t expectedHCS) {
     const size_t expectedNumTracked = monitor->getNumTracked() + seqnos.size();
-    // Use non-default timeout as this function is used by both active and
-    // passive DM tests (and passive DM doesn't accept Timeout::BucketDefault
-    // as active should have already set it to an explicit value).
-    cb::durability::Timeout timeout(10);
+    // Use an appropriate timeout for the given type of DurabilityMonitor -
+    // - active DM usually has non-infinite timeout (unless the SyncWrites
+    // were grandfathered in from a PassiveDM).
+    // - passive DM must have infinite timeout.
+    const auto timeout = vb->getState() == vbucket_state_active
+                                 ? cb::durability::Timeout(10)
+                                 : cb::durability::Timeout::Infinity();
     addSyncWrites(seqnos, cb::durability::Requirements{level, timeout});
     assertNumTrackedAndHPSAndHCS(expectedNumTracked, expectedHPS, expectedHCS);
 }
@@ -2131,8 +2134,9 @@ void PassiveDurabilityMonitorTest::testResolvePrepareOutOfOrder(
     auto key1 = makeStoredDocKey("key1");
     auto key2 = makeStoredDocKey("key2");
     auto key3 = makeStoredDocKey("key3");
-    auto req = cb::durability::Requirements{cb::durability::Level::Majority,
-                                            cb::durability::Timeout{10}};
+    auto req =
+            cb::durability::Requirements{cb::durability::Level::Majority,
+                                         cb::durability::Timeout::Infinity()};
 
     vb->checkpointManager->createSnapshot(
             1, 6, 3 /*HCS*/, CheckpointType::Disk, 0 /*MVS*/);
@@ -3824,7 +3828,8 @@ TEST_P(ActiveDurabilityMonitorTest, MB_41235_commit) {
                                0 /*cas*/,
                                1)};
     using namespace cb::durability;
-    item1->setPendingSyncWrite(Requirements{Level::Majority, Timeout{10}});
+    item1->setPendingSyncWrite(
+            Requirements{Level::Majority, Timeout::Infinity()});
 
     pdm.addSyncWrite(item1, {});
 

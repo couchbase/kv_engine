@@ -4171,7 +4171,8 @@ void DurabilityPassiveStreamTest::testPrepareDeduplicationCorrectlyResetsHPS(
     // ^
     // HPS:2
 
-    auto qi = makePendingItem(keyB, "value", Requirements(level, Timeout(60)));
+    auto qi = makePendingItem(
+            keyB, "value", Requirements(level, Timeout::Infinity()));
     qi->setBySeqno(3);
     qi->setCas(3);
     // Receiving the snap-end seqno. Before the fix, this is where we fail on
