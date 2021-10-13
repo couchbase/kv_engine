@@ -987,6 +987,26 @@ NexusCompactionContext NexusKVStore::calculateCompactionOrder(
     }
 }
 
+/**
+ * Special PurgedItemCtx hook to update the purgeSeqno member of NexusKVStore
+ * when we move the purge seqno in one of the underlying KVStores
+ */
+class NexusPurgedItemCtx : public PurgedItemCtx {
+public:
+    NexusPurgedItemCtx(NexusKVStore& kvstore, uint64_t purgeSeq)
+        : PurgedItemCtx(purgeSeq), kvstore(kvstore) {
+    }
+
+    void purgedItem(PurgedItemType type, uint64_t seqno) override {
+        PurgedItemCtx::purgedItem(type, seqno);
+
+        kvstore.purgeSeqno = seqno;
+    }
+
+protected:
+    NexusKVStore& kvstore;
+};
+
 bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                              std::shared_ptr<CompactionContext> primaryCtx) {
     auto primaryVbPtr = primaryCtx->getVBucket();
@@ -1057,6 +1077,11 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
             secondaryDrops[key] = seqno;
         }
     };
+
+    primaryCtx->purgedItemCtx =
+            std::make_unique<NexusPurgedItemCtx>(*this, purgeSeqno);
+    secondaryCtx->purgedItemCtx =
+            std::make_unique<NexusPurgedItemCtx>(*this, purgeSeqno);
 
     // Comparisons in the callbacks made may be difficult to make if one KVStore
     // may call back with stale items but the other does not. If we know that
@@ -2504,26 +2529,6 @@ std::unique_ptr<TransactionContext> NexusKVStore::begin(
 const KVStoreStats& NexusKVStore::getKVStoreStat() const {
     return primary->getKVStoreStat();
 }
-
-/**
- * Special PurgedItemCtx hook to update the purgeSeqno member of NexusKVStore
- * when we move the purge seqno in one of the underlying KVStores
- */
-class NexusPurgedItemCtx : public PurgedItemCtx {
-public:
-    NexusPurgedItemCtx(NexusKVStore& kvstore, uint64_t purgeSeq)
-        : PurgedItemCtx(purgeSeq), kvstore(kvstore) {
-    }
-
-    void purgedItem(PurgedItemType type, uint64_t seqno) override {
-        PurgedItemCtx::purgedItem(type, seqno);
-
-        kvstore.purgeSeqno = seqno;
-    }
-
-protected:
-    NexusKVStore& kvstore;
-};
 
 void NexusKVStore::setMakeCompactionContextCallback(
         MakeCompactionContextCallback cb) {

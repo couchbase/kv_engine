@@ -506,6 +506,34 @@ TEST_P(NexusKVStoreTest, CollectionDropCompactionWithoutItems) {
     collectionDropCompactionTest(false);
 }
 
+TEST_P(NexusKVStoreTest, CollectionDropCompactionPurgeItem) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // Drop a key, CouchKVStore will purge it, MagmaKVStore will not
+    auto purgedKey = makeStoredDocKey("key");
+    store_item(vbid, purgedKey, "value");
+    delete_item(vbid, purgedKey);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    TimeTraveller timmy{60 * 60 * 24 * 5};
+    runCompaction(vbid);
+
+    // We should skip checks when updating the key as it exists in one
+    // KVStore but not the other and is below the NexusKVStore purge seqno
+    store_item(vbid, purgedKey, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+}
+
 INSTANTIATE_TEST_SUITE_P(Nexus,
                          NexusKVStoreTest,
                          NexusKVStoreTest::couchstoreMagmaVariants(),
