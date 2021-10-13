@@ -120,12 +120,9 @@ private:
     EventuallyPersistentEngine *engine;
     EPStats                   &stats;
     size_t                     sleepTime;
-    /*
-     * Whether the task is required to scan all vbuckets to locate unreferenced
-     * checkpoints to remove.
-     * If eager checkpoint removal is enabled, checkpoints are removed as soon
-     * as they become unreferenced, and thus there is no reason to scan for
-     * them.
-     */
-    bool shouldScanForUnreferencedCheckpoints = false;
+
+    // Checkpoint removal mode set in EP config.
+    // If eager checkpoint removal is enabled, checkpoints are removed as soon
+    // as they become unreferenced and thus there's no reason to scan for them.
+    const CheckpointRemoval removalMode;
 };

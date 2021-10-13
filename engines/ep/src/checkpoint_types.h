@@ -97,3 +97,16 @@ using UniqueFlushHandle = std::unique_ptr<FlushHandle>;
 // Iterator for the Checkpoint queue.  The iterator is templated on the
 // queue type (CheckpointQueue).
 using ChkptQueueIterator = CheckpointIterator<CheckpointQueue>;
+
+// Flag from configuration indicating whether checkpoints should be removed
+// as soon as they become eligible* ("eager"), or if they should be allowed to
+// remain in the manager until other conditions are met e.g., reaching the
+// checkpoint quota.
+// *checkpoint is the oldest checkpoint, and is closed and not referenced by
+//  any cursors.
+enum class CheckpointRemoval : uint8_t {
+    // Remove checkpoints as soon as possible
+    Eager,
+    // Leave checkpoints in memory until removal is triggered by memory usage
+    Lazy
+};
