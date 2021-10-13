@@ -707,6 +707,13 @@ void Checkpoint::detachFromManager() {
     manager->overheadChangedCallback(-getMemoryOverhead());
     manager = nullptr;
 
+    // In EPStats we track the mem used by checkpoints owned by CM, so we need
+    // to decrease that we detach a checkpoint from the CM.
+    auto& cmMemUsage =
+            stats.coreLocal.get()->checkpointManagerEstimatedMemUsage;
+    cmMemUsage.fetch_sub(queuedItemsMemUsage);
+    cmMemUsage.fetch_sub(keyIndexMemUsage);
+
     // stop tracking MemoryCounters against the CM, this also decreases the
     // "parent" value by the values for this Checkpoint.
     setMemoryTracker(nullptr);
@@ -753,7 +760,17 @@ Checkpoint::MemoryCounter::~MemoryCounter() {
     if (parentUsage) {
         *parentUsage -= local;
     }
-    stats.coreLocal.get()->estimatedCheckpointMemUsage.fetch_sub(local);
+    // When the MemoryCounter was originally introduced we used to decrease the
+    // EPStats::checkpointManagerEstimatedMemUsage global stat by 'local' here,
+    // as this was the natural place to do so.
+    // Now after the Destroyer has been introduced, the CM is just one possible
+    // owner of Checkpoint and we need to ensure that the global stat is updated
+    // only once when Checkpoint is detached from the CM, so the global stats
+    // update has been moved to Checkpoint::detachFromManager().
+    //
+    // Note: The same global stat is still updated in MemoryCounter operator+=
+    // and operator-= as by logic that code can only be executed when Checkpoint
+    // is owned by CM.
 }
 
 Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator+=(size_t size) {
@@ -761,7 +778,7 @@ Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator+=(size_t size) {
     if (parentUsage) {
         *parentUsage += size;
     }
-    stats.coreLocal.get()->estimatedCheckpointMemUsage.fetch_add(size);
+    stats.coreLocal.get()->checkpointManagerEstimatedMemUsage.fetch_add(size);
     return *this;
 }
 
@@ -770,7 +787,7 @@ Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator-=(size_t size) {
     if (parentUsage) {
         *parentUsage -= size;
     }
-    stats.coreLocal.get()->estimatedCheckpointMemUsage.fetch_sub(size);
+    stats.coreLocal.get()->checkpointManagerEstimatedMemUsage.fetch_sub(size);
     return *this;
 }
 

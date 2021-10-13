@@ -3459,7 +3459,7 @@ void CheckpointMemoryTrackingTest::SetUp() {
     SingleThreadedCheckpointTest::SetUp();
 }
 
-void CheckpointMemoryTrackingTest::testEstimatedCheckpointMemUsage() {
+void CheckpointMemoryTrackingTest::testCheckpointManagerEstimatedMemUsage() {
     setVBucketState(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
     auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
@@ -3483,7 +3483,7 @@ void CheckpointMemoryTrackingTest::testEstimatedCheckpointMemUsage() {
     // Some metaitems are already in the queue
     EXPECT_GT(initialQueued, 0);
     EXPECT_EQ(0, initialIndex);
-    EXPECT_EQ(initialQueued, stats.getEstimatedCheckpointMemUsage());
+    EXPECT_EQ(initialQueued, stats.getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(initialQueued, manager.getEstimatedMemUsage());
 
     size_t itemsAlloc = 0;
@@ -3509,16 +3509,17 @@ void CheckpointMemoryTrackingTest::testEstimatedCheckpointMemUsage() {
     const auto index = checkpoint->getKeyIndexMemUsage();
     EXPECT_EQ(initialQueued + itemsAlloc, queued);
     EXPECT_EQ(initialIndex + keyIndexAlloc, index);
-    EXPECT_EQ(queued + index, stats.getEstimatedCheckpointMemUsage());
+    EXPECT_EQ(queued + index, stats.getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(queued + index, manager.getEstimatedMemUsage());
 }
 
-TEST_P(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsage) {
-    testEstimatedCheckpointMemUsage();
+TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerEstimatedMemUsage) {
+    testCheckpointManagerEstimatedMemUsage();
 }
 
-TEST_P(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtExpelling) {
-    testEstimatedCheckpointMemUsage();
+TEST_P(CheckpointMemoryTrackingTest,
+       CheckpointManagerEstimatedMemUsageAtExpelling) {
+    testCheckpointManagerEstimatedMemUsage();
 
     auto vb = store->getVBuckets().getBucket(vbid);
     auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
@@ -3588,12 +3589,13 @@ TEST_P(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtExpelling) {
     // Expel doesn't touch the key index
     EXPECT_EQ(initialIndex, index);
     EXPECT_EQ(queued + index,
-              engine->getEpStats().getEstimatedCheckpointMemUsage());
+              engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(queued + index, manager.getEstimatedMemUsage());
 }
 
-TEST_P(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtRemoval) {
-    testEstimatedCheckpointMemUsage();
+TEST_P(CheckpointMemoryTrackingTest,
+       CheckpointManagerEstimatedMemUsageAtRemoval) {
+    testCheckpointManagerEstimatedMemUsage();
 
     // confirm that no items have been removed from the checkpoint manager
     ASSERT_EQ(0, engine->getEpStats().itemsRemovedFromCheckpoints);
@@ -3632,7 +3634,7 @@ TEST_P(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtRemoval) {
     ASSERT_GT(queued, expectedFinalQueueAllocation);
     ASSERT_GT(index, expectedFinalIndexAllocation);
     EXPECT_EQ(queued + index,
-              engine->getEpStats().getEstimatedCheckpointMemUsage());
+              engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
 
     manager.createNewCheckpoint(true /*force*/);
     EXPECT_EQ(2, manager.getNumCheckpoints());
@@ -3663,7 +3665,7 @@ TEST_P(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtRemoval) {
     EXPECT_EQ(expectedFinalQueueAllocation, queued);
     EXPECT_EQ(expectedFinalIndexAllocation, index);
     EXPECT_EQ(queued + index,
-              engine->getEpStats().getEstimatedCheckpointMemUsage());
+              engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(queued + index, manager.getEstimatedMemUsage());
 }
 
@@ -3714,7 +3716,7 @@ TEST_P(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     auto& epstats = engine->getEpStats();
 
     auto initialCMMemUsage = manager.getEstimatedMemUsage();
-    auto initialEPMemUsage = epstats.getEstimatedCheckpointMemUsage();
+    auto initialEPMemUsage = epstats.getCheckpointManagerEstimatedMemUsage();
 
     // the destroyer doesn't own anything yet, so should have no mem usage
     EXPECT_EQ(0, task.getMemoryUsage());
@@ -3733,9 +3735,11 @@ TEST_P(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     EXPECT_EQ(initialCMMemUsage - manager.getEstimatedMemUsage(),
               task.getMemoryUsage());
 
-    // As the checkpoints still exist, so they are still accounted for in
-    // epstats
-    EXPECT_EQ(initialEPMemUsage, epstats.getEstimatedCheckpointMemUsage());
+    // Also the counter in EPStats accounts only checkpoints owned by CM, so it
+    // must be already updated now that checkpoints are owned by the destroyer
+    const auto postDetachEPMemUsage =
+            epstats.getCheckpointManagerEstimatedMemUsage();
+    EXPECT_LT(postDetachEPMemUsage, initialEPMemUsage);
 
     // now the task should be ready to run
     EXPECT_LE(task.getWaketime(), std::chrono::steady_clock::now());
@@ -3743,8 +3747,10 @@ TEST_P(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     auto& nonIOQueue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
     runNextTask(nonIOQueue, "Destroying closed unreferenced checkpoints");
 
-    // checkpoint has been destroyed, epstats counter should have decreased
-    EXPECT_LT(epstats.getEstimatedCheckpointMemUsage(), initialEPMemUsage);
+    // checkpoint has been destroyed, EPStats counter has already been updated
+    // so it must not change again now
+    EXPECT_EQ(postDetachEPMemUsage,
+              epstats.getCheckpointManagerEstimatedMemUsage());
     // and so should the destroyers memory tracking
     EXPECT_EQ(0, task.getMemoryUsage());
 }

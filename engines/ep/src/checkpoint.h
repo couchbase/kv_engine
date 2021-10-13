@@ -669,14 +669,11 @@ private:
         /**
          * Change where the local counter is aggregated.
          *
-         * Checkpoints are owned by a CheckpointManager until they are
-         * destroyed, so the parent will currently never need changing.
-         *
-         * TODO: MB-47462 Introduction of eager checkpoint removal will mean
-         * checkpoints can be detached from a checkpoint manager.
-         * changeParent can then be used to account the checkpoint memory
-         * against a "detatched checkpoint" memory usage counter
-         *
+         * A checkpoint is initially owned by the CM, and then it can be removed
+         * from the CM and moved under CheckpointDestroyer ownership.
+         * This function is used in the ownership-change logic to stop
+         * accounting mem-alloc/dealloc against the old owner and start
+         * accounting against the new owner.
          */
         void changeParent(cb::NonNegativeCounter<size_t>* newParent);
 

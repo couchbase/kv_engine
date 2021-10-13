@@ -211,10 +211,10 @@ size_t EPStats::getNumItem() const {
     return std::max(int64_t(0), result);
 }
 
-size_t EPStats::getEstimatedCheckpointMemUsage() const {
+size_t EPStats::getCheckpointManagerEstimatedMemUsage() const {
     int64_t result = 0;
     for (const auto& core : coreLocal) {
-        result += core->estimatedCheckpointMemUsage;
+        result += core->checkpointManagerEstimatedMemUsage;
     }
     return std::max(int64_t(0), result);
 }

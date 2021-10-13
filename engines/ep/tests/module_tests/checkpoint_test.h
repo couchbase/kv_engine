@@ -129,7 +129,7 @@ public:
      * Verify that the estimated checkpoints mem-usage is tracked correctly
      * at queueing items into the checkpoints.
      */
-    void testEstimatedCheckpointMemUsage();
+    void testCheckpointManagerEstimatedMemUsage();
 };
 
 /**

@@ -320,7 +320,8 @@ TEST_F(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
     // No item stored, no memory condition that triggers mem-recovery
     const auto checkpointMemoryLimit =
             bucketQuota * store->getCheckpointMemoryRatio();
-    EXPECT_LT(stats.getEstimatedCheckpointMemUsage(), checkpointMemoryLimit);
+    EXPECT_LT(stats.getCheckpointManagerEstimatedMemUsage(),
+              checkpointMemoryLimit);
     EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
     EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
 
@@ -337,11 +338,13 @@ TEST_F(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
                           0 /*exp*/,
                           PROTOCOL_BINARY_RAW_BYTES);
         store->set(item, cookie);
-    } while (stats.getEstimatedCheckpointMemUsage() < checkpointMemoryLimit);
+    } while (stats.getCheckpointManagerEstimatedMemUsage() <
+             checkpointMemoryLimit);
     auto vb = store->getVBucket(vbid);
     EXPECT_GT(vb->getNumItems(), 0);
     EXPECT_EQ(numItems, vb->getNumItems());
-    EXPECT_GT(stats.getEstimatedCheckpointMemUsage(), checkpointMemoryLimit);
+    EXPECT_GT(stats.getCheckpointManagerEstimatedMemUsage(),
+              checkpointMemoryLimit);
     EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
 
     // Checkpoint mem-recovery must trigger (regardless of any LWM)
@@ -381,7 +384,8 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
 
     int ii = 0;
     const auto value = std::string(1024 * 1024, 'x');
-    while (stats.getEstimatedCheckpointMemUsage() < chkptMemRecoveryLimit) {
+    while (stats.getCheckpointManagerEstimatedMemUsage() <
+           chkptMemRecoveryLimit) {
         std::string doc_key = "key_" + std::to_string(ii);
         store_item(vbid, makeStoredDocKey(doc_key), value);
         ++ii;
@@ -956,7 +960,7 @@ TEST_F(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
 
     auto& epstats = engine->getEpStats();
 
-    auto initialMemUsed = epstats.getEstimatedCheckpointMemUsage();
+    auto initialMemUsed = epstats.getCheckpointManagerEstimatedMemUsage();
     auto initialMemUsedCM = cm.getEstimatedMemUsage();
 
     // Add items to the initial (open) checkpoint until they exceed the
@@ -978,7 +982,9 @@ TEST_F(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
     flushVBucketToDiskIfPersistent(vbid, i);
 
     // memory usage should be higher than it started
-    EXPECT_GT(epstats.getEstimatedCheckpointMemUsage(), initialMemUsed);
+    const auto preDetachGlobalMemUsage =
+            epstats.getCheckpointManagerEstimatedMemUsage();
+    EXPECT_GT(preDetachGlobalMemUsage, initialMemUsed);
     auto peakMemUsedCM = cm.getEstimatedMemUsage();
     EXPECT_GT(cm.getEstimatedMemUsage(), initialMemUsedCM);
 
@@ -998,16 +1004,22 @@ TEST_F(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
     // and now the checkpoint mem usage is accounted against the destroyer task
     EXPECT_EQ(peakMemUsedCM - cm.getEstimatedMemUsage(),
               destroyer.getMemoryUsage());
-    // but still tracked in epstats; the checkpoints have not been destroyed
-    EXPECT_GT(epstats.getEstimatedCheckpointMemUsage(), initialMemUsed);
+    // Also the counter in EPStats accounts only checkpoints owned by CM, so it
+    // must be already updated now that checkpoints are owned by the destroyer
+    const auto postDetachGlobalMemUsage =
+            epstats.getCheckpointManagerEstimatedMemUsage();
+    EXPECT_LT(postDetachGlobalMemUsage, preDetachGlobalMemUsage);
 
     // run the task responsible for actually destroying the checkpoints
     runNextTask(nonIO, "Destroying closed unreferenced checkpoints");
 
-    // the checkpoints have been destroyed, epstats tracking should be back
-    // down, and the destroyer should have no checkpoint memory associated.
-    EXPECT_LE(epstats.getEstimatedCheckpointMemUsage(), initialMemUsed);
+    // The checkpoints have been destroyed, the destroyer should have no
+    // checkpoint memory associated.
+    // Note that the EPStats counter has already been updated so it must not
+    // change again now
+    EXPECT_EQ(postDetachGlobalMemUsage,
+              epstats.getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(cm.getEstimatedMemUsage(),
-              epstats.getEstimatedCheckpointMemUsage());
+              epstats.getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(0, destroyer.getMemoryUsage());
 }

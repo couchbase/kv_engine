@@ -2870,7 +2870,7 @@ KVBucket::CheckpointMemoryState KVBucket::getCheckpointMemoryState() const {
     const auto checkpointQuota = stats.getMaxDataSize() * checkpointMemoryRatio;
     const auto recoveryThreshold =
             checkpointQuota * checkpointMemoryRecoveryUpperMark;
-    const auto usage = stats.getEstimatedCheckpointMemUsage();
+    const auto usage = stats.getCheckpointManagerEstimatedMemUsage();
 
     if (usage < recoveryThreshold) {
         return CheckpointMemoryState::Available;
@@ -2902,7 +2902,7 @@ size_t KVBucket::getRequiredCheckpointMemoryReduction() const {
     const auto checkpointQuota = stats.getMaxDataSize() * checkpointMemoryRatio;
     const auto recoveryThreshold =
             checkpointQuota * getCheckpointMemoryRecoveryUpperMark();
-    const auto usage = stats.getEstimatedCheckpointMemUsage();
+    const auto usage = stats.getCheckpointManagerEstimatedMemUsage();
 
     if (usage < recoveryThreshold) {
         return 0;

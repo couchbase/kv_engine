@@ -85,8 +85,9 @@ public:
     //! Total number of Item objects
     Counter numItem;
 
-    //! Estimate of the total amount of memory used by checkpoints
-    Counter estimatedCheckpointMemUsage;
+    //! Estimate of the total amount of memory used by checkpoints owned by CMs
+    // Note: This does NOT account mem used by checkpoints owned by Destroyers
+    Counter checkpointManagerEstimatedMemUsage;
 
     //! Total number of checkpoints across all vbuckets
     Counter numCheckpoints;
@@ -173,8 +174,12 @@ public:
     /// @returns number of Item objects which exist.
     size_t getNumItem() const;
 
-    /// @returns estimate of the total amount of memory used by checkpoints
-    size_t getEstimatedCheckpointMemUsage() const;
+    /**
+     * @returns the estimate of the total amount of memory used by checkpoints
+     *  that reside in CMs. Does NOT account mem used by checkpoints owned by
+     *  Destroyers.
+     */
+    size_t getCheckpointManagerEstimatedMemUsage() const;
 
     /// @returns the total number of checkpoints across all vbuckets
     size_t getNumCheckpoints() const;
