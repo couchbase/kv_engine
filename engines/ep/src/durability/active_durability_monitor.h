@@ -140,6 +140,7 @@ public:
      *
      * @param stats EPStats object for the associated Bucket.
      * @param pdm The PassiveDM to be converted
+     * @param nextExpiryChanged Object to use for timing out SyncWrites.
      */
     ActiveDurabilityMonitor(EPStats& stats,
                             PassiveDurabilityMonitor&& pdm,

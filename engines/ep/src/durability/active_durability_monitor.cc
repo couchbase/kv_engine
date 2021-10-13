@@ -863,7 +863,7 @@ ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it,
     if (removingFirstElement) {
         // If first element was removed, then a new SyncWrite (or possibly none
         // at all) is at the head of trackedWrites and hence now the next
-        // SyncWrite to be timeed out - reschedule the timeout callback.
+        // SyncWrite to be timed out - reschedule the timeout callback.
         scheduleTimeoutCallback();
     }
 

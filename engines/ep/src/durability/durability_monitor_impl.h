@@ -411,6 +411,7 @@ std::string to_string(const SnapshotEndInfo& snapshotEndInfo);
 struct ActiveDurabilityMonitor::State {
     /**
      * @param adm The owning ActiveDurabilityMonitor
+     * @param nextExpiryChanged Object to use for timing out SyncWrites.
      */
     explicit State(ActiveDurabilityMonitor& adm,
                    std::unique_ptr<EventDrivenDurabilityTimeoutIface>
