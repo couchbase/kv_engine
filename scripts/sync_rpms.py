@@ -1,5 +1,7 @@
 #!/usr/bin/env python2.7
 
+from __future__ import print_function
+
 """
 Copyright 2020-Present Couchbase, Inc.
 
@@ -23,10 +25,8 @@ listed in couchbase.log) and for each one:
 Example usage:
 
     grep '^\(glibc\|libstdc++\)' couchbase.log | ./sync_rpms.py
-
 """
 
-from __future__ import print_function
 import fileinput
 import logging
 import os
