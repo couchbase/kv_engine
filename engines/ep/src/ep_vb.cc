@@ -242,6 +242,10 @@ void EPVBucket::completeCompactionExpiryBgFetch(
     { // locking scope
         auto docKey = key.getDocKey();
         folly::SharedMutex::ReadHolder rlh(getStateLock());
+        if (getState() != vbucket_state_active) {
+            return;
+        }
+
         auto cHandle = lockCollections(docKey);
         if (!cHandle.valid()) {
             return;

@@ -677,7 +677,7 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindNonResidentItem) {
 }
 
 void EPBucketFullEvictionTest::compactionFindsNonResidentItem(
-        bool dropCollection) {
+        bool dropCollection, bool switchToReplica) {
     EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, {}));
 
@@ -723,34 +723,56 @@ void EPBucketFullEvictionTest::compactionFindsNonResidentItem(
     // We should have queued a BGFetch for the item
     EXPECT_EQ(1, vb->getNumItems());
     ASSERT_TRUE(vb->hasPendingBGFetchItems());
-    runBGFetcherTask();
-    EXPECT_FALSE(vb->hasPendingBGFetchItems());
 
-    // We should have expired the item
-    EXPECT_EQ(expectedExpiredItems, vb->numExpiredItems);
-
-    // But it still exists on disk until we flush
-    EXPECT_EQ(1, vb->getNumItems());
-
-    auto expectedItems = 0;
-    if (isRocksDB() || dropCollection) {
-        // RocksDB doesn't know if we insert or update so item counts are not
-        // correct.
-        // Or if we drop the collection, no expiry. Item count won't be updated
-        // until collections are purged, so 1 is correct.
-        expectedItems = 1;
-    } else {
-        flushVBucketToDiskIfPersistent(vbid, 1);
+    auto highSeqno = vb->getHighSeqno();
+    if (switchToReplica) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  store->setVBucketState(vbid, vbucket_state_replica, {}));
     }
-    EXPECT_EQ(expectedItems, vb->getNumItems());
+
+    runBGFetcherTask();
+
+    if (!switchToReplica) {
+        EXPECT_FALSE(vb->hasPendingBGFetchItems());
+
+        // We should have expired the item
+        EXPECT_EQ(expectedExpiredItems, vb->numExpiredItems);
+
+        // But it still exists on disk until we flush
+        EXPECT_EQ(1, vb->getNumItems());
+
+        auto expectedItems = 0;
+        if (isRocksDB() || dropCollection) {
+            // RocksDB doesn't know if we insert or update so item counts are
+            // not correct. Or if we drop the collection, no expiry. Item count
+            // won't be updated until collections are purged, so 1 is correct.
+            expectedItems = 1;
+            if (dropCollection) {
+                EXPECT_EQ(highSeqno, vb->getHighSeqno());
+            }
+        } else {
+            EXPECT_LT(highSeqno, vb->getHighSeqno());
+            flushVBucketToDiskIfPersistent(vbid, 1);
+        }
+        EXPECT_EQ(expectedItems, vb->getNumItems());
+    } else {
+        EXPECT_EQ(0, vb->numExpiredItems);
+        EXPECT_EQ(highSeqno, vb->getHighSeqno());
+    }
 }
 
 TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentItem) {
-    compactionFindsNonResidentItem(false);
+    compactionFindsNonResidentItem(false, false);
 }
 
 TEST_P(EPBucketFullEvictionTest, MB_42295_dropCollectionBeforeExpiry) {
-    compactionFindsNonResidentItem(true);
+    compactionFindsNonResidentItem(true, false);
+}
+
+TEST_P(EPBucketFullEvictionTest, MB_48841_switchToReplica) {
+    // Test will switch from active to replica, bgfetch runs whilst replica and
+    // all pending expiries must not take affect.
+    compactionFindsNonResidentItem(false, true);
 }
 
 /**
