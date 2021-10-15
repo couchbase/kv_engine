@@ -297,8 +297,10 @@ protected:
      * will have a different result (if it's the one done first) to the other
      * KVStore. This means we have to skip the checks we'd normally do in
      * getWithHeader for this portion of a rollback.
+     *
+     * Indexed by vBucket id.
      */
-    bool skipGetWithHeaderChecksForRollback = false;
+    std::vector<std::atomic_bool> skipGetWithHeaderChecksForRollback;
 
     /**
      * Mutexes that allow us to lock interesting actions for some particular

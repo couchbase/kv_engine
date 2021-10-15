@@ -62,6 +62,8 @@ NexusKVStore::NexusKVStore(NexusKVStoreConfig& config) : configuration(config) {
 
     auto cacheSize = configuration.getCacheSize();
     vbMutexes = std::vector<std::mutex>(cacheSize);
+    skipGetWithHeaderChecksForRollback =
+            std::vector<std::atomic_bool>(cacheSize);
 }
 
 void NexusKVStore::deinitialize() {
@@ -538,7 +540,7 @@ GetValue NexusKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
                                      const DiskDocKey& key,
                                      Vbid vb,
                                      ValueFilter filter) const {
-    if (skipGetWithHeaderChecksForRollback) {
+    if (skipGetWithHeaderChecksForRollback[getCacheSlot(vb)]) {
         // We're calling this from rollback, and the primary KVStore will have
         // been rolled back already and we're looking for the pre-rollback seqno
         // state of a doc in the callback in EPBucket. Any comparison here would
@@ -1384,9 +1386,10 @@ RollbackResult NexusKVStore::rollback(Vbid vbid,
     // 2) During rollback we take the vBucket write lock so no flushes
 
     // Skip checks, see member declaration for more details.
-    skipGetWithHeaderChecksForRollback = true;
-    auto guard = folly::makeGuard(
-            [this] { skipGetWithHeaderChecksForRollback = false; });
+    skipGetWithHeaderChecksForRollback[getCacheSlot(vbid)] = true;
+    auto guard = folly::makeGuard([this, vbid] {
+        skipGetWithHeaderChecksForRollback[getCacheSlot(vbid)] = false;
+    });
 
     std::unordered_map<DiskDocKey, uint64_t> primaryRollbacks;
     auto primaryCb = std::make_unique<NexusRollbackCB>(
