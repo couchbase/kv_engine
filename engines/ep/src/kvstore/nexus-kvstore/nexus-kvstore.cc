@@ -2560,6 +2560,9 @@ void NexusKVStore::endTransaction(Vbid vbid) {
 }
 
 std::unique_lock<std::mutex> NexusKVStore::getLock(Vbid vbid) const {
-    return std::unique_lock<std::mutex>(
-            vbMutexes[vbid.get() / configuration.getMaxShards()]);
+    return std::unique_lock<std::mutex>(vbMutexes[getCacheSlot(vbid)]);
+}
+
+Vbid::id_type NexusKVStore::getCacheSlot(Vbid vbid) const {
+    return vbid.get() / configuration.getMaxShards();
 }

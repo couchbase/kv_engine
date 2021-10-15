@@ -184,6 +184,15 @@ protected:
     [[nodiscard]] std::unique_lock<std::mutex> getLock(Vbid vbid) const;
 
     /**
+     * We cache values per-vBucket and to save memory usage we only allocate
+     * num vBuckets / num shards slots in the array. Return correct slot.
+     *
+     * @param vbid Vbid to map
+     * @return vbid / num shards
+     */
+    Vbid::id_type getCacheSlot(Vbid vbid) const;
+
+    /**
      * Compare get values of the primary against the secondary. Compares status
      * and the resulting item.
      *
