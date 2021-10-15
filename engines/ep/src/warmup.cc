@@ -1090,10 +1090,10 @@ void LoadStorageKVPairCallback::purge() {
         explicit EmergencyPurgeVisitor(EPBucket& store) : epstore(store) {
         }
 
-        void visitBucket(const VBucketPtr& vb) override {
-            if (vBucketFilter(vb->getId())) {
-                currentBucket = vb.get();
-                vb->ht.visit(*this);
+        void visitBucket(VBucket& vb) override {
+            if (vBucketFilter(vb.getId())) {
+                currentBucket = &vb;
+                vb.ht.visit(*this);
                 currentBucket = nullptr;
             }
         }
@@ -1118,7 +1118,7 @@ void LoadStorageKVPairCallback::purge() {
     for (auto vbid : vbucketIds) {
         VBucketPtr vb = vbuckets.getBucket(vbid);
         if (vb) {
-            epv.visitBucket(vb);
+            epv.visitBucket(*vb);
         }
     }
     hasPurged = true;

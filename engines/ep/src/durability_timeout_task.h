@@ -69,7 +69,7 @@ public:
     DurabilityTimeoutVisitor() : startTime(std::chrono::steady_clock::now()) {
     }
 
-    void visitBucket(const VBucketPtr& vb) override;
+    void visitBucket(VBucket& vb) override;
 
 private:
     const std::chrono::steady_clock::time_point startTime;

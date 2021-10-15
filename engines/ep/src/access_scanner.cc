@@ -88,17 +88,17 @@ public:
         accessed.clear();
     }
 
-    void visitBucket(const VBucketPtr& vb) override {
-        update(vb->getId());
+    void visitBucket(VBucket& vb) override {
+        update(vb.getId());
 
         if (log == nullptr) {
             return;
         }
         HashTable::Position ht_start;
-        if (vBucketFilter(vb->getId())) {
-            while (ht_start != vb->ht.endPosition()) {
-                ht_start = vb->ht.pauseResumeVisit(*this, ht_start);
-                update(vb->getId());
+        if (vBucketFilter(vb.getId())) {
+            while (ht_start != vb.ht.endPosition()) {
+                ht_start = vb.ht.pauseResumeVisit(*this, ht_start);
+                update(vb.getId());
                 log->commit1();
                 log->commit2();
                 items_scanned = 0;

@@ -368,9 +368,9 @@ void Collections::Manager::dereferenceMeta(
 /// VbucketVisitor that gathers stats for all collections
 class AllCollectionsGetStatsVBucketVisitor : public VBucketVisitor {
 public:
-    void visitBucket(const VBucketPtr& vb) override {
-        if (vb->getState() == vbucket_state_active) {
-            vb->lockCollections().updateSummary(summary);
+    void visitBucket(VBucket& vb) override {
+        if (vb.getState() == vbucket_state_active) {
+            vb.lockCollections().updateSummary(summary);
         }
     }
     Collections::Summary summary;
@@ -387,9 +387,9 @@ public:
         }
     }
 
-    void visitBucket(const VBucketPtr& vb) override {
-        if (vb->getState() == vbucket_state_active) {
-            vb->lockCollections().accumulateStats(collections, summary);
+    void visitBucket(VBucket& vb) override {
+        if (vb.getState() == vbucket_state_active) {
+            vb.lockCollections().accumulateStats(collections, summary);
         }
     }
 
@@ -403,9 +403,9 @@ public:
         : collector(collector) {
     }
 
-    void visitBucket(const VBucketPtr& vb) override {
-        success = vb->lockCollections().addCollectionStats(vb->getId(),
-                                                           collector) ||
+    void visitBucket(VBucket& vb) override {
+        success = vb.lockCollections().addCollectionStats(vb.getId(),
+                                                          collector) ||
                   success;
     }
 
@@ -424,8 +424,8 @@ public:
         : collector(collector) {
     }
 
-    void visitBucket(const VBucketPtr& vb) override {
-        success = vb->lockCollections().addScopeStats(vb->getId(), collector) ||
+    void visitBucket(VBucket& vb) override {
+        success = vb.lockCollections().addScopeStats(vb.getId(), collector) ||
                   success;
     }
 

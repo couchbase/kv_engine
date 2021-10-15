@@ -72,8 +72,8 @@ bool DurabilityTimeoutTask::run() {
     return !engine->getEpStats().isShutdown;
 }
 
-void DurabilityTimeoutVisitor::visitBucket(const VBucketPtr& vb) {
-    vb->processDurabilityTimeout(startTime);
+void DurabilityTimeoutVisitor::visitBucket(VBucket& vb) {
+    vb.processDurabilityTimeout(startTime);
 }
 
 /**

@@ -23,7 +23,7 @@ public:
     explicit CountVisitor(vbucket_state_t state) : VBucketCountVisitor(state) {
     }
 
-    void visitBucket(const VBucketPtr& vb) override;
+    void visitBucket(VBucket& vb) override;
 
     size_t autoDeleteCount = 0;
     size_t htDeletedPurgeCount = 0;

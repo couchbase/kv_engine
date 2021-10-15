@@ -24,7 +24,7 @@ public:
     explicit VBucketStatVisitor(vbucket_state_t state) : desired_state(state) {
     }
 
-    void visitBucket(const VBucketPtr& vb) override = 0;
+    void visitBucket(VBucket& vb) override = 0;
 
     vbucket_state_t getVBucketState() const {
         return desired_state;
@@ -43,7 +43,7 @@ public:
         : VBucketStatVisitor(state) {
     }
 
-    void visitBucket(const VBucketPtr& vb) override;
+    void visitBucket(VBucket& vb) override;
 
     size_t getNumItems() const {
         return numItems;
@@ -230,7 +230,7 @@ public:
         : VBucketStatVisitor(state) {
     }
 
-    void visitBucket(const VBucketPtr& vb) override;
+    void visitBucket(VBucket& vb) override;
 
     size_t getDatatypeCount(protocol_binary_datatype_t datatype) const {
         return datatypeCounts[datatype];
@@ -249,7 +249,7 @@ private:
  */
 class VBucketStatAggregator : public VBucketVisitor {
 public:
-    void visitBucket(const VBucketPtr& vb) override;
+    void visitBucket(VBucket& vb) override;
 
     void addVisitor(VBucketStatVisitor* visitor);
 

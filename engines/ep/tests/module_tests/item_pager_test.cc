@@ -759,7 +759,7 @@ TEST_P(STItemPagerTest, isEligible) {
             cfg.getItemEvictionFreqCounterAgeThreshold());
 
     VBucketPtr vb = store->getVBucket(vbid);
-    pv->visitBucket(vb);
+    pv->visitBucket(*vb);
     auto initialCount = Item::initialFreqCount;
     EXPECT_NE(initialCount,
               pv->getItemEviction().getThresholds(100.0, 0.0).first);
@@ -791,7 +791,7 @@ TEST_P(STItemPagerTest, decayByOne) {
             cfg.getItemEvictionAgePercentage(),
             cfg.getItemEvictionFreqCounterAgeThreshold());
 
-    pv->setCurrentBucket(engine->getKVBucket()->getVBucket(vbid));
+    pv->setCurrentBucket(*engine->getKVBucket()->getVBucket(vbid));
     flushVBucketToDiskIfPersistent(vbid);
     int iterationCount = 0;
     while ((pv->getEjected() == 0) &&
@@ -831,7 +831,7 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
             cfg.getItemEvictionAgePercentage(),
             cfg.getItemEvictionFreqCounterAgeThreshold());
 
-    pv->setCurrentBucket(engine->getKVBucket()->getVBucket(vbid));
+    pv->setCurrentBucket(*engine->getKVBucket()->getVBucket(vbid));
     store->setVBucketState(vbid, vbucket_state_replica);
     for (int ii = 0; ii <= Item::initialFreqCount; ii++) {
         pv->setFreqCounterThreshold(0);
@@ -1197,7 +1197,7 @@ MATCHER_P(VBPtrVbidMatcher,
           vbid,
           "Check the provided VBucket pointer points to a vbucket with the "
           "given vbid") {
-    return arg && arg->getId() == vbid;
+    return arg.getId() == vbid;
 }
 
 TEST_P(STItemPagerTest, ItemPagerEvictionOrder) {

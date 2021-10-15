@@ -3443,8 +3443,8 @@ cb::engine_errc EventuallyPersistentEngine::doVBucketStats(
             : eps(store), cookie(c), add_stat(std::move(a)), detail(detail) {
         }
 
-        void visitBucket(const VBucketPtr& vb) override {
-            addVBStats(cookie, add_stat, *vb, eps, detail);
+        void visitBucket(VBucket& vb) override {
+            addVBStats(cookie, add_stat, vb, eps, detail);
         }
 
         static void addVBStats(const CookieIface* cookie,
@@ -3535,14 +3535,14 @@ cb::engine_errc EventuallyPersistentEngine::doHashStats(
             : cookie(c), add_stat(std::move(a)), compressionMode(compressMode) {
         }
 
-        void visitBucket(const VBucketPtr& vb) override {
-            Vbid vbid = vb->getId();
+        void visitBucket(VBucket& vb) override {
+            Vbid vbid = vb.getId();
             std::array<char, 32> buf;
             try {
                 checked_snprintf(
                         buf.data(), buf.size(), "vb_%d:state", vbid.get());
                 add_casted_stat(buf.data(),
-                                VBucket::toString(vb->getState()),
+                                VBucket::toString(vb.getState()),
                                 add_stat,
                                 cookie);
             } catch (std::exception& error) {
@@ -3553,16 +3553,16 @@ cb::engine_errc EventuallyPersistentEngine::doHashStats(
             }
 
             HashTableDepthStatVisitor depthVisitor;
-            vb->ht.visitDepth(depthVisitor);
+            vb.ht.visitDepth(depthVisitor);
 
             try {
                 checked_snprintf(
                         buf.data(), buf.size(), "vb_%d:size", vbid.get());
-                add_casted_stat(buf.data(), vb->ht.getSize(), add_stat, cookie);
+                add_casted_stat(buf.data(), vb.ht.getSize(), add_stat, cookie);
                 checked_snprintf(
                         buf.data(), buf.size(), "vb_%d:locks", vbid.get());
                 add_casted_stat(
-                        buf.data(), vb->ht.getNumLocks(), add_stat, cookie);
+                        buf.data(), vb.ht.getNumLocks(), add_stat, cookie);
                 checked_snprintf(
                         buf.data(), buf.size(), "vb_%d:min_depth", vbid.get());
                 add_casted_stat(buf.data(),
@@ -3579,7 +3579,7 @@ cb::engine_errc EventuallyPersistentEngine::doHashStats(
                 checked_snprintf(
                         buf.data(), buf.size(), "vb_%d:reported", vbid.get());
                 add_casted_stat(buf.data(),
-                                vb->ht.getNumInMemoryItems(),
+                                vb.ht.getNumInMemoryItems(),
                                 add_stat,
                                 cookie);
                 checked_snprintf(
@@ -3589,11 +3589,11 @@ cb::engine_errc EventuallyPersistentEngine::doHashStats(
                 checked_snprintf(
                         buf.data(), buf.size(), "vb_%d:resized", vbid.get());
                 add_casted_stat(
-                        buf.data(), vb->ht.getNumResizes(), add_stat, cookie);
+                        buf.data(), vb.ht.getNumResizes(), add_stat, cookie);
                 checked_snprintf(
                         buf.data(), buf.size(), "vb_%d:mem_size", vbid.get());
                 add_casted_stat(
-                        buf.data(), vb->ht.getItemMemory(), add_stat, cookie);
+                        buf.data(), vb.ht.getItemMemory(), add_stat, cookie);
 
                 if (compressionMode != BucketCompressionMode::Off) {
                     checked_snprintf(buf.data(),
@@ -3601,7 +3601,7 @@ cb::engine_errc EventuallyPersistentEngine::doHashStats(
                                      "vb_%d:mem_size_uncompressed",
                                      vbid.get());
                     add_casted_stat(buf.data(),
-                                    vb->ht.getUncompressedItemMemory(),
+                                    vb.ht.getUncompressedItemMemory(),
                                     add_stat,
                                     cookie);
                 }
@@ -3617,7 +3617,7 @@ cb::engine_errc EventuallyPersistentEngine::doHashStats(
                                  "vb_%d:num_system_items",
                                  vbid.get());
                 add_casted_stat(buf.data(),
-                                vb->ht.getNumSystemItems(),
+                                vb.ht.getNumSystemItems(),
                                 add_stat,
                                 cookie);
             } catch (std::exception& error) {
@@ -3742,8 +3742,8 @@ public:
         : kvBucket(kvs), cookie(c), add_stat(std::move(a)) {
     }
 
-    void visitBucket(const VBucketPtr& vb) override {
-        addCheckpointStat(cookie, add_stat, kvBucket, *vb);
+    void visitBucket(VBucket& vb) override {
+        addCheckpointStat(cookie, add_stat, kvBucket, vb);
     }
 
     static void addCheckpointStat(const CookieIface* cookie,
@@ -4322,8 +4322,8 @@ cb::engine_errc EventuallyPersistentEngine::doAllFailoverLogStats(
             : cookie(c), add_stat(std::move(a)) {
         }
 
-        void visitBucket(const VBucketPtr& vb) override {
-            vb->failovers->addStats(cookie, vb->getId(), add_stat);
+        void visitBucket(VBucket& vb) override {
+            vb.failovers->addStats(cookie, vb.getId(), add_stat);
         }
 
     private:

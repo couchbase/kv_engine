@@ -2282,7 +2282,7 @@ void KVBucket::visit(VBucketVisitor &visitor)
     for (auto vbid : vbMap.getBuckets()) {
         VBucketPtr vb = vbMap.getBucket(vbid);
         if (vb) {
-            visitor.visitBucket(vb);
+            visitor.visitBucket(*vb);
         }
     }
 }
@@ -2384,7 +2384,7 @@ bool VBCBAdaptor::run() {
                 return false;
             }
 
-            visitor->visitBucket(vb);
+            visitor->visitBucket(*vb);
         }
         vbucketsToVisit.pop_front();
     }

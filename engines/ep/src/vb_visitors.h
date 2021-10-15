@@ -28,7 +28,7 @@ class HashTableVisitor;
  * Implemented by objects which wish to visit vBuckets in a Bucket - see
  * KVBucketIface::visit().
  *
- * A filter may be specified to constain the set of vBuckets which will be
+ * A filter may be specified to constrain the set of vBuckets which will be
  * visited (for example to only visit vBuckets belonging to a give shard). By
  * default all vBuckets are visited.
  */
@@ -43,11 +43,11 @@ public:
     /**
      * Begin visiting a bucket.
      *
-     * @param vb the vbucket we are beginning to visit. Passed as const
-     *        shared_ptr which allows caller to retain reference count if
-     *        desired, but not reseat the shared_ptr.
+     * @param vb the vbucket we are beginning to visit.
+     * Implementations should not take a reference / pointer to the VBucket
+     * which outlives the lifetime of the visitBucket() call.
      */
-    virtual void visitBucket(const VBucketPtr& vb) = 0;
+    virtual void visitBucket(VBucket& vb) = 0;
 
     const VBucketFilter& getVBucketFilter() {
         return vBucketFilter;
@@ -84,7 +84,7 @@ protected:
  */
 class InterruptableVBucketVisitor : public VBucketVisitor {
 public:
-    void visitBucket(const VBucketPtr& vb) override = 0;
+    void visitBucket(VBucket& vb) override = 0;
 
     /**
      * Called when starting to visit vBuckets, both on initial visit and also
@@ -128,7 +128,7 @@ public:
  */
 class CappedDurationVBucketVisitor : public InterruptableVBucketVisitor {
 public:
-    void visitBucket(const VBucketPtr& vb) override = 0;
+    void visitBucket(VBucket& vb) override = 0;
 
     void begin() override;
 

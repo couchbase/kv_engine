@@ -526,9 +526,9 @@ TEST_F(EventuallyPersistentEngineTest, MB48925_ScheduleTaskAfterUnregistered) {
               waitForDeinitialise(waitForDeinitialise) {
         }
 
-        void visitBucket(const VBucketPtr& vb) override {
+        void visitBucket(VBucket& vb) override {
             if (visitCount++ == 0) {
-                currentVb = vb.get();
+                currentVb = &vb;
                 // On first call to visitBucket() perform the necessary
                 // interleaved baton wait / sleeping.
                 // Suspend execution of this thread; and allow main thread to

@@ -3263,7 +3263,7 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
         ASSERT_EQ(pending->getCommitted(), CommittedState::PrepareCommitted);
     }
 
-    pv->setCurrentBucket(vb);
+    pv->setCurrentBucket(*vb);
     for (int ii = 0; ii <= Item::initialFreqCount; ii++) {
         pv->setFreqCounterThreshold(0);
         vb->ht.visit(*pv);

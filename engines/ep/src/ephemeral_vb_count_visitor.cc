@@ -15,13 +15,13 @@
 #include "seqlist.h"
 #include "vb_count_visitor.h"
 
-void EphemeralVBucket::CountVisitor::visitBucket(const VBucketPtr& vb) {
+void EphemeralVBucket::CountVisitor::visitBucket(VBucket& vb) {
     // Handle base class counts
     VBucketCountVisitor::visitBucket(vb);
 
     // Then append Ephemeral-specific:
     if (desired_state != vbucket_state_dead) {
-        auto& ephVB = dynamic_cast<EphemeralVBucket&>(*vb);
+        auto& ephVB = dynamic_cast<EphemeralVBucket&>(vb);
         autoDeleteCount += ephVB.autoDeleteCount;
         htDeletedPurgeCount += ephVB.htDeletedPurgeCount;
         seqlistCount += ephVB.seqList->getNumItems();

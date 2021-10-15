@@ -234,9 +234,9 @@ public:
         : filter(filter) {
     }
 
-    void visitBucket(const VBucketPtr& vb) override {
-        if (!filter.empty() && filter(vb->getId())) {
-            totalEvictableMemory += vb->getPageableMemUsage();
+    void visitBucket(VBucket& vb) override {
+        if (!filter.empty() && filter(vb.getId())) {
+            totalEvictableMemory += vb.getPageableMemUsage();
         }
     }
 

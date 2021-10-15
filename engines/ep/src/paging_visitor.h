@@ -75,7 +75,7 @@ public:
 
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
 
-    void visitBucket(const VBucketPtr& vb) override;
+    void visitBucket(VBucket& vb) override;
 
     void update();
 

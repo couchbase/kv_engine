@@ -1456,12 +1456,12 @@ cb::engine_errc EPBucket::getPerVBucketDiskStats(const CookieIface* cookie,
             : cookie(c), add_stat(std::move(a)) {
         }
 
-        void visitBucket(const VBucketPtr& vb) override {
+        void visitBucket(VBucket& vb) override {
             std::array<char, 32> buf;
-            Vbid vbid = vb->getId();
+            Vbid vbid = vb.getId();
             try {
                 auto dbInfo =
-                        vb->getShard()->getRWUnderlying()->getDbFileInfo(vbid);
+                        vb.getShard()->getRWUnderlying()->getDbFileInfo(vbid);
 
                 checked_snprintf(
                         buf.data(), buf.size(), "vb_%d:data_size", vbid.get());

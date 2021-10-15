@@ -42,7 +42,7 @@ public:
                         freqCounterAgeThreshold) {
         using namespace testing;
         ON_CALL(*this, visitBucket(_))
-                .WillByDefault(Invoke([this](const VBucketPtr& vb) {
+                .WillByDefault(Invoke([this](VBucket& vb) {
                     PagingVisitor::visitBucket(vb);
                 }));
     }
@@ -59,9 +59,9 @@ public:
         freqCounterThreshold = threshold;
     }
 
-    void setCurrentBucket(VBucketPtr _currentBucket) {
-        currentBucket = _currentBucket.get();
+    void setCurrentBucket(VBucket& _currentBucket) {
+        currentBucket = &_currentBucket;
     }
 
-    MOCK_METHOD1(visitBucket, void(const VBucketPtr&));
+    MOCK_METHOD1(visitBucket, void(VBucket&));
 };
