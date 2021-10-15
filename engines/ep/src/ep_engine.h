@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "background_stat_task.h"
 #include "configuration.h"
 #include "ep_engine_public.h"
 #include "error_handler.h"
@@ -537,6 +538,35 @@ public:
     void storeEngineSpecific(const CookieIface* cookie, void* engine_data);
 
     void* getEngineSpecific(const CookieIface* cookie);
+
+    /**
+     * Store a task pointer as the engine specific data.
+     *
+     * Allocates a wrapper holding a shared_ptr; storing the raw task ptr
+     * would be insufficient - the task needs to be owned to ensure it has not
+     * been destroyed when the frontend thread needs to retrieve it's result.
+     *
+     * Caller is responsible for scheduling the task, and later calling
+     * retrieveStatTask to destroy the wrapper and retrieve the task.
+     *
+     * @param cookie cookie from frontend
+     * @param task shared_ptr to background task
+     */
+    void storeStatTask(const CookieIface* cookie,
+                       std::shared_ptr<BackgroundStatTask> task);
+
+    /**
+     * Get and clear the engine specific data, then attempt to
+     * extract a BackgroundStatTask.
+     *
+     * Frees the wrapper allocated by storeStatTask, if one was found in the
+     * engine specific data.
+     *
+     * @param cookie cookie from frontend
+     * @return (possibly null) shared_ptr to background task
+     */
+    std::shared_ptr<BackgroundStatTask> retrieveStatTask(
+            const CookieIface* cookie);
 
     bool isDatatypeSupported(const CookieIface* cookie,
                              protocol_binary_datatype_t datatype);

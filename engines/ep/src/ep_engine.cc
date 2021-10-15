@@ -1848,6 +1848,31 @@ void* EventuallyPersistentEngine::getEngineSpecific(const CookieIface* cookie) {
     return cookie->getEngineStorage();
 }
 
+void EventuallyPersistentEngine::storeStatTask(
+        const CookieIface* cookie, std::shared_ptr<BackgroundStatTask> task) {
+    // store a ptr to a shared_ptr to the task (must ensure the task is not
+    // destroyed before the connection retrieves the result).
+    // Once the frontend thread is notified, it must call retrieveStatTask,
+    // which will free the heap-allocated shared_ptr.
+    auto wrapper = std::make_unique<std::shared_ptr<BackgroundStatTask>>(task);
+    storeEngineSpecific(cookie, wrapper.release());
+}
+
+std::shared_ptr<BackgroundStatTask>
+EventuallyPersistentEngine::retrieveStatTask(const CookieIface* cookie) {
+    void* data = getEngineSpecific(cookie);
+    if (data) {
+        // take back ownership of the task ptr
+        auto ptr = std::unique_ptr<std::shared_ptr<BackgroundStatTask>>(
+                reinterpret_cast<std::shared_ptr<BackgroundStatTask>*>(data));
+        // clear the engine specific - it's not valid to retrieve the
+        // task twice (would lead to a double free)
+        storeEngineSpecific(cookie, nullptr);
+        return *ptr;
+    }
+    return nullptr;
+}
+
 bool EventuallyPersistentEngine::isDatatypeSupported(
         const CookieIface* cookie, protocol_binary_datatype_t datatype) {
     return cookie->isDatatypeSupported(datatype);
@@ -3756,23 +3781,20 @@ public:
     AddStatFn add_stat;
 };
 
-
-class StatCheckpointTask : public GlobalTask {
+class StatCheckpointTask : public BackgroundStatTask {
 public:
     StatCheckpointTask(EventuallyPersistentEngine* e,
                        const CookieIface* c,
                        AddStatFn a)
-        : GlobalTask(e, TaskId::StatCheckpointTask, 0, false),
-          ep(e),
-          cookie(c),
-          add_stat(std::move(a)) {
+        : BackgroundStatTask(e, c, TaskId::StatCheckpointTask) {
     }
-    bool run() override {
+
+    cb::engine_errc collectStats() override {
         TRACE_EVENT0("ep-engine/task", "StatsCheckpointTask");
-        StatCheckpointVisitor scv(ep->getKVBucket(), cookie, add_stat);
-        ep->getKVBucket()->visit(scv);
-        ep->notifyIOComplete(cookie, cb::engine_errc::success);
-        return false;
+        StatCheckpointVisitor scv(
+                e->getKVBucket(), cookie, getDeferredAddStat());
+        e->getKVBucket()->visit(scv);
+        return cb::engine_errc::success;
     }
 
     std::string getDescription() const override {
@@ -3785,11 +3807,6 @@ public:
         // take /too/ long, so set limit of 100ms.
         return std::chrono::milliseconds(100);
     }
-
-private:
-    EventuallyPersistentEngine *ep;
-    const CookieIface* cookie;
-    AddStatFn add_stat;
 };
 /// @endcond
 
@@ -3799,15 +3816,14 @@ cb::engine_errc EventuallyPersistentEngine::doCheckpointStats(
         const char* stat_key,
         int nkey) {
     if (nkey == 10) {
-        void* es = getEngineSpecific(cookie);
-        if (es == nullptr) {
-            ExTask task = std::make_shared<StatCheckpointTask>(
-                    this, cookie, add_stat);
+        auto task = retrieveStatTask(cookie);
+        if (!task) {
+            task = std::make_shared<StatCheckpointTask>(this, cookie, add_stat);
             ExecutorPool::get()->schedule(task);
-            storeEngineSpecific(cookie, this);
+            storeStatTask(cookie, task);
             return cb::engine_errc::would_block;
         } else {
-            storeEngineSpecific(cookie, nullptr);
+            return task->maybeWriteResponse(add_stat);
         }
     } else if (nkey > 11) {
         std::string vbid(&stat_key[11], nkey - 11);
@@ -4034,7 +4050,7 @@ static void showConnAggStat(const std::string& connType,
     }
 }
 
-class StatDCPTask : public GlobalTask {
+class StatDCPTask : public BackgroundStatTask {
 public:
     using Callback = std::function<cb::engine_errc(
             EventuallyPersistentEngine* e, const CookieIface* cookie)>;
@@ -4042,13 +4058,11 @@ public:
                 const CookieIface* cookie,
                 std::string_view description,
                 Callback callback)
-        : GlobalTask(e, TaskId::StatDCPTask, 0, false),
-          e(e),
-          cookie(cookie),
+        : BackgroundStatTask(e, cookie, TaskId::StatDCPTask),
           description(description),
           callback(std::move(callback)) {
     }
-    bool run() override {
+    cb::engine_errc collectStats() override {
         TRACE_EVENT0("ep-engine/task", "StatDCPTask");
         cb::engine_errc result = cb::engine_errc::failed;
         try {
@@ -4060,8 +4074,7 @@ public:
                     e.what(),
                     getDescription());
         }
-        e->notifyIOComplete(cookie, result);
-        return false;
+        return result;
     }
 
     std::string getDescription() const override {
@@ -4075,8 +4088,6 @@ public:
     }
 
 private:
-    EventuallyPersistentEngine* e;
-    const CookieIface* cookie;
     const std::string description;
     Callback callback;
 };
@@ -4085,9 +4096,9 @@ cb::engine_errc EventuallyPersistentEngine::doConnAggStats(
         const CookieIface* cookie,
         const AddStatFn& add_stat,
         std::string_view sep) {
-    void* engineSpecific = getEngineSpecific(cookie);
-    if (engineSpecific == nullptr) {
-        ExTask task = std::make_shared<StatDCPTask>(
+    auto task = retrieveStatTask(cookie);
+    if (!task) {
+        task = std::make_shared<StatDCPTask>(
                 this,
                 cookie,
                 "Aggregated DCP stats",
@@ -4100,13 +4111,11 @@ cb::engine_errc EventuallyPersistentEngine::doConnAggStats(
                     return cb::engine_errc::success;
                 });
         ExecutorPool::get()->schedule(task);
-        storeEngineSpecific(cookie, this);
+        storeStatTask(cookie, task);
         return cb::engine_errc::would_block;
     } else {
-        storeEngineSpecific(cookie, nullptr);
+        return task->maybeWriteResponse(add_stat);
     }
-
-    return cb::engine_errc::success;
 }
 
 cb::engine_errc EventuallyPersistentEngine::doConnAggStatsInner(
@@ -4137,9 +4146,9 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
         const CookieIface* cookie,
         const AddStatFn& add_stat,
         std::string_view value) {
-    void* engineSpecific = getEngineSpecific(cookie);
-    if (engineSpecific == nullptr) {
-        ExTask task = std::make_shared<StatDCPTask>(
+    auto task = retrieveStatTask(cookie);
+    if (!task) {
+        task = std::make_shared<StatDCPTask>(
                 this,
                 cookie,
                 "Summarised bucket-wide DCP stats",
@@ -4150,13 +4159,11 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
                     return cb::engine_errc::success;
                 });
         ExecutorPool::get()->schedule(task);
-        storeEngineSpecific(cookie, this);
+        storeStatTask(cookie, task);
         return cb::engine_errc::would_block;
     } else {
-        storeEngineSpecific(cookie, nullptr);
+        return task->maybeWriteResponse(add_stat);
     }
-
-    return cb::engine_errc::success;
 }
 
 void EventuallyPersistentEngine::doDcpStatsInner(const CookieIface* cookie,
