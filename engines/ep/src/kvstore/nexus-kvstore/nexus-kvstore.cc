@@ -180,8 +180,8 @@ void NexusKVStore::doCollectionsMetadataChecks(
                 "NexusKVStore::doCollectionsMetadataChecks: {}: collections "
                 "manifest not equal primary:{} secondary: {}",
                 vbid,
-                primaryKVStoreManifest.manifestUid,
-                secondaryKVStoreManifest.manifestUid);
+                primaryKVStoreManifest,
+                secondaryKVStoreManifest);
         handleError(msg);
     }
 
