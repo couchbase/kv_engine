@@ -182,10 +182,11 @@ void PagingVisitor::visitBucket(const VBucketPtr& vb) {
     // fast path for expiry item pager
     if (owner == EXPIRY_PAGER) {
         if (vBucketFilter(vb->getId())) {
-            currentBucket = vb;
+            currentBucket = vb.get();
             // EvictionPolicy is not required when running expiry item
             // pager
             vb->ht.visit(*this);
+            currentBucket = nullptr;
         }
         return;
     }
@@ -204,8 +205,7 @@ void PagingVisitor::visitBucket(const VBucketPtr& vb) {
         return;
     }
 
-    currentBucket = vb;
-    maxCas = currentBucket->getMaxCas();
+    maxCas = vb->getMaxCas();
     itemEviction.reset();
     freqCounterThreshold = 0;
 
@@ -220,7 +220,9 @@ void PagingVisitor::visitBucket(const VBucketPtr& vb) {
                                 : ItemEviction::learningPopulation;
     itemEviction.setUpdateInterval(interval);
 
+    currentBucket = vb.get();
     vb->ht.visit(*this);
+    currentBucket = nullptr;
     /**
      * Note: We are not taking a reader lock on the vbucket state.
      * Therefore it is possible that the stats could be slightly
@@ -228,9 +230,8 @@ void PagingVisitor::visitBucket(const VBucketPtr& vb) {
      * to incur any performance cost associated with taking the
      * lock.
      */
-    const bool isActiveOrPending =
-            ((currentBucket->getState() == vbucket_state_active) ||
-             (currentBucket->getState() == vbucket_state_pending));
+    const bool isActiveOrPending = ((vb->getState() == vbucket_state_active) ||
+                                    (vb->getState() == vbucket_state_pending));
 
     // Take a snapshot of the latest frequency histogram
     if (isActiveOrPending) {

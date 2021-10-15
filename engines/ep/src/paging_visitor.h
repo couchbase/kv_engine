@@ -122,7 +122,8 @@ protected:
     size_t ejected;
 
     // The current vbucket that the eviction algorithm is operating on.
-    VBucketPtr currentBucket;
+    // Only valid while inside visitBucket().
+    VBucket* currentBucket{nullptr};
 
     // The frequency counter threshold that is used to determine whether we
     // should evict items from the hash table.

@@ -1092,8 +1092,9 @@ void LoadStorageKVPairCallback::purge() {
 
         void visitBucket(const VBucketPtr& vb) override {
             if (vBucketFilter(vb->getId())) {
-                currentBucket = vb;
+                currentBucket = vb.get();
                 vb->ht.visit(*this);
+                currentBucket = nullptr;
             }
         }
 
@@ -1107,7 +1108,9 @@ void LoadStorageKVPairCallback::purge() {
 
     private:
         EPBucket& epstore;
-        VBucketPtr currentBucket;
+        // The current vbucket that the visitor is operating on. Only valid
+        // while inside visitBucket().
+        VBucket* currentBucket{nullptr};
     };
 
     auto vbucketIds(vbuckets.getBuckets());

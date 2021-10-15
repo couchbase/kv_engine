@@ -879,6 +879,8 @@ std::vector<ExTask> FollyExecutorPool::unregisterTaskable(Taskable& taskable,
                 removedTasks = state->cancelTasksOwnedBy(taskable, force);
             });
 
+    unregisterTaskablePostCancelHook();
+
     // Step 2 - poll for taskOwners to become empty. This will only
     // occur once all outstanding, running tasks have been cancelled.
     auto isTaskOwnersEmpty = [eventBase, &state = this->state, &taskable] {

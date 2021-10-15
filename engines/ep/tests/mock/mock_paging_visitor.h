@@ -60,7 +60,7 @@ public:
     }
 
     void setCurrentBucket(VBucketPtr _currentBucket) {
-        currentBucket = _currentBucket;
+        currentBucket = _currentBucket.get();
     }
 
     MOCK_METHOD1(visitBucket, void(const VBucketPtr&));

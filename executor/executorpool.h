@@ -11,6 +11,7 @@
 
 #include <memcached/engine_common.h>
 #include <memcached/thread_pool_config.h>
+#include <utilities/testing_hook.h>
 
 #include "task_type.h"
 #include <atomic>
@@ -221,6 +222,12 @@ public:
      * @return priority to use, as passed to setpriority().
      */
     static int getThreadPriority(task_type_t taskType);
+
+    /************** Testing *************************************************/
+
+    // Testing hook for MB-48925 - called inside unregisterTaskable after
+    // tasks have been cancelled.
+    TestingHook<> unregisterTaskablePostCancelHook;
 
 protected:
     ExecutorPool(size_t maxThreads);

@@ -22,11 +22,13 @@
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/test_helpers.h"
+#include "vb_visitors.h"
 #include <executor/cb3_taskqueue.h>
 
 #include <boost/algorithm/string/join.hpp>
 #include <boost/filesystem.hpp>
 #include <configuration_impl.h>
+#include <folly/synchronization/Baton.h>
 #include <platform/dirutils.h>
 #include <chrono>
 #include <thread>
@@ -108,10 +110,16 @@ void EventuallyPersistentEngineTest::TearDown() {
 }
 
 void EventuallyPersistentEngineTest::shutdownEngine() {
-    destroy_mock_cookie(cookie);
-    // Need to force the destroy (i.e. pass true) because
-    // NonIO threads may have been disabled (see DCPTest subclass).
-    engine->destroy(true);
+    if (cookie) {
+        destroy_mock_cookie(cookie);
+        cookie = nullptr;
+    }
+    if (engine) {
+        // Need to force the destroy (i.e. pass true) because
+        // NonIO threads may have been disabled (see DCPTest subclass).
+        engine->destroy(true);
+        engine = nullptr;
+    }
 }
 
 queued_item EventuallyPersistentEngineTest::store_item(
@@ -495,3 +503,82 @@ INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
                          [](const ::testing::TestParamInfo<std::string>& info) {
                              return info.param;
                          });
+
+/**
+ * Regression test for MB-48925 - if a Task is scheduled against a Taskable
+ * (Bucket) which has already been unregistered, then the ExecutorPool throws
+ * and crashes the process.
+ * Note: This test as it stands will *not* crash kv-engine if the fix for the
+ * issue (see rest of this commit) is reverted. This is because the fix is
+ * to change the currentVb Task member variable from an (owning)
+ * shared_ptr<VBucket> to a (non-owning) VBucket* - the same thing TestVisior
+ * below does. However it is included here for reference as to the original
+ * problematic scenario.
+ */
+TEST_F(EventuallyPersistentEngineTest, MB48925_ScheduleTaskAfterUnregistered) {
+    class TestVisitor : public InterruptableVBucketVisitor {
+    public:
+        TestVisitor(int& visitCount,
+                    folly::Baton<>& waitForVisit,
+                    folly::Baton<>& waitForDeinitialise)
+            : visitCount(visitCount),
+              waitForVisit(waitForVisit),
+              waitForDeinitialise(waitForDeinitialise) {
+        }
+
+        void visitBucket(const VBucketPtr& vb) override {
+            if (visitCount++ == 0) {
+                currentVb = vb.get();
+                // On first call to visitBucket() perform the necessary
+                // interleaved baton wait / sleeping.
+                // Suspend execution of this thread; and allow main thread to
+                // continue, delete Bucket and unregisterTaskable.
+                waitForVisit.post();
+
+                // Keep task running until unregisterTaskable() has been called
+                // and starts to cancel tasks - this ensures that the Task
+                // object is still alive (ExecutorPool has a reference to it)
+                // and hence is passed out from unregisterTaskable(), hence kept
+                // alive past when KVBucket is deleted.
+                waitForDeinitialise.wait();
+            }
+        }
+        InterruptableVBucketVisitor::ExecutionState shouldInterrupt() override {
+            return ExecutionState::Continue;
+        }
+
+        int& visitCount;
+        folly::Baton<>& waitForVisit;
+        folly::Baton<>& waitForDeinitialise;
+
+        // Model the behaviour of PagingVisitor prior to the bugfix. Note that
+        // _if_ this is changed to a shared_ptr<VBucket> then we crash.
+        VBucket* currentVb;
+    };
+
+    int visitCount{0};
+    folly::Baton waitForVisit;
+    folly::Baton waitForUnregister;
+    engine->getKVBucket()->visitAsync(
+            std::make_unique<TestVisitor>(
+                    visitCount, waitForVisit, waitForUnregister),
+            "MB48925_ScheduleTaskAfterUnregistered",
+            TaskId::ExpiredItemPagerVisitor,
+            std::chrono::seconds{1});
+    waitForVisit.wait();
+
+    // Setup testing hook so we allow our TestVisitor's Task above to
+    // continue once we are inside unregisterTaskable.
+    ExecutorPool::get()->unregisterTaskablePostCancelHook =
+            [&waitForUnregister]() { waitForUnregister.post(); };
+
+    // Delete the vbucket; so the file deletion will be performed by
+    // VBucket::DeferredDeleter when the last reference goes out of scope
+    // (expected to be the ExpiryPager.
+    engine->getKVBucket()->deleteVBucket(vbid);
+
+    // Destroy the engine. This does happen implicitly in TearDown, but call
+    // it earlier because we need to call destroy() before our various Baton
+    // local variables etc go out of scope.
+    shutdownEngine();
+}
