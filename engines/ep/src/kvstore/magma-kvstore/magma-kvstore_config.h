@@ -57,6 +57,12 @@ public:
     void setMagmaCheckpointInterval(std::chrono::milliseconds val) {
         magmaCheckpointInterval = val;
     }
+    std::chrono::milliseconds getMagmaMinCheckpointInterval() const {
+        return magmaMinCheckpointInterval;
+    }
+    void setMagmaMinCheckpointInterval(std::chrono::milliseconds val) {
+        magmaMinCheckpointInterval = val;
+    }
     float getMagmaCheckpointThreshold() const {
         return magmaCheckpointThreshold;
     }
@@ -229,6 +235,9 @@ private:
 
     // Time interval between checkpoints
     std::chrono::milliseconds magmaCheckpointInterval;
+
+    // Minimum time interval between two checkpoints
+    std::chrono::milliseconds magmaMinCheckpointInterval;
 
     // Fraction of total data before checkpoint is created
     float magmaCheckpointThreshold;

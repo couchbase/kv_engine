@@ -1247,7 +1247,13 @@
         "magma_checkpoint_interval": {
             "default": "120",
             "dynamic": false,
-            "descr": "Frequency of checkpoint interval; in seconds. A checkpoint interval provides a rollback point to which the data store can rollback to in the event of a failure.",
+            "descr": "Frequency of checkpoint interval; in seconds. A checkpoint provides a rollback point to which the data store can rollback to in the event of a failure.",
+            "type": "size_t"
+        },
+        "magma_min_checkpoint_interval": {
+            "default": "1",
+            "dynamic": false,
+            "descr": "Minimum interval between two checkpoints; in seconds. Prevents excessive creation of checkpoints.",
             "type": "size_t"
         },
         "magma_checkpoint_threshold": {

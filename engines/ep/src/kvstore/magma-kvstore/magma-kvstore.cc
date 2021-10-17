@@ -494,6 +494,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaCheckpointInterval();
     configuration.magmaCfg.CheckpointCreationThreshold =
             configuration.getMagmaCheckpointThreshold();
+    configuration.magmaCfg.MinCheckpointCreationInterval =
+            configuration.getMagmaMinCheckpointInterval();
     configuration.magmaCfg.HeartbeatInterval =
             configuration.getMagmaHeartbeatInterval();
     configuration.magmaCfg.MinValueSize =

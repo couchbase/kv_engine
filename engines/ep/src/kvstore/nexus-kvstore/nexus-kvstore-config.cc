@@ -50,6 +50,8 @@ NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
         magmaKVStoreConfig.setMagmaSyncEveryBatch(true);
         magmaKVStoreConfig.setMagmaCheckpointInterval(
                 std::chrono::milliseconds(0));
+        magmaKVStoreConfig.setMagmaMinCheckpointInterval(
+                std::chrono::milliseconds(0));
 #endif
     } else if (primaryBackend == "couchdb") {
         // Couchstore has an optimization that forces rollback to zero should
@@ -65,6 +67,8 @@ NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
                 dynamic_cast<MagmaKVStoreConfig&>(*secondaryConfig);
         magmaKVStoreConfig.setMagmaSyncEveryBatch(true);
         magmaKVStoreConfig.setMagmaCheckpointInterval(
+                std::chrono::milliseconds(0));
+        magmaKVStoreConfig.setMagmaMinCheckpointInterval(
                 std::chrono::milliseconds(0));
 #endif
     } else if (primaryBackend == "couchdb") {

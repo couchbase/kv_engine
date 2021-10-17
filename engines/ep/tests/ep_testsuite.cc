@@ -7011,6 +7011,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_item_num_based_new_chk",
               "ep_magma_sync_every_batch",
               "ep_magma_checkpoint_interval",
+              "ep_magma_min_checkpoint_interval",
               "ep_magma_checkpoint_threshold",
               "ep_magma_delete_frag_ratio",
               "ep_magma_delete_memtable_writecache",
@@ -7321,6 +7322,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_num_writer_threads",
               "ep_magma_sync_every_batch",
               "ep_magma_checkpoint_interval",
+              "ep_magma_min_checkpoint_interval",
               "ep_magma_checkpoint_threshold",
               "ep_magma_delete_frag_ratio",
               "ep_magma_delete_memtable_writecache",
@@ -8689,6 +8691,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "magma_checkpoint_interval=0;"
+                 "magma_min_checkpoint_interval=0;"
                  "magma_sync_every_batch=true",
                  /* TODO RDB: Needs stat:ep_db_data_size */
                  prepare_ep_bucket_skip_broken_under_rocks,
@@ -8698,6 +8701,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "magma_checkpoint_interval=0;"
+                 "magma_min_checkpoint_interval=0;"
                  "magma_sync_every_batch=true",
                  prepare,
                  cleanup),
@@ -8779,6 +8783,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "magma_checkpoint_interval=0;"
+                 "magma_min_checkpoint_interval=0;"
                  "magma_sync_every_batch=true",
                  /* TODO RDB: DB file size is not reported correctly */
                  prepare_ep_bucket_skip_broken_under_rocks,

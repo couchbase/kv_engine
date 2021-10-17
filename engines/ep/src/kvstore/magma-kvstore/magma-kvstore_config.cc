@@ -67,6 +67,8 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaMaxCheckpoints = config.getMagmaMaxCheckpoints();
     magmaCheckpointInterval =
             std::chrono::milliseconds(1s * config.getMagmaCheckpointInterval());
+    magmaMinCheckpointInterval = std::chrono::milliseconds(
+            1s * config.getMagmaMinCheckpointInterval());
     magmaCheckpointThreshold = config.getMagmaCheckpointThreshold();
     magmaHeartbeatInterval =
             std::chrono::milliseconds(1s * config.getMagmaHeartbeatInterval());

@@ -8433,10 +8433,12 @@ BaseTestCase testsuite_testcases[] = {
                  test_chk_manager_rollback,
                  test_setup,
                  teardown,
-                 // 'magma_checkpoint_interval=0' allows us to create more than
-                 // one checkpoint in less than 2mins
+                 // 'magma_checkpoint_interval=0' and
+                 // 'magma_min_checkpoint_interval=0' allows us to create more
+                 // than one checkpoint in less than 2mins
                  "dcp_flow_control_policy=none;dcp_enable_noop=false;"
-                 "magma_checkpoint_interval=0;",
+                 "magma_checkpoint_interval=0;"
+                 "magma_min_checkpoint_interval=0;",
                  // TODO RDB: implement getItemCount.
                  // Needs the 'curr_items_tot' stat.
                  prepare_skip_broken_under_rocks,
@@ -8456,13 +8458,14 @@ BaseTestCase testsuite_testcases[] = {
                 test_partialrollback_for_consumer,
                 test_setup,
                 teardown,
-                // 'magma_checkpoint_interval=0' allows us to create more than
-                // one checkpoint in less than 2mins.
-                // 'magma_max_checkpoints=10' the max number of checkpoints that
-                // can be rolled back.
+                // 'magma_checkpoint_interval=0;magma_min_checkpoint_interval=0;'
+                // allows us to create more than one checkpoint in less than
+                // 2mins. 'magma_max_checkpoints=10' the max number of
+                // checkpoints that can be rolled back.
                 // 'magma_sync_every_batch=true' makes magma behaviour
                 // like couchstore, creating a checkpoint for every flush batch.
-                "dcp_enable_noop=false;magma_checkpoint_interval=0;"
+                "dcp_enable_noop=false;"
+                "magma_checkpoint_interval=0;magma_min_checkpoint_interval=0;"
                 "magma_max_checkpoints=10;magma_sync_every_batch=true",
                 // TODO RDB: implement getItemCount.
                 // Needs the 'vb_replica_curr_items' stat.
