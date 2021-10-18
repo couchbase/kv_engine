@@ -26,8 +26,7 @@ std::string to_string(CheckpointRemoval mode);
 class CheckpointConfig {
 public:
     // Test only
-    CheckpointConfig();
-
+    CheckpointConfig() = default;
     CheckpointConfig(rel_time_t period,
                      size_t max_items,
                      size_t max_ckpts,
@@ -86,20 +85,20 @@ private:
     class ChangeListener;
 
     // Period of a checkpoint in terms of time in sec
-    rel_time_t checkpointPeriod;
+    rel_time_t checkpointPeriod{DEFAULT_CHECKPOINT_PERIOD};
 
     // Number of max items allowed in each checkpoint
-    size_t checkpointMaxItems;
+    size_t checkpointMaxItems{DEFAULT_CHECKPOINT_ITEMS};
 
     // Number of max checkpoints allowed
-    size_t maxCheckpoints;
+    size_t maxCheckpoints{2};
 
     // Flag indicating if a new checkpoint is created once the number of items
     // in the current checkpoint is greater than the max number allowed.
-    bool itemNumBasedNewCheckpoint;
+    bool itemNumBasedNewCheckpoint{true};
 
     // Flag indicating if persistence is enabled.
-    bool persistenceEnabled;
+    bool persistenceEnabled{true};
 
     CheckpointRemoval checkpointRemovalMode = CheckpointRemoval::Eager;
 };

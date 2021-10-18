@@ -12,7 +12,6 @@
 #include "checkpoint_config.h"
 
 #include "bucket_logger.h"
-#include "checkpoint.h"
 #include "configuration.h"
 #include "ep_engine.h"
 
@@ -67,15 +66,6 @@ public:
 private:
     CheckpointConfig& config;
 };
-
-// Test only
-CheckpointConfig::CheckpointConfig()
-    : checkpointPeriod(DEFAULT_CHECKPOINT_PERIOD),
-      checkpointMaxItems(DEFAULT_CHECKPOINT_ITEMS),
-      maxCheckpoints(2),
-      itemNumBasedNewCheckpoint(true),
-      persistenceEnabled(true) { /* empty */
-}
 
 CheckpointConfig::CheckpointConfig(rel_time_t period,
                                    size_t max_items,
