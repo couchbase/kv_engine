@@ -110,16 +110,12 @@ public:
 
     /**
      * Remove the client via the Taskable interface.
-     * Calling this method will find and trigger cancel on all tasks of the
-     * client and return the tasks (shared_ptr) to the caller.
+     * Calling this method will find and cancel all tasks of the client.
      *
      * @param taskable caller's taskable interface (getGID used to find tasks)
      * @param force should the shutdown be forced (may not wait for tasks)
-     * @return a container storing the caller's tasks, ownership is transferred
-     *         to the caller.
      */
-    virtual std::vector<ExTask> unregisterTaskable(Taskable& taskable,
-                                                   bool force) = 0;
+    virtual void unregisterTaskable(Taskable& taskable, bool force) = 0;
 
     /// @returns the number of registered Taskables.
     virtual size_t getNumTaskables() const = 0;

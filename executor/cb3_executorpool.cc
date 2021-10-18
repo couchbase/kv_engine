@@ -563,15 +563,14 @@ std::vector<ExTask> CB3ExecutorPool::_stopTaskGroup(
     return tasks;
 }
 
-std::vector<ExTask> CB3ExecutorPool::_unregisterTaskable(Taskable& taskable,
-                                                         bool force) {
+void CB3ExecutorPool::_unregisterTaskable(Taskable& taskable, bool force) {
     LOG_INFO("Unregistering {} taskable {}",
              (numTaskables == 1) ? "last" : "",
              taskable.getName());
 
     std::unique_lock<std::mutex> lh(tMutex);
 
-    auto rv = _stopTaskGroup(taskable.getGID(), lh, force);
+    _stopTaskGroup(taskable.getGID(), lh, force);
 
     taskOwners.erase(&taskable);
     if (!(--numTaskables)) {
@@ -616,15 +615,13 @@ std::vector<ExTask> CB3ExecutorPool::_unregisterTaskable(Taskable& taskable,
             isLowPrioQset = false;
         }
     }
-    return rv;
 }
 
-std::vector<ExTask> CB3ExecutorPool::unregisterTaskable(Taskable& taskable,
-                                                        bool force) {
+void CB3ExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
     // Note: unregistering a bucket is special - any memory allocations /
     // deallocations made while unregistering *should* be accounted to the
     // bucket in question - hence no `onSwitchThread(NULL)` call.
-    return _unregisterTaskable(taskable, force);
+    _unregisterTaskable(taskable, force);
 }
 
 void CB3ExecutorPool::doTaskQStat(Taskable& taskable,

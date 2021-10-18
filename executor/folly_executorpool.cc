@@ -515,14 +515,11 @@ struct FollyExecutorPool::State {
     }
 
     /**
-     * Cancels all tasks owned by the given taskable, returning a vector
-     * of the cancelled tasks.
+     * Cancels all tasks owned by the given taskable.
      * @param taskable Taskable to cancel tasks for
      * @param force Should task cancellation be forced?
      */
-    std::vector<ExTask> cancelTasksOwnedBy(const Taskable& taskable,
-                                           bool force) {
-        std::vector<ExTask> removedTasks;
+    void cancelTasksOwnedBy(const Taskable& taskable, bool force) {
         auto& taskOwner = taskOwners.at(&taskable);
         taskOwner.registered = false;
 
@@ -546,14 +543,7 @@ struct FollyExecutorPool::State {
                 tProxy->task->cancel();
             }
             tProxy->wake();
-
-            // Copy the task from the (now cancelled) TaskInfo to the return
-            // vector.
-            // Note we cannot move (set tProxy->task) to nullptr) as it is
-            // possible the Task is currently running on a CPU thread.
-            removedTasks.push_back(tProxy->task);
         }
-        return removedTasks;
     }
 
     /**
@@ -838,8 +828,7 @@ void FollyExecutorPool::registerTaskable(Taskable& taskable) {
             });
 }
 
-std::vector<ExTask> FollyExecutorPool::unregisterTaskable(Taskable& taskable,
-                                                          bool force) {
+void FollyExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
     NonBucketAllocationGuard guard;
 
     LOG_TRACE("FollyExecutorPool::unregisterTaskable() taskable:'{}' force:{}",
@@ -859,14 +848,13 @@ std::vector<ExTask> FollyExecutorPool::unregisterTaskable(Taskable& taskable,
     // eventBase.
     //
     // For (2) and (3), they are equivalent - between performing any check
-    // on the CPU pool and examaning the result, new CPU work could have been
-    // executeed. Therefore we handle these by:
+    // on the CPU pool and examining the result, new CPU work could have been
+    // executed. Therefore we handle these by:
     // - Marking all tasks as dead (during 1)
     // - polling the taskOwners structure (on the futurePool thread) for all
     //   tasks to be cancelled (and hence removed) - which happens once a
     //   task finishes running in the CPU pool.
     // Once taskOwners is empty we are done.
-    std::vector<ExTask> removedTasks;
 
     // Step 1 - Have the eventbase of the futurePool cancel all tasks
     // associated with this Taskable.
@@ -875,8 +863,8 @@ std::vector<ExTask> FollyExecutorPool::unregisterTaskable(Taskable& taskable,
     // CPU pool.
     auto* eventBase = futurePool->getEventBase();
     eventBase->runInEventBaseThreadAndWait(
-            [state = this->state.get(), &taskable, force, &removedTasks] {
-                removedTasks = state->cancelTasksOwnedBy(taskable, force);
+            [state = this->state.get(), &taskable, force] {
+                state->cancelTasksOwnedBy(taskable, force);
             });
 
     unregisterTaskablePostCancelHook();
@@ -900,8 +888,6 @@ std::vector<ExTask> FollyExecutorPool::unregisterTaskable(Taskable& taskable,
             [&state = this->state, &taskable]() mutable {
                 state->removeTaskable(taskable);
             });
-
-    return removedTasks;
 }
 
 size_t FollyExecutorPool::getNumTaskables() const {

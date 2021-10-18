@@ -519,10 +519,10 @@ bool KVBucket::initialize() {
     return true;
 }
 
-std::vector<ExTask> KVBucket::deinitialize() {
+void KVBucket::deinitialize() {
     EP_LOG_INFO("KVBucket::deinitialize forceShutdown:{}", stats.forceShutdown);
-    return ExecutorPool::get()->unregisterTaskable(engine.getTaskable(),
-                                                   stats.forceShutdown);
+    ExecutorPool::get()->unregisterTaskable(engine.getTaskable(),
+                                            stats.forceShutdown);
 }
 
 KVBucket::~KVBucket() {

@@ -106,7 +106,7 @@ public:
     /**
      * Stop tasks started in initialize()
      */
-    virtual std::vector<ExTask> deinitialize() = 0;
+    virtual void deinitialize() = 0;
 
     /**
      * Set an item in the store.

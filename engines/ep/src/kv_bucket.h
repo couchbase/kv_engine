@@ -123,7 +123,7 @@ public:
 
     bool initialize() override;
 
-    std::vector<ExTask> deinitialize() override;
+    void deinitialize() override;
 
     cb::engine_errc set(Item& item,
                         const CookieIface* cookie,

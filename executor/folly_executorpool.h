@@ -154,8 +154,7 @@ public:
     size_t getNumReadyTasks() override;
 
     void registerTaskable(Taskable& taskable) override;
-    std::vector<ExTask> unregisterTaskable(Taskable& taskable,
-                                           bool force) override;
+    void unregisterTaskable(Taskable& taskable, bool force) override;
     size_t getNumTaskables() const override;
 
     size_t schedule(ExTask task) override;

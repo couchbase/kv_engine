@@ -44,7 +44,7 @@ public:
 
     bool initialize() override;
 
-    std::vector<ExTask> deinitialize() override;
+    void deinitialize() override;
 
     enum class MoreAvailable : uint8_t { No = 0, Yes };
     enum class WakeCkptRemover : uint8_t { No = 0, Yes };

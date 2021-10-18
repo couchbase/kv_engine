@@ -316,11 +316,11 @@ void EPBucket::initializeShards() {
     });
 }
 
-std::vector<ExTask> EPBucket::deinitialize() {
+void EPBucket::deinitialize() {
     stopFlusher();
     stopBgFetcher();
 
-    auto ret = KVBucket::deinitialize();
+    KVBucket::deinitialize();
 
     // Perform a snapshot of the stats before shutting down so we can
     // persist the type of shutdown (stats.forceShutdown), and consequently
@@ -335,8 +335,6 @@ std::vector<ExTask> EPBucket::deinitialize() {
     vbMap.forEachShard([](KVShard& shard) {
         shard.getRWUnderlying()->deinitialize();
     });
-
-    return ret;
 }
 
 /**

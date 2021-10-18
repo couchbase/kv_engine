@@ -1263,13 +1263,6 @@ protected:
      */
     DocKey makeDocKey(const CookieIface* cookie, cb::const_byte_buffer key);
 
-    /**
-     * Wait for each ExTask (shared_ptr) to have a use_count of 1 before
-     * resetting the shared_ptr.
-     * This function will return once all tasks in the vector have been reset.
-     */
-    static void waitForTasks(std::vector<ExTask>& tasks);
-
     cb::engine_errc processUnknownCommandInner(const CookieIface* cookie,
                                                const cb::mcbp::Request& request,
                                                const AddResponseFn& response);

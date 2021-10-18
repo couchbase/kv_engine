@@ -142,18 +142,7 @@ public:
 
     void registerTaskable(Taskable& taskable) override;
 
-    /**
-     * Remove the client via the Taskable interface.
-     * Calling this method will find and trigger cancel on all tasks of the
-     * client and return the tasks (shared_ptr) to the caller.
-     *
-     * @param taskable caller's taskable interface (getGID used to find tasks)
-     * @param force should the shutdown be forced (may not wait for tasks)
-     * @return a container storing the caller's tasks, ownership is transferred
-     *         to the caller.
-     */
-    std::vector<ExTask> unregisterTaskable(Taskable& taskable,
-                                           bool force) override;
+    void unregisterTaskable(Taskable& taskable, bool force) override;
 
     size_t getNumTaskables() const override {
         return numTaskables;
@@ -240,7 +229,7 @@ protected:
     bool _snooze(size_t taskId, double tosleep);
     size_t _schedule(ExTask task);
     void _registerTaskable(Taskable& taskable);
-    std::vector<ExTask> _unregisterTaskable(Taskable& taskable, bool force);
+    void _unregisterTaskable(Taskable& taskable, bool force);
     std::vector<ExTask> _stopTaskGroup(task_gid_t taskGID,
                                        std::unique_lock<std::mutex>& lh,
                                        bool force);
