@@ -52,27 +52,13 @@ void CheckpointTest::SetUp() {
     // EagerCheckpointDisposalTest covers eager tests.
     config.parseConfiguration("checkpoint_removal_mode=lazy",
                               get_mock_server_api());
-    recreateCheckpointConfig();
+    checkpoint_config = CheckpointConfig(config);
     VBucketTest::SetUp();
     createManager();
 }
 
 void CheckpointTest::TearDown() {
     VBucketTest::TearDown();
-}
-
-void CheckpointTest::recreateCheckpointConfig() {
-    checkpoint_config = CheckpointConfig(
-            DEFAULT_CHECKPOINT_PERIOD,
-            DEFAULT_CHECKPOINT_ITEMS,
-            config.getMaxCheckpoints(),
-            true /*itemNumBasedNewCheckpoint*/,
-            (getVbType() == VBType::Persistent ? true
-                                               : false) /*persistenceEnabled*/,
-            config.getCheckpointRemovalMode() ==
-                            ::to_string(CheckpointRemoval::Eager)
-                    ? CheckpointRemoval::Eager
-                    : CheckpointRemoval::Lazy);
 }
 
 void CheckpointTest::createManager(int64_t lastSeqno) {
@@ -412,13 +398,8 @@ TEST_P(CheckpointTest, getItems_MemoryDiskSnapshots) {
 TEST_P(CheckpointTest, ItemBasedCheckpointCreation) {
     // Size down the default number of items to create a new checkpoint and
     // recreate the manager
-    this->checkpoint_config =
-            CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
-                             MIN_CHECKPOINT_ITEMS,
-                             /*numCheckpoints*/ 2,
-                             /*itemBased*/ true,
-                             persistent() /*persistenceEnabled*/,
-                             CheckpointRemoval::Lazy);
+    config.setChkMaxItems(MIN_CHECKPOINT_ITEMS);
+    checkpoint_config = CheckpointConfig(config);
     createManager();
 
     // Create one less than the number required to create a new checkpoint.
@@ -570,15 +551,12 @@ TEST_P(CheckpointTest, CursorOffsetOnCheckpointClose) {
 
 // Test the getNextItemsForCursor()
 TEST_P(CheckpointTest, ItemsForCheckpointCursor) {
-    // We want to have items across 2 checkpoints. Size down the default number
-    // of items to create a new checkpoint and recreate the manager.
-    this->checkpoint_config =
-            CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
-                             MIN_CHECKPOINT_ITEMS,
-                             /*numCheckpoints*/ 2,
-                             /*itemBased*/ true,
-                             persistent() /*persistenceEnabled*/,
-                             CheckpointRemoval::Lazy);
+    // Size down the default number of items to create a new checkpoint and
+    // recreate the manager.
+    config.setChkMaxItems(MIN_CHECKPOINT_ITEMS);
+    checkpoint_config = CheckpointConfig(config);
+    // Also, we want to have items across 2 checkpoints.
+    ASSERT_EQ(2, checkpoint_config.getMaxCheckpoints());
     createManager();
 
     /* Add items such that we have 2 checkpoints */
@@ -629,15 +607,12 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursor) {
 // Test getNextItemsForCursor() when it is limited to fewer items than exist
 // in total. Cursor should only advanced to the start of the 2nd checkpoint.
 TEST_P(CheckpointTest, ItemsForCheckpointCursorLimited) {
-    /* We want to have items across 2 checkpoints. Size down the default number
-       of items to create a new checkpoint and recreate the manager */
-    this->checkpoint_config =
-            CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
-                             MIN_CHECKPOINT_ITEMS,
-                             /*numCheckpoints*/ 2,
-                             /*itemBased*/ true,
-                             persistent() /*persistenceEnabled*/,
-                             CheckpointRemoval::Lazy);
+    // Size down the default number of items to create a new checkpoint and
+    // recreate the manager.
+    config.setChkMaxItems(MIN_CHECKPOINT_ITEMS);
+    checkpoint_config = CheckpointConfig(config);
+    // Also, we want to have items across 2 checkpoints.
+    ASSERT_EQ(2, checkpoint_config.getMaxCheckpoints());
     createManager();
 
     /* Add items such that we have 2 checkpoints */
@@ -672,15 +647,12 @@ TEST_P(CheckpointTest, DiskCheckpointStrictItemLimit) {
     if (!persistent()) {
         return;
     }
-    /* We want to have items across 2 checkpoints. Size down the default number
-      of items to create a new checkpoint and recreate the manager */
-    this->checkpoint_config =
-            CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
-                             MIN_CHECKPOINT_ITEMS,
-                             /*numCheckpoints*/ 2,
-                             /*itemBased*/ true,
-                             persistent() /*persistenceEnabled*/,
-                             CheckpointRemoval::Lazy);
+    // Size down the default number of items to create a new checkpoint and
+    // recreate the manager.
+    config.setChkMaxItems(MIN_CHECKPOINT_ITEMS);
+    checkpoint_config = CheckpointConfig(config);
+    // Also, we want to have items across 2 checkpoints.
+    ASSERT_EQ(2, checkpoint_config.getMaxCheckpoints());
     createManager();
 
     // Force the first checkpoint to be a disk one
@@ -716,15 +688,12 @@ TEST_P(CheckpointTest, DiskCheckpointStrictItemLimit) {
 
 // Test the checkpoint cursor movement
 TEST_P(CheckpointTest, CursorMovement) {
-    /* We want to have items across 2 checkpoints. Size down the default number
-     of items to create a new checkpoint and recreate the manager */
-    this->checkpoint_config =
-            CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
-                             MIN_CHECKPOINT_ITEMS,
-                             /*numCheckpoints*/ 2,
-                             /*itemBased*/ true,
-                             persistent() /*persistenceEnabled*/,
-                             CheckpointRemoval::Lazy);
+    // Size down the default number of items to create a new checkpoint and
+    // recreate the manager.
+    config.setChkMaxItems(MIN_CHECKPOINT_ITEMS);
+    checkpoint_config = CheckpointConfig(config);
+    // Also, we want to have items across 2 checkpoints.
+    ASSERT_EQ(2, checkpoint_config.getMaxCheckpoints());
     createManager();
 
     /* Add items such that we have 1 full (max items as per config) checkpoint.
@@ -833,13 +802,11 @@ TEST_P(CheckpointTest, SeqnoAndHLCOrdering) {
     // configure with 1 checkpoint to ensure the time-based closing
     // does not split the items over many checkpoints and muddy the final
     // data checks.
-    this->checkpoint_config =
-            CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
-                             n_threads * n_items,
-                             /*numCheckpoints*/ 2,
-                             /*itemBased*/ true,
-                             persistent() /*persistenceEnabled*/,
-                             CheckpointRemoval::Lazy);
+    config.setChkMaxItems(n_threads * n_items);
+    checkpoint_config = CheckpointConfig(config);
+    // Also, we want to have items across 2 checkpoints.
+    ASSERT_EQ(2, checkpoint_config.getMaxCheckpoints());
+
     createManager();
 
     std::vector<std::thread> threads;
@@ -1618,13 +1585,8 @@ TEST_P(CheckpointTest, DuplicateCheckpointCursor) {
 TEST_P(CheckpointTest, DuplicateCheckpointCursorDifferentCheckpoints) {
     // Size down the default number of items to create a new checkpoint and
     // recreate the manager
-    this->checkpoint_config =
-            CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
-                             MIN_CHECKPOINT_ITEMS,
-                             /*numCheckpoints*/ 2,
-                             /*itemBased*/ true,
-                             persistent() /*persistenceEnabled*/,
-                             CheckpointRemoval::Lazy);
+    config.setChkMaxItems(MIN_CHECKPOINT_ITEMS);
+    checkpoint_config = CheckpointConfig(config);
     createManager();
 
     const auto& ckptList =
@@ -2259,13 +2221,8 @@ TEST_P(CheckpointTest, testDontExpelIfCursorAtMetadataItemWithSameSeqnoDisk) {
 // then we will move the expel point backwards to the mutation
 // (and possibly further).
 void CheckpointTest::testDoNotExpelIfHaveSameSeqnoAfterMutation() {
-    this->checkpoint_config =
-            CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
-                             /*maxItemsInCheckpoint*/ 1,
-                             /*numCheckpoints*/ 2,
-                             /*itemBased*/ true,
-                             persistent() /*persistenceEnabled*/,
-                             CheckpointRemoval::Lazy);
+    config.setChkMaxItems(1);
+    checkpoint_config = CheckpointConfig(config);
     createManager();
 
     // Add a meta data operation
@@ -2948,7 +2905,7 @@ public:
         // Ensure the checkpoint config is set to that.
         config.parseConfiguration("checkpoint_removal_mode=eager",
                                   get_mock_server_api());
-        recreateCheckpointConfig();
+        checkpoint_config = CheckpointConfig(config);
     }
 };
 

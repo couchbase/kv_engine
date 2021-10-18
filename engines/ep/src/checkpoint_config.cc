@@ -67,27 +67,14 @@ private:
     CheckpointConfig& config;
 };
 
-CheckpointConfig::CheckpointConfig(rel_time_t period,
-                                   size_t max_items,
-                                   size_t max_ckpts,
-                                   bool item_based_new_ckpt,
-                                   bool persistence_enabled,
-                                   CheckpointRemoval checkpoint_removal_mode)
-    : checkpointPeriod(period),
-      checkpointMaxItems(max_items),
-      maxCheckpoints(max_ckpts),
-      itemNumBasedNewCheckpoint(item_based_new_ckpt),
-      persistenceEnabled(persistence_enabled),
-      checkpointRemovalMode(checkpoint_removal_mode) {
-}
-
 CheckpointConfig::CheckpointConfig(Configuration& config)
-    : CheckpointConfig(config.getChkPeriod(),
-                       config.getChkMaxItems(),
-                       config.getMaxCheckpoints(),
-                       config.isItemNumBasedNewChk(),
-                       config.getBucketType() == "persistent",
-                       mode_from_string(config.getCheckpointRemovalMode())) {
+    : checkpointPeriod(config.getChkPeriod()),
+      checkpointMaxItems(config.getChkMaxItems()),
+      maxCheckpoints(config.getMaxCheckpoints()),
+      itemNumBasedNewCheckpoint(config.isItemNumBasedNewChk()),
+      persistenceEnabled(config.getBucketType() == "persistent"),
+      checkpointRemovalMode(
+              mode_from_string(config.getCheckpointRemovalMode())) {
 }
 
 void CheckpointConfig::addConfigChangeListener(

@@ -33,10 +33,6 @@ public:
     void TearDown() override;
 
 protected:
-    // Recreates the CheckpointConfig referenced by the CheckpointManager.
-    // Used if the engine config has been changed and the CheckpointConfig
-    // needs to be updated to match.
-    void recreateCheckpointConfig();
     // Creates a new item with the given key and queues it into the checkpoint
     // manager.
     bool queueNewItem(const std::string& key);

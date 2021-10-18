@@ -54,8 +54,11 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
 
     // MB-34453: Change sync_writes_max_allowed_replicas back to total
     // possible replicas given we want to still test against all replicas.
-    config.parseConfiguration("sync_writes_max_allowed_replicas=3",
-                              get_mock_server_api());
+    std::string confString = "sync_writes_max_allowed_replicas=3;bucket_type=";
+    confString += (vbType == VBType::Persistent ? "persistent" : "ephemeral");
+    // Also, a bunch of tests rely on max_checkpoints=2.
+    confString += ";max_checkpoints=2";
+    config.parseConfiguration(confString.c_str(), get_mock_server_api());
 
     auto manifest = std::make_unique<Collections::VB::Manifest>(
             std::make_shared<Collections::Manager>());
@@ -107,17 +110,7 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
     }
     }
 
-    checkpoint_config = CheckpointConfig(
-            DEFAULT_CHECKPOINT_PERIOD,
-            DEFAULT_CHECKPOINT_ITEMS,
-            2 /*maxCheckpoints*/,
-            true /*itemNumBasedNewCheckpoint*/,
-            (vbType == VBType::Persistent ? true
-                                          : false) /*persistenceEnabled*/,
-            config.getCheckpointRemovalMode() ==
-                            ::to_string(CheckpointRemoval::Eager)
-                    ? CheckpointRemoval::Eager
-                    : CheckpointRemoval::Lazy);
+    checkpoint_config = CheckpointConfig(config);
 
     vbucket->checkpointManager = std::make_unique<MockCheckpointManager>(
             global_stats,

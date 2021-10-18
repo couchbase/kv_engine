@@ -27,12 +27,6 @@ class CheckpointConfig {
 public:
     // Test only
     CheckpointConfig() = default;
-    CheckpointConfig(rel_time_t period,
-                     size_t max_items,
-                     size_t max_ckpts,
-                     bool item_based_new_ckpt,
-                     bool persistence_enabled,
-                     CheckpointRemoval checkpoint_removal_mode);
 
     explicit CheckpointConfig(Configuration& config);
 
