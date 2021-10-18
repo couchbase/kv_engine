@@ -191,8 +191,15 @@
         },
         "chk_max_items": {
             "default": "10000",
+            "descr": "Max number of (non-meta) items in each checkpoint.",
             "dynamic": true,
-            "type": "size_t"
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1,
+                    "max": 100000
+                }
+            }
         },
         "chk_period": {
             "default": "5",

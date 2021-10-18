@@ -576,18 +576,17 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
     const size_t numItems = state.range(2);
 
     // Ensure all items in the open checkpoint - avoid checkpoint creation
-    ASSERT_LE(numItems, MAX_CHECKPOINT_ITEMS);
     auto& config = engine->getConfiguration();
     const size_t _1B = 1000 * 1000 * 1000;
     config.setCheckpointMaxSize(_1B);
-    config.setChkMaxItems(MAX_CHECKPOINT_ITEMS);
+    config.setChkMaxItems(100000);
     config.setChkPeriod(MAX_CHECKPOINT_PERIOD);
 
     auto& bucket = *engine->getKVBucket();
     auto& manager = *bucket.getVBucket(vbid)->checkpointManager;
     const auto& ckptConfig = manager.getCheckpointConfig();
     ASSERT_EQ(_1B, bucket.getCheckpointMaxSize());
-    ASSERT_EQ(MAX_CHECKPOINT_ITEMS, ckptConfig.getCheckpointMaxItems());
+    ASSERT_EQ(100000, ckptConfig.getCheckpointMaxItems());
     ASSERT_EQ(MAX_CHECKPOINT_PERIOD, ckptConfig.getCheckpointPeriod());
 
     while (state.KeepRunning()) {

@@ -67,9 +67,13 @@ static enum test_result test_validate_checkpoint_params(EngineIface* h) {
             "Failed to set max_checkpoints param");
 
     checkeq(cb::engine_errc::invalid_arguments,
-            set_param(h, EngineParamCategory::Checkpoint, "chk_max_items", "5"),
+            set_param(h, EngineParamCategory::Checkpoint, "chk_max_items", "0"),
             "Expected to have an invalid value error for checkpoint_max_items "
             "param");
+    checkeq(cb::engine_errc::success,
+            set_param(h, EngineParamCategory::Checkpoint, "chk_max_items", "1"),
+            "Failed to set chk_max_items param");
+
     checkeq(cb::engine_errc::invalid_arguments,
             set_param(h, EngineParamCategory::Checkpoint, "chk_period", "0"),
             "Expected to have an invalid value error for checkpoint_period "

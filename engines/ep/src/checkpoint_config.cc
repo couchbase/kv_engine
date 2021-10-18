@@ -94,21 +94,6 @@ void CheckpointConfig::addConfigChangeListener(
             std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
 }
 
-bool CheckpointConfig::validateCheckpointMaxItemsParam(
-        size_t checkpoint_max_items) {
-    if (checkpoint_max_items < MIN_CHECKPOINT_ITEMS ||
-        checkpoint_max_items > MAX_CHECKPOINT_ITEMS) {
-        EP_LOG_WARN(
-                "New checkpoint_max_items param value {} is not ranged "
-                "between the min allowed value {} and max value {}",
-                checkpoint_max_items,
-                MIN_CHECKPOINT_ITEMS,
-                MAX_CHECKPOINT_ITEMS);
-        return false;
-    }
-    return true;
-}
-
 bool CheckpointConfig::validateCheckpointPeriodParam(size_t checkpoint_period) {
     if (checkpoint_period < MIN_CHECKPOINT_PERIOD ||
         checkpoint_period > MAX_CHECKPOINT_PERIOD) {
@@ -131,9 +116,7 @@ void CheckpointConfig::setCheckpointPeriod(size_t value) {
 }
 
 void CheckpointConfig::setCheckpointMaxItems(size_t value) {
-    if (!validateCheckpointMaxItemsParam(value)) {
-        value = DEFAULT_CHECKPOINT_ITEMS;
-    }
+    Expects(value > 0);
     checkpointMaxItems = value;
 }
 
