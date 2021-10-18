@@ -89,10 +89,4 @@ public:
     using EventuallyPersistentEngine::doConnAggStatsInner;
     using EventuallyPersistentEngine::doEngineStats;
     MockReplicationThrottle& getMockReplicationThrottle();
-
-    // re-create the checkpoint config from the engine config.
-    // For use after altering the engine config.
-    void updateCheckpointConfig() {
-        *checkpointConfig = CheckpointConfig(*this);
-    }
 };

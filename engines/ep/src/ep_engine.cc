@@ -2168,7 +2168,7 @@ cb::engine_errc EventuallyPersistentEngine::initialize(const char* config) {
         dcpFlowControlManager_ = std::make_unique<DcpFlowControlManager>(*this);
     }
 
-    checkpointConfig = std::make_unique<CheckpointConfig>(*this);
+    checkpointConfig = std::make_unique<CheckpointConfig>(configuration);
     CheckpointConfig::addConfigChangeListener(*this);
 
     kvBucket = makeBucket(configuration);

@@ -35,7 +35,7 @@ public:
                      bool persistence_enabled,
                      CheckpointRemoval checkpoint_removal_mode);
 
-    explicit CheckpointConfig(EventuallyPersistentEngine& e);
+    explicit CheckpointConfig(Configuration& config);
 
     rel_time_t getCheckpointPeriod() const {
         return checkpointPeriod;
@@ -68,11 +68,6 @@ public:
 protected:
     friend class EventuallyPersistentEngine;
     friend class SynchronousEPEngine;
-
-    /**
-     * Helper constructor from config. Only called by other constructors.
-     */
-    explicit CheckpointConfig(Configuration& config);
 
     bool validateCheckpointMaxItemsParam(size_t checkpoint_max_items);
     bool validateCheckpointPeriodParam(size_t checkpoint_period);

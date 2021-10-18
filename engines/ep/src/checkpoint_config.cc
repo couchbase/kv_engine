@@ -91,10 +91,6 @@ CheckpointConfig::CheckpointConfig(rel_time_t period,
       checkpointRemovalMode(checkpoint_removal_mode) {
 }
 
-CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine& e)
-    : CheckpointConfig(e.getConfiguration()) {
-}
-
 CheckpointConfig::CheckpointConfig(Configuration& config)
     : CheckpointConfig(config.getChkPeriod(),
                        config.getChkMaxItems(),

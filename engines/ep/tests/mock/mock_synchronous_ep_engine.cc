@@ -67,7 +67,7 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
     dcpConnMap_ = std::make_unique<MockDcpConnMap>(*this);
 
     // checkpointConfig is needed by CheckpointManager (via EPStore).
-    checkpointConfig = std::make_unique<CheckpointConfig>(*this);
+    checkpointConfig = std::make_unique<CheckpointConfig>(configuration);
     CheckpointConfig::addConfigChangeListener(*this);
 
     // Simplified setup for switching FlowControl on/off
