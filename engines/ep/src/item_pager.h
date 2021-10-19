@@ -132,8 +132,9 @@ private:
 };
 
 /**
- * Dispatcher job responsible for purging expired items from
- * memory and disk.
+ * Dispatcher job responsible for expiring items currently stored in memory. The
+ * act of expiring (deleting) the item generally results in the deletion of the
+ * items value which saves memory and disk space.
  */
 class ExpiredItemPager : public GlobalTask,
                          public std::enable_shared_from_this<ExpiredItemPager> {
