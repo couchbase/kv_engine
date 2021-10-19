@@ -3878,3 +3878,39 @@ TEST_F(CheckpointConfigTest, CheckpointMaxItems) {
 
     EXPECT_EQ(4321, manager.getCheckpointConfig().getCheckpointMaxItems());
 }
+
+TEST_F(CheckpointConfigTest, CheckpointPeriod_LowerThanMin) {
+    auto& config = engine->getConfiguration();
+    try {
+        config.setChkPeriod(0);
+    } catch (const std::range_error& e) {
+        EXPECT_THAT(e.what(),
+                    testing::HasSubstr("Validation Error, chk_period "
+                                       "takes values between 1"));
+        return;
+    }
+    FAIL();
+}
+
+TEST_F(CheckpointConfigTest, CheckpointPeriod_HigherThanMax) {
+    auto& config = engine->getConfiguration();
+    try {
+        config.setChkPeriod(86401);
+    } catch (const std::range_error& e) {
+        EXPECT_THAT(e.what(),
+                    testing::HasSubstr("Validation Error, chk_period "
+                                       "takes values between 1 and 86400"));
+        return;
+    }
+    FAIL();
+}
+
+TEST_F(CheckpointConfigTest, CheckpointPeriod) {
+    auto& config = engine->getConfiguration();
+    config.setChkPeriod(1234);
+
+    setVBucketState(vbid, vbucket_state_active);
+    auto& manager = *store->getVBuckets().getBucket(vbid)->checkpointManager;
+
+    EXPECT_EQ(1234, manager.getCheckpointConfig().getCheckpointPeriod());
+}

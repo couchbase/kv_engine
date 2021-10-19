@@ -94,24 +94,8 @@ void CheckpointConfig::addConfigChangeListener(
             std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
 }
 
-bool CheckpointConfig::validateCheckpointPeriodParam(size_t checkpoint_period) {
-    if (checkpoint_period < MIN_CHECKPOINT_PERIOD ||
-        checkpoint_period > MAX_CHECKPOINT_PERIOD) {
-        EP_LOG_WARN(
-                "New checkpoint_period param value {} is not ranged "
-                "between the min allowed value {} and max value {}",
-                checkpoint_period,
-                MIN_CHECKPOINT_PERIOD,
-                MAX_CHECKPOINT_PERIOD);
-        return false;
-    }
-    return true;
-}
-
 void CheckpointConfig::setCheckpointPeriod(size_t value) {
-    if (!validateCheckpointPeriodParam(value)) {
-        value = DEFAULT_CHECKPOINT_PERIOD;
-    }
+    Expects(value > 0);
     checkpointPeriod = static_cast<rel_time_t>(value);
 }
 

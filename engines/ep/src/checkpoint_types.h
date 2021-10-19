@@ -20,10 +20,6 @@
 #include <list>
 #include <memory>
 
-#define MIN_CHECKPOINT_PERIOD 1 //  1 sec.
-#define MAX_CHECKPOINT_PERIOD 3600 // 3600 sec.
-#define DEFAULT_CHECKPOINT_PERIOD 5 // 5 sec.
-
 class Checkpoint;
 class CheckpointManager;
 class VBucket;

@@ -531,10 +531,7 @@ cb::engine_errc EventuallyPersistentEngine::setCheckpointParam(
         if (key == "chk_max_items") {
             config.setChkMaxItems(std::stoull(val));
         } else if (key == "chk_period") {
-            size_t v = std::stoull(val);
-            validate(v, size_t(MIN_CHECKPOINT_PERIOD),
-                     size_t(MAX_CHECKPOINT_PERIOD));
-            config.setChkPeriod(v);
+            config.setChkPeriod(std::stoull(val));
         } else if (key == "max_checkpoints") {
             config.setMaxCheckpoints(std::stoull(val));
         } else if (key == "item_num_based_new_chk") {

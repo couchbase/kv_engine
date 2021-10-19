@@ -62,8 +62,6 @@ protected:
     friend class EventuallyPersistentEngine;
     friend class SynchronousEPEngine;
 
-    bool validateCheckpointPeriodParam(size_t checkpoint_period);
-
     void setCheckpointPeriod(size_t value);
     void setCheckpointMaxItems(size_t value);
     void setMaxCheckpoints(size_t value);
@@ -78,7 +76,7 @@ private:
     class ChangeListener;
 
     // Period of a checkpoint in terms of time in sec
-    rel_time_t checkpointPeriod{DEFAULT_CHECKPOINT_PERIOD};
+    rel_time_t checkpointPeriod{5};
 
     // Number of max items allowed in each checkpoint
     size_t checkpointMaxItems{1000};

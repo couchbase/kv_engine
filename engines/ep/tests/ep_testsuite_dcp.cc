@@ -8200,7 +8200,7 @@ BaseTestCase testsuite_testcases[] = {
                     during this test and create extra checkpoints we don't
                     want.*/
                  "chk_remover_stime=1;chk_max_items=100;"
-                 "chk_period=1000000;checkpoint_memory_recovery_upper_mark=0;"
+                 "chk_period=86400;checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0;chk_expel_enabled="
                  "false",
                  prepare,
