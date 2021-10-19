@@ -1902,7 +1902,7 @@ void Warmup::addStats(const AddStatFn& add_stat, const CookieIface* c) const {
     addStat(nullptr, "enabled", add_stat, c);
     const char* stateName = state.toString();
     addStat("state", stateName, add_stat, c);
-    if (finishedLoading.load()) {
+    if (isComplete()) {
         addStat("thread", "complete", add_stat, c);
     } else {
         addStat("thread", "running", add_stat, c);

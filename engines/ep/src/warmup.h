@@ -214,8 +214,11 @@ private:
  *
  * Note that once warmup is complete (Warmup::isFinishedLoading() returns true)
  * the warmup will conclude the phase and short-cut to Done. When
- * Warmup::isFinishedLoading() returns true: 1) all CRUD operations are fully
- * processed. 2) DCP consumers can be created.
+ * Warmup::isFinishedLoading() returns true all CRUD operations are fully
+ * processed. When Warmup::isComplete() returns true DCP consumers can be
+ * created. isComplete() will return true later than isFinishedLoading() as we
+ * need to marshall all of the warmup threads before allowing DCP Consumers to
+ * prevent race conditions with rollback.
  */
 class Warmup {
 public:

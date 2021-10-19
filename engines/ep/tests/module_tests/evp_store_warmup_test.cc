@@ -2811,6 +2811,25 @@ TEST_F(WarmupTest, ConsumerDuringWarmup) {
     runNextTask(readerQueue);
     EXPECT_EQ(warmupPtr->getWarmupState(), WarmupState::State::LoadingData);
 
+    // ns_server gets stats to determine when to set up DcpConsumers. The stat
+    // ep_warmup_thread encapsulates the state of warmup threads and returns a
+    // value of either "running" or "complete". Check here that it is "running"
+    // as we will temp_fail a DcpConsumer creation.
+    {
+        bool threadStatAdded;
+        auto dummyAddStats = [&threadStatAdded](std::string_view key,
+                                                std::string_view value,
+                                                const void*) {
+            if (key == "ep_warmup_thread") {
+                EXPECT_EQ("running", value);
+                threadStatAdded = true;
+            }
+        };
+        EXPECT_EQ(cb::engine_errc::success,
+                  engine->get_stats(*cookie, "warmup", {}, dummyAddStats));
+        EXPECT_TRUE(threadStatAdded);
+    }
+
     // Still fails, not finished warmup
     EXPECT_EQ(cb::engine_errc::temporary_failure,
               engine->dcpOpen(cookie,
@@ -2827,6 +2846,23 @@ TEST_F(WarmupTest, ConsumerDuringWarmup) {
     // Have to run again in the Done state to mark things as complete and stop
     // finish warmup
     runNextTask(readerQueue);
+
+    // Now that all warmup threads have complete, ep_warmup_thread should return
+    // "complete" indicating to ns_server that they can now create a DcpConsumer
+    {
+        bool threadStatAdded;
+        auto dummyAddStats = [&threadStatAdded](std::string_view key,
+                                                std::string_view value,
+                                                const void*) {
+            if (key == "ep_warmup_thread") {
+                EXPECT_EQ("complete", value);
+                threadStatAdded = true;
+            }
+        };
+        EXPECT_EQ(cb::engine_errc::success,
+                  engine->get_stats(*cookie, "warmup", {}, dummyAddStats));
+        EXPECT_TRUE(threadStatAdded);
+    }
 
     // Opening the connection should now work
     EXPECT_EQ(cb::engine_errc::success,
