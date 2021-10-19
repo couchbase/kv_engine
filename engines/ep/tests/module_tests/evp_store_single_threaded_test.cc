@@ -5701,6 +5701,156 @@ TEST_P(STParamPersistentBucketTest, ExpiryFindsPrepareWithSameCas) {
     }
 }
 
+/**
+ * Targetted test for MB-49022: Expiry of a committed SyncWrite with XATTRs was
+ * causing us to queue a CommittedViaPrepare item without a durability context
+ * which triggered an exception in VBucket::queueItem(). We need to instead set
+ * the CommittedState of the item to CommittedViaMutation. We need the full
+ * engine for this for expiry (ServerTimeAPI) so VBucketDurabilityTest is not
+ * appropriate for this test.
+ */
+TEST_P(STParameterizedBucketTest, SyncWriteXattrExpiryResetsCommittedState) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    auto vb = store->getVBucket(vbid);
+
+    auto key = makeStoredDocKey("a");
+    using namespace cb::durability;
+    auto prepare = makeCompressibleItem(vbid,
+                                        key,
+                                        "" /*body*/,
+                                        PROTOCOL_BINARY_DATATYPE_JSON,
+                                        false, // compressed
+                                        true /*xattrs*/);
+    prepare->setPendingSyncWrite(Requirements{Level::Majority, {}});
+    prepare->setExpTime(1);
+
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*prepare, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // 2) Seqno ack and commit the prepare
+    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                          "replica",
+                          1 /*prepareSeqno*/);
+    vb->processResolvedSyncWrites();
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    {
+        auto res = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(res.committed);
+        ASSERT_EQ(CommittedState::CommittedViaPrepare,
+                  res.committed->getCommitted());
+    }
+
+    // Expiry via get is easiest. It will not return the SV though as it's
+    // deleted.
+    TimeTraveller t(1000);
+    {
+        auto res = vb->fetchValidValue(WantsDeleted::No,
+                                       TrackReference::No,
+                                       QueueExpired::Yes,
+                                       vb->lockCollections(key));
+        EXPECT_FALSE(res.storedValue);
+    }
+
+    // So now we can check it manually
+    {
+        auto res = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(res.committed);
+        EXPECT_EQ(CommittedState::CommittedViaMutation,
+                  res.committed->getCommitted());
+    }
+}
+
+/**
+ * MB-49022:
+ *
+ * A streaming DCP client found that a committed SyncWrite with TTL and XATTRs
+ * set in the CacheCallback (HT lookup). This triggered an expiry which caused
+ * the process to crash as we hit an assert that every "Commit" should have a
+ * durability context set and passed into VBucket::queueItem() correctly. The
+ * root cause of this issue is that when we modyify the CommittedViaPrepare
+ * StoredValue to turn it into an expired item we also need to reset the
+ * CommittedState to CommittedViaMutation.
+ */
+TEST_P(STParamPersistentBucketTest, SyncWriteXattrExpiryViaDcp) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // 1) Store prepare with expiry and xattrs
+    auto key = makeStoredDocKey("a");
+    using namespace cb::durability;
+    auto prepare = makeCompressibleItem(vbid,
+                                        key,
+                                        "" /*body*/,
+                                        PROTOCOL_BINARY_DATATYPE_JSON,
+                                        false, // compressed
+                                        true /*xattrs*/);
+    prepare->setPendingSyncWrite(Requirements{Level::Majority, {}});
+    prepare->setExpTime(1);
+
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*prepare, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto vb = store->getVBucket(vbid);
+
+    // 2) Seqno ack and commit the prepare
+    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                          "replica",
+                          1 /*prepareSeqno*/);
+    vb->processResolvedSyncWrites();
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Pre-DCP, remove checkpoint to force backfill and assert that we still
+    // have the item in the HashTable (for CacheCallback later).
+    removeCheckpoint(*vb, 2);
+
+    {
+        auto res = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(res.committed);
+        ASSERT_EQ(CommittedState::CommittedViaPrepare,
+                  res.committed->getCommitted());
+    }
+
+    // Time travel - expiry should be possible now.
+    TimeTraveller t(1000);
+
+    // 3) DCP stream (and trigger expiry via CacheCallback)
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
+    producer->createCheckpointProcessorTask();
+    MockDcpMessageProducers producers(engine.get());
+    producer->mockActiveStreamRequest(0, // flags
+                                      1, // opaque
+                                      *vb,
+                                      0, // start_seqno
+                                      ~0, // end_seqno
+                                      0, // vbucket_uuid,
+                                      0, // snap_start_seqno,
+                                      0); // snap_end_seqno,
+
+    // This will schedule the backfill
+    auto stream = producer->findStream(vbid);
+    auto* mock_stream = static_cast<MockActiveStream*>(stream.get());
+    mock_stream->transitionStateToBackfilling();
+    ASSERT_TRUE(mock_stream->isBackfilling());
+
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+
+    // Now start the backfilling task - mark disk snapshot
+    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+
+    // And stream... (used to crash here in CacheCallback). Not crashing is the
+    // test.
+    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+}
+
 INSTANTIATE_TEST_CASE_P(Persistent,
                         STParamPersistentBucketTest,
                         STParameterizedBucketTest::persistentConfigValues(),
