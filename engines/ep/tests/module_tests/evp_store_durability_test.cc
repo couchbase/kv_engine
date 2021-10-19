@@ -195,8 +195,8 @@ class DurabilityCouchstoreBucketTest : public DurabilityEPBucketTest {
 protected:
     // Helper function for tests which require an on-disk completed prepare,
     // but without on_disk_prepare_bytes in vbstate (pre 6.6.1).
-    void setupSyncWritePrepareWithoutOnDiskPrepareBytes(std::string keyName,
-                                                        std::string value) {
+    void setupSyncWritePrepareWithoutOnDiskPrepareBytes(
+            std::string keyName, std::string value, bool removePrepareBytes) {
         setVBucketToActiveWithValidTopology();
         using namespace cb::durability;
 
@@ -219,10 +219,17 @@ protected:
         ASSERT_EQ(1, vbstate->onDiskPrepares);
         ASSERT_GT(vbstate->getOnDiskPrepareBytes(), 0);
 
-        modifyCouchstoreVBState(
-                vbid, test_dbname, 1, [](nlohmann::json& vbState) {
-                    vbState.erase("on_disk_prepare_bytes");
-                });
+        if (removePrepareBytes) {
+            modifyCouchstoreVBState(
+                    vbid, test_dbname, 1, [](nlohmann::json& vbState) {
+                        vbState.erase("on_disk_prepare_bytes");
+                    });
+        } else {
+            modifyCouchstoreVBState(
+                    vbid, test_dbname, 1, [](nlohmann::json& vbState) {
+                        vbState["on_disk_prepare_bytes"] = "0";
+                    });
+        }
 
         // Restart and warmup to pickup the modified vbstate.
         vb.reset();
@@ -235,6 +242,54 @@ protected:
         ASSERT_EQ(1, vbstate->onDiskPrepares);
         ASSERT_EQ(0, vbstate->getOnDiskPrepareBytes());
     }
+
+    /**
+     * Upgrade test for MB-42306 - check the behaviour when compaction purges
+     * Prepares from Couchstore files with vbucket_state prior to v4 (missing
+     * "on_disk_prepare_bytes" field).
+     * 1. Prepare and commit a SyncWrite to disk.
+     * 2. Modify the on-disk vbState to remove "on_disk_prepare_bytes" field to
+     *    simulate a pre 6.6.1 release.
+     * 3. Restart and Warmup.
+     * 4. Run compaction. The completed prepare should be purged.
+     * 5. Check that vbstate.onDiskPrepareBytes is set and is non-negative.
+     *
+     * @param removePrepareBytes Specifies how to implement step (2):
+     *  case 'true': "on_disk_prepare_bytes" is literally removed - simulates
+     *    the scenario where compaction at step (4) runs before the upgraded
+     *    node has flushed to disk for the first time, ie vbstate is still in
+     *    the pre-6.6.1 format (V3)
+     *  case 'false': "on_disk_prepare_bytes" is just set to 0 - simulates
+     *    the scenario where compaction at step (4) runs after the upgraded
+     *    node has flushed to disk for the first time, ie vbstate is already in
+     *    the new format (V4) but the prepare was persisted by a pre-6.6.1 node
+     */
+    void testRemoveCommittedPreparesAtCompactionUpgrade(
+            bool removePrepareBytes);
+
+    /**
+     * Upgrade test for MB-42306 - check the behaviour when a (completed)
+     * prepare is replaced with a new, smaller prepare and the initial prepare
+     * is from a Couchstore files with vbucket_state prior to v4 (missing
+     * "on_disk_prepare_bytes" field).
+     * 1. Prepare and commit a SyncWrite to disk.
+     * 2. Modify the on-disk vbState to remove "on_disk_prepare_bytes" field to
+     *    simulate a pre 6.6.1 release.
+     * 3. Restart and Warmup.
+     * 4. Prepare a second SyncWrite to the same key, with a smaller value.
+     * 5. Check that vbstate.onDiskPrepareBytes is set and is non-negative.
+     *
+     * @param removePrepareBytes Specifies how to implement step (2):
+     *  case 'true': "on_disk_prepare_bytes" is literally removed - simulates
+     *    the scenario where compaction at step (4) runs before the upgraded
+     *    node has flushed to disk for the first time, ie vbstate is still in
+     *    the pre-6.6.1 format (V3)
+     *  case 'false': "on_disk_prepare_bytes" is just set to 0 - simulates
+     *    the scenario where compaction at step (4) runs after the upgraded
+     *    node has flushed to disk for the first time, ie vbstate is already in
+     *    the new format (V4) but the prepare was persisted by a pre-6.6.1 node
+     */
+    void testOnDiskPrepareSizeUpgrade(bool removePrepareBytes);
 };
 
 /**
@@ -2599,7 +2654,6 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveCommittedPreparesAtCompaction) {
     CompactionConfig config;
     compaction_ctx cctx(config, 0);
     cctx.expiryCallback = std::make_shared<FailOnExpiryCallback>();
-
     // Sanity - prepare exists before compaction
     DiskDocKey prefixedKey(key, true /*prepare*/);
     auto gv = kvstore->get(prefixedKey, Vbid(0));
@@ -2708,50 +2762,49 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparesAtCompaction) {
     EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
 }
 
-// Upgrade test for MB-42306 - check the behaviour when compaction purges
-// Prepares from Couchstore files with vbucket_state prior to v4 (missing
-// "on_disk_prepare_bytes" field).
-// 1. Prepare and commit a SyncWrite to disk.
-// 2. Modify the on-disk vbState to remove "on_disk_prepare_bytes" field to
-//    simulate a pre 6.6.1 release.
-// 3. Restart and Warmup.
-// 4. Run compaction. The completed prepare should be purged.
-// 5. Check that vbstate.onDiskPrepareBytes is set and is non-negative.
-TEST_P(DurabilityCouchstoreBucketTest,
-       RemoveCommittedPreparesAtCompactionUpgrade) {
-    setupSyncWritePrepareWithoutOnDiskPrepareBytes("key", "value");
+void DurabilityCouchstoreBucketTest::
+        testRemoveCommittedPreparesAtCompactionUpgrade(
+                bool removePrepareBytes) {
+    setupSyncWritePrepareWithoutOnDiskPrepareBytes(
+            "key", "value", removePrepareBytes);
 
     // Trigger compaction
     CompactionConfig config;
     compaction_ctx cctx(config, 0);
     cctx.expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
-    auto* kvstore = store->getOneRWUnderlying();
-    EXPECT_TRUE(kvstore->compactDB(&cctx));
+    auto& kvstore = dynamic_cast<CouchKVStore&>(*store->getOneRWUnderlying());
+    EXPECT_TRUE(kvstore.compactDB(&cctx));
 
     // Check onDiskPrepares is updated correctly after compaction.
-    auto* vbstate = kvstore->getVBucketState(vbid);
-    EXPECT_EQ(0, vbstate->onDiskPrepares);
-    EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
-    EXPECT_EQ(1, kvstore->getItemCount(vbid));
+    EXPECT_EQ(1, kvstore.getItemCount(vbid));
+    const auto* vbstateCached = kvstore.getVBucketState(vbid);
+    EXPECT_EQ(0, vbstateCached->onDiskPrepares);
+    EXPECT_EQ(0, vbstateCached->getOnDiskPrepareBytes());
+    const auto vbstateDisk = kvstore.readVBState(vbid);
+    EXPECT_EQ(0, vbstateDisk.onDiskPrepares);
+    EXPECT_EQ(0, vbstateDisk.getOnDiskPrepareBytes());
 }
 
-// Upgrade test for MB-42306 - check the behaviour when a (completed) prepare
-// is replaced with a new, smaller prepare and the initial prepare is from
-// a Couchstore files with vbucket_state prior to v4 (missing
-// "on_disk_prepare_bytes" field).
-// 1. Prepare and commit a SyncWrite to disk.
-// 2. Modify the on-disk vbState to remove "on_disk_prepare_bytes" field to
-//    simulate a pre 6.6.1 release.
-// 3. Restart and Warmup.
-// 4. Prepare a second SyncWrite to the same key, with a smaller value.
-// 5. Check that vbstate.onDiskPrepareBytes is set and is non-negative.
-TEST_P(DurabilityCouchstoreBucketTest, OnDiskPrepareSizeUpgrade) {
+TEST_P(DurabilityCouchstoreBucketTest,
+       RemoveCommittedPreparesAtCompactionUpgrade_NoPrepareBytes) {
+    testRemoveCommittedPreparesAtCompactionUpgrade(true /*removePrepareBytes*/);
+}
+
+TEST_P(DurabilityCouchstoreBucketTest,
+       RemoveCommittedPreparesAtCompactionUpgrade_PrepareBytesZero) {
+    testRemoveCommittedPreparesAtCompactionUpgrade(
+            false /*removePrepareBytes*/);
+}
+
+void DurabilityCouchstoreBucketTest::testOnDiskPrepareSizeUpgrade(
+        bool removePrepareBytes) {
     std::string key("key");
     // Need a value bigger than the one written in post-6.6.1 mode. Also need
     // to "defeat" Snappy compression.
     std::string largeValue("abcdefghijklmnopqrstuvwxyz0123456789");
-    setupSyncWritePrepareWithoutOnDiskPrepareBytes(key, largeValue);
+    setupSyncWritePrepareWithoutOnDiskPrepareBytes(
+            key, largeValue, removePrepareBytes);
 
     // Perform a second SyncWrite with a smaller value.
     using namespace cb::durability;
@@ -2762,10 +2815,23 @@ TEST_P(DurabilityCouchstoreBucketTest, OnDiskPrepareSizeUpgrade) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Check onDiskPrepares is updated correctly after flush.
-    auto* kvstore = store->getOneRWUnderlying();
-    auto* vbstate = kvstore->getVBucketState(vbid);
-    EXPECT_EQ(1, vbstate->onDiskPrepares);
-    EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
+    auto& kvstore = dynamic_cast<CouchKVStore&>(*store->getOneRWUnderlying());
+    const auto* vbstateCached = kvstore.getVBucketState(vbid);
+    EXPECT_EQ(1, vbstateCached->onDiskPrepares);
+    EXPECT_EQ(0, vbstateCached->getOnDiskPrepareBytes());
+    const auto vbstateDisk = kvstore.readVBState(vbid);
+    EXPECT_EQ(1, vbstateDisk.onDiskPrepares);
+    EXPECT_EQ(0, vbstateDisk.getOnDiskPrepareBytes());
+}
+
+TEST_P(DurabilityCouchstoreBucketTest,
+       OnDiskPrepareSizeUpgrade_NoPrepareBytes) {
+    testOnDiskPrepareSizeUpgrade(true /*removePrepareBytes*/);
+}
+
+TEST_P(DurabilityCouchstoreBucketTest,
+       OnDiskPrepareSizeUpgrade_PrepareBytesZero) {
+    testOnDiskPrepareSizeUpgrade(false /*removePrepareBytes*/);
 }
 
 TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {

@@ -1288,10 +1288,18 @@ couchstore_error_t CouchKVStore::compactPrecommitCallback(Db& db,
 
         auto prepareBytes = json.find("on_disk_prepare_bytes");
         if (prepareBytes != json.end()) {
-            auto onDiskPrepareBytes =
-                    std::stoull(prepareBytes->get<std::string>()) -
-                    ctx.stats.prepareBytesPurged;
-            *prepareBytes = std::to_string(onDiskPrepareBytes);
+            const uint64_t onDiskPrepareBytes =
+                    std::stoull(prepareBytes->get<std::string>());
+            if (onDiskPrepareBytes > ctx.stats.prepareBytesPurged) {
+                *prepareBytes = std::to_string(onDiskPrepareBytes -
+                                               ctx.stats.prepareBytesPurged);
+            } else {
+                // prepare-bytes has been introduced in 6.6.1. Thus, at
+                // compaction we may end up purging prepares that have been
+                // persisted by a pre-6.6.1 node and that are not accounted in
+                // prepare-bytes. The counter would go negative, just set to 0.
+                *prepareBytes = "0";
+            }
             updateVbState = true;
         }
 
