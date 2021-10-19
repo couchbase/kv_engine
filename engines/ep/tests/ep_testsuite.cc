@@ -643,7 +643,9 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
             get_int_stat(h, "ep_exp_pager_stime"),
             "Expiry pager sleep time not updated");
     cb_assert(!get_bool_stat(h, "ep_exp_pager_enabled"));
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    using namespace std::chrono;
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(1s);
     checkeq(0,
             get_int_stat(h, "ep_num_expiry_pager_runs"),
             "Expiry pager run count is not zero");
@@ -687,23 +689,27 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
     checkeq(0, str.substr(11, 5).compare(expected_time), err_msg.c_str());
 
     // Update exp_pager_stime by 30 minutes and ensure that the update is successful
-    const std::chrono::minutes update_by{30};
-    std::string targetTaskTime1{make_time_string(std::chrono::system_clock::now() +
-                                                 update_by)};
+    const auto update_by = 30min;
+    // the calculated task time depends on memcached_uptime ticks, so can be
+    // at most 1 second behind based on exactly when it is checked;
+    // reduce the lower bound to allow this.
+    std::string targetTaskTime1{
+            make_time_string(system_clock::now() + update_by - 1s)};
 
     // clear the initial task time, and test setting stime results in an exact
     // result of
     //   task_time = now + stime
     set_param(
             h, EngineParamCategory::Flush, "exp_pager_initial_run_time", "-1");
-    set_param(h,
-              EngineParamCategory::Flush,
-              "exp_pager_stime",
-              std::to_string(update_by.count() * 60).c_str());
+    set_param(
+            h,
+            EngineParamCategory::Flush,
+            "exp_pager_stime",
+            std::to_string(duration_cast<seconds>(update_by).count()).c_str());
     str = get_str_stat(h, "ep_expiry_pager_task_time");
 
-    std::string targetTaskTime2{make_time_string(std::chrono::system_clock::now() +
-                                                 update_by)};
+    std::string targetTaskTime2{
+            make_time_string(system_clock::now() + update_by)};
 
     // ep_expiry_pager_task_time should fall within the range of
     // targetTaskTime1 and targetTaskTime2
