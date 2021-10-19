@@ -37,14 +37,9 @@ CheckpointConfig::CheckpointConfig(Configuration& config)
     : maxCheckpoints(config.getMaxCheckpoints()),
       persistenceEnabled(config.getBucketTypeString() == "persistent"),
       checkpointMaxSize(config.getCheckpointMaxSize()) {
-}
-
-void CheckpointConfig::addConfigChangeListener(
-        EventuallyPersistentEngine& engine) {
-    Configuration& configuration = engine.getConfiguration();
-    configuration.addValueChangedListener(
-            "max_checkpoints",
-            std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
+    // Bind this CheckpointConfig instance to EPConfig dynamic params changes
+    config.addValueChangedListener("max_checkpoints",
+                                   std::make_unique<ChangeListener>(*this));
 }
 
 void CheckpointConfig::setMaxCheckpoints(size_t value) {

@@ -2297,7 +2297,6 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     }
 
     checkpointConfig = std::make_unique<CheckpointConfig>(configuration);
-    CheckpointConfig::addConfigChangeListener(*this);
 
     kvBucket = makeBucket(configuration);
 

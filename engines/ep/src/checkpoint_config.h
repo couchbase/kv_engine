@@ -45,8 +45,6 @@ protected:
 
     void setMaxCheckpoints(size_t value);
 
-    static void addConfigChangeListener(EventuallyPersistentEngine& engine);
-
 private:
     class ChangeListener;
 
