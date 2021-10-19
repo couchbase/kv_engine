@@ -1069,20 +1069,15 @@ void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
 }
 
 uint64_t MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
-    Status status;
-    Magma::KVStoreRevision kvsRev;
-    std::tie(status, kvsRev) = magma->GetKVStoreRevision(vbid.get());
-    if (!status) {
-        logger->critical(
-                "MagmaKVStore::prepareToDeleteImpl {} "
-                "GetKVStoreRevision failed. Status:{}",
-                vbid,
-                status.String());
-        // Even though we couldn't get the kvstore revision from magma,
-        // we'll use what is in kv engine and assume its the latest.
-        kvsRev = kvstoreRevList[getCacheSlot(vbid)];
+    auto [status, kvsRev] = magma->GetKVStoreRevision(vbid.get());
+    if (status) {
+        return kvsRev;
     }
-    return kvsRev;
+    // Even though we couldn't get the kvstore revision from magma, we'll use
+    // what is in kv engine and assume its the latest. We might not be able to
+    // get the revision of the KVStore if we've not persited any documents yet
+    // for this vbid.
+    return kvstoreRevList[getCacheSlot(vbid)];
 }
 
 // Note: It is assumed this can only be called from bg flusher thread or
