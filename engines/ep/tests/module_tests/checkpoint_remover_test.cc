@@ -396,8 +396,6 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
     auto vb = store->getVBuckets().getBucket(vbid);
     auto* manager =
             static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
-    CheckpointConfig c(config);
-    manager->resetConfig(c);
 
     auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
     createDcpStream(*producer);
@@ -502,8 +500,6 @@ TEST_F(CheckpointRemoverEPTest, DISABLED_noCursorDropWhenTargetMet) {
     auto vb = store->getVBuckets().getBucket(vbid);
     auto* checkpointManager =
             static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
-    CheckpointConfig c(config);
-    checkpointManager->resetConfig(c);
 
     auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
     createDcpStream(*producer);

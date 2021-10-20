@@ -104,10 +104,6 @@ public:
         return createCheckpointItem(id, vbid, checkpoint_op);
     }
 
-    void resetConfig(CheckpointConfig& c) {
-        checkpointConfig = c;
-    }
-
     void forceNewCheckpoint() {
         std::lock_guard<std::mutex> lh(queueLock);
         checkOpenCheckpoint(lh, true);
