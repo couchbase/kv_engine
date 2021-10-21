@@ -82,6 +82,8 @@ sequences = {
           'couchbase/mad-hatter')],
         # kv_engine 6.6.x release train.
         [('couchbase/6.6.0',
+          'couchbase/6.6.3'),
+         ('couchbase/6.6.3',
           'couchbase/mad-hatter')],
         # kv_engine 7.0.x release train; merging into cheshire-cat branch.
         [('couchbase/7.0.0',
