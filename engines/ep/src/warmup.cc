@@ -999,26 +999,34 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
                 if (retry == 2) {
                     if (hasPurged) {
                         if (++stats.warmOOM == 1) {
-                            EP_LOG_WARN_RAW(
+                            EP_LOG_WARN(
+                                    "LoadStorageKVPairCallback::callback(): {} "
                                     "Warmup dataload failure: max_size too "
-                                    "low.");
+                                    "low.",
+                                    vb->getId());
                         }
                     } else {
-                        EP_LOG_WARN_RAW(
+                        EP_LOG_WARN(
+                                "LoadStorageKVPairCallback::callback(): {} "
                                 "Emergency startup purge to free space for "
-                                "load.");
+                                "load.",
+                                vb->getId());
                         purge();
                     }
                 } else {
-                    EP_LOG_WARN_RAW(
-                            "Cannot store an item after emergency purge.");
+                    EP_LOG_WARN(
+                            "LoadStorageKVPairCallback::callback(): {} "
+                            "Cannot store an item after emergency purge.",
+                            vb->getId());
                     ++stats.warmOOM;
                 }
                 break;
             case MutationStatus::InvalidCas:
                 EP_LOG_DEBUG(
+                        "LoadStorageKVPairCallback::callback(): {} "
                         "Value changed in memory before restore from disk. "
                         "Ignored disk value for: key{{{}}}.",
+                        vb->getId(),
                         i->getKey().c_str());
                 ++stats.warmDups;
                 succeeded = true;
@@ -1070,9 +1078,11 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
             epstore.warmupCompleted();
             logWarmupStats(epstore);
         }
-        EP_LOG_INFO_RAW(
+        EP_LOG_INFO(
+                "LoadStorageKVPairCallback::callback(): {} "
                 "Engine warmup is complete, request to stop "
-                "loading remaining database");
+                "loading remaining database",
+                i->getVBucketId());
         setStatus(cb::engine_errc::no_memory);
     } else {
         setStatus(cb::engine_errc::success);
