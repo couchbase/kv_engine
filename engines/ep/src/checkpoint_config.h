@@ -72,18 +72,22 @@ protected:
 private:
     class ChangeListener;
 
-    // Period of a checkpoint in terms of time in sec
-    rel_time_t checkpointPeriod{5};
+    // Period of a checkpoint in terms of time in seconds.
+    // Dynamic in EPConfig
+    std::atomic<rel_time_t> checkpointPeriod{5};
 
-    // Number of max items allowed in each checkpoint
-    size_t checkpointMaxItems{1000};
+    // Number of max items allowed in each checkpoint.
+    // Dynamic in EPConfig
+    std::atomic<size_t> checkpointMaxItems{1000};
 
-    // Number of max checkpoints allowed
-    size_t maxCheckpoints{2};
+    // Number of max checkpoints allowed.
+    // Dynamic in EPConfig
+    std::atomic<size_t> maxCheckpoints{2};
 
     // Flag indicating if a new checkpoint is created once the number of items
     // in the current checkpoint is greater than the max number allowed.
-    bool itemNumBasedNewCheckpoint{true};
+    // Dynamic in EPConfig
+    std::atomic<bool> itemNumBasedNewCheckpoint{true};
 
     // Flag indicating if persistence is enabled.
     bool persistenceEnabled{true};
