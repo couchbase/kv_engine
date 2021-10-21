@@ -2880,6 +2880,11 @@ void MagmaKVStore::addTimingStats(const AddStatFn& add_stat,
     MagmaHistogramStats histoStats;
     magma->GetHistogramStats(histoStats);
     add_prefixed_stat(prefix,
+                      "flushQueueTime",
+                      histoStats.FlushQueueTimeHisto,
+                      add_stat,
+                      c);
+    add_prefixed_stat(prefix,
                       "flushWaitTime",
                       histoStats.FlushWaitTimeHisto,
                       add_stat,
