@@ -40,12 +40,12 @@ public:
 
 protected:
     void SetUp() override {
-        /* to test ephemeral vbucket specific stuff */
+        checkpoint_config = std::make_unique<CheckpointConfig>(config);
         mockEpheVB = new MockEphemeralVBucket(
                 Vbid(0),
                 vbucket_state_active,
                 global_stats,
-                checkpoint_config,
+                *checkpoint_config,
                 /*kvshard*/ nullptr,
                 /*lastSeqno*/ 0,
                 /*lastSnapStart*/ 0,
@@ -75,7 +75,7 @@ protected:
     MockEphemeralVBucket* mockEpheVB;
 
     EPStats global_stats;
-    CheckpointConfig checkpoint_config;
+    std::unique_ptr<CheckpointConfig> checkpoint_config;
     Configuration config;
 };
 

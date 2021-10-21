@@ -25,9 +25,6 @@ std::string to_string(CheckpointRemoval mode);
 
 class CheckpointConfig {
 public:
-    // Test only
-    CheckpointConfig() = default;
-
     explicit CheckpointConfig(Configuration& config);
 
     rel_time_t getCheckpointPeriod() const {

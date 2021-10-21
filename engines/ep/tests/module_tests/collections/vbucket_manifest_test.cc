@@ -22,7 +22,8 @@
 #include "stats.h"
 #include "systemevent_factory.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
-#include "tests/module_tests/test_helpers.h"
+
+#include <programs/engine_testapp/mock_server.h>
 #include <utilities/test_manifest.h>
 
 #include <folly/portability/GTest.h>
@@ -150,51 +151,58 @@ public:
         }
     };
 
-    ActiveReplicaManifest()
-        : vbA(Vbid(0),
-              vbucket_state_active,
-              global_stats,
-              checkpoint_config,
-              /*kvshard*/ nullptr,
-              /*lastSeqno*/ 0,
-              /*lastSnapStart*/ 0,
-              /*lastSnapEnd*/ 0,
-              /*table*/ nullptr,
-              std::make_shared<DummyCB>(),
-              /*newSeqnoCb*/ nullptr,
-              SyncWriteResolvedCallback{},
-              NoopSyncWriteCompleteCb,
-              NoopSyncWriteTimeoutFactory,
-              NoopSeqnoAckCb,
-              ImmediateCkptDisposer,
-              config,
-              EvictionPolicy::Value,
-              std::make_unique<Collections::VB::Manifest>(collectionsManager)),
-          vbR(Vbid(1),
-              vbucket_state_replica,
-              global_stats,
-              checkpoint_config,
-              /*kvshard*/ nullptr,
-              /*lastSeqno*/ 0,
-              /*lastSnapStart*/ 0,
-              /*lastSnapEnd*/ snapEnd,
-              /*table*/ nullptr,
-              std::make_shared<DummyCB>(),
-              /*newSeqnoCb*/ nullptr,
-              SyncWriteResolvedCallback{},
-              NoopSyncWriteCompleteCb,
-              NoopSyncWriteTimeoutFactory,
-              NoopSeqnoAckCb,
-              ImmediateCkptDisposer,
-              config,
-              EvictionPolicy::Value,
-              std::make_unique<Collections::VB::Manifest>(collectionsManager)),
-          lastCompleteDeletionArgs(0) {
+    ActiveReplicaManifest() : lastCompleteDeletionArgs(0) {
+        config.parseConfiguration("", get_mock_server_api());
+        checkpoint_config = std::make_unique<CheckpointConfig>(config);
+
+        vbA = std::make_shared<EPVBucket>(
+                Vbid(0),
+                vbucket_state_active,
+                global_stats,
+                *checkpoint_config,
+                /*kvshard*/ nullptr,
+                /*lastSeqno*/ 0,
+                /*lastSnapStart*/ 0,
+                /*lastSnapEnd*/ 0,
+                /*table*/ nullptr,
+                std::make_shared<DummyCB>(),
+                /*newSeqnoCb*/ nullptr,
+                SyncWriteResolvedCallback{},
+                NoopSyncWriteCompleteCb,
+                NoopSyncWriteTimeoutFactory,
+                NoopSeqnoAckCb,
+                ImmediateCkptDisposer,
+                config,
+                EvictionPolicy::Value,
+                std::make_unique<Collections::VB::Manifest>(
+                        collectionsManager));
+
+        vbR = std::make_shared<EPVBucket>(
+                Vbid(1),
+                vbucket_state_replica,
+                global_stats,
+                *checkpoint_config,
+                /*kvshard*/ nullptr,
+                /*lastSeqno*/ 0,
+                /*lastSnapStart*/ 0,
+                /*lastSnapEnd*/ 200,
+                /*table*/ nullptr,
+                std::make_shared<DummyCB>(),
+                /*newSeqnoCb*/ nullptr,
+                SyncWriteResolvedCallback{},
+                NoopSyncWriteCompleteCb,
+                NoopSyncWriteTimeoutFactory,
+                NoopSeqnoAckCb,
+                ImmediateCkptDisposer,
+                config,
+                EvictionPolicy::Value,
+                std::make_unique<Collections::VB::Manifest>(
+                        collectionsManager));
     }
 
     ::testing::AssertionResult update(const std::string& json) {
         try {
-            active.update(vbA, Collections::Manifest{json});
+            active.update(*vbA, Collections::Manifest{json});
         } catch (std::exception& e) {
             return ::testing::AssertionFailure()
                    << "Exception thrown for update with " << json
@@ -262,7 +270,7 @@ public:
     }
 
     VBucket& getActiveVB() {
-        return vbA;
+        return *vbA;
     }
 
     MockVBManifest& getActiveManifest() {
@@ -306,7 +314,7 @@ public:
      */
     void applyCheckpointEventsToReplica() {
         std::vector<queued_item> events;
-        getEventsFromCheckpoint(vbA, events);
+        getEventsFromCheckpoint(*vbA, events);
         for (const auto& qi : events) {
             lastSeqno = qi->getBySeqno();
             if (qi->getOperation() == queue_op::system_event) {
@@ -317,7 +325,7 @@ public:
                                 Collections::VB::Manifest::getDropEventData(
                                         {qi->getData(), qi->getNBytes()});
                         // A deleted create means beginDelete collection
-                        replica.wlock().replicaDrop(vbR,
+                        replica.wlock().replicaDrop(*vbR,
                                                     dcpData.manifestUid,
                                                     dcpData.cid,
                                                     qi->getBySeqno());
@@ -326,7 +334,7 @@ public:
                                 Collections::VB::Manifest::getCreateEventData(
                                         {qi->getData(), qi->getNBytes()});
                         replica.wlock().replicaCreate(
-                                vbR,
+                                *vbR,
                                 dcpData.manifestUid,
                                 {dcpData.metaData.sid, dcpData.metaData.cid},
                                 dcpData.metaData.name,
@@ -341,7 +349,7 @@ public:
                                 getDropScopeEventData(
                                         {qi->getData(), qi->getNBytes()});
                         // A deleted create means beginDelete collection
-                        replica.wlock().replicaDropScope(vbR,
+                        replica.wlock().replicaDropScope(*vbR,
                                                          dcpData.manifestUid,
                                                          dcpData.sid,
                                                          qi->getBySeqno());
@@ -350,7 +358,7 @@ public:
                                 getCreateScopeEventData(
                                         {qi->getData(), qi->getNBytes()});
                         replica.wlock().replicaCreateScope(
-                                vbR,
+                                *vbR,
                                 dcpData.manifestUid,
                                 dcpData.metaData.sid,
                                 dcpData.metaData.name,
@@ -371,14 +379,12 @@ public:
     MockVBManifest active{collectionsManager};
     MockVBManifest replica{collectionsManager};
     EPStats global_stats;
-    CheckpointConfig checkpoint_config;
+    std::unique_ptr<CheckpointConfig> checkpoint_config;
     Configuration config;
-    EPVBucket vbA;
-    EPVBucket vbR;
+    VBucketPtr vbA;
+    VBucketPtr vbR;
     int64_t lastSeqno;
     CollectionID lastCompleteDeletionArgs;
-
-    static const int64_t snapEnd{200};
 };
 
 class VBucketManifestTest : public ::testing::Test {

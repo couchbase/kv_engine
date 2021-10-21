@@ -21,6 +21,8 @@
 #include "stats.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/kvstore_test.h"
+
+#include <programs/engine_testapp/mock_server.h>
 #include <utilities/test_manifest.h>
 
 struct WriteCallback {
@@ -44,32 +46,36 @@ public:
         }
     };
 
-    CollectionsKVStoreTestBase()
-        : vbucket(Vbid(0),
-                  vbucket_state_active,
-                  global_stats,
-                  checkpoint_config,
-                  /*kvshard*/ nullptr,
-                  /*lastSeqno*/ 0,
-                  /*lastSnapStart*/ 0,
-                  /*lastSnapEnd*/ 0,
-                  /*table*/ nullptr,
-                  std::make_shared<DummyCB>(),
-                  /*newSeqnoCb*/ nullptr,
-                  SyncWriteResolvedCallback{},
-                  NoopSyncWriteCompleteCb,
-                  NoopSyncWriteTimeoutFactory,
-                  NoopSeqnoAckCb,
-                  ImmediateCkptDisposer,
-                  config,
-                  EvictionPolicy::Value,
-                  std::make_unique<Collections::VB::Manifest>(
-                          std::make_shared<Collections::Manager>())) {
+    CollectionsKVStoreTestBase() {
+        config.parseConfiguration("", get_mock_server_api());
+        checkpoint_config = std::make_unique<CheckpointConfig>(config);
+
+        vbucket = std::make_shared<EPVBucket>(
+                Vbid(0),
+                vbucket_state_active,
+                global_stats,
+                *checkpoint_config,
+                /*kvshard*/ nullptr,
+                /*lastSeqno*/ 0,
+                /*lastSnapStart*/ 0,
+                /*lastSnapEnd*/ 0,
+                /*table*/ nullptr,
+                std::make_shared<DummyCB>(),
+                /*newSeqnoCb*/ nullptr,
+                SyncWriteResolvedCallback{},
+                NoopSyncWriteCompleteCb,
+                NoopSyncWriteTimeoutFactory,
+                NoopSeqnoAckCb,
+                ImmediateCkptDisposer,
+                config,
+                EvictionPolicy::Value,
+                std::make_unique<Collections::VB::Manifest>(
+                        std::make_shared<Collections::Manager>()));
     }
 
     void getEventsFromCheckpoint(std::vector<queued_item>& events) {
         std::vector<queued_item> items;
-        vbucket.checkpointManager->getNextItemsForPersistence(items);
+        vbucket->checkpointManager->getNextItemsForPersistence(items);
         for (const auto& qi : items) {
             if (qi->getOperation() == queue_op::system_event) {
                 events.push_back(qi);
@@ -77,13 +83,13 @@ public:
         }
 
         ASSERT_FALSE(events.empty())
-                << "getEventsFromCheckpoint: no events in " << vbucket.getId();
+                << "getEventsFromCheckpoint: no events in " << vbucket->getId();
     }
 
     void applyEvents(TransactionContext& txnCtx,
                      VB::Commit& commitData,
                      const CollectionsManifest& cm) {
-        manifest.update(vbucket, makeManifest(cm));
+        manifest.update(*vbucket, makeManifest(cm));
 
         std::vector<queued_item> events;
         getEventsFromCheckpoint(events);
@@ -203,7 +209,7 @@ public:
     void applyAndCheck(const CollectionsManifest& cm,
                        std::vector<CollectionID> expectedDropped = {}) {
         VB::Commit commitData(manifest);
-        auto ctx = kvstore->begin(vbucket.getId(),
+        auto ctx = kvstore->begin(vbucket->getId(),
                                   std::make_unique<PersistenceCallback>());
         applyEvents(*ctx, commitData, cm);
         kvstore->commit(std::move(ctx), commitData);
@@ -216,9 +222,9 @@ public:
 
 protected:
     EPStats global_stats;
-    CheckpointConfig checkpoint_config;
+    std::unique_ptr<CheckpointConfig> checkpoint_config;
     Configuration config;
-    EPVBucket vbucket;
+    VBucketPtr vbucket;
     WriteCallback wc;
     DeleteCallback dc;
 };
@@ -377,14 +383,14 @@ void CollectionsKVStoreTest::failForDuplicate() {
 
     // Drive the KVStore so that we flush the same collection twice with no
     // drop, this would attempt to create it twice in the metadata
-    auto ctx = kvstore->begin(vbucket.getId(),
+    auto ctx = kvstore->begin(vbucket->getId(),
                               std::make_unique<PersistenceCallback>());
     flush.collections.recordSystemEvent(*event);
     EXPECT_FALSE(event->isDeleted());
     kvstore->setSystemEvent(*ctx, event);
     kvstore->commit(std::move(ctx), flush);
 
-    ctx = kvstore->begin(vbucket.getId(),
+    ctx = kvstore->begin(vbucket->getId(),
                          std::make_unique<PersistenceCallback>());
     event->setBySeqno(event->getBySeqno() + 1);
     flush.collections.recordSystemEvent(*event);
@@ -397,14 +403,14 @@ void CollectionsKVStoreTest::failForDuplicate() {
 TEST_P(CollectionsKVStoreTest, failForDuplicateCollection) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
-    manifest.update(vbucket, makeManifest(cm));
+    manifest.update(*vbucket, makeManifest(cm));
     failForDuplicate();
 }
 
 TEST_P(CollectionsKVStoreTest, failForDuplicateScope) {
     CollectionsManifest cm;
     cm.add(ScopeEntry::shop1);
-    manifest.update(vbucket, makeManifest(cm));
+    manifest.update(*vbucket, makeManifest(cm));
     failForDuplicate();
 }
 
@@ -495,7 +501,7 @@ public:
     // runs a flush batch that will leave the target collection in open state
     void openCollection() {
         cm.add(target);
-        auto ctx = kvstore->begin(vbucket.getId(),
+        auto ctx = kvstore->begin(vbucket->getId(),
                                   std::make_unique<PersistenceCallback>());
         applyEvents(*ctx, cm);
         kvstore->commit(std::move(ctx), flush);
@@ -505,7 +511,7 @@ public:
     void dropCollection() {
         openCollection();
         cm.remove(target);
-        auto ctx = kvstore->begin(vbucket.getId(),
+        auto ctx = kvstore->begin(vbucket->getId(),
                                   std::make_unique<PersistenceCallback>());
         applyEvents(*ctx, cm);
         kvstore->commit(std::move(ctx), flush);
@@ -513,7 +519,7 @@ public:
 
     // runs a flush batch that will leave the target collection in open state
     void openScopeOpenCollection() {
-        auto ctx = kvstore->begin(vbucket.getId(),
+        auto ctx = kvstore->begin(vbucket->getId(),
                                   std::make_unique<PersistenceCallback>());
         cm.add(targetScope);
         applyEvents(*ctx, cm);
@@ -526,7 +532,7 @@ public:
     void dropScope() {
         openScopeOpenCollection();
         cm.remove(targetScope);
-        auto ctx = kvstore->begin(vbucket.getId(),
+        auto ctx = kvstore->begin(vbucket->getId(),
                                   std::make_unique<PersistenceCallback>());
         applyEvents(*ctx, cm);
         kvstore->commit(std::move(ctx), flush);
@@ -554,7 +560,7 @@ void CollectionRessurectionKVStoreTest::resurectionTest() {
     // The test will run cycles of create/drop, so that the collection
     // has multiple generations within a single flush batch, we can then verify
     // that the meta-data stored by commit is correct
-    auto ctx = kvstore->begin(vbucket.getId(),
+    auto ctx = kvstore->begin(vbucket->getId(),
                               std::make_unique<PersistenceCallback>());
     if (!cm.exists(target)) {
         cm.add(target);
@@ -588,7 +594,7 @@ void CollectionRessurectionKVStoreTest::resurectionTest() {
     checkUid(md, cm);
     checkCollections(md, cm, {target.uid});
 
-    auto seqno = vbucket.getHighSeqno();
+    auto seqno = vbucket->getHighSeqno();
 
     // Finally validate the seqnos the local data stores (checkCollections
     // only compares name/uid/ttl from cm against md )
@@ -638,7 +644,7 @@ void CollectionRessurectionKVStoreTest::resurectionScopesTest() {
     // The test will run cycles of create/drop, so that the collection
     // has multiple generations within a single flush batch, we can then verify
     // that the meta-data stored by commit is correct
-    auto ctx = kvstore->begin(vbucket.getId(),
+    auto ctx = kvstore->begin(vbucket->getId(),
                               std::make_unique<PersistenceCallback>());
     if (!cm.exists(targetScope)) {
         cm.add(targetScope);
@@ -677,7 +683,7 @@ void CollectionRessurectionKVStoreTest::resurectionScopesTest() {
     checkUid(md, cm);
     checkCollections(md, cm, {target.uid});
 
-    auto seqno = vbucket.getHighSeqno();
+    auto seqno = vbucket->getHighSeqno();
 
     // Finally validate the seqnos the local data stores (checkCollections
     // only compares name/uid/ttl from cm against md )

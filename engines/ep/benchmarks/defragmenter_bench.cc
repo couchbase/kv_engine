@@ -41,11 +41,14 @@ public:
         default:
             FAIL() << "Invalid input param(0) value:" << state.range(0);
         }
+
+        checkpointConfig = std::make_unique<CheckpointConfig>(config);
+
         vbucket = std::make_unique<EPVBucket>(
                 Vbid(0),
                 vbucket_state_active,
                 globalStats,
-                checkpointConfig,
+                *checkpointConfig,
                 /*kvshard*/ nullptr,
                 /*lastSeqno*/ 1000,
                 /*lastSnapStart*/ 0,
@@ -137,7 +140,7 @@ protected:
 
     std::unique_ptr<VBucket> vbucket;
     EPStats globalStats;
-    CheckpointConfig checkpointConfig;
+    std::unique_ptr<CheckpointConfig> checkpointConfig;
     Configuration config;
 };
 

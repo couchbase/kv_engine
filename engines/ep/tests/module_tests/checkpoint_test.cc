@@ -52,7 +52,7 @@ void CheckpointTest::SetUp() {
     // EagerCheckpointDisposalTest covers eager tests.
     config.parseConfiguration("checkpoint_removal_mode=lazy",
                               get_mock_server_api());
-    checkpoint_config = CheckpointConfig(config);
+    checkpoint_config = std::make_unique<CheckpointConfig>(config);
     VBucketTest::SetUp();
     createManager();
 }
@@ -63,11 +63,12 @@ void CheckpointTest::TearDown() {
 
 void CheckpointTest::createManager(int64_t lastSeqno) {
     ASSERT_TRUE(vbucket);
+    ASSERT_TRUE(checkpoint_config);
     range = {0, 0};
     vbucket->checkpointManager = std::make_unique<MockCheckpointManager>(
             global_stats,
             *vbucket,
-            checkpoint_config,
+            *checkpoint_config,
             lastSeqno,
             range.getStart(),
             range.getEnd(),
@@ -400,7 +401,7 @@ TEST_P(CheckpointTest, ItemBasedCheckpointCreation) {
     // recreate the manager
     const auto maxItems = 10;
     config.setChkMaxItems(maxItems);
-    checkpoint_config = CheckpointConfig(config);
+    checkpoint_config = std::make_unique<CheckpointConfig>(config);
     createManager();
 
     // Create one less than the number required to create a new checkpoint.
@@ -556,9 +557,9 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursor) {
     // recreate the manager.
     const auto maxItems = 10;
     config.setChkMaxItems(maxItems);
-    checkpoint_config = CheckpointConfig(config);
+    checkpoint_config = std::make_unique<CheckpointConfig>(config);
     // Also, we want to have items across 2 checkpoints.
-    ASSERT_EQ(2, checkpoint_config.getMaxCheckpoints());
+    ASSERT_EQ(2, checkpoint_config->getMaxCheckpoints());
     createManager();
 
     /* Add items such that we have 2 checkpoints */
@@ -613,9 +614,9 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursorLimited) {
     // recreate the manager.
     const auto maxItems = 10;
     config.setChkMaxItems(maxItems);
-    checkpoint_config = CheckpointConfig(config);
+    checkpoint_config = std::make_unique<CheckpointConfig>(config);
     // Also, we want to have items across 2 checkpoints.
-    ASSERT_EQ(2, checkpoint_config.getMaxCheckpoints());
+    ASSERT_EQ(2, checkpoint_config->getMaxCheckpoints());
     createManager();
 
     /* Add items such that we have 2 checkpoints */
@@ -654,9 +655,9 @@ TEST_P(CheckpointTest, DiskCheckpointStrictItemLimit) {
     // recreate the manager.
     const auto maxItems = 10;
     config.setChkMaxItems(maxItems);
-    checkpoint_config = CheckpointConfig(config);
+    checkpoint_config = std::make_unique<CheckpointConfig>(config);
     // Also, we want to have items across 2 checkpoints.
-    ASSERT_EQ(2, checkpoint_config.getMaxCheckpoints());
+    ASSERT_EQ(2, checkpoint_config->getMaxCheckpoints());
     createManager();
 
     // Force the first checkpoint to be a disk one
@@ -696,9 +697,9 @@ TEST_P(CheckpointTest, CursorMovement) {
     // recreate the manager.
     const auto maxItems = 10;
     config.setChkMaxItems(maxItems);
-    checkpoint_config = CheckpointConfig(config);
+    checkpoint_config = std::make_unique<CheckpointConfig>(config);
     // Also, we want to have items across 2 checkpoints.
-    ASSERT_EQ(2, checkpoint_config.getMaxCheckpoints());
+    ASSERT_EQ(2, checkpoint_config->getMaxCheckpoints());
     createManager();
 
     /* Add items such that we have 1 full (max items as per config) checkpoint.
@@ -808,9 +809,9 @@ TEST_P(CheckpointTest, SeqnoAndHLCOrdering) {
     // does not split the items over many checkpoints and muddy the final
     // data checks.
     config.setChkMaxItems(n_threads * n_items);
-    checkpoint_config = CheckpointConfig(config);
+    checkpoint_config = std::make_unique<CheckpointConfig>(config);
     // Also, we want to have items across 2 checkpoints.
-    ASSERT_EQ(2, checkpoint_config.getMaxCheckpoints());
+    ASSERT_EQ(2, checkpoint_config->getMaxCheckpoints());
 
     createManager();
 
@@ -1525,7 +1526,7 @@ TEST_P(CheckpointTest, takeAndResetCursors) {
     auto manager2 = std::make_unique<MockCheckpointManager>(
             this->global_stats,
             *vbucket,
-            this->checkpoint_config,
+            *checkpoint_config,
             0,
             0 /*lastSnapStart*/,
             0 /*lastSnapEnd*/,
@@ -1592,7 +1593,7 @@ TEST_P(CheckpointTest, DuplicateCheckpointCursorDifferentCheckpoints) {
     // recreate the manager
     const auto maxItems = 10;
     config.setChkMaxItems(maxItems);
-    checkpoint_config = CheckpointConfig(config);
+    checkpoint_config = std::make_unique<CheckpointConfig>(config);
     createManager();
 
     const auto& ckptList =
@@ -2228,7 +2229,7 @@ TEST_P(CheckpointTest, testDontExpelIfCursorAtMetadataItemWithSameSeqnoDisk) {
 // (and possibly further).
 void CheckpointTest::testDoNotExpelIfHaveSameSeqnoAfterMutation() {
     config.setChkMaxItems(1);
-    checkpoint_config = CheckpointConfig(config);
+    checkpoint_config = std::make_unique<CheckpointConfig>(config);
     createManager();
 
     // Add a meta data operation
@@ -2905,13 +2906,13 @@ TEST_P(CheckpointTest, CheckpointItemToString) {
 class EagerCheckpointDisposalTest : public CheckpointTest {
 public:
     void SetUp() override {
-        CheckpointTest::SetUp();
-
         // This test suite specifically tests eager checkpoint removal.
         // Ensure the checkpoint config is set to that.
         config.parseConfiguration("checkpoint_removal_mode=eager",
                                   get_mock_server_api());
-        checkpoint_config = CheckpointConfig(config);
+        checkpoint_config = std::make_unique<CheckpointConfig>(config);
+        VBucketTest::SetUp();
+        createManager();
     }
 };
 

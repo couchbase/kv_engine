@@ -204,7 +204,7 @@ void Manifest::updateUid(ManifestUid uid, bool reset) {
 // 2) Applying the change(s) (need write lock)
 // We utilise the upgrade feature of our mutex so that we can switch from
 // read (using UpgradeHolder) to write
-ManifestUpdateStatus Manifest::update(::VBucket& vb,
+ManifestUpdateStatus Manifest::update(VBucket& vb,
                                       const Collections::Manifest& manifest) {
     mutex_type::UpgradeHolder upgradeLock(rwlock);
     auto status = canUpdate(manifest);

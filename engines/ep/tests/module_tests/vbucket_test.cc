@@ -63,13 +63,15 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
     auto manifest = std::make_unique<Collections::VB::Manifest>(
             std::make_shared<Collections::Manager>());
 
+    checkpoint_config = std::make_unique<CheckpointConfig>(config);
+
     switch (vbType) {
     case VBType::Persistent:
         vbucket = std::make_unique<EPVBucket>(
                 vbid,
                 vbucket_state_active,
                 global_stats,
-                checkpoint_config,
+                *checkpoint_config,
                 /*kvshard*/ nullptr,
                 lastSeqno,
                 range.getStart(),
@@ -91,7 +93,7 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
                 vbid,
                 vbucket_state_active,
                 global_stats,
-                checkpoint_config,
+                *checkpoint_config,
                 /*kvshard*/ nullptr,
                 lastSeqno,
                 range.getStart(),
@@ -110,12 +112,10 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
     }
     }
 
-    checkpoint_config = CheckpointConfig(config);
-
     vbucket->checkpointManager = std::make_unique<MockCheckpointManager>(
             global_stats,
             *vbucket,
-            checkpoint_config,
+            *checkpoint_config,
             lastSeqno,
             range.getStart(),
             range.getEnd(),

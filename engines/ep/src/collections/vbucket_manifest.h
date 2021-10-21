@@ -199,7 +199,7 @@ public:
      * @return ManifestUpdateStatus describing outcome (success or failed
      * reason)
      */
-    ManifestUpdateStatus update(::VBucket& vb,
+    ManifestUpdateStatus update(VBucket& vb,
                                 const Collections::Manifest& manifest);
 
     /**
