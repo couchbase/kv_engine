@@ -180,6 +180,14 @@
                 "rate-limit"
             ]
         },
+        "34": {
+            "name": "SCOPE_SIZE_LIMIT_EXCEEDED",
+            "desc": "The scope contains too much data",
+            "attrs": [
+                "item-only",
+                "rate-limit"
+            ]
+        },
         "80": {
             "name": "UNKNOWN_FRAME_INFO",
             "desc": "Unknown frame info identifier encountered. Maybe a newer server version knows about it",

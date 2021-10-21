@@ -314,6 +314,9 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
     case cb::engine_errc::opaque_no_match:
         return code;
 
+    case cb::engine_errc::scope_size_limit_exceeded:
+        return cb::engine_errc::too_big;
+
     case cb::engine_errc::locked:
         return cb::engine_errc::key_already_exists;
     case cb::engine_errc::locked_tmpfail:

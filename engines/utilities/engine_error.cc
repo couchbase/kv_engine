@@ -111,6 +111,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "stream not found";
     case engine_errc::opaque_no_match:
         return "opaque no match";
+    case engine_errc::scope_size_limit_exceeded:
+        return "scope size limit exceeded";
     };
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "

@@ -39,6 +39,7 @@ bool is_known(Status status) {
     case Status::RateLimitedNetworkEgress:
     case Status::RateLimitedMaxConnections:
     case Status::RateLimitedMaxCommands:
+    case Status::ScopeSizeLimitExceeded:
     case Status::UnknownFrameInfo:
     case Status::UnknownCommand:
     case Status::Enomem:
@@ -119,6 +120,7 @@ bool isStatusSuccess(Status status) {
     case Status::RateLimitedNetworkEgress:
     case Status::RateLimitedMaxConnections:
     case Status::RateLimitedMaxCommands:
+    case Status::ScopeSizeLimitExceeded:
     case Status::UnknownFrameInfo:
     case Status::UnknownCommand:
     case Status::Enomem:
@@ -242,6 +244,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "RateLimitedMaxConnections";
         case Status::RateLimitedMaxCommands:
             return "RateLimitedMaxCommands";
+        case Status::ScopeSizeLimitExceeded:
+            return "ScopeSizeLimitExceeded";
         case Status::UnknownFrameInfo:
             return "UnknownFrameInfo";
         case Status::UnknownCommand:
@@ -377,6 +381,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "Rate limit: Max Connections";
         case Status::RateLimitedMaxCommands:
             return "Rate limit: Max Commands";
+        case Status::ScopeSizeLimitExceeded:
+            return "To much data in Scope";
         case Status::UnknownFrameInfo:
             return "Unknown frame info";
         case Status::UnknownCommand:

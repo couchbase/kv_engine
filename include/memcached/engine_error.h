@@ -124,6 +124,9 @@ enum class engine_errc {
     /** Opaque in message did not match stream's */
     opaque_no_match = 0x24,
 
+    /// Too much data in the scope
+    scope_size_limit_exceeded = 0x25,
+
     /** Generic failue. */
     failed = 0xff
 };
