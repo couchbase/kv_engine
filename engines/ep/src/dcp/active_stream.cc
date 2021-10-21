@@ -1540,6 +1540,9 @@ void ActiveStream::notifySeqnoAvailable(DcpProducer& producer) {
 
 void ActiveStream::endStream(cb::mcbp::DcpStreamEndStatus reason) {
     if (isActive()) {
+        // Cache the number remaining items as if we call clear_UNLOCKED() then
+        // readyQ_non_meta_items will be reset to 0.
+        auto cachedRemainingItems = readyQ_non_meta_items.load();
         pendingBackfill = false;
         if (isBackfilling()) {
             // If Stream were in Backfilling state, clear out the
@@ -1586,7 +1589,7 @@ void ActiveStream::endStream(cb::mcbp::DcpStreamEndStatus reason) {
             "{}, reason: {}",
             logPrefix,
             lastSentSeqno.load(),
-            readyQ_non_meta_items.load(),
+            cachedRemainingItems,
             cb::mcbp::to_string(reason));
     }
 }
