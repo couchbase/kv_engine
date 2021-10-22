@@ -797,15 +797,24 @@ public:
 
     /**
      * Sets the maximum size (in bytes) for a single checkpoint.
-     * '0' triggers EP auto-setup, where the value is determined based on other
-     * system parameters (eg, num of vbuckets, checkpoint quota, max num of
-     * checkpoints per vbucket, etc..) for optimal balance and checkpoint memory
-     * releasing capabilities.
+     * '0' triggers EP auto-setup, see 'autoConfigCheckpointMaxSize()' for
+     * details.
      *
      * @param size
      * @return success if the operation succeeds, an error code otherwise
      */
     cb::engine_errc setCheckpointMaxSize(size_t size);
+
+    /**
+     * Sets the checkpoint-max-size based on other system parameters (eg, num of
+     * vbuckets, checkpoint quota, max num of checkpoints per vbucket, etc..)
+     * for optimal balance and checkpoint memory releasing capabilities.
+     *
+     * @return success if the operation succeeds, an error code otherwise
+     */
+    cb::engine_errc autoConfigCheckpointMaxSize();
+
+    bool isCheckpointMaxSizeAutoConfig() const;
 
     size_t getCheckpointMaxSize() const;
 
@@ -979,7 +988,9 @@ protected:
     friend class WarmupLoadingData;
     friend class PersistenceCallback;
 
-    EventuallyPersistentEngine     &engine;
+    // Ref to the Engine that owns this KVBucket
+    EventuallyPersistentEngine& engine;
+
     EPStats                        &stats;
     VBucketMap                      vbMap;
     ExTask itemPagerTask;
@@ -1121,7 +1132,7 @@ protected:
      *
      * @todo MB-48529: Move to CheckpointConfig
      */
-    std::atomic<size_t> checkpointMaxSize;
+    std::atomic<size_t> checkpointMaxSize{0};
 
     friend class KVBucketTest;
 

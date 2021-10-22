@@ -44,8 +44,7 @@ friend class Warmup;
     };
 
 public:
-
-    VBucketMap(Configuration& config, KVBucket& store);
+    VBucketMap(KVBucket& bucket);
 
     /**
      * Add the VBucket to the map - extending the lifetime of the object until
@@ -100,26 +99,20 @@ public:
      * Decrement the vb count for the given state.
      * @param state  the state for which the vb count is to be decremented.
      */
-    void decVBStateCount(vbucket_state_t state) {
-        --vbStateCount[state - vbucket_state_active];
-    }
+    void decVBStateCount(vbucket_state_t state);
 
     /**
      * Increment the vb count for the given state.
      * @param state the state for which the vb count is to be incremented.
      */
-    void incVBStateCount(vbucket_state_t state) {
-        ++vbStateCount[state - vbucket_state_active];
-    }
+    void incVBStateCount(vbucket_state_t state);
 
     /**
      * Get the state count for the given state.
      * @param state  the state for which the vb count is to be retrieved.
      * @rturn  the current vb count in the given state.
      */
-    uint16_t getVBStateCount(vbucket_state_t state) const {
-        return vbStateCount[state - vbucket_state_active];
-    }
+    uint16_t getVBStateCount(vbucket_state_t state) const;
 
     /**
      * Set the state of the vBucket and set VBucketMap invariants
@@ -156,6 +149,12 @@ public:
         }
     }
 
+    /**
+     * @return the number of alive vbuckets in the map.
+     * Note: Different than VBucketMap::size that stores the capacity of the map
+     */
+    size_t getNumAliveVBuckets() const;
+
 private:
 
     std::vector<std::unique_ptr<KVShard>> shards;
@@ -167,6 +166,9 @@ private:
      * states of active, replica, pending or dead.
      */
     std::array<cb::NonNegativeCounter<uint16_t>, 4> vbStateCount{{0, 0, 0, 0}};
+
+    // Ref to the owning KVBucket
+    KVBucket& bucket;
 
     DISALLOW_COPY_AND_ASSIGN(VBucketMap);
 };

@@ -284,7 +284,7 @@ private:
 KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     : engine(theEngine),
       stats(engine.getEpStats()),
-      vbMap(theEngine.getConfiguration(), *this),
+      vbMap(*this),
       defragmenterTask(nullptr),
       itemCompressorTask(nullptr),
       itemFreqDecayerTask(nullptr),
@@ -1146,8 +1146,7 @@ cb::engine_errc KVBucket::deleteVBucket(Vbid vbid, const CookieIface* c) {
         // threads that are manipulating the VB (particularly ones which may
         // try and change the disk revision e.g. deleteAll and compaction).
         auto lockedVB = getLockedVBucket(vbid);
-        vbMap.decVBStateCount(lockedVB->getState());
-        lockedVB->setState(vbucket_state_dead);
+        vbMap.setState(*lockedVB, vbucket_state_dead, nullptr);
         getRWUnderlying(vbid)->abortCompactionIfRunning(lockedVB.getLock(),
                                                         vbid);
         engine.getDcpConnMap().vbucketStateChanged(vbid, vbucket_state_dead);
@@ -2861,25 +2860,36 @@ float KVBucket::getCheckpointMemoryRecoveryLowerMark() const {
 }
 
 cb::engine_errc KVBucket::setCheckpointMaxSize(size_t size) {
-    if (size > 0) {
-        checkpointMaxSize = size;
+    if (size == 0) {
+        return autoConfigCheckpointMaxSize();
+    }
+
+    checkpointMaxSize = size;
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc KVBucket::autoConfigCheckpointMaxSize() {
+    // Note: We don't account dead vbuckets as that identifies VBucket objects
+    // set-up for deferred deletion on disk but that have already been destroyed
+    // in memory.
+    const auto numVBuckets = vbMap.getNumAliveVBuckets();
+
+    if (numVBuckets == 0) {
+        // Temporary/benign state - before the first VBucket is created
         return cb::engine_errc::success;
     }
 
-    // Note: This is NOT perfect in the general case.
-    // VBMap::getSize() returns the capacity of the VBMap, not the actual number
-    // of vbuckets in the map. For perfect sizing we would need to recompute
-    // at any vbmap size change (ie, bucket creation / deletion). @todo MB-48038
-    const auto numVBuckets = vbMap.getSize();
     const auto& config = engine.getConfiguration();
     const auto checkpointQuota = config.getMaxSize() * checkpointMemoryRatio;
     const auto numCheckpointsPerVB = config.getMaxCheckpoints();
-
-    Expects(numVBuckets > 0);
     Expects(numCheckpointsPerVB > 0);
     checkpointMaxSize = (checkpointQuota / numVBuckets) / numCheckpointsPerVB;
 
     return cb::engine_errc::success;
+}
+
+bool KVBucket::isCheckpointMaxSizeAutoConfig() const {
+    return engine.getConfiguration().getCheckpointMaxSize() == 0;
 }
 
 size_t KVBucket::getCheckpointMaxSize() const {

@@ -1291,7 +1291,9 @@ TEST_F(SingleThreadedCheckpointTest, CheckpointMaxSize_AutoSetup) {
               manager.getCheckpointConfig().getMaxCheckpoints());
 
     const auto cmQuota = _1GB * ckptMemRatio;
-    const auto expected = cmQuota / store->getVBMapSize() / maxCheckpoints;
+    const auto numVBuckets = store->getVBuckets().getNumAliveVBuckets();
+    ASSERT_GT(numVBuckets, 0);
+    const auto expected = cmQuota / numVBuckets / maxCheckpoints;
     EXPECT_EQ(expected, store->getCheckpointMaxSize());
 }
 
