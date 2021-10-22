@@ -126,11 +126,19 @@ Collections::VB::Manifest NexusKVStore::generateSecondaryVBManifest(
     // each collection now...
 
     auto collections = secondaryManifest.wlock();
+
+    // Scope dataSize must begin at zero for the next loop
+    for (auto itr = collections.beginScopes(); itr != collections.endScopes();
+         ++itr) {
+        itr->second.setDataSize(0);
+    }
+
     for (auto& itr : collections) {
         auto& [cid, entry] = itr;
         auto [status, stats] = secondary->getCollectionStats(vbid, cid);
         if (status == GetCollectionStatsStatus::Success) {
             collections.setDiskSize(cid, stats.diskSize);
+            collections.updateDataSize(entry.getScopeID(), stats.diskSize);
         }
     }
 

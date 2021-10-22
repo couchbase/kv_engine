@@ -188,6 +188,9 @@ public:
         return manifest->getStatsForFlush(collection, seqno);
     }
 
+    /// @return data size of the scope, throw for unknown scope
+    size_t getDataSize(ScopeID sid) const;
+
     /**
      * Dump this VB::Manifest to std::cerr
      */
@@ -508,6 +511,15 @@ public:
         manifest->updateDiskSize(itr, delta);
     }
 
+    /**
+     * Update the data size of the collection's scope. The collection being
+     * the one used to consruct the StatsReadHandle
+     * @param delta the value (+/-) to add to the current data size
+     */
+    void updateScopeDataSize(ssize_t delta) const {
+        manifest->updateScopeDataSize(itr, delta);
+    }
+
     void setDiskSize(size_t newValue) const {
         manifest->setDiskSize(itr, newValue);
     }
@@ -670,6 +682,16 @@ public:
         return manifest.end();
     }
 
+    /// @return iterator to the beginning of the underlying collection map
+    Manifest::scopesContainer::iterator beginScopes() {
+        return manifest.beginScopes();
+    }
+
+    /// @return iterator to the end of the underlying collection map
+    Manifest::scopesContainer::iterator endScopes() {
+        return manifest.endScopes();
+    }
+
     void saveDroppedCollection(CollectionID cid,
                                const ManifestEntry& droppedEntry,
                                uint64_t droppedSeqno) {
@@ -678,6 +700,10 @@ public:
 
     void setDiskSize(CollectionID cid, size_t size) {
         manifest.setDiskSize(cid, size);
+    }
+
+    void updateDataSize(ScopeID sid, ssize_t delta) {
+        manifest.updateDataSize(sid, delta);
     }
 
     /**

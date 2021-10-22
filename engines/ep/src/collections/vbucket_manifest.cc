@@ -64,8 +64,8 @@ Manifest::~Manifest() {
     }
 
     for (auto itr = scopes.begin(); itr != scopes.end();) {
-        auto& [id, meta] = *itr;
-        manager->dereferenceMeta(id, std::move(meta));
+        auto& [id, entry] = *itr;
+        manager->dereferenceMeta(id, entry.takeMeta());
         itr = scopes.erase(itr);
     }
 }
@@ -74,7 +74,7 @@ Manifest::Manifest(Manifest& other) : manager(other.manager) {
     // Prevent other from being modified while we copy.
     auto wlock = other.wlock();
 
-    // Collections map is not trivially copyable, so we have do it manually
+    // Collection/Scope maps are not trivially copyable, so we do it manually
     for (auto& [cid, entry] : other.map) {
         CollectionSharedMetaDataView meta{
                 entry.getName(), entry.getScopeID(), entry.getMaxTtl()};
@@ -89,7 +89,15 @@ Manifest::Manifest(Manifest& other) : manager(other.manager) {
         itr->second.setPersistedHighSeqno(entry.getPersistedHighSeqno());
     }
 
-    scopes = other.scopes;
+    for (auto& [sid, entry] : other.scopes) {
+        ScopeSharedMetaDataView meta{entry.getName()};
+        auto [itr, inserted] = scopes.try_emplace(
+                sid,
+                entry.getDataSize(),
+                other.manager->createOrReferenceMeta(sid, meta));
+        Expects(inserted);
+    }
+
     droppedCollections = other.droppedCollections;
     manifestUid = other.manifestUid;
     dropInProgress.store(other.dropInProgress);
@@ -355,7 +363,7 @@ ManifestUpdateStatus Manifest::canUpdate(
     for (const auto& [sid, entry] : scopes) {
         auto itr = manifest.findScope(sid);
         if (itr != manifest.endScopes() &&
-            isImmutablePropertyModified(itr->second, entry->name)) {
+            isImmutablePropertyModified(itr->second, entry.getName())) {
             return ManifestUpdateStatus::ImmutablePropertyModified;
         }
     }
@@ -441,12 +449,11 @@ void Manifest::addNewScopeEntry(ScopeID sid, std::string_view scopeName) {
 
 void Manifest::addNewScopeEntry(
         ScopeID sid, SingleThreadedRCPtr<ScopeSharedMetaData> sharedMeta) {
-    if (isScopeValid(sid)) {
+    auto [itr, emplaced] = scopes.try_emplace(sid, 0, sharedMeta);
+    if (!emplaced) {
         throwException<std::logic_error>(
                 __FUNCTION__, "scope already exists, scope:" + sid.to_string());
     }
-
-    scopes.emplace(sid, sharedMeta);
 }
 
 void Manifest::dropCollection(WriteHandle& wHandle,
@@ -528,14 +535,14 @@ const ManifestEntry& Manifest::getManifestEntry(CollectionID identifier) const {
     return itr->second;
 }
 
-const ScopeSharedMetaData& Manifest::getScopeEntry(ScopeID sid) const {
+const ScopeEntry& Manifest::getScopeEntry(ScopeID sid) const {
     auto itr = scopes.find(sid);
     if (itr == scopes.end()) {
         throwException<std::logic_error>(
                 __FUNCTION__, "did not find scope:" + sid.to_string());
     }
 
-    return *itr->second;
+    return itr->second;
 }
 
 void Manifest::createScope(const WriteHandle& wHandle,
@@ -591,7 +598,7 @@ void Manifest::dropScope(const WriteHandle& wHandle,
                         sid.to_string());
     } else if (itr != scopes.end()) {
         // Tell the manager so that it can check for final clean-up
-        manager->dereferenceMeta(sid, std::move(itr->second));
+        manager->dereferenceMeta(sid, itr->second.takeMeta());
         // erase the entry (drops our reference to meta)
         scopes.erase(itr);
     }
@@ -980,7 +987,35 @@ void Manifest::setDiskSize(CollectionID collection, size_t size) const {
                 __FUNCTION__,
                 "failed find of collection:" + collection.to_string());
     }
-    return itr->second.setDiskSize(size);
+    itr->second.setDiskSize(size);
+}
+
+void Manifest::updateDataSize(ScopeID sid, ssize_t delta) const {
+    auto itr = scopes.find(sid);
+    if (itr == scopes.end()) {
+        throwException<std::invalid_argument>(
+                __FUNCTION__, "failed find of scope:" + sid.to_string());
+    }
+    itr->second.updateDataSize(delta);
+}
+
+size_t Manifest::getDataSize(ScopeID sid) const {
+    auto scope = scopes.find(sid);
+    if (scope == scopes.end()) {
+        throwException<std::logic_error>(
+                __FUNCTION__, "scope not found for " + sid.to_string());
+    }
+    return scope->second.getDataSize();
+}
+
+void Manifest::updateScopeDataSize(const container::const_iterator entry,
+                                   ssize_t delta) const {
+    if (entry == map.end()) {
+        throwException<std::invalid_argument>(__FUNCTION__,
+                                              "iterator is invalid");
+    }
+
+    updateDataSize(entry->second.getScopeID(), delta);
 }
 
 uint64_t Manifest::getPersistedHighSeqno(CollectionID collection) const {
@@ -1060,12 +1095,15 @@ bool Manifest::addScopeStats(Vbid vbid, const StatCollector& collector) const {
     format_to(key, "vb_{}:manifest:uid", vbid.get());
     collector.addStat(std::string_view(key.data(), key.size()), manifestUid);
 
-    // Get names
     for (const auto& [sid, value] : scopes) {
         key.resize(0);
-        format_to(key, "vb_{}:{}", vbid.get(), sid);
+        format_to(key, "vb_{}:{}:name:", vbid.get(), sid);
         collector.addStat(std::string_view(key.data(), key.size()),
-                          value->name);
+                          value.getName());
+        key.resize(0);
+        format_to(key, "vb_{}:{}:data_size", vbid.get(), sid);
+        collector.addStat(std::string_view(key.data(), key.size()),
+                          value.getDataSize());
     }
 
     // Dump all collections and how they map to a scope. Stats requires unique
@@ -1139,7 +1177,7 @@ bool Manifest::operator==(const Manifest& rhs) const {
     }
     // Check all scopes can be found
     for (const auto& [sid, entry] : scopes) {
-        if (*entry != rhs.getScopeEntry(sid)) {
+        if (entry != rhs.getScopeEntry(sid)) {
             return false;
         }
     }
@@ -1324,8 +1362,8 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
         os << "cid:" << cid.to_string() << ":" << entry << std::endl;
     }
 
-    for (const auto& [sid, value] : manifest.scopes) {
-        os << "scope:" << sid.to_string() << ":" << *value << std::endl;
+    for (const auto& [sid, entry] : manifest.scopes) {
+        os << "scope:" << sid.to_string() << ":" << entry << std::endl;
     }
 
     os << *manifest.droppedCollections.rlock() << std::endl;

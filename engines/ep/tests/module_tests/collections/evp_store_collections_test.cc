@@ -144,8 +144,31 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
     CollectionsManifest cm(CollectionEntry::meat);
     vb->updateFromManifest(makeManifest(cm));
 
+    EXPECT_EQ(0, vb->getManifest().lock(CollectionEntry::meat).getDiskSize());
+    EXPECT_EQ(0, vb->getManifest().lock(CollectionID::Default).getDiskSize());
+    // Scope dataSize is also updated for persistent buckets
+    EXPECT_EQ(0, vb->getManifest().lock().getDataSize(ScopeID::Default));
+
     // Trigger a flush to disk. Flushes the meat create event and 1 item
     flushVBucketToDiskIfPersistent(vbid, 2);
+
+    if (persistent()) {
+        // Both collections now have data in them. Meat has the system event and
+        // default has 'key'
+        EXPECT_NE(0,
+                  vb->getManifest().lock(CollectionEntry::meat).getDiskSize());
+        EXPECT_NE(0,
+                  vb->getManifest().lock(CollectionID::Default).getDiskSize());
+        // Scope dataSize is also updated for persistent buckets
+        EXPECT_NE(0, vb->getManifest().lock().getDataSize(ScopeID::Default));
+    } else {
+        EXPECT_EQ(0,
+                  vb->getManifest().lock(CollectionEntry::meat).getDiskSize());
+        EXPECT_EQ(0,
+                  vb->getManifest().lock(CollectionID::Default).getDiskSize());
+        // Scope dataSize is also updated for persistent buckets
+        EXPECT_EQ(0, vb->getManifest().lock().getDataSize(ScopeID::Default));
+    }
 
     // System event not counted
     // Note: for persistent buckets, that is because

@@ -15,6 +15,7 @@
 #include "collections/manifest.h"
 #include "collections/system_event_types.h"
 #include "collections/vbucket_manifest_entry.h"
+#include "collections/vbucket_manifest_scope_entry.h"
 #include "ep_types.h"
 #include "storeddockey_fwd.h"
 
@@ -23,7 +24,7 @@
 #include <folly/container/F14Map.h>
 
 #include <optional>
-#include <unordered_set>
+#include <unordered_map>
 
 class Item;
 class VBucket;
@@ -79,6 +80,7 @@ class WriteHandle;
 class Manifest {
 public:
     using container = folly::F14NodeMap<CollectionID, ManifestEntry>;
+    using scopesContainer = std::unordered_map<ScopeID, ScopeEntry>;
 #ifdef THREAD_SANITIZER
     // SharedMutexReadPriority has no TSAN annotations, so use WritePrioity
     using mutex_type = folly::SharedMutexWritePriority;
@@ -533,6 +535,15 @@ protected:
         entry->second.updateDiskSize(delta);
     }
 
+    /**
+     * Update a collection's scope data size
+     *
+     * @param entry iterator from the collection map
+     * @param delta the value (+/-) that is added to the data size
+     */
+    void updateScopeDataSize(const container::const_iterator entry,
+                             ssize_t delta) const;
+
     void setDiskSize(const container::const_iterator entry,
                      size_t newValue) const {
         if (entry == map.end()) {
@@ -545,6 +556,13 @@ protected:
 
     void setDiskSize(CollectionID cid, size_t newValue) const;
 
+    /**
+     * Update the data size of the scope with the +/- delta
+     * @param sid Scope to update
+     * @param delta the value (+/-) that is added to the data size
+     */
+    void updateDataSize(ScopeID sid, ssize_t delta) const;
+
     size_t getDiskSize(const container::const_iterator entry) const {
         if (entry == map.end()) {
             throwException<std::invalid_argument>(__FUNCTION__,
@@ -553,6 +571,9 @@ protected:
 
         return entry->second.getDiskSize();
     }
+
+    /// @return the data size for the scope
+    size_t getDataSize(ScopeID sid) const;
 
     void setHighSeqno(const container::const_iterator entry,
                       uint64_t value) const {
@@ -698,6 +719,20 @@ protected:
     }
 
     /**
+     * @return iterator for the scopes map
+     */
+    scopesContainer::iterator beginScopes() {
+        return scopes.begin();
+    }
+
+    /**
+     * @return end iterator for the scopes map
+     */
+    scopesContainer::iterator endScopes() {
+        return scopes.end();
+    }
+
+    /**
      * Get a manifest entry for the collection associated with the key. Can
      * return map.end() for unknown collections.
      */
@@ -782,13 +817,14 @@ protected:
     const ManifestEntry& getManifestEntry(CollectionID collectionID) const;
 
     /**
-     * Get the ScopeSharedMetaData for the given scope. Throws a
-     * std::logic_error if the collection was not found.
+     * Get the ScopeEntry of the scope, stores all stats/metadata of the scope
+     *
+     * Throws a std::logic_error if the scope was not found.
      *
      * @param sid id of the scope to lookup
-     * @return a const reference to the scope's metadata
+     * @return a const reference to the scope's ScopeEntry
      */
-    const ScopeSharedMetaData& getScopeEntry(ScopeID sid) const;
+    const ScopeEntry& getScopeEntry(ScopeID sid) const;
 
     /**
      * Process a Collections::Manifest to determine if collections need adding
@@ -888,10 +924,9 @@ protected:
     container map;
 
     /**
-     * The current scopes and their names.
+     * All the data we store about a scope and a map of scope to the data
      */
-    std::unordered_map<ScopeID, SingleThreadedRCPtr<ScopeSharedMetaData>>
-            scopes;
+    scopesContainer scopes;
 
     // Information we need to retain for a collection that is dropped but the
     // drop event has not been persisted by the flusher.

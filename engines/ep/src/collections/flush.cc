@@ -134,6 +134,7 @@ void Flush::postCommitMakeStatsVisible() {
         lock.updateItemCount(flushStats.getItemCount());
         lock.setPersistedHighSeqno(flushStats.getPersistedHighSeqno());
         lock.updateDiskSize(flushStats.getDiskSize());
+        lock.updateScopeDataSize(flushStats.getDiskSize());
     }
 }
 

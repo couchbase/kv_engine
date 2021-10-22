@@ -16,6 +16,10 @@
 
 namespace Collections::VB {
 
+size_t ReadHandle::getDataSize(ScopeID sid) const {
+    return manifest->getDataSize(sid);
+}
+
 PersistedStats StatsReadHandle::getPersistedStats() const {
     return {itr->second.getItemCount(),
             itr->second.getPersistedHighSeqno(),

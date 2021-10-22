@@ -276,7 +276,8 @@ SET(COLLECTIONS_SOURCE src/collections/collections_types.cc
                        src/collections/vbucket_filter.cc
                        src/collections/vbucket_manifest.cc
                        src/collections/vbucket_manifest_entry.cc
-                       src/collections/vbucket_manifest_handles.cc)
+                       src/collections/vbucket_manifest_handles.cc
+                       src/collections/vbucket_manifest_scope_entry.cc)
 
 # Skip precompiled headers for the (tiny minority) of C source files.
 # This is to avoid adding complexity to precompiled_headers.h to handle C & C++

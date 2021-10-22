@@ -78,7 +78,7 @@ public:
         }
         // Check all scopes can be found
         for (const auto& [sid, entry] : scopes) {
-            if (*entry != rhs.getScopeEntry(sid)) {
+            if (entry != rhs.getScopeEntry(sid)) {
                 return false;
             }
         }

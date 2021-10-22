@@ -546,6 +546,25 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_non_default_scope) {
     EXPECT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
             StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
+    EXPECT_EQ(0, vb->getManifest().lock().getDataSize(ScopeEntry::shop1));
+    EXPECT_EQ(0, replica->getManifest().lock().getDataSize(ScopeEntry::shop1));
+
+    // Both active and replica updated the data sizes for persistent buckets
+    if (persistent()) {
+        // Flush, the event and item are stored and dataSize is updated
+        flushVBucketToDiskIfPersistent(vbid, 2);
+        flushVBucketToDiskIfPersistent(replicaVB, 2);
+
+        EXPECT_NE(0, vb->getManifest().lock().getDataSize(ScopeEntry::shop1));
+        EXPECT_EQ(vb->getManifest().lock().getDataSize(ScopeEntry::shop1),
+                  replica->getManifest().lock().getDataSize(ScopeEntry::shop1));
+    } else {
+        // Nothing for ephemeral
+        EXPECT_EQ(0, vb->getManifest().lock().getDataSize(ScopeEntry::shop1));
+        EXPECT_EQ(0,
+                  replica->getManifest().lock().getDataSize(ScopeEntry::shop1));
+    }
+
     // remove meat
     vb->updateFromManifest(
             makeManifest(cm.remove(CollectionEntry::meat, ScopeEntry::shop1)));
