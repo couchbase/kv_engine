@@ -315,7 +315,17 @@ TEST(ManifestTest, validation) {
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"Default","uid":"0"}]}]})",
-    };
+            // scope data_size wrong type
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0", "collections":[]},
+                          {"name":"s1", "uid":"8",
+                           "limits": { "kv": {"data_size": {}}},
+                           "collections":[]}]})",
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0", "collections":[]},
+                          {"name":"s1", "uid":"8",
+                           "limits": { "kv": {"data_size": "apple"}},
+                           "collections":[]}]})"};
 
     std::vector<std::string> validManifests = {
             // this is the 'epoch' state of collections
@@ -378,7 +388,7 @@ TEST(ManifestTest, validation) {
                                {"name":"brewery","uid":"8"}]}]})",
 
             // lower-case uid is fine
-            R"({"uid" : "abcd1",
+            R"({"uid" : "dabcd1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[]}]})",
             // upper-case uid is fine
@@ -408,7 +418,29 @@ TEST(ManifestTest, validation) {
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"brewery","uid":"8"}]}]})",
-    };
+
+            // Scopes with a data size
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0", "collections":[]},
+                          {"name":"s1", "uid":"8",
+                           "limits": { "kv": {"data_size": 0}},
+                           "collections":[]}]})",
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0", "collections":[]},
+                          {"name":"s1", "uid":"8",
+                           "limits": { "kv": {"data_size": 8000000000}},
+                           "collections":[]}]})",
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0", "collections":[]},
+                          {"name":"s1", "uid":"8",
+                           "limits": { "kv": {"data_size": 18446744073709551615}},
+                           "collections":[]}]})",
+            // Not being super strict with the limits section
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0", "collections":[]},
+                          {"name":"s1", "uid":"8",
+                           "limits": {},
+                           "collections":[]}]})"};
 
     for (auto& manifest : invalidManifests) {
         try {
@@ -926,4 +958,21 @@ TEST(ManifestTest, isNotSuccesor) {
     cm.add(CollectionEntry::meat, ScopeEntry::shop1);
     Collections::Manifest incoming3{std::string{cm}};
     EXPECT_NE(cb::engine_errc::success, current.isSuccessor(incoming3).code());
+}
+
+TEST(ManifestTest, scopeDataSize) {
+    std::string manifest = R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0",
+                                "collections":[
+                                    {"name":"_default", "uid":"0"},
+                                    {"name":"meat", "uid":"8"}]},
+                          {"name":"brewerA", "uid":"8",
+                           "limits": { "kv": {"data_size": 123456}},
+                                "collections":[
+                                    {"name":"beer", "uid":"9"},
+                                    {"name":"meat", "uid":"a"}]}]})";
+    Collections::Manifest cm(manifest);
+    auto scope = cm.findScope(ScopeID{8});
+    ASSERT_NE(scope, cm.endScopes());
+    EXPECT_EQ(123456, scope->second.dataLimitFromCluster);
 }

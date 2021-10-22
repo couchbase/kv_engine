@@ -23,10 +23,17 @@ table Collection {
     name:string;
 }
 
+table ScopeLimits {
+    dataSizeEnabled:bool = false;
+    dataSize:uint64 = 0;
+    dataSizeClusterValue:uint64 = 0;
+}
+
 table Scope {
     scopeId:uint;
     name:string;
     collections:[Collection];
+    limits:ScopeLimits;
 }
 
 table Manifest {

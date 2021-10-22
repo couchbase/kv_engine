@@ -695,6 +695,7 @@ STAT(collection_scope_name, "scope_name", none, , )
 STAT(collection_maxTTL, "maxTTL", seconds, , )
 
 STAT(scope_name, "name", none, , )
+STAT(scope_data_limit, "data_limit", none, , )
 STAT(scope_collection_count, "collections", count, , )
 
 STAT(collection_mem_used, "collections_mem_used", bytes, , )

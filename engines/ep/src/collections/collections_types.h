@@ -231,6 +231,13 @@ using IsDroppedEphemeralCb = std::function<bool(const DocKey&, int64_t)>;
 using IsVisibleFunction =
         std::function<bool(ScopeID, std::optional<CollectionID>)>;
 
+/**
+ * A data limit - optional
+ */
+using DataLimit = std::optional<size_t>;
+
+static const DataLimit NoDataLimit{};
+
 namespace VB {
 enum class ManifestUpdateStatus {
     Success,
