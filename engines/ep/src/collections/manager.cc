@@ -353,15 +353,14 @@ void Collections::Manager::dereferenceMeta(
     collectionSMT.wlock()->dereference(cid, std::move(meta));
 }
 
-SingleThreadedRCPtr<const Collections::VB::ScopeSharedMetaData>
+SingleThreadedRCPtr<Collections::VB::ScopeSharedMetaData>
 Collections::Manager::createOrReferenceMeta(
         ScopeID sid, const Collections::VB::ScopeSharedMetaDataView& view) {
     return scopeSMT.wlock()->createOrReference(sid, view);
 }
 
 void Collections::Manager::dereferenceMeta(
-        ScopeID sid,
-        SingleThreadedRCPtr<const VB::ScopeSharedMetaData>&& meta) {
+        ScopeID sid, SingleThreadedRCPtr<VB::ScopeSharedMetaData>&& meta) {
     scopeSMT.wlock()->dereference(sid, std::move(meta));
 }
 

@@ -258,7 +258,7 @@ public:
      * @param sid Scope the meta belongs to
      * @param view The view of the metadata to use in lookup
      */
-    SingleThreadedRCPtr<const VB::ScopeSharedMetaData> createOrReferenceMeta(
+    SingleThreadedRCPtr<VB::ScopeSharedMetaData> createOrReferenceMeta(
             ScopeID sid, const VB::ScopeSharedMetaDataView& view);
 
     /**
@@ -270,9 +270,8 @@ public:
      * @param meta Reference to the meta that was originally given out by
      *        createOrReferenceMeta.
      */
-    void dereferenceMeta(
-            ScopeID sid,
-            SingleThreadedRCPtr<const VB::ScopeSharedMetaData>&& meta);
+    void dereferenceMeta(ScopeID sid,
+                         SingleThreadedRCPtr<VB::ScopeSharedMetaData>&& meta);
 
     /**
      * Perform the gathering of collection stats for the bucket.
@@ -426,7 +425,7 @@ private:
      * the data.
      */
     using ScopesSharedMetaDataTable =
-            SharedMetaDataTable<ScopeID, const VB::ScopeSharedMetaData>;
+            SharedMetaDataTable<ScopeID, VB::ScopeSharedMetaData>;
     folly::Synchronized<ScopesSharedMetaDataTable> scopeSMT;
 
     /// Store the most recent (current) manifest received - this default

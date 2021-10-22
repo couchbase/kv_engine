@@ -769,9 +769,8 @@ protected:
      * @param sid is of the new scope
      * @param sharedMeta The name of the scope (the shared view)
      */
-    void addNewScopeEntry(
-            ScopeID sid,
-            SingleThreadedRCPtr<const ScopeSharedMetaData> sharedMeta);
+    void addNewScopeEntry(ScopeID sid,
+                          SingleThreadedRCPtr<ScopeSharedMetaData> sharedMeta);
 
     /**
      * Get the ManifestEntry for the given collection. Throws a
@@ -891,7 +890,7 @@ protected:
     /**
      * The current scopes and their names.
      */
-    std::unordered_map<ScopeID, SingleThreadedRCPtr<const ScopeSharedMetaData>>
+    std::unordered_map<ScopeID, SingleThreadedRCPtr<ScopeSharedMetaData>>
             scopes;
 
     // Information we need to retain for a collection that is dropped but the

@@ -440,8 +440,7 @@ void Manifest::addNewScopeEntry(ScopeID sid, std::string_view scopeName) {
 }
 
 void Manifest::addNewScopeEntry(
-        ScopeID sid,
-        SingleThreadedRCPtr<const ScopeSharedMetaData> sharedMeta) {
+        ScopeID sid, SingleThreadedRCPtr<ScopeSharedMetaData> sharedMeta) {
     if (isScopeValid(sid)) {
         throwException<std::logic_error>(
                 __FUNCTION__, "scope already exists, scope:" + sid.to_string());
