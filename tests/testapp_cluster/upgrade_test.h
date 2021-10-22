@@ -18,10 +18,7 @@ class UpgradeTest : public ClusterTest {
 public:
     static void SetUpTestCase();
 
-    static void TearDownTestCase() {
-        bucket.reset();
-        ClusterTest::TearDownTestCase();
-    }
+    static void TearDownTestCase();
 
 protected:
     static std::shared_ptr<Bucket> bucket;

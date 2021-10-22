@@ -18,13 +18,19 @@
 
 std::unique_ptr<cb::test::Cluster> cb::test::ClusterTest::cluster;
 
-void cb::test::ClusterTest::SetUpTestCase() {
+void cb::test::ClusterTest::StartCluster() {
     cluster = Cluster::create(4);
     if (!cluster) {
         std::cerr << "Failed to create the cluster" << std::endl;
         std::exit(EXIT_FAILURE);
     }
+}
 
+void cb::test::ClusterTest::SetUpTestCase() {
+    if (!cluster) {
+        std::cerr << "Cluster not running" << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
     try {
         createDefaultBucket();
     } catch (const std::runtime_error& error) {
@@ -34,6 +40,12 @@ void cb::test::ClusterTest::SetUpTestCase() {
 }
 
 void cb::test::ClusterTest::TearDownTestCase() {
+    if (cluster->getBucket("default")) {
+        cluster->deleteBucket("default");
+    }
+}
+
+void cb::test::ClusterTest::ShutdownCluster() {
     cluster.reset();
 }
 
@@ -44,6 +56,7 @@ void cb::test::ClusterTest::createDefaultBucket() {
         throw std::runtime_error("Failed to create default bucket");
     }
 
+    cluster->collections = {};
     // Add fruit, vegetable to default scope
     // Add a second scope and collection
     cluster->collections.add(CollectionEntry::fruit)

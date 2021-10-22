@@ -18,15 +18,6 @@
 std::shared_ptr<cb::test::Bucket> cb::test::UpgradeTest::bucket;
 
 void cb::test::UpgradeTest::SetUpTestCase() {
-    // Can't just use the ClusterTest::SetUp as we need to prevent it from
-    // creating replication streams so that we can create them as we like to
-    // mock upgrade scenarios.
-    cluster = Cluster::create(3);
-    if (!cluster) {
-        std::cerr << "Failed to create the cluster" << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
-
     try {
         bucket = cluster->createBucket(
                 "default",
@@ -38,6 +29,12 @@ void cb::test::UpgradeTest::SetUpTestCase() {
         std::exit(EXIT_FAILURE);
     }
 }
+
+void cb::test::UpgradeTest::TearDownTestCase() {
+    bucket.reset();
+    cluster->deleteBucket("default");
+}
+
 using UpgradeTest = cb::test::UpgradeTest;
 TEST_F(UpgradeTest, ExpiryOpcodeDoesntEnableDeleteV2) {
     // MB-38390: Check that DcpProducers respect the includeDeleteTime flag

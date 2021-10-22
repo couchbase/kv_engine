@@ -36,6 +36,12 @@ public:
     // Called after the last test in this test case.
     static void TearDownTestCase();
 
+    /// Start the cluster with 4 nodes.
+    static void StartCluster();
+
+    /// Shutdown the cluster
+    static void ShutdownCluster();
+
     // Create a bucket named default
     static void createDefaultBucket();
 

@@ -61,5 +61,10 @@ int main(int argc, char** argv) {
     }
 #endif
     ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+
+    cb::test::ClusterTest::StartCluster();
+    const auto ret = RUN_ALL_TESTS();
+    cb::test::ClusterTest::ShutdownCluster();
+
+    return ret;
 }

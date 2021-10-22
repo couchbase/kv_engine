@@ -139,20 +139,20 @@ std::unique_ptr<MemcachedConnection> Bucket::getConnection(
 
 void Bucket::setCollectionManifest(nlohmann::json next) {
     const auto payload = next.dump(2);
-    for (size_t idx = 0; idx < cluster.size(); ++idx) {
-        auto conn = cluster.getConnection(idx);
-        conn->authenticate("@admin", "password", "PLAIN");
+    cluster.iterateNodes([this, &payload](const auto& node) {
+        auto conn = node.getConnection();
+        conn->authenticate("@admin", "password");
         conn->selectBucket(name);
         auto rsp = conn->execute(BinprotGenericCommand{
                 cb::mcbp::ClientOpcode::CollectionsSetManifest, {}, payload});
         if (!rsp.isSuccess()) {
             throw ConnectionError(
                     "Bucket::setCollectionManifest: Failed to set Collection "
-                    "manifest on n_" +
-                            std::to_string(idx),
+                    "manifest on " +
+                            node.directory.filename().generic_string(),
                     rsp);
         }
-    }
+    });
 
     collectionManifest = std::move(next);
 }
