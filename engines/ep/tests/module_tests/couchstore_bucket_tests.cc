@@ -1414,6 +1414,8 @@ TEST_P(STParamCouchstoreBucketTest,
                    PROTOCOL_BINARY_RAW_BYTES);
         EXPECT_EQ(2, vb.dirtyQueueSize);
     });
+    EXPECT_EQ(0, vb.getPersistenceSeqno());
+    EXPECT_EQ(1, vb.getHighSeqno());
 
     // This flush fails, we have not written anything to disk
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
@@ -1421,6 +1423,8 @@ TEST_P(STParamCouchstoreBucketTest,
               epBucket.flushVBucket(vbid));
     // Flush stats not updated
     EXPECT_EQ(1, vb.dirtyQueueSize);
+    EXPECT_EQ(0, vb.getPersistenceSeqno());
+    EXPECT_EQ(2, vb.getHighSeqno());
 
     // Reset hook, don't want to add another item on the successful flush
     kvstore->setPostFlushHook([]() {});
@@ -1429,6 +1433,68 @@ TEST_P(STParamCouchstoreBucketTest,
     // on disk
     // Flusher deduplication, just 1 item flushed
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(2, vb.getPersistenceSeqno());
+    EXPECT_EQ(2, vb.getHighSeqno());
+
+    // Flush stats updated
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+    EXPECT_EQ(0, vb.dirtyQueueAge);
+    EXPECT_EQ(0, vb.dirtyQueueMem);
+    EXPECT_EQ(0, vb.dirtyQueuePendingWrites);
+}
+
+TEST_P(STParamCouchstoreBucketTest, MB_47134) {
+    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    replaceCouchKVStore(ops);
+    EXPECT_CALL(ops, sync(testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+
+            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
+            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+
+    store_item(vbid, makeStoredDocKey("A"), "value");
+    store_item(vbid, makeStoredDocKey("B"), "value");
+
+    // Store A:1, B:2
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+
+    // Create C:3
+    store_item(vbid, makeStoredDocKey("C"), "value");
+
+    SCOPED_TRACE("");
+
+    EXPECT_EQ(1, vb.dirtyQueueSize);
+
+    auto kvstore = store->getRWUnderlying(vbid);
+    kvstore->setPostFlushHook([this, &vb]() {
+        store_item(vbid, makeStoredDocKey("B"), "value");
+        EXPECT_EQ(2, vb.dirtyQueueSize);
+    });
+
+    // This flush fails, we have not written anything to disk
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+
+    // 2 items are dirty - C:3 and B:4
+    EXPECT_EQ(2, vb.dirtyQueueSize);
+
+    // Reset hook, don't want to add another item on the successful flush
+    kvstore->setPostFlushHook([]() {});
+
+    // C:3 B:4 flushed - MB_47134 underflow occurs here
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
               epBucket.flushVBucket(vbid));
 
     // Flush stats updated

@@ -329,6 +329,28 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
 
                 rv.status = QueueDirtyStatus::SuccessExistingItem;
 
+                int64_t initialBackupPCursorSeqno = 0;
+                auto initialBackupPCursor = manager->cursors.end();
+                // Check that a backup cursor can exist
+                if (manager->getPersistenceCursor()) {
+                    initialBackupPCursor = manager->cursors.find(
+                            CheckpointManager::backupPCursorName);
+                    if (initialBackupPCursor != manager->cursors.end()) {
+                        auto backupCursorItem =
+                                *initialBackupPCursor->second->currentPos;
+                        if (backupCursorItem) {
+                            initialBackupPCursorSeqno =
+                                    backupCursorItem->getBySeqno();
+                            // If the backup cursor is pointing to a meta item
+                            // then move the backup cursor seqno back one to if
+                            // it was point to a no meta item
+                            if (backupCursorItem->isCheckPointMetaItem()) {
+                                initialBackupPCursorSeqno--;
+                            }
+                        }
+                    }
+                }
+
                 // In the following loop we perform various operations in
                 // preparation for removing the item being dedup'ed:
                 //
@@ -416,18 +438,12 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                     // a single item (we de-dupe below). Track this in an
                     // AggregatedFlushStats in CheckpointManager so that we can
                     // undo these stat updates if the flush fails.
-                    const auto backupPCursor = manager->cursors.find(
-                            CheckpointManager::backupPCursorName);
-
-                    if (backupPCursor == manager->cursors.end()) {
+                    if (initialBackupPCursor == manager->cursors.end()) {
                         // We're not mid-flush, don't need to adjust any stats
                         continue;
                     }
 
-                    const auto backupPCursorSeqno =
-                            (*(*backupPCursor->second).currentPos)
-                                    ->getBySeqno();
-                    if (backupPCursorSeqno <= existingSeqno) {
+                    if (existingSeqno > initialBackupPCursorSeqno) {
                         // Pass the oldItem in. When we return and update
                         // the stats we'll use the new item and the flush
                         // will pick up the new item too so we have to match

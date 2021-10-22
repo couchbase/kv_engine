@@ -3378,6 +3378,100 @@ TEST_P(CheckpointTest, ExpelCursor_NeverDrop) {
     EXPECT_EQ(0, toDrop.size());
 }
 
+TEST_P(CheckpointTest, MB_47134_vbstate_at_backup_cursor) {
+    if (!persistent()) {
+        GTEST_SKIP();
+    }
+
+    // Lambda to simulate the tracking of agg stats done at the begging of a
+    // flush vbucket
+    auto updateAggStats = [](std::vector<queued_item>& items)
+            -> VBucket::AggregatedFlushStats {
+        VBucket::AggregatedFlushStats aggStats;
+        for (auto& item : items) {
+            if (item->shouldPersist()) {
+                aggStats.accountItem(*item);
+            }
+        }
+        return aggStats;
+    };
+
+    // Check the initial state
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+    ASSERT_EQ(0, vbucket->dirtyQueueSize);
+
+    // Add items A, B and a set_vbucket_state so we have a meta item for the
+    // backup pointer to point too
+    ASSERT_TRUE(queueNewItem("A")); // A
+    ASSERT_TRUE(queueNewItem("B")); // B
+    manager->queueSetVBState();
+    EXPECT_EQ(3, vbucket->dirtyQueueSize);
+    // Simulate a successful flush of the 3 items
+    {
+        std::vector<queued_item> items;
+        auto itemsForCursor = manager->getNextItemsForCursor(cursor, items);
+        ASSERT_EQ(2, manager->getNumCursors());
+        auto aggStats = updateAggStats(items);
+        EXPECT_FALSE(itemsForCursor.moreAvailable);
+        vbucket->doAggregatedFlushStats(aggStats);
+    }
+    // Check that we accounted the successful flush
+    EXPECT_EQ(0, vbucket->dirtyQueueSize);
+
+    ASSERT_TRUE(queueNewItem("B")); // B
+    ASSERT_TRUE(queueNewItem("C")); // C
+    // Ensure the dirty queue size is currently 3 for B,C
+    EXPECT_EQ(2, vbucket->dirtyQueueSize);
+
+    // Now simulate a failed flush, with a new mutation of B being added to the
+    // checkpoint
+    {
+        std::vector<queued_item> items;
+        auto itemsForCursor = manager->getNextItemsForCursor(cursor, items);
+        ASSERT_EQ(2, manager->getNumCursors());
+
+        // Check that the backup cursor is pointing to the set vb state that was
+        // the last thing that we "persisted"
+        const auto backupPCursor = manager->getBackupPersistenceCursor();
+        auto backupPos =
+                *CheckpointCursorIntrospector::getCurrentPos(*backupPCursor);
+        ASSERT_TRUE(backupPos->isCheckPointMetaItem());
+        ASSERT_EQ(queue_op::set_vbucket_state, backupPos->getOperation());
+
+        updateAggStats(items);
+        // Add new mutations
+        ASSERT_TRUE(queueNewItem("A")); // A
+        ASSERT_TRUE(queueNewItem("B")); // B
+        // Mark the flush as having failed
+        itemsForCursor.flushHandle->markFlushFailed(*vbucket);
+        EXPECT_FALSE(itemsForCursor.moreAvailable);
+        // Ensure the dirty queue size is currently 4 for B,C,A,B
+        EXPECT_EQ(4, vbucket->dirtyQueueSize);
+    }
+    // Set the test cursor to the new persistence cursor as it has been changed
+    // due to the failed "flush"
+    cursor = manager->getPersistenceCursor();
+
+    // Ensure the dirty queue is currently 3 for C,A,B to account for the
+    // deduplication after the flush failure
+    EXPECT_EQ(3, vbucket->dirtyQueueSize);
+
+    ASSERT_TRUE(queueNewItem("D")); // D
+    EXPECT_EQ(4, vbucket->dirtyQueueSize);
+    // Now perform a successful flush of C,A,B,D
+    {
+        std::vector<queued_item> items;
+        auto itemsForCursor = manager->getNextItemsForCursor(cursor, items);
+        ASSERT_EQ(2, manager->getNumCursors());
+        auto aggStats = updateAggStats(items);
+        EXPECT_FALSE(itemsForCursor.moreAvailable);
+        // Ensure the dirty queue size is currently 4 for C,A,B,D
+        EXPECT_EQ(4, vbucket->dirtyQueueSize);
+        vbucket->doAggregatedFlushStats(aggStats);
+    }
+    EXPECT_EQ(0, vbucket->dirtyQueueSize);
+}
+
 INSTANTIATE_TEST_SUITE_P(
         AllVBTypesAllEvictionModes,
         CheckpointTest,
