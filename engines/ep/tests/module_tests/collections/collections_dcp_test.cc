@@ -25,6 +25,8 @@
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 
+#include <utilities/test_manifest.h>
+
 CollectionsDcpTest::CollectionsDcpTest()
     : cookieC(create_mock_cookie(engine.get())),
       cookieP(create_mock_cookie(engine.get())) {
@@ -312,4 +314,50 @@ void CollectionsDcpTest::runEraser() {
 cb::engine_errc CollectionsDcpTest::dcpAddFailoverLog(
         const std::vector<vbucket_failover_t>&) {
     return cb::engine_errc::success;
+}
+
+void CollectionsDcpTest::createScopeOnConsumer(Vbid id,
+                                               uint32_t opaque,
+                                               Collections::ManifestUid muid,
+                                               const ScopeEntry::Entry& entry,
+                                               uint64_t seqno) {
+    Collections::CreateScopeEventData createEventData{
+            muid, {entry.getId(), entry.name}};
+    Collections::CreateScopeEventDcpData createEventDcpData{createEventData};
+    // Call the consumer function for handling DCP events
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->systemEvent(
+                      opaque,
+                      id,
+                      mcbp::systemevent::id::CreateScope,
+                      /*seqno*/ seqno,
+                      mcbp::systemevent::version::version0,
+                      {reinterpret_cast<const uint8_t*>(entry.name.data()),
+                       entry.name.size()},
+                      {reinterpret_cast<const uint8_t*>(&createEventDcpData),
+                       Collections::CreateScopeEventDcpData::size}));
+}
+
+void CollectionsDcpTest::createCollectionOnConsumer(
+        Vbid id,
+        uint32_t opaque,
+        Collections::ManifestUid muid,
+        ScopeID sid,
+        const CollectionEntry::Entry& entry,
+        uint64_t seqno) {
+    Collections::CreateEventData createEventData{
+            muid, {sid, entry.getId(), entry.name, {/*no ttl*/}}};
+    Collections::CreateEventDcpData createEventDcpData{createEventData};
+    // Call the consumer function for handling DCP events
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->systemEvent(
+                      opaque,
+                      id,
+                      mcbp::systemevent::id::CreateCollection,
+                      /*seqno*/ seqno,
+                      mcbp::systemevent::version::version0,
+                      {reinterpret_cast<const uint8_t*>(entry.name.data()),
+                       entry.name.size()},
+                      {reinterpret_cast<const uint8_t*>(&createEventDcpData),
+                       Collections::CreateEventDcpData::size}));
 }

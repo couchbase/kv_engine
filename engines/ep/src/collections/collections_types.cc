@@ -185,9 +185,12 @@ bool ScopeSharedMetaData::operator==(const ScopeSharedMetaData& meta) const {
 
 std::ostream& operator<<(std::ostream& os, const ScopeSharedMetaData& meta) {
     os << " name:" << meta.name;
-    if (meta.dataLimit) {
-        os << ",dataLimit:" << meta.dataLimit.value();
-    }
+
+    meta.dataLimit.withRLock([&os](auto& dataLimit) {
+        if (dataLimit) {
+            os << ",dataLimit:" << dataLimit.value();
+        }
+    });
     return os;
 }
 

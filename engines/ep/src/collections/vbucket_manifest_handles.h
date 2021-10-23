@@ -193,6 +193,9 @@ public:
     /// @return data size of the scope, throw for unknown scope
     size_t getDataSize(ScopeID sid) const;
 
+    /// @return the data limit for the scope, throw for unknown scope
+    DataLimit getDataLimit(ScopeID sid) const;
+
     /**
      * Dump this VB::Manifest to std::cerr
      */

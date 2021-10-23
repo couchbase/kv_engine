@@ -299,6 +299,13 @@ public:
         DataLimit dataLimit;
     };
 
+    // struct for managing scope modification
+    struct ScopeModified {
+        ScopeID sid;
+        ScopeEntry& entry;
+        DataLimit dataLimit;
+    };
+
     /**
      * The changes that we need to make to the VB:Manifest manifest derived from
      * the bucket Collections::Manifest.
@@ -308,13 +315,21 @@ public:
         }
         std::vector<ScopeCreation> scopesToCreate;
         std::vector<ScopeID> scopesToDrop;
+        std::vector<ScopeModified> scopesToModify;
         std::vector<CollectionCreation> collectionsToCreate;
         std::vector<CollectionID> collectionsToDrop;
         const ManifestUid uid{0};
 
         bool empty() const {
+            return scopesToCreate.empty() && scopesToModify.empty() &&
+                   scopesToDrop.empty() && collectionsToCreate.empty() &&
+                   collectionsToDrop.empty();
+        }
+
+        bool onlyScopesModified() const {
             return scopesToCreate.empty() && scopesToDrop.empty() &&
-                   collectionsToCreate.empty() && collectionsToDrop.empty();
+                   collectionsToCreate.empty() && collectionsToDrop.empty() &&
+                   !scopesToModify.empty();
         }
     };
 
@@ -420,7 +435,7 @@ protected:
      * @param wHandle The manifest write handle under which this operation is
      *        currently locked. Required to ensure we lock correctly around
      *        VBucket::notifyNewSeqno
-     * @param vb The vbucket to create the collection in.
+     * @param vb The vbucket to create the scope in.
      * @param newManUid the uid of the manifest which made the change
      * @param sid ScopeID
      * @param scopeName Name of the added scope
@@ -435,6 +450,20 @@ protected:
                      std::string_view scopeName,
                      DataLimit dataLimit,
                      OptionalSeqno optionalSeqno);
+
+    /**
+     * Modiffy a scope in the vbucket.
+     *
+     * @param wHandle The manifest write handle under which this operation is
+     *        currently locked.
+     * @param vb The vbucket to modify the scope in.
+     * @param newManUid the uid of the manifest which made the change
+     * @param modification sid/dataLimit of the modification
+     */
+    void modifyScope(const WriteHandle& wHandle,
+                     ::VBucket& vb,
+                     ManifestUid newManUid,
+                     const ScopeModified& modification);
 
     /**
      * Drop a scope
@@ -798,20 +827,22 @@ protected:
      *
      * @param sid is of the new scope
      * @param name The name of the scope
-     * @param dataLimit The scope's dataLimit
+     * @param limit The scope's data limit
+     * @return The new scope entry
      */
-    void addNewScopeEntry(ScopeID sid,
-                          std::string_view name,
-                          DataLimit dataLimit);
+    ScopeEntry& addNewScopeEntry(ScopeID sid,
+                                 std::string_view name,
+                                 DataLimit limit);
 
     /**
      * Add a scope to the manifest. This will fail if the scope already exists.
      *
      * @param sid is of the new scope
      * @param sharedMeta The name of the scope (the shared view)
+     * @return The new scope entry
      */
-    void addNewScopeEntry(ScopeID sid,
-                          SingleThreadedRCPtr<ScopeSharedMetaData> sharedMeta);
+    ScopeEntry& addNewScopeEntry(
+            ScopeID sid, SingleThreadedRCPtr<ScopeSharedMetaData> sharedMeta);
 
     /**
      * Get the ManifestEntry for the given collection. Throws a
@@ -843,8 +874,7 @@ protected:
      *          be aborted. This is the case when we are attempting to add a
      *          deleting collection.
      */
-    ManifestChanges processManifest(
-            const Collections::Manifest& manifest) const;
+    ManifestChanges processManifest(const Collections::Manifest& manifest);
 
     /**
      * Create an Item that carries a collection system event and queue it to the

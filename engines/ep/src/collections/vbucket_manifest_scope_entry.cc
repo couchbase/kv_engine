@@ -19,6 +19,17 @@ bool Collections::VB::ScopeEntry::operator==(const ScopeEntry& other) const {
            getDataLimit() == other.getDataLimit();
 }
 
+bool Collections::VB::ScopeEntry::updateDataLimitIfDifferent(
+        DataLimit newLimit) {
+    return sharedMeta->dataLimit.withWLock([&newLimit](auto& dataLimit) {
+        if (dataLimit != newLimit) {
+            dataLimit = newLimit;
+            return true;
+        }
+        return false;
+    });
+}
+
 std::ostream& Collections::VB::operator<<(
         std::ostream& os, const Collections::VB::ScopeEntry& scopeEntry) {
     os << "ScopeEntry:"

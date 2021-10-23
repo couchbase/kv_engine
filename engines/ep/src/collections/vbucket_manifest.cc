@@ -239,17 +239,23 @@ ManifestUpdateStatus Manifest::update(VBucket& vb,
     if (manifest.getUid() == manifestUid) {
         if (changes.empty()) {
             return ManifestUpdateStatus::Success;
+        } else if (changes.onlyScopesModified()) {
+            EP_LOG_WARN("Manifest::update {} equal uid and {} scopes modified",
+                        vb.getId(),
+                        changes.scopesToModify.size());
         } else {
             // Log verbosely for this case
             EP_LOG_WARN(
                     "Manifest::update {} with equal uid:{:#x} but differences "
-                    "scopes+:{}, collections+:{}, scopes-:{}, collections-:{}",
+                    "scopes+:{}, collections+:{}, scopes-:{}, collections-:{}, "
+                    "scopes-modified:{}",
                     vb.getId(),
                     manifestUid,
                     changes.scopesToCreate.size(),
                     changes.collectionsToCreate.size(),
                     changes.scopesToDrop.size(),
-                    changes.collectionsToDrop.size());
+                    changes.collectionsToDrop.size(),
+                    changes.scopesToModify.size());
             return ManifestUpdateStatus::EqualUidWithDifferences;
         }
     }
@@ -335,6 +341,12 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
                   changeset.uid,
                   *finalScopeDrop,
                   OptionalSeqno{/*no-seqno*/});
+    }
+
+    // Can do the scope modifications last - these generate no events but will
+    // just sync any scope to the manifest
+    for (const auto& modified : changeset.scopesToModify) {
+        modifyScope(wHandle, vb, changeset.uid, modified);
     }
 }
 
@@ -449,22 +461,24 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
     return itr->second;
 }
 
-void Manifest::addNewScopeEntry(ScopeID sid,
-                                std::string_view scopeName,
-                                DataLimit dataLimit) {
-    addNewScopeEntry(
+ScopeEntry& Manifest::addNewScopeEntry(ScopeID sid,
+                                       std::string_view scopeName,
+                                       DataLimit dataLimit) {
+    return addNewScopeEntry(
             sid,
             manager->createOrReferenceMeta(
                     sid, ScopeSharedMetaDataView{scopeName, dataLimit}));
 }
 
-void Manifest::addNewScopeEntry(
+ScopeEntry& Manifest::addNewScopeEntry(
         ScopeID sid, SingleThreadedRCPtr<ScopeSharedMetaData> sharedMeta) {
     auto [itr, emplaced] = scopes.try_emplace(sid, 0, sharedMeta);
     if (!emplaced) {
         throwException<std::logic_error>(
                 __FUNCTION__, "scope already exists, scope:" + sid.to_string());
     }
+
+    return itr->second;
 }
 
 void Manifest::dropCollection(WriteHandle& wHandle,
@@ -563,7 +577,18 @@ void Manifest::createScope(const WriteHandle& wHandle,
                            std::string_view scopeName,
                            DataLimit dataLimit,
                            OptionalSeqno optionalSeqno) {
-    addNewScopeEntry(sid, scopeName, dataLimit);
+    auto& entry = addNewScopeEntry(sid, scopeName, dataLimit);
+
+    bool dataLimitModified{false};
+    if (!optionalSeqno) {
+        // This case may correct the data limit of this scope, why? The active
+        // vbucket is creating a scope yet it is referencing name and dataLimit
+        // from the SharedMetaDataTable. If the SharedMetaDataTable entry was
+        // first created by a replicaCreateScope (where dataLimit is not known)
+        // then the first active createScope will need to correct the value in
+        // the SharedMetaDataTable.
+        dataLimitModified = entry.updateDataLimitIfDifferent(dataLimit);
+    }
 
     // record the uid of the manifest which added the scope
     updateUid(newManUid, optionalSeqno.has_value());
@@ -584,14 +609,34 @@ void Manifest::createScope(const WriteHandle& wHandle,
     auto seqno = vb.addSystemEventItem(
             std::move(item), optionalSeqno, {}, wHandle, {});
 
-    EP_LOG_INFO("{} create scope:id:{} name:{}, seq:{}, manifest:{:#x}{}{}",
+    EP_LOG_INFO("{} create scope:id:{} name:{}, seq:{}, manifest:{:#x}{}{}{}",
                 vb.getId(),
                 sid,
                 scopeName,
                 seqno,
                 manifestUid,
-                dataLimit ? fmt::format(", limit:{}", dataLimit.value()) : "",
+                entry.getDataLimit() ? fmt::format(", limit:{}",
+                                                   entry.getDataLimit().value())
+                                     : "",
+                dataLimitModified ? ", mod" : "",
                 optionalSeqno.has_value() ? ", replica" : "");
+}
+
+void Manifest::modifyScope(const WriteHandle& wHandle,
+                           ::VBucket& vb,
+                           ManifestUid newManUid,
+                           const ScopeModified& modification) {
+    // Update under write lock
+    modification.entry.setDataLimit(modification.dataLimit);
+
+    EP_LOG_INFO(
+            "{} modifying scope:id:{} manifest:{:#x}{}",
+            vb.getId(),
+            modification.sid,
+            manifestUid,
+            modification.dataLimit.has_value()
+                    ? fmt::format(" limit:{}", modification.dataLimit.value())
+                    : "");
 }
 
 void Manifest::dropScope(const WriteHandle& wHandle,
@@ -648,7 +693,7 @@ void Manifest::dropScope(const WriteHandle& wHandle,
 }
 
 Manifest::ManifestChanges Manifest::processManifest(
-        const Collections::Manifest& manifest) const {
+        const Collections::Manifest& manifest) {
     ManifestChanges rv{manifest.getUid()};
 
     // First iterate through the collections of this VB::Manifest
@@ -677,11 +722,19 @@ Manifest::ManifestChanges Manifest::processManifest(
     for (auto scopeItr = manifest.beginScopes();
          scopeItr != manifest.endScopes();
          scopeItr++) {
-        if (scopes.count(scopeItr->first) == 0) {
+        auto myScope = scopes.find(scopeItr->first);
+        if (myScope == scopes.end()) {
             // Scope is not mapped
             rv.scopesToCreate.push_back({scopeItr->first,
                                          scopeItr->second.name,
                                          scopeItr->second.dataLimit});
+        } else {
+            if (myScope->second.getDataLimit() != scopeItr->second.dataLimit) {
+                // save the scope being modified and the new dataLimit
+                rv.scopesToModify.push_back({myScope->first,
+                                             myScope->second,
+                                             scopeItr->second.dataLimit});
+            }
         }
 
         for (const auto& m : scopeItr->second.collections) {

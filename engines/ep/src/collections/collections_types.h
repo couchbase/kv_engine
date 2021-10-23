@@ -13,6 +13,7 @@
 
 #include <platform/monotonic.h>
 
+#include <folly/Synchronized.h>
 #include <gsl/gsl-lite.hpp>
 #include <memcached/types.h>
 #include <platform/atomic.h>
@@ -324,8 +325,10 @@ public:
 
     // scope name is fixed
     const std::string name;
-    // scope limit we will allow changes
-    DataLimit dataLimit;
+
+    // A scope limit can be changed by any thread post creation of the
+    // ScopeSharedMetaData, hence is synchronised
+    folly::Synchronized<DataLimit> dataLimit;
 };
 std::ostream& operator<<(std::ostream& os, const ScopeSharedMetaData& meta);
 

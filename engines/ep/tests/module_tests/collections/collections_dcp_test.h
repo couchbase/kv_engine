@@ -86,6 +86,19 @@ public:
 
     void runEraser();
 
+    void createScopeOnConsumer(Vbid id,
+                               uint32_t opaque,
+                               Collections::ManifestUid muid,
+                               const ScopeEntry::Entry& entry,
+                               uint64_t seqno);
+
+    void createCollectionOnConsumer(Vbid id,
+                                    uint32_t opaque,
+                                    Collections::ManifestUid muid,
+                                    ScopeID sid,
+                                    const CollectionEntry::Entry& entry,
+                                    uint64_t seqno);
+
     static cb::engine_errc dcpAddFailoverLog(
             const std::vector<vbucket_failover_t>&);
 

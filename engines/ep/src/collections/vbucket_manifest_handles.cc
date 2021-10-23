@@ -21,6 +21,10 @@ size_t ReadHandle::getDataSize(ScopeID sid) const {
     return manifest->getDataSize(sid);
 }
 
+DataLimit ReadHandle::getDataLimit(ScopeID sid) const {
+    return manifest->getScopeEntry(sid).getDataLimit();
+}
+
 PersistedStats StatsReadHandle::getPersistedStats() const {
     return {itr->second.getItemCount(),
             itr->second.getPersistedHighSeqno(),

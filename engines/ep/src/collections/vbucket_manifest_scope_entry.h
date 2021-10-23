@@ -66,8 +66,18 @@ public:
 
     /// @return the optional data limit
     DataLimit getDataLimit() const {
-        return sharedMeta->dataLimit;
+        return *sharedMeta->dataLimit.rlock();
     }
+
+    void setDataLimit(DataLimit newLimit) {
+        *sharedMeta->dataLimit.wlock() = newLimit;
+    }
+
+    /**
+     * Compare newLimit with this->dataLimit and update if different
+     * @return true if a change was made
+     */
+    bool updateDataLimitIfDifferent(DataLimit newLimit);
 
     /**
      * Take the ScopeSharedMetaData from this entry (moves the data) to
