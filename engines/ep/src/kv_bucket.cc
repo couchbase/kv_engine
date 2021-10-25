@@ -749,10 +749,10 @@ cb::engine_errc KVBucket::set(Item& itm,
     cb::engine_errc result;
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
-        if (!cHandle.valid()) {
-            engine.setUnknownCollectionErrorContext(cookie,
-                                                    cHandle.getManifestUid());
-            return cb::engine_errc::unknown_collection;
+        auto status =
+                cHandle.handleWriteStatus(engine, cookie, itm.getNBytes());
+        if (status != cb::engine_errc::success) {
+            return status;
         } // now hold collections read access for the duration of the set
 
         // maybe need to adjust expiry of item
@@ -806,10 +806,10 @@ cb::engine_errc KVBucket::add(Item& itm, const CookieIface* cookie) {
     cb::engine_errc result;
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
-        if (!cHandle.valid()) {
-            engine.setUnknownCollectionErrorContext(cookie,
-                                                    cHandle.getManifestUid());
-            return cb::engine_errc::unknown_collection;
+        auto status =
+                cHandle.handleWriteStatus(engine, cookie, itm.getNBytes());
+        if (status != cb::engine_errc::success) {
+            return status;
         } // now hold collections read access for the duration of the add
 
         // maybe need to adjust expiry of item
@@ -853,11 +853,11 @@ cb::engine_errc KVBucket::replace(Item& itm,
     cb::engine_errc result;
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
-        if (!cHandle.valid()) {
-            engine.setUnknownCollectionErrorContext(cookie,
-                                                    cHandle.getManifestUid());
-            return cb::engine_errc::unknown_collection;
-        } // now hold collections read access for the duration of the set
+        auto status =
+                cHandle.handleWriteStatus(engine, cookie, itm.getNBytes());
+        if (status != cb::engine_errc::success) {
+            return status;
+        } // now hold collections read access for the duration of the replace
 
         // maybe need to adjust expiry of item
         cHandle.processExpiryTime(itm, getMaxTtl());
@@ -1680,11 +1680,10 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
     { // hold collections read lock for duration of set
 
         auto cHandle = vb->lockCollections(itm.getKey());
-        if (!cHandle.valid()) {
-            engine.setUnknownCollectionErrorContext(cookie,
-                                                    cHandle.getManifestUid());
-            rv = cb::engine_errc::unknown_collection;
-        } else {
+        rv = cHandle.handleWriteStatus(
+                engine, cookie, vb->getState(), itm.getNBytes());
+
+        if (rv == cb::engine_errc::success) {
             cHandle.processExpiryTime(itm, getMaxTtl());
             rv = vb->setWithMeta(itm,
                                  cas,
@@ -1729,11 +1728,8 @@ cb::engine_errc KVBucket::prepare(Item& itm, const CookieIface* cookie) {
     { // hold collections read lock for duration of prepare
 
         auto cHandle = vb->lockCollections(itm.getKey());
-        if (!cHandle.valid()) {
-            engine.setUnknownCollectionErrorContext(cookie,
-                                                    cHandle.getManifestUid());
-            rv = cb::engine_errc::unknown_collection;
-        } else {
+        rv = cHandle.handleWriteStatus(engine, cookie, itm.getNBytes());
+        if (rv == cb::engine_errc::success) {
             cHandle.processExpiryTime(itm, getMaxTtl());
             rv = vb->prepare(itm,
                              0,

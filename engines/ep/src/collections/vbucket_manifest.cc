@@ -1213,6 +1213,17 @@ bool Manifest::operator!=(const Manifest& rhs) const {
     return !(*this == rhs);
 }
 
+cb::engine_errc Manifest::getScopeDataLimitStatus(
+        const container::const_iterator itr, size_t nBytes) const {
+    const auto& entry = getScopeEntry(itr->second.getScopeID());
+
+    if (entry.getDataLimit() &&
+        (entry.getDataSize() + nBytes) > entry.getDataLimit().value()) {
+        return cb::engine_errc::scope_size_limit_exceeded;
+    }
+    return cb::engine_errc::success;
+}
+
 void Manifest::DroppedCollections::insert(CollectionID cid,
                                           const DroppedCollectionInfo& info) {
     auto [dropped, emplaced] = droppedCollections.try_emplace(

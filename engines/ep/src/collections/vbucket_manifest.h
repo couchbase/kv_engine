@@ -900,6 +900,16 @@ protected:
     StatsForFlush getStatsForFlush(CollectionID cid, uint64_t seqno) const;
 
     /**
+     * Return the status of the data limit if we were to try and write nBytes
+     * to the collection's scope.
+     * @param itr iterator to a collection in the map
+     * @param nBytes size of the data we want to add to the collection
+     * @return status code success if can write otherwise the error
+     */
+    cb::engine_errc getScopeDataLimitStatus(const container::const_iterator itr,
+                                            size_t nBytes) const;
+
+    /**
      * Return a string for use in throwException, returns:
      *   "VB::Manifest::<thrower>:<error>, this:<ostream *this>"
      *

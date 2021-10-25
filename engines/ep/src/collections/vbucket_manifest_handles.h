@@ -13,6 +13,8 @@
 
 #include "collections/vbucket_manifest.h"
 
+class CookieIface;
+class EventuallyPersistentEngine;
 class StatCollector;
 
 namespace Collections::VB {
@@ -270,6 +272,35 @@ public:
     bool valid() const {
         return itr != manifest->end();
     }
+
+    /**
+     * handle 'write-status' of the collection associated with this handle.
+     * If the collection doesn't exist - invoke setUnknownCollectionErrorContext
+     * If the collection's scope doesn't have space (data-limit)
+     * @param engine The engine so we can call setUnknownCollectionErrorContext
+     * @param cookie Cookie for the command
+     * @param nBytes size of the write
+     * @return the status - success and the write can go ahead
+     */
+    cb::engine_errc handleWriteStatus(EventuallyPersistentEngine& engine,
+                                      const CookieIface* cookie,
+                                      size_t nBytes);
+
+    /**
+     * Special variant for use by setWithMeta which can be invoked from external
+     * connection against active vbuckets or by our DcpConsumer for replicas.
+     * For replicas we do not check the limit
+     *
+     * @param engine The engine so we can call setUnknownCollectionErrorContext
+     * @param cookie Cookie for the command
+     * @param nBytes size of the write
+     * @param stat the state of the target vbucket
+     * @return the status - success and the write can go ahead
+     */
+    cb::engine_errc handleWriteStatus(EventuallyPersistentEngine& engine,
+                                      const CookieIface* cookie,
+                                      vbucket_state_t state,
+                                      size_t nBytes);
 
     /**
      * @return the key used in construction

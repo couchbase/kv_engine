@@ -4265,6 +4265,40 @@ TEST_P(CollectionsPersistentParameterizedTest, WarmupWithANewUUID_MB_48398) {
     EXPECT_EQ(cm.getUid(), vb->lockCollections().getManifestUid());
 }
 
+TEST_F(CollectionsTest, WriteToScopeWithLimit) {
+    CollectionsManifest cm;
+    cm.add(ScopeEntry::shop1, 0); // 0 data limit
+    cm.add(CollectionEntry::fruit, ScopeEntry::shop1);
+    cm.add(ScopeEntry::shop2, 10000); // 10000  data limit
+    cm.add(CollectionEntry::vegetable, ScopeEntry::shop2);
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(makeManifest(cm));
+
+    // Cat write to vegetable
+    store_item(vbid, StoredDocKey{"k1", CollectionEntry::vegetable}, "v1");
+
+    // Cannot write to fruit
+    auto item = make_item(
+            vbid, StoredDocKey{"k1", CollectionEntry::fruit}, "value");
+    EXPECT_EQ(cb::engine_errc::scope_size_limit_exceeded,
+              store->set(item, cookie));
+    EXPECT_EQ(cb::engine_errc::scope_size_limit_exceeded,
+              store->add(item, cookie));
+    EXPECT_EQ(cb::engine_errc::scope_size_limit_exceeded,
+              store->replace(item, cookie));
+    item.setCas(1);
+    EXPECT_EQ(cb::engine_errc::scope_size_limit_exceeded,
+              store->setWithMeta(item,
+                                 1,
+                                 nullptr,
+                                 cookie,
+                                 {vbucket_state_active},
+                                 CheckConflicts::Yes,
+                                 false,
+                                 GenerateBySeqno::Yes,
+                                 GenerateCas::No));
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
                          CollectionsExpiryLimitTest,
                          ::testing::Bool(),
