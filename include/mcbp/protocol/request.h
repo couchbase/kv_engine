@@ -46,13 +46,13 @@ enum class FrameInfoId {
  */
 class Request {
 public:
-    void setMagic(Magic magic) {
-        if (is_request(magic)) {
-            Request::magic = uint8_t(magic);
+    void setMagic(Magic magic_) {
+        if (is_request(magic_)) {
+            magic = uint8_t(magic_);
         } else {
             throw std::invalid_argument(
                     "Request::setMagic: Invalid magic specified: " +
-                    std::to_string(uint8_t(magic)));
+                    std::to_string(uint8_t(magic_)));
         }
     }
 
@@ -60,8 +60,8 @@ public:
         return Magic(magic);
     }
 
-    void setOpcode(ClientOpcode opcode) {
-        Request::opcode = uint8_t(opcode);
+    void setOpcode(ClientOpcode clientOpcode) {
+        opcode = uint8_t(clientOpcode);
     }
 
     ClientOpcode getClientOpcode() const {
@@ -71,8 +71,8 @@ public:
         return ClientOpcode(opcode);
     }
 
-    void setOpcode(ServerOpcode opcode) {
-        Request::opcode = uint8_t(opcode);
+    void setOpcode(ServerOpcode serverOpcode) {
+        opcode = uint8_t(serverOpcode);
     }
 
     ServerOpcode getServerOpcode() const {
@@ -96,16 +96,16 @@ public:
 
     void setFramingExtraslen(uint8_t len);
 
-    void setExtlen(uint8_t extlen) {
-        Request::extlen = extlen;
+    void setExtlen(uint8_t extlen_) {
+        extlen = extlen_;
     }
 
     uint8_t getExtlen() const {
         return reinterpret_cast<const Header*>(this)->getExtlen();
     }
 
-    void setDatatype(Datatype datatype) {
-        Request::datatype = uint8_t(datatype);
+    void setDatatype(Datatype datatype_) {
+        datatype = uint8_t(datatype_);
     }
 
     Datatype getDatatype() const {
@@ -128,8 +128,8 @@ public:
         bodylen = htonl(value);
     }
 
-    void setOpaque(uint32_t opaque) {
-        Request::opaque = opaque;
+    void setOpaque(uint32_t opaque_) {
+        opaque = opaque_;
     }
 
     uint32_t getOpaque() const {
