@@ -318,18 +318,29 @@ public:
         std::vector<ScopeModified> scopesToModify;
         std::vector<CollectionCreation> collectionsToCreate;
         std::vector<CollectionID> collectionsToDrop;
+        // stores any new value (if needed)
+        std::optional<bool> changeScopeWithDataLimitExists;
+
         const ManifestUid uid{0};
 
-        bool empty() const {
+        /// @return true if no changes are to be made
+        bool none() const {
             return scopesToCreate.empty() && scopesToModify.empty() &&
                    scopesToDrop.empty() && collectionsToCreate.empty() &&
-                   collectionsToDrop.empty();
+                   collectionsToDrop.empty() && !changeScopeWithDataLimitExists;
         }
 
-        bool onlyScopesModified() const {
-            return scopesToCreate.empty() && scopesToDrop.empty() &&
-                   collectionsToCreate.empty() && collectionsToDrop.empty() &&
-                   !scopesToModify.empty();
+        /// @return true if there are collections/scopes to create or drop
+        bool wouldCreateOrDrop() const {
+            return !(scopesToCreate.empty() && scopesToDrop.empty() &&
+                     collectionsToCreate.empty() && collectionsToDrop.empty());
+        }
+
+        ManifestUid getUidForChange(ManifestUid theirUid) {
+            // If the set of changes no longer will create or drop, i.e. is now
+            // 'drained' of creates or drops then the correct uid to now use is
+            // the change set uid
+            return !wouldCreateOrDrop() ? uid : theirUid;
         }
     };
 
@@ -1034,6 +1045,12 @@ protected:
 
     /// Manager of collections
     const std::shared_ptr<Manager> manager;
+
+    /**
+     * Flag to help avoid limit checking when there are no limits to check.
+     * This is written with the write lock and only readable via the read lock.
+     */
+    bool scopeWithDataLimitExists{false};
 
     /**
      * Flag value which indicates if dropped collections exist, that includes

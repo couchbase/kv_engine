@@ -46,7 +46,7 @@ TEST_P(CollectionsDcpParameterizedTest,
     store->setVBucketState(vbid, vbucket_state_replica);
 
     // No active vbuckets, so shop1 isn't applied anywhere yet
-    const size_t limit = 1024;
+    const size_t limit = 10;
     CollectionsManifest cm;
     cm.add(ScopeEntry::shop1,
            limit * store->getEPEngine().getConfiguration().getMaxVbuckets());
@@ -83,6 +83,36 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_TRUE(vb->getManifest().lock().getDataLimit(ScopeEntry::shop1));
     EXPECT_EQ(limit,
               vb->getManifest().lock().getDataLimit(ScopeEntry::shop1).value());
+
+    // Check we fail limits on the active vbucket
+    store_item(vbid,
+               StoredDocKey{"k1", CollectionEntry::fruit},
+               std::string(limit + 1, 'a'),
+               0,
+               {cb::engine_errc::scope_size_limit_exceeded});
+    store_item(vbid,
+               StoredDocKey{"k1", CollectionEntry::fruit},
+               std::string(limit, 'a'));
+
+    // for completeness - the other vb will reject for  other reasons
+    store_item(replicaVB,
+               StoredDocKey{"k1", CollectionEntry::fruit},
+               std::string(limit + 1, 'a'),
+               0,
+               {cb::engine_errc::not_my_vbucket});
+
+    // And check when active it rejects
+    store->setVBucketState(replicaVB, vbucket_state_active);
+
+    store_item(replicaVB,
+               StoredDocKey{"k1", CollectionEntry::fruit},
+               std::string(limit + 1, 'a'),
+               0,
+               {cb::engine_errc::scope_size_limit_exceeded});
+    // but ok for at the limit
+    store_item(replicaVB,
+               StoredDocKey{"k1", CollectionEntry::fruit},
+               std::string(limit, 'a'));
 }
 
 // Test that when an active vbucket has already applied the scope with limit
@@ -101,7 +131,7 @@ TEST_P(CollectionsDcpParameterizedTest,
 TEST_P(CollectionsDcpParameterizedTest,
        replica_gets_scope_with_limit_from_active) {
     CollectionsManifest cm;
-    const size_t limit = 1024;
+    const size_t limit = 10;
     cm.add(ScopeEntry::shop1,
            limit * store->getEPEngine().getConfiguration().getMaxVbuckets());
     cm.add(CollectionEntry::fruit, ScopeEntry::shop1);
@@ -146,6 +176,29 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_TRUE(vb->getManifest().lock().getDataLimit(ScopeEntry::shop1));
     EXPECT_EQ(limit,
               vb->getManifest().lock().getDataLimit(ScopeEntry::shop1).value());
+
+    // Check we fail limits on both vbuckets if the size is right.
+    // If we have the scopeWithDataLimitExists code wrong, the limits wouldn't
+    // be checked
+    store_item(vbid,
+               StoredDocKey{"k1", CollectionEntry::fruit},
+               std::string(limit + 1, 'a'),
+               0,
+               {cb::engine_errc::scope_size_limit_exceeded});
+
+    store_item(replicaVB,
+               StoredDocKey{"k1", CollectionEntry::fruit},
+               std::string(limit + 1, 'a'),
+               0,
+               {cb::engine_errc::scope_size_limit_exceeded});
+
+    // But can write upto the limit
+    store_item(replicaVB,
+               StoredDocKey{"k1", CollectionEntry::fruit},
+               std::string(limit, 'a'));
+    store_item(vbid,
+               StoredDocKey{"k1", CollectionEntry::fruit},
+               std::string(limit, 'a'));
 }
 
 // Test that when only replicas exist and they are the first to create a scope
@@ -203,7 +256,7 @@ TEST_P(CollectionsDcpParameterizedTest, active_updates_limit) {
 
     // Now set shop1 with limit
     CollectionsManifest cm;
-    const size_t limit = 1024;
+    const size_t limit = 10;
     cm.add(ScopeEntry::shop1,
            limit * store->getEPEngine().getConfiguration().getMaxVbuckets());
     cm.add(CollectionEntry::fruit, ScopeEntry::shop1);
@@ -220,6 +273,29 @@ TEST_P(CollectionsDcpParameterizedTest, active_updates_limit) {
                       .lock()
                       .getDataLimit(ScopeEntry::shop1)
                       .value());
+
+    // Check we fail limits on both vbuckets if the size is right.
+    // If we have the scopeWithDataLimitExists code wrong, the limits wouldn't
+    // be checked
+    store_item(vbid,
+               StoredDocKey{"k1", CollectionEntry::fruit},
+               std::string(limit + 1, 'a'),
+               0,
+               {cb::engine_errc::scope_size_limit_exceeded});
+
+    store_item(replicaVB,
+               StoredDocKey{"k1", CollectionEntry::fruit},
+               std::string(limit + 1, 'a'),
+               0,
+               {cb::engine_errc::scope_size_limit_exceeded});
+
+    // But can write upto the limit
+    store_item(replicaVB,
+               StoredDocKey{"k1", CollectionEntry::fruit},
+               std::string(limit, 'a'));
+    store_item(vbid,
+               StoredDocKey{"k1", CollectionEntry::fruit},
+               std::string(limit, 'a'));
 }
 
 TEST_F(CollectionsTest, ScopeWithManyCollectionsWarmup) {

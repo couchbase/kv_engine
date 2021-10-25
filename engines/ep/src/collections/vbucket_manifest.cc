@@ -237,27 +237,26 @@ ManifestUpdateStatus Manifest::update(VBucket& vb,
 
     // If manifest was equal.
     if (manifest.getUid() == manifestUid) {
-        if (changes.empty()) {
+        if (changes.none()) {
             return ManifestUpdateStatus::Success;
-        } else if (changes.onlyScopesModified()) {
-            EP_LOG_WARN("Manifest::update {} equal uid and {} scopes modified",
-                        vb.getId(),
-                        changes.scopesToModify.size());
-        } else {
-            // Log verbosely for this case
+        } else if (changes.wouldCreateOrDrop()) {
+            // Log verbosely for this case. An equal manifest should not change
+            // the scope or collection membership
             EP_LOG_WARN(
                     "Manifest::update {} with equal uid:{:#x} but differences "
-                    "scopes+:{}, collections+:{}, scopes-:{}, collections-:{}, "
-                    "scopes-modified:{}",
+                    "scopes+:{}, collections+:{}, scopes-:{}, collections-:{}",
                     vb.getId(),
                     manifestUid,
                     changes.scopesToCreate.size(),
                     changes.collectionsToCreate.size(),
                     changes.scopesToDrop.size(),
-                    changes.collectionsToDrop.size(),
-                    changes.scopesToModify.size());
+                    changes.collectionsToDrop.size());
             return ManifestUpdateStatus::EqualUidWithDifferences;
         }
+        // else a scope modification or change of scopeWithDataLimitExists is
+        // allowed when the uid is equal
+        Expects(!changes.scopesToModify.empty() ||
+                changes.changeScopeWithDataLimitExists);
     }
 
     completeUpdate(std::move(upgradeLock), vb, changes);
@@ -292,25 +291,39 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
     WriteHandle wHandle(*this, std::move(upgradeLock));
 
     // Capture the UID
-    if (changeset.empty()) {
+    if (changeset.none()) {
         updateUid(changeset.uid, false /*reset*/);
         return;
     }
 
+    if (changeset.changeScopeWithDataLimitExists) {
+        EP_LOG_INFO(
+                "Manifest::completeUpdate {} toggling scopeWithDataLimitExists "
+                "{} -> {}",
+                vb.getId(),
+                scopeWithDataLimitExists,
+                changeset.changeScopeWithDataLimitExists.value());
+        scopeWithDataLimitExists =
+                changeset.changeScopeWithDataLimitExists.value();
+    }
+
     auto finalDeletion = applyDrops(wHandle, vb, changeset.collectionsToDrop);
     if (finalDeletion) {
-        auto uid = changeset.empty() ? changeset.uid : manifestUid;
-        dropCollection(
-                wHandle, vb, uid, *finalDeletion, OptionalSeqno{/*no-seqno*/});
+        // if the changeset is now 'drained' of create/drop, then this is final
+        // the final change to make - so use changeset.uid
+        dropCollection(wHandle,
+                       vb,
+                       changeset.getUidForChange(manifestUid),
+                       *finalDeletion,
+                       OptionalSeqno{/*no-seqno*/});
     }
 
     auto finalScopeCreate =
             applyScopeCreates(wHandle, vb, changeset.scopesToCreate);
     if (finalScopeCreate) {
-        auto uid = changeset.empty() ? changeset.uid : manifestUid;
         createScope(wHandle,
                     vb,
-                    uid,
+                    changeset.getUidForChange(manifestUid),
                     finalScopeCreate.value().sid,
                     finalScopeCreate.value().name,
                     finalScopeCreate.value().dataLimit,
@@ -321,10 +334,9 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
             applyCreates(wHandle, vb, changeset.collectionsToCreate);
 
     if (finalAddition) {
-        auto uid = changeset.empty() ? changeset.uid : manifestUid;
         createCollection(wHandle,
                          vb,
-                         uid,
+                         changeset.getUidForChange(manifestUid),
                          finalAddition.value().identifiers,
                          finalAddition.value().name,
                          finalAddition.value().maxTtl,
@@ -346,6 +358,7 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
     // Can do the scope modifications last - these generate no events but will
     // just sync any scope to the manifest
     for (const auto& modified : changeset.scopesToModify) {
+        // Here the changeset.uid is used as it's for logging
         modifyScope(wHandle, vb, changeset.uid, modified);
     }
 }
@@ -696,6 +709,8 @@ Manifest::ManifestChanges Manifest::processManifest(
         const Collections::Manifest& manifest) {
     ManifestChanges rv{manifest.getUid()};
 
+    bool scopeWithDataLimitExists{false};
+
     // First iterate through the collections of this VB::Manifest
     for (const auto& [cid, entry] : map) {
         // Look-up the collection inside the new manifest
@@ -737,6 +752,10 @@ Manifest::ManifestChanges Manifest::processManifest(
             }
         }
 
+        if (scopeItr->second.dataLimit) {
+            scopeWithDataLimitExists = true;
+        }
+
         for (const auto& m : scopeItr->second.collections) {
             auto mapItr = map.find(m.cid);
 
@@ -745,6 +764,10 @@ Manifest::ManifestChanges Manifest::processManifest(
                         {std::make_pair(m.sid, m.cid), m.name, m.maxTtl});
             }
         }
+    }
+
+    if (this->scopeWithDataLimitExists != scopeWithDataLimitExists) {
+        rv.changeScopeWithDataLimitExists = scopeWithDataLimitExists;
     }
 
     return rv;
@@ -1167,6 +1190,10 @@ bool Manifest::addScopeStats(Vbid vbid, const StatCollector& collector) const {
     format_to(key, "vb_{}:manifest:uid", vbid.get());
     collector.addStat(std::string_view(key.data(), key.size()), manifestUid);
 
+    format_to(key, "vb_{}:scope_data_limit", vbid.get());
+    collector.addStat(std::string_view(key.data(), key.size()),
+                      scopeWithDataLimitExists);
+
     for (const auto& [sid, value] : scopes) {
         key.resize(0);
         format_to(key, "vb_{}:{}:name:", vbid.get(), sid);
@@ -1273,6 +1300,10 @@ bool Manifest::operator!=(const Manifest& rhs) const {
 
 cb::engine_errc Manifest::getScopeDataLimitStatus(
         const container::const_iterator itr, size_t nBytes) const {
+    if (!scopeWithDataLimitExists) {
+        return cb::engine_errc::success;
+    }
+
     const auto& entry = getScopeEntry(itr->second.getScopeID());
 
     if (entry.getDataLimit() &&
@@ -1446,6 +1477,8 @@ std::ostream& operator<<(std::ostream& os,
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     os << "VB::Manifest: "
        << "uid:" << manifest.manifestUid
+       << "scopeWithDataLimitExists:" << manifest.scopeWithDataLimitExists
+       << "dropInProgress:" << manifest.dropInProgress.load()
        << ", scopes.size:" << manifest.scopes.size()
        << ", map.size:" << manifest.map.size() << std::endl;
     for (const auto& [cid, entry] : manifest.map) {

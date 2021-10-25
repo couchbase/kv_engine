@@ -769,7 +769,7 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
        << ", uid:" << manifest.uid
        << ", collections.size:" << manifest.collections.size() << std::endl;
     for (const auto& entry : manifest.scopes) {
-        os << "scope:{" << entry.first.to_string() << ", " << entry.second.name;
+        os << "scope:{" << entry.first << ", " << entry.second.name;
 
         if (entry.second.dataLimit) {
             os << ", dataLimit:" << entry.second.dataLimit.value()
@@ -779,8 +779,8 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
         os << ", collections:[";
 
         for (const auto& collection : entry.second.collections) {
-            os << "{cid:" << collection.cid.to_string() << ", sid:" << std::hex
-               << collection.sid << ", " << collection.name
+            os << "{cid:" << collection.cid << ", sid:" << collection.sid
+               << ", " << collection.name
                << ", ttl:" << (collection.maxTtl.has_value() ? "yes" : "no")
                << ":"
                << collection.maxTtl.value_or(std::chrono::seconds(0)).count()
@@ -790,9 +790,8 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     }
 
     for (const auto& [key, collection] : manifest.collections) {
-        os << "{cid key:" << key.to_string()
-           << ", value:" << collection.cid.to_string() << ", sid:" << std::hex
-           << collection.sid << ", " << collection.name
+        os << "{cid key:" << key.to_string() << ", value:" << collection.cid
+           << ", sid:" << collection.sid << ", " << collection.name
            << ", ttl:" << (collection.maxTtl.has_value() ? "yes" : "no") << ":"
            << collection.maxTtl.value_or(std::chrono::seconds(0)).count()
            << "}";
