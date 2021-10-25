@@ -296,6 +296,7 @@ public:
     struct ScopeCreation {
         ScopeID sid;
         std::string name;
+        DataLimit dataLimit;
     };
 
     /**
@@ -423,6 +424,7 @@ protected:
      * @param newManUid the uid of the manifest which made the change
      * @param sid ScopeID
      * @param scopeName Name of the added scope
+     * @param dataLimit An optional limit on the data stored in the scope
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
      */
@@ -431,6 +433,7 @@ protected:
                      ManifestUid newManUid,
                      ScopeID sid,
                      std::string_view scopeName,
+                     DataLimit dataLimit,
                      OptionalSeqno optionalSeqno);
 
     /**
@@ -795,8 +798,11 @@ protected:
      *
      * @param sid is of the new scope
      * @param name The name of the scope
+     * @param dataLimit The scope's dataLimit
      */
-    void addNewScopeEntry(ScopeID sid, std::string_view name);
+    void addNewScopeEntry(ScopeID sid,
+                          std::string_view name,
+                          DataLimit dataLimit);
 
     /**
      * Add a scope to the manifest. This will fail if the scope already exists.

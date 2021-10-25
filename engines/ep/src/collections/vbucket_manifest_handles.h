@@ -638,6 +638,7 @@ public:
                              manifestUid,
                              sid,
                              scopeName,
+                             NoDataLimit, // no data limit for replicas
                              OptionalSeqno{startSeqno});
     }
 

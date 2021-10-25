@@ -301,10 +301,12 @@ class ScopeSharedMetaData;
 class ScopeSharedMetaDataView {
 public:
     ScopeSharedMetaDataView(const ScopeSharedMetaData&);
-    ScopeSharedMetaDataView(std::string_view name) : name(name) {
+    ScopeSharedMetaDataView(std::string_view name, DataLimit dataLimit)
+        : name(name), dataLimit(dataLimit) {
     }
     std::string to_string() const;
     std::string_view name;
+    DataLimit dataLimit;
 };
 
 // The type stored by the Manager SharedMetaDataTable
@@ -320,7 +322,10 @@ public:
         return !(*this == meta);
     }
 
+    // scope name is fixed
     const std::string name;
+    // scope limit we will allow changes
+    DataLimit dataLimit;
 };
 std::ostream& operator<<(std::ostream& os, const ScopeSharedMetaData& meta);
 

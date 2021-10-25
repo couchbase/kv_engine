@@ -11,6 +11,7 @@
 
 #include "checkpoint_config.h"
 #include "checkpoint_manager.h"
+#include "collections/collections_types.h"
 #include "collections/manager.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_manifest.h"
@@ -43,6 +44,22 @@ public:
     bool exists(CollectionID identifier) const {
         std::shared_lock<mutex_type> readLock(rwlock);
         return exists_UNLOCKED(identifier);
+    }
+
+    bool exists(ScopeID identifier) const {
+        std::shared_lock<mutex_type> readLock(rwlock);
+        return exists_UNLOCKED(identifier);
+    }
+
+    Collections::DataLimit getDataLimit(ScopeID sid) const {
+        std::shared_lock<mutex_type> readLock(rwlock);
+        auto itr = scopes.find(sid);
+        if (itr == scopes.end()) {
+            throw std::invalid_argument(
+                    "MockVBManifest: getDataLimit unknown sid:" +
+                    sid.to_string());
+        }
+        return itr->second.getDataLimit();
     }
 
     size_t size() const {
@@ -118,10 +135,17 @@ public:
         return getStatsForFlush(collection, seqno);
     }
 
+    void dump() {
+        std::cerr << *this << std::endl;
+    }
+
 protected:
     bool exists_UNLOCKED(CollectionID identifier) const {
-        auto itr = map.find(identifier);
-        return itr != map.end();
+        return map.count(identifier) != 0;
+    }
+
+    bool exists_UNLOCKED(ScopeID identifier) const {
+        return scopes.count(identifier) != 0;
     }
 
     void expect_true(bool in) const {
@@ -1038,6 +1062,31 @@ TEST_F(VBucketManifestTest, isLogicallyDeleted) {
     auto sno = manifest.getActiveVB().getHighSeqno();
     EXPECT_FALSE(
             manifest.active.lock().isLogicallyDeleted(item->getKey(), sno));
+}
+
+TEST_F(VBucketManifestTest, add_scope_with_limit) {
+    // update will compare the VB::manifests, the ScopeEntry has compare
+    // operator which checks the active vs replica. Even though the replica
+    // doesn't receive the limit via replicaCreateScope path it is sharing
+    // metadata with the active via the shared meta table, so will have a
+    // data limit in this case
+    EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop1, 0)));
+    const size_t limit = 800;
+    EXPECT_TRUE(manifest.update(cm.add(
+            ScopeEntry::shop2, limit * manifest.config.getMaxVbuckets())));
+
+    // To be sure that the datalimit was compared check it explicitly on one
+    // manifest
+    auto replica = manifest.getReplicaManifest();
+
+    EXPECT_TRUE(replica.exists(ScopeEntry::shop1));
+
+    // Even though the replica doesn't receive the limit via replicaCreateScope
+    // it is sharing metadata with the active via the shared meta table
+    auto limit1 = replica.getDataLimit(ScopeEntry::shop1);
+    auto limit2 = replica.getDataLimit(ScopeEntry::shop2);
+    EXPECT_EQ(0, limit1);
+    EXPECT_EQ(limit, limit2);
 }
 
 class VBucketManifestCachingReadHandle : public VBucketManifestTest {};

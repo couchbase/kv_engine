@@ -14,7 +14,9 @@
 #include <ostream>
 
 bool Collections::VB::ScopeEntry::operator==(const ScopeEntry& other) const {
-    return getName() == other.getName() && getDataSize() == other.getDataSize();
+    return getName() == other.getName() &&
+           getDataSize() == other.getDataSize() &&
+           getDataLimit() == other.getDataLimit();
 }
 
 std::ostream& Collections::VB::operator<<(
@@ -22,5 +24,8 @@ std::ostream& Collections::VB::operator<<(
     os << "ScopeEntry:"
        << " name:" << scopeEntry.getName()
        << ", dataSize:" << scopeEntry.getDataSize();
+    if (scopeEntry.getDataLimit()) {
+        os << ", dataLimit:" << scopeEntry.getDataLimit().value();
+    }
     return os;
 }

@@ -31,7 +31,7 @@ namespace Collections::VB {
 
 Manifest::Manifest(std::shared_ptr<Manager> manager)
     : manager(std::move(manager)) {
-    addNewScopeEntry(ScopeID::Default, DefaultScopeIdentifier);
+    addNewScopeEntry(ScopeID::Default, DefaultScopeIdentifier, DataLimit{});
     addNewCollectionEntry({ScopeID::Default, CollectionID::Default},
                           DefaultCollectionIdentifier,
                           {} /*ttl*/,
@@ -43,8 +43,14 @@ Manifest::Manifest(std::shared_ptr<Manager> manager,
     : manifestUid(data.manifestUid),
       manager(std::move(manager)),
       dropInProgress(data.droppedCollectionsExist) {
-    for (const auto& scope : data.scopes) {
-        addNewScopeEntry(scope.metaData.sid, scope.metaData.name);
+    {
+        auto bucketManifest = this->manager->getCurrentManifest().rlock();
+        for (const auto& scope : data.scopes) {
+            addNewScopeEntry(
+                    scope.metaData.sid,
+                    scope.metaData.name,
+                    bucketManifest->getScopeDataLimit(scope.metaData.sid));
+        }
     }
 
     for (const auto& e : data.collections) {
@@ -90,7 +96,7 @@ Manifest::Manifest(Manifest& other) : manager(other.manager) {
     }
 
     for (auto& [sid, entry] : other.scopes) {
-        ScopeSharedMetaDataView meta{entry.getName()};
+        ScopeSharedMetaDataView meta{entry.getName(), entry.getDataLimit()};
         auto [itr, inserted] = scopes.try_emplace(
                 sid,
                 entry.getDataSize(),
@@ -193,6 +199,7 @@ std::optional<Manifest::ScopeCreation> Manifest::applyScopeCreates(
                     manifestUid,
                     creation.sid,
                     creation.name,
+                    creation.dataLimit,
                     OptionalSeqno{/*no-seqno*/});
     }
     changes.clear();
@@ -300,6 +307,7 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
                     uid,
                     finalScopeCreate.value().sid,
                     finalScopeCreate.value().name,
+                    finalScopeCreate.value().dataLimit,
                     OptionalSeqno{/*no-seqno*/});
     }
 
@@ -441,10 +449,13 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
     return itr->second;
 }
 
-void Manifest::addNewScopeEntry(ScopeID sid, std::string_view scopeName) {
-    addNewScopeEntry(sid,
-                     manager->createOrReferenceMeta(
-                             sid, ScopeSharedMetaDataView{scopeName}));
+void Manifest::addNewScopeEntry(ScopeID sid,
+                                std::string_view scopeName,
+                                DataLimit dataLimit) {
+    addNewScopeEntry(
+            sid,
+            manager->createOrReferenceMeta(
+                    sid, ScopeSharedMetaDataView{scopeName, dataLimit}));
 }
 
 void Manifest::addNewScopeEntry(
@@ -550,8 +561,9 @@ void Manifest::createScope(const WriteHandle& wHandle,
                            ManifestUid newManUid,
                            ScopeID sid,
                            std::string_view scopeName,
+                           DataLimit dataLimit,
                            OptionalSeqno optionalSeqno) {
-    addNewScopeEntry(sid, scopeName);
+    addNewScopeEntry(sid, scopeName, dataLimit);
 
     // record the uid of the manifest which added the scope
     updateUid(newManUid, optionalSeqno.has_value());
@@ -572,12 +584,13 @@ void Manifest::createScope(const WriteHandle& wHandle,
     auto seqno = vb.addSystemEventItem(
             std::move(item), optionalSeqno, {}, wHandle, {});
 
-    EP_LOG_INFO("{} create scope:id:{} name:{}, seq:{}, manifest:{:#x}{}",
+    EP_LOG_INFO("{} create scope:id:{} name:{}, seq:{}, manifest:{:#x}{}{}",
                 vb.getId(),
                 sid,
                 scopeName,
                 seqno,
                 manifestUid,
+                dataLimit ? fmt::format(", limit:{}", dataLimit.value()) : "",
                 optionalSeqno.has_value() ? ", replica" : "");
 }
 
@@ -666,8 +679,9 @@ Manifest::ManifestChanges Manifest::processManifest(
          scopeItr++) {
         if (scopes.count(scopeItr->first) == 0) {
             // Scope is not mapped
-            rv.scopesToCreate.push_back(
-                    {scopeItr->first, scopeItr->second.name});
+            rv.scopesToCreate.push_back({scopeItr->first,
+                                         scopeItr->second.name,
+                                         scopeItr->second.dataLimit});
         }
 
         for (const auto& m : scopeItr->second.collections) {
@@ -1104,6 +1118,13 @@ bool Manifest::addScopeStats(Vbid vbid, const StatCollector& collector) const {
         format_to(key, "vb_{}:{}:data_size", vbid.get(), sid);
         collector.addStat(std::string_view(key.data(), key.size()),
                           value.getDataSize());
+
+        if (value.getDataLimit()) {
+            key.resize(0);
+            format_to(key, "vb_{}:{}:data_limit", vbid.get(), sid);
+            collector.addStat(std::string_view(key.data(), key.size()),
+                              value.getDataLimit().value());
+        }
     }
 
     // Dump all collections and how they map to a scope. Stats requires unique

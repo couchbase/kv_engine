@@ -49,6 +49,23 @@ CollectionsManifest& CollectionsManifest::add(const ScopeEntry::Entry& entry) {
     return *this;
 }
 
+CollectionsManifest& CollectionsManifest::add(const ScopeEntry::Entry& entry,
+                                              size_t limit) {
+    add(entry);
+
+    for (auto& scope : json["scopes"]) {
+        if (scope["name"] == entry.name) {
+            nlohmann::json jsonEntry;
+            jsonEntry["kv"]["data_size"] = limit;
+            scope["limits"] = jsonEntry;
+            return *this;
+        }
+    }
+    throw std::logic_error(
+            "CollectionsManifest::add(scope, limit) could not find the new "
+            "scope");
+}
+
 CollectionsManifest& CollectionsManifest::add(
         const CollectionEntry::Entry& collectionEntry,
         cb::ExpiryLimit maxTtl,
