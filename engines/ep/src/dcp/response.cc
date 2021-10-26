@@ -13,6 +13,8 @@
 #include <memcached/protocol_binary.h>
 #include <xattr/utils.h>
 
+#include <typeinfo>
+
 /*
  * These constants are calculated from the size of the packets that are
  * created by each message when it gets sent over the wire. The packet
@@ -65,6 +67,19 @@ const char* DcpResponse::to_string() const {
     }
     throw std::logic_error(
         "DcpResponse::to_string(): " + std::to_string(int(event_)));
+}
+
+bool operator==(const DcpResponse& lhs, const DcpResponse& rhs) {
+    return typeid(lhs) == typeid(rhs) && lhs.isEqual(rhs);
+}
+
+bool operator!=(const DcpResponse& lhs, const DcpResponse& rhs) {
+    return !(lhs == rhs);
+}
+
+bool DcpResponse::isEqual(const DcpResponse& other) const {
+    return opaque_ == other.opaque_ && event_ == other.event_ &&
+           sid == other.sid;
 }
 
 uint32_t MutationResponse::getDeleteLength() const {
@@ -221,4 +236,164 @@ uint32_t SnapshotMarker::getMessageSize() const {
     }
     rv += (getStreamId() ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
     return rv;
+}
+
+bool StreamRequest::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const StreamRequest&>(rsp);
+    bool eq =
+            startSeqno_ == other.startSeqno_ && endSeqno_ == other.endSeqno_ &&
+            vbucketUUID_ == other.vbucketUUID_ &&
+            snapStartSeqno_ == other.snapStartSeqno_ &&
+            snapEndSeqno_ == other.snapEndSeqno_ && flags_ == other.flags_ &&
+            vbucket_ == other.vbucket_ && requestValue_ == other.requestValue_;
+    return eq && DcpResponse::isEqual(rsp);
+}
+
+bool AddStreamResponse::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const AddStreamResponse&>(rsp);
+    bool eq = streamOpaque_ == other.streamOpaque_ && status_ == other.status_;
+    return eq && DcpResponse::isEqual(rsp);
+}
+
+bool SnapshotMarkerResponse::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const SnapshotMarkerResponse&>(rsp);
+    return status_ == other.status_ && DcpResponse::isEqual(rsp);
+}
+
+bool SetVBucketStateResponse::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const SetVBucketStateResponse&>(rsp);
+    return status_ == other.status_ && DcpResponse::isEqual(rsp);
+}
+
+bool StreamEndResponse::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const StreamEndResponse&>(rsp);
+    bool eq = flags_ == other.flags_ && vbucket_ == other.vbucket_;
+    return eq && DcpResponse::isEqual(rsp);
+}
+
+bool SetVBucketState::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const SetVBucketState&>(rsp);
+    bool eq = vbucket_ == other.vbucket_ && state_ == other.state_;
+    return eq && DcpResponse::isEqual(rsp);
+}
+
+bool SnapshotMarker::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const SnapshotMarker&>(rsp);
+    bool eq = vbucket_ == other.vbucket_ &&
+              start_seqno_ == other.start_seqno_ &&
+              end_seqno_ == other.end_seqno_ && flags_ == other.flags_ &&
+              highCompletedSeqno == other.highCompletedSeqno &&
+              maxVisibleSeqno == other.maxVisibleSeqno &&
+              timestamp == other.timestamp;
+    return eq && DcpResponse::isEqual(rsp);
+}
+
+bool MutationResponse::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const MutationResponse&>(rsp);
+    bool eq = *item_ == *other.item_ && includeValue == other.includeValue &&
+              includeXattributes == other.includeXattributes &&
+              includeDeletedUserXattrs == other.includeDeletedUserXattrs &&
+              includeCollectionID == other.includeCollectionID &&
+              enableExpiryOutput == other.enableExpiryOutput;
+
+    return eq && DcpResponse::isEqual(rsp);
+}
+
+bool MutationConsumerMessage::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const MutationConsumerMessage&>(rsp);
+
+    auto compareEmd = [this](const MutationConsumerMessage& other) {
+        if (emd && other.emd) {
+            auto ext1 = emd->getExtMeta();
+            auto ext2 = other.emd->getExtMeta();
+            if (ext1.second == ext2.second) {
+                return std::memcmp(ext1.first, ext2.first, ext1.second) == 0;
+            }
+        } else if (!emd && !other.emd) {
+            return true;
+        }
+        return false;
+    };
+    return compareEmd(other) && MutationResponse::isEqual(rsp);
+}
+
+bool SeqnoAcknowledgement::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const SeqnoAcknowledgement&>(rsp);
+    return vbucket == other.vbucket &&
+           payload.getPreparedSeqno() == other.payload.getPreparedSeqno() &&
+           DcpResponse::isEqual(rsp);
+}
+
+bool CommitSyncWrite::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const CommitSyncWrite&>(rsp);
+    bool eq = vbucket == other.vbucket && key == other.key &&
+              payload.getBuffer() == other.payload.getBuffer() &&
+              includeCollectionID == other.includeCollectionID;
+    return eq && DcpResponse::isEqual(rsp);
+}
+
+bool AbortSyncWrite::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const AbortSyncWrite&>(rsp);
+    bool eq = vbucket == other.vbucket && key == other.key &&
+              payload.getBuffer() == other.payload.getBuffer() &&
+              includeCollectionID == other.includeCollectionID;
+    return eq && DcpResponse::isEqual(rsp);
+}
+
+bool SystemEventConsumerMessage::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const SystemEventConsumerMessage&>(rsp);
+    bool eq = event == other.event && bySeqno == other.bySeqno &&
+              version == other.version && key == other.key &&
+              eventData == other.eventData;
+    return eq && DcpResponse::isEqual(rsp);
+}
+
+bool SystemEventProducerMessage::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const SystemEventProducerMessage&>(rsp);
+    return *item == *other.item && DcpResponse::isEqual(rsp);
+}
+
+bool CollectionCreateProducerMessage::isEqual(const DcpResponse& rsp) const {
+    const auto& other =
+            static_cast<const CollectionCreateProducerMessage&>(rsp);
+    bool eq = key == other.key && eventData == other.eventData;
+    return eq && SystemEventProducerMessage::isEqual(rsp);
+}
+
+bool CollectionCreateWithMaxTtlProducerMessage::isEqual(
+        const DcpResponse& rsp) const {
+    const auto& other =
+            static_cast<const CollectionCreateWithMaxTtlProducerMessage&>(rsp);
+    bool eq = key == other.key && eventData == other.eventData;
+    return eq && SystemEventProducerMessage::isEqual(rsp);
+}
+
+bool CollectionDropProducerMessage::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const CollectionDropProducerMessage&>(rsp);
+    bool eq = key == other.key && eventData == other.eventData;
+    return eq && SystemEventProducerMessage::isEqual(rsp);
+}
+
+bool ScopeCreateProducerMessage::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const ScopeCreateProducerMessage&>(rsp);
+    bool eq = key == other.key && eventData == other.eventData;
+    return eq && SystemEventProducerMessage::isEqual(rsp);
+}
+
+bool ScopeDropProducerMessage::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const ScopeDropProducerMessage&>(rsp);
+    bool eq = key == other.key && eventData == other.eventData;
+    return eq && SystemEventProducerMessage::isEqual(rsp);
+}
+
+bool OSOSnapshot::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const OSOSnapshot&>(rsp);
+    return vbucket == other.vbucket && start == other.start &&
+           DcpResponse::isEqual(rsp);
+}
+
+bool SeqnoAdvanced::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const SeqnoAdvanced&>(rsp);
+    return vbucket == other.vbucket && advancedSeqno == other.advancedSeqno &&
+           DcpResponse::isEqual(rsp);
 }

@@ -146,4 +146,22 @@ struct DropScopeEventDcpData {
     constexpr static size_t size{12};
 };
 
+bool operator==(const CreateEventDcpData& lhs, const CreateEventDcpData& rhs);
+bool operator==(const CreateWithMaxTtlEventDcpData& lhs,
+                const CreateWithMaxTtlEventDcpData& rhs);
+bool operator==(const DropEventDcpData& lhs, const DropEventDcpData& rhs);
+bool operator==(const CreateScopeEventDcpData& lhs,
+                const CreateScopeEventDcpData& rhs);
+bool operator==(const DropScopeEventDcpData& lhs,
+                const DropScopeEventDcpData& rhs);
+
+bool operator!=(const CreateEventDcpData& lhs, const CreateEventDcpData& rhs);
+bool operator!=(const CreateWithMaxTtlEventDcpData& lhs,
+                const CreateWithMaxTtlEventDcpData& rhs);
+bool operator!=(const DropEventDcpData& lhs, const DropEventDcpData& rhs);
+bool operator!=(const CreateScopeEventDcpData& lhs,
+                const CreateScopeEventDcpData& rhs);
+bool operator!=(const DropScopeEventDcpData& lhs,
+                const DropScopeEventDcpData& rhs);
+
 } // namespace Collections

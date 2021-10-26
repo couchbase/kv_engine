@@ -124,6 +124,18 @@ public:
         return sid;
     }
 
+protected:
+    /**
+     * This is for use only by the friend == operator. Implemented by the
+     * DcpResponse hierarchy and will cast and call up the hierarchy to get
+     * the complete comparison.
+     *
+     * @return true if this == rsp
+     */
+    virtual bool isEqual(const DcpResponse& rsp) const;
+
+    friend bool operator==(const DcpResponse&, const DcpResponse&);
+
 private:
     uint32_t opaque_;
     Event event_;
@@ -131,6 +143,8 @@ private:
 };
 
 std::ostream& operator<<(std::ostream& os, const DcpResponse& r);
+bool operator==(const DcpResponse& lhs, const DcpResponse& rhs);
+bool operator!=(const DcpResponse& lhs, const DcpResponse& rhs);
 
 class StreamRequest : public DcpResponse {
 public:
@@ -195,6 +209,9 @@ public:
 
     static const uint32_t baseMsgBytes;
 
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
 private:
     uint64_t startSeqno_;
     uint64_t endSeqno_;
@@ -232,6 +249,9 @@ public:
 
     static const uint32_t baseMsgBytes;
 
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
 private:
     const uint32_t streamOpaque_;
     const cb::mcbp::Status status_;
@@ -253,6 +273,9 @@ public:
 
     static const uint32_t baseMsgBytes;
 
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
 private:
     const cb::mcbp::Status status_;
 };
@@ -272,6 +295,9 @@ public:
     }
 
     static const uint32_t baseMsgBytes;
+
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
 
 private:
     const cb::mcbp::Status status_;
@@ -311,6 +337,9 @@ public:
 
     static const uint32_t baseMsgBytes;
 
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
 private:
     cb::mcbp::DcpStreamEndStatus flags_;
     Vbid vbucket_;
@@ -337,6 +366,9 @@ public:
     }
 
     static const uint32_t baseMsgBytes;
+
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
 
 private:
     Vbid vbucket_;
@@ -395,6 +427,9 @@ public:
     }
 
     static const uint32_t baseMsgBytes;
+
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
 
 private:
     Vbid vbucket_;
@@ -531,6 +566,7 @@ public:
     static const uint32_t prepareBaseMsgBytes = 57;
 
 protected:
+    bool isEqual(const DcpResponse& rsp) const override;
     /// Return the size of the header for this message.
     uint32_t getHeaderSize() const;
 
@@ -606,6 +642,7 @@ public:
     }
 
 protected:
+    bool isEqual(const DcpResponse& rsp) const override;
     std::unique_ptr<ExtendedMetaData> emd;
 };
 
@@ -635,6 +672,9 @@ public:
     uint64_t getPreparedSeqno() const {
         return payload.getPreparedSeqno();
     }
+
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
 
 private:
     Vbid vbucket;
@@ -679,7 +719,11 @@ public:
     static constexpr uint32_t commitBaseMsgBytes =
             sizeof(protocol_binary_request_header) +
             sizeof(cb::mcbp::request::DcpCommitPayload);
+
     uint32_t getMessageSize() const override;
+
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
 
 private:
     Vbid vbucket;
@@ -699,6 +743,11 @@ public:
                             uint64_t preparedSeqno,
                             uint64_t commitSeqno,
                             const DocKey& key);
+
+protected:
+    bool isEqual(const DcpResponse& rsp) const override {
+        return CommitSyncWrite::isEqual(rsp);
+    }
 };
 
 /**
@@ -740,6 +789,9 @@ public:
 
     uint32_t getMessageSize() const override;
 
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
 private:
     Vbid vbucket;
     StoredDocKey key;
@@ -761,6 +813,11 @@ public:
     static constexpr uint32_t abortBaseMsgBytes =
             sizeof(protocol_binary_request_header) +
             sizeof(cb::mcbp::request::DcpAbortPayload);
+
+protected:
+    bool isEqual(const DcpResponse& rsp) const override {
+        return AbortSyncWrite::isEqual(rsp);
+    }
 };
 
 /**
@@ -835,6 +892,9 @@ public:
         return version;
     }
 
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
 private:
     mcbp::systemevent::id event;
     int64_t bySeqno;
@@ -903,6 +963,8 @@ public:
     }
 
 protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
     SystemEventProducerMessage(uint32_t opaque,
                                const queued_item& itm,
                                cb::mcbp::DcpStreamId sid)
@@ -936,6 +998,9 @@ public:
         return mcbp::systemevent::version::version0;
     }
 
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
 private:
     std::string key;
     Collections::CreateEventDcpData eventData;
@@ -967,6 +1032,9 @@ public:
         return mcbp::systemevent::version::version1;
     }
 
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
 private:
     std::string key;
     Collections::CreateWithMaxTtlEventDcpData eventData;
@@ -993,6 +1061,9 @@ public:
     mcbp::systemevent::version getVersion() const override {
         return mcbp::systemevent::version::version0;
     }
+
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
 
 private:
     std::string key;
@@ -1023,6 +1094,9 @@ public:
         return mcbp::systemevent::version::version0;
     }
 
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
 private:
     std::string key;
     Collections::CreateScopeEventDcpData eventData;
@@ -1049,6 +1123,9 @@ public:
     mcbp::systemevent::version getVersion() const override {
         return mcbp::systemevent::version::version0;
     }
+
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
 
 private:
     std::string key;
@@ -1255,6 +1332,9 @@ public:
 
     static const uint32_t baseMsgBytes;
 
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
 private:
     Vbid vbucket;
     bool start;
@@ -1287,6 +1367,9 @@ public:
     }
 
     static const uint32_t baseMsgBytes;
+
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
 
 private:
     Vbid vbucket;

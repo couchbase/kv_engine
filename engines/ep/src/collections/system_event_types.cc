@@ -52,4 +52,53 @@ std::string to_string(const DropScopeEventData& event) {
                        event.sid.to_string());
 }
 
+bool operator==(const CreateEventDcpData& lhs, const CreateEventDcpData& rhs) {
+    return lhs.manifestUid.uid == rhs.manifestUid.uid &&
+           lhs.sid.to_host() == rhs.sid.to_host() &&
+           lhs.cid.to_host() == rhs.cid.to_host();
+}
+
+bool operator==(const CreateWithMaxTtlEventDcpData& lhs,
+                const CreateWithMaxTtlEventDcpData& rhs) {
+    return lhs.manifestUid.uid == rhs.manifestUid.uid &&
+           lhs.sid.to_host() == rhs.sid.to_host() &&
+           lhs.cid.to_host() == rhs.cid.to_host() && lhs.maxTtl == rhs.maxTtl;
+}
+
+bool operator==(const DropEventDcpData& lhs, const DropEventDcpData& rhs) {
+    return lhs.manifestUid.uid == rhs.manifestUid.uid &&
+           lhs.cid.to_host() == rhs.cid.to_host() &&
+           lhs.sid.to_host() == rhs.sid.to_host();
+}
+
+bool operator==(const CreateScopeEventDcpData& lhs,
+                const CreateScopeEventDcpData& rhs) {
+    return lhs.manifestUid.uid == rhs.manifestUid.uid &&
+           lhs.sid.to_host() == rhs.sid.to_host();
+}
+
+bool operator==(const DropScopeEventDcpData& lhs,
+                const DropScopeEventDcpData& rhs) {
+    return lhs.manifestUid.uid == rhs.manifestUid.uid &&
+           lhs.sid.to_host() == rhs.sid.to_host();
+}
+
+bool operator!=(const CreateEventDcpData& lhs, const CreateEventDcpData& rhs) {
+    return !(lhs == rhs);
+}
+
+bool operator!=(const CreateWithMaxTtlEventDcpData& lhs,
+                const CreateWithMaxTtlEventDcpData& rhs) {
+    return !(lhs == rhs);
+}
+
+bool operator!=(const DropEventDcpData& lhs, const DropEventDcpData& rhs) {
+    return !(lhs == rhs);
+}
+
+bool operator!=(const CreateScopeEventDcpData& lhs,
+                const CreateScopeEventDcpData& rhs) {
+    return !(lhs == rhs);
+}
+
 } // namespace Collections
