@@ -14,12 +14,24 @@
 #include <memory>
 #include <stdexcept>
 
+#ifdef _MSC_VER
+#include <windows.h>
+#include <bcrypt.h>
+#elif defined(__APPLE__)
+#include <CommonCrypto/CommonCryptor.h>
+#include <CommonCrypto/CommonDigest.h>
+#include <CommonCrypto/CommonHMAC.h>
+#include <CommonCrypto/CommonKeyDerivation.h>
+#else
+#include <openssl/evp.h>
+#include <openssl/hmac.h>
+#include <openssl/md5.h>
+#include <openssl/sha.h>
+#endif
+
 namespace internal {
 
 #ifdef _MSC_VER
-#include <windows.h>
-
-#include <bcrypt.h>
 
 struct HeapAllocDeleter {
     void operator()(PBYTE bytes) {
@@ -235,11 +247,6 @@ static std::string digest_sha512(std::string_view data) {
 
 #elif defined(__APPLE__)
 
-#include <CommonCrypto/CommonCryptor.h>
-#include <CommonCrypto/CommonDigest.h>
-#include <CommonCrypto/CommonHMAC.h>
-#include <CommonCrypto/CommonKeyDerivation.h>
-
 static std::string HMAC_MD5(std::string_view key, std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::MD5_DIGEST_SIZE);
@@ -397,12 +404,6 @@ static std::string digest_sha512(std::string_view data) {
 }
 
 #else
-
-#include <openssl/evp.h>
-#include <openssl/hmac.h>
-#include <openssl/md5.h>
-#include <openssl/sha.h>
-
 // OpenSSL
 
 static std::string HMAC_MD5(std::string_view key, std::string_view data) {
