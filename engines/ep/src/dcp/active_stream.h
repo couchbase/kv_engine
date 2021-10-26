@@ -669,6 +669,26 @@ private:
      */
     void queueSeqnoAdvanced();
 
+    /**
+     * Enqueue a single snapshot + seqno advance
+     * @param checkpointType type of checkpoint which triggered this snapshot
+     * @param start value of snapshot start
+     * @param end value of snapshot end
+     */
+    void sendSnapshotAndSeqnoAdvanced(CheckpointType checkpointType,
+                                      uint64_t start,
+                                      uint64_t end);
+
+    /**
+     * If firstMarkerSent is false then the startSeqno of a snapshot may need
+     * adjusting to match the snap_start_seqno the caller used when creating
+     * the stream.
+     * If firstMarkerSent is false this call will set it to true.
+     * @param start a seqno we think should be the snapshot start
+     * @return the snapshot start to use
+     */
+    uint64_t adjustStartIfFirstSnapshot(uint64_t start);
+
     /* The last sequence number queued from memory, but is yet to be
        snapshotted and put onto readyQ */
     std::atomic<uint64_t> lastReadSeqnoUnSnapshotted;

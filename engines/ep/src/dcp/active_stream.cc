@@ -289,13 +289,10 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
             }
         }
 
-        /* We need to send the requested 'snap_start_seqno_' as the snapshot
+        /* We may need to send the requested 'snap_start_seqno_' as the snapshot
            start when we are sending the first snapshot because the first
            snapshot could be resumption of a previous snapshot */
-        if (!firstMarkerSent) {
-            startSeqno = std::min(snap_start_seqno_, startSeqno);
-            firstMarkerSent = true;
-        }
+        startSeqno = adjustStartIfFirstSnapshot(startSeqno);
 
         VBucketPtr vb = engine->getVBucket(vb_);
         if (!vb) {
@@ -1279,55 +1276,53 @@ void ActiveStream::processItems(
                      outstandingItemsResult.highCompletedSeqno,
                      visibleSeqno,
                      highNonVisibleSeqno);
-        } else if (!firstMarkerSent && isSeqnoAdvancedEnabled() &&
-                   lastReadSeqno < snap_end_seqno_) {
-            // MB-47009: This first snapshot has been completely filtered away.
-            // The remaining items must not of been for this client. We must
-            // still send a snapshot marker so that the client is moved to their
-            // end seqno - so a snapshot + seqno advance is needed.
-            firstMarkerSent = true;
-
+        } else if (isSeqnoAdvancedEnabled()) {
             // Note that we cannot enter this case if supportSyncReplication()
             // returns true (see isSeqnoAdvancedEnabled). This means that we
             // do not need to set the HCS/MVS or timestamp parameters of the
             // snapshot marker. MB-47877 tracks enabling sync-writes+filtering
-            pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
-                                                          vb_,
-                                                          snap_start_seqno_,
-                                                          snap_end_seqno_,
-                                                          MARKER_FLAG_MEMORY,
-                                                          std::nullopt,
-                                                          std::nullopt,
-                                                          std::nullopt,
-                                                          sid));
-
-            lastSentSnapEndSeqno.store(snap_end_seqno_,
-                                       std::memory_order_relaxed);
-            nextSnapshotIsCheckpoint = false;
-
-            queueSeqnoAdvanced();
-        } else if (isSeqnoAdvancedEnabled() &&
-                   isSeqnoGapAtEndOfSnapshot(curChkSeqno)) {
-            auto vb = engine->getVBucket(getVBucket());
-            if (vb) {
-                if (vb->getState() == vbucket_state_replica) {
-                    /*
-                     * If this is a collection stream and we're not sending any
-                     * mutations from memory and we haven't queued a snapshot
-                     * shot and we're a replica. Then our snapshot covers
-                     * backfill and in memory. So we have one snapshot marker
-                     * for both items on disk and in memory. Thus, we need to
-                     * send a SeqnoAdvanced to push the consumer's seqno to the
-                     * end of the snapshot. This is need when no items for the
-                     * collection we're streaming are present in memory.
-                     */
-                    queueSeqnoAdvanced();
+            if (!firstMarkerSent && lastReadSeqno < snap_end_seqno_) {
+                // MB-47009: This first snapshot has been completely filtered
+                // away. The remaining items must not of been for this client.
+                // We must still send a snapshot marker so that the client is
+                // moved to their end seqno - so a snapshot + seqno advance is
+                // needed.
+                sendSnapshotAndSeqnoAdvanced(
+                        outstandingItemsResult.checkpointType,
+                        snap_start_seqno_,
+                        snap_end_seqno_);
+                firstMarkerSent = true;
+            } else if (isSeqnoGapAtEndOfSnapshot(curChkSeqno)) {
+                auto vb = engine->getVBucket(getVBucket());
+                if (vb) {
+                    if (vb->getState() == vbucket_state_replica) {
+                        /*
+                         * If this is a collection stream and we're not sending
+                         * any mutations from memory and we haven't queued a
+                         * snapshot and we're a replica. Then our snapshot
+                         * covers backfill and in memory. So we have one
+                         * snapshot marker for both items on disk and in memory.
+                         * Thus, we need to send a SeqnoAdvanced to push the
+                         * consumer's seqno to the end of the snapshot. This is
+                         * needed when no items for the collection we're
+                         * streaming are present in memory.
+                         */
+                        queueSeqnoAdvanced();
+                    }
+                } else {
+                    log(spdlog::level::level_enum::warn,
+                        "{} processItems() for vbucket which does not "
+                        "exist",
+                        logPrefix);
                 }
-            } else {
-                log(spdlog::level::level_enum::warn,
-                    "{} processItems() for vbucket which does not "
-                    "exist",
-                    logPrefix);
+            } else if (highNonVisibleSeqno &&
+                       curChkSeqno >= highNonVisibleSeqno.value()) {
+                // MB-48368: Nothing directly available for the stream, but a
+                // non-visible item was available - bring the client up-to-date
+                sendSnapshotAndSeqnoAdvanced(
+                        outstandingItemsResult.checkpointType,
+                        highNonVisibleSeqno.value(),
+                        highNonVisibleSeqno.value());
             }
         }
     }
@@ -2222,4 +2217,36 @@ bool ActiveStream::isSeqnoAdvancedNeededBackFill() const {
 bool ActiveStream::isSeqnoGapAtEndOfSnapshot(uint64_t streamSeqno) const {
     return (lastSentSnapEndSeqno.load() > lastReadSeqno.load()) &&
            lastSentSnapEndSeqno.load() == streamSeqno;
+}
+
+void ActiveStream::sendSnapshotAndSeqnoAdvanced(CheckpointType checkpointType,
+                                                uint64_t start,
+                                                uint64_t end) {
+    start = adjustStartIfFirstSnapshot(start);
+
+    const auto isCkptTypeDisk = checkpointType == CheckpointType::Disk;
+    uint32_t flags = isCkptTypeDisk ? MARKER_FLAG_DISK : MARKER_FLAG_MEMORY;
+
+    pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
+                                                  vb_,
+                                                  start,
+                                                  end,
+                                                  flags,
+                                                  std::nullopt,
+                                                  std::nullopt,
+                                                  std::nullopt,
+                                                  sid));
+
+    lastSentSnapEndSeqno.store(end, std::memory_order_relaxed);
+    nextSnapshotIsCheckpoint = false;
+
+    queueSeqnoAdvanced();
+}
+
+uint64_t ActiveStream::adjustStartIfFirstSnapshot(uint64_t start) {
+    if (!firstMarkerSent) {
+        firstMarkerSent = true;
+        return std::min(snap_start_seqno_, start);
+    }
+    return start;
 }
