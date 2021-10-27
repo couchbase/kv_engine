@@ -13,7 +13,6 @@
 #include "testapp_client_test.h"
 
 #include <boost/filesystem.hpp>
-#include <cbcrypto/cbcrypto.h>
 #include <algorithm>
 
 using namespace std::string_literals;
@@ -26,17 +25,9 @@ public:
      */
     SaslTest() {
         mechanisms.emplace_back("PLAIN");
-        if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA1)) {
-            mechanisms.emplace_back("SCRAM-SHA1");
-        }
-
-        if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA256)) {
-            mechanisms.emplace_back("SCRAM-SHA256");
-        }
-
-        if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA512)) {
-            mechanisms.emplace_back("SCRAM-SHA512");
-        }
+        mechanisms.emplace_back("SCRAM-SHA1");
+        mechanisms.emplace_back("SCRAM-SHA256");
+        mechanisms.emplace_back("SCRAM-SHA512");
     }
 
     void SetUp() override {
@@ -131,28 +122,16 @@ TEST_P(SaslTest, SinglePLAIN) {
 }
 
 TEST_P(SaslTest, SingleSCRAM_SHA1) {
-    if (!isSupported("SCRAM-SHA1")) {
-        return;
-    }
-
     MemcachedConnection& conn = getConnection();
     conn.authenticate(bucket1, password1, "SCRAM-SHA1");
 }
 
 TEST_P(SaslTest, SingleSCRAM_SHA256) {
-    if (!isSupported("SCRAM-SHA256")) {
-        return;
-    }
-
     MemcachedConnection& conn = getConnection();
     conn.authenticate(bucket1, password1, "SCRAM-SHA256");
 }
 
 TEST_P(SaslTest, SingleSCRAM_SHA512) {
-    if (!isSupported("SCRAM-SHA512")) {
-        return;
-    }
-
     MemcachedConnection& conn = getConnection();
     conn.authenticate(bucket1, password1, "SCRAM-SHA512");
 }
@@ -162,23 +141,14 @@ TEST_P(SaslTest, UnknownUserPlain) {
 }
 
 TEST_P(SaslTest, UnknownUserSCRAM_SHA1) {
-    if (!isSupported("SCRAM-SHA1")) {
-        return;
-    }
     testUnknownUser("SCRAM-SHA1");
 }
 
 TEST_P(SaslTest, UnknownUserSCRAM_SHA256) {
-    if (!isSupported("SCRAM-SHA256")) {
-        return;
-    }
     testUnknownUser("SCRAM-SHA256");
 }
 
 TEST_P(SaslTest, UnknownUserSCRAM_SHA512) {
-    if (!isSupported("SCRAM-SHA512")) {
-        return;
-    }
     testUnknownUser("SCRAM-SHA512");
 }
 
@@ -187,24 +157,14 @@ TEST_P(SaslTest, IncorrectPlain) {
 }
 
 TEST_P(SaslTest, IncorrectSCRAM_SHA1) {
-    if (!isSupported("SCRAM-SHA1")) {
-        return;
-    }
     testWrongPassword("SCRAM-SHA1");
 }
 
 TEST_P(SaslTest, IncorrectSCRAM_SHA256) {
-    if (!isSupported("SCRAM-SHA256")) {
-        return;
-    }
-
     testWrongPassword("SCRAM-SHA256");
 }
 
 TEST_P(SaslTest, IncorrectSCRAM_SHA512) {
-    if (!isSupported("SCRAM-SHA512")) {
-        return;
-    }
     testWrongPassword("SCRAM-SHA512");
 }
 
@@ -213,31 +173,18 @@ TEST_P(SaslTest, TestSaslMixFrom_PLAIN) {
 }
 
 TEST_P(SaslTest, TestSaslMixFrom_SCRAM_SHA1) {
-    if (!isSupported("SCRAM-SHA1")) {
-        return;
-    }
     testMixStartingFrom("SCRAM-SHA1");
 }
 
 TEST_P(SaslTest, TestSaslMixFrom_SCRAM_SHA256) {
-    if (!isSupported("SCRAM-SHA256")) {
-        return;
-    }
     testMixStartingFrom("SCRAM-SHA256");
 }
 
 TEST_P(SaslTest, TestSaslMixFrom_SCRAM_SHA512) {
-    if (!isSupported("SCRAM-SHA512")) {
-        return;
-    }
     testMixStartingFrom("SCRAM-SHA512");
 }
 
 TEST_P(SaslTest, TestDisablePLAIN) {
-    if (!isSupported("SCRAM-SHA1")) {
-        return;
-    }
-
     auto& conn = getConnection();
 
     const auto before = conn.getSaslMechanisms();

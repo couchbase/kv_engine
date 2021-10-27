@@ -48,7 +48,7 @@ protected:
 
     // You may set addNonce to true to have it use a fixed nonce
     // for debugging purposes
-    void test_auth(const char* mech) {
+    void test_auth(const std::string& mech) {
         cb::sasl::client::ClientContext client(
                 []() -> std::string { return std::string{"mikewied"}; },
                 []() -> std::string { return std::string{" mik epw "}; },
@@ -59,10 +59,9 @@ protected:
 
         cb::sasl::server::ServerContext server;
 
-        auto server_data = server.start(
-                client.getName(),
-                "SCRAM-SHA512,SCRAM-SHA256,SCRAM-SHA1,CRAM-MD5,PLAIN",
-                client_data.second);
+        auto server_data = server.start(client.getName(),
+                                        cb::sasl::server::listmech(),
+                                        client_data.second);
         if (server_data.first == cb::sasl::Error::OK) {
             // Authentication success
             return;
@@ -86,23 +85,17 @@ TEST_F(SaslClientServerTest, PLAIN) {
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA1) {
-    if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA1)) {
-        test_auth("SCRAM-SHA1");
-    }
+    test_auth("SCRAM-SHA1");
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA256) {
-    if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA256)) {
-        test_auth("SCRAM-SHA256");
-    }
+    test_auth("SCRAM-SHA256");
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA512) {
-    if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA512)) {
-        test_auth("SCRAM-SHA512");
-    }
+    test_auth("SCRAM-SHA512");
 }
 
 TEST_F(SaslClientServerTest, AutoSelectMechamism) {
-    test_auth("(SCRAM-SHA512,SCRAM-SHA256,SCRAM-SHA1,CRAM-MD5,PLAIN)");
+    test_auth(cb::sasl::server::listmech());
 }
