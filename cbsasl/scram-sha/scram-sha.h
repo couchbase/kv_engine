@@ -107,6 +107,10 @@ public:
 
     std::pair<Error, std::string_view> step(std::string_view input) override;
 
+    std::string getName() const final {
+        return ::to_string(mechanism);
+    }
+
 protected:
     std::string getSaltedPassword() override {
         return user.getPassword(mechanism).getPassword();
@@ -121,10 +125,6 @@ public:
         : ServerBackend(
                   ctx, Mechanism::SCRAM_SHA512, cb::crypto::Algorithm::SHA512) {
     }
-
-    std::string getName() const override {
-        return "SCRAM-SHA512";
-    }
 };
 
 class Sha256ServerBackend : public ServerBackend {
@@ -133,10 +133,6 @@ public:
         : ServerBackend(
                   ctx, Mechanism::SCRAM_SHA256, cb::crypto::Algorithm::SHA256) {
     }
-
-    std::string getName() const override {
-        return "SCRAM-SHA256";
-    }
 };
 
 class Sha1ServerBackend : public ServerBackend {
@@ -144,10 +140,6 @@ public:
     explicit Sha1ServerBackend(server::ServerContext& ctx)
         : ServerBackend(
                   ctx, Mechanism::SCRAM_SHA1, cb::crypto::Algorithm::SHA1) {
-    }
-
-    std::string getName() const override {
-        return "SCRAM-SHA1";
     }
 };
 
@@ -166,6 +158,10 @@ public:
 
     std::pair<Error, std::string_view> start() override;
     std::pair<Error, std::string_view> step(std::string_view input) override;
+
+    std::string getName() const final {
+        return ::to_string(mechanism);
+    }
 
 protected:
     bool generateSaltedPassword(const std::string& secret);
@@ -195,10 +191,6 @@ public:
                         Mechanism::SCRAM_SHA512,
                         cb::crypto::Algorithm::SHA512) {
     }
-
-    std::string getName() const override {
-        return "SCRAM-SHA512";
-    }
 };
 
 class Sha256ClientBackend : public ClientBackend {
@@ -212,10 +204,6 @@ public:
                         Mechanism::SCRAM_SHA256,
                         cb::crypto::Algorithm::SHA256) {
     }
-
-    std::string getName() const override {
-        return "SCRAM-SHA256";
-    }
 };
 
 class Sha1ClientBackend : public ClientBackend {
@@ -228,10 +216,6 @@ public:
                         ctx,
                         Mechanism::SCRAM_SHA1,
                         cb::crypto::Algorithm::SHA1) {
-    }
-
-    std::string getName() const override {
-        return "SCRAM-SHA1";
     }
 };
 

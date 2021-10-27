@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -72,3 +71,19 @@ Mechanism selectMechanism(const std::string& mechanism,
 }
 
 } // namespace cb::sasl
+
+std::string to_string(cb::sasl::Mechanism mechanism) {
+    using cb::sasl::Mechanism;
+    switch (mechanism) {
+    case Mechanism::SCRAM_SHA512:
+        return "SCRAM-SHA512";
+    case Mechanism::SCRAM_SHA256:
+        return "SCRAM-SHA256";
+    case Mechanism::SCRAM_SHA1:
+        return "SCRAM-SHA1";
+    case Mechanism::PLAIN:
+        return "PLAIN";
+    }
+    throw cb::sasl::unknown_mechanism("to_string: unknown mechanism " +
+                                      std::to_string(int(mechanism)));
+}
