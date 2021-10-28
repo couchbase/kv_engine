@@ -1024,6 +1024,11 @@ size_t Manifest::getDataSize(ScopeID sid) const {
 
 void Manifest::updateScopeDataSize(const container::const_iterator entry,
                                    ssize_t delta) const {
+    // Don't continue with a zero update, avoids scope map lookup
+    if (delta == 0) {
+        return;
+    }
+
     if (entry == map.end()) {
         throwException<std::invalid_argument>(__FUNCTION__,
                                               "iterator is invalid");
