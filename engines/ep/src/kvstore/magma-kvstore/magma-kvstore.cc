@@ -195,6 +195,16 @@ static DiskDocKey makeDiskDocKey(const Slice& key) {
     return DiskDocKey{key.Data(), key.Len()};
 }
 
+class MagmaKVFileHandle : public KVFileHandle {
+public:
+    MagmaKVFileHandle(Vbid vbid,
+                      DomainAwareUniquePtr<magma::Magma::Snapshot> snapshot)
+        : vbid(vbid), snapshot(std::move(snapshot)) {
+    }
+    Vbid vbid;
+    DomainAwareUniquePtr<magma::Magma::Snapshot> snapshot;
+};
+
 MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
         MagmaKVStore& magmaKVStore,
         Vbid vbid,
@@ -2369,7 +2379,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
 }
 
 std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) const {
-    std::unique_ptr<magma::Magma::Snapshot> snapshot;
+    DomainAwareUniquePtr<magma::Magma::Snapshot> snapshot;
     // Flush writecache for creating an on-disk snapshot
     auto status = magma->SyncKVStore(vbid.get());
     if (!status && status.ErrorCode() != magma::Status::ReadOnly) {

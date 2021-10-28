@@ -11,6 +11,7 @@
 
 #include "magma-memory-tracking-proxy.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <platform/cb_arena_malloc.h>
 
 DomainAwareFetchBuffer::DomainAwareFetchBuffer() {
@@ -46,6 +47,13 @@ void DomainAwareDelete<magma::Magma::MagmaStats>::operator()(
 
 template <>
 void DomainAwareDelete<std::string>::operator()(std::string* p) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    delete p;
+}
+
+template <>
+void DomainAwareDelete<magma::Magma::Snapshot>::operator()(
+        magma::Magma::Snapshot* p) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     delete p;
 }
@@ -101,16 +109,26 @@ magma::Status MagmaMemoryTrackingProxy::Get(const magma::Magma::KVStoreID kvID,
 
 magma::Status MagmaMemoryTrackingProxy::GetDiskSnapshot(
         const magma::Magma::KVStoreID kvID,
-        std::unique_ptr<magma::Magma::Snapshot>& snap) {
+        DomainAwareUniquePtr<magma::Magma::Snapshot>& snap) {
+    Expects(!snap);
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->GetDiskSnapshot(kvID, snap);
+    // Call magma with its unique_ptr type and then hand any pointer over to
+    // the domain aware type
+    std::unique_ptr<magma::Magma::Snapshot> snapshot;
+    auto status = magma->GetDiskSnapshot(kvID, snapshot);
+    snap.reset(snapshot.release());
+    return status;
 }
 
 magma::Status MagmaMemoryTrackingProxy::GetSnapshot(
         const magma::Magma::KVStoreID kvID,
-        std::unique_ptr<magma::Magma::Snapshot>& snap) {
+        DomainAwareUniquePtr<magma::Magma::Snapshot>& snap) {
+    Expects(!snap);
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->GetSnapshot(kvID, snap);
+    std::unique_ptr<magma::Magma::Snapshot> snapshot;
+    auto status = magma->GetSnapshot(kvID, snapshot);
+    snap.reset(snapshot.release());
+    return status;
 }
 
 magma::Status MagmaMemoryTrackingProxy::GetDocs(

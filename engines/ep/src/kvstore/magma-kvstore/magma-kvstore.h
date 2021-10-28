@@ -233,16 +233,6 @@ public:
     scan_error_t scan(BySeqnoScanContext& sctx) const override;
     scan_error_t scan(ByIdScanContext& ctx) const override;
 
-    class MagmaKVFileHandle : public ::KVFileHandle {
-    public:
-        MagmaKVFileHandle(Vbid vbid,
-                          std::unique_ptr<magma::Magma::Snapshot> snapshot)
-            : vbid(vbid), snapshot(std::move(snapshot)) {
-        }
-        Vbid vbid;
-        std::unique_ptr<magma::Magma::Snapshot> snapshot;
-    };
-
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) const override;
 
     std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>

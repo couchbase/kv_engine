@@ -83,9 +83,10 @@ public:
                       bool& found);
     magma::Status GetDiskSnapshot(
             const magma::Magma::KVStoreID kvID,
-            std::unique_ptr<magma::Magma::Snapshot>& snap);
-    magma::Status GetSnapshot(const magma::Magma::KVStoreID kvID,
-                              std::unique_ptr<magma::Magma::Snapshot>& snap);
+            DomainAwareUniquePtr<magma::Magma::Snapshot>& snap);
+    magma::Status GetSnapshot(
+            const magma::Magma::KVStoreID kvID,
+            DomainAwareUniquePtr<magma::Magma::Snapshot>& snap);
     magma::Status GetDocs(const magma::Magma::KVStoreID kvID,
                           magma::Operations<magma::Magma::GetOperation>& getOps,
                           magma::Magma::GetDocCallback cb);
