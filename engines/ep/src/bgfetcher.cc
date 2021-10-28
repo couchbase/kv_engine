@@ -100,6 +100,8 @@ size_t BgFetcher::doFetch(Vbid vbId, vb_bgfetch_queue_t& itemsToFetch) {
         }
     }
 
+    preCompleteHook();
+
     if (!fetchedItems.empty()) {
         store.completeBGFetchMulti(vbId, fetchedItems, startTime);
         stats.getMultiBatchSizeHisto.addValue(fetchedItems.size());

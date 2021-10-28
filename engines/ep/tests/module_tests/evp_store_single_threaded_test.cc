@@ -4867,3 +4867,146 @@ TEST_P(STParameterizedBucketTest, CkptMgrDedupeStatsCorrectLargeToSmall) {
     EXPECT_EQ(0, vb.dirtyQueueMem);
     EXPECT_EQ(0, vb.dirtyQueuePendingWrites);
 }
+
+/**
+ * MB-49207:
+ *
+ * Test that if we "pause" a bg fetch after reading the item(s) from disk but
+ * before restoring them to the HashTable and update an item in this window then
+ * then BgFetcher does not restore the now "old" version of the item back into
+ * the HashTable.
+ *
+ * This particular variant tests what happens when we restore a regular value
+ */
+TEST_P(STParamPersistentBucketTest, RaceyFetchingValueBgFetch) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto key = makeStoredDocKey("key");
+    store_item(vbid,
+               key,
+               "ohno",
+               0 /*exptime*/,
+               {cb::engine_errc::success} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    const char* msg;
+    store->evictKey(key, vbid, &msg);
+
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    auto gv = store->get(key, vbid, cookie, options);
+
+    auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+    auto& bgFetcher = bucket->getBgFetcher(vbid);
+
+    bgFetcher.preCompleteHook = [this, &key, &options]() {
+        store_item(vbid,
+                   key,
+                   "newValue",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES);
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        const char* msg;
+        store->evictKey(key, vbid, &msg);
+
+        if (isFullEviction()) {
+            // Need to make the item "temp" for the bg fetcher to consider
+            // completing this fetch
+            auto gv = store->get(key, vbid, cookie, options);
+        } else {
+            auto vb = store->getVBucket(vbid);
+            ASSERT_TRUE(vb);
+
+            auto res = vb->ht.findForUpdate(key);
+            ASSERT_TRUE(res.committed);
+            ASSERT_FALSE(res.committed->isResident());
+        }
+    };
+
+    runBGFetcherTask();
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    auto res = vb->ht.findForUpdate(key);
+    ASSERT_TRUE(res.committed);
+
+    // Before the fix the bg fetch would restore the item
+    EXPECT_FALSE(res.committed->isResident());
+}
+
+/**
+ * MB-49207:
+ *
+ * Test that if we "pause" a bg fetch after reading the item(s) from disk but
+ * before restoring them to the HashTable and update an item in this window then
+ * then BgFetcher does not restore the now "old" version of the item back into
+ * the HashTable.
+ *
+ * This particular variant tests what happens when we restore a deleted value
+ */
+TEST_P(STParamPersistentBucketTest, RaceyDeletedValueBgFetch) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto key = makeStoredDocKey("key");
+    store_item(vbid,
+               key,
+               "ohno",
+               0 /*exptime*/,
+               {cb::engine_errc::success} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    delete_item(vbid, key);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    auto gv = store->get(key, vbid, cookie, options);
+
+    auto* bucket = dynamic_cast<EPBucket*>(engine->getKVBucket());
+    auto& bgFetcher = bucket->getBgFetcher(vbid);
+    bgFetcher.preCompleteHook = [this, &key, &options]() {
+        store_item(vbid,
+                   key,
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES);
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        const char* msg;
+        store->evictKey(key, vbid, &msg);
+
+        if (isFullEviction()) {
+            // Need to make the item "temp" for the bg fetcher to consider
+            // completing this fetch
+            auto gv = store->get(key, vbid, cookie, options);
+        } else {
+            auto vb = store->getVBucket(vbid);
+            ASSERT_TRUE(vb);
+
+            auto res = vb->ht.findForUpdate(key);
+            ASSERT_TRUE(res.committed);
+            ASSERT_FALSE(res.committed->isDeleted());
+            ASSERT_FALSE(res.committed->isResident());
+        }
+    };
+
+    runBGFetcherTask();
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    auto res = vb->ht.findForUpdate(key);
+    ASSERT_TRUE(res.committed);
+
+    // Before the fix the bgfetch would restore the old meta and make the item
+    // deleted again
+    EXPECT_FALSE(res.committed->isDeleted());
+}

@@ -58,6 +58,9 @@ public:
      */
     void addPendingVB(Vbid vbId);
 
+    // Test hook called before we complete a bg fetch
+    TestingHook<> preCompleteHook;
+
 private:
     size_t doFetch(Vbid vbId, vb_bgfetch_queue_t& items);
 
