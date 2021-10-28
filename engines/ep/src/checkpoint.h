@@ -494,6 +494,14 @@ public:
     void addItemToCheckpoint(const queued_item& qi);
 
     /**
+     * Removes a queued_item from the checkpoint and updates the checkpoint
+     * stats accordingly.
+     *
+     * @param it Iterator to the item to be removed
+     */
+    void removeItemFromCheckpoint(CheckpointQueue::const_iterator it);
+
+    /**
      * Expels items in the [checkpoint_start + 1, last].
      *
      * @param last Iterator to the last item to expel (inclusive)
@@ -542,6 +550,11 @@ public:
     }
 
     // see member variable definition for info
+    size_t getQueueMemOverhead() const {
+        return queueMemOverhead;
+    }
+
+    // see member variable definition for info
     size_t getKeyIndexMemUsage() const {
         return keyIndexMemUsage;
     }
@@ -582,6 +595,10 @@ public:
      * @param size
      */
     void applyQueuedItemsMemUsageDecrement(size_t size);
+
+    // Memory overhead of the toWrite container (a list), ie 3 ptrs (forward,
+    // backwards and element pointers) per element in the list.
+    static constexpr uint8_t per_item_queue_overhead = 3 * sizeof(uintptr_t);
 
 private:
     /**
@@ -686,6 +703,9 @@ private:
     // Records the memory consumption of all items in the checkpoint queue.
     // For every item we include key, metadata and blob sizes.
     MemoryCounter queuedItemsMemUsage;
+
+    // Memory overhead of the toWrite structure.
+    MemoryCounter queueMemOverhead;
 
     // Is this a checkpoint created by a replica from a received disk snapshot?
     CheckpointType checkpointType;

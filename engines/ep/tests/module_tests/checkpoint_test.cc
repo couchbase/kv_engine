@@ -1699,18 +1699,13 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
                         GenerateCas::Yes,
                         /*preLinkDocCtx*/ nullptr);
 
-    // The queue (toWrite) is implemented as std:list, therefore
-    // when we add an item it results in the creation of 3 pointers -
-    // forward ptr, backward ptr and ptr to object.
-    const size_t perElementOverhead = 3 * sizeof(uintptr_t);
-
     // Check that checkpoint size is the initial size plus the addition of
     // qiSmall.
     auto expectedSize = initialSize;
     // Add the size of the item
     expectedSize += qiSmall->size();
     // Add the size of adding to the queue
-    expectedSize += perElementOverhead;
+    expectedSize += Checkpoint::per_item_queue_overhead;
     // Add to the emulated keyIndex
     keyIndex.emplace(CheckpointIndexKeyType(qiSmall->getKey(),
                                             keyIndexKeyTrackingAllocator),
@@ -1745,7 +1740,7 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
     // Add the size of the item
     expectedSize += qiBig->size();
     // Add the size of adding to the queue
-    expectedSize += perElementOverhead;
+    expectedSize += Checkpoint::per_item_queue_overhead;
     // Add to the keyIndex
     keyIndex.emplace(CheckpointIndexKeyType(qiBig->getKey(),
                                             keyIndexKeyTrackingAllocator),
@@ -1920,12 +1915,8 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadDiskCheckpointTest) {
                         GenerateCas::Yes,
                         /*preLinkDocCtx*/ nullptr);
 
-    // The queue (toWrite) is implemented as std:list, therefore when we add an
-    // item it results in the creation of 3 pointers - forward ptr, backward ptr
-    // and ptr to object. This is tracked under memoryOverhead.
-    const size_t perElementOverhead = 3 * sizeof(uintptr_t);
-    EXPECT_EQ(initialOverhead + perElementOverhead,
-              this->manager->getMemOverheadAllocatorBytes());
+    EXPECT_EQ(initialOverhead + Checkpoint::per_item_queue_overhead,
+              manager->getMemOverheadAllocatorBytes());
 }
 
 // Test that can expel items and that we have the correct behaviour when we
@@ -3434,14 +3425,20 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerEstimatedMemUsage() {
 
     // pre-conditions
     const auto initialQueued = checkpoint->getQueuedItemsMemUsage();
+    const auto initialQueueOverhead = checkpoint->getQueueMemOverhead();
     const auto initialIndex = checkpoint->getKeyIndexMemUsage();
     // Some metaitems are already in the queue
     EXPECT_GT(initialQueued, 0);
+    EXPECT_EQ(initialQueueSize * Checkpoint::per_item_queue_overhead,
+              initialQueueOverhead);
     EXPECT_EQ(0, initialIndex);
-    EXPECT_EQ(initialQueued, stats.getCheckpointManagerEstimatedMemUsage());
-    EXPECT_EQ(initialQueued, manager.getEstimatedMemUsage());
+    EXPECT_EQ(initialQueued + initialQueueOverhead,
+              stats.getCheckpointManagerEstimatedMemUsage());
+    EXPECT_EQ(initialQueued + initialQueueOverhead,
+              manager.getEstimatedMemUsage());
 
     size_t itemsAlloc = 0;
+    size_t queueAlloc = 0;
     size_t keyIndexAlloc = 0;
     const size_t numItems = 10;
     for (size_t i = 1; i <= numItems; ++i) {
@@ -3452,6 +3449,7 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerEstimatedMemUsage() {
         // Our estimated mem-usage must account for the queued item + the
         // allocation for the key-index
         itemsAlloc += item->size();
+        queueAlloc += Checkpoint::per_item_queue_overhead;
         keyIndexAlloc += item->getKey().size() + sizeof(IndexEntry);
     }
 
@@ -3461,11 +3459,14 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerEstimatedMemUsage() {
     EXPECT_EQ(initialQueueSize + numItems, openQueue.size());
 
     const auto queued = checkpoint->getQueuedItemsMemUsage();
+    const auto queueOverhead = checkpoint->getQueueMemOverhead();
     const auto index = checkpoint->getKeyIndexMemUsage();
     EXPECT_EQ(initialQueued + itemsAlloc, queued);
+    EXPECT_EQ(initialQueueOverhead + queueAlloc, queueOverhead);
     EXPECT_EQ(initialIndex + keyIndexAlloc, index);
-    EXPECT_EQ(queued + index, stats.getCheckpointManagerEstimatedMemUsage());
-    EXPECT_EQ(queued + index, manager.getEstimatedMemUsage());
+    EXPECT_EQ(queued + index + queueOverhead,
+              stats.getCheckpointManagerEstimatedMemUsage());
+    EXPECT_EQ(queued + index + queueOverhead, manager.getEstimatedMemUsage());
 }
 
 TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerEstimatedMemUsage) {
@@ -3489,6 +3490,7 @@ TEST_P(CheckpointMemoryTrackingTest,
 
     auto& checkpoint = *manager.getCheckpointList().front();
     const auto initialQueued = checkpoint.getQueuedItemsMemUsage();
+    const auto initialQueueOverhead = checkpoint.getQueueMemOverhead();
     const auto initialIndex = checkpoint.getKeyIndexMemUsage();
 
     auto& cursor = *manager.getPersistenceCursor();
@@ -3538,14 +3540,18 @@ TEST_P(CheckpointMemoryTrackingTest,
     EXPECT_EQ(initialQueueSize - numExpelled, openQueue.size());
 
     const auto queued = checkpoint.getQueuedItemsMemUsage();
+    const auto queueOverhead = checkpoint.getQueueMemOverhead();
     const auto index = checkpoint.getKeyIndexMemUsage();
     // Initial - what we expelled
     EXPECT_EQ(initialQueued - setVBStateSize - m1Size, queued);
+    EXPECT_EQ(initialQueueOverhead -
+                      (numExpelled * Checkpoint::per_item_queue_overhead),
+              queueOverhead);
     // Expel doesn't touch the key index
     EXPECT_EQ(initialIndex, index);
-    EXPECT_EQ(queued + index,
+    EXPECT_EQ(queued + index + queueOverhead,
               engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
-    EXPECT_EQ(queued + index, manager.getEstimatedMemUsage());
+    EXPECT_EQ(queued + index + queueOverhead, manager.getEstimatedMemUsage());
 }
 
 TEST_P(CheckpointMemoryTrackingTest,
@@ -3581,14 +3587,17 @@ TEST_P(CheckpointMemoryTrackingTest,
     // The tracked mem-usage after expel should account only for the
     // empty + ckpt_start items in the single/open empty checkpoint
     const auto expectedFinalQueueAllocation = emptySize + ckptStartSize;
+    const auto expectedFinalQueueOverheadAllocation =
+            2 * Checkpoint::per_item_queue_overhead;
     const auto expectedFinalIndexAllocation = 0;
 
     auto checkpoint = manager.getCheckpointList().front().get();
     auto queued = checkpoint->getQueuedItemsMemUsage();
+    auto queueOverhead = checkpoint->getQueueMemOverhead();
     auto index = checkpoint->getKeyIndexMemUsage();
     ASSERT_GT(queued, expectedFinalQueueAllocation);
     ASSERT_GT(index, expectedFinalIndexAllocation);
-    EXPECT_EQ(queued + index,
+    EXPECT_EQ(queued + index + queueOverhead,
               engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
 
     manager.createNewCheckpoint(true /*force*/);
@@ -3616,12 +3625,14 @@ TEST_P(CheckpointMemoryTrackingTest,
 
     checkpoint = manager.getCheckpointList().front().get();
     queued = checkpoint->getQueuedItemsMemUsage();
+    queueOverhead = checkpoint->getQueueMemOverhead();
     index = checkpoint->getKeyIndexMemUsage();
     EXPECT_EQ(expectedFinalQueueAllocation, queued);
+    EXPECT_EQ(expectedFinalQueueOverheadAllocation, queueOverhead);
     EXPECT_EQ(expectedFinalIndexAllocation, index);
-    EXPECT_EQ(queued + index,
+    EXPECT_EQ(queued + index + queueOverhead,
               engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
-    EXPECT_EQ(queued + index, manager.getEstimatedMemUsage());
+    EXPECT_EQ(queued + index + queueOverhead, manager.getEstimatedMemUsage());
 }
 
 TEST_P(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {

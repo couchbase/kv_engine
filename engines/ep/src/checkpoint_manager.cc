@@ -642,7 +642,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
     // the queued items.
     const auto estimatedMemRecovered =
             queuedItemsMemReleased +
-            ((3 * sizeof(uintptr_t)) * numItemsExpelled);
+            (Checkpoint::per_item_queue_overhead * numItemsExpelled);
 
     stats.memFreedByCheckpointItemExpel += estimatedMemRecovered;
 

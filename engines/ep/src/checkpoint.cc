@@ -199,6 +199,7 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
       preparedKeyIndex(keyIndexAllocator),
       keyIndexMemUsage(st, &manager.estimatedMemUsage),
       queuedItemsMemUsage(st, &manager.estimatedMemUsage),
+      queueMemOverhead(st, &manager.estimatedMemUsage),
       checkpointType(checkpointType),
       highCompletedSeqno(std::move(highCompletedSeqno)) {
     auto& core = stats.coreLocal.get();
@@ -298,6 +299,19 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                 // expelled so all cursors must have passed it.
                 rv.status = QueueDirtyStatus::SuccessPersistAgain;
                 addItemToCheckpoint(qi);
+
+                // This is the current semantic of numItems:
+                // 1. increased at queueDirty()
+                // 2. NOT decreased at expel
+                // 3. decreased at deduplication, even when that is just a
+                //    logic deduplication of a previously expelled item, ie this
+                //    code path.
+                //
+                // We do (2) because most of the numItems accounting in CM rely
+                // on that.. but maybe we should "fix" that ? @todo
+                // Note that essentially (3) "fixes" (2). If we fix (2) by
+                // accounting the decreases at expel, then we can remove (3).
+                --numItems;
             } else {
                 // Case: item not expelled, normal path
 
@@ -437,19 +451,10 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                     rv.successExistingByteDiff = qi->size() - oldItem->size();
                 }
 
+                // Queue the new item and remove the dedup'ed one
                 addItemToCheckpoint(qi);
-
-                // Reduce the size of the checkpoint by the size of the
-                // item being removed.
-                queuedItemsMemUsage -= oldItem->size();
-                // Remove the existing item for the same key from the list.
-                toWrite.erase(
-                        ChkptQueueIterator::const_underlying_iterator{oldPos});
+                removeItemFromCheckpoint(oldPos);
             }
-
-            // Reduce the number of items because addItemToCheckpoint will
-            // increase the number by one.
-            --numItems;
         } else {
             // Case: key is not in the index, just queue the new item.
 
@@ -551,20 +556,26 @@ uint64_t Checkpoint::getMinimumCursorSeqno() const {
 
 void Checkpoint::addItemToCheckpoint(const queued_item& qi) {
     toWrite.push_back(qi);
+    queueMemOverhead += per_item_queue_overhead;
     // Increase the size of the checkpoint by the item being added
     queuedItemsMemUsage += qi->size();
 
-    if (qi->isCheckPointMetaItem()) {
-        // empty items act only as a dummy element for the start of the
-        // checkpoint (and are not read by clients), we do not include them
-        // in numMetaItems.
-        if (qi->isNonEmptyCheckpointMetaItem()) {
-            ++numMetaItems;
-        }
-    } else {
-        // Not a meta item
+    if (!qi->isCheckPointMetaItem()) {
         ++numItems;
+    } else if (qi->isNonEmptyCheckpointMetaItem()) {
+        ++numMetaItems;
     }
+}
+
+void Checkpoint::removeItemFromCheckpoint(CheckpointQueue::const_iterator it) {
+    // Note: Metaitems are logically immutable and not removable, we would break
+    // the checkpoint otherwise.
+    Expects(!(*it)->isCheckPointMetaItem());
+    const auto itemSize = (*it)->size();
+    toWrite.erase(it);
+    queueMemOverhead -= per_item_queue_overhead;
+    queuedItemsMemUsage -= itemSize;
+    --numItems;
 }
 
 CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last,
@@ -630,6 +641,11 @@ CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last,
             }
         }
     }
+
+    // 'distance' is === expelledItems.size()
+    // I avoid to make the size() call as it's O(N). See CheckpointQueue type
+    // for details.
+    queueMemOverhead -= distance * per_item_queue_overhead;
 
     return expelledItems;
 }
@@ -722,6 +738,7 @@ void Checkpoint::detachFromManager() {
             stats.coreLocal.get()->checkpointManagerEstimatedMemUsage;
     cmMemUsage.fetch_sub(queuedItemsMemUsage);
     cmMemUsage.fetch_sub(keyIndexMemUsage);
+    cmMemUsage.fetch_sub(queueMemOverhead);
 
     // stop tracking MemoryCounters against the CM, this also decreases the
     // "parent" value by the values for this Checkpoint.
@@ -735,6 +752,7 @@ void Checkpoint::setMemoryTracker(
     // new owner (destroyer task).
     queuedItemsMemUsage.changeParent(newMemoryUsageTracker);
     keyIndexMemUsage.changeParent(newMemoryUsageTracker);
+    queueMemOverhead.changeParent(newMemoryUsageTracker);
 }
 
 void Checkpoint::applyQueuedItemsMemUsageDecrement(size_t size) {

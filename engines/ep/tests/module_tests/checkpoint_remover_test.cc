@@ -113,11 +113,6 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
     // We should have one checkpoint which is for the state change
     ASSERT_EQ(1, checkpointManager->getNumCheckpoints());
 
-    // The queue (toWrite) is implemented as std:list, therefore
-    // when we add an item it results in the creation of 3 pointers -
-    // forward ptr, backward ptr and ptr to object.
-    const size_t perElementOverhead = 3 * sizeof(uintptr_t);
-
     // Allocator used for tracking memory used by the CheckpointQueue
     checkpoint_index::allocator_type memoryTrackingAllocator;
 
@@ -147,7 +142,7 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
             // Add the size of the item
             expected_size += itr->size();
             // Add the size of adding to the queue
-            expected_size += perElementOverhead;
+            expected_size += Checkpoint::per_item_queue_overhead;
         }
     }
 
@@ -160,7 +155,7 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
     // Add the size of the item
     new_expected_size += item.size();
     // Add the size of adding to the queue
-    new_expected_size += perElementOverhead;
+    new_expected_size += Checkpoint::per_item_queue_overhead;
     // Add to the keyIndex
     committedKeyIndex.emplace(
             CheckpointIndexKeyType(item.getKey(), keyIndexKeyTrackingAllocator),
@@ -250,11 +245,6 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
 
     createDcpStream(*producer);
 
-    // The queue (toWrite) is implemented as std:list, therefore
-    // when we add an item it results in the creation of 3 pointers -
-    // forward ptr, backward ptr and ptr to object.
-    const size_t perElementOverhead = 3 * sizeof(uintptr_t);
-
     // Allocator used for tracking memory used by the CheckpointQueue
     checkpoint_index::allocator_type memoryTrackingAllocator;
 
@@ -281,7 +271,7 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
         Item item = store_item(vbid, makeStoredDocKey(doc_key), "value");
         expectedFreedMemoryFromItems += item.size();
         // Add the size of adding to the queue
-        expectedFreedMemoryFromItems += perElementOverhead;
+        expectedFreedMemoryFromItems += Checkpoint::per_item_queue_overhead;
         // Add to the emulated keyIndex
         keyIndex.emplace(CheckpointIndexKeyType(item.getKey(),
                                                 keyIndexKeyTrackingAllocator),
@@ -313,7 +303,7 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
     // Add the size of the checkpoint end
     expectedFreedMemoryFromItems += chkptEnd->size();
     // Add the size of adding to the queue
-    expectedFreedMemoryFromItems += perElementOverhead;
+    expectedFreedMemoryFromItems += Checkpoint::per_item_queue_overhead;
 
     const auto keyIndexSize = keyIndex.get_allocator().getBytesAllocated();
     expectedFreedMemoryFromItems +=
