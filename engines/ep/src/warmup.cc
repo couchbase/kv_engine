@@ -1477,6 +1477,9 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
             // Set the in memory high seqno - might be 0 in the case of the
             // default collection so we have to reset the monotonic value
             collection.second.resetHighSeqno(stats.highSeqno);
+
+            // And update the scope data size
+            wh.updateDataSize(collection.second.getScopeID(), stats.diskSize);
         }
     }
 

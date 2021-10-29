@@ -18,6 +18,8 @@
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "tests/mock/mock_dcp_consumer.h"
+#include "tests/module_tests/collections/collections_test.h"
+#include "tests/module_tests/test_helpers.h"
 
 #include <utilities/test_manifest.h>
 
@@ -218,4 +220,37 @@ TEST_P(CollectionsDcpParameterizedTest, active_updates_limit) {
                       .lock()
                       .getDataLimit(ScopeEntry::shop1)
                       .value());
+}
+
+TEST_F(CollectionsTest, ScopeWithManyCollectionsWarmup) {
+    auto vb = store->getVBucket(vbid);
+
+    CollectionsManifest cm;
+    cm.add(ScopeEntry::shop1);
+    cm.add(CollectionEntry::fruit, ScopeEntry::shop1);
+    cm.add(CollectionEntry::vegetable, ScopeEntry::shop1);
+    cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
+    setCollections(cookie, cm);
+
+    store_items(
+            2, vbid, makeStoredDocKey("f", CollectionEntry::fruit), "value");
+    store_items(2,
+                vbid,
+                makeStoredDocKey("v", CollectionEntry::vegetable),
+                "value");
+    store_items(
+            2, vbid, makeStoredDocKey("d", CollectionEntry::dairy), "value");
+
+    EXPECT_EQ(0, vb->getManifest().lock().getDataSize(ScopeEntry::shop1));
+
+    flushVBucketToDiskIfPersistent(vbid, 4 + 6);
+    auto ds = vb->getManifest().lock().getDataSize(ScopeEntry::shop1);
+    EXPECT_NE(0, ds);
+    vb.reset();
+    resetEngineAndWarmup();
+
+    // Data size comes back the same value
+    EXPECT_EQ(ds,
+              store->getVBucket(vbid)->getManifest().lock().getDataSize(
+                      ScopeEntry::shop1));
 }

@@ -1027,6 +1027,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
     CollectionsManifest cm;
     uint32_t uid = 0xface2;
     cm.setUid(uid);
+    size_t scopeDataSize = 0;
     {
         auto vb = store->getVBucket(vbid);
 
@@ -1067,6 +1068,8 @@ TEST_F(CollectionsWarmupTest, warmup) {
         EXPECT_EQ(3,
                   store->getVBucket(vbid)->lockCollections().getHighSeqno(
                           CollectionEntry::fruit));
+        scopeDataSize = store->getVBucket(vbid)->lockCollections().getDataSize(
+                ScopeID::Default);
     } // VBucketPtr scope ends
 
     resetEngineAndWarmup();
@@ -1085,6 +1088,10 @@ TEST_F(CollectionsWarmupTest, warmup) {
     EXPECT_EQ(2,
               store->getVBucket(vbid)->lockCollections().getHighSeqno(
                       CollectionEntry::meat));
+
+    EXPECT_EQ(scopeDataSize,
+              store->getVBucket(vbid)->lockCollections().getDataSize(
+                      ScopeID::Default));
 
     {
         Item item(StoredDocKey{"meat:beef", CollectionEntry::meat},
