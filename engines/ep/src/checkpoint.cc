@@ -209,7 +209,7 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
     // from trackingAllocator. The above memOverhead stat is "manually"
     // accounted in queueDirty, and approximates the overhead based on
     // key sizes and the size of queued_item and index_entry.
-    manager.overheadChangedCallback(getMemoryOverhead());
+    manager.overheadChangedCallback(getMemoryOverheadTotal());
 }
 
 Checkpoint::~Checkpoint() {
@@ -247,8 +247,8 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
     QueueDirtyResult rv;
     // trigger the overheadChangedCallback if the overhead is different
     // when this helper is destroyed
-    auto overheadCheck = gsl::finally([pre = getMemoryOverhead(), this]() {
-        auto post = getMemoryOverhead();
+    auto overheadCheck = gsl::finally([pre = getMemoryOverheadTotal(), this]() {
+        auto post = getMemoryOverheadTotal();
         if (pre != post) {
             manager->overheadChangedCallback(post - pre);
         }
@@ -704,7 +704,7 @@ void Checkpoint::detachFromManager() {
     Expects(manager);
     // decrease the manager memory overhead by the total amount of this
     // checkpoint
-    manager->overheadChangedCallback(-getMemoryOverhead());
+    manager->overheadChangedCallback(-getMemoryOverheadTotal());
     manager = nullptr;
 
     // In EPStats we track the mem used by checkpoints owned by CM, so we need

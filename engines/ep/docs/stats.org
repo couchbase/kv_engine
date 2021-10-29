@@ -420,7 +420,10 @@ The following ratios are encoded as 4-digit integers, e.g.:
 | ep_meta_data_disk                        | Total disk used by meta data                   |
 | ep_checkpoint_memory                     | Memory of items in all checkpoints             |
 | ep_checkpoint_memory_unreferenced        | Memory of items in unref checkpoints           |
-| ep_checkpoint_memory_overhead            | Memory of all checkpoints structures           |
+| ep_checkpoint_memory_overhead            | Memory of all checkpoints internal structures  |
+| ep_checkpoint_memory_overhead_queue      | Memory of all checkpoint's queues              |
+| ep_checkpoint_memory_overhead_index      | Memory of all checkpoint's index structures    |
+| ep_checkpoint_memory_overhead_index_key  | Memory of all keys in all checkpoint's indexes |
 | ep_checkpoint_memory_pending_destruction | Memory of checkpoint structures awaiting       |
 |                                          | destruction by a background task               |
 

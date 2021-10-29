@@ -1323,8 +1323,16 @@ void KVBucket::appendAggregatedVBucketStats(
                          visitor.getCheckpointMemory());
         stateCol.addStat(Key::vb_checkpoint_memory_unreferenced,
                          visitor.getCheckpointMemoryUnreferenced());
+
         stateCol.addStat(Key::vb_checkpoint_memory_overhead,
                          visitor.getCheckpointMemoryOverhead());
+        stateCol.addStat(Key::vb_checkpoint_memory_overhead_queue,
+                         visitor.getCheckpointMemoryOverheadQueue());
+        stateCol.addStat(Key::vb_checkpoint_memory_overhead_index,
+                         visitor.getCheckpointMemoryOverheadIndex());
+        stateCol.addStat(Key::vb_checkpoint_memory_overhead_index_key,
+                         visitor.getCheckpointMemoryOverheadIndexKey());
+
         stateCol.addStat(Key::vb_ht_memory, visitor.getHashtableMemory());
         stateCol.addStat(Key::vb_itm_memory, visitor.getItemMemory());
         stateCol.addStat(Key::vb_itm_memory_uncompressed,

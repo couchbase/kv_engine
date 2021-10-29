@@ -424,6 +424,21 @@ public:
     size_t getMemoryOverhead() const;
 
     /**
+     * Return the mem overhead of this CM checkpoints' queue structure.
+     */
+    size_t getMemOverheadQueue() const;
+
+    /**
+     *  Return the mem overhead of this CM checkpoints' index structure.
+     */
+    size_t getMemOverheadIndex() const;
+
+    /**
+     * Return the mem overhead of all keys in this CM checkpoints' index.
+     */
+    size_t getMemOverheadIndexKey() const;
+
+    /**
      * Return memory consumption of unreferenced checkpoints
      */
     size_t getMemoryUsageOfUnrefCheckpoints() const;

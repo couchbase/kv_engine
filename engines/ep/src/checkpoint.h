@@ -469,29 +469,43 @@ public:
      * overhead.
      */
     size_t getMemConsumption() const {
-        return queuedItemsMemUsage + getMemoryOverhead();
+        return queuedItemsMemUsage + getMemoryOverheadTotal();
     }
 
     /**
      * Returns the overhead of the checkpoint.
      * This is comprised of three components:
      * 1) The size of the Checkpoint object
-     * 2) The keyIndex / metaKeyIndex usage
-     * 3) The size of the ref-counted pointer instances (queued_item) in the
-     *    container.
-     *
-     * When it comes to cursor dropping, this is the theoretical guaranteed
-     * memory which can be freed, as the checkpoint contains the only
-     * references to them.
+     * 2) The keyIndex mem usage
+     * 3) The mem overhead of internal pointers of the toWrite container that
+     *    stores items
      */
-    size_t getMemoryOverhead() const {
-        // All 3 indexes (preparedKey, committedKey and metaKey) share the
-        // same allocator and therefore getting the bytes allocated for the
-        // one will include the others.
-        return sizeof(Checkpoint) +
-               (committedKeyIndex.get_allocator().getBytesAllocated()) +
-               (toWrite.get_allocator().getBytesAllocated()) +
-               (keyIndexKeyTrackingAllocator).getBytesAllocated();
+    size_t getMemoryOverheadTotal() const {
+        return sizeof(Checkpoint) + getMemOverheadIndex() +
+               getMemOverheadIndexKey() + getMemOverheadQueue();
+    }
+
+    /**
+     * Return the mem overhead of this checkpoint queue structure.
+     */
+    size_t getMemOverheadQueue() const {
+        return toWrite.get_allocator().getBytesAllocated();
+    }
+
+    /**
+     *  Return the mem overhead of this checkpoint index structure.
+     */
+    size_t getMemOverheadIndex() const {
+        // All key-indexes (committed / prepared) share the same allocator and
+        // so getting the bytes allocated for the one will include the others.
+        return committedKeyIndex.get_allocator().getBytesAllocated();
+    }
+
+    /**
+     * Return the mem overhead of all keys in this checkpoint index.
+     */
+    size_t getMemOverheadIndexKey() const {
+        return keyIndexKeyTrackingAllocator.getBytesAllocated();
     }
 
     /**

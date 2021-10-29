@@ -1419,7 +1419,7 @@ size_t CheckpointManager::getMemoryUsage_UNLOCKED() const {
 size_t CheckpointManager::getMemoryOverhead_UNLOCKED() const {
     size_t memUsage = 0;
     for (const auto& checkpoint : checkpointList) {
-        memUsage += checkpoint->getMemoryOverhead();
+        memUsage += checkpoint->getMemoryOverheadTotal();
     }
     return memUsage;
 }
@@ -1448,9 +1448,39 @@ size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() const {
     return memUsage;
 }
 
+// @todo MB-48587: Suboptimal O(N) implementation for all mem-overhead functions
+//  below, optimized in a dedicated patch.
+
 size_t CheckpointManager::getMemoryOverhead() const {
     std::lock_guard<std::mutex> lh(queueLock);
     return getMemoryOverhead_UNLOCKED();
+}
+
+size_t CheckpointManager::getMemOverheadQueue() const {
+    std::lock_guard<std::mutex> lh(queueLock);
+    size_t usage = 0;
+    for (const auto& checkpoint : checkpointList) {
+        usage += checkpoint->getMemOverheadQueue();
+    }
+    return usage;
+}
+
+size_t CheckpointManager::getMemOverheadIndex() const {
+    std::lock_guard<std::mutex> lh(queueLock);
+    size_t usage = 0;
+    for (const auto& checkpoint : checkpointList) {
+        usage += checkpoint->getMemOverheadIndex();
+    }
+    return usage;
+}
+
+size_t CheckpointManager::getMemOverheadIndexKey() const {
+    std::lock_guard<std::mutex> lh(queueLock);
+    size_t usage = 0;
+    for (const auto& checkpoint : checkpointList) {
+        usage += checkpoint->getMemOverheadIndexKey();
+    }
+    return usage;
 }
 
 void CheckpointManager::addStats(const AddStatFn& add_stat,

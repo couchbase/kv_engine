@@ -98,6 +98,18 @@ public:
         return checkpointMemoryOverhead;
     }
 
+    size_t getCheckpointMemoryOverheadQueue() const {
+        return checkpointMemoryOverheadQueue;
+    }
+
+    size_t getCheckpointMemoryOverheadIndex() const {
+        return checkpointMemoryOverheadIndex;
+    }
+
+    size_t getCheckpointMemoryOverheadIndexKey() const {
+        return checkpointMemoryOverheadIndexKey;
+    }
+
     size_t getHashtableMemory() const {
         return htMemory;
     }
@@ -192,7 +204,11 @@ private:
     size_t metaDataDisk{0};
     size_t checkpointMemory{0};
     size_t checkpointMemoryUnreferenced{0};
+
     size_t checkpointMemoryOverhead{0};
+    size_t checkpointMemoryOverheadQueue{0};
+    size_t checkpointMemoryOverheadIndex{0};
+    size_t checkpointMemoryOverheadIndexKey{0};
 
     size_t opsCreate{0};
     size_t opsDelete{0};

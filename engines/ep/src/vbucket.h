@@ -239,6 +239,10 @@ public:
 
     size_t getChkMgrMemUsageOverhead() const;
 
+    size_t getCMMemOverheadQueue() const;
+    size_t getCMMemOverheadIndex() const;
+    size_t getCMMemOverheadIndexKey() const;
+
     uint64_t getPurgeSeqno() const {
         return purge_seqno;
     }
