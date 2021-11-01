@@ -962,19 +962,18 @@ static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
                     }
 
                     if ((descr.family == AF_INET &&
-                         interface.ipv4 != NetworkInterface::Protocol::Off) ||
+                         interface.ipv4 == NetworkInterface::Protocol::Off) ||
                         (descr.family == AF_INET6 &&
-                         interface.ipv6 != NetworkInterface::Protocol::Off)) {
-                        drop = false;
+                         interface.ipv6 == NetworkInterface::Protocol::Off)) {
+                        continue;
                     }
 
-                    if (!drop) {
-                        if (descr.sslKey != interface.ssl.key ||
-                            descr.sslCert != interface.ssl.cert) {
-                            // change the associated description
-                            connection->updateSSL(interface.ssl.key,
-                                                  interface.ssl.cert);
-                        }
+                    drop = false;
+                    if (descr.sslKey != interface.ssl.key ||
+                        descr.sslCert != interface.ssl.cert) {
+                        // change the associated description
+                        connection->updateSSL(interface.ssl.key,
+                                              interface.ssl.cert);
                     }
 
                     break;
