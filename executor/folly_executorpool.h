@@ -74,24 +74,29 @@ class IOThreadPoolExecutor;
  *      Calling Thread          IO Thread            CPU Thread Pool
  *
  *      1. [B] wake()
- *         run on IO thread --> 2. Update timeout
+ *         <<enqueue on IO thread>>  -----\
+ *         wake() done.                   |
+ *                                        V
+                                2. Update timeout
  *                                 CPUPool::enqueue()
- *                                 <--
- *         <--
- *         wake() done.
  *
  *      ... When next CPU thread available ...
  *                                                   3. CPUPool::dequeue()
  *                                                   [B] GlobalTask::execute()
  *                                                   ... perform work ...
- *                                                   Reschedule task
- *                              4. [B] snooze()  <--
+ *                                         /-------- Reschedule task <<enqueue
+on IO thread>>
+*                                          |         ... done..
+ *                                         V
+ *                              4. rescheduleTaskAfterRun
  *                                 Update timeout
- *                                               -->    ... done..
  *
- *    This results in two context switches for wake() - switch to IO thread the
- *    back to calling thread, then two context switches for snooze() - to IO
- *    thread for snooze then back to CPU pool thread.
+ *    This results in zero context switches for wake() from the caller's POV,
+ *    but overall 1 - the IO thread will be woken and need to run at some point
+ *    after to actually update the timeout.
+ *    It requires two context switches to actually run (and re-schedule) the
+ *    task - one to the CPU thread pool, then back to the IO thread to adjust
+ *    the next wake time.
  *
  *    CB3ExecutorPool however performs the wake() and snooze() on the calling
  *    thread (but with added mutexes), so in theory it has _zero_ context-
@@ -112,7 +117,7 @@ class IOThreadPoolExecutor;
  *    - Single-threaded, potentially limiting scheduling throughput on highly
  *      threaded / high load environments.
  *
- *    Note that Folly claims that an IO thread handle milions of events per
+ *    Note that Folly claims that an IO thread handle millions of events per
  *    second [1], so for an initial implementation this  seems a reasonable
  *    design - if the single IO thread / context switches are a bottleneck we
  *    can revisit down the line.

@@ -256,6 +256,46 @@ TYPED_TEST(ExecutorPoolTest, UnregisterTaskableConcurrentSchedule) {
     this->pool->unregisterTaskable(taskable, false);
 }
 
+/**
+ * Test that unregisterTaskable waits for all running tasks to finish
+ * before unregisterTaskable returns - i.e. that the user can assume that a
+ * Taskable is safe to delete (as all registered Tasks have completed) once
+ * unregistered.
+ */
+TYPED_TEST(ExecutorPoolTest, UnregisterTaskableWaitsForTasks) {
+    // Not interested in any calls to logQTime when task runs - just ignore them
+    // using NiceMock.
+    auto taskable = std::make_unique<NiceMock<MockTaskable>>();
+    this->makePool(1);
+    this->pool->registerTaskable(*taskable);
+
+    // Test task which whose destructor dereferences its taskable; to
+    // check that the Task is deleted _before_ unregisterTaskable returns.
+    // Relies on ASan to flag a use-after-free bug.
+    struct TestTask : public LambdaTask {
+        TestTask(Taskable& t)
+            : LambdaTask(t,
+                         TaskId::ItemPager,
+                         /*sleeptime*/ 0,
+                         /*completeBeforeShutdown*/ false,
+                         [](LambdaTask&) {
+                             std::this_thread::yield();
+                             return true;
+                         }) {
+        }
+        ~TestTask() override {
+            std::this_thread::sleep_for(std::chrono::milliseconds{100});
+            getTaskable().isShutdown();
+        }
+    };
+    this->pool->schedule(std::make_shared<TestTask>(*taskable));
+
+    // Test: unregisterTaskable and then delete it; TestTask should be deleted
+    // before this.
+    this->pool->unregisterTaskable(*taskable, false);
+    taskable.reset();
+}
+
 /// Test that tasks are run immediately when they are woken.
 TYPED_TEST(ExecutorPoolTest, Wake) {
     this->makePool(1);
@@ -563,6 +603,103 @@ TYPED_TEST(ExecutorPoolTest, CancelThenSnooze) {
     this->pool->cancel(taskId, true);
 
     // Cleanup.
+    this->pool->unregisterTaskable(taskable, false);
+}
+
+/**
+ * Regression test for MB-47451 - ensure that a sequence of schedule(),
+ * cancel(), schedule(), cancel() where the asynchronous cancel cleanup is
+ * delayed cannot result in a use-after-free.
+ */
+TYPED_TEST(ExecutorPoolTest, ScheduleCancelx2) {
+    // Scenario: The use-after-free occurs when the asynchronous task deletion
+    // (which runs on a NonIO thread) is executed _after_ the task has already
+    // been re-scheduled.
+    // Specifically the following sequence of calls across threads - note
+    // numbering indicates logical order of the 6 steps, but vertical position
+    // indicates when tasks _actually_ are executed temporally:
+    //
+    //   IO (futurePool) thread               CPU (NonIO) thread
+    //   ----------------------               ------------------
+    //   1. scheduleTask()
+    //   2. cancelTask()
+    //      calls resetTaskPtrViaCpuPool()
+    //      - enqueue work on NonIO
+    //        thread to reset GlobalTask
+    //        shared_ptr.
+    //   4. scheduleTask()
+    //   5. cancelTask()
+    //      (same as step 2).
+    //
+    //                                        3. <<enqueued at 2>>
+    //                                           call resetTaskPtrViaCpuPool
+    //                                           lamba
+    //                                           - Reset GlobalTaskShared ptr
+    //                                           - enqueue work on futurePool
+    //                                             to remove Proxy from
+    //                                             taskOwners.
+    //
+    //                                        6. <<enqueued at 2>>
+    //                                           call resetTaskPtrViaCpuPool
+    //                                           lamba
+    //                                           - Reset GlobalTaskShared ptr
+    //                                           - enqueue work on futurePool
+    //                                             to remove Proxy from
+    //                                             taskOwners.
+    //                                           *** user-after-free of Proxy
+    //                                           ***
+    //
+    // The use-after-free occurs during the second resetTaskPtrViaCpuPool
+    // lambda (6) is executing; as we are essentially re-freeing the Proxy
+    // which was freed at (3). This is because the code assumes that (6) will
+    // be executed after (4) - when a new Proxy would normally be created.
+    //
+    // Note that we don't currently see any failure at (4) - where we are
+    // logically re-using the same proxy (it's not yet deleted at (3) as one
+    // might expect) - as that is a "valid" scenario as per the changes made for
+    // MB-42029 which allow a TaskProxy to be re-used if a task is re-scheduled
+    // before the cancel cleanup is completed.
+    // The above scenario highlights that the fix for MB-42029 (and allowing
+    // reuse of TaskProxy objects) is flawed :)
+
+    // Setup - create pool and taskable.
+    // Note: Starting with zero CPU worker threads (reader/writer/auxio/nonio)
+    // - this is so the tasks scheduled on the NonIO CPU worker threads
+    // are not immediately run - see below.
+    // (Note: makePool assumes '0' means "auto-configure" for thread counts,
+    // hence must make explicit call to setNonIO(0) after construction.)
+    this->makePool(1, 1, 1, 1);
+    this->pool->setNumNonIO(0);
+    NiceMock<MockTaskable> taskable;
+    this->pool->registerTaskable(taskable);
+
+    // Setup - simple test task which does nothing.
+    // 1 hour - i.e. we don't want it to run when initially scheduled.
+    auto sleepTime = 60.0 * 60.0;
+    auto task = std::make_shared<LambdaTask>(
+            taskable, TaskId::ItemPager, sleepTime, false, [](LambdaTask&) {
+                return false;
+            });
+
+    // 1. schedule.
+    auto taskId = this->pool->schedule(task);
+    // 2. cancel. Note that (3) cannot occcur yet (as per desired sequence
+    //    above) as there are zero NonIO threads running.
+    EXPECT_TRUE(this->pool->cancel(taskId, false));
+    EXPECT_EQ(TASK_DEAD, task->getState());
+
+    // 3. schedule a second time
+    taskId = this->pool->schedule(task);
+    // 4. cancel. Again, (5) cannot run yet as there's nonIO threads available
+    //    for it to run on.
+    EXPECT_TRUE(this->pool->cancel(taskId, false));
+
+    // 3. (and 6). Release the hounds^Wqueued NonIO tasks by setting the NonIO
+    // thread count to one. We will see the user-after-free when step 6 occurs
+    // (second attempt to delete the TaskProxy).
+    this->pool->setNumNonIO(1);
+
+    // Cleanup; we will have crashed before here with the bug.
     this->pool->unregisterTaskable(taskable, false);
 }
 
