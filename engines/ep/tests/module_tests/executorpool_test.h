@@ -40,6 +40,12 @@ public:
 template <typename T>
 class ExecutorPoolTest : public ::testing::Test {
 protected:
+    // Create a thread pool with the specified number of threads. Defaults
+    // to 2 threads of each type to ensure we don't rely on any artificial
+    // serialisation we get with a single thread per-pool (a pool size of 1
+    // would always consume all queued tasks in-order; whereas a pool size of 2+
+    // means queued tasks can get executed in different order to what was
+    // queued.
     void makePool(int maxThreads,
                   int numReaders = 2,
                   int numWriters = 2,

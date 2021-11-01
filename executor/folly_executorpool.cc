@@ -220,7 +220,8 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
         using namespace std::chrono;
 
         LOG_TRACE(
-                "TaskProxy::resetTaskPtrViaCpuPool() id:{} name:{} descr:'{}' "
+                "FollyExecutorPool::TaskProxy::resetTaskPtrViaCpuPool() id:{} "
+                "name:{} descr:'{}' "
                 "enqueuing func to reset 'task' shared_ptr",
                 task->getId(),
                 GlobalTask::getTaskName(task->getTaskId()),
@@ -229,10 +230,11 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
         // Move `task` from this object (leaving it as null)
         cpuPool.add([ptrToReset = std::move(task), &proxy = *this]() mutable {
             LOG_TRACE(
-                    "FollyExecutorPool::resetTaskPtrViaCpuPool lambda() id:{} "
-                    "name:{}",
+                    "FollyExecutorPool::TaskProxy::resetTaskPtrViaCpuPool "
+                    "lambda() id:{} name:{} state:{}",
                     ptrToReset->getId(),
-                    GlobalTask::getTaskName(ptrToReset->getTaskId()));
+                    GlobalTask::getTaskName(ptrToReset->getTaskId()),
+                    to_string(ptrToReset->getState()));
 
             // Reset the shared_ptr, decrementing it's refcount and potentially
             // deleting the owned object if no other objects (Engine etc) have
@@ -564,7 +566,8 @@ struct FollyExecutorPool::State {
             it = tasks.locator.find(taskId);
             if (it != tasks.locator.end()) {
                 LOG_TRACE(
-                        "FollyExecutorPool::cancelTask() id:{} found for "
+                        "FollyExecutorPool::State::cancelTask() id:{} found "
+                        "for "
                         "owner:'{}'",
                         taskId,
                         owner->getName());
@@ -698,6 +701,15 @@ FollyExecutorPool::FollyExecutorPool(size_t maxThreads,
       maxWriters(calcNumWriters(maxWriters_)),
       maxAuxIO(calcNumAuxIO(maxAuxIO_)),
       maxNonIO(calcNumNonIO(maxNonIO_)) {
+    LOG_TRACE(
+            "FollyExecutorPool ctor: Creating with maxThreads:{} maxReaders:{} "
+            "maxWriters:{} maxAuxIO:{} maxNonIO:{}",
+            maxThreads,
+            maxReaders,
+            maxWriters,
+            maxAuxIO,
+            maxNonIO);
+
     // Disable dynamic thread creation / destruction to match CB3ExecutorPool
     // behaviour. At least AtomicQueue cannot be used when this is set to true.
     FLAGS_dynamic_cputhreadpoolexecutor = false;
