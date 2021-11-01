@@ -19,7 +19,8 @@
  */
 class MockTaskable : public Taskable {
 public:
-    MockTaskable(bucket_priority_t priority = HIGH_BUCKET_PRIORITY);
+    MockTaskable(std::string name = "MockTaskable",
+                 bucket_priority_t priority = HIGH_BUCKET_PRIORITY);
 
     const std::string& getName() const override;
 
@@ -44,9 +45,7 @@ public:
 
     bool isShutdown() override;
 
-    void setName(std::string name);
-
 protected:
-    std::string name;
+    const std::string name;
     WorkLoadPolicy policy;
 };

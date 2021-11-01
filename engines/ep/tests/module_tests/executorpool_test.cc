@@ -766,7 +766,7 @@ TYPED_TEST(ExecutorPoolTest, ThreadPriorities) {
 // Test that Task queue stats are reported correctly.
 TYPED_TEST(ExecutorPoolTest, TaskQStats) {
     this->makePool(1);
-    MockTaskable lowPriBucket{LOW_BUCKET_PRIORITY};
+    MockTaskable lowPriBucket{"LowPriMockTaskable", LOW_BUCKET_PRIORITY};
     this->pool->registerTaskable(lowPriBucket);
 
     // Create some tasks with long sleep times to check for non-zero InQueue
@@ -822,7 +822,7 @@ TYPED_TEST(ExecutorPoolTest, TaskQStatsMultiPriority) {
     this->makePool(1);
     // Create and register both high and low priority buckets so stats for
     // both priorities are reported.
-    MockTaskable lowPriBucket{LOW_BUCKET_PRIORITY};
+    MockTaskable lowPriBucket{"LowPriMockTaskable", LOW_BUCKET_PRIORITY};
     MockTaskable highPriBucket;
     this->pool->registerTaskable(lowPriBucket);
     this->pool->registerTaskable(highPriBucket);
@@ -898,10 +898,8 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
 
     this->makePool(1, 1, 1, 1, 1);
     // Create two buckets so they have different names.
-    NiceMock<MockTaskable> bucket0;
-    bucket0.setName("bucket0");
-    NiceMock<MockTaskable> bucket1;
-    bucket1.setName("bucket1");
+    NiceMock<MockTaskable> bucket0("bucket0");
+    NiceMock<MockTaskable> bucket1("bucket1");
     this->pool->registerTaskable(bucket0);
     this->pool->registerTaskable(bucket1);
 
@@ -968,10 +966,8 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
 TYPED_TEST(ExecutorPoolTest, TaskStats) {
     this->makePool(1, 1, 1, 1, 1);
     // Create two buckets so they have different names.
-    NiceMock<MockTaskable> bucket0;
-    bucket0.setName("bucket0");
-    NiceMock<MockTaskable> bucket1;
-    bucket1.setName("bucket1");
+    NiceMock<MockTaskable> bucket0("bucket0");
+    NiceMock<MockTaskable> bucket1("bucket1");
     this->pool->registerTaskable(bucket0);
     this->pool->registerTaskable(bucket1);
 

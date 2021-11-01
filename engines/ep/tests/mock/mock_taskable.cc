@@ -11,7 +11,10 @@
 
 #include "mock_taskable.h"
 
-MockTaskable::MockTaskable(bucket_priority_t priority) : policy(priority, 1) {
+#include <utility>
+
+MockTaskable::MockTaskable(std::string name, bucket_priority_t priority)
+    : name(std::move(name)), policy(priority, 1) {
 }
 
 const std::string& MockTaskable::getName() const {
@@ -40,8 +43,4 @@ void MockTaskable::logRunTime(const GlobalTask& task,
 
 bool MockTaskable::isShutdown() {
     return false;
-}
-
-void MockTaskable::setName(std::string name_) {
-    name = name_;
 }
