@@ -299,6 +299,13 @@ std::pair<MutationStatus, GetValue> VBucketTestBase::public_getAndUpdateTtl(
             hbl.first, hbl.second, exptime, cHandle);
 }
 
+std::tuple<MutationStatus, StoredValue*, VBNotifyCtx>
+VBucketTestBase::public_processExpiredItem(
+        HashTable::FindUpdateResult& htRes,
+        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+    return vbucket->processExpiredItem(htRes, cHandle);
+}
+
 bool operator==(const SWCompleteTrace& lhs, const SWCompleteTrace& rhs) {
     return lhs.count == rhs.count && lhs.cookie == rhs.cookie &&
            lhs.status == rhs.status;

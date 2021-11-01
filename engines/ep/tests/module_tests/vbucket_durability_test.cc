@@ -3168,3 +3168,35 @@ TEST_P(VBucketDurabilityTest, SyncAddUsesCommittedValueRevSeqno) {
     // values.
     EXPECT_EQ(3, sv->getRevSeqno());
 }
+
+// More targetted test for VBucket::processExpiredItem return value when we try
+// to expire a committed item while there is a pending one.
+TEST_P(VBucketDurabilityTest, DoNotExpireCommittedIfPending) {
+    auto key = makeStoredDocKey("key");
+    auto item = makeCommittedItem(key, "value");
+    item->setExpTime(5);
+    EXPECT_EQ(MutationStatus::WasClean,
+              public_processSet(*item, 0 /*cas*/, VBQueueItemCtx()));
+
+    auto pending = makePendingItem(key, "value");
+    VBQueueItemCtx ctx;
+    ctx.durability = DurabilityItemCtx{pending->getDurabilityReqs(), cookie};
+    EXPECT_EQ(MutationStatus::WasClean,
+              public_processSet(*pending, 0 /*cas*/, ctx));
+
+    auto cHandle = vbucket->lockCollections(key);
+    auto findUpdateResult = vbucket->ht.findForUpdate(key);
+    MutationStatus status;
+    StoredValue* sv;
+    VBNotifyCtx notifyCtx;
+    std::tie(status, sv, notifyCtx) =
+            public_processExpiredItem(findUpdateResult, cHandle);
+    EXPECT_EQ(MutationStatus::IsPendingSyncWrite, status);
+    EXPECT_EQ(findUpdateResult.committed, sv);
+    EXPECT_EQ(0, notifyCtx.bySeqno);
+    EXPECT_FALSE(notifyCtx.notifyReplication);
+    EXPECT_FALSE(notifyCtx.notifyFlusher);
+    EXPECT_EQ(0, notifyCtx.itemCountDifference);
+
+    EXPECT_EQ(0, vbucket->numExpiredItems);
+}
