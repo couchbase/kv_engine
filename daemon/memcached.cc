@@ -899,7 +899,8 @@ static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
                 const auto& descr = connection->getInterfaceDescription();
 
                 if ((useTag && (descr.tag == interface.tag)) ||
-                    (!useTag && (descr.port == interface.port))) {
+                    (!useTag && descr.port == interface.port &&
+                     descr.host == interface.host)) {
                     if (descr.family == AF_INET) {
                         ipv4 = false;
                     } else {
@@ -950,8 +951,9 @@ static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
                 bool drop = true;
                 for (const auto& interface : interfaces) {
                     if (descr.tag.empty()) {
-                        if (interface.port != descr.port) {
-                            // port mismatch... look at the next
+                        if (interface.port != descr.port ||
+                            interface.host != descr.host) {
+                            // host:port mismatch... look at the next
                             continue;
                         }
                     } else if (descr.tag != interface.tag) {
@@ -1081,6 +1083,17 @@ static SOCKET new_server_socket(struct addrinfo* ai) {
         LOG_WARNING("setsockopt(SO_REUSEADDR): {}",
                     cb_strerror(cb::net::get_socket_error()));
     }
+
+#ifndef WIN32
+    if (cb::net::setsockopt(sfd,
+                            SOL_SOCKET,
+                            SO_REUSEPORT,
+                            reinterpret_cast<const void*>(&flags),
+                            sizeof(flags)) != 0) {
+        LOG_WARNING("setsockopt(SO_REUSEPORT): {}",
+                    cb_strerror(cb::net::get_socket_error()));
+    }
+#endif
 
     if (cb::net::setsockopt(sfd,
                             SOL_SOCKET,

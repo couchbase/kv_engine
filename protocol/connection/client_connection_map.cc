@@ -80,6 +80,7 @@ void ConnectionMap::initialize(const nlohmann::json& ports) {
         connections.push_back(
                 std::make_unique<MemcachedConnection>("", port, family, ssl));
         connections.back()->setTag(cb::jsonGet<std::string>(obj, "tag"));
+        connections.back()->setName(cb::jsonGet<std::string>(obj, "name"));
     }
 }
 

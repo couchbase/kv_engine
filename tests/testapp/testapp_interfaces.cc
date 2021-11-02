@@ -56,3 +56,65 @@ TEST_P(InterfacesTest, AddRemoveInterface) {
     connectionMap.iterate([&current](MemcachedConnection& c) { ++current; });
     EXPECT_EQ(current, total);
 }
+
+TEST_P(InterfacesTest, DisableInAnyInterface) {
+    size_t total = 0;
+    connectionMap.iterate([&total](const MemcachedConnection& c) { ++total; });
+    auto interfaces = memcached_cfg["interfaces"];
+
+    memcached_cfg["interfaces"][2] = {{"tag", "DisableInAnyInterface"},
+                                      {"port", 0},
+                                      {"ipv4", "required"},
+                                      {"ipv6", "off"},
+                                      {"host", "*"}};
+    reconfigure();
+    parse_portnumber_file();
+
+    // Find the port number it was assigned to so we can use that port
+    // going forward
+    in_port_t assignedPort = 0;
+    connectionMap.iterate([&assignedPort](const MemcachedConnection& c) {
+        if (c.getTag() == "DisableInAnyInterface") {
+            assignedPort = c.getPort();
+            ASSERT_EQ("0.0.0.0:" + std::to_string(assignedPort), c.getName());
+        }
+    });
+    ASSERT_NE(0, assignedPort);
+
+    // Check that we can go from ANY to localhost
+    memcached_cfg["interfaces"][2] = {{"port", assignedPort},
+                                      {"ipv4", "required"},
+                                      {"ipv6", "off"},
+                                      {"host", "127.0.0.1"}};
+
+    reconfigure();
+    parse_portnumber_file();
+    bool ok = false;
+    connectionMap.iterate([&assignedPort, &ok](const MemcachedConnection& c) {
+        if (c.getPort() == assignedPort) {
+            EXPECT_EQ("127.0.0.1:" + std::to_string(assignedPort), c.getName());
+            ok = true;
+        }
+    });
+    ASSERT_TRUE(ok) << "Did not locate the port entry";
+
+    // Check that we can go back to ANY
+    memcached_cfg["interfaces"][2] = {{"port", assignedPort},
+                                      {"ipv4", "required"},
+                                      {"ipv6", "off"},
+                                      {"host", "*"}};
+    reconfigure();
+    parse_portnumber_file();
+    ok = false;
+    connectionMap.iterate([&assignedPort, &ok](const MemcachedConnection& c) {
+        if (c.getPort() == assignedPort) {
+            EXPECT_EQ("0.0.0.0:" + std::to_string(assignedPort), c.getName());
+            ok = true;
+        }
+    });
+    ASSERT_TRUE(ok) << "Did not locate the port entry";
+    // restore the original interface array
+    memcached_cfg["interfaces"] = interfaces;
+    reconfigure();
+    parse_portnumber_file();
+}
