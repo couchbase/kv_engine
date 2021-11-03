@@ -15,12 +15,12 @@
  *   limitations under the License.
  */
 
-#include "dcp_snapshot_marker_codec.h"
 #include "executors.h"
 
 #include "engine_wrapper.h"
 
 #include <daemon/cookie.h>
+#include <mcbp/dcp_snapshot_marker_codec.h>
 #include <memcached/protocol_binary.h>
 
 void dcp_snapshot_marker_executor(Cookie& cookie) {

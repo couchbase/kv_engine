@@ -25,13 +25,13 @@
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "memcached.h"
-#include "protocol/mcbp/dcp_snapshot_marker_codec.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "runtime.h"
 #include "server_event.h"
 #include "settings.h"
 
 #include <logger/logger.h>
+#include <mcbp/dcp_snapshot_marker_codec.h>
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>

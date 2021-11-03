@@ -15,7 +15,8 @@
  *   limitations under the License.
  */
 
-#include "dcp_snapshot_marker_codec.h"
+#include <mcbp/dcp_snapshot_marker_codec.h>
+
 namespace cb {
 namespace mcbp {
 
