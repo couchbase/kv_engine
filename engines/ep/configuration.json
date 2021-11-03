@@ -230,7 +230,7 @@
             }
         },
         "checkpoint_memory_ratio": {
-            "default": "0.5",
+            "default": "0.3",
             "descr": "Max ratio of the bucket quota that can be allocated in checkpoints. The system enters a TempOOM phase if hit.",
             "dynamic": true,
             "type": "float",
