@@ -1833,7 +1833,7 @@ cb::engine_errc DcpProducer::maybeDisconnect() {
     auto elapsedTime = now - lastReceiveTime;
     auto dcpIdleTimeout = getIdleTimeout();
     if (noopCtx.enabled && std::chrono::seconds(elapsedTime) > dcpIdleTimeout) {
-        logger->info(
+        logger->warn(
                 "Disconnecting because a message has not been received for "
                 "the DCP idle timeout of {}s. "
                 "Sent last message (e.g. mutation/noop/streamEnd) {}s ago. "
