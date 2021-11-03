@@ -93,14 +93,15 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
     vb->updateFromManifest(Collections::Manifest{std::string{cm}});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    store_items(
-            5, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice");
+    ASSERT_TRUE(store_items(
+            5, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice"));
     flushVBucketToDiskIfPersistent(vbid, 5);
     auto streamSeqno = vb->getHighSeqno();
     EXPECT_EQ(streamSeqno,
               vb->getManifest().lock().getHighSeqno(CollectionEntry::fruit));
 
-    store_items(4, vbid, StoredDocKey{"Beef", CollectionEntry::meat}, "nice");
+    ASSERT_TRUE(store_items(
+            4, vbid, StoredDocKey{"Beef", CollectionEntry::meat}, "nice"));
     flushVBucketToDiskIfPersistent(vbid, 4);
 
     delete_item(vbid, StoredDocKey{"Beef1", CollectionEntry::meat});
@@ -148,8 +149,8 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
     vb->updateFromManifest(Collections::Manifest{std::string{cm}});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    store_items(
-            2, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice");
+    ASSERT_TRUE(store_items(
+            2, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice"));
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     store_item(vbid, StoredDocKey{"Beef", CollectionEntry::meat}, "nice");
@@ -221,8 +222,8 @@ TEST_F(CollectionsDcpStreamsTest,
     vb->updateFromManifest(Collections::Manifest{std::string{cm}});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    store_items(
-            5, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice");
+    ASSERT_TRUE(store_items(
+            5, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice"));
     flushVBucketToDiskIfPersistent(vbid, 5);
 
     auto streamSeqno = vb->getHighSeqno();
@@ -230,7 +231,8 @@ TEST_F(CollectionsDcpStreamsTest,
     EXPECT_EQ(streamSeqno,
               vb->getManifest().lock().getHighSeqno(CollectionEntry::fruit));
 
-    store_items(4, vbid, StoredDocKey{"Beef", CollectionEntry::meat}, "nice");
+    ASSERT_TRUE(store_items(
+            4, vbid, StoredDocKey{"Beef", CollectionEntry::meat}, "nice"));
     flushVBucketToDiskIfPersistent(vbid, 4);
 
     delete_item(vbid, StoredDocKey{"Beef1", CollectionEntry::meat});
@@ -280,11 +282,12 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
     vb->updateFromManifest(Collections::Manifest{std::string{cm}});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    store_items(
-            2, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice");
+    ASSERT_TRUE(store_items(
+            2, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice"));
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    store_items(2, vbid, StoredDocKey{"Beef", CollectionEntry::meat}, "nice");
+    ASSERT_TRUE(store_items(
+            2, vbid, StoredDocKey{"Beef", CollectionEntry::meat}, "nice"));
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     auto streamSeqno = vb->getHighSeqno();
@@ -353,11 +356,12 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
     vb->updateFromManifest(Collections::Manifest{std::string{cm}});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    store_items(
-            2, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice");
+    ASSERT_TRUE(store_items(
+            2, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice"));
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    store_items(2, vbid, StoredDocKey{"Beef", CollectionEntry::meat}, "nice");
+    ASSERT_TRUE(store_items(
+            2, vbid, StoredDocKey{"Beef", CollectionEntry::meat}, "nice"));
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     auto streamSeqno = vb->getHighSeqno();

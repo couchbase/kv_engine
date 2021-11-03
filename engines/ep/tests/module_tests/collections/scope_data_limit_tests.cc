@@ -308,14 +308,14 @@ TEST_F(CollectionsTest, ScopeWithManyCollectionsWarmup) {
     cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
     setCollections(cookie, cm);
 
-    store_items(
-            2, vbid, makeStoredDocKey("f", CollectionEntry::fruit), "value");
-    store_items(2,
-                vbid,
-                makeStoredDocKey("v", CollectionEntry::vegetable),
-                "value");
-    store_items(
-            2, vbid, makeStoredDocKey("d", CollectionEntry::dairy), "value");
+    ASSERT_TRUE(store_items(
+            2, vbid, makeStoredDocKey("f", CollectionEntry::fruit), "value"));
+    ASSERT_TRUE(store_items(2,
+                            vbid,
+                            makeStoredDocKey("v", CollectionEntry::vegetable),
+                            "value"));
+    ASSERT_TRUE(store_items(
+            2, vbid, makeStoredDocKey("d", CollectionEntry::dairy), "value"));
 
     EXPECT_EQ(0, vb->getManifest().lock().getDataSize(ScopeEntry::shop1));
 

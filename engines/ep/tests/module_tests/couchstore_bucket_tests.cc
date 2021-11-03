@@ -1286,12 +1286,12 @@ TEST_P(STParamCouchstoreBucketTest,
                PROTOCOL_BINARY_RAW_BYTES,
                {{cb::durability::Level::Majority, cb::durability::Timeout{}}});
 
-    store_items(5, vbid, makeStoredDocKey("key"), "value");
+    ASSERT_TRUE(store_items(5, vbid, makeStoredDocKey("key"), "value"));
     auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
     EXPECT_EQ(6, res.numFlushed);
 
     // Add another 5 items to disk so we can tell EP Engine to roll these back
-    store_items(5, vbid, makeStoredDocKey("key"), "value");
+    ASSERT_TRUE(store_items(5, vbid, makeStoredDocKey("key"), "value"));
     res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
     EXPECT_EQ(5, res.numFlushed);
     EXPECT_EQ(11, vbucket.getHighSeqno());

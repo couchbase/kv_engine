@@ -86,10 +86,10 @@ TEST_P(CollectionsLegacyDcpTest,
 
     // Store documents - importantly the final documents are !defaultCollection
     const int items = 5;
-    store_items(items,
-                vbid,
-                StoredDocKey{"d1_", CollectionEntry::defaultC},
-                "value");
+    ASSERT_TRUE(store_items(items,
+                            vbid,
+                            StoredDocKey{"d1_", CollectionEntry::defaultC},
+                            "value"));
     flushVBucketToDiskIfPersistent(vbid, items);
 
     CollectionsManifest cm;

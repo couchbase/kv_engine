@@ -218,7 +218,8 @@ Item KVBucketTest::store_deleted_item(
         auto err = store->set(item, cookie);
         if (cb::engine_errc::success != err) {
             return ::testing::AssertionFailure()
-                   << "Failed to store " << keyii.data() << " error:" << err;
+                   << "Failed to store key:'" << keyii.to_string()
+                   << "' error:" << err;
         }
     }
     return ::testing::AssertionSuccess();

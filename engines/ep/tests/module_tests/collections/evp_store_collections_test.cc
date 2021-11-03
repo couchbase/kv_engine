@@ -3112,11 +3112,13 @@ TEST_F(CollectionsTest, GetAllKeysNonCollectionConnection) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Create and flush items for the default and meat collections
-    store_items(
-            10, vbid, makeStoredDocKey("beef", CollectionEntry::meat), "value");
+    ASSERT_TRUE(store_items(10,
+                            vbid,
+                            makeStoredDocKey("beef", CollectionEntry::meat),
+                            "value"));
     flushVBucketToDiskIfPersistent(vbid, 10);
 
-    store_items(5, vbid, makeStoredDocKey("default"), "value");
+    ASSERT_TRUE(store_items(5, vbid, makeStoredDocKey("default"), "value"));
     flushVBucketToDiskIfPersistent(vbid, 5);
 
     EXPECT_EQ(cb::engine_errc::would_block,
@@ -3135,7 +3137,7 @@ TEST_F(CollectionsTest, GetAllKeysNonCollectionConnectionMaxCountTen) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Create and flush items for the default collection
-    store_items(20, vbid, makeStoredDocKey("default"), "value");
+    ASSERT_TRUE(store_items(20, vbid, makeStoredDocKey("default"), "value"));
     flushVBucketToDiskIfPersistent(vbid, 20);
 
     EXPECT_EQ(cb::engine_errc::would_block,
@@ -3146,7 +3148,7 @@ TEST_F(CollectionsTest, GetAllKeysNonCollectionConnectionMaxCountTen) {
 }
 
 TEST_F(CollectionsTest, GetAllKeysStartHalfWay) {
-    store_items(4, vbid, makeStoredDocKey("default"), "value");
+    ASSERT_TRUE(store_items(4, vbid, makeStoredDocKey("default"), "value"));
     flushVBucketToDiskIfPersistent(vbid, 4);
 
     // All keys default2 and after from default collection
@@ -3170,8 +3172,8 @@ TEST_F(CollectionsTest, GetAllKeysStartHalfWayForCollection) {
     setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    store_items(
-            4, vbid, makeStoredDocKey("meat", CollectionEntry::meat), "value");
+    ASSERT_TRUE(store_items(
+            4, vbid, makeStoredDocKey("meat", CollectionEntry::meat), "value"));
     flushVBucketToDiskIfPersistent(vbid, 4);
 
     // All keys meat2 and after from meat collection
@@ -3198,8 +3200,8 @@ TEST_F(CollectionsTest, GetAllKeysForCollectionEmptyKey) {
     setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    store_items(
-            4, vbid, makeStoredDocKey("meat", CollectionEntry::meat), "value");
+    ASSERT_TRUE(store_items(
+            4, vbid, makeStoredDocKey("meat", CollectionEntry::meat), "value"));
     flushVBucketToDiskIfPersistent(vbid, 4);
 
     // All keys meat2 and after from meat collection
@@ -3216,7 +3218,7 @@ TEST_F(CollectionsTest, GetAllKeysForCollectionEmptyKey) {
 }
 
 TEST_F(CollectionsTest, GetAllKeysNonCollectionConnectionCidEncodeKey) {
-    store_items(5, vbid, makeStoredDocKey("default"), "value");
+    ASSERT_TRUE(store_items(5, vbid, makeStoredDocKey("default"), "value"));
     flushVBucketToDiskIfPersistent(vbid, 5);
 
     // Ensure we treat any key as part of th default collection on a
@@ -3245,11 +3247,13 @@ TEST_F(CollectionsTest, GetAllKeysCollectionConnection) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Create and flush items for the default and meat collections
-    store_items(
-            10, vbid, makeStoredDocKey("beef", CollectionEntry::meat), "value");
+    ASSERT_TRUE(store_items(10,
+                            vbid,
+                            makeStoredDocKey("beef", CollectionEntry::meat),
+                            "value"));
     flushVBucketToDiskIfPersistent(vbid, 10);
 
-    store_items(5, vbid, makeStoredDocKey("default"), "value");
+    ASSERT_TRUE(store_items(5, vbid, makeStoredDocKey("default"), "value"));
     flushVBucketToDiskIfPersistent(vbid, 5);
 
     // Get the keys for default collection, in this case we should get all 5
@@ -3495,11 +3499,13 @@ TEST_F(CollectionsRbacTest, GetAllKeysRbacCollectionConnection) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     // Create and flush items for the default and meat collections
-    store_items(
-            10, vbid, makeStoredDocKey("beef", CollectionEntry::meat), "value");
+    ASSERT_TRUE(store_items(10,
+                            vbid,
+                            makeStoredDocKey("beef", CollectionEntry::meat),
+                            "value"));
     flushVBucketToDiskIfPersistent(vbid, 10);
 
-    store_items(5, vbid, makeStoredDocKey("default"), "value");
+    ASSERT_TRUE(store_items(5, vbid, makeStoredDocKey("default"), "value"));
     flushVBucketToDiskIfPersistent(vbid, 5);
 
     // Try and access all keys from the default collection, in this case we

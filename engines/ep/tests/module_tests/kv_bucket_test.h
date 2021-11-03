@@ -90,7 +90,7 @@ public:
      * Store multiple items into the vbucket, the given key will have an
      * iteration appended to it.
      */
-    ::testing::AssertionResult store_items(
+    [[nodiscard]] ::testing::AssertionResult store_items(
             int nitems,
             Vbid vbid,
             const DocKey& key,

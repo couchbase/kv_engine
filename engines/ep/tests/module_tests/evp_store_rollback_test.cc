@@ -1040,7 +1040,7 @@ public:
         // Flush multiple checkpoints of unique keys
         for (int ii = start; ii < flushes; ii++) {
             std::string key = "anykey_" + std::to_string(ii) + "_";
-            EXPECT_TRUE(store_items(items,
+            ASSERT_TRUE(store_items(items,
                                     vbid,
                                     {key, DocKeyEncodesCollectionId::No},
                                     "value"));
@@ -1329,7 +1329,7 @@ TEST_P(RollbackDcpTest, test_rollback_zero_MB_48398) {
 
     // Store items, followed by failover entry - then one more seqno
     std::string key = "anykey_";
-    EXPECT_TRUE(store_items(
+    ASSERT_TRUE(store_items(
             nitems, vbid, {key, DocKeyEncodesCollectionId::No}, "value"));
     flush_vbucket_to_disk(vbid, nitems);
     // Add an entry for this seqno
