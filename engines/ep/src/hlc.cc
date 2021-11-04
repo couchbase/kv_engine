@@ -16,7 +16,8 @@
 
 #include <cinttypes>
 
-cb::HlcTime HLC::peekHLC() const {
+template <class Clock>
+cb::HlcTime HLCT<Clock>::peekHLC() const {
     // Create a monotonic timestamp using part of the HLC algorithm by.
     // a) Reading system time
     // b) dropping 16-bits (done by nowHLC)
@@ -35,9 +36,10 @@ cb::HlcTime HLC::peekHLC() const {
     }
 }
 
-void HLC::addStats(const std::string& prefix,
-                   const AddStatFn& add_stat,
-                   const CookieIface* c) const {
+template <class Clock>
+void HLCT<Clock>::addStats(const std::string& prefix,
+                           const AddStatFn& add_stat,
+                           const CookieIface* c) const {
     auto maxCas = getMaxHLC();
     add_prefixed_stat(prefix.data(), "max_cas", maxCas, add_stat, c);
 
@@ -82,7 +84,8 @@ void HLC::addStats(const std::string& prefix,
     add_prefixed_stat(prefix.data(), "drift_behind_threshold", driftBehindThreshold.load(), add_stat, c);
 }
 
-void HLC::resetStats() {
+template <class Clock>
+void HLCT<Clock>::resetStats() {
     // Don't clear max_cas or the threshold values.
     cummulativeDrift = 0;
     cummulativeDriftIncrements = 0;
@@ -90,3 +93,5 @@ void HLC::resetStats() {
     driftBehindExceeded = 0;
     logicalClockTicks = 0;
 }
+
+template class HLCT<std::chrono::system_clock>;

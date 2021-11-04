@@ -32,8 +32,13 @@
  * The paired "drift" counter, which is used to monitor drift over time
  * isn't atomic in that the total and update parts are not a consistent
  * snapshot.
+ *
+ * HLCT is templated on a Clock type which allows us to more easily test it.
+ * HLC (a specific instantiation of the template) can be used by callers that
+ * don't care about the template parameter (defaults to system_clock).
  */
-class HLC {
+template <class Clock>
+class HLCT {
 public:
     struct DriftStats {
         uint64_t total{0};
@@ -53,10 +58,10 @@ public:
      * @param behindThresholdhreshold a peer can be ahead before we
      *        increment driftBehindExceeded. Expressed in us.
      */
-    HLC(uint64_t initHLC,
-        int64_t epochSeqno,
-        std::chrono::microseconds aheadThreshold,
-        std::chrono::microseconds behindThreshold)
+    HLCT(uint64_t initHLC,
+         int64_t epochSeqno,
+         std::chrono::microseconds aheadThreshold,
+         std::chrono::microseconds behindThreshold)
         : maxHLC(initHLC),
           cummulativeDrift(0),
           cummulativeDriftIncrements(0),
@@ -186,7 +191,7 @@ private:
     }
 
     static int64_t getTime() {
-        auto now = std::chrono::system_clock::now();
+        auto now = Clock::now();
         return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
     }
 
@@ -215,3 +220,7 @@ private:
      */
     std::atomic<int64_t> epochSeqno;
 };
+
+// Specific instantiation of the templace for general use can be found in the
+// .cc.
+using HLC = HLCT<std::chrono::system_clock>;
