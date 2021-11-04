@@ -54,14 +54,8 @@ public:
 
     ~PassiveStream() override;
 
-    /**
-     * Process upto batchSize buffered items - trying to set/delete etc...
-     *
-     * @param batchSize the maximum number of items to process
-     * @return pair of status and count of unprocessed items
-     */
-    std::pair<process_items_error_t, size_t> processBufferedMessages(
-            size_t batchSize);
+    process_items_error_t processBufferedMessages(uint32_t& processed_bytes,
+                                                  size_t batchSize);
 
     std::unique_ptr<DcpResponse> next();
 
@@ -309,11 +303,8 @@ protected:
 
         /*
          * Caller must of locked bufMutex and pass as lh (not asserted)
-         * @param lh caller must lock bufMutex and pass reference to lock holder
-         * @param bytesPopped how many 'bytes' were popped
-         * @return size of the queue after doing the pop
          */
-        size_t pop_front(std::unique_lock<std::mutex>& lh, size_t bytesPopped);
+        void pop_front(std::unique_lock<std::mutex>& lh, size_t bytesPopped);
 
         /*
          * Return a reference to the item at the front.

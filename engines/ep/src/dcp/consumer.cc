@@ -758,9 +758,9 @@ cb::engine_errc DcpConsumer::toMainDeletion(DeleteType origin,
                         deleteSource);
 
     // TMPFAIL means the stream has buffered the message for later processing
-    // so skip notifying that we may need to ack.
+    // so skip flowControl, success or any other error, we still need to ack
     if (err == cb::engine_errc::temporary_failure) {
-        ufc.skipNotify();
+        ufc.release();
         // Mask the TMPFAIL
         return cb::engine_errc::success;
     }
@@ -1209,7 +1209,7 @@ void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) const {
 process_items_error_t DcpConsumer::drainStreamsBufferedItems(
         std::shared_ptr<PassiveStream> stream, size_t yieldThreshold) {
     process_items_error_t rval = all_processed;
-    size_t itemsRemaining = 0;
+    uint32_t bytesProcessed = 0;
     size_t iterations = 0;
     do {
         switch (engine_.getReplicationThrottle().getStatus()) {
@@ -1228,24 +1228,26 @@ process_items_error_t DcpConsumer::drainStreamsBufferedItems(
             return stop_processing;
 
         case ReplicationThrottle::Status::Process:
-            std::tie(rval, itemsRemaining) = stream->processBufferedMessages(
-                    processBufferedMessagesBatchSize);
+            bytesProcessed = 0;
+            rval = stream->processBufferedMessages(
+                    bytesProcessed, processBufferedMessagesBatchSize);
             if ((rval == cannot_process) || (rval == stop_processing)) {
                 backoffs++;
             }
+            flowControl.incrFreedBytes(bytesProcessed);
 
-            // Items cleared - this call will mean we get a callback on ::step
-            // which will allow the sending of a buffer-ack back to the producer
+            // Notifying memcached on clearing items for flow control
             immediatelyNotifyIfNecessary();
 
             iterations++;
             break;
         }
-    } while (itemsRemaining && rval == all_processed &&
+    } while (bytesProcessed > 0 &&
+             rval == all_processed &&
              iterations <= yieldThreshold);
 
-    // The stream is not done yet so must go back in the ready queue
-    if (itemsRemaining) {
+    // The stream may not be done yet so must go back in the ready queue
+    if (bytesProcessed > 0) {
         vbReady.pushUnique(stream->getVBucket());
         if (rval == stop_processing) {
             return stop_processing;
@@ -1843,7 +1845,7 @@ cb::engine_errc DcpConsumer::lookupStreamAndDispatchMessage(
     // The item was buffered and will be processed later
     if (err == cb::engine_errc::temporary_failure) {
         notifyVbucketReady(vbucket);
-        ufc.skipNotify();
+        ufc.release();
         return cb::engine_errc::success;
     }
 

@@ -266,7 +266,7 @@ TEST_P(DcpConsumerBufferAckTest, Basic) {
     conn->recvDcpBufferAck(conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno()));
 }
 
-TEST_P(DcpConsumerBufferAckTest, DeleteWithValue) {
+TEST_P(DcpConsumerBufferAckTest, DISABLED_DeleteWithValue) {
     conn->recvDcpBufferAck(conn->dcpSnapshotMarkerV2(
             1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/));
 
@@ -291,7 +291,7 @@ TEST_P(DcpConsumerBufferAckTest, DeleteWithValue) {
 }
 
 // Similar to previous test but use a highly compressible 'body'
-TEST_P(DcpConsumerBufferAckTest, DeleteWithCompressibleValue) {
+TEST_P(DcpConsumerBufferAckTest, DISABLED_DeleteWithCompressibleValue) {
     generateDocumentValue(getVeryCompressibleValue());
 
     conn->recvDcpBufferAck(conn->dcpSnapshotMarkerV2(
@@ -324,7 +324,7 @@ TEST_P(DcpConsumerBufferAckTest, DeleteWithCompressibleValue) {
 // delete triggers value sanitisation code and results in an ACK using the
 // decompressed size, which this test forces to be much larger than what we
 // sent.
-TEST_P(DcpConsumerBufferAckTest, DeleteWithManyCompressibleXattrs) {
+TEST_P(DcpConsumerBufferAckTest, DISABLED_DeleteWithManyCompressibleXattrs) {
     // The xattr key/value will be repeating characters, which will compress
     // well. These are also system keys so they are retained by sanitisation.
     std::string xattrKey = "_" + std::string(5, 'a');

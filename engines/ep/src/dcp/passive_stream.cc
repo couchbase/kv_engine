@@ -412,20 +412,22 @@ cb::engine_errc PassiveStream::messageReceived(
     return cb::engine_errc::temporary_failure;
 }
 
-std::pair<process_items_error_t, size_t> PassiveStream::processBufferedMessages(
-        size_t batchSize) {
+process_items_error_t PassiveStream::processBufferedMessages(
+        uint32_t& processed_bytes, size_t batchSize) {
     std::unique_lock<std::mutex> lh(buffer.bufMutex);
     uint32_t count = 0;
+    uint32_t message_bytes = 0;
+    uint32_t total_bytes_processed = 0;
     bool failed = false, noMem = false;
-    size_t itemsRemaining = buffer.messages.size();
 
     while (count < batchSize && !buffer.messages.empty()) {
         cb::engine_errc ret = cb::engine_errc::success;
         /* If the stream is in dead state we should not process any remaining
            items in the buffer, we should rather clear them */
         if (!isActive()) {
-            clearBuffer_UNLOCKED();
-            return {all_processed, 0};
+            total_bytes_processed += clearBuffer_UNLOCKED();
+            processed_bytes = total_bytes_processed;
+            return all_processed;
         }
 
         // MB-31410: The front-end thread can process new incoming messages
@@ -444,7 +446,7 @@ std::pair<process_items_error_t, size_t> PassiveStream::processBufferedMessages(
         // MB-31410: Only used for testing
         processBufferedMessages_postFront_Hook();
 
-        auto poppedBytes = response->getMessageSize();
+        message_bytes = response->getMessageSize();
         auto seqno = response->getBySeqno();
 
         switch (response->getEvent()) {
@@ -532,14 +534,18 @@ std::pair<process_items_error_t, size_t> PassiveStream::processBufferedMessages(
         // then we can remove it from the buffer.
         // Note: we need to re-acquire bufMutex to update the buffer safely
         lh.lock();
-        itemsRemaining = buffer.pop_front(lh, poppedBytes);
+        buffer.pop_front(lh, message_bytes);
 
         count++;
-
+        if (ret != cb::engine_errc::out_of_range) {
+            total_bytes_processed += message_bytes;
+        }
         if (ret == cb::engine_errc::success && seqno) {
             last_seqno.store(*seqno);
         }
     }
+
+    processed_bytes = total_bytes_processed;
 
     if (failed) {
         if (noMem && engine->getReplicationThrottle().doDisconnectOnNoMem()) {
@@ -548,12 +554,12 @@ std::pair<process_items_error_t, size_t> PassiveStream::processBufferedMessages(
                 "there is no memory to complete replication; process dcp "
                 "event returned no memory ",
                 vb_);
-            return {stop_processing, itemsRemaining};
+            return stop_processing;
         }
-        return {cannot_process, itemsRemaining};
+        return cannot_process;
     }
 
-    return {all_processed, itemsRemaining};
+    return all_processed;
 }
 
 cb::engine_errc PassiveStream::processMessage(MutationConsumerMessage* message,
@@ -1296,14 +1302,13 @@ void PassiveStream::Buffer::push(std::unique_ptr<DcpResponse> message) {
     messages.push_back(std::move(message));
 }
 
-size_t PassiveStream::Buffer::pop_front(std::unique_lock<std::mutex>& lh,
-                                        size_t bytesPopped) {
+void PassiveStream::Buffer::pop_front(std::unique_lock<std::mutex>& lh,
+                                      size_t bytesPopped) {
     if (messages.empty()) {
-        return 0;
+        return;
     }
     messages.pop_front();
     bytes -= bytesPopped;
-    return messages.size();
 }
 
 std::unique_ptr<DcpResponse>& PassiveStream::Buffer::front(
