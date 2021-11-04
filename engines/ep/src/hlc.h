@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include "testing_hook.h"
+
 #include <chrono>
 
 #include <platform/atomic.h>
@@ -96,9 +98,18 @@ public:
             atomic_setIfBigger(maxHLC, timeNow);
             return timeNow;
         }
+
+        // Logical clock mode
+
+        // Test only hook - noop if not present
+        logicalClockGetNextCasHook();
+
         logicalClockTicks++;
-        atomic_setIfBigger(maxHLC, l + 1);
-        return l + 1;
+
+        // Implicitly successful, fetch_add should always succeed and
+        // returns the value used in the increment which should be
+        // unique.
+        return maxHLC.fetch_add(1) + 1;
     }
 
     void setMaxHLCAndTrackDrift(uint64_t hlc) {
@@ -182,7 +193,7 @@ public:
         epochSeqno = seqno;
     }
 
-private:
+protected:
     /*
      * Returns 48-bit of t (bottom 16-bit zero)
      */
@@ -219,6 +230,9 @@ private:
      * Documents with a seqno >= epochSeqno have a HLC generated CAS.
      */
     std::atomic<int64_t> epochSeqno;
+
+    TestingHook<> nonLogicalClockGetNextCasHook;
+    TestingHook<> logicalClockGetNextCasHook;
 };
 
 // Specific instantiation of the templace for general use can be found in the
