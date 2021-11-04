@@ -43,6 +43,9 @@ public:
     void setLogicalClockGetNextCasHook(std::function<void()> hook) {
         HLCT<Clock>::logicalClockGetNextCasHook = hook;
     }
+    uint64_t getLogicalClockTicks() const {
+        return HLCT<Clock>::logicalClockTicks;
+    }
 };
 
 class HLCTest : public ::testing::Test {
@@ -73,4 +76,17 @@ TEST_F(HLCTest, RaceLogicalClockIncrementAtSameTime) {
     thread.join();
 
     EXPECT_NE(threadCas, thisCas);
+}
+
+TEST_F(HLCTest, RaceSameClockTime) {
+    uint64_t threadCas;
+    auto thread = std::thread(
+            [this, &threadCas]() { threadCas = testHLC->nextHLC(); });
+
+    auto thisCas = testHLC->nextHLC();
+
+    thread.join();
+
+    EXPECT_NE(threadCas, thisCas);
+    EXPECT_EQ(1, testHLC->getLogicalClockTicks());
 }

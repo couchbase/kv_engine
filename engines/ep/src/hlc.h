@@ -91,25 +91,31 @@ public:
         // b) dropping 16-bits (done by nowHLC)
         // c) comparing it with the last known time (max_cas)
         // d) returning either now or max_cas + 1
-        uint64_t timeNow = getMasked48(getTime());
-        uint64_t l = maxHLC.load();
+        //
+        // If an atomic operation fails then we repeat the algorithm to ensure
+        // that we don't return the same CAS for different callers.
+        while (true) {
+            uint64_t timeNow = getMasked48(getTime());
 
-        if (timeNow > l) {
-            atomic_setIfBigger(maxHLC, timeNow);
-            return timeNow;
+            if (atomic_setIfBigger(maxHLC, timeNow)) {
+                // Real clock mode
+                // Set successfully, return timeNow which we just set maxHLC
+                // to
+                return timeNow;
+            } else {
+                // Logical clock mode
+
+                // Test only hook - noop if not present
+                logicalClockGetNextCasHook();
+
+                logicalClockTicks++;
+
+                // Implicitly successful, fetch_add should always succeed and
+                // returns the value used in the increment which should be
+                // unique.
+                return maxHLC.fetch_add(1) + 1;
+            }
         }
-
-        // Logical clock mode
-
-        // Test only hook - noop if not present
-        logicalClockGetNextCasHook();
-
-        logicalClockTicks++;
-
-        // Implicitly successful, fetch_add should always succeed and
-        // returns the value used in the increment which should be
-        // unique.
-        return maxHLC.fetch_add(1) + 1;
     }
 
     void setMaxHLCAndTrackDrift(uint64_t hlc) {
@@ -231,7 +237,6 @@ protected:
      */
     std::atomic<int64_t> epochSeqno;
 
-    TestingHook<> nonLogicalClockGetNextCasHook;
     TestingHook<> logicalClockGetNextCasHook;
 };
 
