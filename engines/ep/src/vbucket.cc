@@ -3875,6 +3875,12 @@ VBucket::AddTempSVResult VBucket::addTempStoredValue(
 
     updateRevSeqNoOfNewStoredValue(*v);
 
+    // MB-49207: We set the cas of temp items so that when we complete a BGFetch
+    // we can check that we are replacing the correct temp item with the one
+    // that triggered the BGFetch. If we didn't then we'd run the risk of
+    // fetching older revisions of documents back into memory.
+    v->setCas(nextHLCCas());
+
     return {TempAddStatus::BgFetch, v};
 }
 
