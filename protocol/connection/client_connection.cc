@@ -1632,8 +1632,8 @@ Document MemcachedConnection::getRandomKey(Vbid vbucket) {
     return ret;
 }
 
-void MemcachedConnection::dcpOpenProducer(std::string_view name) {
-    BinprotDcpOpenCommand open{std::string{name},
+void MemcachedConnection::dcpOpenProducer(std::string_view nm) {
+    BinprotDcpOpenCommand open{std::string{nm},
                                cb::mcbp::request::DcpOpenPayload::Producer};
     const auto response = BinprotResponse(execute(open));
     if (!response.isSuccess()) {
@@ -1641,8 +1641,8 @@ void MemcachedConnection::dcpOpenProducer(std::string_view name) {
     }
 }
 
-void MemcachedConnection::dcpOpenConsumer(std::string_view name) {
-    BinprotDcpOpenCommand open{std::string{name}};
+void MemcachedConnection::dcpOpenConsumer(std::string_view nm) {
+    BinprotDcpOpenCommand open{std::string{nm}};
     const auto response = BinprotResponse(execute(open));
     if (!response.isSuccess()) {
         throw ConnectionError("Failed dcpOpenConsumer", response);
@@ -2014,7 +2014,6 @@ static std::string formatMcbpExceptionMsg(const std::string& prefix,
     // probably a JSON error context that's been included with the response body
     if (mcbp::datatype::is_json(response.getDatatype()) &&
         !response.isSuccess()) {
-        nlohmann::json json;
         try {
             auto json = nlohmann::json::parse(response.getDataString());
             if (json.type() == nlohmann::json::value_t::object) {
