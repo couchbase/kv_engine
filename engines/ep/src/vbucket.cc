@@ -3809,7 +3809,6 @@ VBucket::AddTempSVResult VBucket::addTempStoredValue(
     StoredValue* v = ht.unlocked_addNewStoredValue(hbl, itm);
 
     updateRevSeqNoOfNewStoredValue(*v);
-    itm.setRevSeqno(v->getRevSeqno());
 
     return {TempAddStatus::BgFetch, v};
 }
