@@ -328,7 +328,8 @@ private:
                                           EventuallyPersistentEngine& engine,
                                           bool metadataOnly) override;
 
-    void bgFetchForCompactionExpiry(const DocKey& key,
+    void bgFetchForCompactionExpiry(HashTable::HashBucketLock& hbl,
+                                    const DocKey& key,
                                     const Item& item) override;
 
     /**

@@ -786,7 +786,8 @@ cb::engine_errc EPVBucket::addTempItemAndBGFetch(
     folly::assume_unreachable();
 }
 
-void EPVBucket::bgFetchForCompactionExpiry(const DocKey& key,
+void EPVBucket::bgFetchForCompactionExpiry(HashTable::HashBucketLock& hbl,
+                                           const DocKey& key,
                                            const Item& item) {
     // schedule to the current batch of background fetch of the given
     // vbucket

@@ -2537,7 +2537,7 @@ void VBucket::deleteExpiredItem(const Item& it,
             // There's no point in checking the bloom filter here. We're getting
             // called back from compaction so we know that the Item currently
             // exists on disk in some form.
-            bgFetchForCompactionExpiry(key, it);
+            bgFetchForCompactionExpiry(hbl, key, it);
 
             // Early return, don't want to bump any expiration stats here as we
             // need to bg fetch our item in first.
