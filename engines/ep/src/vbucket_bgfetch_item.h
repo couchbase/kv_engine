@@ -28,8 +28,8 @@ enum class ValueFilter;
  */
 class BGFetchItem {
 public:
-    BGFetchItem(std::chrono::steady_clock::time_point initTime)
-        : initTime(initTime) {
+    BGFetchItem(std::chrono::steady_clock::time_point initTime, uint64_t token)
+        : initTime(initTime), token(token) {
     }
 
     virtual ~BGFetchItem() = default;
@@ -68,6 +68,13 @@ public:
      */
     GetValue* value{nullptr};
     const std::chrono::steady_clock::time_point initTime;
+
+    // Token is the cas value of the temp initial item that is placed into the
+    // HashTable for this BgFetch and that this fetch can complete/restore. This
+    // ensures that a BgFetch won't fetch older metadata back into the HashTable
+    // if the thread pauses at an interesting point for long enough that a
+    // document can be updated and evicted.
+    const uint64_t token;
 };
 
 /**
@@ -76,14 +83,17 @@ public:
  */
 class FrontEndBGFetchItem : public BGFetchItem {
 public:
-    FrontEndBGFetchItem(const CookieIface* cookie, ValueFilter filter)
+    FrontEndBGFetchItem(const CookieIface* cookie,
+                        ValueFilter filter,
+                        uint64_t token)
         : FrontEndBGFetchItem(
-                  std::chrono::steady_clock::now(), filter, cookie) {
+                  std::chrono::steady_clock::now(), filter, cookie, token) {
     }
 
     FrontEndBGFetchItem(std::chrono::steady_clock::time_point initTime,
                         ValueFilter filter,
-                        const CookieIface* cookie);
+                        const CookieIface* cookie,
+                        uint64_t cas);
 
     void complete(EventuallyPersistentEngine& engine,
                   VBucketPtr& vb,
@@ -110,8 +120,9 @@ public:
  */
 class CompactionBGFetchItem : public BGFetchItem {
 public:
-    explicit CompactionBGFetchItem(const Item& item)
-        : BGFetchItem(std::chrono::steady_clock::now()), compactionItem(item) {
+    explicit CompactionBGFetchItem(const Item& item, uint64_t token)
+        : BGFetchItem(std::chrono::steady_clock::now(), token),
+          compactionItem(item) {
     }
 
     void complete(EventuallyPersistentEngine& engine,

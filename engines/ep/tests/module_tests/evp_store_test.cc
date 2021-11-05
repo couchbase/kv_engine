@@ -656,7 +656,7 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindNonResidentItem) {
     vb_bgfetch_queue_t q;
     vb_bgfetch_item_ctx_t ctx;
     ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
-            nullptr, ValueFilter::VALUES_DECOMPRESSED));
+            nullptr, ValueFilter::VALUES_DECOMPRESSED, 0));
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q);
@@ -690,7 +690,7 @@ void EPBucketFullEvictionTest::compactionFindsNonResidentItem(
     vb_bgfetch_queue_t q;
     vb_bgfetch_item_ctx_t ctx;
     ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
-            nullptr, ValueFilter::VALUES_DECOMPRESSED));
+            nullptr, ValueFilter::VALUES_DECOMPRESSED, 0));
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q);
@@ -806,7 +806,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentSupersededItem) {
     vb_bgfetch_queue_t q;
     vb_bgfetch_item_ctx_t ctx;
     ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
-            nullptr, ValueFilter::VALUES_DECOMPRESSED));
+            nullptr, ValueFilter::VALUES_DECOMPRESSED, 0));
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q);
@@ -862,7 +862,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
     vb_bgfetch_queue_t q;
     vb_bgfetch_item_ctx_t ctx;
     ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
-            nullptr, ValueFilter::VALUES_DECOMPRESSED));
+            nullptr, ValueFilter::VALUES_DECOMPRESSED, 0));
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q);

@@ -504,7 +504,7 @@ void KVStoreParamTest::testBgFetchDocsReadGetMulti(bool deleted,
 
     vb_bgfetch_queue_t q;
     vb_bgfetch_item_ctx_t ctx;
-    ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(nullptr, filter));
+    ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(nullptr, filter, 0));
     auto diskDocKey = makeDiskDocKey("key");
     q[diskDocKey] = std::move(ctx);
     kvstore->getMulti(vbid, q);
@@ -581,9 +581,9 @@ void KVStoreParamTest::testBgFetchValueFilter(ValueFilter requestMode1,
     vb_bgfetch_queue_t q;
     vb_bgfetch_item_ctx_t ctx;
     ctx.addBgFetch(
-            std::make_unique<FrontEndBGFetchItem>(nullptr, requestMode1));
+            std::make_unique<FrontEndBGFetchItem>(nullptr, requestMode1, 0));
     ctx.addBgFetch(
-            std::make_unique<FrontEndBGFetchItem>(nullptr, requestMode2));
+            std::make_unique<FrontEndBGFetchItem>(nullptr, requestMode2, 0));
     EXPECT_EQ(fetchedMode, ctx.getValueFilter());
 
     // Test: Peform bgfetch, check returned value is of correct type.

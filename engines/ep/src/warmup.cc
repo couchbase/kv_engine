@@ -795,7 +795,9 @@ static bool batchWarmupCallback(Vbid vbId,
             // Deleted below via a unique_ptr in the next loop
             vb_bgfetch_item_ctx_t& bg_itm_ctx = items2fetch[diskKey];
             bg_itm_ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
-                    nullptr, c->epstore->getValueFilterForCompressionMode()));
+                    nullptr,
+                    c->epstore->getValueFilterForCompressionMode(),
+                    0));
         }
 
         c->epstore->getROUnderlying(vbId)->getMulti(vbId, items2fetch);

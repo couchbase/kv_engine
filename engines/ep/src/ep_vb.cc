@@ -743,6 +743,7 @@ void EPVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
                         const CookieIface* cookie,
                         EventuallyPersistentEngine& engine,
                         const bool isMeta) {
+    auto token = v.getCas();
     // We unlock the hbl here as queueBGFetchItem will take a vBucket wide lock
     // and we don't want need this lock anymore.
     hbl.getHTLock().unlock();
@@ -757,7 +758,7 @@ void EPVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
                              .getValueFilterForCompressionMode(cookie);
     size_t bgfetch_size = queueBGFetchItem(
             key,
-            std::make_unique<FrontEndBGFetchItem>(cookie, filter),
+            std::make_unique<FrontEndBGFetchItem>(cookie, filter, token),
             getBgFetcher());
     EP_LOG_DEBUG("Queued a background fetch, now at {}",
                  uint64_t(bgfetch_size));
@@ -795,10 +796,13 @@ cb::engine_errc EPVBucket::bgFetchForCompactionExpiry(
     case TempAddStatus::BgFetch:
         // schedule to the current batch of background fetch of the given
         // vbucket
+        auto token = rv.storedValue->getCas();
         hbl.getHTLock().unlock();
         auto& bgFetcher = getBgFetcher();
         auto bgFetchSize = queueBGFetchItem(
-                key, std::make_unique<CompactionBGFetchItem>(item), bgFetcher);
+                key,
+                std::make_unique<CompactionBGFetchItem>(item, token),
+                bgFetcher);
         EP_LOG_DEBUG(
                 "Queue a background fetch for compaction expiry, now at {}",
                 bgFetchSize);

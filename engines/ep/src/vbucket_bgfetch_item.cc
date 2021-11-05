@@ -20,8 +20,9 @@
 FrontEndBGFetchItem::FrontEndBGFetchItem(
         std::chrono::steady_clock::time_point initTime,
         ValueFilter filter,
-        const CookieIface* cookie)
-    : BGFetchItem(initTime), cookie(cookie), filter(filter) {
+        const CookieIface* cookie,
+        uint64_t token)
+    : BGFetchItem(initTime, token), cookie(cookie), filter(filter) {
     auto* traceable = cookie2traceable(cookie);
     if (traceable && traceable->isTracingEnabled()) {
         NonBucketAllocationGuard guard;

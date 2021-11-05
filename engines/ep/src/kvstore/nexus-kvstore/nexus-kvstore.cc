@@ -549,8 +549,9 @@ void NexusKVStore::setMaxDataSize(size_t size) {
 class NexusBGFetchItem : public BGFetchItem {
 public:
     explicit NexusBGFetchItem(std::chrono::steady_clock::time_point initTime,
-                              ValueFilter filter)
-        : BGFetchItem(initTime), filter(filter) {
+                              ValueFilter filter,
+                              uint64_t token)
+        : BGFetchItem(initTime, token), filter(filter) {
     }
 
     void complete(EventuallyPersistentEngine& engine,
@@ -585,7 +586,7 @@ void NexusKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& primaryQueue) const {
 
         for (const auto& bgFetchItem : primaryCtx.getRequests()) {
             itr->second.addBgFetch(std::make_unique<NexusBGFetchItem>(
-                    bgFetchItem->initTime, bgFetchItem->getValueFilter()));
+                    bgFetchItem->initTime, bgFetchItem->getValueFilter(), 0));
         }
     }
 

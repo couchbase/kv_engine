@@ -589,7 +589,7 @@ protected:
         for (const auto& item : items) {
             vb_bgfetch_item_ctx_t ctx;
             ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
-                    nullptr, ValueFilter::VALUES_DECOMPRESSED));
+                    nullptr, ValueFilter::VALUES_DECOMPRESSED, 0));
             itms[DiskDocKey{*item}] = std::move(ctx);
         }
         return itms;

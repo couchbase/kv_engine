@@ -56,7 +56,7 @@ TEST_P(EPVBucketTest, GetBGFetchItemsPerformance) {
 
     for (unsigned int ii = 0; ii < 100000; ii++) {
         auto fetchItem = std::make_unique<FrontEndBGFetchItem>(
-                nullptr, ValueFilter::VALUES_DECOMPRESSED);
+                nullptr, ValueFilter::VALUES_DECOMPRESSED, 0);
         this->public_queueBGFetchItem(makeStoredDocKey(std::to_string(ii)),
                                       std::move(fetchItem),
                                       bgFetcher);
