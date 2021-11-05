@@ -292,8 +292,7 @@ public:
         transitionState(StreamState::Dead);
     }
 
-    cb::engine_errc messageReceived(
-            std::unique_ptr<DcpResponse> dcpResponse) override;
+    cb::engine_errc messageReceived(std::unique_ptr<DcpResponse> dcpResponse);
 
     void processMarker(SnapshotMarker* marker) override {
         PassiveStream::processMarker(marker);
