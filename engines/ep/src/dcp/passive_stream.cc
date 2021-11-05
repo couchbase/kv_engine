@@ -406,8 +406,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
 
     // Only buffer if the stream is not dead
     if (isActive()) {
-        ufc.release(); // @todo save the value along side the buffered response
-        buffer.push(std::move(dcpResponse));
+        buffer.push({std::move(dcpResponse), ufc.release()});
     }
     return ENGINE_TMPFAIL;
 }
@@ -416,7 +415,6 @@ process_items_error_t PassiveStream::processBufferedMessages(
         uint32_t& processed_bytes, size_t batchSize) {
     std::unique_lock<std::mutex> lh(buffer.bufMutex);
     uint32_t count = 0;
-    uint32_t message_bytes = 0;
     uint32_t total_bytes_processed = 0;
     bool failed = false, noMem = false;
 
@@ -437,7 +435,9 @@ process_items_error_t PassiveStream::processBufferedMessages(
         // That is because the front-end thread checks if buffer.empty() for
         // deciding if it's time to start again processing new incoming
         // mutations. That happens in PassiveStream::messageReceived.
-        std::unique_ptr<DcpResponse> response = std::move(buffer.front(lh));
+        std::unique_ptr<DcpResponse> response;
+        uint32_t message_bytes{0};
+        std::tie(response, message_bytes) =  buffer.moveFromFront(lh);
 
         // Release bufMutex whilst we attempt to process the message
         // a lock inversion exists with connManager if we hold this.
@@ -447,8 +447,6 @@ process_items_error_t PassiveStream::processBufferedMessages(
         if (processBufferedMessages_postFront_Hook) {
             processBufferedMessages_postFront_Hook();
         }
-
-        message_bytes = response->getMessageSize();
 
         switch (response->getEvent()) {
         case DcpResponse::Event::Mutation:
@@ -522,7 +520,7 @@ process_items_error_t PassiveStream::processBufferedMessages(
             // anyway so we're more robust against any future code changes to
             // isActive and closeStream
             if (!buffer.messages.empty()) {
-                buffer.front(lh) = std::move(response);
+                buffer.moveToFront(lh, {std::move(response), message_bytes});
             }
             lh.unlock();
             break;
@@ -532,7 +530,7 @@ process_items_error_t PassiveStream::processBufferedMessages(
         // then we can remove it from the buffer.
         // Note: we need to re-acquire bufMutex to update the buffer safely
         lh.lock();
-        buffer.pop_front(lh, message_bytes);
+        buffer.pop_front(lh);
 
         count++;
         if (ret != ENGINE_ERANGE) {
@@ -1294,32 +1292,37 @@ void PassiveStream::maybeLogMemoryState(cb::engine_errc status,
     }
 }
 
-PassiveStream::Buffer::Buffer() : bytes(0) {
-}
-
-PassiveStream::Buffer::~Buffer() = default;
-
 bool PassiveStream::Buffer::empty() const {
     LockHolder lh(bufMutex);
     return messages.empty();
 }
 
-void PassiveStream::Buffer::push(PassiveStream::Buffer::BufferType message) {
+void PassiveStream::Buffer::push(PassiveStream::Buffer::BufferType bufferItem) {
     std::lock_guard<std::mutex> lg(bufMutex);
-    bytes += message->getMessageSize();
-    messages.push_back(std::move(message));
+    bytes += bufferItem.second;
+    messages.emplace_back(std::move(bufferItem));
 }
 
-void PassiveStream::Buffer::pop_front(std::unique_lock<std::mutex>& lh,
-                                      size_t bytesPopped) {
+void PassiveStream::Buffer::pop_front(const std::unique_lock<std::mutex>& lh) {
     if (messages.empty()) {
         return;
     }
+    if (messages.front().first) {
+        bytes -= messages.front().second;
+    }
+
     messages.pop_front();
-    bytes -= bytesPopped;
 }
 
-PassiveStream::Buffer::BufferType& PassiveStream::Buffer::front(
-        std::unique_lock<std::mutex>& lh) {
-    return messages.front();
+PassiveStream::Buffer::BufferType PassiveStream::Buffer::moveFromFront(
+        const std::unique_lock<std::mutex>& lh) {
+    bytes -= messages.front().second;
+    return {std::move(messages.front().first), messages.front().second};
+}
+
+void PassiveStream::Buffer::moveToFront(
+        const std::unique_lock<std::mutex>& lh,
+        PassiveStream::Buffer::BufferType bufferItem) {
+    bytes += bufferItem.second;
+    messages.front().first = std::move(bufferItem.first);
 }
