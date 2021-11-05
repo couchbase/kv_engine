@@ -297,26 +297,43 @@ protected:
     const Collections::ManifestUid vb_manifest_uid;
 
     struct Buffer {
-        Buffer();
-
-        ~Buffer();
-
         bool empty() const;
 
-        using BufferType = std::unique_ptr<DcpResponse>;
+        // Buffer stores a pair, the DcpResponse and the 'pristine' ack size
+        // which is used for generating DCP buffer acknowledgement messages
+        using BufferType = std::pair<std::unique_ptr<DcpResponse>, uint32_t>;
 
         void push(BufferType message);
 
         /*
          * Caller must of locked bufMutex and pass as lh (not asserted)
          */
-        void pop_front(std::unique_lock<std::mutex>& lh, size_t bytesPopped);
+        void pop_front(const std::unique_lock<std::mutex>& lh);
+
+        /**
+         * Obtain ownership of the "front" DcpResponse (and its ack size) by
+         * moving the unique_ptr out of the underlying std::deque. The deque
+         * size is not changed, but the deque now has an empty unique_ptr at
+         * the front. This allows for the caller to abort and use moveToFront to
+         * put the DcpResponse back in the queue at the front.
+         *
+         * @param lh Caller must lock bufMutex and provide a lock holder as
+         *        evidence of doing so.
+         * @return BufferType with the message.front() DcpResponse and ack size
+         */
+        BufferType moveFromFront(const std::unique_lock<std::mutex>& lh);
 
         /*
-         * Return a reference to the item at the front.
-         * The user must pass a lock to bufMutex.
+         * Effectively undo the effect of moveFromFront by moving back the
+         * DcpResponse to the front of the std::deque. The size of the deque is
+         * left unchanged.
+         *
+         * @param lh Caller must lock bufMutex and provide a lock holder as
+         *        evidence of doing so.
+         * @param rsp DcpResponse that the Buffer will move to messages.front()
          */
-        BufferType& front(std::unique_lock<std::mutex>& lh);
+        void moveToFront(const std::unique_lock<std::mutex>& lh,
+                         std::unique_ptr<DcpResponse> rsp);
 
         size_t bytes{0};
         /* Lock ordering w.r.t to streamMutex:

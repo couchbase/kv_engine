@@ -2084,7 +2084,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
                               epStats.replicationThrottleThreshold);
             ASSERT_EQ(1, stream->getNumBufferItems());
             auto& bufferedMessages = stream->getBufferMessages();
-            auto* dcpResponse = bufferedMessages.at(0).get();
+            auto& [dcpResponse, size] = bufferedMessages.at(0);
             ASSERT_EQ(seqno,
                       *dynamic_cast<MutationResponse&>(*dcpResponse)
                                .getBySeqno());
@@ -2206,11 +2206,12 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
                     EXPECT_EQ(2, numBufferedItems);
                     if (numBufferedItems == 2) {
                         auto& bufferedMessages = stream->getBufferMessages();
-                        auto* dcpResponse = bufferedMessages.at(0).get();
-                        EXPECT_EQ(nullptr, dcpResponse);
-                        dcpResponse = bufferedMessages.at(1).get();
+                        auto& dcpResponse0 = bufferedMessages.at(0);
+                        EXPECT_EQ(nullptr, dcpResponse0.first);
+                        auto& dcpResponse1 = bufferedMessages.at(1);
                         EXPECT_EQ(nextFrontEndSeqno,
-                                  *dynamic_cast<MutationResponse&>(*dcpResponse)
+                                  *dynamic_cast<MutationResponse&>(
+                                           *dcpResponse1.first)
                                            .getBySeqno());
                     }
 

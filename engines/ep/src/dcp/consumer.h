@@ -681,9 +681,12 @@ public:
     /**
      * Calling release means that this object will not update the FlowControl
      * instance when destructed.
+     * @return The 'bytes' which the object was tracking
      */
-    void release() {
+    uint32_t release() {
+        auto rv = bytes;
         bytes = 0;
+        return rv;
     }
 
 private:
