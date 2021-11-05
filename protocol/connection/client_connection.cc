@@ -12,6 +12,7 @@
 #include "frameinfo.h"
 
 #include <cbsasl/client.h>
+#include <folly/io/IOBuf.h>
 #include <folly/io/async/AsyncSSLSocket.h>
 #include <mcbp/codec/dcp_snapshot_marker.h>
 #include <mcbp/mcbp.h>
@@ -99,31 +100,40 @@ static void handleFollyAsyncSocketException(
  */
 class AsyncReadCallback : public folly::AsyncReader::ReadCallback {
 public:
-    AsyncReadCallback(folly::EventBase& base) : base(base), backing(1024) {
+    AsyncReadCallback(folly::EventBase& base)
+        : base(base), backing(folly::IOBuf::CREATE, 1024) {
     }
 
     ~AsyncReadCallback() override = default;
 
     void getReadBuffer(void** bufReturn, size_t* lenReturn) override {
-        if ((backing.size() - available) == 0) {
-            backing.resize(backing.size() * 2);
+        if (backing.tailroom() == 0) {
+            // out of space in the buffer, double the buffer capacity and move
+            // all current valid data to the start of the new buffer.
+            backing.reserve(
+                    0 /*headroom*/,
+                    backing.capacity() * 2 - backing.length() /*tailroom*/);
         }
 
-        *bufReturn = static_cast<void*>(backing.data() + available);
-        *lenReturn = backing.size() - available;
+        *bufReturn = static_cast<void*>(backing.writableTail());
+        *lenReturn = backing.tailroom();
     }
 
     void readDataAvailable(size_t len) noexcept override {
-        available += len;
+        // `len` bytes have been written into the backing buffer, advance the
+        // tail ptr by this amount.
+        backing.append(len);
         if (frameReceivedCallback) {
-            auto* header = getNextFrame();
-            size_t consumed = 0;
+            const auto* header = getNextFrame();
             while (header) {
-                consumed += sizeof(*header) + header->getBodylen();
+                size_t consumed = sizeof(*header) + header->getBodylen();
                 frameReceivedCallback(*header);
-                header = getNextFrame(consumed);
+                // advance the head ptr, getNextFrame() will look at the next
+                // unread bytes, if any.
+                drain(consumed);
+
+                header = getNextFrame();
             }
-            drain(consumed);
         } else {
             try {
                 if (getNextFrame()) {
@@ -163,19 +173,17 @@ public:
      * @throws std::runtime_error if there is a format error on the
      *                            header of the packet
      */
-    cb::mcbp::Header* getNextFrame(size_t offset = 0) {
-        if ((available - offset) < sizeof(cb::mcbp::Header)) {
+    const cb::mcbp::Header* getNextFrame() {
+        if (backing.length() < sizeof(cb::mcbp::Header)) {
             return nullptr;
         }
 
-        auto* hdr =
-                reinterpret_cast<cb::mcbp::Header*>(backing.data() + offset);
+        auto* hdr = reinterpret_cast<const cb::mcbp::Header*>(backing.data());
         if (!hdr->isValid()) {
             throw std::runtime_error("Invalid header received!");
         }
 
-        if ((available - offset) <
-            (sizeof(cb::mcbp::Header) + hdr->getBodylen())) {
+        if (backing.length() < (sizeof(cb::mcbp::Header) + hdr->getBodylen())) {
             return nullptr;
         }
         return hdr;
@@ -183,10 +191,15 @@ public:
 
     /// Drain a number of bytes from the backing store
     void drain(size_t nb) {
-        if ((available - nb) > 0) {
-            std::memmove(backing.data(), backing.data() + nb, available - nb);
+        // data has been read, advance the start of the data ptr in the buffer
+        // past the consumed data.
+        backing.trimStart(nb);
+        if (backing.empty()) {
+            // There's now no valid data in the buffer, so the data ptr can be
+            // reset to the start of the buffer without having to memmove any
+            // data to the start of the buffer.
+            backing.retreat(backing.headroom());
         }
-        available -= nb;
     }
 
     void handlePotentialNetworkException() {
@@ -209,9 +222,7 @@ public:
     /// The EventBase we're bound to so that we can jump out of the loop
     folly::EventBase& base;
     /// The memory buffer we're currently using
-    std::vector<uint8_t> backing;
-    /// The number of bytes currently available in backing
-    size_t available = 0;
+    folly::IOBuf backing;
 };
 
 void MemcachedConnection::enterMessagePumpMode(
