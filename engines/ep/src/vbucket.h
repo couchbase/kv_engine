@@ -2361,10 +2361,13 @@ private:
      * @param hbl Reference to the hash table bucket lock
      * @param key the key to be bg fetched
      * @param item Reference to the item that is currnetly being compacted
+     *
+     * @return cb::engine_errc status
      */
-    virtual void bgFetchForCompactionExpiry(HashTable::HashBucketLock& hbl,
-                                            const DocKey& key,
-                                            const Item& item) = 0;
+    [[nodiscard]] virtual cb::engine_errc bgFetchForCompactionExpiry(
+            HashTable::HashBucketLock& hbl,
+            const DocKey& key,
+            const Item& item) = 0;
 
     /**
      * Get metadata and value for a non-resident key

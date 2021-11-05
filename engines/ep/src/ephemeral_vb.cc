@@ -879,7 +879,7 @@ cb::engine_errc EphemeralVBucket::addTempItemAndBGFetch(
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
 }
 
-void EphemeralVBucket::bgFetchForCompactionExpiry(
+cb::engine_errc EphemeralVBucket::bgFetchForCompactionExpiry(
 
         HashTable::HashBucketLock& hbl, const DocKey& key, const Item& item) {
     throw std::logic_error(
