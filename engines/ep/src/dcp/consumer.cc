@@ -561,7 +561,8 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                                         cb::const_byte_buffer meta,
                                         uint32_t deleteTime,
                                         IncludeDeleteTime includeDeleteTime,
-                                        DeleteSource deletionCause) {
+                                        DeleteSource deletionCause,
+                                        UpdateFlowControl& ufc) {
     lastMessageTime = ep_current_time();
 
     if (doDisconnect()) {
@@ -646,15 +647,16 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
 
     try {
         err = stream->messageReceived(std::make_unique<MutationConsumerMessage>(
-                item,
-                opaque,
-                IncludeValue::Yes,
-                IncludeXattrs::Yes,
-                includeDeleteTime,
-                IncludeDeletedUserXattrs::Yes,
-                key.getEncoding(),
-                emd.release(),
-                cb::mcbp::DcpStreamId{}));
+                                              item,
+                                              opaque,
+                                              IncludeValue::Yes,
+                                              IncludeXattrs::Yes,
+                                              includeDeleteTime,
+                                              IncludeDeletedUserXattrs::Yes,
+                                              key.getEncoding(),
+                                              emd.release(),
+                                              cb::mcbp::DcpStreamId{}),
+                                      ufc);
     } catch (const std::bad_alloc&) {
         err = ENGINE_ENOMEM;
     }
@@ -749,12 +751,12 @@ ENGINE_ERROR_CODE DcpConsumer::toMainDeletion(DeleteType origin,
                         meta,
                         deleteTime,
                         includeDeleteTime,
-                        deleteSource);
+                        deleteSource,
+                        ufc);
 
     // TMPFAIL means the stream has buffered the message for later processing
     // so skip flowControl, success or any other error, we still need to ack
     if (err == ENGINE_TMPFAIL) {
-        ufc.release();
         // Mask the TMPFAIL
         return ENGINE_SUCCESS;
     }
@@ -1818,7 +1820,7 @@ ENGINE_ERROR_CODE DcpConsumer::lookupStreamAndDispatchMessage(
     // Pass the message to the associated stream.
     ENGINE_ERROR_CODE err;
     try {
-        err = stream->messageReceived(std::move(msg));
+        err = stream->messageReceived(std::move(msg), ufc);
     } catch (const std::bad_alloc&) {
         return ENGINE_ENOMEM;
     }
@@ -1826,7 +1828,6 @@ ENGINE_ERROR_CODE DcpConsumer::lookupStreamAndDispatchMessage(
     // The item was buffered and will be processed later
     if (err == ENGINE_TMPFAIL) {
         notifyVbucketReady(vbucket);
-        ufc.release();
         return ENGINE_SUCCESS;
     }
 

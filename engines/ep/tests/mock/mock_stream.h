@@ -288,8 +288,7 @@ public:
         transitionState(StreamState::Dead);
     }
 
-    ENGINE_ERROR_CODE messageReceived(
-            std::unique_ptr<DcpResponse> dcpResponse) override;
+    ENGINE_ERROR_CODE messageReceived(std::unique_ptr<DcpResponse> dcpResponse);
 
     void processMarker(SnapshotMarker* marker) override {
         PassiveStream::processMarker(marker);

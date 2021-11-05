@@ -36,6 +36,7 @@
 class DcpResponse;
 class PassiveStream;
 class StreamEndResponse;
+class UpdateFlowControl;
 
 /**
  * A DCP Consumer object represents a DCP connection which receives streams
@@ -461,7 +462,8 @@ protected:
                                cb::const_byte_buffer meta,
                                uint32_t deleteTime,
                                IncludeDeleteTime includeDeleteTime,
-                               DeleteSource deletionCause);
+                               DeleteSource deletionCause,
+                               UpdateFlowControl& ufc);
 
     /**
      * Helper function for mutation() and prepare() messages as they are handled
@@ -514,39 +516,6 @@ protected:
      * @param vbid The stream to be removed
      */
     std::shared_ptr<PassiveStream> removeStream(Vbid vbid);
-
-    /**
-     * RAII helper class to update the flowControl object with the number of
-     * bytes to free and trigger the consumer notify
-     */
-    class UpdateFlowControl {
-    public:
-        UpdateFlowControl(DcpConsumer& consumer, uint32_t bytes)
-            : consumer(consumer), bytes(bytes) {
-            if (bytes == 0) {
-                throw std::invalid_argument("UpdateFlowControl given 0 bytes");
-            }
-        }
-
-        ~UpdateFlowControl() {
-            if (bytes) {
-                consumer.flowControl.incrFreedBytes(bytes);
-                consumer.scheduleNotifyIfNecessary();
-            }
-        }
-
-        /**
-         * If the user no longer wants this instance to perform the update
-         * calling release() means this instance will skip the update.
-         */
-        void release() {
-            bytes = 0;
-        }
-
-    private:
-        DcpConsumer& consumer;
-        uint32_t bytes;
-    };
 
     /**
      * Helper method to lookup the correct stream for the given
@@ -659,6 +628,8 @@ protected:
 
     bool alwaysBufferOperations{false};
 
+    friend UpdateFlowControl;
+
     static const std::string noopCtrlMsg;
     static const std::string noopIntervalCtrlMsg;
     static const std::string connBufferCtrlMsg;
@@ -669,6 +640,39 @@ protected:
     static const std::string sendStreamEndOnClientStreamCloseCtrlMsg;
     static const std::string hifiMFUCtrlMsg;
     static const std::string enableOpcodeExpiryCtrlMsg;
+};
+
+/**
+ * RAII helper class to update the flowControl object with the number of
+ * bytes to free and trigger the consumer notify
+ */
+class UpdateFlowControl {
+public:
+    UpdateFlowControl(DcpConsumer& consumer, uint32_t bytes)
+        : consumer(consumer), bytes(bytes) {
+        if (bytes == 0) {
+            throw std::invalid_argument("UpdateFlowControl given 0 bytes");
+        }
+    }
+
+    ~UpdateFlowControl() {
+        if (bytes) {
+            consumer.flowControl.incrFreedBytes(bytes);
+            consumer.scheduleNotifyIfNecessary();
+        }
+    }
+
+    /**
+     * Calling release means that this object will not update the FlowControl
+     * instance when destructed.
+     */
+    void release() {
+        bytes = 0;
+    }
+
+private:
+    DcpConsumer& consumer;
+    uint32_t bytes{0};
 };
 
 /*
