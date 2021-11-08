@@ -540,12 +540,14 @@ void Manifest::dropCollection(WriteHandle& wHandle,
 
     EP_LOG_INFO(
             "{} drop collection:id:{} from scope:{}, seq:{}, manifest:{:#x}"
-            "{}{}",
+            "items:{} diskSize:{} {}{}",
             vb.getId(),
             cid,
             itr->second.getScopeID(),
             seqno,
             newManUid,
+            itr->second.getItemCount(),
+            itr->second.getDiskSize(),
             processingTombstone ? ", tombstone" : "",
             optionalSeqno.has_value() ? ", replica" : "");
 
