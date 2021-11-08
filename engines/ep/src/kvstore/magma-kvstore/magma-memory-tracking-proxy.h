@@ -85,6 +85,9 @@ public:
     magma::Status GetDiskSnapshot(
             const magma::Magma::KVStoreID kvID,
             DomainAwareUniquePtr<magma::Magma::Snapshot>& snap);
+    magma::Status GetOldestDiskSnapshot(
+            const magma::Magma::KVStoreID kvID,
+            DomainAwareUniquePtr<magma::Magma::Snapshot>& snap);
     magma::Status GetSnapshot(
             const magma::Magma::KVStoreID kvID,
             DomainAwareUniquePtr<magma::Magma::Snapshot>& snap);

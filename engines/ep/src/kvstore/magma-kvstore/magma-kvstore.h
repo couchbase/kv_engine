@@ -659,6 +659,11 @@ protected:
          */
         std::shared_ptr<CompactionContext> ctx;
 
+        /**
+         * highSeqno of the oldest checkpoint to which magma can rollback
+         */
+        uint64_t oldestRollbackableHighSeqno{0};
+
     private:
         MagmaKVStore& magmaKVStore;
         /**
@@ -688,6 +693,15 @@ protected:
             const magma::Slice& metaSlice,
             const magma::Slice& valueSlice,
             std::string_view userSanitizedItemStr) const;
+
+    /**
+     * Get highSeqno of the oldest checkpoint to which magma can rollback
+     * @param vbid
+     * @return status
+     * @return Oldest rollbackable sequence number
+     */
+    std::pair<magma::Status, uint64_t> getOldestRollbackableHighSeqno(
+            Vbid vbid);
 
     /**
      * Get the MagmaDbStats from the Magma::KVStore

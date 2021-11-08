@@ -126,6 +126,17 @@ magma::Status MagmaMemoryTrackingProxy::GetDiskSnapshot(
     return status;
 }
 
+magma::Status MagmaMemoryTrackingProxy::GetOldestDiskSnapshot(
+        const magma::Magma::KVStoreID kvID,
+        DomainAwareUniquePtr<magma::Magma::Snapshot>& snap) {
+    Expects(!snap);
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    std::unique_ptr<magma::Magma::Snapshot> snapshot;
+    auto status = magma->GetOldestDiskSnapshot(kvID, snapshot);
+    snap.reset(snapshot.release());
+    return status;
+}
+
 magma::Status MagmaMemoryTrackingProxy::GetSnapshot(
         const magma::Magma::KVStoreID kvID,
         DomainAwareUniquePtr<magma::Magma::Snapshot>& snap) {

@@ -234,10 +234,25 @@ MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
                         ctx->getRollbackPurgeSeqno(),
                         magmaDbStats,
                         ctx->maybeUpdateVBucketPurgeSeqno);
+
+        Status status;
+        std::tie(status, oldestRollbackableHighSeqno) =
+                magmaKVStore.getOldestRollbackableHighSeqno(vbid);
+        if (!status) {
+            throw std::runtime_error(
+                    "MagmaCompactionCallback: Failed to get "
+                    "getOldestRollbackableHighSeqno: " +
+                    vbid.to_string() + " : " + status.String());
+        }
     } else {
         ctx->purgedItemCtx->rollbackPurgeSeqnoCtx =
                 std::make_unique<MagmaRollbackPurgeSeqnoCtx>(
                         ctx->getRollbackPurgeSeqno(), magmaDbStats);
+
+        // set to unlimited since all checkpoints are cleared by magma explicit
+        // compaction and so magma rollback would not be possible after the
+        // explicit compaction
+        oldestRollbackableHighSeqno = std::numeric_limits<uint64_t>::max();
     }
 }
 
@@ -392,7 +407,11 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
 
         // A bunch of DCP code relies on us keeping the last item (it may be a
         // tombstone) so we can't purge the item at maxSeqno.
-        if (seqno != maxSeqno) {
+        // We can't drop tombstones with seqno >
+        // cbCtx.oldestRollbackableHighSeqno. If dropped, they will not be found
+        // by rollback callback causing items to not be restored to the
+        // hashTable on rollback.
+        if (seqno != maxSeqno && seqno <= cbCtx.oldestRollbackableHighSeqno) {
             bool drop = false;
             if (cbCtx.ctx->compactConfig.drop_deletes) {
                 if (logger->should_log(spdlog::level::TRACE)) {
@@ -428,8 +447,12 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
         // because we send Mutations instead of Commits when streaming from
         // Disk so we do not need to send a Prepare message to keep things
         // consistent on a replica.
+        // We also don't drop prepares that are rollbackable. If they are
+        // deleted, rollback callback will not be called on the prepares during
+        // rollback.
         if (magmakv::isPrepared(keySlice, metaSlice)) {
-            if (seqno <= cbCtx.ctx->highCompletedSeqno) {
+            if (seqno <= cbCtx.ctx->highCompletedSeqno &&
+                seqno <= cbCtx.oldestRollbackableHighSeqno) {
                 cbCtx.ctx->stats.preparesPurged++;
 
                 if (logger->should_log(spdlog::level::TRACE)) {
@@ -3303,4 +3326,43 @@ std::unique_ptr<TransactionContext> MagmaKVStore::begin(
 
     return std::make_unique<MagmaKVStoreTransactionContext>(
             *this, vbid, std::move(pcb));
+}
+
+std::pair<Status, uint64_t> MagmaKVStore::getOldestRollbackableHighSeqno(
+        Vbid vbid) {
+    Status status;
+    DomainAwareUniquePtr<Magma::Snapshot> oldestSnapshot;
+    status = magma->GetOldestDiskSnapshot(vbid.get(), oldestSnapshot);
+    if (!status || !oldestSnapshot) {
+        // Magma will return Status::Code::CheckpointNotFound if no rollbackable
+        // checkpoints exist. This is not an error condition since a rollback to
+        // any seqno will result in a rollback to zero.
+        if (status.ErrorCode() == Status::Code::CheckpointNotFound) {
+            // Return int_max as seqno since there is no rollbackable seqno
+            return {Status::OK(), std::numeric_limits<uint64_t>::max()};
+        }
+
+        logger->warn(
+                "MagmaKVStore::getOldestRollbackableHighSeqno {} Failed to "
+                "get oldest disk snapshot with status {}",
+                vbid,
+                status);
+        return {status, 0};
+    }
+
+    uint64_t seqno{0};
+    auto userStats = magma->GetKVStoreUserStats(*oldestSnapshot);
+    if (userStats) {
+        auto* magmaUserStats = dynamic_cast<MagmaDbStats*>(userStats.get());
+        if (magmaUserStats) {
+            seqno = magmaUserStats->highSeqno;
+        } else {
+            logger->warn(
+                    "MagmaKVStore::getOldestRollbackableHighSeqno {} Failed to "
+                    "cast UserStats to MagmaDbStats",
+                    vbid);
+        }
+    }
+
+    return {status, seqno};
 }

@@ -17,6 +17,7 @@
 #include "checkpoint_manager.h"
 
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
+#include "kvstore_test.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/thread_gate.h"
@@ -59,6 +60,16 @@ public:
     void performWritesForImplicitCompaction();
 
     void testDiskStateAfterCompactKVStore(std::function<void()> completionCb);
+
+    /**
+     * Execute rollback to given seqno and verify that the given key is seen in
+     * the rollback callback.
+     *
+     * @param rollbackSeqno Seqno to rollback to
+     * @param callbackKey Key that should be seen in the callback
+     */
+    void doRollbackAndVerifyCallback(int64_t rollbackSeqno,
+                                     StoredDocKey callbackKey);
 };
 
 /**
@@ -361,6 +372,29 @@ void STParamMagmaBucketTest::setupForImplicitCompactionTest(
     ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
     ASSERT_TRUE(gv.item);
     ASSERT_TRUE(gv.item->isDeleted());
+}
+
+void STParamMagmaBucketTest::doRollbackAndVerifyCallback(
+        int64_t rollbackSeqno, StoredDocKey callbackKey) {
+    auto vb = store->getVBucket(vbid);
+    auto* magmaKVStore =
+            dynamic_cast<MockMagmaKVStore*>(store->getRWUnderlying(vbid));
+    ASSERT_TRUE(magmaKVStore);
+
+    bool rollbackKeySeen{false};
+    auto rollbackCb = [&callbackKey, &rollbackKeySeen](GetValue result) {
+        if (result.item->getKey() == callbackKey) {
+            rollbackKeySeen = true;
+        }
+    };
+
+    // Ensure the key was not dropped via rollback callback
+    auto rollbackResult = magmaKVStore->rollback(
+            vbid,
+            rollbackSeqno,
+            std::make_unique<CustomRBCallback>(rollbackCb));
+    ASSERT_TRUE(rollbackResult.success);
+    ASSERT_TRUE(rollbackKeySeen);
 }
 
 /**
@@ -786,6 +820,101 @@ TEST_P(STParamMagmaBucketTest, ConsistentStateAfterCompactKVStoreCallDocCount) {
     });
 
     EXPECT_EQ(0, kvstore->getItemCount(vbid));
+}
+
+/**
+ * MB-47487: Test to ensure we dont drop tombstones whose keys can be restored
+ * via rollback. If the tombstone is dropped, magma will not restore the key to
+ * the kv_engine hashTable via the rollback callback ie. the key will go missing
+ * in case of valueEviction.
+ */
+TEST_P(STParamMagmaBucketTest, ImplicitCompactionTombstoneRollback) {
+    auto rollbackKey = makeStoredDocKey("rollbackKey");
+    int64_t highSeqno{0};
+    MockMagmaKVStore* magmaKVStore;
+    setupForImplicitCompactionTest(
+            [this, &rollbackKey, &highSeqno, &magmaKVStore]() {
+                auto vb = store->getVBucket(vbid);
+                magmaKVStore = dynamic_cast<MockMagmaKVStore*>(
+                        store->getRWUnderlying(vbid));
+                ASSERT_TRUE(magmaKVStore);
+
+                store_item(vbid, rollbackKey, "value");
+                flushVBucketToDiskIfPersistent(vbid, 1);
+
+                // Store highSeqno to rollback to and create a checkpoint
+                highSeqno = vb->getHighSeqno();
+                ASSERT_TRUE(magmaKVStore->newCheckpoint(vbid));
+
+                // Delete the key
+                delete_item(vbid, rollbackKey);
+                flushVBucketToDiskIfPersistent(vbid, 1);
+
+                // Create a checkpoint to force a flush
+                ASSERT_TRUE(magmaKVStore->newCheckpoint(vbid));
+            },
+            []() {},
+            [this, &rollbackKey, &magmaKVStore]() {
+                // Assert that the rollbackKey's tombstone is still around
+                auto gv = magmaKVStore->get(DiskDocKey(rollbackKey), vbid);
+                ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
+            });
+
+    doRollbackAndVerifyCallback(highSeqno, rollbackKey);
+}
+
+/**
+ * MB-47487: Test to ensure we dont drop completed prepares which can be
+ * restored via rollback
+ */
+TEST_P(STParamMagmaBucketTest, ImplicitCompactionCompletedPrepareRollback) {
+    auto purgedKey = makeStoredDocKey("keyPrepare");
+    int64_t highSeqno{0};
+    MockMagmaKVStore* magmaKVStore;
+    setupForImplicitCompactionTest(
+            [this, &purgedKey, &highSeqno, &magmaKVStore]() {
+                auto vb = store->getVBucket(vbid);
+                magmaKVStore = dynamic_cast<MockMagmaKVStore*>(
+                        store->getRWUnderlying(vbid));
+                ASSERT_TRUE(magmaKVStore);
+
+                store_item(vbid,
+                           purgedKey,
+                           "value",
+                           0 /*exptime*/,
+                           {cb::engine_errc::sync_write_pending} /*expected*/,
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           {cb::durability::Requirements()});
+                flushVBucketToDiskIfPersistent(vbid, 1);
+
+                // Store highSeqno to rollback to and create a checkpoint
+                // We will be rolling back to undo the complete drop via
+                // implicit compaction
+                highSeqno = vb->getHighSeqno();
+                ASSERT_TRUE(magmaKVStore->newCheckpoint(vbid));
+
+                // Complete the prepare
+                EXPECT_EQ(cb::engine_errc::success,
+                          vb->seqnoAcknowledged(
+                                  folly::SharedMutex::ReadHolder(
+                                          vb->getStateLock()),
+                                  "replica",
+                                  vb->getHighSeqno() /*prepareSeqno*/));
+                vb->processResolvedSyncWrites();
+                flushVBucketToDiskIfPersistent(vbid, 1);
+
+                // Create a checkpoint to force a flush
+                ASSERT_TRUE(magmaKVStore->newCheckpoint(vbid));
+            },
+            []() {},
+            [this, &purgedKey, &magmaKVStore]() {
+                // Assert that the prepare is still around
+                auto gv = magmaKVStore->get(
+                        DiskDocKey(purgedKey, true /*prepare*/), vbid);
+                ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
+            });
+
+    doRollbackAndVerifyCallback(highSeqno, purgedKey);
 }
 
 INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
