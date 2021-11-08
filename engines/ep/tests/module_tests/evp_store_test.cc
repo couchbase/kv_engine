@@ -987,6 +987,154 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindsPrepareWithSameCas) {
     }
 }
 
+/**
+ * MB-49207:
+ *
+ * Test that if we "pause" a bg fetch after reading the item(s) from disk but
+ * before restoring them to the HashTable and update an item in this window then
+ * then BgFetcher does not restore the now "old" version of the item back into
+ * the HashTable.
+ *
+ * This particular variant tests what happens when we bg fetch to decide if we
+ * should expire an item during compaction and no item was found
+ */
+TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryNewGenerationNoItem) {
+    ASSERT_EQ(cb::engine_errc::success,
+              store->setVBucketState(vbid, vbucket_state_active, {}));
+
+    // 1) Store Av1 and persist
+    auto key = makeStoredDocKey("a");
+    store_item(vbid, key, "v1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto vb = store->getVBucket(vbid);
+
+    // 2) Grab Av1 item from disk just like the compactor would
+    vb_bgfetch_queue_t q;
+    vb_bgfetch_item_ctx_t ctx;
+    ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
+            nullptr, ValueFilter::VALUES_DECOMPRESSED, 0));
+    auto diskDocKey = makeDiskDocKey("a");
+    q[diskDocKey] = std::move(ctx);
+    store->getRWUnderlying(vbid)->getMulti(vbid, q);
+    ASSERT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
+    ASSERT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
+
+    // 3) Evict Av1
+    evict_key(vbid, key);
+    ASSERT_EQ(0, vb->numExpiredItems);
+
+    // 4) Callback from the "compactor" with Av1
+    vb->deleteExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
+
+    ASSERT_EQ(0, vb->numExpiredItems);
+
+    // We should not have deleted the item and should not flush anything
+    flushVBucketToDiskIfPersistent(vbid, 0);
+
+    // We should have queued a BGFetch for the item
+    EXPECT_EQ(1, vb->getNumItems());
+    ASSERT_TRUE(vb->hasPendingBGFetchItems());
+
+    // 5a) Start a fetch and read Av1 from disk, but don't check the HT result
+    // yet
+    auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+    auto& bgFetcher = bucket->getBgFetcher(vbid);
+
+    bgFetcher.preCompleteHook = [this, &key]() {
+        // 5b) Create and evict Av2 (2nd generation of this item)
+        auto key = makeStoredDocKey("a");
+        store_item(vbid, key, "v2");
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        evict_key(vbid, key);
+    };
+    runBGFetcherTask();
+
+    EXPECT_EQ(0, vb->numExpiredItems);
+}
+
+/**
+ * MB-49207:
+ *
+ * Test that if we "pause" a bg fetch after reading the item(s) from disk but
+ * before restoring them to the HashTable and update an item in this window then
+ * then BgFetcher does not restore the now "old" version of the item back into
+ * the HashTable.
+ *
+ * This particular variant tests what happens when we bg fetch to decide if we
+ * should expire an item during compaction and a temp item was found
+ */
+TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryNewGenerationTempItem) {
+    ASSERT_EQ(cb::engine_errc::success,
+              store->setVBucketState(vbid, vbucket_state_active, {}));
+
+    // 1) Store Av1 and persist
+    auto key = makeStoredDocKey("a");
+    store_item(vbid, key, "v1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto vb = store->getVBucket(vbid);
+
+    // 2) Grab Av1 item from disk just like the compactor would
+    vb_bgfetch_queue_t q;
+    vb_bgfetch_item_ctx_t ctx;
+    ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
+            nullptr, ValueFilter::VALUES_DECOMPRESSED, 0));
+    auto diskDocKey = makeDiskDocKey("a");
+    q[diskDocKey] = std::move(ctx);
+    store->getRWUnderlying(vbid)->getMulti(vbid, q);
+    ASSERT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
+    ASSERT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
+
+    // 3) Evict Av1
+    evict_key(vbid, key);
+    ASSERT_EQ(0, vb->numExpiredItems);
+
+    // 4) Callback from the "compactor" with Av1
+    vb->deleteExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
+
+    ASSERT_EQ(0, vb->numExpiredItems);
+
+    // We should not have deleted the item and should not flush anything
+    flushVBucketToDiskIfPersistent(vbid, 0);
+
+    // We should have queued a BGFetch for the item
+    ASSERT_EQ(1, vb->getNumItems());
+    ASSERT_TRUE(vb->hasPendingBGFetchItems());
+
+    // 5a) Start a fetch and read Av1 from disk, but don't check the HT result
+    // yet
+    auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+    auto& bgFetcher = bucket->getBgFetcher(vbid);
+
+    bgFetcher.preCompleteHook = [this, &key]() {
+        // 5b) Create and evict Av2 (2nd generation of this item)
+        auto key = makeStoredDocKey("a");
+        store_item(vbid, key, "v2");
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        evict_key(vbid, key);
+
+        // 5c) Another get to bring our temp item back
+        auto options = static_cast<get_options_t>(
+                QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+                HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+
+        auto gv = store->get(key, vbid, cookie, options);
+
+        auto vb = store->getVBucket(vbid);
+        ASSERT_TRUE(vb);
+
+        auto res = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(res.committed);
+        ASSERT_TRUE(res.committed->isTempInitialItem());
+    };
+    runBGFetcherTask();
+
+    auto res = vb->ht.findForUpdate(key);
+    ASSERT_TRUE(res.committed);
+    EXPECT_FALSE(res.committed->isDeleted());
+}
+
 TEST_P(EPBucketFullEvictionTest, UnDelWithPrepare) {
     setVBucketStateAndRunPersistTask(
             vbid,

@@ -276,6 +276,20 @@ void EPVBucket::completeCompactionExpiryBgFetch(
 
         auto htRes = ht.findForUpdate(docKey);
 
+        // We can only "complete" the fetch if the item that drove it (the
+        // temp initial StoredValue) is still in the HT in the same state.
+        if (!htRes.committed) {
+            return;
+        }
+
+        if (!htRes.committed->isTempInitialItem()) {
+            return;
+        }
+
+        if (htRes.committed->getCas() != fetchedItem.token) {
+            return;
+        }
+
         // If we find a StoredValue then the item that we are trying to expire
         // has been superseded by a new one (as we wouldn't have tried to
         // BGFetch the item if it was there originally). In this case, we don't
