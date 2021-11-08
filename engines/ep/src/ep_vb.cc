@@ -128,7 +128,8 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
                             res.lock.getHTLock(), *fetchedValue, *v);
                 }
             } else if (status == cb::engine_errc::no_such_key) {
-                if (v && v->isTempInitialItem()) {
+                if (v && v->isTempInitialItem() &&
+                    v->getCas() == fetched_item.token) {
                     v->setNonExistent();
                 }
                 /* If cb::engine_errc::no_such_key is the status from storage

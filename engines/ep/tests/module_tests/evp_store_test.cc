@@ -1687,6 +1687,72 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest, MB_29816) {
     ASSERT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 }
 
+/**
+ * MB-49207:
+ *
+ * Test that if we "pause" a bg fetch after reading the item(s) from disk but
+ * before restoring them to the HashTable and update an item in this window then
+ * then BgFetcher does not restore the now "old" version of the item back into
+ * the HashTable.
+ *
+ * This particular variant tests what happens when we restore deleted metadata
+ */
+TEST_P(EPBucketFullEvictionNoBloomFilterTest, RaceyFetchingDeletedMetaBgFetch) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto key = makeStoredDocKey("key");
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    const char* msg;
+    store->evictKey(key, vbid, &msg);
+
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+
+    ItemMetaData itemMeta;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    ASSERT_EQ(
+            cb::engine_errc::would_block,
+            store->getMetaData(key, vbid, cookie, itemMeta, deleted, datatype));
+
+    auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+    auto& bgFetcher = bucket->getBgFetcher(vbid);
+
+    bgFetcher.preCompleteHook = [this, &key, &options]() {
+        store_item(vbid,
+                   key,
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES);
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        const char* msg;
+        store->evictKey(key, vbid, &msg);
+
+        // Need to make the item "temp" for the bg fetcher to consider
+        // completing the bgfetch
+        auto gv = store->get(key, vbid, cookie, options);
+
+        auto vb = store->getVBucket(vbid);
+        ASSERT_TRUE(vb);
+
+        auto res = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(res.committed);
+        ASSERT_TRUE(res.committed->isTempInitialItem());
+    };
+
+    runBGFetcherTask();
+
+    auto res = vb->ht.findForUpdate(key);
+    ASSERT_TRUE(res.committed);
+    EXPECT_FALSE(res.committed->isResident());
+    EXPECT_FALSE(res.committed->isTempNonExistentItem());
+}
+
 class EPBucketTestNoRocksDb : public EPBucketTest {
 public:
     void SetUp() override {
