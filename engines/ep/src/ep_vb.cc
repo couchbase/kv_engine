@@ -122,7 +122,8 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
         switch (fetched_item.filter) {
         case ValueFilter::KEYS_ONLY:
             if (status == cb::engine_errc::success) {
-                if (v && v->isTempInitialItem()) {
+                if (v && v->isTempInitialItem() &&
+                    v->getCas() == fetched_item.token) {
                     ht.unlocked_restoreMeta(
                             res.lock.getHTLock(), *fetchedValue, *v);
                 }

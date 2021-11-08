@@ -1043,6 +1043,73 @@ TEST_P(EPBucketFullEvictionTest, UnDelWithPrepare) {
     }
 }
 
+TEST_P(EPBucketFullEvictionTest, RaceyFetchingMetaBgFetch) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto key = makeStoredDocKey("key");
+    store_item(vbid,
+               key,
+               "ohno",
+               0 /*exptime*/,
+               {cb::engine_errc::success} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    auto oldCas = vb->ht.findForUpdate(key).committed->getCas();
+
+    const char* msg;
+    store->evictKey(key, vbid, &msg);
+
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+
+    ItemMetaData itemMeta;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    ASSERT_EQ(
+            cb::engine_errc::would_block,
+            store->getMetaData(key, vbid, cookie, itemMeta, deleted, datatype));
+
+    auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+    auto& bgFetcher = bucket->getBgFetcher(vbid);
+
+    bgFetcher.preCompleteHook = [this, &key, &options]() {
+        store_item(vbid,
+                   key,
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES);
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        const char* msg;
+        store->evictKey(key, vbid, &msg);
+
+        if (isFullEviction()) {
+            // Need to make the item "temp" for the bg fetcher to consider
+            // completing this fetch
+            auto gv = store->get(key, vbid, cookie, options);
+        } else {
+            auto vb = store->getVBucket(vbid);
+            ASSERT_TRUE(vb);
+
+            auto res = vb->ht.findForUpdate(key);
+            ASSERT_TRUE(res.committed);
+            ASSERT_FALSE(res.committed->getValue());
+        }
+    };
+
+    runBGFetcherTask();
+
+    auto res = vb->ht.findForUpdate(key);
+    ASSERT_TRUE(res.committed);
+    EXPECT_FALSE(res.committed->isResident());
+    EXPECT_NE(oldCas, res.committed->getCas());
+}
+
 /**
  * Verify that when getIf is used it only fetches the metdata from disk for
  * the filter, and not the complete document.
