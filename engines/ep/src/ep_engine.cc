@@ -4363,6 +4363,9 @@ void EventuallyPersistentEngine::doTimingStats(
     collector.addStat(Key::disk_vb_del, stats.diskVBDelHisto);
     collector.addStat(Key::disk_commit, stats.diskCommitHisto);
 
+    collector.addStat(Key::item_alloc_sizes, stats.itemAllocSizeHisto);
+    collector.addStat(Key::bg_batch_size, stats.getMultiBatchSizeHisto);
+
     // Checkpoint cursor stats
     collector.addStat(Key::persistence_cursor_get_all_items,
                       stats.persistenceCursorGetItemsHisto);

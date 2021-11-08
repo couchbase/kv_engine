@@ -7840,7 +7840,12 @@ static enum test_result test_mb19687_variable(EngineIface* h) {
 
             // These stat groups return histograms so we can't guess the
             // key names...
-            {"timings", {}},
+            {"timings",
+             // ... apart from the means of hdrhistogram-derived metrics
+             {"get_stats_cmd_mean",
+              "item_alloc_sizes_mean",
+              "set_vb_cmd_mean",
+              "store_cmd_mean"}},
             {"scheduler", {}},
             {"runtimes", {}},
             {"kvtimings", {}},
