@@ -67,3 +67,11 @@ magma::Status MockMagmaKVStore::deleteLocalDoc(Vbid vbid,
 
     return ret;
 }
+
+magma::Status MockMagmaKVStore::runImplicitCompactKVStore(Vbid vbid) {
+    return magma->RunImplicitCompactKVStore(vbid.get());
+}
+
+magma::Status MockMagmaKVStore::newCheckpoint(Vbid vbid) {
+    return magma->NewCheckpoint(vbid.get());
+}

@@ -72,6 +72,7 @@ public:
             const magma::Slice& lowKey,
             const magma::Slice& highKey,
             magma::Magma::CompactionCallbackBuilder makeCallback = nullptr);
+    magma::Status RunImplicitCompactKVStore(const magma::Magma::KVStoreID kvID);
     magma::Status DeleteKVStore(const magma::Magma::KVStoreID kvID,
                                 const magma::Magma::KVStoreRevision kvsRev = 1);
     magma::Status Get(const magma::Magma::KVStoreID kvID,
@@ -162,6 +163,7 @@ public:
             const magma::Magma::KVStoreRevision kvsRev = 1,
             const magma::Magma::WriteDocsCallback docCallback = nullptr,
             const magma::Magma::PostWriteDocsCallback postCallback = nullptr);
+    magma::Status NewCheckpoint(const magma::Magma::KVStoreID kvID);
 
 private:
     std::unique_ptr<magma::Magma> magma;

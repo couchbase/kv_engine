@@ -34,6 +34,19 @@ public:
 
     magma::Status deleteLocalDoc(Vbid vbid, std::string_view key);
 
+    /*
+     * Perform implicit compactions for all keyIndex sstables in the vbucket
+     * These compactions will use the same context as Magma's implicit
+     * compactions
+     */
+    magma::Status runImplicitCompactKVStore(Vbid vbid);
+
+    /*
+     * Create new rollback-able checkpoint for the specified vbucket
+     * @param vbid
+     */
+    magma::Status newCheckpoint(Vbid vbid);
+
     TestingHook<> readVBStateFromDiskHook;
 
     std::function<int(VB::Commit&, kvstats_ctx&)> saveDocsErrorInjector;

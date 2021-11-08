@@ -83,6 +83,12 @@ magma::Status MagmaMemoryTrackingProxy::CompactKVStore(
     return magma->CompactKVStore(kvID, lowKey, highKey, makeCallback);
 }
 
+magma::Status MagmaMemoryTrackingProxy::RunImplicitCompactKVStore(
+        const magma::Magma::KVStoreID kvID) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->RunImplicitCompactKVStore(kvID);
+}
+
 magma::Status MagmaMemoryTrackingProxy::DeleteKVStore(
         const magma::Magma::KVStoreID kvID,
         const magma::Magma::KVStoreRevision kvsRev) {
@@ -358,4 +364,10 @@ magma::Status MagmaMemoryTrackingProxy::WriteDocs(
                             kvsRev,
                             wrappedDocCallback,
                             wrappedPostCallback);
+}
+
+magma::Status MagmaMemoryTrackingProxy::NewCheckpoint(
+        const magma::Magma::KVStoreID kvID) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->NewCheckpoint(kvID);
 }
