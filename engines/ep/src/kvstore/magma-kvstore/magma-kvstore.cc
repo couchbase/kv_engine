@@ -1963,10 +1963,6 @@ std::pair<Status, std::string> MagmaKVStore::processReadLocalDocResult(
                 status.ErrorCode(),
                 "MagmaKVStore::readLocalDoc " + vbid.to_string() +
                         " key:" + keySlice.ToString() + " " + status.String());
-        logger->warn("MagmaKVStore::readLocalDoc {} key:{} returned status: {}",
-                     vbid,
-                     keySlice.ToString(),
-                     status.String());
     } else {
         if (!found) {
             retStatus = magma::Status(
