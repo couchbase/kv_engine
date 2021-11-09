@@ -315,7 +315,8 @@ private:
                             int64_t prepareSeqno,
                             int64_t abortSeqno) override;
 
-    void bgFetch(const DocKey& key,
+    void bgFetch(HashTable::HashBucketLock&& hbl,
+                 const DocKey& key,
                  const CookieIface* cookie,
                  EventuallyPersistentEngine& engine,
                  bool isMeta = false) override;

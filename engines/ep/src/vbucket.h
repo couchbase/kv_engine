@@ -2334,13 +2334,16 @@ private:
     /**
      * Enqueue a background fetch for a key.
      *
+     * @param hbl The hash table bucket lock, unlocked during use so must be
+     *            moved.
      * @param key the key to be bg fetched
      * @param cookie the cookie of the requestor
      * @param engine Reference to ep engine
      * @param isMeta whether the fetch is for a non-resident value or metadata
      *               of a (possibly) deleted item
      */
-    virtual void bgFetch(const DocKey& key,
+    virtual void bgFetch(HashTable::HashBucketLock&& hbl,
+                         const DocKey& key,
                          const CookieIface* cookie,
                          EventuallyPersistentEngine& engine,
                          bool isMeta = false) = 0;

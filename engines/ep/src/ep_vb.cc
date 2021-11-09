@@ -737,10 +737,15 @@ VBNotifyCtx EPVBucket::addNewAbort(const HashTable::HashBucketLock& hbl,
     return queueAbortForUnseenPrepare(item, queueItmCtx);
 }
 
-void EPVBucket::bgFetch(const DocKey& key,
+void EPVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
+                        const DocKey& key,
                         const CookieIface* cookie,
                         EventuallyPersistentEngine& engine,
                         const bool isMeta) {
+    // We unlock the hbl here as queueBGFetchItem will take a vBucket wide lock
+    // and we don't want need this lock anymore.
+    hbl.getHTLock().unlock();
+
     // @TODO could the BgFetcher ever not be there? It should probably be a
     // reference if that's the case
     // schedule to the current batch of background fetch of the given
@@ -769,8 +774,7 @@ cb::engine_errc EPVBucket::addTempItemAndBGFetch(
     case TempAddStatus::NoMem:
         return cb::engine_errc::no_memory;
     case TempAddStatus::BgFetch:
-        hbl.getHTLock().unlock();
-        bgFetch(key, cookie, engine, metadataOnly);
+        bgFetch(std::move(hbl), key, cookie, engine, metadataOnly);
         return cb::engine_errc::would_block;
     }
     folly::assume_unreachable();
@@ -823,7 +827,7 @@ GetValue EPVBucket::getInternalNonResident(HashTable::HashBucketLock&& hbl,
                                            QueueBgFetch queueBgFetch,
                                            const StoredValue& v) {
     if (queueBgFetch == QueueBgFetch::Yes) {
-        bgFetch(key, cookie, engine);
+        bgFetch(std::move(hbl), key, cookie, engine);
     }
     return GetValue(
             nullptr, cb::engine_errc::would_block, v.getBySeqno(), true);
