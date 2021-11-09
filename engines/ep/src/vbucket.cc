@@ -1687,7 +1687,7 @@ cb::engine_errc VBucket::set(
             // full eviction.
             if (v) {
                 // temp item is already created. Simply schedule a bg fetch job
-                bgFetch(std::move(hbl), itm.getKey(), cookie, engine, true);
+                bgFetch(std::move(hbl), itm.getKey(), *v, cookie, engine, true);
                 return cb::engine_errc::would_block;
             }
             ret = addTempItemAndBGFetch(
@@ -1801,7 +1801,7 @@ cb::engine_errc VBucket::replace(
                 break;
             case MutationStatus::NeedBgFetch: {
                 // temp item is already created. Simply schedule a bg fetch job
-                bgFetch(std::move(hbl), itm.getKey(), cookie, engine, true);
+                bgFetch(std::move(hbl), itm.getKey(), *v, cookie, engine, true);
                 ret = cb::engine_errc::would_block;
                 break;
             }
@@ -1966,7 +1966,7 @@ cb::engine_errc VBucket::prepare(
     case MutationStatus::NeedBgFetch: { // CAS operation with non-resident item
         // + full eviction.
         if (v) { // temp item is already created. Simply schedule a bg fetch job
-            bgFetch(std::move(hbl), itm.getKey(), cookie, engine, true);
+            bgFetch(std::move(hbl), itm.getKey(), *v, cookie, engine, true);
             return cb::engine_errc::would_block;
         }
         ret = addTempItemAndBGFetch(
@@ -2008,7 +2008,7 @@ cb::engine_errc VBucket::setWithMeta(
     if (checkConflicts == CheckConflicts::Yes) {
         if (v) {
             if (v->isTempInitialItem()) {
-                bgFetch(std::move(hbl), itm.getKey(), cookie, engine, true);
+                bgFetch(std::move(hbl), itm.getKey(), *v, cookie, engine, true);
                 return cb::engine_errc::would_block;
             }
 
@@ -2105,7 +2105,7 @@ cb::engine_errc VBucket::setWithMeta(
     case MutationStatus::NeedBgFetch: { // CAS operation with non-resident item
         // + full eviction.
         if (v) { // temp item is already created. Simply schedule a bg fetch job
-            bgFetch(std::move(hbl), itm.getKey(), cookie, engine, true);
+            bgFetch(std::move(hbl), itm.getKey(), *v, cookie, engine, true);
             return cb::engine_errc::would_block;
         }
         ret = addTempItemAndBGFetch(
@@ -2174,6 +2174,7 @@ cb::engine_errc VBucket::deleteItem(
                 } else if (htRes.committed->isTempInitialItem()) {
                     bgFetch(std::move(hbl),
                             cHandle.getKey(),
+                            *htRes.committed,
                             cookie,
                             engine,
                             true);
@@ -2314,7 +2315,7 @@ cb::engine_errc VBucket::deleteWithMeta(
     if (checkConflicts == CheckConflicts::Yes) {
         if (v) {
             if (v->isTempInitialItem()) {
-                bgFetch(std::move(hbl), key, cookie, engine, true);
+                bgFetch(std::move(hbl), key, *v, cookie, engine, true);
                 return cb::engine_errc::would_block;
             }
 
@@ -2449,7 +2450,7 @@ cb::engine_errc VBucket::deleteWithMeta(
         break;
     }
     case MutationStatus::NeedBgFetch:
-        bgFetch(std::move(hbl), key, cookie, engine, metaBgFetch);
+        bgFetch(std::move(hbl), key, *v, cookie, engine, metaBgFetch);
         return cb::engine_errc::would_block;
 
     case MutationStatus::IsPendingSyncWrite:
@@ -2625,7 +2626,7 @@ cb::engine_errc VBucket::add(
             return addTempItemAndBGFetch(
                     std::move(hbl), itm.getKey(), cookie, engine, true);
         case AddStatus::BgFetch:
-            bgFetch(std::move(hbl), itm.getKey(), cookie, engine, true);
+            bgFetch(std::move(hbl), itm.getKey(), *v, cookie, engine, true);
             return cb::engine_errc::would_block;
         case AddStatus::Success:
         case AddStatus::UnDel:
@@ -2747,7 +2748,11 @@ GetValue VBucket::getAndUpdateTtl(
 
         if (status == MutationStatus::NeedBgFetch) {
             if (res.storedValue) {
-                bgFetch(std::move(res.lock), cHandle.getKey(), cookie, engine);
+                bgFetch(std::move(res.lock),
+                        cHandle.getKey(),
+                        *res.storedValue,
+                        cookie,
+                        engine);
                 return GetValue(nullptr,
                                 cb::engine_errc::would_block,
                                 res.storedValue->getBySeqno());
@@ -2910,7 +2915,7 @@ cb::engine_errc VBucket::getMetaData(
         stats.numOpsGetMeta++;
         if (v->isTempInitialItem()) {
             // Need bg meta fetch.
-            bgFetch(std::move(hbl), cHandle.getKey(), cookie, engine, true);
+            bgFetch(std::move(hbl), cHandle.getKey(), *v, cookie, engine, true);
             return cb::engine_errc::would_block;
         } else if (v->isTempNonExistentItem()) {
             metadata.cas = v->getCas();
@@ -2981,6 +2986,7 @@ cb::engine_errc VBucket::getKeyStats(
         if (eviction == EvictionPolicy::Full && v->isTempInitialItem()) {
             bgFetch(std::move(res.lock),
                     cHandle.getKey(),
+                    *v,
                     cookie,
                     engine,
                     true);
@@ -3038,7 +3044,11 @@ GetValue VBucket::getLocked(rel_time_t currentTime,
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
             if (cookie) {
-                bgFetch(std::move(res.lock), cHandle.getKey(), cookie, engine);
+                bgFetch(std::move(res.lock),
+                        cHandle.getKey(),
+                        *v,
+                        cookie,
+                        engine);
             }
             return GetValue(nullptr, cb::engine_errc::would_block, -1, true);
         }

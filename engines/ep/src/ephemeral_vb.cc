@@ -855,6 +855,7 @@ void EphemeralVBucket::updateSeqListPostAbort(
 
 void EphemeralVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
                                const DocKey& key,
+                               const StoredValue& v,
                                const CookieIface* cookie,
                                EventuallyPersistentEngine& engine,
                                const bool isMeta) {

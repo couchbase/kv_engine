@@ -739,6 +739,7 @@ VBNotifyCtx EPVBucket::addNewAbort(const HashTable::HashBucketLock& hbl,
 
 void EPVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
                         const DocKey& key,
+                        const StoredValue& v,
                         const CookieIface* cookie,
                         EventuallyPersistentEngine& engine,
                         const bool isMeta) {
@@ -774,7 +775,12 @@ cb::engine_errc EPVBucket::addTempItemAndBGFetch(
     case TempAddStatus::NoMem:
         return cb::engine_errc::no_memory;
     case TempAddStatus::BgFetch:
-        bgFetch(std::move(hbl), key, cookie, engine, metadataOnly);
+        bgFetch(std::move(hbl),
+                key,
+                *rv.storedValue,
+                cookie,
+                engine,
+                metadataOnly);
         return cb::engine_errc::would_block;
     }
     folly::assume_unreachable();
@@ -827,7 +833,7 @@ GetValue EPVBucket::getInternalNonResident(HashTable::HashBucketLock&& hbl,
                                            QueueBgFetch queueBgFetch,
                                            const StoredValue& v) {
     if (queueBgFetch == QueueBgFetch::Yes) {
-        bgFetch(std::move(hbl), key, cookie, engine);
+        bgFetch(std::move(hbl), key, v, cookie, engine);
     }
     return GetValue(
             nullptr, cb::engine_errc::would_block, v.getBySeqno(), true);

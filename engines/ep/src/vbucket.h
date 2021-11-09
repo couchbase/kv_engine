@@ -2342,6 +2342,7 @@ private:
      * @param hbl The hash table bucket lock, unlocked during use so must be
      *            moved.
      * @param key the key to be bg fetched
+     * @param v reference to the stored value of the non-resident key
      * @param cookie the cookie of the requestor
      * @param engine Reference to ep engine
      * @param isMeta whether the fetch is for a non-resident value or metadata
@@ -2349,6 +2350,7 @@ private:
      */
     virtual void bgFetch(HashTable::HashBucketLock&& hbl,
                          const DocKey& key,
+                         const StoredValue& v,
                          const CookieIface* cookie,
                          EventuallyPersistentEngine& engine,
                          bool isMeta = false) = 0;

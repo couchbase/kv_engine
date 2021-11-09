@@ -317,6 +317,7 @@ private:
 
     void bgFetch(HashTable::HashBucketLock&& hbl,
                  const DocKey& key,
+                 const StoredValue& v,
                  const CookieIface* cookie,
                  EventuallyPersistentEngine& engine,
                  bool isMeta = false) override;
