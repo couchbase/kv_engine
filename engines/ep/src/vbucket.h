@@ -2357,6 +2357,8 @@ private:
     /**
      * Get metadata and value for a non-resident key
      *
+     * @param hbl The hash table bucket lock, unlocked during use so must be
+     *            moved.
      * @param key key for which metadata and value should be retrieved
      * @param cookie the cookie representing the client
      * @param engine Reference to ep engine
@@ -2366,7 +2368,8 @@ private:
      *
      * @return the result of the operation
      */
-    virtual GetValue getInternalNonResident(const DocKey& key,
+    virtual GetValue getInternalNonResident(HashTable::HashBucketLock&& hbl,
+                                            const DocKey& key,
                                             const CookieIface* cookie,
                                             EventuallyPersistentEngine& engine,
                                             QueueBgFetch queueBgFetch,

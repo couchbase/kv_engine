@@ -341,7 +341,8 @@ private:
                        const std::chrono::steady_clock::time_point start,
                        const std::chrono::steady_clock::time_point stop);
 
-    GetValue getInternalNonResident(const DocKey& key,
+    GetValue getInternalNonResident(HashTable::HashBucketLock&& hbl,
+                                    const DocKey& key,
                                     const CookieIface* cookie,
                                     EventuallyPersistentEngine& engine,
                                     QueueBgFetch queueBgFetch,

@@ -816,7 +816,8 @@ void EPVBucket::updateBGStats(
     atomic_setIfBigger(stats.bgMaxLoad, l);
 }
 
-GetValue EPVBucket::getInternalNonResident(const DocKey& key,
+GetValue EPVBucket::getInternalNonResident(HashTable::HashBucketLock&& hbl,
+                                           const DocKey& key,
                                            const CookieIface* cookie,
                                            EventuallyPersistentEngine& engine,
                                            QueueBgFetch queueBgFetch,

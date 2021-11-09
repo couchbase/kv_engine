@@ -887,6 +887,7 @@ void EphemeralVBucket::bgFetchForCompactionExpiry(const DocKey& key,
 }
 
 GetValue EphemeralVBucket::getInternalNonResident(
+        HashTable::HashBucketLock&& hbl,
         const DocKey& key,
         const CookieIface* cookie,
         EventuallyPersistentEngine& engine,

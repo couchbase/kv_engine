@@ -346,7 +346,8 @@ private:
     void bgFetchForCompactionExpiry(const DocKey& key,
                                     const Item& item) override;
 
-    GetValue getInternalNonResident(const DocKey& key,
+    GetValue getInternalNonResident(HashTable::HashBucketLock&& hbl,
+                                    const DocKey& key,
                                     const CookieIface* cookie,
                                     EventuallyPersistentEngine& engine,
                                     QueueBgFetch queueBgFetch,

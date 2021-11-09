@@ -2800,8 +2800,12 @@ GetValue VBucket::getInternal(const CookieIface* cookie,
         if (v->isTempDeletedItem() && getDeletedValue && !metadataOnly) {
             const auto queueBgFetch =
                     (bgFetchRequired) ? QueueBgFetch::Yes : QueueBgFetch::No;
-            return getInternalNonResident(
-                    cHandle.getKey(), cookie, engine, queueBgFetch, *v);
+            return getInternalNonResident(std::move(res.lock),
+                                          cHandle.getKey(),
+                                          cookie,
+                                          engine,
+                                          queueBgFetch,
+                                          *v);
         }
 
         // If SV is otherwise a temp non-existent (i.e. a marker added after a
@@ -2820,8 +2824,12 @@ GetValue VBucket::getInternal(const CookieIface* cookie,
             auto queueBgFetch = (bgFetchRequired) ?
                     QueueBgFetch::Yes :
                     QueueBgFetch::No;
-            return getInternalNonResident(
-                    cHandle.getKey(), cookie, engine, queueBgFetch, *v);
+            return getInternalNonResident(std::move(res.lock),
+                                          cHandle.getKey(),
+                                          cookie,
+                                          engine,
+                                          queueBgFetch,
+                                          *v);
         }
 
         std::unique_ptr<Item> item;
