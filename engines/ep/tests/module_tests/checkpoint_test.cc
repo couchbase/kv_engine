@@ -12,6 +12,10 @@
 #include "checkpoint_test.h"
 #include "checkpoint_test_impl.h"
 
+#include "../mock/mock_checkpoint_manager.h"
+#include "../mock/mock_dcp_consumer.h"
+#include "../mock/mock_stream.h"
+#include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
@@ -22,27 +26,11 @@
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
-#include "tests/module_tests/test_helpers.h"
-#include "thread_gate.h"
-
-#include "../mock/mock_checkpoint_manager.h"
-#include "../mock/mock_dcp_consumer.h"
-#include "../mock/mock_stream.h"
-#include "../mock/mock_synchronous_ep_engine.h"
 #include "programs/engine_testapp/mock_server.h"
-
+#include "tests/module_tests/test_helpers.h"
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
-#include <valgrind/valgrind.h>
-
 #include <thread>
-
-#define NUM_DCP_THREADS 3
-#define NUM_DCP_THREADS_VG 2
-#define NUM_SET_THREADS 4
-#define NUM_SET_THREADS_VG 2
-
-#define NUM_ITEMS 500
 
 #define DCP_CURSOR_PREFIX "dcp-client-"
 
@@ -3518,7 +3506,7 @@ TEST_P(CheckpointMemoryTrackingTest,
 
     for (auto i = 0; i < 4; ++i) {
         CheckpointCursorIntrospector::incrPos(cursor);
-        const auto pos = (*CheckpointCursorIntrospector::getCurrentPos(cursor));
+        pos = (*CheckpointCursorIntrospector::getCurrentPos(cursor));
         if (pos->getOperation() == queue_op::checkpoint_start) {
             ckptStartSize = pos->size();
         } else if (pos->getOperation() == queue_op::set_vbucket_state) {

@@ -14,12 +14,8 @@
 #include "callbacks.h"
 #include "checkpoint_config.h"
 #include "checkpoint_manager.h"
-#include "configuration.h"
 #include "evp_store_single_threaded_test.h"
-#include "stats.h"
 #include "vbucket_test.h"
-
-#include <engines/ep/src/ephemeral_vb.h>
 #include <folly/portability/GTest.h>
 
 class MockCheckpointManager;
