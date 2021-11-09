@@ -864,7 +864,7 @@ void EphemeralVBucket::bgFetch(const DocKey& key,
 }
 
 cb::engine_errc EphemeralVBucket::addTempItemAndBGFetch(
-        HashTable::HashBucketLock& hbl,
+        HashTable::HashBucketLock&& hbl,
         const DocKey& key,
         const CookieIface* cookie,
         EventuallyPersistentEngine& engine,

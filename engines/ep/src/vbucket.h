@@ -2314,7 +2314,8 @@ private:
      * Add a temporary item in hash table and enqueue a background fetch for a
      * key.
      *
-     * @param hbl Reference to the hash table bucket lock
+     * @param hbl The hash table bucket lock, unlocked during use so must be
+     *            moved.
      * @param key the key to be bg fetched
      * @param cookie the cookie of the requestor
      * @param engine Reference to ep engine
@@ -2324,7 +2325,7 @@ private:
      * @return cb::engine_errc status notified to be to the front end
      */
     virtual cb::engine_errc addTempItemAndBGFetch(
-            HashTable::HashBucketLock& hbl,
+            HashTable::HashBucketLock&& hbl,
             const DocKey& key,
             const CookieIface* cookie,
             EventuallyPersistentEngine& engine,

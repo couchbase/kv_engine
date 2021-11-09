@@ -1676,7 +1676,7 @@ cb::engine_errc VBucket::set(
                 return cb::engine_errc::would_block;
             }
             ret = addTempItemAndBGFetch(
-                    hbl, itm.getKey(), cookie, engine, true);
+                    std::move(hbl), itm.getKey(), cookie, engine, true);
             break;
         }
 
@@ -1802,7 +1802,7 @@ cb::engine_errc VBucket::replace(
 
             if (maybeKeyExistsInFilter(itm.getKey())) {
                 return addTempItemAndBGFetch(
-                        hbl, itm.getKey(), cookie, engine, false);
+                        std::move(hbl), itm.getKey(), cookie, engine, false);
             } else {
                 // As bloomfilter predicted that item surely doesn't exist
                 // on disk, return ENOENT for replace().
@@ -1956,7 +1956,8 @@ cb::engine_errc VBucket::prepare(
             bgFetch(itm.getKey(), cookie, engine, true);
             return cb::engine_errc::would_block;
         }
-        ret = addTempItemAndBGFetch(hbl, itm.getKey(), cookie, engine, true);
+        ret = addTempItemAndBGFetch(
+                std::move(hbl), itm.getKey(), cookie, engine, true);
         break;
     }
     case MutationStatus::IsPendingSyncWrite:
@@ -2013,7 +2014,7 @@ cb::engine_errc VBucket::setWithMeta(
         } else {
             if (maybeKeyExistsInFilter(itm.getKey())) {
                 return addTempItemAndBGFetch(
-                        hbl, itm.getKey(), cookie, engine, true);
+                        std::move(hbl), itm.getKey(), cookie, engine, true);
             } else {
                 maybeKeyExists = false;
             }
@@ -2095,7 +2096,8 @@ cb::engine_errc VBucket::setWithMeta(
             bgFetch(itm.getKey(), cookie, engine, true);
             return cb::engine_errc::would_block;
         }
-        ret = addTempItemAndBGFetch(hbl, itm.getKey(), cookie, engine, true);
+        ret = addTempItemAndBGFetch(
+                std::move(hbl), itm.getKey(), cookie, engine, true);
         break;
     }
     case MutationStatus::IsPendingSyncWrite:
@@ -2147,8 +2149,11 @@ cb::engine_errc VBucket::deleteItem(
             } else { // Full eviction.
                 if (!htRes.committed) { // Item might be evicted from cache.
                     if (maybeKeyExistsInFilter(cHandle.getKey())) {
-                        return addTempItemAndBGFetch(
-                                hbl, cHandle.getKey(), cookie, engine, true);
+                        return addTempItemAndBGFetch(std::move(hbl),
+                                                     cHandle.getKey(),
+                                                     cookie,
+                                                     engine,
+                                                     true);
                     } else {
                         // As bloomfilter predicted that item surely doesn't
                         // exist on disk, return ENOENT for deleteItem().
@@ -2309,7 +2314,8 @@ cb::engine_errc VBucket::deleteWithMeta(
             // Item is 1) deleted or not existent in the value eviction case OR
             // 2) deleted or evicted in the full eviction.
             if (maybeKeyExistsInFilter(key)) {
-                return addTempItemAndBGFetch(hbl, key, cookie, engine, true);
+                return addTempItemAndBGFetch(
+                        std::move(hbl), key, cookie, engine, true);
             } else {
                 // Even though bloomfilter predicted that item doesn't exist
                 // on disk, we must put this delete on disk if the cas is valid.
@@ -2603,7 +2609,7 @@ cb::engine_errc VBucket::add(
             return cb::engine_errc::not_stored;
         case AddStatus::AddTmpAndBgFetch:
             return addTempItemAndBGFetch(
-                    hbl, itm.getKey(), cookie, engine, true);
+                    std::move(hbl), itm.getKey(), cookie, engine, true);
         case AddStatus::BgFetch:
             hbl.getHTLock().unlock();
             bgFetch(itm.getKey(), cookie, engine, true);
@@ -2733,8 +2739,11 @@ GetValue VBucket::getAndUpdateTtl(
                                 cb::engine_errc::would_block,
                                 res.storedValue->getBySeqno());
             } else {
-                cb::engine_errc ec = addTempItemAndBGFetch(
-                        res.lock, cHandle.getKey(), cookie, engine, false);
+                cb::engine_errc ec = addTempItemAndBGFetch(std::move(res.lock),
+                                                           cHandle.getKey(),
+                                                           cookie,
+                                                           engine,
+                                                           false);
                 return GetValue(nullptr, ec, -1, true);
             }
         }
@@ -2845,7 +2854,7 @@ GetValue VBucket::getInternal(const CookieIface* cookie,
         if (maybeKeyExistsInFilter(cHandle.getKey())) {
             cb::engine_errc ec = cb::engine_errc::would_block;
             if (bgFetchRequired) { // Full eviction and need a bg fetch.
-                ec = addTempItemAndBGFetch(res.lock,
+                ec = addTempItemAndBGFetch(std::move(res.lock),
                                            cHandle.getKey(),
                                            cookie,
                                            engine,
@@ -2917,7 +2926,7 @@ cb::engine_errc VBucket::getMetaData(
 
         if (maybeKeyExistsInFilter(cHandle.getKey())) {
             return addTempItemAndBGFetch(
-                    hbl, cHandle.getKey(), cookie, engine, true);
+                    std::move(hbl), cHandle.getKey(), cookie, engine, true);
         } else {
             stats.numOpsGetMeta++;
             return cb::engine_errc::no_such_key;
@@ -2968,8 +2977,11 @@ cb::engine_errc VBucket::getKeyStats(
             return cb::engine_errc::no_such_key;
         } else {
             if (maybeKeyExistsInFilter(cHandle.getKey())) {
-                return addTempItemAndBGFetch(
-                        res.lock, cHandle.getKey(), cookie, engine, true);
+                return addTempItemAndBGFetch(std::move(res.lock),
+                                             cHandle.getKey(),
+                                             cookie,
+                                             engine,
+                                             true);
             } else {
                 // If bgFetch were false, or bloomfilter predicted that
                 // item surely doesn't exist on disk, return ENOENT for
@@ -3024,8 +3036,11 @@ GetValue VBucket::getLocked(rel_time_t currentTime,
 
         case EvictionPolicy::Full:
             if (maybeKeyExistsInFilter(cHandle.getKey())) {
-                cb::engine_errc ec = addTempItemAndBGFetch(
-                        res.lock, cHandle.getKey(), cookie, engine, false);
+                cb::engine_errc ec = addTempItemAndBGFetch(std::move(res.lock),
+                                                           cHandle.getKey(),
+                                                           cookie,
+                                                           engine,
+                                                           false);
                 return GetValue(nullptr, ec, -1, true);
             } else {
                 // As bloomfilter predicted that item surely doesn't exist

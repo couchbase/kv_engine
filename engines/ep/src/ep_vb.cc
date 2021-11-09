@@ -759,7 +759,7 @@ void EPVBucket::bgFetch(const DocKey& key,
 
 /* [TBD]: Get rid of std::unique_lock<std::mutex> lock */
 cb::engine_errc EPVBucket::addTempItemAndBGFetch(
-        HashTable::HashBucketLock& hbl,
+        HashTable::HashBucketLock&& hbl,
         const DocKey& key,
         const CookieIface* cookie,
         EventuallyPersistentEngine& engine,

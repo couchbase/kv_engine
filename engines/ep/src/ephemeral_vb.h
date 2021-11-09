@@ -337,7 +337,7 @@ private:
                  EventuallyPersistentEngine& engine,
                  bool isMeta = false) override;
 
-    cb::engine_errc addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
+    cb::engine_errc addTempItemAndBGFetch(HashTable::HashBucketLock&& hbl,
                                           const DocKey& key,
                                           const CookieIface* cookie,
                                           EventuallyPersistentEngine& engine,
