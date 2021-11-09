@@ -241,11 +241,13 @@ TARGET_INCLUDE_DIRECTORIES(ep-engine_collections
                            ${CMAKE_CURRENT_BINARY_DIR}/src/)
 
 add_library(ep-engine_storage_common STATIC
-            src/kvstore/storage_common/storage_common/local_doc_parser.cc)
+            src/kvstore/storage_common/storage_common/local_doc_parser.cc
+            src/kvstore/storage_common/storage_common/doc_key_encoder.cc)
 SET_PROPERTY(TARGET ep-engine_storage_common PROPERTY POSITION_INDEPENDENT_CODE 1)
 kv_enable_pch(ep-engine_storage_common)
 target_link_libraries(ep-engine_storage_common PRIVATE
         ep-engine_collections
+        mcd_util
         ${FLATBUFFERS_LIBRARIES}
         Folly::headers)
 target_include_directories(ep-engine_storage_common PUBLIC

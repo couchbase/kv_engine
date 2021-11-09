@@ -16,21 +16,4 @@
 
 std::string encodeDocKey(std::string_view key,
                          std::string_view collection,
-                         bool prepare) {
-    std::string ret;
-
-    if (prepare) {
-        auto leb128 = cb::mcbp::unsigned_leb128<uint64_t>(2);
-        ret.append(leb128.begin(), leb128.end());
-    }
-
-    auto cid = 0;
-    if (!collection.empty()) {
-        cid = stoull(std::string(collection));
-    }
-    auto leb128 = cb::mcbp::unsigned_leb128<uint64_t>(cid);
-    ret.append(leb128.begin(), leb128.end());
-    ret.append(key);
-
-    return ret;
-}
+                         bool prepare);
