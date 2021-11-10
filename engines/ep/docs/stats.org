@@ -1038,10 +1038,13 @@ prefixed with the vbucket and the id of the Checkpoint, e.g. "vb_0:id_52:state"
 | to_write_allocator_bytes         | The number of bytes currently allocated to|
 |                                  | the toWrite queue as returned by the      |
 |                                  | underlying std::allocator implementation  |
-| queued_items_mem_usage           | A second counter which should be a subset |
-|                                  | of to_write_allocator_bytes, this is      |
-|                                  | approximately the sizeof every value      |
-|                                  | stored in the toWrite queue               |
+| mem_usage_queued_items           | Size of all items queued in checkpoints,  |
+|                                  | computed by checkpoint counters           |
+| mem_usage_queue_overhead         | Bytes consumed by the toWrite struct      |
+|                                  | internals, computed by checkpoint counters|
+| mem_usage_key_index_overhead     | Bytes consumed by the key index. Accounts |
+|                                  | both struct internals and keys. Computed  |
+|                                  | by checkpoint counters                    |
 
 ** Memory Stats
 

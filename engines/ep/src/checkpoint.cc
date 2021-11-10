@@ -660,10 +660,24 @@ void Checkpoint::addStats(const AddStatFn& add_stat,
 
     checked_snprintf(buf.data(),
                      buf.size(),
-                     "vb_%d:id_%" PRIu64 ":queued_items_mem_usage",
+                     "vb_%d:id_%" PRIu64 ":mem_usage_queued_items",
                      vbucketId.get(),
                      getId());
     add_casted_stat(buf.data(), getQueuedItemsMemUsage(), add_stat, cookie);
+
+    checked_snprintf(buf.data(),
+                     buf.size(),
+                     "vb_%d:id_%" PRIu64 ":mem_usage_queue_overhead",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(buf.data(), getQueueMemOverhead(), add_stat, cookie);
+
+    checked_snprintf(buf.data(),
+                     buf.size(),
+                     "vb_%d:id_%" PRIu64 ":mem_usage_key_index_overhead",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(buf.data(), getKeyIndexMemUsage(), add_stat, cookie);
 
     checked_snprintf(buf.data(),
                      buf.size(),
