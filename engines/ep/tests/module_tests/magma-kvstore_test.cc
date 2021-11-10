@@ -657,3 +657,29 @@ TEST_F(MagmaKVStoreTest, readOnlyMode) {
     // A write should fail
     doWrite(2, false /*false*/);
 }
+
+TEST_F(MagmaKVStoreTest, implicitCompactionCtxForNonExistantVbucket) {
+    kvstore->setMakeCompactionContextCallback(
+            [](Vbid vbid, CompactionConfig& config, uint64_t purgeSeqno) {
+                return nullptr;
+            });
+    EXPECT_EQ(nullptr, kvstore->makeImplicitCompactionContext(Vbid(99)));
+}
+
+TEST_F(MagmaKVStoreTest, MB_49465) {
+    // Set a dummy makeCompactionContextCallback, that will always return
+    // nullptr
+    kvstore->setMakeCompactionContextCallback(
+            [](Vbid vbid, CompactionConfig& config, uint64_t purgeSeqno) {
+                return nullptr;
+            });
+    // Create a MagmaCompactionCB so that we can ensure it's bool operator
+    // returns false if makeCompactionContextCallback returns nullptr
+    auto compaction = kvstoreConfig->magmaCfg.MakeCompactionCallback(
+            magma::Magma::KVStoreID(99));
+    magma::Slice key;
+    magma::Slice value;
+    magma::Slice meta;
+    // Ensure we return false as we were unable to get a CompactionContext
+    EXPECT_FALSE(compaction->operator()(key, meta, value));
+}

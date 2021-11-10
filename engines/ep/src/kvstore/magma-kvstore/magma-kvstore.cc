@@ -308,6 +308,10 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             return false;
         }
         cbCtx.ctx = makeImplicitCompactionContext(vbid);
+        // If we don't have a valid compaction context return false
+        if (!cbCtx.ctx) {
+            return false;
+        }
         cbCtx.implicitCompaction = true;
         cbCtx.ctx->purgedItemCtx->rollbackPurgeSeqnoCtx =
                 std::make_unique<MagmaImplicitCompactionPurgedItemContext>(
@@ -3018,6 +3022,12 @@ std::shared_ptr<CompactionContext> MagmaKVStore::makeImplicitCompactionContext(
 
     CompactionConfig config{};
     auto ctx = makeCompactionContextCallback(vbid, config, 0 /*purgeSeqno*/);
+    if (!ctx) {
+        // if we don't a CompactionContext then return a nullptr so we don't
+        // dereference the ctx ptr. This is probably due to the fact that
+        // there's no vbucket in memory for this vbid
+        return nullptr;
+    }
 
     auto [status, dropped] = getDroppedCollections(vbid);
     if (!status) {
