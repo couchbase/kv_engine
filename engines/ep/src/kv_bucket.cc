@@ -2948,34 +2948,41 @@ KVBucket::CheckpointMemoryState KVBucket::verifyCheckpointMemoryState() {
     return state;
 }
 
+size_t KVBucket::getCMQuota() const {
+    return stats.getMaxDataSize() * checkpointMemoryRatio;
+}
+
+size_t KVBucket::getCMRecoveryUpperMarkBytes() const {
+    return getCMQuota() * checkpointMemoryRecoveryUpperMark;
+}
+
+size_t KVBucket::getCMRecoveryLowerMarkBytes() const {
+    return getCMQuota() * checkpointMemoryRecoveryLowerMark;
+}
+
 size_t KVBucket::getRequiredCheckpointMemoryReduction() const {
-    const auto checkpointMemoryRatio = getCheckpointMemoryRatio();
-    const auto checkpointQuota = stats.getMaxDataSize() * checkpointMemoryRatio;
-    const auto recoveryThreshold =
-            checkpointQuota * getCheckpointMemoryRecoveryUpperMark();
+    const auto recoveryThreshold = getCMRecoveryUpperMarkBytes();
     const auto usage = stats.getCheckpointManagerEstimatedMemUsage();
 
     if (usage < recoveryThreshold) {
         return 0;
     }
 
-    const auto lowerRatio = getCheckpointMemoryRecoveryLowerMark();
-    const auto lowerMark = checkpointQuota * lowerRatio;
-    Expects(usage > lowerMark);
-    const size_t amountOfMemoryToClear = usage - lowerMark;
+    const auto recoveryTarget = getCMRecoveryLowerMarkBytes();
+    Expects(usage > recoveryTarget);
+    const size_t amountOfMemoryToClear = usage - recoveryTarget;
 
     const auto toMB = [](size_t bytes) { return bytes / (1024 * 1024); };
-    const auto upperRatio = getCheckpointMemoryRecoveryUpperMark();
     EP_LOG_DEBUG(
             "Triggering memory recovery as checkpoint memory usage ({} MB) "
             "exceeds the upper_mark ({}, "
             "{} MB) - total checkpoint quota {}, {} MB . Attempting to free {} "
             "MB of memory.",
             toMB(usage),
-            upperRatio,
-            toMB(checkpointQuota * upperRatio),
+            checkpointMemoryRecoveryUpperMark,
+            toMB(recoveryThreshold),
             checkpointMemoryRatio,
-            toMB(checkpointQuota),
+            toMB(getCMQuota()),
             toMB(amountOfMemoryToClear));
 
     return amountOfMemoryToClear;

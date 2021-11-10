@@ -846,6 +846,23 @@ public:
     CheckpointMemoryState verifyCheckpointMemoryState();
 
     /**
+     * @return The Checkpoint memory quota (in bytes)
+     */
+    size_t getCMQuota() const;
+
+    /**
+     * @return The Checkpoint memory recovery threshold (in bytes). That is the
+     * level of CM mem-usage that triggers memory recovery.
+     */
+    size_t getCMRecoveryUpperMarkBytes() const;
+
+    /**
+     * @return The Checkpoint memory recovery target (in bytes). When CM memory
+     * recovery triggers, that is final CM mem-usage target that we aim to hit.
+     */
+    size_t getCMRecoveryLowerMarkBytes() const;
+
+    /**
      * Determines if checkpoint memory recovery is necessary and returns a
      * computed memory reduction target. Everything is based on the Checkpoint
      * Quota and the memory-recovery triggers in configuration.

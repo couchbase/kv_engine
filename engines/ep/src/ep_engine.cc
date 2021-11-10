@@ -3119,6 +3119,12 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
     collector.addStat(Key::ep_checkpoint_memory_pending_destruction,
                       kvBucket->getCheckpointPendingDestructionMemoryUsage());
 
+    collector.addStat(Key::ep_checkpoint_memory_quota, kvBucket->getCMQuota());
+    collector.addStat(Key::ep_checkpoint_memory_recovery_upper_mark_bytes,
+                      kvBucket->getCMRecoveryUpperMarkBytes());
+    collector.addStat(Key::ep_checkpoint_memory_recovery_lower_mark_bytes,
+                      kvBucket->getCMRecoveryLowerMarkBytes());
+
     kvBucket->getFileStats(collector);
 
     collector.addStat(Key::ep_persist_vbstate_total,
