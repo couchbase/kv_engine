@@ -463,12 +463,22 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
 flatbuffers::DetachedBuffer Flush::encodeRelativeComplementOfDroppedCollections(
         const std::vector<Collections::KVStore::DroppedCollection>&
                 droppedCollections,
-        const std::unordered_set<CollectionID>& idsToRemove) {
+        const std::unordered_set<CollectionID>& idsToRemove,
+        uint64_t endSeqno) {
     flatbuffers::FlatBufferBuilder builder;
     std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>> output;
 
+    // Iterate over the set of dropped collections loaded from the latest
+    // snapshot. This includes any collections newly dropped during in replay.
     for (const auto& dc : droppedCollections) {
-        if (idsToRemove.count(dc.collectionId) == 0) {
+        // For each collection that is marked as dropped we must do two checks.
+        // 1) If the collection is unknown to the eraser's set (which was
+        //   populated from the pre-compacted snapshot) then it must remain.
+        // 2) If endSeqno of the collection is greater than eraser's endSeqno
+        //   this collection is not been fully purged. This occurs in the case
+        //   a collection was resurrected and dropped during replay. In this
+        //   case the collection must remain in the final output.
+        if (idsToRemove.count(dc.collectionId) == 0 || dc.endSeqno > endSeqno) {
             // Include this collection in the final set
             auto newEntry = Collections::KVStore::CreateDropped(
                     builder,

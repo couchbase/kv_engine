@@ -58,6 +58,11 @@ public:
         return dropped;
     }
 
+    /// @return the endSeqno - the maximum endSeqno of all dropped collections
+    uint64_t getEndSeqno() const {
+        return endSeqno;
+    }
+
 protected:
     friend std::ostream& operator<<(std::ostream&, const ScanContext&);
 

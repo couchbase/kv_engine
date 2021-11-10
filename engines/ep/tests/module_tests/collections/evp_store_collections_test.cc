@@ -1901,6 +1901,65 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
                       .size());
 }
 
+// Issue was found with MB-49472
+TEST_F(CollectionsTest, ResurrectCollectionDuringCompactionReplay) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    replaceCouchKVStoreWithMock();
+
+    // Create and drop the fruit collection
+    CollectionsManifest cm;
+    auto vb = store->getVBucket(vbid);
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "v1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+    kvstore.setConcurrentCompactionPreLockHook([&vb, &cm, this](
+                                                       auto& compactionKey) {
+        // Create and drop collection during compaction
+        setCollections(cookie, cm.add(CollectionEntry::fruit));
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        store_item(vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "v1");
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        setCollections(cookie, cm.remove(CollectionEntry::fruit));
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    });
+
+    // use runCompaction here because more data needs purging, and
+    // runCollectionsEraser expects no more to purge
+    runCompaction(vbid, 0);
+
+    // At the end of the first compaction, the dropped collections meta data
+    // should not be empty. It must include the collection which was dropped
+    // during compaction
+    auto [status, dropped] = store->getVBucket(vbid)
+                                     ->getShard()
+                                     ->getRWUnderlying()
+                                     ->getDroppedCollections(vbid);
+    EXPECT_TRUE(status);
+    EXPECT_EQ(1, dropped.size());
+    EXPECT_EQ(CollectionEntry::fruit.getId(), dropped.front().collectionId);
+
+    kvstore.setConcurrentCompactionPreLockHook(
+            [](auto& compactionKey) { return; });
+
+    // runCollectionsEraser checks that KVStore::getDroppedCollections is
+    // empty after running
+    runCollectionsEraser(vbid);
+
+    // No stats for the dropped collection
+    EXPECT_EQ(
+            0,
+            getCollectionStats(vbid, {CollectionEntry::fruit.getId()}).size());
+}
+
 void CollectionsCouchstoreParameterizedTest::ConcCompact(
         std::function<void()> concurrentFunc) {
     auto& kvstore =

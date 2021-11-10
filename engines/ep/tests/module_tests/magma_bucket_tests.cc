@@ -1101,6 +1101,69 @@ TEST_P(STParamMagmaBucketTest,
     EXPECT_TRUE(stats->droppedCollectionCounts.empty());
 }
 
+// Raised as MB-49472 following work on MB-48659
+TEST_P(STParamMagmaBucketTest, ResurrectCollectionDuringCompaction) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Create and drop fruit (with some items in it)
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "v1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // 2) Drop collection
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // 3) Start purge, add the delete of the deleted stats doc
+    CompactionConfig config;
+    auto& epBucket = dynamic_cast<EPBucket&>(*engine->getKVBucket());
+    auto ctx = epBucket.makeCompactionContext(vbid, config, 0);
+    auto realCompletionCallback = ctx->completionCallback;
+
+    ctx->completionCallback = [this, &realCompletionCallback, &cm](
+                                      CompactionContext& ctx) {
+        // Recreate and drop again
+        setCollections(cookie, cm.add(CollectionEntry::fruit));
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        store_item(vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "v1");
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        setCollections(cookie, cm.remove(CollectionEntry::fruit));
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        // Doing these two steps in the completionCallback should work
+        realCompletionCallback(ctx);
+    };
+
+    auto vb = store->getLockedVBucket(vbid, std::try_to_lock);
+    auto* kvstore = epBucket.getRWUnderlying(vbid);
+
+    {
+        ObjectRegistry::onSwitchThread(engine.get());
+        EXPECT_TRUE(kvstore->compactDB(vb.getLock(), ctx));
+    }
+
+    auto [status, dropped] = kvstore->getDroppedCollections(vbid);
+    EXPECT_TRUE(status);
+    EXPECT_EQ(1, dropped.size());
+    EXPECT_EQ(CollectionEntry::fruit.getId(), dropped.front().collectionId);
+
+    ctx = epBucket.makeCompactionContext(vbid, config, 0);
+    ctx->completionCallback = realCompletionCallback;
+    {
+        ObjectRegistry::onSwitchThread(engine.get());
+        EXPECT_TRUE(kvstore->compactDB(vb.getLock(), ctx));
+    }
+
+    std::tie(status, dropped) = kvstore->getDroppedCollections(vbid);
+    EXPECT_TRUE(status);
+    EXPECT_TRUE(dropped.empty());
+}
+
 INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
                          STParamMagmaBucketTest,
                          STParameterizedBucketTest::magmaConfigValues(),

@@ -1225,7 +1225,8 @@ CouchKVStore::replayPrecommitProcessDroppedCollections(
         auto fbData = Collections::VB::Flush::
                 encodeRelativeComplementOfDroppedCollections(
                         droppedCollections,
-                        hook_ctx.eraserContext->getDroppedCollections());
+                        hook_ctx.eraserContext->getDroppedCollections(),
+                        hook_ctx.eraserContext->getEndSeqno());
 
         // 3) If the function returned data, write it, else the document is
         //    deleted.

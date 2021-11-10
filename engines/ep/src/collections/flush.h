@@ -280,10 +280,13 @@ public:
      * This allows the caller to determine the output is the empty set and
      * delete the document which may own the DroppedCollections data.
      *
-     * @param droppedCollection data read from KVStore, which is the set of
-     *        dropped collections.
-     * @param idsToRemove a set of IDs which should be removed from
-     *        droppedCollections
+     * @param droppedCollection vector of known dropped collections constructed
+     *        from the post compaction snapshot
+     * @param postCompactionDropped the set of IDs that are known to be dropped
+     *        in the pre compaction snapshot.
+     * @param endSeqno the end-seqno (greatest collection end) from the pre
+     *        compaction snapshot
+     *
      * @return A new set of dropped collections as per the description above.
      *         This is flatbuffer encoding of DroppedCollections (kvstore.fbs)
      */
@@ -291,7 +294,8 @@ public:
     encodeRelativeComplementOfDroppedCollections(
             const std::vector<Collections::KVStore::DroppedCollection>&
                     droppedCollections,
-            const std::unordered_set<CollectionID>& idsToRemove);
+            const std::unordered_set<CollectionID>& idsToRemove,
+            uint64_t endSeqno);
 
     /**
      * Encode open scopes list into flat buffer format.

@@ -2241,6 +2241,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
 
     Status status;
     std::unordered_set<CollectionID> purgedCollections;
+    uint64_t purgedCollectionsEndSeqno = 0;
     bool ret = true;
     if (dropped.empty()) {
         // Compact the entire key range
@@ -2382,6 +2383,8 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
             // This collection purged successfully, save this for later so that
             // we can update the droppedCollections local doc
             purgedCollections.insert(dc.collectionId);
+            purgedCollectionsEndSeqno =
+                    std::max(dc.endSeqno, purgedCollectionsEndSeqno);
         }
     }
 
@@ -2422,8 +2425,10 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
 
         // 2) Generate a new flatbuffer document to write back
         auto fbData = Collections::VB::Flush::
-                encodeRelativeComplementOfDroppedCollections(droppedCollections,
-                                                             purgedCollections);
+                encodeRelativeComplementOfDroppedCollections(
+                        droppedCollections,
+                        purgedCollections,
+                        purgedCollectionsEndSeqno);
 
         // 3) If the function returned data, write it, else the document is
         // delete.
