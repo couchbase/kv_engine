@@ -921,10 +921,13 @@ public:
     /**
      * Find a resident item
      *
-     * @param rnd a randomization input
+     * @param random The caller to getRandomKey provides a value that is used to
+     *        compute the starting bucket as random % size. This value should be
+     *        the result of a random generator. There is no limit on this value.
+     *
      * @return an item -- NULL if not fount
      */
-    std::unique_ptr<Item> getRandomKey(CollectionID cid, long rnd);
+    std::unique_ptr<Item> getRandomKey(CollectionID cid, int random);
 
     /**
      * Set an Item into the this hashtable
@@ -1291,7 +1294,7 @@ public:
      */
     uint8_t generateFreqValue(uint8_t value);
 
-private:
+protected:
     // The container for actually holding the StoredValues.
     using table_type = std::vector<StoredValue::UniquePtr>;
 
@@ -1431,7 +1434,59 @@ private:
         return bucket_num % mutexes.size();
     }
 
-    std::unique_ptr<Item> getRandomKeyFromSlot(CollectionID cid, int slot);
+    // Visitor class for use with getRandomKey. The class exists to allow
+    // HashTable::getRandomKey to detect and deal with a concurrent resize
+    class RandomKeyVisitor {
+    public:
+        /**
+         * @param size Should be the HashTable's current size
+         * @param The caller to getRandomKey provides a value that is used to
+         *        compute the starting bucket as random % size. This value
+         *        should be the result of a random generator. There is no limit
+         *        on this value.
+         */
+        RandomKeyVisitor(size_t size, int random);
+
+        /**
+         * Return the bucket to use, this internally increments (and wraps) for
+         * use in a loop
+         */
+        size_t getNextBucket();
+
+        /**
+         * @return true if the visitor has visited all buckets
+         */
+        bool visitComplete() const;
+
+        /**
+         * For the given size the object will check if a reset is needed (when
+         * the size does not match the constructed size).
+         * @param size This should be the current HashTable size
+         * @return true if the object has reset due to a size change
+         */
+        bool maybeReset(size_t size);
+
+    private:
+        void setup(size_t size);
+
+        size_t currentSize{0};
+        size_t currentBucket{0};
+        size_t bucketsVisited{0};
+        int random{0};
+    };
+
+    /**
+     * Look for a random key in the HashTable using the visitor to control
+     * the start of the search.
+     */
+    std::unique_ptr<Item> getRandomKey(CollectionID cid,
+                                       RandomKeyVisitor visitor);
+
+    /**
+     * Look for a random key using the given locked bucket
+     */
+    std::unique_ptr<Item> getRandomKey(CollectionID cid,
+                                       const HashBucketLock& hbl);
 
     /** Searches for the first element in the specified hashChain which matches
      * predicate p, and unlinks it from the chain.

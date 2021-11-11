@@ -21,6 +21,7 @@
 #include "tests/module_tests/test_helpers.h"
 #include "threadtests.h"
 
+#include <boost/dynamic_bitset.hpp>
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 #include <platform/cb_malloc.h>
@@ -74,7 +75,7 @@ static Item store(HashTable& h, const StoredDocKey& k) {
     return i;
 }
 
-static void storeMany(HashTable &h, std::vector<StoredDocKey> &keys) {
+static void storeMany(HashTable& h, const std::vector<StoredDocKey>& keys) {
     for (const auto& key : keys) {
         store(h, key);
     }
@@ -1231,4 +1232,147 @@ TEST_F(HashTableTest, ReplaceValueAndDatatype) {
     EXPECT_EQ(initialFreqCounter, sv->getFreqCounterValue());
     EXPECT_EQ(initialAge, sv->getAge());
     EXPECT_EQ(initialCommittedState, sv->getCommitted());
+}
+
+class GetRandomHashTable : public HashTable {
+public:
+    GetRandomHashTable(EPStats& st,
+                       std::unique_ptr<AbstractStoredValueFactory> svFactory,
+                       size_t initialSize,
+                       size_t locks)
+        : HashTable(st, std::move(svFactory), initialSize, locks) {
+    }
+
+    void testIntialiseVisitor(size_t size, int random) {
+        HashTable::RandomKeyVisitor visitor{size, random};
+        EXPECT_LT(visitor.getNextBucket(), size);
+    }
+
+    void testVisitor(size_t size, int random) {
+        HashTable::RandomKeyVisitor visitor{size, random};
+        EXPECT_FALSE(visitor.visitComplete());
+        EXPECT_FALSE(visitor.maybeReset(size));
+
+        boost::dynamic_bitset buckets(size);
+        size_t itr = 0;
+        const auto expectedIterations = size;
+        while (!visitor.visitComplete()) {
+            buckets.set(visitor.getNextBucket());
+            ++itr;
+        }
+        EXPECT_EQ(expectedIterations, itr);
+        EXPECT_TRUE(buckets.all());
+    }
+
+    // Simulate a resize by constructing with size=769 and then later calling
+    // maybeReset with a smaller size. A second visitor covers a case where
+    // the table grows
+    void testVisitorResize() {
+        HashTable::RandomKeyVisitor visitor1{769, 400};
+        EXPECT_EQ(400, visitor1.getNextBucket());
+        EXPECT_TRUE(visitor1.maybeReset(50));
+        EXPECT_EQ(0, visitor1.getNextBucket());
+
+        HashTable::RandomKeyVisitor visitor2{383, 50};
+        EXPECT_EQ(50, visitor2.getNextBucket());
+        EXPECT_TRUE(visitor2.maybeReset(769));
+        EXPECT_EQ(50, visitor2.getNextBucket());
+    }
+
+    void testResizeMB_49454() {
+        auto keys = generateKeys(1000);
+        storeMany(*this, keys);
+        resize();
+        auto size = getSize();
+
+        // Get rid of many keys so the resize will shrink
+        keys.resize(950);
+        for (const auto& key : keys) {
+            HashTableTest::del(*this, key);
+        }
+
+        // Initialise the visitor so it computes a start point very close to the
+        // end a place which definitely does not exist after the resize
+        HashTable::RandomKeyVisitor visitor{getSize(), int(size - 10)};
+
+        // Ensure if resize is called after the visitor is constructed
+        // getRandomKey does not generate any faults
+        resize();
+
+        // Table must now be smaller
+        EXPECT_GT(size, getSize());
+        // And our bucket exceeds getSize (with some space for increments)
+        EXPECT_EQ(visitor.getNextBucket(), size - 10);
+
+        // Now call getRandomKey with our visitor that was configured with the
+        // larger size
+        EXPECT_NE(nullptr, getRandomKey(CollectionID::Default, visitor));
+    }
+
+    void testResizeLarger() {
+        auto keys = generateKeys(100);
+        storeMany(*this, keys);
+        resize();
+        auto size = getSize();
+
+        // Initialise the visitor so it computes a start point very close to the
+        // end a place which definitely does not exist after the resize
+        HashTable::RandomKeyVisitor visitor{getSize(), int(size - 10)};
+
+        // Increase the keys in the HT
+        keys = generateKeys(500, 100 /*start key*/);
+        storeMany(*this, keys);
+
+        // Ensure if resize is called after the visitor is constructed
+        // getRandomKey does not generate any faults
+        resize();
+
+        // Table must now be larger
+        EXPECT_LT(size, getSize());
+
+        // Now call getRandomKey with our visitor that was configured with the
+        // smaller size
+        EXPECT_NE(nullptr, getRandomKey(CollectionID::Default, visitor));
+    }
+};
+
+class GetRandomHashTableTest : public HashTableTest {
+public:
+    GetRandomHashTable h{global_stats, makeFactory(), 1, 1};
+};
+
+TEST_F(GetRandomHashTableTest, TestInitRandomKeyVisitor) {
+    h.testIntialiseVisitor(1, std::numeric_limits<int>::max());
+    h.testIntialiseVisitor(1, std::numeric_limits<int>::max() / 2);
+    h.testIntialiseVisitor(1, 0);
+    h.testIntialiseVisitor(1, std::numeric_limits<int>::min());
+}
+
+TEST_F(GetRandomHashTableTest, TestRandomKeyVisitor) {
+    // Zero size is not expected
+    EXPECT_THROW(h.testVisitor(0, 0), std::invalid_argument);
+    h.testVisitor(1, 0);
+    h.testVisitor(769, 400);
+    h.testVisitor(769, 769);
+}
+
+// This test just exercises methods of the RandomKeyVisitor class which is used
+// by getRandomKey.
+TEST_F(GetRandomHashTableTest, TestRandomKeyVisitorResizes) {
+    h.testVisitorResize();
+}
+
+// This test covers MB-49454 - but driving getRandomKey via the protected
+// parts of the code, this allows us to run any HashTable function in between
+// reading size and running getRandomKey. In this case we resize the hash table
+// making it smaller, which previously would of resulted in an invalid memory
+// read.
+TEST_F(GetRandomHashTableTest, MB_49454) {
+    h.testResizeMB_49454();
+}
+
+// Similar to MB-49454, but make the table larger, which would of lead to other
+// problems, but not a invalid memory access
+TEST_F(GetRandomHashTableTest, TestResizeLarger) {
+    h.testResizeLarger();
 }

@@ -1109,7 +1109,7 @@ protected:
      * Allows us to override the random function.  This is used for testing
      * purposes where we want a constant number as opposed to a random one.
      */
-    std::function<long()> getRandom = std::rand;
+    std::function<int()> getRandom = std::rand;
 
     /**
      * The Minimum Durability Level enforced by this Bucket:

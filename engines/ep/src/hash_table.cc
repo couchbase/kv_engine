@@ -336,18 +336,61 @@ HashTable::FindInnerResult HashTable::findInner(const DocKey& key) {
     return {std::move(hbl), foundCmt, foundPend};
 }
 
-std::unique_ptr<Item> HashTable::getRandomKey(CollectionID cid, long rnd) {
-    /* Try to locate a partition */
-    size_t start = rnd % size;
-    size_t curr = start;
+HashTable::RandomKeyVisitor::RandomKeyVisitor(size_t size, int random)
+    : random(std::abs(random)) {
+    setup(size);
+}
+
+size_t HashTable::RandomKeyVisitor::getNextBucket() {
+    if (currentBucket == currentSize) {
+        currentBucket = 0;
+    }
+    ++bucketsVisited;
+    return currentBucket++;
+}
+
+bool HashTable::RandomKeyVisitor::visitComplete() const {
+    return bucketsVisited >= currentSize;
+}
+
+bool HashTable::RandomKeyVisitor::maybeReset(size_t size) {
+    if (size != currentSize) {
+        setup(size);
+        return true;
+    }
+    return false;
+}
+
+void HashTable::RandomKeyVisitor::setup(size_t size) {
+    if (size == 0) {
+        throw std::invalid_argument(
+                "HashTable::RandomKeyVisitor::setup size must not be 0");
+    }
+
+    currentSize = size;
+    currentBucket = random % (currentSize);
+    bucketsVisited = 0;
+}
+
+std::unique_ptr<Item> HashTable::getRandomKey(CollectionID cid, int rnd) {
+    return getRandomKey(cid, RandomKeyVisitor{getSize(), rnd});
+}
+
+std::unique_ptr<Item> HashTable::getRandomKey(CollectionID cid,
+                                              RandomKeyVisitor visitor) {
     std::unique_ptr<Item> ret;
 
     do {
-        ret = getRandomKeyFromSlot(cid, curr++);
-        if (curr == size) {
-            curr = 0;
+        auto lh = getLockedBucket(visitor.getNextBucket());
+
+        // Now we have a lock, ask the visitor if it needs to reset, if it does
+        // we must skip the call to getRandomKey
+        if (visitor.maybeReset(getSize())) {
+            continue;
         }
-    } while (ret == nullptr && curr != start);
+
+        ret = getRandomKey(cid, lh);
+    } while (ret == nullptr && !visitor.visitComplete());
 
     return ret;
 }
@@ -1310,11 +1353,10 @@ bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock&,
     return true;
 }
 
-std::unique_ptr<Item> HashTable::getRandomKeyFromSlot(CollectionID cid,
-                                                      int slot) {
-    auto lh = getLockedBucket(slot);
-    for (StoredValue* v = values[slot].get().get(); v;
-            v = v->getNext().get().get()) {
+std::unique_ptr<Item> HashTable::getRandomKey(CollectionID cid,
+                                              const HashBucketLock& hbl) {
+    for (StoredValue* v = values.at(hbl.getBucketNum()).get().get(); v;
+         v = v->getNext().get().get()) {
         if (!v->isTempItem() && !v->isDeleted() && v->isResident() &&
             !v->isPending() && !v->isPrepareCompleted() &&
             v->getKey().getCollectionID() == cid) {
