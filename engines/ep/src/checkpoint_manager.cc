@@ -580,12 +580,13 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
     // trigger the overheadChangedCallback if the overhead is different
     // when this helper is destroyed - which occurs _after_ the destruction
     // of expelledItems (declared below)
-    auto overheadCheck = gsl::finally([pre = getMemoryOverhead(), this]() {
-        auto post = getMemoryOverhead();
-        if (pre != post) {
-            overheadChangedCallback(post - pre);
-        }
-    });
+    auto overheadCheck =
+            gsl::finally([pre = getMemOverheadAllocatorBytes(), this]() {
+                auto post = getMemOverheadAllocatorBytes();
+                if (pre != post) {
+                    overheadChangedCallback(post - pre);
+                }
+            });
 
     ExtractItemsResult extractRes;
     {
@@ -1416,10 +1417,11 @@ size_t CheckpointManager::getMemoryUsage_UNLOCKED() const {
     return memUsage;
 }
 
-size_t CheckpointManager::getMemoryOverhead_UNLOCKED() const {
+size_t CheckpointManager::getMemOverheadAllocatorBytes(
+        const std::lock_guard<std::mutex>& lh) const {
     size_t memUsage = 0;
     for (const auto& checkpoint : checkpointList) {
-        memUsage += checkpoint->getMemoryOverheadTotal();
+        memUsage += checkpoint->getMemOverheadAllocatorBytes();
     }
     return memUsage;
 }
@@ -1451,34 +1453,34 @@ size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() const {
 // @todo MB-48587: Suboptimal O(N) implementation for all mem-overhead functions
 //  below, optimized in a dedicated patch.
 
-size_t CheckpointManager::getMemoryOverhead() const {
+size_t CheckpointManager::getMemOverheadAllocatorBytes() const {
     std::lock_guard<std::mutex> lh(queueLock);
-    return getMemoryOverhead_UNLOCKED();
+    return getMemOverheadAllocatorBytes(lh);
 }
 
-size_t CheckpointManager::getMemOverheadQueue() const {
+size_t CheckpointManager::getMemOverheadAllocatorBytesQueue() const {
     std::lock_guard<std::mutex> lh(queueLock);
     size_t usage = 0;
     for (const auto& checkpoint : checkpointList) {
-        usage += checkpoint->getMemOverheadQueue();
+        usage += checkpoint->getWriteQueueAllocatorBytes();
     }
     return usage;
 }
 
-size_t CheckpointManager::getMemOverheadIndex() const {
+size_t CheckpointManager::getMemOverheadAllocatorBytesIndex() const {
     std::lock_guard<std::mutex> lh(queueLock);
     size_t usage = 0;
     for (const auto& checkpoint : checkpointList) {
-        usage += checkpoint->getMemOverheadIndex();
+        usage += checkpoint->getKeyIndexAllocatorBytes();
     }
     return usage;
 }
 
-size_t CheckpointManager::getMemOverheadIndexKey() const {
+size_t CheckpointManager::getMemOverheadAllocatorBytesIndexKey() const {
     std::lock_guard<std::mutex> lh(queueLock);
     size_t usage = 0;
     for (const auto& checkpoint : checkpointList) {
-        usage += checkpoint->getMemOverheadIndexKey();
+        usage += checkpoint->getKeyIndexKeyAllocatorBytes();
     }
     return usage;
 }
@@ -1618,11 +1620,11 @@ void CheckpointManager::updateStatsForStateChange(vbucket_state_t from,
     if (from == vbucket_state_replica && to != vbucket_state_replica) {
         // vbucket is changing state away from replica, it's memory usage
         // should no longer be accounted for as a replica.
-        stats.replicaCheckpointOverhead -= getMemoryOverhead_UNLOCKED();
+        stats.replicaCheckpointOverhead -= getMemOverheadAllocatorBytes(lh);
     } else if (from != vbucket_state_replica && to == vbucket_state_replica) {
         // vbucket is changing state to _become_ a replica, it's memory usage
         // _should_ be accounted for as a replica.
-        stats.replicaCheckpointOverhead += getMemoryOverhead_UNLOCKED();
+        stats.replicaCheckpointOverhead += getMemOverheadAllocatorBytes(lh);
     }
 }
 
@@ -1631,7 +1633,7 @@ void CheckpointManager::setOverheadChangedCallback(
     std::lock_guard<std::mutex> lh(queueLock);
     overheadChangedCallback = std::move(callback);
 
-    overheadChangedCallback(getMemoryOverhead_UNLOCKED());
+    overheadChangedCallback(getMemOverheadAllocatorBytes(lh));
 }
 
 std::function<void(int64_t delta)>

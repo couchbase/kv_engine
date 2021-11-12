@@ -322,7 +322,7 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
 
     // Manually handle the slow stream, this is the same logic as the checkpoint
     // remover task uses, just without the overhead of setting up the task
-    auto memoryOverhead = checkpointManager->getMemoryOverhead();
+    auto memoryOverhead = checkpointManager->getMemOverheadAllocatorBytes();
     if (engine->getDcpConnMap().handleSlowStream(vbid,
                                                  cursors[0].lock().get())) {
         ASSERT_EQ(expectedFreedMemoryFromItems,

@@ -1780,7 +1780,7 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
 // CheckpointQueue.
 TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
     // Get the intial size of the checkpoint overhead.
-    const auto initialOverhead = this->manager->getMemoryOverhead();
+    const auto initialOverhead = this->manager->getMemOverheadAllocatorBytes();
 
     // Allocator used for tracking memory used by the CheckpointQueue
     checkpoint_index::allocator_type memoryTrackingAllocator;
@@ -1822,7 +1822,7 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
                         /*preLinkDocCtx*/ nullptr);
 
     // Re-measure the checkpoint overhead
-    const auto updatedOverhead = this->manager->getMemoryOverhead();
+    const auto updatedOverhead = this->manager->getMemOverheadAllocatorBytes();
     // Three pointers - forward, backward and pointer to item
     const auto perElementListOverhead = sizeof(uintptr_t) * 3;
     // Add entry into keyIndex
@@ -1851,12 +1851,12 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
     EXPECT_EQ(1, manager->removeClosedUnrefCheckpoints().count);
 
     // Should be back to the initialOverhead
-    EXPECT_EQ(initialOverhead, this->manager->getMemoryOverhead());
+    EXPECT_EQ(initialOverhead, this->manager->getMemOverheadAllocatorBytes());
 }
 
 TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadHeapAllocatedKeyTest) {
     // Get the intial size of the checkpoint overhead.
-    const auto initialOverhead = this->manager->getMemoryOverhead();
+    const auto initialOverhead = this->manager->getMemOverheadAllocatorBytes();
 
     // Create a queued_item with a big key. This size is an order of magnitude
     // bigger than our key index should be when it's empty so we can just check
@@ -1880,7 +1880,8 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadHeapAllocatedKeyTest) {
                         GenerateCas::Yes,
                         /*preLinkDocCtx*/ nullptr);
 
-    auto overhead = this->manager->getMemoryOverhead() - initialOverhead;
+    auto overhead =
+            this->manager->getMemOverheadAllocatorBytes() - initialOverhead;
     EXPECT_LT(keySize, overhead);
 }
 
@@ -1899,7 +1900,7 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadDiskCheckpointTest) {
     this->manager->createSnapshot(0, 1000, 1000, CheckpointType::Disk, 1001);
 
     // Get the intial size of the checkpoint overhead.
-    const auto initialOverhead = this->manager->getMemoryOverhead();
+    const auto initialOverhead = this->manager->getMemOverheadAllocatorBytes();
 
     auto keySize = 2000;
     std::string value("value");
@@ -1924,7 +1925,7 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadDiskCheckpointTest) {
     // and ptr to object. This is tracked under memoryOverhead.
     const size_t perElementOverhead = 3 * sizeof(uintptr_t);
     EXPECT_EQ(initialOverhead + perElementOverhead,
-              this->manager->getMemoryOverhead());
+              this->manager->getMemOverheadAllocatorBytes());
 }
 
 // Test that can expel items and that we have the correct behaviour when we

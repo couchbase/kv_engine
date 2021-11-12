@@ -526,21 +526,21 @@ STAT(vb_checkpoint_memory_unreferenced,
      FMT("vb_{state}_checkpoint_memory_unreferenced"),
      bytes,
      vb_checkpoint_memory_unreferenced, )
-STAT(vb_checkpoint_memory_overhead,
-     FMT("vb_{state}_checkpoint_memory_overhead"),
+
+STAT(vb_checkpoint_memory_overhead_allocator_bytes,
+     FMT("vb_{state}_checkpoint_memory_overhead_allocator"),
      bytes,
      vb_checkpoint_memory_overhead, )
-
-STAT(vb_checkpoint_memory_overhead_queue,
-     FMT("vb_{state}_checkpoint_memory_overhead_queue"),
+STAT(vb_checkpoint_memory_overhead_allocator_bytes_queue,
+     FMT("vb_{state}_checkpoint_memory_overhead_allocator_queue"),
      bytes,
-     vb_checkpoint_memory_overhead_queue, )
-STAT(vb_checkpoint_memory_overhead_index,
-     FMT("vb_{state}_checkpoint_memory_overhead_index"),
+     vb_checkpoint_memory_overhead_allocator_bytes_queue, )
+STAT(vb_checkpoint_memory_overhead_allocator_bytes_index,
+     FMT("vb_{state}_checkpoint_memory_overhead_allocator_index"),
      bytes,
      vb_checkpoint_memory_overhead_index, )
-STAT(vb_checkpoint_memory_overhead_index_key,
-     FMT("vb_{state}_checkpoint_memory_overhead_index_key"),
+STAT(vb_checkpoint_memory_overhead_allocator_bytes_index_key,
+     FMT("vb_{state}_checkpoint_memory_overhead_allocator_index_key"),
      bytes,
      vb_checkpoint_memory_overhead_index_key, )
 
@@ -597,7 +597,7 @@ STAT(ep_meta_data_memory, , bytes, , )
 STAT(ep_meta_data_disk, , bytes, , )
 STAT(ep_checkpoint_memory, , bytes, , )
 STAT(ep_checkpoint_memory_unreferenced, , bytes, , )
-STAT(ep_checkpoint_memory_overhead, , bytes, , )
+STAT(ep_checkpoint_memory_overhead_allocator, , bytes, , )
 STAT(ep_checkpoint_memory_pending_destruction, , bytes, , )
 STAT(ep_total_cache_size, , bytes, , )
 STAT(rollback_item_count, , count, , )

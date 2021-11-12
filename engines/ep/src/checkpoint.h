@@ -469,43 +469,21 @@ public:
      * overhead.
      */
     size_t getMemConsumption() const {
-        return queuedItemsMemUsage + getMemoryOverheadTotal();
+        // @todo MB-48587: Don't mix counters and allocator-bytes
+        return queuedItemsMemUsage + getMemOverheadAllocatorBytes();
     }
 
     /**
-     * Returns the overhead of the checkpoint.
+     * Returns the overhead of the checkpoint, computed by struct allocators.
      * This is comprised of three components:
      * 1) The size of the Checkpoint object
      * 2) The keyIndex mem usage
      * 3) The mem overhead of internal pointers of the toWrite container that
      *    stores items
      */
-    size_t getMemoryOverheadTotal() const {
-        return sizeof(Checkpoint) + getMemOverheadIndex() +
-               getMemOverheadIndexKey() + getMemOverheadQueue();
-    }
-
-    /**
-     * Return the mem overhead of this checkpoint queue structure.
-     */
-    size_t getMemOverheadQueue() const {
-        return toWrite.get_allocator().getBytesAllocated();
-    }
-
-    /**
-     *  Return the mem overhead of this checkpoint index structure.
-     */
-    size_t getMemOverheadIndex() const {
-        // All key-indexes (committed / prepared) share the same allocator and
-        // so getting the bytes allocated for the one will include the others.
-        return committedKeyIndex.get_allocator().getBytesAllocated();
-    }
-
-    /**
-     * Return the mem overhead of all keys in this checkpoint index.
-     */
-    size_t getMemOverheadIndexKey() const {
-        return keyIndexKeyTrackingAllocator.getBytesAllocated();
+    size_t getMemOverheadAllocatorBytes() const {
+        return sizeof(Checkpoint) + getKeyIndexAllocatorBytes() +
+               getKeyIndexKeyAllocatorBytes() + getWriteQueueAllocatorBytes();
     }
 
     /**
@@ -543,14 +521,19 @@ public:
         return maxDeletedRevSeqno;
     }
 
-    /// @return bytes allocated to keyIndex/metaKeyIndex as a signed type
+    /// @return bytes allocated to keys stored in the keyIndex as a signed type
+    ssize_t getKeyIndexKeyAllocatorBytes() const {
+        return keyIndexKeyAllocator.getBytesAllocated();
+    }
+
+    /// @return bytes allocated to keyIndex as a signed type
     ssize_t getKeyIndexAllocatorBytes() const {
-        return ssize_t(keyIndexTrackingAllocator.getBytesAllocated());
+        return keyIndexAllocator.getBytesAllocated();
     }
 
     /// @return bytes allocated to the toWrite as a signed type
     ssize_t getWriteQueueAllocatorBytes() const {
-        return trackingAllocator.getBytesAllocated();
+        return queueAllocator.getBytesAllocated();
     }
 
     // see member variable definition for info
@@ -634,13 +617,13 @@ private:
     cb::NonNegativeCounter<size_t> numOfCursorsInCheckpoint = 0;
 
     // Allocator used for tracking memory used by toWrite
-    MemoryTrackingAllocator<queued_item> trackingAllocator;
-    // Allocator used for tracking memory used by keyIndex and metaKeyIndex
-    checkpoint_index::allocator_type keyIndexTrackingAllocator;
+    MemoryTrackingAllocator<queued_item> queueAllocator;
 
-    // Allocator used for tracking memory that we allocate for the keys of the
-    // key and metaKey keyIndexes
-    checkpoint_index::key_type::allocator_type keyIndexKeyTrackingAllocator;
+    // Allocator used for tracking memory used by keyIndex
+    checkpoint_index::allocator_type keyIndexAllocator;
+
+    // Allocator used for tracking memory used by keys stored in the keyIndex
+    checkpoint_index::key_type::allocator_type keyIndexKeyAllocator;
 
     CheckpointQueue toWrite;
 

@@ -237,11 +237,10 @@ public:
 
     size_t getChkMgrMemUsageOfUnrefCheckpoints() const;
 
-    size_t getChkMgrMemUsageOverhead() const;
-
-    size_t getCMMemOverheadQueue() const;
-    size_t getCMMemOverheadIndex() const;
-    size_t getCMMemOverheadIndexKey() const;
+    size_t getCMMemOverheadAllocatorBytes() const;
+    size_t getCMMemOverheadAllocatorBytesQueue() const;
+    size_t getCMMemOverheadAllocatorBytesIndex() const;
+    size_t getCMMemOverheadAllocatorBytesIndexKey() const;
 
     uint64_t getPurgeSeqno() const {
         return purge_seqno;

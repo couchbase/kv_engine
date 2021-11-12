@@ -194,9 +194,9 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
       checkpointState(CHECKPOINT_OPEN),
       numItems(0),
       numMetaItems(0),
-      toWrite(trackingAllocator),
-      committedKeyIndex(keyIndexTrackingAllocator),
-      preparedKeyIndex(keyIndexTrackingAllocator),
+      toWrite(queueAllocator),
+      committedKeyIndex(keyIndexAllocator),
+      preparedKeyIndex(keyIndexAllocator),
       keyIndexMemUsage(st, &manager.estimatedMemUsage),
       queuedItemsMemUsage(st, &manager.estimatedMemUsage),
       checkpointType(checkpointType),
@@ -206,10 +206,10 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
     core->numCheckpoints++;
 
     // the overheadChangedCallback uses the accurately tracked overhead
-    // from trackingAllocator. The above memOverhead stat is "manually"
+    // from queueAllocator. The above memOverhead stat is "manually"
     // accounted in queueDirty, and approximates the overhead based on
     // key sizes and the size of queued_item and index_entry.
-    manager.overheadChangedCallback(getMemoryOverheadTotal());
+    manager.overheadChangedCallback(getMemOverheadAllocatorBytes());
 }
 
 Checkpoint::~Checkpoint() {
@@ -247,12 +247,13 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
     QueueDirtyResult rv;
     // trigger the overheadChangedCallback if the overhead is different
     // when this helper is destroyed
-    auto overheadCheck = gsl::finally([pre = getMemoryOverheadTotal(), this]() {
-        auto post = getMemoryOverheadTotal();
-        if (pre != post) {
-            manager->overheadChangedCallback(post - pre);
-        }
-    });
+    auto overheadCheck =
+            gsl::finally([pre = getMemOverheadAllocatorBytes(), this]() {
+                auto post = getMemOverheadAllocatorBytes();
+                if (pre != post) {
+                    manager->overheadChangedCallback(post - pre);
+                }
+            });
 
     // Check if the item is a meta item
     if (qi->isCheckPointMetaItem()) {
@@ -634,7 +635,7 @@ CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last,
 }
 
 CheckpointIndexKeyType Checkpoint::makeIndexKey(const queued_item& item) const {
-    return CheckpointIndexKeyType(item->getKey(), keyIndexKeyTrackingAllocator);
+    return CheckpointIndexKeyType(item->getKey(), keyIndexKeyAllocator);
 }
 
 void Checkpoint::addStats(const AddStatFn& add_stat,
@@ -657,7 +658,15 @@ void Checkpoint::addStats(const AddStatFn& add_stat,
 
     checked_snprintf(buf.data(),
                      buf.size(),
-                     "vb_%d:id_%" PRIu64 ":to_write_allocator_bytes",
+                     "vb_%d:id_%" PRIu64 ":key_index_key_allocator_bytes",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(
+            buf.data(), getKeyIndexKeyAllocatorBytes(), add_stat, cookie);
+
+    checked_snprintf(buf.data(),
+                     buf.size(),
+                     "vb_%d:id_%" PRIu64 ":queue_allocator_bytes",
                      vbucketId.get(),
                      getId());
     add_casted_stat(
@@ -704,7 +713,7 @@ void Checkpoint::detachFromManager() {
     Expects(manager);
     // decrease the manager memory overhead by the total amount of this
     // checkpoint
-    manager->overheadChangedCallback(-getMemoryOverheadTotal());
+    manager->overheadChangedCallback(-getMemOverheadAllocatorBytes());
     manager = nullptr;
 
     // In EPStats we track the mem used by checkpoints owned by CM, so we need

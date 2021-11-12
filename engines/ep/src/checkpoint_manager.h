@@ -414,29 +414,28 @@ public:
     size_t getEstimatedMemUsage() const;
 
     /**
-     * Return memory overhead of all the checkpoints managed
+     * Return memory overhead of all the checkpoints managed, computed by
+     * allocators
      */
-    size_t getMemoryOverhead_UNLOCKED() const;
+    size_t getMemOverheadAllocatorBytes() const;
 
     /**
-     * Return memory overhead of all the checkpoints managed
+     * Return the mem overhead of this CM checkpoints' queue struct, computed by
+     * allocator
      */
-    size_t getMemoryOverhead() const;
+    size_t getMemOverheadAllocatorBytesQueue() const;
 
     /**
-     * Return the mem overhead of this CM checkpoints' queue structure.
+     * Return the mem overhead of this CM checkpoints' index struct, computed by
+     * allocator
      */
-    size_t getMemOverheadQueue() const;
+    size_t getMemOverheadAllocatorBytesIndex() const;
 
     /**
-     *  Return the mem overhead of this CM checkpoints' index structure.
+     * Return the mem overhead of all keys in this CM checkpoints' index,
+     * computed by allocator
      */
-    size_t getMemOverheadIndex() const;
-
-    /**
-     * Return the mem overhead of all keys in this CM checkpoints' index.
-     */
-    size_t getMemOverheadIndexKey() const;
+    size_t getMemOverheadAllocatorBytesIndexKey() const;
 
     /**
      * Return memory consumption of unreferenced checkpoints
@@ -861,6 +860,15 @@ protected:
      */
     ExtractItemsResult extractItemsToExpel(
             const std::lock_guard<std::mutex>& lh);
+
+    /**
+     * Return memory overhead of all the checkpoints managed, computed by
+     * allocators
+     *
+     * @param lh Lock to CM::queueLock
+     */
+    size_t getMemOverheadAllocatorBytes(
+            const std::lock_guard<std::mutex>& lh) const;
 
     CheckpointList checkpointList;
     EPStats                 &stats;

@@ -1324,14 +1324,17 @@ void KVBucket::appendAggregatedVBucketStats(
         stateCol.addStat(Key::vb_checkpoint_memory_unreferenced,
                          visitor.getCheckpointMemoryUnreferenced());
 
-        stateCol.addStat(Key::vb_checkpoint_memory_overhead,
-                         visitor.getCheckpointMemoryOverhead());
-        stateCol.addStat(Key::vb_checkpoint_memory_overhead_queue,
-                         visitor.getCheckpointMemoryOverheadQueue());
-        stateCol.addStat(Key::vb_checkpoint_memory_overhead_index,
-                         visitor.getCheckpointMemoryOverheadIndex());
-        stateCol.addStat(Key::vb_checkpoint_memory_overhead_index_key,
-                         visitor.getCheckpointMemoryOverheadIndexKey());
+        stateCol.addStat(Key::vb_checkpoint_memory_overhead_allocator_bytes,
+                         visitor.getCheckpointMemOverheadAllocatorBytes());
+        stateCol.addStat(
+                Key::vb_checkpoint_memory_overhead_allocator_bytes_queue,
+                visitor.getCheckpointMemOverheadAllocatorBytesQueue());
+        stateCol.addStat(
+                Key::vb_checkpoint_memory_overhead_allocator_bytes_index,
+                visitor.getCheckpointMemOverheadAllocatorBytesIndex());
+        stateCol.addStat(
+                Key::vb_checkpoint_memory_overhead_allocator_bytes_index_key,
+                visitor.getCheckpointMemOverheadAllocatorBytesIndexKey());
 
         stateCol.addStat(Key::vb_ht_memory, visitor.getHashtableMemory());
         stateCol.addStat(Key::vb_itm_memory, visitor.getItemMemory());
@@ -1405,10 +1408,10 @@ void KVBucket::appendAggregatedVBucketStats(
                       active.getCheckpointMemoryUnreferenced() +
                               replica.getCheckpointMemoryUnreferenced() +
                               pending.getCheckpointMemoryUnreferenced());
-    collector.addStat(Key::ep_checkpoint_memory_overhead,
-                      active.getCheckpointMemoryOverhead() +
-                              replica.getCheckpointMemoryOverhead() +
-                              pending.getCheckpointMemoryOverhead());
+    collector.addStat(Key::ep_checkpoint_memory_overhead_allocator,
+                      active.getCheckpointMemOverheadAllocatorBytes() +
+                              replica.getCheckpointMemOverheadAllocatorBytes() +
+                              pending.getCheckpointMemOverheadAllocatorBytes());
     collector.addStat(Key::ep_total_cache_size,
                       active.getCacheSize() + replica.getCacheSize() +
                               pending.getCacheSize());

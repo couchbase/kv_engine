@@ -403,29 +403,29 @@ The following ratios are encoded as 4-digit integers, e.g.:
 
 ** vBucket total stats
 
-| Stat                                     | Description                                    |
-|------------------------------------------+------------------------------------------------|
-| ep_vb_total                              | Total vBuckets (count)                         |
-| curr_items_tot                           | Total number of items                          |
-| curr_items                               | Number of active items in memory               |
-| curr_temp_items                          | Number of temporary items in memory            |
-| vb_dead_num                              | Number of dead vBuckets                        |
-| ep_diskqueue_items                       | Total items in disk queue                      |
-| ep_diskqueue_memory                      | Total memory used in disk queue                |
-| ep_diskqueue_fill                        | Total enqueued items on disk queue             |
-| ep_diskqueue_drain                       | Total drained items on disk queue              |
-| ep_diskqueue_pending                     | Total bytes of pending writes                  |
-| ep_persist_vbstate_total                 | Total VB persist state to disk                 |
-| ep_meta_data_memory                      | Total memory used by meta data                 |
-| ep_meta_data_disk                        | Total disk used by meta data                   |
-| ep_checkpoint_memory                     | Memory of items in all checkpoints             |
-| ep_checkpoint_memory_unreferenced        | Memory of items in unref checkpoints           |
-| ep_checkpoint_memory_overhead            | Memory of all checkpoints internal structures  |
-| ep_checkpoint_memory_overhead_queue      | Memory of all checkpoint's queues              |
-| ep_checkpoint_memory_overhead_index      | Memory of all checkpoint's index structures    |
-| ep_checkpoint_memory_overhead_index_key  | Memory of all keys in all checkpoint's indexes |
-| ep_checkpoint_memory_pending_destruction | Memory of checkpoint structures awaiting       |
-|                                          | destruction by a background task               |
+| Stat                                                    | Description                                    |
+|---------------------------------------------------------+------------------------------------------------|
+| ep_vb_total                                             | Total vBuckets (count)                         |
+| curr_items_tot                                          | Total number of items                          |
+| curr_items                                              | Number of active items in memory               |
+| curr_temp_items                                         | Number of temporary items in memory            |
+| vb_dead_num                                             | Number of dead vBuckets                        |
+| ep_diskqueue_items                                      | Total items in disk queue                      |
+| ep_diskqueue_memory                                     | Total memory used in disk queue                |
+| ep_diskqueue_fill                                       | Total enqueued items on disk queue             |
+| ep_diskqueue_drain                                      | Total drained items on disk queue              |
+| ep_diskqueue_pending                                    | Total bytes of pending writes                  |
+| ep_persist_vbstate_total                                | Total VB persist state to disk                 |
+| ep_meta_data_memory                                     | Total memory used by meta data                 |
+| ep_meta_data_disk                                       | Total disk used by meta data                   |
+| ep_checkpoint_memory                                    | Memory of items in all checkpoints             |
+| ep_checkpoint_memory_unreferenced                       | Memory of items in unref checkpoints           |
+| ep_checkpoint_memory_overhead_allocator_bytes           | Memory of all checkpoints internal structures  |
+| ep_checkpoint_memory_overhead_allocator_bytes_queue     | Memory of all checkpoint's queues              |
+| ep_checkpoint_memory_overhead_allocator_bytes_index     | Memory of all checkpoint's index structures    |
+| ep_checkpoint_memory_overhead_allocator_bytes_index_key | Memory of all keys in all checkpoint's indexes |
+| ep_checkpoint_memory_pending_destruction                | Memory of checkpoint structures awaiting       |
+|                                                         | destruction by a background task               |
 
 *** Active vBucket class stats
 
@@ -1025,6 +1025,9 @@ prefixed with the vbucket and the id of the Checkpoint, e.g. "vb_0:id_52:state"
 | key_index_allocator_bytes        | The number of bytes currently allocated to|
 |                                  | the key index(s) as returned by the       |
 |                                  | underlying std::allocator implementation  |
+| key_index_key_allocator_bytes    | The number of bytes currently allocated to|
+|                                  | the keys stored in the key-index(s) as    |
+|                                  | returned by the underlying allocator      |
 | to_write_allocator_bytes         | The number of bytes currently allocated to|
 |                                  | the toWrite queue as returned by the      |
 |                                  | underlying std::allocator implementation  |
