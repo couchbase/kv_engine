@@ -314,6 +314,10 @@ size_t VBucket::getChkMgrMemUsage() const {
     return checkpointManager->getEstimatedMemUsage();
 }
 
+size_t VBucket::getCMQueuedItemsMemUsage() const {
+    return checkpointManager->getQueuedItemsMemUsage();
+}
+
 size_t VBucket::getChkMgrMemUsageOfUnrefCheckpoints() const {
     return checkpointManager->getMemoryUsageOfUnrefCheckpoints();
 }
@@ -332,6 +336,18 @@ size_t VBucket::getCMMemOverheadAllocatorBytesIndex() const {
 
 size_t VBucket::getCMMemOverheadAllocatorBytesIndexKey() const {
     return checkpointManager->getMemOverheadAllocatorBytesIndexKey();
+}
+
+size_t VBucket::getCMMemOverhead() const {
+    return checkpointManager->getMemOverhead();
+}
+
+size_t VBucket::getCMMemOverheadQueue() const {
+    return checkpointManager->getMemOverheadQueue();
+}
+
+size_t VBucket::getCMMemOverheadIndex() const {
+    return checkpointManager->getMemOverheadIndex();
 }
 
 size_t VBucket::getSyncWriteAcceptedCount() const {

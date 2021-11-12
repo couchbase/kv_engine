@@ -414,6 +414,11 @@ public:
     size_t getEstimatedMemUsage() const;
 
     /**
+     * Return the mem usage of all queued items in all checkpoints
+     */
+    size_t getQueuedItemsMemUsage() const;
+
+    /**
      * Return memory overhead of all the checkpoints managed, computed by
      * allocators
      */
@@ -436,6 +441,24 @@ public:
      * computed by allocator
      */
     size_t getMemOverheadAllocatorBytesIndexKey() const;
+
+    /**
+     * Return memory overhead of all the checkpoints managed, computed by
+     * internal counters
+     */
+    size_t getMemOverhead() const;
+
+    /**
+     * Return the mem overhead of this CM checkpoints' queue struct, computed by
+     * internal counters
+     */
+    size_t getMemOverheadQueue() const;
+
+    /**
+     * Return of the memory overhead of the key index in all checkpoints. That
+     * includes both internal index struct and allocs for keys in the index.
+     */
+    size_t getMemOverheadIndex() const;
 
     /**
      * Return memory consumption of unreferenced checkpoints

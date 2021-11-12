@@ -518,10 +518,15 @@ STAT(vb_meta_data_disk,
      FMT("vb_{state}_meta_data_disk"),
      bytes,
      vb_meta_data_disk, )
+
 STAT(vb_checkpoint_memory,
      FMT("vb_{state}_checkpoint_memory"),
      bytes,
      vb_checkpoint_memory, )
+STAT(vb_checkpoint_memory_queue,
+     FMT("vb_{state}_checkpoint_memory_queue"),
+     bytes,
+     vb_checkpoint_memory_queue, )
 STAT(vb_checkpoint_memory_unreferenced,
      FMT("vb_{state}_checkpoint_memory_unreferenced"),
      bytes,
@@ -543,6 +548,21 @@ STAT(vb_checkpoint_memory_overhead_allocator_bytes_index_key,
      FMT("vb_{state}_checkpoint_memory_overhead_allocator_index_key"),
      bytes,
      vb_checkpoint_memory_overhead_index_key, )
+
+STAT(vb_checkpoint_memory_overhead,
+     FMT("vb_{state}_checkpoint_memory_overhead"),
+     bytes,
+     vb_checkpoint_memory_overhead, )
+
+STAT(vb_checkpoint_memory_overhead_queue,
+     FMT("vb_{state}_checkpoint_memory_overhead_queue"),
+     bytes,
+     vb_checkpoint_memory_overhead_queue, )
+
+STAT(vb_checkpoint_memory_overhead_index,
+     FMT("vb_{state}_checkpoint_memory_overhead_index"),
+     bytes,
+     vb_checkpoint_memory_overhead_index, )
 
 STAT(vb_ht_memory, FMT("vb_{state}_ht_memory"), bytes, vb_ht_memory, )
 STAT(vb_itm_memory, FMT("vb_{state}_itm_memory"), bytes, vb_itm_memory, )

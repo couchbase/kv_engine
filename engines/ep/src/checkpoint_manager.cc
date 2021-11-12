@@ -1436,6 +1436,15 @@ size_t CheckpointManager::getEstimatedMemUsage() const {
     return estimatedMemUsage;
 }
 
+size_t CheckpointManager::getQueuedItemsMemUsage() const {
+    std::lock_guard<std::mutex> lh(queueLock);
+    size_t usage = 0;
+    for (const auto& checkpoint : checkpointList) {
+        usage += checkpoint->getQueuedItemsMemUsage();
+    }
+    return usage;
+}
+
 size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() const {
     std::lock_guard<std::mutex> lh(queueLock);
 
@@ -1481,6 +1490,33 @@ size_t CheckpointManager::getMemOverheadAllocatorBytesIndexKey() const {
     size_t usage = 0;
     for (const auto& checkpoint : checkpointList) {
         usage += checkpoint->getKeyIndexKeyAllocatorBytes();
+    }
+    return usage;
+}
+
+size_t CheckpointManager::getMemOverhead() const {
+    std::lock_guard<std::mutex> lh(queueLock);
+    size_t usage = 0;
+    for (const auto& checkpoint : checkpointList) {
+        usage += checkpoint->getMemOverhead();
+    }
+    return usage;
+}
+
+size_t CheckpointManager::getMemOverheadQueue() const {
+    std::lock_guard<std::mutex> lh(queueLock);
+    size_t usage = 0;
+    for (const auto& checkpoint : checkpointList) {
+        usage += checkpoint->getMemOverheadQueue();
+    }
+    return usage;
+}
+
+size_t CheckpointManager::getMemOverheadIndex() const {
+    std::lock_guard<std::mutex> lh(queueLock);
+    size_t usage = 0;
+    for (const auto& checkpoint : checkpointList) {
+        usage += checkpoint->getMemOverheadIndex();
     }
     return usage;
 }

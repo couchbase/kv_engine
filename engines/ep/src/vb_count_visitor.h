@@ -90,6 +90,10 @@ public:
         return checkpointMemory;
     }
 
+    size_t getCheckpointMemoryQueue() const {
+        return checkpointMemoryQueue;
+    }
+
     size_t getCheckpointMemoryUnreferenced() const {
         return checkpointMemoryUnreferenced;
     }
@@ -108,6 +112,18 @@ public:
 
     size_t getCheckpointMemOverheadAllocatorBytesIndexKey() const {
         return checkpointMemOverheadAllocatorBytesIndexKey;
+    }
+
+    size_t getCheckpointMemOverhead() const {
+        return checkpointMemOverhead;
+    }
+
+    size_t getCheckpointMemOverheadQueue() const {
+        return checkpointMemOverheadQueue;
+    }
+
+    size_t getCheckpointMemOverheadIndex() const {
+        return checkpointMemOverheadIndex;
     }
 
     size_t getHashtableMemory() const {
@@ -202,13 +218,19 @@ private:
     size_t numExpiredItems{0};
     size_t metaDataMemory{0};
     size_t metaDataDisk{0};
+
     size_t checkpointMemory{0};
+    size_t checkpointMemoryQueue{0};
     size_t checkpointMemoryUnreferenced{0};
 
     size_t checkpointMemOverheadAllocatorBytes{0};
     size_t checkpointMemOverheadAllocatorBytesQueue{0};
     size_t checkpointMemOverheadAllocatorBytesIndex{0};
     size_t checkpointMemOverheadAllocatorBytesIndexKey{0};
+
+    size_t checkpointMemOverhead{0};
+    size_t checkpointMemOverheadQueue{0};
+    size_t checkpointMemOverheadIndex{0};
 
     size_t opsCreate{0};
     size_t opsDelete{0};

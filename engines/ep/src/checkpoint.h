@@ -487,6 +487,19 @@ public:
     }
 
     /**
+     * Returns the memory overhead of the checkpoint, computed by checkpoint
+     * internal counters.
+     * This is comprised of three components:
+     * 1) The size of the Checkpoint object
+     * 2) The keyIndex mem usage
+     * 3) The mem overhead of internal pointers of the toWrite container that
+     *    stores items
+     */
+    size_t getMemOverhead() const {
+        return sizeof(Checkpoint) + keyIndexMemUsage + queueMemOverhead;
+    }
+
+    /**
      * Adds a queued_item to the checkpoint and updates the checkpoint stats
      * accordingly.
      * @param qi  The queued_iem to be added to the checkpoint.
@@ -550,12 +563,12 @@ public:
     }
 
     // see member variable definition for info
-    size_t getQueueMemOverhead() const {
+    size_t getMemOverheadQueue() const {
         return queueMemOverhead;
     }
 
     // see member variable definition for info
-    size_t getKeyIndexMemUsage() const {
+    size_t getMemOverheadIndex() const {
         return keyIndexMemUsage;
     }
 

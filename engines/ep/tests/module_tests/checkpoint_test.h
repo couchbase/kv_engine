@@ -118,10 +118,10 @@ class CheckpointMemoryTrackingTest
 public:
     void SetUp() override;
     /**
-     * Verify that the estimated checkpoints mem-usage is tracked correctly
+     * Verify that the checkpoints mem-usage is tracked correctly
      * at queueing items into the checkpoints.
      */
-    void testCheckpointManagerEstimatedMemUsage();
+    void testCheckpointManagerMemUsage();
 };
 
 /**
