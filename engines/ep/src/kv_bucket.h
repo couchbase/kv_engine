@@ -884,15 +884,17 @@ public:
      * X = current checkpoint memory used
      * Q = bucket quota
      *
-     * Memory reduction is necessary if checkpoint memory usage (X) is greater
-     * than checkpoint_memory_recovery_upper_mark (B).
-     * If that's the case then this function will return (X - A) as the target
-     * amount to free.
+     * This function will return (X - A) as the target amount to free.
      *
      * @return a calculated memory reduction target (in bytes) - 0 if checkpoint
-     *  memory recovery is not need
+     *  memory is not above the low mark
      */
     size_t getRequiredCheckpointMemoryReduction() const;
+
+    /**
+     * Check if checkpoint memory usage exceeds the high mark.
+     */
+    bool isCheckpointMemoryReductionRequired() const;
 
     /**
      * Returns the callback function to be invoked once a vbucket has

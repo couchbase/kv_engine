@@ -199,7 +199,13 @@ ClosedUnrefCheckpointRemoverTask::attemptCursorDropping() {
 bool ClosedUnrefCheckpointRemoverTask::run() {
     TRACE_EVENT0("ep-engine/task", "ClosedUnrefCheckpointRemoverTask");
 
+    snooze(sleepTime);
     auto& bucket = *engine->getKVBucket();
+
+    if (!bucket.isCheckpointMemoryReductionRequired()) {
+        return true;
+    }
+
     const auto wasAboveBackfillThreshold =
             bucket.isMemUsageAboveBackfillThreshold();
 
@@ -210,14 +216,9 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
             !bucket.isMemUsageAboveBackfillThreshold()) {
             engine->getDcpConnMap().notifyBackfillManagerTasks();
         }
-
-        snooze(sleepTime);
     });
 
     const auto bytesToFree = bucket.getRequiredCheckpointMemoryReduction();
-    if (bytesToFree == 0) {
-        return true;
-    }
 
     EP_LOG_INFO(
             "{} Triggering checkpoint memory recovery - attempting to free {} "

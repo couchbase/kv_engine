@@ -2963,13 +2963,12 @@ size_t KVBucket::getCMRecoveryLowerMarkBytes() const {
 size_t KVBucket::getRequiredCheckpointMemoryReduction() const {
     const auto recoveryThreshold = getCMRecoveryUpperMarkBytes();
     const auto usage = stats.getCheckpointManagerEstimatedMemUsage();
+    const auto recoveryTarget = getCMRecoveryLowerMarkBytes();
 
-    if (usage < recoveryThreshold) {
+    if (usage <= recoveryTarget) {
         return 0;
     }
 
-    const auto recoveryTarget = getCMRecoveryLowerMarkBytes();
-    Expects(usage > recoveryTarget);
     const size_t amountOfMemoryToClear = usage - recoveryTarget;
 
     const auto toMB = [](size_t bytes) { return bytes / (1024 * 1024); };
@@ -2986,6 +2985,13 @@ size_t KVBucket::getRequiredCheckpointMemoryReduction() const {
             toMB(amountOfMemoryToClear));
 
     return amountOfMemoryToClear;
+}
+
+bool KVBucket::isCheckpointMemoryReductionRequired() const {
+    const auto recoveryThreshold = getCMRecoveryUpperMarkBytes();
+    const auto usage = stats.getCheckpointManagerEstimatedMemUsage();
+
+    return usage > recoveryThreshold;
 }
 
 CheckpointDestroyerTask& KVBucket::getCkptDestroyerTask(Vbid vbid) const {

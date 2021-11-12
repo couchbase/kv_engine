@@ -376,6 +376,80 @@ TEST_F(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
     EXPECT_GT(store->getRequiredCheckpointMemoryReduction(), 0);
 }
 
+// Test that we correctly determine when to stop memory recovery.
+TEST_F(CheckpointRemoverEPTest, MemoryRecoveryEnd) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    scheduleCheckpointRemoverTask();
+
+    const size_t bucketQuota = 1024 * 1024 * 100;
+    auto& config = engine->getConfiguration();
+    config.setMaxSize(bucketQuota);
+    // set the max checkpoint size excessively high - need the test to
+    // trigger expelling rather than checkpoint removal; avoid creating
+    // multiple checkpoints.
+    config.setCheckpointMaxSize(bucketQuota);
+
+    auto& stats = engine->getEpStats();
+    ASSERT_EQ(bucketQuota, stats.getMaxDataSize());
+
+    // No item stored, no memory condition that triggers mem-recovery
+    const auto checkpointMemoryLimit =
+            bucketQuota * store->getCheckpointMemoryRatio();
+    ASSERT_LT(stats.getCheckpointManagerEstimatedMemUsage(),
+              checkpointMemoryLimit);
+    ASSERT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
+    ASSERT_EQ(0, store->getRequiredCheckpointMemoryReduction());
+
+    // Now store some items so that the mem-usage in checkpoint crosses the
+    // checkpoint_upper_mark
+    size_t numItems = 0;
+    do {
+        const auto value = std::string(bucketQuota / 100, 'x');
+        auto item =
+                make_item(vbid,
+                          makeStoredDocKey("key_" + std::to_string(++numItems)),
+                          value,
+                          0 /*exp*/,
+                          PROTOCOL_BINARY_RAW_BYTES);
+        store->set(item, cookie);
+    } while (stats.getCheckpointManagerEstimatedMemUsage() <
+             checkpointMemoryLimit);
+
+    flushVBucketToDiskIfPersistent(vbid, numItems);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_GT(vb->getNumItems(), 0);
+    ASSERT_EQ(numItems, vb->getNumItems());
+    ASSERT_GT(stats.getCheckpointManagerEstimatedMemUsage(),
+              checkpointMemoryLimit);
+    ASSERT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
+
+    ASSERT_TRUE(store->isCheckpointMemoryReductionRequired());
+
+    ASSERT_EQ(stats.itemsExpelledFromCheckpoints, 0);
+
+    // run the remover to trigger expelling
+    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(nonIO, "ClosedUnrefCheckpointRemoverTask:0");
+    runNextTask(nonIO, "ClosedUnrefCheckpointRemoverTask:1");
+
+    // some items should have been expelled
+    EXPECT_GT(stats.itemsExpelledFromCheckpoints, 0);
+
+    const auto checkpointMemoryRatio = store->getCheckpointMemoryRatio();
+    const auto checkpointQuota = stats.getMaxDataSize() * checkpointMemoryRatio;
+    const auto usage = stats.getCheckpointManagerEstimatedMemUsage();
+
+    const auto lowerRatio = store->getCheckpointMemoryRecoveryLowerMark();
+    const auto lowerMark = checkpointQuota * lowerRatio;
+    // we are now below the low mark
+    EXPECT_LE(usage, lowerMark);
+
+    // and no longer need to reduce checkpoint memory
+    EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
+}
+
 void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
         bool moveCursor) {
     // 1) Get enough checkpoint metadata to trigger expel
@@ -992,7 +1066,7 @@ TEST_F(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
     // permitted memory usage
     auto value = std::string(20 * 1024, 'x');
     int i = 0;
-    while (!store->getRequiredCheckpointMemoryReduction()) {
+    while (!store->isCheckpointMemoryReductionRequired()) {
         auto item = make_item(
                 vbid, makeStoredDocKey("key_" + std::to_string(i++)), value);
         EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
