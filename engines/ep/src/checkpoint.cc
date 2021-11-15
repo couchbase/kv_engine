@@ -670,14 +670,14 @@ void Checkpoint::addStats(const AddStatFn& add_stat,
                      "vb_%d:id_%" PRIu64 ":mem_usage_queue_overhead",
                      vbucketId.get(),
                      getId());
-    add_casted_stat(buf.data(), getQueueMemOverhead(), add_stat, cookie);
+    add_casted_stat(buf.data(), getMemOverheadQueue(), add_stat, cookie);
 
     checked_snprintf(buf.data(),
                      buf.size(),
                      "vb_%d:id_%" PRIu64 ":mem_usage_key_index_overhead",
                      vbucketId.get(),
                      getId());
-    add_casted_stat(buf.data(), getKeyIndexMemUsage(), add_stat, cookie);
+    add_casted_stat(buf.data(), getMemOverheadIndex(), add_stat, cookie);
 
     checked_snprintf(buf.data(),
                      buf.size(),
