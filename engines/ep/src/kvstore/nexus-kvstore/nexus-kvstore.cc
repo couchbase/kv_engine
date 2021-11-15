@@ -2317,13 +2317,18 @@ uint64_t NexusKVStore::prepareToDelete(Vbid vbid) {
     auto secondaryResult = secondary->prepareToDelete(vbid);
 
     if (primaryResult != secondaryResult) {
-        auto msg = fmt::format(
+        // This is a warning, rather than an error, as magma and couchsore deal
+        // with vBucket revisioning differently and comparisons aren't
+        // meaningful. The revisions can be different because CouchKVStore may
+        // return a revision even without us flushing to the vBucket, but magma
+        // may return an older revisionin prepareToDeleteImpl if we didnt' flush
+        // to the latest revision and the old revision hasn't been deleted yet.
+        EP_LOG_WARN(
                 "NexusKVStore::prepareToDelete: {}: primaryResult:{} "
                 "secondaryResult:{}",
                 vbid,
                 primaryResult,
                 secondaryResult);
-        handleError(msg);
     }
 
     return primaryResult;
