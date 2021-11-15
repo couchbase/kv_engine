@@ -205,32 +205,6 @@ void NexusKVStore::doCollectionsMetadataChecks(
                     secondaryStats.itemCount);
             handleError(msg);
         }
-        if (primaryVBManifest &&
-            primaryStats.itemCount !=
-                    primaryVBManifest->lock(cid).getItemCount()) {
-            auto msg = fmt::format(
-                    "NexusKVStore::doCollectionsMetadataChecks: {}: cid:{} "
-                    "item "
-                    "count mismatch for primary disk:{} VBManifest:{}",
-                    vbid,
-                    cid,
-                    primaryStats.itemCount,
-                    primaryVBManifest->lock(cid).getItemCount());
-            handleError(msg);
-        }
-        if (secondaryVBManifest &&
-            secondaryStats.itemCount !=
-                    secondaryVBManifest->lock(cid).getItemCount()) {
-            auto msg = fmt::format(
-                    "NexusKVStore::doCollectionsMetadataChecks: {}: cid:{} "
-                    "item "
-                    "count mismatch for secondary disk:{} VBManifest:{}",
-                    vbid,
-                    cid,
-                    secondaryStats.itemCount,
-                    secondaryVBManifest->lock(cid).getItemCount());
-            handleError(msg);
-        }
 
         if (primaryStats.highSeqno != secondaryStats.highSeqno) {
             auto msg = fmt::format(
@@ -243,9 +217,44 @@ void NexusKVStore::doCollectionsMetadataChecks(
                     secondaryStats.highSeqno);
             handleError(msg);
         }
-        if (primaryVBManifest &&
+
+        // All checks from here down need the (in-memory) VBManifests
+        if (!primaryVBManifest || !secondaryVBManifest) {
+            return;
+        }
+
+        auto primaryManifestHandle = primaryVBManifest->lock(cid);
+        auto secondaryManifestHandle = secondaryVBManifest->lock(cid);
+
+        if (primaryManifestHandle.valid() &&
+            primaryStats.itemCount != primaryManifestHandle.getItemCount()) {
+            auto msg = fmt::format(
+                    "NexusKVStore::doCollectionsMetadataChecks: {}: cid:{} "
+                    "item "
+                    "count mismatch for primary disk:{} VBManifest:{}",
+                    vbid,
+                    cid,
+                    primaryStats.itemCount,
+                    primaryVBManifest->lock(cid).getItemCount());
+            handleError(msg);
+        }
+        if (secondaryManifestHandle.valid() &&
+            secondaryStats.itemCount !=
+                    secondaryManifestHandle.getItemCount()) {
+            auto msg = fmt::format(
+                    "NexusKVStore::doCollectionsMetadataChecks: {}: cid:{} "
+                    "item "
+                    "count mismatch for secondary disk:{} VBManifest:{}",
+                    vbid,
+                    cid,
+                    secondaryStats.itemCount,
+                    secondaryVBManifest->lock(cid).getItemCount());
+            handleError(msg);
+        }
+
+        if (primaryManifestHandle.valid() &&
             primaryStats.highSeqno !=
-                    primaryVBManifest->lock(cid).getPersistedHighSeqno()) {
+                    primaryManifestHandle.getPersistedHighSeqno()) {
             auto msg = fmt::format(
                     "NexusKVStore::doCollectionsMetadataChecks: {}: cid:{} "
                     "high "
@@ -256,9 +265,9 @@ void NexusKVStore::doCollectionsMetadataChecks(
                     primaryVBManifest->lock(cid).getPersistedHighSeqno());
             handleError(msg);
         }
-        if (secondaryVBManifest &&
+        if (secondaryManifestHandle.valid() &&
             secondaryStats.highSeqno !=
-                    secondaryVBManifest->lock(cid).getPersistedHighSeqno()) {
+                    secondaryManifestHandle.getPersistedHighSeqno()) {
             auto msg = fmt::format(
                     "NexusKVStore::doCollectionsMetadataChecks: {}: cid:{} "
                     "high "
@@ -273,9 +282,8 @@ void NexusKVStore::doCollectionsMetadataChecks(
         // We can't compare disk size between primary and secondary as they
         // will differ if the underlying KVStore type is different. We can
         // check them against the VB Manifest though.
-        if (primaryVBManifest &&
-            primaryStats.diskSize !=
-                    primaryVBManifest->lock(cid).getDiskSize()) {
+        if (primaryManifestHandle.valid() &&
+            primaryStats.diskSize != primaryManifestHandle.getDiskSize()) {
             auto msg = fmt::format(
                     "NexusKVStore::doCollectionsMetadataChecks: {}: cid:{} "
                     "disk "
@@ -286,9 +294,8 @@ void NexusKVStore::doCollectionsMetadataChecks(
                     primaryVBManifest->lock(cid).getDiskSize());
             handleError(msg);
         }
-        if (secondaryVBManifest &&
-            secondaryStats.diskSize !=
-                    secondaryVBManifest->lock(cid).getDiskSize()) {
+        if (secondaryManifestHandle.valid() &&
+            secondaryStats.diskSize != secondaryManifestHandle.getDiskSize()) {
             auto msg = fmt::format(
                     "NexusKVStore::doCollectionsMetadataChecks: {}: cid:{} "
                     "disk "
