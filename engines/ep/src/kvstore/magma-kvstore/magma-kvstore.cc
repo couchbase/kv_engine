@@ -1087,11 +1087,19 @@ uint64_t MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
     if (status) {
         return kvsRev;
     }
+
     // Even though we couldn't get the kvstore revision from magma, we'll use
     // what is in kv engine and assume its the latest. We might not be able to
     // get the revision of the KVStore if we've not persited any documents yet
     // for this vbid.
-    return kvstoreRevList[getCacheSlot(vbid)];
+    auto rev = kvstoreRevList[getCacheSlot(vbid)];
+    logger->info(
+            "MagmaKVStore::prepareToDeleteImpl: {} magma didn't find "
+            "kvstore for getRevision, status: {} using cached revision:{}",
+            vbid,
+            status.String(),
+            rev);
+    return rev;
 }
 
 // Note: It is assumed this can only be called from bg flusher thread or
