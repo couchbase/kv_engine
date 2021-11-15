@@ -1345,8 +1345,8 @@ void KVBucket::appendAggregatedVBucketStats(
                          visitor.getCheckpointMemOverheadIndex());
 
         stateCol.addStat(Key::vb_ht_memory, visitor.getHashtableMemory());
-        stateCol.addStat(Key::vb_itm_memory, visitor.getItemMemory());
-        stateCol.addStat(Key::vb_itm_memory_uncompressed,
+        stateCol.addStat(Key::vb_ht_item_memory, visitor.getItemMemory());
+        stateCol.addStat(Key::vb_ht_item_memory_uncompressed,
                          visitor.getUncompressedItemMemory());
         stateCol.addStat(Key::vb_ops_create, visitor.getOpsCreate());
         stateCol.addStat(Key::vb_ops_update, visitor.getOpsUpdate());
@@ -1402,6 +1402,9 @@ void KVBucket::appendAggregatedVBucketStats(
     collector.addStat(Key::ep_diskqueue_pending,
                       active.getPendingWrites() + replica.getPendingWrites() +
                               pending.getPendingWrites());
+    collector.addStat(Key::ep_ht_item_memory,
+                      active.getItemMemory() + replica.getItemMemory() +
+                              pending.getItemMemory());
     collector.addStat(Key::ep_meta_data_memory,
                       active.getMetaDataMemory() + replica.getMetaDataMemory() +
                               pending.getMetaDataMemory());

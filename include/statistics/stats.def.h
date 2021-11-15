@@ -565,11 +565,14 @@ STAT(vb_checkpoint_memory_overhead_index,
      vb_checkpoint_memory_overhead_index, )
 
 STAT(vb_ht_memory, FMT("vb_{state}_ht_memory"), bytes, vb_ht_memory, )
-STAT(vb_itm_memory, FMT("vb_{state}_itm_memory"), bytes, vb_itm_memory, )
-STAT(vb_itm_memory_uncompressed,
-     FMT("vb_{state}_itm_memory_uncompressed"),
+STAT(vb_ht_item_memory,
+     FMT("vb_{state}_ht_item_memory"),
      bytes,
-     vb_itm_memory_uncompressed, )
+     vb_ht_item_memory, )
+STAT(vb_ht_item_memory_uncompressed,
+     FMT("vb_{state}_ht_item_memory_uncompressed"),
+     bytes,
+     vb_ht_item_memory_uncompressed, )
 STAT(vb_ops_create, FMT("vb_{state}_ops_create"), count, vb_ops_create, )
 STAT(vb_ops_update, FMT("vb_{state}_ops_update"), count, vb_ops_update, )
 STAT(vb_ops_delete, FMT("vb_{state}_ops_delete"), count, vb_ops_delete, )
@@ -613,6 +616,7 @@ STAT(ep_diskqueue_memory, , bytes, , )
 STAT(ep_diskqueue_fill, , count, , )
 STAT(ep_diskqueue_drain, , count, , )
 STAT(ep_diskqueue_pending, , count, , )
+STAT(ep_ht_item_memory, , bytes, , )
 STAT(ep_meta_data_memory, , bytes, , )
 STAT(ep_meta_data_disk, , bytes, , )
 STAT(ep_checkpoint_memory, , bytes, , )
