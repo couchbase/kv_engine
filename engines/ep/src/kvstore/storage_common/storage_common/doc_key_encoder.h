@@ -16,4 +16,4 @@
 
 std::string encodeDocKey(std::string_view key,
                          std::string_view collection,
-                         bool prepare);
+                         uint32_t keyNamespace);

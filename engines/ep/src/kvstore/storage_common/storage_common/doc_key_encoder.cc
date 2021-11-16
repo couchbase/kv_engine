@@ -11,24 +11,36 @@
 #include "doc_key_encoder.h"
 
 #include <memcached/dockey.h>
+#include <memcached/systemevent.h>
 
 std::string encodeDocKey(std::string_view key,
                          std::string_view collection,
-                         bool prepare) {
+                         uint32_t keyNamespace) {
     std::string ret;
 
-    if (prepare) {
-        auto leb128 = cb::mcbp::unsigned_leb128<uint64_t>(
-                CollectionID::DurabilityPrepare);
+    if (keyNamespace != 0) {
+        auto leb128 = cb::mcbp::unsigned_leb128<uint64_t>(keyNamespace);
         ret.append(leb128.begin(), leb128.end());
+
+        if (keyNamespace == CollectionID::System) {
+            if (key == "_collection") {
+                auto leb128 = cb::mcbp::unsigned_leb128<uint32_t>(
+                        static_cast<uint32_t>(SystemEvent::Collection));
+                ret.append(leb128.begin(), leb128.end());
+            } else if (key == "_scope") {
+                auto leb128 = cb::mcbp::unsigned_leb128<uint32_t>(
+                        static_cast<uint32_t>(SystemEvent::Scope));
+                ret.append(leb128.begin(), leb128.end());
+            }
+        }
     }
 
     auto numericCollection = 0;
-
     if (!collection.empty()) {
         numericCollection = stoull(std::string(collection));
     }
     CollectionID cid(numericCollection);
+
     ret.append(DocKey::makeWireEncodedString(cid, std::string(key)));
 
     return ret;
