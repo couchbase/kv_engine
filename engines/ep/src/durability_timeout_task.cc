@@ -95,7 +95,8 @@ public:
     }
 
     std::chrono::microseconds maxExpectedDuration() const override {
-        return std::chrono::microseconds();
+        // Calibrated to observed p99.9 duration in system tests.
+        return std::chrono::milliseconds{10};
     }
 
 protected:
