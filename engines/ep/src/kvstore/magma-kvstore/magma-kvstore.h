@@ -625,14 +625,10 @@ protected:
      */
     class MagmaCompactionCB : public magma::Magma::CompactionCallback {
     public:
-        MagmaCompactionCB(MagmaKVStore& magmaKVStore,
-                          Vbid vbid,
-                          std::shared_ptr<CompactionContext> ctx = nullptr);
-
-        /**
-         * Set the PurgedItemCtx to the magma type
-         */
-        void setCtxPurgedItemCtx();
+        MagmaCompactionCB(
+                MagmaKVStore& magmaKVStore,
+                Vbid vbid,
+                std::shared_ptr<CompactionContext> compactionContext = nullptr);
 
         ~MagmaCompactionCB() override;
         bool operator()(const magma::Slice& keySlice,
@@ -641,7 +637,6 @@ protected:
         const magma::UserStats* GetUserStats() override {
             return &magmaDbStats;
         }
-        MagmaKVStore& magmaKVStore;
 
         /**
          * Vbucket being compacted - required so that we can work out which
@@ -655,15 +650,12 @@ protected:
          */
         std::shared_ptr<CompactionContext> ctx;
 
+    private:
+        MagmaKVStore& magmaKVStore;
         /**
          * Stats updates made during compaction
          */
         MagmaDbStats magmaDbStats;
-
-        // bool to inform MagmaKVStore::compactionCallBack if the compaction is
-        // an implicit or not. If true any purged seqnos will also update the
-        // in memory purge seqno
-        bool implicitCompaction = false;
     };
 
     /**

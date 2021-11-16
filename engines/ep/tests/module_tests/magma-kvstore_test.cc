@@ -357,22 +357,13 @@ TEST_F(MagmaKVStoreTest, initializeWithHeaderButNoVBState) {
 }
 
 // Check that if Magma performs an internal (implicit) compaction before
-// ep-engine has completed warmup, then any compaction callbacks into
-// MagmaKVStore are ignored - until a later compaction after warmup.
+// ep-engine has completed warmup, then we will throw to prevent an implicit
+// compaction that can't drop keys from running
 TEST_F(MagmaKVStoreTest, MB39669_CompactionBeforeWarmup) {
     // Simulate a compaction callback early on - before Warmup has completed.
-    auto newCompaction = kvstoreConfig->magmaCfg.MakeCompactionCallback(
-            magma::Magma::KVStoreID(0));
-    magma::Slice key;
-    magma::Slice value;
-    // Require a valid metadata slice to (a) ensure the item isn't just
-    // skipped (zero-length meta == local document) and (b) to provide a valid
-    // Vbid.
-    magmakv::MetaData metadata;
-    auto encoded = metadata.encode();
-    magma::Slice meta{encoded};
-    // Compaction callback should return false for anything before warmup.
-    EXPECT_FALSE(newCompaction->operator()(key, meta, value));
+    EXPECT_THROW(kvstoreConfig->magmaCfg.MakeCompactionCallback(
+                         magma::Magma::KVStoreID(0)),
+                 std::invalid_argument);
 }
 
 TEST_F(MagmaKVStoreTest, MetadataEncoding) {
@@ -673,13 +664,9 @@ TEST_F(MagmaKVStoreTest, MB_49465) {
             [](Vbid vbid, CompactionConfig& config, uint64_t purgeSeqno) {
                 return nullptr;
             });
-    // Create a MagmaCompactionCB so that we can ensure it's bool operator
-    // returns false if makeCompactionContextCallback returns nullptr
-    auto compaction = kvstoreConfig->magmaCfg.MakeCompactionCallback(
-            magma::Magma::KVStoreID(99));
-    magma::Slice key;
-    magma::Slice value;
-    magma::Slice meta;
-    // Ensure we return false as we were unable to get a CompactionContext
-    EXPECT_FALSE(compaction->operator()(key, meta, value));
+    // Create a MagmaCompactionCB so that we can ensure that we throw a run time
+    // error if we're unable to create a compaction context
+    EXPECT_THROW(kvstoreConfig->magmaCfg.MakeCompactionCallback(
+                         magma::Magma::KVStoreID(99)),
+                 std::runtime_error);
 }

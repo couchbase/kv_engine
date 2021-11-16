@@ -1800,6 +1800,11 @@ TEST_P(DurabilityEPBucketTest,
  * that our on disk accounting remain consistent.
  */
 TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDeleteTenDocs3Times) {
+    if (isNexus()) {
+        // TODO MB-47604 enable for nexus as magma's implicit compaction kicks
+        // in for this test but isn't supported for nexus
+        GTEST_SKIP();
+    }
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -1837,6 +1842,11 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDeleteTenDocs3Times) {
 /// Sanity test to make sure our accounting is consitant when we create
 /// Multiple documents on disk.
 TEST_P(DurabilityEPBucketTest, PersistSyncWrite20SyncDelete20) {
+    if (isNexus()) {
+        // TODO MB-47604 enable for nexus as magma's implicit compaction kicks
+        // in for this test but isn't supported for nexus
+        GTEST_SKIP();
+    }
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,

@@ -831,6 +831,11 @@ TEST_P(KVStoreParamTest, InvalidSnapshotDetected) {
 // Expect ThreadSanitizer to pick this.
 // Rocks has race condition issues
 TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
+    if (isNexus()) {
+        // TODO MB-47604 enable for nexus as magma's implicit compaction kicks
+        // in for this test but isn't supported for nexus
+        GTEST_SKIP();
+    }
     std::atomic<bool> stop{false};
     bool okToDelete{false};
     uint32_t deletes{0};

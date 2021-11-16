@@ -205,22 +205,44 @@ public:
 MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
         MagmaKVStore& magmaKVStore,
         Vbid vbid,
-        std::shared_ptr<CompactionContext> ctx)
-    : magmaKVStore(magmaKVStore), vbid(vbid), ctx(std::move(ctx)) {
+        std::shared_ptr<CompactionContext> compactionContext)
+    : vbid(vbid),
+      ctx(std::move(compactionContext)),
+      magmaKVStore(magmaKVStore) {
     magmaKVStore.logger->TRACE("MagmaCompactionCB constructor");
-    setCtxPurgedItemCtx();
-}
 
-MagmaKVStore::MagmaCompactionCB::~MagmaCompactionCB() {
-    magmaKVStore.logger->debug("MagmaCompactionCB destructor");
-}
-
-void MagmaKVStore::MagmaCompactionCB::setCtxPurgedItemCtx() {
-    if (ctx) {
+    // If we've not got a CompactionContext then this must be an implicit
+    // compaction so we need to create a CompactionContext
+    if (!ctx) {
+        if (!magmaKVStore.makeCompactionContextCallback) {
+            // We can't perform an implicit compaction if
+            // makeCompactionContextCallback isn't set.
+            throw std::invalid_argument(
+                    "MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB() no "
+                    "makeCompactionContextCallback set");
+        }
+        ctx = magmaKVStore.makeImplicitCompactionContext(vbid);
+        // If we don't have a valid compaction context then throw to prevent us
+        // creating a MagmaCompactionCB that won't be able to do any compaction
+        if (!ctx) {
+            throw std::runtime_error(
+                    "MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB() "
+                    "couldn't create compaction context");
+        }
+        ctx->purgedItemCtx->rollbackPurgeSeqnoCtx =
+                std::make_unique<MagmaImplicitCompactionPurgedItemContext>(
+                        ctx->getRollbackPurgeSeqno(),
+                        magmaDbStats,
+                        ctx->maybeUpdateVBucketPurgeSeqno);
+    } else {
         ctx->purgedItemCtx->rollbackPurgeSeqnoCtx =
                 std::make_unique<MagmaRollbackPurgeSeqnoCtx>(
                         ctx->getRollbackPurgeSeqno(), magmaDbStats);
     }
+}
+
+MagmaKVStore::MagmaCompactionCB::~MagmaCompactionCB() {
+    magmaKVStore.logger->debug("MagmaCompactionCB destructor");
 }
 
 bool MagmaKVStore::MagmaCompactionCB::operator()(
@@ -279,43 +301,14 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         logger->TRACE("MagmaCompactionCB: {} {}", vbid, userSanitizedItemStr);
     }
 
-    if (cbCtx.magmaKVStore.configuration.isSanityCheckingVBucketMapping()) {
+    if (configuration.isSanityCheckingVBucketMapping()) {
         validateKeyMapping("MagmaKVStore::compactionCallback",
-                           cbCtx.magmaKVStore.configuration
-                                   .getVBucketMappingErrorHandlingMethod(),
+                           configuration.getVBucketMappingErrorHandlingMethod(),
                            makeDiskDocKey(keySlice).getDocKey(),
                            vbid,
                            configuration.getMaxVBuckets());
     }
 
-    if (!cbCtx.ctx) {
-        // Don't already have a compaction context (i.e. this is the first
-        // key for an implicit compaction) - attempt to create one.
-
-        // Note that Magma implicit (internal) compactions can start _as soon
-        // as_ the Magma instance is Open()'d, which means this method can be
-        // called before Warmup has completed - and hence before
-        // makeCompactionContextCallback is assigned to a non-empty value.
-        // Until warmup *does* complete it isn't possible for us to know how
-        // to correctly deal with those keys - for example need to have
-        // initialised document counters during warmup to be able to update
-        // counter on TTL expiry. As such, until we have a non-empty
-        // makeCompactionContextCallback, simply return false.
-        if (!makeCompactionContextCallback) {
-            return false;
-        }
-        cbCtx.ctx = makeImplicitCompactionContext(vbid);
-        // If we don't have a valid compaction context return false
-        if (!cbCtx.ctx) {
-            return false;
-        }
-        cbCtx.implicitCompaction = true;
-        cbCtx.ctx->purgedItemCtx->rollbackPurgeSeqnoCtx =
-                std::make_unique<MagmaImplicitCompactionPurgedItemContext>(
-                        cbCtx.ctx->getRollbackPurgeSeqno(),
-                        cbCtx.magmaDbStats,
-                        cbCtx.ctx->maybeUpdateVBucketPurgeSeqno);
-    }
     return compactionCore(
             cbCtx, keySlice, metaSlice, valueSlice, userSanitizedItemStr);
 }
