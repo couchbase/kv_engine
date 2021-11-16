@@ -785,12 +785,13 @@ HashTable::DeleteResult HashTable::unlocked_softDelete(
             v.markDeleted(delSource);
         } else {
             v.del(delSource);
-            // As part of deleting, set committedState to CommittedViaMutation -
-            // this is necessary so when we later queue this SV into
-            // CheckpoitnManager, if if was previously CommittedViaPrepare it
-            // isn't mis-interpreted for a SyncDelete.
-            v.setCommitted(CommittedState::CommittedViaMutation);
         }
+
+        // As part of deleting, set committedState to CommittedViaMutation -
+        // this is necessary so when we later queue this SV into
+        // CheckpoitnManager, if if was previously CommittedViaPrepare it
+        // isn't mis-interpreted for a SyncDelete.
+        v.setCommitted(CommittedState::CommittedViaMutation);
 
         valueStats.epilogue(preProps, &v);
         return {DeletionStatus::Success, &v};
