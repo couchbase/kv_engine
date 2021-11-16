@@ -180,6 +180,14 @@ existing document should be used instead of the TTL provided. If document
 don't exist the provided TTL should be used. The frame info contains no
 value (length = 0).
 
+##### ID:6 - Impersonate users extra privilege
+
+Extra privilege to inject into the impersonated users privilege set (
+the authenticated process must hold the privilege in its effective set
+to avoid privilege escalation)
+
+Multiple privileges may be added by adding multiple frame info entries
+
 ### Response header
 
       Byte/     0       |       1       |       2       |       3       |

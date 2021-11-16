@@ -54,7 +54,7 @@ protected:
                     R"({"satchel" : {
   "domain" : "external",
   "buckets": {
-    "default": ["Read","SimpleStats","Insert","Delete","Upsert"]
+    "default": ["Read","Insert","Delete","Upsert"]
   },
   "privileges": []
 }})");
@@ -366,6 +366,18 @@ TEST_P(ExternalAuthTest, TestImpersonateExternalUser) {
 
         // The next time we call the op it should hit it in the cache..
         c.execute(cmd);
+
+        // Now that we have the entry in cache, verify that we can
+        // add privileges as part of impersonate
+        BinprotGenericCommand stat(cb::mcbp::ClientOpcode::Stat);
+        stat.addFrameInfo(ImpersonateUserFrameInfo{"^satchel"});
+        rsp = c.execute(stat);
+        EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
+        stat.addFrameInfo(
+                ImpersonateUserExtraPrivilegeFrameInfo{"SimpleStats"});
+        rsp = c.execute(stat);
+        EXPECT_TRUE(rsp.isSuccess())
+                << to_string(rsp.getStatus()) << " " << rsp.getDataString();
     });
 }
 

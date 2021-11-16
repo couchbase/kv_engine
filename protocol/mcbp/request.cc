@@ -363,6 +363,12 @@ nlohmann::json Request::toJSON(bool validated) const {
                     break;
                 case request::FrameInfoId::PreserveTtl:
                     frameid["Preserve TTL"] = true;
+                    break;
+                case request::FrameInfoId::ImpersonateExtraPrivilege:
+                    frameid["privilege"].push_back(std::string{
+                            reinterpret_cast<const char*>(buffer.data()),
+                            buffer.size()});
+                    break;
                 }
 
                 return true;
@@ -419,6 +425,8 @@ std::string to_string(cb::mcbp::request::FrameInfoId id) {
         return "Impersonate";
     case FrameInfoId::PreserveTtl:
         return "PreserveTtl";
+    case FrameInfoId::ImpersonateExtraPrivilege:
+        return "ImpersonateExtraPrivilege";
     }
 
     throw std::invalid_argument("to_string(): Invalid frame id: " +

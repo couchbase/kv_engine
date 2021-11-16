@@ -92,3 +92,15 @@ public:
     ~PreserveTtlFrameInfo() override;
     std::vector<uint8_t> encode() const override;
 };
+
+class ImpersonateUserExtraPrivilegeFrameInfo : public FrameInfo {
+public:
+    explicit ImpersonateUserExtraPrivilegeFrameInfo(std::string privilege)
+        : privilege(std::move(privilege)) {
+    }
+    ~ImpersonateUserExtraPrivilegeFrameInfo() override;
+    std::vector<uint8_t> encode() const override;
+
+protected:
+    const std::string privilege;
+};

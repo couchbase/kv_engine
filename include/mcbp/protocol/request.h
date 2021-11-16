@@ -37,6 +37,7 @@ enum class FrameInfoId {
     OpenTracingContext = 3,
     Impersonate = 4,
     PreserveTtl = 5,
+    ImpersonateExtraPrivilege = 6,
 };
 }
 

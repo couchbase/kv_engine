@@ -252,6 +252,12 @@ protected:
                                   reinterpret_cast<const char*>(payload.data()),
                                   payload.size()};
                     break;
+                case cb::mcbp::request::FrameInfoId::ImpersonateExtraPrivilege:
+                    ss << " privilege="
+                       << std::string{
+                                  reinterpret_cast<const char*>(payload.data()),
+                                  payload.size()};
+                    break;
                 }
 
                 vector.emplace_back(ss.str());

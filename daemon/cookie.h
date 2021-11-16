@@ -567,6 +567,10 @@ public:
         return euid;
     }
 
+    void addImposedUserExtraPrivilege(cb::rbac::Privilege privilege) {
+        euidExtraPrivileges.push_back(privilege);
+    }
+
     bool isPreserveTtl() const {
         return preserveTtl;
     }
@@ -757,6 +761,11 @@ protected:
     /// If the request came in with the impersonate frame info set, this
     /// is the privilege context for that user (which we'll also test)
     std::optional<cb::rbac::PrivilegeContext> euidPrivilegeContext;
+
+    /// When impersonating users we may grant the user extra privileges
+    /// (but the authenticated user must also have the privileges in the
+    /// effective set)
+    std::vector<cb::rbac::Privilege> euidExtraPrivileges;
 
     /// The response status we sent for this cookie (for a multi-response
     /// command such as STATS it would be the _last_ status code)

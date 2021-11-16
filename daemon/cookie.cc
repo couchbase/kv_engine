@@ -562,6 +562,7 @@ void Cookie::reset() {
     euidPrivilegeContext.reset();
     frame_copy.reset();
     responseStatus = cb::mcbp::Status::COUNT;
+    euidExtraPrivileges.clear();
 }
 
 void Cookie::setOpenTracingContext(cb::const_byte_buffer context) {
@@ -678,6 +679,12 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
     auto ret = checkPrivilege(privilegeContext, privilege, sid, cid);
 
     if (ret.success() && euidPrivilegeContext) {
+        if (std::find(euidExtraPrivileges.begin(),
+                      euidExtraPrivileges.end(),
+                      privilege) != euidExtraPrivileges.end()) {
+            // the caller explicitly granted the privilege
+            return cb::rbac::PrivilegeAccessOk;
+        }
         return checkPrivilege(*euidPrivilegeContext, privilege, sid, cid);
     }
 
@@ -751,6 +758,12 @@ cb::rbac::PrivilegeAccess Cookie::testPrivilege(
     auto ret = testPrivilege(privilegeContext, privilege, sid, cid);
 
     if (ret.success() && euidPrivilegeContext) {
+        if (std::find(euidExtraPrivileges.begin(),
+                      euidExtraPrivileges.end(),
+                      privilege) != euidExtraPrivileges.end()) {
+            // the caller explicitly granted the privilege
+            return cb::rbac::PrivilegeAccessOk;
+        }
         return testPrivilege(*euidPrivilegeContext, privilege, sid, cid);
     }
 

@@ -347,6 +347,23 @@ Status McbpValidator::verify_header(Cookie& cookie,
                             "PreserveTtl should not contain value");
                 }
                 return status == Status::Success;
+            case cb::mcbp::request::FrameInfoId::ImpersonateExtraPrivilege:
+                if (data.empty()) {
+                    cookie.setErrorContext("Privilege name must be set");
+                    status = Status::Einval;
+                    return false;
+                }
+                try {
+                    cookie.addImposedUserExtraPrivilege(
+                            cb::rbac::to_privilege(std::string{
+                                    reinterpret_cast<const char*>(data.data()),
+                                    data.size()}));
+                } catch (const std::invalid_argument&) {
+                    cookie.setErrorContext("Failed to look up the privilege");
+                    status = Status ::Einval;
+                    return false;
+                }
+                return true; // continue parsing
             } // switch (id)
             status = Status::UnknownFrameInfo;
             return false;
