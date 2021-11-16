@@ -9,6 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "checkpoint_manager.h"
 #include "item.h"
 #include "kv_bucket.h"
 #include "tests/mock/mock_dcp_consumer.h"
@@ -113,6 +114,39 @@ TEST_F(CollectionsOSODcpTest, basic) {
         EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
                   producers->last_oso_snapshot_flags);
     }
+}
+
+// MB-49542: Confirm that an oso backfill does not register a cursor if the
+// associated stream is dead.
+TEST_F(CollectionsOSODcpTest, NoCursorRegisteredForDeadStream) {
+    // Write a couple of items to disk, to attempt to backfill
+    store_item(vbid, makeStoredDocKey("b"), "q");
+    store_item(vbid, makeStoredDocKey("d"), "a");
+
+    flush_vbucket_to_disk(vbid, 2);
+    // Reset so we have to stream from backfill
+    ensureDcpWillBackfill();
+
+    // set up stream, registers cursor
+    createDcpObjects(
+            {{R"({"collections":["0"]})"}}, true /* enable oso */, 0 /*flags*/);
+
+    auto& cm = *store->getVBucket(vbid)->checkpointManager;
+    auto initialCursors = cm.getNumCursors();
+    // disconnect will end all the streams
+    producer->setDisconnect();
+
+    // stream cursor was removed
+    ASSERT_EQ(cm.getNumCursors(), initialCursors - 1);
+
+    // step the backfill tasks, may attempt to register a cursor
+    runBackfill();
+
+    // backfill did not successfully register a cursor, the stream was dead.
+    // MB-49542: would fail as a cursor is registered and is "leaked"
+    // as the stream has already transitioned to dead, which is the last time
+    // the stream would remove the cursor.
+    EXPECT_EQ(cm.getNumCursors(), initialCursors - 1);
 }
 
 void CollectionsOSODcpTest::testTwoCollections(bool backfillWillPause) {

@@ -365,6 +365,15 @@ bool ActiveStream::markOSODiskSnapshot(uint64_t endSeqno) {
     {
         std::unique_lock<std::mutex> lh(streamMutex);
 
+        if (!isBackfilling()) {
+            log(spdlog::level::level_enum::warn,
+                "{} ActiveStream::"
+                "markOSODiskSnapshot: Unexpected state_:{}",
+                logPrefix,
+                to_string(state_.load()));
+            return false;
+        }
+
         if (!isDiskOnly()) {
             VBucketPtr vb = engine->getVBucket(vb_);
             if (!vb) {
