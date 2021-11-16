@@ -348,7 +348,7 @@ nlohmann::json Request::toJSON(bool validated) const {
                     frameid["OpenTelemetry context"] = printableString(buffer);
                     break;
                 case request::FrameInfoId::Impersonate:
-                    if (buffer[0] == '@') {
+                    if (buffer[0] == '^') {
                         frameid["euid"]["user"] =
                                 std::string{reinterpret_cast<const char*>(
                                                     buffer.data() + 1),
