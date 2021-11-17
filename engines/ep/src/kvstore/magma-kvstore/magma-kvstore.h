@@ -662,21 +662,23 @@ protected:
      * Called for each item during compaction to determine whether we should
      * keep or drop the item (and drive expiry).
      *
-     * @return true if the item should be dropped
+     * @return magma status and true if the item should be dropped
      */
-    bool compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
-                            const magma::Slice& keySlice,
-                            const magma::Slice& metaSlice,
-                            const magma::Slice& valueSlice);
+    std::pair<magma::Status, bool> compactionCallBack(
+            MagmaKVStore::MagmaCompactionCB& cbCtx,
+            const magma::Slice& keySlice,
+            const magma::Slice& metaSlice,
+            const magma::Slice& valueSlice) const;
 
     /**
      * Called from compactionCallback and operates on the primary memory domain
      */
-    bool compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
-                        const magma::Slice& keySlice,
-                        const magma::Slice& metaSlice,
-                        const magma::Slice& valueSlice,
-                        std::string_view userSanitizedItemStr);
+    std::pair<magma::Status, bool> compactionCore(
+            MagmaKVStore::MagmaCompactionCB& cbCtx,
+            const magma::Slice& keySlice,
+            const magma::Slice& metaSlice,
+            const magma::Slice& valueSlice,
+            std::string_view userSanitizedItemStr) const;
 
     /**
      * Get the MagmaDbStats from the Magma::KVStore

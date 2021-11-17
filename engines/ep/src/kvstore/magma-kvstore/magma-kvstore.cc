@@ -252,11 +252,15 @@ bool MagmaKVStore::MagmaCompactionCB::operator()(
     // catch any exceptions from the compaction callback and log them, as we
     // don't want to crash magma given it runs on a backend thread.
     try {
-        return magmaKVStore.compactionCallBack(
+        auto [status, drop] = magmaKVStore.compactionCallBack(
                 *this, keySlice, metaSlice, valueSlice);
+        SetStatus(status);
+        return drop;
     } catch (std::exception& e) {
-        magmaKVStore.logger->warn(
-                "MagmaKVStore::compactionCallBack() threw:'{}'", e.what());
+        auto msg = fmt::format("MagmaKVStore::compactionCallBack() threw:'{}'",
+                               e.what());
+        magmaKVStore.logger->warn(msg);
+        SetStatus({Status::Internal, msg});
     }
     return false;
 }
@@ -278,16 +282,17 @@ struct MagmaKVStoreTransactionContext : public TransactionContext {
     PendingRequestQueue pendingReqs;
 };
 
-bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
-                                      const magma::Slice& keySlice,
-                                      const magma::Slice& metaSlice,
-                                      const magma::Slice& valueSlice) {
+std::pair<Status, bool> MagmaKVStore::compactionCallBack(
+        MagmaKVStore::MagmaCompactionCB& cbCtx,
+        const magma::Slice& keySlice,
+        const magma::Slice& metaSlice,
+        const magma::Slice& valueSlice) const {
     // This callback is operating on the secondary memory domain
     Expects(currEngine == ObjectRegistry::getCurrentEngine());
     // If we are compacting the localDb, items don't have metadata so
     // we always keep everything.
     if (metaSlice.Len() == 0) {
-        return false;
+        return {Status::OK(), false};
     }
 
     auto vbid = cbCtx.vbid;
@@ -315,11 +320,12 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
 
 // Compaction core code which runs on the primary memory domain as it now will
 // create items for KV
-bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
-                                  const magma::Slice& keySlice,
-                                  const magma::Slice& metaSlice,
-                                  const magma::Slice& valueSlice,
-                                  std::string_view userSanitizedItemStr) {
+std::pair<Status, bool> MagmaKVStore::compactionCore(
+        MagmaKVStore::MagmaCompactionCB& cbCtx,
+        const magma::Slice& keySlice,
+        const magma::Slice& metaSlice,
+        const magma::Slice& valueSlice,
+        std::string_view userSanitizedItemStr) const {
     // Run on primary domain so that we can create objects to pass to KV
     cb::UseArenaMallocPrimaryDomain domainGuard;
 
@@ -347,7 +353,7 @@ bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
                         "MagmaKVStore::compactionCallBack(): droppedKeyCb "
                         "exception: {}",
                         e.what());
-                return false;
+                return {{Status::Internal, e.what()}, false};
             }
 
             if (magmakv::isPrepared(keySlice, metaSlice)) {
@@ -368,7 +374,7 @@ bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
             }
             cbCtx.ctx->purgedItemCtx->purgedItem(PurgedItemType::LogicalDelete,
                                                  seqno);
-            return true;
+            return {Status::OK(), true};
         }
     }
 
@@ -410,7 +416,7 @@ bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
                 cbCtx.ctx->stats.tombstonesPurged++;
                 cbCtx.ctx->purgedItemCtx->purgedItem(PurgedItemType::Tombstone,
                                                      seqno);
-                return true;
+                return {Status::OK(), true};
             }
         }
     } else {
@@ -431,7 +437,7 @@ bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
                 }
                 cbCtx.ctx->purgedItemCtx->purgedItem(PurgedItemType::Prepare,
                                                      seqno);
-                return true;
+                return {Status::OK(), true};
             }
         }
 
@@ -476,7 +482,7 @@ bool MagmaKVStore::compactionCore(MagmaKVStore::MagmaCompactionCB& cbCtx,
                       vbid,
                       userSanitizedItemStr);
     }
-    return false;
+    return {Status::OK(), false};
 }
 
 MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
