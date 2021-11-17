@@ -17,12 +17,13 @@
 #include <platform/monotonic.h>
 
 /**
- * MagmaDbStats are a set of stats maintained within the Magma KVStore
- * rather than on the vbucket_state. This is because compaction is unable
- * to update the vbstate since it runs in a different thread than the
- * BG Flusher thread. Whenver we retrieve vbstate, we read the MagmaDbStats
- * which is stored in  magma (in the latest state file) and replace them
- * overtop the vbstate values.
+ * MagmaDbStats are a set of stats maintained within MagmaKVStore rather than
+ * the vBucket state. They are required because magma::CompactKVStore() and
+ * magma's implicit compactions do not provide us with any mechanism to update
+ * local docs during the call in an atomic manner. To ensure that stats are
+ * updated atomically with the result of the CompactKVStore call any stats that
+ * are updated during it should be a part of MagmaDbStats. Magma is responsible
+ * for Merging these changes atomically along with the post compaction file(s).
  */
 class MagmaDbStats : public magma::UserStats {
 public:
