@@ -744,6 +744,12 @@ protected:
     folly::Synchronized<std::queue<std::tuple<Vbid, uint64_t>>>
             pendingVbucketDeletions;
 
+    /**
+     * Testing hook called with the result of CompactKVStore when dropping
+     * collections.
+     */
+    TestingHook<magma::Status&> compactionStatusHook;
+
 private:
     EventuallyPersistentEngine* currEngine;
 };

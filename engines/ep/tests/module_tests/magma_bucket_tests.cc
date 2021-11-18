@@ -662,6 +662,69 @@ TEST_P(STParamMagmaBucketTest, MB_47566) {
     compactionThread.join();
 }
 
+/**
+ * Test that when we fail a CompactKVStore call we update stats appropriately
+ */
+TEST_P(STParamMagmaBucketTest, FailCompactKVStoreCall) {
+    const auto& config = store->getRWUnderlying(vbid)->getConfig();
+    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
+    replaceMagmaKVStore(dynamic_cast<MagmaKVStoreConfig&>(nonConstConfig));
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    setCollections(cookie, cm.add(CollectionEntry::meat));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    ASSERT_TRUE(store_items(
+            1, vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value"));
+    ASSERT_TRUE(store_items(
+            1, vbid, StoredDocKey{"m", CollectionEntry::meat}, "value"));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // 2 items, 1 in each collection
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(2, vb->getNumTotalItems());
+
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    setCollections(cookie, cm.remove(CollectionEntry::meat));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Still 2 items, waiting for purge
+    ASSERT_EQ(2, vb->getNumTotalItems());
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(kvstore);
+    auto& magmaKVStore = static_cast<MockMagmaKVStore&>(*kvstore);
+
+    // "Fail" the second compaction. This is a sort of "soft" failure as the
+    // magma portion works but we're going to pretend that it doesn't and
+    // skip updating state based on that.
+    bool first = true;
+    magmaKVStore.setCompactionStatusHook([&first](magma::Status& status) {
+        if (first) {
+            first = false;
+        } else {
+            status = magma::Status(magma::Status::Code::IOError, "bad");
+        }
+    });
+
+    // Compaction for one KVStore passes and another "fails". Given we update
+    // stats with the dropped stats docs on success we'll check the vb item
+    // count to check how many items were "purged".
+    runCompaction(vbid);
+    EXPECT_EQ(1, vb->getNumTotalItems());
+
+    // Our hook wouldn't do anything now, but reset it anyway for simplicity
+    // and run the compaction again allowing the other collection to compact.
+    magmaKVStore.setCompactionStatusHook([](magma::Status&) {});
+    runCompaction(vbid);
+
+    // Items all gone, before the fix 1 would remain
+    EXPECT_EQ(0, vb->getNumTotalItems());
+}
+
 INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
                          STParamMagmaBucketTest,
                          STParameterizedBucketTest::magmaConfigValues(),

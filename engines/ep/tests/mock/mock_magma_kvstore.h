@@ -47,6 +47,10 @@ public:
      */
     magma::Status newCheckpoint(Vbid vbid);
 
+    void setCompactionStatusHook(std::function<void(magma::Status&)> hook) {
+        compactionStatusHook = hook;
+    }
+
     TestingHook<> readVBStateFromDiskHook;
 
     std::function<int(VB::Commit&, kvstats_ctx&)> saveDocsErrorInjector;
