@@ -695,10 +695,6 @@ void MagmaKVStore::deinitialize() {
     logger->info("MagmaKVStore: {} deinitialized", configuration.getShardId());
 }
 
-std::string MagmaKVStore::getVBDBSubdir(Vbid vbid) {
-    return magmaPath + std::to_string(vbid.get());
-}
-
 bool MagmaKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
                           VB::Commit& commitData) {
     checkIfInTransaction(txnCtx->vbid, "MagmaKVStore::commit");

@@ -583,15 +583,6 @@ protected:
     bool compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                            std::shared_ptr<CompactionContext> ctx);
 
-    /*
-     * The DB for each VBucket is created in a separated subfolder of
-     * `configuration.getDBName()`. This function returns the path of the DB
-     * subfolder for the given `vbid`.
-     *
-     * @param vbid vbucket id for the vbucket DB subfolder to return
-     */
-    std::string getVBDBSubdir(Vbid vbid);
-
     std::unique_ptr<Item> makeItem(Vbid vb,
                                    const magma::Slice& keySlice,
                                    const magma::Slice& metaSlice,
