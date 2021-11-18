@@ -1131,13 +1131,10 @@ void CheckpointManager::clear(const std::lock_guard<std::mutex>& lh,
 }
 
 void CheckpointManager::resetCursors() {
-    for (auto& cit : cursors) {
-        // Remove this cursor from the accounting of it's old checkpoint.
-        (*cit.second->currentCheckpoint)->decNumOfCursorsInCheckpoint();
-
-        cit.second->currentCheckpoint = checkpointList.begin();
-        cit.second->currentPos = checkpointList.front()->begin();
-        checkpointList.front()->incNumOfCursorsInCheckpoint();
+    for (auto& pair : cursors) {
+        // Reset the cursor to the very begin of the checkpoint list, ie first
+        // item in the first checkpoint
+        (*pair.second).reposition(checkpointList.begin());
     }
 }
 

@@ -1477,6 +1477,79 @@ TEST_F(SingleThreadedCheckpointTest, CursorDistance_Expel) {
     EXPECT_EQ(2, cursor->getDistance());
 }
 
+TEST_F(SingleThreadedCheckpointTest, CursorDistance_ResetCursor) {
+    auto cursor = testCursorDistance_Register();
+
+    // Just need to run with 1 cursor, let's keep the test simple
+    auto& vb = *store->getVBuckets().getBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+    manager.removeCursor(manager.getPersistenceCursor());
+    ASSERT_EQ(1, manager.getNumCursors());
+
+    // State here:
+    // [e:1 cs:1 vbs:1 m:1 m:2)
+    //                     ^
+    ASSERT_EQ(4, cursor->getDistance());
+
+    auto newManager = std::make_unique<MockCheckpointManager>(
+            engine->getEpStats(),
+            vb,
+            engine->getCheckpointConfig(),
+            0,
+            0 /*lastSnapStart*/,
+            0 /*lastSnapEnd*/,
+            0 /*maxVisible*/,
+            nullptr /*persistence callback*/);
+    newManager->removeCursor(newManager->getPersistenceCursor());
+
+    ASSERT_EQ(1, manager.getNumCursors());
+    ASSERT_EQ(0, newManager->getNumOfCursors());
+    newManager->takeAndResetCursors(manager);
+    EXPECT_EQ(0, manager.getNumCursors());
+    EXPECT_EQ(1, newManager->getNumOfCursors());
+
+    EXPECT_EQ(0, newManager->getHighSeqno());
+    EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
+    EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(0, cursor->getDistance());
+
+    // [e:1 cs:1 m:1 m:2)
+    //               ^
+    for (const auto& key : {"key1", "key2"}) {
+        auto item = makeCommittedItem(makeStoredDocKey(key), "value");
+        ASSERT_TRUE(newManager->queueDirty(
+                item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
+    }
+    EXPECT_EQ(2, newManager->getHighSeqno());
+    EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
+    EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(0, cursor->getDistance());
+
+    // [e:1 cs:1 m:1 m:2)
+    //               ^
+    std::vector<queued_item> items;
+    newManager->getNextItemsForCursor(cursor.get(), items);
+    ASSERT_EQ(3, items.size());
+    EXPECT_EQ(3, cursor->getDistance());
+
+    // [e:1 cs:1 x m:2)
+    //             ^
+    // Note: Before the fix for MB-49594, this call fails by:
+    // - assertion failure within boost::list::splice() on debug builds
+    // - Checkpoint::queueMemOverhead underflow on rel builds
+    // - KV assertion failure on dev builds
+    EXPECT_EQ(1, newManager->expelUnreferencedCheckpointItems().count);
+
+    EXPECT_EQ(2, newManager->getHighSeqno());
+    EXPECT_EQ(queue_op::mutation, (*cursor->getPos())->getOperation());
+    EXPECT_EQ(2, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(2, cursor->getDistance());
+
+    // Need to manually reset before newManager goes out of scope, newManager'll
+    // be already destroyed when we'll try to decrement its cursor count.
+    cursor.reset();
+}
+
 // Test that when the same client registers twice, the first cursor 'dies'
 TEST_P(CheckpointTest, reRegister) {
     auto dcpCursor1 = manager->registerCursorBySeqno(
@@ -1490,27 +1563,41 @@ TEST_P(CheckpointTest, reRegister) {
 }
 
 TEST_P(CheckpointTest, takeAndResetCursors) {
-    auto dcpCursor1 = manager->registerCursorBySeqno(
-            "name1", 0, CheckpointCursor::Droppable::Yes);
-    auto dcpCursor2 = manager->registerCursorBySeqno(
-            "name2", 0, CheckpointCursor::Droppable::Yes);
-    auto dcpCursor3 = manager->registerCursorBySeqno(
-            "name3", 0, CheckpointCursor::Droppable::Yes);
+    // The test runs with 2 cursors:
+    // 1: CheckpointTest::cursor -> that is Persistence/DCP depending on the
+    //                              bucket type
+    // 2: Extra DCP cursor
+    auto* dcpCursor =
+            manager->registerCursorBySeqno(
+                           "dcp_cursor", 0, CheckpointCursor::Droppable::Yes)
+                    .cursor.lock()
+                    .get();
+    ASSERT_EQ(2, manager->getNumOfCursors());
 
-    EXPECT_EQ(0, manager->getNumItemsForCursor(cursor));
-    this->queueNewItem("key");
+    const auto cursors = {cursor, dcpCursor};
 
-    const auto* c1 = dcpCursor1.cursor.lock().get();
-    const auto* c2 = dcpCursor2.cursor.lock().get();
-    const auto* c3 = dcpCursor3.cursor.lock().get();
-    EXPECT_NE(nullptr, c1);
-    EXPECT_NE(nullptr, c2);
-    EXPECT_NE(nullptr, c3);
-    EXPECT_EQ(4, this->manager->getNumOfCursors());
-    EXPECT_EQ(1, manager->getNumItemsForCursor(cursor)); // +key
-    EXPECT_EQ(1,
-              this->manager->getNumItemsForCursor(
-                      dcpCursor2.cursor.lock().get()));
+    for (const auto* c : cursors) {
+        ASSERT_NE(nullptr, c);
+        ASSERT_EQ(0, manager->getNumItemsForCursor(c));
+        ASSERT_EQ(0, c->getDistance());
+    }
+
+    // Store 1 item
+    queueNewItem("key");
+
+    for (const auto* c : cursors) {
+        EXPECT_EQ(1, manager->getNumItemsForCursor(c));
+        EXPECT_EQ(0, c->getDistance());
+    }
+
+    // Move cursors
+    for (auto* c : cursors) {
+        std::vector<queued_item> items;
+        manager->getNextItemsForCursor(c, items);
+        // ckpt_starts + mutation
+        EXPECT_EQ(2, items.size());
+        EXPECT_EQ(2, c->getDistance());
+    }
 
     // Second manager
     auto manager2 = std::make_unique<MockCheckpointManager>(
@@ -1523,32 +1610,23 @@ TEST_P(CheckpointTest, takeAndResetCursors) {
             0 /*maxVisible*/,
             nullptr /*persistence callback*/);
 
-    manager2->takeAndResetCursors(*this->manager);
-
-    EXPECT_EQ(c1, dcpCursor1.cursor.lock().get());
-    EXPECT_EQ(c2, dcpCursor2.cursor.lock().get());
-    EXPECT_EQ(c3, dcpCursor3.cursor.lock().get());
-
-    EXPECT_EQ(4, manager2->getNumOfCursors());
-    EXPECT_EQ(0, this->manager->getNumOfCursors());
-
-    // Destroy first checkpoint manager
+    // Take cursors from the first CM and place them into the second CM..
+    manager2->takeAndResetCursors(*manager);
+    EXPECT_EQ(2, manager2->getNumOfCursors());
+    EXPECT_EQ(0, manager->getNumOfCursors());
+    // ..and destroy first CM
     resetManager();
 
-    EXPECT_EQ(c1, dcpCursor1.cursor.lock().get());
-    EXPECT_EQ(c2, dcpCursor2.cursor.lock().get());
-    EXPECT_EQ(c3, dcpCursor3.cursor.lock().get());
-
-    EXPECT_EQ(4, manager2->getNumOfCursors());
-    // Cursors move, but checkpoints don't
-    EXPECT_EQ(0, manager2->getNumItemsForCursor(cursor));
-    EXPECT_EQ(0,
-              manager2->getNumItemsForCursor(dcpCursor2.cursor.lock().get()));
-
+    // The second CM's cursors are not affected by destroying the first CM
     EXPECT_EQ(1, manager2->getNumCheckpoints());
+    EXPECT_EQ(2, manager2->getNumOfCursors());
     EXPECT_EQ(
-            4,
+            2,
             manager2->getCheckpointList().front()->getNumCursorsInCheckpoint());
+    for (const auto* c : cursors) {
+        EXPECT_EQ(0, manager2->getNumItemsForCursor(c));
+        EXPECT_EQ(0, c->getDistance());
+    }
 }
 
 // Test that if we add 2 cursors with the same name the first one is removed.

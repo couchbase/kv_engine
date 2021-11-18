@@ -504,12 +504,18 @@ CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last,
     // +1 as our range-end is std::next(last)
     distance = distance - 2 + 1;
 
+    const auto _first = ChkptQueueIterator::const_underlying_iterator{first};
+    const auto _last =
+            ChkptQueueIterator::const_underlying_iterator{std::next(last)};
+#if CB_DEVELOPMENT_ASSERTS
+    Expects(distance == size_t(std::distance(_first, _last)));
+#endif
     expelledItems.splice(
             ChkptQueueIterator::const_underlying_iterator{
                     expelledItems.begin()},
             toWrite,
-            ChkptQueueIterator::const_underlying_iterator{first},
-            ChkptQueueIterator::const_underlying_iterator{std::next(last)},
+            _first,
+            _last,
             distance);
 
     // Note: No key-index in disk checkpoints

@@ -57,6 +57,18 @@ const StoredDocKey& CheckpointCursor::getKey() const {
     return (*currentPos)->getKey();
 }
 
+void CheckpointCursor::reposition(CheckpointList::iterator checkpointIt) {
+    // Remove this cursor from the accounting of it's old checkpoint.
+    (*currentCheckpoint)->decNumOfCursorsInCheckpoint();
+
+    currentCheckpoint = checkpointIt;
+    currentPos = (*checkpointIt)->begin();
+    distance = 0;
+
+    // Update the new checkpoint accounting
+    (*checkpointIt)->incNumOfCursorsInCheckpoint();
+}
+
 void CheckpointCursor::decrPos() {
     Expects(currentPos != (*currentCheckpoint)->begin());
     --currentPos;
