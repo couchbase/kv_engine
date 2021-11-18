@@ -2025,13 +2025,13 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
     //  checkpoint at this point
     const auto name = "expel-cursor";
     Expects(cursors.find(name) == cursors.end());
-    const auto pos = (*lowestCursor->currentCheckpoint)->begin();
-    const auto cursor =
-            std::make_shared<CheckpointCursor>(name,
-                                               lowestCursor->currentCheckpoint,
-                                               pos,
-                                               CheckpointCursor::Droppable::No,
-                                               0);
+    Expects(lowestCursor->currentCheckpoint->get() == oldestCheckpoint);
+    const auto cursor = std::make_shared<CheckpointCursor>(
+            name,
+            lowestCursor->currentCheckpoint,
+            (*lowestCursor->currentCheckpoint)->begin(),
+            CheckpointCursor::Droppable::No,
+            0);
     cursors[name] = cursor;
 
     return {std::move(expelledItems),
