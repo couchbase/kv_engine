@@ -1240,6 +1240,7 @@ void ActiveStream::processItems(
                     /* clear out all the mutations since they are already put
                        onto the readyQ */
                     mutations.clear();
+                    highNonVisibleSeqno = std::nullopt;
                 }
                 /* mark true as it indicates a new checkpoint snapshot */
                 nextSnapshotIsCheckpoint = true;

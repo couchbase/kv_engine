@@ -26,10 +26,7 @@
 #include <utility>
 
 // These enums control the test input
-enum class InputType {
-    Mutation,
-    Prepare,
-};
+enum class InputType { Mutation, Prepare, CPEndStart, CPStart, CPEnd };
 
 enum class ForStream {
     Yes,
@@ -63,6 +60,8 @@ public:
                   engine->getKVBucket()->setVBucketState(
                           vbid, vbucket_state_active, &meta));
 
+        // The producer in this test does not support sync-writes so it will
+        // always aim to replace with SeqnoAdvanced when required
         producer = std::make_shared<MockDcpProducer>(*engine,
                                                      cookie,
                                                      "CollectionsSeqnoAdvanced",
@@ -111,6 +110,10 @@ public:
             }
             EXPECT_TRUE(rsp) << "DCP response expected:" << e->to_string();
         }
+        auto rsp = stream->public_nextQueuedItem(
+                static_cast<DcpProducer&>(*producer));
+        EXPECT_FALSE(rsp) << "Unexpected DcpResponse:" << rsp->to_string();
+
         stream.reset();
         producer.reset();
         SingleThreadedKVBucketTest::TearDown();
@@ -129,13 +132,24 @@ public:
     void setupOneOperation(InputType type, ForStream fs) {
         switch (fs) {
         case ForStream::Yes: {
-            queueOperation(seqno++, type, myCollection);
+            queueOperation(seqno, type, myCollection);
             break;
         }
         case ForStream::No: {
-            queueOperation(seqno++, type, CollectionEntry::vegetable);
+            queueOperation(seqno, type, CollectionEntry::vegetable);
             break;
         }
+        }
+
+        switch (type) {
+        case InputType::Mutation:
+        case InputType::Prepare:
+            ++seqno;
+            break;
+        case InputType::CPEndStart:
+        case InputType::CPStart:
+        case InputType::CPEnd:
+            break;
         }
     }
 
@@ -147,6 +161,19 @@ public:
         }
         case InputType::Prepare: {
             queuePrepare(seqno, cid);
+            break;
+        }
+        case InputType::CPEndStart: {
+            queueCPEnd(seqno);
+            queueCPStart(seqno);
+            break;
+        }
+        case InputType::CPStart: {
+            queueCPStart(seqno);
+            break;
+        }
+        case InputType::CPEnd: {
+            queueCPEnd(seqno);
             break;
         }
         }
@@ -164,6 +191,20 @@ public:
                 makeStoredDocKey(std::to_string(seqno), cid), "value");
         item->setBySeqno(seqno);
         input.items.emplace_back(item);
+    }
+
+    void queueCPStart(uint64_t seqno) {
+        queue_op checkpoint_op = queue_op::checkpoint_start;
+        StoredDocKey key(to_string(checkpoint_op), CollectionID::System);
+        queued_item qi(new Item(key, vbid, checkpoint_op, 1, seqno));
+        input.items.emplace_back(qi);
+    }
+
+    void queueCPEnd(uint64_t seqno) {
+        queue_op checkpoint_op = queue_op::checkpoint_end;
+        StoredDocKey key(to_string(checkpoint_op), CollectionID::System);
+        queued_item qi(new Item(key, vbid, checkpoint_op, 1, seqno));
+        input.items.emplace_back(qi);
     }
 
     // Starting seqno, each operation will increment this
@@ -334,8 +375,16 @@ TEST_P(CollectionsSeqnoAdvanced, oneForMe) {
     }
 }
 
-const std::array<InputType, 2> inputs1 = {
-        {InputType::Mutation, InputType::Prepare}};
+// If this test ends with CPEndStart it would trigger MB-49453
+TEST_P(CollectionsSeqnoAdvanced, prepareForMeMutationForMe) {
+    for (int i = 0; i < getInputSize(); i++) {
+        setupOneOperation(InputType::Prepare, std::get<1>(GetParam()));
+        setupOneOperation(InputType::Mutation, ForStream::Yes);
+    }
+}
+
+const std::array<InputType, 3> inputs1 = {
+        {InputType::Mutation, InputType::Prepare, InputType::CPEndStart}};
 const std::array<ForStream, 2> inputs2 = {{ForStream::Yes, ForStream::No}};
 
 std::string to_string(InputType type) {
@@ -346,8 +395,17 @@ std::string to_string(InputType type) {
     case InputType::Mutation: {
         return "Mutation";
     }
+    case InputType::CPEndStart: {
+        return "CPEndStart";
     }
-    throw std::invalid_argument("to_string(Mutation) invalid input");
+    case InputType::CPStart: {
+        return "CPStart";
+    }
+    case InputType::CPEnd: {
+        return "CPEnd";
+    }
+    }
+    throw std::invalid_argument("to_string(InputType) invalid input");
 }
 
 std::string to_string(ForStream fs) {
@@ -359,7 +417,7 @@ std::string to_string(ForStream fs) {
         return "not_for_stream";
     }
     }
-    throw std::invalid_argument("to_string(Mutation) invalid input");
+    throw std::invalid_argument("to_string(ForStream) invalid input");
 }
 
 std::string printTestName(

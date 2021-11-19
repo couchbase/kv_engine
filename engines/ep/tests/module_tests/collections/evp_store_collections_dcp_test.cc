@@ -3678,6 +3678,50 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
 }
 
+// Ensure a DCP stream processes into a second, empty checkpoint
+TEST_P(CollectionsDcpParameterizedTest, MB_49453) {
+    auto vb = store->getVBucket(vbid);
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+
+    createDcpObjects({""}, false, 0, false /*sync replication*/);
+    {
+        auto key = StoredDocKey{"d", CollectionEntry::defaultC};
+        auto item = makePendingItem(key, "value");
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
+                  store->set(*item, cookie));
+        EXPECT_EQ(
+                cb::engine_errc::success,
+                vb->commit(
+                        key, vb->getHighSeqno(), {}, vb->lockCollections(key)));
+    }
+
+    // New checkpoint appears
+    vb->checkpointManager->createNewCheckpoint();
+
+    auto highSeqno = vb->getHighSeqno();
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(highSeqno, producers->last_snap_end_seqno);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(1, producers->last_byseqno);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(3, producers->last_byseqno);
+
+    // Before fix, another snapshot appeared, and violated seqno ordering
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,
