@@ -65,6 +65,10 @@ public:
 
     std::string to_string();
 
+    size_t getDocSize() const {
+        return getBodySize() + getRawKeyLen() + getDocMeta().size();
+    }
+
 private:
     std::string docMeta;
     value_t docBody;

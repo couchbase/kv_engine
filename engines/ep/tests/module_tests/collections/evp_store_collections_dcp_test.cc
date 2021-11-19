@@ -12,7 +12,6 @@
 /**
  * Tests for Collection functionality in EPStore.
  */
-#include "bgfetcher.h"
 #include "checkpoint_manager.h"
 #include "collections/collection_persisted_stats.h"
 #include "collections/manager.h"
@@ -28,6 +27,9 @@
 #include "kv_bucket.h"
 #include "kvstore/couch-kvstore/couch-kvstore-metadata.h"
 #include "kvstore/kvstore.h"
+#ifdef EP_USE_MAGMA
+#include "kvstore/magma-kvstore/kv_magma_common/magma-kvstore_metadata.h"
+#endif
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_dcp.h"
@@ -42,12 +44,9 @@
 #include "tests/module_tests/evp_store_test.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/vbucket_utils.h"
-
 #include <engines/ep/src/collections/collections_types.h>
 #include <engines/ep/src/ephemeral_tombstone_purger.h>
-#include <engines/ep/tests/ep_test_apis.h>
 #include <utilities/test_manifest.h>
-
 #include <functional>
 #include <thread>
 
@@ -3288,14 +3287,23 @@ TEST_P(CollectionsDcpPersistentOnly,
 void CollectionsDcpPersistentOnly::resurrectionStatsTest(
         bool reproduceUnderflow, bool updateItemDropped) {
     VBucketPtr vb = store->getVBucket(vbid);
+    uint64_t magmaMetaV0Size = 0;
+#ifdef EP_USE_MAGMA
+    magmaMetaV0Size = magmakv::MetaData().encode().size();
+#endif
+    // Magma's meta data exptime are encoded using leb128, which causes the meta
+    // data size of deleted document to increase by 4 bytes due to the exptime
+    // being set in the deleted document
+    const auto magmaMetaV0DeletedSize = magmaMetaV0Size + 4;
 
     // Add the target collection
     CollectionEntry::Entry target = CollectionEntry::fruit;
     CollectionsManifest cm(target);
     setCollections(cookie, cm);
     auto key1 = makeStoredDocKey("orange", target);
+    const std::string value1("yum1");
     // Put a key in for the original 'fruit'
-    store_item(vbid, key1, "yum1");
+    store_item(vbid, key1, value1);
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     EXPECT_EQ(2, vb->getPersistenceSeqno());
@@ -3305,15 +3313,17 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
 
     // Sizes are manually verified from dbdump and other manual checks
     // 57 for the value, 14 for the key and 18 for the v1 metadata
-    // 14 for the value, 7 for the key and 18 for the v1 metadata
+    // 4 (from value1.size()) + 10 for the value, 7 for the key and 18 for the
+    // v1 metadata
     size_t systemeventSize =
             57 + 14 + MetaData::getMetaDataSize(MetaData::Version::V1);
-    size_t itemSize =
-            14 + key1.size() + MetaData::getMetaDataSize(MetaData::Version::V1);
+    size_t itemSize = value1.size() + key1.size() + 10 +
+                      MetaData::getMetaDataSize(MetaData::Version::V1);
     if (isMagma()) {
         // magma doesn't account the same bits and bytes
-        systemeventSize = 56;
-        itemSize = 4;
+        // 56 = value size, 14 = key size
+        systemeventSize = 56 + 14 + magmaMetaV0Size;
+        itemSize = value1.size() + key1.size() + magmaMetaV0Size;
     }
     EXPECT_EQ(1, stats.itemCount);
     EXPECT_EQ(systemeventSize + itemSize, stats.diskSize);
@@ -3370,17 +3380,19 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     // underflow exceptions. The issue was that the store was treated as an
     // update, so we didn't increment the item count (so collection has 0 items)
     // the delete then triggers underflow.
-    store_item(vbid, key1, "yummy");
+    const std::string value2("yummy");
+    store_item(vbid, key1, value2);
     highSeqno++;
     flushVBucketToDiskIfPersistent(vbid, 1);
     stats = vb->getManifest().lock(target.getId()).getPersistedStats();
 
-    // Note 15 manually verified from dbdump and is the item usage
-    itemSize =
-            15 + key1.size() + MetaData::getMetaDataSize(MetaData::Version::V1);
+    // Note 15 manually verified from dbdump and is the item usage (5 from
+    // value2.size() + 10)
+    itemSize = value2.size() + key1.size() + 10 +
+               MetaData::getMetaDataSize(MetaData::Version::V1);
     if (isMagma()) {
         // magma doesn't account the same bits and bytes
-        itemSize = 5;
+        itemSize = value2.size() + key1.size() + magmaMetaV0Size;
     }
     EXPECT_EQ(1, stats.itemCount);
     EXPECT_EQ(systemeventSize + itemSize, stats.diskSize);
@@ -3397,8 +3409,7 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     delete_item(vbid, key1);
     itemSize = key1.size() + MetaData::getMetaDataSize(MetaData::Version::V1);
     if (isMagma()) {
-        // magma doesn't account the remaining key/meta of the tombstone
-        itemSize = 0;
+        itemSize = key1.size() + magmaMetaV0DeletedSize;
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
     stats = vb->getManifest().lock(target.getId()).getPersistedStats();

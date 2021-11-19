@@ -2749,15 +2749,7 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSize) {
         delete_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC});
         KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
 
-        // key/meta remain (tombstone). magma doesn't yet account it
-        if (isMagma()) {
-            EXPECT_EQ(getCollectionDiskSize(vb, CollectionEntry::defaultC.uid),
-                      0);
-
-        } else {
-            EXPECT_GT(getCollectionDiskSize(vb, CollectionEntry::defaultC.uid),
-                      0);
-        }
+        EXPECT_GT(getCollectionDiskSize(vb, CollectionEntry::defaultC.uid), 0);
     }
 
     {

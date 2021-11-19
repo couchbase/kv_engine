@@ -1222,15 +1222,18 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
             if (docExists) {
                 auto oldIsDeleted =
                         isTombstone ? IsDeleted::Yes : IsDeleted::No;
+                const auto oldDocSize =
+                        req->getRawKeyLen() + oldMeta.Len() +
+                        configuration.magmaCfg.GetValueSize(oldMeta);
                 commitData.collections.updateStats(
                         docKey,
                         magmakv::getDocMeta(req->getDocMeta()).getBySeqno(),
                         isCommitted,
                         isDeleted,
-                        req->getBodySize(),
+                        req->getDocSize(),
                         configuration.magmaCfg.GetSeqNum(oldMeta),
                         oldIsDeleted,
-                        configuration.magmaCfg.GetValueSize(oldMeta),
+                        oldDocSize,
                         WantsDropped::Yes);
             } else {
                 commitData.collections.updateStats(
@@ -1238,7 +1241,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                         magmakv::getDocMeta(req->getDocMeta()).getBySeqno(),
                         isCommitted,
                         isDeleted,
-                        req->getBodySize(),
+                        req->getDocSize(),
                         WantsDropped::Yes);
             }
         } else {
