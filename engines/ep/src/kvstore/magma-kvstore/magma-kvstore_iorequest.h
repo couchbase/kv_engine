@@ -24,9 +24,8 @@ public:
      *
      * @param item Item instance to be persisted
      * @param callback Persistence Callback
-     * @param logger Used for logging
      */
-    MagmaRequest(queued_item it, std::shared_ptr<BucketLogger> logger);
+    MagmaRequest(queued_item it);
 
     const std::string_view getDocMeta() const {
         return docMeta;

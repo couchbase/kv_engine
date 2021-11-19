@@ -174,13 +174,10 @@ static bool isAbort(const Slice& keySlice, const Slice& metaSlice) {
 
 } // namespace magmakv
 
-MagmaRequest::MagmaRequest(queued_item it, std::shared_ptr<BucketLogger> logger)
+MagmaRequest::MagmaRequest(queued_item it)
     : IORequest(std::move(it)),
       docMeta(magmakv::makeMetaData(*item).encode()),
       docBody(item->getValue()) {
-    if (logger->should_log(spdlog::level::TRACE)) {
-        logger->TRACE("MagmaRequest:{}", to_string());
-    }
 }
 
 std::string MagmaRequest::to_string() {
@@ -845,7 +842,7 @@ void MagmaKVStore::set(TransactionContext& txnCtx, queued_item item) {
     }
 
     auto& ctx = static_cast<MagmaKVStoreTransactionContext&>(txnCtx);
-    ctx.pendingReqs.emplace_back(std::move(item), logger);
+    ctx.pendingReqs.emplace_back(std::move(item));
 }
 
 GetValue MagmaKVStore::get(const DiskDocKey& key,
@@ -1052,7 +1049,7 @@ void MagmaKVStore::del(TransactionContext& txnCtx, queued_item item) {
     }
 
     auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(txnCtx);
-    ctx.pendingReqs.emplace_back(std::move(item), logger);
+    ctx.pendingReqs.emplace_back(std::move(item));
 }
 
 void MagmaKVStore::delVBucket(Vbid vbid, uint64_t kvstoreRev) {
