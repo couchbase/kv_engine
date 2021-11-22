@@ -154,41 +154,35 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
                       highCompletedSeqno,
                       checkpointType);
 
-    // @todo MB-48681: verify this logic on the backup-persistence-cursor
-    //
     // If cursors reached to the end of its current checkpoint, move it to the
-    // next checkpoint.
-    // DCP cursors can skip a "checkpoint end" meta item. This is needed so that
-    // the checkpoint remover can remove the closed checkpoints and hence reduce
-    // the memory usage and so to ensure that we do not leave a cursor at the
-    // checkpoint_end. This also ensures that where possible we will drop a
-    // checkpoint instead of running expelling which is faster.
+    // next checkpoint. That is done to help in making checkpoints eligible for
+    // removal/expel, so reducing the overall checkpoint mem-usage.
     //
     // Note: The expel-cursor (if registered) is always placed at checkpoint
     //  begin, so it's logically not possible to touch it here.
-    for (auto& it : cursors) {
-        CheckpointCursor& cursor = *it.second;
-        ++(cursor.currentPos);
-        if (cursor.currentPos != (*(cursor.currentCheckpoint))->end() &&
-            (*(cursor.currentPos))->getOperation() ==
-                    queue_op::checkpoint_end) {
-            /* checkpoint_end meta item is skipped for persistence and
-             * DCP cursors */
-            ++(cursor.currentPos); // cursor now reaches to the checkpoint end
+    //  @todo: It would be good to enforce some check on expel-cursor here,
+    //    better to be paranoid in this area.
+    //
+    // @todo MB-48681: Skipping the checkpoint_end item on DCP cursors is
+    //   unexpected, see CM::getItemsForCursor for how that item is used
+    for (auto& pair : cursors) {
+        auto& cursor = *pair.second;
+        const auto& checkpoint = *(*(cursor.currentCheckpoint));
+        if (checkpoint.getState() == CHECKPOINT_OPEN) {
+            // Cursor in the open (ie last) checkpoint, nothing to move
+            continue;
         }
 
-        if (cursor.currentPos == (*(cursor.currentCheckpoint))->end()) {
-           if ((*(cursor.currentCheckpoint))->getState() == CHECKPOINT_CLOSED) {
-               if (!moveCursorToNextCheckpoint(cursor)) {
-                   --(cursor.currentPos);
-               }
-           } else {
-               // The replication cursor is already reached to the end of
-               // the open checkpoint.
-               --(cursor.currentPos);
-           }
-        } else {
-            --(cursor.currentPos);
+        // Cursor is in a closed checkpoint, we can move it to the open
+        // checkpoint if it's at any of the following positions:
+        //
+        // [empty  ckpt_start  ..  mutation  ..  mutation  ckpt_end  end()]
+        //                                       ^         ^         ^
+        auto& pos = cursor.currentPos;
+        if (pos == checkpoint.end() ||
+            (*pos)->getOperation() == queue_op::checkpoint_end ||
+            (*std::next(pos))->getOperation() == queue_op::checkpoint_end) {
+            moveCursorToNextCheckpoint(cursor);
         }
     }
 
