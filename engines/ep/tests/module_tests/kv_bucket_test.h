@@ -105,6 +105,14 @@ public:
     void flush_vbucket_to_disk(Vbid vbid, size_t expected = 1);
 
     /**
+     * Flushes the given vBucket to disk, so any outstanding dirty items are
+     * written
+     * @param vbid VBucket to flush
+     * @returns the number of items flushed.
+     */
+    int flushVBucket(Vbid vbid);
+
+    /**
      * Check if the current bucket is a persistent bucket.
      */
     bool persistent() const;

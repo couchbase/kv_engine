@@ -222,6 +222,14 @@ Item KVBucketTest::store_deleted_item(
 }
 
 void KVBucketTest::flush_vbucket_to_disk(Vbid vbid, size_t expected) {
+    size_t actualFlushed = flushVBucket(vbid);
+
+    ASSERT_EQ(expected, actualFlushed)
+            << "Unexpected items (" << actualFlushed
+            << ") in flush_vbucket_to_disk(" << vbid << ", " << expected << ")";
+}
+
+int KVBucketTest::flushVBucket(Vbid vbid) {
     size_t actualFlushed = 0;
     const auto time_limit = std::chrono::seconds(10);
     const auto deadline = std::chrono::steady_clock::now() + time_limit;
@@ -243,14 +251,12 @@ void KVBucketTest::flush_vbucket_to_disk(Vbid vbid, size_t expected) {
     } while ((std::chrono::steady_clock::now() < deadline) &&
              moreAvailable == MoreAvailable::Yes);
 
-    ASSERT_TRUE(flush_successful)
+    EXPECT_TRUE(flush_successful)
             << "Hit timeout (" << time_limit.count()
             << " seconds) waiting for "
                "warmup to complete while flushing VBucket.";
 
-    ASSERT_EQ(expected, actualFlushed)
-            << "Unexpected items (" << actualFlushed
-            << ") in flush_vbucket_to_disk(" << vbid << ", " << expected << ")";
+    return actualFlushed;
 }
 
 void KVBucketTest::flushVBucketToDiskIfPersistent(Vbid vbid, int expected) {
