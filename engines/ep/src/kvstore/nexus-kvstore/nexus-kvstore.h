@@ -129,6 +129,7 @@ public:
     void setMakeCompactionContextCallback(
             MakeCompactionContextCallback cb) override;
     void setPostFlushHook(std::function<void()> hook) override;
+    void setSaveDocsPostWriteDocsHook(std::function<void()> hook) override;
     nlohmann::json getPersistedStats() const override;
     bool snapshotStats(const nlohmann::json& stats) override;
     void prepareToCreate(Vbid vbid) override;

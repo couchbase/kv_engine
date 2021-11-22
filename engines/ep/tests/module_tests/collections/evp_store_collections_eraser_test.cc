@@ -1881,6 +1881,122 @@ TEST_P(CollectionsEraserPersistentOnly,
     EXPECT_EQ(0, vb->getNumItems());
 }
 
+/**
+ * Regression test for MB-43460, where the VBucket-level num_items stat was
+ * incorrect after dropping a collection.
+ */
+TEST_P(CollectionsEraserPersistentOnly, DropDuringFlush) {
+    // Setup a replica vBucket containing one collection.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    vb->checkpointManager->createSnapshot(0, 3, 0, CheckpointType::Disk, 3);
+    uint64_t uid = 0;
+    vb->replicaCreateCollection(Collections::ManifestUid(uid++),
+                                {ScopeID::Default, CollectionEntry::dairy},
+                                "dairy",
+                                {},
+                                1);
+    ASSERT_EQ(0, vb->getNumItems());
+
+    // Test: Store two more items to the collection, open a new memory snapshot,
+    // then drop the collection, and flush to disk.
+    // Importantly, we trigger the flush when only the first item is queued
+    // in the CheckpointManager; and perform the second mutation and collection
+    // drop while the first flush is running via setSaveDocsPostWriteHook.
+    // A second flush is then triggered to write the second mutation and
+    // collection drop to disk.
+    //
+    // We expect that during the second flush, the number of items in the
+    // collection (2) is correctly calculated.
+    // However, with the bug from MB-43460, the number of items in the
+    // collection is mis-accounted - during the second flush it fails to read
+    // the existing collection count (1) and incorrectly writes 1 (0+1) instead
+    // of 2 (1+2). As a consequence, when the collection is cleaned up during
+    // compaction, only '1' is subtracted from the vBucket item count instead
+    // of 2.
+    //
+    // Note: The new snapshot is critical here, as we need to have the
+    // dropCollection applied to the in-memory manifest, but _not_ flushed to
+    // disk in the same batch. A dropCollection SystemEvent is normally be
+    // placed into its own Checkpoint, and this in conjunction with the logic
+    // in CheckpointManager::getItemsForCursor() which does not flush different
+    // Checkpoint types (memory / disk) in the same flush batch, will trigger
+    // the problematic scenario.
+    writeDocToReplica(
+            vbid, StoredDocKey{"cheese", CollectionEntry::dairy}, 2, false);
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    kvstore->setSaveDocsPostWriteDocsHook([this, kvstore, &uid] {
+        writeDocToReplica(vbid,
+                          StoredDocKey{"yoghurt", CollectionEntry::dairy},
+                          3,
+                          false);
+
+        vb->checkpointManager->createSnapshot(
+                4, 4, 0, CheckpointType::Memory, 4);
+        this->vb->replicaDropCollection(
+                Collections::ManifestUid(uid++), CollectionEntry::dairy, 4);
+
+        // Clear this hook - don't want to add extra calls in subsequent
+        // flushes.
+        kvstore->setSaveDocsPostWriteDocsHook({});
+    });
+
+    // Flush vBucket
+    ASSERT_EQ(2, flushVBucket(vbid))
+            << "Expected to see 1 create collection and 1 mutation flushed";
+
+    auto [status, persistedStats] =
+            kvstore->getCollectionStats(vbid, CollectionEntry::dairy);
+    ASSERT_EQ(KVStoreIface::GetCollectionStatsStatus::Success, status);
+    EXPECT_EQ(1, persistedStats.itemCount);
+
+    // Flush to write the second mutation and drop added since the
+    // previous flush. Note that as the drop is in a different snapshot
+    // whose type differs from first, this is done as two separate flush
+    // batches in the KVStore of 1 item each.
+    //
+    // First flush; only up until end of first checkpoint. Collection
+    // should still be alive and have 2 items afterwards.
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    auto res = epBucket.flushVBucket(vbid);
+    EXPECT_EQ(EPBucket::MoreAvailable::Yes, res.moreAvailable);
+    EXPECT_EQ(1, res.numFlushed);
+    std::tie(status, persistedStats) =
+            kvstore->getCollectionStats(vbid, CollectionEntry::dairy);
+    ASSERT_EQ(KVStoreIface::GetCollectionStatsStatus::Success, status);
+    EXPECT_EQ(2, persistedStats.itemCount);
+    EXPECT_EQ(3, persistedStats.highSeqno);
+
+    // Complete flushing the drop of the collection. After this collection
+    // should be NotFound.
+    res = epBucket.flushVBucket(vbid);
+    EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
+    EXPECT_EQ(1, res.numFlushed);
+    EXPECT_EQ(EPBucket::WakeCkptRemover::Yes, res.wakeupCkptRemover);
+
+    std::tie(status, persistedStats) =
+            kvstore->getCollectionStats(vbid, CollectionEntry::dairy);
+    ASSERT_EQ(KVStoreIface::GetCollectionStatsStatus::NotFound, status);
+    EXPECT_EQ(0, persistedStats.itemCount);
+
+    // Note in the original MB we _do_ get the correct count here, as this
+    // is in-memory accounting.
+    EXPECT_EQ(2, vb->getNumItems())
+            << "Incorrect VBucket item count after dropping (but not yet "
+               "cleaning up via compaction) a collection";
+
+    // Compaction should have been scheduled to clean up the dropped
+    // collection; run it now.
+    runCollectionsEraser(vbid);
+
+    EXPECT_EQ(0, vb->getNumItems())
+            << "VBucket should have zero items after collection has been "
+               "deleted and compacted";
+    EXPECT_EQ(0, vb->getNumTotalItems())
+            << "VBucket should have zero total (on-disk) items after "
+               "collection has been deleted and compacted";
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsEraserTests,
                          CollectionsEraserTest,

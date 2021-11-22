@@ -1417,6 +1417,9 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                                    kvstoreRevList[getCacheSlot(vbid)],
                                    writeDocsCB,
                                    postWriteDocsCB);
+
+    saveDocsPostWriteDocsHook();
+
     if (status) {
         st.saveDocsHisto.add(saveDocsDuration);
         kvctx.commitData.collections.postCommitMakeStatsVisible();
