@@ -67,12 +67,8 @@ KVBucketTest::KVBucketTest() : test_dbname(dbnameFromCurrentGTestInfo()) {
 void KVBucketTest::SetUp() {
     // Paranoia - kill any existing files in case they are left over
     // from a previous run.
-    try {
+    if (cb::io::isDirectory(test_dbname)) {
         cb::io::rmrf(test_dbname);
-    } catch (const std::system_error& e) {
-        if (e.code() != std::error_code(ENOENT, std::system_category())) {
-            throw e;
-        }
     }
 
     if (!ExecutorPool::exists()) {
