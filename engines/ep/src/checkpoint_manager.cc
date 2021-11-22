@@ -167,7 +167,7 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
     //   unexpected, see CM::getItemsForCursor for how that item is used
     for (auto& pair : cursors) {
         auto& cursor = *pair.second;
-        const auto& checkpoint = *(*(cursor.currentCheckpoint));
+        const auto& checkpoint = *(*(cursor.getCheckpoint()));
         if (checkpoint.getState() == CHECKPOINT_OPEN) {
             // Cursor in the open (ie last) checkpoint, nothing to move
             continue;
@@ -178,7 +178,7 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
         //
         // [empty  ckpt_start  ..  mutation  ..  mutation  ckpt_end  end()]
         //                                       ^         ^         ^
-        auto& pos = cursor.currentPos;
+        auto pos = cursor.getPos();
         if (pos == checkpoint.end() ||
             (*pos)->getOperation() == queue_op::checkpoint_end ||
             (*std::next(pos))->getOperation() == queue_op::checkpoint_end) {
@@ -432,18 +432,19 @@ bool CheckpointManager::removeCursor(const std::lock_guard<std::mutex>& lh,
     }
 
     EP_LOG_DEBUG("Remove the checkpoint cursor with the name \"{}\" from {}",
-                 cursor->name,
+                 cursor->getName(),
                  vb.getId());
 
     cursor->invalidate();
 
     // find the current checkpoint before erasing the cursor, if there
     // are no other owners of the cursor it may be destroyed.
-    auto* checkpoint = cursor->currentCheckpoint->get();
-    if (cursors.erase(cursor->name) == 0) {
+    auto* checkpoint = cursor->getCheckpoint()->get();
+
+    if (cursors.erase(cursor->getName()) == 0) {
         throw std::logic_error(
                 "CheckpointManager::removeCursor: " + to_string(vb.getId()) +
-                " Failed to remove cursor: " + cursor->name);
+                " Failed to remove cursor: " + cursor->getName());
     }
 
     if (isEligibleForEagerRemoval(*checkpoint)) {
@@ -613,7 +614,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
         std::lock_guard<std::mutex> lh(queueLock);
         auto* checkpoint = extractRes.getCheckpoint();
         Expects(checkpoint);
-        Expects(extractRes.getExpelCursor().currentCheckpoint->get() ==
+        Expects(extractRes.getExpelCursor().getCheckpoint()->get() ==
                 checkpoint);
         checkpoint->applyQueuedItemsMemUsageDecrement(queuedItemsMemReleased);
     }
@@ -681,7 +682,8 @@ std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
             // At the time of writing that kind of change is out of scope, so
             // making that a @todo for now.
             if (cursor->isDroppable() &&
-                cursor->getId() < specialCursor.getId()) {
+                (*cursor->getCheckpoint())->getId() <
+                        (*specialCursor.getCheckpoint())->getId()) {
                 cursorsToDrop.emplace_back(cursor);
             }
         }
@@ -693,7 +695,8 @@ std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
         const auto id = getOpenCheckpointId(lh);
         for (const auto& pair : cursors) {
             const auto cursor = pair.second;
-            if (cursor->isDroppable() && cursor->getId() < id) {
+            if (cursor->isDroppable() &&
+                (*cursor->getCheckpoint())->getId() < id) {
                 cursorsToDrop.emplace_back(cursor);
             }
         }
@@ -740,7 +743,7 @@ bool CheckpointManager::isEligibleForCheckpointRemovalAfterPersistence() const {
     // Just 1 cursor in oldest checkpoint, is it the backup pcursor?
     const auto backupIt = cursors.find(backupPCursorName);
     if (backupIt != cursors.end() &&
-        backupIt->second->currentCheckpoint->get() == oldestCkpt.get()) {
+        backupIt->second->getCheckpoint()->get() == oldestCkpt.get()) {
         // Backup cursor in oldest checkpoint, checkpoint(s) will be eligible
         // for removal after backup cursor has gone
         return true;
@@ -934,19 +937,19 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     // Fetch whole checkpoints; as long as we don't exceed the approx item
     // limit.
     ItemsForCursor result(
-            (*cursor.currentCheckpoint)->getCheckpointType(),
-            (*cursor.currentCheckpoint)->getMaxDeletedRevSeqno(),
-            (*cursor.currentCheckpoint)->getHighCompletedSeqno(),
-            (*cursor.currentCheckpoint)->getVisibleSnapshotEndSeqno());
+            (*cursor.getCheckpoint())->getCheckpointType(),
+            (*cursor.getCheckpoint())->getMaxDeletedRevSeqno(),
+            (*cursor.getCheckpoint())->getHighCompletedSeqno(),
+            (*cursor.getCheckpoint())->getVisibleSnapshotEndSeqno());
 
     // Only enforce a hard limit for Disk Checkpoints (i.e backfill). This will
     // prevent huge memory growth due to flushing vBuckets on replicas during a
     // rebalance. Memory checkpoints can still grow unbounded due to max number
     // of checkpoints constraint, but that should be solved by reducing
     // Checkpoint size and increasing max number.
-    bool hardLimit = (*cursor.currentCheckpoint)->getCheckpointType() ==
+    bool hardLimit = (*cursor.getCheckpoint())->getCheckpointType() ==
                              CheckpointType::Disk &&
-                     cursor.name == pCursorName;
+                     cursor.getName() == pCursorName;
 
     // For persistence, we register a backup pcursor for resetting the pcursor
     // to the backup position if persistence fails.
@@ -960,27 +963,24 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     while ((!hardLimit || itemCount < approxLimit) &&
            (result.moreAvailable = incrCursor(cursor))) {
         if (enteredNewCp) {
-            result.checkpointType =
-                    (*cursor.currentCheckpoint)->getCheckpointType();
-            result.ranges.push_back(
-                    {{(*cursor.currentCheckpoint)->getSnapshotStartSeqno(),
-                      (*cursor.currentCheckpoint)->getSnapshotEndSeqno()},
-                     (*cursor.currentCheckpoint)->getHighCompletedSeqno(),
-                     (*cursor.currentCheckpoint)->getHighPreparedSeqno()});
+            const auto& checkpoint = **cursor.getCheckpoint();
+            result.checkpointType = checkpoint.getCheckpointType();
+            result.ranges.push_back({{checkpoint.getSnapshotStartSeqno(),
+                                      checkpoint.getSnapshotEndSeqno()},
+                                     checkpoint.getHighCompletedSeqno(),
+                                     checkpoint.getHighPreparedSeqno()});
             enteredNewCp = false;
 
             // As we cross into new checkpoints, update the maxDeletedRevSeqno
             // iff the new checkpoint has one recorded, and it's larger than the
             // previous value.
-            if ((*cursor.currentCheckpoint)
-                        ->getMaxDeletedRevSeqno()
-                        .value_or(0) > result.maxDeletedRevSeqno.value_or(0)) {
-                result.maxDeletedRevSeqno =
-                        (*cursor.currentCheckpoint)->getMaxDeletedRevSeqno();
+            if (checkpoint.getMaxDeletedRevSeqno().value_or(0) >
+                result.maxDeletedRevSeqno.value_or(0)) {
+                result.maxDeletedRevSeqno = checkpoint.getMaxDeletedRevSeqno();
             }
         }
 
-        queued_item& qi = *(cursor.currentPos);
+        queued_item& qi = *(cursor.getPos());
         items.push_back(qi);
         itemCount++;
 
@@ -1009,7 +1009,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             // or (2) checkpoints of different type. So, break if we have just
             // finished with processing a Disk Checkpoint, regardless of what
             // comes next.
-            if ((*cursor.currentCheckpoint)->getCheckpointType() ==
+            if ((*cursor.getCheckpoint())->getCheckpointType() ==
                 CheckpointType::Disk) {
                 // Moving the cursor to the next checkpoint potentially allows
                 // the CheckpointRemover to free the checkpoint that we are
@@ -1024,7 +1024,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             // ActiveStream needing to send Disk checkpoint items as Disk
             // snapshots to the replica.
             if (moveCursorToNextCheckpoint(cursor)) {
-                if ((*cursor.currentCheckpoint)->getCheckpointType() !=
+                if ((*cursor.getCheckpoint())->getCheckpointType() !=
                     result.checkpointType) {
                     break;
                 }
@@ -1044,14 +1044,14 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
                 "CheckpointManager::getItemsForCursor() "
                 "cursor:{} result:{{#items:{} ranges:size:{} {} "
                 "moreAvailable:{}}}",
-                cursor.name,
+                cursor.getName(),
                 uint64_t(itemCount),
                 result.ranges.size(),
                 ranges.str(),
                 result.moreAvailable ? "true" : "false");
     }
 
-    cursor.numVisits++;
+    cursor.incrNumVisit();
 
     return result;
 }
@@ -1064,7 +1064,7 @@ bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
     // Move forward
     cursor.incrPos();
 
-    if (cursor.currentPos != (*cursor.currentCheckpoint)->end()) {
+    if (cursor.getPos() != (*cursor.getCheckpoint())->end()) {
         return true;
     }
 
@@ -1143,7 +1143,7 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
         return false;
     }
 
-    const auto prev = cursor.currentCheckpoint;
+    const auto prev = cursor.getCheckpoint();
     if ((*prev)->getState() == CHECKPOINT_OPEN) {
         return false;
     }
@@ -1153,16 +1153,11 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
     // There must be at least an open checkpoint
     Expects(next != checkpointList.end());
 
-    // Adjust counters for current/next checkpoint
-    (*prev)->decNumOfCursorsInCheckpoint();
-    (*next)->incNumOfCursorsInCheckpoint();
+    // Move the cursor to the next checkpoint.
+    // Note: This also updates the cursor accounting for both old/new checkpoint
+    cursor.reposition(next);
 
-    // Move the cursor to the next checkpoint
-    cursor.currentCheckpoint = next;
-    cursor.currentPos = (*next)->begin();
-    cursor.setDistance(0);
-
-    Expects((*cursor.currentPos)->getOperation() == queue_op::empty);
+    Expects((*cursor.getPos())->getOperation() == queue_op::empty);
 
     // by advancing the cursor, the previous checkpoint became unreferenced,
     // and may be removable now.
@@ -1220,7 +1215,7 @@ size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(
         const CheckpointCursor* cursor) const {
     if (cursor && cursor->valid()) {
         size_t items = cursor->getRemainingItemsCount();
-        CheckpointList::const_iterator chkptIterator(cursor->currentCheckpoint);
+        CheckpointList::const_iterator chkptIterator(cursor->getCheckpoint());
         if (chkptIterator != checkpointList.end()) {
             ++chkptIterator;
         }
@@ -1251,9 +1246,8 @@ bool CheckpointManager::isLastMutationItemInCheckpoint(
                 "is not valid, it has been removed");
     }
 
-    ChkptQueueIterator it = cursor.currentPos;
-    ++it;
-    return it == (*(cursor.currentCheckpoint))->end() ||
+    auto it = std::next(cursor.getPos());
+    return it == (*(cursor.getCheckpoint()))->end() ||
            (*it)->getOperation() == queue_op::checkpoint_end;
 }
 
@@ -1576,35 +1570,33 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
                              buf.size(),
                              "vb_%d:%s:cursor_checkpoint_id",
                              vbucketId.get(),
-                             cursor.second->name.c_str());
+                             cursor.second->getName().c_str());
             add_casted_stat(buf.data(),
-                            (*(cursor.second->currentCheckpoint))->getId(),
+                            (*(cursor.second->getCheckpoint()))->getId(),
                             add_stat,
                             cookie);
             checked_snprintf(buf.data(),
                              buf.size(),
                              "vb_%d:%s:cursor_seqno",
                              vbucketId.get(),
-                             cursor.second->name.c_str());
+                             cursor.second->getName().c_str());
             add_casted_stat(buf.data(),
-                            (*(cursor.second->currentPos))->getBySeqno(),
+                            (*(cursor.second->getPos()))->getBySeqno(),
                             add_stat,
                             cookie);
             checked_snprintf(buf.data(),
                              buf.size(),
                              "vb_%d:%s:num_visits",
                              vbucketId.get(),
-                             cursor.second->name.c_str());
-            add_casted_stat(buf.data(),
-                            cursor.second->numVisits.load(),
-                            add_stat,
-                            cookie);
+                             cursor.second->getName().c_str());
+            add_casted_stat(
+                    buf.data(), cursor.second->getNumVisit(), add_stat, cookie);
             if (cursor.second.get() != persistenceCursor) {
                 checked_snprintf(buf.data(),
                                  buf.size(),
                                  "vb_%d:%s:num_items_for_cursor",
                                  vbucketId.get(),
-                                 cursor.second->name.c_str());
+                                 cursor.second->getName().c_str());
                 add_casted_stat(
                         buf.data(),
                         getNumItemsForCursor_UNLOCKED(cursor.second.get()),
@@ -1629,7 +1621,7 @@ void CheckpointManager::takeAndResetCursors(CheckpointManager& other) {
     pCursor = other.pCursor;
     persistenceCursor = pCursor.lock().get();
     for (auto& cursor : other.cursors) {
-        cursors[cursor.second->name] = cursor.second;
+        cursors[cursor.second->getName()] = cursor.second;
     }
     other.cursors.clear();
 
@@ -1686,7 +1678,8 @@ bool CheckpointManager::hasNonMetaItemsForCursor(
     // Point of the function is to tell the user if there are mutations
     // available for the cursor to process.
     // CM lastBySeqno is bumped only for mutations, so we can exploit that here.
-    const auto seqno = (*cursor.currentPos)->getBySeqno();
+    const auto pos = cursor.getPos();
+    const auto seqno = (*pos)->getBySeqno();
     if (seqno < lastBySeqno) {
         // Surely there's at least another mutation to process
         return true;
@@ -1711,7 +1704,7 @@ bool CheckpointManager::hasNonMetaItemsForCursor(
     //        {4,mutation,cid:0x0:key,130,}
     //    ]
 
-    if (!(*cursor.currentPos)->isCheckPointMetaItem()) {
+    if (!(*pos)->isCheckPointMetaItem()) {
         // If at mutation, then we can definitely state that there's nothing
         // to process as:
         // - another mutation would bump lastBySeqno to (lastBySeqno + 1), which
@@ -1738,7 +1731,7 @@ bool CheckpointManager::hasNonMetaItemsForCursor(
     // items.
     auto c = CheckpointCursor(cursor, "");
     while (incrCursor(c)) {
-        if (!(*c.currentPos)->isCheckPointMetaItem()) {
+        if (!(*c.getPos())->isCheckPointMetaItem()) {
             return true;
         }
     }
@@ -1805,8 +1798,7 @@ CheckpointList CheckpointManager::extractClosedUnrefCheckpoints(
         // No cursors, can remove everything but the open checkpoint
         it = std::prev(checkpointList.end());
     } else {
-        it = getLowestCursor(lh)->currentCheckpoint;
-
+        it = getLowestCursor(lh)->getCheckpoint();
         if (it == checkpointList.begin()) {
             // Lowest cursor is in the first checkpoint, nothing to remove.
             return {};
@@ -1935,7 +1927,7 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
 
     // Sanity check - if the oldest checkpoint is referenced, the cursor
     // with the lowest seqno should be in that checkpoint.
-    if (lowestCursor->currentCheckpoint->get() != oldestCheckpoint) {
+    if (lowestCursor->getCheckpoint()->get() != oldestCheckpoint) {
         std::stringstream ss;
         ss << "CheckpointManager::expelUnreferencedCheckpointItems: ("
            << vb.getId()
@@ -1946,21 +1938,21 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
            << " highSeqno: " << oldestCheckpoint->getHighSeqno()
            << " snapStart: " << oldestCheckpoint->getSnapshotStartSeqno()
            << " snapEnd: " << oldestCheckpoint->getSnapshotEndSeqno()
-           << ". Lowest cursor: " << lowestCursor->name
-           << " seqno: " << (*lowestCursor->currentPos)->getBySeqno()
-           << " ckptID: " << lowestCursor->getId();
+           << ". Lowest cursor: " << lowestCursor->getName()
+           << " seqno: " << (*lowestCursor->getPos())->getBySeqno()
+           << " ckptID: " << (*lowestCursor->getCheckpoint())->getId();
         throw std::logic_error(ss.str());
     }
 
     // Note: Important check as this avoids decrementing the begin() iterator
     // in the following steps.
-    if (lowestCursor->currentPos == oldestCheckpoint->begin()) {
+    if (lowestCursor->getPos() == oldestCheckpoint->begin()) {
         // Lowest cursor is at the checkpoint empty item, nothing to expel
         return {};
     }
 
     // Never expel items pointed by cursor.
-    auto iterator = std::prev(lowestCursor->currentPos);
+    auto iterator = std::prev(lowestCursor->getPos());
     // The distance between CheckpointQueue.begin() and 'iterator'.
     auto distance = lowestCursor->getDistance();
     // Note: If reached here lowestCursor points to some position > begin()
@@ -2002,7 +1994,7 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
     Expects(numExpelledItems > 0);
     for (auto& it : cursors) {
         CheckpointCursor& cursor = *it.second;
-        if (cursor.currentCheckpoint->get() == oldestCheckpoint) {
+        if (cursor.getCheckpoint()->get() == oldestCheckpoint) {
             const auto oldDistance = cursor.getDistance();
             Expects(numExpelledItems < oldDistance);
             cursor.setDistance(oldDistance - numExpelledItems);
@@ -2016,13 +2008,14 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
     //  checkpoint at this point
     const auto name = "expel-cursor";
     Expects(cursors.find(name) == cursors.end());
-    Expects(lowestCursor->currentCheckpoint->get() == oldestCheckpoint);
-    const auto cursor = std::make_shared<CheckpointCursor>(
-            name,
-            lowestCursor->currentCheckpoint,
-            (*lowestCursor->currentCheckpoint)->begin(),
-            CheckpointCursor::Droppable::No,
-            0);
+    const auto checkpoint = lowestCursor->getCheckpoint();
+    Expects(checkpoint->get() == oldestCheckpoint);
+    const auto cursor =
+            std::make_shared<CheckpointCursor>(name,
+                                               checkpoint,
+                                               (*checkpoint)->begin(),
+                                               CheckpointCursor::Droppable::No,
+                                               0);
     cursors[name] = cursor;
 
     return {std::move(expelledItems),

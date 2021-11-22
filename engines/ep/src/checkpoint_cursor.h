@@ -34,7 +34,6 @@
  *
  */
 class CheckpointCursor {
-    friend class CheckpointManager;
     friend class Checkpoint;
     friend class MockCheckpointManager;
     friend class CheckpointCursorIntrospector;
@@ -70,12 +69,6 @@ public:
     CheckpointCursor(const CheckpointCursor& other, std::string name);
 
     ~CheckpointCursor();
-
-    /// @returns the id of the current checkpoint the cursor is on
-    uint64_t getId() const;
-
-    /// @returns the type of the Checkpoint that the cursor is in
-    CheckpointType getCheckpointType() const;
 
     /**
      * Invalidates this cursor. After invalidating this cursor it should not be
@@ -117,7 +110,22 @@ public:
      */
     void reposition(CheckpointList::iterator checkpointIt);
 
-private:
+    const CheckpointList::iterator& getCheckpoint() const {
+        return currentCheckpoint;
+    }
+
+    const std::string& getName() const {
+        return name;
+    }
+
+    void incrNumVisit() {
+        ++numVisits;
+    }
+
+    size_t getNumVisit() const {
+        return numVisits;
+    }
+
     /**
      * Move the cursor's iterator back one if it is not currently pointing to
      * begin.  If pointing to begin then do nothing.
@@ -137,6 +145,7 @@ private:
      */
     size_t getRemainingItemsCount() const;
 
+private:
     std::string name;
     CheckpointList::iterator currentCheckpoint;
 

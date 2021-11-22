@@ -81,10 +81,6 @@ void CheckpointCursor::incrPos() {
     ++distance;
 }
 
-uint64_t CheckpointCursor::getId() const {
-    return (*currentCheckpoint)->getId();
-}
-
 size_t CheckpointCursor::getRemainingItemsCount() const {
     size_t remaining = 0;
     ChkptQueueIterator itr = currentPos;
@@ -99,10 +95,6 @@ size_t CheckpointCursor::getRemainingItemsCount() const {
         ++itr;
     }
     return remaining;
-}
-
-CheckpointType CheckpointCursor::getCheckpointType() const {
-    return (*currentCheckpoint)->getCheckpointType();
 }
 
 bool operator<(const CheckpointCursor& a, const CheckpointCursor& b) {

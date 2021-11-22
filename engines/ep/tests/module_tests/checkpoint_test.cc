@@ -628,7 +628,7 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursorLimited) {
     EXPECT_EQ(1000 + maxItems, result.ranges.front().getEnd());
     EXPECT_EQ(maxItems + 2, items.size())
             << "Should have maxItems + 2 (ckpt start & end) items";
-    EXPECT_EQ(2, cursor->getId())
+    EXPECT_EQ(2, (*cursor->getCheckpoint())->getId())
             << "Cursor should have moved into second checkpoint.";
 }
 
@@ -675,7 +675,7 @@ TEST_P(CheckpointTest, DiskCheckpointStrictItemLimit) {
     EXPECT_EQ(0, result.ranges.front().getStart());
     EXPECT_EQ(1000 + maxItems, result.ranges.front().getEnd());
     EXPECT_EQ(1, items.size()) << "Should have 1 item";
-    EXPECT_EQ(1, cursor->getId())
+    EXPECT_EQ(1, (*cursor->getCheckpoint())->getId())
             << "Cursor should not have moved into second checkpoint.";
 }
 
@@ -2577,7 +2577,7 @@ TEST_P(CheckpointTest, CursorPlacedAtCkptStartSeqnoCorrectly) {
     // checkpoint).
     auto regRes = cm.registerCursorBySeqno(
             "Cursor", 2, CheckpointCursor::Droppable::Yes);
-    EXPECT_EQ(2, regRes.cursor.lock()->getId());
+    EXPECT_EQ(2, (*regRes.cursor.lock()->getCheckpoint())->getId());
 }
 
 TEST_P(CheckpointTest,
@@ -3347,7 +3347,7 @@ TEST_P(CheckpointTest, MB_47551) {
         }
 
         // Cursor should be in the closed checkpoint, it has the items we need
-        EXPECT_EQ(1, cursor.cursor.lock()->getId());
+        EXPECT_EQ(1, (*cursor.cursor.lock()->getCheckpoint())->getId());
     }
 
     // But high-seqno should use the open CP
@@ -3358,7 +3358,7 @@ TEST_P(CheckpointTest, MB_47551) {
     // one. Possibly don't need backfill=true, but DCP streams handle this case
     EXPECT_TRUE(cursor2.tryBackfill);
     EXPECT_EQ(1003, cursor2.seqno);
-    EXPECT_EQ(2, cursor2.cursor.lock()->getId());
+    EXPECT_EQ(2, (*cursor2.cursor.lock()->getCheckpoint())->getId());
 }
 
 CheckpointManager::ExtractItemsResult CheckpointTest::extractItemsToExpel() {
