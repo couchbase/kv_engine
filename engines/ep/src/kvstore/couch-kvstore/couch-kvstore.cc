@@ -3061,6 +3061,8 @@ couchstore_error_t CouchKVStore::saveDocs(
         }
     }
 
+    saveDocsPostWriteDocsHook();
+
     vbucket_state& state = kvctx.commitData.proposedVBState;
     state.onDiskPrepares += kvctx.onDiskPrepareDelta;
     state.updateOnDiskPrepareBytes(kvctx.onDiskPrepareBytesDelta);

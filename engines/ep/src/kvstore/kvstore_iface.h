@@ -619,6 +619,8 @@ public:
      */
     virtual void setPostFlushHook(std::function<void()> hook) = 0;
 
+    virtual void setSaveDocsPostWriteDocsHook(std::function<void()> hook) = 0;
+
     /**
      * Get json of persisted engine and DCP stats. This API is invoked during
      * warmup to get the engine stats from the previous session.

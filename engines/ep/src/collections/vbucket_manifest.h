@@ -12,6 +12,7 @@
 #pragma once
 
 #include "collections/collections_types.h"
+#include "collections/flush_accounting.h"
 #include "collections/manifest.h"
 #include "collections/system_event_types.h"
 #include "collections/vbucket_manifest_entry.h"
@@ -203,6 +204,20 @@ public:
      */
     ManifestUpdateStatus update(VBucket& vb,
                                 const Collections::Manifest& manifest);
+
+    /**
+     * Update the statistics of the given collection with changes made
+     * as part of flushing.
+     * This method has to consider that the VB::Manifest can be modified by
+     * changes to the collections manifest during the flush, for
+     * example by the time we've gathered statistics about a collection, the
+     * VB::Manifest may have 1) dropped the collection 2) dropped and recreated
+     * the collection with a higher seqno - in either of these cases the
+     * gathered statistics are no longer applicable and are not pushed to the
+     * VB::Manifest, but should instead be accounted to droppedCollections.
+     */
+    void applyFlusherStats(CollectionID cid,
+                           const FlushAccounting::StatisticsUpdate& flushStats);
 
     /**
      * Callback from flusher that the drop of collection with the given seqno
@@ -1017,6 +1032,18 @@ protected:
     public:
         void insert(CollectionID cid, const DroppedCollectionInfo& info);
         void remove(CollectionID cid, uint64_t seqno);
+
+        /**
+         * Apply changes as a result of flushing items in a collection to
+         * disk to the specified Collection/seqno pair.
+         * @param cid Collection to apply changes to
+         * @param update The statistics update to apply.
+         */
+        void applyStatsChanges(
+                CollectionID cid,
+                const Collections::VB::FlushAccounting::StatisticsUpdate&
+                        update);
+
         StatsForFlush get(CollectionID cid, uint64_t seqno) const;
         bool addStats(Vbid vbid, const StatCollector& collector) const;
 
@@ -1026,6 +1053,20 @@ protected:
         std::optional<size_t> size(CollectionID cid) const;
 
     private:
+        /**
+         * Helper method for get() & applyStatsChanged - finds the matching
+         * DroppedCollectionInfo for the specified CollectionID@seqno.
+         *
+         * @throws std::logic_error if no such collection can be found;
+         *         labelling the thrown exception with the specified callerName.
+         */
+        const DroppedCollectionInfo& findInfo(std::string_view callerName,
+                                              CollectionID cid,
+                                              uint64_t seqno) const;
+        DroppedCollectionInfo& findInfo(std::string_view callerName,
+                                        CollectionID cid,
+                                        uint64_t seqno);
+
         std::unordered_map<CollectionID, std::vector<DroppedCollectionInfo>>
                 droppedCollections;
         friend std::ostream& operator<<(std::ostream&,
