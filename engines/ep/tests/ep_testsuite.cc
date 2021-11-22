@@ -7985,7 +7985,7 @@ static enum test_result test_mb20744_check_incr_reject_ops(EngineIface* h) {
 
     fclose(fp);
 
-    rmdb(filename.c_str());
+    cb::io::rmrf(filename.c_str());
 
     cb::io::mkdirp(dbname);
 

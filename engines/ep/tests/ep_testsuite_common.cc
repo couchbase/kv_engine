@@ -106,10 +106,8 @@ static enum test_result skipped_test_function(EngineIface*) {
 }
 
 enum test_result rmdb(const char* path) {
-    try {
+    if (cb::io::isDirectory(path)) {
         cb::io::rmrf(path);
-    } catch (std::system_error& e) {
-        throw e;
     }
     if (cb::io::isDirectory(path) || cb::io::isFile(path)) {
         std::cerr << "Failed to remove: " << path << " " << std::endl;
