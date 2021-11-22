@@ -212,6 +212,38 @@ TEST_F(DurabilityTest, SubdocMultiMutation) {
     EXPECT_NE(0, rsp.getCas());
 }
 
+/// Verify that sync write Revive of a deleted document succeeds
+TEST_F(DurabilityTest, SyncWriteReviveDeletedDocument) {
+    BinprotSubdocMultiMutationCommand cmd;
+    std::string name = "foobar";
+    cmd.setKey(name);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::CreateAsDeleted);
+    cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                    SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                    "tnx.foo",
+                    R"({})");
+    auto conn = getConnection();
+    conn->sendCommand(cmd);
+
+    BinprotSubdocMultiMutationResponse resp;
+    conn->recvResponse(resp);
+    ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
+
+    cmd = {};
+    cmd.setKey(name);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
+    cmd.addFrameInfo(DurabilityFrameInfo{cb::durability::Level::Majority});
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::ReviveDocument);
+    cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "tnx.bar",
+                    R"("This should succeed")");
+    conn->sendCommand(cmd);
+    conn->recvResponse(resp);
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+}
+
 /**
  * MB-34780 - Bucket delete fails if we've got pending sync writes
  *

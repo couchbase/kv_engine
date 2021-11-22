@@ -1146,18 +1146,10 @@ static cb::engine_errc subdoc_update(SubdocCmdContext& context,
                                 cookie.getRequest().getDurabilityRequirements(),
                                 mdt);
         } else {
-            if (context.reviveDocument) {
-                context.in_document_state = DocumentState::Alive;
-                // Unfortunately we can't do CAS replace when transitioning
-                // from a deleted document to a live document
-                // As a workaround for now just clear the cas field and
-                // do add (which will fail if someone created a new _LIVE_
-                // document since we read the document).
-                bucket_item_set_cas(connection, context.out_doc.get(), 0);
-                new_op = StoreSemantics::Add;
-            }
-
-            if (context.in_document_state == DocumentState::Deleted) {
+            // if the document is deleted (and we're not reviving it) it
+            // cannot have a value
+            if (context.in_document_state == DocumentState::Deleted &&
+                !context.reviveDocument) {
                 auto bodysize = context.in_doc.view.size();
                 if (mcbp::datatype::is_xattr(context.in_datatype)) {
                     bodysize -= cb::xattr::get_body_offset(context.in_doc.view);
@@ -1172,14 +1164,29 @@ static cb::engine_errc subdoc_update(SubdocCmdContext& context,
                 }
             }
 
+            DocumentState new_state = context.do_delete_doc
+                                              ? DocumentState::Deleted
+                                              : context.in_document_state;
+
+            if (context.reviveDocument) {
+                // Unfortunately we can't do CAS replace when transitioning
+                // from a deleted document to a live document
+                // As a workaround for now just clear the cas field and
+                // do add (which will fail if someone created a new _LIVE_
+                // document since we read the document).
+                bucket_item_set_cas(connection, context.out_doc.get(), 0);
+                new_op = StoreSemantics::Add;
+
+                // this is a revive, so we want to create an alive document
+                new_state = DocumentState::Alive;
+            }
+
             ret = bucket_store(cookie,
                                context.out_doc.get(),
                                new_cas,
                                new_op,
                                cookie.getRequest().getDurabilityRequirements(),
-                               context.do_delete_doc
-                                       ? DocumentState::Deleted
-                                       : context.in_document_state,
+                               new_state,
                                false);
         }
         ret = connection.remapErrorCode(ret);
@@ -1332,7 +1339,8 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
     }
 
     auto status_code = cb::mcbp::Status::Success;
-    if (context.in_document_state == DocumentState::Deleted) {
+    if (context.in_document_state == DocumentState::Deleted &&
+        !context.reviveDocument) {
         status_code = cb::mcbp::Status::SubdocSuccessDeleted;
     }
 
@@ -1389,7 +1397,8 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
 
     auto status_code = context.overall_status;
     if ((status_code == cb::mcbp::Status::Success) &&
-        (context.in_document_state == DocumentState::Deleted)) {
+        (context.in_document_state == DocumentState::Deleted) &&
+        !context.reviveDocument) {
         status_code = cb::mcbp::Status::SubdocSuccessDeleted;
     }
 
