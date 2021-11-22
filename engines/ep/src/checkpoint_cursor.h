@@ -34,7 +34,6 @@
  *
  */
 class CheckpointCursor {
-    friend class Checkpoint;
     friend class MockCheckpointManager;
     friend class CheckpointCursorIntrospector;
 

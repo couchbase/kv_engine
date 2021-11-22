@@ -214,7 +214,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                             CheckpointManager::backupPCursorName);
                     if (initialBackupPCursor != manager->cursors.end()) {
                         auto backupCursorItem =
-                                *initialBackupPCursor->second->currentPos;
+                                *initialBackupPCursor->second->getPos();
                         if (backupCursorItem) {
                             initialBackupPCursorSeqno =
                                     backupCursorItem->getBySeqno();
@@ -236,7 +236,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                 // 2. Specifically and only for the Persistence cursor, we need
                 //    to do some computation for correct stats update at caller.
                 for (auto& cursor : manager->cursors) {
-                    if ((*(cursor.second->currentCheckpoint)).get() != this) {
+                    if ((*cursor.second->getCheckpoint()).get() != this) {
                         // Cursor is in another checkpoint, doesn't need
                         // updating here
                         continue;
@@ -244,7 +244,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
 
                     // Save the original cursor pos before the cursor is
                     // possibly repositioned
-                    const auto originalCursorPos = cursor.second->currentPos;
+                    const auto originalCursorPos = cursor.second->getPos();
 
                     // Reposition the cursor to the previous item if it points
                     // to the item being dedup'ed. That also decrements the
@@ -277,7 +277,8 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
 
                     // The logic below is specific to the Persistence cursor,
                     // so skip it for any other cursor.
-                    if (cursor.second->name != CheckpointManager::pCursorName) {
+                    if (cursor.second->getName() !=
+                        CheckpointManager::pCursorName) {
                         continue;
                     }
 
