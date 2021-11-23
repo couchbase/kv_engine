@@ -3567,7 +3567,8 @@ std::pair<AddStatus, std::optional<VBNotifyCtx>> VBucket::processAdd(
         // The presence or absence of a completed prepare (ephemeral) does not
         // change what revSeqno we should use. An incomplete prepare would
         // have blocked this operation already as sync write in progress.
-        if (committed && !committed->isTempNonExistentItem()) {
+        if (committed && !(committed->isTempNonExistentItem() ||
+                           committed->isTempInitialItem())) {
             // the new item's revSeqno can be set to exactly one greater than
             // the old deleted value.
             itm.setRevSeqno(committed->getRevSeqno() + 1);
