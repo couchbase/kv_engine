@@ -463,8 +463,7 @@ TEST_P(STParamMagmaBucketTest,
     EXPECT_EQ(expectedPurgeSeqno, vb->getPurgeSeqno());
 }
 
-TEST_P(STParamMagmaBucketTest,
-       CheckImplicitCompactionDoesNotUpdatePurgeSeqnoForLogicallyDeletedItem) {
+TEST_P(STParamMagmaBucketTest, ImplicitCompactionDoesNotDropCollectionItems) {
     uint64_t expectedPurgeSeqno;
     auto purgedKey = makeStoredDocKey("keyA", CollectionEntry::fruit.getId());
     CollectionsManifest cm;
@@ -492,9 +491,9 @@ TEST_P(STParamMagmaBucketTest,
     auto magmaKVStore =
             dynamic_cast<MagmaKVStore*>(store->getRWUnderlying(vbid));
     ASSERT_TRUE(magmaKVStore);
-    // Assert that the collection key no longer has a tomb stone
+    // Assert that the collection key tombstone is not dropped
     auto gv = magmaKVStore->get(DiskDocKey(purgedKey), vbid);
-    ASSERT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
 
     // Ensure that the purge seqno has been set during the second flush to where
     // the first tombstone was

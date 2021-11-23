@@ -352,7 +352,12 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
     auto exptime = magmakv::getExpiryTime(metaSlice);
 
     auto vbid = cbCtx.vbid;
-    if (cbCtx.ctx->droppedKeyCb) {
+
+    // eraserContext is not set for implicit compactions. Explicit
+    // compactions in magma are not rollback able while implicit are. If we
+    // rollback a collection drop via implicit compaction, it can result in
+    // the dropped keys not showing up in the rollback callback.
+    if (cbCtx.ctx->eraserContext && cbCtx.ctx->droppedKeyCb) {
         // We need to check both committed and prepared documents - if the
         // collection has been logically deleted then we need to discard
         // both types of keys.
@@ -3110,8 +3115,6 @@ std::shared_ptr<CompactionContext> MagmaKVStore::makeImplicitCompactionContext(
                 "get the dropped collections",
                 vbid));
     }
-    ctx->eraserContext =
-            std::make_unique<Collections::VB::EraserContext>(dropped);
 
     auto readState = readVBStateFromDisk(vbid);
     if (!readState.status.IsOK()) {
