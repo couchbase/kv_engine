@@ -1081,6 +1081,9 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         if (valueStr == "true") {
             outOfOrderSnapshots = OutOfOrderSnapshots::Yes;
             return cb::engine_errc::success;
+        } else if (valueStr == "true_with_seqno_advanced") {
+            outOfOrderSnapshots = OutOfOrderSnapshots::YesWithSeqnoAdvanced;
+            return cb::engine_errc::success;
         }
     } else if (key == "include_deleted_user_xattrs") {
         if (valueStr == "true") {
@@ -2042,7 +2045,12 @@ std::string DcpProducer::getConsumerName() const {
 }
 
 bool DcpProducer::isOutOfOrderSnapshotsEnabled() const {
-    return outOfOrderSnapshots == OutOfOrderSnapshots::Yes &&
+    return outOfOrderSnapshots != OutOfOrderSnapshots::No &&
+           engine_.getKVBucket()->isByIdScanSupported();
+}
+
+bool DcpProducer::isOutOfOrderSnapshotsEnabledWithSeqnoAdvanced() const {
+    return outOfOrderSnapshots == OutOfOrderSnapshots::YesWithSeqnoAdvanced &&
            engine_.getKVBucket()->isByIdScanSupported();
 }
 

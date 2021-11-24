@@ -106,7 +106,7 @@ void CollectionsDcpTest::createDcpConsumer() {
 
 void CollectionsDcpTest::createDcpObjects(
         std::optional<std::string_view> collections,
-        bool enableOutOfOrderSnapshots,
+        OutOfOrderSnapshots outOfOrderSnapshots,
         uint32_t flags,
         bool enableSyncRep,
         uint64_t streamEndSeqno) {
@@ -118,11 +118,11 @@ void CollectionsDcpTest::createDcpObjects(
     producers->consumer = consumer.get();
     producers->replicaVB = replicaVB;
 
-    if (enableOutOfOrderSnapshots) {
+    if (outOfOrderSnapshots != OutOfOrderSnapshots::No) {
         // The CollectionsDcpProducer by default tries to pass messages to the
         // replica which won't work with OSO. No consumer = no replication
         producers->consumer = nullptr;
-        producer->enableOutOfOrderSnapshots();
+        producer->setOutOfOrderSnapshots(outOfOrderSnapshots);
     }
 
     if (enableSyncRep) {

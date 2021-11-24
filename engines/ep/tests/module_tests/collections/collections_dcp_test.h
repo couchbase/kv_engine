@@ -41,11 +41,12 @@ public:
 
     void createDcpConsumer();
 
-    void createDcpObjects(std::optional<std::string_view> collections,
-                          bool enableOutOfOrderSnapshots = false,
-                          uint32_t flags = 0,
-                          bool enableSyncRep = false,
-                          uint64_t streamEndSeqno = ~0ull);
+    void createDcpObjects(
+            std::optional<std::string_view> collections,
+            OutOfOrderSnapshots outOfOrderSnapshots = OutOfOrderSnapshots::No,
+            uint32_t flags = 0,
+            bool enableSyncRep = false,
+            uint64_t streamEndSeqno = ~0ull);
 
     void TearDown() override;
 

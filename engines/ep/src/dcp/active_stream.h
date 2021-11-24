@@ -215,6 +215,9 @@ public:
     /**
      * Queues a single "Out of Seqno Order" marker with the 'start' flag
      * into the ready queue
+     *
+     * @param endSeqno the end of the disk snapshot - used for cursor
+     *        registration
      */
     bool markOSODiskSnapshot(uint64_t endSeqno);
 
@@ -226,8 +229,12 @@ public:
     /**
      * Queues a single "Out of Seqno Order" marker with the 'end' flag
      * into the ready queue
+     *
+     * @param maxSeqno the maximum seqno of the snapshot supplying the OSO
+     *        backfill. A SeqnoAdvanced maybe sent if the last backfilled
+     *        item is not the maxSeqno item
      */
-    void completeOSOBackfill();
+    void completeOSOBackfill(uint64_t maxSeqno);
 
     bool isCompressionEnabled() const;
 
@@ -493,7 +500,7 @@ protected:
     }
 
     /// Common helper function for completing backfills.
-    void completeBackfillInner(BackfillType backfillType);
+    void completeBackfillInner(BackfillType backfillType, uint64_t maxSeqno);
 
     // The current state the stream is in.
     // Atomic to allow reads without having to acquire the streamMutex.

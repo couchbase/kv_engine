@@ -2788,7 +2788,7 @@ TEST_P(CollectionsDcpParameterizedTest,
 
     // filter only CollectionEntry::dairy
     createDcpObjects({{R"({"collections":["c"]})"}},
-                     false,
+                     OutOfOrderSnapshots::No,
                      DCP_ADD_STREAM_FLAG_DISKONLY);
 
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
@@ -2821,7 +2821,7 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_EQ(4, vb->getHighSeqno());
 
     ensureDcpWillBackfill();
-    createDcpObjects("", false, 0, true);
+    createDcpObjects("", OutOfOrderSnapshots::No, 0, true);
     store_item(
             vbid, StoredDocKey{"dairy::two", CollectionEntry::dairy}, "dairy");
     store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "beef");
@@ -3598,7 +3598,8 @@ TEST_P(CollectionsDcpParameterizedTest,
     setCollections(cookie, cm.add(CollectionEntry::fruit));
 
     store_item(vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value");
-    createDcpObjects({""}, false, 0, true /*sync replication*/, 5);
+    createDcpObjects(
+            {""}, OutOfOrderSnapshots::No, 0, true /*sync replication*/, 5);
     {
         auto key = StoredDocKey{"d", CollectionEntry::defaultC};
         auto item = makePendingItem(key, "value");
@@ -3655,7 +3656,7 @@ TEST_P(CollectionsDcpParameterizedTest,
 
     store_item(vbid, StoredDocKey{"d", CollectionEntry::defaultC}, "value");
     createDcpObjects({{R"({"collections":["9"]})"}},
-                     false,
+                     OutOfOrderSnapshots::No,
                      0,
                      false /*sync replication*/,
                      5);
@@ -3700,7 +3701,8 @@ TEST_P(CollectionsDcpParameterizedTest, MB_49453) {
     CollectionsManifest cm;
     setCollections(cookie, cm.add(CollectionEntry::fruit));
 
-    createDcpObjects({""}, false, 0, false /*sync replication*/);
+    createDcpObjects(
+            {""}, OutOfOrderSnapshots::No, 0, false /*sync replication*/);
     {
         auto key = StoredDocKey{"d", CollectionEntry::defaultC};
         auto item = makePendingItem(key, "value");

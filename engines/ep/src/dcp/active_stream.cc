@@ -475,11 +475,12 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
 }
 
 void ActiveStream::completeBackfill() {
-    completeBackfillInner(BackfillType::InOrder);
+    // maxSeqno is not needed for InOrder completion
+    completeBackfillInner(BackfillType::InOrder, 0 /*maxSeqno*/);
 }
 
-void ActiveStream::completeOSOBackfill() {
-    completeBackfillInner(BackfillType::OutOfSequenceOrder);
+void ActiveStream::completeOSOBackfill(uint64_t maxSeqno) {
+    completeBackfillInner(BackfillType::OutOfSequenceOrder, maxSeqno);
 }
 
 void ActiveStream::snapshotMarkerAckReceived() {
@@ -1694,7 +1695,8 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
     return false;
 }
 
-void ActiveStream::completeBackfillInner(BackfillType backfillType) {
+void ActiveStream::completeBackfillInner(BackfillType backfillType,
+                                         uint64_t maxSeqno) {
     {
         std::lock_guard<std::mutex> lh(streamMutex);
 
@@ -1737,6 +1739,21 @@ void ActiveStream::completeBackfillInner(BackfillType backfillType) {
         }
 
         if (backfillType == BackfillType::OutOfSequenceOrder) {
+            auto producer = producerPtr.lock();
+
+            if (!producer) {
+                log(spdlog::level::level_enum::warn,
+                    "{} ActiveStream::completeBackfillInner: producer "
+                    "unavailable",
+                    logPrefix);
+            } else if (
+                    producer->isOutOfOrderSnapshotsEnabledWithSeqnoAdvanced() &&
+                    maxSeqno != lastBackfilledSeqno) {
+                pushToReadyQ(std::make_unique<SeqnoAdvanced>(
+                        opaque_, vb_, sid, maxSeqno));
+                lastSentSeqnoAdvance.store(maxSeqno);
+            }
+
             pushToReadyQ(std::make_unique<OSOSnapshot>(
                     opaque_, vb_, sid, OSOSnapshot::End{}));
         }

@@ -165,3 +165,7 @@ MockBucketLogger& MockDcpProducer::public_getLogger() const {
     EXPECT_TRUE(logger);
     return dynamic_cast<MockBucketLogger&>(*logger);
 }
+
+void MockDcpProducer::setOutOfOrderSnapshots(OutOfOrderSnapshots oso) {
+    outOfOrderSnapshots = oso;
+}

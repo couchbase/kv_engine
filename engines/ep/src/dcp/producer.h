@@ -377,6 +377,8 @@ public:
 
     bool isOutOfOrderSnapshotsEnabled() const;
 
+    bool isOutOfOrderSnapshotsEnabledWithSeqnoAdvanced() const;
+
     // MB-37702: Test hook set via mock class.
     TestingHook<> closeAllStreamsHook;
 

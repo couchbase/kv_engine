@@ -36,6 +36,15 @@ producer, it cannot be disabled.
 supports out of order DCP. The server may, if possible send DCP messages in a
 different order than sequence number order.
 
+* `enable_out_of_order_snapshots` = `true_with_seqno_advanced` - Tells the
+server that the client supports out of order DCP. The server may, if possible
+send DCP messages in a different order than sequence number order. When an out
+of order snapshot is used and the transmitted item with the greatest seqno is
+not the greatest seqno of the disk snapshot, a Seqno Advanced message is also
+included to bring the client to the appropriate next sequence number of the
+stream. The Seqno Advanced seqno is a better place for stream resumption if
+there is an unexpected disconnect.
+
 * `backfill_order` - Tells the server what order the client would like to
 receive backfills in. This option is available only from Couchbase 6.6.
 Possible values are:

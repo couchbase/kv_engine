@@ -149,5 +149,10 @@ enum class SyncReplication : char { No, SyncWrites, SyncReplication };
 /**
  * OutOfOrderSnapshots determines if the streams created on the producer can
  * (when possible) return a snapshot in a different order from sequence order.
+ *
+ * Yes - enable OSO backfill
+ * YesWithSeqnoAdvanced - before the OSO end marker, KV may send a seqno
+ *       advanced that tells the client the maximum seqno of the snapshot.
+ * No - feature disabled
  */
-enum class OutOfOrderSnapshots : bool { Yes, No };
+enum class OutOfOrderSnapshots : char { Yes, YesWithSeqnoAdvanced, No };

@@ -33,15 +33,22 @@ public:
         store->setVBucketState(vbid, vbucket_state_active);
     }
 
-    void testTwoCollections(bool backfillWillPause);
+    void testTwoCollections(bool backfillWillPause,
+                            OutOfOrderSnapshots osoMode,
+                            uint64_t highSeqno);
 
     void MB_43700(CollectionID cid);
 
-    std::pair<CollectionsManifest, uint64_t> setupTwoCollections();
+    /**
+     *  @param endOnTarget true and the last item written will be for the target
+     *         collection
+     */
+    std::pair<CollectionsManifest, uint64_t> setupTwoCollections(
+            bool endOnTarget = false);
 };
 
 std::pair<CollectionsManifest, uint64_t>
-CollectionsOSODcpTest::setupTwoCollections() {
+CollectionsOSODcpTest::setupTwoCollections(bool endOnTarget) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm(CollectionEntry::fruit);
     vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::vegetable)));
@@ -53,8 +60,16 @@ CollectionsOSODcpTest::setupTwoCollections() {
     store_item(vbid, makeStoredDocKey("d", CollectionEntry::vegetable), "q");
     store_item(vbid, makeStoredDocKey("a", CollectionEntry::fruit), "w");
     store_item(vbid, makeStoredDocKey("a", CollectionEntry::vegetable), "q");
-    store_item(vbid, makeStoredDocKey("c", CollectionEntry::fruit), "y");
-    store_item(vbid, makeStoredDocKey("c", CollectionEntry::vegetable), "q");
+
+    if (endOnTarget) {
+        store_item(vbid, makeStoredDocKey("c", CollectionEntry::fruit), "y");
+        store_item(
+                vbid, makeStoredDocKey("c", CollectionEntry::vegetable), "q");
+    } else {
+        store_item(
+                vbid, makeStoredDocKey("c", CollectionEntry::vegetable), "q");
+        store_item(vbid, makeStoredDocKey("c", CollectionEntry::fruit), "y");
+    }
     flush_vbucket_to_disk(vbid, 10); // 8 keys + 2 events
     return {cm, 10};
 }
@@ -77,7 +92,7 @@ TEST_F(CollectionsOSODcpTest, basic) {
 
         // Filter on default collection (this will request from seqno:0)
         createDcpObjects(
-                {{R"({"collections":["0"]})"}}, true /* enable oso */, flag);
+                {{R"({"collections":["0"]})"}}, OutOfOrderSnapshots::Yes, flag);
 
         // We have a single filter, expect the backfill to be OSO
         runBackfill();
@@ -128,8 +143,9 @@ TEST_F(CollectionsOSODcpTest, NoCursorRegisteredForDeadStream) {
     ensureDcpWillBackfill();
 
     // set up stream, registers cursor
-    createDcpObjects(
-            {{R"({"collections":["0"]})"}}, true /* enable oso */, 0 /*flags*/);
+    createDcpObjects({{R"({"collections":["0"]})"}},
+                     OutOfOrderSnapshots::Yes,
+                     0 /*flags*/);
 
     auto& cm = *store->getVBucket(vbid)->checkpointManager;
     auto initialCursors = cm.getNumCursors();
@@ -149,24 +165,28 @@ TEST_F(CollectionsOSODcpTest, NoCursorRegisteredForDeadStream) {
     EXPECT_EQ(cm.getNumCursors(), initialCursors - 1);
 }
 
-void CollectionsOSODcpTest::testTwoCollections(bool backfillWillPause) {
-    auto setup = setupTwoCollections();
+void CollectionsOSODcpTest::testTwoCollections(bool backfillWillPause,
+                                               OutOfOrderSnapshots osoMode,
+                                               uint64_t highSeqno) {
+    ASSERT_NE(OutOfOrderSnapshots::No, osoMode);
 
     // Reset so we have to stream from backfill
     resetEngineAndWarmup();
 
     // Filter on vegetable collection (this will request from seqno:0)
-    createDcpObjects({{R"({"collections":["a"]})"}}, true /* enable oso */);
+    createDcpObjects({{R"({"collections":["a"]})"}}, OutOfOrderSnapshots::Yes);
 
     if (backfillWillPause) {
         producer->setBackfillBufferSize(1);
     }
 
+    producer->setOutOfOrderSnapshots(osoMode);
+
     // We have a single filter, expect the backfill to be OSO
     runBackfill();
 
     // see comment in CollectionsOSODcpTest.basic
-    consumer->snapshotMarker(1, replicaVB, 0, setup.second, 0, 0, setup.second);
+    consumer->snapshotMarker(1, replicaVB, 0, highSeqno, 0, 0, highSeqno);
 
     auto step = [this, &backfillWillPause]() {
         auto result = producer->stepWithBorderGuard(*producers);
@@ -197,6 +217,7 @@ void CollectionsOSODcpTest::testTwoCollections(bool backfillWillPause) {
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
               producers->last_system_event);
 
+    uint64_t txHighSeqno = 0;
     std::array<std::string, 4> keys = {{"a", "b", "c", "d"}};
     for (auto& k : keys) {
         // Now we get the mutations, they aren't guaranteed to be in seqno
@@ -205,21 +226,64 @@ void CollectionsOSODcpTest::testTwoCollections(bool backfillWillPause) {
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         EXPECT_EQ(k, producers->last_key);
         EXPECT_EQ(CollectionUid::vegetable, producers->last_collection_id);
+        txHighSeqno = std::max(txHighSeqno, producers->last_byseqno.load());
+    }
+
+    step();
+
+    if (osoMode == OutOfOrderSnapshots::YesWithSeqnoAdvanced &&
+        txHighSeqno != highSeqno) {
+        // Expect a SeqnoAdvanced that advances us to the highest seqno in
+        // the snapshot (which is a different collection item
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced, producers->last_op);
+        EXPECT_EQ(highSeqno, producers->last_byseqno);
+
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepWithBorderGuard(*producers));
     }
 
     // Now we get the end message
-    step();
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
     EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
               producers->last_oso_snapshot_flags);
 }
 
 TEST_F(CollectionsOSODcpTest, two_collections) {
-    testTwoCollections(false);
+    testTwoCollections(
+            false, OutOfOrderSnapshots::Yes, setupTwoCollections().second);
 }
 
 TEST_F(CollectionsOSODcpTest, two_collections_backfill_pause) {
-    testTwoCollections(true);
+    testTwoCollections(
+            true, OutOfOrderSnapshots::Yes, setupTwoCollections().second);
+}
+
+TEST_F(CollectionsOSODcpTest, two_collections_with_seqno_advanced) {
+    testTwoCollections(false,
+                       OutOfOrderSnapshots::YesWithSeqnoAdvanced,
+                       setupTwoCollections().second);
+}
+
+TEST_F(CollectionsOSODcpTest,
+       two_collections_backfill_pause_with_seqno_advanced) {
+    testTwoCollections(true,
+                       OutOfOrderSnapshots::YesWithSeqnoAdvanced,
+                       setupTwoCollections().second);
+}
+
+// The next two tests will run with OSO+SeqnoAdvanced but the target collection
+// is the highest seqno, so no SeqnoAdvanced is sent in the OSO snapshot
+TEST_F(CollectionsOSODcpTest, two_collections_with_seqno_advanced_skipped) {
+    testTwoCollections(false,
+                       OutOfOrderSnapshots::YesWithSeqnoAdvanced,
+                       setupTwoCollections(true).second);
+}
+
+TEST_F(CollectionsOSODcpTest,
+       two_collections_backfill_pause_with_seqno_advanced_skipped) {
+    testTwoCollections(true,
+                       OutOfOrderSnapshots::YesWithSeqnoAdvanced,
+                       setupTwoCollections(true).second);
 }
 
 TEST_F(CollectionsOSODcpTest, dropped_collection) {
@@ -229,7 +293,7 @@ TEST_F(CollectionsOSODcpTest, dropped_collection) {
     resetEngineAndWarmup();
 
     // Filter on vegetable collection (this will request from seqno:0)
-    createDcpObjects({{R"({"collections":["a"]})"}}, true /* enable oso */);
+    createDcpObjects({{R"({"collections":["a"]})"}}, OutOfOrderSnapshots::Yes);
 
     // The drop is deliberately placed here, after we've permitted the stream
     // request to vegetable, yet before the stream schedules a backfill. So the
@@ -280,7 +344,7 @@ TEST_F(CollectionsOSODcpTest, transition_to_memory) {
     // Reset so we have to stream from backfill
     resetEngineAndWarmup();
 
-    createDcpObjects({{R"({"collections":["0"]})"}}, true /* enable oso */);
+    createDcpObjects({{R"({"collections":["0"]})"}}, OutOfOrderSnapshots::Yes);
 
     // Some in-memory only item
     store_item(vbid, makeStoredDocKey("d"), "d-value");
@@ -353,7 +417,7 @@ TEST_F(CollectionsOSODcpTest, transition_to_memory_MB_38999) {
     // Reset so we have to stream from backfill
     resetEngineAndWarmup();
 
-    createDcpObjects({{R"({"collections":["0"]})"}}, true /* enable oso */);
+    createDcpObjects({{R"({"collections":["0"]})"}}, OutOfOrderSnapshots::Yes);
 
     // Now write the 4th item and flush it
     store_item(vbid, makeStoredDocKey("d"), "d-value");
@@ -423,7 +487,7 @@ TEST_F(CollectionsOSODcpTest, basic_with_stream_id) {
     producers->consumer = nullptr;
     producers->replicaVB = replicaVB;
     producer->enableMultipleStreamRequests();
-    producer->enableOutOfOrderSnapshots();
+    producer->setOutOfOrderSnapshots(OutOfOrderSnapshots::Yes);
 
     createDcpStream({{R"({"sid":88, "collections":["0"]})"}});
 
@@ -491,7 +555,7 @@ void CollectionsOSODcpTest::MB_43700(CollectionID cid) {
     fmt::memory_buffer key;
     format_to(key, "{:x}", uint32_t(cid));
     filter["collections"] = {std::string_view{key.data(), key.size()}};
-    createDcpObjects(filter.dump(), true /* enable oso */);
+    createDcpObjects(filter.dump(), OutOfOrderSnapshots::Yes);
 
     // We have a single filter, expect the backfill to be OSO
     runBackfill();
@@ -561,7 +625,7 @@ TEST_P(CollectionsOSOEphemeralTest, basic) {
     ensureDcpWillBackfill();
 
     // Filter on default collection (this will request from seqno:0)
-    createDcpObjects({{R"({"collections":["0"]})"}}, true /* enable oso */);
+    createDcpObjects({{R"({"collections":["0"]})"}}, OutOfOrderSnapshots::Yes);
 
     runBackfill();
 
