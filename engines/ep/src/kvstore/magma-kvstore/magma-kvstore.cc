@@ -2167,6 +2167,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
 
     Status status;
     std::unordered_set<CollectionID> purgedCollections;
+    bool ret = true;
     if (dropped.empty()) {
         // Compact the entire key range
         Slice nullKey;
@@ -2240,6 +2241,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                         vbid,
                         cb::UserData{makeDiskDocKey(keySlice).to_string()},
                         status.String());
+                ret = false;
                 continue;
             }
             // Can't track number of collection items purged properly in the
@@ -2381,7 +2383,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 ctx->stats.tombstonesPurged,
                 ctx->stats.preparesPurged);
     }
-    return true;
+    return ret;
 }
 
 std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) const {

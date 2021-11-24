@@ -723,6 +723,7 @@ TEST_P(STParamMagmaBucketTest, FailCompactKVStoreCall) {
 
     // Items all gone, before the fix 1 would remain
     EXPECT_EQ(0, vb->getNumTotalItems());
+    EXPECT_EQ(1, magmaKVStore.getKVStoreStat().numCompactionFailure);
 }
 
 INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
