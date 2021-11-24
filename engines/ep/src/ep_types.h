@@ -44,8 +44,18 @@ enum class SyncWriteOperation : char { No, Yes };
 enum class IsSystem : char { No, Yes };
 enum class IsDeleted : char { No, Yes };
 enum class IsCommitted : char { No, Yes };
-enum class WantsDropped : char { No, Yes };
 enum class IsCompaction : char { No, Yes };
+
+// Is the compaction callback invoked for the latest revision only, or any
+// revision?
+enum class CompactionCallbacks : char {
+    // Compaction callbacks are made for only the latest revision of a document
+    // i.e. Couchstore
+    LatestRevision,
+    // Compactions callbacks may be made for any revision of a document (not
+    // necessarily the latest revision i.e. Magma
+    AnyRevision
+};
 
 /// Types of write operations that can be issued to a KVStore.
 enum class WriteOperation : char {

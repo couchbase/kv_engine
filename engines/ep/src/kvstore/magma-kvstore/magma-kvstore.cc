@@ -1238,7 +1238,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                         configuration.magmaCfg.GetSeqNum(oldMeta),
                         oldIsDeleted,
                         oldDocSize,
-                        WantsDropped::Yes);
+                        CompactionCallbacks::AnyRevision);
             } else {
                 commitData.collections.updateStats(
                         docKey,
@@ -1246,7 +1246,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                         isCommitted,
                         isDeleted,
                         req->getDocSize(),
-                        WantsDropped::Yes);
+                        CompactionCallbacks::AnyRevision);
             }
         } else {
             // Tell Collections::Flush that it may need to record this seqno

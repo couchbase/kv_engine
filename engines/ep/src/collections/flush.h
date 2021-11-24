@@ -65,14 +65,16 @@ public:
      * @param isCommitted the prepare/commit state of the item flushed
      * @param isDelete alive/delete state of the item flushed
      * @param size bytes used on disk of the item flushed
-     * @param wantsDropped should we update dropped stats?
+     * @param compactionCallbacks For which items does the store invoke the
+     *                            compaction callbacks?
      */
     void updateStats(const DocKey& key,
                      uint64_t seqno,
                      IsCommitted isCommitted,
                      IsDeleted isDelete,
                      size_t size,
-                     WantsDropped wantsDropped = WantsDropped::No);
+                     CompactionCallbacks compactionCallbacks =
+                             CompactionCallbacks::LatestRevision);
 
     /**
      * Update collection stats from the flusher when an old 'version' of the
@@ -86,7 +88,8 @@ public:
      * @param oldSeqno The seqno of the old 'version' of the item
      * @param oldIsDelete alive/delete state of the old 'version' of the item
      * @param oldSize bytes used on disk of the old 'version' of the item
-     * @param wantsDropped should we update dropped stats?
+     * @param compactionCallbacks For which items does the store invoke the
+     *                            compaction callbacks?
      */
     void updateStats(const DocKey& key,
                      uint64_t seqno,
@@ -96,7 +99,8 @@ public:
                      uint64_t oldSeqno,
                      IsDeleted oldIsDelete,
                      size_t oldSize,
-                     WantsDropped wantsDropped = WantsDropped::No);
+                     CompactionCallbacks compactionCallbacks =
+                             CompactionCallbacks::LatestRevision);
 
     /**
      * Update the collection high-seqno (only if the flushed item is higher)

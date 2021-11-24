@@ -37,8 +37,11 @@ static std::pair<bool, std::optional<CollectionID>> getCollectionID(
 
 FlushAccounting::StatisticsUpdate&
 FlushAccounting::getStatsAndMaybeSetPersistedHighSeqno(
-        CollectionID cid, uint64_t seqno, WantsDropped wantsDropped) {
-    if (isLogicallyDeleted(cid, seqno) && wantsDropped == WantsDropped::Yes) {
+        CollectionID cid,
+        uint64_t seqno,
+        CompactionCallbacks compactionCallbacks) {
+    if (isLogicallyDeleted(cid, seqno) &&
+        compactionCallbacks == CompactionCallbacks::AnyRevision) {
         getStatsAndMaybeSetPersistedHighSeqno(stats, cid, seqno);
 
         return getStatsAndMaybeSetPersistedHighSeqno(droppedStats, cid, seqno);
@@ -164,7 +167,7 @@ void FlushAccounting::updateStats(const DocKey& key,
                                   IsDeleted isDelete,
                                   size_t size,
                                   IsCompaction isCompaction,
-                                  WantsDropped wantsDropped) {
+                                  CompactionCallbacks compactionCallbacks) {
     auto [isSystemEvent, cid] = getCollectionID(key);
 
     if (!cid) {
@@ -181,7 +184,7 @@ void FlushAccounting::updateStats(const DocKey& key,
 
     // Track high-seqno for the item
     auto& collsFlushStats = getStatsAndMaybeSetPersistedHighSeqno(
-            cid.value(), seqno, wantsDropped);
+            cid.value(), seqno, compactionCallbacks);
 
     // If we want the dropped stats then getStatsAndMaybeSetPersistedHighSeqno
     // would have returned a reference to stats in droppedCollections.
@@ -189,7 +192,7 @@ void FlushAccounting::updateStats(const DocKey& key,
     // high-seqno of the collection will change to be equal to the drop-event's
     // seqno. Empty collection detection relies on start-seqno == high-seqno.
     if (!isLogicallyDeleted(cid.value(), seqno) ||
-        wantsDropped == WantsDropped::Yes) {
+        compactionCallbacks == CompactionCallbacks::AnyRevision) {
         collsFlushStats.insert(isSystemEvent ? IsSystem::Yes : IsSystem::No,
                                isDelete,
                                isCommitted,
@@ -206,7 +209,7 @@ bool FlushAccounting::updateStats(const DocKey& key,
                                   IsDeleted oldIsDelete,
                                   size_t oldSize,
                                   IsCompaction isCompaction,
-                                  WantsDropped wantsDropped) {
+                                  CompactionCallbacks compactionCallbacks) {
     bool updateMeta = false;
 
     // Same logic (and comments) apply as per the above updateStats function.
@@ -223,15 +226,16 @@ bool FlushAccounting::updateStats(const DocKey& key,
     }
 
     auto& collsFlushStats = getStatsAndMaybeSetPersistedHighSeqno(
-            cid.value(), seqno, wantsDropped);
+            cid.value(), seqno, compactionCallbacks);
 
     // Logically deleted items don't update item-count/disk-size
     if (isLogicallyDeleted(cid.value(), seqno) &&
-        wantsDropped == WantsDropped::No) {
+        compactionCallbacks == CompactionCallbacks::LatestRevision) {
         return false;
     }
 
-    if (isSystemEvent == IsSystem::No && wantsDropped == WantsDropped::Yes &&
+    if (isSystemEvent == IsSystem::No &&
+        compactionCallbacks == CompactionCallbacks::AnyRevision &&
         (isLogicallyDeleted(cid.value(), oldSeqno) ||
          isLogicallyDeletedInStore(cid.value(), oldSeqno))) {
         // When we resurrect a collection and update a stat in it in this flush

@@ -72,7 +72,8 @@ public:
      * @param isDelete alive/delete state of the item flushed
      * @param size bytes used on disk of the item flushed
      * @param isCompaction Yes if the call originates from compaction replay
-     * @param wantsDropped should we update dropped stats?
+     * @param compactionCallbacks For which items does the store invoke the
+     *                            compaction callbacks?
      */
     void updateStats(const DocKey& key,
                      uint64_t seqno,
@@ -80,7 +81,8 @@ public:
                      IsDeleted isDelete,
                      size_t size,
                      IsCompaction isCompaction = IsCompaction::No,
-                     WantsDropped wantsDropped = WantsDropped::No);
+                     CompactionCallbacks compactionCallbacks =
+                             CompactionCallbacks::LatestRevision);
 
     /**
      * Update collection stats when an old 'version' of the item already exists.
@@ -95,7 +97,8 @@ public:
      * @param oldIsDelete alive/delete state of the old 'version' of the item
      * @param oldSize bytes used on disk of the old 'version' of the item
      * @param isCompaction Yes if the call originates from compaction replay
-     * @param wantsDropped should we update dropped stats?
+     * @param compactionCallbacks For which items does the store invoke the
+     *                            compaction callbacks?
      * @return bool should collections meta be updated due to stats change?
      */
     bool updateStats(const DocKey& key,
@@ -107,7 +110,8 @@ public:
                      IsDeleted oldIsDelete,
                      size_t oldSize,
                      IsCompaction isCompaction = IsCompaction::No,
-                     WantsDropped wantsDropped = WantsDropped::No);
+                     CompactionCallbacks compactionCallbacks =
+                             CompactionCallbacks::LatestRevision);
 
     /**
      * Update the collection high-seqno (only if the flushed item is higher)
@@ -308,13 +312,15 @@ private:
      *
      * @param cid CollectionID
      * @param seqno New high seqno to potentially update the persisted one
-     * @param wantsDropped Wants the stats of dropped collections
+     * @param compactionCallbacks For which items does the store invoke the
+     *                            compaction callbacks?
      * @return Stats reference
      */
     StatisticsUpdate& getStatsAndMaybeSetPersistedHighSeqno(
             CollectionID cid,
             uint64_t seqno,
-            WantsDropped wantsDropped = WantsDropped::No);
+            CompactionCallbacks compactionCallbacks =
+                    CompactionCallbacks::LatestRevision);
 
     /**
      * Helper for updateStats

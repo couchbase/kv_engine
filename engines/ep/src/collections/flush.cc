@@ -621,14 +621,14 @@ void Flush::updateStats(const DocKey& key,
                         IsCommitted isCommitted,
                         IsDeleted isDelete,
                         size_t size,
-                        WantsDropped wantsDropped) {
+                        CompactionCallbacks compactionCallbacks) {
     flushAccounting.updateStats(key,
                                 seqno,
                                 isCommitted,
                                 isDelete,
                                 size,
                                 IsCompaction::No,
-                                wantsDropped);
+                                compactionCallbacks);
 }
 
 void Flush::updateStats(const DocKey& key,
@@ -639,7 +639,7 @@ void Flush::updateStats(const DocKey& key,
                         uint64_t oldSeqno,
                         IsDeleted oldIsDelete,
                         size_t oldSize,
-                        WantsDropped wantsDropped) {
+                        CompactionCallbacks compactionCallbacks) {
     if (flushAccounting.updateStats(key,
                                     seqno,
                                     isCommitted,
@@ -649,7 +649,7 @@ void Flush::updateStats(const DocKey& key,
                                     oldIsDelete,
                                     oldSize,
                                     IsCompaction::No,
-                                    wantsDropped)) {
+                                    compactionCallbacks)) {
         setReadyForCommit();
     }
 }
