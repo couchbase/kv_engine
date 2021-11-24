@@ -121,7 +121,8 @@ void FlushAccounting::StatisticsUpdate::remove(
         IsDeleted isDelete,
         IsCommitted isCommitted,
         CompactionCallbacks compactionCallbacks,
-        ssize_t diskSizeDelta) {
+                                               size_t oldSize,
+                                               size_t newSize) {
     if (isSystem == IsSystem::No && isCommitted == IsCommitted::Yes) {
         decrementItemCount();
     }
@@ -130,7 +131,7 @@ void FlushAccounting::StatisticsUpdate::remove(
         flushedItem = true;
     }
 
-    updateDiskSize(diskSizeDelta);
+    updateDiskSize(newSize - oldSize);
 }
 
 FlushAccounting::FlushAccounting(
@@ -260,7 +261,8 @@ bool FlushAccounting::updateStats(const DocKey& key,
                            IsDeleted::No,
                            IsCommitted::Yes,
                            compactionCallbacks,
-                           size - oldSize);
+                           oldSize,
+                           size);
         }
 
         // May not have dropped the collection we're concerned with in this
@@ -331,7 +333,8 @@ bool FlushAccounting::updateStats(const DocKey& key,
                                    isDelete,
                                    isCommitted,
                                    compactionCallbacks,
-                                   size - oldSize);
+                                   oldSize,
+                                   size);
         }
     }
 

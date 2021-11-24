@@ -222,13 +222,15 @@ public:
          *                            compaction callbacks? Magma (AllRevisions)
          *                            does not count collection disk sizes for
          *                            tombstones.
-         * @param diskSizeDelta difference between new and old item
+         * @param oldSize old size of the item
+         * @param newSize size of the new item
          */
         void remove(IsSystem isSystem,
                     IsDeleted isDelete,
                     IsCommitted isCommitted,
                     CompactionCallbacks compactionCallbacks,
-                    ssize_t diskSizeDelta);
+                    size_t oldSize,
+                    size_t newSize);
 
         /**
          * @return the highest persisted seqno recorded by the Flush object.
