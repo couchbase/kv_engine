@@ -4328,6 +4328,65 @@ TEST_F(CollectionsTest, WriteToScopeWithLimit) {
                                  GenerateCas::No));
 }
 
+TEST_F(CollectionsTest, PerCollectionMemUsedAndDeleteVbucket) {
+    // Add a second vbucket
+    const auto vbid0 = vbid;
+    const auto vbid1 = Vbid(vbid.get() + 1);
+    setVBucketStateAndRunPersistTask(vbid1, vbucket_state_active);
+    const size_t htSize = 2;
+    auto vb0 = store->getVBucket(vbid0);
+    vb0->ht.resize(htSize);
+    ASSERT_EQ(htSize, vb0->ht.getSize());
+    auto vb1 = store->getVBucket(vbid1);
+    vb1->ht.resize(htSize);
+    ASSERT_EQ(htSize, vb1->ht.getSize());
+
+    // Need the keys to chain to exercise the loops inside HashTable
+    // These two keys will collide and chain
+    auto k1 = StoredDocKey{"1", CollectionEntry::defaultC};
+    auto k2 = StoredDocKey{"999", CollectionEntry::defaultC};
+    // Plus one extra key which doesn't collide - means we exercise both loops
+    // in the HashTable::clear_UNLOCKED code being tested
+    auto k3 = StoredDocKey{"2", CollectionEntry::defaultC};
+
+    auto getHashTableBucketNum = [&vb0](const DocKey& k) {
+        return vb0->ht.getLockedBucket(k).getBucketNum();
+    };
+
+    EXPECT_EQ(getHashTableBucketNum(k1), getHashTableBucketNum(k2));
+    EXPECT_NE(getHashTableBucketNum(k3), getHashTableBucketNum(k2));
+
+    auto addItems = [this, &k1, &k2, &k3](VBucketPtr& vb, Vbid id) {
+        // default collection memory usage should _increase_
+        auto d = MemChecker(vb, CollectionEntry::defaultC, std::greater<>());
+
+        store_item(id, k1, "v1");
+        store_item(id, k2, "v1");
+        store_item(id, k3, "v1");
+
+        flushVBucketToDiskIfPersistent(id, 3);
+    };
+
+    SCOPED_TRACE("new item added to collection vb:0");
+    addItems(vb0, vbid0);
+    auto vb0size =
+            engine->getEpStats().getCollectionMemUsed(CollectionID::Default);
+    SCOPED_TRACE("new item added to collection vb:1");
+    addItems(vb1, vbid1);
+
+    vb1.reset(); // deleting this one next
+    {
+        SCOPED_TRACE("Delete vb:1");
+        auto d = MemChecker(vb0, CollectionEntry::defaultC, std::less<>());
+        EXPECT_EQ(cb::engine_errc::success, store->deleteVBucket(vbid1));
+        // Run the deletion task
+        runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+    }
+
+    EXPECT_EQ(vb0size,
+              engine->getEpStats().getCollectionMemUsed(CollectionID::Default));
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
                          CollectionsExpiryLimitTest,
                          ::testing::Bool(),

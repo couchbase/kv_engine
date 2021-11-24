@@ -198,10 +198,37 @@ void HashTable::clear_UNLOCKED(bool deactivate) {
     if (deactivate) {
         setActiveState(false);
     }
-    const auto metadataMemory = valueStats.getMetaDataMemory();
+
+    // Account collection sizes so we can adjust the collection mem_used
+    std::unordered_map<CollectionID, size_t> memUsedAdjustment;
     for (auto& chain : values) {
+        if (chain) {
+            for (StoredValue* sv = chain.get().get(); sv != nullptr;
+                 sv = sv->getNext().get().get()) {
+                auto [itr, emplaced] = memUsedAdjustment.try_emplace(
+                        sv->getKey().getCollectionID(), sv->size());
+                if (!emplaced) {
+                    itr->second += sv->size();
+                }
+            }
+        }
+
         chain.reset();
     }
+
+    for (const auto [cid, size] : memUsedAdjustment) {
+        // Note: can't capture a structured binding, but can if we explicitly
+        // copy, these are just u32 and u64 types so copy is fine. c++20 fixes
+        stats.coreLocal.get()->collectionMemUsed.withLock(
+                [cid = cid, size = size](auto& map) {
+                    auto itr = map.find(cid);
+                    if (itr != map.end()) {
+                        itr->second -= size;
+                    }
+                });
+    }
+
+    const auto metadataMemory = valueStats.getMetaDataMemory();
     stats.coreLocal.get()->currentSize.fetch_sub(metadataMemory);
     valueStats.reset();
 }

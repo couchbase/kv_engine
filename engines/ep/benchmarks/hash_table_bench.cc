@@ -387,6 +387,48 @@ BENCHMARK_DEFINE_F(HashTableBench, Clear)(benchmark::State& state) {
     }
 }
 
+BENCHMARK_DEFINE_F(HashTableBench, MultiCollectionClear)
+(benchmark::State& state) {
+    // Benchmark - measure how long it takes to clear the HashTable when many
+    // collections exist
+    // Need to create Items each iteration so they have a ref-count of
+    // 1 in the HashTable and hence clear() has to delete them.
+
+    const size_t numCollections = state.range(0);
+    std::vector<CollectionID> collections;
+
+    CollectionIDType counter = CollectionID::Default;
+    while (collections.size() < numCollections) {
+        if (!CollectionID::isReserved(counter)) {
+            collections.emplace_back(counter);
+            stats.trackCollectionStats(counter);
+        }
+        ++counter;
+    }
+
+    while (state.KeepRunning()) {
+        state.PauseTiming();
+        // Vary item size across items; create a single sized string
+        // and then use a substring of it in ht.set().
+        const size_t itemSize = 256;
+        const auto data = std::string(itemSize, 'x');
+        auto itr = collections.begin();
+        for (size_t i = 0; i < numItems; i++) {
+            auto key = makeKey(CollectionID(*itr), "key", i);
+            ASSERT_EQ(MutationStatus::WasClean,
+                      ht.set({key, 0, 0, data.data(), (i % data.size()) + 1}));
+
+            ++itr;
+            if (itr == collections.end()) {
+                itr = collections.begin();
+            }
+        }
+        state.ResumeTiming();
+
+        ht.clear();
+    }
+}
+
 BENCHMARK_REGISTER_F(HashTableBench, FindForRead)
         ->ThreadPerCpu()
         ->Iterations(HashTableBench::numItems);
@@ -414,3 +456,6 @@ BENCHMARK_REGISTER_F(HashTableBench, HTStatsEpilogue)
         ->Range(1, 1000);
 
 BENCHMARK_REGISTER_F(HashTableBench, Clear)->Iterations(100);
+BENCHMARK_REGISTER_F(HashTableBench, MultiCollectionClear)
+        ->Iterations(100)
+        ->Range(100, 1000);
