@@ -529,9 +529,9 @@ cb::engine_errc SingleThreadedKVBucketTest::setCollections(
         return status;
     }
 
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpWriterQ = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
 
-    runNextTask(lpAuxioQ);
+    runNextTask(lpWriterQ);
 
     // Cookie now success
     EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(c));

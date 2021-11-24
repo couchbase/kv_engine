@@ -57,8 +57,8 @@ TEST_P(CollectionsManifestUpdatePersistent, update_fail_persist) {
     // fails
     cb::io::rmrf(test_dbname);
 
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
-    runNextTask(lpAuxioQ);
+    auto& lpWriterQ = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
+    runNextTask(lpWriterQ);
 
     EXPECT_EQ(cb::engine_errc::cannot_apply_collections_manifest,
               mock_waitfor_cookie(cookie));
