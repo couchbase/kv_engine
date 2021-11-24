@@ -190,6 +190,10 @@ public:
          * @param isDelete true if a deleted item is inserted (tombstone
          *        creation)
          * @param isCommitted does the item belong to the committed namespace?
+         * @param compactionCallbacks For which items does the store invoke the
+         *                            compaction callbacks? Magma (AllRevisions)
+         *                            does not count collection disk sizes for
+         *                            tombstones.
          * @param diskSize size in bytes 'inserted' into disk. Should be
          *        representative of the bytes used by each document, but does
          *        not need to be exact.
@@ -197,6 +201,7 @@ public:
         void insert(IsSystem isSystem,
                     IsDeleted isDelete,
                     IsCommitted isCommitted,
+                    CompactionCallbacks compactionCallbacks,
                     ssize_t diskSize);
 
         /**
@@ -213,11 +218,16 @@ public:
          * @param isDelete true if a deleted item is inserted (tombstone
          *        creation)
          * @param isCommitted does the item belong to the committed namespace?
+         * @param compactionCallbacks For which items does the store invoke the
+         *                            compaction callbacks? Magma (AllRevisions)
+         *                            does not count collection disk sizes for
+         *                            tombstones.
          * @param diskSizeDelta difference between new and old item
          */
         void remove(IsSystem isSystem,
                     IsDeleted isDelete,
                     IsCommitted isCommitted,
+                    CompactionCallbacks compactionCallbacks,
                     ssize_t diskSizeDelta);
 
         /**

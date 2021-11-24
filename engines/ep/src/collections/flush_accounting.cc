@@ -89,10 +89,12 @@ void FlushAccounting::StatisticsUpdate::updateDiskSize(ssize_t delta) {
     diskSize += delta;
 }
 
-void FlushAccounting::StatisticsUpdate::insert(IsSystem isSystem,
-                                               IsDeleted isDelete,
-                                               IsCommitted isCommitted,
-                                               ssize_t diskSizeDelta) {
+void FlushAccounting::StatisticsUpdate::insert(
+        IsSystem isSystem,
+        IsDeleted isDelete,
+        IsCommitted isCommitted,
+        CompactionCallbacks compactionCallbacks,
+        ssize_t diskSizeDelta) {
     if (isSystem == IsSystem::No && isDelete == IsDeleted::No &&
         isCommitted == IsCommitted::Yes) {
         incrementItemCount();
@@ -114,10 +116,12 @@ void FlushAccounting::StatisticsUpdate::update(ssize_t diskSizeDelta) {
     updateDiskSize(diskSizeDelta);
 }
 
-void FlushAccounting::StatisticsUpdate::remove(IsSystem isSystem,
-                                               IsDeleted isDelete,
-                                               IsCommitted isCommitted,
-                                               ssize_t diskSizeDelta) {
+void FlushAccounting::StatisticsUpdate::remove(
+        IsSystem isSystem,
+        IsDeleted isDelete,
+        IsCommitted isCommitted,
+        CompactionCallbacks compactionCallbacks,
+        ssize_t diskSizeDelta) {
     if (isSystem == IsSystem::No && isCommitted == IsCommitted::Yes) {
         decrementItemCount();
     }
@@ -196,6 +200,7 @@ void FlushAccounting::updateStats(const DocKey& key,
         collsFlushStats.insert(isSystemEvent ? IsSystem::Yes : IsSystem::No,
                                isDelete,
                                isCommitted,
+                               compactionCallbacks,
                                size);
     }
 }
@@ -254,6 +259,7 @@ bool FlushAccounting::updateStats(const DocKey& key,
             dropped.remove(IsSystem::No,
                            IsDeleted::No,
                            IsCommitted::Yes,
+                           compactionCallbacks,
                            size - oldSize);
         }
 
@@ -294,11 +300,18 @@ bool FlushAccounting::updateStats(const DocKey& key,
         // new key is live
         if (oldIsDropped) {
             // insert with the new size
-            collsFlushStats.insert(isSystemEvent, isDelete, isCommitted, size);
+            collsFlushStats.insert(isSystemEvent,
+                                   isDelete,
+                                   isCommitted,
+                                   compactionCallbacks,
+                                   size);
         } else if (oldIsDelete == IsDeleted::Yes) {
             // insert with the delta of old/new
-            collsFlushStats.insert(
-                    isSystemEvent, isDelete, isCommitted, size - oldSize);
+            collsFlushStats.insert(isSystemEvent,
+                                   isDelete,
+                                   isCommitted,
+                                   compactionCallbacks,
+                                   size - oldSize);
         } else {
             // update with the delta
             collsFlushStats.update(size - oldSize);
@@ -314,8 +327,11 @@ bool FlushAccounting::updateStats(const DocKey& key,
             collsFlushStats.update(size - oldSize);
         } else {
             // remove
-            collsFlushStats.remove(
-                    isSystemEvent, isDelete, isCommitted, size - oldSize);
+            collsFlushStats.remove(isSystemEvent,
+                                   isDelete,
+                                   isCommitted,
+                                   compactionCallbacks,
+                                   size - oldSize);
         }
     }
 
