@@ -43,12 +43,14 @@ public:
      * @param storeItemsForTest Lambda storing items we care about testing
      * @param postTimeTravelFn Labmda for doing things after the time travel
      * @param runPostCompactionFn Lambda to run during the post implicit
-     * compaction hook
+     * @param expectedCompactionStatus expected status of the implicit
+     * compaction compaction hook
      */
     void setupForImplicitCompactionTest(
             std::function<void()> storeItemsForTest,
             std::function<void()> postTimeTravelFn = doNothing,
-            std::function<void()> runPostCompactionFn = doNothing);
+            std::function<void()> runPostCompactionFn = doNothing,
+            magma::Status expectedCompactionStatus = magma::Status::OK());
 
     /**
      * Function to perform 15 writes so that the next flush will hit the
@@ -289,10 +291,12 @@ void STParamMagmaBucketTest::performWritesForImplicitCompaction() {
 void STParamMagmaBucketTest::setupForImplicitCompactionTest(
         std::function<void()> storeItemsForTest,
         std::function<void()> postTimeTravelFn,
-        std::function<void()> runPostCompactionFn) {
-    // Re-set the engine and warmup adding the magma rollback test config
-    // settings, so that we create a checkpoint at every flush
-    resetEngineAndWarmup(magmaRollbackConfig);
+        std::function<void()> runPostCompactionFn,
+        magma::Status expectedCompactionStatus) {
+    replaceMagmaKVStore();
+    // Make sure the makeCompactionContextCallback function is set in the new
+    // MagmaKVStore
+    getEPBucket().warmupCompleted();
 
     setVBucketStateAndRunPersistTask(
             vbid,
@@ -321,13 +325,8 @@ void STParamMagmaBucketTest::setupForImplicitCompactionTest(
 
     postTimeTravelFn();
 
-    ThreadGate tg(2);
     auto& bucket = dynamic_cast<EPBucket&>(*store);
-    bucket.postPurgeSeqnoImplicitCompactionHook =
-            [&tg, &runPostCompactionFn]() -> void {
-        tg.threadUp();
-        runPostCompactionFn();
-    };
+    bucket.postPurgeSeqnoImplicitCompactionHook = runPostCompactionFn;
 
     auto deletedNotPurgedKey = makeStoredDocKey("keyB");
     // Add a tombstone to check that we don't drop everything
@@ -339,20 +338,20 @@ void STParamMagmaBucketTest::setupForImplicitCompactionTest(
     // Flush the dummy value and second deleted value
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    // ensure we meet the LSMMaxNumLevel0Tables threshold
-    performWritesForImplicitCompaction();
+    auto magmaKVStore =
+            dynamic_cast<MockMagmaKVStore*>(store->getRWUnderlying(vbid));
+    ASSERT_TRUE(magmaKVStore);
 
-    // Wait till the purge seqno has been set
-    tg.threadUp();
+    // Create a new checkpoint so that we can perform implicit compaction on the
+    // old checkpoint
+    ASSERT_EQ(magma::Status::OK(), magmaKVStore->newCheckpoint(vbid));
+    EXPECT_EQ(expectedCompactionStatus,
+              magmaKVStore->runImplicitCompactKVStore(vbid));
 
     // Write and flush another value to cause a Sync in magma to occur which
     // will ensure that firstDeletedKey is no longer visible
     store_item(vbid, makeStoredDocKey("dummy2"), "value");
     flushVBucketToDiskIfPersistent(vbid, 1);
-
-    auto magmaKVStore =
-            dynamic_cast<MagmaKVStore*>(store->getRWUnderlying(vbid));
-    ASSERT_TRUE(magmaKVStore);
 
     // Assert that the deletedNotPurgedKey key is still a tombstone on disk as
     // it hasn't hit the purge threshold yet
@@ -553,7 +552,10 @@ TEST_P(STParamMagmaBucketTest, MB_48441) {
     setupForImplicitCompactionTest(
             []() {},
             []() {},
-            []() { throw std::runtime_error("this should be caught"); });
+            []() { throw std::runtime_error("this should be caught"); },
+            magma::Status(magma::Status::Internal,
+                          "MagmaKVStore::compactionCallBack() threw:'this "
+                          "should be caught'"));
 }
 
 TEST_P(STParamMagmaBucketTest, MagmaMemQuotaDynamicUpdate) {
