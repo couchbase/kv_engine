@@ -3291,10 +3291,6 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
 #ifdef EP_USE_MAGMA
     magmaMetaV0Size = magmakv::MetaData().encode().size();
 #endif
-    // Magma's meta data exptime are encoded using leb128, which causes the meta
-    // data size of deleted document to increase by 4 bytes due to the exptime
-    // being set in the deleted document
-    const auto magmaMetaV0DeletedSize = magmaMetaV0Size + 4;
 
     // Add the target collection
     CollectionEntry::Entry target = CollectionEntry::fruit;
@@ -3409,7 +3405,8 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     delete_item(vbid, key1);
     itemSize = key1.size() + MetaData::getMetaDataSize(MetaData::Version::V1);
     if (isMagma()) {
-        itemSize = key1.size() + magmaMetaV0DeletedSize;
+        // We don't track tombstones for magma in the collection disk size
+        itemSize = 0;
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
     stats = vb->getManifest().lock(target.getId()).getPersistedStats();

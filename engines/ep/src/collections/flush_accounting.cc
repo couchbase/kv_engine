@@ -104,6 +104,14 @@ void FlushAccounting::StatisticsUpdate::insert(
         flushedItem = true;
     }
 
+    if (isDelete == IsDeleted::Yes &&
+        compactionCallbacks == CompactionCallbacks::AnyRevision) {
+        // Not tracking tombstones in the disk size for magma because we can't
+        // decrement by the correct amount when purging them as we may purge
+        // stale versions
+        return;
+    }
+
     // else inserting a collection-start/prepare/tombstone/abort:
     // no item increment but account for the disk size change
     updateDiskSize(diskSizeDelta);
@@ -129,6 +137,12 @@ void FlushAccounting::StatisticsUpdate::remove(
 
     if (isSystem == IsSystem::No) {
         flushedItem = true;
+    }
+
+    if (compactionCallbacks == CompactionCallbacks::AnyRevision &&
+        isDelete == IsDeleted::Yes) {
+        updateDiskSize(-oldSize);
+        return;
     }
 
     updateDiskSize(newSize - oldSize);
@@ -309,11 +323,17 @@ bool FlushAccounting::updateStats(const DocKey& key,
                                    size);
         } else if (oldIsDelete == IsDeleted::Yes) {
             // insert with the delta of old/new
+            auto sizeUpdate = size - oldSize;
+            if (compactionCallbacks == CompactionCallbacks::AnyRevision) {
+                // Magma doesn't track tombstones in the disk size, need to
+                // increment by size rather than delta as we're undeleting
+                sizeUpdate = size;
+            }
             collsFlushStats.insert(isSystemEvent,
                                    isDelete,
                                    isCommitted,
                                    compactionCallbacks,
-                                   size - oldSize);
+                                   sizeUpdate);
         } else {
             // update with the delta
             collsFlushStats.update(size - oldSize);
@@ -323,10 +343,16 @@ bool FlushAccounting::updateStats(const DocKey& key,
         // new key is delete
         if (oldIsDropped) {
             // update with the size of the new tombstone
-            collsFlushStats.update(size);
+            if (compactionCallbacks == CompactionCallbacks::LatestRevision) {
+                // Magma doesn't track tombstones in the disk size
+                collsFlushStats.update(size);
+            }
         } else if (oldIsDelete == IsDeleted::Yes) {
             // update with the delta of old/new
-            collsFlushStats.update(size - oldSize);
+            if (compactionCallbacks == CompactionCallbacks::LatestRevision) {
+                // Magma doesn't track tombstones in the disk size
+                collsFlushStats.update(size - oldSize);
+            }
         } else {
             // remove
             collsFlushStats.remove(isSystemEvent,

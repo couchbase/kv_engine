@@ -2749,7 +2749,14 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSize) {
         delete_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC});
         KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
 
-        EXPECT_GT(getCollectionDiskSize(vb, CollectionEntry::defaultC.uid), 0);
+        if (isMagma()) {
+            // Magma doesn't track tombstones so size should go back to 0
+            EXPECT_EQ(getCollectionDiskSize(vb, CollectionEntry::defaultC.uid),
+                      0);
+        } else {
+            EXPECT_GT(getCollectionDiskSize(vb, CollectionEntry::defaultC.uid),
+                      0);
+        }
     }
 
     {
@@ -3990,8 +3997,7 @@ TEST_P(CollectionsEphemeralParameterizedTest, TrackSystemEventSize) {
     EXPECT_NE(0, getCollectionMemUsed(vb, CollectionEntry::meat.getId()));
 }
 
-// @todo: MB-45185 magma needs work to account for purged collections
-TEST_P(CollectionsCouchstoreParameterizedTest, TombstonePurge) {
+TEST_P(CollectionsPersistentParameterizedTest, TombstonePurge) {
     auto vb = store->getVBucket(vbid);
     // add two collections
     CollectionsManifest cm(CollectionEntry::dairy);
@@ -4057,8 +4063,13 @@ TEST_P(CollectionsCouchstoreParameterizedTest, TombstonePurge) {
 
     auto c1_d4 = manifest.lock(CollectionEntry::fruit).getDiskSize();
     auto c2_d4 = manifest.lock(CollectionEntry::dairy).getDiskSize();
-    EXPECT_LT(c1_d4, c1_d3);
-    EXPECT_LT(c2_d4, c2_d3);
+    if (isMagma()) {
+        EXPECT_EQ(c1_d4, c1_d3);
+        EXPECT_EQ(c2_d4, c2_d3);
+    } else {
+        EXPECT_LT(c1_d4, c1_d3);
+        EXPECT_LT(c2_d4, c2_d3);
+    }
     compareDiskStatMemoryVsPersisted();
 
     // Now purge those tombstones
@@ -4066,7 +4077,13 @@ TEST_P(CollectionsCouchstoreParameterizedTest, TombstonePurge) {
 
     auto c1_d5 = manifest.lock(CollectionEntry::fruit).getDiskSize();
     auto c2_d5 = manifest.lock(CollectionEntry::dairy).getDiskSize();
-    EXPECT_LT(c1_d5, c1_d4);
+    if (isMagma()) {
+        // Magma decrements the collection disk size when we delete items rather
+        // than when we purge the tombstones so no change is expected
+        EXPECT_EQ(c1_d5, c1_d4);
+    } else {
+        EXPECT_LT(c1_d5, c1_d4);
+    }
 
     // dairy is equal because we haven't purged the tombstone (it's the high
     // seqno which remains)
@@ -4100,7 +4117,14 @@ TEST_P(CollectionsPersistentParameterizedTest, DeleteDelete) {
             vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "nice+++");
     flushVBucketToDiskIfPersistent(vbid, 1);
     auto c1_diskSize3 = manifest.lock(CollectionEntry::fruit).getDiskSize();
-    EXPECT_GT(c1_diskSize3, c1_diskSize2);
+
+    if (isMagma()) {
+        // Magma decrements the entire document from the collection size at
+        // deletion
+        EXPECT_LT(c1_diskSize3, c1_diskSize2);
+    } else {
+        EXPECT_GT(c1_diskSize3, c1_diskSize2);
+    }
 
     // Now delete again (first we store, but don't flush the store)
     store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "nice+++");
