@@ -1701,8 +1701,12 @@ bool CouchKVStore::compactDBTryAndSwitchToNewFile(
         const CompactionReplayPrepareStats& prepareStats) {
     // Open the newly compacted VBucket database to update the cached vbstate
     DbHolder targetDb(*this);
-    auto errCode = openSpecificDB(
-            vbid, newRevision, targetDb, COUCHSTORE_OPEN_FLAG_RDONLY);
+    const auto errCode =
+            openSpecificDBFile(vbid,
+                               newRevision,
+                               targetDb,
+                               COUCHSTORE_OPEN_FLAG_RDONLY,
+                               getDBFileName(dbname, vbid, newRevision));
     if (errCode != COUCHSTORE_SUCCESS) {
         const auto newFileName = getDBFileName(dbname, vbid, newRevision);
         logger.warn(
@@ -2437,16 +2441,8 @@ couchstore_error_t CouchKVStore::openDB(Vbid vbucketId,
     // MB-27963: obtain read access whilst we open the file, updateDbFileMap
     // serialises on this mutex so we can be sure the fileRev we read should
     // still be a valid file once we hit sys_open
-    auto lockedRevMap = dbFileRevMap->rlock();
+    const auto lockedRevMap = dbFileRevMap->rlock();
     uint64_t fileRev = (*lockedRevMap)[getCacheSlot(vbucketId)];
-    return openSpecificDB(vbucketId, fileRev, db, options, ops);
-}
-
-couchstore_error_t CouchKVStore::openSpecificDB(Vbid vbucketId,
-                                                uint64_t fileRev,
-                                                DbHolder& db,
-                                                couchstore_open_flags options,
-                                                FileOpsInterface* ops) const {
     return openSpecificDBFile(vbucketId,
                               fileRev,
                               db,
