@@ -245,6 +245,10 @@ MagmaKVStore::MagmaCompactionCB::~MagmaCompactionCB() {
     magmaKVStore.logger->debug("MagmaCompactionCB destructor");
 }
 
+void MagmaKVStore::MagmaCompactionCB::addDocCountDelta(int64_t delta) {
+    magmaDbStats.docCount += delta;
+}
+
 bool MagmaKVStore::MagmaCompactionCB::operator()(
         const magma::Slice& keySlice,
         const magma::Slice& metaSlice,
@@ -2230,6 +2234,31 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                         cb::UserData{docKey.to_string()});
             }
 
+            // Mamga builds a MagmaCompactionCB for every table it visits in
+            // every level of the LSM when compacting a range (which is what
+            // we're doing here). We want to update the docCount stored in
+            // MagmaDbStats/UserStats during the call, but we don't want to do
+            // it that many times, we only want to do it once.
+            bool statsDeltaApplied = false;
+
+            auto collectionItemCount = stats.itemCount;
+            auto compactionCB = [this,
+                                 vbid,
+                                 &ctx,
+                                 &collectionItemCount,
+                                 &statsDeltaApplied](
+                                        const Magma::KVStoreID kvID) {
+                auto ret = std::make_unique<MagmaKVStore::MagmaCompactionCB>(
+                        *this, vbid, ctx);
+
+                if (!statsDeltaApplied) {
+                    statsDeltaApplied = true;
+                    ret->addDocCountDelta(-collectionItemCount);
+                }
+
+                return ret;
+            };
+
             status = magma->CompactKVStore(
                     vbid.get(), keySlice, keySlice, compactionCB);
 
@@ -2340,11 +2369,6 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         }
 
         addLocalDbReqs(localDbReqs, writeOps);
-        MagmaDbStats magmaDbStats;
-
-        magmaDbStats.docCount -= collectionItemsDropped;
-
-        addStatUpdateToWriteOps(magmaDbStats, writeOps);
 
         status = magma->WriteDocs(
                 vbid.get(), writeOps, kvstoreRevList[getCacheSlot(vbid)]);

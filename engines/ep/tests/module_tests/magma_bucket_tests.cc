@@ -57,6 +57,8 @@ public:
      * LSMMaxNumLevel0Tables threshold which will trigger implicit compaction
      */
     void performWritesForImplicitCompaction();
+
+    void testDiskStateAfterCompactKVStore(std::function<void()> completionCb);
 };
 
 /**
@@ -722,6 +724,62 @@ TEST_P(STParamMagmaBucketTest, FailCompactKVStoreCall) {
     // Items all gone, before the fix 1 would remain
     EXPECT_EQ(0, vb->getNumTotalItems());
     EXPECT_EQ(1, magmaKVStore.getKVStoreStat().numCompactionFailure);
+}
+
+void STParamMagmaBucketTest::testDiskStateAfterCompactKVStore(
+        std::function<void()> compactionCallback) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    ASSERT_TRUE(store_items(
+            1, vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value"));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    ASSERT_TRUE(store_items(
+            1, vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value"));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto& epBucket = dynamic_cast<EPBucket&>(*engine->getKVBucket());
+    auto* kvstore = epBucket.getRWUnderlying(vbid);
+
+    CompactionConfig config;
+    // Create a compaction context and cache the real compaction completion
+    // callback
+    auto ctx = epBucket.makeCompactionContext(vbid, config, 0);
+    auto realCompletionCallback = ctx->completionCallback;
+    ctx->completionCallback = [this,
+                               &realCompletionCallback,
+                               &kvstore,
+                               &compactionCallback](CompactionContext& ctx) {
+        compactionCallback();
+        realCompletionCallback(ctx);
+    };
+
+    auto vb = store->getLockedVBucket(vbid, std::try_to_lock);
+    auto& lock = vb.getLock();
+
+    ASSERT_EQ(1, kvstore->getItemCount(vbid));
+    ObjectRegistry::onSwitchThread(engine.get());
+    kvstore->compactDB(lock, ctx);
+}
+
+TEST_P(STParamMagmaBucketTest, ConsistentStateAfterCompactKVStoreCallDocCount) {
+    auto* kvstore = store->getRWUnderlying(vbid);
+    testDiskStateAfterCompactKVStore([this, &kvstore]() {
+        // This is the test. After we run CompactKVStore but before we
+        // complete the compaction we call the completionCallback.
+        // Before the fix local docs and item count were not up to date
+        // at this point.
+        EXPECT_EQ(0, kvstore->getItemCount(vbid));
+    });
+
+    EXPECT_EQ(0, kvstore->getItemCount(vbid));
 }
 
 INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,

@@ -639,6 +639,15 @@ protected:
         }
 
         /**
+         * Add a doc count delta to the the underlying MagmaDbStats. Used to
+         * decerement docCount by the size of a collection when we compact a
+         * range.
+         *
+         * @param delta to add
+         */
+        void addDocCountDelta(int64_t delta);
+
+        /**
          * Vbucket being compacted - required so that we can work out which
          * vBucket is being compacted for implicit (magma driven) compactions.
          */
