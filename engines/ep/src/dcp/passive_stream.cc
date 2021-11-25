@@ -522,7 +522,7 @@ process_items_error_t PassiveStream::processBufferedMessages(
             // anyway so we're more robust against any future code changes to
             // isActive and closeStream
             if (!buffer.messages.empty()) {
-                buffer.moveToFront(lh, std::move(response));
+                buffer.moveToFront(lh, {std::move(response), message_bytes});
             }
             lh.unlock();
             break;
@@ -1299,16 +1299,22 @@ void PassiveStream::Buffer::pop_front(const std::unique_lock<std::mutex>& lh) {
     if (messages.empty()) {
         return;
     }
-    bytes -= messages.front().second;
+    if (messages.front().first) {
+        bytes -= messages.front().second;
+    }
+
     messages.pop_front();
 }
 
 PassiveStream::Buffer::BufferType PassiveStream::Buffer::moveFromFront(
         const std::unique_lock<std::mutex>& lh) {
+    bytes -= messages.front().second;
     return {std::move(messages.front().first), messages.front().second};
 }
 
-void PassiveStream::Buffer::moveToFront(const std::unique_lock<std::mutex>& lh,
-                                        std::unique_ptr<DcpResponse> rsp) {
-    messages.front().first = std::move(rsp);
+void PassiveStream::Buffer::moveToFront(
+        const std::unique_lock<std::mutex>& lh,
+        PassiveStream::Buffer::BufferType bufferItem) {
+    bytes += bufferItem.second;
+    messages.front().first = std::move(bufferItem.first);
 }

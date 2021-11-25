@@ -317,6 +317,8 @@ protected:
          * the front. This allows for the caller to abort and use moveToFront to
          * put the DcpResponse back in the queue at the front.
          *
+         * This call will also decrement the Buffer::bytes member
+         *
          * @param lh Caller must lock bufMutex and provide a lock holder as
          *        evidence of doing so.
          * @return BufferType with the message.front() DcpResponse and ack size
@@ -330,10 +332,11 @@ protected:
          *
          * @param lh Caller must lock bufMutex and provide a lock holder as
          *        evidence of doing so.
-         * @param rsp DcpResponse that the Buffer will move to messages.front()
+         * @param bufferItem put back on the front of the queue the pair of
+         *        DcpResponse and ack size
          */
         void moveToFront(const std::unique_lock<std::mutex>& lh,
-                         std::unique_ptr<DcpResponse> rsp);
+                         PassiveStream::Buffer::BufferType bufferItem);
 
         size_t bytes{0};
         /* Lock ordering w.r.t to streamMutex:
