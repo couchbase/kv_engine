@@ -14,9 +14,11 @@
 #include <nlohmann/json.hpp>
 
 void to_json(nlohmann::json& json, const MagmaDbStats& dbStats) {
-    json = nlohmann::json{{"docCount", std::to_string(dbStats.docCount)},
-                          {"purgeSeqno", std::to_string(dbStats.purgeSeqno)},
-                          {"highSeqno", std::to_string(dbStats.highSeqno)}};
+    json = nlohmann::json{
+            {"docCount", std::to_string(dbStats.docCount)},
+            {"purgeSeqno", std::to_string(dbStats.purgeSeqno)},
+            {"highSeqno", std::to_string(dbStats.highSeqno)},
+            {"droppedCollectionStats", dbStats.droppedCollectionCounts}};
 }
 
 void from_json(const nlohmann::json& j, MagmaDbStats& dbStats) {
@@ -24,6 +26,9 @@ void from_json(const nlohmann::json& j, MagmaDbStats& dbStats) {
     dbStats.purgeSeqno.reset(
             std::stoull(j.at("purgeSeqno").get<std::string>()));
     dbStats.highSeqno.reset(std::stoull(j.at("highSeqno").get<std::string>()));
+    dbStats.droppedCollectionCounts =
+            j.at("droppedCollectionStats")
+                    .get<MagmaDbStats::DroppedCollectionsCountsMap>();
 }
 
 void MagmaDbStats::Merge(const UserStats& other) {
@@ -39,6 +44,27 @@ void MagmaDbStats::Merge(const UserStats& other) {
 
     if (otherStats->highSeqno > highSeqno) {
         highSeqno = otherStats->highSeqno;
+    }
+
+    for (const auto& [cid, docCount] : otherStats->droppedCollectionCounts) {
+        auto [itr, inserted] =
+                droppedCollectionCounts.try_emplace(cid, docCount);
+        if (!inserted) {
+            itr->second += docCount;
+        }
+    }
+
+    sanitizeDroppedCollections();
+}
+
+void MagmaDbStats::sanitizeDroppedCollections() {
+    auto itr = droppedCollectionCounts.begin();
+    while (itr != droppedCollectionCounts.end()) {
+        if (itr->second == 0) {
+            itr = droppedCollectionCounts.erase(itr);
+        } else {
+            itr++;
+        }
     }
 }
 

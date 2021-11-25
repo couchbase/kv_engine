@@ -51,6 +51,10 @@ public:
         compactionStatusHook = hook;
     }
 
+    std::optional<MagmaDbStats> public_getMagmaDbStats(Vbid vbid) {
+        return getMagmaDbStats(vbid);
+    }
+
     TestingHook<> readVBStateFromDiskHook;
 
     std::function<int(VB::Commit&, kvstats_ctx&)> saveDocsErrorInjector;

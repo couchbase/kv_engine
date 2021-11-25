@@ -322,11 +322,14 @@ public:
      * @param vbid vbucket id
      * @param localDbReqs vector of localDb updates
      * @param collectionsFlush flush object for a single 'flush/commit'
+     * @param dbStats MagmaDbStats updated during this flush batch
+     * @return status
      */
     magma::Status updateCollectionsMeta(
             Vbid vbid,
             LocalDbReqs& localDbReqs,
-            Collections::VB::Flush& collectionsFlush);
+            Collections::VB::Flush& collectionsFlush,
+            MagmaDbStats& dbStats);
 
     /**
      * Maintain the current uid committed
@@ -358,12 +361,14 @@ public:
      * @param vbid vbucket id
      * @param localDbReqs vector of localDb updates
      * @param collectionsFlush flush object for a single 'flush/commit'
+     * @param dbStats MagmaDbStats updated during this flush batch
      * @return status
      */
     magma::Status updateDroppedCollections(
             Vbid vbid,
             LocalDbReqs& localDbReqs,
-            Collections::VB::Flush& collectionsFlush);
+            Collections::VB::Flush& collectionsFlush,
+            MagmaDbStats& dbStats);
 
     /**
      * Maintain the list of open scopes
@@ -403,15 +408,6 @@ public:
     void saveCollectionStats(LocalDbReqs& localDbReqs,
                              CollectionID cid,
                              const Collections::VB::PersistedStats& stats);
-
-    /**
-     * Delete the dropped collection stats for the given collection id
-     *
-     * @param localDbReqs vector of localDb updates
-     * @param cid Collection ID
-     */
-    void deleteDroppedCollectionStats(LocalDbReqs& localDbReqs,
-                                      CollectionID cid);
 
     /**
      * Delete the collection stats for the given collection id
@@ -641,11 +637,12 @@ protected:
         /**
          * Add a doc count delta to the the underlying MagmaDbStats. Used to
          * decerement docCount by the size of a collection when we compact a
-         * range.
+         * range and remove the dropped collection stats
          *
+         * @param cid Collection id
          * @param delta to add
          */
-        void addDocCountDelta(int64_t delta);
+        void processCollectionPurgeDelta(CollectionID cid, int64_t delta);
 
         /**
          * Vbucket being compacted - required so that we can work out which

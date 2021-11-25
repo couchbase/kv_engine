@@ -916,6 +916,39 @@ TEST_P(STParamMagmaBucketTest, ImplicitCompactionCompletedPrepareRollback) {
     doRollbackAndVerifyCallback(highSeqno, purgedKey);
 }
 
+/**
+ * Test that disk state is "consistent" if we crash in the middle of a
+ * compaction after a CompactKVStore call but before we finalize local doc
+ * updates. Before, dropped collection stats were tracking in local docs which
+ * remained and caused us to underflow counters on a subsequent compaction.
+ */
+TEST_P(STParamMagmaBucketTest,
+       ConsistentStateAfterCompactKVStoreCallDroppedStats) {
+    testDiskStateAfterCompactKVStore(
+            [this]() { throw std::runtime_error("oops"); });
+
+    resetEngineAndWarmup();
+
+    replaceMagmaKVStore();
+
+    // Run the compaction again and before the fix we'd underflow the vBucket
+    // doc count
+    runCompaction(vbid);
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    EXPECT_EQ(0, kvstore->getKVStoreStat().numCompactionFailure);
+
+    EXPECT_EQ(0, kvstore->getItemCount(vbid));
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumTotalItems());
+
+    // Dropped collection stats should be gone now.
+    auto* magmaKVStore =
+            dynamic_cast<MockMagmaKVStore*>(store->getRWUnderlying(vbid));
+    auto stats = magmaKVStore->public_getMagmaDbStats(vbid);
+    ASSERT_TRUE(stats);
+    EXPECT_TRUE(stats->droppedCollectionCounts.empty());
+}
+
 INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
                          STParamMagmaBucketTest,
                          STParameterizedBucketTest::magmaConfigValues(),
