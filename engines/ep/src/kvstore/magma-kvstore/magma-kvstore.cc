@@ -2302,13 +2302,10 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                         cb::UserData{key.to_string()});
             }
 
-            // Drop the collection stats local doc which we kept around until
-            // now to maintain the document count when we erase the collections.
-            // But only after checking the ordering (seqno). Stats are only
-            // removed if there is no recreation of the collection.
-            if (dc.endSeqno > stats.highSeqno) {
-                deleteDroppedCollectionStats(localDbReqs, dc.collectionId);
-            }
+            // @TODO MB-48659: A collection resurrection at an inopportune
+            // moment would result in stats errors as we delete the local
+            // doc even if there is a new dropped generation.
+            deleteDroppedCollectionStats(localDbReqs, dc.collectionId);
             ctx->eraserContext->processSystemEvent(key.getDocKey(),
                                                    SystemEvent::Collection);
 
