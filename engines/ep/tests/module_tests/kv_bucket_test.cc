@@ -33,6 +33,9 @@
 #include "failover-table.h"
 #include "flusher.h"
 #include "kv_bucket.h"
+#ifdef EP_USE_MAGMA
+#include "kvstore/magma-kvstore/magma-kvstore_config.h"
+#endif
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/couch-kvstore/couch-kvstore.h"
 #include "lambda_task.h"
@@ -499,6 +502,16 @@ void KVBucketTest::replaceMagmaKVStore(MagmaKVStoreConfig& config) {
     store->takeRW(0);
     auto rw = std::make_unique<MockMagmaKVStore>(config);
     store->setRW(0, std::move(rw));
+#endif
+}
+
+void KVBucketTest::replaceMagmaKVStore() {
+#ifdef EP_USE_MAGMA
+    // Get hold of the current Magma config so we can create a MockMagmaKVStore
+    // with the same config
+    const auto& config = store->getRWUnderlying(vbid)->getConfig();
+    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
+    replaceMagmaKVStore(dynamic_cast<MagmaKVStoreConfig&>(nonConstConfig));
 #endif
 }
 

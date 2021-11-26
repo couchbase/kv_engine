@@ -318,10 +318,16 @@ public:
     void replaceCouchKVStore(FileOpsInterface& ops);
 
     /**
-     * Replace the r/w KVStore with one that uses the given ops. This function
-     * will test the config to be sure the KVBucket is persistent/magma.
+     * Replace the r/w KVStore with a MockMagmaKVStore. This function will test
+     * the config to be sure the KVBucket is persistent/magma.
      */
     void replaceMagmaKVStore(MagmaKVStoreConfig& config);
+
+    /**
+     * Replace the r/w KVStore with a MockMagmaKVStore. Without having to
+     * specify the Magma config.
+     */
+    void replaceMagmaKVStore();
 
     unique_request_ptr createObserveRequest(
             const std::vector<std::string>& key);

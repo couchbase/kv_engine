@@ -70,9 +70,7 @@ public:
  * background threads and use the IO error injection instead of mock functions.
  */
 TEST_P(STParamMagmaBucketTest, ResetPCursorAtPersistNonMetaItems) {
-    const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceMagmaKVStore(dynamic_cast<MagmaKVStoreConfig&>(nonConstConfig));
+    replaceMagmaKVStore();
 
     setVBucketStateAndRunPersistTask(
             vbid,
@@ -666,9 +664,7 @@ TEST_P(STParamMagmaBucketTest, MB_47566) {
  * Test that when we fail a CompactKVStore call we update stats appropriately
  */
 TEST_P(STParamMagmaBucketTest, FailCompactKVStoreCall) {
-    const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceMagmaKVStore(dynamic_cast<MagmaKVStoreConfig&>(nonConstConfig));
+    replaceMagmaKVStore();
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
