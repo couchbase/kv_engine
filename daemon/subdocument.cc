@@ -1002,7 +1002,7 @@ static bool subdoc_operate(SubdocCmdContext& context) {
         return true;
     }
 
-    ScopeTimer2<HdrMicroSecStopwatch, cb::tracing::SpanStopwatch> timer(
+    ScopeTimer<HdrMicroSecStopwatch, cb::tracing::SpanStopwatch> timer(
             std::forward_as_tuple(
                     context.connection.getBucket().subjson_operation_times),
             std::forward_as_tuple(context.cookie,

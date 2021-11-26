@@ -117,7 +117,7 @@ static void do_audit(Cookie* cookie,
                      const char* warn) {
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch> timer(cookie, Code::Audit);
+    ScopeTimer<SpanStopwatch> timer(std::forward_as_tuple(cookie, Code::Audit));
 
     auto text = event.dump();
     getAuditHandle().withRLock([id, warn, &text](auto& handle) {
@@ -294,7 +294,7 @@ bool mc_audit_event(Cookie& cookie,
 
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch> timer(cookie, Code::Audit);
+    ScopeTimer<SpanStopwatch> timer(std::forward_as_tuple(cookie, Code::Audit));
     return getAuditHandle().withRLock([audit_eventid, buffer](auto& handle) {
         if (!handle) {
             return false;
@@ -424,7 +424,8 @@ void shutdown_audit() {
 cb::engine_errc reconfigure_audit(Cookie& cookie) {
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch> timer(cookie, Code::AuditReconfigure);
+    ScopeTimer<SpanStopwatch> timer(
+            std::forward_as_tuple(cookie, Code::AuditReconfigure));
 
     return getAuditHandle().withRLock([&cookie](auto& handle) {
         if (!handle) {
@@ -441,7 +442,8 @@ cb::engine_errc reconfigure_audit(Cookie& cookie) {
 void stats_audit(const StatCollector& collector, Cookie* cookie) {
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch> timer(cookie, Code::AuditStats);
+    ScopeTimer<SpanStopwatch> timer(
+            std::forward_as_tuple(cookie, Code::AuditStats));
     getAuditHandle().withRLock([&collector](auto& handle) {
         if (handle) {
             handle->stats(collector);

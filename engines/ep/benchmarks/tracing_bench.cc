@@ -45,12 +45,12 @@ void SessionTracingScopeTimer(benchmark::State& state) {
     while (state.KeepRunning()) {
         // Representative set of scopes for recording a mutation's work.
         {
-            ScopeTimer1<TracerStopwatch> timer(cookie,
-                                               cb::tracing::Code::Request);
+            ScopeTimer<TracerStopwatch> timer(
+                    std::forward_as_tuple(cookie, cb::tracing::Code::Request));
         }
         {
-            ScopeTimer1<TracerStopwatch> timer(cookie,
-                                               cb::tracing::Code::Store);
+            ScopeTimer<TracerStopwatch> timer(
+                    std::forward_as_tuple(cookie, cb::tracing::Code::Store));
         }
 
         cookie_to_mock_cookie(cookie)->getTracer().clear();
@@ -69,8 +69,8 @@ void SessionTracingEncode(benchmark::State& state) {
     auto& traceable = *cookie_to_mock_cookie(cookie);
     traceable.setTracingEnabled(true);
     {
-        ScopeTimer1<TracerStopwatch> timer(
-                TracerStopwatch(cookie, cb::tracing::Code::Request));
+        ScopeTimer<TracerStopwatch> timer(
+                std::forward_as_tuple(cookie, cb::tracing::Code::Request));
     }
 
     while (state.KeepRunning()) {

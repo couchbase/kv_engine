@@ -133,7 +133,8 @@ std::string getStatsResetTime() {
 void disconnect_bucket(Bucket& bucket, Cookie* cookie) {
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch> timer(cookie, Code::DisassociateBucket);
+    ScopeTimer<SpanStopwatch> timer(
+            std::forward_as_tuple(cookie, Code::DisassociateBucket));
     cb::tracing::MutexSpan guard(cookie,
                                  bucket.mutex,
                                  Code::BucketLockWait,
@@ -198,7 +199,8 @@ bool associate_bucket(Connection& connection,
 bool associate_bucket(Cookie& cookie, const char* name) {
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch> timer(cookie, Code::AssociateBucket);
+    ScopeTimer<SpanStopwatch> timer(
+            std::forward_as_tuple(cookie, Code::AssociateBucket));
     return associate_bucket(cookie.getConnection(), name, &cookie);
 }
 
