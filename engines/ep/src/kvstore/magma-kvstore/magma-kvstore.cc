@@ -2190,12 +2190,12 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
             return false;
         }
     } else {
-        std::vector<std::pair<Collections::KVStore::DroppedCollection,
-                              Collections::VB::PersistedStats>>
+        std::vector<
+                std::pair<Collections::KVStore::DroppedCollection, uint64_t>>
                 dcInfo;
         for (auto& dc : dropped) {
-            auto [status, stats] =
-                    getDroppedCollectionStats(vbid, dc.collectionId);
+            auto [status, itemCount] =
+                    getDroppedCollectionItemCount(vbid, dc.collectionId);
             if (status == KVStore::GetCollectionStatsStatus::Failed) {
                 logger->warn(
                         "MagmaKVStore::compactDBInternal getCollectionStats() "
@@ -2205,7 +2205,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                         vbid);
                 return false;
             }
-            dcInfo.emplace_back(dc, stats);
+            dcInfo.emplace_back(dc, itemCount);
         }
 
         // For magma we also need to compact the prepare namespace as this is
@@ -2223,7 +2223,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                     status.String());
         }
 
-        for (auto& [dc, stats] : dcInfo) {
+        for (auto& [dc, itemCount] : dcInfo) {
             std::string keyString =
                     Collections::makeCollectionIdIntoString(dc.collectionId);
             Slice keySlice{keyString};
@@ -2244,7 +2244,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
             // it that many times, we only want to do it once.
             bool statsDeltaApplied = false;
 
-            auto collectionItemCount = stats.itemCount;
+            auto collectionItemCount = itemCount;
             auto compactionCB = [this,
                                  vbid,
                                  &ctx,
@@ -2283,7 +2283,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
             // times per key. We CAN just subtract the number of items we know
             // belong to the collection though before we update the vBucket doc
             // count.
-            collectionItemsDropped += stats.itemCount;
+            collectionItemsDropped += itemCount;
 
             // We've finish processing this collection.
             // Create a SystemEvent key for the collection and process it.
@@ -2764,8 +2764,8 @@ magma::Status MagmaKVStore::updateDroppedCollections(
 
         // Step 1) Read the dropped stats - they may already exist and we should
         // add to their values if they do.
-        auto [droppedStatus, droppedCollStats] =
-                getDroppedCollectionStats(vbid, cid);
+        auto [droppedStatus, droppedItemCount] =
+                getDroppedCollectionItemCount(vbid, cid);
 
         // Step 2) Read the current alive stats on disk, we'll add them to
         // the dropped stats as the collection is now gone, provided we dropped
@@ -2775,19 +2775,20 @@ magma::Status MagmaKVStore::updateDroppedCollections(
         if (droppedInBatch) {
             auto [getStatus, currentAliveStats] = getCollectionStats(vbid, cid);
             if (status) {
-                droppedCollStats.itemCount += currentAliveStats.itemCount;
-                droppedCollStats.diskSize += currentAliveStats.diskSize;
+                droppedItemCount += currentAliveStats.itemCount;
             }
         }
 
         // Step 3) Add the dropped stats from FlushAccounting
         auto droppedInFlush = collectionsFlush.getDroppedStats(cid);
-        droppedCollStats.itemCount += droppedInFlush.getItemCount();
-        droppedCollStats.diskSize += droppedInFlush.getDiskSize();
+        droppedItemCount += droppedInFlush.getItemCount();
+        ;
 
         // Step 4) Write the new dropped stats back for compaction
         auto key = getDroppedCollectionsStatsKey(cid);
-        auto encodedStats = droppedCollStats.getLebEncodedStats();
+        Collections::VB::PersistedStats stats;
+        stats.itemCount = droppedItemCount;
+        auto encodedStats = stats.getLebEncodedStats();
         localDbReqs.emplace_back(MagmaLocalReq(key, std::move(encodedStats)));
 
         // Step 5) Delete the latest alive stats if the collection wasn't
@@ -2830,10 +2831,11 @@ MagmaKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
             kvfh.vbid, getCollectionsStatsKey(cid), kvfh.snapshot.get());
 }
 
-std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>
-MagmaKVStore::getDroppedCollectionStats(Vbid vbid, CollectionID cid) const {
+std::pair<KVStore::GetCollectionStatsStatus, uint64_t>
+MagmaKVStore::getDroppedCollectionItemCount(Vbid vbid, CollectionID cid) const {
     auto key = getDroppedCollectionsStatsKey(cid);
-    return getCollectionStats(vbid, key);
+    auto [status, stats] = getCollectionStats(vbid, key);
+    return {status, stats.itemCount};
 }
 
 std::pair<KVStore::GetCollectionStatsStatus, Collections::VB::PersistedStats>

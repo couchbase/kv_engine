@@ -257,13 +257,13 @@ public:
                        magma::Magma::Snapshot* snapshot = nullptr) const;
 
     /**
-     * Get the dropped collection stats for the given collection
+     * Get the dropped collection item count for the given collection
      * @param vbid Vbid
      * @param collection to find stats for
-     * @return Bool statis and Stats (defaulted to 0 if not found)
+     * @return Bool status and item count (default to 0 if not found)
      */
-    std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
-    getDroppedCollectionStats(Vbid vbid, CollectionID collection) const;
+    std::pair<GetCollectionStatsStatus, uint64_t> getDroppedCollectionItemCount(
+            Vbid vbid, CollectionID collection) const;
 
     /**
      * Increment the kvstore revision.
