@@ -9,19 +9,16 @@
  *   the file licenses/APL2.txt.
  */
 
+#pragma once
+
 #include "vbucket_fwd.h"
-
 #include <memcached/dockey.h>
-
-#include <string>
-
 #include <functional>
+#include <string>
 
 namespace CollectionEntry {
 struct Entry;
 }
-
-#pragma once
 
 /**
  * RAII helper to check the per-collection stats changes in the expected

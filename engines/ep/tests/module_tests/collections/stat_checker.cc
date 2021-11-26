@@ -9,20 +9,15 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "tests/module_tests/collections/stat_checker.h"
 #include "collections/collection_persisted_stats.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
-
 #include "kvshard.h"
 #include "kvstore/kvstore.h"
-
 #include "stats.h"
-#include "tests/module_tests/collections/stat_checker.h"
 #include "tests/module_tests/vbucket_utils.h"
-
 #include "vbucket.h"
-#include "vbucket_fwd.h"
-
 #include <folly/portability/GMock.h>
 #include <utilities/test_manifest.h>
 
