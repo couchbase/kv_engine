@@ -39,6 +39,7 @@
 #include <platform/compress.h>
 #include <platform/dirutils.h>
 
+#include <spdlog/common.h>
 #include <charconv>
 #include <memory>
 #include <shared_mutex>
@@ -2504,18 +2505,12 @@ couchstore_error_t CouchKVStore::openSpecificDBFile(
     st.numOpen++;
     if (errorCode) {
         st.numOpenFailure++;
-        logger.warn(
-                "CouchKVStore::openSpecificDBFile: error:{} [{}],"
-                " name:{}, option:{}, fileRev:{}",
-                couchstore_strerror(errorCode),
-                cb_strerror(),
-                dbFileName,
-                options,
-                fileRev);
-
-        if (errorCode == COUCHSTORE_ERROR_NO_SUCH_FILE) {
-            logExistingVBucketFiles(vbucketId);
-        }
+        logOpenError(__func__,
+                     spdlog::level::level_enum::warn,
+                     errorCode,
+                     vbucketId,
+                     dbFileName,
+                     options);
     }
 
     return errorCode;
@@ -2529,6 +2524,25 @@ void CouchKVStore::logExistingVBucketFiles(Vbid vbid) const {
             "CouchKVStore: Found {} existing files for {}", files.size(), vbid);
     for (const auto& f : files) {
         logger.info("CouchKVStore: Found {}", f);
+    }
+}
+
+void CouchKVStore::logOpenError(std::string_view caller,
+                                spdlog::level::level_enum level,
+                                couchstore_error_t errCode,
+                                Vbid vbid,
+                                std::string_view filename,
+                                couchstore_open_flags options) const {
+    logger.log(level,
+               "CouchKVStore::{}: Open error:{} [{}], filename:{}, option:{}",
+               caller,
+               couchstore_strerror(errCode),
+               cb_strerror(),
+               filename,
+               options);
+
+    if (errCode == COUCHSTORE_ERROR_NO_SUCH_FILE) {
+        logExistingVBucketFiles(vbid);
     }
 }
 

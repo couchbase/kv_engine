@@ -17,15 +17,16 @@
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_priv.h"
 #include "kvstore/kvstore_transaction_context.h"
-#include "libcouchstore/couch_db.h"
-#include <platform/monotonic.h>
+#include "vbucket_state.h"
 
 #include <folly/SharedMutex.h>
 #include <folly/Synchronized.h>
+#include <libcouchstore/couch_db.h>
+#include <platform/monotonic.h>
 #include <platform/strerror.h>
 #include <relaxed_atomic.h>
+#include <spdlog/common.h>
 
-#include <engines/ep/src/vbucket_state.h>
 #include <map>
 #include <memory>
 #include <string>
@@ -545,6 +546,16 @@ protected:
      * Looks for vbucket data files and dumps to log.
      */
     void logExistingVBucketFiles(Vbid vbid) const;
+
+    /**
+     * Helper function for logging file-open errors and related useful info.
+     */
+    void logOpenError(std::string_view caller,
+                      spdlog::level::level_enum level,
+                      couchstore_error_t errCode,
+                      Vbid vbid,
+                      std::string_view filename,
+                      couchstore_open_flags options) const;
 
     /**
      * save the Documents held in docs to the file associated with vbid/rev
