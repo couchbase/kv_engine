@@ -2458,10 +2458,6 @@ void NexusKVStore::setPostFlushHook(std::function<void()> hook) {
     primary->setPostFlushHook(hook);
 }
 
-void NexusKVStore::setSaveDocsPostWriteDocsHook(std::function<void()> hook) {
-    primary->setSaveDocsPostWriteDocsHook(hook);
-}
-
 nlohmann::json NexusKVStore::getPersistedStats() const {
     return primary->getPersistedStats();
 }

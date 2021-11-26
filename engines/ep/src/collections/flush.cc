@@ -115,10 +115,26 @@ void Flush::forEachDroppedCollection(
 // Called from KVStore after a successful commit.
 // This method will iterate through all of the collection stats that the Flush
 // gathered and attempt to update the VB::Manifest (which is where cmd_stat
-// reads from).
+// reads from). This method has to consider that the VB::Manifest can
+// be modified by changes to the collections manifest during the flush, for
+// example by the time we've gathered statistics about a collection, the
+// VB::Manifest may have 1) dropped the collection 2) dropped and recreated
+// the collection - in either of these cases the gathered statistics are no
+// longer applicable and are not pushed to the VB::Manifest.
 void Flush::postCommitMakeStatsVisible() {
     for (const auto& [cid, flushStats] : flushAccounting.getStats()) {
-        manifest.get().applyFlusherStats(cid, flushStats);
+        auto lock = manifest.get().lock(cid);
+        if (!lock.valid() ||
+            lock.isLogicallyDeleted(flushStats.getPersistedHighSeqno())) {
+            // Can be flushing for a dropped collection (no longer in the
+            // manifest, or was flushed/recreated at a new seqno)
+            continue;
+        }
+        // update the stats with the changes collected by the flusher
+        lock.updateItemCount(flushStats.getItemCount());
+        lock.setPersistedHighSeqno(flushStats.getPersistedHighSeqno());
+        lock.updateDiskSize(flushStats.getDiskSize());
+        lock.updateScopeDataSize(flushStats.getDiskSize());
     }
 }
 

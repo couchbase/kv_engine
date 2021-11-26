@@ -868,10 +868,6 @@ public:
         postFlushHook = hook;
     }
 
-    void setSaveDocsPostWriteDocsHook(std::function<void()> hook) override {
-        saveDocsPostWriteDocsHook = hook;
-    }
-
     void endTransaction(Vbid vbid) override;
 
     /**
@@ -966,10 +962,6 @@ protected:
     // Test-only. If set, this is executed after the a flush-batch is committed
     // to disk but before we call back into the PersistenceCallback.
     TestingHook<> postFlushHook;
-
-    // Test-only. Hook which is called in saveDocs after documents have
-    // been written to the underlying KVStore, but before any stats updates.
-    TestingHook<> saveDocsPostWriteDocsHook;
 };
 
 std::string to_string(FlushStateDeletion status);

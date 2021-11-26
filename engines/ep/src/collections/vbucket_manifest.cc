@@ -263,23 +263,6 @@ ManifestUpdateStatus Manifest::update(VBucket& vb,
     return ManifestUpdateStatus::Success;
 }
 
-void Manifest::applyFlusherStats(
-        CollectionID cid, const FlushAccounting::StatisticsUpdate& flushStats) {
-    // Check if collection is currently alive - if so apply to main mainfest
-    // stats.
-    auto collection = lock(cid);
-    if (collection.isLogicallyDeleted(flushStats.getPersistedHighSeqno())) {
-        // Update the stats for the dropped collection.
-        droppedCollections.wlock()->applyStatsChanges(cid, flushStats);
-    } else {
-        // update the "live" stats.
-        collection.updateItemCount(flushStats.getItemCount());
-        collection.setPersistedHighSeqno(flushStats.getPersistedHighSeqno());
-        collection.updateDiskSize(flushStats.getDiskSize());
-        collection.updateScopeDataSize(flushStats.getDiskSize());
-    }
-}
-
 // This function performs the final part of the vbucket collection update.
 // The function processes each of the changeset vectors and the ordering is
 // important. The ordering of the system-events into the vbucket defines
@@ -1387,28 +1370,8 @@ void Manifest::DroppedCollections::remove(CollectionID cid, uint64_t seqno) {
                            " " + ss.str());
 }
 
-void Manifest::DroppedCollections::applyStatsChanges(
-        CollectionID cid, const FlushAccounting::StatisticsUpdate& update) {
-    auto& droppedInfo =
-            findInfo("Manifest::DroppedCollections::applyStatsChanges",
-                     cid,
-                     update.getPersistedHighSeqno());
-    droppedInfo.itemCount += update.getItemCount();
-    droppedInfo.diskSize += update.getDiskSize();
-    droppedInfo.highSeqno =
-            std::max(droppedInfo.highSeqno, update.getPersistedHighSeqno());
-}
-
 StatsForFlush Manifest::DroppedCollections::get(CollectionID cid,
                                                 uint64_t seqno) const {
-    const auto& droppedInfo =
-            findInfo("Manifest::DroppedCollections::get", cid, seqno);
-    return StatsForFlush{
-            droppedInfo.itemCount, droppedInfo.diskSize, droppedInfo.highSeqno};
-}
-
-const Manifest::DroppedCollectionInfo& Manifest::DroppedCollections::findInfo(
-        std::string_view callerName, CollectionID cid, uint64_t seqno) const {
     auto dropItr = droppedCollections.find(cid);
 
     if (dropItr == droppedCollections.end()) {
@@ -1416,19 +1379,22 @@ const Manifest::DroppedCollectionInfo& Manifest::DroppedCollections::findInfo(
         // had items we created for a collection which is open or was open.
         // to not find the collection at all means we have flushed an item
         // to a collection that never existed.
-        throw std::logic_error(std::string{callerName} +
+        throw std::logic_error(std::string(__PRETTY_FUNCTION__) +
                                " The collection cannot be found collection:" +
                                cid.to_string() +
                                " seqno:" + std::to_string(seqno));
     }
+
     // loop - the length of this list in reality would be short it would
     // each 'depth' requires the collection to be dropped once, so length of
     // n means collection was drop/re-created n times.
-    for (auto& droppedInfo : dropItr->second) {
+    for (const auto& droppedInfo : dropItr->second) {
         // If the seqno is of the range of this dropped generation, this is
         // a match.
         if (seqno >= droppedInfo.start && seqno <= droppedInfo.end) {
-            return droppedInfo;
+            return StatsForFlush{droppedInfo.itemCount,
+                                 droppedInfo.diskSize,
+                                 droppedInfo.highSeqno};
         }
     }
 
@@ -1437,16 +1403,9 @@ const Manifest::DroppedCollectionInfo& Manifest::DroppedCollections::findInfo(
 
     // Similar to above, we should find something
     throw std::logic_error(
-            std::string{callerName} +
+            std::string(__PRETTY_FUNCTION__) +
             " The collection seqno cannot be found cid:" + cid.to_string() +
             " seqno:" + std::to_string(seqno) + " " + ss.str());
-}
-
-Manifest::DroppedCollectionInfo& Manifest::DroppedCollections::findInfo(
-        std::string_view callerName, CollectionID cid, uint64_t seqno) {
-    return const_cast<DroppedCollectionInfo&>(
-            const_cast<const DroppedCollections*>(this)->findInfo(
-                    callerName, cid, seqno));
 }
 
 size_t Manifest::DroppedCollections::size() const {
