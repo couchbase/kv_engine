@@ -2483,7 +2483,7 @@ couchstore_error_t CouchKVStore::openSpecificDBFile(
         options |= COUCHSTORE_OPEN_WITH_TRACING;
         if (!(options & COUCHSTORE_OPEN_FLAG_RDONLY)) {
             TRACE_INSTANT2("couchstore_write",
-                           "openSpecificDB",
+                           "openSpecificDBFile",
                            "vbucketId",
                            vbucketId.get(),
                            "fileRev",
@@ -2505,7 +2505,7 @@ couchstore_error_t CouchKVStore::openSpecificDBFile(
     if (errorCode) {
         st.numOpenFailure++;
         logger.warn(
-                "CouchKVStore::openDB: error:{} [{}],"
+                "CouchKVStore::openSpecificDBFile: error:{} [{}],"
                 " name:{}, option:{}, fileRev:{}",
                 couchstore_strerror(errorCode),
                 cb_strerror(),
@@ -2514,24 +2514,22 @@ couchstore_error_t CouchKVStore::openSpecificDBFile(
                 fileRev);
 
         if (errorCode == COUCHSTORE_ERROR_NO_SUCH_FILE) {
-            std::string filename = dbFileName;
-            auto dotPos = filename.find_last_of(".");
-            if (dotPos != std::string::npos) {
-                filename = filename.substr(0, dotPos);
-            }
-            auto files = cb::io::findFilesWithPrefix(filename);
-            logger.warn(
-                    "CouchKVStore::openDB: No such file, found:{} alternative "
-                    "files for {}",
-                    files.size(),
-                    dbFileName);
-            for (const auto& f : files) {
-                logger.warn("CouchKVStore::openDB: Found {}", f);
-            }
+            logExistingVBucketFiles(vbucketId);
         }
     }
 
     return errorCode;
+}
+
+void CouchKVStore::logExistingVBucketFiles(Vbid vbid) const {
+    const std::string filePrefix =
+            dbname + "/" + std::to_string(vbid.get()) + ".couch";
+    const auto files = cb::io::findFilesWithPrefix(filePrefix);
+    logger.info(
+            "CouchKVStore: Found {} existing files for {}", files.size(), vbid);
+    for (const auto& f : files) {
+        logger.info("CouchKVStore: Found {}", f);
+    }
 }
 
 std::unordered_map<Vbid, std::unordered_set<uint64_t>>

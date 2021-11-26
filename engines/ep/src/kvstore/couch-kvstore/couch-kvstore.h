@@ -542,6 +542,11 @@ protected:
             FileOpsInterface* ops = nullptr) const;
 
     /**
+     * Looks for vbucket data files and dumps to log.
+     */
+    void logExistingVBucketFiles(Vbid vbid) const;
+
+    /**
      * save the Documents held in docs to the file associated with vbid/rev
      *
      * @param txnCtx the current transaction context (including queues and vbid)
