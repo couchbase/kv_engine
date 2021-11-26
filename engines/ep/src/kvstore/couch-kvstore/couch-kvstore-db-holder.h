@@ -64,6 +64,14 @@ public:
         return fileRev;
     }
 
+    void setFilename(std::string name) {
+        filename = std::move(name);
+    }
+
+    const std::string& getFilename() const {
+        return filename;
+    }
+
     // Allow a non-RAII close, needed for some use-cases.
     // Note non-const; when this method returns it no longer owns the
     // Db.
@@ -77,4 +85,5 @@ protected:
     std::reference_wrapper<const CouchKVStore> kvstore;
     Db* db;
     uint64_t fileRev;
+    std::string filename;
 };
