@@ -26,7 +26,6 @@
 #include "hash_table.h"
 #include "hash_table_stat_visitor.h"
 #include "kv_bucket.h"
-#include "kvshard.h"
 #include "kvstore/kvstore.h"
 #include "objectregistry.h"
 #include "pre_link_document_context.h"
@@ -35,52 +34,26 @@
 #include "vb_filter.h"
 #include "vbucket_queue_item_ctx.h"
 #include "vbucket_state.h"
-#include <platform/atomic.h>
-
 #include <folly/lang/Assume.h>
+#include <gsl/gsl-lite.hpp>
 #include <memcached/protocol_binary.h>
 #include <memcached/server_document_iface.h>
+#include <platform/atomic.h>
 #include <platform/optional.h>
 #include <statistics/cbstat_collector.h>
+#include <utilities/logtags.h>
 #include <xattr/blob.h>
-
-#include <gsl/gsl-lite.hpp>
-#include <logtags.h>
 #include <functional>
 #include <list>
 #include <set>
 #include <string>
 #include <utility>
-
 #include <vector>
 
 using namespace std::string_literals;
 
 /* Statics definitions */
 std::atomic<double> VBucket::mutationMemThreshold = 0.9;
-
-VBucketFilter VBucketFilter::filter_diff(const VBucketFilter& other) const {
-    std::vector<Vbid> tmp(acceptable.size() + other.size());
-    std::vector<Vbid>::iterator end;
-    end = std::set_symmetric_difference(acceptable.begin(),
-                                        acceptable.end(),
-                                        other.acceptable.begin(),
-                                        other.acceptable.end(),
-                                        tmp.begin());
-    return VBucketFilter(std::vector<Vbid>(tmp.begin(), end));
-}
-
-VBucketFilter VBucketFilter::filter_intersection(const VBucketFilter &other)
-                                                                        const {
-    std::vector<Vbid> tmp(acceptable.size() + other.size());
-    std::vector<Vbid>::iterator end;
-
-    end = std::set_intersection(acceptable.begin(), acceptable.end(),
-                                other.acceptable.begin(),
-                                other.acceptable.end(),
-                                tmp.begin());
-    return VBucketFilter(std::vector<Vbid>(tmp.begin(), end));
-}
 
 VBucketFilter VBucketFilter::filter_union(const VBucketFilter& other) const {
     auto copy = *this;
@@ -2812,7 +2785,7 @@ GetValue VBucket::getInternal(const CookieIface* cookie,
         if (((v->isDeleted() || v->isExpired(ep_real_time())) &&
              !getDeletedValue) ||
             cHandle.isLogicallyDeleted(v->getBySeqno())) {
-            return GetValue();
+            return {};
         }
 
         // If SV is a temp deleted item (i.e. marker added after a BgFetch to
@@ -2838,7 +2811,7 @@ GetValue VBucket::getInternal(const CookieIface* cookie,
             if (options & DELETE_TEMP) {
                 deleteStoredValue(res.lock, *v);
             }
-            return GetValue();
+            return {};
         }
 
         // If the value is not resident (and it was requested), wait for it...
@@ -2878,7 +2851,7 @@ GetValue VBucket::getInternal(const CookieIface* cookie,
                         !v->isResident());
     } else {
         if (!getDeletedValue && (eviction == EvictionPolicy::Value)) {
-            return GetValue();
+            return {};
         }
 
         if (maybeKeyExistsInFilter(cHandle.getKey())) {
@@ -2894,7 +2867,7 @@ GetValue VBucket::getInternal(const CookieIface* cookie,
         } else {
             // As bloomfilter predicted that item surely doesn't exist
             // on disk, return ENOENT, for getInternal().
-            return GetValue();
+            return {};
         }
     }
 }

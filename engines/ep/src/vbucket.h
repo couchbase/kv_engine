@@ -2603,8 +2603,6 @@ private:
     // which is what this mutex is used for.
     std::mutex dmQueueMutex;
 
-    static cb::AtomicDuration<> chkFlushTimeout;
-
     // mutationMemThreshold is atomic to prevent a data race between
     // VBucket::hasMemoryForStoredValue() being called during
     // WarmupVbucketVisitor::visit() and
