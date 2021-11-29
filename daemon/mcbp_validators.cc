@@ -1814,16 +1814,25 @@ static Status collections_get_manifest_validator(Cookie& cookie) {
 }
 
 static Status collections_get_id_validator(Cookie& cookie) {
+    // Temporarily support the input in the key or the value.
+    // For GA we will only support input in the value
     auto status = McbpValidator::verify_header(cookie,
                                                0,
-                                               ExpectedKeyLen::Zero,
-                                               ExpectedValueLen::NonZero,
+                                               ExpectedKeyLen::Any,
+                                               ExpectedValueLen::Any,
                                                ExpectedCas::NotSet,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
     }
-    if (cookie.getHeader().getRequest().getVBucket() != Vbid(0)) {
+    const auto& header = cookie.getHeader();
+    // now expect value or key, but not both
+    if (header.getKeylen() && header.getValue().size()) {
+        cookie.setErrorContext("Cannot set both key and value");
+        return Status::Einval;
+    }
+
+    if (header.getRequest().getVBucket() != Vbid(0)) {
         cookie.setErrorContext("Request vbucket id must be 0");
         return Status::Einval;
     }
