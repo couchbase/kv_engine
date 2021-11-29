@@ -80,7 +80,13 @@ enum class StatGroupId {
     Slabs,
     Items,
     Sizes,
-    Scrub
+    Scrub,
+
+    // stat command timings
+
+    StatTimings,
+
+    enum_max
 };
 
 /// The information we keep for a certain stats group

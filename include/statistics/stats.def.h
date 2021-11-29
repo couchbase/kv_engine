@@ -455,6 +455,7 @@ STAT(bytes_subdoc_lookup_total,
 STAT(bytes_subdoc_lookup_extracted, , bytes, subdoc_lookup_extracted, )
 STAT(bytes_subdoc_mutation_total, , bytes, subdoc_mutation_updated, )
 STAT(bytes_subdoc_mutation_inserted, , bytes, subdoc_mutation_inserted, )
+STAT(stat_timings_mem_usage, , bytes, , )
 // aggregates over all buckets
 STAT(cmd_total_sets, , count, , )
 STAT(cmd_total_gets, , count, , )
@@ -463,6 +464,7 @@ STAT(cmd_total_ops, , count, , )
 STAT(cmd_mutation, , count, , )
 STAT(cmd_lookup, , count, , )
 
+CBSTAT(stat_timings, FMT("stat:{stat_key}{arg_suffix}"), microseconds)
 STAT(auth_cmds, , count, , )
 STAT(auth_errors, , count, , )
 STAT(get_hits, , count, ops, LABEL(op, get), LABEL(result, hit))

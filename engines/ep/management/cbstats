@@ -597,6 +597,15 @@ def stats_timings(mc):
         histograms(mc, h)
 
 @cmd
+def stats_meta_timings(mc):
+    if output_json:
+        print('Json output not supported for stat timing stats')
+        return
+    h = stats_perform(mc, 'stat-timings')
+    if h:
+        histograms(mc, h)
+
+@cmd
 def stats_dcp(mc):
     stats_formatter(stats_perform(mc, 'dcp'))
 
@@ -990,6 +999,7 @@ def main():
     c.addCommand('dcpagg', stats_dcpagg, 'dcpagg')
     c.addCommand('dcp-vbtakeover', stats_dcp_takeover, 'dcp-vbtakeover vb name')
     c.addCommand('timings', stats_timings, 'timings')
+    c.addCommand('stat-timings', stats_meta_timings, 'stat-timings')
     c.addCommand('vbucket', stats_vbucket, 'vbucket')
     c.addCommand('vbucket-details', stats_vbucket_details, 'vbucket-details [vbid]')
     c.addCommand('vbucket-durability-state', stats_vbucket_durability_state, 'vbucket-durability-state [vbid]')

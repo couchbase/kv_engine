@@ -12,6 +12,7 @@
 
 #include "cluster_config.h"
 #include "mcbp_validators.h"
+#include "stat_timings.h"
 #include "timings.h"
 
 #include <memcached/bucket_type.h>
@@ -116,6 +117,11 @@ public:
      * Command timing data
      */
     Timings timings;
+
+    /**
+     * Stat request timing data
+     */
+    StatTimings statTimings;
 
     /**
      *  Sub-document JSON parser (subjson) operation execution time histogram.

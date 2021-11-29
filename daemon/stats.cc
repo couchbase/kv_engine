@@ -118,6 +118,9 @@ static void server_bucket_stats(const BucketStatCollector& collector,
     collector.addStat(Key::bytes_subdoc_mutation_inserted,
                       thread_stats.bytes_subdoc_mutation_inserted);
 
+    collector.addStat(Key::stat_timings_mem_usage,
+                      bucket.statTimings.getMemFootPrint());
+
     // bucket specific totals
     auto& current_bucket_timings = bucket.timings;
     uint64_t mutations = current_bucket_timings.get_aggregated_mutation_stats();

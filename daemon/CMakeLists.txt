@@ -184,6 +184,8 @@ add_library(memcached_daemon STATIC
             timing_interval.h
             timings.cc
             timings.h
+            stat_timings.cc
+            stat_timings.h
             tls_configuration.cc
             tls_configuration.h
             tracing.cc

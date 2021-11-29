@@ -320,6 +320,11 @@ StatsGroupManager::StatsGroupManager()
                 "Try to scrub the bucket (purge deleted documents) (memcached "
                 "bucket)",
                 false,
+                true},
+               {StatGroupId::StatTimings,
+                "stat-timings",
+                "Get timing information for stat commands",
+                false,
                 true}}) {
 }
 

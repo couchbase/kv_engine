@@ -69,6 +69,9 @@ private:
     /// The StatGroup for the command (set in parseCommandKey)
     const StatGroup* statgroup = nullptr;
 
+    // The time immediately before the stat handler was invoked
+    std::chrono::steady_clock::time_point start;
+
     /**
      * The key as specified in the input buffer (it may contain a sub command)
      */

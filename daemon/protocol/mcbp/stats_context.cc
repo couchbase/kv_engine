@@ -36,7 +36,9 @@
 #include <platform/cb_arena_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <statistics/cbstat_collector.h>
+#include <statistics/labelled_collector.h>
 #include <utilities/engine_errc_2_mcbp.h>
+#include <chrono>
 #include <cinttypes>
 
 using namespace std::string_view_literals;
@@ -527,6 +529,15 @@ static cb::engine_errc stat_allocator_executor(const std::string&,
     return cb::engine_errc::success;
 }
 
+static cb::engine_errc stat_timings_executor(const std::string&,
+                                             Cookie& cookie) {
+    auto& bucket = cookie.getConnection().getBucket();
+    bucket.statTimings.addStats(
+            CBStatCollector(appendStatsFn, &cookie).forBucket(bucket.name));
+
+    return cb::engine_errc::success;
+}
+
 /***************************** STAT HANDLERS *****************************/
 
 struct command_stat_handler {
@@ -570,7 +581,8 @@ static std::unordered_map<StatGroupId, struct command_stat_handler>
                 {StatGroupId::Collections,
                  {false, stat_bucket_collections_stats}},
                 {StatGroupId::CollectionsById,
-                 {false, stat_bucket_collections_stats}}};
+                 {false, stat_bucket_collections_stats}},
+                {StatGroupId::StatTimings, {true, stat_timings_executor}}};
 
 /**
  * For a given key, try and return the handler for it
@@ -691,6 +703,7 @@ cb::engine_errc StatsCommandContext::checkPrivilege() {
 cb::engine_errc StatsCommandContext::doStats() {
     auto handler_pair = getStatHandler(statgroup);
 
+    start = std::chrono::steady_clock::now();
     if (!handler_pair.second) {
         const auto key = cookie.getRequest().getKey();
         command_exit_code = handler_pair.first.handler(
@@ -728,13 +741,17 @@ cb::engine_errc StatsCommandContext::getTaskResult() {
 }
 
 cb::engine_errc StatsCommandContext::commandComplete() {
+    auto& bucket = connection.getBucket();
     switch (command_exit_code) {
     case cb::engine_errc::success:
         append_stats({}, {}, static_cast<CookieIface*>(&cookie));
 
         // We just want to record this once rather than for each packet sent
-        ++connection.getBucket()
-                  .responseCounters[int(cb::mcbp::Status::Success)];
+        ++bucket.responseCounters[int(cb::mcbp::Status::Success)];
+        // record the time taken to generate results for this stat group
+        bucket.statTimings.record(statgroup->id,
+                                  !argument.empty() /* has argument */,
+                                  std::chrono::steady_clock::now() - start);
         break;
     case cb::engine_errc::would_block:
         /* If the stats call returns cb::engine_errc::would_block then set the
