@@ -374,9 +374,14 @@ void PassiveDurabilityMonitor::completeSyncWrite(
         }
         throwException<std::logic_error>(
                 __func__,
-                "No Prepare waiting for completion, but received " +
-                        to_string(res) + " for key " +
-                        cb::tagUserData(key.to_string()));
+                fmt::format("No Prepare waiting for completion, but received "
+                            "{} for key:{}, prepareSeqno:{}, highSeqno:{}, "
+                            "enforceOrderedCompletion:{}",
+                            to_string(res),
+                            cb::tagUserData(key.to_string()),
+                            to_string_or_none(prepareSeqno),
+                            vb.getHighSeqno(),
+                            enforceOrderedCompletion));
     }
 
     // Sanity checks (on key and seqno) for In-Order Commit
