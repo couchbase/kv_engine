@@ -126,6 +126,10 @@ DCPBackfillDisk::~DCPBackfillDisk() = default;
 
 backfill_status_t DCPBackfillDisk::run() {
     std::lock_guard<std::mutex> lh(lock);
+    auto runtimeGuard =
+            folly::makeGuard([start = std::chrono::steady_clock::now(), this] {
+                runtime += (std::chrono::steady_clock::now() - start);
+            });
     switch (state) {
     case backfill_state_init:
         return create();

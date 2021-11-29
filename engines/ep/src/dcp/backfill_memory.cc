@@ -64,6 +64,11 @@ backfill_status_t DCPBackfillMemoryBuffered::run() {
         return backfill_finished;
     }
 
+    auto runtimeGuard =
+            folly::makeGuard([start = std::chrono::steady_clock::now(), this] {
+                runtime += (std::chrono::steady_clock::now() - start);
+            });
+
     TRACE_EVENT2("dcp/backfill",
                  "MemoryBuffered::run",
                  "vbid",
@@ -337,7 +342,7 @@ void DCPBackfillMemoryBuffered::complete(bool cancelled) {
 
     /* [EPHE TODO]: invalidate cursor sooner before it gets deleted */
 
-    stream->completeBackfill();
+    stream->completeBackfill(runtime, 0);
 
     auto severity = cancelled ? spdlog::level::level_enum::info
                               : spdlog::level::level_enum::debug;

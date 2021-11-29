@@ -2789,6 +2789,8 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
                 std::to_string(UINT16_MAX));
     }
 
+    sctx->diskBytesRead += docinfo->id.size + docinfo->rev_meta.size;
+
     auto diskKey = makeDiskDocKey(docinfo->id);
 
     // Determine if the key is logically deleted, if it is we skip the key
@@ -2834,7 +2836,14 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
                                                         openOptions);
 
         if (errCode == COUCHSTORE_SUCCESS) {
+            // Document value read from disk; account for it in diskBytesRead.
+            // Note we record the physical_size (i.e. on-disk size, before
+            // it is decompressed) to better reflect the cost of data actually
+            // read from disk.
+            sctx->diskBytesRead += docinfo->physical_size;
+
             value = doc->data;
+
             if (doc->data.size == 0) {
                 // No data, it cannot have a datatype!
                 metadata->setDataType(PROTOCOL_BINARY_RAW_BYTES);

@@ -224,17 +224,32 @@ public:
     bool backfillReceived(std::unique_ptr<Item> itm,
                           backfill_source_t backfill_source);
 
-    void completeBackfill();
+    /**
+     * @param runtime The total runtime the backfill took, measured as active
+     * time executing (i.e. total BackfillManagerTask::run() durations for
+     * this backfill)
+     * @param diskBytesRead The total number of bytes read from disk during
+     *        this backfill.
+     */
+    void completeBackfill(std::chrono::steady_clock::duration runtime,
+                          size_t diskBytesRead);
 
     /**
      * Queues a single "Out of Seqno Order" marker with the 'end' flag
-     * into the ready queue
+     * into the ready queue.
      *
      * @param maxSeqno the maximum seqno of the snapshot supplying the OSO
      *        backfill. A SeqnoAdvanced maybe sent if the last backfilled
      *        item is not the maxSeqno item
+     * @param runtime The total runtime the backfill took, measured as active
+     *        time executing (i.e. total BackfillManagerTask::run() durations
+     *        for this backfill).
+     * @param diskBytesRead The total number of bytes read from disk during
+     *        this backfill.
      */
-    void completeOSOBackfill(uint64_t maxSeqno);
+    void completeOSOBackfill(uint64_t maxSeqno,
+                             std::chrono::steady_clock::duration runtime,
+                             size_t diskBytesRead);
 
     bool isCompressionEnabled() const;
 
@@ -500,7 +515,10 @@ protected:
     }
 
     /// Common helper function for completing backfills.
-    void completeBackfillInner(BackfillType backfillType, uint64_t maxSeqno);
+    void completeBackfillInner(BackfillType backfillType,
+                               uint64_t maxSeqno,
+                               std::chrono::steady_clock::duration runtime,
+                               size_t diskBytesRead);
 
     // The current state the stream is in.
     // Atomic to allow reads without having to acquire the streamMutex.

@@ -13,6 +13,7 @@
 
 #include <memcached/vbucket.h>
 
+#include <chrono>
 #include <memory>
 
 class ActiveStream;
@@ -97,6 +98,9 @@ protected:
      * Id of the vbucket on which the backfill is running
      */
     const Vbid vbid{0};
+
+    /// Cumulative runtime of this backfill.
+    std::chrono::steady_clock::duration runtime{0};
 };
 
 /**

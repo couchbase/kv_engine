@@ -216,7 +216,8 @@ void DCPBackfillBySeqnoDisk::complete(bool cancelled) {
         return;
     }
 
-    stream->completeBackfill();
+    const auto diskBytesRead = scanCtx ? scanCtx->diskBytesRead : 0;
+    stream->completeBackfill(runtime, diskBytesRead);
 
     auto severity = cancelled ? spdlog::level::level_enum::info
                               : spdlog::level::level_enum::debug;

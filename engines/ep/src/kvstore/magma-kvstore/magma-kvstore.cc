@@ -1703,6 +1703,8 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
                     std::to_string(std::numeric_limits<uint16_t>::max()));
         }
 
+        mctx.diskBytesRead += keySlice.Len() + metaSlice.Len() + valSlice.Len();
+
         auto diskKey = makeDiskDocKey(keySlice);
 
         if (configuration.isSanityCheckingVBucketMapping()) {

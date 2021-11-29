@@ -13,6 +13,7 @@
 #include "callbacks.h"
 #include "dcp/backfill.h"
 
+#include <chrono>
 #include <mutex>
 
 class ActiveStream;

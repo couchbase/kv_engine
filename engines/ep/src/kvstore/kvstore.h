@@ -410,6 +410,18 @@ public:
     const Collections::VB::ScanContext collectionsContext;
     int64_t maxSeqno;
 
+    /**
+     * Cumulative count of bytes read from disk during this scan. Counts
+     * key + meta for each document visited during the scan, plus the value
+     * size where the value needed to be read from disk (required and not
+     * already present in the cache).
+     * For documents whose values are compressed on-disk, we account the
+     * compressed size here (given that is the size of data read from disk).
+     * Note this stat does _not_ include data which was read as part of
+     * finding and reading the data from disk (B-Tree nodes, LSM headers etc).
+     */
+    size_t diskBytesRead{0};
+
 protected:
     std::unique_ptr<StatusCallback<GetValue>> callback;
     std::unique_ptr<StatusCallback<CacheLookup>> lookup;

@@ -141,7 +141,8 @@ void DCPBackfillByIdDisk::complete(bool cancelled) {
         return;
     }
 
-    stream->completeOSOBackfill(scanCtx->maxSeqno);
+    stream->completeOSOBackfill(
+            scanCtx->maxSeqno, runtime, scanCtx->diskBytesRead);
 
     auto severity = cancelled ? spdlog::level::level_enum::info
                               : spdlog::level::level_enum::debug;

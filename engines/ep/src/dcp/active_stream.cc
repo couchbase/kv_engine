@@ -18,8 +18,10 @@
 #include "ep_time.h"
 #include "kv_bucket.h"
 
+#include <fmt/chrono.h>
 #include <memcached/protocol_binary.h>
 #include <platform/optional.h>
+#include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>
 
 ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
@@ -474,13 +476,19 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
     return true;
 }
 
-void ActiveStream::completeBackfill() {
+void ActiveStream::completeBackfill(std::chrono::steady_clock::duration runtime,
+                                    size_t diskBytesRead) {
     // maxSeqno is not needed for InOrder completion
-    completeBackfillInner(BackfillType::InOrder, 0 /*maxSeqno*/);
+    completeBackfillInner(
+            BackfillType::InOrder, 0 /*maxSeqno*/, runtime, diskBytesRead);
 }
 
-void ActiveStream::completeOSOBackfill(uint64_t maxSeqno) {
-    completeBackfillInner(BackfillType::OutOfSequenceOrder, maxSeqno);
+void ActiveStream::completeOSOBackfill(
+        uint64_t maxSeqno,
+        std::chrono::steady_clock::duration runtime,
+        size_t diskBytesRead) {
+    completeBackfillInner(
+            BackfillType::OutOfSequenceOrder, maxSeqno, runtime, diskBytesRead);
 }
 
 void ActiveStream::snapshotMarkerAckReceived() {
@@ -1695,8 +1703,11 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
     return false;
 }
 
-void ActiveStream::completeBackfillInner(BackfillType backfillType,
-                                         uint64_t maxSeqno) {
+void ActiveStream::completeBackfillInner(
+        BackfillType backfillType,
+        uint64_t maxSeqno,
+        std::chrono::steady_clock::duration runtime,
+        size_t diskBytesRead) {
     {
         std::lock_guard<std::mutex> lh(streamMutex);
 
@@ -1719,17 +1730,29 @@ void ActiveStream::completeBackfillInner(BackfillType backfillType,
         }
 
         if (isBackfilling()) {
+            const auto diskItemsRead = backfillItems.disk.load();
+            const auto runtimeSecs =
+                    std::chrono::duration<double>(runtime).count();
+
             log(spdlog::level::level_enum::info,
-                "{} {} Backfill complete, {} items read from disk, {} from "
-                "memory,"
-                " lastReadSeqno:{} lastSentSeqnoAdvance:{}, pendingBackfill:{}",
+                "{} {}Backfill complete. {} items consisting of {} bytes read "
+                "from disk, "
+                "{} items from memory, lastReadSeqno:{} "
+                "lastSentSeqnoAdvance:{}, pendingBackfill:{}. Total runtime {} "
+                "({} item/s, {} MB/s)",
                 logPrefix,
                 backfillType == BackfillType::OutOfSequenceOrder ? "OSO " : "",
-                backfillItems.disk.load(),
+                diskItemsRead,
+                diskBytesRead,
                 backfillItems.memory.load(),
                 lastReadSeqno.load(),
                 lastSentSeqnoAdvance.load(),
-                pendingBackfill ? "True" : "False");
+                pendingBackfill ? "True" : "False",
+                cb::time2text(runtime),
+                diskItemsRead ? int(diskItemsRead / runtimeSecs) : 0,
+                diskBytesRead
+                        ? int((diskBytesRead / runtimeSecs) / (1024 * 1024))
+                        : 0);
         } else {
             log(spdlog::level::level_enum::warn,
                 "{} ActiveStream::completeBackfillInner: "
