@@ -710,20 +710,26 @@ TEST_P(STParamMagmaBucketTest, FailCompactKVStoreCall) {
         }
     });
 
-    // Compaction for one KVStore passes and another "fails". Given we update
-    // stats with the dropped stats docs on success we'll check the vb item
-    // count to check how many items were "purged".
+    // Compaction for one KVStore passes and another "fails". We'll check the
+    // dropped collections local doc after to determine that it has been set
+    // successfully.
     runCompaction(vbid);
-    EXPECT_EQ(1, vb->getNumTotalItems());
+
+    // 1 Dropped collection remains, the one that "failed"
+    auto [status, dc] = kvstore->getDroppedCollections(vbid);
+    ASSERT_TRUE(status);
+    EXPECT_FALSE(dc.empty());
 
     // Our hook wouldn't do anything now, but reset it anyway for simplicity
     // and run the compaction again allowing the other collection to compact.
     magmaKVStore.setCompactionStatusHook([](magma::Status&) {});
     runCompaction(vbid);
 
-    // Items all gone, before the fix 1 would remain
-    EXPECT_EQ(0, vb->getNumTotalItems());
-    EXPECT_EQ(1, magmaKVStore.getKVStoreStat().numCompactionFailure);
+    // Dropped collections all gone now
+    ASSERT_EQ(1, magmaKVStore.getKVStoreStat().numCompactionFailure);
+    std::tie(status, dc) = kvstore->getDroppedCollections(vbid);
+    ASSERT_TRUE(status);
+    EXPECT_TRUE(dc.empty());
 }
 
 void STParamMagmaBucketTest::testDiskStateAfterCompactKVStore(
