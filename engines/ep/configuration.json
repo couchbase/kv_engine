@@ -451,7 +451,7 @@
             "type": "float"
         },
         "defragmenter_auto_min_sleep" : {
-            "default": "0.0",
+            "default": "0.6",
             "descr": "The minimum sleep that the auto controller can set",
             "dynamic": true,
             "type": "float"

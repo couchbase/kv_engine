@@ -475,19 +475,19 @@ TEST_F(DefragmenterTaskTest, autoCalculateSleep_PID) {
     EXPECT_TRUE(state.runDefragger);
 
     // Now loop a few times with some heavy fragmentation, this will pull down
-    // to min sleep in a number of steps (checked manually and it is 5 steps)
+    // to min sleep in a number of steps (checked manually and it is 3 steps)
     std::chrono::duration<double> sleep(conf.getDefragmenterAutoMaxSleep());
     int iterations = 0;
     do {
         state = task->public_calculateSleepPID(
-                cb::FragmentationStats{380, 700});
+                cb::FragmentationStats{380, 650});
         EXPECT_TRUE(state.runDefragger);
         // Each step should see a reduction
         EXPECT_LT(state.sleepTime, sleep);
         sleep = state.sleepTime;
         iterations++;
     } while (state.sleepTime.count() > conf.getDefragmenterAutoMinSleep());
-    EXPECT_EQ(iterations, 5);
+    EXPECT_EQ(iterations, 3);
 
     // PID never goes below min
     state = task->public_calculateSleepPID(cb::FragmentationStats{10, 5000});
