@@ -2433,20 +2433,26 @@ void NexusKVStore::setMakeCompactionContextCallback(
     auto nexusPrimaryCb =
             [this, cb](Vbid vbid, CompactionConfig& cfg, uint64_t purgeSeqno) {
                 auto ctx = cb(vbid, cfg, purgeSeqno);
-                ctx->purgedItemCtx =
-                        std::make_unique<NexusPurgedItemCtx>(*this, purgeSeqno);
+                if (ctx) {
+                    ctx->purgedItemCtx = std::make_unique<NexusPurgedItemCtx>(
+                            *this, purgeSeqno);
+                }
+
                 return ctx;
             };
 
     auto nexusSecondaryCb =
             [this, cb](Vbid vbid, CompactionConfig& cfg, uint64_t purgeSeqno) {
                 auto ctx = cb(vbid, cfg, purgeSeqno);
-                ctx->purgedItemCtx =
-                        std::make_unique<NexusPurgedItemCtx>(*this, purgeSeqno);
+                if (ctx) {
+                    ctx->purgedItemCtx = std::make_unique<NexusPurgedItemCtx>(
+                            *this, purgeSeqno);
 
-                // Secondary is not allowed to generate expiries as it is not in
-                // charge
-                ctx->timeToExpireFrom = 0;
+                    // Secondary is not allowed to generate expiries as it is
+                    // not in charge
+                    ctx->timeToExpireFrom = 0;
+                }
+
                 return ctx;
             };
 
