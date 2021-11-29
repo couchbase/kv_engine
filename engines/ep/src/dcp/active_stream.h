@@ -84,6 +84,14 @@ public:
         Dead
     };
 
+    /// What order are items returned for this backfill?
+    enum class BackfillType {
+        /// In the original sequence number order.
+        InOrder,
+        /// Out of the original sequence number order.
+        OutOfSequenceOrder,
+    };
+
     ActiveStream(EventuallyPersistentEngine* e,
                  std::shared_ptr<DcpProducer> p,
                  const std::string& name,
@@ -483,6 +491,9 @@ protected:
     bool isCollectionEnabledStream() const {
         return !filter.isLegacyFilter();
     }
+
+    /// Common helper function for completing backfills.
+    void completeBackfillInner(BackfillType backfillType);
 
     // The current state the stream is in.
     // Atomic to allow reads without having to acquire the streamMutex.

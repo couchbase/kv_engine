@@ -475,97 +475,11 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
 }
 
 void ActiveStream::completeBackfill() {
-    {
-        std::lock_guard<std::mutex> lh(streamMutex);
-
-        // backfills can be scheduled and return nothing, leaving
-        // lastBackfilledSeqno to be behind lastReadSeqno. Only update when
-        // greater.
-        if (lastBackfilledSeqno > lastReadSeqno) {
-            lastReadSeqno.store(lastBackfilledSeqno);
-        }
-
-        if (isSeqnoAdvancedNeededBackFill()) {
-            queueSeqnoAdvanced();
-        }
-
-        // reset last seqno seen by backfill
-        maxScanSeqno = 0;
-
-        if (isBackfilling()) {
-            log(spdlog::level::level_enum::info,
-                "{} Backfill complete, {} items read from disk, {} from memory,"
-                " lastReadSeqno:{} lastSentSeqnoAdvance:{}, pendingBackfill:{}",
-                logPrefix,
-                backfillItems.disk.load(),
-                backfillItems.memory.load(),
-                lastReadSeqno.load(),
-                lastSentSeqnoAdvance.load(),
-                pendingBackfill ? "True" : "False");
-        } else {
-            log(spdlog::level::level_enum::warn,
-                "{} ActiveStream::completeBackfill: "
-                "Unexpected state_:{}",
-                logPrefix,
-                to_string(state_.load()));
-        }
-    }
-
-    if (completeBackfillHook) {
-        completeBackfillHook();
-    }
-
-    bool inverse = true;
-    isBackfillTaskRunning.compare_exchange_strong(inverse, false);
-
-    // MB-37468: Items may not be ready, but we need to notify the stream
-    // regardless as a racing stepping producer that had just finished
-    // processing all items and found an empty ready queue could clear the flag
-    // immediately after we call notifyStreamReady (which does not notify as
-    // itemsReady is true). This would then result in us not notifying the
-    // stream and not putting it back in the producer's readyQueue. A similar
-    // case exists for transitioning state to TakeoverSend or InMemory.
-    notifyStreamReady(true);
+    completeBackfillInner(BackfillType::InOrder);
 }
 
 void ActiveStream::completeOSOBackfill() {
-    {
-        std::lock_guard<std::mutex> lh(streamMutex);
-
-        // backfills can be scheduled and return nothing (e.g. collection
-        // dropped), leaving lastBackfilledSeqno to be behind lastReadSeqno.
-        // Only update when greater.
-        if (lastBackfilledSeqno > lastReadSeqno) {
-            lastReadSeqno.store(lastBackfilledSeqno);
-        }
-
-        if (isBackfilling()) {
-            log(spdlog::level::level_enum::info,
-                "{} OSO Backfill complete, {} items read from disk, {}"
-                " from memory, lastReadSeqno:{}, pendingBackfill:{}",
-                logPrefix,
-                backfillItems.disk.load(),
-                backfillItems.memory.load(),
-                lastReadSeqno.load(),
-                pendingBackfill ? "True" : "False");
-        } else {
-            log(spdlog::level::level_enum::warn,
-                "{} ActiveStream::completeOSOBackfill: Unexpected state_:{}",
-                logPrefix,
-                to_string(state_.load()));
-        }
-        pushToReadyQ(std::make_unique<OSOSnapshot>(
-                opaque_, vb_, sid, OSOSnapshot::End{}));
-    }
-
-    if (completeBackfillHook) {
-        completeBackfillHook();
-    }
-
-    bool inverse = true;
-    isBackfillTaskRunning.compare_exchange_strong(inverse, false);
-
-    notifyStreamReady(true);
+    completeBackfillInner(BackfillType::OutOfSequenceOrder);
 }
 
 void ActiveStream::snapshotMarkerAckReceived() {
@@ -1778,6 +1692,71 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
         return true;
     }
     return false;
+}
+
+void ActiveStream::completeBackfillInner(BackfillType backfillType) {
+    {
+        std::lock_guard<std::mutex> lh(streamMutex);
+
+        // backfills can be scheduled and return nothing, leaving
+        // lastBackfilledSeqno to be behind lastReadSeqno. Only update when
+        // greater.
+        if (lastBackfilledSeqno > lastReadSeqno) {
+            lastReadSeqno.store(lastBackfilledSeqno);
+        }
+
+        if (backfillType == BackfillType::InOrder) {
+            // In-order backfills may require a seqno-advanced message if
+            // there is a stream filter present (e.g. only streaming a single
+            // collection).
+            if (isSeqnoAdvancedNeededBackFill()) {
+                queueSeqnoAdvanced();
+            }
+            // reset last seqno seen by backfill
+            maxScanSeqno = 0;
+        }
+
+        if (isBackfilling()) {
+            log(spdlog::level::level_enum::info,
+                "{} {} Backfill complete, {} items read from disk, {} from "
+                "memory,"
+                " lastReadSeqno:{} lastSentSeqnoAdvance:{}, pendingBackfill:{}",
+                logPrefix,
+                backfillType == BackfillType::OutOfSequenceOrder ? "OSO " : "",
+                backfillItems.disk.load(),
+                backfillItems.memory.load(),
+                lastReadSeqno.load(),
+                lastSentSeqnoAdvance.load(),
+                pendingBackfill ? "True" : "False");
+        } else {
+            log(spdlog::level::level_enum::warn,
+                "{} ActiveStream::completeBackfillInner: "
+                "Unexpected state_:{}",
+                logPrefix,
+                to_string(state_.load()));
+        }
+
+        if (backfillType == BackfillType::OutOfSequenceOrder) {
+            pushToReadyQ(std::make_unique<OSOSnapshot>(
+                    opaque_, vb_, sid, OSOSnapshot::End{}));
+        }
+    }
+
+    if (completeBackfillHook) {
+        completeBackfillHook();
+    }
+
+    bool inverse = true;
+    isBackfillTaskRunning.compare_exchange_strong(inverse, false);
+
+    // MB-37468: Items may not be ready, but we need to notify the stream
+    // regardless as a racing stepping producer that had just finished
+    // processing all items and found an empty ready queue could clear the flag
+    // immediately after we call notifyStreamReady (which does not notify as
+    // itemsReady is true). This would then result in us not notifying the
+    // stream and not putting it back in the producer's readyQueue. A similar
+    // case exists for transitioning state to TakeoverSend or InMemory.
+    notifyStreamReady(true);
 }
 
 void ActiveStream::clear_UNLOCKED() {
