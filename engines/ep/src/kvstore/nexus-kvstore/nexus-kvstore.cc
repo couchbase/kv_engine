@@ -898,13 +898,13 @@ public:
 
     void callback(Item& it, time_t& startTime) override {
         // Time is not interesting here
-        callbacks.emplace(it);
+        callbacks.emplace(it.getKey(), it.getBySeqno());
         if (cb) {
             cb->callback(it, startTime);
         }
     }
 
-    std::unordered_set<DiskDocKey> callbacks;
+    std::unordered_map<DiskDocKey, int64_t> callbacks;
     std::shared_ptr<Callback<Item&, time_t&>> cb;
 };
 
@@ -1082,24 +1082,26 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
     }
 
     // The expiration callback invocations should be the same
-    for (auto& cb : primaryExpiryCb->callbacks) {
-        if (secondaryExpiryCb->callbacks.find(cb) ==
+    for (auto& [key, seqno] : primaryExpiryCb->callbacks) {
+        if (secondaryExpiryCb->callbacks.find(key) ==
             secondaryExpiryCb->callbacks.end()) {
             auto msg = fmt::format(
                     "NexusKVStore::compactDB: {}: Expiry callback found with "
-                    "key:{} for primary but not secondary",
+                    "key:{} seqno:{} for primary but not secondary",
                     vbid,
-                    cb::UserData(cb.to_string()));
+                    cb::UserData(key.to_string()),
+                    seqno);
             handleError(msg);
         } else {
-            secondaryExpiryCb->callbacks.erase(cb);
+            secondaryExpiryCb->callbacks.erase(key);
         }
     }
 
     if (!secondaryExpiryCb->callbacks.empty()) {
         std::stringstream ss;
-        for (auto& cb : secondaryExpiryCb->callbacks) {
-            ss << cb::UserData(cb.to_string()) << ",";
+        for (auto& [key, seqno] : secondaryExpiryCb->callbacks) {
+            ss << "key: " << cb::UserData(key.to_string())
+               << " seqno: " << seqno << ",";
         }
         ss.unget();
 
