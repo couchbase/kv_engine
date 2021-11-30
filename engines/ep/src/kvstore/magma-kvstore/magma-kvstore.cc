@@ -2599,6 +2599,11 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
 
     std::string manifest;
     std::tie(status, manifest) = getCollectionsManifestUidDoc(vbid);
+    if (!(status.IsOK() || status.ErrorCode() == Status::NotFound)) {
+        return {false,
+                Collections::KVStore::Manifest{
+                        Collections::KVStore::Manifest::Default{}}};
+    }
 
     std::string openCollections;
     std::tie(status, openCollections) =
