@@ -3789,9 +3789,7 @@ public:
 
 class StatCheckpointTask : public BackgroundStatTask {
 public:
-    StatCheckpointTask(EventuallyPersistentEngine* e,
-                       const CookieIface* c,
-                       AddStatFn a)
+    StatCheckpointTask(EventuallyPersistentEngine* e, const CookieIface* c)
         : BackgroundStatTask(e, c, TaskId::StatCheckpointTask) {
     }
 
@@ -3824,7 +3822,7 @@ cb::engine_errc EventuallyPersistentEngine::doCheckpointStats(
     if (nkey == 10) {
         auto task = retrieveStatTask(cookie);
         if (!task) {
-            task = std::make_shared<StatCheckpointTask>(this, cookie, add_stat);
+            task = std::make_shared<StatCheckpointTask>(this, cookie);
             ExecutorPool::get()->schedule(task);
             storeStatTask(cookie, task);
             return cb::engine_errc::would_block;
@@ -4058,8 +4056,10 @@ static void showConnAggStat(const std::string& connType,
 
 class StatDCPTask : public BackgroundStatTask {
 public:
-    using Callback = std::function<cb::engine_errc(
-            EventuallyPersistentEngine* e, const CookieIface* cookie)>;
+    using Callback =
+            std::function<cb::engine_errc(EventuallyPersistentEngine* e,
+                                          const CookieIface* cookie,
+                                          const AddStatFn& deferredAddStat)>;
     StatDCPTask(EventuallyPersistentEngine* e,
                 const CookieIface* cookie,
                 std::string_view description,
@@ -4072,7 +4072,7 @@ public:
         TRACE_EVENT0("ep-engine/task", "StatDCPTask");
         cb::engine_errc result = cb::engine_errc::failed;
         try {
-            result = callback(e, cookie);
+            result = callback(e, cookie, getDeferredAddStat());
         } catch (const std::exception& e) {
             EP_LOG_WARN(
                     "StatDCPTask: callback threw exception: \"{}\" task "
@@ -4104,14 +4104,20 @@ cb::engine_errc EventuallyPersistentEngine::doConnAggStats(
         std::string_view sep) {
     auto task = retrieveStatTask(cookie);
     if (!task) {
+        // the background task _must not_ capture add_stat, it is not
+        // safe to use from a background thread.
         task = std::make_shared<StatDCPTask>(
                 this,
                 cookie,
                 "Aggregated DCP stats",
-                [add_stat, separator = std::string(sep)](
+                [separator = std::string(sep)](
                         EventuallyPersistentEngine* ep,
-                        const CookieIface* cookie) {
-                    CBStatCollector col(add_stat, cookie);
+                        const CookieIface* cookie,
+                        const AddStatFn& deferredAddStat) {
+                    // deferred add stat collects up stats, but does not
+                    // write them as responses (which would be racy).
+                    // a later call to maybeWriteResponse will do that.
+                    CBStatCollector col(deferredAddStat, cookie);
                     ep->doConnAggStatsInner(col.forBucket(ep->getName()),
                                             separator);
                     return cb::engine_errc::success;
@@ -4154,14 +4160,17 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
         std::string_view value) {
     auto task = retrieveStatTask(cookie);
     if (!task) {
+        // the background task _must not_ capture add_stat, it is not
+        // safe to use from a background thread.
         task = std::make_shared<StatDCPTask>(
                 this,
                 cookie,
                 "Summarised bucket-wide DCP stats",
-                [add_stat, filter = std::string(value)](
+                [filter = std::string(value)](
                         EventuallyPersistentEngine* ep,
-                        const CookieIface* cookie) {
-                    ep->doDcpStatsInner(cookie, add_stat, filter);
+                        const CookieIface* cookie,
+                        const AddStatFn& deferredAddStat) {
+                    ep->doDcpStatsInner(cookie, deferredAddStat, filter);
                     return cb::engine_errc::success;
                 });
         ExecutorPool::get()->schedule(task);
