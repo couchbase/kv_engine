@@ -419,7 +419,8 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     while (!ctx) {
         ++stats.beginFailed;
         EP_LOG_WARN(
-                "EPBucket::flushVBucket: () Failed to start a transaction. "
+                "EPBucket::flushVBucket_UNLOCKED: () Failed to start a "
+                "transaction. "
                 "Retry in 1 second.",
                 vb->getId());
         std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -453,7 +454,8 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     bool logged = false;
     const auto callback = [this, &logged, vbid](const std::system_error& err) {
         if (!logged) {
-            EP_LOG_WARN("EPBucket::flushVBucket: {} {}", vbid, err.what());
+            EP_LOG_WARN(
+                    "EPBucket::flushVBucket_UNLOCKED: {} {}", vbid, err.what());
             logged = true;
         }
 
@@ -731,13 +733,18 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     if (hcs) {
         if (hcs <= proposedVBState.persistedCompletedSeqno) {
             throw std::logic_error(fmt::format(
-                    "EPBucket::flushVBucket: {} Trying to set PCS to {} but "
+                    "EPBucket::flushVBucket_UNLOCKED: {} Trying to set PCS to "
+                    "{} but "
                     "the current value is {} and the PCS must be monotonic. "
-                    "The current checkpoint type is {}",
+                    "The current checkpoint type is {}. Flush's seqno "
+                    "range:[{},{}], proposedVBState:'{}'.",
                     vbid,
                     *hcs,
                     proposedVBState.persistedCompletedSeqno,
-                    to_string(toFlush.checkpointType)));
+                    to_string(toFlush.checkpointType),
+                    minSeqno,
+                    maxSeqno,
+                    proposedVBState));
         }
         proposedVBState.persistedCompletedSeqno = *hcs;
     }
@@ -745,13 +752,18 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     if (hps) {
         if (hps <= proposedVBState.persistedPreparedSeqno) {
             throw std::logic_error(fmt::format(
-                    "EPBucket::flushVBucket: {} Trying to set PPS to {} but "
+                    "EPBucket::flushVBucket_UNLOCKED: {} Trying to set PPS to "
+                    "{} but "
                     "the current value is {} and the PPS must be monotonic. "
-                    "The current checkpoint type is {}",
+                    "The current checkpoint type is {}. Flush's seqno "
+                    "range:[{},{}], proposedVBState:'{}'.",
                     vbid,
                     *hps,
                     proposedVBState.persistedPreparedSeqno,
-                    to_string(toFlush.checkpointType)));
+                    to_string(toFlush.checkpointType),
+                    minSeqno,
+                    maxSeqno,
+                    proposedVBState));
         }
         proposedVBState.persistedPreparedSeqno = *hps;
     }
