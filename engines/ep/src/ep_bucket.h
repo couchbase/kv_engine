@@ -124,13 +124,15 @@ public:
             std::chrono::milliseconds delay) override;
 
     /**
-     * Schedule compaction with no config. If a CompactTask is already
-     * scheduled then the task will still run, but with whatever config it
-     * already has. If a task is already scheduled, the given delay parameter
-     * takes effect.
+     * This function is used by internally requested compaction, where there is
+     * no cookie. The compaction will be created with the default
+     * CompactionConfig but internally_requested set to true.
+     * If a CompactTask is already scheduled then the task will still run, but
+     * with whatever config it already has + internally_requested=true.
+     * If a task is already scheduled, the given delay parameter also takes
+     * effect, delaying the existing task.
      */
     cb::engine_errc scheduleCompaction(Vbid vbid,
-                                       const CookieIface* cookie,
                                        std::chrono::milliseconds delay);
 
     cb::engine_errc cancelCompaction(Vbid vbid) override;
@@ -377,10 +379,14 @@ protected:
      */
     void initializeShards();
 
-    cb::engine_errc scheduleCompaction(Vbid vbid,
-                                       std::optional<CompactionConfig> config,
-                                       const CookieIface* cookie,
-                                       std::chrono::milliseconds delay);
+    /**
+     * Schedule a new CompactTask or request any existing task is rescheduled
+     */
+    cb::engine_errc scheduleOrRescheduleCompaction(
+            Vbid vbid,
+            const CompactionConfig& config,
+            const CookieIface* cookie,
+            std::chrono::milliseconds delay);
 
     /**
      * Max number of backill items in a single flusher batch before we split

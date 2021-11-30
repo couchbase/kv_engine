@@ -19,7 +19,9 @@
 #include "kvstore/kvstore.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
+#include "tests/mock/mock_couch_kvstore.h"
 #include "tests/mock/mock_ep_bucket.h"
+#include "tests/mock/mock_magma_kvstore.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/collections/stat_checker.h"
@@ -1997,6 +1999,91 @@ TEST_P(CollectionsEraserPersistentOnly, DropDuringFlush) {
                "collection has been deleted and compacted";
 }
 
+class CollectionsEraserPersistentWithFailure
+    : public CollectionsEraserPersistentOnly {
+public:
+    void SetUp() override {
+        CollectionsEraserPersistentOnly::SetUp();
+        if (isMagma()) {
+            replaceMagmaKVStore();
+        } else {
+            replaceCouchKVStoreWithMock();
+        }
+    }
+
+    void runAndFailCompaction() {
+        auto* kvstore = store->getRWUnderlying(vbid);
+        ASSERT_TRUE(kvstore);
+
+        if (isMagma()) {
+#if EP_USE_MAGMA
+            dynamic_cast<MockMagmaKVStore&>(*kvstore).setCompactionStatusHook(
+                    [](magma::Status& status) {
+                        throw std::runtime_error(
+                                "CollectionsEraserPersistentWithFailure "
+                                "forcing compaction to fail");
+                    });
+#else
+            FAIL() << "isMagma() true but EP_USE_MAGMA is not defined";
+#endif
+        } else {
+            dynamic_cast<MockCouchKVStore&>(*kvstore)
+                    .setConcurrentCompactionPreLockHook(
+                            [](auto& compactionKey) {
+                                throw std::runtime_error(
+                                        "CollectionsEraserPersistentWithFailure"
+                                        " forcing compaction to fail");
+                            });
+        }
+
+        runCollectionsEraser(vbid, false /*expectSuccess*/);
+
+        if (isMagma()) {
+#if EP_USE_MAGMA
+            dynamic_cast<MockMagmaKVStore&>(*kvstore).setCompactionStatusHook(
+                    [](magma::Status& status){});
+#else
+            FAIL() << "isMagma() true but EP_USE_MAGMA is not defined";
+#endif
+        } else {
+            dynamic_cast<MockCouchKVStore&>(*kvstore)
+                    .setConcurrentCompactionPreLockHook(
+                            [](auto& compactionKey) {});
+        }
+    }
+};
+
+TEST_P(CollectionsEraserPersistentWithFailure, FailAndRetry) {
+    // Flush the create
+    CollectionsManifest cm;
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "red");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Collection Drop
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    size_t preFailure = 0;
+    EXPECT_TRUE(store->getKVStoreStat("failure_compaction", preFailure));
+
+    // Inject failure
+    runAndFailCompaction();
+
+    size_t postFailure = 0;
+    EXPECT_TRUE(store->getKVStoreStat("failure_compaction", postFailure));
+    EXPECT_GT(postFailure, preFailure);
+
+    // Rescheduled and should run again
+    runCollectionsEraser(vbid);
+
+    size_t postSuccess = 0;
+    EXPECT_TRUE(store->getKVStoreStat("failure_compaction", postSuccess));
+    EXPECT_EQ(postFailure, postSuccess);
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsEraserTests,
                          CollectionsEraserTest,
@@ -2012,3 +2099,9 @@ INSTANTIATE_TEST_SUITE_P(CollectionsEraserPersistentOnly,
                          CollectionsEraserPersistentOnly,
                          STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(
+        CollectionsEraserPersistentWithFailure,
+        CollectionsEraserPersistentWithFailure,
+        STParameterizedBucketTest::persistentNoNexusConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);

@@ -1035,9 +1035,9 @@ void EPBucket::stopBgFetcher() {
     }
 }
 
-cb::engine_errc EPBucket::scheduleCompaction(
+cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
         Vbid vbid,
-        std::optional<CompactionConfig> config,
+        const CompactionConfig& config,
         const CookieIface* cookie,
         std::chrono::milliseconds delay) {
     cb::engine_errc errCode = checkForDBExistence(vbid);
@@ -1090,20 +1090,20 @@ cb::engine_errc EPBucket::scheduleCompaction(
         }
         ExecutorPool::get()->schedule(task);
 
-        if (config) {
-            tasksConfig = config.value();
-        }
+        tasksConfig = config;
     }
 
     EP_LOG_INFO(
             "Compaction of {}, task:{}, purge_before_ts:{}, "
             "purge_before_seq:{}, "
-            "drop_deletes:{}, {} with delay:{}s (awaiting completion).",
+            "drop_deletes:{}, internal:{} {} with delay:{}s (awaiting "
+            "completion).",
             vbid,
             task->getId(),
             tasksConfig.purge_before_ts,
             tasksConfig.purge_before_seq,
             tasksConfig.drop_deletes,
+            tasksConfig.internally_requested,
             !emplaced ? "rescheduled" : "created",
             execDelay.count());
 
@@ -1114,15 +1114,14 @@ cb::engine_errc EPBucket::scheduleCompaction(Vbid vbid,
                                              const CompactionConfig& config,
                                              const CookieIface* cookie,
                                              std::chrono::milliseconds delay) {
-    return scheduleCompaction(
-            vbid, std::optional<CompactionConfig>{config}, cookie, delay);
+    return scheduleOrRescheduleCompaction(vbid, config, cookie, delay);
 }
 
 cb::engine_errc EPBucket::scheduleCompaction(Vbid vbid,
-                                             const CookieIface* cookie,
                                              std::chrono::milliseconds delay) {
-    return scheduleCompaction(
-            vbid, std::optional<CompactionConfig>{}, cookie, delay);
+    CompactionConfig cfg;
+    cfg.internally_requested = true;
+    return scheduleOrRescheduleCompaction(vbid, cfg, nullptr, delay);
 }
 
 cb::engine_errc EPBucket::cancelCompaction(Vbid vbid) {
@@ -1373,11 +1372,14 @@ bool EPBucket::doCompact(Vbid vbid,
         return true;
     }
 
-    bool success = false;
+    bool reschedule = false;
     if (vb) {
-        success = compactInternal(vb, config);
-        if (!success) {
+        if (!compactInternal(vb, config)) {
             err = cb::engine_errc::failed;
+
+            // Only if an internal request was made should we reschedule. If
+            // compaction came externally, it is up to the client to retry
+            reschedule = config.internally_requested;
         }
     } else if (!cookies.empty()) {
         // The memcached core won't call back into the engine if the error
@@ -1396,7 +1398,7 @@ bool EPBucket::doCompact(Vbid vbid,
     cookies.clear();
 
     --stats.pendingCompactions;
-    return false;
+    return reschedule;
 }
 
 bool EPBucket::updateCompactionTasks(Vbid vbid, bool canErase) {

@@ -532,10 +532,12 @@ CompactionConfig& CompactionConfig::operator=(CompactionConfig&& other) {
         purge_before_seq = other.purge_before_seq;
         drop_deletes = other.drop_deletes;
         retain_erroneous_tombstones = other.retain_erroneous_tombstones;
+        internally_requested = other.internally_requested;
         other.purge_before_ts = 0;
         other.purge_before_seq = 0;
         other.drop_deletes = false;
         other.retain_erroneous_tombstones = false;
+        other.internally_requested = false;
     }
     return *this;
 }
@@ -544,18 +546,20 @@ bool CompactionConfig::operator==(const CompactionConfig& other) const {
     return purge_before_ts == other.purge_before_ts &&
            purge_before_seq == other.purge_before_seq &&
            drop_deletes == other.drop_deletes &&
-           retain_erroneous_tombstones == other.retain_erroneous_tombstones;
+           retain_erroneous_tombstones == other.retain_erroneous_tombstones &&
+           internally_requested == other.internally_requested;
 }
 
 // Merge other into this.
-// drop_deletes and retain_erroneous_tombstones are 'sticky' once true
-// they should stay true for all subsequent merges.
+// drop_deletes, retain_erroneous_tombstones and internally_requested are
+// 'sticky', once true they stay true for all subsequent merges.
 // purge_before_ts and purge_before_seq should be the largest value out of
 // the current and the input
 void CompactionConfig::merge(const CompactionConfig& other) {
     retain_erroneous_tombstones =
             retain_erroneous_tombstones || other.retain_erroneous_tombstones;
     drop_deletes = drop_deletes || other.drop_deletes;
+    internally_requested = internally_requested || other.internally_requested;
     purge_before_ts =
             std::max<uint64_t>(purge_before_ts, other.purge_before_ts);
     purge_before_seq =

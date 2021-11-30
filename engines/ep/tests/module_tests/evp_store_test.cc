@@ -1913,6 +1913,9 @@ public:
 
 // Test that scheduling compaction means the current task gets the new config
 TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionWithNewConfig) {
+    // Store something so the compaction will be success when ran
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
     auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
     auto task = mockEPBucket->getCompactionTask(vbid);
     EXPECT_FALSE(task);
@@ -1935,11 +1938,11 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionWithNewConfig) {
               mockEPBucket->scheduleCompaction(
                       vbid, c, nullptr, std::chrono::seconds(0)));
 
-    // Now schedule via the 'no config' method, the task's config should still
-    // be the last one we set.
+    // Now schedule via the 'no config' method, the task's config now takes on
+    // the 'internally_requested' flag
     EXPECT_EQ(cb::engine_errc::would_block,
-              mockEPBucket->scheduleCompaction(
-                      vbid, nullptr, std::chrono::seconds(0)));
+              mockEPBucket->scheduleCompaction(vbid, std::chrono::seconds(0)));
+    c.internally_requested = true;
     EXPECT_EQ(c, task->getCurrentConfig());
 
     // no reschedule needed

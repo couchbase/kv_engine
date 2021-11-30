@@ -155,7 +155,6 @@ void Flush::triggerPurge(Vbid vbid, EPBucket& bucket) {
     // 'coalesced' into one run of compaction.
     bucket.scheduleCompaction(
             vbid,
-            nullptr,
             std::chrono::milliseconds(
                     bucket.getEPEngine()
                             .getConfiguration()

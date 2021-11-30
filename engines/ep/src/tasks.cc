@@ -30,7 +30,7 @@ bool FlusherTask::run() {
 
 CompactTask::CompactTask(EPBucket& bucket,
                          Vbid vbid,
-                         std::optional<CompactionConfig> config,
+                         CompactionConfig config,
                          const CookieIface* ck,
                          bool completeBeforeShutdown)
     : GlobalTask(&bucket.getEPEngine(),
@@ -41,9 +41,7 @@ CompactTask::CompactTask(EPBucket& bucket,
       vbid(vbid) {
     auto lockedState = compaction.wlock();
 
-    if (config) {
-        lockedState->config = config.value();
-    }
+    lockedState->config = config;
 
     if (ck) {
         lockedState->cookiesWaiting.push_back(ck);

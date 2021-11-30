@@ -2155,13 +2155,17 @@ cb::engine_errc MagmaKVStore::getAllKeys(
 bool MagmaKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                              std::shared_ptr<CompactionContext> ctx) {
     vbLock.unlock();
-    auto res = compactDBInternal(vbLock, std::move(ctx));
+    try {
+        auto res = compactDBInternal(vbLock, std::move(ctx));
 
-    if (!res) {
+        if (!res) {
+            st.numCompactionFailure++;
+        }
+        return res;
+    } catch (const std::exception&) {
         st.numCompactionFailure++;
+        throw;
     }
-
-    return res;
 }
 
 bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,

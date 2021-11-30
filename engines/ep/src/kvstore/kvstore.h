@@ -120,8 +120,8 @@ struct CompactionConfig {
      * Merge 'other' into this instance. Merge results in this object being
      * representative of the current config and the other config.
      *
-     * - drop_deletes/retain_erroneous_tombstones are 'sticky', once true
-     *   they will remain true.
+     * - drop_deletes, retain_erroneous_tombstones and internally_requested are
+     *   'sticky', once true they will remain true.
      * - purge_before_ts and purge_before_seq become the max of this vs other
      */
     void merge(const CompactionConfig& other);
@@ -130,6 +130,9 @@ struct CompactionConfig {
     uint64_t purge_before_seq = 0;
     bool drop_deletes = false;
     bool retain_erroneous_tombstones = false;
+
+    // Did KV-engine request compaction? E.g. a collection was dropped
+    bool internally_requested = false;
 };
 
 /**

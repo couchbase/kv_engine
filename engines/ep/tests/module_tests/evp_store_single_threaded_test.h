@@ -122,8 +122,9 @@ public:
      * For ephemeral buckets integrated into stale item removal task
      *
      * @param id vbucket to process
+     * @param expectSuccess is the compaction supposed to be successful?
      */
-    void scheduleAndRunCollectionsEraser(Vbid id);
+    void scheduleAndRunCollectionsEraser(Vbid id, bool expectSuccess = true);
 
     /**
      * Run the task responsible for iterating the documents and erasing them.
@@ -134,7 +135,7 @@ public:
      *
      * @param id vbucket to process
      */
-    void runCollectionsEraser(Vbid id);
+    void runCollectionsEraser(Vbid id, bool expectSuccess = true);
 
     /**
      * Run the task responsible for destroying Checkpoints after they have
@@ -448,6 +449,19 @@ public:
                                 "value_only"),
                 std::make_tuple("persistent_nexus_couchstore_magma"s,
                                 "full_eviction"),
+                std::make_tuple("persistent_magma"s, "value_only"s),
+                std::make_tuple("persistent_magma"s, "full_eviction"s)
+#endif
+        );
+    }
+
+    static auto persistentNoNexusConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+                std::make_tuple("persistent_couchstore"s, "value_only"s),
+                std::make_tuple("persistent_couchstore"s, "full_eviction"s)
+#ifdef EP_USE_MAGMA
+                        ,
                 std::make_tuple("persistent_magma"s, "value_only"s),
                 std::make_tuple("persistent_magma"s, "full_eviction"s)
 #endif

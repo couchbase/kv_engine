@@ -68,7 +68,7 @@ class CompactTask : public GlobalTask {
 public:
     CompactTask(EPBucket& bucket,
                 Vbid vbid,
-                std::optional<CompactionConfig> config,
+                CompactionConfig config,
                 const CookieIface* ck,
                 bool completeBeforeShutdown = false);
 

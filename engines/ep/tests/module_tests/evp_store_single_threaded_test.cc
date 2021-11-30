@@ -401,17 +401,20 @@ void SingleThreadedKVBucketTest::runCompaction(Vbid id,
     runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], taskDescription);
 }
 
-void SingleThreadedKVBucketTest::scheduleAndRunCollectionsEraser(Vbid id) {
+void SingleThreadedKVBucketTest::scheduleAndRunCollectionsEraser(
+        Vbid id, bool expectSuccess) {
     if (isPersistent()) {
         store->scheduleCompaction(id, {}, nullptr, std::chrono::seconds(0));
         std::string task = "Compact DB file " + std::to_string(id.get());
         runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], task);
-        auto [status, dropped] = store->getVBucket(id)
-                                         ->getShard()
-                                         ->getRWUnderlying()
-                                         ->getDroppedCollections(id);
-        ASSERT_TRUE(status);
-        EXPECT_TRUE(dropped.empty());
+        if (expectSuccess) {
+            auto [status, dropped] = store->getVBucket(id)
+                                             ->getShard()
+                                             ->getRWUnderlying()
+                                             ->getDroppedCollections(id);
+            ASSERT_TRUE(status);
+            EXPECT_TRUE(dropped.empty());
+        }
     } else {
         auto* bucket = dynamic_cast<EphemeralBucket*>(store);
         bucket->scheduleTombstonePurgerTask();
@@ -426,7 +429,8 @@ void SingleThreadedKVBucketTest::scheduleAndRunCollectionsEraser(Vbid id) {
     }
 }
 
-void SingleThreadedKVBucketTest::runCollectionsEraser(Vbid id) {
+void SingleThreadedKVBucketTest::runCollectionsEraser(Vbid id,
+                                                      bool expectSuccess) {
     // Check that the task has already been scheduled by the caller
     if (isPersistent()) {
         auto* mockEPBucket = dynamic_cast<MockEPBucket*>(store);
@@ -441,7 +445,7 @@ void SingleThreadedKVBucketTest::runCollectionsEraser(Vbid id) {
     // Collection's eraser gets scheduled when we persist a drop with a
     // multi-second delay. We don't want to wait around for it so kick it
     // into action by rescheduling without delay.
-    scheduleAndRunCollectionsEraser(id);
+    scheduleAndRunCollectionsEraser(id, expectSuccess);
 }
 
 void SingleThreadedKVBucketTest::runCheckpointDestroyer(Vbid id) {
