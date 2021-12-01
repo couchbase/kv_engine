@@ -1054,8 +1054,29 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                                                                          vbid);
             if (gv.getStatus() == cb::engine_errc::success &&
                 gv.item->getBySeqno() > seqno) {
-                // Remove
+                // Remove stale callback invocation
                 firstDrops.erase(itr++);
+            } else {
+                itr++;
+            }
+        }
+
+        auto& firstExpiries =
+                nexusCompactionContext.kvStoreToCompactFirst == primary.get()
+                        ? primaryExpiryCb->callbacks
+                        : secondaryExpiryCb->callbacks;
+
+        for (auto itr = firstExpiries.begin(); itr != firstExpiries.end();) {
+            auto key = itr->first;
+            auto seqno = itr->second;
+
+            auto gv = nexusCompactionContext.kvStoreToCompactSecond->get(key,
+                                                                         vbid);
+
+            if (gv.getStatus() == cb::engine_errc::success &&
+                gv.item->getBySeqno() > seqno) {
+                // Remove stale callback invocation
+                firstExpiries.erase(itr++);
             } else {
                 itr++;
             }
