@@ -134,6 +134,7 @@ public:
      * @param backfillTracker Object which tracks how many backfills are
      *        in progress, and tells BackfillManager when it should
      *        set new backfills as pending.
+     * @param name The name of the BackfillManager; used for logging etc.
      * @param scanByteLimit Maximum number of bytes a single scan() call can
      *        produce from disk before yielding.
      * @param scanItemLimit Maximum number of items a single scan() call can
@@ -144,6 +145,7 @@ public:
      */
     BackfillManager(KVBucket& kvBucket,
                     BackfillTrackingIface& backfillTracker,
+                    std::string name,
                     size_t scanByteLimit,
                     size_t scanItemLimit,
                     size_t backfillByteLimit);
@@ -155,6 +157,7 @@ public:
      */
     BackfillManager(KVBucket& kvBucket,
                     BackfillTrackingIface& dcpConnmap,
+                    std::string name,
                     const Configuration& config);
 
     virtual ~BackfillManager();
@@ -228,6 +231,9 @@ public:
     }
 
     std::string to_string(ScheduleOrder order);
+
+    /// The name of the BackfillManager, used for logging etc
+    const std::string name;
 
 protected:
     //! The buffer is the total bytes used by all backfills for this connection

@@ -1253,7 +1253,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
                 "Process checkpoint(s) for DCP producer test_producer");
 
     // Now run backfilling task.
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
 
     // After Backfilltask scheduled create(); should have received a disk
     // snapshot; which in turn calls markDiskShapshot to re-register cursor.
@@ -1276,9 +1276,9 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
 
     // Let the backfill task complete running (it requires multiple steps to
     // complete).
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
+    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
+    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
 
     // Validate. We _should_ get two mutations: key1 & key2, but we have to
     // respin the checkpoint task for key2
@@ -1399,7 +1399,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
                  checkpointTask.getTaskName().data());
 
     // Now start the backfilling task.
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
 
     // After Backfilltask scheduled create(); should have received a disk
     // snapshot; which in turn calls markDiskShapshot to re-register cursor.
@@ -1416,8 +1416,9 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
             << "Expected Snapshot marker after running backfill task.";
 
     // Let the backfill task complete running through its various states
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
+    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
+    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
 
     // Now run the checkpoint processor task, whilst still backfilling
     // With MB-29369 this should be safe
@@ -1917,11 +1918,11 @@ TEST_P(STParamPersistentBucketTest,
     auto& lpNonIoQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
     EXPECT_EQ(1, lpNonIoQ.getFutureQueueSize());
     // backfill:create()
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
     // backfill:scan()
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
     // backfill:complete()
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
     // inMemoryPhase and pendingBackfill is true and so transitions to
     // backfillPhase
     // take snapshot marker off the ReadyQ
@@ -1958,7 +1959,7 @@ TEST_P(STParamPersistentBucketTest,
     // ActiveStreamCheckpointProcessorTask
     runNextTask(lpNonIoQ, "Process checkpoint(s) for DCP producer " + testName);
     // BackfillManagerTask
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
 
     // Stop Producer checkpoint processor task
     producer->cancelCheckpointCreatorTask();
@@ -2433,7 +2434,7 @@ static void MB20054_run_backfill_task(EventuallyPersistentEngine* engine,
 
     // Run the BackfillManagerTask task to push items to readyQ. In sherlock
     // upwards this runs multiple times - so should return true.
-    backfill.runCurrentTask("Backfilling items for a DCP Connection");
+    backfill.runCurrentTask("Backfilling items for eq_dcpq:test_producer");
 
     // Notify the main thread that it can progress with destroying the
     // engine [A].
@@ -5150,11 +5151,11 @@ TEST_P(STParamPersistentBucketTest, SyncWriteXattrExpiryViaDcp) {
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
 
     // Now start the backfilling task - mark disk snapshot
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
 
     // And stream... (used to crash here in CacheCallback). Not crashing is the
     // test.
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
 }
 
 void SingleThreadedKVBucketTest::testExpiryObservesCMQuota(

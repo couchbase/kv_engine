@@ -437,7 +437,7 @@ TEST_F(SingleThreadedEphemeralTest, RangeIteratorVBDeleteRaceTest) {
     // backfill_finished and be destroyed destroying the range iterator
     // in the process
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
 
     // Now the backfill is gone, the evb can be deleted
     EXPECT_TRUE(

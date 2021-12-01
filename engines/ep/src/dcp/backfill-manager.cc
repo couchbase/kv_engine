@@ -27,17 +27,20 @@
 
 static const size_t sleepTime = 1;
 
+using namespace std::string_literals;
+
 class BackfillManagerTask : public GlobalTask {
 public:
     BackfillManagerTask(EventuallyPersistentEngine& e,
-                        std::weak_ptr<BackfillManager> mgr,
+                        std::shared_ptr<BackfillManager> mgr,
                         double sleeptime = 0,
                         bool completeBeforeShutdown = false)
         : GlobalTask(&e,
                      TaskId::BackfillManagerTask,
                      sleeptime,
                      completeBeforeShutdown),
-          weak_manager(std::move(mgr)) {
+          weak_manager(mgr),
+          description("Backfilling items for "s + mgr->name) {
     }
 
     bool run() override;
@@ -54,6 +57,10 @@ private:
     // If the manager is deleted (by the DcpProducer) then the
     // ManagerTask simply cancels itself and stops running.
     std::weak_ptr<BackfillManager> weak_manager;
+
+    /// The description of this task. Set during construction to the name
+    /// of the BackfillManager.
+    const std::string description;
 };
 
 bool BackfillManagerTask::run() {
@@ -83,7 +90,7 @@ bool BackfillManagerTask::run() {
 }
 
 std::string BackfillManagerTask::getDescription() const {
-    return "Backfilling items for a DCP Connection";
+    return description;
 }
 
 std::chrono::microseconds BackfillManagerTask::maxExpectedDuration() const {
@@ -94,10 +101,12 @@ std::chrono::microseconds BackfillManagerTask::maxExpectedDuration() const {
 
 BackfillManager::BackfillManager(KVBucket& kvBucket,
                                  BackfillTrackingIface& backfillTracker,
+                                 std::string name,
                                  size_t scanByteLimit,
                                  size_t scanItemLimit,
                                  size_t backfillByteLimit)
-    : kvBucket(kvBucket),
+    : name(std::move(name)),
+      kvBucket(kvBucket),
       backfillTracker(backfillTracker),
       managerTask(nullptr) {
     scanBuffer.bytesRead = 0;
@@ -113,9 +122,11 @@ BackfillManager::BackfillManager(KVBucket& kvBucket,
 
 BackfillManager::BackfillManager(KVBucket& kvBucket,
                                  BackfillTrackingIface& backfillTracker,
+                                 std::string name,
                                  const Configuration& config)
     : BackfillManager(kvBucket,
                       backfillTracker,
+                      std::move(name),
                       config.getDcpScanByteLimit(),
                       config.getDcpScanItemLimit(),
                       config.getDcpBackfillByteLimit()) {

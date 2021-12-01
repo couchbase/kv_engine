@@ -40,6 +40,7 @@ protected:
         backfillMgr =
                 std::make_shared<BackfillManager>(*engine->getKVBucket(),
                                                   backfillTracker,
+                                                  "BackfillManagerTest",
                                                   engine->getConfiguration());
     }
 
