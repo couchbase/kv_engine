@@ -11,6 +11,7 @@
 #include "error_handler.h"
 
 #include <folly/lang/Assume.h>
+#include <logger/logger.h>
 
 namespace cb {
 
@@ -38,6 +39,7 @@ void handleError(spdlog::logger& logger,
     case ErrorHandlingMethod::Log:
         return;
     case ErrorHandlingMethod::Abort:
+        cb::logger::flush();
         std::abort();
     case ErrorHandlingMethod::Throw:
         throw std::logic_error(std::string(msg));
