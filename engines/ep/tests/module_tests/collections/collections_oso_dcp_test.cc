@@ -39,6 +39,8 @@ public:
 
     void MB_43700(CollectionID cid);
 
+    void emptyDiskSnapshot(OutOfOrderSnapshots osoMode);
+
     /**
      *  @param endOnTarget true and the last item written will be for the target
      *         collection
@@ -128,7 +130,75 @@ TEST_F(CollectionsOSODcpTest, basic) {
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
         EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
                   producers->last_oso_snapshot_flags);
+
+        if (flag == DCP_ADD_STREAM_FLAG_DISKONLY) {
+            EXPECT_EQ(cb::engine_errc::success,
+                      producer->stepWithBorderGuard(*producers));
+            EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers->last_op);
+        }
     }
+}
+
+void CollectionsOSODcpTest::emptyDiskSnapshot(OutOfOrderSnapshots osoMode) {
+    // Put something on disk otherwise to expose the issue
+    store_item(vbid, makeStoredDocKey("c"), "y");
+    flush_vbucket_to_disk(vbid, 1);
+
+    std::array<uint32_t, 2> flags = {{0, DCP_ADD_STREAM_FLAG_DISKONLY}};
+
+    for (auto flag : flags) {
+        // Reset so we have to stream from backfill
+        resetEngineAndWarmup();
+        VBucketPtr vb = store->getVBucket(vbid);
+        // Create a collection so we can get a stream, but don't flush it
+        CollectionsManifest cm(CollectionEntry::fruit);
+        vb->updateFromManifest(makeManifest(cm));
+
+        // Filter on fruit collection (this will request from seqno:0)
+        createDcpObjects({{R"({"collections":["9"]})"}}, osoMode, flag);
+
+        // We have a single filter, expect the backfill to be OSO
+        runBackfill();
+
+        // OSO snapshots are never really used in KV to KV replication, but this
+        // test is using KV to KV test code, hence we need to set a snapshot so
+        // that any transferred items don't trigger a snapshot exception.
+        consumer->snapshotMarker(1, replicaVB, 0, 4, 0, 0, 4);
+
+        // Manually step the producer and inspect all callbacks
+        // We currently send OSO start/end with no data
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepWithBorderGuard(*producers));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
+        EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::Start),
+                  producers->last_oso_snapshot_flags);
+
+        if (osoMode == OutOfOrderSnapshots::YesWithSeqnoAdvanced) {
+            EXPECT_EQ(cb::engine_errc::success,
+                      producer->stepWithBorderGuard(*producers));
+            EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
+                      producers->last_op);
+        }
+
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepWithBorderGuard(*producers));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
+        EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
+                  producers->last_oso_snapshot_flags);
+
+        if (flag == DCP_ADD_STREAM_FLAG_DISKONLY) {
+            EXPECT_EQ(cb::engine_errc::success,
+                      producer->stepWithBorderGuard(*producers));
+            EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers->last_op);
+        }
+    }
+}
+
+TEST_F(CollectionsOSODcpTest, emptyDiskSnapshot_MB_49847) {
+    emptyDiskSnapshot(OutOfOrderSnapshots::Yes);
+}
+TEST_F(CollectionsOSODcpTest, emptyDiskSnapshot_MB_49847_withSeqAdvanced) {
+    emptyDiskSnapshot(OutOfOrderSnapshots::YesWithSeqnoAdvanced);
 }
 
 // MB-49542: Confirm that an oso backfill does not register a cursor if the
