@@ -681,17 +681,19 @@ void KVBucket::logQTime(const GlobalTask& task,
     // Also, the schedule time depends on the runtime of the previous
     // run. That means that for Read/Write/AuxIO tasks it is even more
     // difficult to predict because that do IO.
-    // So, for now we log long schedule times only for NON_IO tasks,
-    // which is the task type for the ConnManager and
-    // ConnNotifierCallback tasks involved in MB-25822 and that we aim
-    // to debug. We consider 1 second a sensible schedule overhead
-    // limit for NON_IO tasks.
-    if (GlobalTask::getTaskType(task.getTaskId()) ==
-                task_type_t::NONIO_TASK_IDX &&
-        enqTime > std::chrono::seconds(1)) {
+    // So, for now we log long schedule times for AUX_IO and NON_IO tasks.
+    // We consider 1 second a sensible schedule overhead limit for NON_IO
+    // tasks, and 10 seconds a generous (but hopefully not overly common)
+    // schedule overhead for AUX_IO tasks.
+    const auto taskType = GlobalTask::getTaskType(task.getTaskId());
+    if ((taskType == task_type_t::NONIO_TASK_IDX &&
+         enqTime > std::chrono::seconds(1)) ||
+        (taskType == task_type_t::AUXIO_TASK_IDX &&
+         enqTime > std::chrono::seconds(10))) {
         EP_LOG_WARN(
-                "Slow scheduling for NON_IO task '{}' on thread {}. "
+                "Slow scheduling for {} task '{}' on thread {}. "
                 "Schedule overhead: {}",
+                to_string(taskType),
                 task.getDescription(),
                 threadName,
                 cb::time2text(enqTime));
