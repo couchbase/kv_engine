@@ -1729,11 +1729,13 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
                 continue;
             } else if (ctx.getCacheCallback().getStatus() ==
                        static_cast<int>(cb::engine_errc::no_memory)) {
-                logger->warn(
-                        "MagmaKVStore::scan lookup->callback {} "
-                        "key:{} returned cb::engine_errc::no_memory",
-                        ctx.vbid,
-                        cb::UserData{diskKey.to_string()});
+                if (logger->should_log(spdlog::level::TRACE)) {
+                    logger->TRACE(
+                            "MagmaKVStore::scan lookup->callback {} "
+                            "key:{} returned cb::engine_errc::no_memory",
+                            ctx.vbid,
+                            cb::UserData{diskKey.to_string()});
+                }
                 return scan_again;
             }
         }
