@@ -2072,7 +2072,8 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
                               epStats.replicationThrottleThreshold);
             ASSERT_EQ(1, stream->getNumBufferItems());
             auto& bufferedMessages = stream->getBufferMessages();
-            auto* dcpResponse = bufferedMessages.at(0).get();
+            auto& dcpResponse = bufferedMessages.at(0).first;
+
             ASSERT_EQ(seqno,
                       *dynamic_cast<MutationResponse&>(*dcpResponse)
                                .getBySeqno());
@@ -2194,11 +2195,12 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
                     EXPECT_EQ(2, numBufferedItems);
                     if (numBufferedItems == 2) {
                         auto& bufferedMessages = stream->getBufferMessages();
-                        auto* dcpResponse = bufferedMessages.at(0).get();
-                        EXPECT_EQ(nullptr, dcpResponse);
-                        dcpResponse = bufferedMessages.at(1).get();
+                        auto& dcpResponse0 = bufferedMessages.at(0);
+                        EXPECT_EQ(nullptr, dcpResponse0.first);
+                        auto& dcpResponse1 = bufferedMessages.at(1);
                         EXPECT_EQ(nextFrontEndSeqno,
-                                  *dynamic_cast<MutationResponse&>(*dcpResponse)
+                                  *dynamic_cast<MutationResponse&>(
+                                           *dcpResponse1.first)
                                            .getBySeqno());
                     }
 
@@ -2262,28 +2264,33 @@ void SingleThreadedPassiveStreamTest::mb_33773(
     engine->getReplicationThrottle().adjustWriteQueueCap(0);
     const size_t size = engine->getEpStats().getMaxDataSize();
     engine->getEpStats().setMaxDataSize(1);
+    size_t expectedFlowControlBytes =
+            SnapshotMarkerResponse::baseMsgBytes +
+            sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload);
     ASSERT_EQ(ReplicationThrottle::Status::Pause,
               engine->getReplicationThrottle().getStatus());
 
     // Push mutations
     EXPECT_EQ(0, stream->getNumBufferItems());
     for (size_t seqno = snapStart; seqno < snapEnd; seqno++) {
+        auto key = makeStoredDocKey("k" + std::to_string(seqno));
         EXPECT_EQ(cb::engine_errc::success,
-                  consumer->mutation(
-                          opaque,
-                          makeStoredDocKey("k" + std::to_string(seqno)),
-                          {},
-                          0,
-                          0,
-                          0,
-                          vbid,
-                          0,
-                          seqno,
-                          0,
-                          0,
-                          0,
-                          {},
-                          0));
+                  consumer->mutation(opaque,
+                                     key,
+                                     {},
+                                     0,
+                                     0,
+                                     0,
+                                     vbid,
+                                     0,
+                                     seqno,
+                                     0,
+                                     0,
+                                     0,
+                                     {},
+                                     0));
+        expectedFlowControlBytes +=
+                MutationResponse::mutationBaseMsgBytes + key.size();
     }
     // and check they were buffered.
     ASSERT_EQ(snapEnd - snapStart, stream->getNumBufferItems());
@@ -2345,6 +2352,9 @@ void SingleThreadedPassiveStreamTest::mb_33773(
         // hook flow control freed increased to reflect the buffered items which
         // were discarded,
         EXPECT_GT(consumer->getFlowControl().getFreedBytes(), bytes);
+        // All pushed items will have been 'acked'
+        EXPECT_EQ(expectedFlowControlBytes,
+                  consumer->getFlowControl().getFreedBytes());
         return;
     case mb_33773Mode::noMemory: {
         std::function<void()> hook = [] {};
@@ -2369,6 +2379,9 @@ void SingleThreadedPassiveStreamTest::mb_33773(
         // And check that consumer flow control is even bigger now
         EXPECT_GT(consumer->getFlowControl().getFreedBytes(),
                   flowControlBytesFreed);
+        // All pushed items will have been 'acked'
+        EXPECT_EQ(expectedFlowControlBytes,
+                  consumer->getFlowControl().getFreedBytes());
     } else {
         // The items are still buffered
         EXPECT_EQ(snapEnd - snapStart, stream->getNumBufferItems());

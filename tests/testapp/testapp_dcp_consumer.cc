@@ -275,7 +275,7 @@ TEST_P(DcpConsumerBufferAckTest, Basic) {
     conn->recvDcpBufferAck(conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno()));
 }
 
-TEST_P(DcpConsumerBufferAckTest, DISABLED_DeleteWithValue) {
+TEST_P(DcpConsumerBufferAckTest, DeleteWithValue) {
     if (isDefaultEngine()) {
         GTEST_SKIP() << "Skipping as DCP not supported";
     }
@@ -303,7 +303,7 @@ TEST_P(DcpConsumerBufferAckTest, DISABLED_DeleteWithValue) {
 }
 
 // Similar to previous test but use a highly compressible 'body'
-TEST_P(DcpConsumerBufferAckTest, DISABLED_DeleteWithCompressibleValue) {
+TEST_P(DcpConsumerBufferAckTest, DeleteWithCompressibleValue) {
     if (isDefaultEngine()) {
         GTEST_SKIP() << "Skipping as DCP not supported";
     }
@@ -339,7 +339,7 @@ TEST_P(DcpConsumerBufferAckTest, DISABLED_DeleteWithCompressibleValue) {
 // delete triggers value sanitisation code and results in an ACK using the
 // decompressed size, which this test forces to be much larger than what we
 // sent.
-TEST_P(DcpConsumerBufferAckTest, DISABLED_DeleteWithManyCompressibleXattrs) {
+TEST_P(DcpConsumerBufferAckTest, DeleteWithManyCompressibleXattrs) {
     if (isDefaultEngine()) {
         GTEST_SKIP() << "Skipping as DCP not supported";
     }
