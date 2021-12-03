@@ -764,6 +764,11 @@ protected:
      */
     TestingHook<magma::Status&> compactionStatusHook;
 
+    /**
+     * Testing hook called with the result of Sync when creating a file handle
+     */
+    TestingHook<magma::Status&> fileHandleSyncStatusHook;
+
 private:
     EventuallyPersistentEngine* currEngine;
 };

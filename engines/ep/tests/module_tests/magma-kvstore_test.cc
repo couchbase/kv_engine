@@ -670,3 +670,24 @@ TEST_F(MagmaKVStoreTest, MB_49465) {
                          magma::Magma::KVStoreID(99)),
                  std::runtime_error);
 }
+
+TEST_F(MagmaKVStoreTest, makeFileHandleSyncFailed) {
+    initialize_kv_store(kvstore.get(), vbid);
+    auto setupSyncStatus = [this](magma::Status hookStatus) -> void {
+        kvstore->setSyncFileHandleStatusHook(
+                [hookStatus](magma::Status& status) -> void {
+                    status = hookStatus;
+                });
+    };
+    setupSyncStatus(magma::Status(magma::Status::DiskFull, "DiskFull"));
+    auto fileHandle = kvstore->makeFileHandle(vbid);
+    EXPECT_TRUE(fileHandle);
+
+    setupSyncStatus(magma::Status(magma::Status::ReadOnly, "ReadOnly"));
+    fileHandle = kvstore->makeFileHandle(vbid);
+    EXPECT_TRUE(fileHandle);
+
+    setupSyncStatus(magma::Status(magma::Status::Internal, "Internal"));
+    fileHandle = kvstore->makeFileHandle(vbid);
+    EXPECT_FALSE(fileHandle);
+}

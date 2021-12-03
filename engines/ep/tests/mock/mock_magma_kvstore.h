@@ -55,6 +55,10 @@ public:
         return getMagmaDbStats(vbid);
     }
 
+    void setSyncFileHandleStatusHook(std::function<void(magma::Status&)> hook) {
+        fileHandleSyncStatusHook = hook;
+    }
+
     TestingHook<> readVBStateFromDiskHook;
 
     std::function<int(VB::Commit&, kvstats_ctx&)> saveDocsErrorInjector;

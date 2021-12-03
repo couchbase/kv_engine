@@ -2460,29 +2460,38 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
 
 std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) const {
     DomainAwareUniquePtr<magma::Magma::Snapshot> snapshot;
-    // Flush writecache for creating an on-disk snapshot
+    // Flush write cache for creating an on-disk snapshot
     auto status = magma->SyncKVStore(vbid.get());
-    if (!status && status.ErrorCode() != magma::Status::ReadOnly) {
-        logger->warn(
-                "MagmaKVStore::makeFileHandle {} Failed to sync "
-                "kvstore with status {}",
-                vbid,
-                status);
-        return nullptr;
-    }
-
+    fileHandleSyncStatusHook(status);
     if (status.IsOK()) {
         status = magma->GetDiskSnapshot(vbid.get(), snapshot);
-    } else if (status.ErrorCode() == magma::Status::ReadOnly) {
-        logger->warn(
-                "MagmaKVStore::makeFileHandle {} creating in memory snapshot "
-                "as magma is in read-only mode",
-                vbid);
+    } else {
+        if (status.ErrorCode() == magma::Status::ReadOnly) {
+            logger->warn(
+                    "MagmaKVStore::makeFileHandle {} creating in memory "
+                    "snapshot as magma is in read-only mode",
+                    vbid);
+        } else if (status.ErrorCode() == magma::Status::DiskFull) {
+            logger->warn(
+                    "MagmaKVStore::makeFileHandle {} creating in memory "
+                    "snapshot as magma returned DiskFull when trying to Sync "
+                    "KVStore",
+                    vbid);
+        } else {
+            logger->warn(
+                    "MagmaKVStore::makeFileHandle {} Failed to sync kvstore "
+                    "with status {}, so we'll be unable to create a disk "
+                    "snapshot for the MagmaKVFileHandle",
+                    vbid,
+                    status);
+            return nullptr;
+        }
         // If magma returns ReadOnly mode here then we've opened it in ReadOnly
         // mode during warmup as the original open attempt errored with
         // DiskFull. In the ReadOnly open magma has to replay the WAL ops in
-        // memory and cannot flush them to disk. As such, we have to open the
-        // memory snapshot rather than the disk snapshot here.
+        // memory and cannot flush them to disk. Or if we've received a DiskFull
+        // status then we're unable to Sync the KVStore to disk. As such, we
+        // have to open the memory snapshot rather than the disk snapshot here.
         status = magma->GetSnapshot(vbid.get(), snapshot);
     }
 

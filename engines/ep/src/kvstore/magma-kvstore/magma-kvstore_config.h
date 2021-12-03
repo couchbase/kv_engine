@@ -177,6 +177,10 @@ public:
         magmaCfg.ReadOnly = readOnly;
     }
 
+    bool isReadOnly() const {
+        return magmaCfg.ReadOnly;
+    }
+
     bool isSanityCheckingVBucketMapping() const {
         return sanityCheckVBucketMapping;
     }
