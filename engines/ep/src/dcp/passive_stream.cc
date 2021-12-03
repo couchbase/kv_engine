@@ -268,7 +268,7 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
 }
 
 cb::engine_errc PassiveStream::messageReceived(
-        std::unique_ptr<DcpResponse> dcpResponse) {
+        std::unique_ptr<DcpResponse> dcpResponse, UpdateFlowControl& ufc) {
     if (!dcpResponse) {
         return cb::engine_errc::invalid_arguments;
     }
@@ -407,6 +407,7 @@ cb::engine_errc PassiveStream::messageReceived(
 
     // Only buffer if the stream is not dead
     if (isActive()) {
+        ufc.release(); // @todo save the value along side the buffered response
         buffer.push(std::move(dcpResponse));
     }
     return cb::engine_errc::temporary_failure;
@@ -1296,7 +1297,7 @@ bool PassiveStream::Buffer::empty() const {
     return messages.empty();
 }
 
-void PassiveStream::Buffer::push(std::unique_ptr<DcpResponse> message) {
+void PassiveStream::Buffer::push(PassiveStream::Buffer::BufferType message) {
     std::lock_guard<std::mutex> lg(bufMutex);
     bytes += message->getMessageSize();
     messages.push_back(std::move(message));
@@ -1311,7 +1312,7 @@ void PassiveStream::Buffer::pop_front(std::unique_lock<std::mutex>& lh,
     bytes -= bytesPopped;
 }
 
-std::unique_ptr<DcpResponse>& PassiveStream::Buffer::front(
+PassiveStream::Buffer::BufferType& PassiveStream::Buffer::front(
         std::unique_lock<std::mutex>& lh) {
     return messages.front();
 }

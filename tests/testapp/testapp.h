@@ -84,6 +84,12 @@ public:
     // Called after the last test in this test case.
     static void TearDownTestCase();
 
+    /// Do the per-test-case set up with the provided configuration
+    /// (start the server with the provided configuration and define the
+    /// default bucket and terminate the process if we fail to do so)
+    static void doSetUpTestCaseWithConfiguration(
+            nlohmann::json config, const std::string& bucketConf = "");
+
     /// Helper which which returns true if the specified value is correctly
     /// encoded as JSON.
     static bool isJSON(std::string_view value);
@@ -197,7 +203,7 @@ protected:
     static void stop_memcached_server();
 
     // Create the bucket used for testing
-    static void CreateTestBucket();
+    static void CreateTestBucket(const std::string& bucketConf = "");
 
     // Delete the bucket used for testing.
     static void DeleteTestBucket();

@@ -29,6 +29,7 @@ class DropScopeEvent;
 class EventuallyPersistentEngine;
 class MutationConsumerMessage;
 class SystemEventMessage;
+class UpdateFlowControl;
 
 class PassiveStream : public Stream {
 public:
@@ -89,11 +90,14 @@ public:
     /*
      * Calls the appropriate function to process the message.
      *
-     * @params response The dcp message that needs to be processed.
+     * @param response The dcp message that needs to be processed.
+     * @param ackSize the value to use when DCP acking - this may differ from
+     *        DcpResponse::getMessageSize if for example an Item value was
+     *        decompressed
      * @returns the error code from processing the message.
      */
-    virtual cb::engine_errc messageReceived(
-            std::unique_ptr<DcpResponse> response);
+    cb::engine_errc messageReceived(std::unique_ptr<DcpResponse> response,
+                                    UpdateFlowControl& ackSize);
 
     void addStats(const AddStatFn& add_stat, const void* c) override;
 
@@ -295,7 +299,9 @@ protected:
 
         bool empty() const;
 
-        void push(std::unique_ptr<DcpResponse> message);
+        using BufferType = std::unique_ptr<DcpResponse>;
+
+        void push(BufferType message);
 
         /*
          * Caller must of locked bufMutex and pass as lh (not asserted)
@@ -306,13 +312,13 @@ protected:
          * Return a reference to the item at the front.
          * The user must pass a lock to bufMutex.
          */
-        std::unique_ptr<DcpResponse>& front(std::unique_lock<std::mutex>& lh);
+        BufferType& front(std::unique_lock<std::mutex>& lh);
 
-        size_t bytes;
+        size_t bytes{0};
         /* Lock ordering w.r.t to streamMutex:
            First acquire bufMutex and then streamMutex */
         mutable std::mutex bufMutex;
-        std::deque<std::unique_ptr<DcpResponse> > messages;
+        std::deque<BufferType> messages;
     } buffer;
 
     /*

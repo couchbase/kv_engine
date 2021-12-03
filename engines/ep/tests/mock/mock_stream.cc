@@ -11,6 +11,7 @@
 
 #include "mock_stream.h"
 #include "checkpoint_manager.h"
+#include "dcp/consumer.h"
 #include "dcp/response.h"
 #include "mock_dcp_producer.h"
 #include "vbucket.h"
@@ -88,7 +89,14 @@ void MockActiveStream::consumeAllBackfillItems(DcpProducer& producer) {
 
 cb::engine_errc MockPassiveStream::messageReceived(
         std::unique_ptr<DcpResponse> dcpResponse) {
-    return PassiveStream::messageReceived(std::move(dcpResponse));
+    auto consumer = consumerPtr.lock();
+    if (!consumer) {
+        throw std::logic_error(
+                "MockPassiveStream::messageReceived cannot proceed without the "
+                "DcpConsumer");
+    }
+    UpdateFlowControl ufc(*consumer, dcpResponse->getMessageSize());
+    return PassiveStream::messageReceived(std::move(dcpResponse), ufc);
 }
 
 std::unique_ptr<DcpResponse> MockPassiveStream::public_popFromReadyQ() {

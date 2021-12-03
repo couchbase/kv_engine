@@ -153,7 +153,7 @@ protected:
 
         void transferResponseMessage();
 
-        std::pair<ActiveStream*, PassiveStream*> getStreams();
+        std::pair<ActiveStream*, MockPassiveStream*> getStreams();
 
         Vbid vbid;
         EventuallyPersistentEngine* producerNode;
@@ -428,11 +428,12 @@ DCPLoopbackStreamTest::DcpRoute::getNextProducerMsg(ActiveStream* stream) {
     return producerMsg;
 }
 
-std::pair<ActiveStream*, PassiveStream*>
+std::pair<ActiveStream*, MockPassiveStream*>
 DCPLoopbackStreamTest::DcpRoute::getStreams() {
     auto* pStream =
             dynamic_cast<ActiveStream*>(producer->findStream(vbid).get());
-    auto* cStream = consumer->getVbucketStream(vbid).get();
+    auto* cStream = dynamic_cast<MockPassiveStream*>(
+            consumer->getVbucketStream(vbid).get());
     EXPECT_TRUE(pStream);
     EXPECT_TRUE(cStream);
     return {pStream, cStream};
