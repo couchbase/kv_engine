@@ -13,6 +13,7 @@
 #include "frameinfo.h"
 
 #include <cbsasl/client.h>
+#include <mcbp/codec/dcp_snapshot_marker.h>
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/protocol_binary.h>
@@ -754,7 +755,7 @@ void MemcachedConnection::recvFrame(Frame& frame) {
     }
 }
 
-void MemcachedConnection::sendCommand(const BinprotCommand& command) {
+size_t MemcachedConnection::sendCommand(const BinprotCommand& command) {
     traceData.reset();
 
     auto encoded = command.encode();
@@ -778,14 +779,17 @@ void MemcachedConnection::sendCommand(const BinprotCommand& command) {
     iovec iov{};
     iov.iov_base = encoded.header.data();
     iov.iov_len = encoded.header.size();
+    size_t sentBytes = iov.iov_len;
     message.push_back(iov);
     for (auto buf : encoded.bufs) {
         iov.iov_base = const_cast<uint8_t*>(buf.data());
         iov.iov_len = buf.size();
+        sentBytes += iov.iov_len;
         message.push_back(iov);
     }
 
     sendBuffer(message);
+    return sentBytes;
 }
 
 void MemcachedConnection::recvResponse(BinprotResponse& response) {
@@ -1524,6 +1528,14 @@ void MemcachedConnection::dcpControl(std::string_view key,
     }
 }
 
+void MemcachedConnection::dcpOpenConsumer(std::string_view name) {
+    BinprotDcpOpenCommand open{std::string{name}};
+    const auto response = BinprotResponse(execute(open));
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed dcpOpenConsumer", response);
+    }
+}
+
 void MemcachedConnection::dcpStreamRequest(Vbid vbid,
                                            uint32_t flags,
                                            uint64_t startSeq,
@@ -1603,6 +1615,116 @@ nlohmann::json MemcachedConnection::getCollectionsManifest() {
         throw ConnectionError("Failed getCollectionsManifest", response);
     }
     return nlohmann::json::parse(response.getDataString());
+}
+
+void MemcachedConnection::dcpAddStream(Vbid vbid, uint32_t flags) {
+    sendCommand(BinprotDcpAddStreamCommand{flags}.setVBucket(vbid));
+}
+
+void MemcachedConnection::dcpStreamRequestResponse(
+        uint32_t opaque,
+        const std::vector<std::pair<uint64_t, uint64_t>>& failovers) {
+    BinprotCommandResponse rsp{cb::mcbp::ClientOpcode::DcpStreamReq, opaque};
+
+    // Turn the vector of pairs into a protocol failover table (in a string
+    // so we can attach to the response)
+    std::string table;
+    for (const auto& entry : failovers) {
+        auto wireUuid = htonll(entry.first);
+        auto wireSeqno = htonll(entry.second);
+
+        std::copy_n(reinterpret_cast<uint8_t*>(&wireUuid),
+                    sizeof(uint64_t),
+                    std::back_inserter(table));
+
+        std::copy_n(reinterpret_cast<uint8_t*>(&wireSeqno),
+                    sizeof(uint64_t),
+                    std::back_inserter(table));
+    }
+
+    rsp.setValue(table);
+    sendCommand(rsp);
+}
+
+size_t MemcachedConnection::dcpSnapshotMarkerV2(uint32_t opaque,
+                                                uint64_t start,
+                                                uint64_t end,
+                                                uint32_t flags) {
+    const auto size = sizeof(cb::mcbp::Request) +
+                      sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
+                      sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);
+    Frame buffer;
+    buffer.payload.resize(size);
+
+    cb::mcbp::FrameBuilder<cb::mcbp::Request> builder(
+            {buffer.payload.data(), buffer.payload.size()});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    builder.setOpaque(opaque);
+
+    cb::mcbp::DcpSnapshotMarker marker(start, end, flags, {}, end, {});
+    marker.encode(builder);
+    sendFrame(buffer);
+    return buffer.payload.size();
+}
+
+size_t MemcachedConnection::dcpMutation(const Document& doc,
+                                        uint32_t opaque,
+                                        uint64_t seqno,
+                                        uint64_t revSeqno,
+                                        uint32_t lockTime,
+                                        uint8_t nru) {
+    // No reply expected
+    return sendCommand(BinprotDcpMutationCommand{doc.info.id,
+                                                 doc.value,
+                                                 opaque,
+                                                 uint8_t(doc.info.datatype),
+                                                 doc.info.expiration,
+                                                 doc.info.cas,
+                                                 seqno,
+                                                 revSeqno,
+                                                 doc.info.flags,
+                                                 lockTime,
+                                                 nru});
+}
+
+size_t MemcachedConnection::dcpDeletionV2(const Document& doc,
+                                          uint32_t opaque,
+                                          uint64_t seqno,
+                                          uint64_t revSeqno,
+                                          uint32_t deleteTime) {
+    // No reply expected
+    return sendCommand(BinprotDcpDeletionV2Command{doc.info.id,
+                                                   doc.value,
+                                                   opaque,
+                                                   uint8_t(doc.info.datatype),
+                                                   doc.info.cas,
+                                                   seqno,
+                                                   revSeqno,
+                                                   deleteTime});
+}
+
+void MemcachedConnection::recvDcpBufferAck(uint32_t expected) {
+    Frame frame;
+    recvFrame(frame);
+    const auto* request = frame.getRequest();
+    if (request->getClientOpcode() !=
+        cb::mcbp::ClientOpcode::DcpBufferAcknowledgement) {
+        throw std::logic_error(
+                "MemcachedConnection::recvDcpBufferAck not a buffer ack "
+                "opcode");
+    }
+    auto* dcpBufferAck =
+            reinterpret_cast<const cb::mcbp::request::DcpBufferAckPayload*>(
+                    request->getExtdata().data());
+
+    if (dcpBufferAck->getBufferBytes() != expected) {
+        throw std::logic_error(
+                "MemcachedConnection::recvDcpBufferAck: Unexpected buffer "
+                "bytes:" +
+                std::to_string(dcpBufferAck->getBufferBytes()) +
+                " expected:" + std::to_string(expected));
+    }
 }
 
 void MemcachedConnection::setUnorderedExecutionMode(ExecutionMode mode) {
