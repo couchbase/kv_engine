@@ -2207,7 +2207,6 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 *this, vbid, ctx);
     };
 
-    uint64_t collectionItemsDropped = 0;
     LocalDbReqs localDbReqs;
 
     Status status;
@@ -2320,7 +2319,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
             // times per key. We CAN just subtract the number of items we know
             // belong to the collection though before we update the vBucket doc
             // count.
-            collectionItemsDropped += itemCount;
+            ctx->stats.collectionsItemsPurged += itemCount;
 
             // We've finish processing this collection.
             // Create a SystemEvent key for the collection and process it.
@@ -2357,7 +2356,6 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     // don't have to worry about race conditions with things like the purge
     // seqno.
     if (ctx->completionCallback) {
-        ctx->stats.collectionsItemsPurged = collectionItemsDropped;
         try {
             ctx->completionCallback(*ctx);
         } catch (const std::exception& e) {
