@@ -132,6 +132,10 @@ public:
      */
     void setManifestUid(ManifestUid uid);
 
+    ManifestUid getManifestUid() const {
+        return manifestUid;
+    }
+
     /**
      * Set the manifest to the given manifest. Required by the NexusKVStore to
      * generate a VB::Commit/Collections::Flush to track collections stats

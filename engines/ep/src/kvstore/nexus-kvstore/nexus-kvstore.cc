@@ -342,7 +342,8 @@ bool NexusKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
     VB::Commit secondaryCommitData = primaryCommitData;
     secondaryCommitData.collections.setManifest(secondaryVBManifest);
 
-    // Secondary commit data needs some tweaking in
+    // Secondary commit data needs some tweaking if prepares are dealt with
+    // differently
     auto* secondaryVbState = secondary->getCachedVBucketState(vbid);
     if (!primary->getStorageProperties().hasPrepareCounting() &&
         secondary->getStorageProperties().hasPrepareCounting() &&
@@ -357,6 +358,31 @@ bool NexusKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
                 secondaryVbState->onDiskPrepares;
         secondaryCommitData.proposedVBState.setOnDiskPrepareBytes(
                 secondaryVbState->getOnDiskPrepareBytes());
+    }
+
+    // Sanity check that some interesting parts of our commitData are the same
+    if (primaryCommitData.collections.getManifestUid() !=
+        secondaryCommitData.collections.getManifestUid()) {
+        auto msg = fmt::format(
+                "NexusKVStore::commit: {}: manifest uids not "
+                "the same before commit primary: {} "
+                "secondary: {}",
+                vbid,
+                primaryCommitData.collections.getManifestUid(),
+                secondaryCommitData.collections.getManifestUid());
+        handleError(msg);
+    }
+
+    if (primaryCommitData.collections.isReadyForCommit() !=
+        secondaryCommitData.collections.isReadyForCommit()) {
+        auto msg = fmt::format(
+                "NexusKVStore::commit: {}: ready for commit not "
+                "the same before commit primary: {} "
+                "secondary: {}",
+                vbid,
+                primaryCommitData.collections.isReadyForCommit(),
+                secondaryCommitData.collections.isReadyForCommit());
+        handleError(msg);
     }
 
     auto primaryResult = primary->commit(std::move(nexusTxnCtx.primaryContext),
