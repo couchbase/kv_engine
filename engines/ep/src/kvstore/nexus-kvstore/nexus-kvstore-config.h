@@ -43,9 +43,14 @@ public:
         return implicitCompactionEnabled;
     }
 
+    bool isConcurrentFlushCompactionEnabled() const {
+        return concurrentFlushCompactionEnabled;
+    }
+
 protected:
     std::unique_ptr<KVStoreConfig> primaryConfig;
     std::unique_ptr<KVStoreConfig> secondaryConfig;
     cb::ErrorHandlingMethod errorHandlingMethod;
     bool implicitCompactionEnabled;
+    bool concurrentFlushCompactionEnabled;
 };

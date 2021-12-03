@@ -149,6 +149,13 @@ public:
      */
     TestingHook<> preCompactionHook;
 
+    /**
+     * Unit test only hook called after we compact the first KVStore but before
+     * we compact the second. Public as we want to use this in full bucket
+     * unit tests as it's non-trivial to run NexusKVStore standalone.
+     */
+    TestingHook<std::unique_lock<std::mutex>&> midCompactionHook;
+
 protected:
     uint64_t prepareToDeleteImpl(Vbid vbid) override;
     void prepareToCreateImpl(Vbid vbid) override;
@@ -269,7 +276,6 @@ protected:
     // Friended to allow us to update the purgeSeqno
     friend NexusPurgedItemCtx;
 
-protected:
     NexusKVStoreConfig& configuration;
     std::unique_ptr<KVStoreIface> primary;
     std::unique_ptr<KVStoreIface> secondary;
@@ -295,6 +301,15 @@ protected:
      * Mutable as this may get incremented in const functions (logically const)
      */
     mutable cb::NonNegativeCounter<uint64_t> skippedChecksDueToPurging;
+
+    /**
+     * Is compaction running for the given vBucket? If compaction is running for
+     * the given vBucket then we need to skip some sanity checks as it may be
+     * the case that we have compacted one KVStore but not the other.
+     *
+     * Indexed by vBucket id.
+     */
+    std::vector<std::atomic_bool> compactionRunning;
 
     /**
      * During rollback we make a call to getWithHeader in EPDiskRollbackCB for

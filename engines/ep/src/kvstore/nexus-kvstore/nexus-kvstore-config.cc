@@ -83,4 +83,6 @@ NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
             cb::getErrorHandlingMethod(config.getNexusErrorHandling());
 
     implicitCompactionEnabled = config.isNexusImplicitCompactionEnabled();
+    concurrentFlushCompactionEnabled =
+            config.isNexusConcurrentFlushCompactionEnabled();
 }

@@ -64,6 +64,7 @@ NexusKVStore::NexusKVStore(NexusKVStoreConfig& config) : configuration(config) {
     vbMutexes = std::vector<std::mutex>(cacheSize);
     skipGetWithHeaderChecksForRollback =
             std::vector<std::atomic_bool>(cacheSize);
+    compactionRunning = std::vector<std::atomic_bool>(cacheSize);
 }
 
 void NexusKVStore::deinitialize() {
@@ -431,6 +432,13 @@ bool NexusKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
                 primaryResult,
                 secondaryResult);
         handleError(msg);
+    }
+
+    // Concurrent compaction may have modified one KVStore but not the other.
+    // In this case we need to skip the checks here as the state is probably not
+    // going to be the same.
+    if (compactionRunning[getCacheSlot(vbid)]) {
+        return primaryResult;
     }
 
     doCollectionsMetadataChecks(vbid, &primaryCommitData, &secondaryCommitData);
@@ -1012,25 +1020,55 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
     auto primaryVbPtr = primaryCtx->getVBucket();
     auto vbid = primaryVbPtr->getId();
 
-    // Need to take the lock for this vBucket to prevent concurrent flushes
-    // from changing the on disk state that a compaction might see (and
-    // concurrent gets from seeing a different state should compaction change
-    // things).
-    // @TODO MB-47604: Getting concurrent flushes and compaction working would
-    // be good as it more closely behaves like the real system
-    auto lh = getLock(vbid);
+    // We take the nexus lock at this point as we may/may not be running with
+    // support for concurrent flushing and compaciton. If we are, then we will
+    // unlock this lock later.
+    auto nexusLock = getLock(vbid);
 
-    // We can't pass the vbLock to the underlying KVStores as they may unlock it
-    // if they don't need to hold it to inter-lock flushing and compaction. At
-    // a glance that's fine as we are inter-locking flushing and compaction in
-    // NexusKVStore with our own lock, but the presence of that lock can cause
-    // lock order cycles if we attempt to re-acquire the vbLock whilst holding
-    // the NexusKVStore lock. We have to acqurie the vbLock first for flushing,
-    // so the only way out of this is to just pass a dummy lock to the
-    // underlying KVStores. We don't care about unlocking the vbLock as we're
-    // inter-locking flushing/gets/compactions already.
+    // compactionLock* is a pointer to the lock holder that we will pass to the
+    // individual KVStores. We either pass the vbLock if we support concurrent
+    // flushing and compaction, or we pass dummyLh so that we can lock/unlock
+    // freely with no effect.
+    auto* compactionLock = &vbLock;
+
+    // dummyLock is passed into the KVStores as a replacement for the vbLock if
+    // we are not running with concurrent flushing and compaction. As the API
+    // requires a lock holder (unique_lock) we need to take that now and we'll
+    // unlock it later if we don't need it
     std::mutex dummyLock;
     auto dummyLh = std::unique_lock<std::mutex>(dummyLock);
+
+    // If we're running with support for concurrent flushing and compaction then
+    // the main consideration in terms of the comparisons we can make now is if
+    // compaction runs partially and we do something else in between the
+    // compactions of the KVstores. We can deal with purges quite simply by
+    // moving the NexusKVStore::purgeSeqno which all operations check. Any
+    // comparisons lower than that may not be valid. Expiries are more
+    // interesting here though as we compare the callback invocations. One
+    // example situation is if the KVStore we compact first generates an expiry
+    // which gets flushed before we compact the second KVStore. In this case the
+    // expiry invocations may be different. There is also an interesting case
+    // with logical deletions and collection recreation/surrection, so we'll
+    // deal with them both in the same way.
+    if (configuration.isConcurrentFlushCompactionEnabled()) {
+        // We unlock the nexusLock to allow flushes in, we're still holding the
+        // vbLock at this point but the underlying KVStore will unlock it when
+        // it's ready
+        nexusLock.unlock();
+        // We unlock the dummyLock at this point to prevent lock order
+        // inversions with the vbLock and the dummyLock. Because we have a lock
+        // holder we have to take it outside of this scope and unlock it
+        // manually.
+        dummyLh.unlock();
+    } else {
+        compactionLock = &dummyLh;
+    }
+
+    compactionRunning[getCacheSlot(vbid)] = true;
+
+    // Scope guard to reset compactionRunning just in case something throws
+    auto guard = folly::makeGuard(
+            [this, vbid] { compactionRunning[getCacheSlot(vbid)] = false; });
 
     // Create a new context to avoid calling things like the completion callback
     // which sets in memory state after the secondary compacts
@@ -1092,10 +1130,23 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
     auto nexusCompactionContext =
             calculateCompactionOrder(primaryCtx, secondaryCtx);
 
+    if (!vbLock.owns_lock()) {
+        throw std::logic_error(
+                fmt::format("NexusKVStore::compactDB: Passed vbLock for {} but "
+                            "it is not locked",
+                            vbid));
+    }
+
     preCompactionHook();
 
+    // We're going to take a copy of the high seqno before we compact the
+    // first KVStore so that we can determine later on if it's valid to make
+    // comparisons (if a concurrent flush ran then expiry or logical deletions
+    // callbacks may be different and not comparable).
+    auto beforeFirstCompactionHighSeqno = getLastPersistedSeqno(vbid);
+
     auto firstResult = nexusCompactionContext.kvStoreToCompactFirst->compactDB(
-            dummyLh, nexusCompactionContext.firstCtx);
+            *compactionLock, nexusCompactionContext.firstCtx);
 
     if (nexusCompactionContext.attemptToPruneStaleCallbacks) {
         // Iterate over the callbacks made by the first compaction and run
@@ -1144,14 +1195,27 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
         }
     }
 
+    midCompactionHook(vbLock);
+
     // Might have to re-acquire the lock, depending what the first kvstore does
     // with it...
-    if (!dummyLh.owns_lock()) {
-        dummyLh.lock();
+    if (!compactionLock->owns_lock()) {
+        compactionLock->lock();
     }
+
+    // We've just locked the vBucket lock so flushers are going to be blocked
+    // now. As we allow flushing and compaction to run concurrently (in both
+    // the full server and NexusKVStore) it may be the case that flushes may
+    // have happened that have changed the state of documents such that the
+    // callbacks made by the second (not secondary) KVStore are not the same as
+    // those made by the primary. We can detect a flush having run now by
+    // checking the high seqno, and should this have moved since the original
+    // compaction we'll skip comparing callbacks.
+    auto beforeSecondCompactionHighSeqno = getLastPersistedSeqno(vbid);
+
     auto secondResult =
             nexusCompactionContext.kvStoreToCompactSecond->compactDB(
-                    dummyLh, nexusCompactionContext.secondCtx);
+                    *compactionLock, nexusCompactionContext.secondCtx);
 
     if (firstResult != secondResult) {
         auto msg = fmt::format(
@@ -1173,6 +1237,19 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
         return nexusCompactionContext.kvStoreToCompactFirst == primary.get()
                        ? firstResult
                        : secondResult;
+    }
+
+    if (beforeFirstCompactionHighSeqno != beforeSecondCompactionHighSeqno) {
+        // Not valid to compare expiries or logical deletions as the high seqno
+        // has moved
+        return nexusCompactionContext.kvStoreToCompactFirst == primary.get()
+                       ? firstResult
+                       : secondResult;
+    }
+
+    // Compare the collections state if successful
+    if (firstResult) {
+        doCollectionsMetadataChecks(vbid, nullptr, nullptr);
     }
 
     // The expiration callback invocations should be the same
@@ -1266,11 +1343,6 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                 vbid,
                 ss.str());
         handleError(msg);
-    }
-
-    // Compare the collections state if successful
-    if (firstResult) {
-        doCollectionsMetadataChecks(vbid, nullptr, nullptr);
     }
 
     return nexusCompactionContext.kvStoreToCompactFirst == primary.get()

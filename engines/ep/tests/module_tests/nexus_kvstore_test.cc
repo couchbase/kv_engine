@@ -36,6 +36,11 @@ GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(NexusKVStoreTest);
  */
 class NexusKVStoreTest : public STParamPersistentBucketTest {
 public:
+    void SetUp() override {
+        config_string += "nexus_concurrent_flush_compaction_enabled=true";
+        STParamPersistentBucketTest::SetUp();
+    }
+
     static auto couchstoreMagmaVariants() {
         using namespace std::string_literals;
         return ::testing::Values(
@@ -512,7 +517,10 @@ TEST_P(NexusKVStoreTest, CollectionDropCompactionPurgeItem) {
             vbucket_state_active,
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
 
-    // Drop a key, CouchKVStore will purge it, MagmaKVStore will not
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(kvstore);
+
+    // Drop a key
     auto purgedKey = makeStoredDocKey("key");
     store_item(vbid, purgedKey, "value");
     delete_item(vbid, purgedKey);
@@ -532,6 +540,148 @@ TEST_P(NexusKVStoreTest, CollectionDropCompactionPurgeItem) {
     // KVStore but not the other and is below the NexusKVStore purge seqno
     store_item(vbid, purgedKey, "value");
     flushVBucketToDiskIfPersistent(vbid, 1);
+}
+
+TEST_P(NexusKVStoreTest,
+       ConcurrentCompactionFirstExpiresFlushBeforeCompactingSecond) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(kvstore);
+
+    // We need something that compaction will operate on that we can change
+    // later. For this we'll us an expired item
+    auto expiredKey = makeStoredDocKey("key");
+    store_item(vbid, expiredKey, "value", 1 /*exptime*/);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto& nexusKVStore = dynamic_cast<NexusKVStore&>(*kvstore);
+    nexusKVStore.midCompactionHook =
+            [this, &expiredKey](std::unique_lock<std::mutex>& vbLock) {
+                if (vbLock.owns_lock()) {
+                    vbLock.unlock();
+                }
+
+                // Update the key - make it not expired
+                store_item(vbid, expiredKey, "value");
+                flushVBucketToDiskIfPersistent(vbid, 1);
+            };
+
+    runCompaction(vbid);
+}
+
+TEST_P(NexusKVStoreTest, ConcurrentCompactionPurgeFromOneKVStore) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(kvstore);
+
+    auto purgedKey = makeStoredDocKey("key");
+    store_item(vbid, purgedKey, "value");
+    delete_item(vbid, purgedKey);
+    store_item(vbid, makeStoredDocKey("dummy"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    auto& nexusKVStore = dynamic_cast<NexusKVStore&>(*kvstore);
+    nexusKVStore.midCompactionHook =
+            [this, &purgedKey](std::unique_lock<std::mutex>& vbLock) {
+                if (vbLock.owns_lock()) {
+                    vbLock.unlock();
+                }
+
+                auto* kvstore = store->getROUnderlying(vbid);
+                auto gv = kvstore->get(DiskDocKey(purgedKey), vbid);
+
+                store_item(vbid, purgedKey, "value");
+                flushVBucketToDiskIfPersistent(vbid, 1);
+            };
+
+    TimeTraveller t(std::numeric_limits<int>::max());
+    runCompaction(vbid);
+}
+
+TEST_P(NexusKVStoreTest, ConcurrentCompactionLogicalDeletionToOneKVStore) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(kvstore);
+
+    auto vb = store->getVBucket(vbid);
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    vb->updateFromManifest(makeManifest(cm));
+
+    auto purgedKey = makeStoredDocKey("key", CollectionEntry::fruit.getId());
+    store_item(vbid, purgedKey, "value");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    auto& nexusKVStore = dynamic_cast<NexusKVStore&>(*kvstore);
+    nexusKVStore.midCompactionHook =
+            [this, &purgedKey, &cm, &vb](std::unique_lock<std::mutex>& vbLock) {
+                if (vbLock.owns_lock()) {
+                    vbLock.unlock();
+                }
+
+                cm.remove(CollectionEntry::fruit);
+                vb->updateFromManifest(makeManifest(cm));
+                flushVBucketToDiskIfPersistent(vbid, 1);
+            };
+
+    TimeTraveller t(std::numeric_limits<int>::max());
+    runCompaction(vbid);
+}
+
+TEST_P(NexusKVStoreTest, ConcurrentCompactionFlushResurrection) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(kvstore);
+
+    auto vb = store->getVBucket(vbid);
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    vb->updateFromManifest(makeManifest(cm));
+
+    auto purgedKey = makeStoredDocKey("key", CollectionEntry::fruit.getId());
+    store_item(vbid, purgedKey, "value");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    cm.remove(CollectionEntry::fruit);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto& nexusKVStore = dynamic_cast<NexusKVStore&>(*kvstore);
+    nexusKVStore.midCompactionHook =
+            [this, &purgedKey, &cm, &vb](std::unique_lock<std::mutex>& vbLock) {
+                if (vbLock.owns_lock()) {
+                    vbLock.unlock();
+                }
+
+                auto* kvstore = store->getROUnderlying(vbid);
+                auto gv = kvstore->get(DiskDocKey(purgedKey), vbid);
+
+                cm.add(CollectionEntry::fruit);
+                vb->updateFromManifest(makeManifest(cm));
+                store_item(vbid, purgedKey, "value");
+                flushVBucketToDiskIfPersistent(vbid, 2);
+            };
+
+    TimeTraveller t(std::numeric_limits<int>::max());
+    runCompaction(vbid);
 }
 
 INSTANTIATE_TEST_SUITE_P(Nexus,
