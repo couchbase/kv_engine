@@ -208,30 +208,28 @@ cb::engine_errc server_prometheus_stats(
             server_global_stats(collector);
             stats_audit(collector);
         }
-        BucketManager::instance().forEach(
-                [&collector, cardinality](Bucket& bucket, void*) {
-                    if (std::string_view(bucket.name).empty()) {
-                        // skip the initial bucket with aggregated stats
-                        return true;
-                    }
-                    auto bucketC = collector.forBucket(bucket.name);
+        BucketManager::instance().forEach([&collector,
+                                           cardinality](Bucket& bucket) {
+            if (std::string_view(bucket.name).empty()) {
+                // skip the initial bucket with aggregated stats
+                return true;
+            }
+            auto bucketC = collector.forBucket(bucket.name);
 
-                    // do engine stats
-                    bucket.getEngine().get_prometheus_stats(bucketC,
-                                                            cardinality);
+            // do engine stats
+            bucket.getEngine().get_prometheus_stats(bucketC, cardinality);
 
-                    if (cardinality == cb::prometheus::Cardinality::Low) {
-                        // do memcached per-bucket stats
-                        server_bucket_stats(bucketC, bucket);
-                    } else {
-                        // do memcached timings stats
-                        server_bucket_timing_stats(bucketC, bucket.timings);
-                    }
+            if (cardinality == cb::prometheus::Cardinality::Low) {
+                // do memcached per-bucket stats
+                server_bucket_stats(bucketC, bucket);
+            } else {
+                // do memcached timings stats
+                server_bucket_timing_stats(bucketC, bucket.timings);
+            }
 
-                    // continue checking buckets
-                    return true;
-                },
-                nullptr);
+            // continue checking buckets
+            return true;
+        });
 
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;

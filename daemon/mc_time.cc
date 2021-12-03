@@ -261,10 +261,8 @@ void mc_time_clock_tick() {
 }
 
 static void mc_gather_timing_samples() {
-    BucketManager::instance().forEach(
-            [](Bucket& bucket, void*) -> bool {
-                bucket.timings.sample(std::chrono::seconds(1));
-                return true;
-            },
-            nullptr);
+    BucketManager::instance().forEach([](Bucket& bucket) {
+        bucket.timings.sample(std::chrono::seconds(1));
+        return true;
+    });
 }

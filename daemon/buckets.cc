@@ -420,7 +420,7 @@ cb::engine_errc BucketManager::destroy(Cookie* cookie,
     LOG_INFO("{}: Delete bucket [{}] complete", connection_id, name);
     return cb::engine_errc::success;
 }
-void BucketManager::forEach(std::function<bool(Bucket&, void*)> fn, void* arg) {
+void BucketManager::forEach(std::function<bool(Bucket&)> fn) {
     std::lock_guard<std::mutex> all_bucket_lock(buckets_lock);
     for (Bucket& bucket : all_buckets) {
         bool do_break = false;
@@ -443,7 +443,7 @@ void BucketManager::forEach(std::function<bool(Bucket&, void*)> fn, void* arg) {
                 }
             }
             if (ready) {
-                if (!fn(bucket, arg)) {
+                if (!fn(bucket)) {
                     do_break = true;
                 }
                 // disconnect from the bucket (remove the client reference
