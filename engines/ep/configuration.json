@@ -312,6 +312,12 @@
             "dynamic": false,
             "type": "std::string"
         },
+        "dcp_consumer_control_enabled" : {
+            "default": "false",
+            "descr": "When true, a DcpConsumer can accept control messages. This is intended to be used by tests.",
+            "dynamic": false,
+            "type": "bool"
+        },
         "dcp_noop_mandatory_for_v5_features": {
             "default": "true",
             "descr": "Forces clients to enable noop for v5 features",

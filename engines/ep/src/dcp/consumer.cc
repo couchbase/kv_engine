@@ -29,6 +29,7 @@
 #include <phosphor/phosphor.h>
 #include <xattr/utils.h>
 
+#include <charconv>
 #include <utility>
 
 const std::string DcpConsumer::noopCtrlMsg = "enable_noop";
@@ -1924,4 +1925,26 @@ cb::engine_errc DcpConsumer::getOpaqueMissMatchErrorCode() const {
     // Or use V7 dcp code cb::engine_errc::opaque_no_match if enabled
     return isV7DcpStatusEnabled ? cb::engine_errc::opaque_no_match
                                 : cb::engine_errc::key_already_exists;
+}
+
+cb::engine_errc DcpConsumer::control(uint32_t opaque,
+                                     std::string_view key,
+                                     std::string_view value) {
+    if (engine_.getConfiguration().isDcpConsumerControlEnabled()) {
+        if (key == "connection_buffer_size") {
+            uint32_t result{0};
+            auto [ptr, ec]{std::from_chars(
+                    value.data(), value.data() + value.size(), result)};
+            if (ec == std::errc()) {
+                logger->warn("changing flow control buffer size:{}", result);
+                setFlowControlBufSize(result);
+                return cb::engine_errc::success;
+            }
+        }
+
+        logger->warn("Invalid ctrl parameter {} {}", key, value);
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    return ConnHandler::control(opaque, key, value);
 }

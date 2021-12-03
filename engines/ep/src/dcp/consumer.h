@@ -241,6 +241,10 @@ public:
                           uint64_t prepareSeqno,
                           uint64_t abortSeqno) override;
 
+    cb::engine_errc control(uint32_t opaque,
+                            std::string_view key,
+                            std::string_view value) override;
+
     bool doRollback(uint32_t opaque, Vbid vbid, uint64_t rollbackSeqno);
 
     /**
