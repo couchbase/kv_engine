@@ -3796,36 +3796,37 @@ cb::engine_errc CouchKVStore::getAllKeys(
     DbHolder db(*this);
     const auto options = COUCHSTORE_OPEN_FLAG_RDONLY;
     couchstore_error_t errCode = openDB(vbid, db, options);
-    if(errCode == COUCHSTORE_SUCCESS) {
-        sized_buf ref = to_sized_buf(start_key);
-
-        AllKeysCtx ctx(cb, count);
-        errCode = couchstore_all_docs(db,
-                                      &ref,
-                                      COUCHSTORE_NO_DELETES,
-                                      populateAllKeys,
-                                      static_cast<void*>(&ctx));
-        if (errCode == COUCHSTORE_SUCCESS ||
-            errCode == COUCHSTORE_ERROR_CANCEL) {
-            return cb::engine_errc::success;
-        } else {
-            logger.warn(
-                    "CouchKVStore::getAllKeys: couchstore_all_docs "
-                    "error:{} [{}] {}, rev:{}",
-                    couchstore_strerror(errCode),
-                    cb_strerror(),
-                    vbid,
-                    db.getFileRev());
-        }
-    } else {
+    if (errCode != COUCHSTORE_SUCCESS) {
         logOpenError(__func__,
                      spdlog::level::level_enum::warn,
                      errCode,
                      vbid,
                      db.getFilename(),
                      options);
+        return cb::engine_errc::failed;
     }
-    return cb::engine_errc::failed;
+
+    sized_buf ref = to_sized_buf(start_key);
+
+    AllKeysCtx ctx(cb, count);
+    errCode = couchstore_all_docs(db,
+                                  &ref,
+                                  COUCHSTORE_NO_DELETES,
+                                  populateAllKeys,
+                                  static_cast<void*>(&ctx));
+    if (!(errCode == COUCHSTORE_SUCCESS ||
+          errCode == COUCHSTORE_ERROR_CANCEL)) {
+        logger.warn(
+                "CouchKVStore::getAllKeys: couchstore_all_docs "
+                "error:{} [{}] {}, rev:{}",
+                couchstore_strerror(errCode),
+                cb_strerror(),
+                vbid,
+                db.getFileRev());
+        return cb::engine_errc::failed;
+    }
+
+    return cb::engine_errc::success;
 }
 
 void CouchKVStore::unlinkCouchFile(Vbid vbucket, uint64_t fRev) {
