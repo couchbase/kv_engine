@@ -10,17 +10,16 @@
  */
 #pragma once
 
-#include <list>
-#include <set>
-#include <string>
-
+#include "kvstore/kvstore_iface.h"
+#include "testing_hook.h"
 #include "vb_ready_queue.h"
-#include "vbucket.h"
+#include <atomic>
 
 // Forward declarations.
 class EPStats;
 class KVBucket;
 class GlobalTask;
+class VBid;
 
 /**
  * Dispatcher job responsible for batching data reads and push to

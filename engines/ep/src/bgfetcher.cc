@@ -16,6 +16,7 @@
 #include "tasks.h"
 #include "vbucket_bgfetch_item.h"
 #include <executor/executorpool.h>
+#include <memcached/vbucket.h>
 #include <phosphor/phosphor.h>
 #include <algorithm>
 #include <climits>
@@ -96,7 +97,7 @@ size_t BgFetcher::doFetch(Vbid vbId, vb_bgfetch_queue_t& itemsToFetch) {
         for (const auto& itm : bg_item_ctx.getRequests()) {
             // We don't want to transfer ownership of itm here as we clean it
             // up at the end of this method in clearItems()
-            fetchedItems.push_back(std::make_pair(key, itm.get()));
+            fetchedItems.emplace_back(key, itm.get());
         }
     }
 
