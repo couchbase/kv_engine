@@ -3775,7 +3775,7 @@ static enum test_result test_workload_stats(EngineIface* h) {
     int num_shards = get_int_stat(h, "ep_workload:num_shards", "workload");
     checkeq(10, num_read_threads, "Incorrect number of readers");
     checkeq(4, num_write_threads, "Incorrect number of writers");
-    checkeq(1, num_auxio_threads, "Incorrect number of auxio threads");
+    checkeq(8, num_auxio_threads, "Incorrect number of auxio threads");
     check(num_nonio_threads > 1 && num_nonio_threads <= 8,
           "Incorrect number of nonio threads");
     checkeq(5, num_shards, "Incorrect number of shards");

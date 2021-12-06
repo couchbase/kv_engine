@@ -21,7 +21,6 @@
 
 static const size_t EP_MIN_NONIO_THREADS = 2;
 
-static const size_t EP_MAX_AUXIO_THREADS = 8;
 static const size_t EP_MAX_NONIO_THREADS = 8;
 
 void ExecutorPool::create(Backend backend,
@@ -144,20 +143,16 @@ size_t ExecutorPool::calcNumWriters(
 }
 
 size_t ExecutorPool::calcNumAuxIO(size_t threadCount) const {
-    // 1. compute: ceil of 10% of total threads
-    size_t count = maxGlobalThreads / 10;
-    if (!count || maxGlobalThreads % 10) {
-        count++;
-    }
-    // 2. adjust computed value to be within range
-    if (count > EP_MAX_AUXIO_THREADS) {
-        count = EP_MAX_AUXIO_THREADS;
-    }
-    // 3. Override with user's value if specified
     if (threadCount) {
-        count = threadCount;
+        // User specified an explicit value - use that unmodified.
+        return static_cast<size_t>(threadCount);
     }
-    return count;
+
+    // Default: configure threads based on CPU count; constraining
+    // to between 2 and 8 threads (relatively conservative number).
+    auto auxIO = maxGlobalThreads;
+    auxIO = std::clamp(auxIO, size_t{2}, size_t{8});
+    return auxIO;
 }
 
 size_t ExecutorPool::calcNumNonIO(size_t threadCount) const {
