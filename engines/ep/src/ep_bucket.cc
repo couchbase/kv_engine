@@ -1339,6 +1339,7 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
             "Compaction of {} done ({}). "
             "purged tombstones:{}, prepares:{}, prepareBytes:{} "
             "collection_items_erased:alive:{},deleted:{}, "
+            "collections_erased:{}, "
             "size/items/tombstones/purge_seqno pre{{{}, {}, {}, {}}}, "
             "post{{{}, {}, {}, {}}}",
             vb->getId(),
@@ -1348,6 +1349,7 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
             ctx->stats.prepareBytesPurged,
             ctx->stats.collectionsItemsPurged,
             ctx->stats.collectionsDeletedItemsPurged,
+            ctx->stats.collectionsPurged,
             ctx->stats.pre.size,
             ctx->stats.pre.items,
             ctx->stats.pre.deletedItems,

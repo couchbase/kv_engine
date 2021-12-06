@@ -1525,6 +1525,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                     couchstore_strerror(getDroppedStatus));
             return CompactDBInternalStatus::Failed;
         }
+        hook_ctx->stats.collectionsPurged = droppedCollections.size();
 
         hook_ctx->eraserContext =
                 std::make_unique<Collections::VB::EraserContext>(

@@ -77,6 +77,7 @@ struct FileInfo {
 struct CompactionStats {
     size_t collectionsItemsPurged = 0;
     size_t collectionsDeletedItemsPurged = 0;
+    size_t collectionsPurged = 0;
     uint64_t tombstonesPurged = 0;
     uint64_t preparesPurged = 0;
     uint64_t prepareBytesPurged = 0;

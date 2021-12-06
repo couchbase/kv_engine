@@ -2320,6 +2320,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
             // belong to the collection though before we update the vBucket doc
             // count.
             ctx->stats.collectionsItemsPurged += itemCount;
+            ctx->stats.collectionsPurged++;
 
             // We've finish processing this collection.
             // Create a SystemEvent key for the collection and process it.
