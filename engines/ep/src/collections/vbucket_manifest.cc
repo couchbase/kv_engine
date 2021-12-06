@@ -447,7 +447,7 @@ void Manifest::createCollection(const WriteHandle& wHandle,
                                             optionalSeqno,
                                             {/*no callback*/});
 
-    EP_LOG_INFO(
+    EP_LOG_DEBUG(
             "{} create collection:id:{}, name:{} in scope:{}, seq:{}, "
             "manifest:{:#x}{}{}",
             vb.getId(),
@@ -555,7 +555,7 @@ void Manifest::dropCollection(WriteHandle& wHandle,
             optionalSeqno,
             vb.getSaveDroppedCollectionCallback(cid, wHandle, itr->second));
 
-    EP_LOG_INFO(
+    EP_LOG_DEBUG(
             "{} drop collection:id:{} from scope:{}, seq:{}, manifest:{:#x}"
             "items:{} diskSize:{} {}{}",
             vb.getId(),
@@ -641,17 +641,18 @@ void Manifest::createScope(const WriteHandle& wHandle,
     auto seqno = vb.addSystemEventItem(
             std::move(item), optionalSeqno, {}, wHandle, {});
 
-    EP_LOG_INFO("{} create scope:id:{} name:{}, seq:{}, manifest:{:#x}{}{}{}",
-                vb.getId(),
-                sid,
-                scopeName,
-                seqno,
-                manifestUid,
-                entry.getDataLimit() ? fmt::format(", limit:{}",
-                                                   entry.getDataLimit().value())
-                                     : "",
-                dataLimitModified ? ", mod" : "",
-                optionalSeqno.has_value() ? ", replica" : "");
+    EP_LOG_DEBUG(
+            "{} create scope:id:{} name:{}, seq:{}, manifest:{:#x}{}{}{}",
+            vb.getId(),
+            sid,
+            scopeName,
+            seqno,
+            manifestUid,
+            entry.getDataLimit()
+                    ? fmt::format(", limit:{}", entry.getDataLimit().value())
+                    : "",
+            dataLimitModified ? ", mod" : "",
+            optionalSeqno.has_value() ? ", replica" : "");
 }
 
 void Manifest::modifyScope(const WriteHandle& wHandle,
@@ -661,6 +662,7 @@ void Manifest::modifyScope(const WriteHandle& wHandle,
     // Update under write lock
     modification.entry.setDataLimit(modification.dataLimit);
 
+    // Keep this logging - it's new and should be rare
     EP_LOG_INFO(
             "{} modifying scope:id:{} manifest:{:#x}{}",
             vb.getId(),
@@ -716,12 +718,12 @@ void Manifest::dropScope(const WriteHandle& wHandle,
         vb.checkpointManager->createNewCheckpoint();
     }
 
-    EP_LOG_INFO("{} drop scope:id:{} seq:{}, manifest:{:#x}{}",
-                vb.getId(),
-                sid,
-                seqno,
-                manifestUid,
-                optionalSeqno.has_value() ? ", replica" : "");
+    EP_LOG_DEBUG("{} drop scope:id:{} seq:{}, manifest:{:#x}{}",
+                 vb.getId(),
+                 sid,
+                 seqno,
+                 manifestUid,
+                 optionalSeqno.has_value() ? ", replica" : "");
 }
 
 Manifest::ManifestChanges Manifest::processManifest(

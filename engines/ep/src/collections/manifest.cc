@@ -683,6 +683,40 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
     // else must be a > uid and any changes must be valid or equal uid with no
     // changes
     if (successor.getUid() > uid) {
+        // Log scope creations
+        for (auto itr = successor.beginScopes(); itr != successor.endScopes();
+             ++itr) {
+            if (scopes.count(itr->first) == 0) {
+                EP_LOG_INFO("create scope:id:{}, name:{}, manifest:{:#x}{}",
+                            itr->first,
+                            itr->second.name,
+                            successor.getUid(),
+                            itr->second.dataLimit
+                                    ? fmt::format(", limit:{}",
+                                                  itr->second.dataLimit.value())
+                                    : "");
+            }
+        }
+
+        // Log creations
+        for (auto itr = successor.begin(); itr != successor.end(); ++itr) {
+            if (collections.count(itr->first) == 0) {
+                EP_LOG_INFO(
+                        "create collection:id:{}, name:{}, scope:{}, "
+                        "manifest:{:#x}{}",
+                        itr->first,
+                        itr->second.name,
+                        itr->second.sid,
+                        successor.getUid(),
+                        itr->second.maxTtl.has_value()
+                                ? ", maxttl:" +
+                                          std::to_string(
+                                                  itr->second.maxTtl.value()
+                                                          .count())
+                                : "");
+            }
+        }
+
         // For each scope-id in this is it in successor?
         for (const auto& [sid, scope] : scopes) {
             auto itr = successor.findScope(sid);
@@ -696,7 +730,11 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
                                     ", name:" + scope.name +
                                     ", new-name:" + itr->second.name);
                 }
-            } // else this sid has been removed and that's fine
+            } else {
+                EP_LOG_INFO("drop scope:id:{}, manifest:{:#x}",
+                            sid,
+                            successor.getUid());
+            }
         }
 
         // For each collection in this is it in successor?
@@ -734,7 +772,12 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
                                                                     seconds{0})
                                                     .count()));
                 }
-            } // else this cid has been removed and that's fine
+            } else {
+                EP_LOG_INFO("drop collection:id:{}, scope:{}, manifest:{:#x}",
+                            cid,
+                            collection.sid,
+                            successor.getUid());
+            }
         }
     } else if (uid == successor.getUid()) {
         if (*this != successor) {
