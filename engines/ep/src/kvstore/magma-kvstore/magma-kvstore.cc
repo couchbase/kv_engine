@@ -2216,8 +2216,9 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         if (!status) {
             logger->warn(
                     "MagmaKVStore::compactDBInternal CompactKVStore failed. "
-                    "{} ",
-                    vbid);
+                    "{} status:{}",
+                    vbid,
+                    status.String());
             return false;
         }
     } else {
