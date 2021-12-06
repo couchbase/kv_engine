@@ -1042,10 +1042,14 @@ void MagmaKVStore::getRange(Vbid vbid,
         }
 
         if (magmakv::isDeleted(metaSlice)) {
-            return;
+            // continue scanning
+            return false;
         }
         auto rv = makeGetValue(vbid, keySlice, metaSlice, valueSlice, filter);
         cb(std::move(rv));
+
+        // continue scanning
+        return false;
     };
 
     if (logger->should_log(spdlog::level::TRACE)) {
@@ -2129,10 +2133,14 @@ cb::engine_errc MagmaKVStore::getAllKeys(
         }
 
         if (magmakv::isDeleted(metaSlice)) {
-            return;
+            // continue scanning
+            return false;
         }
         auto retKey = makeDiskDocKey(keySlice);
         cb->callback(retKey);
+
+        // continue scanning
+        return false;
     };
 
     if (logger->should_log(spdlog::level::TRACE)) {

@@ -231,16 +231,14 @@ magma::Status MagmaMemoryTrackingProxy::GetRange(
         const magma::Magma::KVStoreID kvID,
         const magma::Slice& startKey,
         const magma::Slice& endKey,
-        std::function<void(magma::Slice& key,
-                           magma::Slice& meta,
-                           magma::Slice& value)> itemCb,
+        magma::Magma::GetRangeCB itemCb,
         bool returnValue,
         uint64_t count) {
     auto wrappedCallback = [&itemCb](magma::Slice& key,
                                      magma::Slice& meta,
                                      magma::Slice& value) {
         cb::UseArenaMallocPrimaryDomain domainGuard;
-        itemCb(key, meta, value);
+        return itemCb(key, meta, value);
     };
 
     cb::UseArenaMallocSecondaryDomain domainGuard;
