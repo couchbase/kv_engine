@@ -88,6 +88,14 @@ public:
     void implicitCompactionTestChecks(DiskDocKey purgedKey,
                                       uint64_t purgedKeySeqno);
 
+    /**
+     * Test that we correclty skip comparisons if we are purging collections as
+     * the compactions are non-comparable between MagmaKVStore and CouchKVStore
+     *
+     * @param withItems Should the collection contain items?
+     */
+    void collectionDropCompactionTest(bool withItems);
+
     bool isMagmaPrimary() {
         return engine->getConfiguration().getNexusPrimaryBackend() == "magma";
     }
@@ -460,6 +468,42 @@ TEST_P(NexusKVStoreTest, SecondaryExpiresFromSameTime) {
     };
 
     runCompaction(vbid);
+}
+
+void NexusKVStoreTest::collectionDropCompactionTest(bool withItems) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // Expire something in the default collection. When we purge CouchKVStore
+    // will visit and attempt to expire this item, MagmaKVStore will not.
+    auto expiredKey = makeStoredDocKey("key");
+    store_item(vbid, expiredKey, "value", 1 /*exptime*/);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    if (withItems) {
+        auto collectionKey = makeStoredDocKey("key", CollectionEntry::fruit);
+        store_item(vbid, collectionKey, "value", 1 /*exptime*/);
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    }
+
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    runCompaction(vbid);
+}
+
+TEST_P(NexusKVStoreTest, CollectionDropCompactionWithItems) {
+    collectionDropCompactionTest(true);
+}
+
+TEST_P(NexusKVStoreTest, CollectionDropCompactionWithoutItems) {
+    collectionDropCompactionTest(false);
 }
 
 INSTANTIATE_TEST_SUITE_P(Nexus,

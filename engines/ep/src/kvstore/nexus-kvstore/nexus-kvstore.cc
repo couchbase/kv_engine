@@ -1138,6 +1138,18 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
         handleError(msg);
     }
 
+    // We bump the collectionsPurged stat when we erase collections, magma only
+    // purged the range rather than the full data set if it is purging
+    // collections so comparisons won't be valid if we are purging collections.
+    // We check both the primary and secondary as when we enable concurrent
+    // flushing and compaction they may differ.
+    if (primaryCtx->stats.collectionsPurged != 0 ||
+        secondaryCtx->stats.collectionsPurged != 0) {
+        return nexusCompactionContext.kvStoreToCompactFirst == primary.get()
+                       ? firstResult
+                       : secondResult;
+    }
+
     // The expiration callback invocations should be the same
     for (auto& [key, seqno] : primaryExpiryCb->callbacks) {
         if (secondaryExpiryCb->callbacks.find(key) ==
