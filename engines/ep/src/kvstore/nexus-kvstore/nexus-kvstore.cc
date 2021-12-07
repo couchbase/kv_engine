@@ -160,8 +160,14 @@ Collections::VB::Manifest NexusKVStore::generateSecondaryVBManifest(
 
 void NexusKVStore::doCollectionsMetadataChecks(
         Vbid vbid,
-        const Collections::VB::Manifest* primaryVBManifest,
-        const Collections::VB::Manifest* secondaryVBManifest) {
+        const VB::Commit* primaryVBCommit,
+        const VB::Commit* secondaryVBCommit) {
+    auto* primaryVBManifest =
+            primaryVBCommit ? &primaryVBCommit->collections.getManifest()
+                            : nullptr;
+    auto* secondaryVBManifest =
+            secondaryVBCommit ? &secondaryVBCommit->collections.getManifest()
+                              : nullptr;
     // 1) Compare on disk manifests
     auto [primaryManifestResult, primaryKVStoreManifest] =
             primary->getCollectionsManifest(vbid);
@@ -398,9 +404,7 @@ bool NexusKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
         handleError(msg);
     }
 
-    doCollectionsMetadataChecks(vbid,
-                                &primaryCommitData.collections.getManifest(),
-                                &secondaryVBManifest);
+    doCollectionsMetadataChecks(vbid, &primaryCommitData, &secondaryCommitData);
 
     return primaryResult;
 }

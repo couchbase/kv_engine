@@ -164,15 +164,15 @@ protected:
      * Check a various state after updating both primary and secondary KVStores
      *
      * @param vbid Vbid
-     * @param primaryVBManifest in memory primary manifest (passing nullptr
-     *        skips the checks against the in memory manifest)
-     * @param secondaryVBManifest in memory secondary manifest (passing nullptr
-     *        skips the checks against the in memory manifest)
+     * @param primaryVBCommit primary commit data including in memory manifest
+     *        (passing nullptr skips the checks against the in memory manifest)
+     * @param secondaryVBCommit secondary commit data including in memory
+     *        manifest (passing nullptr skips the checks against the in memory
+     *        manifest)
      */
-    void doCollectionsMetadataChecks(
-            Vbid vbid,
-            const Collections::VB::Manifest* primaryVBManifest,
-            const Collections::VB::Manifest* secondaryVBManifest);
+    void doCollectionsMetadataChecks(Vbid vbid,
+                                     const VB::Commit* primaryVBCommit,
+                                     const VB::Commit* secondaryVBCommit);
 
     /**
      * We cache locks per-vBucket and to save memory usage we only allocate
