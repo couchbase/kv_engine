@@ -1431,14 +1431,21 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
         }
     }
 
-    auto [getDroppedStatus, dropped] = getDroppedCollections(vbid);
-    if (!getDroppedStatus) {
-        logger->warn(
-                "MagmaKVStore::saveDocs {} Failed to get dropped "
-                "collections",
-                vbid);
-        // We have to return some non-success status, Invalid will do
-        return Status::Invalid;
+    // If dropped collections exists, read the dropped collections metadata
+    // so the flusher can do the correct stat calculations. This is
+    // conditional as (trying) to read this data slows down saveDocs.
+    if (commitData.collections.droppedCollectionsExists()) {
+        auto [getDroppedStatus, dropped] = getDroppedCollections(vbid);
+        if (!getDroppedStatus) {
+            logger->warn(
+                    "MagmaKVStore::saveDocs {} Failed to get dropped "
+                    "collections",
+                    vbid);
+            // We have to return some non-success status, Invalid will do
+            return Status::Invalid;
+        }
+
+        commitData.collections.setDroppedCollectionsForStore(dropped);
     }
 
     // Not checking the result here as the first flush may not find a manifest
@@ -1446,7 +1453,6 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     // that case (uid of 0).
     auto manifestResult = getCollectionsManifestUid(vbid);
 
-    commitData.collections.setDroppedCollectionsForStore(dropped);
     commitData.collections.setManifestUid(manifestResult.second);
 
     auto status = magma->WriteDocs(vbid.get(),
