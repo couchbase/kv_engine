@@ -168,18 +168,47 @@ void NexusKVStore::doCollectionsMetadataChecks(
     auto* secondaryVBManifest =
             secondaryVBCommit ? &secondaryVBCommit->collections.getManifest()
                               : nullptr;
+
     // 1) Compare on disk manifests
     auto [primaryManifestResult, primaryKVStoreManifest] =
             primary->getCollectionsManifest(vbid);
     auto [secondaryManifestResult, secondaryKVStoreManifest] =
             secondary->getCollectionsManifest(vbid);
-    if (primaryManifestResult != secondaryManifestResult) {
+    if (!primaryManifestResult || !secondaryManifestResult) {
         auto msg = fmt::format(
                 "NexusKVStore::doCollectionsMetadataChecks: {}: issue getting "
                 "collections manifest primary:{} secondary:{}",
                 vbid,
                 primaryManifestResult,
                 secondaryManifestResult);
+        handleError(msg);
+    }
+
+    if (primaryVBCommit && primaryVBCommit->collections.getManifestUid() != 0 &&
+        primaryKVStoreManifest.manifestUid !=
+                primaryVBCommit->collections.getManifestUid()) {
+        auto msg = fmt::format(
+                "NexusKVStore::doCollectionsMetadataChecks: {}: collections "
+                "manifest uid not flushed with expected value for primary "
+                "disk:{}, "
+                "flush:{}",
+                vbid,
+                primaryKVStoreManifest.manifestUid,
+                primaryVBCommit->collections.getManifestUid());
+        handleError(msg);
+    }
+
+    if (secondaryVBCommit &&
+        secondaryVBCommit->collections.getManifestUid() != 0 &&
+        secondaryKVStoreManifest.manifestUid !=
+                secondaryVBCommit->collections.getManifestUid()) {
+        auto msg = fmt::format(
+                "NexusKVStore::doCollectionsMetadataChecks: {}: collections "
+                "manifest uid not flushed with expected value for secondary "
+                "disk:{}, flush:{}",
+                vbid,
+                secondaryKVStoreManifest.manifestUid,
+                secondaryVBCommit->collections.getManifestUid());
         handleError(msg);
     }
 
