@@ -81,4 +81,6 @@ NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
 
     errorHandlingMethod =
             cb::getErrorHandlingMethod(config.getNexusErrorHandling());
+
+    implicitCompactionEnabled = config.isNexusImplicitCompactionEnabled();
 }

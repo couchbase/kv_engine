@@ -2483,6 +2483,10 @@ protected:
 
 void NexusKVStore::setMakeCompactionContextCallback(
         MakeCompactionContextCallback cb) {
+    if (!configuration.isImplicitCompactionEnabled()) {
+        return;
+    }
+
     auto nexusPrimaryCb =
             [this, cb](Vbid vbid, CompactionConfig& cfg, uint64_t purgeSeqno) {
                 auto ctx = cb(vbid, cfg, purgeSeqno);

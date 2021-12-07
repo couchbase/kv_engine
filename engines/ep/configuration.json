@@ -914,6 +914,15 @@
                 "backend": "nexus"
             }
         },
+        "nexus_implicit_compaction_enabled": {
+            "default": "true",
+            "descr": "Should NexusKVStore enable implicit compaction?",
+            "dynamic": false,
+            "type": "bool",
+            "requires": {
+                "backend": "nexus"
+            }
+        },
         "num_reader_threads": {
             "default": "0",
             "descr": "Number of reader threads (0 = Default, -1 = Disk IO Optimized)",

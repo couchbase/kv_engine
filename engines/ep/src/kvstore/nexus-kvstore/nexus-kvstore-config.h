@@ -39,8 +39,13 @@ public:
         return errorHandlingMethod;
     }
 
+    bool isImplicitCompactionEnabled() const {
+        return implicitCompactionEnabled;
+    }
+
 protected:
     std::unique_ptr<KVStoreConfig> primaryConfig;
     std::unique_ptr<KVStoreConfig> secondaryConfig;
     cb::ErrorHandlingMethod errorHandlingMethod;
+    bool implicitCompactionEnabled;
 };
