@@ -1452,13 +1452,6 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
         commitData.collections.setDroppedCollectionsForStore(dropped);
     }
 
-    // Not checking the result here as the first flush may not find a manifest
-    // uid and getCollectionsManifestUid returns a default constructed one in
-    // that case (uid of 0).
-    auto manifestResult = getCollectionsManifestUid(vbid);
-
-    commitData.collections.setManifestUid(manifestResult.second);
-
     auto status = magma->WriteDocs(vbid.get(),
                                    writeOps,
                                    kvstoreRevList[getCacheSlot(vbid)],
@@ -2730,7 +2723,15 @@ magma::Status MagmaKVStore::updateCollectionsMeta(
         LocalDbReqs& localDbReqs,
         Collections::VB::Flush& collectionsFlush,
         MagmaDbStats& dbStats) {
-    updateManifestUid(localDbReqs, collectionsFlush);
+    // If collectionsFlush manifestUid is 0 then we've updated an item that
+    // belongs to a dropped but not yet purged collection (collection
+    // resurrection). That requires an update to the dropped collections stats
+    // which is dealt with below, but without a system event in this flush batch
+    // we won't have set the manifestUid (it will be 0). Whatever manifest uid
+    // is currently on disk is correct so skip the change here.
+    if (collectionsFlush.getManifestUid() != 0) {
+        updateManifestUid(localDbReqs, collectionsFlush);
+    }
 
     if (collectionsFlush.isOpenCollectionsChanged()) {
         auto status =
