@@ -503,7 +503,22 @@ void ActiveDurabilityMonitor::unresolveCompletedSyncWriteQueue() {
     { // Scope for ResolvedQueue::ConsumerLock
         std::lock_guard<ResolvedQueue::ConsumerLock> lock(
                 resolvedQueue->getConsumerLock());
+        int64_t lastSeqno = -1;
         while (auto sw = resolvedQueue->try_dequeue(lock)) {
+            if (lastSeqno >= sw->getBySeqno()) {
+                throw std::logic_error(
+                        fmt::format("ActiveDurabilityMonitor::"
+                                    "unresolveCompletedSyncWriteQueue(): "
+                                    "{} lastSeqno:{} > w.getBySeqno():{} "
+                                    "w.getKey():{} {}",
+                                    vb.getId(),
+                                    lastSeqno,
+                                    sw->getBySeqno(),
+                                    cb::UserData{sw->getKey().to_string()},
+                                    *this));
+            }
+            lastSeqno = sw->getBySeqno();
+
             switch (sw->getStatus()) {
             case SyncWriteStatus::Pending:
             case SyncWriteStatus::Completed:
@@ -538,6 +553,8 @@ void ActiveDurabilityMonitor::unresolveCompletedSyncWriteQueue() {
     // seqno order so we will just put them at the front of trackedWrites.
     auto s = state.wlock();
     s->trackedWrites.splice(s->trackedWrites.begin(), writesToTrack);
+
+    Expects(resolvedQueue->empty());
 }
 
 size_t ActiveDurabilityMonitor::getNumTracked() const {
@@ -1098,6 +1115,7 @@ void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
 
         // Check if Durability Requirements satisfied now, and add for commit
         if (posIt->isSatisfied()) {
+            Expects(posIt->getStatus() == SyncWriteStatus::Pending);
             toCommit.enqueue(*this,
                              removeSyncWrite(posIt, SyncWriteStatus::ToCommit));
         }
