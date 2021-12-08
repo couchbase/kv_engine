@@ -528,6 +528,11 @@ void ActiveDurabilityMonitor::unresolveCompletedSyncWriteQueue() {
         // writes (as the active->dead transition keeps the ADM).
         resolvedQueue->reset(lock);
     }
+    // Don't bother taking the state lock if we've got nothing to write to
+    // trackedWrites
+    if (writesToTrack.empty()) {
+        return;
+    }
 
     // Second, whack them back into trackedWrites. The container should be in
     // seqno order so we will just put them at the front of trackedWrites.
