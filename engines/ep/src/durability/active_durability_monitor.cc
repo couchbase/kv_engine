@@ -11,6 +11,7 @@
 
 #include "active_durability_monitor.h"
 #include "bucket_logger.h"
+#include "checkpoint_manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "durability_monitor_impl.h"
 #include "item.h"
@@ -203,8 +204,51 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
             pdm.getNumTracked(),
             pdm.getHighestTrackedSeqno());
 
+    int64_t lastSeqno = 0;
+#if CB_DEVELOPMENT_ASSERTS
+    int64_t lastPreparedSeqno = 0;
+    int64_t lastCompletedSeqno = 0;
+
+    uint64_t numberPending = 0;
+    uint64_t numberToComplete = 0;
+    uint64_t numberCommitted = 0;
+
+    // If true it means that we've received a full snapshot before changing
+    // state to ADM from a PDM. Which means all prepare seqnos should come after
+    // any committed ones
+    const bool snapshotCompleted =
+            pdm.getHighestTrackedSeqno() <
+            static_cast<int64_t>(
+                    vb.checkpointManager->getOpenSnapshotStartSeqno());
+#endif
+
     auto s = state.wlock();
     for (auto& write : pdm.state.wlock()->trackedWrites) {
+#if CB_DEVELOPMENT_ASSERTS
+        switch (write.getStatus()) {
+        case SyncWriteStatus::Pending:
+            numberPending++;
+            lastPreparedSeqno = write.getBySeqno();
+            if (snapshotCompleted) {
+                Expects(lastPreparedSeqno > lastCompletedSeqno);
+            }
+            break;
+        case SyncWriteStatus::ToCommit:
+        case SyncWriteStatus::ToAbort:
+            numberToComplete++;
+            break;
+        case SyncWriteStatus::Completed:
+            numberCommitted++;
+            lastCompletedSeqno = write.getBySeqno();
+            if (snapshotCompleted) {
+                Expects(numberPending == 0);
+            }
+            break;
+        }
+#endif
+        Expects(write.getBySeqno() > lastSeqno);
+        lastSeqno = write.getBySeqno();
+
         // Any prepares converted from the PDM into the ADM have an infinite
         // timeout set (we cannot abort them as they may already have been
         // Committed when we were non-active.
@@ -224,6 +268,22 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
     }
     s->highPreparedSeqno.reset(pdm.getHighPreparedSeqno());
     s->highCompletedSeqno.reset(pdm.getHighCompletedSeqno());
+#if CB_DEVELOPMENT_ASSERTS
+    if (snapshotCompleted && lastPreparedSeqno > 0) {
+        Expects(lastCompletedSeqno < lastPreparedSeqno);
+    }
+    EP_LOG_INFO(
+            "ActiveDurabilityMonitor::ctor(PDM&&): finished {} "
+            "trackedWrites[numberPending:{}, numberToComplete:{}, "
+            "numberCommitted:{}] highPreparedSeqno:{} "
+            "highCompletedSeqno:{}",
+            vb.getId(),
+            numberPending,
+            numberToComplete,
+            numberCommitted,
+            lastPreparedSeqno,
+            lastCompletedSeqno);
+#endif
 }
 
 ActiveDurabilityMonitor::~ActiveDurabilityMonitor() = default;
