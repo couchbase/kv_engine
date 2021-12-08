@@ -262,9 +262,11 @@ size_t BasicLinkedList::purgeTombstones(
             range.updateRangeStart(it->getBySeqno());
         }
 
+        bool replaced = false;
         {
             std::lock_guard<std::mutex> writeGuard(getListWriteLock());
             stale = it->isStale(writeGuard);
+            replaced = it->getReplacementIfStale(writeGuard);
         }
 
         bool isDropped = false;
@@ -275,7 +277,7 @@ size_t BasicLinkedList::purgeTombstones(
         // Only stale or dropped items are purged.
         if (stale || isDropped) {
             // Checks pass, remove from list and delete.
-            it = purgeListElem(it, stale);
+            it = purgeListElem(it, stale, replaced);
             ++purgedCount;
         } else {
             ++it;
@@ -393,7 +395,8 @@ std::ostream& operator <<(std::ostream& os, const BasicLinkedList& ll) {
 }
 
 OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it,
-                                                   bool isStale) {
+                                                   bool isStale,
+                                                   bool isReplaced) {
     std::unique_ptr<OrderedStoredValue> purged;
     auto next = it;
     {
@@ -415,7 +418,13 @@ OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it,
         --numDeletedItems;
     }
 
-    if (purged->isDeleted() &&
+    /**
+     * Only the purging of certain items contribute towards the moving of the
+     * purge seqno. Those items are stale items that are deleted and have not
+     * been replaced (i.e. those items that were marked stale by the
+     * HTTombstonePurger).
+     */
+    if (isStale && !isReplaced && purged->isDeleted() &&
         purged->getBySeqno() > highestPurgedDeletedSeqno.load()) {
         highestPurgedDeletedSeqno = purged->getBySeqno();
     }

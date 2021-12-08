@@ -216,7 +216,16 @@ protected:
     cb::RelaxedAtomic<size_t> staleMetaDataSize;
 
 private:
-    OrderedLL::iterator purgeListElem(OrderedLL::iterator it, bool isStale);
+    /**
+     * Purge the item at the iterator from the seqList
+     * @param it item to purge
+     * @param isStale is the item stale?
+     * @param isReplaced has the item been replaced with a newer version?
+     * @return the next item
+     */
+    OrderedLL::iterator purgeListElem(OrderedLL::iterator it,
+                                      bool isStale,
+                                      bool isReplaced);
 
     /**
      * We need to keep track of the highest seqno separately because there is a

@@ -676,6 +676,51 @@ TEST_F(EphTombstoneTest, ImmediateDeletedPurge) {
     EXPECT_NE(vbucket->getPurgeSeqno(), vbucket->getHighSeqno());
 }
 
+/**
+ * It's not necessary to move the purge seqno when we purge an item in a
+ * collection as the collection create/drop events acts as our tombstones
+ */
+TEST_F(EphTombstoneTest, CollectionErasureDoesNotMovePurgeSeqno) {
+    CollectionsManifest cm;
+    vbucket->updateFromManifest(
+            makeManifest(cm.remove(CollectionEntry::defaultC)));
+
+    EXPECT_EQ(3, mockEpheVB->purgeStaleItems());
+    EXPECT_EQ(0, vbucket->getPurgeSeqno());
+}
+
+/**
+ * It's not necessary to move the purge seqno when we purge a deletion in a
+ * collection as the collection create/drop events acts as our tombstones
+ */
+TEST_F(EphTombstoneTest, CollectionDeletionErasureDoesNotMovePurgeSeqno) {
+    softDeleteOne(keys.at(1), MutationStatus::WasDirty);
+
+    CollectionsManifest cm;
+    vbucket->updateFromManifest(
+            makeManifest(cm.remove(CollectionEntry::defaultC)));
+
+    EXPECT_EQ(3, mockEpheVB->purgeStaleItems());
+    EXPECT_EQ(0, vbucket->getPurgeSeqno());
+}
+
+/**
+ * It's not necessary to move the purge seqno when we replace a deletion as we
+ * stream the full extent of the seqlist snapshot so the replacement should be
+ * included
+ */
+TEST_F(EphTombstoneTest, ReplacedDeletePurgeDoesNotMovePurgeSeqno) {
+    softDeleteOne(keys.at(1), MutationStatus::WasDirty);
+
+    {
+        auto range = mockEpheVB->registerFakeSharedRangeLock(1, 4);
+        ASSERT_EQ(MutationStatus::WasClean, setOne(keys.at(1)));
+    }
+
+    EXPECT_EQ(1, mockEpheVB->purgeStaleItems());
+    EXPECT_EQ(0, vbucket->getPurgeSeqno());
+}
+
 // Check that alive, stale items have no constraint on age.
 TEST_F(EphTombstoneTest, ImmediatePurgeOfAliveStale) {
     // Perform a mutation on the second element, with a (fake) Range Read in
