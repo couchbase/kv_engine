@@ -48,7 +48,10 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(
         std::vector<queued_item>&& outstandingPrepares)
     : PassiveDurabilityMonitor(vb, highPreparedSeqno, highCompletedSeqno) {
     auto s = state.wlock();
+    int64_t highestPrepareSeqno = -1;
     for (auto& prepare : outstandingPrepares) {
+        Expects(highestPrepareSeqno < prepare->getBySeqno());
+        highestPrepareSeqno = prepare->getBySeqno();
         s->trackedWrites.emplace_back(std::move(prepare));
 
         // Advance the highPreparedSeqno iterator to point to the highest
@@ -70,6 +73,16 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(
         // been persisted locally yet).
         if (lastIt->getBySeqno() <= highCompletedSeqno) {
             s->highCompletedSeqno.it = lastIt;
+        }
+    }
+    if (!outstandingPrepares.empty()) {
+        if (s->highPreparedSeqno.it != s->trackedWrites.end()) {
+            Expects(highestPrepareSeqno ==
+                    s->highPreparedSeqno.it->getBySeqno());
+        }
+        if (s->highCompletedSeqno.it != s->trackedWrites.end()) {
+            Expects(highestPrepareSeqno >
+                    s->highCompletedSeqno.it->getBySeqno());
         }
     }
 }
