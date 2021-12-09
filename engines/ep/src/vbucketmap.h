@@ -165,7 +165,8 @@ private:
      * Count of how many vbuckets in vbMap are in each of the four valid
      * states of active, replica, pending or dead.
      */
-    std::array<cb::NonNegativeCounter<uint16_t>, 4> vbStateCount{{0, 0, 0, 0}};
+    std::array<cb::AtomicNonNegativeCounter<uint16_t>, 4> vbStateCount{
+            {0, 0, 0, 0}};
 
     // Ref to the owning KVBucket
     KVBucket& bucket;

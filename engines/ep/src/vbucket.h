@@ -1735,12 +1735,12 @@ public:
     std::atomic<size_t>  opsReject;
     std::atomic<size_t>  opsUpdate;
 
-    cb::NonNegativeCounter<size_t> dirtyQueueSize;
+    cb::AtomicNonNegativeCounter<size_t> dirtyQueueSize;
     std::atomic<size_t>  dirtyQueueMem;
     std::atomic<size_t>  dirtyQueueFill;
     std::atomic<size_t>  dirtyQueueDrain;
-    cb::NonNegativeCounter<uint64_t> dirtyQueueAge;
-    cb::NonNegativeCounter<size_t> dirtyQueuePendingWrites;
+    cb::AtomicNonNegativeCounter<uint64_t> dirtyQueueAge;
+    cb::AtomicNonNegativeCounter<size_t> dirtyQueuePendingWrites;
     std::atomic<size_t>  metaDataDisk;
 
     std::atomic<size_t>  numExpiredItems;

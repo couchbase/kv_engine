@@ -379,7 +379,7 @@ private:
      * then incremented / decremented by persistence callbacks as new
      * items are created & old items deleted.
      */
-    cb::NonNegativeCounter<size_t> onDiskTotalItems;
+    cb::AtomicNonNegativeCounter<size_t> onDiskTotalItems;
 
     std::mutex pendingBGFetchesLock;
     vb_bgfetch_queue_t pendingBGFetches;

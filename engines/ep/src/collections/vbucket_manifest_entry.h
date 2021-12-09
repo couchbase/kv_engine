@@ -238,7 +238,7 @@ private:
      *           we can do stats updates as long as the read lock is held.
      *           The write lock is really for the Manifest map being changed.
      */
-    mutable cb::NonNegativeCounter<uint64_t> itemCount;
+    mutable cb::AtomicNonNegativeCounter<uint64_t> itemCount;
 
     /**
      * The total size (bytes) of items in this collection on disk
@@ -246,7 +246,7 @@ private:
      *           we can do stats updates as long as the read lock is held.
      *           The write lock is really for the Manifest map being changed.
      */
-    mutable cb::NonNegativeCounter<uint64_t> diskSize;
+    mutable cb::AtomicNonNegativeCounter<uint64_t> diskSize;
 
     /**
      * The highest seqno of any item (persisted or not) that belongs to this

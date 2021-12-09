@@ -599,7 +599,7 @@ public:
      * set.
      */
     void setMemoryTracker(
-            cb::NonNegativeCounter<size_t>* newMemoryUsageTracker);
+            cb::AtomicNonNegativeCounter<size_t>* newMemoryUsageTracker);
 
     /**
      * Decrease this checkpoint queuedItemsMemUsage stat by the given size.
@@ -644,7 +644,7 @@ private:
 
     // Count of the number of all cursors (ie persistence and DCP) that reside
     // in the checkpoint
-    cb::NonNegativeCounter<size_t> numOfCursorsInCheckpoint = 0;
+    cb::AtomicNonNegativeCounter<size_t> numOfCursorsInCheckpoint = 0;
 
     // Allocator used for tracking memory used by toWrite
     MemoryTrackingAllocator<queued_item> queueAllocator;
@@ -678,7 +678,7 @@ private:
     class MemoryCounter {
     public:
         MemoryCounter(EPStats& stats,
-                      cb::NonNegativeCounter<size_t>* parentUsage)
+                      cb::AtomicNonNegativeCounter<size_t>* parentUsage)
             : local(0), stats(stats), parentUsage(parentUsage) {
         }
         ~MemoryCounter();
@@ -694,7 +694,7 @@ private:
          * accounting mem-alloc/dealloc against the old owner and start
          * accounting against the new owner.
          */
-        void changeParent(cb::NonNegativeCounter<size_t>* newParent);
+        void changeParent(cb::AtomicNonNegativeCounter<size_t>* newParent);
 
         operator size_t() const {
             return local;
@@ -706,7 +706,7 @@ private:
         EPStats& stats;
         // Pointer to a parent counter which needs updating when the
         // local value changes. Null indicates "no parent"
-        cb::NonNegativeCounter<size_t>* parentUsage;
+        cb::AtomicNonNegativeCounter<size_t>* parentUsage;
     };
 
     // Record the memory overhead of maintaining the keyIndex and metaKeyIndex.

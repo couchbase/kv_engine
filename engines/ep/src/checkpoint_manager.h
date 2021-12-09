@@ -961,7 +961,7 @@ protected:
      *  Used as an optimization for avoiding to scan the full checkpoint-list
      *  for computing the value.
      */
-    cb::NonNegativeCounter<size_t> estimatedMemUsage{0};
+    cb::AtomicNonNegativeCounter<size_t> estimatedMemUsage{0};
 
     friend std::ostream& operator<<(std::ostream& os, const CheckpointManager& m);
 };

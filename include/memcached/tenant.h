@@ -101,7 +101,7 @@ protected:
     /// Total number of operations
     std::atomic<std::size_t> operations{0};
     /// Current number of connections
-    cb::NonNegativeCounter<std::size_t> curr_conns{0};
+    cb::AtomicNonNegativeCounter<std::size_t> curr_conns{0};
     /// The total number of connections used by this tenant
     std::atomic<std::size_t> total_conns{0};
     /// Total amount of CPU spent for this tenant (as of now this is only

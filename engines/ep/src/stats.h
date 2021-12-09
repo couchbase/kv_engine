@@ -244,7 +244,7 @@ public:
     std::atomic<double> warmupNumReadCap;
 
     //! Amount of items waiting for persistence
-    cb::NonNegativeCounter<size_t> diskQueueSize;
+    cb::AtomicNonNegativeCounter<size_t> diskQueueSize;
     //! Size of the in-process (output) queue.
     Counter flusher_todo;
     //! Number of transaction commits.

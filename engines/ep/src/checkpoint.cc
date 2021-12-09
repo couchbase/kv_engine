@@ -660,7 +660,7 @@ void Checkpoint::detachFromManager() {
 }
 
 void Checkpoint::setMemoryTracker(
-        cb::NonNegativeCounter<size_t>* newMemoryUsageTracker) {
+        cb::AtomicNonNegativeCounter<size_t>* newMemoryUsageTracker) {
     // This checkpoint is being removed from the Manager, decrease the memory
     // usage accounted against the Manager, and instead track it against the
     // new owner (destroyer task).
@@ -733,7 +733,7 @@ Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator-=(size_t size) {
 }
 
 void Checkpoint::MemoryCounter::changeParent(
-        cb::NonNegativeCounter<size_t>* newParent) {
+        cb::AtomicNonNegativeCounter<size_t>* newParent) {
     if (parentUsage) {
         *parentUsage -= local;
     }

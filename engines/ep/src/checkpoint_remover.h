@@ -56,7 +56,7 @@ public:
 private:
     folly::Synchronized<CheckpointList, std::mutex> toDestroy;
 
-    cb::NonNegativeCounter<size_t> pendingDestructionMemoryUsage;
+    cb::AtomicNonNegativeCounter<size_t> pendingDestructionMemoryUsage;
     // flag that this task has already been notified to avoid repeated
     // executorpool wake calls (not necessarily cheap)
     std::atomic<bool> notified{false};
