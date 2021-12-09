@@ -3102,7 +3102,8 @@ std::set<std::string> CollectionsTest::generateExpectedKeys(
     return generatedKeys;
 }
 
-TEST_F(CollectionsTest, GetAllKeysNonCollectionConnection) {
+TEST_P(CollectionsPersistentParameterizedTest,
+       GetAllKeysNonCollectionConnection) {
     auto vb = store->getVBucket(vbid);
 
     // Add the meat collection
@@ -3127,7 +3128,8 @@ TEST_F(CollectionsTest, GetAllKeysNonCollectionConnection) {
     EXPECT_EQ(generateExpectedKeys("default", 5), lastGetKeysResult);
 }
 
-TEST_F(CollectionsTest, GetAllKeysNonCollectionConnectionMaxCountTen) {
+TEST_P(CollectionsPersistentParameterizedTest,
+       GetAllKeysNonCollectionConnectionMaxCountTen) {
     auto vb = store->getVBucket(vbid);
 
     // Add the meat collection
@@ -3146,7 +3148,7 @@ TEST_F(CollectionsTest, GetAllKeysNonCollectionConnectionMaxCountTen) {
     EXPECT_EQ(10, lastGetKeysResult.size());
 }
 
-TEST_F(CollectionsTest, GetAllKeysStartHalfWay) {
+TEST_P(CollectionsPersistentParameterizedTest, GetAllKeysStartHalfWay) {
     ASSERT_TRUE(store_items(4, vbid, makeStoredDocKey("default"), "value"));
     flushVBucketToDiskIfPersistent(vbid, 4);
 
@@ -3161,7 +3163,8 @@ TEST_F(CollectionsTest, GetAllKeysStartHalfWay) {
     EXPECT_EQ(twoKeys, lastGetKeysResult);
 }
 
-TEST_F(CollectionsTest, GetAllKeysStartHalfWayForCollection) {
+TEST_P(CollectionsPersistentParameterizedTest,
+       GetAllKeysStartHalfWayForCollection) {
     // Enable collections on mock connection
     cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
     auto vb = store->getVBucket(vbid);
@@ -3189,7 +3192,8 @@ TEST_F(CollectionsTest, GetAllKeysStartHalfWayForCollection) {
     EXPECT_EQ(twoKeys, lastGetKeysResult);
 }
 
-TEST_F(CollectionsTest, GetAllKeysForCollectionEmptyKey) {
+TEST_P(CollectionsPersistentParameterizedTest,
+       GetAllKeysForCollectionEmptyKey) {
     // Enable collections on mock connection
     cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
     auto vb = store->getVBucket(vbid);
@@ -3216,7 +3220,8 @@ TEST_F(CollectionsTest, GetAllKeysForCollectionEmptyKey) {
               lastGetKeysResult);
 }
 
-TEST_F(CollectionsTest, GetAllKeysNonCollectionConnectionCidEncodeKey) {
+TEST_P(CollectionsPersistentParameterizedTest,
+       GetAllKeysNonCollectionConnectionCidEncodeKey) {
     ASSERT_TRUE(store_items(5, vbid, makeStoredDocKey("default"), "value"));
     flushVBucketToDiskIfPersistent(vbid, 5);
 
@@ -3235,7 +3240,7 @@ TEST_F(CollectionsTest, GetAllKeysNonCollectionConnectionCidEncodeKey) {
     EXPECT_EQ(generateExpectedKeys("default", 5), lastGetKeysResult);
 }
 
-TEST_F(CollectionsTest, GetAllKeysCollectionConnection) {
+TEST_P(CollectionsPersistentParameterizedTest, GetAllKeysCollectionConnection) {
     // Enable collections on mock connection
     cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
     auto vb = store->getVBucket(vbid);

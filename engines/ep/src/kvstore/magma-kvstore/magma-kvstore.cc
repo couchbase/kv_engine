@@ -2121,7 +2121,8 @@ cb::engine_errc MagmaKVStore::getAllKeys(
     // endKeySlice.Len() will be 0 which tells GetRange to ignore it.
     Slice endKeySlice;
 
-    auto callback = [&](Slice& keySlice, Slice& metaSlice, Slice& valueSlice) {
+    auto callback =
+            [&](Slice& keySlice, Slice& metaSlice, Slice& valueSlice) -> bool {
         if (logger->should_log(spdlog::level::TRACE)) {
             logger->TRACE(
                     "MagmaKVStore::getAllKeys callback {} key:{} seqno:{} "
@@ -2139,8 +2140,7 @@ cb::engine_errc MagmaKVStore::getAllKeys(
         auto retKey = makeDiskDocKey(keySlice);
         cb->callback(retKey);
 
-        // continue scanning
-        return false;
+        return cb->getStatus();
     };
 
     if (logger->should_log(spdlog::level::TRACE)) {
