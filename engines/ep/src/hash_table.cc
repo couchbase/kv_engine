@@ -216,7 +216,7 @@ void HashTable::clear_UNLOCKED(bool deactivate) {
         chain.reset();
     }
 
-    for (const auto [cid, size] : memUsedAdjustment) {
+    for (const auto& [cid, size] : memUsedAdjustment) {
         // Note: can't capture a structured binding, but can if we explicitly
         // copy, these are just u32 and u64 types so copy is fine. c++20 fixes
         stats.coreLocal.get()->collectionMemUsed.withLock(
