@@ -17,6 +17,7 @@
 #include "collections/collections_test_helpers.h"
 #include "item.h"
 #include "kv_bucket.h"
+#include "kvstore/nexus-kvstore/nexus-kvstore.h"
 #include "test_helpers.h"
 #include "test_manifest.h"
 #include "tests/module_tests/thread_gate.h"
@@ -436,6 +437,29 @@ TEST_P(NexusKVStoreTest, MagmaImplicitCompactionPurgesLogicallyDeletedItem) {
     std::mutex dummyLock;
     std::unique_lock<std::mutex> lh(dummyLock);
     kvstore->compactDB(lh, ctx);
+}
+
+TEST_P(NexusKVStoreTest, SecondaryExpiresFromSameTime) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(kvstore);
+
+    // Expire this item in the future
+    auto expiredKey = makeStoredDocKey("key");
+    auto timeNow = ep_real_time();
+    store_item(vbid, expiredKey, "value", timeNow + 10 /*exptime*/);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto& nexusKVStore = dynamic_cast<NexusKVStore&>(*kvstore);
+    std::unique_ptr<TimeTraveller> t;
+    nexusKVStore.preCompactionHook = [this, &expiredKey, &t]() {
+        // Jump forwards to check that primary and secondary use the same
+        // expiry point
+        t = std::make_unique<TimeTraveller>(100);
+    };
+
+    runCompaction(vbid);
 }
 
 INSTANTIATE_TEST_SUITE_P(Nexus,

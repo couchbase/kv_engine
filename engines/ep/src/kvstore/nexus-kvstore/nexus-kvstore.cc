@@ -1017,7 +1017,8 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
     auto secondaryCtx = std::make_shared<CompactionContext>(
             std::move(primaryVbPtr),
             primaryCtx->compactConfig,
-            primaryCtx->getRollbackPurgeSeqno());
+            primaryCtx->getRollbackPurgeSeqno(),
+            primaryCtx->timeToExpireFrom);
 
     // Don't set the NexusExpiryCB cb member to avoid forwarding expiries to
     // the engine (we will do so for the primary)
@@ -1065,6 +1066,8 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
     // to compare.
     auto nexusCompactionContext =
             calculateCompactionOrder(primaryCtx, secondaryCtx);
+
+    preCompactionHook();
 
     auto firstResult = nexusCompactionContext.kvStoreToCompactFirst->compactDB(
             dummyLh, nexusCompactionContext.firstCtx);
