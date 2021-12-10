@@ -84,15 +84,17 @@ public:
      * is valid then changes the current state to `to`, otherwise throws
      * std::runtime_error
      * @param to The new state to move to.
-     * @param allowAnystate If true, force the transition to the given state.
+     * @param allowAnyState If true, force the transition to the given state.
      */
-    void transition(State to, bool allowAnystate);
+    void transition(State to, bool allowAnyState);
 
     const char* toString() const;
 
     State getState() const {
         return state;
     }
+
+    TestingHook<> transitionHook;
 
 private:
     std::atomic<State> state{State::Initialize};
@@ -103,7 +105,7 @@ private:
      * @returns true if the `to` state is legal transition based on the state
      *          warmup is currently in.
      */
-    bool legalTransition(State to) const;
+    bool legalTransition(State from, State to) const;
 
     friend std::ostream& operator<< (std::ostream& out,
                                      const WarmupState &state);
@@ -296,6 +298,10 @@ public:
 
     WarmupState::State getWarmupState() const {
         return state.getState();
+    }
+
+    void setWarmupStateTransitionHook(std::function<void()> hook) {
+        state.transitionHook = hook;
     }
 
     /**

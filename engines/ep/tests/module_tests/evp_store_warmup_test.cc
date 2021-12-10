@@ -3014,3 +3014,24 @@ TEST_F(WarmupAbortedOnDiskError, Scan_LoadingKVPairs) {
                                  InjectErrorFunc::Scan,
                                  "item_eviction_policy=full_eviction");
 }
+
+TEST_F(WarmupTest, WarmupStateRace) {
+    // Create a vbucket on disk
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Reset without starting the warmup task
+    resetEngine();
+
+    // Normal setup would call KVBucket::intialize() to create warmup task and
+    // before this
+    store->initialize();
+
+    // Warmup - run past the PopulateVBucketMap step which is the one that
+    // we care about
+    auto* warmup = engine->getKVBucket()->getWarmup();
+    ASSERT_TRUE(warmup);
+    warmup->setWarmupStateTransitionHook([&]() { warmup->stop(); });
+
+    // We'll throw here if we race
+    runReadersUntilWarmedUp();
+}

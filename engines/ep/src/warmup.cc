@@ -877,23 +877,42 @@ const char* WarmupState::getStateDescription(State st) const {
     return "Illegal state";
 }
 
-void WarmupState::transition(State to, bool allowAnystate) {
-    if (allowAnystate || legalTransition(to)) {
-        EP_LOG_DEBUG("Warmup transition from state \"{}\" to \"{}\"",
-                     getStateDescription(state.load()),
-                     getStateDescription(to));
-        state.store(to);
-    } else {
-        // Throw an exception to make it possible to test the logic ;)
-        std::stringstream ss;
-        ss << "Illegal state transition from \"" << *this << "\" to "
-           << getStateDescription(to) << "(" << int(to) << ")";
-        throw std::runtime_error(ss.str());
+void WarmupState::transition(State to, bool allowAnyState) {
+    auto currentState = state.load();
+    // If we're in the done state already this is a special case as it's always
+    // our final state, which we may not transition from.
+    if (currentState == State::Done) {
+        return;
     }
+    auto checkLegal = [this, &currentState, &to, &allowAnyState]() -> bool {
+        if (allowAnyState || legalTransition(currentState, to)) {
+            return true;
+        }
+        // Throw an exception to make it possible to test the logic ;)
+        throw std::runtime_error(
+                fmt::format("Illegal state transition from \"{}\" to {} ({})",
+                            getStateDescription(currentState),
+                            getStateDescription(to),
+                            int(to)));
+    };
+    transitionHook();
+    while (checkLegal() && !state.compare_exchange_weak(currentState, to)) {
+        currentState = state.load();
+        // If we're in the done state already this is a special case as it's
+        // always our final state, which we may not transition from. It's
+        // possible that the state has be set to Done by another threads, if
+        // we're shutting down the bucket (See Warmup::stop() and is usage).
+        if (currentState == State::Done) {
+            break;
+        }
+    }
+    EP_LOG_DEBUG("Warmup transition from state \"{}\" to \"{}\"",
+                 getStateDescription(currentState),
+                 getStateDescription(to));
 }
 
-bool WarmupState::legalTransition(State to) const {
-    switch (state.load()) {
+bool WarmupState::legalTransition(State from, State to) const {
+    switch (from) {
     case State::Initialize:
         return (to == State::CreateVBuckets);
     case State::CreateVBuckets:
@@ -1887,14 +1906,9 @@ void Warmup::step() {
 }
 
 void Warmup::transition(WarmupState::State to, bool force) {
-    auto old = state.getState();
-    if (old != WarmupState::State::Done) {
-        state.transition(to, force);
-
-        stateTransitionHook(to);
-
-        step();
-    }
+    state.transition(to, force);
+    stateTransitionHook(to);
+    step();
 }
 
 template <typename T>
