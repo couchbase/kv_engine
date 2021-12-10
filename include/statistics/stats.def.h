@@ -573,6 +573,11 @@ STAT(vb_ht_item_memory_uncompressed,
      FMT("vb_{state}_ht_item_memory_uncompressed"),
      bytes,
      vb_ht_item_memory_uncompressed, )
+STAT(vb_bloom_filter_memory,
+     FMT("vb_{state}_bloom_filter_memory"),
+     bytes,
+     vb_bloom_filter_memory, )
+
 STAT(vb_ops_create, FMT("vb_{state}_ops_create"), count, vb_ops_create, )
 STAT(vb_ops_update, FMT("vb_{state}_ops_update"), count, vb_ops_update, )
 STAT(vb_ops_delete, FMT("vb_{state}_ops_delete"), count, vb_ops_delete, )

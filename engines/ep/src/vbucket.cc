@@ -1229,6 +1229,18 @@ size_t VBucket::getNumOfKeysInFilter() {
     }
 }
 
+size_t VBucket::getFilterMemoryFootprint() {
+    std::lock_guard<std::mutex> lh(bfMutex);
+    size_t memFootprint{0};
+    if (bFilter) {
+        memFootprint += bFilter->getMemoryFootprint();
+    }
+    if (tempFilter) {
+        memFootprint += tempFilter->getMemoryFootprint();
+    }
+    return memFootprint;
+}
+
 VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
     // Set queue time to now. Why not in the ctor of the Item? We only need to
     // do this in certain places for new items as it's used to determine how
@@ -3199,6 +3211,7 @@ void VBucket::_addStats(VBucketStatsDetailLevel detail,
         addStat("bloom_filter", getFilterStatusString().data(), add_stat, c);
         addStat("bloom_filter_size", getFilterSize(), add_stat, c);
         addStat("bloom_filter_key_count", getNumOfKeysInFilter(), add_stat, c);
+        addStat("bloom_filter_memory", getFilterMemoryFootprint(), add_stat, c);
         addStat("rollback_item_count", getRollbackItemCount(), add_stat, c);
         addStat("hp_vb_req_size", getHighPriorityChkSize(), add_stat, c);
         addStat("might_contain_xattrs", mightContainXattrs(), add_stat, c);

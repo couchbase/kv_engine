@@ -47,6 +47,9 @@ public:
     size_t getFilterSize();
     size_t getNoOfHashes() const;
 
+    /// @returns the filter memory footprint in bytes.
+    size_t getMemoryFootprint() const;
+
 protected:
     size_t estimateFilterSize(size_t key_count, double false_positive_prob);
     size_t estimateNoOfHashes(size_t key_count);

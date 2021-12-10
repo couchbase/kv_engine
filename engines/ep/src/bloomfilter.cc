@@ -158,3 +158,8 @@ size_t BloomFilter::getNoOfHashes() const {
         return 0;
     }
 }
+
+size_t BloomFilter::getMemoryFootprint() const {
+    // filterSize is measured in bits.
+    return sizeof(BloomFilter) + (filterSize / 8);
+}

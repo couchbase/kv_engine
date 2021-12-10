@@ -126,6 +126,10 @@ public:
         return checkpointMemOverheadIndex;
     }
 
+    size_t getBloomFilterMemory() const {
+        return bloomFilterMemory;
+    }
+
     size_t getHashtableMemory() const {
         return htMemory;
     }
@@ -231,6 +235,8 @@ private:
     size_t checkpointMemOverhead{0};
     size_t checkpointMemOverheadQueue{0};
     size_t checkpointMemOverheadIndex{0};
+
+    size_t bloomFilterMemory{0};
 
     size_t opsCreate{0};
     size_t opsDelete{0};

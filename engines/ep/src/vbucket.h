@@ -731,6 +731,12 @@ public:
     size_t getFilterSize();
     size_t getNumOfKeysInFilter();
 
+    /**
+     * @returns The memory usage in bytes of the main bloom filter and
+     * temporary bloom filter if it exists.
+     */
+    size_t getFilterMemoryFootprint();
+
     uint64_t nextHLCCas() {
         return hlc.nextHLC();
     }
