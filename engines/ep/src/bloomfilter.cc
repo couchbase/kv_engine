@@ -23,20 +23,17 @@
 #define MURMURHASH_3 MurmurHash3_x86_128
 #endif
 
-BloomFilter::BloomFilter(size_t key_count, double false_positive_prob,
-                         bfilter_status_t new_status) {
-
-    status = new_status;
-    filterSize = estimateFilterSize(key_count, false_positive_prob);
-    noOfHashes = estimateNoOfHashes(key_count);
-    keyCounter = 0;
-    bitArray.assign(filterSize, false);
+BloomFilter::BloomFilter(size_t key_count,
+                         double false_positive_prob,
+                         bfilter_status_t new_status)
+    : filterSize(estimateFilterSize(key_count, false_positive_prob)),
+      noOfHashes(estimateNoOfHashes(key_count)),
+      keyCounter(0),
+      status(new_status),
+      bitArray(filterSize, false) {
 }
 
-BloomFilter::~BloomFilter() {
-    status = BFILTER_DISABLED;
-    bitArray.clear();
-}
+BloomFilter::~BloomFilter() = default;
 
 size_t BloomFilter::estimateFilterSize(size_t key_count,
                                        double false_positive_prob) {

@@ -42,6 +42,8 @@ public:
     bool maybeKeyExists(const DocKey& key);
 
     size_t getNumOfKeysInFilter();
+
+    /// @returns the filter size (in bits).
     size_t getFilterSize();
     size_t getNoOfHashes() const;
 
@@ -51,8 +53,8 @@ protected:
 
     uint64_t hashDocKey(const DocKey& key, uint32_t iteration);
 
-    size_t filterSize;
-    size_t noOfHashes;
+    const size_t filterSize;
+    const size_t noOfHashes;
 
     size_t keyCounter;
 
