@@ -19,7 +19,6 @@
 #include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "common.h"
-#include "connmap.h"
 #include "dcp/consumer.h"
 #include "dcp/dcpconnmap_impl.h"
 #include "dcp/flow-control-manager.h"
@@ -53,7 +52,6 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/filesystem.hpp>
-#include <folly/portability/Unistd.h>
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/collections.h>
@@ -84,7 +82,6 @@
 
 #include <chrono>
 #include <cstring>
-#include <fstream>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -1773,8 +1770,7 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
         if (vbucket) {
             auto cHandle = vbucket->lockCollections(key);
             if (cHandle.valid()) {
-                return cb::EngineErrorGetScopeIDResult(cHandle.getManifestUid(),
-                                                       cHandle.getScopeID());
+                return {cHandle.getManifestUid(), cHandle.getScopeID()};
             }
         } else {
             return cb::EngineErrorGetScopeIDResult(
@@ -1784,8 +1780,7 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
         auto scopeIdInfo =
                 engine->getKVBucket()->getScopeID(key.getCollectionID());
         if (scopeIdInfo.second.has_value()) {
-            return cb::EngineErrorGetScopeIDResult(
-                    scopeIdInfo.first, ScopeID(scopeIdInfo.second.value()));
+            return {scopeIdInfo.first, ScopeID(scopeIdInfo.second.value())};
         }
     }
     return cb::EngineErrorGetScopeIDResult(cb::engine_errc::unknown_collection);
@@ -2006,7 +2001,8 @@ std::optional<size_t> EventuallyPersistentEngine::getShardCountFromDisk() {
     return {};
 }
 
-void EventuallyPersistentEngine::maybeSaveShardCount(WorkLoadPolicy& workload) {
+void EventuallyPersistentEngine::maybeSaveShardCount(
+        WorkLoadPolicy& workloadPolicy) {
     if (configuration.getBackend() == "magma") {
         // We should have created this directory already
         Expects(boost::filesystem::exists(configuration.getDbname()));
@@ -2027,7 +2023,7 @@ void EventuallyPersistentEngine::maybeSaveShardCount(WorkLoadPolicy& workload) {
                     "not load magma shard file");
         }
 
-        auto shardStr = std::to_string(workload.getNumShards());
+        auto shardStr = std::to_string(workloadPolicy.getNumShards());
 
         auto count = fwrite(shardStr.data(), shardStr.size(), 1, file);
         if (!count) {
@@ -2925,12 +2921,12 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_NTableFiles",
              "magma_NSyncs"}};
 
-    auto stats = kvBucket->getKVStoreStats(statNames);
+    auto kvStoreStats = kvBucket->getKVStoreStats(statNames);
 
     // Return whether stat exists. If exists, save value in output param value.
-    auto statExists = [&](std::string_view name, size_t& value) {
-        auto stat = stats.find(name);
-        if (stat != stats.end()) {
+    auto statExists = [&](std::string_view statName, size_t& value) {
+        auto stat = kvStoreStats.find(statName);
+        if (stat != kvStoreStats.end()) {
             value = stat->second;
             return true;
         }
@@ -2938,9 +2934,9 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
     };
 
     // If given stat exists, add it to collector.
-    auto addStat = [&](Key key, std::string_view name) {
+    auto addStat = [&](Key key, std::string_view statName) {
         size_t value = 0;
-        if (statExists(name, value)) {
+        if (statExists(statName, value)) {
             collector.addStat(key, value);
         }
     };
@@ -4744,11 +4740,9 @@ EventuallyPersistentEngine::parseKeyStatCollection(
         // Collection's scope is needed for privilege check
         auto scope = kvBucket->getCollectionsManager().getScopeID(cid);
         if (scope.second) {
-            return cb::EngineErrorGetCollectionIDResult(
-                    scope.first, scope.second.value(), cid);
+            return {scope.first, scope.second.value(), cid};
         } else {
-            return cb::EngineErrorGetCollectionIDResult(
-                    cb::engine_errc::unknown_collection, scope.first);
+            return {cb::engine_errc::unknown_collection, scope.first};
         }
     }
     return cb::EngineErrorGetCollectionIDResult(
