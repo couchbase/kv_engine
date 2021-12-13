@@ -1075,8 +1075,33 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
         itr->second =
                 std::make_shared<CompactTask>(*this, vbid, config, cookie);
         if (handle->size() > 1) {
+            // Avoid too many concurrent compaction tasks as they
+            // could impact flushing throughout (and latency) in a
+            // couple of related ways:
+            //
+            // 1. We can only concurrently execute as many Writer
+            //    tasks as we have Writer threads - if compaction
+            //    tasks consume most / all of the available threads
+            //    then no Flusher tasks can run.
+            //
+            // 2. When compacting a given vBucket, flushing the same
+            //    vBucket is potentially impacted. For Couchstore we
+            //    must interlock the final phase of compaction and
+            //    flushing; pausing flushing while compaction "catches
+            //    up" with any updates made since the last compaction
+            //    iteration.
+            //    (Note Magma handles its own compaction and hence
+            //    isn't directly subject to this case).
+            //
+            // We therefore limit the number of concurrent compactors
+            // in the following (somewhat non-scientific way).
+
+            const auto maxConcurrentWriterTasks =
+                std::min(ExecutorPool::get()->getNumWriters(),
+                         vbMap.getNumShards());
+
             if ((stats.diskQueueSize > compactionWriteQueueCap &&
-                 handle->size() > (vbMap.getNumShards() / 2)) ||
+                 handle->size() > (maxConcurrentWriterTasks / 2)) ||
                 engine.getWorkLoadPolicy().getWorkLoadPattern() == READ_HEAVY) {
                 // Snooze a new compaction task.
                 // We will wake it up when one of the existing compaction tasks
