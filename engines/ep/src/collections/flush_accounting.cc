@@ -230,7 +230,7 @@ bool FlushAccounting::updateStats(const DocKey& key,
                                   size_t oldSize,
                                   IsCompaction isCompaction,
                                   CompactionCallbacks compactionCallbacks) {
-    bool updateMeta = false;
+    bool logicalInsert = false;
 
     // Same logic (and comments) apply as per the above updateStats function.
     auto [systemEvent, cid] = getCollectionID(key);
@@ -258,32 +258,16 @@ bool FlushAccounting::updateStats(const DocKey& key,
         compactionCallbacks == CompactionCallbacks::AnyRevision &&
         (isLogicallyDeleted(cid.value(), oldSeqno) ||
          isLogicallyDeletedInStore(cid.value(), oldSeqno))) {
-        // When we resurrect a collection and update a stat in it in this flush
-        // batch (i.e. the key previously existed on disk for the old generation
-        // of the collection) we need to decrement our dropped stats by that
-        // value as the key will still exist and isn't going to go away now.
-        auto& dropped = getStatsAndMaybeSetPersistedHighSeqno(
-                droppedStats, cid.value(), seqno);
-
-        // Item used to contribute towards the item count, and we're now
-        // updating (meaning that it belongs to a new generation of the
-        // collection). If we're here then we haven't purged the original
-        // (dropped) collection yet so we need to "forget" about the old
-        // versions contributions towards the item count.
-        if (oldIsDelete == IsDeleted::No) {
-            dropped.remove(IsSystem::No,
-                           IsDeleted::No,
-                           IsCommitted::Yes,
-                           compactionCallbacks,
-                           oldSize,
-                           size);
-        }
-
-        // May not have dropped the collection we're concerned with in this
-        // batch but we need to make sure that the stat update makes it to disk,
-        // setting updateMeta does this by telling Collections::Flush that some
-        // metadata must be updated at the end of this flush batch.
-        updateMeta = true;
+        // We are logically inserting an item into a collection (i.e. it existed
+        // before in an older generation of the collection and we are now
+        // adding it into this one). Backends that may see any revision of an
+        // item during compaction have to count the vBucket item count by
+        // relying on a dropped collection item count stat that is persisted
+        // until the collection is fully purged. We cannot update that stat at
+        // this point as it would race with a concurrent purge so we instead
+        // update the vBucket stat to reflect this being a logical insert rather
+        // than an update.
+        logicalInsert = true;
     }
 
     // Of interest next is the state of old vs new. An update can become an
@@ -364,7 +348,7 @@ bool FlushAccounting::updateStats(const DocKey& key,
         }
     }
 
-    return updateMeta;
+    return logicalInsert;
 }
 
 void FlushAccounting::maybeUpdatePersistedHighSeqno(const DocKey& key,

@@ -773,7 +773,12 @@ void MagmaKVStore::commitCallback(MagmaKVStoreTransactionContext& txnCtx,
         if (req.isDelete()) {
             FlushStateDeletion state;
             if (flushSuccess) {
-                if (req.isOldItemAlive()) {
+                if (req.isLogicalInsert()) {
+                    // Deletion is for an item that exists on disk but logically
+                    // does not (i.e. the old reviison belongs to a collection
+                    // that has been dropped).
+                    state = FlushStateDeletion::LogicallyDocNotFound;
+                } else if (req.isOldItemAlive()) {
                     // Deletion is for an existing item on disk
                     state = FlushStateDeletion::Delete;
                 } else {
@@ -801,7 +806,12 @@ void MagmaKVStore::commitCallback(MagmaKVStoreTransactionContext& txnCtx,
         } else {
             FlushStateMutation state;
             if (flushSuccess) {
-                if (req.isOldItemAlive()) {
+                if (req.isLogicalInsert()) {
+                    // Mutation is for an item that exists on disk but logically
+                    // does not (i.e. the old reviison belongs to a collection
+                    // that has been dropped).
+                    state = FlushStateMutation::LogicalInsert;
+                } else if (req.isOldItemAlive()) {
                     // Mutation is for an existing item on disk
                     state = FlushStateMutation::Update;
                 } else {
@@ -2313,13 +2323,12 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 auto ret = std::make_unique<MagmaKVStore::MagmaCompactionCB>(
                         *this, vbid, ctx);
 
-                // @TODO MB-48659: A collection resurrection at an inopportune
-                // moment would result in stats errors as we delete the local
-                // doc even if there is a new dropped generation.
                 if (!statsDeltaApplied) {
                     statsDeltaApplied = true;
                     ret->processCollectionPurgeDelta(cid, -itemCount);
                 }
+
+                preCompactKVStoreHook();
 
                 return ret;
             };

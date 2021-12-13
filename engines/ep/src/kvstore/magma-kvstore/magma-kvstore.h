@@ -767,6 +767,11 @@ protected:
     TestingHook<magma::Status&> compactionStatusHook;
 
     /**
+     * Testing hook called before we call CompactKVStore.
+     */
+    TestingHook<> preCompactKVStoreHook;
+
+    /**
      * Testing hook called with the result of Sync when creating a file handle
      */
     TestingHook<magma::Status&> fileHandleSyncStatusHook;

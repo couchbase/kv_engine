@@ -1740,7 +1740,16 @@ TEST_P(CollectionsEraserPersistentOnly, DocAliveCollRecreateDocAliveCollPurge) {
     // DocAlive
     store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "green");
     flushVBucketToDiskIfPersistent(vbid, 1);
-    EXPECT_EQ(1, vb->getNumItems());
+
+    if (isMagma() && isFullEviction()) {
+        // Magma full eviction (relies on magma doc count) overcounts here as
+        // we have logically inserted an item into a collection (written a new
+        // version of it to a new alive generation of a collection but it exists
+        // in the old generation). See MB-50061 for more details.
+        EXPECT_EQ(2, vb->getNumItems());
+    } else {
+        EXPECT_EQ(1, vb->getNumItems());
+    }
 
     // Collection Purge
     EXPECT_EQ(1,
@@ -1779,7 +1788,12 @@ TEST_P(CollectionsEraserPersistentOnly,
                {},
                true);
     flushVBucketToDiskIfPersistent(vbid, 1);
-    EXPECT_EQ(0, vb->getNumItems());
+
+    if (isMagma() && isFullEviction()) {
+        EXPECT_EQ(1, vb->getNumItems());
+    } else {
+        EXPECT_EQ(0, vb->getNumItems());
+    }
 
     // Collection Purge
     EXPECT_EQ(1,

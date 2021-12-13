@@ -639,21 +639,16 @@ bool Flush::updateStats(const DocKey& key,
                         IsDeleted oldIsDelete,
                         size_t oldSize,
                         CompactionCallbacks compactionCallbacks) {
-    if (flushAccounting.updateStats(key,
-                                    seqno,
-                                    isCommitted,
-                                    isDelete,
-                                    size,
-                                    oldSeqno,
-                                    oldIsDelete,
-                                    oldSize,
-                                    IsCompaction::No,
-                                    compactionCallbacks)) {
-        setReadyForCommit();
-        return true;
-    }
-
-    return false;
+    return flushAccounting.updateStats(key,
+                                       seqno,
+                                       isCommitted,
+                                       isDelete,
+                                       size,
+                                       oldSeqno,
+                                       oldIsDelete,
+                                       oldSize,
+                                       IsCompaction::No,
+                                       compactionCallbacks);
 }
 
 void Flush::setManifest(Manifest& newManifest) {

@@ -51,6 +51,10 @@ public:
         compactionStatusHook = hook;
     }
 
+    void setPreCompactKVStoreHook(std::function<void()> hook) {
+        preCompactKVStoreHook = hook;
+    }
+
     std::optional<MagmaDbStats> public_getMagmaDbStats(Vbid vbid) {
         return getMagmaDbStats(vbid);
     }

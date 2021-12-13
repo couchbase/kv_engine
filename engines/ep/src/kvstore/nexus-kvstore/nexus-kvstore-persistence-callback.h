@@ -108,6 +108,12 @@ public:
 
         // And check the state
         if (itr->second != m) {
+            if (itr->second == FlushStateMutation::LogicalInsert ||
+                m == FlushStateMutation::LogicalInsert) {
+                // Magma may use the LogicalDelete state to deal with item
+                // counting whilst couchstore does not, skip this check
+                return;
+            }
             auto msg = fmt::format(
                     "NexusKVStoreSecondaryPersistenceCallback::set: {}: "
                     "different "
@@ -144,6 +150,12 @@ public:
 
         // And check the state
         if (itr->second != d) {
+            if (itr->second == FlushStateDeletion::LogicallyDocNotFound ||
+                d == FlushStateDeletion::LogicallyDocNotFound) {
+                // Magma may use the LogicalDelete state to deal with item
+                // counting whilst couchstore does not, skip this check
+                return;
+            }
             auto msg = fmt::format(
                     "NexusKVStoreSecondaryPersistenceCallback::delete: {}: "
                     "different stats for key:{} primary:{} secondary:{}",

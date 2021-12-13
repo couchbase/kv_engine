@@ -818,6 +818,104 @@ TEST_P(STParamMagmaBucketTest, FailPrepareCompactKVStoreCall) {
     EXPECT_TRUE(dc.empty());
 }
 
+/**
+ * MB-50061:
+ * Test that we correctly track the document count when we update an item in a
+ * collection at an interesting point during compaction. The issue before this
+ * fix was as follows:
+ *
+ * 1) Drop a collection
+ * 2) Start purging the compaction and read the dropped stats then pause
+ * 3) Add a new generation of that collection
+ * 4) Add an item to the new generation of the collection that existed in the
+ *    older generation of the collection which adjusts the dropped stats count
+ * 5) Finish the compaction which applies a delta of the count read at 2 rather
+ *    than the count that should exist after 4.
+ */
+TEST_P(STParamMagmaBucketTest, UpdateDroppCollStatAfterReadBeforeCompact) {
+    replaceMagmaKVStore();
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto vb = store->getVBucket(vbid);
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    auto& magmaKVStore = static_cast<MockMagmaKVStore&>(*kvstore);
+    ASSERT_TRUE(kvstore);
+
+    // Need to create a new checkpoint so that the compaction on the prepare
+    // namespace that we do before any other collection namespaces does not
+    // also visit the items in the fruit collection. This will force the fruit
+    // collection item into a different SSTable which won't be in the prepare
+    // range and so won't be visited during that CompactKVStore call.
+    ASSERT_TRUE(magmaKVStore.newCheckpoint(vbid));
+
+    auto key = makeStoredDocKey("fruitKey", CollectionEntry::fruit);
+    store_item(vbid, key, "v1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    ASSERT_TRUE(magmaKVStore.newCheckpoint(vbid));
+
+    cm.remove(CollectionEntry::fruit);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    ASSERT_EQ(1, vb->getNumTotalItems());
+
+    bool workdone = false;
+    magmaKVStore.setPreCompactKVStoreHook(
+            [this, &cm, &vb, &key, &magmaKVStore, &workdone]() {
+                if (workdone) {
+                    return;
+                }
+                workdone = true;
+                // Collection resurrection during compaction and we write
+                // a "logical" insert which needs to adjust the dropped
+                // stats
+                cm.add(CollectionEntry::fruit);
+                vb->updateFromManifest(makeManifest(cm));
+                flushVBucketToDiskIfPersistent(vbid, 1);
+
+                store_item(vbid, key, "v2");
+                flushVBucketToDiskIfPersistent(vbid, 1);
+                EXPECT_EQ(2, vb->getNumTotalItems());
+            });
+
+    runCompaction(vbid);
+
+    // The "logical" insert from the hook still exists so doc count should be 1
+    // still
+    EXPECT_EQ(1, vb->getNumTotalItems());
+
+    auto [status, count] = magmaKVStore.getDroppedCollectionItemCount(
+            vbid, CollectionEntry::fruit);
+    EXPECT_EQ(0, count);
+
+    // Remove the collection again, we should be able to clean up everything
+    // and get the item count back down to 0.
+    cm.remove(CollectionEntry::fruit);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    std::tie(status, count) = magmaKVStore.getDroppedCollectionItemCount(
+            vbid, CollectionEntry::fruit);
+    EXPECT_EQ(1, count);
+
+    magmaKVStore.setPreCompactKVStoreHook([]() {});
+    runCompaction(vbid);
+
+    std::tie(status, count) = magmaKVStore.getDroppedCollectionItemCount(
+            vbid, CollectionEntry::fruit);
+    EXPECT_EQ(0, count);
+
+    EXPECT_EQ(0, vb->getNumTotalItems());
+}
+
 void STParamMagmaBucketTest::testDiskStateAfterCompactKVStore(
         std::function<void()> compactionCallback) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
