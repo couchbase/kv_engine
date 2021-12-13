@@ -33,10 +33,6 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${CMAKE_CURRENT_BINARY_DIR}
         )
 
-# Mark third-party libraries as 'system' so we skip any warnings they
-# generate.
-INCLUDE_DIRECTORIES(BEFORE SYSTEM ${hdr_histogram_SOURCE_DIR}/src)
-
 INCLUDE_DIRECTORIES(AFTER ${Memcached_BINARY_DIR}/include)
 
 SET(EP_STORAGE_LIBS couchstore_static ep-engine_storage_common)
@@ -115,12 +111,12 @@ target_link_libraries(kvstore_gen PRIVATE
         cbcompress
         engine_utilities
         ep-engine_collections
-        hdr_histogram_static
         mcd_executor
         mcbp
         mcd_time
         mcd_tracing
         mcd_util
+        hdrhistogram
         platform
         phosphor
         statistics
@@ -428,7 +424,8 @@ set_source_files_properties(src/dcp/producer.cc
 endif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 
 add_sanitizers(ep_objs)
-target_link_libraries(ep_objs PUBLIC mcd_executor platform spdlog::spdlog ${EP_STORAGE_LIBS})
+target_link_libraries(ep_objs PUBLIC mcd_executor hdrhistogram platform
+spdlog::spdlog ${EP_STORAGE_LIBS})
 kv_enable_pch(ep_objs)
 
 ADD_LIBRARY(ep STATIC $<TARGET_OBJECTS:ep_objs>)
@@ -448,9 +445,9 @@ target_link_libraries(ep
                 ${LIBEVENT_LIBRARIES}
                 JSON_checker
                 cbcompress
+                hdrhistogram
                 engine_utilities
                 ep-engine_collections
-                hdr_histogram_static
                 mcbp
                 mcd_executor
                 mcd_time
@@ -512,7 +509,7 @@ endif()
 
 add_library(ep_mocks OBJECT ${MOCK_SOURCE})
 set_property(TARGET ep_mocks PROPERTY POSITION_INDEPENDENT_CODE 1)
-target_link_libraries(ep_mocks PUBLIC platform spdlog::spdlog GTest::gmock)
+target_link_libraries(ep_mocks PUBLIC platform hdrhistogram spdlog::spdlog GTest::gmock)
 add_sanitizers(ep_mocks)
 cb_enable_unity_build(ep_mocks)
 kv_enable_pch(ep_mocks)
@@ -560,7 +557,6 @@ TARGET_LINK_LIBRARIES(ep_engine_benchmarks
                 mcd_executor
                 GTest::gtest
                 GTest::gmock
-                hdr_histogram_static
                 JSON_checker
                 mcbp
                 mcd_util
@@ -569,6 +565,7 @@ TARGET_LINK_LIBRARIES(ep_engine_benchmarks
                 memcached_logger
                 phosphor
                 platform
+                hdrhistogram
                 platform_cb_malloc_arena
                 statistics
                 xattr
@@ -594,7 +591,6 @@ target_link_libraries(ep-engine_sizes
                 cbcompress
                 engine_utilities
                 ep-engine_collections
-                hdr_histogram_static
                 mcbp
                 mcd_executor
                 mcd_time
@@ -602,6 +598,7 @@ target_link_libraries(ep-engine_sizes
                 mcd_util
                 phosphor
                 platform
+                hdrhistogram
                 statistics
                 xattr)
 add_sanitizers(ep-engine_sizes)

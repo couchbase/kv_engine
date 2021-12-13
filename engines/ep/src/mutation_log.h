@@ -36,7 +36,7 @@
 
 #include "utility.h"
 #include <memcached/vbucket.h>
-#include <utilities/hdrhistogram.h>
+#include <hdrhistogram/hdrhistogram.h>
 
 #include <array>
 #include <atomic>

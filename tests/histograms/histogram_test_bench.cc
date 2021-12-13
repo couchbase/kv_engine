@@ -16,8 +16,8 @@
 #include <benchmark/benchmark.h>
 #include <daemon/timing_histogram.h>
 #include <folly/portability/GTest.h>
+#include <hdrhistogram/hdrhistogram.h>
 #include <nlohmann/json.hpp>
-#include <utilities/hdrhistogram.h>
 #include <random>
 
 #define LOG_NORMAL_MEAN 0

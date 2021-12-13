@@ -18,6 +18,7 @@ target_link_libraries(statistics
                 platform
                 prometheus-cpp::core # ep-engine and core need the include path
         PRIVATE
+                hdrhistogram
                 Folly::headers
                 mcd_util
                 spdlog::spdlog

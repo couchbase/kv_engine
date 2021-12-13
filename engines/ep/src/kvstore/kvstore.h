@@ -22,7 +22,7 @@
 
 #include <memcached/engine_common.h>
 #include <memcached/thread_pool_config.h>
-#include <utilities/hdrhistogram.h>
+#include <hdrhistogram/hdrhistogram.h>
 
 #include <relaxed_atomic.h>
 #include <atomic>

@@ -14,8 +14,8 @@
 
 #include <mcbp/protocol/opcode.h>
 
+#include <hdrhistogram/hdrhistogram.h>
 #include <platform/corestore.h>
-#include <utilities/hdrhistogram.h>
 #include <array>
 #include <mutex>
 #include <string>

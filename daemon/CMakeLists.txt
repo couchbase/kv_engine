@@ -204,11 +204,11 @@ ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
 
 target_link_libraries(memcached_daemon
         PUBLIC
-                      hdr_histogram_static
                       mcd_util
                       memcached_logger
                       platform
                       subjson
+                      hdrhistogram
         PRIVATE
                       auditd
                       cbsocket

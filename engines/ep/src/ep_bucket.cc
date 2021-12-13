@@ -36,11 +36,11 @@
 #include "warmup.h"
 #include <executor/executorpool.h>
 
+#include <hdrhistogram/hdrhistogram.h>
 #include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
-#include <utilities/hdrhistogram.h>
 #include <utilities/logtags.h>
 
 #include <gsl/gsl-lite.hpp>

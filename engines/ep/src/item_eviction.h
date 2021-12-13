@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "hdrhistogram.h"
+#include <hdrhistogram/hdrhistogram.h>
 
 #include <cstdlib> // Required due to the use of free
 #include <limits>

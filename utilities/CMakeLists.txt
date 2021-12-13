@@ -9,10 +9,6 @@ if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
         SKIP_PRECOMPILE_HEADERS ON)
 endif ()
 
-# Mark third-party libraries as 'system' so we skip any warnings they
-# generate.
-INCLUDE_DIRECTORIES(BEFORE SYSTEM ${hdr_histogram_SOURCE_DIR}/src)
-
 add_library(mcd_util STATIC
             ${PROJECT_SOURCE_DIR}/include/memcached/config_parser.h
             ${PROJECT_SOURCE_DIR}/include/memcached/vbucket.h
@@ -31,8 +27,6 @@ add_library(mcd_util STATIC
             durability_spec.cc
             engine_errc_2_mcbp.cc
             engine_errc_2_mcbp.h
-            hdrhistogram.cc
-            hdrhistogram.h
             json_utilities.cc
             json_utilities.h
             logtags.cc
@@ -56,12 +50,11 @@ if (BREAKPAD_FOUND)
   target_link_libraries(mcd_util PRIVATE ${BREAKPAD_LIBRARIES})
 endif()
 target_link_libraries(mcd_util
-        PUBLIC
-                hdr_histogram_static
         PRIVATE
                 engine_utilities
                 memcached_logger
                 platform
+                hdrhistogram
                 ${OPENSSL_LIBRARIES})
 add_sanitizers(mcd_util)
 kv_enable_pch(mcd_util)

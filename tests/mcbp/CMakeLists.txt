@@ -21,6 +21,7 @@ target_link_libraries(memcached_mcbp_test
         PRIVATE
                 memcached_daemon
                 platform
+                hdrhistogram
                 GTest::gtest)
 add_sanitizers(memcached_mcbp_test)
 cb_enable_unity_build(memcached_mcbp_test)

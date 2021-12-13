@@ -15,7 +15,7 @@
 #include <daemon/buckets.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/request.h>
-#include <utilities/hdrhistogram.h>
+#include <hdrhistogram/hdrhistogram.h>
 
 /**
  * Get the timing histogram for the specified bucket if we've got access

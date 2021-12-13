@@ -11,10 +11,10 @@
 
 #include <statistics/prometheus_collector.h>
 
+#include <hdrhistogram/hdrhistogram.h>
 #include <memcached/dockey.h>
 #include <memcached/engine_error.h>
 #include <statistics/labelled_collector.h>
-#include <utilities/hdrhistogram.h>
 
 #include <cmath>
 

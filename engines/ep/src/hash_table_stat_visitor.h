@@ -12,7 +12,7 @@
 #pragma once
 
 #include "hash_table.h"
-#include <utilities/hdrhistogram.h>
+#include <hdrhistogram/hdrhistogram.h>
 
 /**
  * Hash table visitor that finds the min and max bucket depths.

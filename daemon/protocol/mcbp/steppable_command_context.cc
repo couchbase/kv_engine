@@ -18,9 +18,9 @@
 #include <daemon/memcached.h>
 #include <daemon/stats.h>
 #include <logger/logger.h>
+#include <hdrhistogram/hdrhistogram.h>
 #include <platform/histogram.h>
 #include <platform/scope_timer.h>
-#include <utilities/hdrhistogram.h>
 
 SteppableCommandContext::SteppableCommandContext(Cookie& cookie_)
     : cookie(cookie_), connection(cookie.getConnection()) {

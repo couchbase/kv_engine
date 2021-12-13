@@ -11,6 +11,7 @@
 
 #include <statistics/cbstat_collector.h>
 
+#include <hdrhistogram/hdrhistogram.h>
 #include <logger/logger.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/engine.h>
@@ -19,7 +20,6 @@
 #include <memcached/server_cookie_iface.h>
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/ostr.h>
-#include <utilities/hdrhistogram.h>
 
 #include <string_view>
 

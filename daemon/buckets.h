@@ -20,7 +20,7 @@
 #include <memcached/limits.h>
 #include <memcached/types.h>
 #include <nlohmann/json_fwd.hpp>
-#include <utilities/hdrhistogram.h>
+#include <hdrhistogram/hdrhistogram.h>
 
 #include <condition_variable>
 #include <memory>

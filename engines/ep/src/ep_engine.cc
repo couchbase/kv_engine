@@ -68,6 +68,7 @@
 #include <platform/checked_snprintf.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
+#include <hdrhistogram/hdrhistogram.h>
 #include <platform/platform_time.h>
 #include <platform/scope_timer.h>
 #include <platform/string_hex.h>
@@ -76,7 +77,6 @@
 #include <statistics/labelled_collector.h>
 #include <statistics/prometheus.h>
 #include <utilities/engine_errc_2_mcbp.h>
-#include <utilities/hdrhistogram.h>
 #include <utilities/logtags.h>
 #include <xattr/utils.h>
 

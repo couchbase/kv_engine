@@ -18,10 +18,10 @@
 #include <memcached/types.h>
 #include <platform/cb_arena_malloc_client.h>
 #include <platform/corestore.h>
+#include <hdrhistogram/hdrhistogram.h>
 #include <platform/non_negative_counter.h>
 #include <platform/platform_time.h>
 #include <relaxed_atomic.h>
-#include <utilities/hdrhistogram.h>
 
 #include <algorithm>
 #include <array>

@@ -19,7 +19,7 @@
 #include "settings.h"
 #include "stats.h"
 #include "tracing.h"
-#include <utilities/hdrhistogram.h>
+#include <hdrhistogram/hdrhistogram.h>
 
 #include <openssl/conf.h>
 #include <phosphor/phosphor.h>

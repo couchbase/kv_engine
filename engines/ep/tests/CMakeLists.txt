@@ -92,7 +92,6 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/hash_table_eviction_test.cc
         module_tests/hash_table_perspective_test.cc
         module_tests/hash_table_test.cc
-        module_tests/hdrhistogram_test.cc
         module_tests/hlc_test.cc
         module_tests/item_compressor_test.cc
         module_tests/item_eviction_test.cc
@@ -143,8 +142,8 @@ target_link_libraries(ep-engine_ep_unit_tests PRIVATE
         mcd_executor
         GTest::gtest
         GTest::gmock
-        hdr_histogram_static
         JSON_checker
+        hdrhistogram
         memcached_logger
         mcbp
         mcd_util
@@ -185,6 +184,7 @@ target_link_libraries(ep-engine_couch-fs-stats_test PRIVATE
         GTest::gmock
         mcd_util
         platform
+        hdrhistogram
         phosphor)
 add_sanitizers(ep-engine_couch-fs-stats_test)
 
