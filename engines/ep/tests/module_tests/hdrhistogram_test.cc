@@ -9,10 +9,11 @@
  *   the file licenses/APL2.txt.
  */
 #include "hdrhistogram.h"
-#include "thread_gate.h"
 
+#include <boost/thread/barrier.hpp>
 #include <folly/lang/Assume.h>
 #include <folly/portability/GTest.h>
+#include <folly/synchronization/Baton.h>
 #include <gmock/gmock-matchers.h>
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/ostr.h>
@@ -269,11 +270,12 @@ TEST(HdrHistogramTest, meanTest) {
 }
 
 void addValuesThread(HdrHistogram& histo,
-                     ThreadGate& tg,
+                     boost::barrier& bar,
                      unsigned int iterations,
                      unsigned int size) {
     // wait for all threads to be ready to start
-    tg.threadUp();
+    bar.wait();
+
     for (unsigned int iteration = 0; iteration < iterations; iteration++) {
         for (unsigned int value = 0; value < size; value++) {
             histo.addValue(value);
@@ -293,14 +295,15 @@ TEST(HdrHistogramTest, addValueParallel) {
     // Create two threads and get them to add values to a small
     // histogram so there is a high contention on it's counts.
     std::vector<std::thread> threads(2);
-    ThreadGate tg(threads.size());
+    boost::barrier bar(2);
     for (auto& t : threads) {
         t = std::thread(addValuesThread,
                         std::ref(histogram),
-                        std::ref(tg),
+                        std::ref(bar),
                         numOfAddIterations,
                         maxVal);
     }
+
     // wait for all the threads to finish
     for (auto& t : threads) {
         t.join();
@@ -507,9 +510,9 @@ static std::vector<HdrHistogram::Bucket> getAllValues(
     return values;
 }
 
-void resetThread(HdrHistogram& histo, ThreadGate& tg) {
+void resetThread(HdrHistogram& histo, folly::Baton<true>& baton) {
     EXPECT_EQ(histo.getValueCount(), 10);
-    tg.threadUp();
+    baton.wait();
     histo.reset();
     EXPECT_EQ(histo.getValueCount(), 0);
 }
@@ -531,19 +534,19 @@ TEST(HdrHistogramTest, ResetItoratorInfLoop) {
     }
 
     std::thread thread;
-    ThreadGate tg(2);
+    folly::Baton<true> baton;
     { // Scope that holds read lock for iterator
         auto iter2 = histogram.begin();
         /**
          * Create thread this should start running resetThread() at some point
          * int time will be blocked at HdrHistogram::reset() till this scope is
          * exited and iter2 is destroyed (releasing the read lock).
-         * We will also create a ThreadGat to ensure the reset thread is runing
+         * We will also create a Baton to ensure the reset thread is running
          * and is about to try and get an exclusive lock before reading values
          * from the histogram.
          */
-        thread = std::thread(resetThread, std::ref(histogram), std::ref(tg));
-        tg.threadUp();
+        thread = std::thread(resetThread, std::ref(histogram), std::ref(baton));
+        baton.post();
         auto values = getAllValues(histogram, iter2);
         EXPECT_EQ(values.size(), 20);
     } // iter2 read lock released
