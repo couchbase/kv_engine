@@ -199,15 +199,3 @@ void DCPBackfillDisk::transitionState(backfill_state_t newState) {
 
     state = newState;
 }
-
-ValueFilter DCPBackfillDisk::getValueFilter(const ActiveStream& stream) {
-    ValueFilter valFilter = ValueFilter::VALUES_DECOMPRESSED;
-    if (stream.isKeyOnly()) {
-        valFilter = ValueFilter::KEYS_ONLY;
-    } else {
-        if (stream.isCompressionEnabled()) {
-            valFilter = ValueFilter::VALUES_COMPRESSED;
-        }
-    }
-    return valFilter;
-}

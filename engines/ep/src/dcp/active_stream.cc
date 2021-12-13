@@ -2282,3 +2282,13 @@ uint64_t ActiveStream::adjustStartIfFirstSnapshot(uint64_t start) {
     }
     return start;
 }
+
+ValueFilter ActiveStream::getValueFilter() const {
+    ValueFilter valFilter = ValueFilter::VALUES_DECOMPRESSED;
+    if (isKeyOnly()) {
+        valFilter = ValueFilter::KEYS_ONLY;
+    } else if (isCompressionEnabled()) {
+        valFilter = ValueFilter::VALUES_COMPRESSED;
+    }
+    return valFilter;
+}

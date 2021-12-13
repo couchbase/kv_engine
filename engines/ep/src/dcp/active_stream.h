@@ -21,6 +21,7 @@
 
 class CheckpointManager;
 class VBucket;
+enum class ValueFilter;
 
 /**
  * This class represents an "active" Stream of DCP messages for a given vBucket.
@@ -398,6 +399,11 @@ public:
     bool supportSyncWrites() const {
         return syncReplication != SyncReplication::No;
     }
+
+    /**
+     * @return the KVStore ValueFilter for this stream
+     */
+    ValueFilter getValueFilter() const;
 
 protected:
     void clear_UNLOCKED();

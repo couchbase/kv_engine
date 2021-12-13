@@ -89,10 +89,6 @@ protected:
      */
     virtual void complete(bool cancelled) = 0;
 
-    /// Returns the ValueFilter to use for backfilling items for the given
-    /// stream.
-    static ValueFilter getValueFilter(const ActiveStream& stream);
-
     std::mutex lock;
     backfill_state_t state = backfill_state_init;
 

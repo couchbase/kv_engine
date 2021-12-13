@@ -67,7 +67,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
                     vbid);
         return backfill_finished;
     }
-    auto valFilter = getValueFilter(*stream);
+    auto valFilter = stream->getValueFilter();
 
     auto scanCtx = kvstore->initBySeqnoScanContext(
             std::make_unique<DiskCallback>(stream),
