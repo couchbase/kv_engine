@@ -188,9 +188,9 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
             // Collection names must be unique within the scope
             for (const auto& collection : scopeCollections) {
                 if (collection.name == cnameValue) {
-                    throwInvalid("duplicate collection name:" +
-                                 cidValue.to_string() +
-                                 ", name: " + cnameValue);
+                    throwInvalid(
+                            "duplicate collection id:" + cidValue.to_string() +
+                            ", name: " + cnameValue);
                 }
             }
 
