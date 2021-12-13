@@ -1106,7 +1106,7 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
                 // Snooze a new compaction task.
                 // We will wake it up when one of the existing compaction tasks
                 // is done.
-                execDelay = std::chrono::seconds(60);
+                execDelay = std::chrono::seconds(INT_MAX);
             }
         }
 
