@@ -29,7 +29,7 @@ DCPBackfillMemoryBuffered::DCPBackfillMemoryBuffered(
         uint64_t startSeqno,
         uint64_t endSeqno)
     : DCPBackfill(s),
-      DCPBackfillBySeqno(s, startSeqno, endSeqno),
+      DCPBackfillBySeqno(startSeqno, endSeqno),
       evb(evb),
       state(BackfillState::Init),
       rangeItr(nullptr),

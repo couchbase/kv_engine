@@ -11,21 +11,17 @@
 
 #pragma once
 
-#include "backfill.h"
+#include <cstdint>
 
 /**
  * This class provides common data required by concrete classes providing a
  * backfill over a seqno range. The name is influenced by the original
- * disk backfill which backfilled using the couchstore by-seqno index.
- * However this class is now consumed by in-memory and disk backfill classes
- * where a start and end is required.
+ * disk backfill which backfilled using the couchstore "by-seqno" index.
  */
-class DCPBackfillBySeqno : public virtual DCPBackfill {
+class DCPBackfillBySeqno {
 public:
-    DCPBackfillBySeqno(std::shared_ptr<ActiveStream> s,
-                       uint64_t start,
-                       uint64_t end)
-        : DCPBackfill(s), startSeqno(start), endSeqno(end) {
+    DCPBackfillBySeqno(uint64_t start, uint64_t end)
+        : startSeqno(start), endSeqno(end) {
     }
 
 protected:

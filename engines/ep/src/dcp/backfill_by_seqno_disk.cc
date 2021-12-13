@@ -29,7 +29,7 @@ DCPBackfillBySeqnoDisk::DCPBackfillBySeqnoDisk(KVBucket& bucket,
                                                uint64_t endSeqno)
     : DCPBackfill(s),
       DCPBackfillDisk(bucket),
-      DCPBackfillBySeqno(s, startSeqno, endSeqno) {
+      DCPBackfillBySeqno(startSeqno, endSeqno) {
 }
 
 backfill_status_t DCPBackfillBySeqnoDisk::create() {
