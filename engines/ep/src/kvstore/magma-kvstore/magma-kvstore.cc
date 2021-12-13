@@ -2264,12 +2264,17 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                            leb128.size());
         status = magma->CompactKVStore(
                 vbid.get(), prepareSlice, prepareSlice, compactionCB);
+        compactionStatusHook(status);
         if (!status) {
             logger->warn(
                     "MagmaKVStore::compactDBInternal CompactKVStore {} "
                     "over the prepare namespace failed with status:{}",
                     vbid,
                     status.String());
+            // It's important that we return here because a failure to do so
+            // would result in us not cleaning up prepares for a dropped
+            // collection if the compaction of a dropped collection succeeds.
+            return false;
         }
 
         for (auto& [dc, itemCount] : dcInfo) {

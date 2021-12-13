@@ -765,6 +765,59 @@ TEST_P(STParamMagmaBucketTest, FailCompactKVStoreCall) {
     EXPECT_TRUE(dc.empty());
 }
 
+TEST_P(STParamMagmaBucketTest, FailPrepareCompactKVStoreCall) {
+    replaceMagmaKVStore();
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    ASSERT_TRUE(store_items(
+            1, vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value"));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(kvstore);
+    auto& magmaKVStore = static_cast<MockMagmaKVStore&>(*kvstore);
+
+    // "Fail" the prepare compaction. This is a sort of "soft" failure as the
+    // magma portion works but we're going to pretend that it doesn't and
+    // skip updating state based on that.
+    bool first = true;
+    magmaKVStore.setCompactionStatusHook([&first](magma::Status& status) {
+        if (first) {
+            first = false;
+            status = magma::Status(magma::Status::Code::IOError, "bad");
+        }
+    });
+
+    // Compaction for prepare namespace "fails". We'll check the
+    // dropped collections local doc after to determine that it has been set
+    // successfully.
+    runCompaction(vbid);
+
+    // Dropped collection remains, as the compaction should have aborted
+    auto [status, dc] = kvstore->getDroppedCollections(vbid);
+    ASSERT_TRUE(status);
+    EXPECT_FALSE(dc.empty());
+
+    // Our hook wouldn't do anything now, but reset it anyway for simplicity
+    // and run the compaction again allowing the other collection to compact.
+    magmaKVStore.setCompactionStatusHook([](magma::Status&) {});
+    runCompaction(vbid);
+
+    // Dropped collections all gone now
+    ASSERT_EQ(1, magmaKVStore.getKVStoreStat().numCompactionFailure);
+    std::tie(status, dc) = kvstore->getDroppedCollections(vbid);
+    ASSERT_TRUE(status);
+    EXPECT_TRUE(dc.empty());
+}
+
 void STParamMagmaBucketTest::testDiskStateAfterCompactKVStore(
         std::function<void()> compactionCallback) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
