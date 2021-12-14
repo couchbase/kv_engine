@@ -21,7 +21,10 @@
  * be dynamically changed.
  */
 
-class InterfacesTest : public TestappClientTest {};
+class InterfacesTest : public TestappClientTest {
+protected:
+    void test_mb47707(bool whitelist_localhost_interface);
+};
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         InterfacesTest,
@@ -201,4 +204,78 @@ TEST_P(InterfacesTest, AFamilyChangeInterface) {
     memcached_cfg["interfaces"] = interfaces;
     reconfigure();
     parse_portnumber_file();
+}
+
+void InterfacesTest::test_mb47707(bool whitelist_localhost_interface) {
+    memcached_cfg["whitelist_localhost_interface"] =
+            whitelist_localhost_interface;
+    reconfigure();
+
+    auto interfaces = memcached_cfg["interfaces"];
+    memcached_cfg["interfaces"].emplace_back(
+            nlohmann::json{{"tag", "MB-47707"},
+                           {"port", 0},
+                           {"ipv4", "required"},
+                           {"ipv6", "off"},
+                           {"host", "*"}});
+    reconfigure();
+    parse_portnumber_file();
+
+    std::unique_ptr<MemcachedConnection> connection;
+    connectionMap.iterate([&connection](const MemcachedConnection& c) {
+        if (c.getTag() == "MB-47707") {
+            connection = c.clone();
+        }
+    });
+    ASSERT_TRUE(connection) << "Failed to locate the new connection";
+    auto rsp = connection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::SaslListMechs});
+    ASSERT_TRUE(rsp.isSuccess()) << "Status: " << to_string(rsp.getStatus())
+                                 << " message " << rsp.getDataString();
+
+    // Remove the interface!
+    memcached_cfg["interfaces"] = interfaces;
+    reconfigure();
+    parse_portnumber_file();
+
+    bool found = false;
+    connectionMap.iterate([&found](const MemcachedConnection& c) {
+        if (c.getTag() == "MB-47707") {
+            found = true;
+        }
+    });
+    ASSERT_FALSE(found) << "The port should have been gone";
+
+    if (whitelist_localhost_interface) {
+        // The connection should not be disconnected
+        rsp = connection->execute(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::SaslListMechs});
+        ASSERT_TRUE(rsp.isSuccess()) << "Status: " << to_string(rsp.getStatus())
+                                     << " message " << rsp.getDataString();
+    } else {
+        // The connection should be disconnected
+        try {
+            rsp = connection->execute(BinprotGenericCommand{
+                    cb::mcbp::ClientOpcode::SaslListMechs});
+            FAIL() << "Expected the connection to be disconnected.\n"
+                   << "Status: " << to_string(rsp.getStatus())
+                   << "\nmessage: " << rsp.getDataString();
+        } catch (const std::system_error& error) {
+            // we should probably have checked if the error code is
+            // conn-reset, but then again that may be different on windows
+            // mac and linux...
+        }
+    }
+}
+
+/// Verify that we don't disconnect localhost connections as part of
+/// interface deletion if they're bound to localhost
+TEST_P(InterfacesTest, MB_47707_LocalhostWhitelisted) {
+    test_mb47707(true);
+}
+
+/// Verify that we disconnect localhost connections as part of
+/// interface deletion even if they're bound to localhost
+TEST_P(InterfacesTest, MB_47707_LocalhostNotWhitelisted) {
+    test_mb47707(false);
 }

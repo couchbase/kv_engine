@@ -70,7 +70,7 @@ void conn_return_buffers(Connection* c);
  * @return a connection object on success, nullptr otherwise
  */
 Connection* conn_new(SOCKET sfd,
-                     const ListeningPort& interface,
+                     std::shared_ptr<ListeningPort> interface,
                      struct event_base* base,
                      FrontEndThread& thread);
 

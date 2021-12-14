@@ -18,6 +18,7 @@
 #pragma once
 
 #include <platform/socket.h>
+#include <atomic>
 #include <string>
 #include <utility>
 
@@ -45,8 +46,6 @@ public:
           sslKey(std::move(key)),
           sslCert(std::move(cert)) {
     }
-
-    ListeningPort(const ListeningPort& other) = default;
 
     /// The tag provided by the user to identify the port. It is possible
     /// to use ephemeral ports in the system, and if we want to change
@@ -84,4 +83,7 @@ public:
     bool isSslPort() const {
         return !sslKey.empty() && !sslCert.empty();
     }
+
+    /// Set to false once the interface is being shut down
+    std::atomic_bool valid{true};
 };

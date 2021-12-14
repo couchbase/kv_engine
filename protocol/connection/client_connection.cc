@@ -708,7 +708,7 @@ static Frame to_frame(const BinprotCommand& command) {
     return frame;
 }
 
-std::unique_ptr<MemcachedConnection> MemcachedConnection::clone() {
+std::unique_ptr<MemcachedConnection> MemcachedConnection::clone() const {
     auto result = std::make_unique<MemcachedConnection>(
             this->host, this->port, this->family, this->ssl);
     result->auto_retry_tmpfail = this->auto_retry_tmpfail;

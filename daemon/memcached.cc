@@ -887,6 +887,7 @@ static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
 
         bool changes = false;
         auto interfaces = Settings::instance().getInterfaces();
+        bool interfaces_dropped = false;
 
         // Step one, enable all new ports
         bool success = true;
@@ -982,6 +983,7 @@ static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
                     // erase returns the element following this one (or end())
                     changes = true;
                     iter = listen_conn.erase(iter);
+                    interfaces_dropped = true;
                 } else {
                     // look at the next element
                     ++iter;
@@ -991,6 +993,11 @@ static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
 
         if (changes) {
             create_portnumber_file(false);
+        }
+
+        if (interfaces_dropped) {
+            iterate_all_connections(
+                    [](auto& conn) { conn.reEvaluateParentPort(); });
         }
     }
 

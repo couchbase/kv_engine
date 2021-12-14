@@ -47,14 +47,14 @@ FrontEndThread::ConnectionQueue::~ConnectionQueue() {
     }
 }
 
-void FrontEndThread::ConnectionQueue::push(SOCKET sock,
-                                           SharedListeningPort interface) {
+void FrontEndThread::ConnectionQueue::push(
+        SOCKET sock, std::shared_ptr<ListeningPort> interface) {
     std::lock_guard<std::mutex> guard(mutex);
-    connections.emplace_back(sock, interface);
+    connections.emplace_back(sock, std::move(interface));
 }
 
 void FrontEndThread::ConnectionQueue::swap(
-        std::vector<std::pair<SOCKET, SharedListeningPort>>& other) {
+        std::vector<std::pair<SOCKET, std::shared_ptr<ListeningPort>>>& other) {
     std::lock_guard<std::mutex> guard(mutex);
     connections.swap(other);
 }
@@ -244,11 +244,12 @@ void drain_notification_channel(evutil_socket_t fd) {
 }
 
 static void dispatch_new_connections(FrontEndThread& me) {
-    std::vector<std::pair<SOCKET, SharedListeningPort>> connections;
+    std::vector<std::pair<SOCKET, std::shared_ptr<ListeningPort>>> connections;
     me.new_conn_queue.swap(connections);
 
     for (const auto& entry : connections) {
-        if (conn_new(entry.first, *entry.second, me.base, me) == nullptr) {
+        if (conn_new(entry.first, std::move(entry.second), me.base, me) ==
+            nullptr) {
             if (entry.second->system) {
                 --stats.system_conns;
             }
@@ -388,13 +389,13 @@ static size_t last_thread = 0;
  * Dispatches a new connection to another thread. This is only ever called
  * from the main thread, or because of an incoming connection.
  */
-void dispatch_conn_new(SOCKET sfd, SharedListeningPort& interface) {
+void dispatch_conn_new(SOCKET sfd, std::shared_ptr<ListeningPort> interface) {
     size_t tid = (last_thread + 1) % Settings::instance().getNumWorkerThreads();
     auto& thread = threads[tid];
     last_thread = tid;
 
     try {
-        thread.new_conn_queue.push(sfd, interface);
+        thread.new_conn_queue.push(sfd, std::move(interface));
     } catch (const std::bad_alloc& e) {
         LOG_WARNING("dispatch_conn_new: Failed to dispatch new connection: {}",
                     e.what());

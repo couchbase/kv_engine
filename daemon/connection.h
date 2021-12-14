@@ -94,7 +94,7 @@ public:
 
     Connection(SOCKET sfd,
                event_base* b,
-               const ListeningPort& ifc,
+               std::shared_ptr<ListeningPort> ifc,
                FrontEndThread& thr);
 
     ~Connection() override;
@@ -248,9 +248,7 @@ public:
         return thread;
     }
 
-    in_port_t getParentPort() const {
-        return parent_port;
-    }
+    in_port_t getParentPort() const;
 
     /**
      * Check if this connection is in posession of the requested privilege
@@ -362,6 +360,10 @@ public:
     cb::engine_errc remapErrorCode(cb::engine_errc code) {
         return cb::engine_errc(remapErrorCode(ENGINE_ERROR_CODE(code)));
     }
+
+    /// Revaluate if the parent port is still valid or not (and if
+    /// we should shut down the connection or not).
+    void reEvaluateParentPort();
 
     /**
      * Add the specified number of ns to the amount of CPU time this
@@ -1116,8 +1118,10 @@ protected:
     /** Pointer to the thread object serving this connection */
     FrontEndThread& thread;
 
-    /** Listening port that creates this connection instance */
-    const in_port_t parent_port{0};
+    /// The description of the listening port which accepted the client
+    /// (needed in order to shut down the connection if the administrator
+    /// disables the port)
+    std::shared_ptr<ListeningPort> listening_port;
 
     /**
      * The index of the connected bucket

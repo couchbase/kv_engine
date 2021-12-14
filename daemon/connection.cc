@@ -150,7 +150,7 @@ nlohmann::json Connection::toJSON() const {
     ret["protocol"] = "memcached";
     ret["peername"] = getPeername().c_str();
     ret["sockname"] = getSockname().c_str();
-    ret["parent_port"] = parent_port;
+    ret["parent_port"] = listening_port->port;
     ret["bucket_index"] = getBucketIndex();
     ret["internal"] = isInternal();
 
@@ -306,6 +306,10 @@ cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
     }
 
     return cb::engine_errc::no_access;
+}
+
+in_port_t Connection::getParentPort() const {
+    return listening_port->port;
 }
 
 cb::rbac::PrivilegeAccess Connection::checkPrivilege(
@@ -1404,13 +1408,13 @@ Connection::Connection(FrontEndThread& thr)
 
 Connection::Connection(SOCKET sfd,
                        event_base* b,
-                       const ListeningPort& ifc,
+                       std::shared_ptr<ListeningPort> ifc,
                        FrontEndThread& thr)
     : socketDescriptor(sfd),
-      connectedToSystemPort(ifc.system),
+      connectedToSystemPort(ifc->system),
       base(b),
       thread(thr),
-      parent_port(ifc.port),
+      listening_port(std::move(ifc)),
       peername(cb::net::getPeerNameAsJson(socketDescriptor).dump()),
       sockname(cb::net::getSockNameAsJson(socketDescriptor).dump()),
       stateMachine(*this),
@@ -1422,8 +1426,8 @@ Connection::Connection(SOCKET sfd,
     msglist.reserve(MSG_LIST_INITIAL);
     iov.resize(IOV_LIST_INITIAL);
 
-    if (ifc.isSslPort()) {
-        if (!enableSSL(ifc.sslCert, ifc.sslKey)) {
+    if (listening_port->isSslPort()) {
+        if (!enableSSL(listening_port->sslCert, listening_port->sslKey)) {
             throw std::runtime_error(std::to_string(getId()) +
                                      " Failed to enable SSL");
         }
@@ -1619,6 +1623,57 @@ void Connection::runEventLoop(short which) {
     }
 
     conn_return_buffers(this);
+}
+
+void Connection::reEvaluateParentPort() {
+    if (listening_port->valid) {
+        return;
+    }
+
+    switch (getState()) {
+    case StateMachine::State::new_cmd:
+    case StateMachine::State::waiting:
+    case StateMachine::State::read_packet_header:
+    case StateMachine::State::parse_cmd:
+    case StateMachine::State::read_packet_body:
+    case StateMachine::State::validate:
+    case StateMachine::State::execute:
+    case StateMachine::State::send_data:
+    case StateMachine::State::ship_log:
+        break;
+    case StateMachine::State::closing:
+    case StateMachine::State::pending_close:
+    case StateMachine::State::immediate_close:
+    case StateMachine::State::destroyed:
+        return;
+    }
+
+    bool localhost = false;
+    if (Settings::instance().isLocalhostInterfaceWhitelisted()) {
+        // Make sure we don't tear down localhost connections
+        if (listening_port->family == AF_INET) {
+            localhost =
+                    peername.find(R"("ip":"127.0.0.1")") != std::string::npos;
+        } else {
+            localhost = peername.find(R"("ip":"::1")") != std::string::npos;
+        }
+    }
+
+    if (localhost) {
+        LOG_INFO(
+                "{} Keeping connection alive even if server port was removed: "
+                "{}",
+                getId(),
+                getDescription());
+    } else {
+        LOG_INFO("{} Shutting down; server port was removed: {}",
+                 getId(),
+                 getDescription());
+        setTerminationReason("Server port shut down");
+
+        setState(StateMachine::State::closing);
+        signalIfIdle();
+    }
 }
 
 bool Connection::close() {

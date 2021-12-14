@@ -41,8 +41,6 @@ class Connection;
 class ListeningPort;
 struct thread_stats;
 
-using SharedListeningPort = std::shared_ptr<ListeningPort>;
-
 struct FrontEndThread {
     /**
      * Pending IO requests for this thread. Maps each pending Connection to
@@ -87,12 +85,15 @@ struct FrontEndThread {
     class ConnectionQueue {
     public:
         ~ConnectionQueue();
-        void push(SOCKET socket, SharedListeningPort interface);
-        void swap(std::vector<std::pair<SOCKET, SharedListeningPort>>& other);
+        void push(SOCKET socket, std::shared_ptr<ListeningPort> interface);
+        void swap(
+                std::vector<std::pair<SOCKET, std::shared_ptr<ListeningPort>>>&
+                        other);
 
     protected:
         std::mutex mutex;
-        std::vector<std::pair<SOCKET, SharedListeningPort>> connections;
+        std::vector<std::pair<SOCKET, std::shared_ptr<ListeningPort>>>
+                connections;
     } new_conn_queue;
 
     /// Mutex to lock protect access to this object.

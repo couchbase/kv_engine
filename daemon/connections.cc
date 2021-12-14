@@ -61,7 +61,7 @@ static void maybe_return_single_buffer(Connection& c,
 static void conn_destructor(Connection* c);
 static Connection* allocate_connection(SOCKET sfd,
                                        event_base* base,
-                                       const ListeningPort& interface,
+                                       std::shared_ptr<ListeningPort> interface,
                                        FrontEndThread& thread);
 
 static void release_connection(Connection* c);
@@ -159,10 +159,10 @@ void run_event_loop(Connection* c, short which) {
 }
 
 Connection* conn_new(SOCKET sfd,
-                     const ListeningPort& interface,
+                     std::shared_ptr<ListeningPort> interface,
                      struct event_base* base,
                      FrontEndThread& thread) {
-    auto* c = allocate_connection(sfd, base, interface, thread);
+    auto* c = allocate_connection(sfd, base, std::move(interface), thread);
     if (c == nullptr) {
         return nullptr;
     }
@@ -248,12 +248,12 @@ static void conn_destructor(Connection* c) {
  */
 static Connection* allocate_connection(SOCKET sfd,
                                        event_base* base,
-                                       const ListeningPort& interface,
+                                       std::shared_ptr<ListeningPort> interface,
                                        FrontEndThread& thread) {
     Connection* ret = nullptr;
 
     try {
-        ret = new Connection(sfd, base, interface, thread);
+        ret = new Connection(sfd, base, std::move(interface), thread);
         std::lock_guard<std::mutex> lock(connections.mutex);
         connections.conns.push_back(ret);
         stats.conn_structs++;

@@ -686,6 +686,11 @@ static void handle_opentracing(Settings& s, const nlohmann::json& obj) {
     s.setOpenTracingConfig(std::make_shared<OpenTracingConfig>(obj));
 }
 
+static void handle_whitelist_localhost_interface(Settings& s,
+                                                 const nlohmann::json& obj) {
+    s.setWhitelistLocalhostInterface(obj.get<bool>());
+}
+
 void Settings::reconfigure(const nlohmann::json& json) {
     // Nuke the default interface added to the system in settings_init and
     // use the ones in the configuration file.. (this is a bit messy)
@@ -757,7 +762,9 @@ void Settings::reconfigure(const nlohmann::json& json) {
              handle_max_concurrent_commands_per_connection},
             {"opentracing", handle_opentracing},
             {"portnumber_file", handle_portnumber_file},
-            {"parent_identifier", handle_parent_identifier}};
+            {"parent_identifier", handle_parent_identifier},
+            {"whitelist_localhost_interface",
+             handle_whitelist_localhost_interface}};
 
     for (const auto& obj : json.items()) {
         bool found = false;
@@ -1240,6 +1247,19 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
         if (update) {
             setOpenTracingConfig(o);
+        }
+    }
+
+    if (other.has.whitelist_localhost_interface) {
+        if (other.whitelist_localhost_interface !=
+            whitelist_localhost_interface) {
+            LOG_INFO(
+                    R"(Change whitelist of localhost interface from "{}" to "{}")",
+                    isLocalhostInterfaceWhitelisted() ? "enabled" : "disabled",
+                    other.isLocalhostInterfaceWhitelisted() ? "enabled"
+                                                            : "disabled");
+            setWhitelistLocalhostInterface(
+                    other.isLocalhostInterfaceWhitelisted());
         }
     }
 

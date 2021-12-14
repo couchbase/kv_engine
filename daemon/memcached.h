@@ -79,7 +79,7 @@ void threads_shutdown();
 void threads_cleanup();
 
 class ListeningPort;
-void dispatch_conn_new(SOCKET sfd, std::shared_ptr<ListeningPort>& interface);
+void dispatch_conn_new(SOCKET sfd, std::shared_ptr<ListeningPort> interface);
 
 /* Lock wrappers for cache functions that are called from main loop. */
 int is_listen_thread(void);

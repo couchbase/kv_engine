@@ -54,6 +54,7 @@ ServerSocket::ServerSocket(SOCKET fd,
 }
 
 ServerSocket::~ServerSocket() {
+    interface->valid.store(false, std::memory_order_release);
     std::string tagstr;
     if (!interface->tag.empty()) {
         tagstr = " \"" + interface->tag + "\"";

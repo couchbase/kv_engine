@@ -291,7 +291,7 @@ public:
 
     // Creates clone (copy) of the given connection - i.e. a second independent
     // channel to memcached. Used for multi-connection testing.
-    std::unique_ptr<MemcachedConnection> clone();
+    std::unique_ptr<MemcachedConnection> clone() const;
 
     std::string getName() const {
         return name;
