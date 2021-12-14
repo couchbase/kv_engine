@@ -1421,8 +1421,7 @@ HashTable::FindResult VBucket::fetchValidValue(
             }
 
             // queueDirty only allowed on active VB
-            if (queueExpired == QueueExpired::Yes &&
-                getState() == vbucket_state_active) {
+            if (queueExpired == QueueExpired::Yes) {
                 handlePreExpiry(res.getHBL(), *v);
                 VBNotifyCtx notifyCtx;
                 std::tie(std::ignore, v, notifyCtx) =
