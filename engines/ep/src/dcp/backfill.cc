@@ -15,7 +15,8 @@ DCPBackfill::DCPBackfill(std::shared_ptr<ActiveStream> s)
     : streamPtr(s), vbid(s->getVBucket()) {
 }
 
-bool DCPBackfill::isStreamDead() const {
+// Task should be cancelled if the stream cannot be obtained or is now dead
+bool DCPBackfill::shouldCancel() const {
     auto stream = streamPtr.lock();
     return !stream || !stream->isActive();
 }

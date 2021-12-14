@@ -312,7 +312,7 @@ backfill_status_t BackfillManager::backfill() {
         std::list<UniqueDCPBackfillPtr> toDelete;
         for (auto a_itr = activeBackfills.begin();
              a_itr != activeBackfills.end();) {
-            if ((*a_itr)->isStreamDead()) {
+            if ((*a_itr)->shouldCancel()) {
                 (*a_itr)->cancel();
                 toDelete.push_back(std::move(*a_itr));
                 a_itr = activeBackfills.erase(a_itr);

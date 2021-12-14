@@ -47,10 +47,9 @@ struct DCPBackfillIface {
     virtual void cancel() = 0;
 
     /**
-     * @returns true if the DCP stream associated with the backfill is dead,
-     * else false.
+     * @returns true if the backfill task should be cancelled
      */
-    virtual bool isStreamDead() const = 0;
+    virtual bool shouldCancel() const = 0;
 };
 
 /**
@@ -81,7 +80,7 @@ public:
      *
      * @return true if stream is in dead state; else false
      */
-    bool isStreamDead() const override;
+    bool shouldCancel() const override;
 
 protected:
     /**

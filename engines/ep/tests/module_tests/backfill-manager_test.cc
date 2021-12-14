@@ -24,7 +24,7 @@ public:
     MOCK_METHOD0(run, backfill_status_t());
     MOCK_METHOD0(cancel, void());
     MOCK_CONST_METHOD0(getVBucketId, Vbid());
-    MOCK_CONST_METHOD0(isStreamDead, bool());
+    MOCK_CONST_METHOD0(shouldCancel, bool());
 };
 
 class GMockBackfillTracker : public BackfillTrackingIface {
