@@ -166,65 +166,70 @@ backfill_status_t DCPBackfillDisk::run() {
                 runtime += (std::chrono::steady_clock::now() - start);
             });
     switch (state) {
-    case backfill_state_init:
+    case State::Create:
         return create();
-    case backfill_state_scanning:
+    case State::Scan:
         return scan();
-    case backfill_state_completing:
+    case State::Complete:
         complete(false);
         return backfill_finished;
-    case backfill_state_done:
+    case State::Done:
         return backfill_finished;
     }
 
-    throw std::logic_error("DCPBackfillDisk::run: Invalid backfill state " +
-                           std::to_string(state));
+    throw std::logic_error(fmt::format("{}: Invalid state:{}",
+                                       __PRETTY_FUNCTION__,
+                                       std::to_string(int(state))));
 }
 
 void DCPBackfillDisk::cancel() {
     std::lock_guard<std::mutex> lh(lock);
-    if (state != backfill_state_done) {
+    if (state != State::Done) {
         complete(true);
     }
 }
 
-static std::string backfillStateToString(backfill_state_t state) {
+std::ostream& operator<<(std::ostream& os, DCPBackfillDisk::State state) {
     switch (state) {
-    case backfill_state_init:
-        return "initalizing";
-    case backfill_state_scanning:
-        return "scanning";
-    case backfill_state_completing:
-        return "completing";
-    case backfill_state_done:
-        return "done";
+    case DCPBackfillDisk::State::Create:
+        return os << "State::Create";
+    case DCPBackfillDisk::State::Scan:
+        return os << "State::Scan";
+    case DCPBackfillDisk::State::Complete:
+        return os << "State::Complete";
+    case DCPBackfillDisk::State::Done:
+        return os << "State::Done";
     }
-    return "<invalid>:" + std::to_string(state);
+
+    throw std::logic_error(fmt::format("{}: Invalid state:{}",
+                                       __PRETTY_FUNCTION__,
+                                       std::to_string(int(state))));
+    return os;
 }
 
-void DCPBackfillDisk::transitionState(backfill_state_t newState) {
+void DCPBackfillDisk::transitionState(State newState) {
     if (state == newState) {
         return;
     }
 
     bool validTransition = false;
     switch (newState) {
-    case backfill_state_init:
-        // Not valid to transition back to 'init'
+    case State::Create:
+        // No valid transition to 'create'
         break;
-    case backfill_state_scanning:
-        if (state == backfill_state_init) {
+    case State::Scan:
+        if (state == State::Create) {
             validTransition = true;
         }
         break;
-    case backfill_state_completing:
-        if (state == backfill_state_init || state == backfill_state_scanning) {
+    case State::Complete:
+        if (state == State::Create || state == State::Scan) {
             validTransition = true;
         }
         break;
-    case backfill_state_done:
-        if (state == backfill_state_init || state == backfill_state_scanning ||
-            state == backfill_state_completing) {
+    case State::Done:
+        if (state == State::Create || state == State::Scan ||
+            state == State::Complete) {
             validTransition = true;
         }
         break;
@@ -232,11 +237,11 @@ void DCPBackfillDisk::transitionState(backfill_state_t newState) {
 
     if (!validTransition) {
         throw std::invalid_argument(
-                "DCPBackfillDisk::transitionState:"
-                " newState (which is " +
-                backfillStateToString(newState) +
-                ") is not valid for current state (which is " +
-                backfillStateToString(state) + ")");
+                fmt::format("{}: newState:{} is not valid "
+                            "for current state:{}",
+                            __PRETTY_FUNCTION__,
+                            newState,
+                            state));
     }
 
     state = newState;

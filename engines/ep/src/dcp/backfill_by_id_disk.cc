@@ -31,7 +31,7 @@ backfill_status_t DCPBackfillByIdDisk::create() {
                 "({}) backfill create ended prematurely as the associated "
                 "stream is deleted by the producer conn ",
                 getVBucketId());
-        transitionState(backfill_state_done);
+        transitionState(State::Done);
         return backfill_finished;
     }
 
@@ -94,7 +94,7 @@ backfill_status_t DCPBackfillByIdDisk::create() {
 
         stream->log(spdlog::level::level_enum::warn, "{}", log.str());
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
-        transitionState(backfill_state_done);
+        transitionState(State::Done);
     } else {
         auto& dc = dynamic_cast<DiskCallback&>(scanCtx->getValueCallback());
         auto& idScanCtx = dynamic_cast<ByIdScanContext&>(*scanCtx);
@@ -105,9 +105,9 @@ backfill_status_t DCPBackfillByIdDisk::create() {
 
         bool markerSent = stream->markOSODiskSnapshot(scanCtx->maxSeqno);
         if (markerSent) {
-            transitionState(backfill_state_scanning);
+            transitionState(State::Scan);
         } else {
-            transitionState(backfill_state_completing);
+            transitionState(State::Complete);
         }
     }
 
@@ -131,7 +131,7 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
 
     switch (kvstore->scan(static_cast<ByIdScanContext&>(*scanCtx))) {
     case ScanStatus::Success:
-        transitionState(backfill_state_completing);
+        transitionState(State::Complete);
         return backfill_success;
     case ScanStatus::Yield:
         // Scan should run again (e.g. was paused by callback)
@@ -163,7 +163,7 @@ void DCPBackfillByIdDisk::complete(bool cancelled) {
                 "stream is deleted by the producer conn; {}",
                 getVBucketId(),
                 cancelled ? "cancelled" : "finished");
-        transitionState(backfill_state_done);
+        transitionState(State::Done);
         return;
     }
 
@@ -178,5 +178,5 @@ void DCPBackfillByIdDisk::complete(bool cancelled) {
                 cid.to_string(),
                 cancelled ? "cancelled" : "finished");
 
-    transitionState(backfill_state_done);
+    transitionState(State::Done);
 }

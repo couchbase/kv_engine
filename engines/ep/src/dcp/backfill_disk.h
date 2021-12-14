@@ -21,14 +21,6 @@ class KVBucket;
 class VBucket;
 enum class ValueFilter;
 
-/* The possible states of the DCPBackfillDisk */
-enum backfill_state_t {
-    backfill_state_init,
-    backfill_state_scanning,
-    backfill_state_completing,
-    backfill_state_done
-};
-
 /* Callback to get the items that are found to be in the cache */
 class CacheCallback : public StatusCallback<CacheLookup> {
 public:
@@ -89,12 +81,28 @@ public:
     ~DCPBackfillDisk() override;
 
 protected:
+    /**
+     * States for the backfill, these reflect which create/scan/complete
+     * function is invoked when the backfill is told to run.
+     *
+     * All transitions are from "left to right", no state can go back.
+     *
+     * Valid transitions are:
+     *
+     * Create->Scan->Complete->Done
+     * Create->Scan->Done
+     * Create->Complete->Done
+     * Create->Done
+     */
+    enum class State { Create, Scan, Complete, Done };
+    friend std::ostream& operator<<(std::ostream&, State);
+
     backfill_status_t run() override;
     void cancel() override;
-    void transitionState(backfill_state_t newState);
+    void transitionState(State newState);
 
     /**
-     * Create the scan, intialising scanCtx from KVStore initScanContext
+     * Create the scan, initialising scanCtx from KVStore initScanContext
      */
     virtual backfill_status_t create() = 0;
 
@@ -107,13 +115,13 @@ protected:
      * Handles the completion of the backfill, e.g. notify completion status to
      * the stream.
      *
-     * @param cancelled indicates the if backfill finished fully or was
+     * @param cancelled indicates if backfill finished fully or was
      *                  cancelled in between; for debug
      */
     virtual void complete(bool cancelled) = 0;
 
     std::mutex lock;
-    backfill_state_t state = backfill_state_init;
+    State state{State::Create};
 
     KVBucket& bucket;
 
