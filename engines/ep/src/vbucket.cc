@@ -1439,6 +1439,8 @@ HashTable::FindResult VBucket::fetchValidValue(
 VBucket::FetchForWriteResult VBucket::fetchValueForWrite(
         const Collections::VB::CachingReadHandle& cHandle,
         QueueExpired queueExpired) {
+    Expects(getState() == vbucket_state_active);
+
     if (queueExpired == QueueExpired::Yes && !cHandle.valid()) {
         throw std::invalid_argument(
                 "VBucket::fetchValueForWrite cannot queue "
@@ -1485,8 +1487,7 @@ VBucket::FetchForWriteResult VBucket::fetchValueForWrite(
     }
 
     // Expired - but queueDirty only allowed on active VB
-    if ((getState() == vbucket_state_active) &&
-        (queueExpired == QueueExpired::Yes)) {
+    if (queueExpired == QueueExpired::Yes) {
         handlePreExpiry(res.getHBL(), *sv);
         VBNotifyCtx notifyCtx;
         std::tie(std::ignore, sv, notifyCtx) =
