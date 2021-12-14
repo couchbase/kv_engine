@@ -6683,101 +6683,10 @@ static enum test_result test_MB34173_warmup(EngineIface* h) {
 // buffers. All of the tests in this batch make sure that all of the stats
 // exists (the stats call return a fixed set of stats)
 static enum test_result test_mb19687_fixed(EngineIface* h) {
-    std::vector<std::string> rwKVStoreStats = {
-                "rw_0:backend_type",
-                "rw_0:close",
-                "rw_0:failure_compaction",
-                "rw_0:failure_del",
-                "rw_0:failure_get",
-                "rw_0:failure_open",
-                "rw_0:failure_set",
-                "rw_0:failure_vbset",
-                "rw_0:io_flusher_write_amplification",
-                "rw_0:io_total_write_amplification",
-                "rw_0:io_compaction_read_bytes",
-                "rw_0:io_compaction_write_bytes",
-                "rw_0:io_bg_fetch_docs_read",
-                "rw_0:io_num_write",
-                "rw_0:io_bg_fetch_doc_bytes",
-                "rw_0:io_total_read_bytes",
-                "rw_0:io_total_write_bytes",
-                "rw_0:io_document_write_bytes",
-                "rw_0:lastCommDocs",
-                "rw_0:numLoadedVb",
-                "rw_0:open",
-                "rw_1:backend_type",
-                "rw_1:close",
-                "rw_1:failure_compaction",
-                "rw_1:failure_del",
-                "rw_1:failure_get",
-                "rw_1:failure_open",
-                "rw_1:failure_set",
-                "rw_1:failure_vbset",
-                "rw_1:io_flusher_write_amplification",
-                "rw_1:io_total_write_amplification",
-                "rw_1:io_compaction_read_bytes",
-                "rw_1:io_compaction_write_bytes",
-                "rw_1:io_bg_fetch_docs_read",
-                "rw_1:io_num_write",
-                "rw_1:io_bg_fetch_doc_bytes",
-                "rw_1:io_total_read_bytes",
-                "rw_1:io_total_write_bytes",
-                "rw_1:io_document_write_bytes",
-                "rw_1:lastCommDocs",
-                "rw_1:numLoadedVb",
-                "rw_1:open",
-                "rw_2:backend_type",
-                "rw_2:close",
-                "rw_2:failure_compaction",
-                "rw_2:failure_del",
-                "rw_2:failure_get",
-                "rw_2:failure_open",
-                "rw_2:failure_set",
-                "rw_2:failure_vbset",
-                "rw_2:io_flusher_write_amplification",
-                "rw_2:io_total_write_amplification",
-                "rw_2:io_compaction_read_bytes",
-                "rw_2:io_compaction_write_bytes",
-                "rw_2:io_bg_fetch_docs_read",
-                "rw_2:io_num_write",
-                "rw_2:io_bg_fetch_doc_bytes",
-                "rw_2:io_total_read_bytes",
-                "rw_2:io_total_write_bytes",
-                "rw_2:io_document_write_bytes",
-                "rw_2:lastCommDocs",
-                "rw_2:numLoadedVb",
-                "rw_2:open",
-                "rw_3:backend_type",
-                "rw_3:close",
-                "rw_3:failure_compaction",
-                "rw_3:failure_del",
-                "rw_3:failure_get",
-                "rw_3:failure_open",
-                "rw_3:failure_set",
-                "rw_3:failure_vbset",
-                "rw_3:io_flusher_write_amplification",
-                "rw_3:io_total_write_amplification",
-                "rw_3:io_compaction_read_bytes",
-                "rw_3:io_compaction_write_bytes",
-                "rw_3:io_bg_fetch_docs_read",
-                "rw_3:io_num_write",
-                "rw_3:io_bg_fetch_doc_bytes",
-                "rw_3:io_total_read_bytes",
-                "rw_3:io_total_write_bytes",
-                "rw_3:io_document_write_bytes",
-                "rw_3:lastCommDocs",
-                "rw_3:numLoadedVb",
-                "rw_3:open"
-    };
-
-    std::string backend = get_str_stat(h, "ep_backend");
-    std::vector<std::string> kvstats;
-
-    /* initialize with all the read write stats */
-    kvstats.insert(kvstats.begin(), rwKVStoreStats.begin(),
-                   rwKVStoreStats.end());
-
-    std::map<std::string, std::vector<std::string> > statsKeys{
+    // Map of stat group names to their content. Not const as we can insert
+    // additional stats to check for based on engine config (full / value
+    // eviction, persistent / ephemeral ...)
+    std::map<std::string_view, std::vector<std::string_view> > statsKeys{
             {"dcp-vbtakeover 0",
              {"status",
               "on_disk_deletes",
@@ -6931,7 +6840,91 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "vb_0:id_1:type",
               "vb_0:id_1:visible_snap_end"}},
             {"uuid", {"uuid"}},
-            {"kvstore", kvstats},
+            {"kvstore",
+             {"rw_0:backend_type",
+              "rw_0:close",
+              "rw_0:failure_compaction",
+              "rw_0:failure_del",
+              "rw_0:failure_get",
+              "rw_0:failure_open",
+              "rw_0:failure_set",
+              "rw_0:failure_vbset",
+              "rw_0:io_flusher_write_amplification",
+              "rw_0:io_total_write_amplification",
+              "rw_0:io_compaction_read_bytes",
+              "rw_0:io_compaction_write_bytes",
+              "rw_0:io_bg_fetch_docs_read",
+              "rw_0:io_num_write",
+              "rw_0:io_bg_fetch_doc_bytes",
+              "rw_0:io_total_read_bytes",
+              "rw_0:io_total_write_bytes",
+              "rw_0:io_document_write_bytes",
+              "rw_0:lastCommDocs",
+              "rw_0:numLoadedVb",
+              "rw_0:open",
+              "rw_1:backend_type",
+              "rw_1:close",
+              "rw_1:failure_compaction",
+              "rw_1:failure_del",
+              "rw_1:failure_get",
+              "rw_1:failure_open",
+              "rw_1:failure_set",
+              "rw_1:failure_vbset",
+              "rw_1:io_flusher_write_amplification",
+              "rw_1:io_total_write_amplification",
+              "rw_1:io_compaction_read_bytes",
+              "rw_1:io_compaction_write_bytes",
+              "rw_1:io_bg_fetch_docs_read",
+              "rw_1:io_num_write",
+              "rw_1:io_bg_fetch_doc_bytes",
+              "rw_1:io_total_read_bytes",
+              "rw_1:io_total_write_bytes",
+              "rw_1:io_document_write_bytes",
+              "rw_1:lastCommDocs",
+              "rw_1:numLoadedVb",
+              "rw_1:open",
+              "rw_2:backend_type",
+              "rw_2:close",
+              "rw_2:failure_compaction",
+              "rw_2:failure_del",
+              "rw_2:failure_get",
+              "rw_2:failure_open",
+              "rw_2:failure_set",
+              "rw_2:failure_vbset",
+              "rw_2:io_flusher_write_amplification",
+              "rw_2:io_total_write_amplification",
+              "rw_2:io_compaction_read_bytes",
+              "rw_2:io_compaction_write_bytes",
+              "rw_2:io_bg_fetch_docs_read",
+              "rw_2:io_num_write",
+              "rw_2:io_bg_fetch_doc_bytes",
+              "rw_2:io_total_read_bytes",
+              "rw_2:io_total_write_bytes",
+              "rw_2:io_document_write_bytes",
+              "rw_2:lastCommDocs",
+              "rw_2:numLoadedVb",
+              "rw_2:open",
+              "rw_3:backend_type",
+              "rw_3:close",
+              "rw_3:failure_compaction",
+              "rw_3:failure_del",
+              "rw_3:failure_get",
+              "rw_3:failure_open",
+              "rw_3:failure_set",
+              "rw_3:failure_vbset",
+              "rw_3:io_flusher_write_amplification",
+              "rw_3:io_total_write_amplification",
+              "rw_3:io_compaction_read_bytes",
+              "rw_3:io_compaction_write_bytes",
+              "rw_3:io_bg_fetch_docs_read",
+              "rw_3:io_num_write",
+              "rw_3:io_bg_fetch_doc_bytes",
+              "rw_3:io_total_read_bytes",
+              "rw_3:io_total_write_bytes",
+              "rw_3:io_document_write_bytes",
+              "rw_3:lastCommDocs",
+              "rw_3:numLoadedVb",
+              "rw_3:open"}},
             {"info", {"info"}},
             {"config",
              {"ep_allow_sanitize_value_in_deletion",
@@ -7628,17 +7621,15 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         // Add data_size and file_size stats to toplevel group.
         auto& eng_stats = statsKeys.at("");
 
+        eng_stats.insert(
+                eng_stats.end(),
+                {"ep_db_data_size", "ep_db_file_size", "ep_db_prepare_size"});
         // Using explicit initializer lists due to http://stackoverflow
         // .com/questions/36557969/invalid-iterator-range-while-inserting
         // -initializer-list-to-an-stdvector
-        eng_stats.insert(
-                eng_stats.end(),
-                std::initializer_list<std::string>{"ep_db_data_size",
-                                                   "ep_db_file_size",
-                                                   "ep_db_prepare_size"});
         eng_stats.insert(eng_stats.end(),
-                         std::initializer_list<std::string>{"ep_flusher_state",
-                                                            "ep_flusher_todo"});
+                         std::initializer_list<std::string_view>{
+                                 "ep_flusher_state", "ep_flusher_todo"});
         eng_stats.insert(eng_stats.end(),
                          {"ep_commit_num",
                           "ep_commit_time",
@@ -7652,7 +7643,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_chk_persistence_timeout"});
 
         // Config variables only valid for persistent
-        std::initializer_list<std::string> persistentConfig = {
+        std::initializer_list<std::string_view> persistentConfig = {
                 "ep_access_scanner_enabled",
                 "ep_alog_block_size",
                 "ep_alog_max_stored_items",
@@ -7672,20 +7663,21 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "vb_0:data_size", "vb_0:file_size", "vb_0:prepare_size"};
 
         // Add stats which are only available for persistent buckets:
-        static const char* persistence_stats[] = {
+        std::initializer_list<std::string_view> persistence_stats = {
                 "vb_0:persistence:cursor_checkpoint_id",
                 "vb_0:persistence:cursor_seqno",
                 "vb_0:persistence:num_visits",
                 "vb_0:num_items_for_persistence"};
-        for (auto& stat : persistence_stats) {
-            statsKeys.at("checkpoint").push_back(stat);
-            statsKeys.at("checkpoint 0").push_back(stat);
-        }
+        auto& ckpt_stats = statsKeys.at("checkpoint");
+        ckpt_stats.insert(ckpt_stats.end(), persistence_stats);
+        auto& ckpt0_stats = statsKeys.at("checkpoint 0");
+        ckpt0_stats.insert(ckpt0_stats.end(), persistence_stats);
 
         auto& vb_details = statsKeys.at("vbucket-details 0");
-        vb_details.emplace_back("vb_0:db_data_size");
-        vb_details.emplace_back("vb_0:db_file_size");
-        vb_details.emplace_back("vb_0:db_prepare_size");
+        vb_details.insert(vb_details.end(),
+                          {"vb_0:db_data_size",
+                           "vb_0:db_file_size",
+                           "vb_0:db_prepare_size"});
 
         // Config variables only valid for persistent
         auto& config_stats = statsKeys.at("config");
@@ -7758,7 +7750,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
 
     // In addition to the exact stat keys above, we also use regex patterns
     // for variable keys:
-    std::map<std::string, std::vector<std::regex> > statsPatterns{
+    std::map<std::string_view, std::vector<std::regex> > statsPatterns{
             {"hash", {std::regex{"vb_0:histo_\\d+,\\d+"}}},
             {"kvtimings",
              {std::regex{"ro_[0-3]:readTime_\\d+,\\d+"},
@@ -7768,31 +7760,31 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
 
     bool error = false;
     for (auto& entry : statsKeys) {
-        // Fetch the statistics for each group.
-        vals.clear();
+        // Fetch the statistics for each group. Note we need an owning
+        // type (std::string) here as the stats callback requires callers
+        // to take a copy of key/value if they require it after the callback
+        // returns.
+        std::vector<std::string> actual;
         checkeq(cb::engine_errc::success,
                 get_stats(h,
                           {entry.first.empty() ? nullptr : entry.first.data(),
                            entry.first.size()},
                           {},
-                          add_stats),
-                ("Failed to get stats: "s + entry.first).c_str());
+                          [&actual](auto key, auto value, auto ctx) {
+                              actual.emplace_back(key);
+                          }),
+                ("Failed to get stats: "s + std::string{entry.first}).c_str());
 
-        // Extract the keys from the fetched stats, and sort them.
-        std::vector<std::string> actual;
-        std::transform(
-                vals.begin(),
-                vals.end(),
-                std::back_inserter(actual),
-                [](const statistic_map::value_type& v) { return v.first; });
+        // Sort the keys from the fetched stats and expected keys (required
+        // for set_difference).
+        std::sort(actual.begin(), actual.end());
 
-        // Also sort the expected keys (required for set_difference).
         auto& expected = entry.second;
         std::sort(expected.begin(), expected.end());
 
         // (A) Find any missing stats - those expected (in statsKeys) but not
         // found in actual.
-        std::vector<std::string> missing;
+        std::vector<std::string_view> missing;
         std::set_difference(expected.begin(),
                             expected.end(),
                             actual.begin(),
@@ -7803,12 +7795,12 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
             error = true;
             fprintf(stderr,
                     "Missing stat:  %s from stat group %s\n",
-                    key.c_str(),
-                    entry.first.c_str());
+                    std::string{key}.c_str(),
+                    std::string{entry.first}.c_str());
         }
 
         // (B) Find any extra stats - those in actual which are not in expected.
-        std::vector<std::string> extra;
+        std::vector<std::string_view> extra;
         std::set_difference(actual.begin(),
                             actual.end(),
                             expected.begin(),
@@ -7825,7 +7817,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
             if (patterns != statsPatterns.end()) {
                 // We have regex(s), see if any match.
                 for (const auto& pattern : patterns->second) {
-                    if (std::regex_match(key, pattern)) {
+                    if (std::regex_match(std::string{key}, pattern)) {
                         matched = true;
                         break;
                     }
@@ -7835,8 +7827,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 error = true;
                 fprintf(stderr,
                         "Unexpected stat: %s from stat group %s\n",
-                        key.c_str(),
-                        entry.first.c_str());
+                        std::string{key}.c_str(),
+                        std::string(entry.first).c_str());
             }
         }
     }
