@@ -1230,8 +1230,8 @@ TEST_P(ConnectionTest, test_mb23637_findByNameWithConnectionDoDisconnect) {
 TEST_P(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize();
-    const CookieIface* cookie1 = create_mock_cookie(engine);
-    const CookieIface* cookie2 = create_mock_cookie(engine);
+    auto* cookie1 = create_mock_cookie(engine);
+    auto* cookie2 = create_mock_cookie(engine);
     // Create a new Dcp producer
     DcpProducer* producer = connMap.newProducer(cookie1,
                                                 "test_producer",
@@ -1268,8 +1268,8 @@ TEST_P(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
 TEST_P(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize();
-    const CookieIface* cookie1 = create_mock_cookie(engine);
-    const CookieIface* cookie2 = create_mock_cookie(engine);
+    auto* cookie1 = create_mock_cookie(engine);
+    auto* cookie2 = create_mock_cookie(engine);
     // Create a new Dcp producer
     DcpProducer* producer = connMap.newProducer(cookie1,
                                                 "test_producer",

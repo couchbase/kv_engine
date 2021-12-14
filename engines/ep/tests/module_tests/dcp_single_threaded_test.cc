@@ -111,7 +111,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
     // Make vbucket replica so can add passive stream
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
-    const CookieIface* cookie = create_mock_cookie(engine.get());
+    auto* cookie = create_mock_cookie(engine.get());
     auto& connMap = engine->getDcpConnMap();
     auto* consumer = connMap.newConsumer(cookie, "test_consumer");
 
@@ -225,7 +225,7 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
     // Make vbucket replica so can add passive stream
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
-    const CookieIface* cookie = create_mock_cookie(engine.get());
+    auto* cookie = create_mock_cookie(engine.get());
     auto& connMap = engine->getDcpConnMap();
     auto* consumer = connMap.newConsumer(cookie, "test_consumer");
 
@@ -280,7 +280,7 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
 TEST_P(STDcpTest, AckCorrectPassiveStream) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
-    const CookieIface* cookie1 = create_mock_cookie(engine.get());
+    auto* cookie1 = create_mock_cookie(engine.get());
     Vbid vbid = Vbid(0);
 
     auto& connMap = engine->getDcpConnMap();
@@ -312,7 +312,7 @@ TEST_P(STDcpTest, AckCorrectPassiveStream) {
     ASSERT_FALSE(stream1->isActive());
 
     // Add a new consumer and new PassiveStream
-    const CookieIface* cookie2 = create_mock_cookie(engine.get());
+    auto* cookie2 = create_mock_cookie(engine.get());
     auto consumer2 =
             std::make_shared<MockDcpConsumer>(*engine, cookie2, "consumer2");
     mockConnMap.addConn(cookie2, consumer2);
@@ -472,7 +472,7 @@ TEST_P(STDcpTest, ConsumerNegotiatesDeletedUserXattrs_EnabledAtProducer) {
 }
 
 void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
-    const CookieIface* cookie = create_mock_cookie(engine.get());
+    auto* cookie = create_mock_cookie(engine.get());
     const uint32_t opaque = 1;
     const uint64_t snapStart = 1, snapEnd = 10;
     const uint64_t bySeqno = snapStart;
@@ -621,7 +621,7 @@ TEST_P(STDcpTest,
 TEST_P(STDcpTest, test_producer_stream_end_on_client_close_stream) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    const CookieIface* cookie = create_mock_cookie(engine.get());
+    auto* cookie = create_mock_cookie(engine.get());
     auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
 
     /* Create a new Dcp producer */
@@ -679,7 +679,7 @@ TEST_P(STDcpTest, test_producer_no_stream_end_on_client_close_stream) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     auto& connMap = engine->getDcpConnMap();
-    const CookieIface* cookie = create_mock_cookie(engine.get());
+    auto* cookie = create_mock_cookie(engine.get());
 
     /* Create a new Dcp producer */
     DcpProducer* producer = connMap.newProducer(cookie,
@@ -711,7 +711,7 @@ TEST_P(STDcpTest, test_consumer_add_stream) {
 
     auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
 
-    const CookieIface* cookie = create_mock_cookie(engine.get());
+    auto* cookie = create_mock_cookie(engine.get());
     Vbid vbid = Vbid(0);
 
     /* Create a Mock Dcp consumer */
@@ -757,7 +757,7 @@ TEST_P(STDcpTest, test_consumer_add_stream) {
 // correct size.
 TEST_P(STDcpTest, test_mb24424_deleteResponse) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
-    const CookieIface* cookie = create_mock_cookie(engine.get());
+    auto* cookie = create_mock_cookie(engine.get());
     Vbid vbid = Vbid(0);
 
     auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
@@ -812,7 +812,7 @@ TEST_P(STDcpTest, test_mb24424_deleteResponse) {
 // correct size.
 TEST_P(STDcpTest, test_mb24424_mutationResponse) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
-    const CookieIface* cookie = create_mock_cookie(engine.get());
+    auto* cookie = create_mock_cookie(engine.get());
     Vbid vbid = Vbid(0);
 
     auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
@@ -873,7 +873,7 @@ TEST_P(STDcpTest, test_mb24424_mutationResponse) {
 void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
-    const CookieIface* cookie = create_mock_cookie(engine.get());
+    auto* cookie = create_mock_cookie(engine.get());
     const uint32_t opaque = 1;
     const uint64_t snapStart = 1;
     const uint64_t snapEnd = std::numeric_limits<uint64_t>::max();
