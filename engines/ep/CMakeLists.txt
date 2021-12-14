@@ -375,6 +375,9 @@ ADD_LIBRARY(ep_objs OBJECT
             src/replicationthrottle.cc
             src/linked_list.cc
             src/range_lock_manager.cc
+            src/range_scans/range_scan.cc
+            src/range_scans/range_scan_callbacks.cc
+            src/range_scans/range_scan_owner.cc
             src/rollback_result.cc
             src/server_document_iface_border_guard.cc
             src/server_document_iface_border_guard.h

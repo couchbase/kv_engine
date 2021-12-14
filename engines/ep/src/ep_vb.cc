@@ -1217,3 +1217,23 @@ void EPVBucket::clearCMAndResetDiskQueueStats(uint64_t seqno) {
 std::unique_ptr<KVStoreRevision> EPVBucket::takeDeferredDeletionFileRevision() {
     return std::move(deferredDeletionFileRevision);
 }
+
+cb::engine_errc EPVBucket::createRangeScan(CollectionID cid,
+                                           cb::rangescan::KeyView start,
+                                           cb::rangescan::KeyView end,
+                                           RangeScanDataHandlerIFace& handler,
+                                           const CookieIface& cookie,
+                                           cb::rangescan::KeyOnly keyOnly) {
+    return cb::engine_errc::not_supported; // @todo :)
+}
+
+cb::engine_errc EPVBucket::addNewRangeScan(std::shared_ptr<RangeScan> scan) {
+    return rangeScans.addNewScan(std::move(scan));
+}
+
+cb::engine_errc EPVBucket::continueRangeScan(cb::rangescan::Id id) {
+    return rangeScans.continueScan(id);
+}
+cb::engine_errc EPVBucket::cancelRangeScan(cb::rangescan::Id id) {
+    return rangeScans.cancelScan(id);
+}

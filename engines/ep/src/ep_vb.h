@@ -11,6 +11,7 @@
 #pragma once
 
 #include "dcp/backfill_by_seqno_disk.h"
+#include "range_scans/range_scan_owner.h"
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 
@@ -267,6 +268,24 @@ public:
 
     void notifyFlusher() override;
 
+    cb::engine_errc createRangeScan(CollectionID cid,
+                                    cb::rangescan::KeyView start,
+                                    cb::rangescan::KeyView end,
+                                    RangeScanDataHandlerIFace& handler,
+                                    const CookieIface& cookie,
+                                    cb::rangescan::KeyOnly keyOnly) override;
+    cb::engine_errc continueRangeScan(cb::rangescan::Id id) override;
+    cb::engine_errc cancelRangeScan(cb::rangescan::Id id) override;
+
+    /**
+     * Add a new range scan - this is currently a public method primarily to
+     * support testing
+     *
+     * @param scan add this scan to the internal set of available scans
+     * @return success if the scan was successfully added
+     */
+    cb::engine_errc addNewRangeScan(std::shared_ptr<RangeScan> scan);
+
 protected:
     /**
      * queue a background fetch of the specified item.
@@ -397,6 +416,11 @@ private:
      * file revision we will unlink from disk.
      */
     std::unique_ptr<KVStoreRevision> deferredDeletionFileRevision;
+
+    /**
+     * All of this VBucket's RangeScan objects are owned by this member
+     */
+    VB::RangeScanOwner rangeScans;
 
     friend class EPVBucketTest;
 };

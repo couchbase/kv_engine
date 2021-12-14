@@ -34,7 +34,7 @@ StoredDocKeyT<Allocator>::StoredDocKeyT(
 }
 
 template <template <class, class...> class Allocator>
-StoredDocKeyT<Allocator>::StoredDocKeyT(const std::string& key,
+StoredDocKeyT<Allocator>::StoredDocKeyT(std::string_view key,
                                         CollectionID cid) {
     cb::mcbp::unsigned_leb128<CollectionIDType> leb128(uint32_t{cid});
     keydata.resize(key.size() + leb128.size());
