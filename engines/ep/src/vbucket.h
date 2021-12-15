@@ -1195,9 +1195,7 @@ public:
      * @param startTime the time to be compared with this item's expiry time
      * @param source Expiry source
      */
-    void deleteExpiredItem(const Item& it,
-                           time_t startTime,
-                           ExpireBy source);
+    void processExpiredItem(const Item& it, time_t startTime, ExpireBy source);
 
     /**
      * Evict a key from memory.

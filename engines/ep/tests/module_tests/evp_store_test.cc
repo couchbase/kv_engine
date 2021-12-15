@@ -608,7 +608,7 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
 
     flush_vbucket_to_disk(vbid);
     evict_key(vbid, makeStoredDocKey("key"));
-    store->deleteExpiredItem(
+    store->processExpiredItem(
             *get_itm, time(nullptr) + 121, ExpireBy::Compactor);
 
     auto options = static_cast<get_options_t>(QUEUE_BG_FETCH |
@@ -670,7 +670,7 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindNonResidentItem) {
     ASSERT_EQ(0, vb->numExpiredItems);
 
     // 4) Callback from the "pager" with the item.
-    vb->deleteExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Pager);
+    vb->processExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Pager);
     EXPECT_EQ(1, vb->numExpiredItems);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -704,7 +704,7 @@ void EPBucketFullEvictionTest::compactionFindsNonResidentItem(
     ASSERT_EQ(0, vb->numExpiredItems);
 
     // 4) Callback from the "compactor" with Av1
-    vb->deleteExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
+    vb->processExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
 
     int expectedExpiredItems = 1;
     if (dropCollection) {
@@ -821,7 +821,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentSupersededItem) {
     ASSERT_EQ(0, vb->numExpiredItems);
 
     // 5) Callback from the "compactor" with Av1
-    vb->deleteExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
+    vb->processExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
 
     EXPECT_EQ(0, vb->numExpiredItems);
 
@@ -876,7 +876,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
     ASSERT_EQ(0, vb->numExpiredItems);
 
     // 4) Callback from the "compactor" with Av1
-    vb->deleteExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
+    vb->processExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
 
     EXPECT_EQ(0, vb->numExpiredItems);
 
@@ -970,13 +970,13 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindsPrepareWithSameCas) {
     // 6) Callback from the "compactor" with the item to try and expire it. We
     //    could also pretend to be the pager here.
     ASSERT_EQ(0, vb->numExpiredItems);
-    vb->deleteExpiredItem(*q[diskDocKey].value.item, 2, ExpireBy::Compactor);
+    vb->processExpiredItem(*q[diskDocKey].value.item, 2, ExpireBy::Compactor);
 
     // Item expiry cannot take place if the MaybeVisible prepare exists.
     EXPECT_EQ(0, vb->numExpiredItems);
     {
         // Verify that the prepare is there and it's "MaybeVisible". Before the
-        // fix deleteExpiredItem would select and replace the prepare which is
+        // fix processExpiredItem would select and replace the prepare which is
         // incorrect and causes us to have two committed items in the HashTable.
         auto ret = vb->ht.findForUpdate(key);
         ASSERT_TRUE(ret.pending);
@@ -1025,7 +1025,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryNewGenerationNoItem) {
     ASSERT_EQ(0, vb->numExpiredItems);
 
     // 4) Callback from the "compactor" with Av1
-    vb->deleteExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
+    vb->processExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
 
     ASSERT_EQ(0, vb->numExpiredItems);
 
@@ -1091,7 +1091,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryNewGenerationTempItem) {
     ASSERT_EQ(0, vb->numExpiredItems);
 
     // 4) Callback from the "compactor" with Av1
-    vb->deleteExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
+    vb->processExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
 
     ASSERT_EQ(0, vb->numExpiredItems);
 

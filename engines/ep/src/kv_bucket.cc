@@ -623,9 +623,7 @@ void KVBucket::runPreExpiryHook(VBucket& vb, Item& it) {
     }
 }
 
-void KVBucket::deleteExpiredItem(Item& it,
-                                 time_t startTime,
-                                 ExpireBy source) {
+void KVBucket::processExpiredItem(Item& it, time_t startTime, ExpireBy source) {
     VBucketPtr vb = getVBucket(it.getVBucketId());
 
     if (vb) {
@@ -645,16 +643,15 @@ void KVBucket::deleteExpiredItem(Item& it,
         // the VB can't switch state whilst we're processing
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         if (vb->getState() == vbucket_state_active) {
-            vb->deleteExpiredItem(it, startTime, source);
+            vb->processExpiredItem(it, startTime, source);
         }
     }
 }
 
-void KVBucket::deleteExpiredItems(
-        std::list<Item>& itms, ExpireBy source) {
+void KVBucket::processExpiredItems(std::list<Item>& itms, ExpireBy source) {
     time_t startTime = ep_real_time();
     for (auto& it : itms) {
-        deleteExpiredItem(it, startTime, source);
+        processExpiredItem(it, startTime, source);
     }
 }
 

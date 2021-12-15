@@ -2651,7 +2651,7 @@ TEST_P(XattrSystemUserTest, pre_expiry_xattrs) {
     auto prev_revseqno = metadata.revSeqno;
     EXPECT_EQ(1, prev_revseqno) << "Unexpected revision sequence number";
     itm.setRevSeqno(1);
-    kvbucket.deleteExpiredItem(itm, ep_real_time() + 1, ExpireBy::Pager);
+    kvbucket.processExpiredItem(itm, ep_real_time() + 1, ExpireBy::Pager);
 
     auto options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                        HONOR_STATES |

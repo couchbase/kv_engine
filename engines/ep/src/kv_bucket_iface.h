@@ -609,11 +609,11 @@ public:
      */
     virtual void setRW(size_t shardId, std::unique_ptr<KVStoreIface> rw) = 0;
 
-    virtual void deleteExpiredItem(Item& it,
-                                   time_t startTime,
-                                   ExpireBy source) = 0;
+    virtual void processExpiredItem(Item& it,
+                                    time_t startTime,
+                                    ExpireBy source) = 0;
 
-    virtual void deleteExpiredItems(std::list<Item>&, ExpireBy) = 0;
+    virtual void processExpiredItems(std::list<Item>&, ExpireBy) = 0;
 
     /**
      * Get the memoized storage properties from the DB.kv

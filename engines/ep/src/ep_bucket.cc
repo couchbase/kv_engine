@@ -190,7 +190,7 @@ public:
 
     void callback(Item& it, time_t& startTime) override {
         if (epstore.compactionCanExpireItems()) {
-            epstore.deleteExpiredItem(it, startTime, ExpireBy::Compactor);
+            epstore.processExpiredItem(it, startTime, ExpireBy::Compactor);
         }
     }
 

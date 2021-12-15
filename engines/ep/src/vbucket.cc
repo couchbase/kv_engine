@@ -2432,15 +2432,15 @@ cb::engine_errc VBucket::deleteWithMeta(
     return cb::engine_errc::success;
 }
 
-void VBucket::deleteExpiredItem(const Item& it,
-                                time_t startTime,
-                                ExpireBy source) {
+void VBucket::processExpiredItem(const Item& it,
+                                 time_t startTime,
+                                 ExpireBy source) {
     // Pending items should not be subject to expiry
     if (it.isPending()) {
         std::stringstream ss;
         ss << it;
         throw std::invalid_argument(
-                "VBucket::deleteExpiredItem: Cannot expire pending item:" +
+                "VBucket::processExpiredItem: Cannot expire pending item:" +
                 cb::UserDataView(ss.str()).getSanitizedValue());
     }
 
@@ -2480,7 +2480,7 @@ void VBucket::deleteExpiredItem(const Item& it,
             bool deleted = deleteStoredValue(hbl, *v);
             if (!deleted) {
                 throw std::logic_error(
-                        "VBucket::deleteExpiredItem: "
+                        "VBucket::processExpiredItem: "
                         "Failed to delete seqno:" +
                         std::to_string(v->getBySeqno()) + " from bucket " +
                         std::to_string(hbl.getBucketNum()));

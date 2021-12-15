@@ -1304,7 +1304,7 @@ TEST_P(KVBucketParamTest, unlockKeyTempDeletedTest) {
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 
     itm.setCas(gv.item->getCas());
-    store->deleteExpiredItem(itm, ep_real_time() + 10001, ExpireBy::Pager);
+    store->processExpiredItem(itm, ep_real_time() + 10001, ExpireBy::Pager);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 

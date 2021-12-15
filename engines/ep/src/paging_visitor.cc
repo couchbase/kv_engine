@@ -253,7 +253,7 @@ void PagingVisitor::visitBucket(VBucket& vb) {
 }
 
 void PagingVisitor::update() {
-    store.deleteExpiredItems(expired, ExpireBy::Pager);
+    store.processExpiredItems(expired, ExpireBy::Pager);
 
     if (numEjected() > 0) {
         EP_LOG_DEBUG("Paged out {} values", numEjected());
