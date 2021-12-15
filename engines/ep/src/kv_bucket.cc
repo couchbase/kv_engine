@@ -624,27 +624,33 @@ void KVBucket::runPreExpiryHook(VBucket& vb, Item& it) {
 }
 
 void KVBucket::processExpiredItem(Item& it, time_t startTime, ExpireBy source) {
-    VBucketPtr vb = getVBucket(it.getVBucketId());
+    // Yield if checkpoint's full - The call also wakes up the mem recovery task
+    if (verifyCheckpointMemoryState() == CheckpointMemoryState::Full) {
+        return;
+    }
 
-    if (vb) {
-        // MB-25931: Empty XATTR items need their value before we can call
-        // pre_expiry. These occur because the value has been evicted.
-        if (mcbp::datatype::is_xattr(it.getDataType()) && it.getNBytes() == 0) {
-            getValue(it);
-        }
+    auto vb = getVBucket(it.getVBucketId());
+    if (!vb) {
+        return;
+    }
 
-        // Process positive seqnos (ignoring special *temp* items) and only
-        // those items with a value
-        if (it.getBySeqno() >= 0 && it.getNBytes()) {
-            runPreExpiryHook(*vb, it);
-        }
+    // MB-25931: Empty XATTR items need their value before we can call
+    // pre_expiry. These occur because the value has been evicted.
+    if (mcbp::datatype::is_xattr(it.getDataType()) && it.getNBytes() == 0) {
+        getValue(it);
+    }
 
-        // Obtain reader access to the VB state change lock so that
-        // the VB can't switch state whilst we're processing
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        if (vb->getState() == vbucket_state_active) {
-            vb->processExpiredItem(it, startTime, source);
-        }
+    // Process positive seqnos (ignoring special *temp* items) and only those
+    // items with a value
+    if (it.getBySeqno() >= 0 && it.getNBytes()) {
+        runPreExpiryHook(*vb, it);
+    }
+
+    // Obtain reader access to the VB state change lock so that the VB can't
+    // switch state whilst we're processing
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    if (vb->getState() == vbucket_state_active) {
+        vb->processExpiredItem(it, startTime, source);
     }
 }
 
@@ -2578,11 +2584,6 @@ bool KVBucket::runAccessScannerTask() {
 
 void KVBucket::runVbStatePersistTask(Vbid vbid) {
     scheduleVBStatePersist(vbid);
-}
-
-bool KVBucket::compactionCanExpireItems() {
-    return stats.getEstimatedTotalMemoryUsed() <
-           (stats.getMaxDataSize() * compactionExpMemThreshold);
 }
 
 size_t KVBucket::getActiveResidentRatio() const {

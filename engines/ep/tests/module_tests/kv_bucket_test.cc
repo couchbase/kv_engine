@@ -262,8 +262,12 @@ int KVBucketTest::flushVBucket(Vbid vbid) {
     return actualFlushed;
 }
 
+bool KVBucketTest::persistent() const {
+    return engine->getConfiguration().getBucketType() == "persistent";
+}
+
 void KVBucketTest::flushVBucketToDiskIfPersistent(Vbid vbid, int expected) {
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (persistent()) {
         flush_vbucket_to_disk(vbid, expected);
     }
 }
@@ -292,17 +296,18 @@ void KVBucketTest::removeCheckpoint(VBucket& vb, int numItems) {
 }
 
 void KVBucketTest::flushAndRemoveCheckpoints(Vbid vbid) {
-    auto& vb = *store->getVBucket(vbid);
-    auto& ckpt_mgr = *vb.checkpointManager;
-    ckpt_mgr.createNewCheckpoint();
-
-    dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
-
-    ckpt_mgr.removeClosedUnrefCheckpoints();
+    auto& manager = *store->getVBucket(vbid)->checkpointManager;
+    manager.createNewCheckpoint();
+    if (persistent()) {
+        dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+    }
+    manager.removeClosedUnrefCheckpoints();
 }
 
 size_t KVBucketTest::flushAndExpelFromCheckpoints(Vbid vbid) {
-    dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+    if (persistent()) {
+        dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+    }
     auto& vb = *store->getVBucket(vbid);
     return vb.checkpointManager->expelUnreferencedCheckpointItems().count;
 }

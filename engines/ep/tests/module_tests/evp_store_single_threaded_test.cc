@@ -42,6 +42,7 @@
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/couch-kvstore/couch-kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"
+#include "paging_visitor.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
@@ -57,6 +58,7 @@
 #include <folly/synchronization/Baton.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/dirutils.h>
+#include <platform/semaphore.h>
 #include <string_utilities.h>
 #include <utilities/test_manifest.h>
 #include <xattr/blob.h>
@@ -193,6 +195,45 @@ void SingleThreadedKVBucketTest::shutdownAndPurgeTasks(
         };
         runTasks(*task_executor->getLpTaskQ()[t]);
     }
+}
+
+size_t SingleThreadedKVBucketTest::loadUpToOOM(VbucketOp op) {
+    const auto initialNumItems = store->getVBucket(vbid)->getNumItems();
+    size_t numItems = 0;
+    auto ret = cb::engine_errc::success;
+    const auto value = std::string(1024 * 1024, 'x');
+    do {
+        auto item =
+                make_item(vbid,
+                          makeStoredDocKey("key_" + std::to_string(++numItems)),
+                          value,
+                          0 /*exp*/,
+                          PROTOCOL_BINARY_RAW_BYTES);
+        switch (op) {
+        case VbucketOp::Set:
+            ret = store->set(item, cookie);
+            break;
+        case VbucketOp::Add:
+            ret = store->add(item, cookie);
+            // Allow running on magma/FE where there's no EP bloomfilter
+            if (ret == cb::engine_errc::would_block) {
+                runBGFetcherTask();
+                ret = store->add(item, cookie);
+                EXPECT_NE(cb::engine_errc::would_block, ret);
+            }
+            break;
+        }
+    } while (ret != cb::engine_errc::no_memory);
+
+    // Persist for allowing the num-items check at full-eviction too
+    if (persistent()) {
+        dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+    }
+    const auto numLoaded = numItems - 1;
+    EXPECT_EQ(initialNumItems + numLoaded,
+              store->getVBucket(vbid)->getNumItems());
+
+    return numLoaded;
 }
 
 void SingleThreadedKVBucketTest::cancelAndPurgeTasks() {
@@ -4370,46 +4411,10 @@ void STParameterizedBucketTest::testCheckpointMemThresholdEnforced(
     ASSERT_TRUE(vb);
     ASSERT_EQ(0, vb->getNumItems());
 
-    const auto loadUptoOOM = [this, op, vb]() -> size_t {
-        size_t numItems = 0;
-        auto ret = cb::engine_errc::success;
-        const auto value = std::string(1024 * 1024, 'x');
-        do {
-            auto item = make_item(
-                    vbid,
-                    makeStoredDocKey("key_" + std::to_string(++numItems)),
-                    value,
-                    0 /*exp*/,
-                    PROTOCOL_BINARY_RAW_BYTES);
-            switch (op) {
-            case VbucketOp::Set:
-                ret = store->set(item, cookie);
-                break;
-            case VbucketOp::Add:
-                ret = store->add(item, cookie);
-                // Allow running on magma/FE where there's no EP bloomfilter
-                if (ret == cb::engine_errc::would_block) {
-                    runBGFetcherTask();
-                    ret = store->add(item, cookie);
-                    EXPECT_NE(cb::engine_errc::would_block, ret);
-                }
-                break;
-            }
-        } while (ret != cb::engine_errc::no_memory);
-
-        // Persist for allowing the num-items check at full-eviction too
-        if (persistent()) {
-            dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
-        }
-        EXPECT_EQ(numItems - 1, store->getVBucket(vbid)->getNumItems());
-
-        return numItems - 1;
-    };
-
     const auto ckptMemRatio = store->getCheckpointMemoryRatio();
     ASSERT_GT(store->getCheckpointMemoryRatio(), 0);
 
-    const auto initialNumItems = loadUptoOOM();
+    const auto initialNumItems = loadUpToOOM(op);
     ASSERT_GT(initialNumItems, 0);
 
     store->deleteVBucket(vbid);
@@ -4422,7 +4427,7 @@ void STParameterizedBucketTest::testCheckpointMemThresholdEnforced(
     // Set ratio to something lower
     store->setCheckpointMemoryRatio(ckptMemRatio / 2);
 
-    const auto numItems = loadUptoOOM();
+    const auto numItems = loadUpToOOM(op);
     EXPECT_LT(numItems, initialNumItems);
 }
 
@@ -5150,4 +5155,79 @@ TEST_P(STParamPersistentBucketTest, SyncWriteXattrExpiryViaDcp) {
     // And stream... (used to crash here in CacheCallback). Not crashing is the
     // test.
     runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+}
+
+void SingleThreadedKVBucketTest::testExpiryObservesCMQuota(
+        std::function<void()> expiryFunc) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Store and persist a doc with TTL
+    auto item =
+            makeCommittedItem(makeStoredDocKey("key_to_expire"), "value", vbid);
+    item->setExpTime(1);
+    ASSERT_EQ(cb::engine_errc::success, store->set(*item, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    const auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(1, vb->getHighSeqno());
+
+    // Load and hit the CM Quota
+    ASSERT_EQ(KVBucket::CheckpointMemoryState::Available,
+              store->getCheckpointMemoryState());
+    EXPECT_GT(loadUpToOOM(VbucketOp::Add), 1);
+    EXPECT_EQ(KVBucket::CheckpointMemoryState::Full,
+              store->getCheckpointMemoryState());
+
+    // Time travel, needed for triggering expiration at compaction
+    TimeTraveller tt(1000);
+
+    ASSERT_EQ(0, vb->numExpiredItems);
+
+    // CM Quota full, can't expire docs
+    expiryFunc();
+    EXPECT_EQ(0, vb->numExpiredItems);
+
+    // CM memory recovery
+    ASSERT_EQ(KVBucket::CheckpointMemoryState::Full,
+              store->getCheckpointMemoryState());
+    // Release all the releasable from checkpoints
+    flushAndRemoveCheckpoints(vbid);
+    flushAndExpelFromCheckpoints(vbid);
+    EXPECT_EQ(KVBucket::CheckpointMemoryState::Available,
+              store->getCheckpointMemoryState());
+
+    // Now we can expire docs
+    expiryFunc();
+    EXPECT_EQ(1, vb->numExpiredItems);
+}
+
+TEST_P(STParamPersistentBucketTest,
+       CheckpointMemThresholdEnforced_ExpiryByCompaction) {
+    testExpiryObservesCMQuota([this]() { runCompaction(vbid); });
+}
+
+TEST_P(STParameterizedBucketTest,
+       CheckpointMemThresholdEnforced_ExpiryByPager) {
+    const auto runPager = [this]() -> void {
+        // Let's visit all items in the HashTable to ensure that we touch the
+        // item to expire
+        auto& stats = engine->getEpStats();
+        stats.mem_low_wat = 0;
+
+        auto pagerSemaphore = std::make_shared<cb::Semaphore>();
+        auto& config = engine->getConfiguration();
+        auto visitor =
+                PagingVisitor(*store,
+                              engine->getEpStats(),
+                              EvictionRatios{1.0 /*active*/, 1.0 /*replica*/},
+                              pagerSemaphore,
+                              ITEM_PAGER,
+                              false,
+                              VBucketFilter(),
+                              config.getItemEvictionAgePercentage(),
+                              config.getItemEvictionFreqCounterAgeThreshold());
+        store->visit(visitor);
+        visitor.complete();
+    };
+
+    testExpiryObservesCMQuota(runPager);
 }

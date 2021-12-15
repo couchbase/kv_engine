@@ -772,8 +772,6 @@ public:
 
     virtual void setCompactionExpMemThreshold(size_t to) = 0;
 
-    virtual bool compactionCanExpireItems() = 0;
-
     virtual bool isAccessScannerEnabled() = 0;
 
     virtual bool isExpPagerEnabled() = 0;

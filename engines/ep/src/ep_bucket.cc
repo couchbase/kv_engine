@@ -188,10 +188,8 @@ public:
     explicit ExpiredItemsCallback(KVBucket& store) : epstore(store) {
     }
 
-    void callback(Item& it, time_t& startTime) override {
-        if (epstore.compactionCanExpireItems()) {
-            epstore.processExpiredItem(it, startTime, ExpireBy::Compactor);
-        }
+    void callback(Item& item, time_t& startTime) override {
+        epstore.processExpiredItem(item, startTime, ExpireBy::Compactor);
     }
 
 private:

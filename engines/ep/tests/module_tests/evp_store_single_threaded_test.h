@@ -211,6 +211,24 @@ public:
      */
     void shutdownAndPurgeTasks(EventuallyPersistentEngine* ep);
 
+    enum class VbucketOp : uint8_t { Set, Add };
+
+    /**
+     * Load documents to enter a TempOOM phase.
+     *
+     * @param op The MCBP opearation to use for the load
+     * @return the num of items loaded
+     */
+    size_t loadUpToOOM(VbucketOp op);
+
+    /**
+     * Verifies that CM OOM prevents expirations from being processed and queued
+     * into the CM.
+     *
+     * @param expiryFunc The logic that attempts docs expiration
+     */
+    void testExpiryObservesCMQuota(std::function<void()> expiryFunc);
+
 protected:
     void SetUp() override;
 
@@ -666,8 +684,6 @@ protected:
      * @param op The operation under test
      */
     void testValidateDatatypeForEmptyPayload(EngineOp op);
-
-    enum class VbucketOp : uint8_t { Set, Add };
 
     /**
      * Verifies that checkpoints memory quota threshold is enforced on the given

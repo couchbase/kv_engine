@@ -619,8 +619,6 @@ public:
         compactionExpMemThreshold = static_cast<double>(to) / 100.0;
     }
 
-    bool compactionCanExpireItems() override;
-
     bool isAccessScannerEnabled() override {
         std::lock_guard<std::mutex> lh(accessScanner.mutex);
         return accessScanner.enabled;
