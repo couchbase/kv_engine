@@ -3222,12 +3222,8 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
 
     auto& bfm = producer->getBFM();
 
-    // Ephemeral has a single stage backfill and we only compare about the
-    // complete stage so skip over scan for persistent buckets
+    // create the backfill
     bfm.backfill();
-    if (persistent()) {
-        bfm.backfill();
-    }
 
     ThreadGate tg1(2);
     ThreadGate tg2(2);

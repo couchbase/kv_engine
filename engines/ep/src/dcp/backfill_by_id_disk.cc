@@ -106,7 +106,8 @@ backfill_status_t DCPBackfillByIdDisk::create() {
         if (markerSent) {
             transitionState(State::Scan);
         } else {
-            transitionState(State::Complete);
+            complete();
+            return backfill_finished;
         }
     }
 
@@ -130,7 +131,7 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
 
     switch (kvstore->scan(static_cast<ByIdScanContext&>(*scanCtx))) {
     case ScanStatus::Success:
-        transitionState(State::Complete);
+        complete();
         return backfill_success;
     case ScanStatus::Yield:
         // Scan should run again (e.g. was paused by callback)

@@ -89,12 +89,10 @@ protected:
      *
      * Valid transitions are:
      *
-     * Create->Scan->Complete->Done
      * Create->Scan->Done
-     * Create->Complete->Done
      * Create->Done
      */
-    enum class State { Create, Scan, Complete, Done };
+    enum class State { Create, Scan, Done };
     friend std::ostream& operator<<(std::ostream&, State);
 
     backfill_status_t run() override;

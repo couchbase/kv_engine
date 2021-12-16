@@ -227,7 +227,11 @@ TEST_F(CollectionsOSODcpTest, NoCursorRegisteredForDeadStream) {
     ASSERT_EQ(cm.getNumCursors(), initialCursors - 1);
 
     // step the backfill tasks, may attempt to register a cursor
-    runBackfill();
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    // backfill:create() -> fails to register cursor, state change to done
+    runNextTask(lpAuxioQ);
+    // run backfill:done()
+    runNextTask(lpAuxioQ);
 
     // backfill did not successfully register a cursor, the stream was dead.
     // MB-49542: would fail as a cursor is registered and is "leaked"
@@ -300,7 +304,9 @@ void CollectionsOSODcpTest::testTwoCollections(bool backfillWillPause,
         txHighSeqno = std::max(txHighSeqno, producers->last_byseqno.load());
     }
 
-    step();
+    // Backfill will now have completed
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
 
     if (osoMode == OutOfOrderSnapshots::YesWithSeqnoAdvanced &&
         txHighSeqno != highSeqno) {

@@ -146,7 +146,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
             stream->setBackfillRemaining(scanCtx->documentCount);
             transitionState(State::Scan);
         } else {
-            transitionState(State::Complete);
+            complete();
         }
     }
 
@@ -174,7 +174,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
     switch (kvstore->scan(bySeqnoCtx)) {
     case ScanStatus::Success:
         stream->setBackfillScanLastRead(scanCtx->lastReadSeqno);
-        transitionState(State::Complete);
+        complete();
         return backfill_success;
     case ScanStatus::Yield:
         // Scan should run again (e.g. was paused by callback)

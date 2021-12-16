@@ -330,7 +330,7 @@ void SingleThreadedKVBucketTest::runBackfill() {
 
     // 1 Extra step for persistent backfill
     if (isPersistent()) {
-        // backfill:finished()
+        // backfill:done()
         runNextTask(lpAuxioQ);
     }
 }
@@ -3717,14 +3717,11 @@ TEST_P(STParamPersistentBucketTest, MB_31481) {
             dynamic_cast<ActiveStream*>(producer->findStream(vbid).get());
     ASSERT_NE(nullptr, vb0Stream);
 
-    // Manually drive the backfill (not using notifyAndStepToCheckpoint)
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     // Trigger slow stream handle
     ASSERT_TRUE(vb0Stream->handleSlowStream());
-    // backfill:create()
-    runNextTask(lpAuxioQ);
-    // backfill:scan()
-    runNextTask(lpAuxioQ);
+
+    // Backfill. This will create and run the scan (which completes)
+    runBackfill();
 
     ASSERT_TRUE(producer->getReadyQueue().exists(vbid));
 
@@ -3738,14 +3735,8 @@ TEST_P(STParamPersistentBucketTest, MB_31481) {
         ASSERT_EQ(key, producers.last_key);
     }
 
-    // Another producer step should report EWOULDBLOCK (no more data) as all
-    // items have been backfilled.
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
-    // Also the readyQ should be empty
-    EXPECT_TRUE(producer->getReadyQueue().empty());
-
-    // backfill:complete()
-    runNextTask(lpAuxioQ);
+    // stream-end is queued
+    EXPECT_EQ(1, producer->getReadyQueue().size());
 
     // Notified to allow stream to transition to in-memory phase.
     EXPECT_TRUE(producer->getReadyQueue().exists(vbid));
@@ -3766,9 +3757,6 @@ TEST_P(STParamPersistentBucketTest, MB_31481) {
 
     // Similarly, the readyQ should be empty again
     EXPECT_TRUE(producer->getReadyQueue().empty());
-
-    // backfill:finished() - just to cleanup.
-    runNextTask(lpAuxioQ);
 
     // Stop Producer checkpoint processor task
     producer->cancelCheckpointCreatorTask();

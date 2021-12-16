@@ -572,6 +572,10 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
     // backfill:create()
     runNextTask(lpAuxioQ);
     // backfill:scan()
+
+    // We special case takeoverStart being set to 0 (and time starts at 0 for
+    // unit tests) so bump time to 1
+    TimeTraveller offset(1);
     runNextTask(lpAuxioQ);
 
     // Now drain all items before we proceed to complete
@@ -583,18 +587,13 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
         EXPECT_EQ(key, producers.last_key);
     }
 
-    // backfill:complete()
-    runNextTask(lpAuxioQ);
-    // backfill:finished()
-    runNextTask(lpAuxioQ);
-
     producers.last_op = cb::mcbp::ClientOpcode::Invalid;
 
     // Next the backfill should switch to takeover-send
     auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
     auto* as0 = static_cast<ActiveStream*>(vb0Stream.get());
-    EXPECT_TRUE(as0->isBackfilling());
+    EXPECT_TRUE(as0->isTakeoverSend());
 
     // Add some more keys because we don't want to run immediately through
     // takeover
@@ -603,13 +602,8 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
     }
     flush_vbucket_to_disk(vbid, keys.size());
 
-    // We special case takeoverStart being set to 0 (and time starts at 0 for
-    // unit tests) so bump time to 1
-    TimeTraveller offset(1);
-
     // Sent all items in the readyQueue, but there are some in the checkpoint
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
-    EXPECT_TRUE(as0->isTakeoverSend());
 
     // So run the checkpoint task to pull them into the readyQueue
     producer->getCheckpointSnapshotTask()->run();
