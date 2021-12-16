@@ -41,7 +41,6 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
                 "({}) backfill create ended prematurely as the associated "
                 "stream is deleted by the producer conn ",
                 getVBucketId());
-        transitionState(State::Done);
         return backfill_finished;
     }
     uint64_t lastPersistedSeqno = bucket.getLastPersistedSeqno(vbid);
@@ -82,7 +81,6 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
                     startSeqno,
                     stream->isPointInTimeEnabled() == PointInTimeEnabled::Yes);
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
-        transitionState(State::Done);
         return backfill_finished;
     }
     // Set the persistedCompletedSeqno of DiskCallback taken from the
@@ -99,7 +97,6 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
                     "failed to access collections stats on disk for {}.",
                     getVBucketId());
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
-        transitionState(State::Done);
         return backfill_finished;
     }
 
@@ -140,7 +137,6 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
                     collHigh.value_or(-1));
 
         stream->setDead(cb::mcbp::DcpStreamEndStatus::Rollback);
-        transitionState(State::Done);
     } else {
         bool markerSent = markDiskSnapshot(*stream, *scanCtx, *kvstore);
 

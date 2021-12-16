@@ -31,7 +31,6 @@ backfill_status_t DCPBackfillByIdDisk::create() {
                 "({}) backfill create ended prematurely as the associated "
                 "stream is deleted by the producer conn ",
                 getVBucketId());
-        transitionState(State::Done);
         return backfill_finished;
     }
 
@@ -94,7 +93,7 @@ backfill_status_t DCPBackfillByIdDisk::create() {
 
         stream->log(spdlog::level::level_enum::warn, "{}", log.str());
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
-        transitionState(State::Done);
+        return backfill_finished;
     } else {
         auto& dc = dynamic_cast<DiskCallback&>(scanCtx->getValueCallback());
         auto& idScanCtx = dynamic_cast<ByIdScanContext&>(*scanCtx);
