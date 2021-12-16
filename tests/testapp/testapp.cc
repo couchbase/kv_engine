@@ -297,9 +297,10 @@ void TestappTest::reconfigure_client_cert_auth(const std::string& state,
                                                const std::string& prefix,
                                                const std::string& delimiter) {
     memcached_cfg["client_cert_auth"] = {};
-    memcached_cfg["client_cert_auth"]["path"] = path;
-    memcached_cfg["client_cert_auth"]["prefix"] = prefix;
-    memcached_cfg["client_cert_auth"]["delimiter"] = delimiter;
+    memcached_cfg["client_cert_auth"]["prefixes"] =
+            nlohmann::json::array({nlohmann::json{{"path", path},
+                                                  {"prefix", prefix},
+                                                  {"delimiter", delimiter}}});
     tls_properties["client cert auth"] = state;
     // update the server to use this!
     reconfigure();
