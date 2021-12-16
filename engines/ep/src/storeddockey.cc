@@ -17,7 +17,7 @@ std::ostream& operator<<(std::ostream& os, const StoredDocKey& key) {
     return os << key.to_string();
 }
 
-template <template <class> class Allocator>
+template <template <class, class...> class Allocator>
 StoredDocKeyT<Allocator>::StoredDocKeyT(
         const DocKey& key,
         typename StoredDocKeyT<Allocator>::allocator_type allocator)
@@ -33,7 +33,7 @@ StoredDocKeyT<Allocator>::StoredDocKeyT(
     }
 }
 
-template <template <class> class Allocator>
+template <template <class, class...> class Allocator>
 StoredDocKeyT<Allocator>::StoredDocKeyT(const std::string& key,
                                         CollectionID cid) {
     cb::mcbp::unsigned_leb128<CollectionIDType> leb128(uint32_t{cid});
@@ -43,7 +43,7 @@ StoredDocKeyT<Allocator>::StoredDocKeyT(const std::string& key,
               std::copy(leb128.begin(), leb128.end(), keydata.begin()));
 }
 
-template <template <class> class Allocator>
+template <template <class, class...> class Allocator>
 StoredDocKeyT<Allocator>::StoredDocKeyT(const DocKey& key, CollectionID cid) {
     cb::mcbp::unsigned_leb128<CollectionIDType> leb128(uint32_t{cid});
     keydata.resize(key.size() + leb128.size());
@@ -52,23 +52,23 @@ StoredDocKeyT<Allocator>::StoredDocKeyT(const DocKey& key, CollectionID cid) {
               std::copy(leb128.begin(), leb128.end(), keydata.begin()));
 }
 
-template <template <class> class Allocator>
+template <template <class, class...> class Allocator>
 CollectionID StoredDocKeyT<Allocator>::getCollectionID() const {
     return cb::mcbp::unsigned_leb128<CollectionIDType>::decode({data(), size()})
             .first;
 }
 
-template <template <class> class Allocator>
+template <template <class, class...> class Allocator>
 bool StoredDocKeyT<Allocator>::isInSystemCollection() const {
     return data()[0] == CollectionID::System;
 }
 
-template <template <class> class Allocator>
+template <template <class, class...> class Allocator>
 bool StoredDocKeyT<Allocator>::isInDefaultCollection() const {
     return data()[0] == CollectionID::Default;
 }
 
-template <template <class> class Allocator>
+template <template <class, class...> class Allocator>
 DocKey StoredDocKeyT<Allocator>::makeDocKeyWithoutCollectionID() const {
     auto decoded = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
             {data(), size()});
@@ -77,12 +77,12 @@ DocKey StoredDocKeyT<Allocator>::makeDocKeyWithoutCollectionID() const {
             DocKeyEncodesCollectionId::No};
 }
 
-template <template <class> class Allocator>
+template <template <class, class...> class Allocator>
 std::string StoredDocKeyT<Allocator>::to_string() const {
     return DocKey(*this).to_string();
 }
 
-template <template <class> class Allocator>
+template <template <class, class...> class Allocator>
 const char* StoredDocKeyT<Allocator>::c_str() const {
     // Locate the leb128 stop byte, and return pointer after that
     auto key = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(

@@ -41,7 +41,7 @@ class SerialisedDocKey;
  * requires a heap allocation. This varies based on platform but is typically
  * keys over 16 or 24 bytes.
  */
-template <template <class> class Allocator>
+template <template <class, class...> class Allocator>
 class StoredDocKeyT : public DocKeyInterface<StoredDocKeyT<Allocator>> {
 public:
     using allocator_type = Allocator<std::string::value_type>;
@@ -177,7 +177,7 @@ static_assert(sizeof(CollectionID) == sizeof(uint32_t),
  * A hash function for StoredDocKey so they can be used in std::map and friends.
  */
 namespace std {
-template <template <class> class Allocator>
+template <template <class, class...> class Allocator>
 struct hash<StoredDocKeyT<Allocator>> {
     std::size_t operator()(const StoredDocKeyT<Allocator>& key) const {
         return key.hash();

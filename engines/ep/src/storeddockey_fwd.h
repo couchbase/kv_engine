@@ -19,6 +19,6 @@
  * not required. StoredDocKey allocations are /still/ counted towards overall
  * mem_used stats.
  */
-template <template <class> class T>
+template <template <class, class...> class T>
 class StoredDocKeyT;
 using StoredDocKey = StoredDocKeyT<std::allocator>;
