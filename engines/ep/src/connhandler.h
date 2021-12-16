@@ -85,10 +85,22 @@ public:
     static constexpr size_t PausedReasonCount =
             size_t(PausedReason::Unknown) + 1;
 
+    /**
+     * Construction of a ConnHandler reserves the cookie in the server API
+     * ensuring that it will not be released until we are done with it.
+     *
+     * @param engine reference
+     * @param cookie for this connection
+     * @param name of the connection
+     */
     ConnHandler(EventuallyPersistentEngine& engine,
-                const CookieIface* c,
+                const CookieIface* cookie,
                 std::string name);
 
+    /**
+     * Destruction of a ConnHandler releases the cookie in the server API
+     * allowing the front end to free it.
+     */
     ~ConnHandler() override;
 
     virtual cb::engine_errc addStream(uint32_t opaque,
@@ -248,8 +260,6 @@ public:
 
     BucketLogger& getLogger();
 
-    void releaseReference();
-
     void setSupportAck(bool ack) {
         supportAck.store(ack);
     }
@@ -290,15 +300,6 @@ public:
 
     const std::string &getName() const {
         return name;
-    }
-
-    bool setReserved(bool r) {
-        bool inverse = !r;
-        return reserved.compare_exchange_strong(inverse, r);
-    }
-
-    bool isReserved() const {
-        return reserved;
     }
 
     const CookieIface* getCookie() const {
@@ -384,9 +385,6 @@ private:
 
     //! The cookie representing this connection (provided by the memcached code)
     std::atomic<CookieIface*> cookie;
-
-    //! Whether or not the connection is reserved in the memcached layer
-    std::atomic<bool> reserved;
 
     //! Connection creation time
     const rel_time_t created;

@@ -6534,8 +6534,7 @@ cb::engine_errc EventuallyPersistentEngine::dcpOpen(
         return cb::engine_errc::disconnect;
     }
 
-    // Success creating dcp object which has stored the cookie, now reserve it.
-    reserveCookie(cookie);
+    // Success creating dcp object which has stored the cookie and reserved it
     return cb::engine_errc::success;
 }
 

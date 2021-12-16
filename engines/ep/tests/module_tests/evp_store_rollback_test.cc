@@ -784,7 +784,6 @@ TEST_P(RollbackTest, MB21784) {
             << "receivingInitialDiskSnapshot is true";
 
     // Create a new Dcp producer, reserving its cookie.
-    get_mock_server_api()->cookie->reserve(*cookie);
     DcpProducer* producer = engine->getDcpConnMap().newProducer(
             cookie, "test_producer", /*flags*/ 0);
 
@@ -2445,8 +2444,6 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints().count);
 
     store->setVBucketState(vbid, vbucket_state_replica);
-
-    get_mock_server_api()->cookie->reserve(*cookie);
 
     // Create a Mock Dcp producer
     auto producer = std::make_shared<MockDcpProducer>(*engine,

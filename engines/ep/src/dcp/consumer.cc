@@ -170,7 +170,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     Configuration& config = engine.getConfiguration();
     setSupportAck(false);
     setLogHeader("DCP (Consumer) " + getName() + " -");
-    setReserved(true);
 
     pendingEnableNoop = config.isDcpEnableNoop();
     getErrorMapState = pendingEnableNoop ? GetErrorMapState::PendingRequest

@@ -1202,6 +1202,8 @@ TEST_P(ConnectionTest, test_deadConnections) {
     // Should be zero deadConnections
     EXPECT_EQ(0, connMap.getNumberOfDeadConnections())
         << "Dead connections still remain";
+
+    destroy_mock_cookie(cookie);
 }
 
 TEST_P(ConnectionTest, test_mb23637_findByNameWithConnectionDoDisconnect) {
@@ -1225,6 +1227,8 @@ TEST_P(ConnectionTest, test_mb23637_findByNameWithConnectionDoDisconnect) {
     // Should be zero deadConnections
     EXPECT_EQ(0, connMap.getNumberOfDeadConnections())
         << "Dead connections still remain";
+
+    destroy_mock_cookie(cookie);
 }
 
 TEST_P(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
@@ -1262,6 +1266,9 @@ TEST_P(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
     // Should be zero deadConnections
     EXPECT_EQ(0, connMap.getNumberOfDeadConnections())
         << "Dead connections still remain";
+
+    destroy_mock_cookie(cookie1);
+    destroy_mock_cookie(cookie2);
 }
 
 
@@ -1292,6 +1299,9 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
     // Should be zero deadConnections
     EXPECT_EQ(0, connMap.getNumberOfDeadConnections())
         << "Dead connections still remain";
+
+    destroy_mock_cookie(cookie1);
+    destroy_mock_cookie(cookie2);
 }
 
 TEST_P(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
@@ -1318,6 +1328,9 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
     // Should be zero deadConnections
     EXPECT_EQ(0, connMap.getNumberOfDeadConnections())
         << "Dead connections still remain";
+
+    destroy_mock_cookie(cookie1);
+    destroy_mock_cookie(cookie2);
 }
 
 TEST_P(ConnectionTest, test_producer_unknown_ctrl_msg) {
@@ -1874,6 +1887,7 @@ TEST_F(DcpConnMapTest, TestCorrectConnHandlerRemoved) {
     /* Cleanup the deadConnections */
     connMap.manageConnections();
     destroy_mock_cookie(cookieA);
+    destroy_mock_cookie(cookieB);
 }
 
 // MB-35061 - Test to ensure the Producer ConnHandler is removed
@@ -2053,6 +2067,7 @@ TEST_F(DcpConnMapTest,
 
     // Disconnect in this thread
     connMap.disconnect(cookie);
+    destroy_mock_cookie(cookie);
 
     t1.join();
 
@@ -2432,6 +2447,7 @@ public:
     void TearDown() override {
         producer->cancelCheckpointCreatorTask();
         producer->closeAllStreams();
+        producer.reset();
         destroy_mock_cookie(cookie);
         SingleThreadedKVBucketTest::TearDown();
     }

@@ -212,6 +212,8 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
     connMap.manageConnections();
     EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
+
+    destroy_mock_cookie(cookie);
 }
 
 /*
@@ -275,6 +277,8 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
     connMap.manageConnections();
     EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
+
+    destroy_mock_cookie(cookie);
 }
 
 TEST_P(STDcpTest, AckCorrectPassiveStream) {
@@ -344,6 +348,9 @@ TEST_P(STDcpTest, AckCorrectPassiveStream) {
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
     connMap.manageConnections();
     EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
+
+    destroy_mock_cookie(cookie1);
+    destroy_mock_cookie(cookie2);
 }
 
 void STDcpTest::testProducerNegotiatesIncludeDeletedUserXattrs(
@@ -588,6 +595,8 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
     connMap.manageConnections();
     EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
+
+    destroy_mock_cookie(cookie);
 }
 
 /* Here we test how the Processor task in DCP consumer handles the scenario
@@ -671,6 +680,8 @@ TEST_P(STDcpTest, test_producer_stream_end_on_client_close_stream) {
     mockConnMap.disconnect(cookie);
     EXPECT_FALSE(mockConnMap.doesVbConnExist(vbid, "test_producer"));
     mockConnMap.manageConnections();
+
+    destroy_mock_cookie(cookie);
 }
 
 /* Checks that the DCP producer does a synchronous stream close when the DCP
@@ -704,6 +715,8 @@ TEST_P(STDcpTest, test_producer_no_stream_end_on_client_close_stream) {
     connMap.disconnect(cookie);
     /* Cleanup the deadConnections */
     connMap.manageConnections();
+
+    destroy_mock_cookie(cookie);
 }
 
 TEST_P(STDcpTest, test_consumer_add_stream) {
@@ -751,6 +764,8 @@ TEST_P(STDcpTest, test_consumer_add_stream) {
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
     connMap.manageConnections();
     EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
+
+    destroy_mock_cookie(cookie);
 }
 
 // Tests that the MutationResponse created for the deletion response is of the
@@ -806,6 +821,8 @@ TEST_P(STDcpTest, test_mb24424_deleteResponse) {
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
     connMap.manageConnections();
     EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
+
+    destroy_mock_cookie(cookie);
 }
 
 // Tests that the MutationResponse created for the mutation response is of the
@@ -868,6 +885,8 @@ TEST_P(STDcpTest, test_mb24424_mutationResponse) {
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
     connMap.manageConnections();
     EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
+
+    destroy_mock_cookie(cookie);
 }
 
 void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
@@ -990,6 +1009,8 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
     connMap.manageConnections();
     EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
+
+    destroy_mock_cookie(cookie);
 }
 
 /* Here we test how the DCP consumer handles the scenario where the memory
@@ -1067,6 +1088,8 @@ TEST_P(STDcpTest, MB_45863) {
     EXPECT_FALSE(producer->findStream(vbid));
     mockConnMap.disconnect(cookie);
     mockConnMap.manageConnections();
+
+    destroy_mock_cookie(cookie);
 }
 
 TEST_P(STDcpTest, ConnHandlerLoggerRegisterUnregister) {

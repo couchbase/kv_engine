@@ -44,7 +44,6 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
       stats(engine_.getEpStats()),
       name(std::move(n)),
       cookie(const_cast<CookieIface*>(c)),
-      reserved(false),
       created(ep_current_time()),
       disconnect(false),
       paused(false),
@@ -57,6 +56,8 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
     auto* cookie_api = e.getServerApi()->cookie;
     cookie_api->setDcpConnHandler(*c, this);
     logger->setConnectionId(c->getConnectionId());
+
+    engine_.reserveCookie(cookie);
 }
 
 ConnHandler::~ConnHandler() {
@@ -93,6 +94,7 @@ ConnHandler::~ConnHandler() {
             cb::time2text(totalDuration),
             std::string_view{buf.data(), buf.size()});
     logger->unregister();
+    engine_.releaseCookie(cookie);
 }
 
 cb::engine_errc ConnHandler::addStream(uint32_t opaque, Vbid, uint32_t flags) {
@@ -337,14 +339,6 @@ BucketLogger& ConnHandler::getLogger() {
     return *logger;
 }
 
-void ConnHandler::releaseReference()
-{
-    bool inverse = true;
-    if (reserved.compare_exchange_strong(inverse, false)) {
-        engine_.releaseCookie(cookie);
-    }
-}
-
 void ConnHandler::addStats(const AddStatFn& add_stat, const CookieIface* c) {
     using namespace std::chrono;
 
@@ -352,7 +346,6 @@ void ConnHandler::addStats(const AddStatFn& add_stat, const CookieIface* c) {
     addStat("created", created, add_stat, c);
     addStat("pending_disconnect", disconnect.load(), add_stat, c);
     addStat("supports_ack", supportAck.load(), add_stat, c);
-    addStat("reserved", reserved.load(), add_stat, c);
     addStat("paused", isPaused(), add_stat, c);
     const auto details = pausedDetails.copy();
     if (isPaused()) {

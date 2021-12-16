@@ -19,9 +19,6 @@ MockCookie::MockCookie(EngineIface* e) : engine(e) {
 }
 
 MockCookie::~MockCookie() {
-    if (engine) {
-        engine->disconnect(*this);
-    }
     mock_unregister_cookie(*this);
 }
 

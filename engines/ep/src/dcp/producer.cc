@@ -204,7 +204,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       connectionSupportsSnappy(
               e.isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
     setSupportAck(true);
-    setReserved(true);
     pause(PausedReason::Initializing);
     setLogHeader("DCP (Producer) " + getName() + " -");
 

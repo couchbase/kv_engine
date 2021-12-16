@@ -735,10 +735,6 @@ TEST_P(STParameterizedBucketTest,
     shutdownAllConnectionsFinished.post();
 
     frontend_thread_streamRequest.join();
-
-    // DcpConnMap.manageConnections() will reset our cookie so we need to
-    // recreate it for the normal test TearDown to work
-    cookie = create_mock_cookie();
 }
 
 /**
@@ -818,10 +814,6 @@ TEST_P(STParameterizedBucketTest, StreamReqAcceptedAfterBucketShutdown) {
     producer->cancelCheckpointCreatorTask();
     producer.reset();
     mockConnMap.manageConnections();
-
-    // DcpConnMapp.manageConnections() will reset our cookie so we need to
-    // recreate it for the normal test TearDown to work
-    cookie = create_mock_cookie();
 }
 
 TEST_P(STParameterizedBucketTest, ConcurrentProducerCloseAllStreams) {
@@ -882,10 +874,6 @@ TEST_P(STParameterizedBucketTest, ConcurrentProducerCloseAllStreams) {
     producer->cancelCheckpointCreatorTask();
     producer.reset();
     mockConnMap.manageConnections();
-
-    // DcpConnMap.manageConnections() will reset our cookie so we need to
-    // recreate it for the normal test TearDown to work
-    cookie = create_mock_cookie();
 }
 
 /**
@@ -947,10 +935,6 @@ TEST_P(STParameterizedBucketTest, SeqnoAckAfterBucketShutdown) {
     mockConnMap.disconnect(cookie);
     mockConnMap.manageConnections();
     producer.reset();
-
-    // DcpConnMapp.manageConnections() will reset our cookie so we need to
-    // recreate it for the normal test TearDown to work
-    cookie = create_mock_cookie();
 }
 
 cb::engine_errc STParameterizedBucketTest::checkKeyExists(

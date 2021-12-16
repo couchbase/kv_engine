@@ -362,8 +362,7 @@ void DcpConnMap::manageConnections() {
         auto handle = connStore->getCookieToConnectionMapHandle();
         for (const auto& cookieToConn : *handle) {
             const auto& conn = cookieToConn.second;
-            if (conn && (conn->isPaused() || conn->doDisconnect()) &&
-                conn->isReserved()) {
+            if (conn && (conn->isPaused() || conn->doDisconnect())) {
                 /**
                  * Note: We want to send a notify even if we have sent one
                  * previously i.e. tp->sentNotify() == true.  The reason for this
@@ -382,14 +381,13 @@ void DcpConnMap::manageConnections() {
                           SlowMutexThreshold);
 
     for (auto& it : toNotify) {
-        if (it.get() && it->isReserved()) {
+        if (it.get()) {
             engine.scheduleDcpStep(*it->getCookie());
         }
     }
 
     while (!release.empty()) {
         auto conn = release.front();
-        conn->releaseReference();
         release.pop_front();
         auto prod = std::dynamic_pointer_cast<DcpProducer>(conn);
         if (prod) {
