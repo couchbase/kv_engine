@@ -131,8 +131,6 @@ public:
         } else if (key.compare("backfill_mem_threshold") == 0) {
             double backfill_threshold = static_cast<double>(value) / 100;
             store.setBackfillMemoryThreshold(backfill_threshold);
-        } else if (key.compare("compaction_exp_mem_threshold") == 0) {
-            store.setCompactionExpMemThreshold(value);
         } else if (key.compare("max_ttl") == 0) {
             store.setMaxTtl(value);
         } else if (key == "checkpoint_max_size") {
@@ -377,11 +375,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     bfilterResidencyThreshold = config.getBfilterResidencyThreshold();
     config.addValueChangedListener(
             "bfilter_residency_threshold",
-            std::make_unique<EPStoreValueChangeListener>(*this));
-
-    compactionExpMemThreshold = config.getCompactionExpMemThreshold();
-    config.addValueChangedListener(
-            "compaction_exp_mem_threshold",
             std::make_unique<EPStoreValueChangeListener>(*this));
 
     compactionWriteQueueCap = config.getCompactionWriteQueueCap();

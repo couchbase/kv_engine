@@ -615,10 +615,6 @@ public:
         compactionWriteQueueCap = to;
     }
 
-    void setCompactionExpMemThreshold(size_t to) override {
-        compactionExpMemThreshold = static_cast<double>(to) / 100.0;
-    }
-
     bool isAccessScannerEnabled() override {
         std::lock_guard<std::mutex> lh(accessScanner.mutex);
         return accessScanner.enabled;
@@ -1042,7 +1038,6 @@ protected:
     // frequency counts do not become saturated.
     ExTask itemFreqDecayerTask;
     size_t                          compactionWriteQueueCap;
-    float                           compactionExpMemThreshold;
 
     // Responsible for enforcing the Durability Timeout for the SyncWrites
     // tracked in this KVBucket.

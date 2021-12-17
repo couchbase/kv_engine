@@ -8646,7 +8646,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_mb16357,
                  test_setup,
                  teardown,
-                 "compaction_exp_mem_threshold=85",
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test dcp early termination",

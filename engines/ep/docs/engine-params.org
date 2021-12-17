@@ -72,7 +72,6 @@ memcached like this:
 | backfill_mem_threshold         | float  | Memory threshold on the current bucket     |
 |                                |        | quota before backfill task is made to back |
 |                                |        | off                                        |
-| compaction_exp_mem_threshold   | float  | Memory threshold on the current bucket     |
 |                                |        | quota after which compaction will not queue|
 |                                |        | expired items for deletion.                |
 | mutation_mem_threshold         | float  | Memory threshold on the current bucket     |

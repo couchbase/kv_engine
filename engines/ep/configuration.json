@@ -165,18 +165,6 @@
                         ]
             }
         },
-        "compaction_exp_mem_threshold": {
-            "default": "85",
-            "desr": "Memory usage threshold after which compaction will not queue expired items for deletion",
-            "dynamic": true,
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 100,
-                    "min": 0
-                }
-            }
-        },
         "compaction_expire_from_start": {
             "default": "true",
             "descr": "Should compaction expire items that were logically deleted at the start of the compaction (true) or at the point in time at which they were visited (false)?",
