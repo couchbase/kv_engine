@@ -105,13 +105,6 @@ public:
      */
     void tearDownHashBucketVisit() override;
 
-    /**
-     * Get the number of items ejected during the visit.
-     */
-    size_t numEjected() {
-        return ejected;
-    }
-
 protected:
     // Protected for testing purposes
     // Holds the data structures used during the selection of documents to

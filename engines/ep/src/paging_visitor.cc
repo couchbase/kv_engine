@@ -263,10 +263,10 @@ void PagingVisitor::update() {
         expired.clear();
     }
 
-    if (numEjected() > 0) {
-        EP_LOG_DEBUG("Paged out {} values", numEjected());
+    if (ejected > 0) {
+        EP_LOG_DEBUG("Paged out {} values", ejected);
+        ejected = 0;
     }
-    ejected = 0;
 }
 
 InterruptableVBucketVisitor::ExecutionState PagingVisitor::shouldInterrupt() {
