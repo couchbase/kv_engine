@@ -71,13 +71,6 @@ void CacheCallback::callback(CacheLookup& lookup) {
 
     auto gv = get(*vb, lookup, *stream_);
     if (gv.getStatus() == cb::engine_errc::success) {
-        // If the value is a commit of a SyncWrite then the in-memory
-        // StoredValue isn't sufficient - as it doesn't contain the prepareSeqno
-        if (gv.item->isCommitSyncWrite()) {
-            setStatus(cb::engine_errc::success);
-            return;
-        }
-
         if (gv.item->getBySeqno() == lookup.getBySeqno()) {
             if (stream_->backfillReceived(std::move(gv.item),
                                           BACKFILL_FROM_MEMORY)) {
