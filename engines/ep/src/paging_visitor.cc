@@ -177,8 +177,6 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
 void PagingVisitor::visitBucket(VBucket& vb) {
     update();
 
-    vb.checkpointManager->removeClosedUnrefCheckpoints();
-
     // fast path for expiry item pager
     if (owner == EXPIRY_PAGER) {
         if (vBucketFilter(vb.getId())) {
@@ -244,12 +242,6 @@ void PagingVisitor::visitBucket(VBucket& vb) {
         itemEviction.copyFreqHistogram(
                 stats.replicaFrequencyValuesSnapshotHisto);
     }
-
-    // We have just evicted all eligible items from the hash table
-    // so we now want to reclaim the memory being used to hold
-    // closed and unreferenced checkpoints in the vbucket, before
-    // potentially moving to the next vbucket.
-    vb.checkpointManager->removeClosedUnrefCheckpoints();
 }
 
 void PagingVisitor::update() {
