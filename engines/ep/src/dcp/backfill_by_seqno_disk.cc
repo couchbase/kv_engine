@@ -60,13 +60,8 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
     }
 
     auto* kvstore = bucket.getROUnderlying(vbid);
-    if (!kvstore) {
-        stream->log(spdlog::level::level_enum::warn,
-                    "DCPBackfillBySeqnoDisk::create(): couldn't get KVStore "
-                    "for vbucket {}",
-                    vbid);
-        return backfill_finished;
-    }
+    Expects(kvstore);
+
     auto valFilter = stream->getValueFilter();
 
     auto scanCtx = kvstore->initBySeqnoScanContext(
@@ -175,6 +170,8 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
     }
 
     auto* kvstore = bucket.getROUnderlying(vbid);
+    Expects(kvstore);
+
     auto& bySeqnoCtx = dynamic_cast<BySeqnoScanContext&>(*scanCtx);
     switch (kvstore->scan(bySeqnoCtx)) {
     case scan_success:

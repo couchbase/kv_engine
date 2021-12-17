@@ -36,6 +36,8 @@ backfill_status_t DCPBackfillByIdDisk::create() {
     Vbid vbid = stream->getVBucket();
 
     const auto* kvstore = bucket.getROUnderlying(vbid);
+    Expects(kvstore);
+
     auto valFilter = stream->getValueFilter();
 
     // Create two ranges of keys to have loaded from the scan.
@@ -116,6 +118,7 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
     }
 
     const auto* kvstore = bucket.getROUnderlying(vbid);
+    Expects(kvstore);
 
     scan_error_t error = kvstore->scan(static_cast<ByIdScanContext&>(*scanCtx));
 
