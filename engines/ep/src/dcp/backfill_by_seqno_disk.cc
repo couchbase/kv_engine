@@ -158,12 +158,12 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
 backfill_status_t DCPBackfillBySeqnoDisk::scan() {
     auto stream = streamPtr.lock();
     if (!stream) {
-        complete(true);
+        complete();
         return backfill_finished;
     }
 
     if (!(stream->isActive())) {
-        complete(true);
+        complete();
         return backfill_finished;
     }
 
@@ -181,7 +181,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
         return backfill_success;
     case ScanStatus::Cancelled:
         // Aborted as vbucket/stream have gone away, normal behaviour
-        complete(true);
+        complete();
         return backfill_finished;
     case ScanStatus::Failed:
         // Scan did not complete successfully. Backfill is missing data,
@@ -201,15 +201,14 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
     folly::assume_unreachable();
 }
 
-void DCPBackfillBySeqnoDisk::complete(bool cancelled) {
+void DCPBackfillBySeqnoDisk::complete() {
     auto stream = streamPtr.lock();
     if (!stream) {
         EP_LOG_INFO(
                 "DCPBackfillBySeqnoDisk::complete(): "
-                "({}) backfill create ended prematurely as the associated "
-                "stream is deleted by the producer conn; {}",
-                getVBucketId(),
-                cancelled ? "cancelled" : "finished");
+                "({}) backfill ended prematurely as the associated "
+                "stream is deleted by the producer",
+                getVBucketId());
         transitionState(State::Done);
         return;
     }
@@ -217,14 +216,11 @@ void DCPBackfillBySeqnoDisk::complete(bool cancelled) {
     const auto diskBytesRead = scanCtx ? scanCtx->diskBytesRead : 0;
     stream->completeBackfill(runtime, diskBytesRead);
 
-    auto severity = cancelled ? spdlog::level::level_enum::info
-                              : spdlog::level::level_enum::debug;
-    stream->log(severity,
-                "({}) Backfill task ({} to {}) {}",
+    stream->log(spdlog::level::level_enum::debug,
+                "({}) Backfill task ({} to {}) complete",
                 vbid,
                 startSeqno,
-                endSeqno,
-                cancelled ? "cancelled" : "finished");
+                endSeqno);
 
     transitionState(State::Done);
 }

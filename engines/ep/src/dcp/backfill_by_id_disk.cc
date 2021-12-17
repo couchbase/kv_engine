@@ -116,12 +116,12 @@ backfill_status_t DCPBackfillByIdDisk::create() {
 backfill_status_t DCPBackfillByIdDisk::scan() {
     auto stream = streamPtr.lock();
     if (!stream) {
-        complete(true);
+        complete();
         return backfill_finished;
     }
 
     if (!(stream->isActive())) {
-        complete(true);
+        complete();
         return backfill_finished;
     }
 
@@ -137,7 +137,7 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
         return backfill_success;
     case ScanStatus::Cancelled:
         // Aborted as vbucket/stream have gone away, normal behaviour
-        complete(true);
+        complete();
         return backfill_finished;
     case ScanStatus::Failed:
         // Scan did not complete successfully. Propagate error to stream.
@@ -153,15 +153,14 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
     folly::assume_unreachable();
 }
 
-void DCPBackfillByIdDisk::complete(bool cancelled) {
+void DCPBackfillByIdDisk::complete() {
     auto stream = streamPtr.lock();
     if (!stream) {
         EP_LOG_INFO(
                 "DCPBackfillByIdDisk::complete(): "
                 "({}) backfill ended prematurely as the associated "
-                "stream is deleted by the producer conn; {}",
-                getVBucketId(),
-                cancelled ? "cancelled" : "finished");
+                "stream is deleted by the producer",
+                getVBucketId());
         transitionState(State::Done);
         return;
     }
@@ -169,13 +168,10 @@ void DCPBackfillByIdDisk::complete(bool cancelled) {
     stream->completeOSOBackfill(
             scanCtx->maxSeqno, runtime, scanCtx->diskBytesRead);
 
-    auto severity = cancelled ? spdlog::level::level_enum::info
-                              : spdlog::level::level_enum::debug;
-    stream->log(severity,
-                "({}) Backfill task cid:{} {}",
+    stream->log(spdlog::level::level_enum::debug,
+                "({}) Backfill task cid:{} complete",
                 vbid,
-                cid.to_string(),
-                cancelled ? "cancelled" : "finished");
+                cid.to_string());
 
     transitionState(State::Done);
 }

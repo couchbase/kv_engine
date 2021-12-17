@@ -42,13 +42,9 @@ protected:
     backfill_status_t scan() override;
 
     /**
-     * Handles the completion of the backfill.
-     * Destroys the scan context, indicates the completion to the stream.
-     *
-     * @param cancelled indicates the if backfill finished fully or was
-     *                  cancelled in between; for debug
+     * Indicates the completion to the stream.
      */
-    void complete(bool cancelled) override;
+    void complete() override;
 
     /// collection to scan for
     CollectionID cid;

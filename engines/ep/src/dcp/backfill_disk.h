@@ -114,11 +114,8 @@ protected:
     /**
      * Handles the completion of the backfill, e.g. notify completion status to
      * the stream.
-     *
-     * @param cancelled indicates if backfill finished fully or was
-     *                  cancelled in between; for debug
      */
-    virtual void complete(bool cancelled) = 0;
+    virtual void complete() = 0;
 
     std::mutex lock;
     State state{State::Create};

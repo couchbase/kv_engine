@@ -58,11 +58,8 @@ private:
 
     /**
      * Indicates the completion to the stream.
-     *
-     * @param cancelled indicates if the backfill finished fully or was
-     *                  cancelled in between; for debug
      */
-    void complete(bool cancelled);
+    void complete();
 
     /**
      * Makes valid transitions on the backfill state machine

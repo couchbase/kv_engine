@@ -90,7 +90,10 @@ backfill_status_t DCPBackfillMemoryBuffered::run() {
 
 void DCPBackfillMemoryBuffered::cancel() {
     if (state != BackfillState::Done) {
-        complete(true);
+        EP_LOG_WARN(
+                "DCPBackfillMemoryBuffered::cancel ({}) cancelled before "
+                "reaching State::done",
+                getVBucketId());
     }
 }
 
@@ -184,7 +187,7 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
     }
 
     /* Backfill is not needed as startSeqno > rangeItr end seqno */
-    complete(false);
+    complete();
     return backfill_success;
 }
 
@@ -209,7 +212,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
 
     if (!(stream->isActive())) {
         /* Stop prematurely if the stream state changes */
-        complete(true);
+        complete();
         return backfill_finished;
     }
 
@@ -318,23 +321,20 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
     stream->setBackfillScanLastRead(endSeqno);
 
     /* Backfill has ran to completion */
-    complete(false);
+    complete();
 
     return backfill_finished;
 }
 
-void DCPBackfillMemoryBuffered::complete(bool cancelled) {
-    TRACE_EVENT1(
-            "dcp/backfill", "MemoryBuffered::complete", "cancelled", cancelled);
+void DCPBackfillMemoryBuffered::complete() {
+    TRACE_EVENT0("dcp/backfill", "MemoryBuffered::complete");
 
     auto stream = streamPtr.lock();
     if (!stream) {
         EP_LOG_WARN(
-                "DCPBackfillMemoryBuffered::complete(): "
-                "({}) backfill create ended prematurely as the associated "
-                "stream is deleted by the producer conn; {}",
-                getVBucketId(),
-                cancelled ? "cancelled" : "finished");
+                "DCPBackfillMemoryBuffered::complete(): could not lock "
+                "weak_ptr",
+                getVBucketId());
         transitionState(BackfillState::Done);
         return;
     }
@@ -343,14 +343,11 @@ void DCPBackfillMemoryBuffered::complete(bool cancelled) {
 
     stream->completeBackfill(runtime, 0);
 
-    auto severity = cancelled ? spdlog::level::level_enum::info
-                              : spdlog::level::level_enum::debug;
-    stream->log(severity,
-                "({}) Backfill task ({} to {}) {}",
+    stream->log(spdlog::level::level_enum::debug,
+                "({}) Backfill memory task ({} to {}) complete",
                 getVBucketId(),
                 startSeqno,
-                endSeqno,
-                cancelled ? "cancelled" : "finished");
+                endSeqno);
 
     transitionState(BackfillState::Done);
 }

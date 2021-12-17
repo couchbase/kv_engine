@@ -9,6 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "bucket_logger.h"
 #include "dcp/backfill_disk.h"
 #include "active_stream.h"
 #include "collections/vbucket_manifest_handles.h"
@@ -171,7 +172,7 @@ backfill_status_t DCPBackfillDisk::run() {
     case State::Scan:
         return scan();
     case State::Complete:
-        complete(false);
+        complete();
         return backfill_finished;
     case State::Done:
         return backfill_finished;
@@ -185,7 +186,10 @@ backfill_status_t DCPBackfillDisk::run() {
 void DCPBackfillDisk::cancel() {
     std::lock_guard<std::mutex> lh(lock);
     if (state != State::Done) {
-        complete(true);
+        EP_LOG_WARN(
+                "DCPBackfillDisk::cancel ({}) cancelled before reaching "
+                "State::Done",
+                getVBucketId());
     }
 }
 
