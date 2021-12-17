@@ -43,8 +43,6 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
         transitionState(backfill_state_done);
         return backfill_finished;
     }
-    Vbid vbid = stream->getVBucket();
-
     uint64_t lastPersistedSeqno = bucket.getLastPersistedSeqno(vbid);
 
     if (lastPersistedSeqno < endSeqno) {
@@ -53,7 +51,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
                     "because backfill up to seqno {}"
                     " is needed but only up to "
                     "{} is persisted",
-                    vbid,
+                    getVBucketId(),
                     endSeqno,
                     lastPersistedSeqno);
         return backfill_snooze;
@@ -67,7 +65,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
     auto scanCtx = kvstore->initBySeqnoScanContext(
             std::make_unique<DiskCallback>(stream),
             std::make_unique<CacheCallback>(bucket, stream),
-            vbid,
+            getVBucketId(),
             startSeqno,
             DocumentFilter::ALL_ITEMS,
             valFilter,
@@ -122,7 +120,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
     // start-seqno must be above purge-seqno
     if (startSeqno != 1 && (startSeqno <= scanCtx->purgeSeqno) &&
         !allowNonRollBackCollectionStream) {
-        auto vb = bucket.getVBucket(vbid);
+        auto vb = bucket.getVBucket(getVBucketId());
         stream->log(spdlog::level::level_enum::warn,
                     "DCPBackfillBySeqnoDisk::create(): ({}) cannot be "
                     "scanned. Associated stream is set to dead state. "
@@ -162,14 +160,12 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
         return backfill_finished;
     }
 
-    Vbid vbid = stream->getVBucket();
-
     if (!(stream->isActive())) {
         complete(true);
         return backfill_finished;
     }
 
-    auto* kvstore = bucket.getROUnderlying(vbid);
+    auto* kvstore = bucket.getROUnderlying(getVBucketId());
     Expects(kvstore);
 
     auto& bySeqnoCtx = dynamic_cast<BySeqnoScanContext&>(*scanCtx);

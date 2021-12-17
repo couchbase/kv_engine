@@ -32,13 +32,12 @@ DCPBackfillMemoryBuffered::DCPBackfillMemoryBuffered(
       DCPBackfillBySeqno(startSeqno, endSeqno),
       evb(evb),
       state(BackfillState::Init),
-      rangeItr(nullptr),
-      vbid(evb->getId()) {
+      rangeItr(nullptr) {
     TRACE_ASYNC_START1("dcp/backfill",
                        "DCPBackfillMemoryBuffered",
                        this,
                        "vbid",
-                       vbid.get());
+                       getVBucketId().get());
 }
 
 DCPBackfillMemoryBuffered::~DCPBackfillMemoryBuffered() {
@@ -46,7 +45,7 @@ DCPBackfillMemoryBuffered::~DCPBackfillMemoryBuffered() {
                      "DCPBackfillMemoryBuffered",
                      this,
                      "vbid",
-                     vbid.get());
+                     getVBucketId().get());
 }
 
 backfill_status_t DCPBackfillMemoryBuffered::run() {
@@ -72,7 +71,7 @@ backfill_status_t DCPBackfillMemoryBuffered::run() {
     TRACE_EVENT2("dcp/backfill",
                  "MemoryBuffered::run",
                  "vbid",
-                 (evb->getId()).get(),
+                 getVBucketId().get(),
                  "state",
                  uint8_t(state));
 
@@ -99,7 +98,7 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
     TRACE_EVENT1("dcp/backfill",
                  "MemoryBuffered::create",
                  "vbid",
-                 (evb->getId()).get());
+                 getVBucketId().get());
 
     auto stream = streamPtr.lock();
     if (!stream) {

@@ -33,9 +33,8 @@ backfill_status_t DCPBackfillByIdDisk::create() {
         transitionState(backfill_state_done);
         return backfill_finished;
     }
-    Vbid vbid = stream->getVBucket();
 
-    const auto* kvstore = bucket.getROUnderlying(vbid);
+    const auto* kvstore = bucket.getROUnderlying(getVBucketId());
     Expects(kvstore);
 
     auto valFilter = stream->getValueFilter();
@@ -71,12 +70,12 @@ backfill_status_t DCPBackfillByIdDisk::create() {
     scanCtx = kvstore->initByIdScanContext(
             std::make_unique<DiskCallback>(stream),
             std::make_unique<CacheCallback>(bucket, stream),
-            vbid,
+            getVBucketId(),
             ranges,
             DocumentFilter::ALL_ITEMS,
             valFilter);
     if (!scanCtx) {
-        auto vb = bucket.getVBucket(vbid);
+        auto vb = bucket.getVBucket(getVBucketId());
         std::stringstream log;
         log << "DCPBackfillByIdDisk::create(): (" << getVBucketId()
             << ") cannot be scanned. Associated stream is set to dead state."
@@ -110,14 +109,12 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
         return backfill_finished;
     }
 
-    Vbid vbid = stream->getVBucket();
-
     if (!(stream->isActive())) {
         complete(true);
         return backfill_finished;
     }
 
-    const auto* kvstore = bucket.getROUnderlying(vbid);
+    const auto* kvstore = bucket.getROUnderlying(getVBucketId());
     Expects(kvstore);
 
     scan_error_t error = kvstore->scan(static_cast<ByIdScanContext&>(*scanCtx));

@@ -81,7 +81,4 @@ private:
      * Range iterator (on the vbucket) created for the backfill
      */
     SequenceList::RangeIterator rangeItr;
-
-    // VBucket ID, only used for debug / tracing.
-    const Vbid vbid;
 };
