@@ -220,7 +220,7 @@ bool ClosedUnrefCheckpointRemoverTask::run() {
 
     const auto bytesToFree = bucket.getRequiredCheckpointMemoryReduction();
 
-    EP_LOG_INFO(
+    EP_LOG_DEBUG(
             "{} Triggering checkpoint memory recovery - attempting to free {} "
             "MB",
             getDescription(),
