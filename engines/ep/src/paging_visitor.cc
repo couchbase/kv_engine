@@ -253,19 +253,20 @@ void PagingVisitor::visitBucket(VBucket& vb) {
 }
 
 void PagingVisitor::update() {
-    store.processExpiredItems(expired, ExpireBy::Pager);
+    // Process expirations
+    if (!expired.empty()) {
+        const auto startTime = ep_real_time();
+        for (auto& item : expired) {
+            store.processExpiredItem(item, startTime, ExpireBy::Pager);
+        }
+        EP_LOG_DEBUG("Purged {} expired items", expired.size());
+        expired.clear();
+    }
 
     if (numEjected() > 0) {
         EP_LOG_DEBUG("Paged out {} values", numEjected());
     }
-
-    size_t num_expired = expired.size();
-    if (num_expired > 0) {
-        EP_LOG_DEBUG("Purged {} expired items", num_expired);
-    }
-
     ejected = 0;
-    expired.clear();
 }
 
 InterruptableVBucketVisitor::ExecutionState PagingVisitor::shouldInterrupt() {

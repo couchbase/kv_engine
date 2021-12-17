@@ -648,13 +648,6 @@ void KVBucket::processExpiredItem(Item& it, time_t startTime, ExpireBy source) {
     }
 }
 
-void KVBucket::processExpiredItems(std::list<Item>& itms, ExpireBy source) {
-    time_t startTime = ep_real_time();
-    for (auto& it : itms) {
-        processExpiredItem(it, startTime, source);
-    }
-}
-
 bool KVBucket::isMetaDataResident(VBucketPtr &vb, const DocKey& key) {
 
     if (!vb) {

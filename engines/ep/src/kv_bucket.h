@@ -450,7 +450,6 @@ public:
     void processExpiredItem(Item& it,
                             time_t startTime,
                             ExpireBy source) override;
-    void processExpiredItems(std::list<Item>&, ExpireBy) override;
 
     /**
      * Get the value for the Item

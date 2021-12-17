@@ -613,8 +613,6 @@ public:
                                     time_t startTime,
                                     ExpireBy source) = 0;
 
-    virtual void processExpiredItems(std::list<Item>&, ExpireBy) = 0;
-
     /**
      * Get the memoized storage properties from the DB.kv
      */
