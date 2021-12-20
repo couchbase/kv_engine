@@ -146,7 +146,6 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
             // This value may be an overestimate - it includes prepares/aborts
             // which will not be sent if the stream is not sync write aware
             stream->setBackfillRemaining(scanCtx->documentCount);
-            transitionState(State::Scan);
             status = backfill_success;
             this->scanCtx = std::move(scanCtx);
         } else {

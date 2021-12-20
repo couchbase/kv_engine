@@ -138,8 +138,7 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                 //  sync write aware
                 stream->setBackfillRemaining(rangeItr.count());
 
-                /* Change the backfill state and return for next stage. */
-                transitionState(State::Scan);
+                /* return success so that we transition to scan */
                 return backfill_success;
             }
             // func call complete before exiting, halting the

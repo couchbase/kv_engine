@@ -21,7 +21,7 @@ DCPBackfill::DCPBackfill(std::shared_ptr<ActiveStream> s)
 }
 
 backfill_status_t DCPBackfill::run() {
-    std::lock_guard<std::mutex> lh(lock);
+    auto lockedState = state.wlock();
     auto runtimeGuard =
             folly::makeGuard([start = std::chrono::steady_clock::now(), this] {
                 runtime += (std::chrono::steady_clock::now() - start);
@@ -32,15 +32,21 @@ backfill_status_t DCPBackfill::run() {
                  "vbid",
                  getVBucketId().get(),
                  "state",
-                 uint8_t(state));
+                 uint8_t(*lockedState));
 
     backfill_status_t status = backfill_finished;
-    switch (state) {
+    switch (*lockedState) {
     case State::Create:
         status = create();
+        Expects(status == backfill_success || status == backfill_snooze ||
+                status == backfill_finished);
+        if (status == backfill_success) {
+            transitionState(*lockedState, State::Scan);
+        }
         break;
     case State::Scan:
         status = scan();
+        Expects(status == backfill_success || status == backfill_finished);
         break;
     case State::Done:
         // As soon as we return finished, we change to State::Done, finished
@@ -51,15 +57,14 @@ backfill_status_t DCPBackfill::run() {
     }
 
     if (status == backfill_finished) {
-        transitionState(State::Done);
+        transitionState(*lockedState, State::Done);
     }
 
     return status;
 }
 
 void DCPBackfill::cancel() {
-    std::lock_guard<std::mutex> lh(lock);
-    if (state != State::Done) {
+    if (*state.rlock() != State::Done) {
         EP_LOG_WARN(
                 "DCPBackfill::cancel ({}) cancelled before reaching "
                 "State::Done",
@@ -82,23 +87,19 @@ std::ostream& operator<<(std::ostream& os, DCPBackfill::State state) {
     return os;
 }
 
-void DCPBackfill::transitionState(State newState) {
-    if (state == newState) {
-        return;
-    }
-
+void DCPBackfill::transitionState(State& currentState, State newState) {
     bool validTransition = false;
     switch (newState) {
     case State::Create:
         // No valid transition to 'create'
         break;
     case State::Scan:
-        if (state == State::Create) {
+        if (currentState == State::Create) {
             validTransition = true;
         }
         break;
     case State::Done:
-        if (state == State::Create || state == State::Scan) {
+        if (currentState == State::Create || currentState == State::Scan) {
             validTransition = true;
         }
         break;
@@ -107,13 +108,13 @@ void DCPBackfill::transitionState(State newState) {
     if (!validTransition) {
         throw std::invalid_argument(
                 fmt::format("{}: newState:{} is not valid "
-                            "for current state:{}",
+                            "for currentState:{}",
                             __PRETTY_FUNCTION__,
                             newState,
-                            state));
+                            currentState));
     }
 
-    state = newState;
+    currentState = newState;
 }
 
 // Task should be cancelled if the stream cannot be obtained or is now dead
