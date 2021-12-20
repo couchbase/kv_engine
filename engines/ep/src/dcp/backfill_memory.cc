@@ -75,17 +75,25 @@ backfill_status_t DCPBackfillMemoryBuffered::run() {
                  "state",
                  uint8_t(state));
 
+    backfill_status_t status = backfill_finished;
     switch (state) {
     case BackfillState::Init:
-        return create();
+        status = create();
+        break;
     case BackfillState::Scanning:
-        return scan();
+        status = scan();
+        break;
     case BackfillState::Done:
-        return backfill_finished;
+        throw std::logic_error(
+                "DCPBackfillMemoryBuffered::run: run should not be called in "
+                "BackfillState::done");
     }
 
-    throw std::logic_error("DCPBackfillDisk::run: Invalid backfill state " +
-                           backfillStateToString(state));
+    if (status == backfill_finished) {
+        transitionState(BackfillState::Done);
+    }
+
+    return status;
 }
 
 void DCPBackfillMemoryBuffered::cancel() {
@@ -110,7 +118,6 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                 "({}) backfill create ended prematurely as the associated "
                 "stream is deleted by the producer conn ",
                 getVBucketId());
-        transitionState(BackfillState::Done);
         return backfill_finished;
     }
 
@@ -187,8 +194,8 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
     }
 
     /* Backfill is not needed as startSeqno > rangeItr end seqno */
-    complete();
-    return backfill_success;
+    complete(*stream);
+    return backfill_finished;
 }
 
 backfill_status_t DCPBackfillMemoryBuffered::scan() {
@@ -206,13 +213,10 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
                 "({}) backfill create ended prematurely as the associated "
                 "stream is deleted by the producer conn ",
                 getVBucketId());
-        transitionState(BackfillState::Done);
         return backfill_finished;
-    }
-
-    if (!(stream->isActive())) {
+    } else if (!(stream->isActive())) {
         /* Stop prematurely if the stream state changes */
-        complete();
+        complete(*stream);
         return backfill_finished;
     }
 
@@ -321,35 +325,20 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
     stream->setBackfillScanLastRead(endSeqno);
 
     /* Backfill has ran to completion */
-    complete();
+    complete(*stream);
 
     return backfill_finished;
 }
 
-void DCPBackfillMemoryBuffered::complete() {
+void DCPBackfillMemoryBuffered::complete(ActiveStream& stream) {
     TRACE_EVENT0("dcp/backfill", "MemoryBuffered::complete");
-
-    auto stream = streamPtr.lock();
-    if (!stream) {
-        EP_LOG_WARN(
-                "DCPBackfillMemoryBuffered::complete(): could not lock "
-                "weak_ptr",
-                getVBucketId());
-        transitionState(BackfillState::Done);
-        return;
-    }
-
     /* [EPHE TODO]: invalidate cursor sooner before it gets deleted */
-
-    stream->completeBackfill(runtime, 0);
-
-    stream->log(spdlog::level::level_enum::debug,
-                "({}) Backfill memory task ({} to {}) complete",
-                getVBucketId(),
-                startSeqno,
-                endSeqno);
-
-    transitionState(BackfillState::Done);
+    stream.completeBackfill(runtime, 0);
+    stream.log(spdlog::level::level_enum::debug,
+               "({}) Backfill memory task ({} to {}) complete",
+               getVBucketId(),
+               startSeqno,
+               endSeqno);
 }
 
 void DCPBackfillMemoryBuffered::transitionState(BackfillState newState) {

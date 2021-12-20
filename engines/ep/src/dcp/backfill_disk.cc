@@ -166,18 +166,28 @@ backfill_status_t DCPBackfillDisk::run() {
             folly::makeGuard([start = std::chrono::steady_clock::now(), this] {
                 runtime += (std::chrono::steady_clock::now() - start);
             });
+
+    backfill_status_t status = backfill_finished;
     switch (state) {
     case State::Create:
-        return create();
+        status = create();
+        break;
     case State::Scan:
-        return scan();
+        status = scan();
+        break;
     case State::Done:
-        return backfill_finished;
+        // As soon as we return finished, we change to State::Done, finished
+        // signals the caller should not call us again so throw if that occurs
+        throw std::logic_error(
+                "DCPBackfillDisk::run: run should not be called in "
+                "State::Done");
     }
 
-    throw std::logic_error(fmt::format("{}: Invalid state:{}",
-                                       __PRETTY_FUNCTION__,
-                                       std::to_string(int(state))));
+    if (status == backfill_finished) {
+        transitionState(State::Done);
+    }
+
+    return status;
 }
 
 void DCPBackfillDisk::cancel() {

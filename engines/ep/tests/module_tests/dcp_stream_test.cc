@@ -1906,10 +1906,8 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
     EXPECT_EQ(1, readyQ2.size());
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.back()->getEvent());
 
-    // To drive a single vBucket's backfill to completion requires
-    // 3 steps (scan() * number of items, completed) for persistent
-    // and 2 for ephemeral.
-    const int backfillSteps = persistent() ? 3 : 2;
+    // To drive a single vBucket's backfill to completion requires 2 steps
+    const int backfillSteps = 2;
     for (int i = 0; i < backfillSteps; i++) {
         ASSERT_EQ(backfill_success, bfm.backfill());
     }
@@ -2043,13 +2041,9 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
         // creating the stream will schedule backfill
         recreateStream(*vb);
 
-        EXPECT_EQ(backfill_success, bfm.backfill()); // init
+        EXPECT_EQ(backfill_success, bfm.backfill()); // create
         EXPECT_EQ(backfill_success, bfm.backfill()); // scan
-        if (persistent()) {
-            // Persistent buckets need more calls for each step,
-            EXPECT_EQ(backfill_success, bfm.backfill()); // done
-            EXPECT_EQ(backfill_finished, bfm.backfill()); // nothing else to do
-        }
+        EXPECT_EQ(backfill_finished, bfm.backfill()); // nothing else to do
         EXPECT_EQ(0, bfm.getNumBackfills());
 
         producer->closeStream(stream->getOpaque(), vbid, stream->getStreamId());
@@ -2066,12 +2060,8 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
 
         stream->transitionStateToInMemory();
 
-        EXPECT_EQ(backfill_success, bfm.backfill()); // init
-        // scan is skipped
-        EXPECT_EQ(backfill_success, bfm.backfill()); // completing
-        if (persistent()) {
-            EXPECT_EQ(backfill_finished, bfm.backfill()); // nothing else to do
-        }
+        EXPECT_EQ(backfill_success, bfm.backfill()); // create -> complete
+        EXPECT_EQ(backfill_finished, bfm.backfill()); // nothing else to do
         EXPECT_EQ(0, bfm.getNumBackfills());
     }
 }
@@ -4006,12 +3996,6 @@ protected:
         // Step the third mutation
         EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
-
-        // Ephemeral backfill scan goes straight to complete but persistent
-        // backfill scan does not so we need an extra run
-        if (persistent()) {
-            EXPECT_EQ(backfill_status_t::backfill_success, bfm.backfill());
-        }
 
         // No more backfills
         EXPECT_EQ(backfill_status_t::backfill_finished, bfm.backfill());

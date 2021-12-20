@@ -44,7 +44,7 @@ protected:
     /**
      * Indicates the completion to the stream.
      */
-    void complete() override;
+    void complete(ActiveStream& stream);
 
     /// collection to scan for
     CollectionID cid;

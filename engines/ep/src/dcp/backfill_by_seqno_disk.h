@@ -67,7 +67,7 @@ private:
     /**
      * Indicates the completion to the stream.
      */
-    void complete() override;
+    void complete(ActiveStream& stream);
 
     /**
      * Method to get hold of the highest high seqno of collections that are in

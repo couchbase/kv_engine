@@ -39,11 +39,12 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
         EP_LOG_WARN(
                 "DCPBackfillBySeqnoDisk::create(): "
                 "({}) backfill create ended prematurely as the associated "
-                "stream is deleted by the producer conn ",
+                "stream is deleted by the producer conn",
                 getVBucketId());
         return backfill_finished;
     }
-    uint64_t lastPersistedSeqno = bucket.getLastPersistedSeqno(vbid);
+
+    uint64_t lastPersistedSeqno = bucket.getLastPersistedSeqno(getVBucketId());
 
     if (lastPersistedSeqno < endSeqno) {
         stream->log(spdlog::level::level_enum::info,
@@ -57,7 +58,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
         return backfill_snooze;
     }
 
-    auto* kvstore = bucket.getROUnderlying(vbid);
+    auto* kvstore = bucket.getROUnderlying(getVBucketId());
     Expects(kvstore);
 
     auto valFilter = stream->getValueFilter();
@@ -121,6 +122,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
     //
     // If the startSeqno != 1 (a client 0 to n request becomes 1 to n) then
     // start-seqno must be above purge-seqno
+    backfill_status_t status = backfill_finished;
     if (startSeqno != 1 && (startSeqno <= scanCtx->purgeSeqno) &&
         !allowNonRollBackCollectionStream) {
         auto vb = bucket.getVBucket(getVBucketId());
@@ -145,25 +147,30 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
             // which will not be sent if the stream is not sync write aware
             stream->setBackfillRemaining(scanCtx->documentCount);
             transitionState(State::Scan);
+            status = backfill_success;
+            this->scanCtx = std::move(scanCtx);
         } else {
-            complete();
+            complete(*stream);
         }
     }
 
-    this->scanCtx = std::move(scanCtx);
-
-    return backfill_success;
+    return status;
 }
 
 backfill_status_t DCPBackfillBySeqnoDisk::scan() {
     auto stream = streamPtr.lock();
     if (!stream) {
-        complete();
+        EP_LOG_WARN(
+                "DCPBackfillBySeqnoDisk::scan(): "
+                "({}) backfill scan ended prematurely as the associated stream "
+                "is deleted by the producer conn",
+                getVBucketId());
         return backfill_finished;
-    }
-
-    if (!(stream->isActive())) {
-        complete();
+    } else if (!(stream->isActive())) {
+        stream->log(spdlog::level::level_enum::warn,
+                    "DCPBackfillBySeqnoDisk::scan(): ({}) ended prematurely as "
+                    "stream is not active",
+                    getVBucketId());
         return backfill_finished;
     }
 
@@ -174,15 +181,13 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
     switch (kvstore->scan(bySeqnoCtx)) {
     case ScanStatus::Success:
         stream->setBackfillScanLastRead(scanCtx->lastReadSeqno);
-        complete();
-        return backfill_success;
+    case ScanStatus::Cancelled:
+        // Cancelled as vbucket/stream have gone away, normal behaviour
+        complete(*stream);
+        return backfill_finished;
     case ScanStatus::Yield:
         // Scan should run again (e.g. was paused by callback)
         return backfill_success;
-    case ScanStatus::Cancelled:
-        // Aborted as vbucket/stream have gone away, normal behaviour
-        complete();
-        return backfill_finished;
     case ScanStatus::Failed:
         // Scan did not complete successfully. Backfill is missing data,
         // propagate error to stream and (unsuccessfully) finish scan.
@@ -201,28 +206,14 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
     folly::assume_unreachable();
 }
 
-void DCPBackfillBySeqnoDisk::complete() {
-    auto stream = streamPtr.lock();
-    if (!stream) {
-        EP_LOG_INFO(
-                "DCPBackfillBySeqnoDisk::complete(): "
-                "({}) backfill ended prematurely as the associated "
-                "stream is deleted by the producer",
-                getVBucketId());
-        transitionState(State::Done);
-        return;
-    }
-
+void DCPBackfillBySeqnoDisk::complete(ActiveStream& stream) {
     const auto diskBytesRead = scanCtx ? scanCtx->diskBytesRead : 0;
-    stream->completeBackfill(runtime, diskBytesRead);
-
-    stream->log(spdlog::level::level_enum::debug,
-                "({}) Backfill task ({} to {}) complete",
-                vbid,
-                startSeqno,
-                endSeqno);
-
-    transitionState(State::Done);
+    stream.completeBackfill(runtime, diskBytesRead);
+    stream.log(spdlog::level::level_enum::debug,
+               "({}) Backfill task ({} to {}) complete",
+               vbid,
+               startSeqno,
+               endSeqno);
 }
 
 std::pair<bool, std::optional<uint64_t>>

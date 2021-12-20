@@ -82,7 +82,7 @@ public:
 
 protected:
     /**
-     * States for the backfill, these reflect which create/scan/complete
+     * States for the backfill, these reflect which create/scan/done
      * function is invoked when the backfill is told to run.
      *
      * All transitions are from "left to right", no state can go back.
@@ -100,20 +100,19 @@ protected:
     void transitionState(State newState);
 
     /**
-     * Create the scan, initialising scanCtx from KVStore initScanContext
+     * Create the scan, e.g. open a disk snapshot and set the ScanContext
+     * @return success if everything opened correctly or snooze if the task
+     *         should delay before the next run.
      */
     virtual backfill_status_t create() = 0;
 
     /**
-     * Run the scan which will return items to the owning stream
+     * Run the scan, reading keys/values from disk and copying them to an end
+     * point, e.g. an ActiveStream
+     * @return success if the scan should be invoked again or finished when
+     *         complete (scan doesn't have to be 100% done to finish).
      */
     virtual backfill_status_t scan() = 0;
-
-    /**
-     * Handles the completion of the backfill, e.g. notify completion status to
-     * the stream.
-     */
-    virtual void complete() = 0;
 
     std::mutex lock;
     State state{State::Create};

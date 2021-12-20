@@ -59,7 +59,7 @@ private:
     /**
      * Indicates the completion to the stream.
      */
-    void complete();
+    void complete(ActiveStream& stream);
 
     /**
      * Makes valid transitions on the backfill state machine

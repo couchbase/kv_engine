@@ -5548,13 +5548,8 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
 
     auto& manager = producer->getBFM();
 
-    EXPECT_EQ(backfill_success, manager.backfill()); // init
+    EXPECT_EQ(backfill_success, manager.backfill()); // create
     EXPECT_EQ(backfill_success, manager.backfill()); // scan
-    if (persistent()) {
-        // Ephemeral scan calls directly into complete, short-circuiting the
-        // normal one step per run logic
-        EXPECT_EQ(backfill_success, manager.backfill()); // completing
-    }
     EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
 
     ASSERT_EQ(2, stream->public_readyQSize());
@@ -5666,8 +5661,7 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
 
     auto& manager = producer->getBFM();
 
-    EXPECT_EQ(backfill_success, manager.backfill()); // init
-    EXPECT_EQ(backfill_success, manager.backfill()); // done
+    EXPECT_EQ(backfill_success, manager.backfill()); // create->done
     EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
 
     // nothing in checkpoint manager or ready queue
@@ -5763,12 +5757,7 @@ void DurabilityActiveStreamTest::
 
     // backfill the mutation
     EXPECT_EQ(backfill_success, manager.backfill()); // init
-    EXPECT_EQ(backfill_success, manager.backfill()); // scan
-    if (persistent()) {
-        // Ephemeral scan calls directly into complete, short-circuiting the
-        // normal one step per run logic
-        EXPECT_EQ(backfill_success, manager.backfill()); // completing
-    }
+    EXPECT_EQ(backfill_success, manager.backfill()); // create
     EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
 
     // snapshot marker + mutation
@@ -5825,8 +5814,7 @@ void DurabilityActiveStreamTest::
 
     EXPECT_EQ(ActiveStream::StreamState::Backfilling, stream->getState());
 
-    EXPECT_EQ(backfill_success, manager.backfill()); // init
-    EXPECT_EQ(backfill_success, manager.backfill()); // done
+    EXPECT_EQ(backfill_success, manager.backfill()); // create->done
     EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
 
     ASSERT_EQ(0, stream->public_readyQSize());
