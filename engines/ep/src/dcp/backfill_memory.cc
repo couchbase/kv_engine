@@ -31,7 +31,6 @@ DCPBackfillMemoryBuffered::DCPBackfillMemoryBuffered(
     : DCPBackfill(s),
       DCPBackfillBySeqno(startSeqno, endSeqno),
       evb(evb),
-      state(BackfillState::Init),
       rangeItr(nullptr) {
     TRACE_ASYNC_START1("dcp/backfill",
                        "DCPBackfillMemoryBuffered",
@@ -48,13 +47,18 @@ DCPBackfillMemoryBuffered::~DCPBackfillMemoryBuffered() {
                      getVBucketId().get());
 }
 
-backfill_status_t DCPBackfillMemoryBuffered::run() {
+backfill_status_t DCPBackfillMemoryBuffered::create() {
+    TRACE_EVENT1("dcp/backfill",
+                 "MemoryBuffered::create",
+                 "vbid",
+                 (evb->getId()).get());
+
     folly::SharedMutex::ReadHolder rlh(evb->getStateLock());
     if (evb->getState() == vbucket_state_dead) {
         /* We don't have to close the stream here. Task doing vbucket state
            change should handle stream closure */
         EP_LOG_WARN(
-                "DCPBackfillMemoryBuffered::run(): ({}) running backfill ended "
+                "DCPBackfillMemoryBuffered::run(): ({}) backfill ended "
                 "prematurely with vb in dead state; start seqno:{}, "
                 "end seqno:{}",
                 getVBucketId(),
@@ -62,54 +66,6 @@ backfill_status_t DCPBackfillMemoryBuffered::run() {
                 endSeqno);
         return backfill_finished;
     }
-
-    auto runtimeGuard =
-            folly::makeGuard([start = std::chrono::steady_clock::now(), this] {
-                runtime += (std::chrono::steady_clock::now() - start);
-            });
-
-    TRACE_EVENT2("dcp/backfill",
-                 "MemoryBuffered::run",
-                 "vbid",
-                 getVBucketId().get(),
-                 "state",
-                 uint8_t(state));
-
-    backfill_status_t status = backfill_finished;
-    switch (state) {
-    case BackfillState::Init:
-        status = create();
-        break;
-    case BackfillState::Scanning:
-        status = scan();
-        break;
-    case BackfillState::Done:
-        throw std::logic_error(
-                "DCPBackfillMemoryBuffered::run: run should not be called in "
-                "BackfillState::done");
-    }
-
-    if (status == backfill_finished) {
-        transitionState(BackfillState::Done);
-    }
-
-    return status;
-}
-
-void DCPBackfillMemoryBuffered::cancel() {
-    if (state != BackfillState::Done) {
-        EP_LOG_WARN(
-                "DCPBackfillMemoryBuffered::cancel ({}) cancelled before "
-                "reaching State::done",
-                getVBucketId());
-    }
-}
-
-backfill_status_t DCPBackfillMemoryBuffered::create() {
-    TRACE_EVENT1("dcp/backfill",
-                 "MemoryBuffered::create",
-                 "vbid",
-                 getVBucketId().get());
 
     auto stream = streamPtr.lock();
     if (!stream) {
@@ -183,7 +139,7 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                 stream->setBackfillRemaining(rangeItr.count());
 
                 /* Change the backfill state and return for next stage. */
-                transitionState(BackfillState::Scanning);
+                transitionState(State::Scan);
                 return backfill_success;
             }
             // func call complete before exiting, halting the
@@ -205,6 +161,20 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
                  rangeItr.curr(),
                  "endSeqno",
                  endSeqno);
+
+    folly::SharedMutex::ReadHolder rlh(evb->getStateLock());
+    if (evb->getState() == vbucket_state_dead) {
+        /* We don't have to close the stream here. Task doing vbucket state
+           change should handle stream closure */
+        EP_LOG_WARN(
+                "DCPBackfillMemoryBuffered::scan(): ({}) backfill ended "
+                "prematurely with vb in dead state; start seqno:{}, "
+                "end seqno:{}",
+                getVBucketId(),
+                startSeqno,
+                endSeqno);
+        return backfill_finished;
+    }
 
     auto stream = streamPtr.lock();
     if (!stream) {
@@ -339,51 +309,4 @@ void DCPBackfillMemoryBuffered::complete(ActiveStream& stream) {
                getVBucketId(),
                startSeqno,
                endSeqno);
-}
-
-void DCPBackfillMemoryBuffered::transitionState(BackfillState newState) {
-    if (state == newState) {
-        return;
-    }
-
-    bool validTransition = false;
-    switch (newState) {
-    case BackfillState::Init:
-        /* Not valid to transition back to 'init' */
-        break;
-    case BackfillState::Scanning:
-        if (state == BackfillState::Init) {
-            validTransition = true;
-        }
-        break;
-    case BackfillState::Done:
-        if (state == BackfillState::Init || state == BackfillState::Scanning) {
-            validTransition = true;
-        }
-        break;
-    }
-
-    if (!validTransition) {
-        throw std::invalid_argument(
-                "DCPBackfillMemoryBuffered::transitionState:"
-                " newState (which is " +
-                backfillStateToString(newState) +
-                ") is not valid for current state (which is " +
-                backfillStateToString(state) + ")");
-    }
-
-    state = newState;
-}
-
-std::string DCPBackfillMemoryBuffered::backfillStateToString(
-        BackfillState state) {
-    switch (state) {
-    case BackfillState::Init:
-        return "initalizing";
-    case BackfillState::Scanning:
-        return "scanning";
-    case BackfillState::Done:
-        return "done";
-    }
-    return "Invalid state"; // dummy to avert certain compiler warnings
 }

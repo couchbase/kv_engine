@@ -11,8 +11,10 @@
 
 #pragma once
 
+#include "dcp/backfill.h"
 #include "dcp/backfill_by_seqno.h"
 #include "dcp/backfill_disk.h"
+
 #include <optional>
 
 namespace Collections::VB {
@@ -29,25 +31,14 @@ class KVStoreIface;
  * read items in the sequential order from the disk and to call the DCP stream
  * for disk snapshot, backfill items and backfill completion.
  */
-class DCPBackfillBySeqnoDisk : public DCPBackfillDisk,
+class DCPBackfillBySeqnoDisk : public DCPBackfill,
+                               public DCPBackfillDisk,
                                public DCPBackfillBySeqno {
 public:
     DCPBackfillBySeqnoDisk(KVBucket& bucket,
                            std::shared_ptr<ActiveStream> stream,
                            uint64_t startSeqno,
                            uint64_t endSeqno);
-
-    // explicitly state how we want run to be called as it technically exists
-    // from both parent classes
-    backfill_status_t run() override {
-        return DCPBackfillDisk::run();
-    }
-
-    // explicitly state how we want cancel to be called as it technically exists
-    // from both parent classes
-    void cancel() override {
-        DCPBackfillDisk::cancel();
-    }
 
 private:
     /**
