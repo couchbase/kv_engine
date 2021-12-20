@@ -11,9 +11,9 @@
 #include "generator_utilities.h"
 #include "generator_event.h"
 #include "generator_module.h"
-#include "utilities/readfile.h"
 
 #include <nlohmann/json.hpp>
+#include <platform/dirutils.h>
 #include <platform/strerror.h>
 #include <fstream>
 #include <iostream>
@@ -52,7 +52,7 @@ bool is_enterprise_edition() {
  */
 
 nlohmann::json load_file(const std::string& fname) {
-    auto str = readFile(fname);
+    auto str = cb::io::loadFile(fname);
     if (str.empty()) {
         throw std::runtime_error(fname + " contained no data");
     }
