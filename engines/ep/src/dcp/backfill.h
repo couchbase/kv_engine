@@ -18,7 +18,6 @@
 #include <chrono>
 #include <memory>
 
-class ActiveStream;
 class ScanContext;
 
 /**
@@ -66,7 +65,7 @@ class DCPBackfill : public DCPBackfillIface {
 public:
     DCPBackfill() = default;
 
-    explicit DCPBackfill(std::shared_ptr<ActiveStream> s);
+    explicit DCPBackfill(Vbid vbid);
 
     /**
      * Get the id of the vbucket for which this object is created
@@ -89,13 +88,6 @@ public:
      * log a warning when called and state != State::Done
      */
     void cancel() override;
-
-    /**
-     * Indicates if the DCP stream associated with the backfill is dead
-     *
-     * @return true if stream is in dead state; else false
-     */
-    bool shouldCancel() const override;
 
     // virtual methods to be implemented by concrete backfill classes
 
@@ -130,15 +122,6 @@ private:
     folly::Synchronized<State> state{};
 
 protected:
-    /**
-     * Ptr to the associated Active DCP stream. Backfill can be run for only
-     * an active DCP stream.
-     * We use a weak_ptr instead of a shared_ptr to avoid cyclic reference.
-     * DCPBackfill objs do not primarily own the stream objs, they only need
-     * reference to a valid stream obj when backfills are run. Hence, they
-     * should only hold a weak_ptr to the stream objs.
-     */
-    std::weak_ptr<ActiveStream> streamPtr;
 
     /**
      * Id of the vbucket on which the backfill is running

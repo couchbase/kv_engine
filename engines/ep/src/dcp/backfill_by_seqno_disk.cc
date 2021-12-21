@@ -21,14 +21,14 @@
 
 #include <mcbp/protocol/dcp_stream_end_status.h>
 
-// Here we must force call the baseclass (DCPBackfill(s) )because of the use of
-// multiple inheritance (and virtual inheritance), otherwise stream will be null
-// as DCPBackfill() would be used.
+// Here we must force call the baseclass (DCPBackfillToStream(s) )because of the
+// use of multiple inheritance (and virtual inheritance), otherwise stream will
+// be null as DCPBackfillToStream() would be used.
 DCPBackfillBySeqnoDisk::DCPBackfillBySeqnoDisk(KVBucket& bucket,
                                                std::shared_ptr<ActiveStream> s,
                                                uint64_t startSeqno,
                                                uint64_t endSeqno)
-    : DCPBackfill(s),
+    : DCPBackfillToStream(s),
       DCPBackfillDisk(bucket),
       DCPBackfillBySeqno(startSeqno, endSeqno) {
 }

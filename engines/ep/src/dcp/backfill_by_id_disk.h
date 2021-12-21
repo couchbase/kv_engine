@@ -11,10 +11,9 @@
 
 #pragma once
 
-#include "dcp/backfill.h"
 #include "dcp/backfill_disk.h"
+#include "dcp/backfill_to_stream.h"
 
-class ByIdScanContext;
 class KVBucket;
 
 /**
@@ -22,7 +21,7 @@ class KVBucket;
  * of the backfill progress - this provides for execution of a ById (key to key)
  * backfill
  */
-class DCPBackfillByIdDisk : public DCPBackfill, public DCPBackfillDisk {
+class DCPBackfillByIdDisk : public DCPBackfillToStream, public DCPBackfillDisk {
 public:
     DCPBackfillByIdDisk(KVBucket& bucket,
                         std::shared_ptr<ActiveStream> s,

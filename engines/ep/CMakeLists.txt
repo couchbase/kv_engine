@@ -308,6 +308,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/dcp/backfill_disk.cc
             src/dcp/backfill-manager.cc
             src/dcp/backfill_memory.cc
+            src/dcp/backfill_to_stream.cc
             src/dcp/consumer.cc
             src/dcp/dcp-types.h
             src/dcp/dcpconnmap.cc

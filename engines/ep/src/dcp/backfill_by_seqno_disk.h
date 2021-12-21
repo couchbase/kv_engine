@@ -11,9 +11,9 @@
 
 #pragma once
 
-#include "dcp/backfill.h"
 #include "dcp/backfill_by_seqno.h"
 #include "dcp/backfill_disk.h"
+#include "dcp/backfill_to_stream.h"
 
 #include <optional>
 
@@ -31,7 +31,7 @@ class KVStoreIface;
  * read items in the sequential order from the disk and to call the DCP stream
  * for disk snapshot, backfill items and backfill completion.
  */
-class DCPBackfillBySeqnoDisk : public DCPBackfill,
+class DCPBackfillBySeqnoDisk : public DCPBackfillToStream,
                                public DCPBackfillDisk,
                                public DCPBackfillBySeqno {
 public:

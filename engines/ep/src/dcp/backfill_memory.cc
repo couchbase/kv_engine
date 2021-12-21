@@ -20,15 +20,15 @@
 
 #include <phosphor/phosphor.h>
 
-// Here we must force call the baseclass (DCPBackfill(s))because of the use of
-// multiple inheritance (and virtual inheritance), otherwise stream will be null
-// as DCPBackfill() would be used.
+// Here we must force call the baseclass (DCPBackfillToStream(s))because of the
+// use of multiple inheritance (and virtual inheritance), otherwise stream will
+// be null as DCPBackfillToStream() would be used.
 DCPBackfillMemoryBuffered::DCPBackfillMemoryBuffered(
         EphemeralVBucketPtr evb,
         std::shared_ptr<ActiveStream> s,
         uint64_t startSeqno,
         uint64_t endSeqno)
-    : DCPBackfill(s),
+    : DCPBackfillToStream(s),
       DCPBackfillBySeqno(startSeqno, endSeqno),
       evb(evb),
       rangeItr(nullptr) {
