@@ -75,16 +75,6 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(
             s->highCompletedSeqno.it = lastIt;
         }
     }
-    if (!outstandingPrepares.empty()) {
-        if (s->highPreparedSeqno.it != s->trackedWrites.end()) {
-            Expects(highestPrepareSeqno ==
-                    s->highPreparedSeqno.it->getBySeqno());
-        }
-        if (s->highCompletedSeqno.it != s->trackedWrites.end()) {
-            Expects(highestPrepareSeqno >
-                    s->highCompletedSeqno.it->getBySeqno());
-        }
-    }
 }
 
 PassiveDurabilityMonitor::PassiveDurabilityMonitor(
