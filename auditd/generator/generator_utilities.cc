@@ -18,6 +18,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <system_error>
 
 #ifdef COUCHBASE_ENTERPRISE_EDITION
 static bool enterprise_edition = true;
@@ -52,6 +53,11 @@ bool is_enterprise_edition() {
  */
 
 nlohmann::json load_file(const std::string& fname) {
+    if (!cb::io::isFile(fname)) {
+        throw std::system_error(
+                std::make_error_code(std::errc::no_such_file_or_directory),
+                std::string{"load_file: "} + fname);
+    }
     auto str = cb::io::loadFile(fname);
     if (str.empty()) {
         throw std::runtime_error(fname + " contained no data");
