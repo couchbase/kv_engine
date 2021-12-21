@@ -228,8 +228,8 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
     case ClientCertMode::Enabled: {
         ssl_flags |= SSL_VERIFY_PEER;
         auto* certNames = SSL_load_client_CA_file(certificate_chain.c_str());
-        if (certNames == nullptr) {
-            CreateSslContextException(
+        if (!certNames) {
+            throw CreateSslContextException(
                     "Failed to read SSL cert " + certificate_chain,
                     "SSL_load_client_CA_file",
                     getOpenSslError());
