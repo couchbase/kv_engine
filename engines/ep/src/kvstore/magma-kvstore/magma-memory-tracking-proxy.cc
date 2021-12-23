@@ -312,9 +312,15 @@ magma::Status MagmaMemoryTrackingProxy::Rollback(
     cb::UseArenaMallocSecondaryDomain domainGuard;
     return magma->Rollback(kvID, rollbackSeqno, wrappedCallback);
 }
+
 void MagmaMemoryTrackingProxy::SetFragmentationRatio(double fragRatio) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     magma->SetFragmentationRatio(fragRatio);
+}
+
+void MagmaMemoryTrackingProxy::EnableBlockCache(bool enable) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->EnableBlockCache(enable);
 }
 
 void MagmaMemoryTrackingProxy::SetMemoryQuota(const size_t quota) {

@@ -105,7 +105,7 @@ public:
         return magmaExpiryPurgerInterval;
     }
     bool getMagmaEnableBlockCache() const {
-        return magmaEnableBlockCache;
+        return magmaEnableBlockCache.load();
     }
     size_t getMagmaFragmentationPercentage() const {
         return magmaFragmentationPercentage.load();
@@ -167,6 +167,8 @@ public:
     }
 
     void setMagmaMemQuotaRatio(float value);
+
+    void setMagmaEnableBlockCache(bool enable);
 
     void setMakeDirectoryFn(magma::DirectoryConstructor fn) {
         magmaCfg.FS.MakeDirectory = fn;
@@ -290,7 +292,7 @@ private:
 
     // Magma can utilize an LRU policy driven block cache that maintains
     // the index blocks from sstables.
-    bool magmaEnableBlockCache;
+    std::atomic<bool> magmaEnableBlockCache;
 
     // Percentage of fragmentation which magma will attempt to maintain via
     // compaction. Atomic as this can be changed dynamically.

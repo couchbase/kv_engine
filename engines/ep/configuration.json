@@ -1385,7 +1385,7 @@
         },
         "magma_enable_block_cache": {
             "default": "true",
-            "dynamic": false,
+            "dynamic": true,
             "descr": "The block cache is an LRU policy driven cache that is used to maintain index blocks for the sstable's btrees.",
             "type": "bool"
         },

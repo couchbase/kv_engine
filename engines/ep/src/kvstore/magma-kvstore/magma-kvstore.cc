@@ -3258,6 +3258,10 @@ void MagmaKVStore::setMagmaFragmentationPercentage(size_t value) {
     magma->SetFragmentationRatio(value / 100.0);
 }
 
+void MagmaKVStore::setMagmaEnableBlockCache(bool enable) {
+    magma->EnableBlockCache(enable);
+}
+
 void MagmaKVStore::setStorageThreads(ThreadPoolConfig::StorageThreadCount num) {
     configuration.setStorageThreads(num);
     calculateAndSetMagmaThreads();

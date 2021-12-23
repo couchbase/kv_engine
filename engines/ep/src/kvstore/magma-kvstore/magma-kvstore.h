@@ -535,6 +535,8 @@ public:
 
     void setMagmaFragmentationPercentage(size_t value);
 
+    void setMagmaEnableBlockCache(bool enable);
+
     void setStorageThreads(ThreadPoolConfig::StorageThreadCount num) override;
 
     /**

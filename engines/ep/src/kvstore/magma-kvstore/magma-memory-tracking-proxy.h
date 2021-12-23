@@ -154,6 +154,7 @@ public:
                            magma::Magma::SeqNo rollbackSeqno,
                            magma::Magma::RollbackCallback callback);
     void SetFragmentationRatio(double fragRatio);
+    void EnableBlockCache(bool enable);
     void SetMemoryQuota(const size_t quota);
     void SetNumThreads(magma::Magma::ThreadType threadType, size_t nThreads);
     magma::Status Sync(bool flushAll);

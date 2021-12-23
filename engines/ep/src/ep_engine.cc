@@ -841,6 +841,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
+        } else if (key == "magma_enable_block_cache") {
+            getConfiguration().setMagmaEnableBlockCache(cb_stob(val));
         } else if (key == "compaction_expire_from_start") {
             getConfiguration().setCompactionExpireFromStart(cb_stob(val));
         } else if (key == "vbucket_mapping_sanity_checking") {

@@ -49,6 +49,8 @@ public:
     void booleanValueChanged(const std::string& key, bool b) override {
         if (key == "vbucket_mapping_sanity_checking") {
             config.setSanityCheckVBucketMapping(b);
+        } else if (key == "magma_enable_block_cache") {
+            config.setMagmaEnableBlockCache(b);
         }
     }
 
@@ -101,6 +103,9 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaGroupCommitMaxTransactionCount =
             config.getMagmaGroupCommitMaxTransactionCount();
 
+    config.addValueChangedListener(
+            "magma_enable_block_cache",
+            std::make_unique<ConfigChangeListener>(*this));
     config.addValueChangedListener(
             "magma_fragmentation_percentage",
             std::make_unique<ConfigChangeListener>(*this));
@@ -165,5 +170,12 @@ void MagmaKVStoreConfig::setMagmaMemQuotaRatio(float value) {
     magmaMemQuotaRatio.store(value);
     if (store) {
         store->setMaxDataSize(bucketQuota);
+    }
+}
+
+void MagmaKVStoreConfig::setMagmaEnableBlockCache(bool enable) {
+    magmaEnableBlockCache.store(enable);
+    if (store) {
+        store->setMagmaEnableBlockCache(enable);
     }
 }
