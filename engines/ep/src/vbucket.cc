@@ -1420,32 +1420,36 @@ HashTable::FindResult VBucket::fetchValidValue(
     auto* v = res.selectSVForRead(
             trackReference, wantsDeleted, fetchRequestedForReplicaItem);
 
-    // We ignore the expiration time if:
+    // We don't expire if:
     //  - the item is already deleted
     //  - it is a temp item
     //  - the item is a pending Prepare -> TTL will apply if/when the item is
     //    committed
-    if (v && !v->isDeleted() && !v->isTempItem() && v->isCommitted()) {
-        if (v->isExpired(ep_real_time())) {
-            if (getState() != vbucket_state_active) {
-                return {(wantsDeleted == WantsDeleted::Yes) ? v : nullptr,
-                        std::move(res.getHBL())};
-            }
-
-            // queueDirty only allowed on active VB
-            if (queueExpired == QueueExpired::Yes) {
-                handlePreExpiry(res.getHBL(), *v);
-                VBNotifyCtx notifyCtx;
-                std::tie(std::ignore, v, notifyCtx) =
-                        processExpiredItem(res, cHandle, ExpireBy::Access);
-                notifyNewSeqno(notifyCtx);
-                doCollectionsStats(cHandle, notifyCtx);
-            }
-            return {(wantsDeleted == WantsDeleted::Yes) ? v : nullptr,
-                    std::move(res.getHBL())};
-        }
+    //  - it isn't logically expired
+    if (!v || v->isDeleted() || v->isTempItem() || !v->isCommitted() ||
+        !v->isExpired(ep_real_time())) {
+        // Nothing to expire, just return the access result
+        return {v, std::move(res.getHBL())};
     }
-    return {v, std::move(res.getHBL())};
+
+    // Expiry path
+
+    // Note that only the master actively expires items.
+    if (getState() == vbucket_state_active &&
+        queueExpired == QueueExpired::Yes) {
+        handlePreExpiry(res.getHBL(), *v);
+        VBNotifyCtx notifyCtx;
+        std::tie(std::ignore, v, notifyCtx) =
+                processExpiredItem(res, cHandle, ExpireBy::Access);
+        notifyNewSeqno(notifyCtx);
+        doCollectionsStats(cHandle, notifyCtx);
+    }
+
+    // When reached here we know for sure that the item is logically expired, so
+    // apply the WantsDeleted logic regardless of whether the fetch is for an
+    // active or replica vbucket
+    return {(wantsDeleted == WantsDeleted::Yes) ? v : nullptr,
+            std::move(res.getHBL())};
 }
 
 VBucket::FetchForWriteResult VBucket::fetchValueForWrite(
