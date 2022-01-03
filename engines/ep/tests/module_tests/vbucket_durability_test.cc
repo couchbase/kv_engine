@@ -1703,7 +1703,6 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
         auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
         auto result = vbucket->fetchValidValue(WantsDeleted::No,
                                                TrackReference::No,
-                                               QueueExpired::No,
                                                vbucket->lockCollections(key));
         ASSERT_TRUE(result.storedValue);
         EXPECT_TRUE(result.storedValue->isPreparedMaybeVisible());
@@ -1731,7 +1730,6 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
         auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
         auto result = vbucket->fetchValidValue(WantsDeleted::No,
                                                TrackReference::No,
-                                               QueueExpired::No,
                                                vbucket->lockCollections(key));
         ASSERT_TRUE(result.storedValue);
         EXPECT_TRUE(result.storedValue->isCommitted());
@@ -2510,7 +2508,6 @@ TEST_P(VBucketDurabilityTest, ActiveDM_DoubleSetVBState) {
         auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
         auto result = vbucket->fetchValidValue(WantsDeleted::No,
                                                TrackReference::No,
-                                               QueueExpired::No,
                                                vbucket->lockCollections(key));
         ASSERT_TRUE(result.storedValue);
         EXPECT_TRUE(result.storedValue->isCommitted());
@@ -2576,7 +2573,6 @@ TEST_P(EPVBucketDurabilityTest,
         auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
         auto result = vbucket->fetchValidValue(WantsDeleted::No,
                                                TrackReference::No,
-                                               QueueExpired::No,
                                                vbucket->lockCollections(key));
         ASSERT_TRUE(result.storedValue);
         EXPECT_TRUE(result.storedValue->isCommitted());

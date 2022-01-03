@@ -1866,7 +1866,7 @@ cb::engine_errc KVBucket::unlockKey(const DocKey& key,
         return cb::engine_errc::unknown_collection;
     }
 
-    auto res = vb->fetchValueForWrite(cHandle, QueueExpired::Yes);
+    auto res = vb->fetchValueForWrite(cHandle);
     switch (res.status) {
     case VBucket::FetchForWriteResult::Status::OkFound: {
         auto* v = res.storedValue;
@@ -1934,8 +1934,8 @@ std::string KVBucket::validateKey(const DocKey& key,
         return "collection_unknown";
     }
 
-    auto res = vb->fetchValidValue(
-            WantsDeleted::Yes, TrackReference::No, QueueExpired::Yes, cHandle);
+    auto res =
+            vb->fetchValidValue(WantsDeleted::Yes, TrackReference::No, cHandle);
     auto* v = res.storedValue;
     if (v) {
         if (VBucket::isLogicallyNonExistent(*v, cHandle)) {

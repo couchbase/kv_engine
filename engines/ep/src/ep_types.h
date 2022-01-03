@@ -38,7 +38,6 @@ enum class GenerateDeleteTime { No, Yes };
 enum class TrackCasDrift : char { No, Yes };
 enum class WantsDeleted : char { No, Yes };
 enum class TrackReference : char { No, Yes };
-enum class QueueExpired : char { No, Yes };
 enum class CheckConflicts : char { No, Yes };
 enum class SyncWriteOperation : char { No, Yes };
 enum class IsSystem : char { No, Yes };

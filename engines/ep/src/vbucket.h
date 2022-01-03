@@ -916,11 +916,10 @@ public:
      * deleted or expired item is found then returns nullptr, unless
      * WantsDeleted is Yes.
      * If an expired item is found then will enqueue a delete to clean up the
-     * item unless QueueExpired is No.
+     * item if the collection handle is valid.
      *
      * @param wantsDeleted
      * @param trackReference
-     * @param queueExpired Delete an expired item
      * @param cHandle Collections readhandle (caching mode) for this key
      * @param fetchRequestedForReplicaItem bi-state enum to inform the method
      * if the fetch is for a GET_REPLICA, if so we should only fetch committed
@@ -931,7 +930,6 @@ public:
     HashTable::FindResult fetchValidValue(
             WantsDeleted wantsDeleted,
             TrackReference trackReference,
-            QueueExpired queueExpired,
             const Collections::VB::CachingReadHandle& cHandle,
             ForGetReplicaOp fetchRequestedForReplicaItem = ForGetReplicaOp::No);
 
@@ -978,19 +976,17 @@ public:
      * for details.
      *
      * If an expired item is found then will enqueue a delete to clean up the
-     * item if QueueExpired is yes.
+     * item if the collection handle is valid.
      *
      * @param cHandle Collections readhandle (caching mode) for this key.
      * @param wantsDeleted If Yes then deleted items will be returned,
      *        otherwise a deleted item is treated as non-existant (and will
      *        return nullptr).
-     * @param queueExpired Delete an expired item
      * @return a FindResult consisting of a pointer to the StoredValue (if
      * found) and the associated HashBucketLock which guards it.
      */
     FetchForWriteResult fetchValueForWrite(
-            const Collections::VB::CachingReadHandle& cHandle,
-            QueueExpired queueExpired);
+            const Collections::VB::CachingReadHandle& cHandle);
 
     /**
      * Searches for a Prepared SyncWrite in the VBucket.

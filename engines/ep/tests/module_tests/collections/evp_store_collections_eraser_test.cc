@@ -974,7 +974,6 @@ TEST_P(CollectionsEraserTest, FetchValidValueExpiryResurrectionTest) {
         auto cHandle = vb->lockCollections(key);
         auto result = vb->fetchValidValue(WantsDeleted::Yes,
                                           TrackReference::Yes,
-                                          QueueExpired::Yes,
                                           cHandle);
         EXPECT_FALSE(result.storedValue);
     }

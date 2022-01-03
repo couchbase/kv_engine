@@ -1404,14 +1404,8 @@ queued_item VBucket::createNewAbortedItem(const DocKey& key,
 HashTable::FindResult VBucket::fetchValidValue(
         WantsDeleted wantsDeleted,
         TrackReference trackReference,
-        QueueExpired queueExpired,
         const Collections::VB::CachingReadHandle& cHandle,
         const ForGetReplicaOp fetchRequestedForReplicaItem) {
-    if (queueExpired == QueueExpired::Yes && !cHandle.valid()) {
-        throw std::invalid_argument(
-                "VBucket::fetchValidValue cannot queue "
-                "expired items for invalid collection");
-    }
     const auto& key = cHandle.getKey();
 
     // Whilst fetchValidValue is used for reads it also processes expiries which
@@ -1434,9 +1428,9 @@ HashTable::FindResult VBucket::fetchValidValue(
 
     // Expiry path
 
-    // Note that only the master actively expires items.
-    if (getState() == vbucket_state_active &&
-        queueExpired == QueueExpired::Yes) {
+    // Note that only the master actively expires items, and only if the item's
+    // collection is alive.
+    if (getState() == vbucket_state_active && cHandle.valid()) {
         handlePreExpiry(res.getHBL(), *v);
         VBNotifyCtx notifyCtx;
         std::tie(std::ignore, v, notifyCtx) =
@@ -1453,15 +1447,8 @@ HashTable::FindResult VBucket::fetchValidValue(
 }
 
 VBucket::FetchForWriteResult VBucket::fetchValueForWrite(
-        const Collections::VB::CachingReadHandle& cHandle,
-        QueueExpired queueExpired) {
+        const Collections::VB::CachingReadHandle& cHandle) {
     Expects(getState() == vbucket_state_active);
-
-    if (queueExpired == QueueExpired::Yes && !cHandle.valid()) {
-        throw std::invalid_argument(
-                "VBucket::fetchValueForWrite cannot queue "
-                "expired items for invalid collection");
-    }
 
     auto res = ht.findForUpdate(cHandle.getKey());
     auto* sv = res.selectSVToModify(false /*durability*/);
@@ -1502,8 +1489,9 @@ VBucket::FetchForWriteResult VBucket::fetchValueForWrite(
                 std::move(res.getHBL())};
     }
 
-    // Expired - but queueDirty only allowed on active VB
-    if (queueExpired == QueueExpired::Yes) {
+    // Expired - but queueDirty only allowed on active VB and only if the item's
+    // collection is alive
+    if (cHandle.valid()) {
         handlePreExpiry(res.getHBL(), *sv);
         VBNotifyCtx notifyCtx;
         std::tie(std::ignore, sv, notifyCtx) =
@@ -2728,7 +2716,7 @@ GetValue VBucket::getAndUpdateTtl(
         EventuallyPersistentEngine& engine,
         time_t exptime,
         const Collections::VB::CachingReadHandle& cHandle) {
-    auto res = fetchValueForWrite(cHandle, QueueExpired::Yes);
+    auto res = fetchValueForWrite(cHandle);
     switch (res.status) {
     case FetchForWriteResult::Status::OkFound:
     case FetchForWriteResult::Status::OkVacant: {
@@ -2781,7 +2769,6 @@ GetValue VBucket::getInternal(const CookieIface* cookie,
 
     auto res = fetchValidValue(WantsDeleted::Yes,
                                trackReference,
-                               QueueExpired::Yes,
                                cHandle,
                                getReplicaItem);
 
@@ -2959,8 +2946,7 @@ cb::engine_errc VBucket::getKeyStats(
         struct key_stats& kstats,
         WantsDeleted wantsDeleted,
         const Collections::VB::CachingReadHandle& cHandle) {
-    auto res = fetchValidValue(
-            WantsDeleted::Yes, TrackReference::Yes, QueueExpired::Yes, cHandle);
+    auto res = fetchValidValue(WantsDeleted::Yes, TrackReference::Yes, cHandle);
     auto* v = res.storedValue;
 
     if (v) {
@@ -3020,7 +3006,7 @@ GetValue VBucket::getLocked(rel_time_t currentTime,
                             const CookieIface* cookie,
                             EventuallyPersistentEngine& engine,
                             const Collections::VB::CachingReadHandle& cHandle) {
-    auto res = fetchValueForWrite(cHandle, QueueExpired::Yes);
+    auto res = fetchValueForWrite(cHandle);
     switch (res.status) {
     case FetchForWriteResult::Status::OkFound: {
         auto* v = res.storedValue;

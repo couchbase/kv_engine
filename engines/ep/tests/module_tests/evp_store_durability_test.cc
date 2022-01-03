@@ -4765,7 +4765,6 @@ TEST_P(DurabilityBucketTest, PrepareDoesNotExpire) {
     const auto checkNotExpired = [&vb, &key]() -> void {
         auto res = vb.fetchValidValue(WantsDeleted::No,
                                       TrackReference::No,
-                                      QueueExpired::Yes,
                                       vb.lockCollections(key));
         ASSERT_TRUE(res.storedValue);
         EXPECT_TRUE(res.storedValue->isPreparedMaybeVisible());
@@ -4790,7 +4789,6 @@ TEST_P(DurabilityBucketTest, PrepareDoesNotExpire) {
     // Item committed, TTL must kick in
     auto res = vb.fetchValidValue(WantsDeleted::Yes,
                                   TrackReference::No,
-                                  QueueExpired::Yes,
                                   vb.lockCollections(key));
     ASSERT_TRUE(res.storedValue);
     EXPECT_TRUE(res.storedValue->isCommitted());

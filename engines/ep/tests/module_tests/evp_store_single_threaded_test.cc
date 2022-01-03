@@ -5056,7 +5056,6 @@ TEST_P(STParameterizedBucketTest, SyncWriteXattrExpiryResetsCommittedState) {
     {
         auto res = vb->fetchValidValue(WantsDeleted::No,
                                        TrackReference::No,
-                                       QueueExpired::Yes,
                                        vb->lockCollections(key));
         EXPECT_FALSE(res.storedValue);
     }

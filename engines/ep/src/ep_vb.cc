@@ -114,7 +114,6 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
         auto res = fetchValidValue(
                 WantsDeleted::Yes,
                 TrackReference::Yes,
-                cHandle.valid() ? QueueExpired::Yes : QueueExpired::No,
                 cHandle,
                 getState() == vbucket_state_replica ? ForGetReplicaOp::Yes
                                                     : ForGetReplicaOp::No);
@@ -458,7 +457,6 @@ cb::engine_errc EPVBucket::statsVKey(const DocKey& key,
 
     auto res = fetchValidValue(WantsDeleted::Yes,
                                TrackReference::Yes,
-                               QueueExpired::Yes,
                                readHandle);
 
     auto* v = res.storedValue;
@@ -504,7 +502,6 @@ void EPVBucket::completeStatsVKey(const DocKey& key, const GetValue& gcb) {
     auto res = fetchValidValue(
             WantsDeleted::Yes,
             TrackReference::Yes,
-            cHandle.valid() ? QueueExpired::Yes : QueueExpired::No,
             cHandle);
 
     auto* v = res.storedValue;
@@ -586,8 +583,7 @@ UniqueDCPBackfillPtr EPVBucket::createDCPBackfill(
 
 cb::mcbp::Status EPVBucket::evictKey(
         const char** msg, const Collections::VB::CachingReadHandle& cHandle) {
-    auto res = fetchValidValue(
-            WantsDeleted::No, TrackReference::No, QueueExpired::Yes, cHandle);
+    auto res = fetchValidValue(WantsDeleted::No, TrackReference::No, cHandle);
     auto* v = res.storedValue;
     if (!v) {
         if (eviction == EvictionPolicy::Value) {
