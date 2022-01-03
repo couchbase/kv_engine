@@ -23,6 +23,8 @@ add_library(mcd_util STATIC
             breakpad_settings.h
             terminal_color.cc
             terminal_color.h
+            terminal_size.cc
+            terminal_size.h
             config_parser.cc
             dcp_stream_id.cc
             dockey.cc
@@ -37,6 +39,7 @@ add_library(mcd_util STATIC
             logtags.h
             openssl_utils.cc
             openssl_utils.h
+            stat_group.cc
             string_utilities.cc
             string_utilities.h
             terminate_handler.cc

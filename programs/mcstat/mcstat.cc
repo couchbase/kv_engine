@@ -10,6 +10,7 @@
 
 #include <folly/portability/Unistd.h>
 #include <getopt.h>
+#include <memcached/stat_group.h>
 #include <platform/dirutils.h>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
@@ -17,8 +18,10 @@
 #include <protocol/connection/frameinfo.h>
 #include <utilities/string_utilities.h>
 #include <utilities/terminal_color.h>
+#include <utilities/terminal_size.h>
 #include <utilities/terminate_handler.h>
 #include <iostream>
+#include <limits>
 
 /**
  * Request a stat from the server
@@ -60,7 +63,8 @@ static void request_stat(MemcachedConnection& connection,
 }
 
 static void usage() {
-    std::cerr << R"(Usage: mcstat [options] statkey ...
+    std::cerr
+            << R"(Usage: mcstat [options] statkey ...
 
 Options:
 
@@ -70,8 +74,7 @@ Options:
   -p or --port port              The port number to connect to
   -b or --bucket bucketname      The name of the bucket to operate on
   -u or --user username          The name of the user to authenticate as
-
-  -P or --password password      The passord to use for authentication
+  -P or --password password      The password to use for authentication
                                  (use '-' to read from standard input, or
                                  set the environment variable CB_PASSWORD)
   --tls[=cert,key]               Use TLS and optionally try to authenticate
@@ -88,11 +91,138 @@ Options:
   -a or --all-buckets            Iterate buckets that list bucket returns
 )"
 #ifndef WIN32
-              << "  --no-color                     Disable colors\n"
+            << "  --no-color                     Disable colors\n"
 #endif
-              << R"(  --help                         This help text
+            << R"(  --help[=statkey]               This help text (or description of statkeys)
   statkey ...  Statistic(s) to request
+
 )";
+    exit(EXIT_FAILURE);
+}
+
+void printStatkeyHelp(std::string_view key) {
+    size_t dw;
+    try {
+        auto [width, height] = getTerminalSize();
+        (void)height;
+        if (width < 60) {
+            // if you've got a small terminal we'll just print it in the normal
+            // way.
+            width = std::numeric_limits<size_t>::max();
+        };
+
+        dw = width;
+    } catch (std::exception&) {
+        dw = std::numeric_limits<size_t>::max();
+    }
+
+    bool found = false;
+
+    StatsGroupManager::getInstance().iterate([dw, &found, key](const auto& e) {
+        if (key != e.key && !(key == "default" && e.key.empty())) {
+            return;
+        }
+
+        found = true;
+        std::cout << TerminalColor::Green << key << std::endl;
+        for (const auto& c : key) {
+            (void)c;
+            std::cout << "=";
+        }
+        std::cout << std::endl << std::endl;
+        auto descr = e.description;
+        while (true) {
+            if (descr.size() < dw) {
+                std::cout << descr.data() << std::endl;
+                break;
+            }
+
+            auto idx = descr.rfind(' ', std::min(dw, descr.size()));
+            if (idx == std::string::npos) {
+                std::cout << descr.data() << std::endl;
+                break;
+            }
+            std::cout.write(descr.data(), idx);
+            std::cout << std::endl;
+            descr.remove_prefix(idx + 1);
+        }
+        std::cout << std::endl;
+        if (e.bucket) {
+            std::cout << TerminalColor::Yellow << "Bucket specific stat group"
+                      << std::endl;
+        }
+        if (e.privileged) {
+            std::cout << TerminalColor::Yellow << "Privileged stat group"
+                      << std::endl;
+        }
+        std::cout << TerminalColor::Reset;
+    });
+
+    if (!found) {
+        std::cerr << TerminalColor::Red << key << " is not a valid stat group"
+                  << TerminalColor::Reset << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    exit(EXIT_SUCCESS);
+}
+
+void printStatkeyHelp() {
+    size_t dw;
+    try {
+        auto [width, height] = getTerminalSize();
+        (void)height;
+        if (width < 60) {
+            // if you've got a small terminal we'll just print it in the normal
+            // way.
+            width = std::numeric_limits<size_t>::max();
+        };
+
+        dw = width - 34;
+    } catch (std::exception&) {
+        dw = std::numeric_limits<size_t>::max();
+    }
+
+    std::cerr << "statkey may be one of: " << std::endl;
+
+    StatsGroupManager::getInstance().iterate([dw](const auto& e) {
+        std::array<char, 34> kbuf;
+        snprintf(kbuf.data(), kbuf.size(), "    %-24s  ", e.key.data());
+        std::cerr << kbuf.data();
+        if (e.bucket) {
+            std::cerr << TerminalColor::Yellow << 'B' << TerminalColor::Reset;
+        } else {
+            std::cerr << ' ';
+        }
+
+        if (e.privileged) {
+            std::cerr << TerminalColor::Yellow << 'P' << TerminalColor::Reset;
+        } else {
+            std::cerr << ' ';
+        }
+        std::cerr << " ";
+        std::fill(kbuf.begin(), kbuf.end(), ' ');
+
+        auto descr = e.description;
+        while (true) {
+            if (descr.size() < dw) {
+                std::cerr << descr.data() << std::endl;
+                return;
+            }
+
+            auto idx = descr.rfind(' ', std::min(dw, descr.size()));
+            if (idx == std::string::npos) {
+                std::cerr << descr.data() << std::endl;
+                return;
+            }
+            std::cerr.write(descr.data(), idx);
+            std::cerr << std::endl;
+            descr.remove_prefix(idx + 1);
+            std::cerr.write(kbuf.data(), kbuf.size() - 1);
+        }
+    });
+
+    std::cerr << "B - bucket specific stat group" << std::endl
+              << "P - privileged stat" << std::endl;
 
     exit(EXIT_FAILURE);
 }
@@ -139,7 +269,7 @@ int main(int argc, char** argv) {
 #ifndef WIN32
             {"no-color", no_argument, nullptr, 'n'},
 #endif
-            {"help", no_argument, nullptr, 0},
+            {"help", optional_argument, nullptr, 1},
             {nullptr, 0, nullptr, 0}};
 
     while ((cmd = getopt_long(argc,
@@ -231,6 +361,15 @@ int main(int argc, char** argv) {
                 }
             }
             break;
+        case 1:
+            if (optarg) {
+                if (std::string_view{optarg} == "statkey") {
+                    printStatkeyHelp();
+                } else {
+                    printStatkeyHelp(optarg);
+                }
+            }
+            // fallthrough
         default:
             usage();
             return EXIT_FAILURE;

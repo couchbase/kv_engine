@@ -14,6 +14,7 @@
 
 #include <daemon/cookie.h>
 class StatsTask;
+class StatGroup;
 
 /**
  * The StatsCommandContext is responsible for implementing all of the
@@ -65,6 +66,8 @@ protected:
     cb::engine_errc commandComplete();
 
 private:
+    /// The StatGroup for the command (set in parseCommandKey)
+    const StatGroup* statgroup = nullptr;
 
     /**
      * The key as specified in the input buffer (it may contain a sub command)

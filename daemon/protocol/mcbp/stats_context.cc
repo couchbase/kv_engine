@@ -28,6 +28,7 @@
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
+#include <memcached/stat_group.h>
 #include <memcached/tenant.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/stats_callback.h>
@@ -528,12 +529,6 @@ static cb::engine_errc stat_allocator_executor(const std::string&,
 /***************************** STAT HANDLERS *****************************/
 
 struct command_stat_handler {
-    /// Is this a privileged stat or may it be requested by anyone
-    bool privileged;
-
-    /// Is this a bucket related stat?
-    bool bucket;
-
     /// Is the privilege checked by StatsCommandContext::checkPrivilege?
     bool checkPrivilege;
 
@@ -547,37 +542,34 @@ struct command_stat_handler {
  * A mapping from all stat subgroups to the callback providing the
  * statistics
  */
-static std::unordered_map<std::string, struct command_stat_handler>
+static std::unordered_map<StatGroupId, struct command_stat_handler>
         stat_handlers = {
-                {"", {false, true, true, stat_all_stats}},
-                {"reset", {true, true, true, stat_reset_executor}},
-                {"worker_thread_info",
-                 {true, false, true, stat_sched_executor}},
-                {"audit", {true, false, true, stat_audit_executor}},
-                {"bucket_details",
-                 {true, false, true, stat_bucket_details_executor}},
-                {"aggregate", {false, true, true, stat_aggregate_executor}},
-                {"connections",
-                 {false, false, true, stat_connections_executor}},
-                {"clocks", {false, false, true, stat_clocks_executor}},
-                {"json_validate",
-                 {false, true, true, stat_json_validate_executor}},
-                {"snappy_decompress",
-                 {false, true, true, stat_snappy_decompress_executor}},
-                {"subdoc_execute",
-                 {false, true, true, stat_subdoc_execute_executor}},
-                {"responses",
-                 {false, true, true, stat_responses_json_executor}},
-                {"tracing", {true, false, true, stat_tracing_executor}},
-                {"tenants", {true, false, true, stat_tenant_executor}},
-                {"allocator", {true, false, true, stat_allocator_executor}},
-                {"scopes", {false, true, false, stat_bucket_collections_stats}},
-                {"scopes-byid",
-                 {false, true, false, stat_bucket_collections_stats}},
-                {"collections",
-                 {false, true, false, stat_bucket_collections_stats}},
-                {"collections-byid",
-                 {false, true, false, stat_bucket_collections_stats}}};
+                {StatGroupId::All, {true, stat_all_stats}},
+                {StatGroupId::Reset, {true, stat_reset_executor}},
+                {StatGroupId::WorkerThreadInfo, {true, stat_sched_executor}},
+                {StatGroupId::Audit, {true, stat_audit_executor}},
+                {StatGroupId::BucketDetails,
+                 {true, stat_bucket_details_executor}},
+                {StatGroupId::Aggregate, {true, stat_aggregate_executor}},
+                {StatGroupId::Connections, {true, stat_connections_executor}},
+                {StatGroupId::Clocks, {true, stat_clocks_executor}},
+                {StatGroupId::JsonValidate,
+                 {true, stat_json_validate_executor}},
+                {StatGroupId::SnappyDecompress,
+                 {true, stat_snappy_decompress_executor}},
+                {StatGroupId::SubdocExecute,
+                 {true, stat_subdoc_execute_executor}},
+                {StatGroupId::Responses, {true, stat_responses_json_executor}},
+                {StatGroupId::Tracing, {true, stat_tracing_executor}},
+                {StatGroupId::Tenants, {true, stat_tenant_executor}},
+                {StatGroupId::Allocator, {true, stat_allocator_executor}},
+                {StatGroupId::Scopes, {false, stat_bucket_collections_stats}},
+                {StatGroupId::ScopesById,
+                 {false, stat_bucket_collections_stats}},
+                {StatGroupId::Collections,
+                 {false, stat_bucket_collections_stats}},
+                {StatGroupId::CollectionsById,
+                 {false, stat_bucket_collections_stats}}};
 
 /**
  * For a given key, try and return the handler for it
@@ -586,14 +578,15 @@ static std::unordered_map<std::string, struct command_stat_handler>
  * representing whether this is a key we recognise or not
  */
 static std::pair<command_stat_handler, bool> getStatHandler(
-        const std::string& key) {
-    auto iter = stat_handlers.find(key);
+        const StatGroup* group) {
+    if (!group) {
+        return {command_stat_handler{true, stat_bucket_stats}, false};
+    }
+    auto iter = stat_handlers.find(group->id);
     if (iter == stat_handlers.end()) {
-        return std::make_pair(
-                command_stat_handler{false, true, true, stat_bucket_stats},
-                false);
+        return {command_stat_handler{true, stat_bucket_stats}, false};
     } else {
-        return std::make_pair(iter->second, true);
+        return {iter->second, true};
     }
 }
 
@@ -649,6 +642,7 @@ cb::engine_errc StatsCommandContext::parseCommandKey() {
             argument = statkey.substr(++index);
         }
     }
+    statgroup = StatsGroupManager::getInstance().lookup(command);
 
     state = State::CheckPrivilege;
     return cb::engine_errc::success;
@@ -657,16 +651,26 @@ cb::engine_errc StatsCommandContext::parseCommandKey() {
 cb::engine_errc StatsCommandContext::checkPrivilege() {
     auto ret = cb::engine_errc::success;
 
-    auto handler = getStatHandler(command).first;
+    if (statgroup) {
+        auto handler = getStatHandler(statgroup).first;
+        if (handler.checkPrivilege) {
+            if (statgroup->privileged) {
+                ret = mcbp::checkPrivilege(cookie, cb::rbac::Privilege::Stats);
+            }
 
-    if (handler.checkPrivilege) {
-        if (handler.privileged) {
-            ret = mcbp::checkPrivilege(cookie, cb::rbac::Privilege::Stats);
+            if (ret == cb::engine_errc::success && statgroup->bucket) {
+                ret = mcbp::checkPrivilege(cookie,
+                                           cb::rbac::Privilege::SimpleStats);
+            }
         }
-
-        if (ret == cb::engine_errc::success && handler.bucket) {
-            ret = mcbp::checkPrivilege(cookie,
-                                       cb::rbac::Privilege::SimpleStats);
+    } else {
+        // The stat key don't exist, but only tell the user if the connection
+        // possess the SimpleStats privilege
+        if (cookie.testPrivilege(cb::rbac::Privilege::SimpleStats, {}, {})
+                    .success()) {
+            ret = cb::engine_errc::no_such_key;
+        } else {
+            ret = cb::engine_errc::no_access;
         }
     }
 
@@ -684,7 +688,7 @@ cb::engine_errc StatsCommandContext::checkPrivilege() {
 }
 
 cb::engine_errc StatsCommandContext::doStats() {
-    auto handler_pair = getStatHandler(command);
+    auto handler_pair = getStatHandler(statgroup);
 
     if (!handler_pair.second) {
         const auto key = cookie.getRequest().getKey();
