@@ -1429,8 +1429,11 @@ HashTable::FindResult VBucket::fetchValidValue(
     // Expiry path
 
     // Note that only the master actively expires items, and only if the item's
-    // collection is alive.
-    if (getState() == vbucket_state_active && cHandle.valid()) {
+    // collection is alive and there's mem available in checkpoints.
+    const auto cmAvailable =
+            bucket && bucket->verifyCheckpointMemoryState() !=
+                              KVBucket::CheckpointMemoryState::Full;
+    if (getState() == vbucket_state_active && cHandle.valid() && cmAvailable) {
         handlePreExpiry(res.getHBL(), *v);
         VBNotifyCtx notifyCtx;
         std::tie(std::ignore, v, notifyCtx) =

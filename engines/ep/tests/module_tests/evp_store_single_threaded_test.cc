@@ -5231,3 +5231,20 @@ TEST_P(STParameterizedBucketTest,
 
     testExpiryObservesCMQuota(runPager);
 }
+
+TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_ExpiryByRead) {
+    // Note: This read function is executed twice in the test:
+    //  - First, when CheckpointMemoryState::Full, ie we can't queue the expiry
+    //  - Then, when CheckpointMemoryState::Available and we queue the expiry
+    // In both cases we are expected to tell the caller the truth, ie the item
+    // is logically expired and so no_such_key
+    const auto read = [this]() -> void {
+        const auto ret = store->get(makeStoredDocKey("key_to_expire"),
+                                    vbid,
+                                    nullptr,
+                                    get_options_t::NONE);
+        ASSERT_EQ(cb::engine_errc::no_such_key, ret.getStatus());
+    };
+
+    testExpiryObservesCMQuota(read);
+}
