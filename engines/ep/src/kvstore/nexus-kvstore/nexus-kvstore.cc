@@ -1790,6 +1790,8 @@ cb::engine_errc NexusKVStore::getAllKeys(
         const DiskDocKey& start_key,
         uint32_t count,
         std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) const {
+    auto lh = getLock(vbid);
+
     auto primaryCallback =
             std::make_shared<NexusKVStorePrimaryGetAllKeysCallback>(cb);
     auto secondaryCallback =
