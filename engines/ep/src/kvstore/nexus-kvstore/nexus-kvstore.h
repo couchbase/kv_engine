@@ -257,13 +257,15 @@ protected:
     /**
      * Comapre the two vbucket states returned from the kvstores.
      *
+     * @param vbid of the vBucket that this state is for
      * @param primaryState not const as may need to overwrite prepare fields if
      *                     not comparable
      * @param secondaryState not const as may need to overwrite prepare fields
      *                       if not compared
      * @return true if logically equivalent
      */
-    bool compareVBucketState(vbucket_state primaryVbState,
+    bool compareVBucketState(Vbid vbid,
+                             vbucket_state primaryVbState,
                              vbucket_state secondaryVbState) const;
 
     // Friended to let us call handleError to error from associated classes

@@ -817,7 +817,8 @@ void NexusKVStore::delVBucket(Vbid vbucket, uint64_t fileRev) {
     secondary->delVBucket(vbucket, fileRev);
 }
 
-bool NexusKVStore::compareVBucketState(vbucket_state primaryVbState,
+bool NexusKVStore::compareVBucketState(Vbid vbid,
+                                       vbucket_state primaryVbState,
                                        vbucket_state secondaryVbState) const {
     if (!getStorageProperties().hasPrepareCounting()) {
         // Can't compare prepare counts so zero them out
@@ -882,7 +883,8 @@ std::vector<vbucket_state*> NexusKVStore::listPersistedVbuckets() {
             continue;
         }
 
-        if (!compareVBucketState(*primaryVbStates[i], *secondaryVbStates[i])) {
+        if (!compareVBucketState(
+                    vbid, *primaryVbStates[i], *secondaryVbStates[i])) {
             auto msg = fmt::format(
                     "NexusKVStore::listPersistedVbuckets: {} "
                     "vbucket state not equal primary:{} secondary:{}",
@@ -914,7 +916,7 @@ bool NexusKVStore::snapshotVBucket(Vbid vbucketId,
     auto primaryVbState = primary->getPersistedVBucketState(vbucketId);
     auto secondaryVbState = secondary->getPersistedVBucketState(vbucketId);
 
-    if (!compareVBucketState(primaryVbState, secondaryVbState)) {
+    if (!compareVBucketState(vbucketId, primaryVbState, secondaryVbState)) {
         auto msg = fmt::format(
                 "NexusKVStore::snapshotVBucket: {} difference in vbstate "
                 "primary:{} secondary:{}",
@@ -1373,7 +1375,7 @@ vbucket_state* NexusKVStore::getCachedVBucketState(Vbid vbid) {
     }
 
     if (primaryVbState && secondaryVbState &&
-        !compareVBucketState(*primaryVbState, *secondaryVbState)) {
+        !compareVBucketState(vbid, *primaryVbState, *secondaryVbState)) {
         auto msg = fmt::format(
                 "NexusKVStore::getCachedVBucketState: {}: "
                 "difference in vBucket state primary:{} "
@@ -1391,7 +1393,7 @@ vbucket_state NexusKVStore::getPersistedVBucketState(Vbid vbid) const {
     auto primaryVbState = primary->getPersistedVBucketState(vbid);
     auto secondaryVbState = secondary->getPersistedVBucketState(vbid);
 
-    if (!compareVBucketState(primaryVbState, secondaryVbState)) {
+    if (!compareVBucketState(vbid, primaryVbState, secondaryVbState)) {
         auto msg = fmt::format(
                 "NexusKVStore::getPersistedVBucketState: {}: "
                 "difference in vBucket state primary:{} "
