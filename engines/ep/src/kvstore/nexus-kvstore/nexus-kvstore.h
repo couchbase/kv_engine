@@ -208,6 +208,16 @@ protected:
     Vbid::id_type getCacheSlot(Vbid vbid) const;
 
     /**
+     * We cache purgeSeqno per-vBucket and to save memory usage we only allocate
+     * num vBuckets / num shards slots in the array. Return the purge seqno in
+     * the correct slot.
+     *
+     * @param vbid Vbid to map
+     * @return purge seqno in the slot given by getCacheSlot()
+     */
+    uint64_t getPurgeSeqno(Vbid vbid) const;
+
+    /**
      * Compare get values of the primary against the secondary. Compares status
      * and the resulting item.
      *
@@ -293,8 +303,10 @@ protected:
      * seqno here (the highest seqno purged by any KVStore) rather than one per
      * KVStore as the comparison is only guaranteed to be valid if the seqno is
      * higher than the purge seqno of both KVStores.
+     *
+     * Indexed by vBucket id / max shards (getCacheSlot())
      */
-    AtomicMonotonic<uint64_t, IgnorePolicy> purgeSeqno;
+    std::vector<AtomicMonotonic<uint64_t, IgnorePolicy>> purgeSeqno;
 
     /**
      * When we skip checks due to the purge seqno moving we increment this
@@ -309,7 +321,7 @@ protected:
      * the given vBucket then we need to skip some sanity checks as it may be
      * the case that we have compacted one KVStore but not the other.
      *
-     * Indexed by vBucket id.
+     * Indexed by vBucket id / max shards (getCacheSlot())
      */
     std::vector<std::atomic_bool> compactionRunning;
 
@@ -323,7 +335,7 @@ protected:
      * KVStore. This means we have to skip the checks we'd normally do in
      * getWithHeader for this portion of a rollback.
      *
-     * Indexed by vBucket id.
+     * Indexed by vBucket id / max shards (getCacheSlot())
      */
     std::vector<std::atomic_bool> skipGetWithHeaderChecksForRollback;
 
