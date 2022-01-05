@@ -495,8 +495,9 @@ std::pair<cb::mcbp::Status, std::string>
 NetworkInterfaceManager::doTlsReconfigure(const nlohmann::json& spec) {
     try {
         auto next = std::make_unique<TlsConfiguration>(spec);
-        auto desc = next->to_json().dump(2);
+        auto desc = next->to_json().dump();
         tlsConfiguration.wlock()->swap(next);
+        LOG_INFO("TLS configuration changed to: {}", desc);
         return {cb::mcbp::Status::Success, std::move(desc)};
     } catch (const std::exception& e) {
         return {cb::mcbp::Status::Einternal, e.what()};
