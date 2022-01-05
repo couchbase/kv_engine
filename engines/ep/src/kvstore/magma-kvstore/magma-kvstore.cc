@@ -181,11 +181,10 @@ MagmaRequest::MagmaRequest(queued_item it)
 }
 
 std::string MagmaRequest::to_string() {
-    return fmt::format("Key:{} docMeta:{} itemOldExists:{} itemOldIsDelete:{}",
+    return fmt::format("Key:{} docMeta:{} oldItemAlive:{}",
                        key.to_string(),
                        magmakv::getDocMeta(getDocMeta()).to_string(),
-                       itemOldExists,
-                       itemOldIsDelete);
+                       oldItemAlive);
 }
 
 static DiskDocKey makeDiskDocKey(const Slice& key) {
@@ -774,7 +773,7 @@ void MagmaKVStore::commitCallback(MagmaKVStoreTransactionContext& txnCtx,
         if (req.isDelete()) {
             FlushStateDeletion state;
             if (flushSuccess) {
-                if (req.oldItemExists() && !req.oldItemIsDelete()) {
+                if (req.isOldItemAlive()) {
                     // Deletion is for an existing item on disk
                     state = FlushStateDeletion::Delete;
                 } else {
@@ -802,7 +801,7 @@ void MagmaKVStore::commitCallback(MagmaKVStoreTransactionContext& txnCtx,
         } else {
             FlushStateMutation state;
             if (flushSuccess) {
-                if (req.oldItemExists() && !req.oldItemIsDelete()) {
+                if (req.isOldItemAlive()) {
                     // Mutation is for an existing item on disk
                     state = FlushStateMutation::Update;
                 } else {
@@ -1291,9 +1290,11 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
         }
 
         if (docExists) {
-            req->markOldItemExists();
+            if (!isTombstone) {
+                req->markOldItemAlive();
+            }
+
             if (isTombstone) {
-                req->markOldItemIsDelete();
                 // Old item is a delete and new is an insert.
                 if (!req->isDelete()) {
                     if (diskDocKey.isCommitted()) {

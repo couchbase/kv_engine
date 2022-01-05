@@ -47,20 +47,12 @@ public:
         return docBody ? const_cast<char*>(docBody->getData()) : nullptr;
     }
 
-    void markOldItemExists() {
-        itemOldExists = true;
+    void markOldItemAlive() {
+        oldItemAlive = true;
     }
 
-    bool oldItemExists() const {
-        return itemOldExists;
-    }
-
-    void markOldItemIsDelete() {
-        itemOldIsDelete = true;
-    }
-
-    bool oldItemIsDelete() const {
-        return itemOldIsDelete;
+    bool isOldItemAlive() const {
+        return oldItemAlive;
     }
 
     std::string to_string();
@@ -72,6 +64,8 @@ public:
 private:
     std::string docMeta;
     value_t docBody;
-    bool itemOldExists{false};
-    bool itemOldIsDelete{false};
+
+    // Is there an old item which is alive? i.e. this item is replacing
+    // a non-deleted item.
+    bool oldItemAlive{false};
 };
