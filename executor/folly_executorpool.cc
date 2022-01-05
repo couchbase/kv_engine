@@ -473,7 +473,6 @@ struct FollyExecutorPool::State {
             if (it != tasks.locator.end()) {
                 it->second->wake();
                 return true;
-                break;
             }
         }
         return false;
