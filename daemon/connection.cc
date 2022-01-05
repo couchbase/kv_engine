@@ -1071,18 +1071,18 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
                  ssl_errors);
     }
 
-    // Lets inspect the certificate before we'll do anything further
+    // Let's inspect the certificate before we'll do anything further
     auto* ssl_st = bufferevent_openssl_get_ssl(bev);
     const auto verifyMode = SSL_get_verify_mode(ssl_st);
     const auto enabled = ((verifyMode & SSL_VERIFY_PEER) == SSL_VERIFY_PEER);
 
     bool disconnect = false;
+    cb::openssl::unique_x509_ptr cert(SSL_get_peer_certificate(ssl_st));
     if (enabled) {
         const auto mandatory =
                 ((verifyMode & SSL_VERIFY_FAIL_IF_NO_PEER_CERT) ==
                  SSL_VERIFY_FAIL_IF_NO_PEER_CERT);
         // Check certificate
-        cb::openssl::unique_x509_ptr cert(SSL_get_peer_certificate(ssl_st));
         if (cert) {
             auto [status, name] = Settings::instance().lookupUser(cert.get());
             switch (status) {
@@ -1118,7 +1118,7 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
             case cb::x509::Status::NotPresent:
                 // Note: NotPresent in this context is that there is no
                 //       mapper present in the _configuration_ which is
-                //       allowd in "Enabled" mode as it just means that we'll
+                //       allowed in "Enabled" mode as it just means that we'll
                 //       try to verify the peer.
                 if (mandatory) {
                     const char* reason =
@@ -1135,7 +1135,9 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
                 }
                 break;
             case cb::x509::Status::Success:
-                if (!instance.tryAuthFromSslCert(name)) {
+                if (!instance.tryAuthFromSslCert(name,
+                                                 SSL_get_cipher_name(ssl_st))) {
+                    // Already logged
                     const std::string reason =
                             "User [" + name + "] not defined in Couchbase";
                     audit_auth_failure(instance,
@@ -1150,10 +1152,12 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
 
     if (disconnect) {
         instance.shutdown();
-    } else {
-        LOG_INFO("{}: Using SSL cipher:{}",
+    } else if (!instance.authenticated) {
+        // tryAuthFromSslCertificate logged the cipher
+        LOG_INFO("{}: Using cipher '{}', peer certificate {}provided",
                  instance.getId(),
-                 SSL_get_cipher_name(ssl_st));
+                 SSL_get_cipher_name(ssl_st),
+                 cert ? "" : "not ");
     }
 
     // update the callback to call the normal read callback
@@ -1189,7 +1193,8 @@ void Connection::setAuthenticated(bool authenticated_,
     }
 }
 
-bool Connection::tryAuthFromSslCert(const std::string& userName) {
+bool Connection::tryAuthFromSslCert(const std::string& userName,
+                                    std::string_view cipherName) {
     try {
         auto context = cb::rbac::createInitialContext(
                 {userName, cb::sasl::Domain::Local});
@@ -1197,10 +1202,11 @@ bool Connection::tryAuthFromSslCert(const std::string& userName) {
                 true, context.second, {userName, cb::sasl::Domain::Local});
         audit_auth_success(*this);
         LOG_INFO(
-                "{}: Client {} authenticated as '{}' via X509 "
-                "certificate",
+                "{}: Client {} using cipher '{}' authenticated as '{}' via "
+                "X.509 certificate",
                 getId(),
                 getPeername(),
+                cipherName,
                 cb::UserDataView(user.name));
         // Connections authenticated by using X.509 certificates should not
         // be able to use SASL to change it's identity.

@@ -514,7 +514,8 @@ public:
      * @return true if username has been linked to RBAC or ssl cert was not
      * presented by the client.
      */
-    bool tryAuthFromSslCert(const std::string& userName);
+    bool tryAuthFromSslCert(const std::string& userName,
+                            std::string_view cipherName);
 
     /**
      * Get the number of cookies currently bound to this connection
