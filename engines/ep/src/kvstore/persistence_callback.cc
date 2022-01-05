@@ -110,11 +110,15 @@ void EPPersistenceCallback::operator()(const Item& queuedItem,
                                        FlushStateDeletion state) {
     switch (state) {
     case FlushStateDeletion::Delete:
+        // We have successfully removed an item from the disk, we
+        // may now remove it from the hash table.
+        vbucket.deletedOnDiskCbk(queuedItem, true /*deleted*/);
+        return;
+    case FlushStateDeletion::LogicallyDocNotFound:
     case FlushStateDeletion::DocNotFound: {
         // We have successfully removed an item from the disk, we
         // may now remove it from the hash table.
-        const bool deleted = (state == FlushStateDeletion::Delete);
-        vbucket.deletedOnDiskCbk(queuedItem, deleted);
+        vbucket.deletedOnDiskCbk(queuedItem, false /*deleted*/);
         return;
     }
     case FlushStateDeletion::Failed:

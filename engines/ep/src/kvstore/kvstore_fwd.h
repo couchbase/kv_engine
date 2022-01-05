@@ -23,7 +23,21 @@
 using GetStatsMap = std::unordered_map<std::string_view, size_t>;
 
 /// Result of flushing a Deletion, passed to the PersistenceCallback.
-enum class FlushStateDeletion { Delete, DocNotFound, Failed };
+enum class FlushStateDeletion {
+    // An item was deleted by this mutation
+    Delete,
+
+    // An item was deleted but the old version belonged to an old generation of
+    // a collection which has not yet been purged. This behaves similarly to
+    // DocNotFound for item counting reasons.
+    LogicallyDocNotFound,
+
+    // The item did not exist on disk before this mutation
+    DocNotFound,
+
+    // The persistence of the mutation failed
+    Failed
+};
 
 /// Result of flushing a Mutation, passed to the PersistenceCallback.
 enum class FlushStateMutation {

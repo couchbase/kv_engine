@@ -490,6 +490,8 @@ std::string to_string(FlushStateDeletion state) {
     switch (state) {
     case FlushStateDeletion::Delete:
         return "FlushStateDeletion::Delete";
+    case FlushStateDeletion::LogicallyDocNotFound:
+        return "FlushStateDeletion::LogicallyDocNotFound";
     case FlushStateDeletion::DocNotFound:
         return "FlushStateDeletion::DocNotFound";
     case FlushStateDeletion::Failed:
