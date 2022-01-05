@@ -751,6 +751,50 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
 }
 
+// A test covering the issue logged in MB-50183
+// Here two collections are stored in the vbucket. The default collection does
+// not occupy the high-seqno of the vbucket. The default collection is then
+// tombstone purged, it now has no items on disk (no tombstones). KV reports the
+// high-seqno of the default collection as 5 in this test. If we legacy stream
+// the default collection similarly to how the view-engine does (set an end) the
+// MB feared a hang, but we don't in this case. The stream is ended.
+TEST_P(CollectionsLegacyDcpTest, default_collection_is_tombstone_purged) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    // Create 1 extra collection
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+
+    // Store documents - importantly the final documents are !defaultCollection
+    store_item(vbid, StoredDocKey{"d1", CollectionEntry::defaultC}, "value");
+    store_item(vbid, StoredDocKey{"d2", CollectionEntry::defaultC}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 3);
+
+    delete_item(vbid, StoredDocKey{"d1", CollectionEntry::defaultC});
+    delete_item(vbid, StoredDocKey{"d2", CollectionEntry::defaultC});
+    store_item(vbid, StoredDocKey{"one", CollectionEntry::fruit}, "value");
+    store_item(vbid, StoredDocKey{"two", CollectionEntry::fruit}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    // Compact and force purge tombstones
+    runCompaction(vbid, 0, true);
+
+    // Now DCP with backfill
+    ensureDcpWillBackfill();
+
+    // Make cookie look like a non-collection client and then DCP stream from
+    // 0 to the end of the default collection.
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
+    auto highSeqno = vb->getManifest()
+                             .lock(CollectionID::Default)
+                             .getPersistedHighSeqno();
+    EXPECT_EQ(5, highSeqno);
+    createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
+
+    // Stream ends, nothing to see here
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
+}
+
 // No ephemeral support
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsLegacyDcpTest,
