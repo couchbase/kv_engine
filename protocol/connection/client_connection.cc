@@ -562,8 +562,8 @@ void MemcachedConnection::connect() {
         }
 
         if (!ssl_cert_file.empty() && !ssl_key_file.empty()) {
-            if (!SSL_CTX_use_certificate_file(
-                        context, ssl_cert_file.c_str(), SSL_FILETYPE_PEM) ||
+            if (!SSL_CTX_use_certificate_chain_file(
+                        context, ssl_cert_file.c_str()) ||
                 !SSL_CTX_use_PrivateKey_file(
                         context, ssl_key_file.c_str(), SSL_FILETYPE_PEM) ||
                 !SSL_CTX_check_private_key(context)) {
