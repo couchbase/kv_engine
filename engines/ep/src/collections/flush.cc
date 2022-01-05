@@ -630,7 +630,7 @@ void Flush::updateStats(const DocKey& key,
                                 compactionCallbacks);
 }
 
-void Flush::updateStats(const DocKey& key,
+bool Flush::updateStats(const DocKey& key,
                         uint64_t seqno,
                         IsCommitted isCommitted,
                         IsDeleted isDelete,
@@ -650,7 +650,10 @@ void Flush::updateStats(const DocKey& key,
                                     IsCompaction::No,
                                     compactionCallbacks)) {
         setReadyForCommit();
+        return true;
     }
+
+    return false;
 }
 
 void Flush::setManifest(Manifest& newManifest) {

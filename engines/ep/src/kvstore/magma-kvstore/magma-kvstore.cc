@@ -1262,16 +1262,18 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                 const auto oldDocSize =
                         req->getRawKeyLen() + oldMeta.Len() +
                         configuration.magmaCfg.GetValueSize(oldMeta);
-                commitData.collections.updateStats(
-                        docKey,
-                        magmakv::getDocMeta(req->getDocMeta()).getBySeqno(),
-                        isCommitted,
-                        isDeleted,
-                        req->getDocSize(),
-                        configuration.magmaCfg.GetSeqNum(oldMeta),
-                        oldIsDeleted,
-                        oldDocSize,
-                        CompactionCallbacks::AnyRevision);
+                if (commitData.collections.updateStats(
+                            docKey,
+                            magmakv::getDocMeta(req->getDocMeta()).getBySeqno(),
+                            isCommitted,
+                            isDeleted,
+                            req->getDocSize(),
+                            configuration.magmaCfg.GetSeqNum(oldMeta),
+                            oldIsDeleted,
+                            oldDocSize,
+                            CompactionCallbacks::AnyRevision)) {
+                    req->markLogicalInsert();
+                }
             } else {
                 commitData.collections.updateStats(
                         docKey,

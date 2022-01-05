@@ -55,6 +55,14 @@ public:
         return oldItemAlive;
     }
 
+    void markLogicalInsert() {
+        logicalInsert = true;
+    }
+
+    bool isLogicalInsert() const {
+        return logicalInsert;
+    }
+
     std::string to_string();
 
     size_t getDocSize() const {
@@ -68,4 +76,12 @@ private:
     // Is there an old item which is alive? i.e. this item is replacing
     // a non-deleted item.
     bool oldItemAlive{false};
+
+    // Is this item a logical insert? (i.e. an insert into a new genereation
+    // of a collection but the item previously existed in an old generation).
+    // We could achieve the same affect by setting oldItemAlive above to be true
+    // but this gives us the ability to detect this case in NexusKVStore and
+    // handle it which is important as couchstore does not care about logical
+    // inserts due to the differences in item counting.
+    bool logicalInsert{false};
 };

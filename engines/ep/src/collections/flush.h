@@ -90,8 +90,11 @@ public:
      * @param oldSize bytes used on disk of the old 'version' of the item
      * @param compactionCallbacks For which items does the store invoke the
      *                            compaction callbacks?
+     *
+     * @return true if this is a logical insert (the item previously belonged to
+     *         and old generation of the collection).
      */
-    void updateStats(const DocKey& key,
+    bool updateStats(const DocKey& key,
                      uint64_t seqno,
                      IsCommitted isCommitted,
                      IsDeleted isDelete,
