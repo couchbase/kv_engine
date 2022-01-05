@@ -29,6 +29,7 @@ void EPPersistenceCallback::operator()(const Item& queuedItem,
 
     switch (state) {
     case State::Insert:
+    case State::LogicalInsert:
     case State::Update: {
         // Mark clean, only if the StoredValue has the same CommittedState and
         // and Seqno (MB-39280) as the persisted item.
@@ -60,19 +61,31 @@ void EPPersistenceCallback::operator()(const Item& queuedItem,
 
         // Account only committed items in opsCreate/Update and numTotalItems
         if (queuedItem.isCommitted()) {
-            if (state == State::Insert) {
+            switch (state) {
+            case State::Insert:
+            case State::LogicalInsert:
                 ++vbucket.opsCreate;
                 vbucket.incrNumTotalItems();
-            } else {
+                break;
+            case State::Update:
                 ++vbucket.opsUpdate;
-            }
+                break;
+            case State::Failed:
+                break;
+            };
         }
 
         // All inserts to disk (mutation, prepare, commit,system event) take up
         // space on disk so increment metadata stat.
-        if (state == State::Insert) {
+        switch (state) {
+        case State::Insert:
+        case State::LogicalInsert:
             vbucket.incrMetaDataDisk(queuedItem);
-        }
+            break;
+        case State::Update:
+        case State::Failed:
+            break;
+        };
 
         return;
     }

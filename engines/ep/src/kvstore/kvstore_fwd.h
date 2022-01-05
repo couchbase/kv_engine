@@ -26,4 +26,19 @@ using GetStatsMap = std::unordered_map<std::string_view, size_t>;
 enum class FlushStateDeletion { Delete, DocNotFound, Failed };
 
 /// Result of flushing a Mutation, passed to the PersistenceCallback.
-enum class FlushStateMutation { Insert, Update, Failed };
+enum class FlushStateMutation {
+    // An item was inserted (item did not exist before or was previously
+    // deleted)
+    Insert,
+
+    // An item was logically inserted (i.e. it belonged to an old generation of
+    // a collection which has not yet been purged and has just been added to the
+    // new generation)
+    LogicalInsert,
+
+    // An item was updated (existed and was alive before this mutation)
+    Update,
+
+    // The persistence of the mutation failed
+    Failed
+};

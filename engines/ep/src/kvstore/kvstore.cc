@@ -504,6 +504,8 @@ std::string to_string(FlushStateMutation state) {
         return "FlushStateMutation::Failed";
     case FlushStateMutation::Insert:
         return "FlushStateMutation::Insert";
+    case FlushStateMutation::LogicalInsert:
+        return "FlushStateMutation::LogicalInsert";
     case FlushStateMutation::Update:
         return "FlushStateMutation::Update";
     }
