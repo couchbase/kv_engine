@@ -946,7 +946,7 @@
         },
         "num_auxio_threads": {
             "default": "0",
-            "descr": "Throttle max number of aux io threads",
+            "descr": "Throttle max number of aux io threads (0 = Default, auto-configured based on CPU core count)",
             "dynamic": true,
             "type": "size_t",
             "validator": {
@@ -958,7 +958,7 @@
         },
         "num_nonio_threads": {
             "default": "0",
-            "descr": "Throttle max number of non io threads",
+            "descr": "Throttle max number of non io threads (0 = Default, auto-configured based on CPU core count)",
             "dynamic": true,
             "type": "size_t",
             "validator": {

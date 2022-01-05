@@ -348,7 +348,7 @@ unsigned number specifying the exact number.
 
 Possible values:
 
-0:: Configure the number of threads based on the properties of the
+"default" or 0:: Configure the number of threads based on the properties of the
 running system (currently logical CPU core count, capped at conservative
 values).
 

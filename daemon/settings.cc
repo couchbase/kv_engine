@@ -497,10 +497,12 @@ static void handle_num_writer_threads(Settings& s,  const nlohmann::json& obj) {
 static void handle_num_auxio_threads(Settings& s, const nlohmann::json& obj) {
     if (obj.is_number_unsigned()) {
         s.setNumAuxIoThreads(obj.get<size_t>());
+    } else if (obj.is_string() && obj.get<std::string>() == "default") {
+        s.setNumAuxIoThreads(0);
     } else {
         throw std::invalid_argument(
                 fmt::format("Value to set number of AuxIO threads must be an "
-                            "unsigned integer! Value:'{}'",
+                            "unsigned integer or \"default\"! Value:'{}'",
                             obj.dump()));
     }
 }
@@ -508,10 +510,12 @@ static void handle_num_auxio_threads(Settings& s, const nlohmann::json& obj) {
 static void handle_num_nonio_threads(Settings& s, const nlohmann::json& obj) {
     if (obj.is_number_unsigned()) {
         s.setNumNonIoThreads(obj.get<size_t>());
+    } else if (obj.is_string() && obj.get<std::string>() == "default") {
+        s.setNumNonIoThreads(0);
     } else {
         throw std::invalid_argument(
                 fmt::format("Value to set number of NonIO threads must be an "
-                            "unsigned integer! Value:'{}'",
+                            "unsigned integer or \"default\"!! Value:'{}'",
                             obj.dump()));
     }
 }
