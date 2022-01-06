@@ -1911,83 +1911,69 @@ void Warmup::transition(WarmupState::State to, bool force) {
     step();
 }
 
-template <typename T>
-void addStat(const char* nm,
-             const T& val,
-             const AddStatFn& add_stat,
-             const CookieIface* c) {
-    std::string name = "ep_warmup";
-    if (nm != nullptr) {
-        name.append("_");
-        name.append(nm);
-    }
-
-    std::stringstream value;
-    value << val;
-    add_casted_stat(name.data(), value.str().data(), add_stat, c);
-}
-
 void Warmup::addStats(const AddStatFn& add_stat, const CookieIface* c) const {
     using namespace std::chrono;
 
+    auto addPrefixedStat = [&add_stat, &c](const char* nm, const auto& val) {
+        std::string name = "ep_warmup";
+        if (nm != nullptr) {
+            name.append("_");
+            name.append(nm);
+        }
+
+        std::stringstream value;
+        value << val;
+        add_casted_stat(name.data(), value.str().data(), add_stat, c);
+    };
+
     EPStats& stats = store.getEPEngine().getEpStats();
-    addStat(nullptr, "enabled", add_stat, c);
+    addPrefixedStat(nullptr, "enabled");
     const char* stateName = state.toString();
-    addStat("state", stateName, add_stat, c);
+    addPrefixedStat("state", stateName);
     if (isComplete()) {
-        addStat("thread", "complete", add_stat, c);
+        addPrefixedStat("thread", "complete");
     } else {
-        addStat("thread", "running", add_stat, c);
+        addPrefixedStat("thread", "running");
     }
-    addStat("key_count", stats.warmedUpKeys, add_stat, c);
-    addStat("value_count", stats.warmedUpValues, add_stat, c);
-    addStat("dups", stats.warmDups, add_stat, c);
-    addStat("oom", stats.warmOOM, add_stat, c);
-    addStat("min_memory_threshold",
-            stats.warmupMemUsedCap * 100.0,
-            add_stat,
-            c);
-    addStat("min_item_threshold", stats.warmupNumReadCap * 100.0, add_stat, c);
+    addPrefixedStat("key_count", stats.warmedUpKeys);
+    addPrefixedStat("value_count", stats.warmedUpValues);
+    addPrefixedStat("dups", stats.warmDups);
+    addPrefixedStat("oom", stats.warmOOM);
+    addPrefixedStat("min_memory_threshold", stats.warmupMemUsedCap * 100.0);
+    addPrefixedStat("min_item_threshold", stats.warmupNumReadCap * 100.0);
 
     auto md_time = metadata.load();
     if (md_time > md_time.zero()) {
-        addStat("keys_time",
-                duration_cast<microseconds>(md_time).count(),
-                add_stat,
-                c);
+        addPrefixedStat("keys_time",
+                        duration_cast<microseconds>(md_time).count());
     }
 
     auto w_time = warmup.load();
     if (w_time > w_time.zero()) {
-        addStat("time",
-                duration_cast<microseconds>(w_time).count(),
-                add_stat,
-                c);
+        addPrefixedStat("time", duration_cast<microseconds>(w_time).count());
     }
 
     size_t itemCount = estimatedItemCount.load();
     if (itemCount == std::numeric_limits<size_t>::max()) {
-        addStat("estimated_key_count", "unknown", add_stat, c);
+        addPrefixedStat("estimated_key_count", "unknown");
     } else {
         auto e_time = estimateTime.load();
         if (e_time != e_time.zero()) {
-            addStat("estimate_time",
-                    duration_cast<microseconds>(e_time).count(),
-                    add_stat,
-                    c);
+            addPrefixedStat("estimate_time",
+                            duration_cast<microseconds>(e_time).count());
         }
-        addStat("estimated_key_count", itemCount, add_stat, c);
+        addPrefixedStat("estimated_key_count", itemCount);
     }
 
     if (corruptAccessLog) {
-        addStat("access_log", "corrupt", add_stat, c);
+        addPrefixedStat("access_log", "corrupt");
     }
 
     size_t warmupCount = estimatedWarmupCount.load();
     if (warmupCount == std::numeric_limits<size_t>::max()) {
-        addStat("estimated_value_count", "unknown", add_stat, c);
+        addPrefixedStat("estimated_value_count", "unknown");
     } else {
-        addStat("estimated_value_count", warmupCount, add_stat, c);
+        addPrefixedStat("estimated_value_count", warmupCount);
     }
 }
 
