@@ -109,9 +109,10 @@ static void append_stats(std::string_view key,
 static AddStatFn appendStatsFn = append_stats;
 
 /**
- * This is a very slow thing that you shouldn't use in production ;-)
+ * Get the detailed description for each bucket defined in the all_buckets
+ * array.
  *
- * @param c the connection to return the details for
+ * @param cookie the command context
  */
 static void process_bucket_details(Cookie& cookie) {
     nlohmann::json json;
