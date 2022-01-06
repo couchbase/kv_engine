@@ -2089,17 +2089,9 @@ cb::engine_errc EventuallyPersistentEngine::initialize(const char* config) {
     auto& env = Environment::get();
     env.engineFileDescriptors = serverApi->core->getMaxEngineFileDescriptors();
 
-    // Ensure (global) ExecutorPool has been created, and update the (local)
-    // configuration with the actual number of each thread type we have (config
-    // params are typically defaulted to "0" which means "auto-configure
-    // thread counts"
-    auto threads = serverApi->core->getThreadPoolSizes();
-    configuration.setNumReaderThreads(static_cast<int>(threads.num_readers));
-    configuration.setNumWriterThreads(static_cast<int>(threads.num_writers));
-
-    auto* pool = ExecutorPool::get();
     // Update configuration to reflect the actual number of threads which have
     // been created.
+    auto* pool = ExecutorPool::get();
     configuration.setNumReaderThreads(pool->getNumReaders());
     configuration.setNumWriterThreads(pool->getNumWriters());
     configuration.setNumAuxioThreads(pool->getNumAuxIO());
