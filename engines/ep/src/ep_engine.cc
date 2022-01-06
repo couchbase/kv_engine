@@ -1882,13 +1882,6 @@ void EventuallyPersistentEngine::setErrorContext(const CookieIface* cookie,
                                          message);
 }
 
-void EventuallyPersistentEngine::setErrorJsonExtras(
-        const CookieIface* cookie, const nlohmann::json& json) const {
-    NonBucketAllocationGuard guard;
-    serverApi->cookie->set_error_json_extras(const_cast<CookieIface&>(*cookie),
-                                             json);
-}
-
 void EventuallyPersistentEngine::setUnknownCollectionErrorContext(
         const CookieIface* cookie, uint64_t manifestUid) const {
     NonBucketAllocationGuard guard;

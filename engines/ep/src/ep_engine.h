@@ -577,9 +577,6 @@ public:
 
     void setErrorContext(const CookieIface* cookie, std::string_view message);
 
-    void setErrorJsonExtras(const CookieIface* cookie,
-                            const nlohmann::json& json) const;
-
     void setUnknownCollectionErrorContext(const CookieIface* cookie,
                                           uint64_t manifestUid) const;
 
