@@ -1930,11 +1930,7 @@ void Warmup::addStats(const AddStatFn& add_stat, const CookieIface* c) const {
     addPrefixedStat(nullptr, "enabled");
     const char* stateName = state.toString();
     addPrefixedStat("state", stateName);
-    if (isComplete()) {
-        addPrefixedStat("thread", "complete");
-    } else {
-        addPrefixedStat("thread", "running");
-    }
+    addPrefixedStat("thread", getThreadStatState());
     addPrefixedStat("key_count", stats.warmedUpKeys);
     addPrefixedStat("value_count", stats.warmedUpValues);
     addPrefixedStat("dups", stats.warmDups);

@@ -304,6 +304,14 @@ public:
         state.transitionHook = hook;
     }
 
+    std::string getThreadStatState() const {
+        if (isComplete()) {
+            return "complete";
+        }
+
+        return "running";
+    }
+
     /**
      * Testing hook which if set is called every time warmup transitions to
      * a new state.

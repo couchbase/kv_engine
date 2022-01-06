@@ -3201,11 +3201,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         if (wp == nullptr) {
             throw std::logic_error("EPEngine::doEngineStats: warmup is NULL");
         }
-        if (!kvBucket->isWarmupLoadingData()) {
-            collector.addStat(Key::ep_warmup_thread, "complete");
-        } else {
-            collector.addStat(Key::ep_warmup_thread, "running");
-        }
+        collector.addStat(Key::ep_warmup_thread,
+                          kvBucket->getWarmup()->getThreadStatState());
         if (wp->getTime() > wp->getTime().zero()) {
             collector.addStat(
                     Key::ep_warmup_time,
