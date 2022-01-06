@@ -604,6 +604,11 @@ TEST_P(NexusKVStoreTest, ConcurrentCompactionPurgeFromOneKVStore) {
 
     TimeTraveller t(std::numeric_limits<int>::max());
     runCompaction(vbid);
+
+    // Reset and warmup to test that nexus pre-loads purge seqnos correctly.
+    // If it does not pre-loads its cache then it will find that the purge
+    // seqnos for the backends are different and error.
+    resetEngineAndWarmup();
 }
 
 TEST_P(NexusKVStoreTest, ConcurrentCompactionLogicalDeletionToOneKVStore) {

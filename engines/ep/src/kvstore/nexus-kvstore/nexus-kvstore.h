@@ -160,6 +160,14 @@ protected:
     uint64_t prepareToDeleteImpl(Vbid vbid) override;
     void prepareToCreateImpl(Vbid vbid) override;
 
+    /**
+     * We cache purge seqnos in NexusKVStore to determine when we can make valid
+     * comparisons and when they must be skipped. On a restart we need to
+     * populate our purge seqno cache again or we may make checks that are not
+     * valid.
+     */
+    void loadPurgeSeqnoCache();
+
     void handleError(std::string_view msg) const;
 
     /**

@@ -67,6 +67,39 @@ NexusKVStore::NexusKVStore(NexusKVStoreConfig& config) : configuration(config) {
     skipGetWithHeaderChecksForRollback =
             std::vector<std::atomic_bool>(cacheSize);
     compactionRunning = std::vector<std::atomic_bool>(cacheSize);
+
+    loadPurgeSeqnoCache();
+}
+
+void NexusKVStore::loadPurgeSeqnoCache() {
+    auto primaryPurgeSeqnos = std::vector<uint64_t>();
+    auto secondaryPurgeSeqnos = std::vector<uint64_t>();
+
+    for (auto& state : primary->listPersistedVbuckets()) {
+        primaryPurgeSeqnos.push_back(state ? state->purgeSeqno : 0);
+    }
+
+    for (auto& state : secondary->listPersistedVbuckets()) {
+        secondaryPurgeSeqnos.push_back(state ? state->purgeSeqno : 0);
+    }
+
+    if (primaryPurgeSeqnos.size() != secondaryPurgeSeqnos.size() ||
+        primaryPurgeSeqnos.size() != purgeSeqno.size()) {
+        auto msg = fmt::format(
+                "NexusKVStore::NexusKVStore: {} purge seqno"
+                "vectors are different sizes primary:{}"
+                "secondary:{} nexus:{}",
+                configuration.getShardId(),
+                primaryPurgeSeqnos.size(),
+                secondaryPurgeSeqnos.size(),
+                purgeSeqno.size());
+        handleError(msg);
+    }
+
+    for (size_t i = 0; i < primaryPurgeSeqnos.size(); i++) {
+        purgeSeqno[i] =
+                std::max(primaryPurgeSeqnos[i], secondaryPurgeSeqnos[i]);
+    }
 }
 
 void NexusKVStore::deinitialize() {
