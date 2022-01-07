@@ -163,7 +163,7 @@ public:
     uint32_t last_flags;
     uint32_t last_stream_opaque;
     uint32_t last_locktime;
-    uint32_t last_packet_size;
+    uint32_t last_packet_size{0};
     uint64_t last_cas;
     uint64_t last_start_seqno;
     uint64_t last_end_seqno;

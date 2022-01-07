@@ -608,7 +608,21 @@ void TestDcpConsumer::run(bool openConn) {
             producers.last_op = cb::mcbp::ClientOpcode::Invalid;
             producers.last_nru = 0;
             producers.last_vbucket = Vbid(-1);
+            producers.last_packet_size = 0;
         }
+
+        /* Check if the producer has updated flow control stat correctly */
+        if (flow_control_buf_size) {
+            char stats_buffer[50] = {0};
+            snprintf(stats_buffer,
+                     sizeof(stats_buffer),
+                     "eq_dcpq:%s:unacked_bytes",
+                     name.c_str());
+            checkeq((all_bytes - total_acked_bytes),
+                    get_ull_stat(h, stats_buffer, "dcp"),
+                    "Buffer Size did not get set correctly");
+        }
+
     } while (!done);
 
     total_bytes += all_bytes;
@@ -704,16 +718,6 @@ void TestDcpConsumer::run(bool openConn) {
                       "from SystemEvents");
             }
         }
-    }
-
-    /* Check if the producer has updated flow control stat correctly */
-    if (flow_control_buf_size) {
-        char stats_buffer[50] = {0};
-        snprintf(stats_buffer, sizeof(stats_buffer), "eq_dcpq:%s:unacked_bytes",
-                 name.c_str());
-        checkeq((all_bytes - total_acked_bytes),
-                get_ull_stat(h, stats_buffer, "dcp"),
-                "Buffer Size did not get set correctly");
     }
 }
 
