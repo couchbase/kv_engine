@@ -82,7 +82,7 @@ void EventuallyPersistentEngineTest::initializeEngine() {
         config += ";" + magmaConfig;
     }
 
-    EXPECT_EQ(cb::engine_errc::success, engine->initialize(config.c_str()))
+    EXPECT_EQ(cb::engine_errc::success, engine->initialize(config))
             << "Failed to initialize engine.";
 
     // Wait for warmup to complete.
@@ -458,7 +458,7 @@ TEST_P(EPEnginePersistentTest, EngineInitReadOnlyDataDir) {
     ObjectRegistry::onSwitchThread(engine);
 
     // Should come up fine, but in some sort of read only mode
-    EXPECT_EQ(cb::engine_errc::success, engine->initialize(config.c_str()));
+    EXPECT_EQ(cb::engine_errc::success, engine->initialize(config));
 
     // Set the filesystem permissions back for the next test
     boost::filesystem::permissions(test_dbname, boost::filesystem::all_all);
@@ -486,7 +486,7 @@ TEST_P(EPEnginePersistentTest, EngineInitNoDataDir) {
     engine = reinterpret_cast<EventuallyPersistentEngine*>(handle);
     ObjectRegistry::onSwitchThread(engine);
 
-    EXPECT_EQ(cb::engine_errc::success, engine->initialize(config.c_str()));
+    EXPECT_EQ(cb::engine_errc::success, engine->initialize(config));
     cookie = create_mock_cookie(engine);
 }
 

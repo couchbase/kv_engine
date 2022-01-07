@@ -280,7 +280,7 @@ public:
 
     /* Implementation of all the engine functions. ***************************/
 
-    cb::engine_errc initialize(const char* config_str) override {
+    cb::engine_errc initialize(const std::string& config_str) override {
         // Extract the name of the real engine we will be proxying; then
         // create and initialize it.
         std::string config(config_str);
@@ -304,7 +304,7 @@ public:
         real_engine_dcp = dynamic_cast<DcpIface*>(real_engine.get());
 
         engine_map[real_engine.get()] = this;
-        return real_engine->initialize(real_engine_config.c_str());
+        return real_engine->initialize(real_engine_config);
     }
 
     void destroy(bool force) override {

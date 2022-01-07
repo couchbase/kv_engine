@@ -95,7 +95,7 @@ class StatCollector;
  * This is currently "work in progress" so it is not as clean as it should be.
  */
 struct default_engine : public EngineIface {
-    cb::engine_errc initialize(const char* config_str) override;
+    cb::engine_errc initialize(const std::string& config_str) override;
     void destroy(bool force) override;
 
     std::pair<cb::unique_item_ptr, item_info> allocateItem(

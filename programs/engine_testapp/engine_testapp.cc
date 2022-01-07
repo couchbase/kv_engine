@@ -206,8 +206,7 @@ public:
                 new_engine_instance(bucketType, &get_mock_server_api));
         if (me) {
             if (initialize) {
-                const auto error = me->the_engine->initialize(
-                        cfg.empty() ? nullptr : cfg.c_str());
+                const auto error = me->the_engine->initialize(cfg);
                 if (error != cb::engine_errc::success) {
                     me->the_engine->destroy(false /*force*/);
                     throw cb::engine_error{cb::engine_errc(error),

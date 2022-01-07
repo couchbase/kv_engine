@@ -62,7 +62,7 @@ unique_engine_ptr new_engine_instance(BucketType type,
 
 void create_crash_instance() {
     auto engine = create_crash_engine_instance();
-    engine->initialize(nullptr);
+    engine->initialize({});
 }
 
 BucketType module_to_bucket_type(const std::string& module) {

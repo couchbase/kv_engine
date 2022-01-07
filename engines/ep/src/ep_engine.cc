@@ -2043,24 +2043,23 @@ void EventuallyPersistentEngine::maybeSaveShardCount(
     }
 }
 
-cb::engine_errc EventuallyPersistentEngine::initialize(const char* config) {
+cb::engine_errc EventuallyPersistentEngine::initialize(
+        const std::string& config) {
+    if (config.empty()) {
+        return cb::engine_errc::invalid_arguments;
+    }
+
     auto switchToEngine = acquireEngine(this);
     resetStats();
-    if (config != nullptr) {
-        if (!configuration.parseConfiguration(config, serverApi)) {
-            EP_LOG_WARN(
-                    "Failed to parse the configuration config "
-                    "during bucket initialization.  config={}",
-                    config);
-            return cb::engine_errc::failed;
-        }
+
+    if (!configuration.parseConfiguration(config.c_str(), serverApi)) {
+        EP_LOG_WARN_RAW(
+                "Failed to parse the configuration config "
+                "during bucket initialization");
+        return cb::engine_errc::failed;
     }
     name = configuration.getCouchBucket();
-
-    if (config != nullptr) {
-        EP_LOG_INFO(R"(EPEngine::initialize: using configuration:"{}")",
-                    config);
-    }
+    EP_LOG_INFO(R"(EPEngine::initialize: using configuration:"{}")", config);
 
     // Create the bucket data directory, ns_server should have created the
     // process level one but they expect us to create the bucket level one.
@@ -2068,8 +2067,9 @@ cb::engine_errc EventuallyPersistentEngine::initialize(const char* config) {
     if (dbName.empty()) {
         EP_LOG_WARN_RAW(
                 "Invalid configuration: dbname must be a non-empty value");
-        return cb::engine_errc::failed;
+        return cb::engine_errc::invalid_arguments;
     }
+
     try {
         cb::io::mkdirp(dbName);
     } catch (const std::system_error& error) {

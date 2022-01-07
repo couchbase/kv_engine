@@ -29,7 +29,7 @@
  */
 class NoBucket : public EngineIface, public DcpIface {
 public:
-    cb::engine_errc initialize(const char* config_str) override {
+    cb::engine_errc initialize(const std::string&) override {
         return cb::engine_errc::success;
     }
 

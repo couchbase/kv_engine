@@ -111,7 +111,7 @@ void check_and_destroy_mock_connstruct(MockCookie* c,
     }
 }
 
-cb::engine_errc MockEngine::initialize(const char* config_str) {
+cb::engine_errc MockEngine::initialize(const std::string& config_str) {
     return the_engine->initialize(config_str);
 }
 

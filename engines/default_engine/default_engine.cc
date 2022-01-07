@@ -101,7 +101,7 @@ struct ItemHolder : public ItemIface {
 };
 
 static cb::engine_errc initalize_configuration(struct default_engine* se,
-                                               const char* cfg_str);
+                                               const std::string& cfg_str);
 union vbucket_info_adapter {
     char c;
     struct vbucket_info v;
@@ -198,7 +198,7 @@ static ItemHolder* get_real_item(ItemIface* item) {
     return it;
 }
 
-cb::engine_errc default_engine::initialize(const char* config_str) {
+cb::engine_errc default_engine::initialize(const std::string& config_str) {
     cb::engine_errc ret = initalize_configuration(this, config_str);
     if (ret != cb::engine_errc::success) {
         return ret;
@@ -704,12 +704,12 @@ void default_engine::reset_stats(const CookieIface& cookie) {
 }
 
 static cb::engine_errc initalize_configuration(struct default_engine* se,
-                                               const char* cfg_str) {
+                                               const std::string& cfg_str) {
     cb::engine_errc ret = cb::engine_errc::success;
 
     se->config.vb0 = true;
 
-    if (cfg_str != nullptr) {
+    if (!cfg_str.empty()) {
         struct config_item items[13];
         int ii = 0;
 
@@ -777,7 +777,7 @@ static cb::engine_errc initalize_configuration(struct default_engine* se,
         ++ii;
         cb_assert(ii == 13);
         ret = cb::engine_errc(
-                se->server.core->parse_config(cfg_str, items, stderr));
+                se->server.core->parse_config(cfg_str.c_str(), items, stderr));
     }
 
     if (se->config.vb0) {

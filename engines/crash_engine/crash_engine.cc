@@ -70,7 +70,7 @@ public:
      * 'initializes' this engine - given this is the crash_engine that
      * means crashing it.
      */
-    cb::engine_errc initialize(const char*) override {
+    cb::engine_errc initialize(const std::string&) override {
         std::string mode_string(getenv("MEMCACHED_CRASH_TEST"));
         CrashMode mode;
         if (mode_string == "segfault") {

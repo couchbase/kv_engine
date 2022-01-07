@@ -208,7 +208,7 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
     }
 
     try {
-        result = engine.initialize(config.c_str());
+        result = engine.initialize(config);
     } catch (const std::runtime_error& e) {
         LOG_ERROR("{}: Failed to create bucket [{}]: {}", cid, name, e.what());
         result = cb::engine_errc::failed;

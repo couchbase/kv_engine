@@ -18,7 +18,7 @@ struct MockEngine : public EngineIface, public DcpIface {
           the_engine_dcp(dynamic_cast<DcpIface*>(the_engine.get())) {
     }
 
-    cb::engine_errc initialize(const char* config_str) override;
+    cb::engine_errc initialize(const std::string& config_str) override;
     void destroy(bool force) override;
     void disconnect(const CookieIface& cookie) override;
     std::pair<cb::unique_item_ptr, item_info> allocateItem(

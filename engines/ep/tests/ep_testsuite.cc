@@ -8299,7 +8299,7 @@ static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
         };
         // start warmup
         checkeq(me->the_engine->initialize(
-                        testHarness->get_current_testcase()->cfg.c_str()),
+                        testHarness->get_current_testcase()->cfg),
                 cb::engine_errc::success,
                 "Init of bucket did not succeed");
     }
