@@ -1584,6 +1584,46 @@ TEST_F(CouchstoreTest, testV0MetaThings) {
     gc.callback(gv);
 }
 
+// Prior to MB-48033 (Neo), CommittedSyncWrites were stored on-disk as
+// queue_op::commit_sync_write and V3 metadata.
+// However this was optimized in MB-48033 to store ad queue_op::mutation
+// and V1 metadata (as V1 is smaller, and when reading from disk we
+// must assume any Mutation was potentially a SyncWrite in terms of
+// durability sequencing.
+// Verify that the older V3+commit_sync_write format as written by older
+// versions can still be read correctly.
+TEST_F(CouchstoreTest, MB50286_ReadV3CommitSyncWrite) {
+    // Setup to write a Committed item, but modify its metadata back to the
+    // pre-Neo format prior to writing to disk.
+    StoredDocKey key = makeStoredDocKey("key");
+    auto item = makeCommittedItem(key, "value");
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+    auto* request = kvstore->setAndReturnRequest(*ctx, item);
+
+    // Replace metadata with pre-Neo format of V3+commit_sync_write.
+    // We do this by manually creating a V3 Metadata blob (we cannot use the
+    // ::MetaData class as it prevents us from setting operation to
+    // commit_sync_write now, given that is no longer valid).
+    ASSERT_EQ(MetaData::getMetaDataSize(MetaData::Version::V1),
+              request->getDbDocInfo()->rev_meta.size)
+            << "Expected current version of CouchKVStore to write V1 metadata "
+               "for CommitSyncWrite";
+
+    MockCouchRequest::MetaData meta;
+    meta.metaV2V3.v3.operation = 1; // MetaDataV3::Operation::Commit
+    request->writeMetaData(meta,
+                           MetaData::getMetaDataSize(MetaData::Version::V3));
+
+    // Finally write the pre-Neo style item to Couchstore.
+    ASSERT_TRUE(kvstore->commit(std::move(ctx), flush));
+
+    MockedGetCallback<GetValue> gc;
+    EXPECT_CALL(gc, status(cb::engine_errc::success));
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
+    gc.callback(gv);
+    EXPECT_EQ(queue_op::mutation, gc.getValue()->getOperation());
+}
+
 TEST_F(CouchstoreTest, testV1MetaThings) {
     // Baseline test, just writes meta things and reads them
     // via standard interfaces
@@ -1662,7 +1702,7 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
     meta.flags = 0x01020304;
     meta.ext1 = FLEX_META_CODE;
     meta.ext2 = datatype;
-    meta.legacyDeleted = 0x01;
+    meta.metaV2V3.v2.conflictResMode = 0x01;
 
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     auto* request = kvstore->setAndReturnRequest(*ctx, item);

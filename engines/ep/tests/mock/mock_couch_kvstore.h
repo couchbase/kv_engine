@@ -16,8 +16,7 @@ class MockCouchRequest : public CouchRequest {
 public:
     class MetaData {
     public:
-        MetaData()
-            : cas(0), expiry(0), flags(0), ext1(0), ext2(0), legacyDeleted(0) {
+        MetaData() : cas(0), expiry(0), flags(0), ext1(0), ext2(0) {
         }
 
         uint64_t cas;
@@ -25,7 +24,25 @@ public:
         uint32_t flags;
         uint8_t ext1;
         uint8_t ext2;
-        uint8_t legacyDeleted; // allow testing via 19byte meta document
+        // V2 and V3 overlay each other. V2 is now unused but can
+        // potentially still be read. V3 Adds an additional 7 bytes for
+        // Durability-related fields.
+        union V2V3Union {
+            // Need to supply a default constructor or the compiler will
+            // complain about cb::uint48_t
+            V2V3Union() : v3{} {};
+
+            struct {
+                uint8_t conflictResMode;
+            } v2;
+            struct V3 {
+                uint8_t operation;
+                // Durability operation details - see MetaData::MetaDataV3.
+                // Not further defined here (other than correct size) as
+                // only need correct size for tests thus far.
+                cb::uint48_t details;
+            } v3;
+        } metaV2V3;
 
         static const size_t sizeofV0 = 16;
         static const size_t sizeofV1 = 18;

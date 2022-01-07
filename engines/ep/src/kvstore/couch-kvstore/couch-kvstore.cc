@@ -161,6 +161,12 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
     if (metadata.getVersionInitialisedFrom() == MetaData::Version::V3) {
         // Metadata is from a SyncWrite - update the Item appropriately.
         switch (metadata.getDurabilityOp()) {
+        case queue_op::mutation:
+            // While the current version no longer uses V3 metadata for
+            // mutations, prior to MB-48033 we did; so need to handle this case
+            // - we can just ignore it as nothing needs to be extracted from the
+            // V3 meta.
+            break;
         case queue_op::pending_sync_write:
             // From disk we return an infinite timeout; as this could
             // refer to an already-committed SyncWrite and hence timeout
