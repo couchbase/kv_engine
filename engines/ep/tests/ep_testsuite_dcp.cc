@@ -573,7 +573,8 @@ void TestDcpConsumer::run(bool openConn) {
                 }
                 break;
             case cb::mcbp::ClientOpcode::DcpNoop:
-                all_bytes += producers.last_packet_size;
+                // DcpNoop should not be included in flow control accounting;
+                // hence no update to all_bytes performed here.
                 break;
             case cb::mcbp::ClientOpcode::DcpSeqnoAdvanced:
                 checkeq(stream_ctxs[vbid.get()].exp_mutations,
