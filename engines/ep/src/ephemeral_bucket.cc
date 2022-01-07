@@ -179,9 +179,17 @@ size_t EphemeralBucket::getPageableMemHighWatermark() const {
         return stats.mem_high_wat.load();
     }
 
+    // How many vBuckets are pagable. If this is zero (unlikely, but possible
+    // if only replica vBuckets exist - say test scenarios of after failover),
+    // then we don't want to return a value of zero as that could imply that
+    // memory reclation should be attemted - just return entire watermark.
+    const double pageableVBCount = activeVBCount + pendingVBCount;
+    if (pageableVBCount == 0) {
+        return stats.mem_high_wat.load();
+    }
+
     const double activePendingHighWat =
-            (stats.mem_high_wat.load() / totalVBCount) *
-            (activeVBCount + pendingVBCount);
+            (stats.mem_high_wat.load() / totalVBCount) * pageableVBCount;
 
     return activePendingHighWat;
 }
