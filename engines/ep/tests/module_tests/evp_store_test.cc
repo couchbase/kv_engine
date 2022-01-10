@@ -38,13 +38,11 @@
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket_bgfetch_item.h"
-#include "vbucketdeletiontask.h"
 #include "warmup.h"
 
 #include <memcached/server_cookie_iface.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
-#include <string_utilities.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
@@ -600,8 +598,8 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
                           (PROTOCOL_BINARY_DATATYPE_JSON |
                            PROTOCOL_BINARY_DATATYPE_XATTR));
 
-    GetValue gv = store->getAndUpdateTtl(makeStoredDocKey("key"), vbid, cookie,
-                                         time(NULL) + 120);
+    GetValue gv = store->getAndUpdateTtl(
+            makeStoredDocKey("key"), vbid, cookie, time(nullptr) + 120);
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
     std::unique_ptr<Item> get_itm(std::move(gv.item));
 
@@ -1040,7 +1038,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryNewGenerationNoItem) {
     auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
     auto& bgFetcher = bucket->getBgFetcher(vbid);
 
-    bgFetcher.preCompleteHook = [this, &key]() {
+    bgFetcher.preCompleteHook = [this]() {
         // 5b) Create and evict Av2 (2nd generation of this item)
         auto key = makeStoredDocKey("a");
         store_item(vbid, key, "v2");
@@ -1106,7 +1104,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryNewGenerationTempItem) {
     auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
     auto& bgFetcher = bucket->getBgFetcher(vbid);
 
-    bgFetcher.preCompleteHook = [this, &key]() {
+    bgFetcher.preCompleteHook = [this]() {
         // 5b) Create and evict Av2 (2nd generation of this item)
         auto key = makeStoredDocKey("a");
         store_item(vbid, key, "v2");
@@ -1691,22 +1689,22 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if) {
         return cb::StoreIfStatus::GetItemInfo;
     };
 
-    testData.push_back({makeStoredDocKey("key1"),
-                        predicate1,
-                        cb::engine_errc::success,
-                        cb::engine_errc::success});
-    testData.push_back({makeStoredDocKey("key2"),
-                        predicate2,
-                        cb::engine_errc::predicate_failed,
-                        cb::engine_errc::predicate_failed});
-    testData.push_back({makeStoredDocKey("key3"),
-                        predicate3,
-                        cb::engine_errc::success,
-                        cb::engine_errc::would_block});
-    testData.push_back({makeStoredDocKey("key4"),
-                        predicate4,
-                        cb::engine_errc::predicate_failed,
-                        cb::engine_errc::would_block});
+    testData.emplace_back(makeStoredDocKey("key1"),
+                          predicate1,
+                          cb::engine_errc::success,
+                          cb::engine_errc::success);
+    testData.emplace_back(makeStoredDocKey("key2"),
+                          predicate2,
+                          cb::engine_errc::predicate_failed,
+                          cb::engine_errc::predicate_failed);
+    testData.emplace_back(makeStoredDocKey("key3"),
+                          predicate3,
+                          cb::engine_errc::success,
+                          cb::engine_errc::would_block);
+    testData.emplace_back(makeStoredDocKey("key4"),
+                          predicate4,
+                          cb::engine_errc::predicate_failed,
+                          cb::engine_errc::would_block);
 
     for (auto& test : testData) {
         store_item(vbid, test.key, "value");
