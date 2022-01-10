@@ -811,7 +811,7 @@ void DurabilityWarmupTest::storeMutation(const std::string& key,
                                          uint64_t mutationSeqno,
                                          uint64_t cas) {
     auto vb = engine->getKVBucket()->getVBucket(vbid);
-    auto mutationKey = makeStoredDocKey("unrelated");
+    auto mutationKey = makeStoredDocKey(key);
     auto mutation = makeCommittedItem(mutationKey, "value");
     mutation->setBySeqno(mutationSeqno);
     mutation->setCas(cas);
