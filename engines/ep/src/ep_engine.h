@@ -573,8 +573,6 @@ public:
 
     bool isXattrEnabled(const CookieIface* cookie);
 
-    bool isCollectionsSupported(const CookieIface* cookie);
-
     void setErrorContext(const CookieIface* cookie, std::string_view message);
 
     void setUnknownCollectionErrorContext(const CookieIface* cookie,
