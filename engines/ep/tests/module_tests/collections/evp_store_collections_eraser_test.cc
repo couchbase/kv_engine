@@ -178,10 +178,7 @@ TEST_P(CollectionsEraserTest, basic) {
     // And compaction was triggered (throws if not)
     runCollectionsEraser(vbid);
 
-    // MB-42272: Full-eviction magma has an issue to address
-    if (!(isFullEviction() && isMagma())) {
-        EXPECT_EQ(0, vb->getNumItems());
-    }
+    EXPECT_EQ(0, vb->getNumItems());
 
     // @todo MB-26334: persistent buckets don't track the system event counts
     if (!persistent()) {
