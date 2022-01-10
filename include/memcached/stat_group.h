@@ -33,8 +33,10 @@ enum class StatGroupId {
     Allocator,
     Scopes,
     ScopesById,
+    ScopesDetails,
     Collections,
     CollectionsById,
+    CollectionsDetails,
 
     // ep engine
     Dcpagg,

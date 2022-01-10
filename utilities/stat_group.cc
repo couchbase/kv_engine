@@ -85,6 +85,12 @@ StatsGroupManager::StatsGroupManager()
                 "Stats for a single scope using the id as a key",
                 false,
                 true},
+               {StatGroupId::ScopesDetails,
+                "scopes-details",
+                "Detailed vbucket-level stats for all scopes, for one or all "
+                "vbuckets",
+                false,
+                true},
                {StatGroupId::Collections,
                 "collections",
                 "Stats for all collections or a single collection (using "
@@ -94,6 +100,12 @@ StatsGroupManager::StatsGroupManager()
                {StatGroupId::CollectionsById,
                 "collections-byid",
                 "Stats for a single collection using the id as a key",
+                false,
+                true},
+               {StatGroupId::CollectionsDetails,
+                "collections-details",
+                "Detailed vbucket-level stats for all collections, for one or "
+                "all vbuckets",
                 false,
                 true},
 
