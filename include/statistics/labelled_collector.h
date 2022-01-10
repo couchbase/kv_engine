@@ -90,6 +90,18 @@ public:
     [[nodiscard]] LabelledStatCollector withLabels(Labels&& labels) const;
 
     /**
+     * Create a new LabelledStatCollector with all the labels of the current
+     * instance, plus the _additional_ single label provided as key + value
+     * arguments.
+     *
+     * Convenience method, less verbose than withLabels for a single value.
+     */
+    [[nodiscard]] LabelledStatCollector withLabel(
+            const char* key, std::string_view value) const {
+        return withLabels({{key, value}});
+    }
+
+    /**
      * Test if a label has been set with the provided key.
      */
     bool hasLabel(std::string_view labelKey) const;
