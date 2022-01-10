@@ -86,13 +86,7 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
     maxItemSize = configuration.getMaxItemSize();
 
     setCompressionMode(configuration.getCompressionMode());
-
-    const auto& confResMode = configuration.getConflictResolutionType();
-    if (!setConflictResolutionMode(confResMode)) {
-        throw std::invalid_argument{"Invalid enum value '" + confResMode +
-                                    "' for config option "
-                                    "conflict_resolution_type."};
-    }
+    setConflictResolutionMode(configuration.getConflictResolutionType());
 
     allowSanitizeValueInDeletion =
             configuration.isAllowSanitizeValueInDeletion();

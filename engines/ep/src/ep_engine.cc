@@ -2138,14 +2138,7 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
 
     maybeSaveShardCount(*workload);
 
-    const auto& confResMode = configuration.getConflictResolutionType();
-    if (!setConflictResolutionMode(confResMode)) {
-        EP_LOG_WARN(
-                "Invalid enum value '{}' for config option "
-                "conflict_resolution_type.",
-                confResMode);
-        return cb::engine_errc::failed;
-    }
+    setConflictResolutionMode(configuration.getConflictResolutionType());
 
     dcpConnMap_ = std::make_unique<DcpConnMap>(*this);
 
@@ -2231,7 +2224,7 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     return cb::engine_errc::success;
 }
 
-bool EventuallyPersistentEngine::setConflictResolutionMode(
+void EventuallyPersistentEngine::setConflictResolutionMode(
         std::string_view mode) {
     if (mode == "seqno") {
         conflictResolutionMode = ConflictResolutionMode::RevisionId;
@@ -2240,9 +2233,12 @@ bool EventuallyPersistentEngine::setConflictResolutionMode(
     } else if (mode == "custom") {
         conflictResolutionMode = ConflictResolutionMode::Custom;
     } else {
-        return false;
+        throw std::invalid_argument{
+                "EventuallyPersistentEngine::setConflictResolutionMode(): "
+                "Invalid value '" +
+                std::string(mode) +
+                "' for config option conflict_resolution_type."};
     }
-    return true;
 }
 
 void EventuallyPersistentEngine::destroyInner(bool force) {

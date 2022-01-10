@@ -742,7 +742,7 @@ public:
 
     void setCompressionMode(const std::string& compressModeStr);
 
-    bool setConflictResolutionMode(std::string_view mode);
+    void setConflictResolutionMode(std::string_view mode);
 
     void setMinCompressionRatio(float minCompressRatio) {
         minCompressionRatio = minCompressRatio;
