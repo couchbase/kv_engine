@@ -1296,29 +1296,20 @@ TEST_P(STItemPagerTest, MB43559_EvictionWithoutReplicasReachesLWM) {
 
     // The test makes assumptions on the memory state of the system at storing
     // items. In particular, we load some items until we hit the HWM for
-    // preparing for HT ejection.
-    // Now that we introduce a limit on checkpoint mem-usage (MB-47386), when
-    // loading data we need to simulate checkpoint mem-recovery, or we would
-    // never reach the HWM otherwise as we'll hit the checkpoint quota first.
-    // All fine so far, under couchstore all behaves as expected.
-    // Problem under magma is that it allocates a good chunk of the bucket quota
-    // when we persist for allowing chekpoint-mem-recovery. We hit the HWM by
-    // magma allocations that seem to be intermittently freed (maybe in magma
-    // threads?) as soon as we return from the load-data function. Thus pushing
-    // the system back below the HWM and invalidating the test pre-requirements.
-    // At the time of writing magma is also facing some major internal memory
-    // usage and tracking issues.
-    // For all that, I'm disabling the test for magma for now.
-    // @todo: fix and re-enable, tracked in MB-47481
+    // preparing for HT eviction. We then test that post-eviction the memory
+    // usage is under the LWM. This test is not trivially runnable for magma
+    // backends as magma has background threads that may allocate and
+    // de-allocate memory during the course of the test. In particular, this
+    // test encounters issues when being run under magma when a magma thread
+    // allocates memory for something after paging which puts us back above
+    // the LWM. These allocates are small for the main server (~kBs) but are a
+    // significate portion of the test memory usage. These allocations appear to
+    // scale to some extent with data size and we'd have to increase total
+    // memory quota of this test by an unacceptable amount to make this work
+    // consistently. Given that this test tests no KVStore specific
+    // functionality, just skip the test for magma.
     if (hasMagma()) {
         GTEST_SKIP();
-    }
-
-    // Magma's memory usage makes calculations around recovering memory
-    // through eviction difficult. Increase the quota to allow eviction
-    // to actually reach the low watermark despite magma's memory usage
-    if (hasMagma()) {
-        increaseQuota(2 * 1024 * 1024);
     }
 
     // issue involves eviction skipping vbuckets after mem_used < hwm,
