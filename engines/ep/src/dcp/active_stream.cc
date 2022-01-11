@@ -912,7 +912,14 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
                     std::chrono::steady_clock::now() - _begin_));
 
     result.checkpointType = itemsForCursor.checkpointType;
-    result.highCompletedSeqno = itemsForCursor.highCompletedSeqno;
+    if (result.checkpointType == CheckpointType::Disk) {
+        result.diskCheckpointState =
+                OutstandingItemsResult::DiskCheckpointState();
+        Expects(itemsForCursor.highCompletedSeqno);
+        result.diskCheckpointState->highCompletedSeqno =
+                *itemsForCursor.highCompletedSeqno;
+    }
+
     result.visibleSeqno = itemsForCursor.visibleSeqno;
     if (vb.checkpointManager->hasClosedCheckpointWhichCanBeRemoved()) {
         engine->getKVBucket()->wakeUpCheckpointMemRecoveryTask();
@@ -1157,7 +1164,7 @@ void ActiveStream::processItems(
                 if (!mutations.empty()) {
                     snapshot(outstandingItemsResult.checkpointType,
                              mutations,
-                             outstandingItemsResult.highCompletedSeqno,
+                             outstandingItemsResult.diskCheckpointState,
                              visibleSeqno,
                              highNonVisibleSeqno);
                     /* clear out all the mutations since they are already put
@@ -1204,7 +1211,7 @@ void ActiveStream::processItems(
         if (!mutations.empty()) {
             snapshot(outstandingItemsResult.checkpointType,
                      mutations,
-                     outstandingItemsResult.highCompletedSeqno,
+                     outstandingItemsResult.diskCheckpointState,
                      visibleSeqno,
                      highNonVisibleSeqno);
         } else if (isSeqnoAdvancedEnabled()) {
@@ -1291,11 +1298,13 @@ bool ActiveStream::shouldProcessItem(const Item& item) {
     return true;
 }
 
-void ActiveStream::snapshot(CheckpointType checkpointType,
-                            std::deque<std::unique_ptr<DcpResponse>>& items,
-                            std::optional<uint64_t> highCompletedSeqno,
-                            uint64_t maxVisibleSeqno,
-                            std::optional<uint64_t> highNonVisibleSeqno) {
+void ActiveStream::snapshot(
+        CheckpointType checkpointType,
+        std::deque<std::unique_ptr<DcpResponse>>& items,
+        std::optional<OutstandingItemsResult::DiskCheckpointState>
+                diskCheckpointState,
+        uint64_t maxVisibleSeqno,
+        std::optional<uint64_t> highNonVisibleSeqno) {
     if (items.empty()) {
         return;
     }
@@ -1353,9 +1362,10 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
 
         // If the stream supports SyncRep then send the HCS for CktpType::disk
         const auto sendHCS = supportSyncReplication() && isCkptTypeDisk;
-        const auto hcsToSend = sendHCS ? highCompletedSeqno : std::nullopt;
+        std::optional<uint64_t> hcsToSend;
         if (sendHCS) {
-            Expects(hcsToSend.has_value());
+            Expects(diskCheckpointState);
+            hcsToSend = diskCheckpointState->highCompletedSeqno;
             log(spdlog::level::level_enum::info,
                 "{} ActiveStream::snapshot: Sending disk snapshot with start "
                 "seqno {}, end seqno {}, and"
@@ -1363,7 +1373,7 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
                 logPrefix,
                 snapStart,
                 snapEnd,
-                to_string_or_none(hcsToSend));
+                diskCheckpointState->highCompletedSeqno);
         }
         const auto mvsToSend = supportSyncReplication()
                                        ? std::make_optional(maxVisibleSeqno)

@@ -325,16 +325,28 @@ public:
      */
     struct OutstandingItemsResult {
         /**
+         * Optional state required when sending a checkpoint of type Disk
+         * (i.e. when a Producer streams a disk-snapshot from memory.
+         */
+        struct DiskCheckpointState {
+            /**
+             * The HCS of the original disk snapshot
+             */
+            uint64_t highCompletedSeqno;
+        };
+
+        /**
          * The type of Checkpoint that these items belong to. Defaults to Memory
          * as this results in the most fastidious error checking on the replica
          */
         CheckpointType checkpointType = CheckpointType::Memory;
         std::vector<queued_item> items;
+
         /**
-         * The HCS. Set only for CheckpointType::Disk, ie when a Producer
-         * streams a disk-snapshot from memory.
+         * Disk checkpoint state is optional as it is only required for disk
+         * checkpoints.
          */
-        std::optional<uint64_t> highCompletedSeqno;
+        std::optional<DiskCheckpointState> diskCheckpointState;
 
         /**
          * The visibleSeqno used to 'seed' the processItems loop
@@ -599,7 +611,7 @@ private:
      *
      * @param checkpointType The type of checkpoint (Disk/Memory)
      * @param items The items to be streamed
-     * @param highCompletedSeqno (optional) Required for CheckpointType::Disk
+     * @param diskCheckpointState (optional) state sent for disk checkpoints
      * @param maxVisibleSeqno the maximum visible seq (not prepare/abort)
      * @param highNonVisibleSeqno the snapEnd seqno that includes any non
      * visible mutations i.e. prepares and aborts. This is only used when
@@ -607,7 +619,8 @@ private:
      */
     void snapshot(CheckpointType checkpointType,
                   std::deque<std::unique_ptr<DcpResponse>>& items,
-                  std::optional<uint64_t> highCompletedSeqno,
+                  std::optional<OutstandingItemsResult::DiskCheckpointState>
+                          diskCheckpointState,
                   uint64_t maxVisibleSeqno,
                   std::optional<uint64_t> highNonVisibleSeqno);
 
