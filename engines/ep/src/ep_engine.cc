@@ -5030,7 +5030,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     if (key == "warmup"sv) {
         const auto* warmup = getKVBucket()->getWarmup();
         if (warmup != nullptr) {
-            warmup->addStats(add_stat, c);
+            warmup->addStats(CBStatCollector(add_stat, c));
             return cb::engine_errc::success;
         }
         return cb::engine_errc::no_such_key;

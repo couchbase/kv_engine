@@ -695,7 +695,8 @@ TEST_F(StatTest, WarmupStats) {
     EXPECT_CALL(cb, Call("ep_warmup_estimated_key_count"sv, _, _));
     EXPECT_CALL(cb, Call("ep_warmup_estimated_value_count"sv, _, _));
 
-    store->getWarmup()->addStats(cbFunc, cookie);
+    CBStatCollector collector(cbFunc, cookie);
+    store->getWarmup()->addStats(collector);
 }
 
 TEST_F(StatTest, EngineStatsWarmup) {

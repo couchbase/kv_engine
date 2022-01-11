@@ -241,7 +241,7 @@ public:
 
     void addCommonStats(const StatCollector& collector) const;
 
-    void addStats(const AddStatFn& add_stat, const CookieIface* c) const;
+    void addStats(const StatCollector& c) const;
 
     std::chrono::steady_clock::duration getTime() {
         return warmup.load();

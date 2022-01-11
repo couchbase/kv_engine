@@ -1929,60 +1929,53 @@ void Warmup::addCommonStats(const StatCollector& collector) const {
     }
 }
 
-void Warmup::addStats(const AddStatFn& add_stat, const CookieIface* c) const {
+void Warmup::addStats(const StatCollector& collector) const {
+    using namespace cb::stats;
     using namespace std::chrono;
 
-    auto addPrefixedStat = [&add_stat, &c](const char* nm, const auto& val) {
-        std::string name = "ep_warmup";
-        if (nm != nullptr) {
-            name.append("_");
-            name.append(nm);
-        }
-
-        std::stringstream value;
-        value << val;
-        add_casted_stat(name.data(), value.str().data(), add_stat, c);
-    };
-
     EPStats& stats = store.getEPEngine().getEpStats();
-    addPrefixedStat(nullptr, "enabled");
+    collector.addStat(Key::ep_warmup, "enabled");
     const char* stateName = state.toString();
-    addPrefixedStat("state", stateName);
+    collector.addStat(Key::ep_warmup_state, stateName);
 
-    addCommonStats(CBStatCollector(add_stat, c));
+    addCommonStats(collector);
 
-    addPrefixedStat("key_count", stats.warmedUpKeys);
-    addPrefixedStat("value_count", stats.warmedUpValues);
-    addPrefixedStat("min_memory_threshold", stats.warmupMemUsedCap * 100.0);
-    addPrefixedStat("min_item_threshold", stats.warmupNumReadCap * 100.0);
+    collector.addStat(Key::ep_warmup_key_count, stats.warmedUpKeys);
+    collector.addStat(Key::ep_warmup_value_count, stats.warmedUpValues);
+    collector.addStat(Key::ep_warmup_min_memory_threshold,
+                      stats.warmupMemUsedCap * 100.0);
+    collector.addStat(Key::ep_warmup_min_item_threshold,
+                      stats.warmupNumReadCap * 100.0);
 
     auto md_time = metadata.load();
     if (md_time > md_time.zero()) {
-        addPrefixedStat("keys_time",
-                        duration_cast<microseconds>(md_time).count());
+        collector.addStat(
+                Key::ep_warmup_keys_time,
+                duration_cast<std::chrono::microseconds>(md_time).count());
     }
 
     size_t itemCount = estimatedItemCount.load();
     if (itemCount == std::numeric_limits<size_t>::max()) {
-        addPrefixedStat("estimated_key_count", "unknown");
+        collector.addStat(Key::ep_warmup_estimated_key_count, "unknown");
     } else {
         auto e_time = estimateTime.load();
         if (e_time != e_time.zero()) {
-            addPrefixedStat("estimate_time",
-                            duration_cast<microseconds>(e_time).count());
+            collector.addStat(
+                    Key::ep_warmup_estimate_time,
+                    duration_cast<std::chrono::microseconds>(e_time).count());
         }
-        addPrefixedStat("estimated_key_count", itemCount);
+        collector.addStat(Key::ep_warmup_estimated_key_count, itemCount);
     }
 
     if (corruptAccessLog) {
-        addPrefixedStat("access_log", "corrupt");
+        collector.addStat(Key::ep_warmup_access_log, "corrupt");
     }
 
     size_t warmupCount = estimatedWarmupCount.load();
     if (warmupCount == std::numeric_limits<size_t>::max()) {
-        addPrefixedStat("estimated_value_count", "unknown");
+        collector.addStat(Key::ep_warmup_estimated_value_count, "unknown");
     } else {
-        addPrefixedStat("estimated_value_count", warmupCount);
+        collector.addStat(Key::ep_warmup_estimated_value_count, warmupCount);
     }
 }
 
