@@ -30,6 +30,7 @@
 #include "kv_bucket.h"
 #include "objectregistry.h"
 #include "snappy-c.h"
+#include "vbucket.h"
 #include <executor/executorpool.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/server_cookie_iface.h>

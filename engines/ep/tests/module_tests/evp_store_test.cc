@@ -37,6 +37,7 @@
 #include "tests/mock/mock_global_task.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
+#include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 #include "warmup.h"
 

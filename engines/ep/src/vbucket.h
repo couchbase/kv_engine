@@ -483,35 +483,6 @@ public:
     void doStatsForQueueing(const Item& item, size_t itemBytes);
 
     /**
-     * Stores flush stats for deferred update after flush-success.
-     */
-    class AggregatedFlushStats {
-    public:
-        /**
-         * Add the stored values from the Item
-         * @param Item being accounted
-         */
-        void accountItem(const Item& item);
-
-        size_t getNumItems() const {
-            return numItems;
-        }
-
-        size_t getTotalBytes() const {
-            return totalBytes;
-        }
-
-        size_t getTotalAgeInMilliseconds() const {
-            return totalAgeInMilliseconds;
-        }
-
-    private:
-        size_t numItems = 0;
-        size_t totalBytes = 0;
-        size_t totalAgeInMilliseconds = 0;
-    };
-
-    /**
      * Update flush stats after a flush batch has been persisted.
      * Args in input provide the necessary info about the flush batch.
      *
@@ -566,21 +537,6 @@ public:
     std::vector<const CookieIface*> prepareTransitionAwayFromActive();
 
     size_t size();
-
-    // @todo: Remove this structure and use CM::ItemsForCursor, they are almost
-    //  identical. That can be easily done after we have removed the reject
-    //  queue, so we may want to do that within the reject queue removal.
-    //  Doing as part of MB-37280 otherwise.
-    struct ItemsToFlush {
-        std::vector<queued_item> items;
-        std::vector<CheckpointSnapshotRange> ranges;
-        bool moreAvailable = false;
-        std::optional<uint64_t> maxDeletedRevSeqno = {};
-        CheckpointType checkpointType = CheckpointType::Memory;
-
-        // See CM::ItemsForCursor for details.
-        UniqueFlushHandle flushHandle;
-    };
 
     /**
      * Obtain the series of items to be flushed for this vBucket.

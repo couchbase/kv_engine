@@ -40,6 +40,7 @@
 #include "kv_bucket.h"
 #include "objectregistry.h"
 #include "test_helpers.h"
+#include "vbucket.h"
 #include "warmup.h"
 
 #include <folly/portability/GMock.h>

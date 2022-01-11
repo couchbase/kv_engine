@@ -26,6 +26,7 @@
 #include "replicationthrottle.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/test_task.h"
+#include "vbucket.h"
 #include <executor/executorpool.h>
 #include <executor/globaltask.h>
 

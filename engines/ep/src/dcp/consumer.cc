@@ -24,6 +24,7 @@
 #include "kv_bucket.h"
 #include "objectregistry.h"
 #include "replicationthrottle.h"
+#include "vbucket.h"
 #include <executor/executorpool.h>
 
 #include <memcached/server_cookie_iface.h>

@@ -15,6 +15,7 @@
 #include "ep_bucket.h"
 #include "objectregistry.h"
 #include "tasks.h"
+#include "vbucket.h"
 #include <executor/executorpool.h>
 #include <platform/timeutils.h>
 

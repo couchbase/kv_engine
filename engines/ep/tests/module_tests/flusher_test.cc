@@ -12,6 +12,7 @@
 #include "flusher.h"
 #include "item.h"
 #include "test_helpers.h"
+#include "vbucket.h"
 
 #include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"

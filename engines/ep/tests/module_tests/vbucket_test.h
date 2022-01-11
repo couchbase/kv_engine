@@ -12,11 +12,13 @@
 
 #include "callbacks.h"
 #include "checkpoint_config.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "configuration.h"
 #include "hash_table.h"
 #include "stats.h"
-#include "vbucket.h"
+#include "vbucket_notify_context.h"
 #include "vbucket_queue_item_ctx.h"
+#include "vbucket_types.h"
 
 #include <folly/portability/GTest.h>
 

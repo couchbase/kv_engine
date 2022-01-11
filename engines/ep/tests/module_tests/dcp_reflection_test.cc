@@ -32,6 +32,7 @@
 #include "failover-table.h"
 #include "kv_bucket.h"
 #include "test_helpers.h"
+#include "vbucket.h"
 
 // Indexes for the engines we will use in the tests, a single array allows test
 // code to locate the engine for the Node

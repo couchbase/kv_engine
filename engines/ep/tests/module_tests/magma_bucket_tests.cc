@@ -21,6 +21,7 @@
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/thread_gate.h"
+#include "vbucket.h"
 #include <utilities/test_manifest.h>
 
 using FlushResult = EPBucket::FlushResult;

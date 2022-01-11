@@ -29,6 +29,7 @@
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"
+#include "vbucket.h"
 #include "vbucket_state.h"
 #include "warmup.h"
 #include <boost/filesystem.hpp>

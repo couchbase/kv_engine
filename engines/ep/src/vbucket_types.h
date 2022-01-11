@@ -16,14 +16,18 @@
  * costly header.
  */
 
+#include "checkpoint_types.h"
+#include "ep_types.h"
 #include <memcached/engine_error.h>
 #include <functional>
 #include <memory>
 
-class Vbid;
-class VBucket;
+struct CheckpointSnapshotRange;
 class CookieIface;
 struct EventDrivenDurabilityTimeoutIface;
+class Item;
+class Vbid;
+class VBucket;
 
 /**
  * Callback function to be invoked by ActiveDurabilityMonitor when SyncWrite(s)
@@ -58,3 +62,47 @@ using SyncWriteTimeoutHandlerFactory =
                 VBucket&)>;
 
 extern const SyncWriteTimeoutHandlerFactory NoopSyncWriteTimeoutFactory;
+
+// @todo: Remove this structure and use CM::ItemsForCursor, they are almost
+//  identical. That can be easily done after we have removed the reject
+//  queue, so we may want to do that within the reject queue removal.
+//  Doing as part of MB-37280 otherwise.
+struct ItemsToFlush {
+    std::vector<queued_item> items;
+    std::vector<CheckpointSnapshotRange> ranges;
+    bool moreAvailable = false;
+    std::optional<uint64_t> maxDeletedRevSeqno = {};
+    CheckpointType checkpointType = CheckpointType::Memory;
+
+    // See CM::ItemsForCursor for details.
+    UniqueFlushHandle flushHandle;
+};
+
+/**
+ * Stores flush stats for deferred update after flush-success.
+ */
+class AggregatedFlushStats {
+public:
+    /**
+     * Add the stored values from the Item
+     * @param Item being accounted
+     */
+    void accountItem(const Item& item);
+
+    size_t getNumItems() const {
+        return numItems;
+    }
+
+    size_t getTotalBytes() const {
+        return totalBytes;
+    }
+
+    size_t getTotalAgeInMilliseconds() const {
+        return totalAgeInMilliseconds;
+    }
+
+private:
+    size_t numItems = 0;
+    size_t totalBytes = 0;
+    size_t totalAgeInMilliseconds = 0;
+};

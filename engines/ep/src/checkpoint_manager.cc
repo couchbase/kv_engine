@@ -381,10 +381,10 @@ void CheckpointManager::removeBackupPersistenceCursor() {
 
     // Reset (recreate) the potential stats overcounts as our flush was
     // successful
-    persistenceFailureStatOvercounts = VBucket::AggregatedFlushStats();
+    persistenceFailureStatOvercounts = AggregatedFlushStats();
 }
 
-VBucket::AggregatedFlushStats CheckpointManager::resetPersistenceCursor() {
+AggregatedFlushStats CheckpointManager::resetPersistenceCursor() {
     std::lock_guard<std::mutex> lh(queueLock);
 
     // Note: the logic here relies on the existing cursor copy-ctor and
@@ -412,7 +412,7 @@ VBucket::AggregatedFlushStats CheckpointManager::resetPersistenceCursor() {
 
     // Swap the stat counts to reset them for the next flush - return the
     // one we accumulated for the caller to adjust the VBucket stats
-    VBucket::AggregatedFlushStats ret;
+    AggregatedFlushStats ret;
     std::swap(ret, persistenceFailureStatOvercounts);
 
     return ret;

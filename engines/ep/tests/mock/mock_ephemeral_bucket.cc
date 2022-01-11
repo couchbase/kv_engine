@@ -15,6 +15,7 @@
 #include "failover-table.h"
 #include "mock_checkpoint_manager.h"
 #include "mock_replicationthrottle.h"
+#include "vbucket.h"
 #include <executor/executorpool.h>
 
 MockEphemeralBucket::MockEphemeralBucket(EventuallyPersistentEngine& theEngine)

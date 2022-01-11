@@ -17,6 +17,7 @@
 #include "tests/module_tests/collections/collections_dcp_test.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
+#include "vbucket.h"
 
 #include <spdlog/fmt/fmt.h>
 

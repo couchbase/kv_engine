@@ -532,7 +532,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
         proposedVBState.maxDeletedSeqno = toFlush.maxDeletedRevSeqno.value();
     }
 
-    VBucket::AggregatedFlushStats aggStats;
+    AggregatedFlushStats aggStats;
 
     // Iterate through items, checking if we (a) can skip persisting,
     // (b) can de-duplicate as the previous key was the same, or (c)
@@ -873,7 +873,7 @@ void EPBucket::flushSuccessEpilogue(
         VBucket& vb,
         const std::chrono::steady_clock::time_point flushStart,
         size_t itemsFlushed,
-        const VBucket::AggregatedFlushStats& aggStats,
+        const AggregatedFlushStats& aggStats,
         Collections::VB::Flush& collectionFlush) {
     // Clear the flag if set (ie, only at vbucket creation)
     if (vb.setBucketCreation(false)) {
@@ -906,7 +906,7 @@ void EPBucket::flushSuccessEpilogue(
     getRWUnderlying(vb.getId())->pendingTasks();
 }
 
-void EPBucket::flushFailureEpilogue(VBucket& vb, VBucket::ItemsToFlush& flush) {
+void EPBucket::flushFailureEpilogue(VBucket& vb, ItemsToFlush& flush) {
     // Flush failed, we need to reset the pcursor to the original
     // position. At the next run the flusher will re-attempt by retrieving
     // all the items from the disk queue again.

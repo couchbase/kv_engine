@@ -22,6 +22,7 @@
 #include "dcp_utils.h"
 #include "evp_store_single_threaded_test.h"
 #include "kv_bucket.h"
+#include "vbucket.h"
 
 #include <programs/engine_testapp/mock_cookie.h>
 #include <spdlog/spdlog.h>

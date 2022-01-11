@@ -20,6 +20,7 @@
 #include "kv_bucket.h"
 #include "string_utils.h"
 #include "vb_visitors.h"
+#include "vbucket.h"
 
 #include <memcached/collections.h>
 #include <nlohmann/json.hpp>

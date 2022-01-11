@@ -28,6 +28,7 @@
 #include "kvstore/kvstore.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
+#include "vbucket.h"
 
 #include <folly/portability/GTest.h>
 #include <platform/cb_arena_malloc.h>

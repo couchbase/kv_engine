@@ -34,6 +34,7 @@
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
+#include "vbucket.h"
 #include <engines/ep/tests/mock/mock_dcp_conn_map.h>
 #include <utilities/test_manifest.h>
 

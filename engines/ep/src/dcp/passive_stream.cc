@@ -20,6 +20,7 @@
 #include "failover-table.h"
 #include "kv_bucket.h"
 #include "replicationthrottle.h"
+#include "vbucket.h"
 
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>

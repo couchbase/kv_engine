@@ -413,7 +413,7 @@ size_t VBucket::size() {
     return v.size;
 }
 
-VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
+ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
     ItemsToFlush result;
 
     if (approxLimit == 0) {
@@ -727,7 +727,7 @@ void VBucket::doStatsForQueueing(const Item& qi, size_t itemBytes)
     dirtyQueuePendingWrites.fetch_add(itemBytes);
 }
 
-void VBucket::AggregatedFlushStats::accountItem(const Item& item) {
+void AggregatedFlushStats::accountItem(const Item& item) {
     Expects(item.getQueuedTime().time_since_epoch().count() != 0);
 
     ++numItems;

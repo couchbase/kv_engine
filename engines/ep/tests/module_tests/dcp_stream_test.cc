@@ -29,6 +29,7 @@
 #include "test_manifest.h"
 #include "tests/test_fileops.h"
 #include "thread_gate.h"
+#include "vbucket.h"
 #include "vbucket_state.h"
 #include <executor/executorpool.h>
 

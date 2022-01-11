@@ -19,6 +19,7 @@
 #include "mock_checkpoint_manager.h"
 #include "mock_item_freq_decayer.h"
 #include "mock_replicationthrottle.h"
+#include "vbucket.h"
 #include <executor/executorpool.h>
 
 MockEPBucket::MockEPBucket(EventuallyPersistentEngine& theEngine)

@@ -17,6 +17,7 @@
 #include "dcp/response.h"
 #include "ep_time.h"
 #include "kv_bucket.h"
+#include "vbucket.h"
 
 #include <fmt/chrono.h>
 #include <memcached/protocol_binary.h>

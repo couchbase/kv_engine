@@ -13,6 +13,7 @@
 #include "item.h"
 #include "item_compressor_visitor.h"
 #include "test_helpers.h"
+#include "vbucket.h"
 
 TEST_P(ItemCompressorTest, testCompressionInActiveMode) {
     std::string compressibleValue(

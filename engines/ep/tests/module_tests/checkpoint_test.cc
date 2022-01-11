@@ -28,6 +28,7 @@
 #include "kv_bucket.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/test_helpers.h"
+#include "vbucket.h"
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 #include <thread>
@@ -3463,9 +3464,8 @@ TEST_P(CheckpointTest, MB_47134_vbstate_at_backup_cursor) {
 
     // Lambda to simulate the tracking of agg stats done at the begging of a
     // flush vbucket
-    auto updateAggStats = [](std::vector<queued_item>& items)
-            -> VBucket::AggregatedFlushStats {
-        VBucket::AggregatedFlushStats aggStats;
+    auto updateAggStats = [](std::vector<queued_item>& items) {
+        AggregatedFlushStats aggStats;
         for (auto& item : items) {
             if (item->shouldPersist()) {
                 aggStats.accountItem(*item);

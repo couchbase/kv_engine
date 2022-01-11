@@ -21,6 +21,7 @@
 #include "item.h"
 #include "kv_bucket.h"
 #include "stored_value_factories.h"
+#include "vbucket.h"
 
 #include "../tests/module_tests/checkpoint_utils.h"
 #include "../tests/module_tests/thread_gate.h"

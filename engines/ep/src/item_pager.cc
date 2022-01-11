@@ -22,6 +22,7 @@
 #include "kv_bucket.h"
 #include "kv_bucket_iface.h"
 #include "paging_visitor.h"
+#include "vbucket.h"
 #include <executor/executorpool.h>
 
 #include <folly/lang/Assume.h>

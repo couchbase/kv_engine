@@ -14,7 +14,6 @@
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
 #include "utilities/testing_hook.h"
-#include "vbucket.h"
 
 class BgFetcher;
 namespace Collections::VB {
@@ -361,7 +360,7 @@ protected:
             VBucket& vb,
             const std::chrono::steady_clock::time_point flushStart,
             size_t itemsFlushed,
-            const VBucket::AggregatedFlushStats& aggStats,
+            const AggregatedFlushStats& aggStats,
             Collections::VB::Flush& collectionFlush);
 
     /**
@@ -370,7 +369,7 @@ protected:
      *
      * @param itemsToFlush Used for performing post-flush operations
      */
-    void flushFailureEpilogue(VBucket& vb, VBucket::ItemsToFlush& itemsToFlush);
+    void flushFailureEpilogue(VBucket& vb, ItemsToFlush& itemsToFlush);
 
     bool isValidBucketDurabilityLevel(
             cb::durability::Level level) const override;

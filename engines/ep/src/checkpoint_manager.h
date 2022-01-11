@@ -17,7 +17,7 @@
 #include "ep_types.h"
 #include "queue_op.h"
 #include "utilities/testing_hook.h"
-#include "vbucket.h"
+#include "vbucket_types.h"
 #include <platform/monotonic.h>
 
 #include <memcached/engine_common.h>
@@ -232,7 +232,7 @@ public:
      *     pcursor)
      * @return aggregated flush stats to roll back the VBucket counters by
      */
-    VBucket::AggregatedFlushStats resetPersistenceCursor();
+    AggregatedFlushStats resetPersistenceCursor();
 
     /**
      * Queue an item to be written to persistent layer.
@@ -952,7 +952,7 @@ protected:
      * backup and persistence cursors. Should the flush fail we need to undo
      * the stat updates or we'll overcount them.
      */
-    VBucket::AggregatedFlushStats persistenceFailureStatOvercounts;
+    AggregatedFlushStats persistenceFailureStatOvercounts;
 
     /**
      *  Estimated memory usage of all checkpoints in this CM.

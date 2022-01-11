@@ -22,6 +22,7 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
 #include "test_helpers.h"
+#include "vbucket.h"
 
 void CheckpointRemoverTest::SetUp() {
     if (!config_string.empty()) {
