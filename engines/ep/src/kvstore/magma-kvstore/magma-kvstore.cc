@@ -1637,14 +1637,16 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
 
         logger->info(
                 "MagmaKVStore::initBySeqnoScanContext {} seqno:{} endSeqno:{}"
-                " purgeSeqno:{} nDocsToRead:{} docFilter:{} valFilter:{}",
+                " purgeSeqno:{} nDocsToRead:{} docFilter:{} valFilter:{} "
+                "SeqIterator:{:p}",
                 vbid,
                 startSeqno,
                 highSeqno,
                 purgeSeqno,
                 nDocsToRead,
                 docFilter,
-                valFilter);
+                valFilter,
+                fmt::ptr(itr.get()));
     }
 
     auto mctx = std::make_unique<MagmaScanContext>(std::move(cb),
