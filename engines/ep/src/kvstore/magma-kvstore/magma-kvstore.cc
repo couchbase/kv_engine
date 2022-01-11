@@ -1526,7 +1526,7 @@ public:
                      const vbucket_state& vbucketState,
                      const std::vector<Collections::KVStore::DroppedCollection>&
                              droppedCollections,
-                     DomainAwareUniquePtr<magma::Magma::SeqIterator> itr)
+                     DomainAwareUniquePtr<DomainAwareSeqIterator> itr)
         : BySeqnoScanContext(std::move(cb),
                              std::move(cl),
                              vb,
@@ -1542,7 +1542,7 @@ public:
           itr(std::move(itr)) {
     }
 
-    DomainAwareUniquePtr<magma::Magma::SeqIterator> itr{nullptr};
+    DomainAwareUniquePtr<DomainAwareSeqIterator> itr{nullptr};
 };
 
 std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(

@@ -40,6 +40,28 @@ private:
     std::unique_ptr<magma::Magma::FetchBuffer> buffer;
 };
 
+// DomainAwareSeqIterator is a helper that switches domains before invoking
+// methods of SeqIterator.
+class DomainAwareSeqIterator : public magma::Magma::SeqIterator {
+public:
+    DomainAwareSeqIterator(std::unique_ptr<magma::Magma::SeqIterator> itr)
+        : itr(std::move(itr)) {
+    }
+    ~DomainAwareSeqIterator() override;
+    void Seek(const magma::Magma::SeqNo startSeqno,
+              const magma::Magma::SeqNo endSeqno) override;
+    bool Valid() override;
+    magma::Status GetStatus() override;
+    void Next() override;
+    void GetRecord(magma::Slice& key,
+                   magma::Slice& meta,
+                   magma::Slice& value,
+                   magma::Magma::SeqNo& seqno) override;
+
+private:
+    std::unique_ptr<magma::Magma::SeqIterator> itr;
+};
+
 /**
  * Helper/Deleter for std::unique_ptr types, will delete in
  * MemoryDomain::Secondary
@@ -147,7 +169,7 @@ public:
     void GetFileStats(magma::MagmaFileStats& fileStats);
     void GetHistogramStats(magma::MagmaHistogramStats& histogramStats);
 
-    DomainAwareUniquePtr<magma::Magma::SeqIterator> NewSeqIterator(
+    DomainAwareUniquePtr<DomainAwareSeqIterator> NewSeqIterator(
             magma::Magma::Snapshot& snapshot);
     magma::Status Open();
     magma::Status Rollback(const magma::Magma::KVStoreID kvID,

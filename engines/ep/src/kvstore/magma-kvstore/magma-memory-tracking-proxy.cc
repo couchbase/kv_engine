@@ -25,6 +25,40 @@ DomainAwareFetchBuffer::~DomainAwareFetchBuffer() {
     buffer.reset();
 }
 
+DomainAwareSeqIterator::~DomainAwareSeqIterator() {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    itr.reset();
+}
+
+magma::Status DomainAwareSeqIterator::GetStatus() {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return itr->GetStatus();
+}
+
+void DomainAwareSeqIterator::Next() {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return itr->Next();
+}
+
+bool DomainAwareSeqIterator::Valid() {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return itr->Valid();
+}
+
+void DomainAwareSeqIterator::GetRecord(magma::Slice& key,
+                                       magma::Slice& meta,
+                                       magma::Slice& value,
+                                       magma::Magma::SeqNo& seqno) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return itr->GetRecord(key, meta, value, seqno);
+}
+
+void DomainAwareSeqIterator::Seek(const magma::Magma::SeqNo startSeqno,
+                                  const magma::Magma::SeqNo endSeqno) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return itr->Seek(startSeqno, endSeqno);
+}
+
 template <>
 void DomainAwareDelete<magma::UserStats>::operator()(magma::UserStats* p) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
@@ -32,8 +66,8 @@ void DomainAwareDelete<magma::UserStats>::operator()(magma::UserStats* p) {
 }
 
 template <>
-void DomainAwareDelete<magma::Magma::SeqIterator>::operator()(
-        magma::Magma::SeqIterator* p) {
+void DomainAwareDelete<DomainAwareSeqIterator>::operator()(
+        DomainAwareSeqIterator* p) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     delete p;
 }
@@ -285,11 +319,12 @@ MagmaMemoryTrackingProxy::GetBySeqno(magma::Magma::Snapshot& snapshot,
     return {status, std::move(key), std::move(meta), std::move(value)};
 }
 
-DomainAwareUniquePtr<magma::Magma::SeqIterator>
+DomainAwareUniquePtr<DomainAwareSeqIterator>
 MagmaMemoryTrackingProxy::NewSeqIterator(magma::Magma::Snapshot& snapshot) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return DomainAwareUniquePtr<magma::Magma::SeqIterator>{
-            magma->NewSeqIterator(snapshot).release()};
+    auto itr = std::make_unique<DomainAwareSeqIterator>(
+            magma->NewSeqIterator(snapshot));
+    return DomainAwareUniquePtr<DomainAwareSeqIterator>(itr.release());
 }
 
 magma::Status MagmaMemoryTrackingProxy::Open() {
