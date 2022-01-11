@@ -1571,8 +1571,6 @@ static std::string kvstoreTestParams[] = {
 #ifdef EP_USE_MAGMA
         "magma",
         "nexus_couchdb_magma",
-        // @TODO MB-47604: Remove this variant as the above should cover it
-        "nexus_magma_couchdb",
 #endif
 #ifdef EP_USE_ROCKSDB
         "rocksdb",
@@ -1590,8 +1588,6 @@ static std::string kvstoreTestParamsSkipRocks[] = {
 #ifdef EP_USE_MAGMA
         "magma",
         "nexus_couchdb_magma",
-        // @TODO MB-47604: Remove this variant as the above should cover it
-        "nexus_magma_couchdb",
 #endif
         "couchdb"};
 

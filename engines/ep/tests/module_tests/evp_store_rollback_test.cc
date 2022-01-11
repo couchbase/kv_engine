@@ -2509,8 +2509,6 @@ auto allConfigValues = ::testing::Combine(
 #ifdef EP_USE_MAGMA
                           ,
                           "persistent_magma",
-                          // @TODO MB-47604 Remove couchstore couchstore variant
-                          "persistent_nexus_couchstore_couchstore",
                           "persistent_nexus_couchstore_magma"
 #endif
                           ),
