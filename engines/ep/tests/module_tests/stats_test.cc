@@ -24,11 +24,12 @@
 #include "tasks.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_add_stat_fn.h"
+#include "tests/mock/mock_function_helper.h"
 #include "tests/mock/mock_stat_collector.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "thread_gate.h"
 #include "trace_helpers.h"
-#include <tests/mock/mock_function_helper.h>
+#include "warmup.h"
 
 #include <folly/portability/GMock.h>
 #include <memcached/server_cookie_iface.h>
@@ -663,6 +664,68 @@ TEST_F(StatTest, BackgroundTasksDoNotWriteResponses_dcp) {
 
 TEST_F(StatTest, BackgroundTasksDoNotWriteResponses_dcpagg) {
     test_BackgroundTasksDoNotWriteResponses("dcpagg :", "Aggregated DCP stats");
+}
+
+TEST_F(StatTest, WarmupStats) {
+    resetEngineAndWarmup();
+
+    using namespace std::string_view_literals;
+    using namespace testing;
+
+    // create a collector to which stats will be added
+    NiceMock<
+            MockFunction<void(std::string_view, std::string_view, const void*)>>
+            cb;
+
+    auto cbFunc = cb.AsStdFunction();
+
+    using namespace cb::stats;
+    EXPECT_CALL(cb, Call("ep_warmup"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_thread"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_oom"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_dups"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_time"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_state"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_key_count"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_value_count"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_min_memory_threshold"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_min_item_threshold"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_keys_time"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_estimate_time"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_estimated_key_count"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_estimated_value_count"sv, _, _));
+
+    store->getWarmup()->addStats(cbFunc, cookie);
+}
+
+TEST_F(StatTest, EngineStatsWarmup) {
+    resetEngineAndWarmup();
+
+    using namespace std::string_view_literals;
+    using namespace testing;
+
+    // create a collector to which stats will be added
+    NiceMock<
+            MockFunction<void(std::string_view, std::string_view, const void*)>>
+            cb;
+
+    auto cbFunc = cb.AsStdFunction();
+
+    EXPECT_CALL(cb, Call(_, _, _)).Times(AnyNumber());
+    EXPECT_CALL(cb, Call("ep_warmup_thread"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_oom"sv, _, _))
+            .Times(1)
+            .RetiresOnSaturation();
+    EXPECT_CALL(cb, Call("ep_warmup_dups"sv, _, _))
+            .Times(1)
+            .RetiresOnSaturation();
+    EXPECT_CALL(cb, Call("ep_warmup_time"sv, _, _))
+            .Times(1)
+            .RetiresOnSaturation();
+
+    CBStatCollector collector(cbFunc, cookie);
+    auto bucketCollector = collector.forBucket("");
+    engine->doEngineStats(bucketCollector);
 }
 
 TEST_P(DatatypeStatTest, datatypesInitiallyZero) {

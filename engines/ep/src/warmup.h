@@ -36,6 +36,7 @@ class EPStats;
 class EPBucket;
 class GetValue;
 class MutationLog;
+class StatCollector;
 class VBucketMap;
 class Vbid;
 enum class ValueFilter;
@@ -237,6 +238,8 @@ public:
     void stop();
 
     size_t getEstimatedItemCount() const;
+
+    void addCommonStats(const StatCollector& collector) const;
 
     void addStats(const AddStatFn& add_stat, const CookieIface* c) const;
 

@@ -3184,17 +3184,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         if (wp == nullptr) {
             throw std::logic_error("EPEngine::doEngineStats: warmup is NULL");
         }
-        collector.addStat(Key::ep_warmup_thread,
-                          kvBucket->getWarmup()->getThreadStatState());
-        if (wp->getTime() > wp->getTime().zero()) {
-            collector.addStat(
-                    Key::ep_warmup_time,
-                    std::chrono::duration_cast<std::chrono::microseconds>(
-                            wp->getTime())
-                            .count());
-        }
-        collector.addStat(Key::ep_warmup_oom, epstats.warmOOM);
-        collector.addStat(Key::ep_warmup_dups, epstats.warmDups);
+        wp->addCommonStats(collector);
     }
 
     collector.addStat(Key::ep_num_ops_get_meta, epstats.numOpsGetMeta);

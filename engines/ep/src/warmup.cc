@@ -1911,6 +1911,24 @@ void Warmup::transition(WarmupState::State to, bool force) {
     step();
 }
 
+void Warmup::addCommonStats(const StatCollector& collector) const {
+    using namespace cb::stats;
+    using namespace std::chrono;
+
+    collector.addStat(Key::ep_warmup_thread, getThreadStatState());
+
+    EPStats& stats = store.getEPEngine().getEpStats();
+    collector.addStat(Key::ep_warmup_oom, stats.warmOOM);
+    collector.addStat(Key::ep_warmup_dups, stats.warmDups);
+
+    auto w_time = warmup.load();
+    if (w_time > w_time.zero()) {
+        collector.addStat(
+                Key::ep_warmup_time,
+                duration_cast<std::chrono::microseconds>(w_time).count());
+    }
+}
+
 void Warmup::addStats(const AddStatFn& add_stat, const CookieIface* c) const {
     using namespace std::chrono;
 
@@ -1930,11 +1948,11 @@ void Warmup::addStats(const AddStatFn& add_stat, const CookieIface* c) const {
     addPrefixedStat(nullptr, "enabled");
     const char* stateName = state.toString();
     addPrefixedStat("state", stateName);
-    addPrefixedStat("thread", getThreadStatState());
+
+    addCommonStats(CBStatCollector(add_stat, c));
+
     addPrefixedStat("key_count", stats.warmedUpKeys);
     addPrefixedStat("value_count", stats.warmedUpValues);
-    addPrefixedStat("dups", stats.warmDups);
-    addPrefixedStat("oom", stats.warmOOM);
     addPrefixedStat("min_memory_threshold", stats.warmupMemUsedCap * 100.0);
     addPrefixedStat("min_item_threshold", stats.warmupNumReadCap * 100.0);
 
@@ -1942,11 +1960,6 @@ void Warmup::addStats(const AddStatFn& add_stat, const CookieIface* c) const {
     if (md_time > md_time.zero()) {
         addPrefixedStat("keys_time",
                         duration_cast<microseconds>(md_time).count());
-    }
-
-    auto w_time = warmup.load();
-    if (w_time > w_time.zero()) {
-        addPrefixedStat("time", duration_cast<microseconds>(w_time).count());
     }
 
     size_t itemCount = estimatedItemCount.load();
