@@ -378,6 +378,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/pid_controller.cc
             src/pre_link_document_context.cc
             src/pre_link_document_context.h
+            src/probabilistic_counter.cc
             src/progress_tracker.cc
             src/replicationthrottle.cc
             src/linked_list.cc

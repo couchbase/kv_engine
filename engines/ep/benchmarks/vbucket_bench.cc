@@ -30,6 +30,7 @@
 #include <folly/portability/GTest.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <algorithm>
+#include <random>
 #include <thread>
 
 enum class Store { Couchstore = 0, RocksDB = 1, Magma = 2 };
