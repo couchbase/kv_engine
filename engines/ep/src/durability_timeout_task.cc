@@ -13,6 +13,7 @@
 #include "bucket_logger.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
+#include "vbucket.h"
 #include <executor/executorpool.h>
 
 #include <fmt/chrono.h>

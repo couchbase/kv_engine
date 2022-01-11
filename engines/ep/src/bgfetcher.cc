@@ -14,6 +14,7 @@
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "tasks.h"
+#include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 #include <executor/executorpool.h>
 #include <memcached/vbucket.h>

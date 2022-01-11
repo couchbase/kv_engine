@@ -19,6 +19,7 @@
 #include "hlc.h"
 #include "vbucket_fwd.h"
 #include "vbucket_notify_context.h"
+#include "vbucket_types.h"
 #include <platform/monotonic.h>
 
 #include <folly/SynchronizedPtr.h>
@@ -95,40 +96,8 @@ struct HighPriorityVBEntry {
     std::chrono::steady_clock::time_point start;
 };
 
-/**
- * Callback function to be invoked by ActiveDurabilityMonitor when SyncWrite(s)
- * are ready to be resolved (either met requirements and should be Committed, or
- * cannot meet requirements and should be Aborted).
- *
- * Will normally call the DurabilityCompletionTask to wake up and process
- * those resolved SyncWrites.
- */
-using SyncWriteResolvedCallback = std::function<void(Vbid vbid)>;
-
-/**
- * Callback function invoked when an accepted SyncWrite operation has been
- * completed (has been committed / aborted / times out).
- */
-using SyncWriteCompleteCallback =
-        std::function<void(const CookieIface* cookie, cb::engine_errc status)>;
-
-/// Instance of SyncWriteCompleteCallback which does nothing.
-const SyncWriteCompleteCallback NoopSyncWriteCompleteCb =
-        [](const CookieIface* cookie, cb::engine_errc status) {};
-
-/**
- * Callback function invoked at Replica for sending a SeqnoAck message to the
- * Active. That is triggered at Replica by High Prepared Seqno updates within
- * the PassiveDurabilityMonitor.
- */
-using SeqnoAckCallback = std::function<void(Vbid vbid, int64_t seqno)>;
-
 /// Instance of SeqnoAckCallback which does nothing.
 const SeqnoAckCallback NoopSeqnoAckCb = [](Vbid vbid, int64_t seqno) {};
-
-using SyncWriteTimeoutHandlerFactory =
-        std::function<std::unique_ptr<EventDrivenDurabilityTimeoutIface>(
-                VBucket&)>;
 
 /**
  * No-op implementation of EventDrivenDurabilityTimeoutIface - primarily exists
@@ -147,11 +116,6 @@ public:
     void cancelNextExpiryTime() override {
     }
 };
-
-const SyncWriteTimeoutHandlerFactory NoopSyncWriteTimeoutFactory =
-        [](VBucket&) {
-            return std::make_unique<NoopEventDrivenDurabilityTimeout>();
-        };
 
 class EventuallyPersistentEngine;
 class FailoverTable;
@@ -2621,46 +2585,3 @@ private:
     friend class DurabilityEPBucketTest;
 };
 
-/**
- * Represents a locked VBucket that provides RAII semantics for the lock.
- *
- * Behaves like the underlying shared_ptr - i.e. `operator->` is overloaded
- * to return the underlying VBucket.
- */
-class LockedVBucketPtr {
-public:
-    LockedVBucketPtr(VBucketPtr vb, std::unique_lock<std::mutex>&& lock)
-        : vb(std::move(vb)), lock(std::move(lock)) {
-    }
-
-    VBucket& operator*() const {
-        return *vb;
-    }
-
-    VBucket* operator->() const {
-        return vb.get();
-    }
-
-    explicit operator bool() const {
-        return vb.operator bool();
-    }
-
-    VBucketPtr& getVB() {
-        return vb;
-    }
-
-    /// Return true if this object owns the mutex.
-    bool owns_lock() const {
-        return lock.owns_lock();
-    }
-
-    /// Get the underlying lock (to allow caller to release the lock and
-    /// reacquire it at a later time)
-    std::unique_lock<std::mutex>& getLock() {
-        return lock;
-    }
-
-private:
-    VBucketPtr vb;
-    std::unique_lock<std::mutex> lock;
-};

@@ -12,14 +12,16 @@
 #pragma once
 
 #include "callbacks.h"
+#include "checkpoint_types.h"
 #include "ep_types.h"
 #include "kv_bucket_iface.h"
 #include "kvstore/kvstore_iface.h"
-#include "mutation_log.h"
+#include "locked_vbucket_ptr.h"
 #include "stored-value.h"
 #include "storeddockey.h"
 #include "utility.h"
-#include "vbucket.h"
+#include "vbucket_fwd.h"
+#include "vbucket_types.h"
 #include "vbucketmap.h"
 #include <executor/task_type.h>
 
@@ -280,14 +282,7 @@ public:
         return {0, false};
     }
 
-    uint64_t getLastPersistedSeqno(Vbid vb) override {
-        auto vbucket = vbMap.getBucket(vb);
-        if (vbucket) {
-            return vbucket->getPersistenceSeqno();
-        } else {
-            return 0;
-        }
-    }
+    uint64_t getLastPersistedSeqno(Vbid vb) override;
 
     /**
      * Release all cookies blocked on pending requests (e.g. SyncWrites,
@@ -1160,9 +1155,7 @@ public:
     explicit NotifyNewSeqnoCB(KVBucket& kvb) : kvBucket(kvb) {
     }
 
-    void callback(const Vbid& vbid, const VBNotifyCtx& notifyCtx) override {
-        kvBucket.notifyNewSeqno(vbid, notifyCtx);
-    }
+    void callback(const Vbid& vbid, const VBNotifyCtx& notifyCtx) override;
 
 private:
     KVBucket& kvBucket;

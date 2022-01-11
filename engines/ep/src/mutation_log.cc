@@ -28,6 +28,7 @@ extern "C" {
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "mutation_log.h"
+#include "vbucket.h"
 
 #ifdef WIN32
 ssize_t pread(file_handle_t fd, void *buf, size_t nbyte, uint64_t offset)

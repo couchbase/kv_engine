@@ -13,6 +13,7 @@
 #include "durability/durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
 #include "evp_store_single_threaded_test.h"
+#include "hash_table.h"
 #include "kv_bucket.h"
 #include "test_helpers.h"
 

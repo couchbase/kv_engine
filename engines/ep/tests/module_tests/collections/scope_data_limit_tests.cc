@@ -20,6 +20,7 @@
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/module_tests/collections/collections_test.h"
 #include "tests/module_tests/test_helpers.h"
+#include "vbucket.h"
 
 #include <utilities/test_manifest.h>
 

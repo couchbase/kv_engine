@@ -15,6 +15,7 @@
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
+#include "vbucket.h"
 
 /**
  * Simple Collections test class. Non-parameterized so that we can run

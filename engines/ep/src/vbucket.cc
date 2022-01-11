@@ -55,6 +55,11 @@ using namespace std::string_literals;
 /* Statics definitions */
 std::atomic<double> VBucket::mutationMemThreshold = 0.9;
 
+const SyncWriteTimeoutHandlerFactory NoopSyncWriteTimeoutFactory =
+        [](VBucket&) {
+            return std::make_unique<NoopEventDrivenDurabilityTimeout>();
+        };
+
 VBucketFilter VBucketFilter::filter_union(const VBucketFilter& other) const {
     auto copy = *this;
     copy.acceptable.insert(other.acceptable.begin(), other.acceptable.end());

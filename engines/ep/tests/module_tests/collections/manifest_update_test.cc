@@ -20,6 +20,7 @@
 #include "collections_test.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
+#include "vbucket.h"
 #include "warmup.h"
 
 #include <platform/dirutils.h>

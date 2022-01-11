@@ -19,6 +19,7 @@
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/module_tests/collections/collections_dcp_test.h"
 #include "tests/module_tests/test_helpers.h"
+#include "vbucket.h"
 
 class CollectionsLegacyDcpTest : public CollectionsDcpParameterizedTest {
 public:

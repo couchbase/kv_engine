@@ -14,6 +14,7 @@
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
 #include "utilities/testing_hook.h"
+#include "vbucket.h"
 
 class BgFetcher;
 namespace Collections::VB {

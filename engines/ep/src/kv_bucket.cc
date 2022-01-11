@@ -880,6 +880,15 @@ GetValue KVBucket::getReplica(const DocKey& key,
     return getInternal(key, vbucket, cookie, ForGetReplicaOp::Yes, options);
 }
 
+uint64_t KVBucket::getLastPersistedSeqno(Vbid vb) {
+    auto vbucket = vbMap.getBucket(vb);
+    if (vbucket) {
+        return vbucket->getPersistenceSeqno();
+    } else {
+        return 0;
+    }
+}
+
 void KVBucket::releaseBlockedCookies() {
     for (size_t vbid = 0; vbid < vbMap.size; ++vbid) {
         VBucketPtr vb = vbMap.getBucket(Vbid{gsl::narrow<uint16_t>(vbid)});
@@ -2994,4 +3003,9 @@ size_t KVBucket::getCheckpointPendingDestructionMemoryUsage() const {
         memoryUsage += task->getMemoryUsage();
     }
     return memoryUsage;
+}
+
+void NotifyNewSeqnoCB::callback(const Vbid& vbid,
+                                const VBNotifyCtx& notifyCtx) {
+    kvBucket.notifyNewSeqno(vbid, notifyCtx);
 }

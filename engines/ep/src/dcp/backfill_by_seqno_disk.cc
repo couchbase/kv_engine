@@ -16,6 +16,7 @@
 #include "dcp/active_stream_impl.h"
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
+#include "vbucket.h"
 #include "vbucket_state.h"
 
 #include <mcbp/protocol/dcp_stream_end_status.h>
