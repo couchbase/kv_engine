@@ -16,6 +16,7 @@
 #include <daemon/mcaudit.h>
 #include <daemon/settings.h>
 #include <logger/logger.h>
+#include <mcbp/protocol/header.h>
 #include <cstdint>
 #include <iostream>
 

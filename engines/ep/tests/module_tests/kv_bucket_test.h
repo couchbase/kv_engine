@@ -23,6 +23,7 @@
 #include "storeddockey_fwd.h"
 
 #include <folly/portability/GTest.h>
+#include <memcached/dockey.h>
 #include <memcached/durability_spec.h>
 #include <memcached/engine_error.h>
 #include <tests/ep_request_utils.h>

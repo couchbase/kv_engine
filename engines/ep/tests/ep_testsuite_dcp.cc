@@ -9,10 +9,11 @@
  *   the file licenses/APL2.txt.
  */
 
-// mock_cookie.h must be included before ep_test_apis.h as ep_test_apis.h
-// define a macro named check and some of the folly headers also use the
-// name check
+// mock_cookie.h & mock_server.h must be included before ep_test_apis.h as
+// ep_test_apis.h define a macro named check the mock_* headers also use the
+// name 'check' indirectly.
 #include <programs/engine_testapp/mock_cookie.h>
+#include <programs/engine_testapp/mock_server.h>
 
 /*
  * Testsuite for 'dcp' functionality in ep-engine.
@@ -20,7 +21,6 @@
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 #include "mock/mock_dcp.h"
-#include "programs/engine_testapp/mock_server.h"
 
 #include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>

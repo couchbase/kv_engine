@@ -13,6 +13,7 @@
 
 #include "engine_wrapper.h"
 #include "utilities.h"
+#include <mcbp/protocol/header.h>
 
 void dcp_noop_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(cb::engine_errc::success);

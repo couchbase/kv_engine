@@ -25,11 +25,35 @@ void Request::setKeylen(uint16_t value) {
     }
 }
 
+uint16_t Request::getKeylen() const {
+    return reinterpret_cast<const Header*>(this)->getKeylen();
+}
+
+uint8_t Request::getFramingExtraslen() const {
+    return reinterpret_cast<const Header*>(this)->getFramingExtraslen();
+}
+
 void Request::setFramingExtraslen(uint8_t len) {
     setMagic(cb::mcbp::Magic::AltClientRequest);
     // @todo Split the member once we know all the tests pass with the
     //       current layout (aka: noone tries to set it htons()
     reinterpret_cast<uint8_t*>(this)[2] = len;
+}
+
+uint8_t Request::getExtlen() const {
+    return reinterpret_cast<const Header*>(this)->getExtlen();
+}
+
+uint32_t Request::getBodylen() const {
+    return reinterpret_cast<const Header*>(this)->getBodylen();
+}
+
+uint32_t Request::getOpaque() const {
+    return reinterpret_cast<const Header*>(this)->getOpaque();
+}
+
+uint64_t Request::getCas() const {
+    return reinterpret_cast<const Header*>(this)->getCas();
 }
 
 std::string Request::getPrintableKey() const {
@@ -43,6 +67,40 @@ std::string Request::getPrintableKey() const {
     }
 
     return buffer;
+}
+
+cb::const_byte_buffer Request::getFramingExtras() const {
+    return reinterpret_cast<const Header*>(this)->getFramingExtras();
+}
+
+cb::byte_buffer Request::getFramingExtras() {
+    return reinterpret_cast<Header*>(this)->getFramingExtras();
+}
+
+cb::const_byte_buffer Request::getExtdata() const {
+    return reinterpret_cast<const Header*>(this)->getExtdata();
+}
+cb::byte_buffer Request::getExtdata() {
+    return reinterpret_cast<Header*>(this)->getExtdata();
+}
+
+cb::const_byte_buffer Request::getKey() const {
+    return reinterpret_cast<const Header*>(this)->getKey();
+}
+cb::byte_buffer Request::getKey() {
+    return reinterpret_cast<Header*>(this)->getKey();
+}
+cb::const_byte_buffer Request::getValue() const {
+    return reinterpret_cast<const Header*>(this)->getValue();
+}
+cb::byte_buffer Request::getValue() {
+    return reinterpret_cast<Header*>(this)->getValue();
+}
+std::string_view Request::getValueString() const {
+    return reinterpret_cast<const Header*>(this)->getValueString();
+}
+cb::const_byte_buffer Request::getFrame() const {
+    return reinterpret_cast<const Header*>(this)->getFrame();
 }
 
 void Request::parseFrameExtras(FrameInfoCallback callback) const {

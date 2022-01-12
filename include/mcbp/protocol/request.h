@@ -10,11 +10,10 @@
 
 #include "datatype.h"
 
-#include <mcbp/protocol/header.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
-#include <memcached/rbac/privilege_database.h>
 #include <memcached/vbucket.h>
+#include <platform/sized_buffer.h>
 #include <optional>
 #ifndef WIN32
 #include <arpa/inet.h>
@@ -87,13 +86,9 @@ public:
 
     void setKeylen(uint16_t value);
 
-    uint16_t getKeylen() const {
-        return reinterpret_cast<const Header*>(this)->getKeylen();
-    }
+    uint16_t getKeylen() const;
 
-    uint8_t getFramingExtraslen() const {
-        return reinterpret_cast<const Header*>(this)->getFramingExtraslen();
-    }
+    uint8_t getFramingExtraslen() const;
 
     void setFramingExtraslen(uint8_t len);
 
@@ -101,9 +96,7 @@ public:
         extlen = extlen_;
     }
 
-    uint8_t getExtlen() const {
-        return reinterpret_cast<const Header*>(this)->getExtlen();
-    }
+    uint8_t getExtlen() const;
 
     void setDatatype(Datatype datatype_) {
         datatype = uint8_t(datatype_);
@@ -121,9 +114,7 @@ public:
         return vbucket.ntoh();
     }
 
-    uint32_t getBodylen() const {
-        return reinterpret_cast<const Header*>(this)->getBodylen();
-    }
+    uint32_t getBodylen() const;
 
     void setBodylen(uint32_t value) {
         bodylen = htonl(value);
@@ -133,13 +124,9 @@ public:
         opaque = opaque_;
     }
 
-    uint32_t getOpaque() const {
-        return reinterpret_cast<const Header*>(this)->getOpaque();
-    }
+    uint32_t getOpaque() const;
 
-    uint64_t getCas() const {
-        return reinterpret_cast<const Header*>(this)->getCas();
-    }
+    uint64_t getCas() const;
 
     void setCas(uint64_t val) {
         cas = htonll(val);
@@ -151,21 +138,13 @@ public:
      */
     std::string getPrintableKey() const;
 
-    cb::const_byte_buffer getFramingExtras() const {
-        return reinterpret_cast<const Header*>(this)->getFramingExtras();
-    }
+    cb::const_byte_buffer getFramingExtras() const;
 
-    cb::byte_buffer getFramingExtras() {
-        return reinterpret_cast<Header*>(this)->getFramingExtras();
-    }
+    cb::byte_buffer getFramingExtras();
 
-    cb::const_byte_buffer getExtdata() const {
-        return reinterpret_cast<const Header*>(this)->getExtdata();
-    }
+    cb::const_byte_buffer getExtdata() const;
 
-    cb::byte_buffer getExtdata() {
-        return reinterpret_cast<Header*>(this)->getExtdata();
-    }
+    cb::byte_buffer getExtdata();
 
     /**
      * Helper method to get the command specific part of a request
@@ -189,29 +168,17 @@ public:
         return *reinterpret_cast<const T*>(getExtdata().data());
     }
 
-    cb::const_byte_buffer getKey() const {
-        return reinterpret_cast<const Header*>(this)->getKey();
-    }
+    cb::const_byte_buffer getKey() const;
 
-    cb::byte_buffer getKey() {
-        return reinterpret_cast<Header*>(this)->getKey();
-    }
+    cb::byte_buffer getKey();
 
-    cb::const_byte_buffer getValue() const {
-        return reinterpret_cast<const Header*>(this)->getValue();
-    }
+    cb::const_byte_buffer getValue() const;
 
-    cb::byte_buffer getValue() {
-        return reinterpret_cast<Header*>(this)->getValue();
-    }
+    cb::byte_buffer getValue();
 
-    std::string_view getValueString() const {
-        return reinterpret_cast<const Header*>(this)->getValueString();
-    }
+    std::string_view getValueString() const;
 
-    cb::const_byte_buffer getFrame() const {
-        return reinterpret_cast<const Header*>(this)->getFrame();
-    }
+    cb::const_byte_buffer getFrame() const;
 
     /**
      * Callback function to use while parsing the FrameExtras section

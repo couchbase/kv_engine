@@ -9,11 +9,12 @@
  *   the file licenses/APL2.txt.
  */
 
-// mock_cookie.h must be included before ep_test_apis.h as ep_test_apis.h
-// define a macro named check and some of the folly headers also use the
-// name check
+// mock_cookie.h & mock_server.h must be included before ep_test_apis.h as
+// ep_test_apis.h define a macro named check the mock_* headers also use the
+// name 'check' indirectly.
 #include <ep_engine.h>
 #include <programs/engine_testapp/mock_cookie.h>
+#include <programs/engine_testapp/mock_server.h>
 
 // Usage: (to run just a single test case)
 // make engine_tests EP_TEST_NUM=3
@@ -34,7 +35,6 @@
 #include <platform/platform_thread.h>
 #include <platform/platform_time.h>
 #include <programs/engine_testapp/mock_engine.h>
-#include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
 #include <chrono>
