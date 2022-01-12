@@ -163,7 +163,11 @@ enum class Privilege {
 
     /// The `SystemSettings` privilege allows the connection to fetch the
     /// global system configuration (Cluster topology)
-    SystemSettings
+    SystemSettings,
+
+    /// The 'ReadSeqno' privilege allows a user to read/operate against the
+    /// sequence numbers of a vbucket.
+    ReadSeqno,
 
     /**
      * Remember to update the rest of the internals of the RBAC module when

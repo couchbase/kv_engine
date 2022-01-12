@@ -53,7 +53,7 @@ struct UserIdent {
  * added to the Privilege enum class the size of the mask needs to
  * be updated.
  */
-using PrivilegeMask = std::bitset<size_t(Privilege::SystemSettings) + 1>;
+using PrivilegeMask = std::bitset<size_t(Privilege::ReadSeqno) + 1>;
 
 /// The in-memory representation of a collection
 class Collection {

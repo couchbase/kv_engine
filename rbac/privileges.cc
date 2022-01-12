@@ -44,7 +44,8 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"Impersonate", Privilege::Impersonate},
         {"Select", Privilege::Select},
         {"Settings", Privilege::Settings},
-        {"SystemSettings", Privilege::SystemSettings}};
+        {"SystemSettings", Privilege::SystemSettings},
+        {"ReadSeqno", Privilege::ReadSeqno}};
 
 std::string to_string(Privilege privilege) {
     for (const auto& entry : privilegemap) {
@@ -99,6 +100,7 @@ bool is_bucket_privilege(Privilege priv) {
     case Privilege::Select:
     case Privilege::Settings:
     case Privilege::SimpleStats:
+    case Privilege::ReadSeqno:
         return true;
 
     case Privilege::BucketManagement:
@@ -152,6 +154,7 @@ bool is_collection_privilege(Privilege priv) {
     case Privilege::Impersonate:
     case Privilege::SystemSettings:
     case Privilege::Stats:
+    case Privilege::ReadSeqno:
         return false;
     }
 
