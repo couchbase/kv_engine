@@ -2250,10 +2250,6 @@ TEST_F(DcpConnMapTest,
 }
 
 class NotifyTest : public DCPTest {
-protected:
-    std::unique_ptr<MockDcpConnMap> connMap;
-    DcpProducer* producer = nullptr;
-    int callbacks = 0;
 };
 
 class ConnMapNotifyTest {
@@ -2279,7 +2275,6 @@ public:
 
     void notify() {
         callbacks++;
-        connMap->addConnectionToPending(producer->shared_from_this());
     }
 
     int getCallbacks() {
@@ -2333,10 +2328,13 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify) {
     //    which we've hooked into. For step 3 go to dcp_test_notify_io_complete
     notifyTest.connMap->processPendingNotifications();
 
-    // 2.1 One callback should of occurred, and we should still have one
-    //     notification pending (see dcp_test_notify_io_complete).
+    // 2.1 One callback should of occurred, and we should have zero
+    //     notifications pending (see dcp_test_notify_io_complete).
     EXPECT_EQ(1, notifyTest.getCallbacks());
-    EXPECT_EQ(1, notifyTest.connMap->getPendingNotifications().size());
+    ASSERT_EQ(0, notifyTest.connMap->getPendingNotifications().size());
+    // 2.2 Re-add the connection to pending.
+    notifyTest.connMap->addConnectionToPending(
+            notifyTest.producer->shared_from_this());
 
     // 4. Call processPendingNotifications again, is there a new connection?
     notifyTest.connMap->processPendingNotifications();
