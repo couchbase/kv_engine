@@ -795,6 +795,68 @@ TEST_P(CollectionsLegacyDcpTest, default_collection_is_tombstone_purged) {
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
 }
 
+/**
+ * The test verifies that tombstones that reside in the default collection are
+ * correctly sent to the DCP legacy client, in the case where no alive document
+ * exists in the collection.
+ */
+TEST_P(CollectionsLegacyDcpTest, DefaultCollectionStoresOnlyTombstones) {
+    // Create 1 extra collection -> move cid > 0
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    const auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(1, vb->getHighSeqno());
+
+    store_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    ASSERT_EQ(2, vb->getHighSeqno());
+
+    delete_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    ASSERT_EQ(3, vb->getHighSeqno());
+
+    // Compact - seqno:2 will be deduplicated
+    runCompaction(vbid, 0, true);
+
+    // Clear checkpoints, ensure backfill
+    ensureDcpWillBackfill();
+
+    // Make cookie look like a non-collection client and then DCP stream from
+    // 0 to the default collection high-seqno.
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
+    const auto highSeqno = vb->getManifest()
+                                   .lock(CollectionID::Default)
+                                   .getPersistedHighSeqno();
+    ASSERT_EQ(3, highSeqno);
+    createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
+
+    // Run the backfill task
+    // SnapMarker + del:3 + StreamEnd expected.
+    // Before the fix, the stream would miss to send the tombstone and jump
+    // directly to StreamEnd
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    // backfill:create()
+    runNextTask(lpAuxioQ);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(3, producers->last_snap_end_seqno);
+    // backfill:scan()
+    runNextTask(lpAuxioQ);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, producers->last_op);
+    EXPECT_EQ(3, producers->last_byseqno);
+    // backfill:finished()
+    runNextTask(lpAuxioQ);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers->last_op);
+}
+
 // No ephemeral support
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsLegacyDcpTest,
