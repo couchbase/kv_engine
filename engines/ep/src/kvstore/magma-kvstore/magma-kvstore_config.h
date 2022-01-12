@@ -13,7 +13,7 @@
 
 #include "kvstore/kvstore_config.h"
 
-#include "error_handler.h"
+#include "ep_types.h"
 #include "libmagma/magma.h"
 #include "utilities/testing_hook.h"
 

@@ -13,7 +13,7 @@
 
 #include "kvstore/kvstore_config.h"
 
-#include "error_handler.h"
+#include "ep_types.h"
 
 /**
  * Config for the NexusKVStore. We subclass for the sake of using the same API

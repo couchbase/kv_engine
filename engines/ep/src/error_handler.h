@@ -10,20 +10,10 @@
 
 #pragma once
 
+#include "ep_types.h"
 #include <spdlog/logger.h>
 
 namespace cb {
-/**
- * How should errors be handled?
- */
-enum class ErrorHandlingMethod {
-    // Log the error
-    Log,
-    // Log the error then throw an exception
-    Throw,
-    // Log the error then abort
-    Abort
-};
 
 ErrorHandlingMethod getErrorHandlingMethod(std::string_view);
 

@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include "error_handler.h"
+#include "ep_types.h"
 
 #include <memcached/dockey.h>
 #include <memcached/vbucket.h>

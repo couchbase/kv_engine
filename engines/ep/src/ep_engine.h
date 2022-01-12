@@ -14,7 +14,6 @@
 #include "background_stat_task.h"
 #include "configuration.h"
 #include "ep_engine_public.h"
-#include "error_handler.h"
 #include "permitted_vb_states.h"
 #include "stats.h"
 #include "storeddockey.h"

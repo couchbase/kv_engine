@@ -12,6 +12,7 @@
 #include "magma-kvstore_config.h"
 
 #include "configuration.h"
+#include "error_handler.h"
 #include "magma-kvstore.h"
 
 #include <memcached/server_core_iface.h>

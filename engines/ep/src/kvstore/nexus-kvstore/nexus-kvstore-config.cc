@@ -12,7 +12,7 @@
 #include "nexus-kvstore-config.h"
 
 #include "configuration.h"
-
+#include "error_handler.h"
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"

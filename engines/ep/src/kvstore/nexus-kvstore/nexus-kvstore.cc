@@ -15,6 +15,7 @@
 #include "collections/collection_persisted_stats.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
+#include "error_handler.h"
 #include "kvstore/kvstore_transaction_context.h"
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore.h"

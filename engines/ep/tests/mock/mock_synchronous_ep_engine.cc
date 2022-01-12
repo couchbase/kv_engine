@@ -22,6 +22,7 @@
 #include "mock_ephemeral_bucket.h"
 #include "mock_replicationthrottle.h"
 #include "objectregistry.h"
+#include <fmt/format.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>

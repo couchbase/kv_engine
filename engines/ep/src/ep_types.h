@@ -267,3 +267,19 @@ enum class VBucketStatsDetailLevel {
     Durability, // state, high_seqno, topology, high_prepared_seqno
     Full, // All the vbucket stats
 };
+
+namespace cb {
+
+/**
+ * How should errors be handled?
+ */
+enum class ErrorHandlingMethod {
+    // Log the error
+    Log,
+    // Log the error then throw an exception
+    Throw,
+    // Log the error then abort
+    Abort
+};
+
+} // namespace cb
