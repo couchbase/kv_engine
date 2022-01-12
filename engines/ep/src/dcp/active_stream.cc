@@ -25,6 +25,11 @@
 #include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>
 
+// OutstandingItemsResult ctor and dtor required to be defined out of line to
+// allow us to forward declare CheckpointSnapshotRange
+ActiveStream::OutstandingItemsResult::OutstandingItemsResult() = default;
+ActiveStream::OutstandingItemsResult::~OutstandingItemsResult() = default;
+
 ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            std::shared_ptr<DcpProducer> p,
                            const std::string& n,
@@ -913,6 +918,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
                     std::chrono::steady_clock::now() - _begin_));
 
     result.checkpointType = itemsForCursor.checkpointType;
+    result.ranges = itemsForCursor.ranges;
     if (result.checkpointType == CheckpointType::Disk) {
         result.diskCheckpointState =
                 OutstandingItemsResult::DiskCheckpointState();
@@ -1175,6 +1181,20 @@ void ActiveStream::processItems(
                 }
                 /* mark true as it indicates a new checkpoint snapshot */
                 nextSnapshotIsCheckpoint = true;
+
+                if (outstandingItemsResult.ranges.empty()) {
+                    throw std::logic_error(
+                            "ActiveStream::processItems: found "
+                            "no snapshot ranges but we have a "
+                            "checkpoint start with seqno:" +
+                            std::to_string(qi->getBySeqno()));
+                }
+
+                nextSnapStart =
+                        outstandingItemsResult.ranges.begin()->getStart();
+                outstandingItemsResult.ranges.erase(
+                        outstandingItemsResult.ranges.begin());
+
                 continue;
             }
 
@@ -1353,20 +1373,18 @@ void ActiveStream::snapshot(
             flags |= MARKER_FLAG_ACK;
         }
 
-        /* We need to send the requested 'snap_start_seqno_' as the snapshot
-           start when we are sending the first snapshot because the first
-           snapshot could be resumption of a previous snapshot */
-        if (!firstMarkerSent) {
-            snapStart = std::min(snap_start_seqno_, snapStart);
-            firstMarkerSent = true;
-        }
-
         // If the stream supports SyncRep then send the HCS for CktpType::disk
         const auto sendHCS = supportSyncReplication() && isCkptTypeDisk;
         std::optional<uint64_t> hcsToSend;
         if (sendHCS) {
             Expects(diskCheckpointState);
             hcsToSend = diskCheckpointState->highCompletedSeqno;
+
+            if (nextSnapshotIsCheckpoint && nextSnapStart) {
+                snapStart = *nextSnapStart;
+                nextSnapStart = std::nullopt;
+            }
+
             log(spdlog::level::level_enum::info,
                 "{} ActiveStream::snapshot: Sending disk snapshot with start "
                 "seqno {}, end seqno {}, and"
@@ -1376,6 +1394,15 @@ void ActiveStream::snapshot(
                 snapEnd,
                 diskCheckpointState->highCompletedSeqno);
         }
+
+        /* We need to send the requested 'snap_start_seqno_' as the snapshot
+           start when we are sending the first snapshot because the first
+           snapshot could be resumption of a previous snapshot */
+        if (!firstMarkerSent) {
+            snapStart = std::min(snap_start_seqno_, snapStart);
+            firstMarkerSent = true;
+        }
+
         const auto mvsToSend = supportSyncReplication()
                                        ? std::make_optional(maxVisibleSeqno)
                                        : std::nullopt;

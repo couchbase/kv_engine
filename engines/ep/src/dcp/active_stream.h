@@ -23,6 +23,8 @@ class CheckpointManager;
 class VBucket;
 enum class ValueFilter;
 
+struct CheckpointSnapshotRange;
+
 /**
  * This class represents an "active" Stream of DCP messages for a given vBucket.
  *
@@ -324,6 +326,11 @@ public:
      * Result of the getOutstandingItems function
      */
     struct OutstandingItemsResult {
+        // OutstandingItemsResult ctor and dtor required to forward declare
+        // CheckpointSnapshotRange
+        OutstandingItemsResult();
+        ~OutstandingItemsResult();
+
         /**
          * Optional state required when sending a checkpoint of type Disk
          * (i.e. when a Producer streams a disk-snapshot from memory.
@@ -352,6 +359,11 @@ public:
          * The visibleSeqno used to 'seed' the processItems loop
          */
         uint64_t visibleSeqno{0};
+
+        /**
+         * The snapshot bounds for the checkpoints we are going to send
+         */
+        std::vector<CheckpointSnapshotRange> ranges;
     };
 
     /**
@@ -763,6 +775,15 @@ private:
      * See comments in processItems() for usage of this variable.
      */
     bool nextSnapshotIsCheckpoint = false;
+
+    /*
+     * The next snapshot start that we will send (set when we set
+     * nextSnapshotIsCheckpoint). Optional as we reset this after use until the
+     * next checkpoint start which is simpler than dealing with some transitions
+     * between backfill and memory which also set nextSnapshotIsCheckpoint to
+     * true but do not need an overrided snap start.
+     */
+    std::optional<uint64_t> nextSnapStart = {};
 
     //! The current vbucket state to send in the takeover stream
     vbucket_state_t takeoverState;

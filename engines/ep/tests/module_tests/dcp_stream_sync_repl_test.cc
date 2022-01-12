@@ -820,6 +820,7 @@ TEST_P(DcpStreamSyncReplPersistentTest, ProducerAllowsSeqnoAckLEQToLastSent) {
                                  queue_op::checkpoint_start,
                                  2,
                                  1)));
+    outstandingItemsResult.ranges.push_back({{0, 1}, {}, {}});
 
     // Test - call processItems() twice: once with a single checkpoint_start
     // item, then with a two mutations.

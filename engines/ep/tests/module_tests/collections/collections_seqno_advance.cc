@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "checkpoint_manager.h"
 #include "dcp/response.h"
 #include "kv_bucket.h"
 #include "test_manifest.h"
@@ -197,6 +198,13 @@ public:
         queue_op checkpoint_op = queue_op::checkpoint_start;
         StoredDocKey key(to_string(checkpoint_op), CollectionID::System);
         queued_item qi(new Item(key, vbid, checkpoint_op, 1, seqno));
+
+        input.ranges.push_back(
+                {{static_cast<uint64_t>(input.items.back()->getBySeqno()),
+                  seqno},
+                 {},
+                 {}});
+
         input.items.emplace_back(qi);
     }
 

@@ -186,15 +186,26 @@ client will receive:
 * RX `snapshot-marker{start=X+n, end=Y, flags=0x1}`
 * RX `mutation{seqno:X+n}`
 
-#### Disk snapshot-marker.start-seqno equals stream-request.start-seqno
+#### Disk snapshot-marker.start-seqno
 
-The difference here is when a stream-request has to backfill from disk, the
-`0x02 disk` snapshot marker has the start-seqno set to the clients requested
-start-seqno. The returned mutations are correct from the definition of
-stream-request but the snapshot-marker could be viewed as inconsistent with the
-stream-request definition and the in-memory case.
+A stream which is transferring disk snapshot data may set the snapshot start
+seqno in one of three different ways:
 
-This is not consistent with the in-memory case, example:
+1) The first snapshot-marker of the stream will have the start-seqno set to the
+   requested start-seqno regardless of whether or not the snapshot comes from 
+   backfill or is sent from the CheckpointManager.
+2) Snapshot markers from backfills other than the first in the stream will send
+   the starting sequence number of the backfill as the start-seqno
+3) SyncReplication enabled streams only:
+   Snapshots sent from the CheckpointManager will set the start-seqno to the
+   snapshot start seqno of the Checkpoint object if the stream supports the
+   SyncReplication feature. The client may or may not see the mutation with that
+   seqno due to de-dupe. This is required as SyncReplication consumers need
+   Disk snapshot start-seqnos to reflect the full extent of the original
+   snapshot rather than just the set of mutations sent.
+
+In the case of 1, this is not consistent with the in-memory case, but is
+consistent with stream-request semantics. For example:
 
 * TX `stream-request{start-seqno=X}`
 * RX `stream-request-response{success}`
