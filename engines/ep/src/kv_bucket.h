@@ -30,6 +30,7 @@
 
 class CheckpointDestroyerTask;
 class DurabilityCompletionTask;
+class NotifiableTask;
 class ReplicationThrottle;
 class VBucketCountVisitor;
 class DatatypeStatVisitor;
@@ -1005,7 +1006,7 @@ protected:
     ExTask itemPagerTask;
 
     // Checkpoint recovery tasks. The number is determined by config param
-    std::vector<std::shared_ptr<GlobalTask>> chkRemovers;
+    std::vector<std::shared_ptr<NotifiableTask>> chkRemovers;
 
     /**
      * One or more tasks responsible for destroying checkpoints which are

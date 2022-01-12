@@ -44,6 +44,7 @@
 #include "vbucket_bgfetch_item.h"
 #include "vbucketdeletiontask.h"
 #include <executor/executorpool.h>
+#include <executor/notifiable_task.h>
 
 #include <memcached/collections.h>
 #include <memcached/server_document_iface.h>
@@ -2566,8 +2567,8 @@ void KVBucket::attemptToFreeMemory() {
 
 void KVBucket::wakeUpCheckpointMemRecoveryTask() {
     for (const auto& task : chkRemovers) {
-        if (task && task->getState() == TASK_SNOOZED) {
-            ExecutorPool::get()->wake(task->getId());
+        if (task) {
+            task->wakeup();
         }
     }
 }

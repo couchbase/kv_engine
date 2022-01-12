@@ -13,6 +13,7 @@ add_library(mcd_executor STATIC
             globaltask.h
             mock_executor_pool.cc
             mock_executor_pool.h
+            notifiable_task.cc
             taskable.h
             cb3_taskqueue.cc
             cb3_taskqueue.h

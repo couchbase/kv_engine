@@ -13,6 +13,7 @@
 #include "checkpoint.h"
 #include "checkpoint_types.h"
 #include <executor/globaltask.h>
+#include <executor/notifiable_task.h>
 #include <folly/Synchronized.h>
 #include <mutex>
 
@@ -65,7 +66,7 @@ private:
 /**
  * Dispatcher job responsible for ItemExpel and CursorDrop/CheckpointRemoval
  */
-class CheckpointMemRecoveryTask : public GlobalTask {
+class CheckpointMemRecoveryTask : public NotifiableTask {
 public:
     /**
      * @param e the engine
@@ -78,7 +79,7 @@ public:
                               size_t interval,
                               size_t removerId);
 
-    bool run() override;
+    bool runInner() override;
 
     std::string getDescription() const override {
         return "CheckpointMemRecoveryTask:" + std::to_string(removerId);
@@ -99,6 +100,10 @@ public:
     std::vector<std::pair<Vbid, size_t>> getVbucketsSortedByChkMem() const;
 
 protected:
+    size_t getSleepTime() const override {
+        return sleepTime;
+    }
+
     enum class ReductionRequired : uint8_t { No, Yes };
 
     /**

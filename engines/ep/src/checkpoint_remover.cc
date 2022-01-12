@@ -75,7 +75,7 @@ CheckpointMemRecoveryTask::CheckpointMemRecoveryTask(
         EPStats& st,
         size_t interval,
         size_t removerId)
-    : GlobalTask(e, TaskId::CheckpointMemRecoveryTask, interval, false),
+    : NotifiableTask(e, TaskId::CheckpointMemRecoveryTask, interval),
       engine(e),
       stats(st),
       sleepTime(interval),
@@ -197,10 +197,9 @@ CheckpointMemRecoveryTask::attemptCursorDropping() {
     return ReductionRequired::Yes;
 }
 
-bool CheckpointMemRecoveryTask::run() {
+bool CheckpointMemRecoveryTask::runInner() {
     TRACE_EVENT0("ep-engine/task", "CheckpointMemRecoveryTask");
 
-    snooze(sleepTime);
     auto& bucket = *engine->getKVBucket();
 
     if (!bucket.isCheckpointMemoryReductionRequired()) {
