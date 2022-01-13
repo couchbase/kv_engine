@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -9,13 +8,12 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "testapp.h"
 #include <evutil.h>
 #include <string>
-
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
-
-#include "testapp.h"
+#include <platform/process_monitor.h>
 
 /**
  * This test suite tests the various settings for authenticating over SSL
@@ -243,3 +241,39 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCertShouldNotSupportSASL) {
                 << "Received: " << to_string(error.getReason());
     }
 }
+
+#ifndef __APPLE__
+/// The following test tries to use the TLS stack from golang to connect
+/// to the server and establish a connection and authenticate with the
+/// client certificate.
+TEST_F(SslCertTest, LoginWhenMandatoryGoClient) {
+    reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
+
+    auto connection = createConnection();
+    std::vector<std::string> argv = {
+            {SOURCE_ROOT "/tests/gocode/bin/tls_test"},
+            {"-kv"},
+            {"localhost:" + std::to_string(connection->getPort())},
+            {"-clientKey"},
+            {OBJECT_ROOT "/tests/cert/clients/client.key"},
+            {"-clientCert"},
+            {OBJECT_ROOT "/tests/cert/clients/client.cert"},
+            {"-rootCA"},
+            {OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
+            {"-skipCertVerify"},
+            {"false"}};
+
+    nlohmann::json json;
+    std::string status;
+    auto child = ProcessMonitor::create(argv, [&status, &json](auto& ec) {
+        json = ec.to_json();
+        status =  ec.to_string();
+    });
+
+    while (child->isRunning()) {
+        std::this_thread::sleep_for(std::chrono::seconds{1});
+    }
+
+    EXPECT_EQ("Success", status) << json.dump(2);
+}
+#endif

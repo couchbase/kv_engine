@@ -1,7 +1,5 @@
 include(CouchbaseGoogleTest)
 
-INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/external)
-
 add_library(testapp_auth_provider OBJECT auth_provider.h auth_provider.cc)
 kv_enable_pch(testapp_auth_provider)
 cb_add_test_executable(testapp_auth_provider_test auth_provider_test.cc
@@ -82,7 +80,7 @@ set(memcached_testapp_SOURCES
     ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
 
 cb_add_test_executable(memcached_testapp ${memcached_testapp_SOURCES})
-target_include_directories(memcached_testapp PRIVATE ${Memcached_BINARY_DIR})
+target_include_directories(memcached_testapp PRIVATE ${Memcached_BINARY_DIR} ${Platform_SOURCE_DIR}/external)
 
 target_link_libraries(memcached_testapp PRIVATE
     memcached_daemon
@@ -98,6 +96,9 @@ target_link_libraries(memcached_testapp PRIVATE
     ${LIBEVENT_LIBRARIES}
     ${COUCHBASE_NETWORK_LIBS})
 add_dependencies(memcached_testapp memcached Generate_kv_engine_X509_Test_Certificates)
+if (NOT APPLE)
+    add_dependencies(memcached_testapp golang_tls_test)
+endif()
 add_sanitizers(memcached_testapp)
 cb_enable_unity_build(memcached_testapp)
 kv_enable_pch(memcached_testapp)
