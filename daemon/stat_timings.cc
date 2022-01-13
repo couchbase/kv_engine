@@ -10,9 +10,9 @@
  */
 #include "stat_timings.h"
 
+#include <hdrhistogram/hdrhistogram.h>
 #include <statistics/definitions.h>
 #include <statistics/labelled_collector.h>
-#include <utilities/hdrhistogram.h>
 
 StatTimings::~StatTimings() {
     std::lock_guard<std::mutex> lg(histogramMutex);
