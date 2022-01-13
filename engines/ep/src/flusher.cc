@@ -12,7 +12,9 @@
 #include "flusher.h"
 
 #include "bucket_logger.h"
+#include "checkpoint_config.h"
 #include "ep_bucket.h"
+#include "ep_engine.h"
 #include "objectregistry.h"
 #include "tasks.h"
 #include "vbucket.h"
@@ -250,6 +252,9 @@ bool Flusher::flushVB() {
         doHighPriority = true;
     }
 
+    const auto checkpointRemovalMode =
+            store->getEPEngine().getCheckpointConfig().getCheckpointRemoval();
+
     // Flush a high priority vBucket if applicable
     Vbid vbid;
     if (doHighPriority && hpVbs.popFront(vbid)) {
@@ -260,9 +265,11 @@ bool Flusher::flushVB() {
             hpVbs.pushUnique(vbid);
         }
 
-        // Flushing may move the persistence cursor to a new checkpoint.
-        if (res.wakeupCkptRemover == EPBucket::WakeCkptRemover::Yes) {
-            store->wakeUpCheckpointMemRecoveryTask();
+        if (checkpointRemovalMode == CheckpointRemoval::Lazy) {
+            // Flushing may move the persistence cursor to a new checkpoint.
+            if (res.wakeupCkptRemover == EPBucket::WakeCkptRemover::Yes) {
+                store->wakeUpCheckpointMemRecoveryTask();
+            }
         }
 
         // Return false (don't re-wake) if the lpVbs is empty (i.e. nothing to
@@ -290,9 +297,11 @@ bool Flusher::flushVB() {
         lpVbs.pushUnique(vbid);
     }
 
-    // Flushing may move the persistence cursor to a new checkpoint.
-    if (res.wakeupCkptRemover == EPBucket::WakeCkptRemover::Yes) {
-        store->wakeUpCheckpointMemRecoveryTask();
+    if (checkpointRemovalMode == CheckpointRemoval::Lazy) {
+        // Flushing may move the persistence cursor to a new checkpoint.
+        if (res.wakeupCkptRemover == EPBucket::WakeCkptRemover::Yes) {
+            store->wakeUpCheckpointMemRecoveryTask();
+        }
     }
 
     // Return more (as we may have low priority vBuckets to flush)
