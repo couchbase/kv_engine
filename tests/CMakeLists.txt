@@ -1,5 +1,6 @@
 add_compile_options_disable_optimization()
 
+add_subdirectory(cert)
 ADD_SUBDIRECTORY(dockey)
 ADD_SUBDIRECTORY(engine_error)
 ADD_SUBDIRECTORY(histograms)

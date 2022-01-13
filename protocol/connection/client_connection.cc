@@ -286,7 +286,7 @@ MemcachedConnection::MemcachedConnection(std::string host,
     if (ssl) {
         char* env = getenv("COUCHBASE_SSL_CLIENT_CERT_PATH");
         if (env != nullptr) {
-            setSslCertFile(std::string{env} + "/client.pem");
+            setSslCertFile(std::string{env} + "/client.cert");
             setSslKeyFile(std::string{env} + "/client.key");
         }
     }

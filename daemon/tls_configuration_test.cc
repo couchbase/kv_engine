@@ -15,15 +15,15 @@
 /// Helper method to get one of the files we've got stored for
 /// unit tests
 static std::string getCertFile(const std::string& filename) {
-    auto root = boost::filesystem::path(SOURCE_ROOT);
-    return (root / "tests" / "cert" / filename).generic_string();
+    auto root = boost::filesystem::path(OBJECT_ROOT);
+    return (root / "tests" / "cert" / "root" / filename).generic_string();
 }
 
 class TlsConfigurationFormatTest : public JsonValidatorTest {
 public:
     TlsConfigurationFormatTest()
-        : JsonValidatorTest({{"private key", getCertFile("testapp.pem")},
-                             {"certificate chain", getCertFile("testapp.cert")},
+        : JsonValidatorTest({{"private key", getCertFile("ca_root.key")},
+                             {"certificate chain", getCertFile("ca_root.cert")},
                              {"minimum version", "TLS 1.2"},
                              {"cipher list",
                               {{"TLS 1.2", "HIGH"},
@@ -153,8 +153,8 @@ TEST_F(TlsConfigurationFormatTest, UnknownKeys) {
 class TlsConfigurationTest : public ::testing::Test {
 public:
     TlsConfigurationTest()
-        : legalSpec({{"private key", getCertFile("testapp.pem")},
-                     {"certificate chain", getCertFile("testapp.cert")},
+        : legalSpec({{"private key", getCertFile("ca_root.key")},
+                     {"certificate chain", getCertFile("ca_root.cert")},
                      {"minimum version", "TLS 1.2"},
                      {"cipher list",
                       {{"TLS 1.2", "HIGH"},
@@ -195,7 +195,7 @@ TEST_F(TlsConfigurationTest, PasswordProtectedKey) {
     try {
         legalSpec["password"] =
                 cb::base64::encode("This is the passphrase", true);
-        legalSpec["private key"] = getCertFile("encrypted-testapp.pem");
+        legalSpec["private key"] = getCertFile("ca_root_encrypted.key");
         TlsConfiguration configuration(legalSpec);
     } catch (const std::exception& e) {
         FAIL() << e.what() << std::endl << legalSpec.dump();
@@ -206,7 +206,7 @@ TEST_F(TlsConfigurationTest, PasswordProtectedWrongKey) {
     try {
         legalSpec["password"] =
                 cb::base64::encode("This isn't the passphrase", true);
-        legalSpec["private key"] = getCertFile("encrypted-testapp.pem");
+        legalSpec["private key"] = getCertFile("ca_root_encrypted.key");
         TlsConfiguration configuration(legalSpec);
         FAIL() << "For some reason it accepted the wrong key";
     } catch (const CreateSslContextException& e) {

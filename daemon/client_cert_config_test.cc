@@ -73,8 +73,8 @@ TEST(X509, ParseValidMultipleEntryFormat) {
 class SslParseCertTest : public ::testing::Test {
 public:
     static void SetUpTestCase() {
-        std::string certPath{SOURCE_ROOT};
-        certPath.append("/tests/cert/parse-test.pem");
+        std::string certPath{OBJECT_ROOT};
+        certPath.append("/tests/cert/parse-test/parse-test.cert");
         certPath = cb::io::sanitizePath(certPath);
         auto data = cb::io::loadFile(certPath);
         auto* certbio = BIO_new_mem_buf(

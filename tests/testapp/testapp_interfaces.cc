@@ -280,8 +280,8 @@ TEST_P(InterfacesTest, Mcbp) {
 
 TEST_P(InterfacesTest, TlsProperties) {
     nlohmann::json tls_properties = {
-            {"private key", SOURCE_ROOT "/tests/cert/testapp.pem"},
-            {"certificate chain", SOURCE_ROOT "/tests/cert/testapp.cert"},
+            {"private key", OBJECT_ROOT "/tests/cert/root/ca_root.key"},
+            {"certificate chain", OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
             {"minimum version", "TLS 1"},
             {"cipher list",
              {{"TLS 1.2", "HIGH"},
@@ -300,8 +300,9 @@ TEST_P(InterfacesTest, TlsProperties) {
 
 TEST_P(InterfacesTest, TlsPropertiesEncryptedCert) {
     nlohmann::json tls_properties = {
-            {"private key", SOURCE_ROOT "/tests/cert/encrypted-testapp.pem"},
-            {"certificate chain", SOURCE_ROOT "/tests/cert/testapp.cert"},
+            {"private key",
+             OBJECT_ROOT "/tests/cert/root/ca_root_encrypted.key"},
+            {"certificate chain", OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
             {"minimum version", "TLS 1"},
             {"cipher list",
              {{"TLS 1.2", "HIGH"},
@@ -330,8 +331,9 @@ TEST_P(InterfacesTest, TlsPropertiesEncryptedCert) {
 
 TEST_P(InterfacesTest, TlsPropertiesEncryptedCertInvalidPassphrase) {
     nlohmann::json tls_properties = {
-            {"private key", SOURCE_ROOT "/tests/cert/encrypted-testapp.pem"},
-            {"certificate chain", SOURCE_ROOT "/tests/cert/testapp.cert"},
+            {"private key",
+             OBJECT_ROOT "/tests/cert/root/ca_root_encrypted.key"},
+            {"certificate chain", OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
             {"minimum version", "TLS 1"},
             {"cipher list",
              {{"TLS 1.2", "HIGH"},

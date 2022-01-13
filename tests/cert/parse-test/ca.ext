@@ -1,0 +1,10 @@
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer:always
+basicConstraints = CA:true
+subjectAltName = @alt_names
+
+[ alt_names ]
+URI.1 = urn:li:testurl_1
+URI.2 = email:testapp@example.com
+URI.3 = couchbase://myuser@mycluster/mybucket
+DNS.1 = MyServerName

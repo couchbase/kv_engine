@@ -97,7 +97,7 @@ target_link_libraries(memcached_testapp PRIVATE
     ${SNAPPY_LIBRARIES}
     ${LIBEVENT_LIBRARIES}
     ${COUCHBASE_NETWORK_LIBS})
-add_dependencies(memcached_testapp memcached)
+add_dependencies(memcached_testapp memcached Generate_kv_engine_X509_Test_Certificates)
 add_sanitizers(memcached_testapp)
 cb_enable_unity_build(memcached_testapp)
 kv_enable_pch(memcached_testapp)

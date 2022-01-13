@@ -20,8 +20,9 @@ class TlsTests : public TestappClientTest {
 protected:
     void SetUp() override {
         TestappTest::SetUp();
-        tls = {{"private key", SOURCE_ROOT "/tests/cert/testapp.pem"},
-               {"certificate chain", SOURCE_ROOT "/tests/cert/testapp.cert"},
+        tls = {{"private key", OBJECT_ROOT "/tests/cert/root/ca_root.key"},
+               {"certificate chain",
+                OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
                {"minimum version", "TLS 1"},
                {"cipher list",
                 {{"TLS 1.2", "HIGH"},

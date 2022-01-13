@@ -237,8 +237,9 @@ void TestappTest::doSetUpTestCaseWithConfiguration(
 
     try {
         tls_properties = {
-                {"private key", SOURCE_ROOT "/tests/cert/testapp.pem"},
-                {"certificate chain", SOURCE_ROOT "/tests/cert/testapp.cert"},
+                {"private key", OBJECT_ROOT "/tests/cert/root/ca_root.key"},
+                {"certificate chain",
+                 OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
                 {"minimum version", "TLS 1"},
                 {"cipher list",
                  {{"TLS 1.2", "HIGH"},
@@ -307,10 +308,10 @@ void TestappTest::reconfigure_client_cert_auth(const std::string& state,
 }
 
 void TestappTest::setClientCertData(MemcachedConnection& connection) {
-    connection.setSslCertFile(SOURCE_ROOT +
-                              std::string("/tests/cert/client.pem"));
-    connection.setSslKeyFile(SOURCE_ROOT +
-                             std::string("/tests/cert/client.key"));
+    connection.setSslCertFile(OBJECT_ROOT +
+                              std::string("/tests/cert/clients/client.cert"));
+    connection.setSslKeyFile(OBJECT_ROOT +
+                             std::string("/tests/cert/clients/client.key"));
 }
 
 bool TestappTest::isJSON(std::string_view value) {
