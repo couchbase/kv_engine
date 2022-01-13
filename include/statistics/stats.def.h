@@ -450,6 +450,12 @@ STAT(curr_connections, , count, , )
 STAT(system_connections, , count, , )
 STAT(total_connections, , count, , ) // total since start/reset
 STAT(connection_structures, , count, , )
+
+// Amount of memory allocated by the daemon.
+STAT(daemon_memory_allocated, , bytes, , )
+// Resident size of memory allocated by the daemon itself.
+STAT(daemon_memory_resident, , bytes, , )
+
 CBSTAT(cmd_get, , count) // this is not exposed to Prometheus as it duplicates
                          // the information provided by get_hits+get_misses
 STAT(cmd_set, , count, ops, LABEL(op, set))

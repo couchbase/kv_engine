@@ -20,6 +20,7 @@
 
 #include <fmt/chrono.h>
 #include <folly/Chrono.h>
+#include <platform/cb_arena_malloc.h>
 #include <platform/timeutils.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
@@ -46,6 +47,17 @@ static void server_global_stats(const StatCollector& collector) {
                       stats.system_conns.load(std::memory_order_relaxed));
     collector.addStat(Key::total_connections, stats.total_conns);
     collector.addStat(Key::connection_structures, stats.conn_structs);
+
+    std::unordered_map<std::string, size_t> allocStats;
+    cb::ArenaMalloc::getGlobalStats(allocStats);
+    auto allocated = allocStats.find("allocated");
+    if (allocated != allocStats.end()) {
+        collector.addStat(Key::daemon_memory_allocated, allocated->second);
+    }
+    auto resident = allocStats.find("resident");
+    if (resident != allocStats.end()) {
+        collector.addStat(Key::daemon_memory_resident, resident->second);
+    }
 }
 
 /// Add global stats related to clocks and time.
