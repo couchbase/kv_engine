@@ -6688,11 +6688,12 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     // filter on that specific state.
     auto reqState = aliveVBStates;
     std::optional<CollectionID> reqCollection = {};
+    const bool collectionsEnabled = cookie->isCollectionsSupported();
 
     // if extlen is non-zero, it limits the result to either only include the
     // vbuckets in the specified vbucket state, or in the specified vbucket
     // state and for the specified collection ID.
-    if (!extras.empty()) {
+    if (extras.size() >= sizeof(RequestedVBState)) {
         auto rawState = ntohl(*reinterpret_cast<const uint32_t*>(
                 extras.substr(0, sizeof(vbucket_state_t)).data()));
 
@@ -6706,14 +6707,24 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
         // Is a collection requested?
         if (extras.size() ==
             (sizeof(RequestedVBState) + sizeof(CollectionIDType))) {
+            if (!collectionsEnabled) {
+                return cb::engine_errc::invalid_arguments;
+            }
+
             reqCollection = static_cast<CollectionIDType>(
                     ntohl(*reinterpret_cast<const uint32_t*>(
                             extras.substr(sizeof(RequestedVBState),
                                           sizeof(CollectionIDType))
                                     .data())));
-        } else if (extras.size() != sizeof(RequestedVBState)) {
+
+        } else if (extras.size() >
+                   (sizeof(RequestedVBState) + sizeof(CollectionIDType))) {
+            // extras too large
             return cb::engine_errc::invalid_arguments;
         }
+    } else if (!extras.empty()) {
+        // extras too small
+        return cb::engine_errc::invalid_arguments;
     }
 
     // If the client ISN'T talking collections, we should just give them the
@@ -6721,23 +6732,14 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     // of.
     // If the client IS talking collections but hasn't specified a collection,
     // we'll give them the actual vBucket high seqno.
-    if (!cookie->isCollectionsSupported()) {
+    if (!collectionsEnabled) {
         reqCollection = CollectionID::Default;
     }
 
-    // Privilege check either for the collection or the bucket
-    auto accessStatus = cb::engine_errc::success;
-    if (reqCollection) {
-        // This will do the scope lookup
-        accessStatus = checkPrivilege(
-                cookie, cb::rbac::Privilege::MetaRead, reqCollection.value());
-    } else {
-        // Do a bucket privilege check
-        accessStatus =
-                checkPrivilege(cookie, cb::rbac::Privilege::MetaRead, {}, {});
-    }
-    if (accessStatus != cb::engine_errc::success) {
-        return cb::engine_errc(accessStatus);
+    if (auto accessStatus =
+                doGetAllVbSeqnosPrivilegeCheck(cookie, reqCollection);
+        accessStatus != cb::engine_errc::success) {
+        return accessStatus;
     }
 
     auto* connhandler = tryGetConnHandler(cookie);
@@ -6811,6 +6813,49 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                         cb::mcbp::Status::Success,
                         0,
                         cookie);
+}
+
+cb::engine_errc EventuallyPersistentEngine::doGetAllVbSeqnosPrivilegeCheck(
+        const CookieIface* cookie, std::optional<CollectionID> collection) {
+    cb::engine_errc accessStatus = cb::engine_errc::no_access;
+
+    // 1) Clients that have not enabled collections (i.e. HELLO(collections)).
+    // The client is directed to operate only against the default collection and
+    // they are permitted to use GetAllVbSeqnos with MetaRead or ReadSeqno
+    //
+    // 2) Clients that have encoded a collection require MetaRead
+    // 3) Clients that making a bucket request can use GetAllVbSeqnos via either
+    //    MetaRead or ReadSeqno
+    if (!cookie->isCollectionsSupported()) {
+        accessStatus =
+                checkPrivilege(cookie, cb::rbac::Privilege::ReadSeqno, {}, {});
+        if (accessStatus != cb::engine_errc::success) {
+            accessStatus = checkPrivilege(cookie,
+                                          cb::rbac::Privilege::MetaRead,
+                                          ScopeID::Default,
+                                          CollectionID::Default);
+            // For the legacy client always return an access error. This covers
+            // the case where in a collection enabled world, unknown_collection
+            // is returned for the no-privs case (to prevent someone finding
+            // collection ids via access checks). unknown_collection could also
+            // trigger a disconnect (unless xerror is enabled)
+            if (accessStatus != cb::engine_errc::success) {
+                accessStatus = cb::engine_errc::no_access;
+            }
+        }
+    } else if (collection) {
+        accessStatus = checkPrivilege(
+                cookie, cb::rbac::Privilege::MetaRead, collection.value());
+    } else {
+        accessStatus =
+                checkPrivilege(cookie, cb::rbac::Privilege::ReadSeqno, {}, {});
+        if (accessStatus != cb::engine_errc::success) {
+            accessStatus = checkPrivilege(
+                    cookie, cb::rbac::Privilege::MetaRead, {}, {});
+        }
+    }
+
+    return accessStatus;
 }
 
 void EventuallyPersistentEngine::updateDcpMinCompressionRatio(float value) {

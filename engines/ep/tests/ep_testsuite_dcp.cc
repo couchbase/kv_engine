@@ -7534,18 +7534,6 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     get_all_vb_seqnos(h, RequestedVBState::Pending, cookie);
     verify_all_vb_seqnos(h, num_vbuckets, num_vbuckets, CollectionID(0));
 
-    get_all_vb_seqnos(h, RequestedVBState::Alive, cookie, 8);
-    verify_all_vb_seqnos(h, 0, num_vbuckets, CollectionID(0));
-
-    get_all_vb_seqnos(h, RequestedVBState::Active, cookie, 8);
-    verify_all_vb_seqnos(h, 1, num_vbuckets - 1, CollectionID(0));
-
-    get_all_vb_seqnos(h, RequestedVBState::Replica, cookie, 8);
-    verify_all_vb_seqnos(h, 0, 0, CollectionID(0));
-
-    get_all_vb_seqnos(h, RequestedVBState::Pending, cookie, 8);
-    verify_all_vb_seqnos(h, num_vbuckets, num_vbuckets, CollectionID(0));
-
     testHarness->destroy_cookie(cookie);
 
     return SUCCESS;

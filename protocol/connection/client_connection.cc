@@ -2018,6 +2018,19 @@ void MemcachedConnection::adjustMemcachedClock(
     }
 }
 
+BinprotGetAllVbucketSequenceNumbersResponse
+MemcachedConnection::getAllVBucketSequenceNumbers() {
+    BinprotGetAllVbucketSequenceNumbers command;
+    return BinprotGetAllVbucketSequenceNumbersResponse(execute(command));
+}
+
+BinprotGetAllVbucketSequenceNumbersResponse
+MemcachedConnection::getAllVBucketSequenceNumbers(uint32_t state,
+                                                  CollectionID collection) {
+    BinprotGetAllVbucketSequenceNumbers command(state, collection);
+    return BinprotGetAllVbucketSequenceNumbersResponse(execute(command));
+}
+
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the ConnectionError class
 /////////////////////////////////////////////////////////////////////////

@@ -1243,3 +1243,29 @@ public:
 protected:
     cb::mcbp::request::CompactDbPayload extras;
 };
+
+class BinprotGetAllVbucketSequenceNumbers
+    : public BinprotCommandT<BinprotGetAllVbucketSequenceNumbers,
+                             cb::mcbp::ClientOpcode::GetAllVbSeqnos> {
+public:
+    BinprotGetAllVbucketSequenceNumbers() = default;
+    BinprotGetAllVbucketSequenceNumbers(uint32_t state);
+    BinprotGetAllVbucketSequenceNumbers(uint32_t state,
+                                        CollectionID collection);
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    std::optional<uint32_t> state;
+    std::optional<CollectionID> collection;
+};
+
+class BinprotGetAllVbucketSequenceNumbersResponse : public BinprotResponse {
+public:
+    BinprotGetAllVbucketSequenceNumbersResponse() = default;
+    explicit BinprotGetAllVbucketSequenceNumbersResponse(
+            BinprotResponse&& other)
+        : BinprotResponse(other) {
+    }
+    std::unordered_map<Vbid, uint64_t> getVbucketSeqnos() const;
+};

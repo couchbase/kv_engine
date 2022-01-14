@@ -2111,3 +2111,50 @@ void BinprotCompactDbCommand::encode(std::vector<uint8_t>& buf) const {
     auto extraBuf = extras.getBuffer();
     buf.insert(buf.end(), extraBuf.begin(), extraBuf.end());
 }
+
+BinprotGetAllVbucketSequenceNumbers::BinprotGetAllVbucketSequenceNumbers(
+        uint32_t state)
+    : state(state) {
+}
+
+BinprotGetAllVbucketSequenceNumbers::BinprotGetAllVbucketSequenceNumbers(
+        uint32_t state, CollectionID collection)
+    : state(state), collection(collection) {
+}
+
+void BinprotGetAllVbucketSequenceNumbers::encode(
+        std::vector<uint8_t>& buf) const {
+    std::vector<uint32_t> extras;
+    if (state) {
+        extras.push_back(htonl(state.value()));
+    }
+    if (collection) {
+        Expects(state);
+        extras.push_back(htonl(uint32_t(collection.value())));
+    }
+
+    writeHeader(buf, 0, extras.size() * sizeof(uint32_t));
+    cb::const_byte_buffer raw(reinterpret_cast<const uint8_t*>(extras.data()),
+                              extras.size() * sizeof(uint32_t));
+    buf.insert(buf.end(), raw.begin(), raw.end());
+}
+
+std::unordered_map<Vbid, uint64_t>
+BinprotGetAllVbucketSequenceNumbersResponse::getVbucketSeqnos() const {
+    // Parse the u16:u64 data into a more useful map
+    std::unordered_map<Vbid, uint64_t> vbMap;
+    auto value = getData();
+    auto* ptr = value.begin();
+    Expects(value.size() >= (sizeof(uint16_t) + sizeof(uint64_t)));
+    Expects(value.size() % (sizeof(uint16_t) + sizeof(uint64_t)) == 0);
+
+    while (ptr < value.end()) {
+        Vbid vbid(ntohs(*reinterpret_cast<const uint16_t*>(ptr)));
+        ptr += sizeof(uint16_t);
+        uint64_t seqno(ntohll(*reinterpret_cast<const uint64_t*>(ptr)));
+        ptr += sizeof(uint64_t);
+        auto [itr, emplaced] = vbMap.try_emplace(vbid, seqno);
+        Expects(emplaced);
+    }
+    return vbMap;
+}

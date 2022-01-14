@@ -193,3 +193,165 @@ TEST_F(RbacSeqnosTests, ObserveSeqno) {
         }
     }
 }
+
+TEST_F(RbacSeqnosTests, GetAllVbSeqnosBucket) {
+    auto conn = cluster->getConnection(0);
+    conn->authenticate("userCannot", "pass");
+    conn->selectBucket(bucket);
+    conn->setFeature(cb::mcbp::Feature::Collections, true);
+
+    auto rsp = conn->getAllVBucketSequenceNumbers();
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
+
+    for (int user : {1, 2, 3}) {
+        conn->authenticate("userCan" + std::to_string(user), "pass");
+        conn->selectBucket(bucket);
+
+        auto rsp = conn->getAllVBucketSequenceNumbers();
+        EXPECT_TRUE(rsp.isSuccess())
+                << "Failed for userCan" << user << " " << rsp.getStatus();
+        EXPECT_EQ(highSeqno.seqno, rsp.getVbucketSeqnos()[Vbid(0)]);
+    }
+}
+
+// When making a collection enabled request and asking about a collection,
+// MetaRead must be present at the appropriate level.
+// If ReadSeqno only no collection request can be made
+TEST_F(RbacSeqnosTests, GetAllVbSeqnosCollections1) {
+    auto conn = cluster->getConnection(0);
+    conn->authenticate("userCan1", "pass"); // Has ReadSeqno only so fail
+    conn->selectBucket(bucket);
+    conn->setFeature(cb::mcbp::Feature::Collections, true);
+
+    // User has no collection privileges for ID:9 so is told it does not exist
+    auto rsp = conn->getAllVBucketSequenceNumbers(0, CollectionID(9));
+    EXPECT_EQ(cb::mcbp::Status::UnknownCollection, rsp.getStatus());
+    // same for id:0
+    rsp = conn->getAllVBucketSequenceNumbers(0, CollectionID(0));
+    EXPECT_EQ(cb::mcbp::Status::UnknownCollection, rsp.getStatus());
+
+    // userCan2 and userCan3 both have MetaRead, so can make a request about
+    // a collection
+    for (int user : {2, 3}) {
+        conn->authenticate("userCan" + std::to_string(user), "pass");
+        conn->selectBucket(bucket);
+
+        // Ask for the default collection
+        auto rsp = conn->getAllVBucketSequenceNumbers(0, CollectionID::Default);
+        EXPECT_TRUE(rsp.isSuccess());
+        EXPECT_EQ(defaultCollectionHighSeqno.seqno,
+                  rsp.getVbucketSeqnos()[Vbid(0)]);
+
+        // 9 is fruit, which is high-seqno at the moment
+        rsp = conn->getAllVBucketSequenceNumbers(0, CollectionID(9));
+        EXPECT_TRUE(rsp.isSuccess());
+        EXPECT_EQ(highSeqno.seqno, rsp.getVbucketSeqnos()[Vbid(0)]);
+    }
+}
+
+TEST_F(RbacSeqnosTests, GetAllVbSeqnosCollections2) {
+    // Extension of the above, but a more collection oriented setup. The user
+    // has MetaRead against their own collection, so should be able to ask about
+    // that. They have ReadSeqno at bucket only, so will be blocked asking about
+    // other collections
+    auto userConfig = R"(
+    {"buckets":{
+      "default":{
+         "privileges":["ReadSeqno"],
+         "scopes":{
+            "0":{
+               "collections":{
+                  "9":{"privileges":["MetaRead"]
+                  }}}}}},
+    "privileges":[],
+    "domain":"external"})"_json;
+
+    cluster->getAuthProviderService().upsertUser(
+            {"fruit", "fruit", userConfig});
+
+    auto conn = cluster->getConnection(0);
+    conn->authenticate("fruit", "fruit");
+    conn->selectBucket(bucket);
+    conn->setFeature(cb::mcbp::Feature::Collections, true);
+
+    // No access to collection other than cid:9
+    auto rsp = conn->getAllVBucketSequenceNumbers(1 /*active*/,
+                                                  CollectionID::Default);
+    EXPECT_EQ(cb::mcbp::Status::UnknownCollection, rsp.getStatus());
+
+    // cid 9 is ok because of MetaRead against that collection
+    rsp = conn->getAllVBucketSequenceNumbers(1 /*active*/, CollectionID(9));
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    EXPECT_EQ(highSeqno.seqno, rsp.getVbucketSeqnos()[Vbid(0)]);
+}
+
+TEST_F(RbacSeqnosTests, GetAllVbSeqnosDefaultOnly) {
+    // This test the users are legacy clients and the RBAC config enforces that
+
+    // First user has privileges only for default collection
+    auto legacy1Config = R"(
+    {"buckets":{
+      "default":{
+         "privileges":[],
+         "scopes":{
+            "0":{
+               "collections":{
+                  "0":{
+                     "privileges":["MetaRead"]
+                  }}}}}},
+    "privileges":[],
+    "domain":"external"})"_json;
+
+    // second user has addition of ReadSeqno (which is a bucket priv)
+    auto legacy2Config = R"(
+    {"buckets":{
+      "default":{
+         "privileges":["ReadSeqno"],
+         "scopes":{
+            "0":{
+               "collections":{
+                  "0":{
+                     "privileges":["Upsert"]
+                  }}}}}},
+    "privileges":[],
+    "domain":"external"})"_json;
+
+    cluster->getAuthProviderService().upsertUser(
+            {"legacy1", "legacy", legacy1Config});
+    cluster->getAuthProviderService().upsertUser(
+            {"legacy2", "legacy", legacy2Config});
+
+    // Now test that both can only query default collection via bucket request
+    auto conn = cluster->getConnection(0);
+    for (const auto user : {"legacy1", "legacy2"}) {
+        conn->authenticate(user, "legacy");
+        conn->selectBucket(bucket);
+        // No HELLO collections!
+
+        // Command is allowed, internally directed to default collection
+        auto rsp = conn->getAllVBucketSequenceNumbers();
+        EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+        EXPECT_EQ(defaultCollectionHighSeqno.seqno,
+                  rsp.getVbucketSeqnos()[Vbid(0)]);
+
+        // The collection encoding is not available, even for their collection
+        rsp = conn->getAllVBucketSequenceNumbers(1 /*active*/, CollectionID(0));
+        EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
+        rsp = conn->getAllVBucketSequenceNumbers(1 /*active*/, CollectionID(9));
+        EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
+    }
+
+    // Finally run through the "userCan" users - they are not "pinned" to the
+    // default collection, but if they don't enable collections they only see
+    // default high-seqno
+    for (int user : {1, 2, 3}) {
+        conn->authenticate("userCan" + std::to_string(user), "pass");
+        conn->selectBucket(bucket);
+
+        auto rsp = conn->getAllVBucketSequenceNumbers();
+        EXPECT_TRUE(rsp.isSuccess())
+                << "Failed for userCan" << user << " " << rsp.getStatus();
+        EXPECT_EQ(defaultCollectionHighSeqno.seqno,
+                  rsp.getVbucketSeqnos()[Vbid(0)]);
+    }
+}

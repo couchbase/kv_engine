@@ -140,6 +140,7 @@ std::string to_string(MutationType type);
 
 class BinprotResponse;
 class BinprotCommand;
+class BinprotGetAllVbucketSequenceNumbersResponse;
 
 class ConnectionError : public std::runtime_error {
 public:
@@ -999,6 +1000,15 @@ public:
     /// freme it reads off the network.
     void enterMessagePumpMode(
             std::function<void(const cb::mcbp::Header&)> messageCallback);
+
+    /// Execute ClientOpcode::GetAllVBSeqs against the bucket with no encoding
+    /// of state or collection
+    BinprotGetAllVbucketSequenceNumbersResponse getAllVBucketSequenceNumbers();
+
+    /// Execute ClientOpcode::GetAllVBSeqs against the bucket with encoding
+    /// of state and collection
+    BinprotGetAllVbucketSequenceNumbersResponse getAllVBucketSequenceNumbers(
+            uint32_t state, CollectionID collection);
 
 protected:
     void sendBuffer(const std::vector<iovec>& buf);

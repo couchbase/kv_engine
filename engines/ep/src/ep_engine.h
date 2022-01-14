@@ -1309,6 +1309,29 @@ protected:
      */
     void maybeSaveShardCount(WorkLoadPolicy& workload);
 
+    /**
+     * Do checks for get-all-vbseqnos, which can be executed based on either
+     * MetaRead or (since Neo) ReadSeqno for specific cases.
+     *
+     * MetaRead allows all variations of the command, e.g. a bucket request
+     * or a specific collection request.
+     *
+     * ReadSeqno permits only a bucket request, no collection specific request
+     * permitted.
+     *
+     * For clients that don't enable collections, they are 'pinned' to the
+     * CollectionID::Default. They are permitted ReadSeqno or MetaRead, so even
+     * though the request is for a "specific" collection, they didn't explicitly
+     * request it.
+     *
+     * @param cookie connection cookie
+     * @param collection optional collection for when the command operates with
+     *        a collection
+     * @return status success or no_access
+     */
+    cb::engine_errc doGetAllVbSeqnosPrivilegeCheck(
+            const CookieIface* cookie, std::optional<CollectionID> collection);
+
 private:
     void doEngineStatsCouchDB(const StatCollector& collector,
                               const EPStats& epstats);
