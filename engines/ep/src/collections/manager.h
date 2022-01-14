@@ -19,7 +19,6 @@
 #include <memcached/engine_error.h>
 #include <testing_hook.h>
 #include <memory>
-#include <mutex>
 
 class EPBucket;
 class EventuallyPersistentEngine;

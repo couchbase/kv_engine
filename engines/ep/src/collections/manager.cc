@@ -30,8 +30,7 @@
 #include <optional>
 #include <utility>
 
-Collections::Manager::Manager() {
-}
+Collections::Manager::Manager() = default;
 
 cb::engine_error Collections::Manager::update(KVBucket& bucket,
                                               std::string_view manifestString,
@@ -39,10 +38,9 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
     auto lockedUpdateCookie = updateInProgress.wlock();
     if (*lockedUpdateCookie != nullptr && *lockedUpdateCookie != cookie) {
         // log this as it's very unexpected, only ever 1 manager
-        return cb::engine_error(
-                cb::engine_errc::too_busy,
+        return {cb::engine_errc::too_busy,
                 "An update is already in-progress for another cookie:" +
-                        std::to_string(uintptr_t(*lockedUpdateCookie)));
+                        std::to_string(uintptr_t(*lockedUpdateCookie))};
     }
 
     // Now getEngineSpecific - if that is null this is a new command, else
@@ -58,8 +56,8 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                     "manifest:{} but updateInProgress:{}",
                     manifest,
                     static_cast<const void*>(*lockedUpdateCookie));
-            return cb::engine_error(cb::engine_errc::failed,
-                                    "Collections::Manager::update failure");
+            return {cb::engine_errc::failed,
+                    "Collections::Manager::update failure"};
         }
 
         // Final stage of update now happening, clear the cookie and engine
@@ -84,10 +82,9 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                 "Collections::Manager::update can't construct manifest "
                 "e.what:{}",
                 e.what());
-        return cb::engine_error(
-                cb::engine_errc::invalid_arguments,
+        return {cb::engine_errc::invalid_arguments,
                 "Collections::Manager::update manifest json invalid:" +
-                        std::string(manifestString));
+                        std::string(manifestString)};
     }
 
     // Next compare with current
@@ -112,8 +109,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
         status = cb::engine_errc::would_block;
     }
 
-    return cb::engine_error(status,
-                            "Collections::Manager::update part one complete");
+    return {status, "Collections::Manager::update part one complete"};
 }
 
 cb::engine_error Collections::Manager::updateFromIOComplete(
@@ -131,18 +127,16 @@ cb::engine_error Collections::Manager::applyNewManifest(
         std::unique_ptr<Manifest> newManifest) {
     auto updated = updateAllVBuckets(bucket, *newManifest);
     if (updated.has_value()) {
-        return cb::engine_error(
-                cb::engine_errc::cannot_apply_collections_manifest,
+        return {cb::engine_errc::cannot_apply_collections_manifest,
                 "Collections::Manager::update aborted on " +
-                        updated->to_string() + ", cannot apply to vbuckets");
+                        updated->to_string() + ", cannot apply to vbuckets"};
     }
 
     // Now switch to write locking and change the manifest. The lock is
     // released after this statement.
     *current.moveFromUpgradeToWrite() = std::move(*newManifest);
-    return cb::engine_error(
-            cb::engine_errc::success,
-            "Collections::Manager::update applied new manifest");
+    return {cb::engine_errc::success,
+            "Collections::Manager::update applied new manifest"};
 }
 
 std::optional<Vbid> Collections::Manager::updateAllVBuckets(
