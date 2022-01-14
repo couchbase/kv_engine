@@ -194,7 +194,9 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     // And select the one they have access to
     setup(cb::mcbp::ClientOpcode::SelectBucket, empty);
 
-    setup(cb::mcbp::ClientOpcode::ObserveSeqno, require<Privilege::MetaRead>);
+    // ObserveSeqno checks privileges inside ep_engine as it requires an OR of
+    // MetaRead and ReadSeqno
+    setup(cb::mcbp::ClientOpcode::ObserveSeqno, empty);
     setup(cb::mcbp::ClientOpcode::Observe, require<Privilege::MetaRead>);
 
     setup(cb::mcbp::ClientOpcode::EvictKey, require<Privilege::NodeManagement>);

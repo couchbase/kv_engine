@@ -5298,6 +5298,18 @@ cb::engine_errc EventuallyPersistentEngine::observe_seqno(
         const CookieIface* cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
+    // Do a bucket privilege check, either MetaRead or ReadSeqno will suffice
+    auto accessStatus =
+            checkPrivilege(cookie, cb::rbac::Privilege::MetaRead, {}, {});
+    if (accessStatus != cb::engine_errc::success) {
+        accessStatus =
+                checkPrivilege(cookie, cb::rbac::Privilege::ReadSeqno, {}, {});
+    }
+
+    if (accessStatus != cb::engine_errc::success) {
+        return accessStatus;
+    }
+
     Vbid vb_id = request.getVBucket();
     auto value = request.getValue();
     auto vb_uuid = static_cast<uint64_t>(
