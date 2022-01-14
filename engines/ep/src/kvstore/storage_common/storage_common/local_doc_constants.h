@@ -17,7 +17,7 @@ namespace LocalDocKey {
 static constexpr std::string_view vbstate = "_local/vbstate";
 static constexpr std::string_view manifest = "_local/collections/manifest";
 static constexpr std::string_view openCollections = "_local/collections/open";
-static constexpr std::string_view openScopes = "_local/scopes/open";
+static constexpr std::string_view openScopes = "_local/scope/open";
 static constexpr std::string_view droppedCollections =
         "_local/collections/dropped";
 } // namespace LocalDocKey
