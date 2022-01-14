@@ -1522,18 +1522,20 @@ std::ostream& operator<<(std::ostream& os,
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     os << "VB::Manifest: "
        << "uid:" << manifest.manifestUid
-       << "scopeWithDataLimitExists:" << manifest.scopeWithDataLimitExists
-       << "dropInProgress:" << manifest.dropInProgress.load()
+       << ", scopeWithDataLimitExists:" << manifest.scopeWithDataLimitExists
+       << ", dropInProgress:" << manifest.dropInProgress.load()
        << ", scopes.size:" << manifest.scopes.size()
        << ", map.size:" << manifest.map.size() << std::endl;
+    os << "collections:[" << std::endl;
     for (const auto& [cid, entry] : manifest.map) {
         os << "cid:" << cid.to_string() << ":" << entry << std::endl;
     }
-
+    os << "]" << std::endl;
+    os << "scopes:[" << std::endl;
     for (const auto& [sid, entry] : manifest.scopes) {
         os << "scope:" << sid.to_string() << ":" << entry << std::endl;
     }
-
+    os << "]" << std::endl;
     os << *manifest.droppedCollections.rlock() << std::endl;
 
     return os;
