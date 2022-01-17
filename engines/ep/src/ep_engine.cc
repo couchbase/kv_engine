@@ -6766,7 +6766,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
             }
 
             Vbid vbid = id.hton();
-            uint64_t highSeqno;
+            uint64_t highSeqno{0};
 
             if (reqCollection) {
                 // The collection may not exist in any given vBucket.
@@ -6774,7 +6774,18 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                 // exception.
                 auto handle = vb->lockCollections();
                 if (handle.exists(reqCollection.value())) {
-                    highSeqno = htonll(handle.getHighSeqno(*reqCollection));
+                    if (reqCollection.value() == CollectionID::Default &&
+                        !collectionsEnabled) {
+                        highSeqno =
+                                supportsSyncWrites
+                                        ? handle.getHighSeqno(*reqCollection)
+                                        : handle.getDefaultCollectionMaxVisibleSeqno();
+                    } else {
+                        // supports collections thus supports SeqAdvanced. KV
+                        // returns the high-seqno which may or may not be
+                        // visible
+                        highSeqno = handle.getHighSeqno(*reqCollection);
+                    }
                 } else {
                     // If the collection doesn't exist in this
                     // vBucket, return nothing for this vBucket by
@@ -6794,11 +6805,11 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                                     : vb->checkpointManager
                                               ->getVisibleSnapshotEndSeqno();
                 }
-                highSeqno = htonll(highSeqno);
             }
             auto offset = payload.size();
             payload.resize(offset + sizeof(vbid) + sizeof(highSeqno));
             memcpy(payload.data() + offset, &vbid, sizeof(vbid));
+            highSeqno = htonll(highSeqno);
             memcpy(payload.data() + offset + sizeof(vbid),
                    &highSeqno,
                    sizeof(highSeqno));

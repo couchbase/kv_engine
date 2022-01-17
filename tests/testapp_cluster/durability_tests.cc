@@ -78,6 +78,8 @@ protected:
         conn->selectBucket(bucket->getName());
         return conn;
     }
+
+    void checkMB50413(cb::test::Bucket& bucket, const MutationInfo& minfo);
 };
 
 TEST_F(DurabilityTest, Set) {
@@ -284,21 +286,54 @@ TEST_F(DurabilityTest, MB34780) {
             });
     ASSERT_TRUE(bucket) << "Failed to create bucket default";
 
-    auto conn = bucket->getConnection(Vbid(0));
-    conn->authenticate("@admin", "password", "PLAIN");
-    conn->selectBucket(bucket->getName());
+    auto conn1 = bucket->getAuthedConnection(Vbid(0));
+
+    // Test expanded to cover MB-50413, store and capture the seqno of one
+    // 'visible' item
+    auto mutationInfo = conn1->store("Key1", Vbid(0), "Default");
+    auto rsp = conn1->getAllVBucketSequenceNumbers();
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    EXPECT_EQ(mutationInfo.seqno, rsp.getVbucketSeqnos()[Vbid(0)]);
 
     BinprotMutationCommand command;
     command.setKey("MB34780");
     command.setMutationType(MutationType::Set);
     DurabilityFrameInfo frameInfo(cb::durability::Level::Majority);
     command.addFrameInfo(frameInfo);
-    conn->sendCommand(command);
+    conn1->sendCommand(command);
 
     std::unique_lock<std::mutex> lock(mutex);
     cond.wait(lock, [&prepare_seen]() { return prepare_seen; });
 
+    checkMB50413(*bucket, mutationInfo);
+
     // At this point we've sent the prepare, it is registered in the
     // durability manager.. We should be able to delete the bucket
     cluster->deleteBucket("default");
+}
+
+void DurabilityTest::checkMB50413(cb::test::Bucket& bucket,
+                                  const MutationInfo& mutationInfo) {
+    // Create two new connections (main test is blocked on prepare)
+    auto conn2 = bucket.getAuthedConnection(Vbid(0));
+    auto conn3 = bucket.getAuthedConnection(Vbid(0));
+    conn3->setFeature(cb::mcbp::Feature::Collections, true);
+
+    // Non collection client cannot see the prepare, we expect to see the seqno
+    // of the given MutationInfo
+    auto rsp = conn2->getAllVBucketSequenceNumbers();
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    // Still the seqno of the first mutation
+    EXPECT_EQ(mutationInfo.seqno, rsp.getVbucketSeqnos()[Vbid(0)]);
+
+    // Collection aware client should see the prepare seqno
+    rsp = conn3->getAllVBucketSequenceNumbers();
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    // Here we detected MB-50444, when making a collection enabled, bucket
+    // request the prepare is not affecting the result.
+    EXPECT_EQ(mutationInfo.seqno, rsp.getVbucketSeqnos()[Vbid(0)]);
+    //  yet when making a collection specific request it does
+    rsp = conn3->getAllVBucketSequenceNumbers(0, CollectionID::Default);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    EXPECT_GT(rsp.getVbucketSeqnos()[Vbid(0)], mutationInfo.seqno);
 }

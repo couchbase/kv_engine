@@ -108,6 +108,26 @@ public:
             size_t replica_number = 0);
 
     /**
+     * Get a connection to the node which is responsible for the specified
+     * vbucket (and type). The returned connection is authorised against @admin
+     * and has selected this bucket
+     * @param vbucket The interesting vbucket
+     * @param state The state of the vbucket (active or replica)
+     * @param replica_number If state == replica, the replica number to look up
+     * @return a connection to the node responsible for the requested vbucket
+     * @throws std::invalid_argument if any of the provided arguments is
+     *                               invalid (unknown vbucket, invalid vbucket
+     *                               state (not active or replica) or an
+     *                               invalid replica number).
+     * @throws std::system_error if an error occurs on the socket
+     * @throws ConnectionError if an error occurs while trying to apply features
+     */
+    std::unique_ptr<MemcachedConnection> getAuthedConnection(
+            Vbid vbucket,
+            vbucket_state_t state = vbucket_state_active,
+            size_t replica_number = 0);
+
+    /**
      * Create all of the replication streams
      */
     void setupReplication();

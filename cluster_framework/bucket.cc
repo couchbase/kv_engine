@@ -137,6 +137,14 @@ std::unique_ptr<MemcachedConnection> Bucket::getConnection(
     return cluster.getConnection(vbucketmap[vbucket.get()][replica_number + 1]);
 }
 
+std::unique_ptr<MemcachedConnection> Bucket::getAuthedConnection(
+        Vbid vbucket, vbucket_state_t state, size_t replica_number) {
+    auto conn = getConnection(vbucket, state, replica_number);
+    conn->authenticate("@admin", "password");
+    conn->selectBucket(name);
+    return conn;
+}
+
 void Bucket::setCollectionManifest(nlohmann::json next) {
     const auto payload = next.dump(2);
     cluster.iterateNodes([this, &payload](const auto& node) {
