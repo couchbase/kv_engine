@@ -1875,7 +1875,18 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
 
     if (std::get<1>(GetParam()) == "fail_new_data") {
         // items are not auto-deleted, so the ItemPager does not run.
-        return;
+        GTEST_SKIP();
+    }
+
+    // No need to run under nexus:
+    //   - The test has been spotted quite fragile multiple times (eg, magma).
+    //     It makes assumptions on the mem state of the system after persistence
+    //     but that state varies depending on the storage
+    //   - The test covers in-memory behaviour and doesn't care about the
+    //     particular storage used, so we can just keep the couchstore/magma
+    //     versions for persistence, plus ephemeral.
+    if (isNexus()) {
+        GTEST_SKIP();
     }
 
     // Need a slightly higher quota here
@@ -1894,6 +1905,8 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
     auto itemCount = populateUntilAboveHighWaterMark(vbid);
     EXPECT_LT(0, itemCount);
 
+    flushVBucketToDiskIfPersistent(vbid, itemCount);
+
     // now delete some items to lower memory usage
     for (int i = 0; i < itemCount; i++) {
         auto key = makeStoredDocKey("key_" + std::to_string(i));
@@ -1907,19 +1920,22 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
                                     {},
                                     /*itemMeta*/ nullptr,
                                     mutation_descr));
-    }
 
-    // Deleting items doesn't free much memory and we'd need a big quota to be
-    // able to reclaim the difference between low and high watermarks just by
-    // deleting items. We can also flush persistent VBuckets and reduce the
-    // checkpoint memory usage by freeing closed checkpoints. Doing this allows
-    // us to use a significantly lower quota which reduces test time
-    // significantly
-    auto vb = store->getVBucket(vbid);
-    vb->checkpointManager->createNewCheckpoint(true);
-    flushVBucketToDiskIfPersistent(vbid, itemCount);
-    vb->checkpointManager->removeClosedUnrefCheckpoints();
-    runCheckpointDestroyer(vbid);
+        // Deleting items doesn't free much memory and we'd need a big quota to
+        // be able to reclaim the difference between low and high watermarks
+        // just by deleting items. We can also flush persistent VBuckets and
+        // reduce the checkpoint memory usage by freeing closed checkpoints.
+        // Doing this allows us to use a significantly lower quota which reduces
+        // test time significantly.
+        //
+        // Note: Doing this step within the loop for avoiding deletions being
+        // failed by high CM mem-usage
+        auto vb = store->getVBucket(vbid);
+        vb->checkpointManager->createNewCheckpoint(true);
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        vb->checkpointManager->removeClosedUnrefCheckpoints();
+        runCheckpointDestroyer(vbid);
+    }
 
     auto& stats = engine->getEpStats();
     // confirm we are now below the low watermark, and can test the item pager

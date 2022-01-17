@@ -5248,3 +5248,46 @@ TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_ExpiryByRead) {
 
     testExpiryObservesCMQuota(read);
 }
+
+TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_Del) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    const auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(0, vb->getHighSeqno());
+
+    // Load and hit the CM Quota
+    ASSERT_EQ(KVBucket::CheckpointMemoryState::Available,
+              store->getCheckpointMemoryState());
+    EXPECT_GT(loadUpToOOM(VbucketOp::Add), 1);
+    EXPECT_EQ(KVBucket::CheckpointMemoryState::Full,
+              store->getCheckpointMemoryState());
+
+    const auto highSeqno = vb->getHighSeqno();
+    ASSERT_GT(highSeqno, 0);
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.numOpsDelete);
+
+    // Try deleting an item -> TempOOM
+    // First ensure the doc is alive
+    const auto key = makeStoredDocKey("key_" + std::to_string(highSeqno));
+    ASSERT_EQ(cb::engine_errc::success,
+              store->get(key, vbid, nullptr, get_options_t::NONE).getStatus());
+    // Then attempt deletion
+    mutation_descr_t delInfo;
+    uint64_t cas = 0;
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
+              store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
+    ASSERT_EQ(0, stats.numOpsDelete);
+
+    // CM memory recovery
+    ASSERT_EQ(KVBucket::CheckpointMemoryState::Full,
+              store->getCheckpointMemoryState());
+    // Release all the releasable from checkpoints
+    flushAndRemoveCheckpoints(vbid);
+    flushAndExpelFromCheckpoints(vbid);
+    EXPECT_EQ(KVBucket::CheckpointMemoryState::Available,
+              store->getCheckpointMemoryState());
+
+    // Now we can delete docs
+    EXPECT_EQ(cb::engine_errc::success,
+              store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
+}

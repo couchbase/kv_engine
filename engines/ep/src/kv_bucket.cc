@@ -2000,6 +2000,11 @@ cb::engine_errc KVBucket::deleteItem(
         return cb::engine_errc::temporary_failure;
     }
 
+    // Yield if checkpoint's full - The call also wakes up the mem recovery task
+    if (verifyCheckpointMemoryState() == CheckpointMemoryState::Full) {
+        return cb::engine_errc::temporary_failure;
+    }
+
     cb::engine_errc result;
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
