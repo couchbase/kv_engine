@@ -95,6 +95,11 @@ void StatsReadHandle::dump() {
     std::cerr << *manifest << std::endl;
 }
 
+void WriteHandle::setDefaultCollectionMaxVisibleSeqnoFromWarmup(
+        uint64_t seqno) {
+    manifest.setDefaultCollectionMaxVisibleSeqnoFromWarmup(seqno);
+}
+
 void WriteHandle::dump() {
     std::cerr << manifest << std::endl;
 }

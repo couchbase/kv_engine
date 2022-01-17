@@ -1900,6 +1900,11 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
             }
 
             if (val.item->isCommitted()) {
+                if (val.item->getKey().isInDefaultCollection()) {
+                    highestDefaultCollectionVisible =
+                            std::max(highestDefaultCollectionVisible,
+                                     uint64_t(val.item->getBySeqno()));
+                }
                 // Committed item. _If_ there's an outstanding prepared
                 // SyncWrite, remove it (as it has already been committed).
                 outstandingPrepares.erase(val.item->getKey());
@@ -1915,6 +1920,8 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
         // Number of items our callback "visits". Used to validate how many
         // items we look at when loading SyncWrites.
         uint64_t itemsVisited = 0;
+
+        uint64_t highestDefaultCollectionVisible = 0;
 
         /// Map of Document key -> outstanding (not yet Committed / Aborted)
         /// prepares.
@@ -1948,7 +1955,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
         // with our vbucket_state.
         epVb.loadOutstandingPrepares(*vbState, std::move(prepares));
         // No prepares loaded
-        return {0, 0, true};
+        return {0, 0, 0, true};
     }
 
     // We optimise this step by starting the scan at the seqno following the
@@ -2064,7 +2071,11 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
 
     auto numPrepares = prepares.size();
     epVb.loadOutstandingPrepares(*vbState, std::move(prepares));
-    return {storageCB.itemsVisited, numPrepares, true};
+
+    return {storageCB.itemsVisited,
+            numPrepares,
+            storageCB.highestDefaultCollectionVisible,
+            true};
 }
 
 ValueFilter EPBucket::getValueFilterForCompressionMode(

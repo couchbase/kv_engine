@@ -17,6 +17,10 @@
 /* Structure that holds info needed for notification for an item being updated
    in the vbucket */
 struct VBNotifyCtx {
+    bool isSyncWrite() const {
+        return syncWrite == SyncWriteOperation::Yes;
+    }
+
     int64_t bySeqno = 0;
     bool notifyReplication = false;
     bool notifyFlusher = false;

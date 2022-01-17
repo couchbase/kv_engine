@@ -849,6 +849,7 @@ public:
     struct LoadPreparedSyncWritesResult {
         uint64_t itemsVisited = 0;
         uint64_t preparesLoaded = 0;
+        uint64_t defaultCollectionMaxVisibleSeqno = 0;
         bool success = false;
     };
 

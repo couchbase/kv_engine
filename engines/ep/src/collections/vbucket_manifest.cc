@@ -1080,7 +1080,9 @@ uint64_t Manifest::getHighSeqno(CollectionID collection) const {
     return itr->second.getHighSeqno();
 }
 
-void Manifest::setHighSeqno(CollectionID collection, uint64_t value) const {
+void Manifest::setHighSeqno(CollectionID collection,
+                            uint64_t value,
+                            bool visible) const {
     auto itr = map.find(collection);
     if (itr == map.end()) {
         throwException<std::invalid_argument>(
@@ -1089,6 +1091,10 @@ void Manifest::setHighSeqno(CollectionID collection, uint64_t value) const {
                         " with value:" + std::to_string(value));
     }
     itr->second.setHighSeqno(value);
+
+    if (collection == CollectionID::Default && visible) {
+        defaultCollectionMaxVisibleSeqno = value;
+    }
 }
 
 void Manifest::setDiskSize(CollectionID collection, size_t size) const {
@@ -1334,6 +1340,35 @@ cb::engine_errc Manifest::getScopeDataLimitStatus(
     return cb::engine_errc::success;
 }
 
+void Manifest::setDefaultCollectionMaxVisibleSeqnoFromWarmup(uint64_t seqno) {
+    // callers logic is simpler if they don't have to check for default exists
+    if (!doesDefaultCollectionExist()) {
+        return;
+    }
+
+    // This highSeqno represents committed and !committed
+    auto highSeqno = getHighSeqno(CollectionID::Default);
+
+    // If warmup loadPrepareSyncWrites found a default collection committed item
+    // and that is less than the collection's high-seqno, then we set the
+    // max-visible to seqno
+    if (seqno && seqno < highSeqno) {
+        defaultCollectionMaxVisibleSeqno = seqno;
+    } else {
+        // The collection's high-seqno is visible
+        defaultCollectionMaxVisibleSeqno = highSeqno;
+    }
+}
+
+uint64_t Manifest::getDefaultCollectionMaxVisibleSeqno() const {
+    if (!doesDefaultCollectionExist()) {
+        throwException<std::logic_error>(__FUNCTION__,
+                                         "did not find default collection");
+    }
+
+    return defaultCollectionMaxVisibleSeqno;
+}
+
 void Manifest::DroppedCollections::insert(CollectionID cid,
                                           const DroppedCollectionInfo& info) {
     auto [dropped, emplaced] = droppedCollections.try_emplace(
@@ -1524,6 +1559,7 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
        << "uid:" << manifest.manifestUid
        << ", scopeWithDataLimitExists:" << manifest.scopeWithDataLimitExists
        << ", dropInProgress:" << manifest.dropInProgress.load()
+       << ", defaultMVS:" << manifest.defaultCollectionMaxVisibleSeqno
        << ", scopes.size:" << manifest.scopes.size()
        << ", map.size:" << manifest.map.size() << std::endl;
     os << "collections:[" << std::endl;

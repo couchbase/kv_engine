@@ -1102,7 +1102,8 @@ void EphemeralVBucket::doCollectionsStats(
         const Collections::VB::ReadHandle& readHandle,
         CollectionID collection,
         const VBNotifyCtx& notifyCtx) {
-    readHandle.setHighSeqno(collection, notifyCtx.bySeqno);
+    readHandle.setHighSeqno(
+            collection, notifyCtx.bySeqno, !notifyCtx.isSyncWrite());
 
     if (notifyCtx.itemCountDifference == 1) {
         readHandle.incrementItemCount(collection);

@@ -132,6 +132,10 @@ public:
         return manifest->getPersistedHighSeqno(collection);
     }
 
+    uint64_t getDefaultCollectionMaxVisibleSeqno() const {
+        return manifest->getDefaultCollectionMaxVisibleSeqno();
+    }
+
     /**
      * Set the persisted high seqno of the given colletion to the given
      * value
@@ -147,8 +151,17 @@ public:
         manifest->setPersistedHighSeqno(collection, value, noThrow);
     }
 
-    void setHighSeqno(CollectionID collection, uint64_t value) const {
-        manifest->setHighSeqno(collection, value);
+    /**
+     * Set the high seqno (!persisted) of the given collection.
+     * @param collection The collection to update
+     * @param value The value to update the persisted high seqno to
+     * @param visible true if the value represents a committed item. This is
+     *        only used if collection == CollectionID::Default
+     */
+    void setHighSeqno(CollectionID collection,
+                      uint64_t value,
+                      bool visible) const {
+        manifest->setHighSeqno(collection, value, visible);
     }
 
     void incrementItemCount(CollectionID collection) const {
@@ -382,22 +395,25 @@ public:
     }
 
     /**
+     * Set the high seqno (!persisted) of the collection of this handle
+     *
      * This set is possible via this CachingReadHandle, which has shared
      * access to the Manifest, because the read-lock only ensures that
      * the underlying collection map doesn't change. Data inside the
      * collection entry maybe mutable, such as the item count, hence this
      * method is marked const because the manifest is const.
      *
-     * set the high seqno of the collection if the new value is
-     * higher
+     * @param value The value to update the persisted high seqno to
+     * @param visible true if the value represents a committed item. This is
+     *        only used if collection == CollectionID::Default
      */
-    void setHighSeqno(uint64_t value) const {
+    void setHighSeqno(uint64_t value, bool visible) const {
         // We may be flushing keys written to a dropped collection so can
         // have an invalid iterator or the id is not mapped (system)
         if (!valid()) {
             return;
         }
-        manifest->setHighSeqno(itr, value);
+        manifest->setHighSeqno(itr, value, visible);
     }
 
     /**
@@ -693,19 +709,32 @@ public:
     }
 
     /**
-     * When we create system events we do so under a WriteHandle. To
-     * properly increment the high seqno of the collection for a given
-     * system event we need to be able to do so using this handle.
+     * Set the high-seqno of the given collection
      *
      * Function is const as constness refers to the state of the manifest,
      * not the state of the manifest entries within it.
      *
      * @param collection the collection ID of the manifest entry to update
      * @param value the new high seqno
+     * @param visible true if the value represents a committed item. This is
+     *        only used if collection == CollectionID::Default
      */
-    void setHighSeqno(CollectionID collection, uint64_t value) const {
-        manifest.setHighSeqno(collection, value);
+    void setHighSeqno(CollectionID collection,
+                      uint64_t value,
+                      bool visible) const {
+        manifest.setHighSeqno(collection, value, visible);
     }
+
+    /**
+     * Set the default collection max-visible seqno from a value determined
+     * by warmup's loadPreparedSyncWrites.
+     *
+     * After calling this function, the VB::Manifest will have set the
+     * max-visible seqno of the default collection
+     *
+     * @param value The value to update the persisted high seqno to
+     */
+    void setDefaultCollectionMaxVisibleSeqnoFromWarmup(uint64_t seqno);
 
     /// @return iterator to the beginning of the underlying collection map
     Manifest::container::iterator begin() {

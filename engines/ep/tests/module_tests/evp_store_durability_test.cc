@@ -508,11 +508,14 @@ public:
     };
 
     uint64_t getMVS() {
+        // All tests using this function only work with the default collection
+        // so expect equality
+        EXPECT_EQ(vb->lockCollections().getDefaultCollectionMaxVisibleSeqno(),
+                  vb->getMaxVisibleSeqno());
         if(persistent()) {
             auto* rwUnderlying = store->getRWUnderlying(vbid);
             const auto* persistedVbState =
                     rwUnderlying->getCachedVBucketState(vbid);
-
             return persistedVbState->maxVisibleSeqno;
         } else {
             auto& evb = dynamic_cast<const EphemeralVBucket&>(*vb);

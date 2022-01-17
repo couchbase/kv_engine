@@ -633,14 +633,28 @@ protected:
     /// @return the data size for the scope
     size_t getDataSize(ScopeID sid) const;
 
+    /**
+     * Set the high seqno of the collection entry to the given value. Allowed
+     * to be const as the only constness we care about here is the state of
+     * the map (not the ManifestEntries within it).
+     *
+     * @param entry iterator for the entry to update
+     * @param value The new value
+     * @param visible true if this seqno represents a committed/visible item
+     */
     void setHighSeqno(const container::const_iterator entry,
-                      uint64_t value) const {
+                      uint64_t value,
+                      bool visible) const {
         if (entry == map.end()) {
             throwException<std::invalid_argument>(__FUNCTION__,
                                                   "iterator is invalid");
         }
 
         entry->second.setHighSeqno(value);
+
+        if (entry->first == CollectionID::Default && visible) {
+            defaultCollectionMaxVisibleSeqno = value;
+        }
     }
 
     uint64_t getPersistedHighSeqno(
@@ -725,8 +739,14 @@ protected:
      * Set the high seqno of the given collection to the given value. Allowed
      * to be const as the only constness we care about here is the state of
      * the map (not the ManifestEntries within it).
+     *
+     * @param collection ID of the collection to update
+     * @param value The new value
+     * @param visible true if this seqno represents a committed/visible item
      */
-    void setHighSeqno(CollectionID collection, uint64_t value) const;
+    void setHighSeqno(CollectionID collection,
+                      uint64_t value,
+                      bool visible) const;
 
     /**
      * @return the highest seqno that has been persisted for this collection
@@ -965,6 +985,21 @@ protected:
     cb::engine_errc getScopeDataLimitStatus(const container::const_iterator itr,
                                             size_t nBytes) const;
 
+
+    /**
+     * Sets the default collection max-visible to seqno (if the collection
+     * exists). This does not just set the value. The seqno passed is the value
+     * warmup found during the scan from start to high-prepare.
+     */
+    void setDefaultCollectionMaxVisibleSeqnoFromWarmup(uint64_t seqno);
+
+    /**
+     * Gets the default collections max-visible seqno which is the only
+     * collection to track this value to support non-collection aware clients
+     * Caller must check for existence of the collection before calling
+     */
+    uint64_t getDefaultCollectionMaxVisibleSeqno() const;
+
     /**
      * Return a string for use in throwException, returns:
      *   "VB::Manifest::<thrower>:<error>, this:<ostream *this>"
@@ -1086,6 +1121,22 @@ protected:
 
     /// Manager of collections
     const std::shared_ptr<Manager> manager;
+
+    /**
+     * Max-visible seqno of the default collection.
+     * mutable as can be set via a ReadHandle (which forces const on all
+     * members).
+     *
+     * IgnorePolicy:
+     * We should ignore any attempts to set the value to a lower number as
+     * this is a possible result of compare_exchange_weak returning false
+     * inside AtomicMonotonic::operator=() (i.e. another thread has already
+     * written a higher value and so the current write is no longer valid and
+     * any failure can be ignored).
+     *
+     */
+    mutable AtomicMonotonic<uint64_t, IgnorePolicy>
+            defaultCollectionMaxVisibleSeqno;
 
     /**
      * Flag to help avoid limit checking when there are no limits to check.

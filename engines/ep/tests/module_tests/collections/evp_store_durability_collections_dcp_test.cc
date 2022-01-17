@@ -14,6 +14,7 @@
  */
 #include "tests/module_tests/collections/evp_store_durability_collections_dcp_test.h"
 
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
 #include "durability/active_durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
@@ -202,6 +203,8 @@ failover_entry_t CollectionsSyncWriteParamTest::
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpPrepare));
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(3, producers->last_byseqno);
     flushVBucketToDiskIfPersistent(replicaVB, 3);
 
     setCollections(cookie, cm.remove(CollectionEntry::dairy));
@@ -253,10 +256,16 @@ failover_entry_t CollectionsSyncWriteParamTest::
     EXPECT_EQ(1, adm.getNumTracked());
     EXPECT_EQ(6, adm.getHighPreparedSeqno());
     EXPECT_EQ(3, adm.getHighCompletedSeqno());
+    EXPECT_EQ(5, vb->lockCollections().getDefaultCollectionMaxVisibleSeqno());
+    EXPECT_EQ(6, vb->lockCollections().getHighSeqno(CollectionID::Default));
 
     EXPECT_EQ(2, pdm.getNumTracked());
     EXPECT_EQ(3, pdm.getHighPreparedSeqno());
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(0,
+              replica->lockCollections().getDefaultCollectionMaxVisibleSeqno());
+    EXPECT_EQ(3,
+              replica->lockCollections().getHighSeqno(CollectionID::Default));
 
     // Now transfer the drop event to the replica
     EXPECT_EQ(cb::engine_errc::success,

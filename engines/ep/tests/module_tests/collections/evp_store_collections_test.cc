@@ -146,6 +146,9 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
 
     EXPECT_EQ(0, vb->getManifest().lock(CollectionEntry::meat).getDiskSize());
     EXPECT_EQ(0, vb->getManifest().lock(CollectionID::Default).getDiskSize());
+    EXPECT_EQ(1,
+              vb->getManifest().lock().getDefaultCollectionMaxVisibleSeqno());
+
     // Scope dataSize is also updated for persistent buckets
     EXPECT_EQ(0, vb->getManifest().lock().getDataSize(ScopeID::Default));
 
@@ -161,6 +164,9 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
                   vb->getManifest().lock(CollectionID::Default).getDiskSize());
         // Scope dataSize is also updated for persistent buckets
         EXPECT_NE(0, vb->getManifest().lock().getDataSize(ScopeID::Default));
+        EXPECT_EQ(
+                1,
+                vb->getManifest().lock().getDefaultCollectionMaxVisibleSeqno());
     } else {
         EXPECT_EQ(0,
                   vb->getManifest().lock(CollectionEntry::meat).getDiskSize());

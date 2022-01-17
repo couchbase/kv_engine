@@ -1574,7 +1574,7 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
         // for rollback.
         auto& vb = *(itr->second);
 
-        auto [itemsVisited, preparesLoaded, success] =
+        auto [itemsVisited, preparesLoaded, defaultCollectionMVS, success] =
                 store.loadPreparedSyncWrites(vb);
         if (!success) {
             EP_LOG_CRITICAL(
@@ -1587,6 +1587,8 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
         auto& epStats = store.getEPEngine().getEpStats();
         epStats.warmupItemsVisitedWhilstLoadingPrepares += itemsVisited;
         epStats.warmedUpPrepares += preparesLoaded;
+        vb.getManifest().wlock().setDefaultCollectionMaxVisibleSeqnoFromWarmup(
+                defaultCollectionMVS);
     }
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
