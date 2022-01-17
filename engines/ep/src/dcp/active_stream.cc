@@ -1352,6 +1352,11 @@ void ActiveStream::snapshot(
         uint64_t snapStart = *seqnoStart;
         uint64_t snapEnd = *seqnoEnd;
 
+        if (nextSnapshotIsCheckpoint && nextSnapStart) {
+            snapStart = *nextSnapStart;
+            nextSnapStart = std::nullopt;
+        }
+
         /*
          * If the highNonVisibleSeqno has been set and it higher than the snap
          * end of the filtered mutations it means that the last item in the snap
@@ -1379,12 +1384,6 @@ void ActiveStream::snapshot(
         if (sendHCS) {
             Expects(diskCheckpointState);
             hcsToSend = diskCheckpointState->highCompletedSeqno;
-
-            if (nextSnapshotIsCheckpoint && nextSnapStart) {
-                snapStart = *nextSnapStart;
-                nextSnapStart = std::nullopt;
-            }
-
             log(spdlog::level::level_enum::info,
                 "{} ActiveStream::snapshot: Sending disk snapshot with start "
                 "seqno {}, end seqno {}, and"

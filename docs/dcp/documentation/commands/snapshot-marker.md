@@ -170,16 +170,28 @@ maximum sequence number that the client has received. A request with a start
 seqno number of X, means "I have X, please start my stream at the sequence
 number after X".
 
-#### Memory snapshot.start-seqno equals seqno of first transmitted seqno
+#### Memory snapshot.start-seqno
 
-A stream which is transferring in-memory checkpoint data sets the
-`snapshot-marker.start-seqno` to the seqno of the first mutation that will be
-follow the marker. This matches with the semantics of stream-request where the
-start-seqno is something the client already has.
+A stream which is transferring in-memory checkpoint data may set the snapshot
+start seqno in one of three different ways:
 
-Thus a client which performs a stream-request with a start-seqno of X, but due
-to de-duplication X+n is the first sequence number available (from memory), the
-client will receive:
+1) The first snapshot-marker of the stream will have the start-seqno set to the
+   requested start-seqno.
+2) A snapshot-marker with the CHK marker flag set will set the start-seqno to
+   the snapStartSeqno of the Checkpoint object. This sequence number is the
+   sequence number of the first item that belongs to this snapshot. The client
+   may or may not see the mutation with that seqno due to either de-dupe or
+   filtering for collections or durable writes. This behaviour is consistent
+   with the behaviour of disk snapshots that are sent from the CheckpointManager
+   rather than backfill.
+3) A snapshot without the CHK marker flag set will set the start-seqno to the
+   seqno of the first mutation that will follow the marker. This matches with
+   the semantics of stream-request where the start-seqno is something the client
+   already has.
+
+In the case of 3, a client may perform a stream-request with a start-seqno of X,
+but due  to de-duplication X+n is the first sequence number available
+(from memory), the client will receive:
 
 * TX `stream-request{start-seqno=X}`
 * RX `stream-request-response{success}`
@@ -196,13 +208,11 @@ seqno in one of three different ways:
    backfill or is sent from the CheckpointManager.
 2) Snapshot markers from backfills other than the first in the stream will send
    the starting sequence number of the backfill as the start-seqno
-3) SyncReplication enabled streams only:
-   Snapshots sent from the CheckpointManager will set the start-seqno to the
-   snapshot start seqno of the Checkpoint object if the stream supports the
-   SyncReplication feature. The client may or may not see the mutation with that
-   seqno due to de-dupe. This is required as SyncReplication consumers need
-   Disk snapshot start-seqnos to reflect the full extent of the original
-   snapshot rather than just the set of mutations sent.
+3) Snapshots sent from the CheckpointManager will set the start-seqno to the 
+   snapshot start seqno of the Checkpoint object. The client may or may not see
+   the mutation with that seqno due to de-dupe. This is required as
+   SyncReplication consumers need Disk snapshot start-seqnos to reflect the full
+   extent of the original snapshot rather than just the set of mutations sent.
 
 In the case of 1, this is not consistent with the in-memory case, but is
 consistent with stream-request semantics. For example:

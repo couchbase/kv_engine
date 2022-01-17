@@ -5253,6 +5253,135 @@ TEST_P(DurabilityPromotionStreamTest,
     EXPECT_EQ(2, m->getStartSeqno());
 }
 
+// 1) Receive DCP memory checkpoint snapshot from 1-1
+// 2) Receive DCP mutation at seqno 1
+// 3) Receive DCP memory checkpoint snapshot from 2-3
+// 4) Receive DCP mutation at seqno 3 (seqno 2 was de-duped)
+// 5) Stream snap marker of 0-1 for snapshot at 1
+// 6) Stream mutation at seqno 1
+// 7) Stream snap marker of 2-3 for snapshot at 3 (previously this was 3-3).
+TEST_P(DurabilityPromotionStreamTest,
+       MemoryCheckpointStreamsSnapStartFromCheckpoint) {
+    auto opaque = 0;
+    // 1)
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            1 /*snapStart*/,
+            1 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*HCS*/,
+            1 /*maxVisibleSeqno*/,
+            {}, // timestamp
+            {} /*streamId*/);
+    DurabilityPassiveStreamTest::stream->processMarker(&marker);
+
+    // 2)
+    auto mutation = makeCommittedItem(makeStoredDocKey("dummy"), "value");
+    mutation->setBySeqno(1);
+    mutation->setCas(1);
+    EXPECT_EQ(cb::engine_errc::success,
+              DurabilityPassiveStreamTest::stream->messageReceived(
+                      std::make_unique<MutationConsumerMessage>(
+                              mutation,
+                              0 /*opaque*/,
+                              IncludeValue::Yes,
+                              IncludeXattrs::Yes,
+                              IncludeDeleteTime::No,
+                              IncludeDeletedUserXattrs::Yes,
+                              DocKeyEncodesCollectionId::No,
+                              nullptr,
+                              cb::mcbp::DcpStreamId{})));
+
+    // 3)
+    marker = SnapshotMarker(
+            0 /*opaque*/,
+            vbid,
+            2,
+            3,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*HCS*/,
+            1 /*maxVisibleSeqno*/,
+            {}, // timestamp
+            {} /*streamId*/);
+    DurabilityPassiveStreamTest::stream->processMarker(&marker);
+
+    // 4)
+    mutation = makeCommittedItem(makeStoredDocKey("dummy2"), "value");
+    mutation->setBySeqno(3);
+    mutation->setCas(3);
+    EXPECT_EQ(cb::engine_errc::success,
+              DurabilityPassiveStreamTest::stream->messageReceived(
+                      std::make_unique<MutationConsumerMessage>(
+                              mutation,
+                              0 /*opaque*/,
+                              IncludeValue::Yes,
+                              IncludeXattrs::Yes,
+                              IncludeDeleteTime::No,
+                              IncludeDeletedUserXattrs::Yes,
+                              DocKeyEncodesCollectionId::No,
+                              nullptr,
+                              cb::mcbp::DcpStreamId{})));
+
+    // Remove PassiveStream and Consumer
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->closeStream(0 /*opaque*/, vbid));
+    consumer.reset();
+
+    // Note: step necessary only because the next set-vbstate expect an empty
+    //   write-queue.
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Simulate vbstate-change Replica->Active (we have also a Producer and
+    // ActiveStream from this point onward)
+    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
+    ASSERT_TRUE(producer);
+    auto* activeStream = DurabilityActiveStreamTest::stream.get();
+    ASSERT_TRUE(activeStream);
+
+    // CheckpointProcessorTask runs
+    // Get items from CM, expect Disk{M:1} as only one Disk checkpoint can be
+    // retrieved at a time
+    auto vb = store->getVBucket(vbid);
+    auto outItems = activeStream->public_getOutstandingItems(*vb);
+
+    // Push items into the Stream::readyQ
+    activeStream->public_processItems(outItems);
+
+    // readyQ also contain SnapshotMarker
+    ASSERT_EQ(4, activeStream->public_readyQSize());
+
+    // 5)
+    auto resp = activeStream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto* m = dynamic_cast<SnapshotMarker*>(resp.get());
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, m->getFlags());
+    EXPECT_EQ(0, m->getStartSeqno());
+    EXPECT_EQ(1, m->getEndSeqno());
+
+    // 6)
+    resp = activeStream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+
+    // CheckpointProcessorTask runs
+    // Get items from CM, expect Disk{A:3}
+    outItems = activeStream->public_getOutstandingItems(*vb);
+    activeStream->public_processItems(outItems);
+
+    // 7)
+    resp = activeStream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    m = dynamic_cast<SnapshotMarker*>(resp.get());
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, m->getFlags());
+
+    // Before the fix this snapshot marker had a start seqno of 3 rather than 2
+    EXPECT_EQ(2, m->getStartSeqno());
+    EXPECT_EQ(3, m->getEndSeqno());
+}
+
 /**
  * Test fixture for durability-related PassiveStream tests where the Producer
  * is a downlevel version and doesn't support SyncWrites.
