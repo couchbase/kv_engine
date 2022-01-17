@@ -578,6 +578,18 @@ void MemcachedConnection::connect() {
             }
         }
 
+        if (!ca_file.empty() &&
+            !SSL_CTX_load_verify_locations(context, ca_file.c_str(), nullptr)) {
+            std::vector<char> ssl_err(1024);
+            ERR_error_string_n(
+                    ERR_get_error(), ssl_err.data(), ssl_err.size());
+            SSL_CTX_free(context);
+            throw std::runtime_error(
+                    std::string("Failed to use CA file: ") +
+                    ssl_err.data());
+        }
+
+
         auto ctx = std::make_shared<folly::SSLContext>(context);
         SSL_CTX_free(context);
 
@@ -767,6 +779,19 @@ void MemcachedConnection::setSslKeyFile(const std::string& file) {
                                 "Can't use [" + path + "]");
     }
     ssl_key_file = std::move(path);
+}
+
+void MemcachedConnection::setCaFile(const std::string& file) {
+    if (file.empty()) {
+        ca_file.clear();
+        return;
+    }
+    auto path = cb::io::sanitizePath(file);
+    if (!cb::io::isFile(path)) {
+        throw std::system_error(std::make_error_code(std::errc::no_such_file_or_directory),
+                                "Can't use [" + path + "]");
+    }
+    ca_file = std::move(path);
 }
 
 void MemcachedConnection::setTlsProtocol(std::string protocol) {

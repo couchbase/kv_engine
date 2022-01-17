@@ -104,7 +104,7 @@ func MakeTLSConn(ssl_con_str string) (*tls.Conn, error) {
 		panic(fmt.Errorf("failed to parse client certificate and client key. err=%v", err))
 	}
 
-	tlsConfig := &tls.Config{RootCAs: caPool}
+	tlsConfig := &tls.Config{RootCAs: caPool, ClientAuth: tls.VerifyClientCertIfGiven}
 	tlsConfig.Certificates = []tls.Certificate{clientCert}
 	tlsConfig.InsecureSkipVerify = skipCertVerify
 	if !skipCertVerify {

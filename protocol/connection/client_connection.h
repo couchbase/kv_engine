@@ -346,6 +346,9 @@ public:
      */
     void setSslKeyFile(const std::string& file);
 
+    /// Set the CA file to use (containing all of the trusted CA's)
+    void setCaFile(const std::string& file);
+
     /// Set the TLS version to use
     void setTlsProtocol(std::string protocol);
     /// Set the ciphers to use for TLS < 1.3
@@ -1034,6 +1037,7 @@ protected:
             "GCM_SHA256"};
     std::string ssl_cert_file;
     std::string ssl_key_file;
+    std::string ca_file;
     std::unique_ptr<AsyncReadCallback> asyncReadCallback;
     AsyncSocketUniquePtr asyncSocket;
     std::shared_ptr<folly::EventBase> eventBase;

@@ -234,6 +234,10 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
                     "SSL_load_client_CA_file",
                     getOpenSslError());
         }
+        if (!ca_file.empty()) {
+            SSL_add_file_cert_subjects_to_stack(certNames, ca_file.c_str());
+        }
+
         SSL_CTX_set_client_CA_list(server_ctx, certNames);
         SSL_CTX_load_verify_locations(
                 server_ctx, certificate_chain.c_str(), nullptr);
