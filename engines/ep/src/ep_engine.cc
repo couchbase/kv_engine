@@ -6793,11 +6793,12 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                 }
             } else {
                 if (vb->getState() == vbucket_state_active) {
-                    highSeqno = supportsSyncWrites ? vb->getHighSeqno()
-                                                   : vb->getMaxVisibleSeqno();
+                    highSeqno = supportsSyncWrites || collectionsEnabled
+                                        ? vb->getHighSeqno()
+                                        : vb->getMaxVisibleSeqno();
                 } else {
                     highSeqno =
-                            supportsSyncWrites
+                            supportsSyncWrites || collectionsEnabled
                                     ? vb->checkpointManager->getSnapshotInfo()
                                               .range.getEnd()
                                     : vb->checkpointManager

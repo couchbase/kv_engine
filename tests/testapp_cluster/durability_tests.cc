@@ -326,13 +326,11 @@ void DurabilityTest::checkMB50413(cb::test::Bucket& bucket,
     // Still the seqno of the first mutation
     EXPECT_EQ(mutationInfo.seqno, rsp.getVbucketSeqnos()[Vbid(0)]);
 
-    // Collection aware client should see the prepare seqno
+    // Collection aware client should see the prepare seqno for either bucket or
+    // collection specific request
     rsp = conn3->getAllVBucketSequenceNumbers();
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    // Here we detected MB-50444, when making a collection enabled, bucket
-    // request the prepare is not affecting the result.
-    EXPECT_EQ(mutationInfo.seqno, rsp.getVbucketSeqnos()[Vbid(0)]);
-    //  yet when making a collection specific request it does
+    EXPECT_GT(rsp.getVbucketSeqnos()[Vbid(0)], mutationInfo.seqno);
     rsp = conn3->getAllVBucketSequenceNumbers(0, CollectionID::Default);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_GT(rsp.getVbucketSeqnos()[Vbid(0)], mutationInfo.seqno);
