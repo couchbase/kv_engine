@@ -272,11 +272,18 @@ MutationLog::MutationLog(std::string path, const size_t bs)
 
 MutationLog::~MutationLog() {
     EP_LOG_INFO("{}", *this);
-    EP_LOG_INFO_RAW("MutationLog::~MutationLog flush");
+    auto doLog = entries > 0;
+    if (doLog) {
+        EP_LOG_INFO_RAW("MutationLog::~MutationLog flush");
+    }
     flush();
-    EP_LOG_INFO_RAW("MutationLog::~MutationLog close");
+    if (doLog) {
+        EP_LOG_INFO_RAW("MutationLog::~MutationLog close");
+    }
     close();
-    EP_LOG_INFO_RAW("MutationLog::~MutationLog done");
+    if (doLog) {
+        EP_LOG_INFO_RAW("MutationLog::~MutationLog done");
+    }
 }
 
 void MutationLog::disable() {
