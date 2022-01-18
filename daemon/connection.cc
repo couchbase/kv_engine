@@ -1003,17 +1003,27 @@ void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
         const auto sockErr = EVUTIL_SOCKET_ERROR();
         if (sockErr != 0) {
             const auto errStr = evutil_socket_error_to_string(sockErr);
-            LOG_INFO(
-                    "{}: Unrecoverable error encountered: {}, socket_error: "
-                    "{}:{}, shutting down connection",
-                    instance.getId(),
-                    BevEvent2Json(event).dump(),
-                    sockErr,
-                    errStr);
+            if (sockErr == ECONNRESET) {
+                LOG_INFO(
+                        "{}: Unrecoverable error encountered: {}, "
+                        "socket_error: {}:{}, shutting down connection",
+                        instance.getId(),
+                        BevEvent2Json(event).dump(),
+                        sockErr,
+                        errStr);
+            } else {
+                LOG_WARNING(
+                        "{}: Unrecoverable error encountered: {}, "
+                        "socket_error: {}:{}, shutting down connection",
+                        instance.getId(),
+                        BevEvent2Json(event).dump(),
+                        sockErr,
+                        errStr);
+            }
             instance.setTerminationReason(
                     "socket_error: " + std::to_string(sockErr) + ":" + errStr);
         } else if (!ssl_errors.empty()) {
-            LOG_INFO(
+            LOG_WARNING(
                     "{}: Unrecoverable error encountered: {}, ssl_error: "
                     "{}, shutting down connection",
                     instance.getId(),
@@ -1021,7 +1031,7 @@ void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
                     ssl_errors);
             instance.setTerminationReason("ssl_error: " + ssl_errors);
         } else {
-            LOG_INFO(
+            LOG_WARNING(
                     "{}: Unrecoverable error encountered: {}, shutting down "
                     "connection",
                     instance.getId(),
