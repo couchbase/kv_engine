@@ -91,7 +91,7 @@ TEST_P(CollectionsParameterizedTest, manifest_uid_equal_with_differences) {
 
 // This test stores a key which matches what collections internally uses, but
 // in a different namespace.
-TEST_F(CollectionsTest, namespace_separation) {
+TEST_P(CollectionsPersistentParameterizedTest, namespace_separation) {
     // Use the event factory to get an event which we'll borrow the key from
     auto se = SystemEventFactory::makeCollectionEvent(
             CollectionEntry::meat, {}, {});
@@ -100,7 +100,7 @@ TEST_F(CollectionsTest, namespace_separation) {
                DocKeyEncodesCollectionId::No);
 
     store_item(vbid, key, "value");
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Add the meat collection
     VBucketPtr vb = store->getVBucket(vbid);
@@ -110,7 +110,7 @@ TEST_F(CollectionsTest, namespace_separation) {
     EXPECT_EQ(1, vb->dirtyQueueSize);
     EXPECT_NE(0, vb->dirtyQueueAge);
 
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     // evict and load - should not see the system key for create collections
     evict_key(vbid, key);
@@ -219,29 +219,30 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
 // BY-ID update: This test was created for MB-25344 and is no longer relevant as
 // we cannot 'hit' a logically deleted key from the front-end. This test has
 // been adjusted to still provide some value.
-TEST_F(CollectionsTest, unknown_collection_errors) {
+TEST_P(CollectionsParameterizedTest, unknown_collection_errors) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
     vb->updateFromManifest(makeManifest(cm));
     // Trigger a flush to disk. Flushes the dairy create event.
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto item1 = make_item(vbid,
                            StoredDocKey{"dairy:milk", CollectionEntry::dairy},
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(cb::engine_errc::success, store->add(item1, cookie));
-    flush_vbucket_to_disk(vbid, 1);
+
+    ASSERT_EQ(cb::engine_errc::success, addItem(item1, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto item2 = make_item(vbid,
                            StoredDocKey{"dairy:cream", CollectionEntry::dairy},
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(cb::engine_errc::success, store->add(item2, cookie));
-    flush_vbucket_to_disk(vbid, 1);
+    ASSERT_EQ(cb::engine_errc::success, addItem(item2, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Delete the dairy collection (so all dairy keys become logically deleted)
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
@@ -250,7 +251,7 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
     vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::dairy2)));
 
     // Trigger a flush to disk. Flushes the dairy2 create event, dairy delete.
-    flush_vbucket_to_disk(vbid, 2);
+    flushVBucketToDiskIfPersistent(vbid, 2);
 
     // Expect that we cannot add item1 again, item1 has no collection
     item1.setCas(0);
@@ -285,13 +286,15 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
     EXPECT_EQ("collection_unknown",
               store->validateKey(item2.getKey(), vbid, item2));
 
-    EXPECT_EQ(cb::engine_errc::unknown_collection,
-              store->statsVKey(
-                      StoredDocKey{"meat:sausage", CollectionEntry::meat},
-                      vbid,
-                      cookie));
-    EXPECT_EQ(cb::engine_errc::unknown_collection,
-              store->statsVKey(item2.getKey(), vbid, cookie));
+    if (persistent()) {
+        EXPECT_EQ(cb::engine_errc::unknown_collection,
+                  store->statsVKey(
+                          StoredDocKey{"meat:sausage", CollectionEntry::meat},
+                          vbid,
+                          cookie));
+        EXPECT_EQ(cb::engine_errc::unknown_collection,
+                  store->statsVKey(item2.getKey(), vbid, cookie));
+    }
 
     // GetKeyStats
     struct key_stats ks;
@@ -337,9 +340,11 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
                                  GenerateBySeqno::Yes,
                                  GenerateCas::No));
 
-    const char* msg = nullptr;
-    EXPECT_EQ(cb::mcbp::Status::UnknownCollection,
-              store->evictKey(item2.getKey(), vbid, &msg));
+    if (persistent()) {
+        const char* msg = nullptr;
+        EXPECT_EQ(cb::mcbp::Status::UnknownCollection,
+                  store->evictKey(item2.getKey(), vbid, &msg));
+    }
 }
 
 // BY-ID update: This test was created for MB-25344 and is no longer relevant as
@@ -538,13 +543,13 @@ TEST_P(CollectionsParameterizedTest, get_scope_id) {
 }
 
 // Test high seqno values
-TEST_F(CollectionsTest, PersistedHighSeqno) {
+TEST_P(CollectionsPersistentParameterizedTest, PersistedHighSeqno) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
     vb->updateFromManifest(makeManifest(cm));
     // Trigger a flush to disk. Flushes the dairy create event.
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     EXPECT_EQ(1,
               vb->getManifest().lock().getPersistedHighSeqno(
@@ -555,15 +560,15 @@ TEST_F(CollectionsTest, PersistedHighSeqno) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(cb::engine_errc::success, store->add(item1, cookie));
-    flush_vbucket_to_disk(vbid, 1);
+    ASSERT_EQ(cb::engine_errc::success, addItem(item1, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
     EXPECT_EQ(2,
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::dairy.getId()));
 
     // Mock a change in this document incrementing the high seqno
     EXPECT_EQ(cb::engine_errc::success, store->set(item1, cookie));
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
     EXPECT_EQ(3,
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::dairy.getId()));
@@ -575,8 +580,8 @@ TEST_F(CollectionsTest, PersistedHighSeqno) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(cb::engine_errc::success, store->add(item2, cookie));
-    flush_vbucket_to_disk(vbid, 1);
+    ASSERT_EQ(cb::engine_errc::success, addItem(item2, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
     EXPECT_EQ(4,
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::dairy.getId()));
@@ -584,7 +589,7 @@ TEST_F(CollectionsTest, PersistedHighSeqno) {
     // Check a deletion
     item2.setDeleted();
     EXPECT_EQ(cb::engine_errc::success, store->set(item2, cookie));
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
     EXPECT_EQ(5,
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::dairy.getId()));
@@ -594,13 +599,14 @@ TEST_F(CollectionsTest, PersistedHighSeqno) {
 }
 
 // Test persisted high seqno values with multiple collections
-TEST_F(CollectionsTest, PersistedHighSeqnoMultipleCollections) {
+TEST_P(CollectionsPersistentParameterizedTest,
+       PersistedHighSeqnoMultipleCollections) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
     vb->updateFromManifest(makeManifest(cm));
     // Trigger a flush to disk. Flushes the dairy create event.
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     EXPECT_EQ(1,
               vb->getManifest().lock().getPersistedHighSeqno(
@@ -611,8 +617,8 @@ TEST_F(CollectionsTest, PersistedHighSeqnoMultipleCollections) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(cb::engine_errc::success, store->add(item1, cookie));
-    flush_vbucket_to_disk(vbid, 1);
+    ASSERT_EQ(cb::engine_errc::success, addItem(item1, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
     EXPECT_EQ(2,
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::dairy.getId()));
@@ -621,7 +627,7 @@ TEST_F(CollectionsTest, PersistedHighSeqnoMultipleCollections) {
     cm.add(CollectionEntry::meat);
     vb->updateFromManifest(makeManifest(cm));
     // Trigger a flush to disk. Flushes the dairy create event.
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     EXPECT_EQ(3,
               vb->getManifest().lock().getPersistedHighSeqno(
@@ -638,8 +644,8 @@ TEST_F(CollectionsTest, PersistedHighSeqnoMultipleCollections) {
                            "beefy",
                            0,
                            0);
-    EXPECT_EQ(cb::engine_errc::success, store->add(item2, cookie));
-    flush_vbucket_to_disk(vbid, 1);
+    ASSERT_EQ(cb::engine_errc::success, addItem(item2, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
     // Skip 1 seqno for creation of meat
     EXPECT_EQ(4,
               vb->getManifest().lock().getPersistedHighSeqno(
@@ -653,7 +659,7 @@ TEST_F(CollectionsTest, PersistedHighSeqnoMultipleCollections) {
     // Now, set a new high seqno in both collections in a single flush
     EXPECT_EQ(cb::engine_errc::success, store->set(item1, cookie));
     EXPECT_EQ(cb::engine_errc::success, store->set(item2, cookie));
-    flush_vbucket_to_disk(vbid, 2);
+    flushVBucketToDiskIfPersistent(vbid, 2);
     EXPECT_EQ(5,
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::dairy.getId()));
@@ -858,7 +864,7 @@ Collections::KVStore::Manifest CollectionsFlushTest::createCollectionAndFlush(
     storeItems(collection, items, cb::engine_errc::unknown_collection);
     vb->updateFromManifest(Collections::Manifest{json});
     storeItems(collection, items);
-    flush_vbucket_to_disk(vbid, 1 + items); // create event + items
+    flushVBucketToDiskIfPersistent(vbid, 1 + items); // create event + items
     EXPECT_EQ(items, vb->lockCollections().getItemCount(collection));
     return getManifest(vbid);
 }
@@ -870,12 +876,13 @@ Collections::KVStore::Manifest CollectionsFlushTest::dropCollectionAndFlush(
     vb->updateFromManifest(Collections::Manifest(json));
     // cannot write to collection
     storeItems(collection, items, cb::engine_errc::unknown_collection);
-    flush_vbucket_to_disk(vbid, 1 + items); // 1x del(create event) + items
+    flushVBucketToDiskIfPersistent(vbid,
+                                   1 + items); // 1x del(create event) + items
     runCompaction(vbid);
 
     // Default is still ok
     storeItems(CollectionID::Default, items);
-    flush_vbucket_to_disk(vbid, items); // just the items
+    flushVBucketToDiskIfPersistent(vbid, items); // just the items
     return getManifest(vbid);
 }
 
@@ -1035,7 +1042,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::meat)));
 
         // Trigger a flush to disk. Flushes the meat create event
-        flush_vbucket_to_disk(vbid, 1);
+        flushVBucketToDiskIfPersistent(vbid, 1);
 
         // Now we can write to beef
         store_item(vbid,
@@ -1048,7 +1055,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
                    0,
                    {cb::engine_errc::unknown_collection});
 
-        flush_vbucket_to_disk(vbid, 1);
+        flushVBucketToDiskIfPersistent(vbid, 1);
 
         EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::meat));
         EXPECT_EQ(2,
@@ -1061,7 +1068,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
 
         // create an extra collection which we do not write to (note uid++)
         vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
-        flush_vbucket_to_disk(vbid, 1);
+        flushVBucketToDiskIfPersistent(vbid, 1);
 
         // The high-seqno of the collection is the start, the seqno of the
         // creation event
@@ -1158,7 +1165,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
         vb->updateFromManifest(makeManifest(cm));
 
         // Trigger a flush to disk. Flushes the meat create event
-        flush_vbucket_to_disk(vbid, 1);
+        flushVBucketToDiskIfPersistent(vbid, 1);
         const int nitems = 10;
         for (int ii = 0; ii < nitems; ii++) {
             // Now we can write to beef
@@ -1166,12 +1173,12 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
             store_item(vbid, StoredDocKey{key, CollectionEntry::meat}, "value");
         }
 
-        flush_vbucket_to_disk(vbid, nitems);
+        flushVBucketToDiskIfPersistent(vbid, nitems);
 
         // Remove the meat collection
         vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::meat)));
 
-        flush_vbucket_to_disk(vbid, 1);
+        flushVBucketToDiskIfPersistent(vbid, 1);
 
         // Items still exist until the eraser runs
         EXPECT_EQ(nitems, vb->ht.getNumInMemoryItems());
@@ -1203,7 +1210,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
         vb->updateFromManifest(makeManifest(cm));
 
         // Trigger a flush to disk. Flushes the meat create event
-        flush_vbucket_to_disk(vbid, 1);
+        flushVBucketToDiskIfPersistent(vbid, 1);
         const int nitems = 10;
         for (int ii = 0; ii < nitems; ii++) {
             std::string key = "key" + std::to_string(ii);
@@ -1212,13 +1219,13 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
                        "value");
         }
 
-        flush_vbucket_to_disk(vbid, nitems);
+        flushVBucketToDiskIfPersistent(vbid, nitems);
 
         // Remove the default collection
         vb->updateFromManifest(
                 makeManifest(cm.remove(CollectionEntry::defaultC)));
 
-        flush_vbucket_to_disk(vbid, 1);
+        flushVBucketToDiskIfPersistent(vbid, 1);
 
         // Items still exist until the eraser runs
         EXPECT_EQ(nitems, vb->ht.getNumInMemoryItems());
@@ -1251,7 +1258,7 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnCreate) {
         cm.setUid(0xface2); // cm.add will +1 this uid
         vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::meat)));
 
-        flush_vbucket_to_disk(vbid, 1);
+        flushVBucketToDiskIfPersistent(vbid, 1);
     } // VBucketPtr scope ends
 
     resetEngineAndWarmup();
@@ -1273,7 +1280,7 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnDelete) {
         vb->updateFromManifest(
                 makeManifest(cm.remove(CollectionEntry::defaultC)));
 
-        flush_vbucket_to_disk(vbid, 1);
+        flushVBucketToDiskIfPersistent(vbid, 1);
     } // VBucketPtr scope ends
 
     resetEngineAndWarmup();
@@ -1370,7 +1377,8 @@ TEST_P(CollectionsParameterizedTest, basic2) {
 }
 
 // Test the compactor doesn't generate expired items for a dropped collection
-TEST_F(CollectionsTest, collections_expiry_after_drop_collection_compaction) {
+TEST_P(CollectionsPersistentParameterizedTest,
+       collections_expiry_after_drop_collection_compaction) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Add the meat collection + 1 item with TTL (and flush it all out)
@@ -1378,10 +1386,10 @@ TEST_F(CollectionsTest, collections_expiry_after_drop_collection_compaction) {
     vb->updateFromManifest(makeManifest(cm));
     StoredDocKey key{"lamb", CollectionEntry::meat};
     store_item(vbid, key, "value", ep_real_time() + 100);
-    flush_vbucket_to_disk(vbid, 2);
+    flushVBucketToDiskIfPersistent(vbid, 2);
     // And now drop the meat collection
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::meat)));
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Time travel
     TimeTraveller docBrown(2000);
@@ -1902,10 +1910,9 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
 }
 
 // Issue was found with MB-49472
-TEST_F(CollectionsTest, ResurrectCollectionDuringCompactionReplay) {
+TEST_P(CollectionsCouchstoreParameterizedTest,
+       ResurrectCollectionDuringCompactionReplay) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-
-    replaceCouchKVStoreWithMock();
 
     // Create and drop the fruit collection
     CollectionsManifest cm;
@@ -2460,7 +2467,7 @@ void CollectionsExpiryLimitTest::operation_test(
         vb->updateFromManifest(makeManifest(cm));
     }
 
-    flush_vbucket_to_disk(vbid, 4);
+    flushVBucketToDiskIfPersistent(vbid, 4);
 
     if (warmup) {
         resetEngineAndWarmup();
@@ -2624,7 +2631,7 @@ TEST_P(CollectionsParameterizedTest, item_counting) {
     EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionEntry::meat));
 }
 
-TEST_F(CollectionsTest, CollectionStatsIncludesScope) {
+TEST_P(CollectionsParameterizedTest, CollectionStatsIncludesScope) {
     // Test that stats returned for key "collections" includes what scope
     // the collection is in
     auto vb = store->getVBucket(vbid);
@@ -2675,7 +2682,7 @@ TEST_F(CollectionsTest, CollectionStatsIncludesScope) {
     }
 }
 
-TEST_F(CollectionsTest, PerCollectionMemUsed) {
+TEST_P(CollectionsParameterizedTest, PerCollectionMemUsed) {
     // test that the per-collection memory usage (tracked by the hash table
     // statistics) changes when items in the collection are
     // added/updated/deleted/evicted and does not change when items in other
@@ -2729,6 +2736,10 @@ TEST_F(CollectionsTest, PerCollectionMemUsed) {
 
         delete_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC});
         KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+    }
+
+    if (ephemeral()) {
+        return;
     }
 
     {
@@ -2815,7 +2826,10 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSize) {
     }
 }
 
-TEST_F(CollectionsTest, PerCollectionDiskSizeRollback) {
+TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSizeRollback) {
+    resetEngineAndWarmup(magmaRollbackConfig);
+    store->setVBucketState(vbid, vbucket_state_active);
+
     // test that the per-collection disk size (updated by saveDocsCallback)
     // changes when items in the collection are added/updated/deleted (but not
     // when evicted) and does not change when items in other collections are
@@ -2993,7 +3007,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
 
 // Test to ensure we use the vbuckets manifest when passing a vbid to
 // EventuallyPersistentEngine::get_scope_id()
-TEST_F(CollectionsTest, GetScopeIdForGivenKeyAndVbucket) {
+TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection to vbid(0)
     CollectionsManifest cmDairyVb;
@@ -3002,7 +3016,7 @@ TEST_F(CollectionsTest, GetScopeIdForGivenKeyAndVbucket) {
     vb->updateFromManifest(makeManifest(cmDairyVb));
 
     // Trigger a flush to disk. Flushes the dairy create event.
-    flush_vbucket_to_disk(vbid, 2);
+    flushVBucketToDiskIfPersistent(vbid, 2);
 
     StoredDocKey keyDairy{"dairy:milk", CollectionEntry::dairy};
     StoredDocKey keyMeat{"meat:beef", CollectionEntry::meat};
@@ -3039,7 +3053,7 @@ TEST_F(CollectionsTest, GetScopeIdForGivenKeyAndVbucket) {
             {},
             2);
     // Trigger a flush to disk. Flushes the dairy create event.
-    flush_vbucket_to_disk(meatVbid, 2);
+    flushVBucketToDiskIfPersistent(meatVbid, 2);
 
     result = engine->get_scope_id(*cookie, keyMeat, meatVbid);
     EXPECT_EQ(cb::engine_errc::success, result.result);
@@ -3055,7 +3069,7 @@ TEST_F(CollectionsTest, GetScopeIdForGivenKeyAndVbucket) {
     EXPECT_EQ(cb::engine_errc::not_my_vbucket, result.result);
 }
 
-TEST_F(CollectionsTest, GetScopeIdForGivenKeyNoVbid) {
+TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyNoVbid) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     CollectionsManifest manifest;
@@ -3063,7 +3077,7 @@ TEST_F(CollectionsTest, GetScopeIdForGivenKeyNoVbid) {
             .add(CollectionEntry::dairy, ScopeEntry::shop1);
 
     setCollections(cookie, manifest);
-    flush_vbucket_to_disk(vbid, 2);
+    flushVBucketToDiskIfPersistent(vbid, 2);
 
     StoredDocKey keyDefault{"default", CollectionEntry::defaultC};
     StoredDocKey keyDairy{"dairy:milk", CollectionEntry::dairy};
@@ -3346,7 +3360,7 @@ bool getKeyStatsResponseHandler(std::string_view key,
     return true;
 }
 
-TEST_F(CollectionsTest, TestGetKeyStatsBadVbids) {
+TEST_P(CollectionsParameterizedTest, TestGetKeyStatsBadVbids) {
     store_item(vbid,
                makeStoredDocKey("defKey", CollectionEntry::defaultC),
                "value");
@@ -3374,7 +3388,7 @@ TEST_F(CollectionsTest, TestGetKeyStatsBadVbids) {
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 }
 
-TEST_F(CollectionsTest, TestGetKeyStats) {
+TEST_P(CollectionsParameterizedTest, TestGetKeyStats) {
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
     setCollections(cookie, cm);
@@ -3421,12 +3435,20 @@ TEST_F(CollectionsTest, TestGetKeyStats) {
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key beef2 0 _default._default";
-    EXPECT_EQ(cb::engine_errc::no_such_key,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    auto ret = engine->getStats(cookie, key, {}, getKeyStatsResponseHandler);
+    if (!isFullEviction() || isBloomFilterEnabled()) {
+        EXPECT_EQ(cb::engine_errc::no_such_key, ret);
+    } else {
+        EXPECT_EQ(cb::engine_errc::would_block, ret);
+        runBGFetcherTask();
+        EXPECT_EQ(
+                cb::engine_errc::no_such_key,
+                engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    }
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 }
 
-TEST_F(CollectionsTest, TestGetVKeyStats) {
+TEST_P(CollectionsPersistentParameterizedTest, TestGetVKeyStats) {
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
     setCollections(cookie, cm);
@@ -3494,8 +3516,18 @@ TEST_F(CollectionsTest, TestGetVKeyStats) {
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey beef2 0 _default._default";
-    EXPECT_EQ(cb::engine_errc::no_such_key,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    auto ret = engine->getStats(cookie, key, {}, getKeyStatsResponseHandler);
+    if (isFullEviction()) {
+        EXPECT_EQ(cb::engine_errc::would_block, ret);
+        runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+                    "Fetching item from disk for vkey stat: key{beef2} vb:0");
+        EXPECT_EQ(
+                cb::engine_errc::no_such_key,
+                engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    } else {
+        EXPECT_EQ(cb::engine_errc::no_such_key, ret);
+    }
+
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 }
 
@@ -4185,7 +4217,7 @@ TEST_P(CollectionsPersistentParameterizedTest, DeleteDelete) {
 // MB-45899 occured as accumulateStats didn't check the result of a map.find
 // which allows for a crash to occur if collection state is changing (collection
 // dropped) whilst stats are gathered.
-TEST_F(CollectionsTest, MB_45899) {
+TEST_P(CollectionsParameterizedTest, MB_45899) {
     const auto vbid0 = vbid;
     const auto vbid1 = Vbid(vbid.get() + 1);
     setVBucketStateAndRunPersistTask(vbid1, vbucket_state_active);
@@ -4338,7 +4370,7 @@ TEST_P(CollectionsPersistentParameterizedTest, WarmupWithANewUUID_MB_48398) {
     EXPECT_EQ(cm.getUid(), vb->lockCollections().getManifestUid());
 }
 
-TEST_F(CollectionsTest, WriteToScopeWithLimit) {
+TEST_P(CollectionsParameterizedTest, WriteToScopeWithLimit) {
     CollectionsManifest cm;
     cm.add(ScopeEntry::shop1, 0); // 0 data limit
     cm.add(CollectionEntry::fruit, ScopeEntry::shop1);
@@ -4372,7 +4404,7 @@ TEST_F(CollectionsTest, WriteToScopeWithLimit) {
                                  GenerateCas::No));
 }
 
-TEST_F(CollectionsTest, PerCollectionMemUsedAndDeleteVbucket) {
+TEST_P(CollectionsParameterizedTest, PerCollectionMemUsedAndDeleteVbucket) {
     // Add a second vbucket
     const auto vbid0 = vbid;
     const auto vbid1 = Vbid(vbid.get() + 1);
@@ -4424,7 +4456,11 @@ TEST_F(CollectionsTest, PerCollectionMemUsedAndDeleteVbucket) {
         auto d = MemChecker(vb0, CollectionEntry::defaultC, std::less<>());
         EXPECT_EQ(cb::engine_errc::success, store->deleteVBucket(vbid1));
         // Run the deletion task
-        runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+        if (ephemeral()) {
+            runNextTask(*task_executor->getLpTaskQ()[NONIO_TASK_IDX]);
+        } else {
+            runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+        }
     }
 
     EXPECT_EQ(vb0size,
