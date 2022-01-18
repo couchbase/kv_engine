@@ -570,7 +570,7 @@ TEST_P(VBucketTest, GetItemsForCursor_Limit) {
     EXPECT_TRUE(result.items[4]->isCheckPointMetaItem());
     EXPECT_STREQ("5", result.items[5]->getKey().c_str());
     EXPECT_STREQ("6", result.items[6]->getKey().c_str());
-    EXPECT_EQ(range.getEnd() + 2, result.ranges.front().getStart());
+    EXPECT_EQ(range.getEnd() + 3, result.ranges.front().getStart());
     EXPECT_EQ(range.getEnd() + 6, result.ranges.back().getEnd());
 }
 

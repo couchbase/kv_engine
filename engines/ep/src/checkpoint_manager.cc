@@ -118,8 +118,10 @@ Checkpoint& CheckpointManager::getOpenCheckpoint_UNLOCKED(
 }
 
 void CheckpointManager::addNewCheckpoint_UNLOCKED() {
-    addNewCheckpoint_UNLOCKED(lastBySeqno,
-                              lastBySeqno,
+    // Use lastBySeqno + 1 as that will be the seqno of the first item belonging
+    // to this checkpoint
+    addNewCheckpoint_UNLOCKED(lastBySeqno + 1,
+                              lastBySeqno + 1,
                               maxVisibleSeqno,
                               {},
                               CheckpointType::Memory);
@@ -1122,8 +1124,10 @@ void CheckpointManager::clear(const std::lock_guard<std::mutex>& lh,
 
     Expects(checkpointList.empty());
 
-    addOpenCheckpoint(lastBySeqno,
-                      lastBySeqno,
+    // Use lastBySeqno + 1 as that will be the seqno of the first item belonging
+    // to this checkpoint
+    addOpenCheckpoint(lastBySeqno + 1,
+                      lastBySeqno + 1,
                       maxVisibleSeqno,
                       {},
                       CheckpointType::Memory);

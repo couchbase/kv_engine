@@ -152,6 +152,11 @@ std::string to_string(QueueDirtyStatus value);
  *
  *     Checkpoint (closed)
  *                               numItems: 5 (1x start, 2x set, 1x del, 1x end)
+ *                               snapStart: 1 (first mutation this checkpoint
+ *                                             may see/has seen or streamed from
+ *                                             active)
+ *                               snapEnd: 3 (highest seqno seen or streamed from
+ *                                           active)
  *
  *              +-------+-------+-------+-------+-------+-------+
  *              | empty | Start |  Set  |  Set  |  Del  |  End  |
@@ -166,6 +171,11 @@ std::string to_string(QueueDirtyStatus value);
  *
  *     Checkpoint (open)
  *                               numItems: 4 (1x start, 1x set, 2x set)
+ *                               snapStart: 4 (first mutation this checkpoint
+ *                                             may see/has seen or streamed from
+ *                                             active)
+ *                               snapEnd: 5 (highest seqno seen or streamed from
+ *                                           active)
  *
  *              +-------+-------+-------+-------+-------+
  *              | empty | Start |  Del  |  Set  |  Set

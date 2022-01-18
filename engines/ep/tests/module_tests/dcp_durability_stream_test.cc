@@ -4552,7 +4552,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     // Commit(7) queued in a new checkpoint
     {
         SCOPED_TRACE("");
-        checkOpenCheckpoint(CheckpointType::Memory, 6, 7);
+        checkOpenCheckpoint(CheckpointType::Memory, 7, 7);
     }
 
     auto& stream = DurabilityActiveStreamTest::stream;
@@ -4791,7 +4791,7 @@ void DurabilityPromotionStreamTest::
     ASSERT_EQ(3, ckptMgr.getNumCheckpoints());
     currSnap = ckptMgr.getSnapshotInfo();
     ASSERT_EQ(CheckpointType::Memory, ckptMgr.getOpenCheckpointType());
-    ASSERT_EQ(3, currSnap.range.getStart());
+    ASSERT_EQ(4, currSnap.range.getStart());
     ASSERT_EQ(4, currSnap.range.getEnd());
 
     ASSERT_TRUE(activeStream->public_supportSyncReplication());

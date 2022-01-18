@@ -284,7 +284,7 @@ TEST_P(CheckpointTest, OneOpenOneClosed) {
     EXPECT_EQ(2, result.ranges.size()); // 2 checkpoints returned items
     EXPECT_EQ(0, result.ranges.front().getStart());
     EXPECT_EQ(1002, result.ranges.front().getEnd());
-    EXPECT_EQ(1002, result.ranges.back().getStart());
+    EXPECT_EQ(1003, result.ranges.back().getStart());
     EXPECT_EQ(1004, result.ranges.back().getEnd());
     EXPECT_EQ(1002, result.visibleSeqno);
     EXPECT_FALSE(result.highCompletedSeqno);
@@ -435,7 +435,7 @@ TEST_P(CheckpointTest, ItemBasedCheckpointCreation) {
     EXPECT_EQ(2, result.ranges.size());
     EXPECT_EQ(0, result.ranges.at(0).getStart());
     EXPECT_EQ(1010, result.ranges.at(0).getEnd());
-    EXPECT_EQ(1010, result.ranges.at(1).getStart());
+    EXPECT_EQ(1011, result.ranges.at(1).getStart());
     EXPECT_EQ(1021, result.ranges.at(1).getEnd());
     EXPECT_EQ(1010, result.visibleSeqno);
     EXPECT_FALSE(result.highCompletedSeqno);
@@ -577,7 +577,7 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursor) {
     EXPECT_EQ(2, result.ranges.size());
     EXPECT_EQ(0, result.ranges.at(0).getStart());
     EXPECT_EQ(1000 + maxItems, result.ranges.at(0).getEnd());
-    EXPECT_EQ(1000 + maxItems, result.ranges.at(1).getStart());
+    EXPECT_EQ(1000 + maxItems + 1, result.ranges.at(1).getStart());
     EXPECT_EQ(1000 + 2 * maxItems, result.ranges.at(1).getEnd());
     EXPECT_EQ(1000 + maxItems, result.visibleSeqno);
     EXPECT_FALSE(result.highCompletedSeqno);
@@ -590,7 +590,7 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursor) {
     EXPECT_EQ(2, result.ranges.size());
     EXPECT_EQ(0, result.ranges.at(0).getStart());
     EXPECT_EQ(1000 + maxItems, result.ranges.at(0).getEnd());
-    EXPECT_EQ(1000 + maxItems, result.ranges.at(1).getStart());
+    EXPECT_EQ(1000 + maxItems + 1, result.ranges.at(1).getStart());
     EXPECT_EQ(1000 + 2 * maxItems, result.ranges.at(1).getEnd());
     EXPECT_EQ(1000 + maxItems, result.visibleSeqno);
     EXPECT_FALSE(result.highCompletedSeqno);
@@ -743,8 +743,9 @@ TEST_P(CheckpointTest, CursorMovement) {
     /* We should have got op_ckpt_start item */
     EXPECT_EQ(1, items.size());
     EXPECT_EQ(1, result.ranges.size());
-    EXPECT_EQ(1000 + maxItems, result.ranges.front().getStart());
-    EXPECT_EQ(1000 + maxItems, result.ranges.front().getEnd());
+    EXPECT_EQ(1000 + maxItems + 1, items.front()->getBySeqno());
+    EXPECT_EQ(1000 + maxItems + 1, result.ranges.front().getStart());
+    EXPECT_EQ(1000 + maxItems + 1, result.ranges.front().getEnd());
 
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
 
