@@ -62,7 +62,7 @@ void Flusher::wait() {
         ;
     }
     auto endt = std::chrono::steady_clock::now();
-    if ((endt - startt).count() > 1000) {
+    if ((endt - startt) > std::chrono::milliseconds{10}) {
         EP_LOG_INFO("Flusher::wait: had to wait {} for shutdown",
                     cb::time2text(endt - startt));
     }
