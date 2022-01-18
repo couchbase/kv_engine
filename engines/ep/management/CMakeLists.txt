@@ -13,6 +13,7 @@ PyWrapper(
 
 # Install supporting python files
 INSTALL(FILES
+        cbstats.py
         clitool.py
         cli_auth_utils.py
         mc_bin_client.py
@@ -21,6 +22,10 @@ INSTALL(FILES
         DESTINATION lib/python)
 
 if (NOT EP_BYPASS_TESTS)
+    find_package(Python3 COMPONENTS Interpreter)
+    ADD_TEST(NAME cbstats_py_test
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/cbstats_test.py)
+
     # runs cbstats & cbepctl - will fail on basic syntax errors
     ADD_TEST(NAME cbstats_test
              COMMAND ${KV_BINARY_DIR}/cbstats --help)
