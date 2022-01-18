@@ -2677,6 +2677,10 @@ void NexusKVStore::setMakeCompactionContextCallback(
     secondary->setMakeCompactionContextCallback(nexusSecondaryCb);
 }
 
+void NexusKVStore::setPreFlushHook(std::function<void()> hook) {
+    primary->setPreFlushHook(hook);
+}
+
 void NexusKVStore::setPostFlushHook(std::function<void()> hook) {
     primary->setPostFlushHook(hook);
 }

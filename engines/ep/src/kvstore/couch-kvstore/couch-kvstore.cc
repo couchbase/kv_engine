@@ -2924,6 +2924,9 @@ bool CouchKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
     }
 
     kvstats_ctx kvctx(commitData);
+
+    preFlushHook();
+
     // flush all
     const auto errCode = saveDocs(ctx, docs, docinfos, kvReqs, kvctx);
 

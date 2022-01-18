@@ -128,6 +128,7 @@ public:
     const KVStoreStats& getKVStoreStat() const override;
     void setMakeCompactionContextCallback(
             MakeCompactionContextCallback cb) override;
+    void setPreFlushHook(std::function<void()> hook) override;
     void setPostFlushHook(std::function<void()> hook) override;
     void setSaveDocsPostWriteDocsHook(std::function<void()> hook) override;
     nlohmann::json getPersistedStats() const override;

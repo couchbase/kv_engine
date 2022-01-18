@@ -91,20 +91,6 @@ public:
         return static_cast<MockCouchRequest*>(&ctx.pendingReqsQ.back());
     }
 
-    bool commit(std::unique_ptr<TransactionContext> txnCtx,
-                VB::Commit& commitData) override {
-        preCommitHook();
-        return CouchKVStore::commit(std::move(txnCtx), commitData);
-    }
-
-    /**
-     * Register a callback to be triggered immediately before
-     * CouchKVStore::commit is executed. Will replace any previously set hook.
-     */
-    void setPreCommitHook(std::function<void()> cb) {
-        preCommitHook = std::move(cb);
-    }
-
     std::unordered_map<Vbid, std::unordered_set<uint64_t>>
     public_getVbucketRevisions(
             const std::vector<std::string>& filenames) const {
@@ -114,6 +100,4 @@ public:
     uint64_t public_getDbRevision(Vbid vbucketId) const {
         return getDbRevision(vbucketId);
     }
-
-    TestingHook<> preCommitHook;
 };

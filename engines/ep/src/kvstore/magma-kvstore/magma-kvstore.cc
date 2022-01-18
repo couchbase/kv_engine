@@ -736,6 +736,8 @@ bool MagmaKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
     kvstats_ctx kvctx(commitData);
     bool success = true;
 
+    preFlushHook();
+
     // Flush all documents to disk
     auto errCode = saveDocs(ctx, commitData, kvctx);
     if (errCode != static_cast<int>(cb::engine_errc::success)) {

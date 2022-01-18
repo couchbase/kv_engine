@@ -617,6 +617,11 @@ public:
     /**
      * Test-only. See definition of postFlushHook for details.
      */
+    virtual void setPreFlushHook(std::function<void()> hook) = 0;
+
+    /**
+     * Test-only. See definition of postFlushHook for details.
+     */
     virtual void setPostFlushHook(std::function<void()> hook) = 0;
 
     virtual void setSaveDocsPostWriteDocsHook(std::function<void()> hook) = 0;

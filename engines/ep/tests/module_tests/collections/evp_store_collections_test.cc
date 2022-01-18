@@ -1399,7 +1399,8 @@ TEST_F(CollectionsTest, collections_expiry_after_drop_collection_compaction) {
     }
 }
 
-TEST_F(CollectionsTest, CollectionAddedAndRemovedBeforePersistence) {
+TEST_P(CollectionsPersistentParameterizedTest,
+       CollectionAddedAndRemovedBeforePersistence) {
     /**
      * MB-38528: Test that setPersistedHighSeqno when called when persisting a
      * collection creation event does not throw if the collection is not
@@ -1408,7 +1409,6 @@ TEST_F(CollectionsTest, CollectionAddedAndRemovedBeforePersistence) {
      * drop very quickly after. By the time the creation had persisted, the drop
      * had already removed the collection from the vb manifest.
      */
-    replaceCouchKVStoreWithMock();
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Add the dairy collection, but don't flush it just yet.
@@ -1419,9 +1419,8 @@ TEST_F(CollectionsTest, CollectionAddedAndRemovedBeforePersistence) {
     // This is after items have been read from the checkpoint manager, but
     // before the items are persisted - importantly in this case, before
     // saveDocsCallback is invoked (which calls setPersistedHighSeqno())
-    auto& kvstore =
-            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
-    kvstore.setPreCommitHook([&cm, &vb] {
+    auto& kvstore = *store->getRWUnderlying(vbid);
+    kvstore.setPreFlushHook([&cm, &vb] {
         // now remove the collection. This will remove it from the vb manifest
         // _before_ the creation event tries to call setPersistedHighSeqno()
         cm.remove(CollectionEntry::dairy);
@@ -1429,7 +1428,7 @@ TEST_F(CollectionsTest, CollectionAddedAndRemovedBeforePersistence) {
     });
     // flushing the creation to disk should not throw, even though the
     // collection was not found in the manifest
-    EXPECT_NO_THROW(flush_vbucket_to_disk(vbid, 1));
+    EXPECT_NO_THROW(flushVBucketToDiskIfPersistent(vbid, 1));
 }
 
 TEST_F(CollectionsTest, ConcCompactNewPrepare) {
