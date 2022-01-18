@@ -1431,13 +1431,11 @@ TEST_P(CollectionsPersistentParameterizedTest,
     EXPECT_NO_THROW(flushVBucketToDiskIfPersistent(vbid, 1));
 }
 
-TEST_F(CollectionsTest, ConcCompactNewPrepare) {
+TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactNewPrepare) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
-
-    replaceCouchKVStoreWithMock();
 
     CollectionsManifest cm;
     cm.add(CollectionEntry::dairy);
@@ -1533,13 +1531,11 @@ TEST_F(CollectionsTest, ConcCompactNewPrepare) {
     EXPECT_TRUE(dropped.empty());
 }
 
-TEST_F(CollectionsTest, ConcCompactPrepareAbort) {
+TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactPrepareAbort) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
-
-    replaceCouchKVStoreWithMock();
 
     CollectionsManifest cm;
     cm.add(CollectionEntry::dairy);
@@ -1628,13 +1624,11 @@ TEST_F(CollectionsTest, ConcCompactPrepareAbort) {
     }
 }
 
-TEST_F(CollectionsTest, ConcCompactAbortPrepare) {
+TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactAbortPrepare) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
-
-    replaceCouchKVStoreWithMock();
 
     CollectionsManifest cm;
     cm.add(CollectionEntry::dairy);
@@ -1731,13 +1725,11 @@ TEST_F(CollectionsTest, ConcCompactAbortPrepare) {
     }
 }
 
-TEST_F(CollectionsTest, ConcCompactDropCollection) {
+TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactDropCollection) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
-
-    replaceCouchKVStoreWithMock();
 
     CollectionsManifest cm;
     cm.remove(CollectionEntry::defaultC);
@@ -1789,13 +1781,12 @@ TEST_F(CollectionsTest, ConcCompactDropCollection) {
 // Test reproduces MB-44590, here we have a drop collection and then compaction
 // and flusher interleave. With MB-44590, the final KVStore state was incorrect
 // as the dropped collection metadata still stored the dropped collection.
-TEST_F(CollectionsTest, ConcCompactDropCollectionMB_44590) {
+TEST_P(CollectionsCouchstoreParameterizedTest,
+       ConcCompactDropCollectionMB_44590) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
-
-    replaceCouchKVStoreWithMock();
 
     // Now drop default and add a second collection
     CollectionsManifest cm;
@@ -1834,13 +1825,12 @@ TEST_F(CollectionsTest, ConcCompactDropCollectionMB_44590) {
 // fixed by MB-44590. The test drops collections and also tombstone purges them.
 // When MB-44590 occurs a second compaction/erase gets quite confused because
 // it cannot find the tombstones it thinks should exist.
-TEST_F(CollectionsTest, ConcCompactDropCollectionMB_44694) {
+TEST_P(CollectionsCouchstoreParameterizedTest,
+       ConcCompactDropCollectionMB_44694) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
-
-    replaceCouchKVStoreWithMock();
 
     // Create two collections
     CollectionsManifest cm;
@@ -1913,8 +1903,6 @@ TEST_F(CollectionsTest, ConcCompactDropCollectionMB_44694) {
 
 void CollectionsCouchstoreParameterizedTest::ConcCompact(
         std::function<void()> concurrentFunc) {
-    replaceCouchKVStoreWithMock();
-
     auto& kvstore =
             dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
 
@@ -3768,9 +3756,7 @@ TEST_P(CollectionsPersistentParameterizedTest, FlushDropCreateDropCleansUp) {
  * Test that a new non-prepare namespace doc added during the replay phase of
  * couchstore concurrent compaction updates the collection size.
  */
-TEST_F(CollectionsTest, ConcCompactReplayNewNonPrepare) {
-    replaceCouchKVStoreWithMock();
-
+TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactReplayNewNonPrepare) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::meat);
 
@@ -3805,9 +3791,8 @@ TEST_F(CollectionsTest, ConcCompactReplayNewNonPrepare) {
  * Test that a change to a non-prepare namespace doc added during the replay
  * phase of couchstore concurrent compaction updates the collection size.
  */
-TEST_F(CollectionsTest, ConcCompactReplayChangeNonPrepare) {
-    replaceCouchKVStoreWithMock();
-
+TEST_P(CollectionsCouchstoreParameterizedTest,
+       ConcCompactReplayChangeNonPrepare) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::meat);
 
@@ -3848,9 +3833,8 @@ TEST_F(CollectionsTest, ConcCompactReplayChangeNonPrepare) {
  * Test that the delete of non-prepare namespace doc added during the repla
  * phase of couchstore concurrent compaction updates the collection size.
  */
-TEST_F(CollectionsTest, ConcCompactReplayDeleteNonPrepare) {
-    replaceCouchKVStoreWithMock();
-
+TEST_P(CollectionsCouchstoreParameterizedTest,
+       ConcCompactReplayDeleteNonPrepare) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::meat);
 
@@ -3898,9 +3882,8 @@ TEST_F(CollectionsTest, ConcCompactReplayDeleteNonPrepare) {
  * Test that the re-addition of a non-prepare namespace doc added during the
  * replay phase of couchstore concurrent compaction updates the collection size.
  */
-TEST_F(CollectionsTest, ConcCompactReplayUnDeleteNonPrepare) {
-    replaceCouchKVStoreWithMock();
-
+TEST_P(CollectionsCouchstoreParameterizedTest,
+       ConcCompactReplayUnDeleteNonPrepare) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::meat);
 
@@ -3951,9 +3934,7 @@ TEST_F(CollectionsTest, ConcCompactReplayUnDeleteNonPrepare) {
  * Test that a delete that is copied over a delete in a replay results in the
  * correct disk size
  */
-TEST_F(CollectionsTest, ConcCompactReplayDeleteDelete) {
-    replaceCouchKVStoreWithMock();
-
+TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactReplayDeleteDelete) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::meat);
 

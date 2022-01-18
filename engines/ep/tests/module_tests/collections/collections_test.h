@@ -74,9 +74,16 @@ public:
 class CollectionsPersistentParameterizedTest
     : public CollectionsParameterizedTest {};
 
+/**
+ * Test for Collection functionality against couchstore bucket types.
+ */
 class CollectionsCouchstoreParameterizedTest
     : public CollectionsParameterizedTest {
 public:
+    void SetUp() override {
+        CollectionsParameterizedTest::SetUp();
+        replaceCouchKVStoreWithMock();
+    }
     void ConcCompact(std::function<void()> concurrentFunc);
 };
 
