@@ -24,12 +24,16 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/client.cert
                    -extfile ${CMAKE_CURRENT_SOURCE_DIR}/ca.ext
                    -out ${CMAKE_CURRENT_BINARY_DIR}/client.cert
                    -days 365
+                   COMMAND
+                   ${OPENSSL_BINARY}
+                   verify
+                   -CAfile ${CMAKE_CURRENT_BINARY_DIR}/../root/ca_root.cert
+                   ${CMAKE_CURRENT_BINARY_DIR}/client.cert
                    DEPENDS
+                   Generate_kv_engine_X509_Test_Root_Certificate
                    ${CMAKE_CURRENT_SOURCE_DIR}/ca.ext
                    ${CMAKE_CURRENT_BINARY_DIR}/client.key
                    ${CMAKE_CURRENT_BINARY_DIR}/client.csr
-                   ${CMAKE_CURRENT_BINARY_DIR}/../root/ca_root.cert
-                   ${CMAKE_CURRENT_BINARY_DIR}/../root/ca_root.key
                    COMMENT "Generate Client X.509 certificate")
 
 add_custom_target(Generate_kv_engine_X509_Test_Client_Certificate
