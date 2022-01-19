@@ -429,6 +429,12 @@ public:
      */
     ValueFilter getValueFilter() const;
 
+    /**
+     * Set the end_seqno_ of stream to the value of seqno
+     * @param seqno
+     */
+    void setEndSeqno(uint64_t seqno);
+
 protected:
     void clear_UNLOCKED();
 

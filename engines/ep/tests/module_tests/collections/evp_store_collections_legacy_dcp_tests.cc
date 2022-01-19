@@ -387,6 +387,8 @@ TEST_P(CollectionsLegacyDcpTest,
     // Stream does nothing yet, and is now in-memory. The scheduled backfill
     // finds no default collection data exists and ends early
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers->last_end_status);
+
     store_item(vbid, StoredDocKey{"f3", CollectionEntry::fruit}, "value");
 
     // Stream continues
@@ -644,6 +646,7 @@ TEST_P(CollectionsLegacyDcpTest,
 
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid, false);
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers->last_end_status);
 }
 
 TEST_P(CollectionsDcpParameterizedTest, stream_end_in_memory_stream) {
@@ -778,6 +781,8 @@ TEST_P(CollectionsLegacyDcpTest, default_collection_is_tombstone_purged) {
 
     // Compact and force purge tombstones
     runCompaction(vbid, 0, true);
+    ASSERT_EQ(5, vb->getPurgeSeqno());
+    ASSERT_EQ(7, vb->getHighSeqno());
 
     // Now DCP with backfill
     ensureDcpWillBackfill();
@@ -789,11 +794,12 @@ TEST_P(CollectionsLegacyDcpTest, default_collection_is_tombstone_purged) {
     auto highSeqno = vb->getManifest()
                              .lock(CollectionID::Default)
                              .getPersistedHighSeqno();
-    EXPECT_EQ(5, highSeqno);
+    ASSERT_EQ(5, highSeqno);
     createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
 
     // Stream ends, nothing to see here
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
+    EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
 }
 
 /**
@@ -856,6 +862,170 @@ TEST_P(CollectionsLegacyDcpTest, DefaultCollectionStoresOnlyTombstones) {
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers->last_op);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers->last_end_status);
+}
+
+TEST_P(CollectionsLegacyDcpTest,
+       DefaultCollectionStoresKeyAndTombstoneAtHighSeqnoCompactionRun) {
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    const auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(1, vb->getHighSeqno());
+
+    store_item(vbid, StoredDocKey{"keyA", CollectionEntry::defaultC}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    ASSERT_EQ(2, vb->getHighSeqno());
+
+    StoredDocKey keyB{"keyB", CollectionEntry::defaultC};
+    store_item(vbid, keyB, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    ASSERT_EQ(3, vb->getHighSeqno());
+
+    store_item(vbid, StoredDocKey{"peach", CollectionEntry::fruit}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    ASSERT_EQ(4, vb->getHighSeqno());
+
+    delete_item(vbid, keyB);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    ASSERT_EQ(5, vb->getHighSeqno());
+
+    // Compact - seqno:5 should remain a tombstone
+    runCompaction(vbid, 0, true);
+    {
+        DiskDocKey tmpKey{keyB};
+        auto rv = store->getROUnderlying(vbid)->get(tmpKey, vbid);
+        ASSERT_EQ(cb::engine_errc::success, rv.getStatus());
+        ASSERT_TRUE(rv.item);
+        ASSERT_EQ(5, rv.item->getBySeqno());
+        ASSERT_TRUE(rv.item->isDeleted());
+    }
+
+    // Clear checkpoints, ensure backfill
+    ensureDcpWillBackfill();
+
+    // Make cookie look like a non-collection client and then DCP stream from
+    // 0 to the default collection high-seqno.
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
+    uint64_t highSeqno = 0;
+    {
+        auto defaultStats = vb->getManifest().lock(CollectionID::Default);
+        highSeqno = defaultStats.getPersistedHighSeqno();
+        ASSERT_EQ(1, defaultStats.getItemCount());
+        ASSERT_EQ(5, highSeqno);
+    }
+    createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(5, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("keyA", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(2, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpDeletion);
+    EXPECT_EQ("keyB", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(5, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers->last_end_status);
+}
+
+TEST_P(CollectionsLegacyDcpTest,
+       DefaultCollectionStoresKeyAndTombstoneCompactionRun) {
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    const auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(1, vb->getHighSeqno());
+
+    store_item(vbid, StoredDocKey{"keyA", CollectionEntry::defaultC}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    ASSERT_EQ(2, vb->getHighSeqno());
+
+    store_item(vbid, StoredDocKey{"keyB", CollectionEntry::defaultC}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    ASSERT_EQ(3, vb->getHighSeqno());
+
+    delete_item(vbid, StoredDocKey{"keyB", CollectionEntry::defaultC});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    ASSERT_EQ(4, vb->getHighSeqno());
+
+    store_item(vbid, StoredDocKey{"peach", CollectionEntry::fruit}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    ASSERT_EQ(5, vb->getHighSeqno());
+
+    // Compact - seqno:4 will be purged
+    runCompaction(vbid, 0, true);
+
+    // Clear checkpoints, ensure backfill
+    ensureDcpWillBackfill();
+
+    // Make cookie look like a non-collection client and then DCP stream from
+    // 0 to the default collection high-seqno.
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
+    uint64_t highSeqno = 0;
+    {
+        auto defaultStats = vb->getManifest().lock(CollectionID::Default);
+        highSeqno = defaultStats.getPersistedHighSeqno();
+        ASSERT_EQ(1, defaultStats.getItemCount());
+        ASSERT_EQ(4, highSeqno);
+    }
+    createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(2, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("keyA", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(2, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers->last_end_status);
+}
+
+TEST_P(CollectionsLegacyDcpTest,
+       DefaultCollectionEmptyDueToTombstoneCompactionRun) {
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    const auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(1, vb->getHighSeqno());
+
+    store_item(vbid, StoredDocKey{"keyA", CollectionEntry::defaultC}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    ASSERT_EQ(2, vb->getHighSeqno());
+
+    delete_item(vbid, StoredDocKey{"keyA", CollectionEntry::defaultC});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    ASSERT_EQ(3, vb->getHighSeqno());
+
+    store_item(vbid, StoredDocKey{"peach", CollectionEntry::fruit}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    ASSERT_EQ(4, vb->getHighSeqno());
+
+    // Compact - seqno:3 will be purged
+    runCompaction(vbid, 0, true);
+
+    // Clear checkpoints, ensure backfill
+    ensureDcpWillBackfill();
+
+    // Make cookie look like a non-collection client and then DCP stream from
+    // 0 to the default collection high-seqno.
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
+    uint64_t highSeqno = 0;
+    {
+        auto defaultStats = vb->getManifest().lock(CollectionID::Default);
+        highSeqno = defaultStats.getPersistedHighSeqno();
+        ASSERT_EQ(0, defaultStats.getItemCount());
+        ASSERT_EQ(3, highSeqno);
+    }
+    createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers->last_end_status);
 }
 
 // No ephemeral support

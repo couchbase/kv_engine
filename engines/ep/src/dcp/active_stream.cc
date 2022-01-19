@@ -2329,3 +2329,7 @@ ValueFilter ActiveStream::getValueFilter() const {
     }
     return valFilter;
 }
+
+void ActiveStream::setEndSeqno(uint64_t seqno) {
+    end_seqno_ = seqno;
+}

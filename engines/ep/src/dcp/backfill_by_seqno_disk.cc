@@ -424,7 +424,13 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                    stats.highSeqno,
                                    ValueFilter::KEYS_ONLY);
 
-    if (gv.getStatus() != cb::engine_errc::success) {
+    if (gv.getStatus() == cb::engine_errc::success) {
+        if (gv.item->isCommitted()) {
+            // Step 3. If this is a committed item, done.
+            return stream.markDiskSnapshot(
+                    startSeqno, stats.highSeqno, {}, stats.highSeqno, {});
+        }
+    } else if (gv.getStatus() != cb::engine_errc::no_such_key) {
         stream.log(spdlog::level::level_enum::warn,
                    "({}) DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot failed "
                    "getBySeqno {}",
@@ -434,17 +440,15 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
         return false;
     }
 
-    // Step 3. If this is a committed item, done.
-    if (gv.item->isCommitted()) {
-        return stream.markDiskSnapshot(
-                startSeqno, stats.highSeqno, {}, stats.highSeqno, {});
-    }
-
-    // Step 4. The *slow* path, have to find the highest committed seqno. This
-    // basic implementation will scan the seqno index (not reading values).
+    // Step 4. The *slow* path, we're in a situation where we need to find the
+    // max visible seqno of the default collection due to the high seqno states:
+    //  1. It points to a document in the prepared namespace
+    //  2. It points to a document that has been tombstone purged
+    //
+    // This basic implementation will scan the seqno index (not reading values).
     // Possible improvements if required could be to do a key index scan in the
     // default collection range (maybe if the default collection was a small %
-    // of the total vbucket.
+    // of the total vbucket).
     stream.log(spdlog::level::level_enum::info,
                "({}) DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot is "
                "scanning for "
@@ -479,13 +483,14 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
     // Set the end seqno to be the high seqno of the collection. However, if the
     // maxVisibleSeqno is lower then use it instead as we know that we can't
     // send anything greater than it to the client.
-    auto endSeqno = std::min(scanCtx.maxVisibleSeqno, stats.highSeqno.load());
+    auto endSeqnoForScan =
+            std::min(scanCtx.maxVisibleSeqno, stats.highSeqno.load());
 
     // Less than pretty, but we want to scan the already open file, no opening
     // a new scan. So we create a new BySeqnoScanContext with callbacks bespoke
     // to the needs of this function and take the handle from the scanCtx
     auto scanForHighestCommitttedItem = kvs.initBySeqnoScanContext(
-            std::make_unique<FindMaxCommittedItem>(endSeqno),
+            std::make_unique<FindMaxCommittedItem>(endSeqnoForScan),
             std::make_unique<NoLookupCallback>(),
             scanCtx.vbid,
             startSeqno,
@@ -507,7 +512,7 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
     // or max visible seqno as initBySeqnoScanContext() will set it to be the
     // high seqno of the vbucket. This helps to ensure we finish the scan before
     // needing to call the get value callback.
-    scanForHighestCommitttedItem->maxSeqno = endSeqno;
+    scanForHighestCommitttedItem->maxSeqno = endSeqnoForScan;
 
     const auto scanStatus = kvs.scan(*scanForHighestCommitttedItem);
     if (scanStatus == scan_failed) {
@@ -524,6 +529,18 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
             scanForHighestCommitttedItem->getValueCallback());
 
     if (cb.maxVisibleSeqno > 0) {
+        const auto backfillRangeEndSeqno = endSeqno;
+        // If the 'stream.getEndSeqno()' is the same as 'backfillRangeEndSeqno'
+        // we've just scanned and the 'maxVisibleSeqno' is less than the
+        // 'stream.getEndSeqno()' then we need to set the stream's endSeqno to
+        // the 'maxVisibleSeqno'.
+        // This will trigger the ActiveStream to send a DcpEndStream with status
+        // OK. Which we need to do, as we've got no items to send between the
+        // 'maxVisibleSeqno' and 'stream.getEndSeqno()'.
+        if (backfillRangeEndSeqno == stream.getEndSeqno() &&
+            cb.maxVisibleSeqno < backfillRangeEndSeqno) {
+            stream.setEndSeqno(cb.maxVisibleSeqno);
+        }
         return stream.markDiskSnapshot(
                 startSeqno, cb.maxVisibleSeqno, {}, cb.maxVisibleSeqno, {});
     } else {
