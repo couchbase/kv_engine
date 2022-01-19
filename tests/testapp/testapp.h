@@ -131,7 +131,8 @@ public:
     /**
      * Make sure that the provided connection use our client certificates
      */
-    void setClientCertData(MemcachedConnection& connection);
+    void setClientCertData(MemcachedConnection& connection,
+                           std::string_view user);
 
     /**
      * Attempts to store a document with the given key, value, flags and expiry

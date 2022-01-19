@@ -82,7 +82,7 @@ TEST_F(SslCertTest, LoginWhenDiabledWithCert) {
 
     auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
-    setClientCertData(*connection);
+    setClientCertData(*connection, "john");
     connection->connect();
     connection->authenticate("@admin", "password", "PLAIN");
 }
@@ -109,7 +109,7 @@ TEST_F(SslCertTest, LoginEnabledWithCertNoMapping) {
 
     auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
-    setClientCertData(*connection);
+    setClientCertData(*connection, "trond");
     connection->connect();
     connection->authenticate("@admin", "password", "PLAIN");
 }
@@ -124,9 +124,19 @@ TEST_F(SslCertTest, LoginEnabledWithCert) {
 
     auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
-    setClientCertData(*connection);
+    setClientCertData(*connection, "trond");
     connection->connect();
     connection->setXerrorSupport(true);
+
+    // We should be authenticated from the cert, so we should not be
+    // allowed to perform another authentication
+    try {
+        connection->authenticate("@admin", "password", "PLAIN");
+        FAIL() << "SASL Auth should be disabled for cert auth'd connections";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isNotSupported())
+                << "Received: " << to_string(error.getReason());
+    }
 
     try {
         connection->get("foo", Vbid(0));
@@ -143,6 +153,27 @@ TEST_F(SslCertTest, LoginEnabledWithCert) {
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound())
                 << "Received: " << to_string(error.getReason());
+    }
+}
+
+/**
+ * If we try to connect with a certificate which contains a "valid mapping",
+ * but maps to an undefined user we should get disconnected.
+ */
+TEST_F(SslCertTest, LoginEnabledWithCertWithUndefinedUser) {
+    reconfigure_client_cert_auth("enabled", "subject.cn", "", " ");
+
+    auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
+    setClientCertData(*connection, "john");
+
+    try {
+        connection->connect();
+        connection->execute(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
+        FAIL() << "It should not be possible to connect with a cert which maps "
+                  "to an undefined user";
+    } catch (const std::runtime_error&) {
     }
 }
 
@@ -174,7 +205,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCert) {
 
     auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
-    setClientCertData(*connection);
+    setClientCertData(*connection, "trond");
     connection->connect();
     connection->setXerrorSupport(true);
 
@@ -201,11 +232,10 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCert) {
  * in the certificate map to a user defined in the system.
  */
 TEST_F(SslCertTest, LoginWhenMandatoryWithCertIncorrectMapping) {
-    reconfigure_client_cert_auth("mandatory", "subject.cn", "Tr", "");
-
+    reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
     auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
-    setClientCertData(*connection);
+    setClientCertData(*connection, "john");
 
     // The certificate will be accepted, so the connection is established
     // but the server will disconnect the client immediately
@@ -229,7 +259,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCertShouldNotSupportSASL) {
 
     auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
-    setClientCertData(*connection);
+    setClientCertData(*connection, "trond");
     connection->connect();
     connection->setXerrorSupport(true);
 
@@ -255,9 +285,9 @@ TEST_F(SslCertTest, LoginWhenMandatoryGoClient) {
             {"-kv"},
             {"localhost:" + std::to_string(connection->getPort())},
             {"-clientKey"},
-            {OBJECT_ROOT "/tests/cert/clients/client.key"},
+            {OBJECT_ROOT "/tests/cert/clients/trond.key"},
             {"-clientCert"},
-            {OBJECT_ROOT "/tests/cert/clients/client.cert"},
+            {OBJECT_ROOT "/tests/cert/clients/trond.cert"},
             {"-rootCA"},
             {OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
             {"-skipCertVerify"},

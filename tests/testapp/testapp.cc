@@ -308,13 +308,17 @@ void TestappTest::reconfigure_client_cert_auth(const std::string& state,
     reconfigure();
 }
 
-void TestappTest::setClientCertData(MemcachedConnection& connection) {
-    connection.setSslCertFile(OBJECT_ROOT +
-                              std::string("/tests/cert/clients/client.cert"));
-    connection.setSslKeyFile(OBJECT_ROOT +
-                             std::string("/tests/cert/clients/client.key"));
-    connection.setCaFile(OBJECT_ROOT +
-                         std::string("/tests/cert/root/ca_root.cert"));
+void TestappTest::setClientCertData(MemcachedConnection& connection,
+                                    std::string_view user) {
+    auto directory = boost::filesystem::path(OBJECT_ROOT) / "tests" / "cert";
+    auto cert = directory / "clients" /
+                boost::filesystem::path{std::string(user) + ".cert"};
+    auto key = directory / "clients" /
+               boost::filesystem::path{std::string(user) + ".key"};
+    auto ca = directory / "root" / "ca_root.cert";
+    connection.setSslCertFile(cert.generic_string());
+    connection.setSslKeyFile(key.generic_string());
+    connection.setCaFile(ca.generic_string());
 }
 
 bool TestappTest::isJSON(std::string_view value) {

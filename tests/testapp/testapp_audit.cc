@@ -351,7 +351,7 @@ TEST_P(AuditTest, AuditX509SuccessfulAuth) {
     });
 
     ASSERT_TRUE(conn) << "Failed to locate a SSL port";
-    setClientCertData(*conn);
+    setClientCertData(*conn, "trond");
     conn->connect();
     conn->listBuckets();
 
@@ -375,7 +375,7 @@ TEST_P(AuditTest, AuditX509FailedAuth) {
     });
 
     ASSERT_TRUE(conn) << "Failed to locate a SSL port";
-    setClientCertData(*conn);
+    setClientCertData(*conn, "trond");
     conn->connect();
 
     try {
