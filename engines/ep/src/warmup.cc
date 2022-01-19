@@ -337,9 +337,9 @@ public:
     }
 
     std::chrono::microseconds maxExpectedDuration() const override {
-        // Runtime is expected to be quick, we're just adding pointers to a map
-        // with some locking
-        return std::chrono::milliseconds(1);
+        // We have to flush for each vBucket in the shard so runtime could be
+        // a few ms easily depending on IO and number of shards
+        return std::chrono::seconds(1);
     }
 
     bool run() override {
