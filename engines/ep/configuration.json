@@ -1229,7 +1229,7 @@
             }
         },
         "fsync_after_every_n_bytes_written": {
-            "default": "16777216",
+            "default": "1048576",
             "descr": "Perform a file sync() operation after every N bytes written. Disabled if set to 0.",
             "dynamic": true,
             "type" : "size_t"
