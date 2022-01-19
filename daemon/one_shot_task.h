@@ -49,9 +49,9 @@ protected:
         try {
             function();
         } catch (const std::exception& e) {
-            LOG_WARNING(R"(OneShotTask::run("{}") received exception: {})",
-                        name,
-                        e.what());
+            LOG_CRITICAL(R"(OneShotTask::run("{}") received exception: {})",
+                         name,
+                         e.what());
         }
         return false;
     }
