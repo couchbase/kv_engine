@@ -1,45 +1,34 @@
-# Generate a server certificate signed by the Root CA
-add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/node1.csr
-                   ${CMAKE_CURRENT_BINARY_DIR}/node1.key
-                   COMMAND ${OPENSSL_BINARY}
-                   req
-                   -new
-                   -newkey rsa:2048
-                   -keyout ${CMAKE_CURRENT_BINARY_DIR}/node1.key
-                   -config ${CMAKE_CURRENT_SOURCE_DIR}/config
-                   -out ${CMAKE_CURRENT_BINARY_DIR}/node1.csr
-                   DEPENDS
-                   ${CMAKE_CURRENT_SOURCE_DIR}/config
-                   COMMENT "Generating node1 signing request")
+# Generate a server certificate signed by the intermediate CA
+Generate_kv_engine_X509_Certificate(NAME node1
+                                    CONFIG config
+                                    ROOT ../intermediate/intermediate
+                                    EXTFILE ca.ext
+                                    CA_TARGET Generate_kv_engine_X509_Test_Intermediate_Certificate)
 
-add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/node1.cert
-                   COMMAND ${OPENSSL_BINARY}
-                   x509
-                   -req
-                   -in ${CMAKE_CURRENT_BINARY_DIR}/node1.csr
-                   -CA ${CMAKE_CURRENT_BINARY_DIR}/../root/ca_root.cert
-                   -CAkey ${CMAKE_CURRENT_BINARY_DIR}/../root/ca_root.key
-                   -CAcreateserial
-                   -CAserial ${CMAKE_CURRENT_BINARY_DIR}/rootCA.srl
-                   -extfile ${CMAKE_CURRENT_SOURCE_DIR}/ca.ext
-                   -out ${CMAKE_CURRENT_BINARY_DIR}/node1.cert
-                   -days 365
+# Create a chain by copying all certs into a single file
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/chain.cert
                    COMMAND
-                   ${OPENSSL_BINARY}
-                   verify
-                   -CAfile ${CMAKE_CURRENT_BINARY_DIR}/../root/ca_root.cert
-                   ${CMAKE_CURRENT_BINARY_DIR}/node1.cert
+                   ${CMAKE_COMMAND}
+                   -E remove -f ${CMAKE_CURRENT_BINARY_DIR}/chain.cert.in
+                   COMMAND
+                   ${CMAKE_COMMAND}
+                   -D FILE1=${CMAKE_CURRENT_BINARY_DIR}/node1.cert
+                   -D FILE2=${CMAKE_CURRENT_BINARY_DIR}/../intermediate/intermediate.cert
+                   -D DESTINATION=${CMAKE_CURRENT_BINARY_DIR}/chain.cert.in
+                   -P ${CMAKE_CURRENT_SOURCE_DIR}/ConcatinateFiles.cmake
+                   COMMAND
+                   ${CMAKE_COMMAND}
+                   -E copy ${CMAKE_CURRENT_BINARY_DIR}/chain.cert.in
+                   ${CMAKE_CURRENT_BINARY_DIR}/chain.cert
                    DEPENDS
-		   Generate_kv_engine_X509_Test_Root_Certificate
-                   ${CMAKE_CURRENT_SOURCE_DIR}/ca.ext
-                   ${CMAKE_CURRENT_BINARY_DIR}/node1.key
-                   ${CMAKE_CURRENT_BINARY_DIR}/node1.csr
-                   COMMENT "Generate node1 X.509 certificate")
+                   ${CMAKE_CURRENT_BINARY_DIR}/node1.cert
+                   ${CMAKE_CURRENT_SOURCE_DIR}/ConcatinateFiles.cmake
+                   COMMENT "Generate cerificate chain for node1")
 
 add_custom_target(Generate_kv_engine_X509_Test_Node_Certificate
                   DEPENDS
                   ${CMAKE_CURRENT_BINARY_DIR}/node1.key
-                  ${CMAKE_CURRENT_BINARY_DIR}/node1.cert)
+                  ${CMAKE_CURRENT_BINARY_DIR}/chain.cert)
 
 add_custom_target(Dump_kv_engine_X509_Test_Node_Certificate
                   COMMAND

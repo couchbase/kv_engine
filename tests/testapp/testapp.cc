@@ -239,7 +239,7 @@ void TestappTest::doSetUpTestCaseWithConfiguration(
         tls_properties = {
                 {"private key", OBJECT_ROOT "/tests/cert/servers/node1.key"},
                 {"certificate chain",
-                 OBJECT_ROOT "/tests/cert/servers/node1.cert"},
+                 OBJECT_ROOT "/tests/cert/servers/chain.cert"},
                 {"CA file", OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
                 {"minimum version", "TLS 1"},
                 {"cipher list",

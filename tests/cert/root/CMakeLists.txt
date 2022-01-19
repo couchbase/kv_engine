@@ -1,17 +1,27 @@
 # Generate the ROOT CA
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ca_root_encrypted.key
                    COMMAND
+                   ${CMAKE_COMMAND}
+                   -E remove -f ${CMAKE_CURRENT_BINARY_DIR}/ca_root_encrypted.key
+                   COMMAND
                    ${OPENSSL_BINARY}
                    rsa
                    -passout file:${CMAKE_CURRENT_SOURCE_DIR}/passphrase.txt
                    -des3
                    -in ${CMAKE_CURRENT_BINARY_DIR}/ca_root.key
-                   -out ${CMAKE_CURRENT_BINARY_DIR}/ca_root_encrypted.key
+                   -out ${CMAKE_CURRENT_BINARY_DIR}/ca_root_encrypted.key.tmp
+                   COMMAND
+                   ${CMAKE_COMMAND}
+                   -E copy ${CMAKE_CURRENT_BINARY_DIR}/ca_root_encrypted.key.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/ca_root_encrypted.key
                    DEPENDS passphrase.txt ${CMAKE_CURRENT_BINARY_DIR}/ca_root.key
                    COMMENT "Encrypt CA Root private key")
 
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ca_root.cert
                    ${CMAKE_CURRENT_BINARY_DIR}/ca_root.key
+                   COMMAND
+                   ${CMAKE_COMMAND}
+                   -E remove -f ${CMAKE_CURRENT_BINARY_DIR}/ca_root.cert ${CMAKE_CURRENT_BINARY_DIR}/ca_root.key
                    COMMAND
                    ${OPENSSL_BINARY}
                    req
@@ -19,10 +29,18 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ca_root.cert
                    -x509
                    -days 365
                    -newkey rsa:2048
-                   -keyout ${CMAKE_CURRENT_BINARY_DIR}/ca_root.key
+                   -keyout ${CMAKE_CURRENT_BINARY_DIR}/ca_root.key.tmp
                    -config ${CMAKE_CURRENT_SOURCE_DIR}/config
-                   -out ${CMAKE_CURRENT_BINARY_DIR}/ca_root.cert
-          DEPENDS
+                   -out ${CMAKE_CURRENT_BINARY_DIR}/ca_root.cert.tmp
+                   COMMAND
+                   ${CMAKE_COMMAND}
+                   -E copy ${CMAKE_CURRENT_BINARY_DIR}/ca_root.key.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/ca_root.key
+                   COMMAND
+                   ${CMAKE_COMMAND}
+                   -E copy ${CMAKE_CURRENT_BINARY_DIR}/ca_root.cert.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/ca_root.cert
+                   DEPENDS
                    ${CMAKE_CURRENT_SOURCE_DIR}/config
                    COMMENT "Generate CA Root X.509 certificate")
 

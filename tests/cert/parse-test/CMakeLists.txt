@@ -1,43 +1,13 @@
 # Generate the certificate we'll be using for the parse-tests
-add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/parse-test.csr
-                   ${CMAKE_CURRENT_BINARY_DIR}/parse-test.key
-                   COMMAND ${OPENSSL_BINARY}
-                   req
-                   -new
-                   -nodes
-                   -newkey rsa:2048
-                   -keyout ${CMAKE_CURRENT_BINARY_DIR}/parse-test.key
-                   -out ${CMAKE_CURRENT_BINARY_DIR}/parse-test.csr
-                   -config ${CMAKE_CURRENT_SOURCE_DIR}/config
-                   DEPENDS
-                   ${CMAKE_CURRENT_SOURCE_DIR}/config
-                   COMMENT "Generate parse-config signing request")
-
-add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/parse-test.cert
-                   COMMAND ${OPENSSL_BINARY}
-                   x509
-                   -req
-                   -in ${CMAKE_CURRENT_BINARY_DIR}/parse-test.csr
-                   -CA ${CMAKE_CURRENT_BINARY_DIR}/../root/ca_root.cert
-                   -CAkey ${CMAKE_CURRENT_BINARY_DIR}/../root/ca_root.key
-                   -CAcreateserial
-                   -CAserial ${CMAKE_CURRENT_BINARY_DIR}/rootCA.srl
-                   -extfile ${CMAKE_CURRENT_SOURCE_DIR}/ca.ext
-                   -out ${CMAKE_CURRENT_BINARY_DIR}/parse-test.cert
-                   -days 365
-                   COMMAND
-                   ${OPENSSL_BINARY}
-                   verify
-                   -CAfile ${CMAKE_CURRENT_BINARY_DIR}/../root/ca_root.cert
-                   ${CMAKE_CURRENT_BINARY_DIR}/parse-test.cert
-                   DEPENDS
-                   Generate_kv_engine_X509_Test_Root_Certificate
-                   ${CMAKE_CURRENT_BINARY_DIR}/parse-test.csr
-                   ${CMAKE_CURRENT_SOURCE_DIR}/ca.ext
-                   COMMENT "Generate parse-config X.509 certificate")
+Generate_kv_engine_X509_Certificate(NAME parse-test
+                                    CONFIG config
+                                    ROOT ../root/ca_root
+                                    EXTFILE ca.ext
+                                    CA_TARGET Generate_kv_engine_X509_Test_Root_Certificate)
 
 add_custom_target(Generate_kv_engine_X509_Test_Parse_Certificate
                   DEPENDS
+                  Generate_kv_engine_X509_Test_Root_Certificate
                   ${CMAKE_CURRENT_BINARY_DIR}/parse-test.cert
                   ${CMAKE_CURRENT_BINARY_DIR}/parse-test.key)
 

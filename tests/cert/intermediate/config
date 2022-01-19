@@ -7,15 +7,9 @@ utf8 = yes
 string_mask = utf8only
 prompt = no
 distinguished_name = ca_dn
-x509_extensions = ca_ext
 
 [ca_dn]
 countryName = NO
 organizationName = Couchbase Inc
-commonName = Root CA
-
-[ca_ext]
-basicConstraints = CA:true
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always,issuer:always
-keyUsage = cRLSign, keyCertSign
+organizationalUnitName = kv engine
+commonName = KV engine signing certificate
