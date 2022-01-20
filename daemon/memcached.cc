@@ -705,20 +705,27 @@ static void initialize_sasl() {
 }
 
 static void startExecutorPool() {
-    LOG_INFO_RAW("Start executor pool");
-    ExecutorPool::create(ExecutorPool::Backend::Folly,
-                         0,
-                         ThreadPoolConfig::ThreadCount(
-                                 Settings::instance().getNumReaderThreads()),
-                         ThreadPoolConfig::ThreadCount(
-                                 Settings::instance().getNumWriterThreads()),
-                         Settings::instance().getNumAuxIoThreads(),
-                         Settings::instance().getNumNonIoThreads());
+    auto& settings = Settings::instance();
+
+    LOG_INFO(
+            "Start executor pool with backend:Folly readers:{} writers:{} "
+            "auxIO:{} nonIO:{}",
+            settings.getNumReaderThreads(),
+            settings.getNumWriterThreads(),
+            settings.getNumAuxIoThreads(),
+            settings.getNumNonIoThreads());
+
+    ExecutorPool::create(
+            ExecutorPool::Backend::Folly,
+            0,
+            ThreadPoolConfig::ThreadCount(settings.getNumReaderThreads()),
+            ThreadPoolConfig::ThreadCount(settings.getNumWriterThreads()),
+            settings.getNumAuxIoThreads(),
+            settings.getNumNonIoThreads());
     ExecutorPool::get()->registerTaskable(NoBucketTaskable::instance());
 
     // MB-47484 Set up the settings callback for the executor pool now that
     // it is up'n'running
-    auto& settings = Settings::instance();
     settings.addChangeListener(
             "num_reader_threads", [](const std::string&, Settings& s) -> void {
                 auto val =
