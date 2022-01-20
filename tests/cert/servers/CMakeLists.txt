@@ -30,11 +30,10 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/node1.cert
                    -CAfile ${CMAKE_CURRENT_BINARY_DIR}/../root/ca_root.cert
                    ${CMAKE_CURRENT_BINARY_DIR}/node1.cert
                    DEPENDS
+		   Generate_kv_engine_X509_Test_Root_Certificate
                    ${CMAKE_CURRENT_SOURCE_DIR}/ca.ext
                    ${CMAKE_CURRENT_BINARY_DIR}/node1.key
                    ${CMAKE_CURRENT_BINARY_DIR}/node1.csr
-                   ${CMAKE_CURRENT_BINARY_DIR}/../root/ca_root.cert
-                   ${CMAKE_CURRENT_BINARY_DIR}/../root/ca_root.key
                    COMMENT "Generate node1 X.509 certificate")
 
 add_custom_target(Generate_kv_engine_X509_Test_Node_Certificate
