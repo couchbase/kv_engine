@@ -1353,14 +1353,15 @@ bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock&,
 
     const auto preProps = valueStats.prologue(vptr);
 
-    switch (policy) {
-    case EvictionPolicy::Value: {
+    // Deleted items may be entirely removed from memory even in value eviction.
+    bool keepMetadata = policy == EvictionPolicy::Value && !vptr->isDeleted();
+
+    if (keepMetadata) {
+        // Just eject the value.
         vptr->ejectValue();
         ++stats.numValueEjects;
         valueStats.epilogue(preProps, vptr);
-        break;
-    }
-    case EvictionPolicy::Full: {
+    } else {
         // Remove the item from the hash table.
         int bucket_num = getBucketForHash(vptr->getKey().hash());
         auto removed = hashChainRemoveFirst(
@@ -1373,8 +1374,6 @@ bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock&,
         valueStats.epilogue(preProps, nullptr);
 
         updateMaxDeletedRevSeqno(vptr->getRevSeqno());
-        break;
-    }
     }
 
     ++numEjects;

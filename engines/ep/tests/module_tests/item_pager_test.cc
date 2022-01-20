@@ -414,6 +414,101 @@ protected:
     bool itemPagerScheduled = false;
 };
 
+TEST_P(STItemPagerTest, MB_50423_ItemPagerCleansUpDeletedStoredValues) {
+    // MB-50423:
+    //  A request for a deleted value (e.g., to read system xattrs) bgfetches a
+    //  delete back into memory. Under full eviction, this value can eventually
+    //  be evicted again. For value eviction, while the _value_ may be evicted,
+    //  nothing cleaned up the metadata, leaving it in memory until it is
+    //  overwritten. Verify that the ItemPager now evicts deleted item metadata
+    //  even under value eviction.
+
+    if (ephemeral()) {
+        // Ephemeral deletes remain in memory until the purge interval elapses,
+        // and there's no backing disk for the deletes to be bgfetched from.
+        GTEST_SKIP();
+    }
+    auto key = makeStoredDocKey("key");
+    // get a deleted item on disk
+    storeAndDeleteItem(vbid, key, "value");
+
+    auto vb = store->getVBucket(vbid);
+    auto& ht = vb->ht;
+
+    // confirm directly that the item is _not_ present in the HT
+    {
+        const auto* sv =
+                ht.findForRead(key, TrackReference::No, WantsDeleted::Yes)
+                        .storedValue;
+
+        ASSERT_FALSE(sv);
+    }
+
+    // now request with GET_DELETED_VALUE - should trigger a bgfetch of the item
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+
+    auto gv = store->get(key, vbid, cookie, options);
+    ASSERT_EQ(cb::engine_errc::would_block, gv.getStatus());
+
+    runBGFetcherTask();
+
+    // successfully read the deleted item
+    gv = store->get(key, vbid, cookie, options);
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
+
+    // confirm directly that the item _is_ present in the HT
+    {
+        const auto* sv =
+                ht.findForRead(key, TrackReference::No, WantsDeleted::Yes)
+                        .storedValue;
+
+        ASSERT_TRUE(sv);
+    }
+
+    // Setup complete - there is now a deleted, non-resident item in the HT
+    // MB-50423 : the metadata for this item would not be routinely cleaned up,
+    // and could stay in memory forever if not overwritten
+
+    // attempt to evict every possible item
+    auto pagerSemaphore = std::make_shared<cb::Semaphore>();
+    pagerSemaphore->try_acquire(1);
+    auto pv = std::make_unique<MockPagingVisitor>(
+            *engine->getKVBucket(),
+            engine->getEpStats(),
+            EvictionRatios{1.0 /* active&pending */,
+                           1.0 /* replica */}, // try evict everything
+            pagerSemaphore,
+            ITEM_PAGER,
+            false,
+            VBucketFilter(),
+            0 /* "protected" age percentage */,
+            255 /* mfu age threshold */);
+
+    // Drop the lwn ensure memory usage is above it so paging proceeds.
+    auto& config = engine->getConfiguration();
+    auto origLowWatermark = config.getMemLowWat();
+    config.setMemLowWat(0);
+
+    // Drop the MFU of the item to let it be evicted now
+    ht.findOnlyCommitted(key).storedValue->setFreqCounterValue(0);
+
+    pv->visitBucket(*vb);
+
+    config.setMemLowWat(origLowWatermark);
+
+    // Expect that the stored value is no longer present - even though this
+    // is a value eviction bucket.
+    {
+        const auto* sv =
+                ht.findForRead(key, TrackReference::No, WantsDeleted::Yes)
+                        .storedValue;
+
+        EXPECT_FALSE(sv);
+    }
+}
+
 // Test that the ItemPager is scheduled when the Server Quota is reached, and
 // that items are successfully paged out.
 TEST_P(STItemPagerTest, ServerQuotaReached) {

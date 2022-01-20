@@ -234,6 +234,11 @@ public:
             return false;
         }
 
+        if (isDeleted() && !isDirty()) {
+            // clean, deleted SVs are always eligible for eviction
+            return true;
+        }
+
         if (policy == EvictionPolicy::Value) {
             return isResident() && !isDirty();
         } else {
