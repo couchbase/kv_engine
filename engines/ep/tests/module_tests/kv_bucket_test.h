@@ -30,6 +30,7 @@
 #include <tests/mock/mock_synchronous_ep_engine_fwd.h>
 
 #include <memory>
+#include <unordered_map>
 
 class CheckpointDestroyerTask;
 class CookieIface;
