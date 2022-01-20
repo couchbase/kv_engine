@@ -3827,6 +3827,8 @@ cb::engine_errc CouchKVStore::getAllKeys(
     sized_buf ref = to_sized_buf(start_key);
 
     AllKeysCtx ctx(cb, count);
+
+    auto start = std::chrono::steady_clock::now();
     errCode = couchstore_all_docs(db,
                                   &ref,
                                   COUCHSTORE_NO_DELETES,
@@ -3844,6 +3846,9 @@ cb::engine_errc CouchKVStore::getAllKeys(
         return cb::engine_errc::failed;
     }
 
+    st.getAllKeysHisto.add(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - start));
     return cb::engine_errc::success;
 }
 

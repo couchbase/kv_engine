@@ -2162,6 +2162,7 @@ cb::engine_errc MagmaKVStore::getAllKeys(
                       count);
     }
 
+    auto start = std::chrono::steady_clock::now();
     auto status = magma->GetRange(
             vbid.get(), startKeySlice, endKeySlice, callback, false, count);
     if (!status) {
@@ -2174,6 +2175,10 @@ cb::engine_errc MagmaKVStore::getAllKeys(
     if (!status) {
         return magmaErr2EngineErr(status.ErrorCode(), true);
     }
+
+    st.getAllKeysHisto.add(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - start));
 
     return cb::engine_errc::success;
 }

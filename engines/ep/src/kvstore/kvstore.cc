@@ -436,6 +436,8 @@ void KVStore::addTimingStats(const AddStatFn& add_stat,
                       st.flusherWriteAmplificationHisto,
                       add_stat,
                       c);
+
+    add_prefixed_stat(prefix, "getAllKeys", st.getAllKeysHisto, add_stat, c);
 }
 
 void KVStore::prepareForDeduplication(std::vector<queued_item>& items) {

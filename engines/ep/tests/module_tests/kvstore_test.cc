@@ -1187,6 +1187,9 @@ TEST_P(KVStoreParamTest, GetItemCountInvalidVBucket) {
 }
 
 TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
+    using namespace std::string_view_literals;
+    using namespace testing;
+
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     int keys = 20;
     for (int i = 0; i < keys; i++) {
@@ -1201,6 +1204,18 @@ TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
     DiskDocKey start(nullptr, 0);
     kvstore->getAllKeys(Vbid(0), start, 20, cb);
     EXPECT_EQ(keys, int(cb->getProcessedCount()));
+
+    NiceMock<
+            MockFunction<void(std::string_view, std::string_view, const void*)>>
+            addStatCb;
+
+    auto cbFunc = addStatCb.AsStdFunction();
+
+    EXPECT_CALL(addStatCb, Call(_, _, _)).Times(AnyNumber());
+    EXPECT_CALL(addStatCb, Call(HasSubstr("rw_0:getAllKeys"sv), _, _))
+            .Times(AtLeast(1));
+
+    kvstore->addTimingStats(cbFunc, nullptr /*cookie*/);
 }
 
 TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsNoStats) {

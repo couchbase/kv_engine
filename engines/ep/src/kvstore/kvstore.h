@@ -621,6 +621,10 @@ public:
     HdrHistogram flusherWriteAmplificationHisto{
             1, 1000, 2, HdrHistogram::Iterator::IterMode::Percentiles};
 
+    // Time spent serving a GetKeys operation. Mutable as getAllKeys is
+    // logically const
+    mutable Hdr1sfMicroSecHistogram getAllKeysHisto;
+
     size_t getMemFootPrint() const {
         return readTimeHisto.getMemFootPrint() +
                readSizeHisto.getMemFootPrint() +
