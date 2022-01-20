@@ -688,6 +688,32 @@ TEST_P(NexusKVStoreTest, ConcurrentCompactionFlushResurrection) {
     TimeTraveller t(std::numeric_limits<int>::max());
     runCompaction(vbid);
 }
+TEST_P(NexusKVStoreTest, PrimarySecondaryStats) {
+    using namespace std::string_view_literals;
+    using namespace testing;
+
+    // create a collector to which stats will be added
+    NiceMock<
+            MockFunction<void(std::string_view, std::string_view, const void*)>>
+            cb;
+
+    auto cbFunc = cb.AsStdFunction();
+
+    EXPECT_CALL(cb, Call(_, _, _)).Times(AnyNumber());
+    EXPECT_CALL(cb, Call("nexus_0:skipped_checks_due_to_purge"sv, _, _));
+
+    // Check that we see a key for both primary and secondary
+    if (isMagmaPrimary()) {
+        EXPECT_CALL(cb, Call("rw_0:magma"sv, _, _));
+        EXPECT_CALL(cb, Call("secondary:rw_0:io_total_read_bytes"sv, _, _));
+    } else {
+        // Magma secondary
+        EXPECT_CALL(cb, Call("rw_0:io_total_read_bytes"sv, _, _));
+        EXPECT_CALL(cb, Call("secondary:rw_0:magma"sv, _, _));
+    }
+
+    store->getRWUnderlying(vbid)->addStats(cbFunc, cookie);
+}
 
 INSTANTIATE_TEST_SUITE_P(Nexus,
                          NexusKVStoreTest,

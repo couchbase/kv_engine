@@ -109,7 +109,18 @@ void NexusKVStore::deinitialize() {
 }
 
 void NexusKVStore::addStats(const AddStatFn& add_stat, const void* c) const {
+    // We want to print both sets of stats here for debug-ability but we don't
+    // want to break anything relying on these stats so print primary stats
+    // as-is and the secondary stats with an additional prefix
     primary->addStats(add_stat, c);
+
+    auto prefixedAddStatFn = [&add_stat](std::string_view key,
+                                         std::string_view value,
+                                         const void* c) {
+        add_prefixed_stat("secondary", key, value, add_stat, c);
+    };
+    secondary->addStats(prefixedAddStatFn, c);
+
     add_prefixed_stat("nexus_" + std::to_string(getConfig().getShardId()),
                       "skipped_checks_due_to_purge",
                       skippedChecksDueToPurging,
