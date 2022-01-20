@@ -159,6 +159,13 @@ GetStatsMap NexusKVStore::getStats(
 void NexusKVStore::addTimingStats(const AddStatFn& add_stat,
                                   const CookieIface* c) const {
     primary->addTimingStats(add_stat, c);
+
+    auto prefixedAddStatFn = [&add_stat](std::string_view key,
+                                         std::string_view value,
+                                         const void* c) {
+        add_prefixed_stat("secondary", key, value, add_stat, c);
+    };
+    secondary->addTimingStats(prefixedAddStatFn, c);
 }
 
 void NexusKVStore::resetStats() {

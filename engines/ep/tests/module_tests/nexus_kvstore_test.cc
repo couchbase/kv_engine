@@ -715,6 +715,42 @@ TEST_P(NexusKVStoreTest, PrimarySecondaryStats) {
     store->getRWUnderlying(vbid)->addStats(cbFunc, cookie);
 }
 
+TEST_P(NexusKVStoreTest, PrimarySecondaryTimingStats) {
+    using namespace std::string_view_literals;
+    using namespace testing;
+
+    // Flush a vBucket state to open and close a file which updates
+    // fsReadSeek for couchstore backends (otherwise we won't output anything
+    // for it)
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // create a collector to which stats will be added
+    NiceMock<
+            MockFunction<void(std::string_view, std::string_view, const void*)>>
+            cb;
+
+    auto cbFunc = cb.AsStdFunction();
+
+    EXPECT_CALL(cb, Call(_, _, _)).Times(AnyNumber());
+
+    // Check that we see a key for both primary and secondary
+    if (isMagmaPrimary()) {
+        EXPECT_CALL(cb, Call(HasSubstr("rw_0:flushQueueTime"sv), _, _))
+                .Times(AtLeast(1));
+        EXPECT_CALL(cb, Call(HasSubstr("secondary:rw_0:fsReadSeek"sv), _, _))
+                .Times(AtLeast(1));
+    } else {
+        // Magma secondary
+        EXPECT_CALL(cb, Call(HasSubstr("rw_0:fsReadSeek"sv), _, _))
+                .Times(AtLeast(1));
+        EXPECT_CALL(cb,
+                    Call(HasSubstr("secondary:rw_0:flushQueueTime"sv), _, _))
+                .Times(AtLeast(1));
+    }
+
+    store->getRWUnderlying(vbid)->addTimingStats(cbFunc, cookie);
+}
+
 INSTANTIATE_TEST_SUITE_P(Nexus,
                          NexusKVStoreTest,
                          NexusKVStoreTest::couchstoreMagmaVariants(),
