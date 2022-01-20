@@ -380,6 +380,9 @@ void usage() {
   -h or --host hostname[:port]   The host (with an optional port) to connect to
   -p or --port port              The port number to connect to
   -b or --bucket bucketname      The name of the bucket to operate on
+                                 (specify "@no bucket@" to get aggregated stats
+                                 from all buckets. The user must have the
+                                 Stats privilege to do so)
   -u or --user username          The name of the user to authenticate as
   -P or --password password      The passord to use for authentication
                                  (use '-' to read from standard input, or

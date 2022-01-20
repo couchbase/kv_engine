@@ -546,3 +546,44 @@ TEST_P(RegressionTest, MB47151) {
     EXPECT_EQ(R"({"error":{"context":"Multi lookup spec truncated"}})",
               rsp.getDataString());
 }
+
+/// Verify that we may request stats from "no-bucket"
+TEST_P(RegressionTest, MB49126) {
+    // The userConnection does not have access to the Stats privilege
+    auto rsp = userConnection->execute(BinprotGetCmdTimerCommand{
+            "@no bucket@", cb::mcbp::ClientOpcode::CreateBucket});
+    ASSERT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
+
+    // The adminConnection should be able to read that
+    rsp = adminConnection->execute(BinprotGetCmdTimerCommand{
+            "@no bucket@", cb::mcbp::ClientOpcode::CreateBucket});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    ASSERT_NE(0, rsp.getDataJson()["total"].get<int>());
+
+    // We should be able to request it from "our own" bucket, but it should
+    // contain no data
+    rsp = userConnection->execute(BinprotGetCmdTimerCommand{
+            "", cb::mcbp::ClientOpcode::CreateBucket});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    ASSERT_EQ(0, rsp.getDataJson()["total"].get<int>());
+
+    adminConnection->executeInBucket(bucketName, [](auto& c) {
+        auto rsp = adminConnection->execute(BinprotGetCmdTimerCommand{
+                "", cb::mcbp::ClientOpcode::CreateBucket});
+        ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+        ASSERT_EQ(0, rsp.getDataJson()["total"].get<int>());
+    });
+
+    // It should be part of /all/ but still be zero (as we still don't
+    // have permission to read the no bucket)
+    rsp = userConnection->execute(BinprotGetCmdTimerCommand{
+            "/all/", cb::mcbp::ClientOpcode::CreateBucket});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    ASSERT_EQ(0, rsp.getDataJson()["total"].get<int>());
+
+    // But admin have access to no bucket
+    rsp = adminConnection->execute(BinprotGetCmdTimerCommand{
+            "/all/", cb::mcbp::ClientOpcode::CreateBucket});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    ASSERT_NE(0, rsp.getDataJson()["total"].get<int>());
+}

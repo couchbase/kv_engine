@@ -30,7 +30,7 @@
  */
 static std::pair<cb::engine_errc, Hdr1sfMicroSecHistogram> get_timings(
         Cookie& cookie, const Bucket& bucket, uint8_t opcode) {
-    // Don't creata a new privilege context if the one we've got is for the
+    // Don't create a new privilege context if the one we've got is for the
     // connected bucket:
     auto& connection = cookie.getConnection();
     if (bucket.name == connection.getBucket().name) {
@@ -88,9 +88,8 @@ static std::pair<cb::engine_errc, Hdr1sfMicroSecHistogram> maybe_get_timings(
     if (bucket.type != BucketType::NoBucket &&
         bucket.state == Bucket::State::Ready && bucketname == bucket.name) {
         return get_timings(cookie, bucket, opcode);
-    } else {
-        return {cb::engine_errc::no_such_key, {}};
     }
+    return {cb::engine_errc::no_such_key, {}};
 }
 
 /**
@@ -121,14 +120,42 @@ static std::pair<cb::engine_errc, std::string> get_aggregated_timings(
 std::pair<cb::engine_errc, std::string> get_cmd_timer(Cookie& cookie) {
     const auto& request = cookie.getRequest();
     const auto key = request.getKey();
-    const std::string bucket(reinterpret_cast<const char*>(key.data()),
+    std::string bucket(reinterpret_cast<const char*>(key.data()),
                              key.size());
     const auto extras = request.getExtdata();
     const auto opcode = extras[0];
     int index = cookie.getConnection().getBucketIndex();
 
     if (bucket == "/all/") {
-        index = 0;
+        if (cookie.testPrivilege(cb::rbac::Privilege::Stats, {}, {}) ==
+            cb::rbac::PrivilegeAccessOk) {
+            // The caller have the Stats privilege and access to all buckets
+            // so we may just use the aggregated stats instead of looking
+            // up bucket by bucket.
+            bucket = "@no bucket@";
+        } else {
+            index = 0;
+        }
+    }
+
+    // Requesting stats from the no bucket is restricted to those who has
+    // the global stats privilege as it contains information from _ALL_ buckets
+    if (bucket == "@no bucket@") {
+        if (cookie.testPrivilege(cb::rbac::Privilege::Stats, {}, {}) ==
+            cb::rbac::PrivilegeAccessOk) {
+            std::lock_guard<std::mutex> guard(all_buckets[0].mutex);
+            auto* histo = all_buckets[0].timings.get_timing_histogram(opcode);
+            if (histo) {
+                return {cb::engine_errc::success, histo->to_string()};
+            }
+
+            // histogram for this opcode hasn't been created yet so just
+            // return an empty histogram
+            Hdr1sfMicroSecHistogram h;
+            return {cb::engine_errc::success, h.to_string()};
+        }
+
+        return {cb::engine_errc::no_access, {}};
     }
 
     if (index == 0) {
