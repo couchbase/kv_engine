@@ -863,8 +863,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
                          commitData.collections);
 
     // Handle Seqno Persistence requests
-    vb->notifyHighPriorityRequests(
-            engine, vb->getPersistenceSeqno(), HighPriorityVBNotify::Seqno);
+    vb->notifyHighPriorityRequests(engine, vb->getPersistenceSeqno());
 
     return {moreAvailable, flushBatchSize, wakeupCheckpointRemover};
 }

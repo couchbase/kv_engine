@@ -227,8 +227,6 @@ For introductory information on stats within Couchbase, start with the
 |                                       | before a new one is created             |
 | ep_chk_persistence_remains            | Number of remaining vbuckets for        |
 |                                       | checkpoint persistence                  |
-| ep_chk_persistence_timeout            | Timeout for vbucket checkpoint          |
-|                                       | persistence                             |
 | ep_chk_remover_stime                  | The time interval for purging closed    |
 |                                       | checkpoints from memory                 |
 | ep_couch_bucket                       | The name of this bucket                 |
@@ -272,6 +270,7 @@ For introductory information on stats within Couchbase, start with the
 | ep_pager_active_vb_pcnt               | Active vbuckets paging percentage       |
 | ep_replication_throttle_threshold     | Percentage of max mem at which we       |
 |                                       | begin NAKing dcp input                  |
+| ep_seqno_persistence_timeout          | Timeout for SeqnoPersistence operations |
 | ep_uncommitted_items                  | The amount of items that have not been  |
 |                                       | written to disk                         |
 | ep_warmup                             | Shows if warmup is enabled / disabled   |

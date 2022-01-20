@@ -330,7 +330,7 @@ void EPStats::reset() {
     arithCmdHisto.reset();
     notifyIOHisto.reset();
     getStatsCmdHisto.reset();
-    chkPersistenceHisto.reset();
+    seqnoPersistenceHisto.reset();
     diskInsertHisto.reset();
     diskUpdateHisto.reset();
     diskDelHisto.reset();
@@ -375,7 +375,7 @@ size_t EPStats::getMemFootPrint() const {
            getCmdHisto.getMemFootPrint() + storeCmdHisto.getMemFootPrint() +
            arithCmdHisto.getMemFootPrint() + notifyIOHisto.getMemFootPrint() +
            getStatsCmdHisto.getMemFootPrint() +
-           chkPersistenceHisto.getMemFootPrint() +
+           seqnoPersistenceHisto.getMemFootPrint() +
            diskInsertHisto.getMemFootPrint() +
            diskUpdateHisto.getMemFootPrint() + diskDelHisto.getMemFootPrint() +
            diskVBDelHisto.getMemFootPrint() +

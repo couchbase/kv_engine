@@ -75,24 +75,18 @@ class WriteHandle;
 } // namespace Collections::VB
 
 /**
- * Structure that holds seqno based or checkpoint persistence based high
- * priority requests to a vbucket
+ * SeqnoPersistence request to a vbucket.
  */
-struct HighPriorityVBEntry {
-    HighPriorityVBEntry(const CookieIface* c,
-                        uint64_t idNum,
-                        HighPriorityVBNotify reqType)
-        : cookie(c),
-          id(idNum),
-          reqType(reqType),
+struct SeqnoPersistenceRequest {
+    SeqnoPersistenceRequest(const CookieIface* cookie, uint64_t seqno)
+        : cookie(cookie),
+          seqno(seqno),
           start(std::chrono::steady_clock::now()) {
     }
 
     const CookieIface* cookie;
-    uint64_t id;
-    HighPriorityVBNotify reqType;
-
-    /* for stats (histogram) */
+    uint64_t seqno;
+    // for stats (histogram)
     std::chrono::steady_clock::time_point start;
 };
 
@@ -584,9 +578,8 @@ public:
      * changes. That is, it could mean persisted in case of EPVBucket and
      * added to the sequenced data structure in case of EphemeralVBucket.
      *
-     * @param seqnoOrChkId seqno to be seen or checkpoint id to be persisted
+     * @param seqno to be persisted
      * @param cookie cookie of conn to be notified
-     * @param reqType indicating request for seqno or chk persistence
      *
      * @return RequestScheduled if a high priority request is added and
      *                          notification will be done asynchronously
@@ -596,9 +589,7 @@ public:
      *                             be a subsequent notification
      */
     virtual HighPriorityVBReqStatus checkAddHighPriorityVBEntry(
-            uint64_t seqnoOrChkId,
-            const CookieIface* cookie,
-            HighPriorityVBNotify reqType) = 0;
+            uint64_t seqno, const CookieIface* cookie) = 0;
 
     /**
      * Notify the high priority requests on the vbucket.
@@ -606,30 +597,24 @@ public:
      * during rebalance.
      *
      * @param engine Ref to ep-engine
-     * @param id seqno or checkpoint id causing the notification(s).
-     * @param notifyType indicating notify for seqno or chk persistence
+     * @param seqno causing the notification(s).
      */
-    virtual void notifyHighPriorityRequests(
-            EventuallyPersistentEngine& engine,
-            uint64_t id,
-            HighPriorityVBNotify notifyType) = 0;
+    virtual void notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
+                                            uint64_t seqno) = 0;
 
     virtual void notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) = 0;
 
     /**
-     * Get high priority notifications for a seqno or checkpoint persisted
+     * Get high priority notifications for a seqno persisted
      *
      * @param engine Ref to ep-engine
      * @param id seqno or checkpoint id for which notifies are to be found
-     * @param notifyType indicating notify for seqno or chk persistence
      *
      * @return map of notifications with conn cookie as the key and notify
      *         status as the value
      */
     std::map<const CookieIface*, cb::engine_errc> getHighPriorityNotifications(
-            EventuallyPersistentEngine& engine,
-            uint64_t idNum,
-            HighPriorityVBNotify notifyType);
+            EventuallyPersistentEngine& engine, uint64_t seqno);
 
     size_t getHighPriorityChkSize() {
         return numHpVBReqs.load();
@@ -1529,7 +1514,7 @@ public:
      */
     virtual size_t getNumPersistedDeletes() const = 0;
 
-    static std::chrono::seconds getCheckpointFlushTimeout();
+    static std::chrono::seconds getSeqnoPersistenceTimeout();
 
     /**
      * Set the memory threshold on the current bucket quota for accepting a
@@ -1963,15 +1948,12 @@ protected:
                             const VBNotifyCtx& notifyCtx);
 
     /**
-     * VBucket internal function to store high priority requests on the vbucket.
+     * VBucket internal function to queue SeqnoPersistence requests.
      *
-     * @param seqnoOrChkId seqno to be seen or checkpoint id to be persisted
-     * @param cookie cookie of conn to be notified
-     * @param reqType request type indicating seqno or chk persistence
+     * @param seqno to be seen to be persisted
+     * @param cookie to be notified
      */
-    void addHighPriorityVBEntry(uint64_t seqnoOrChkId,
-                                const CookieIface* cookie,
-                                HighPriorityVBNotify reqType);
+    void addHighPriorityVBEntry(uint64_t seqno, const CookieIface* cookie);
 
     /**
      * Get all high priority notifications as temporary failures because they
@@ -2022,7 +2004,7 @@ protected:
     std::atomic<uint64_t> persistenceSeqno;
 
     /* holds all high priority async requests to the vbucket */
-    std::list<HighPriorityVBEntry> hpVBReqs;
+    std::list<SeqnoPersistenceRequest> hpVBReqs;
 
     /* synchronizes access to hpVBReqs */
     std::mutex hpVBReqsMutex;

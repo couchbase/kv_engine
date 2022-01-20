@@ -549,8 +549,8 @@ public:
     //! Histogram of get_stats commands.
     Hdr1sfMicroSecHistogram getStatsCmdHisto;
 
-    //! Histogram of wait_for_checkpoint_persistence command
-    Hdr1sfMicroSecHistogram chkPersistenceHisto;
+    //! Histogram of SeqnoPersistence command
+    Hdr1sfMicroSecHistogram seqnoPersistenceHisto;
 
     //
     // DB timers.

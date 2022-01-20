@@ -350,20 +350,17 @@ bool EPVBucket::hasPendingBGFetchItems() {
 }
 
 HighPriorityVBReqStatus EPVBucket::checkAddHighPriorityVBEntry(
-        uint64_t seqnoOrChkId,
-        const CookieIface* cookie,
-        HighPriorityVBNotify reqType) {
+        uint64_t seqno, const CookieIface* cookie) {
     if (shard) {
         ++shard->highPriorityCount;
     }
-    addHighPriorityVBEntry(seqnoOrChkId, cookie, reqType);
+    addHighPriorityVBEntry(seqno, cookie);
     return HighPriorityVBReqStatus::RequestScheduled;
 }
 
 void EPVBucket::notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
-                                           uint64_t idNum,
-                                           HighPriorityVBNotify notifyType) {
-    auto toNotify = getHighPriorityNotifications(engine, idNum, notifyType);
+                                           uint64_t seqno) {
+    auto toNotify = getHighPriorityNotifications(engine, seqno);
 
     if (shard) {
         shard->highPriorityCount.fetch_sub(toNotify.size());

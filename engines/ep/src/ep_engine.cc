@@ -3083,8 +3083,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         collector.addStat(Key::ep_flusher_todo, epstats.flusher_todo);
         collector.addStat(Key::ep_total_persisted, epstats.totalPersisted);
         collector.addStat(Key::ep_uncommitted_items, epstats.flusher_todo);
-        collector.addStat(Key::ep_chk_persistence_timeout,
-                          VBucket::getCheckpointFlushTimeout().count());
+        collector.addStat(Key::ep_seqno_persistence_timeout,
+                          VBucket::getSeqnoPersistenceTimeout().count());
     }
     collector.addStat(Key::ep_vbucket_del, epstats.vbucketDeletions);
     collector.addStat(Key::ep_vbucket_del_fail, epstats.vbucketDeletionFail);
@@ -5484,8 +5484,7 @@ cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
     if (getEngineSpecific(cookie) == nullptr) {
         auto persisted_seqno = vb->getPersistenceSeqno();
         if (seqno > persisted_seqno) {
-            auto res = vb->checkAddHighPriorityVBEntry(
-                    seqno, cookie, HighPriorityVBNotify::Seqno);
+            const auto res = vb->checkAddHighPriorityVBEntry(seqno, cookie);
 
             switch (res) {
             case HighPriorityVBReqStatus::RequestScheduled:

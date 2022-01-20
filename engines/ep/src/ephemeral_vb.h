@@ -61,13 +61,10 @@ public:
     bool hasPendingBGFetchItems() override;
 
     HighPriorityVBReqStatus checkAddHighPriorityVBEntry(
-            uint64_t seqnoOrChkId,
-            const CookieIface* cookie,
-            HighPriorityVBNotify reqType) override;
+            uint64_t seqno, const CookieIface* cookie) override;
 
     void notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
-                                    uint64_t id,
-                                    HighPriorityVBNotify notifyType) override;
+                                    uint64_t seqno) override;
 
     void notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) override;
 

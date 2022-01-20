@@ -255,33 +255,25 @@ bool EphemeralVBucket::hasPendingBGFetchItems() {
 }
 
 HighPriorityVBReqStatus EphemeralVBucket::checkAddHighPriorityVBEntry(
-        uint64_t seqnoOrChkId,
-        const CookieIface* cookie,
-        HighPriorityVBNotify reqType) {
-    if (reqType == HighPriorityVBNotify::ChkPersistence) {
-        return HighPriorityVBReqStatus::NotSupported;
-    }
-
+        uint64_t seqno, const CookieIface* cookie) {
     {
         /* Serialize the request with sequence lock */
         std::lock_guard<std::mutex> lh(sequenceLock);
 
-        if (seqnoOrChkId <= getPersistenceSeqno()) {
+        if (seqno <= getPersistenceSeqno()) {
             /* Need not notify asynchronously as the vb already has the
                requested seqno */
             return HighPriorityVBReqStatus::RequestNotScheduled;
         }
 
-        addHighPriorityVBEntry(seqnoOrChkId, cookie, reqType);
+        addHighPriorityVBEntry(seqno, cookie);
     }
 
     return HighPriorityVBReqStatus::RequestScheduled;
 }
 
 void EphemeralVBucket::notifyHighPriorityRequests(
-        EventuallyPersistentEngine& engine,
-        uint64_t idNum,
-        HighPriorityVBNotify notifyType) {
+        EventuallyPersistentEngine& engine, uint64_t seqno) {
     throw std::logic_error(
             "EphemeralVBucket::notifyHighPriorityRequests() is not valid. "
             "Called on " +

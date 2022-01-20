@@ -71,22 +71,6 @@ std::string to_string(CheckpointType checkpointType) {
     folly::assume_unreachable();
 }
 
-std::string to_string(HighPriorityVBNotify hpNotifyType) {
-    using HighPriorityVBNotifyUType =
-            std::underlying_type<HighPriorityVBNotify>::type;
-
-    switch (hpNotifyType) {
-    case HighPriorityVBNotify::Seqno:
-        return "seqno";
-    case HighPriorityVBNotify::ChkPersistence:
-        return "checkpoint persistence";
-    }
-    throw std::invalid_argument(
-            "to_string(HighPriorityVBNotify) unknown " +
-            std::to_string(
-                    static_cast<HighPriorityVBNotifyUType>(hpNotifyType)));
-}
-
 std::ostream& operator<<(std::ostream& os, const EvictionPolicy& policy) {
     return os << to_string(policy);
 }

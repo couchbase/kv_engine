@@ -128,8 +128,7 @@ TEST_F(FlusherTest, GetToLowPrioWhenSomeHighPriIsPending) {
     auto hpVBucket = engine->getVBucket(hpVbid);
     ASSERT_EQ(0, hpVBucket->getHighSeqno());
     ASSERT_EQ(0, hpVBucket->getHighPriorityChkSize());
-    hpVBucket->checkAddHighPriorityVBEntry(
-            1 /*seqno*/, nullptr /*cookie*/, HighPriorityVBNotify::Seqno);
+    hpVBucket->checkAddHighPriorityVBEntry(1 /*seqno*/, nullptr /*cookie*/);
     ASSERT_EQ(1, hpVBucket->getHighPriorityChkSize());
 
     // Run the flusher

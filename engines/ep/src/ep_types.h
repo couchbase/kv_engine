@@ -213,17 +213,6 @@ using OptionalSeqno = std::optional<int64_t>;
 GenerateBySeqno getGenerateBySeqno(const OptionalSeqno& seqno);
 
 /**
- * Indicates the type of the HighPriorityVB request causing the notify
- */
-enum class HighPriorityVBNotify { Seqno, ChkPersistence };
-
-/**
- * Overloads the to_string method to give the string format of a member of the
- * class HighPriorityVBNotify
- */
-std::string to_string(HighPriorityVBNotify hpNotifyType);
-
-/**
  * Result of a HighPriorityVB request
  */
 enum class HighPriorityVBReqStatus {

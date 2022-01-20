@@ -363,8 +363,8 @@ void EphemeralBucket::notifyNewSeqno(const Vbid vbid,
        We do not wait for persistence to notify high priority requests */
     VBucketPtr vb = getVBucket(vbid);
     if (vb) {
-        auto toNotify = vb->getHighPriorityNotifications(
-                engine, notifyCtx.bySeqno, HighPriorityVBNotify::Seqno);
+        auto toNotify =
+                vb->getHighPriorityNotifications(engine, notifyCtx.bySeqno);
 
         if (!toNotify.empty() && notifyHpReqTask) {
             notifyHpReqTask->wakeup(std::move(toNotify));
