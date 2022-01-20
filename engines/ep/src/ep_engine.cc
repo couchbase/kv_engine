@@ -3213,6 +3213,24 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         doEngineStatsMagma(collector);
     } else if (configuration.getBackend() == "rocksdb") {
         doEngineStatsRocksDB(collector);
+    } else if (configuration.getBackend() == "nexus") {
+        auto primaryCollector = collector.withLabel("backend", "primary");
+        if (configuration.getNexusPrimaryBackend() == "couchdb") {
+            doEngineStatsCouchDB(primaryCollector, epstats);
+        } else if (configuration.getNexusPrimaryBackend() == "magma") {
+            doEngineStatsMagma(primaryCollector);
+        } else if (configuration.getNexusPrimaryBackend() == "rocksb") {
+            doEngineStatsRocksDB(primaryCollector);
+        }
+
+        auto secondaryCollector = collector.withLabel("backend", "secondary");
+        if (configuration.getNexusSecondaryBackend() == "couchdb") {
+            doEngineStatsCouchDB(secondaryCollector, epstats);
+        } else if (configuration.getNexusSecondaryBackend() == "magma") {
+            doEngineStatsMagma(secondaryCollector);
+        } else if (configuration.getNexusSecondaryBackend() == "rocksb") {
+            doEngineStatsRocksDB(secondaryCollector);
+        }
     }
 
     return cb::engine_errc::success;
