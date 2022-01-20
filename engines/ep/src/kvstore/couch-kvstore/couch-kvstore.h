@@ -210,9 +210,7 @@ public:
 
     void resetStats() override;
 
-    void addStats(const AddStatFn& add_stat,
-                  const void* c,
-                  const std::string& args) const override;
+    void addStats(const AddStatFn& add_stat, const void* c) const override;
 
     GetValue getWithHeader(const KVFileHandle& kvFileHandle,
                            const DiskDocKey& key,

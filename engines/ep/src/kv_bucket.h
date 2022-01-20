@@ -569,8 +569,7 @@ public:
     void checkAndMaybeFreeMemory();
 
     void addKVStoreStats(const AddStatFn& add_stat,
-                         const CookieIface* cookie,
-                         const std::string& args) override;
+                         const CookieIface* cookie) override;
 
     void addKVStoreTimingStats(const AddStatFn& add_stat,
                                const CookieIface* cookie) override;

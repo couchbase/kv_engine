@@ -2433,8 +2433,7 @@ void KVBucket::resetUnderlyingStats()
 }
 
 void KVBucket::addKVStoreStats(const AddStatFn& add_stat,
-                               const CookieIface* cookie,
-                               const std::string& args) {
+                               const CookieIface* cookie) {
     for (const auto& shard : vbMap.shards) {
         /* Add the different KVStore instances into a set and then
          * retrieve the stats from each instance separately. This
@@ -2446,7 +2445,7 @@ void KVBucket::addKVStoreStats(const AddStatFn& add_stat,
         underlyingSet.insert(shard->getRWUnderlying());
 
         for (auto* store : underlyingSet) {
-            store->addStats(add_stat, cookie, args);
+            store->addStats(add_stat, cookie);
         }
     }
 }

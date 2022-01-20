@@ -1790,10 +1790,8 @@ size_t RocksDBKVStore::getVBucketsCount(
     return count;
 }
 
-void RocksDBKVStore::addStats(const AddStatFn& add_stat,
-                              const void* c,
-                              const std::string& args) const {
-    KVStore::addStats(add_stat, c, args);
+void RocksDBKVStore::addStats(const AddStatFn& add_stat, const void* c) const {
+    KVStore::addStats(add_stat, c);
     const auto prefix = getStatsPrefix();
 
     // Per-shard stats.

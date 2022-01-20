@@ -419,10 +419,8 @@ void CouchKVStore::resetStats() {
     fsStatsCompaction.reset();
 }
 
-void CouchKVStore::addStats(const AddStatFn& add_stat,
-                            const void* c,
-                            const std::string& args) const {
-    KVStore::addStats(add_stat, c, args);
+void CouchKVStore::addStats(const AddStatFn& add_stat, const void* c) const {
+    KVStore::addStats(add_stat, c);
     const auto prefix = getStatsPrefix();
 
     const size_t read = fsStats.totalBytesRead.load() +

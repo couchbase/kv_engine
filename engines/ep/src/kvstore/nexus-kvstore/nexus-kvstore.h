@@ -35,9 +35,7 @@ public:
     NexusKVStore(NexusKVStoreConfig& config);
 
     void deinitialize() override;
-    void addStats(const AddStatFn& add_stat,
-                  const void* c,
-                  const std::string& args) const override;
+    void addStats(const AddStatFn& add_stat, const void* c) const override;
     bool getStat(std::string_view name, size_t& value) const override;
     GetStatsMap getStats(gsl::span<const std::string_view> keys) const override;
     void addTimingStats(const AddStatFn& add_stat,

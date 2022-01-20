@@ -512,9 +512,7 @@ public:
     /**
      * Populate kvstore stats with magma specific stats
      */
-    void addStats(const AddStatFn& add_stat,
-                  const void* c,
-                  const std::string& args) const override;
+    void addStats(const AddStatFn& add_stat, const void* c) const override;
 
     /**
      * Populate magma specific timing stats.

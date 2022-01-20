@@ -5024,7 +5024,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     }
     if (key.size() >= 7 && cb_isPrefix(key, "kvstore")) {
         std::string args(key.data() + 7, key.size() - 7);
-        getKVBucket()->addKVStoreStats(add_stat, c, args);
+        getKVBucket()->addKVStoreStats(add_stat, c);
         return cb::engine_errc::success;
     }
     if (key == "warmup"sv) {

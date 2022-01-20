@@ -720,11 +720,8 @@ public:
      * @param prefix prefix to use for the stats
      * @param add_stat the callback function to add statistics
      * @param c the cookie to pass to the callback function
-     * @param args are additional arguments to be parsed, can be empty
      */
-    void addStats(const AddStatFn& add_stat,
-                  const void* c,
-                  const std::string& args) const override;
+    void addStats(const AddStatFn& add_stat, const void* c) const override;
 
     /**
      * Request the specified statistic name from the kvstore.

@@ -686,8 +686,7 @@ public:
     virtual bool isMemUsageAboveBackfillThreshold() = 0;
 
     virtual void addKVStoreStats(const AddStatFn& add_stat,
-                                 const CookieIface* cookie,
-                                 const std::string& args) = 0;
+                                 const CookieIface* cookie) = 0;
 
     virtual void addKVStoreTimingStats(const AddStatFn& add_stat,
                                        const CookieIface* cookie) = 0;

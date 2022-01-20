@@ -108,10 +108,8 @@ void NexusKVStore::deinitialize() {
     secondary->deinitialize();
 }
 
-void NexusKVStore::addStats(const AddStatFn& add_stat,
-                            const void* c,
-                            const std::string& args) const {
-    primary->addStats(add_stat, c, args);
+void NexusKVStore::addStats(const AddStatFn& add_stat, const void* c) const {
+    primary->addStats(add_stat, c);
     add_prefixed_stat("nexus_" + std::to_string(getConfig().getShardId()),
                       "skipped_checks_due_to_purge",
                       skippedChecksDueToPurging,
