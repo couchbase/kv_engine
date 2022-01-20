@@ -710,8 +710,6 @@ MagmaKVStore::~MagmaKVStore() {
 void MagmaKVStore::deinitialize() {
     logger->info("MagmaKVStore: {} deinitializing", configuration.getShardId());
 
-    magma->Sync(true);
-
     // Close shuts down all of the magma background threads (compaction is the
     // one that we care about here). The compaction callbacks require the magma
     // instance to exist so we must do this before we reset it.
