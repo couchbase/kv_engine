@@ -54,6 +54,42 @@ MockKVStore::MockKVStore(std::unique_ptr<KVStoreIface> real)
         ON_CALL(*this, getConfig()).WillByDefault([this]() {
             return this->realKVS->getConfig();
         });
+        ON_CALL(*this, snapshotVBucket(_, _))
+                .WillByDefault([this](Vbid vbid, const vbucket_state& vbstate) {
+                    return this->realKVS->snapshotVBucket(vbid, vbstate);
+                });
+        ON_CALL(*this, begin(_, _))
+                .WillByDefault(
+                        [this](Vbid vbid,
+                               std::unique_ptr<PersistenceCallback> pcb) {
+                            return this->realKVS->begin(vbid, std::move(pcb));
+                        });
+        ON_CALL(*this, set(_, _))
+                .WillByDefault(
+                        [this](TransactionContext& txnCtx, queued_item item) {
+                            return this->realKVS->set(txnCtx, item);
+                        });
+        ON_CALL(*this, del(_, _))
+                .WillByDefault(
+                        [this](TransactionContext& txnCtx, queued_item item) {
+                            return this->realKVS->del(txnCtx, item);
+                        });
+        ON_CALL(*this, getStorageProperties()).WillByDefault([this]() {
+            return this->realKVS->getStorageProperties();
+        });
+        ON_CALL(*this, compactDB(_, _))
+                .WillByDefault([this](std::unique_lock<std::mutex>& vbLock,
+                                      std::shared_ptr<CompactionContext> c) {
+                    return this->realKVS->compactDB(vbLock, c);
+                });
+        ON_CALL(*this, snapshotStats(_))
+                .WillByDefault([this](const nlohmann::json& stats) {
+                    return this->realKVS->snapshotStats(stats);
+                });
+        ON_CALL(*this, commit(_, _))
+                .WillByDefault([this](auto ctx, auto& commit) {
+                    return this->realKVS->commit(std::move(ctx), commit);
+                });
     }
 }
 

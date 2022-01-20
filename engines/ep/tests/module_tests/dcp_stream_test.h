@@ -195,6 +195,4 @@ public:
     void SetUp() override;
 };
 
-class STPassiveStreamCouchstoreTest : public STPassiveStreamPersistentTest {};
-
 class STPassiveStreamMagmaTest : public STPassiveStreamPersistentTest {};

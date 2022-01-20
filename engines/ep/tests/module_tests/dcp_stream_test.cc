@@ -39,6 +39,7 @@
 #include "../mock/mock_dcp_conn_map.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
+#include "../mock/mock_kvstore.h"
 #include "../mock/mock_stream.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 
@@ -4513,22 +4514,18 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
 /**
  * The test checks that we do not lose any SnapRange information when at Replica
  * we re-attempt the flush of Disk Snapshot after a storage failure.
- *
- * @TODO magma: Test does not run for magma as we don't yet have a way of inject
- * errors.
  */
-TEST_P(STPassiveStreamCouchstoreTest, VBStateNotLostAfterFlushFailure) {
+TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
+    using namespace testing;
     // Gmock helps us with simulating a flush failure.
     // In the test we want that the first attempt to flush fails, while the
-    // second attempts succeeds. The purpose of the test is to check that
-    // we have stored all the SnapRange info (together with items) when the
-    // second flush succeeds.
-    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    replaceCouchKVStore(ops);
-    EXPECT_CALL(ops, sync(testing::_, testing::_))
-            .Times(testing::AnyNumber())
-            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
-            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
+    // second attempts succeeds (forwards the call on to the real KVStore).
+    // The purpose of the test is to check that we have stored all the SnapRange
+    // info (together with items) when the second flush succeeds.
+    auto& mockKVStore = MockKVStore::replaceRWKVStoreWithMock(*store, 0);
+    EXPECT_CALL(mockKVStore, commit(_, _))
+            .WillOnce(Return(false))
+            .WillRepeatedly(DoDefault());
 
     // Replica receives Snap{{1, 3, Disk}, {PRE:1, M:2, D:3}}
     // Note that the shape of the snapshot is just functional to testing
@@ -4786,11 +4783,6 @@ TEST_P(STPassiveStreamPersistentTest, enusre_extended_dcp_status_work) {
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          STPassiveStreamPersistentTest,
                          STParameterizedBucketTest::persistentConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_SUITE_P(Persistent,
-                         STPassiveStreamCouchstoreTest,
-                         STParameterizedBucketTest::couchstoreConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 #ifdef EP_USE_MAGMA

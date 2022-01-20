@@ -205,6 +205,7 @@ public:
                 begin,
                 (Vbid vbid, std::unique_ptr<PersistenceCallback> pcb),
                 (override));
+    MOCK_METHOD(bool, snapshotStats, (const nlohmann::json&), (override));
 
     /**
      * Helper function to replace the existing read-write KVStore in the given
