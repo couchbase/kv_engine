@@ -2734,7 +2734,7 @@ bool EventuallyPersistentEngine::enableTraffic(bool enable) {
 }
 
 void EventuallyPersistentEngine::doEngineStatsRocksDB(
-        const BucketStatCollector& collector) {
+        const StatCollector& collector) {
     using namespace cb::stats;
     size_t value;
 
@@ -2802,7 +2802,8 @@ void EventuallyPersistentEngine::doEngineStatsRocksDB(
     }
 }
 
-void EventuallyPersistentEngine::doEngineStatsCouchDB(const BucketStatCollector& collector, const EPStats& epstats){
+void EventuallyPersistentEngine::doEngineStatsCouchDB(
+        const StatCollector& collector, const EPStats& epstats) {
     using namespace cb::stats;
     size_t value;
     if (kvBucket->getKVStoreStat("io_document_write_bytes", value)) {
@@ -2858,7 +2859,7 @@ void EventuallyPersistentEngine::doEngineStatsCouchDB(const BucketStatCollector&
 }
 
 void EventuallyPersistentEngine::doEngineStatsMagma(
-        const BucketStatCollector& collector) {
+        const StatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
     constexpr std::array<std::string_view, 39> statNames = {
