@@ -20,7 +20,7 @@
 #include <iostream>
 #include <system_error>
 
-AuditConfig::AuditConfig(const nlohmann::json& json) : AuditConfig() {
+AuditConfig::AuditConfig(const nlohmann::json& json) {
     set_version(json.at("version"));
     set_rotate_size(json.at("rotate_size"));
     set_rotate_interval(json.at("rotate_interval"));

@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -23,19 +22,11 @@
 
 class AuditConfig {
 public:
-    enum class EventState { /* event state defined as enabled */ enabled,
-                            /* event state defined as disabled */ disabled,
-                            /* event state is not defined */ undefined };
+    enum class EventState { /** event state defined as enabled */ enabled,
+                            /** event state defined as disabled */ disabled,
+                            /** event state is not defined */ undefined };
 
-    AuditConfig()
-        : auditd_enabled(false),
-          rotate_interval(900),
-          rotate_size(20 * 1024 * 1024),
-          buffered(true),
-          filtering_enabled(false),
-          version(0) {
-        // Empty
-    }
+    AuditConfig() = default;
 
     /**
      * Initialize from a JSON structure
@@ -109,12 +100,12 @@ protected:
     void set_disabled_userids(const nlohmann::json& array);
     void set_event_states(const nlohmann::json& array);
 
-    cb::RelaxedAtomic<bool> auditd_enabled;
-    cb::RelaxedAtomic<uint32_t> rotate_interval;
-    cb::RelaxedAtomic<size_t> rotate_size;
-    cb::RelaxedAtomic<bool> buffered;
-    cb::RelaxedAtomic<bool> filtering_enabled;
-    cb::RelaxedAtomic<uint32_t> version;
+    cb::RelaxedAtomic<bool> auditd_enabled {false};
+    cb::RelaxedAtomic<uint32_t> rotate_interval {900};
+    cb::RelaxedAtomic<size_t> rotate_size{20*1024*1024};
+    cb::RelaxedAtomic<bool> buffered{true};
+    cb::RelaxedAtomic<bool> filtering_enabled{false};
+    cb::RelaxedAtomic<uint32_t> version{0};
 
     folly::Synchronized<std::string, std::mutex> log_path;
     folly::Synchronized<std::string, std::mutex> descriptors_path;
