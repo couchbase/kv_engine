@@ -192,7 +192,6 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
             break;
         case ValueFilter::VALUES_DECOMPRESSED:
         case ValueFilter::VALUES_COMPRESSED: {
-            bool restore = false;
             // We can only restore the value if:
             // 1) The stored value exists (checked above)
             // 2) It is temp-initial or non-resident
@@ -204,10 +203,6 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
             // not, we'd potentially fetch old values back into the
             // HashTable.
             if (v->getCas() == fetched_item.token) {
-                restore = true;
-            }
-
-            if (restore) {
                 if (status == cb::engine_errc::success) {
                     ht.unlocked_restoreValue(
                             res.lock.getHTLock(), *fetchedValue, *v);
