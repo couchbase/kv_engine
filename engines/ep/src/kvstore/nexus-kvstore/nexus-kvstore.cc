@@ -94,7 +94,7 @@ void NexusKVStore::loadPurgeSeqnoCache() {
                 primaryPurgeSeqnos.size(),
                 secondaryPurgeSeqnos.size(),
                 purgeSeqno.size());
-        handleError(msg);
+        handleError(msg, {} /*vbid*/);
     }
 
     for (size_t i = 0; i < primaryPurgeSeqnos.size(); i++) {
@@ -229,7 +229,7 @@ void NexusKVStore::doCollectionsMetadataChecks(
                 vbid,
                 primaryManifestResult,
                 secondaryManifestResult);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     if (primaryVBCommit && primaryVBCommit->collections.getManifestUid() != 0 &&
@@ -243,7 +243,7 @@ void NexusKVStore::doCollectionsMetadataChecks(
                 vbid,
                 primaryKVStoreManifest.manifestUid,
                 primaryVBCommit->collections.getManifestUid());
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     if (secondaryVBCommit &&
@@ -257,7 +257,7 @@ void NexusKVStore::doCollectionsMetadataChecks(
                 vbid,
                 secondaryKVStoreManifest.manifestUid,
                 secondaryVBCommit->collections.getManifestUid());
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     if (primaryKVStoreManifest != secondaryKVStoreManifest) {
@@ -267,7 +267,7 @@ void NexusKVStore::doCollectionsMetadataChecks(
                 vbid,
                 primaryKVStoreManifest,
                 secondaryKVStoreManifest);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     // 2) Compare collections stats doc values
@@ -287,7 +287,7 @@ void NexusKVStore::doCollectionsMetadataChecks(
                     vbid,
                     primaryResult,
                     secondaryResult);
-            handleError(msg);
+            handleError(msg, vbid);
         }
 
         if (primaryStats.itemCount != secondaryStats.itemCount) {
@@ -299,7 +299,7 @@ void NexusKVStore::doCollectionsMetadataChecks(
                     cid,
                     primaryStats.itemCount,
                     secondaryStats.itemCount);
-            handleError(msg);
+            handleError(msg, vbid);
         }
 
         if (primaryStats.highSeqno != secondaryStats.highSeqno) {
@@ -311,7 +311,7 @@ void NexusKVStore::doCollectionsMetadataChecks(
                     cid,
                     primaryStats.highSeqno,
                     secondaryStats.highSeqno);
-            handleError(msg);
+            handleError(msg, vbid);
         }
 
         // All checks from here down need the (in-memory) VBManifests
@@ -332,7 +332,7 @@ void NexusKVStore::doCollectionsMetadataChecks(
                     cid,
                     primaryStats.itemCount,
                     primaryVBManifest->lock(cid).getItemCount());
-            handleError(msg);
+            handleError(msg, vbid);
         }
         if (secondaryManifestHandle.valid() &&
             secondaryStats.itemCount !=
@@ -345,7 +345,7 @@ void NexusKVStore::doCollectionsMetadataChecks(
                     cid,
                     secondaryStats.itemCount,
                     secondaryVBManifest->lock(cid).getItemCount());
-            handleError(msg);
+            handleError(msg, vbid);
         }
 
         if (primaryManifestHandle.valid() &&
@@ -359,7 +359,7 @@ void NexusKVStore::doCollectionsMetadataChecks(
                     cid,
                     primaryStats.highSeqno,
                     primaryVBManifest->lock(cid).getPersistedHighSeqno());
-            handleError(msg);
+            handleError(msg, vbid);
         }
         if (secondaryManifestHandle.valid() &&
             secondaryStats.highSeqno !=
@@ -372,7 +372,7 @@ void NexusKVStore::doCollectionsMetadataChecks(
                     cid,
                     secondaryStats.highSeqno,
                     secondaryVBManifest->lock(cid).getPersistedHighSeqno());
-            handleError(msg);
+            handleError(msg, vbid);
         }
 
         // We can't compare disk size between primary and secondary as they
@@ -388,7 +388,7 @@ void NexusKVStore::doCollectionsMetadataChecks(
                     cid,
                     primaryStats.diskSize,
                     primaryVBManifest->lock(cid).getDiskSize());
-            handleError(msg);
+            handleError(msg, vbid);
         }
         if (secondaryManifestHandle.valid() &&
             secondaryStats.diskSize != secondaryManifestHandle.getDiskSize()) {
@@ -400,7 +400,7 @@ void NexusKVStore::doCollectionsMetadataChecks(
                     cid,
                     secondaryStats.diskSize,
                     secondaryVBManifest->lock(cid).getDiskSize());
-            handleError(msg);
+            handleError(msg, vbid);
         }
     }
 }
@@ -453,7 +453,7 @@ bool NexusKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
                 vbid,
                 primaryCommitData.collections.getManifestUid(),
                 secondaryCommitData.collections.getManifestUid());
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     if (primaryCommitData.collections.isReadyForCommit() !=
@@ -465,7 +465,7 @@ bool NexusKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
                 vbid,
                 primaryCommitData.collections.isReadyForCommit(),
                 secondaryCommitData.collections.isReadyForCommit());
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     auto primaryResult = primary->commit(std::move(nexusTxnCtx.primaryContext),
@@ -478,7 +478,7 @@ bool NexusKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
                 vbid,
                 primaryResult,
                 secondaryResult);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     // Concurrent compaction may have modified one KVStore but not the other.
@@ -568,7 +568,7 @@ void NexusKVStore::doPostGetChecks(std::string_view caller,
                 cb::UserData(key.to_string()),
                 primaryGetValue.getStatus(),
                 secondaryGetValue.getStatus());
-        handleError(msg);
+        handleError(msg, vb);
     }
 
     if (primaryGetValue.getStatus() == cb::engine_errc::success &&
@@ -581,7 +581,7 @@ void NexusKVStore::doPostGetChecks(std::string_view caller,
                 cb::UserData(key.to_string()),
                 *primaryGetValue.item,
                 *secondaryGetValue.item);
-        handleError(msg);
+        handleError(msg, vb);
     }
 }
 
@@ -740,7 +740,7 @@ void NexusKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& primaryQueue) const {
                 "NexusKVStore::getMulti: {}: primary queue and secondary "
                 "queue are different sizes",
                 vb);
-        handleError(msg);
+        handleError(msg, vb);
     }
 
     for (auto& [key, value] : primaryQueue) {
@@ -751,7 +751,7 @@ void NexusKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& primaryQueue) const {
                     "but not secondary",
                     vb,
                     cb::UserData(key.to_string()));
-            handleError(msg);
+            handleError(msg, vb);
         }
 
         doPostGetChecks(
@@ -794,7 +794,7 @@ void NexusKVStore::getRange(Vbid vb,
                 "NexusKVStore::getMulti: {}: primary getvalues  and secondary "
                 "get values are different sizes",
                 vb);
-        handleError(msg);
+        handleError(msg, vb);
     }
 
     auto size = primaryGetValues.size();
@@ -821,7 +821,7 @@ void NexusKVStore::getRange(Vbid vb,
                     key,
                     primaryGetValues.front().getStatus(),
                     secondaryGetValues.front().getStatus());
-            handleError(msg);
+            handleError(msg, vb);
         }
 
         if (primaryGetValues.front().getStatus() == cb::engine_errc::success) {
@@ -849,7 +849,7 @@ void NexusKVStore::getRange(Vbid vb,
                 "primary:{}",
                 vb,
                 cb::UserData(ss.str()));
-        handleError(msg);
+        handleError(msg, vb);
     }
 }
 
@@ -908,7 +908,7 @@ std::vector<vbucket_state*> NexusKVStore::listPersistedVbuckets() {
                 secondaryVbStates.size(),
                 configuration.getShardId(),
                 configuration.getMaxShards());
-        handleError(msg);
+        handleError(msg, {} /*vbid*/);
 
         // This isn't comparable, just return.
         return primaryVbStates;
@@ -925,7 +925,7 @@ std::vector<vbucket_state*> NexusKVStore::listPersistedVbuckets() {
                         vbid,
                         primaryVbStates[i] != nullptr,
                         secondaryVbStates[i] != nullptr);
-                handleError(msg);
+                handleError(msg, {} /*vbid*/);
             }
             continue;
         }
@@ -938,7 +938,7 @@ std::vector<vbucket_state*> NexusKVStore::listPersistedVbuckets() {
                     vbid,
                     *primaryVbStates[i],
                     *secondaryVbStates[i]);
-            handleError(msg);
+            handleError(msg, vbid);
         }
     }
 
@@ -957,7 +957,7 @@ bool NexusKVStore::snapshotVBucket(Vbid vbucketId,
                 vbucketId,
                 primaryResult,
                 secondaryResult);
-        handleError(msg);
+        handleError(msg, vbucketId);
     }
 
     auto primaryVbState = primary->getPersistedVBucketState(vbucketId);
@@ -970,7 +970,7 @@ bool NexusKVStore::snapshotVBucket(Vbid vbucketId,
                 vbucketId,
                 primaryVbState,
                 secondaryVbState);
-        handleError(msg);
+        handleError(msg, vbucketId);
     }
 
     return primaryResult;
@@ -1275,7 +1275,7 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                 vbid,
                 firstResult,
                 secondResult);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     // We bump the collectionsPurged stat when we erase collections, magma only
@@ -1313,7 +1313,7 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                     vbid,
                     cb::UserData(key.to_string()),
                     seqno);
-            handleError(msg);
+            handleError(msg, vbid);
         } else {
             secondaryExpiryCb->callbacks.erase(key);
         }
@@ -1332,7 +1332,7 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                 "made by primary:{}",
                 vbid,
                 ss.str());
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     for (auto& [key, seqno] : primaryDrops) {
@@ -1350,7 +1350,7 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                     "key:{} for primary but not secondary",
                     vbid,
                     cb::UserData(key.to_string()));
-            handleError(msg);
+            handleError(msg, vbid);
         } else if (seqno != itr->second) {
             auto msg = fmt::format(
                     "NexusKVStore::compactDB: {}: drop callback found with "
@@ -1359,7 +1359,7 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                     cb::UserData(key.to_string()),
                     seqno,
                     itr->second);
-            handleError(msg);
+            handleError(msg, vbid);
         } else {
             secondaryDrops.erase(key);
         }
@@ -1394,7 +1394,7 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                 "primary:{}",
                 vbid,
                 ss.str());
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     return nexusCompactionContext.kvStoreToCompactFirst == primary.get()
@@ -1421,7 +1421,7 @@ vbucket_state* NexusKVStore::getCachedVBucketState(Vbid vbid) {
                 vbid,
                 static_cast<bool>(primaryVbState),
                 static_cast<bool>(secondaryVbState));
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     if (primaryVbState && secondaryVbState &&
@@ -1433,7 +1433,7 @@ vbucket_state* NexusKVStore::getCachedVBucketState(Vbid vbid) {
                 vbid,
                 *primaryVbState,
                 *secondaryVbState);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     return primary->getCachedVBucketState(vbid);
@@ -1451,7 +1451,7 @@ vbucket_state NexusKVStore::getPersistedVBucketState(Vbid vbid) const {
                 vbid,
                 primaryVbState,
                 secondaryVbState);
-        handleError(msg);
+        handleError(msg, vbid);
     }
     return primaryVbState;
 }
@@ -1511,7 +1511,7 @@ size_t NexusKVStore::getItemCount(Vbid vbid) {
                 secondaryCount,
                 primaryPrepares,
                 secondaryPrepares);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     // Return the primary result again
@@ -1554,7 +1554,7 @@ public:
                     cb::UserData(val.item->getKey().to_string()),
                     val.item->getBySeqno(),
                     itr->second);
-            kvstore.handleError(msg);
+            kvstore.handleError(msg, vbid);
         }
 
         if (originalCb) {
@@ -1681,7 +1681,7 @@ RollbackResult NexusKVStore::rollback(Vbid vbid,
                 vbid,
                 firstResult,
                 secondResult);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     for (const auto& [key, seqno] : primaryRollbacks) {
@@ -1699,7 +1699,7 @@ RollbackResult NexusKVStore::rollback(Vbid vbid,
                     vbid,
                     cb::UserData(key.to_string()),
                     seqno);
-            handleError(msg);
+            handleError(msg, vbid);
         }
         secondaryRollbacks.erase(itr);
     }
@@ -1810,7 +1810,7 @@ public:
                     "made fewer invocations. Secondary key:{}",
                     vbid,
                     cb::UserData(key.to_string()));
-            kvstore.handleError(msg);
+            kvstore.handleError(msg, vbid);
         }
 
         const auto& [primaryKey, primaryResult] = primaryCallbacks.front();
@@ -1821,7 +1821,7 @@ public:
                     vbid,
                     cb::UserData(primaryKey.to_string()),
                     cb::UserData(key.to_string()));
-            kvstore.handleError(msg);
+            kvstore.handleError(msg, vbid);
         }
 
         // Set our status so that we stop scanning after the same number of
@@ -1862,7 +1862,7 @@ cb::engine_errc NexusKVStore::getAllKeys(
                 vbid,
                 primaryResult,
                 secondaryResult);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     if (!secondaryCallback->primaryCallbacks.empty()) {
@@ -1877,7 +1877,7 @@ cb::engine_errc NexusKVStore::getAllKeys(
                 "not secondary: {}",
                 vbid,
                 ss.str());
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     return primaryResult;
@@ -1972,7 +1972,7 @@ public:
                     cb::UserData(primaryVal.getKey().to_string()),
                     primaryVal,
                     *val.item);
-            kvstore.handleError(msg);
+            kvstore.handleError(msg, vbid);
         }
 
         // Set our status to that of the primary so we can stop scanning after
@@ -2073,7 +2073,7 @@ public:
                     cb::UserData(primaryVal.getKey().to_string()),
                     primaryVal.getBySeqno(),
                     val.getBySeqno());
-            kvstore.handleError(msg);
+            kvstore.handleError(msg, vbid);
         }
 
         // Set our status to that of the primary so we can stop scanning after
@@ -2233,7 +2233,7 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
                 "failed to create the secondary scan context. "
                 "Check secondary KVStore logs for details.",
                 vbid);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     // Some error checking for the two contexts before we create the
@@ -2246,7 +2246,7 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
                 vbid,
                 primaryCtx->startSeqno,
                 secondaryCtx->startSeqno);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     if (primaryCtx->maxVisibleSeqno != secondaryCtx->maxVisibleSeqno) {
@@ -2257,7 +2257,7 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
                 vbid,
                 primaryCtx->purgeSeqno,
                 secondaryCtx->purgeSeqno);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     if (primaryCtx->persistedCompletedSeqno !=
@@ -2269,7 +2269,7 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
                 vbid,
                 primaryCtx->persistedCompletedSeqno,
                 secondaryCtx->persistedCompletedSeqno);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     if (primaryCtx->collectionsContext != secondaryCtx->collectionsContext) {
@@ -2280,7 +2280,7 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
                 vbid,
                 primaryCtx->collectionsContext,
                 secondaryCtx->collectionsContext);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     // Acquiring the lock at the start of this function means that nothing
@@ -2294,7 +2294,7 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
                 "failed to get the primary file handle. Check "
                 "primary KVStore logs for details.",
                 vbid);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     // We need the vbstate and dropped collections to construct the scan
@@ -2353,7 +2353,7 @@ scan_error_t NexusKVStore::scan(BySeqnoScanContext& ctx) const {
                 ctx.vbid,
                 primaryScanResult,
                 secondaryScanResult);
-        handleError(msg);
+        handleError(msg, ctx.vbid);
     }
 
     if (primaryCtx.lastReadSeqno != secondaryCtx.lastReadSeqno) {
@@ -2363,7 +2363,7 @@ scan_error_t NexusKVStore::scan(BySeqnoScanContext& ctx) const {
                 ctx.vbid,
                 primaryCtx.lastReadSeqno,
                 secondaryCtx.lastReadSeqno);
-        handleError(msg);
+        handleError(msg, ctx.vbid);
     }
 
     auto& primaryScanCallback = dynamic_cast<NexusPrimaryScanCallback&>(
@@ -2378,7 +2378,7 @@ scan_error_t NexusKVStore::scan(BySeqnoScanContext& ctx) const {
                 "callbacks",
                 ctx.vbid,
                 primaryScanCallback.callbacks.size());
-        handleError(msg);
+        handleError(msg, ctx.vbid);
     }
 
     if (!primaryCacheLookup.callbacks.empty()) {
@@ -2388,7 +2388,7 @@ scan_error_t NexusKVStore::scan(BySeqnoScanContext& ctx) const {
                 "lookups",
                 ctx.vbid,
                 primaryCacheLookup.callbacks.size());
-        handleError(msg);
+        handleError(msg, ctx.vbid);
     }
 
     // lastReadSeqno gets checked by backfill so we need to set it in the
@@ -2426,7 +2426,7 @@ NexusKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
                 collection,
                 primaryResult,
                 secondaryResult);
-        handleError(msg);
+        handleError(msg, {} /*vbid*/);
     }
 
     // Can't check disk size as that may differ
@@ -2438,7 +2438,7 @@ NexusKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
                 collection,
                 primaryStats,
                 secondaryStats);
-        handleError(msg);
+        handleError(msg, {} /*vbid*/);
     }
 
     return {primaryResult, primaryStats};
@@ -2459,7 +2459,7 @@ NexusKVStore::getCollectionStats(Vbid vbid, CollectionID collection) const {
                 collection,
                 primaryResult,
                 secondaryResult);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     // Can't check disk size as that may differ
@@ -2472,7 +2472,7 @@ NexusKVStore::getCollectionStats(Vbid vbid, CollectionID collection) const {
                 collection,
                 primaryStats,
                 secondaryStats);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     return {primaryResult, primaryStats};
@@ -2493,7 +2493,7 @@ std::optional<Collections::ManifestUid> NexusKVStore::getCollectionsManifestUid(
                 "collection stats primary:{} secondary:{}",
                 primaryResult,
                 secondaryResult);
-        handleError(msg);
+        handleError(msg, {} /*vbid*/);
     }
 
     return primaryResult;
@@ -2514,7 +2514,7 @@ NexusKVStore::getCollectionsManifest(Vbid vbid) const {
                 vbid,
                 primaryResult,
                 secondaryResult);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     if (primaryManifest != secondaryManifest) {
@@ -2524,7 +2524,7 @@ NexusKVStore::getCollectionsManifest(Vbid vbid) const {
                 vbid,
                 primaryManifest,
                 secondaryManifest);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     return {primaryResult, primaryManifest};
@@ -2543,7 +2543,7 @@ NexusKVStore::getDroppedCollections(Vbid vbid) const {
                 vbid,
                 primaryResult,
                 secondaryResult);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     for (const auto& dc : primaryDropped) {
@@ -2559,7 +2559,7 @@ NexusKVStore::getDroppedCollections(Vbid vbid) const {
                     dc.collectionId,
                     dc.startSeqno,
                     dc.endSeqno);
-            handleError(msg);
+            handleError(msg, vbid);
         }
 
         secondaryDropped.erase(itr);
@@ -2614,7 +2614,7 @@ GetValue NexusKVStore::getBySeqno(KVFileHandle& handle,
                 seq,
                 primaryGetValue.getStatus(),
                 secondaryGetValue.getStatus());
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     if (primaryGetValue.getStatus() == cb::engine_errc::success &&
@@ -2626,7 +2626,7 @@ GetValue NexusKVStore::getBySeqno(KVFileHandle& handle,
                 seq,
                 *primaryGetValue.item,
                 *secondaryGetValue.item);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     return primaryGetValue;
@@ -2751,7 +2751,7 @@ uint64_t NexusKVStore::getLastPersistedSeqno(Vbid vbid) {
                 vbid,
                 primarySeqno,
                 secondarySeqno);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     return primarySeqno;
@@ -2786,7 +2786,7 @@ uint64_t NexusKVStore::prepareToDeleteImpl(Vbid vbid) {
                 vbid,
                 primaryResult,
                 secondaryResult);
-        handleError(msg);
+        handleError(msg, vbid);
     }
 
     return primaryResult;
@@ -2797,10 +2797,16 @@ void NexusKVStore::prepareToCreateImpl(Vbid vbid) {
     secondary->prepareToCreateImpl(vbid);
 }
 
-void NexusKVStore::handleError(std::string_view msg) const {
+void NexusKVStore::handleError(std::string_view msg,
+                               std::optional<Vbid> vbid) const {
+    std::string formatted;
+    formatted.append(msg);
+    if (vbid) {
+        formatted.append(fmt::format(" purgeSeqno:{}", getPurgeSeqno(*vbid)));
+    }
     cb::handleError(*getGlobalBucketLogger(),
                     spdlog::level::critical,
-                    msg,
+                    formatted,
                     configuration.getErrorHandlingMethod());
 }
 

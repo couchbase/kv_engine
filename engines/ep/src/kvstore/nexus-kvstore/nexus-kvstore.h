@@ -167,7 +167,12 @@ protected:
      */
     void loadPurgeSeqnoCache();
 
-    void handleError(std::string_view msg) const;
+    /**
+     * Handle an error in the configured way and log the given message
+     * @param msg to log
+     * @param vbid if supplied logs the purgeSeqno for this vBucket
+     */
+    void handleError(std::string_view msg, std::optional<Vbid> vbid) const;
 
     /**
      * Create a Collections::VB::Manifest for the secondary KVStore to use

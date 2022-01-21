@@ -94,7 +94,7 @@ public:
                     "call primary set callback for key:{}",
                     item.getVBucketId(),
                     cb::UserData(diskKey.to_string()));
-            kvstore.handleError(msg);
+            kvstore.handleError(msg, item.getVBucketId());
         }
 
         if (kvstore.getPurgeSeqno(item.getVBucketId()) != 0) {
@@ -122,7 +122,7 @@ public:
                     cb::UserData(diskKey.to_string()),
                     itr->second,
                     m);
-            kvstore.handleError(msg);
+            kvstore.handleError(msg, item.getVBucketId());
         }
     }
 
@@ -136,7 +136,7 @@ public:
                     "didn't call primary deletion callback for key:{}",
                     item.getVBucketId(),
                     cb::UserData(diskKey.to_string()));
-            kvstore.handleError(msg);
+            kvstore.handleError(msg, item.getVBucketId());
         }
 
         if (kvstore.getPurgeSeqno(item.getVBucketId()) != 0) {
@@ -163,7 +163,7 @@ public:
                     cb::UserData(diskKey.to_string()),
                     itr->second,
                     d);
-            kvstore.handleError(msg);
+            kvstore.handleError(msg, item.getVBucketId());
         }
     }
 
