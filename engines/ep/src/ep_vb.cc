@@ -35,6 +35,7 @@
 #include "vbucketdeletiontask.h"
 #include <executor/executorpool.h>
 #include <folly/lang/Assume.h>
+#include <gsl/gsl-lite.h>
 #include <platform/histogram.h>
 
 EPVBucket::EPVBucket(Vbid i,
@@ -107,6 +108,35 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
         const std::chrono::steady_clock::time_point startTime) {
     cb::engine_errc status = fetched_item.value->getStatus();
     Item* fetchedValue = fetched_item.value->item.get();
+
+    // when this scope ends, update stats and tracing
+    auto traceEndGuard = gsl::finally(
+            [this, &fetched_item = std::as_const(fetched_item), startTime] {
+                const auto fetchEnd = std::chrono::steady_clock::now();
+                updateBGStats(fetched_item.initTime, startTime, fetchEnd);
+
+                // Close the BackgroundWait span; and add a BackgroundLoad span
+                auto* traceable = cookie2traceable(fetched_item.cookie);
+                if (traceable && traceable->isTracingEnabled()) {
+                    NonBucketAllocationGuard guard;
+                    auto& tracer = traceable->getTracer();
+                    tracer.end(fetched_item.traceSpanId, startTime);
+                    auto spanId = tracer.begin(
+                            cb::tracing::Code::BackgroundLoad, startTime);
+                    tracer.end(spanId, fetchEnd);
+                }
+            });
+
+    switch (fetched_item.filter) {
+    case ValueFilter::KEYS_ONLY:
+        ++stats.bg_meta_fetched;
+        break;
+    case ValueFilter::VALUES_DECOMPRESSED:
+    case ValueFilter::VALUES_COMPRESSED:
+        ++stats.bg_fetched;
+        break;
+    }
+
     { // locking scope
         auto docKey = key.getDocKey();
         folly::SharedMutex::ReadHolder rlh(getStateLock());
@@ -118,37 +148,47 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
                 getState() == vbucket_state_replica ? ForGetReplicaOp::Yes
                                                     : ForGetReplicaOp::No);
         auto* v = res.storedValue;
+
+        if (!v) {
+            /* MB-14859:
+             * If cb::engine_errc::no_such_key is the status from storage and
+             * the temp key is removed from hash table by the time bgfetch
+             * returns (in case multiple bgfetch is scheduled for a key), we
+             * still need to return cb::engine_errc::success to the memcached
+             * worker thread, so that the worker thread can visit the ep-engine
+             * and figure out the correct flow */
+            if (fetched_item.filter == ValueFilter::KEYS_ONLY &&
+                status == cb::engine_errc::no_such_key) {
+                return cb::engine_errc::success;
+            }
+            return status;
+        }
+
         switch (fetched_item.filter) {
         case ValueFilter::KEYS_ONLY:
             if (status == cb::engine_errc::success) {
-                if (v && v->isTempInitialItem() &&
+                if (v->isTempInitialItem() &&
                     v->getCas() == fetched_item.token) {
                     ht.unlocked_restoreMeta(
                             res.lock.getHTLock(), *fetchedValue, *v);
                 }
             } else if (status == cb::engine_errc::no_such_key) {
-                if (v && v->isTempInitialItem() &&
+                if (v->isTempInitialItem() &&
                     v->getCas() == fetched_item.token) {
                     v->setNonExistent();
                 }
-                /* If cb::engine_errc::no_such_key is the status from storage
-                 and the temp key is removed from hash table by the time bgfetch
-                 returns (in case multiple bgfetch is scheduled for a key), we
-                 still need to return cb::engine_errc::success to the memcached
-                 worker thread, so that the worker thread can visit the
-                 ep-engine and figure out the correct flow */
+
                 status = cb::engine_errc::success;
             } else {
-                if (v && !v->isTempInitialItem()) {
+                if (!v->isTempInitialItem()) {
                     status = cb::engine_errc::success;
                 }
             }
-            ++stats.bg_meta_fetched;
             break;
         case ValueFilter::VALUES_DECOMPRESSED:
         case ValueFilter::VALUES_COMPRESSED: {
             bool restore = false;
-            if (v && v->isResident()) {
+            if (v->isResident()) {
                 status = cb::engine_errc::success;
             } else {
                 switch (eviction) {
@@ -162,8 +202,7 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
                     // is still the most recent version of the key. If we did
                     // not, we'd potentially fetch old values back into the
                     // HashTable.
-                    if (v && !v->isResident() &&
-                        v->getCas() == fetched_item.token) {
+                    if (!v->isResident() && v->getCas() == fetched_item.token) {
                         restore = true;
                     }
                     break;
@@ -177,11 +216,9 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
                     // is still the most recent version of the key. If we did
                     // not, we'd potentially fetch old values back into the
                     // HashTable.
-                    if (v) {
-                        if (v->isTempInitialItem() || !v->isResident()) {
-                            if (v->getCas() == fetched_item.token) {
-                                restore = true;
-                            }
+                    if (v->isTempInitialItem() || !v->isResident()) {
+                        if (v->getCas() == fetched_item.token) {
+                            restore = true;
                         }
                     }
                     break;
@@ -221,25 +258,10 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
                     status = cb::engine_errc::temporary_failure;
                 }
             }
-            ++stats.bg_fetched;
             break;
         }
         }
     } // locked scope ends
-
-    const auto fetchEnd = std::chrono::steady_clock::now();
-    updateBGStats(fetched_item.initTime, startTime, fetchEnd);
-
-    // Close the BackgroundWait span; and add a BackgroundLoad span
-    auto* traceable = cookie2traceable(fetched_item.cookie);
-    if (traceable && traceable->isTracingEnabled()) {
-        NonBucketAllocationGuard guard;
-        auto& tracer = traceable->getTracer();
-        tracer.end(fetched_item.traceSpanId, startTime);
-        auto spanId =
-                tracer.begin(cb::tracing::Code::BackgroundLoad, startTime);
-        tracer.end(spanId, fetchEnd);
-    }
 
     return status;
 }
