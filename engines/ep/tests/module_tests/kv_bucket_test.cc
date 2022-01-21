@@ -53,6 +53,7 @@
 #include "../mock/mock_magma_kvstore.h"
 #endif
 
+#include <folly/portability/GMock.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
@@ -1982,6 +1983,50 @@ TEST_P(KVBucketParamTest, VbucketStateCounts) {
     expectVbCounts(1, 1);
     store->setVBucketState(vbB, vbucket_state_replica);
     expectVbCounts(0, 2);
+}
+
+TEST_P(KVBucketParamTest, SeqnoPersistenceTimeout) {
+    auto& config = engine->getConfiguration();
+    const size_t newTimeout = 20;
+    ASSERT_NE(newTimeout, store->getSeqnoPersistenceTimeout().count());
+    config.setSeqnoPersistenceTimeout(newTimeout);
+    EXPECT_EQ(newTimeout, store->getSeqnoPersistenceTimeout().count());
+}
+
+TEST_P(KVBucketParamTest, SeqnoPersistenceTimeout_LowerThanMin) {
+    auto& config = engine->getConfiguration();
+    const auto initialVal = store->getSeqnoPersistenceTimeout().count();
+    const auto newVal = 0;
+    ASSERT_NE(initialVal, newVal);
+    try {
+        config.setSeqnoPersistenceTimeout(newVal);
+    } catch (const std::range_error& e) {
+        EXPECT_THAT(e.what(),
+                    testing::HasSubstr(
+                            "Validation Error, seqno_persistence_timeout takes "
+                            "values between 10 and 30"));
+        EXPECT_EQ(initialVal, store->getSeqnoPersistenceTimeout().count());
+        return;
+    }
+    FAIL();
+}
+
+TEST_P(KVBucketParamTest, SeqnoPersistenceTimeout_HigherThanMax) {
+    auto& config = engine->getConfiguration();
+    const auto initialVal = store->getSeqnoPersistenceTimeout().count();
+    const auto newVal = 40;
+    ASSERT_NE(initialVal, newVal);
+    try {
+        config.setSeqnoPersistenceTimeout(newVal);
+    } catch (const std::range_error& e) {
+        EXPECT_THAT(e.what(),
+                    testing::HasSubstr(
+                            "Validation Error, seqno_persistence_timeout takes "
+                            "values between 10 and 30"));
+        EXPECT_EQ(initialVal, store->getSeqnoPersistenceTimeout().count());
+        return;
+    }
+    FAIL();
 }
 
 class StoreIfTest : public KVBucketTest {

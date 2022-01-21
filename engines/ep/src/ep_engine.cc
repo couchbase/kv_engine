@@ -845,6 +845,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setVbucketMappingSanityChecking(cb_stob(val));
         } else if (key == "vbucket_mapping_sanity_checking_error_mode") {
             configuration.setVbucketMappingSanityCheckingErrorMode(val);
+        } else if (key == "seqno_persistence_timeout") {
+            configuration.setSeqnoPersistenceTimeout(std::stoul(val));
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::invalid_arguments;
@@ -3078,8 +3080,6 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         collector.addStat(Key::ep_flusher_todo, epstats.flusher_todo);
         collector.addStat(Key::ep_total_persisted, epstats.totalPersisted);
         collector.addStat(Key::ep_uncommitted_items, epstats.flusher_todo);
-        collector.addStat(Key::ep_seqno_persistence_timeout,
-                          VBucket::getSeqnoPersistenceTimeout().count());
     }
     collector.addStat(Key::ep_vbucket_del, epstats.vbucketDeletions);
     collector.addStat(Key::ep_vbucket_del_fail, epstats.vbucketDeletionFail);

@@ -311,6 +311,7 @@ Available params for "set":
                                    keep as part of compaction
     pitr_granularity             - The granularity (in seconds) for the point
                                    in time recovery
+    seqno_persistence_timeout    - Timeout in seconds after which a pending SeqnoPersistence operation is temp-failed
 
   Available params for "set replication_param":
     replication_throttle_threshold   - Percentage of memory in use to throttle

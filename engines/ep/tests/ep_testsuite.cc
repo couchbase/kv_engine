@@ -7091,6 +7091,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_rocksdb_seqno_cf_optimize_compaction",
               "ep_rocksdb_write_rate_limit",
               "ep_rocksdb_uc_max_size_amplification_percent",
+              "ep_seqno_persistence_timeout",
               "ep_sync_writes_max_allowed_replicas",
               "ep_time_synchronization",
               "ep_uuid",
@@ -7407,6 +7408,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_rocksdb_write_rate_limit",
               "ep_rocksdb_uc_max_size_amplification_percent",
               "ep_rollback_count",
+              "ep_seqno_persistence_timeout",
               "ep_startup_time",
               "ep_storedval_num",
               "ep_storedval_overhead",
@@ -7639,8 +7641,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_item_flush_expired",
                           "ep_item_flush_failed",
                           "ep_total_persisted",
-                          "ep_uncommitted_items",
-                          "ep_seqno_persistence_timeout"});
+                          "ep_uncommitted_items"});
 
         // Config variables only valid for persistent
         std::initializer_list<std::string_view> persistentConfig = {

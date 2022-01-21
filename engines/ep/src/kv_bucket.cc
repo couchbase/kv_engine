@@ -136,6 +136,8 @@ public:
             store.setMaxTtl(value);
         } else if (key == "checkpoint_max_size") {
             store.setCheckpointMaxSize(value);
+        } else if (key == "seqno_persistence_timeout") {
+            store.setSeqnoPersistenceTimeout(std::chrono::seconds(value));
         } else {
             EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
@@ -433,6 +435,12 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     setCheckpointMaxSize(config.getCheckpointMaxSize());
     config.addValueChangedListener(
             "checkpoint_max_size",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    setSeqnoPersistenceTimeout(
+            std::chrono::seconds(config.getSeqnoPersistenceTimeout()));
+    config.addValueChangedListener(
+            "seqno_persistence_timeout",
             std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
@@ -3022,4 +3030,12 @@ size_t KVBucket::getCheckpointPendingDestructionMemoryUsage() const {
 void NotifyNewSeqnoCB::callback(const Vbid& vbid,
                                 const VBNotifyCtx& notifyCtx) {
     kvBucket.notifyNewSeqno(vbid, notifyCtx);
+}
+
+void KVBucket::setSeqnoPersistenceTimeout(std::chrono::seconds timeout) {
+    seqnoPersistenceTimeout = timeout;
+}
+
+std::chrono::seconds KVBucket::getSeqnoPersistenceTimeout() const {
+    return seqnoPersistenceTimeout;
 }

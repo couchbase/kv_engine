@@ -1514,8 +1514,6 @@ public:
      */
     virtual size_t getNumPersistedDeletes() const = 0;
 
-    static std::chrono::seconds getSeqnoPersistenceTimeout();
-
     /**
      * Set the memory threshold on the current bucket quota for accepting a
      * new mutation. This is same across all the vbuckets

@@ -3960,14 +3960,15 @@ VBucket::getHighPriorityNotifications(EventuallyPersistentEngine& engine,
     auto req = hpVBReqs.begin();
 
     while (req != hpVBReqs.end()) {
-        auto wall_time = std::chrono::steady_clock::now() - req->start;
-        auto spent =
-                std::chrono::duration_cast<std::chrono::seconds>(wall_time);
+        const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::steady_clock::now() - req->start);
+        const auto timeout = bucket->getSeqnoPersistenceTimeout();
+
         if (req->seqno <= seqno) {
             toNotify[req->cookie] = cb::engine_errc::success;
             stats.seqnoPersistenceHisto.add(
                     std::chrono::duration_cast<std::chrono::microseconds>(
-                            wall_time));
+                            elapsed));
             EP_LOG_INFO(
                     "Notified SeqnoPersistence completion for {} Check for: "
                     "{}, "
@@ -3977,7 +3978,7 @@ VBucket::getHighPriorityNotifications(EventuallyPersistentEngine& engine,
                     seqno,
                     static_cast<const void*>(req->cookie));
             req = hpVBReqs.erase(req);
-        } else if (spent > getSeqnoPersistenceTimeout()) {
+        } else if (elapsed > timeout) {
             engine.storeEngineSpecific(req->cookie, nullptr);
             toNotify[req->cookie] = cb::engine_errc::temporary_failure;
             EP_LOG_WARN(
@@ -3995,10 +3996,6 @@ VBucket::getHighPriorityNotifications(EventuallyPersistentEngine& engine,
     }
     numHpVBReqs.store(hpVBReqs.size());
     return toNotify;
-}
-
-std::chrono::seconds VBucket::getSeqnoPersistenceTimeout() {
-    return std::chrono::seconds(30);
 }
 
 std::map<const CookieIface*, cb::engine_errc>

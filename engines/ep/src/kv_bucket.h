@@ -902,6 +902,16 @@ public:
 
     size_t getCheckpointPendingDestructionMemoryUsage() const;
 
+    /**
+     * Sets the timeout in seconds after which a pending SeqnoPersistence
+     * operation is temp-failed
+     *
+     * @param timeout
+     */
+    void setSeqnoPersistenceTimeout(std::chrono::seconds timeout);
+
+    std::chrono::seconds getSeqnoPersistenceTimeout() const;
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the
@@ -1151,6 +1161,10 @@ protected:
      * @todo MB-48529: Move to CheckpointConfig
      */
     std::atomic<size_t> checkpointMaxSize{0};
+
+    /// Timeout in seconds after which a pending SeqnoPersistence operation is
+    /// temp-failed
+    std::atomic<std::chrono::seconds> seqnoPersistenceTimeout;
 
     friend class KVBucketTest;
 

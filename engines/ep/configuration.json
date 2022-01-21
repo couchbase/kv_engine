@@ -1535,6 +1535,18 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "seqno_persistence_timeout": {
+            "default": "30",
+            "descr": "Timeout in seconds after which a pending SeqnoPersistence operation is temp-failed",
+            "dynamic": true,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 10,
+                    "max": 30
+                }
+            }
+        },
         "sync_writes_max_allowed_replicas" : {
             "default": "2",
             "descr": "The maximum number of supported replicas for SyncWrites. Attempts to issue SyncWrites against a topology with more replicas than this setting will fail with DurabilityImpossible.",
