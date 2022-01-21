@@ -1165,15 +1165,30 @@ void EPVBucket::collectionsRolledBack(KVBucket& bucket) {
 }
 
 void EPVBucket::setNumTotalItems(KVStoreIface& kvstore) {
-    size_t vbItemCount = kvstore.getItemCount(getId());
+    const size_t itemCount = kvstore.getItemCount(getId());
     const auto* vbState = kvstore.getCachedVBucketState(getId());
     Expects(vbState);
     // We don't want to include the number of prepares on disk in the number
     // of items in the vBucket/Bucket that is displayed to the user so
     // subtract the number of prepares from the number of on disk items.
-    vbItemCount -= vbState->onDiskPrepares;
-
-    setNumTotalItems(vbItemCount - lockCollections().getSystemEventItemCount());
+    const auto vbItemCount1 = itemCount - vbState->onDiskPrepares;
+    const auto systemEvents = lockCollections().getSystemEventItemCount();
+    const auto vbItemCount2 = vbItemCount1 - systemEvents;
+    try {
+        setNumTotalItems(vbItemCount2);
+    } catch (const std::exception& e) {
+        EP_LOG_CRITICAL(
+                "EPVBucket::setNumTotalItems {} caught exception itemCount:{} - "
+                "onDiskPrepares:{} "
+                " - systemEvents:{} = {} e.what:{}",
+                getId(),
+                itemCount,
+                vbState->onDiskPrepares,
+                systemEvents,
+                vbItemCount2,
+                e.what());
+        throw e;
+    }
 }
 
 void EPVBucket::notifyFlusher() {
