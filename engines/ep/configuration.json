@@ -306,6 +306,18 @@
                 }
             }
         },
+        "compaction_max_concurrent_ratio": {
+            "default": "0.5",
+            "desr" : "Maximum number of CompactVBucketTask tasks which can run concurrently, as a fraction of the possible Writer task concurrency. Note that a minimum of 1, and a maximum of N-1 CompactVBucketTasks will be run (where N is the possible Writer task concurrency), to ensure both forward progress for Compaction and Flushing.",
+            "dynamic": true,
+            "type" : "float",
+            "validator": {
+                "range": {
+                    "min": 0.0,
+                    "max": 1.0
+                }
+            }
+        },
         "concurrent_pagers": {
             "default": "2",
             "descr": "Number of eviction pager tasks to create when memory usage is high",

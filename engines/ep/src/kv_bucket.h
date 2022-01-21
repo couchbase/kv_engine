@@ -610,6 +610,10 @@ public:
         compactionWriteQueueCap = to;
     }
 
+    void setCompactionMaxConcurrency(float to) override {
+        compactionMaxConcurrency = to;
+    }
+
     bool isAccessScannerEnabled() override {
         std::lock_guard<std::mutex> lh(accessScanner.mutex);
         return accessScanner.enabled;
@@ -1033,6 +1037,12 @@ protected:
     // frequency counts do not become saturated.
     ExTask itemFreqDecayerTask;
     size_t                          compactionWriteQueueCap;
+
+    /**
+     * Cached copy of Configuration::compaction_max_concurrent_ratio, to
+     * avoid taking that mutex on every compaction schedule.
+     */
+    float compactionMaxConcurrency;
 
     // Responsible for enforcing the Durability Timeout for the SyncWrites
     // tracked in this KVBucket.

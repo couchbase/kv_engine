@@ -172,6 +172,8 @@ public:
             store.setCheckpointMemoryRecoveryUpperMark(value);
         } else if (key == "checkpoint_memory_recovery_lower_mark") {
             store.setCheckpointMemoryRecoveryLowerMark(value);
+        } else if (key == "compaction_max_concurrent_ratio") {
+            store.setCompactionMaxConcurrency(value);
         }
     }
 
@@ -381,6 +383,11 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     compactionWriteQueueCap = config.getCompactionWriteQueueCap();
     config.addValueChangedListener(
             "compaction_write_queue_cap",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    compactionMaxConcurrency = config.getCompactionMaxConcurrentRatio();
+    config.addValueChangedListener(
+            "compaction_max_concurrent_ratio",
             std::make_unique<EPStoreValueChangeListener>(*this));
 
     config.addValueChangedListener(

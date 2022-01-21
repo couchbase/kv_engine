@@ -1093,12 +1093,19 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
             // We therefore limit the number of concurrent compactors
             // in the following (somewhat non-scientific way).
 
-            const auto maxConcurrentWriterTasks =
-                std::min(ExecutorPool::get()->getNumWriters(),
-                         vbMap.getNumShards());
+            const int maxConcurrentWriterTasks = std::min(
+                    ExecutorPool::get()->getNumWriters(), vbMap.getNumShards());
 
-            if ((stats.diskQueueSize > compactionWriteQueueCap &&
-                 handle->size() > (maxConcurrentWriterTasks / 2)) ||
+            // Calculate how many compaction tasks we will permit. We always
+            // allow at least one (see `if (handle->size() > 1)` above,
+            // then we limit to a fraction of the available WriterTasks,
+            // however imposing an upper bound so there is at least 1
+            // Writer task slot available for other tasks (i.e. Flusher).
+            const int maxConcurrentCompactTasks = std::min(
+                    int(maxConcurrentWriterTasks * compactionMaxConcurrency),
+                    maxConcurrentWriterTasks - 1);
+
+            if (int(handle->size()) > maxConcurrentCompactTasks ||
                 engine.getWorkLoadPolicy().getWorkLoadPattern() == READ_HEAVY) {
                 // Snooze a new compaction task.
                 // We will wake it up when one of the existing compaction tasks
