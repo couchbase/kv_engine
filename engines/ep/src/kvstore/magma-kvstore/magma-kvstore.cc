@@ -2175,6 +2175,21 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
             ctx->compactConfig.drop_deletes,
             ctx->compactConfig.retain_erroneous_tombstones);
 
+    // Gather stats so we log pre/post difference. For magma, tombstone count
+    // isn't known so is not updated.
+    // The pre/post stats are approximate as magma is not locked between here
+    // and the call to CompactKVStore
+    auto updateStats = [this, vbid](FileInfo& info) {
+        auto stats = getMagmaDbStats(vbid);
+        if (stats) {
+            info.items = stats->docCount;
+            info.purgeSeqno = stats->purgeSeqno;
+        }
+        auto dbInfo = getDbFileInfo(vbid);
+        info.size = dbInfo.fileSize;
+    };
+    updateStats(ctx->stats.pre);
+
     auto [getDroppedStatus, dropped] = getDroppedCollections(vbid);
     if (!getDroppedStatus) {
         logger->warn(
@@ -2449,6 +2464,8 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 ctx->stats.tombstonesPurged,
                 ctx->stats.preparesPurged);
     }
+
+    updateStats(ctx->stats.post);
     return ret;
 }
 
