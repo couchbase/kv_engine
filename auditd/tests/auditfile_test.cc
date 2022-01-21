@@ -148,6 +148,27 @@ TEST_F(AuditFileTest, TestSizeRotate) {
     EXPECT_EQ(10, files.size());
 }
 
+TEST_F(AuditFileTest, TestSizeRotateDisabled) {
+    AuditConfig defaultvalue;
+    config.set_rotate_interval(defaultvalue.get_max_file_rotation_time());
+    config.set_rotate_size(0);
+
+    AuditFile auditfile("testing");
+    auditfile.reconfigure(config);
+
+    event["log_path"] = "fooo";
+
+    for (int ii = 0; ii < 10; ++ii) {
+        auditfile.ensure_open();
+        auditfile.write_event_to_disk(event);
+    }
+
+    auditfile.close();
+
+    auto files = findFilesWithPrefix(testdir + "/testing");
+    EXPECT_EQ(1, files.size());
+}
+
 /**
  * Test that the time rollover starts from the time the file was
  * opened, and not from the instance was configured

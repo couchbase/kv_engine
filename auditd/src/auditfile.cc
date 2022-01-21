@@ -73,7 +73,7 @@ bool AuditFile::time_to_rotate_log() const {
         return true;
     }
 
-    if (current_size > max_log_size) {
+    if (max_log_size && (current_size > max_log_size)) {
         return true;
     }
 
