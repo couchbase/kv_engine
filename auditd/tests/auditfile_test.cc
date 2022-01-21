@@ -212,7 +212,7 @@ TEST_F(AuditFileTest, TestSuccessfulCrashRecovery) {
     AuditFile auditfile("testing");
     auditfile.reconfigure(config);
 
-    EXPECT_NO_THROW(auditfile.cleanup_old_logfile(testdir));
+    auditfile.cleanup_old_logfile(testdir);
 
     auto files = findFilesWithPrefix(testdir + "/testing-2015-03-13T02-36-00");
     EXPECT_EQ(1, files.size());
@@ -229,7 +229,7 @@ TEST_F(AuditFileTest, TestCrashRecoveryEmptyFile) {
     EXPECT_TRUE(fp != nullptr);
     fclose(fp);
 
-    EXPECT_NO_THROW(auditfile.cleanup_old_logfile(testdir));
+    auditfile.cleanup_old_logfile(testdir);
     {
         // It should not have created any new files
         auto files = findFilesWithPrefix(testdir + "/testing");

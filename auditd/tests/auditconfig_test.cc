@@ -86,7 +86,7 @@ TEST_F(AuditConfigTest, UnknownTag) {
 // version
 
 TEST_F(AuditConfigTest, TestGetVersion) {
-    ASSERT_NO_THROW(config.initialize_config(json));
+    config.initialize_config(json);
     EXPECT_EQ(2, config.get_version());
 }
 
@@ -118,7 +118,7 @@ TEST_F(AuditConfigTest, TestLegalVersion) {
             json["uuid"] = "123456";
         }
         if ((version == 1) || (version == 2)) {
-            EXPECT_NO_THROW(config.initialize_config(json));
+            config.initialize_config(json);
         } else {
             EXPECT_THROW(config.initialize_config(json), std::invalid_argument);
         }
@@ -146,7 +146,7 @@ TEST_F(AuditConfigTest, TestRotateSizeIllegalDatatype) {
 
 TEST_F(AuditConfigTest, TestRotateSizeLegalValue) {
     json["rotate_size"] = 100;
-    EXPECT_NO_THROW(config.initialize_config(json));
+    config.initialize_config(json);
 }
 
 TEST_F(AuditConfigTest, TestRotateSizeIllegalValue) {
@@ -185,7 +185,7 @@ TEST_F(AuditConfigTest, TestRotateIntervalLegalValue) {
     for (uint32_t ii = min_file_rotation_time; ii < max_file_rotation_time;
          ii += 1000) {
         json["rotate_interval"] = ii;
-        EXPECT_NO_THROW(config.initialize_config(json));
+        config.initialize_config(json);
     }
 }
 
@@ -221,10 +221,10 @@ TEST_F(AuditConfigTest, TestIllegalDatatypeAuditdEnabled) {
 
 TEST_F(AuditConfigTest, TestLegalAuditdEnabled) {
     json["auditd_enabled"] = true;
-    EXPECT_NO_THROW(config.initialize_config(json));
+    config.initialize_config(json);
 
     json["auditd_enabled"] = false;
-    EXPECT_NO_THROW(config.initialize_config(json));
+    config.initialize_config(json);
 }
 
 // buffered
@@ -232,7 +232,7 @@ TEST_F(AuditConfigTest, TestLegalAuditdEnabled) {
 TEST_F(AuditConfigTest, TestNoBuffered) {
     // buffered is optional, and enabled unless explicitly disabled
     json.erase("buffered");
-    EXPECT_NO_THROW(config.initialize_config(json));
+    config.initialize_config(json);
     EXPECT_TRUE(config.is_buffered());
 }
 
@@ -250,10 +250,10 @@ TEST_F(AuditConfigTest, TestIllegalDatatypeBuffered) {
 
 TEST_F(AuditConfigTest, TestLegalBuffered) {
     json["buffered"] = true;
-    EXPECT_NO_THROW(config.initialize_config(json));
+    config.initialize_config(json);
 
     json["buffered"] = false;
-    EXPECT_NO_THROW(config.initialize_config(json));
+    config.initialize_config(json);
 }
 
 // log_path
@@ -264,14 +264,14 @@ TEST_F(AuditConfigTest, TestNoLogPath) {
 }
 
 TEST_F(AuditConfigTest, TestGetSetLogPath) {
-    EXPECT_NO_THROW(config.set_log_directory(testdir));
+    config.set_log_directory(testdir);
     EXPECT_EQ(testdir, config.get_log_directory());
 }
 
 TEST_F(AuditConfigTest, TestGetSetSanitizeLogPath) {
     // Trim of trailing paths
     std::string path = testdir + std::string("/");
-    EXPECT_NO_THROW(config.set_log_directory(path));
+    config.set_log_directory(path);
     EXPECT_EQ(testdir, config.get_log_directory());
 }
 
@@ -279,11 +279,9 @@ TEST_F(AuditConfigTest, TestGetSetSanitizeLogPath) {
 TEST_F(AuditConfigTest, TestGetSetSanitizeLogPathMixedSeparators) {
     // Trim of trailing paths
     std::string path = testdir + std::string("/mydir\\baddir");
-    EXPECT_NO_THROW(config.set_log_directory(path));
+    config.set_log_directory(path);
     EXPECT_EQ(testdir + "\\mydir\\baddir", config.get_log_directory());
-    EXPECT_NO_THROW(cb::io::rmrf(config.get_log_directory()))
-        << "Failed to remove: " << config.get_log_directory()
-        << ": " << strerror(errno) << std::endl;
+    cb::io::rmrf(config.get_log_directory());
 }
 #endif
 
@@ -297,10 +295,8 @@ TEST_F(AuditConfigTest, TestFailToCreateDirLogPath) {
 TEST_F(AuditConfigTest, TestCreateDirLogPath) {
     std::string path = testdir + std::string("/mybar");
     json["log_path"] = path;
-    EXPECT_NO_THROW(config.initialize_config(json));
-    EXPECT_NO_THROW(cb::io::rmrf(config.get_log_directory()))
-        << "Failed to remove: " << config.get_log_directory()
-        << ": " << strerror(errno) << std::endl;
+    config.initialize_config(json);
+    cb::io::rmrf(config.get_log_directory());
 }
 
 // descriptors_path
@@ -311,7 +307,7 @@ TEST_F(AuditConfigTest, TestNoDescriptorsPath) {
 }
 
 TEST_F(AuditConfigTest, TestGetSetDescriptorsPath) {
-    EXPECT_NO_THROW(config.set_descriptors_path(testdir));
+    config.set_descriptors_path(testdir);
     EXPECT_EQ(testdir, config.get_descriptors_path());
 }
 
@@ -320,9 +316,7 @@ TEST_F(AuditConfigTest, TestSetMissingEventDescrFileDescriptorsPath) {
     cb::io::mkdirp(path);
 
     EXPECT_THROW(config.set_descriptors_path(path), std::system_error);
-    EXPECT_NO_THROW(cb::io::rmrf(path))
-        << "Failed to remove: " << path
-        << ": " << strerror(errno) << std::endl;
+    cb::io::rmrf(path);
 }
 
 // Sync
@@ -338,7 +332,7 @@ TEST_F(AuditConfigTest, TestSpecifySync) {
         array.push_back(ii);
     }
     json["sync"] = array;
-    EXPECT_NO_THROW(config.initialize_config(json));
+    config.initialize_config(json);
 
     for (uint32_t ii = 0; ii < 100; ++ii) {
         if (ii < 10) {
@@ -356,7 +350,7 @@ TEST_F(AuditConfigTest, TestNoDisabled) {
     if (config.get_version() == 1) {
         EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
     } else {
-        EXPECT_NO_THROW(config.initialize_config(json));
+        config.initialize_config(json);
     }
 }
 
@@ -366,7 +360,7 @@ TEST_F(AuditConfigTest, TestSpecifyDisabled) {
         array.push_back(ii);
     }
     json["disabled"] = array;
-    EXPECT_NO_THROW(config.initialize_config(json));
+    config.initialize_config(json);
 
     for (uint32_t ii = 0; ii < 100; ++ii) {
         if (ii < 10 && config.get_version() == 1) {
@@ -395,7 +389,7 @@ TEST_F(AuditConfigTest, TestSpecifyDisabledUsers) {
         array.push_back(userIdRoot);
     }
     json["disabled_userids"] = array;
-    EXPECT_NO_THROW(config.initialize_config(json));
+    config.initialize_config(json);
 
     for (uint16_t ii = 0; ii < 100; ++ii) {
         const auto& domain = "internal";
@@ -471,17 +465,17 @@ TEST_F(AuditConfigTest, TestIllegalDatatypeFilteringEnabled) {
 
 TEST_F(AuditConfigTest, TestLegalFilteringEnabled) {
     json["filtering_enabled"] = true;
-    EXPECT_NO_THROW(config.initialize_config(json));
+    config.initialize_config(json);
 
     json["filtering_enabled"] = false;
-    EXPECT_NO_THROW(config.initialize_config(json));
+    config.initialize_config(json);
 }
 
 // The event_states list is optional and therefore if it does not exist
 // it should not throw an exception.
 TEST_F(AuditConfigTest, TestNoEventStates) {
     json.erase("event_states");
-    EXPECT_NO_THROW(config.initialize_config(json));
+    config.initialize_config(json);
 }
 
 // Test that with an event_states object consisting of "enabled" and "disabled"
@@ -498,7 +492,7 @@ TEST_F(AuditConfigTest, TestSpecifyEventStates) {
         object[event] = "disabled";
     }
     json["event_states"] = object;
-    EXPECT_NO_THROW(config.initialize_config(json));
+    config.initialize_config(json);
 
     for (uint32_t ii = 0; ii < 20; ++ii) {
         if (ii < 5) {
