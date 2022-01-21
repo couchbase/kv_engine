@@ -1034,3 +1034,6 @@ protected:
     /// database.
     std::unique_ptr<KVFileHandle> kvFileHandle;
 };
+
+std::ostream& operator<<(std::ostream& os, const ValueFilter& vf);
+std::ostream& operator<<(std::ostream& os, const DocumentFilter& df);

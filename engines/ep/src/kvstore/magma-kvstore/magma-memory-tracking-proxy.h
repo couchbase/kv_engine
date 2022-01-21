@@ -57,6 +57,7 @@ public:
                    magma::Slice& meta,
                    magma::Slice& value,
                    magma::Magma::SeqNo& seqno) override;
+    std::string to_string() const;
 
 private:
     std::unique_ptr<magma::Magma::SeqIterator> itr;

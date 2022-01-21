@@ -11,6 +11,7 @@
 
 #include "magma-memory-tracking-proxy.h"
 
+#include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
 #include <platform/cb_arena_malloc.h>
 
@@ -57,6 +58,10 @@ void DomainAwareSeqIterator::Seek(const magma::Magma::SeqNo startSeqno,
                                   const magma::Magma::SeqNo endSeqno) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     return itr->Seek(startSeqno, endSeqno);
+}
+
+std::string DomainAwareSeqIterator::to_string() const {
+    return fmt::format("{:p}", fmt::ptr(itr.get()));
 }
 
 template <>

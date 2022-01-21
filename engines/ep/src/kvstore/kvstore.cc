@@ -637,3 +637,41 @@ std::tuple<bool, uint64_t, uint64_t> KVStore::processVbstateSnapshot(
 
     return {status, snapStart, snapEnd};
 }
+
+std::ostream& operator<<(std::ostream& os, const ValueFilter& vf) {
+    switch (vf) {
+    case ValueFilter::KEYS_ONLY:
+        os << "KEYS_ONLY";
+        break;
+    case ValueFilter::VALUES_COMPRESSED:
+        os << "VALUES_COMPRESSED";
+        break;
+    case ValueFilter::VALUES_DECOMPRESSED:
+        os << "VALUES_DECOMPRESSED";
+        break;
+    default:
+        os << "INVALID ValueFilter value:" +
+                        std::to_string(static_cast<uint64_t>(vf));
+        break;
+    }
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const DocumentFilter& df) {
+    switch (df) {
+    case DocumentFilter::ALL_ITEMS:
+        os << "ALL_ITEMS";
+        break;
+    case DocumentFilter::NO_DELETES:
+        os << "NO_DELETES";
+        break;
+    case DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS:
+        os << "ALL_ITEMS_AND_DROPPED_COLLECTIONS";
+        break;
+    default:
+        os << "INVALID ValueFilter value:" +
+                        std::to_string(static_cast<uint64_t>(df));
+        break;
+    }
+    return os;
+}

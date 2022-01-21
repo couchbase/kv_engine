@@ -1609,72 +1609,33 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
     }
 
     if (logger->should_log(spdlog::level::info)) {
-        std::string docFilter;
-        switch (options) {
-        case DocumentFilter::ALL_ITEMS:
-            docFilter = "ALL_ITEMS";
-            break;
-        case DocumentFilter::NO_DELETES:
-            docFilter = "NO_DELETES";
-            break;
-        case DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS:
-            docFilter = "ALL_ITEMS_AND_DROPPED_COLLECTIONS";
-            break;
-        }
-        if (docFilter.size() == 0) {
-            throw std::logic_error(
-                    "MagmaKVStore::initBySeqnoScanContext Unknown "
-                    "DocumentFilter:" +
-                    std::to_string(static_cast<int>(options)));
-        }
-
-        std::string valFilter;
-        switch (valOptions) {
-        case ValueFilter::KEYS_ONLY:
-            valFilter = "KEYS_ONLY";
-            break;
-        case ValueFilter::VALUES_COMPRESSED:
-            valFilter = "VALUES_COMPRESSED";
-            break;
-        case ValueFilter::VALUES_DECOMPRESSED:
-            valFilter = "VALUES_DECOMPRESSED";
-            break;
-        }
-        if (valFilter.size() == 0) {
-            throw std::logic_error(
-                    "MagmaKVStore::initBySeqnoScanContext Unknown "
-                    "ValueFilter:" +
-                    std::to_string(static_cast<int>(valOptions)));
-        }
-
         logger->info(
                 "MagmaKVStore::initBySeqnoScanContext {} seqno:{} endSeqno:{}"
                 " purgeSeqno:{} nDocsToRead:{} docFilter:{} valFilter:{} "
-                "SeqIterator:{:p}",
+                "SeqIterator:{}",
                 vbid,
                 startSeqno,
                 highSeqno,
                 purgeSeqno,
                 nDocsToRead,
-                docFilter,
-                valFilter,
-                fmt::ptr(itr.get()));
+                options,
+                valOptions,
+                itr->to_string());
     }
 
-    auto mctx = std::make_unique<MagmaScanContext>(std::move(cb),
-                                                   std::move(cl),
-                                                   vbid,
-                                                   std::move(handle),
-                                                   startSeqno,
-                                                   highSeqno,
-                                                   purgeSeqno,
-                                                   options,
-                                                   valOptions,
-                                                   nDocsToRead,
-                                                   readState.vbstate,
-                                                   dropped,
-                                                   std::move(itr));
-    return mctx;
+    return std::make_unique<MagmaScanContext>(std::move(cb),
+                                              std::move(cl),
+                                              vbid,
+                                              std::move(handle),
+                                              startSeqno,
+                                              highSeqno,
+                                              purgeSeqno,
+                                              options,
+                                              valOptions,
+                                              nDocsToRead,
+                                              readState.vbstate,
+                                              dropped,
+                                              std::move(itr));
 }
 
 std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
