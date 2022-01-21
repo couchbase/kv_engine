@@ -67,10 +67,12 @@ uint32_t AuditFile::get_seconds_to_rotation() const {
 }
 
 bool AuditFile::time_to_rotate_log() const {
-    cb_assert(open_time != 0);
-    time_t now = auditd_time();
-    if (difftime(now, open_time) > rotate_interval) {
-        return true;
+    if (rotate_interval) {
+        cb_assert(open_time != 0);
+        time_t now = auditd_time();
+        if (difftime(now, open_time) > rotate_interval) {
+            return true;
+        }
     }
 
     if (max_log_size && (current_size > max_log_size)) {

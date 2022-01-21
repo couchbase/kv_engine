@@ -107,8 +107,8 @@ size_t AuditConfig::get_rotate_size() const {
 }
 
 void AuditConfig::set_rotate_interval(uint32_t interval) {
-    if (interval > max_file_rotation_time ||
-        interval < min_file_rotation_time) {
+    if (interval != 0 && (interval > max_file_rotation_time ||
+                          interval < min_file_rotation_time)) {
         std::stringstream ss;
         ss << "AuditConfig::set_rotate_interval(): Rotation interval "
            << interval << " is outside the legal range ["

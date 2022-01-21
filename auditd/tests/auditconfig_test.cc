@@ -161,6 +161,12 @@ TEST_F(AuditConfigTest, TestNoRotateInterval) {
     EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
 }
 
+TEST_F(AuditConfigTest, TestDisableRotateInterval) {
+    json["rotate_interval"] = 0;
+    config.initialize_config(json);
+    EXPECT_EQ(0, config.get_rotate_interval());
+}
+
 TEST_F(AuditConfigTest, TestRotateIntervalSetGet) {
     AuditConfig defaultvalue;
     const uint32_t min_file_rotation_time = defaultvalue.get_min_file_rotation_time();

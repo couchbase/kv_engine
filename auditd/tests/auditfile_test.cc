@@ -123,6 +123,27 @@ TEST_F(AuditFileTest, TestTimeRotate) {
     EXPECT_EQ(10, files.size());
 }
 
+/// Verify that it is possible to disable time based rotation
+TEST_F(AuditFileTest, TestTimeRotateDisabled) {
+    config.set_rotate_interval(0);
+    config.set_rotate_size(0);
+
+    AuditFile auditfile("testing");
+    auditfile.reconfigure(config);
+    event["log_path"] = "fooo";
+
+    // Generate a few events while traveling in time
+    for (int ii = 0; ii < 10; ++ii) {
+        auditfile.ensure_open();
+        auditfile.write_event_to_disk(event);
+        cb_timeofday_timetravel(config.get_min_file_rotation_time() + 1);
+    }
+    auditfile.close();
+
+    auto files = findFilesWithPrefix(testdir + "/testing");
+    EXPECT_EQ(1, files.size());
+}
+
 /**
  * Test that the we'll rotate to the next file as the content
  * of the file gets bigger.
