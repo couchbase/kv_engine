@@ -47,6 +47,7 @@
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
+#include "tests/module_tests/kvstore_test.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/test_task.h"
 #include "tests/module_tests/thread_gate.h"
@@ -4813,6 +4814,32 @@ TEST_P(STParamPersistentBucketTest, SetVBucketStateDirtyQueueAge) {
     flushVBucketToDiskIfPersistent(vbid, 0);
     EXPECT_EQ(0, vb->dirtyQueueAge);
     EXPECT_EQ(0, vb->dirtyQueueSize);
+}
+
+TEST_P(STParamPersistentBucketTest, GetAllKeysDoesNotCountDeleted) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Delete a couple of items before our alive one to check that we are
+    // counting items seen in the same way for each KVStore
+    store_item(vbid, makeStoredDocKey("key1"), "v");
+    delete_item(vbid, makeStoredDocKey("key1"));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, makeStoredDocKey("key2"), "v");
+    delete_item(vbid, makeStoredDocKey("key2"));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, makeStoredDocKey("key3"), "v");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Start searching from key1 with a limit of 1 to end in the middle of our
+    // deleted keys. If we count deleted keys we'd stop before we visit the
+    // alive item at key 3 and have different callbacks between the primary and
+    // the secondary.
+    auto cb(std::make_shared<CustomCallback<const DiskDocKey&>>());
+    DiskDocKey start("key1", 0);
+    store->getRWUnderlying(vbid)->getAllKeys(vbid, start, 1 /*count*/, cb);
+    EXPECT_EQ(1, cb->getProcessedCount());
 }
 
 TEST_P(STParameterizedBucketTest, CkptMgrDedupeStatsCorrectSmallToLarge) {

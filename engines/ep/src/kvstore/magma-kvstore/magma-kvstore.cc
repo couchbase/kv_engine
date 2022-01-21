@@ -2125,7 +2125,7 @@ cb::engine_errc MagmaKVStore::getAllKeys(
 
     auto start = std::chrono::steady_clock::now();
     auto status = magma->GetRange(
-            vbid.get(), startKeySlice, endKeySlice, callback, false, count);
+            vbid.get(), startKeySlice, endKeySlice, callback, false);
     if (!status) {
         logger->critical("MagmaKVStore::getAllKeys {} startKey:{} status:{}",
                          vbid,
