@@ -82,7 +82,7 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(
     : PassiveDurabilityMonitor(
               vb, adm.getHighPreparedSeqno(), adm.getHighCompletedSeqno()) {
     EP_LOG_INFO(
-            "PassiveDurabilityMonitor::ctor(PDM&&): {} Transitioning from "
+            "PassiveDurabilityMonitor::ctor(ADM&&): {} Transitioning from "
             "ADM. HPS:{}, HCS:{}, numTracked:{}, highestTracked:{}",
             vb.getId(),
             adm.getHighPreparedSeqno(),
