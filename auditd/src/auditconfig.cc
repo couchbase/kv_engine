@@ -18,7 +18,6 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
-#include <sstream>
 #include <system_error>
 
 AuditConfig::AuditConfig(const nlohmann::json& json) : AuditConfig() {
@@ -131,40 +130,34 @@ bool AuditConfig::is_buffered() const {
     return buffered;
 }
 
-void AuditConfig::set_log_directory(const std::string &directory) {
-    std::lock_guard<std::mutex> guard(log_path_mutex);
-    /* Sanitize path */
-    log_path = directory;
-    sanitize_path(log_path);
+void AuditConfig::set_log_directory(std::string directory) {
+    sanitize_path(directory);
     try {
-        cb::io::mkdirp(log_path);
+        cb::io::mkdirp(directory);
     } catch (const std::runtime_error& error) {
         std::stringstream ss;
         ss << "AuditConfig::set_log_directory(): Failed to create log "
               "directory \""
-           << log_path << "\": " << error.what();
+           << directory << "\": " << error.what();
         throw std::runtime_error(ss.str());
     }
+
+    log_path.swap(directory);
 }
 
 std::string AuditConfig::get_log_directory() const {
-    std::lock_guard<std::mutex> guard(log_path_mutex);
-    return log_path;
+    return *log_path.lock();
 }
 
-void AuditConfig::set_descriptors_path(const std::string &directory) {
-    std::lock_guard<std::mutex> guard(descriptor_path_mutex);
-    /* Sanitize path */
-    descriptors_path = directory;
-    sanitize_path(descriptors_path);
-
+void AuditConfig::set_descriptors_path(std::string directory) {
+    sanitize_path(directory);
     std::string fname;
-    if (cb::io::isDirectory(descriptors_path)) {
-        fname = descriptors_path + cb::io::DirectorySeparator +
-                "audit_events.json";
+    if (cb::io::isDirectory(directory)) {
+        fname = directory + cb::io::DirectorySeparator + "audit_events.json";
     } else {
-        fname = descriptors_path;
+        fname = directory;
     }
+
     auto* fp = fopen(fname.c_str(), "r");
     if (!fp) {
         std::stringstream ss;
@@ -173,11 +166,12 @@ void AuditConfig::set_descriptors_path(const std::string &directory) {
         throw std::system_error(errno, std::system_category(), ss.str());
     }
     fclose(fp);
+
+    descriptors_path.swap(directory);
 }
 
 std::string AuditConfig::get_descriptors_path() const {
-    std::lock_guard<std::mutex> guard(descriptor_path_mutex);
-    return descriptors_path;
+    return *descriptors_path.lock();
 }
 
 void AuditConfig::set_version(uint32_t ver) {
@@ -195,32 +189,34 @@ uint32_t AuditConfig::get_version() const {
 }
 
 bool AuditConfig::is_event_sync(uint32_t id) {
-    std::lock_guard<std::mutex> guard(sync_mutex);
-    return std::find(sync.begin(), sync.end(), id) != sync.end();
+    return sync.withLock([id](auto& vec) {
+        return std::find(vec.begin(), vec.end(), id) != vec.end();
+    });
 }
 
 bool AuditConfig::is_event_disabled(uint32_t id) {
-    std::lock_guard<std::mutex> guard(disabled_mutex);
-    return std::find(disabled.begin(), disabled.end(), id) != disabled.end();
+    return disabled.withLock([id](auto& vec) {
+        return std::find(vec.begin(), vec.end(), id) != vec.end();
+    });
 }
 
 AuditConfig::EventState AuditConfig::get_event_state(uint32_t id) const {
-    std::lock_guard<std::mutex> guard(event_states_mutex);
-    const auto it = event_states.find(id);
-    if (it == event_states.end()) {
-        // If event state is not defined (as either enabled or disabled) then
-        // return undefined.
-        return EventState::undefined;
-    }
-    return it->second;
+    return event_states.withLock([id](auto& map) -> EventState {
+        const auto it = map.find(id);
+        if (it == map.end()) {
+            // If event state is not defined (as either enabled or disabled)
+            // then return undefined.
+            return EventState::undefined;
+        }
+        return it->second;
+    });
 }
 
 bool AuditConfig::is_event_filtered(
         const std::pair<std::string, std::string>& userid) const {
-    std::lock_guard<std::mutex> guard(disabled_userids_mutex);
-    return std::find(disabled_userids.begin(),
-                     disabled_userids.end(),
-                     userid) != disabled_userids.end();
+    return disabled_userids.withLock([&userid](auto& vec) {
+        return std::find(vec.begin(), vec.end(), userid) != vec.end();
+    });
 }
 
 void AuditConfig::set_filtering_enabled(bool value) {
@@ -238,14 +234,12 @@ void AuditConfig::sanitize_path(std::string &path) {
     }
 }
 
-void AuditConfig::set_uuid(const std::string &_uuid) {
-    std::lock_guard<std::mutex> guard(uuid_mutex);
-    uuid = _uuid;
+void AuditConfig::set_uuid(std::string _uuid) {
+    uuid.swap(_uuid);
 }
 
 std::string AuditConfig::get_uuid() const {
-    std::lock_guard<std::mutex> guard(uuid_mutex);
-    return uuid;
+    return *uuid.lock();
 }
 
 void AuditConfig::add_array(std::vector<uint32_t>& vec,
@@ -342,23 +336,24 @@ void AuditConfig::add_pair_string_array(
 }
 
 void AuditConfig::set_sync(const nlohmann::json& array) {
-    std::lock_guard<std::mutex> guard(sync_mutex);
-    add_array(sync, array, "sync");
+    sync.withLock([this, &array](auto& vec) { add_array(vec, array, "sync"); });
 }
 
 void AuditConfig::set_disabled(const nlohmann::json& array) {
-    std::lock_guard<std::mutex> guard(disabled_mutex);
-    add_array(disabled, array, "disabled");
+    disabled.withLock(
+            [this, &array](auto& vec) { add_array(vec, array, "disabled"); });
 }
 
 void AuditConfig::set_disabled_userids(const nlohmann::json& array) {
-    std::lock_guard<std::mutex> guard(disabled_userids_mutex);
-    add_pair_string_array(disabled_userids, array, "disabled_userids");
+    disabled_userids.withLock([this, &array](auto& vec) {
+        add_pair_string_array(vec, array, "disabled_userids");
+    });
 }
 
 void AuditConfig::set_event_states(const nlohmann::json& object) {
-    std::lock_guard<std::mutex> guard(event_states_mutex);
-    add_event_states_object(event_states, object, "event_states");
+    event_states.withLock([this, &object](auto& map) {
+        add_event_states_object(map, object, "event_states");
+    });
 }
 
 nlohmann::json AuditConfig::to_json() const {
@@ -373,40 +368,44 @@ nlohmann::json AuditConfig::to_json() const {
     ret["filtering_enabled"] = is_filtering_enabled();
     ret["uuid"] = get_uuid();
 
-    ret["sync"] = sync;
-    ret["disabled"] = disabled;
+    sync.withLock([&ret](auto& vec) { ret["sync"] = vec; });
+    disabled.withLock([&ret](auto& vec) { ret["disabled"] = vec; });
 
     auto array = nlohmann::json::array();
-    for (const auto& v : disabled_userids) {
-        nlohmann::json userIdRoot;
-        userIdRoot["domain"] = v.first;
-        userIdRoot["user"] = v.second;
-        array.push_back(userIdRoot);
-    }
+    disabled_userids.withLock([&array](auto& vec) {
+        for (const auto& v : vec) {
+            nlohmann::json userIdRoot;
+            userIdRoot["domain"] = v.first;
+            userIdRoot["user"] = v.second;
+            array.push_back(userIdRoot);
+        }
+    });
     ret["disabled_userids"] = array;
 
     nlohmann::json object;
-    for (const auto& v : event_states) {
-        std::string event = std::to_string(v.first);
-        EventState estate = v.second;
-        std::string state;
-        switch (estate) {
-        case EventState::enabled: {
-            state = "enabled";
-            break;
+    event_states.withLock([&object](auto& map) {
+        for (const auto& v : map) {
+            std::string event = std::to_string(v.first);
+            EventState estate = v.second;
+            std::string state;
+            switch (estate) {
+            case EventState::enabled: {
+                state = "enabled";
+                break;
+            }
+            case EventState::disabled: {
+                state = "disabled";
+                break;
+            }
+            case EventState::undefined: {
+                throw std::logic_error(
+                        "AuditConfig::to_json - EventState:undefined should "
+                        "not be found in the event_states list");
+            }
+            }
+            object[event] = state;
         }
-        case EventState::disabled: {
-            state = "disabled";
-            break;
-        }
-        case EventState::undefined: {
-            throw std::logic_error(
-                    "AuditConfig::to_json - EventState:undefined should not be "
-                    "found in the event_states list");
-        }
-        }
-        object[event] = state;
-    }
+    });
     ret["event_states"] = object;
 
     return ret;
@@ -420,38 +419,13 @@ void AuditConfig::initialize_config(const nlohmann::json& json) {
     rotate_size = other.rotate_size;
     buffered = other.buffered;
     filtering_enabled = other.filtering_enabled;
-    {
-        std::lock_guard<std::mutex> guard(log_path_mutex);
-        log_path = other.log_path;
-    }
-    {
-        std::lock_guard<std::mutex> guard(descriptor_path_mutex);
-        descriptors_path = other.descriptors_path;
-    }
-    {
-        std::lock_guard<std::mutex> guard(sync_mutex);
-        sync = other.sync;
-    }
-
-    {
-        std::lock_guard<std::mutex> guard(disabled_mutex);
-        disabled = other.disabled;
-    }
-
-    {
-        std::lock_guard<std::mutex> guard(disabled_userids_mutex);
-        disabled_userids = other.disabled_userids;
-    }
-
-    {
-        std::lock_guard<std::mutex> guard(event_states_mutex);
-        event_states = other.event_states;
-    }
-
-    {
-        std::lock_guard<std::mutex> guard(uuid_mutex);
-        uuid = other.uuid;
-    }
+    log_path.swap(other.log_path);
+    descriptors_path.swap(other.descriptors_path);
+    sync.swap(other.sync);
+    disabled.swap(other.disabled);
+    disabled_userids.swap(other.disabled_userids);
+    event_states.swap(other.event_states);
+    uuid.swap(other.uuid);
 
     version = other.version;
 }

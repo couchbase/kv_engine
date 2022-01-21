@@ -10,7 +10,9 @@
  */
 #pragma once
 
+#include <folly/Synchronized.h>
 #include <nlohmann/json_fwd.hpp>
+#include <relaxed_atomic.h>
 #include <atomic>
 #include <cinttypes>
 #include <mutex>
@@ -18,8 +20,6 @@
 #include <unordered_map>
 #include <utility> // For std::pair
 #include <vector>
-
-#include <relaxed_atomic.h>
 
 class AuditConfig {
 public:
@@ -33,8 +33,7 @@ public:
           rotate_size(20 * 1024 * 1024),
           buffered(true),
           filtering_enabled(false),
-          version(0),
-          uuid("") {
+          version(0) {
         // Empty
     }
 
@@ -61,9 +60,9 @@ public:
     uint32_t get_rotate_interval() const;
     void set_buffered(bool enable);
     bool is_buffered() const;
-    void set_log_directory(const std::string &directory);
+    void set_log_directory(std::string directory);
     std::string get_log_directory() const;
-    void set_descriptors_path(const std::string &directory);
+    void set_descriptors_path(std::string directory);
     std::string get_descriptors_path() const;
     void set_version(uint32_t ver);
     uint32_t get_version() const;
@@ -75,7 +74,7 @@ public:
             const std::pair<std::string, std::string>& userid) const;
     bool is_filtering_enabled() const;
     void set_filtering_enabled(bool value);
-    void set_uuid(const std::string &uuid);
+    void set_uuid(std::string uuid);
     std::string get_uuid() const;
 
     uint32_t get_min_file_rotation_time() const {
@@ -117,26 +116,16 @@ protected:
     cb::RelaxedAtomic<bool> filtering_enabled;
     cb::RelaxedAtomic<uint32_t> version;
 
-    mutable std::mutex log_path_mutex;
-    std::string log_path;
-
-    mutable std::mutex descriptor_path_mutex;
-    std::string descriptors_path;
-
-    std::mutex sync_mutex;
-    std::vector<uint32_t> sync;
-
-    std::mutex disabled_mutex;
-    std::vector<uint32_t> disabled;
-
-    mutable std::mutex disabled_userids_mutex;
-    std::vector<std::pair<std::string, std::string>> disabled_userids;
-
-    mutable std::mutex event_states_mutex;
-    std::unordered_map<uint32_t, EventState> event_states;
-
-    mutable std::mutex uuid_mutex;
-    std::string uuid;
+    folly::Synchronized<std::string, std::mutex> log_path;
+    folly::Synchronized<std::string, std::mutex> descriptors_path;
+    folly::Synchronized<std::vector<uint32_t>, std::mutex> sync;
+    folly::Synchronized<std::vector<uint32_t>, std::mutex> disabled;
+    folly::Synchronized<std::vector<std::pair<std::string, std::string>>,
+                        std::mutex>
+            disabled_userids;
+    folly::Synchronized<std::unordered_map<uint32_t, EventState>, std::mutex>
+            event_states;
+    folly::Synchronized<std::string, std::mutex> uuid;
 
     const uint32_t min_file_rotation_time = 900; // 15 minutes
     const uint32_t max_file_rotation_time = 604800; // 1 week
