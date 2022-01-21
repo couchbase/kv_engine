@@ -5341,3 +5341,63 @@ TEST_P(STParamPersistentBucketTest, MB_47134) {
     EXPECT_EQ(0, vb.dirtyQueueMem);
     EXPECT_EQ(0, vb.dirtyQueuePendingWrites);
 }
+
+TEST_P(STParamPersistentBucketTest,
+       FlushStatsAtPersistNonMetaItems_CkptMgrSuccessPersistAgain) {
+    using namespace testing;
+    auto& mockKVStore = MockKVStore::replaceRWKVStoreWithMock(*store, 0);
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    SCOPED_TRACE("");
+    store_item(vbid,
+               makeStoredDocKey("keyA"),
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::success} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES);
+
+    const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    EXPECT_EQ(1, vb.dirtyQueueSize);
+    EXPECT_EQ(0, vb.getPersistenceSeqno());
+    EXPECT_EQ(1, vb.getHighSeqno());
+
+    EXPECT_CALL(mockKVStore, commit(_, _))
+            .WillOnce([this, &vb](auto, auto) {
+                store_item(vbid,
+                           makeStoredDocKey("keyA"),
+                           "biggerValue",
+                           0 /*exptime*/,
+                           {cb::engine_errc::success} /*expected*/,
+                           PROTOCOL_BINARY_RAW_BYTES);
+                EXPECT_EQ(2, vb.dirtyQueueSize);
+                // Return flush failure
+                return false;
+            })
+            .WillRepeatedly(DoDefault());
+
+    // This flush fails, we have not written anything to disk
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    // Flush stats not updated
+    EXPECT_EQ(1, vb.dirtyQueueSize);
+    EXPECT_EQ(0, vb.getPersistenceSeqno());
+    EXPECT_EQ(2, vb.getHighSeqno());
+
+    // This flush succeeds, we must write all the expected items and new vbstate
+    // on disk
+    // Flusher deduplication, just 1 item flushed
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(2, vb.getPersistenceSeqno());
+    EXPECT_EQ(2, vb.getHighSeqno());
+
+    // Flush stats updated
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+    EXPECT_EQ(0, vb.dirtyQueueAge);
+    EXPECT_EQ(0, vb.dirtyQueueMem);
+    EXPECT_EQ(0, vb.dirtyQueuePendingWrites);
+}
