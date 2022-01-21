@@ -193,38 +193,18 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
         case ValueFilter::VALUES_DECOMPRESSED:
         case ValueFilter::VALUES_COMPRESSED: {
             bool restore = false;
-            switch (eviction) {
-            case EvictionPolicy::Value:
-                // We can only restore the value if:
-                // 1) The stored value exists
-                // 2) It is non-resident
-                // 3) The cas of the stored value is equal to that of the
-                //    fetch token
-                // This ensures that we only "complete" bg fetches if this
-                // is still the most recent version of the key. If we did
-                // not, we'd potentially fetch old values back into the
-                // HashTable.
-                if (v->getCas() == fetched_item.token) {
-                    restore = true;
-                }
-                break;
-            case EvictionPolicy::Full:
-                // We can only restore the value if:
-                // 1) The stored value exists (checked above)
-                // 2) It is temp-initial or non-resident
-                //    (non-residency checked above)
-                // 3) The cas of the stored value is equal to that of the
-                //    fetch token
-                // This ensures that we only "complete" bg fetches if this
-                // is still the most recent version of the key. If we did
-                // not, we'd potentially fetch old values back into the
-                // HashTable.
-                if (v->getCas() == fetched_item.token) {
-                    restore = true;
-                }
-                break;
-            default:
-                throw std::logic_error("Unknown eviction policy");
+            // We can only restore the value if:
+            // 1) The stored value exists (checked above)
+            // 2) It is temp-initial or non-resident
+            //    (non-residency checked above)
+            // 3) The cas of the stored value is equal to that of the
+            //    fetch token
+            // This ensures that we only "complete" bg fetches if this
+            // is still the most recent version of the key. If we did
+            // not, we'd potentially fetch old values back into the
+            // HashTable.
+            if (v->getCas() == fetched_item.token) {
+                restore = true;
             }
 
             if (restore) {
