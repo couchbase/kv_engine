@@ -1878,26 +1878,19 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
         GTEST_SKIP();
     }
 
-    // No need to run under nexus:
+    // No need to run under magma/nexus:
     //   - The test has been spotted quite fragile multiple times (eg, magma).
     //     It makes assumptions on the mem state of the system after persistence
     //     but that state varies depending on the storage
     //   - The test covers in-memory behaviour and doesn't care about the
     //     particular storage used, so we can just keep the couchstore/magma
     //     versions for persistence, plus ephemeral.
-    if (isNexus()) {
+    if (hasMagma()) {
         GTEST_SKIP();
     }
 
     // Need a slightly higher quota here
     increaseQuota(800 * 1024);
-
-    // Magma has been failing this test consistently after more memory was
-    // allocated to histograms so bump the quota accordingly. If others start
-    // to fail then we should consider moving this to affect all magma tests.
-    if (hasMagma()) {
-        increaseQuota(1024 * 1024);
-    }
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
