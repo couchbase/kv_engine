@@ -62,7 +62,7 @@ MockKVStore::~MockKVStore() = default;
 MockKVStore& MockKVStore::replaceRWKVStoreWithMock(KVBucket& bucket,
                                                    size_t shardId) {
     auto rw = bucket.takeRW(shardId);
-    auto mockRw = std::make_unique<MockKVStore>(std::move(rw));
+    auto mockRw = std::make_unique<NiceMock<MockKVStore>>(std::move(rw));
     auto& mockKVStore = dynamic_cast<MockKVStore&>(*mockRw);
     bucket.setRW(shardId, std::move(mockRw));
     return mockKVStore;
