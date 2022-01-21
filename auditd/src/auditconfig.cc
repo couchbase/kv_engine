@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -9,20 +8,18 @@
  *   the file licenses/APL2.txt.
  */
 
-#include <algorithm>
-#include <cstdio>
-#include <cstring>
-#include <iostream>
-#include <sstream>
-
+#include "auditconfig.h"
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 #include <utilities/json_utilities.h>
-
-#include "audit.h"
-#include "auditconfig.h"
+#include <algorithm>
+#include <cstdio>
+#include <cstring>
+#include <iostream>
+#include <sstream>
+#include <system_error>
 
 AuditConfig::AuditConfig(const nlohmann::json& json) : AuditConfig() {
     set_version(json.at("version"));
@@ -49,7 +46,7 @@ AuditConfig::AuditConfig(const nlohmann::json& json) : AuditConfig() {
             ss << "AuditConfig::AuditConfig 'disabled_userids' should "
                   "be array, but got: '"
                << duids.type_name() << "'";
-            throw std::runtime_error(ss.str());
+            throw std::invalid_argument(ss.str());
         }
         // event_states is optional so if not defined will not throw an
         // exception.
@@ -80,8 +77,9 @@ AuditConfig::AuditConfig(const nlohmann::json& json) : AuditConfig() {
     for (auto it = json.begin(); it != json.end(); ++it) {
         if (tags.find(it.key()) == tags.end()) {
             std::stringstream ss;
-            ss << "Error: Unknown token \"" << it.key() << "\"" << std::endl;
-            throw ss.str();
+            ss << "AuditConfig::AuditConfig(): Error: Unknown token \""
+               << it.key() << "\"" << std::endl;
+            throw std::invalid_argument(ss.str());
         }
     }
 }
@@ -97,10 +95,9 @@ void AuditConfig::set_auditd_enabled(bool value) {
 void AuditConfig::set_rotate_size(size_t size) {
     if (size > max_rotate_file_size) {
         std::stringstream ss;
-        ss << "error: rotation size " << size
-           << " is too big. Legal range is <0, "
-           << max_rotate_file_size << "]";
-        throw ss.str();
+        ss << "AuditConfig::set_rotate_size(): Rotation size " << size
+           << " is too big. Legal range is [0, " << max_rotate_file_size << "]";
+        throw std::invalid_argument(ss.str());
     }
     rotate_size = size;
 }
@@ -113,11 +110,10 @@ void AuditConfig::set_rotate_interval(uint32_t interval) {
     if (interval > max_file_rotation_time ||
         interval < min_file_rotation_time) {
         std::stringstream ss;
-        ss << "error: rotation interval "
+        ss << "AuditConfig::set_rotate_interval(): Rotation interval "
            << interval << " is outside the legal range ["
-           << min_file_rotation_time << ", "
-           << max_file_rotation_time << "]";
-        throw ss.str();
+           << min_file_rotation_time << ", " << max_file_rotation_time << "]";
+        throw std::invalid_argument(ss.str());
     }
 
     rotate_interval = interval;
@@ -144,9 +140,10 @@ void AuditConfig::set_log_directory(const std::string &directory) {
         cb::io::mkdirp(log_path);
     } catch (const std::runtime_error& error) {
         std::stringstream ss;
-        ss << "error: failed to create log directory \""
+        ss << "AuditConfig::set_log_directory(): Failed to create log "
+              "directory \""
            << log_path << "\": " << error.what();
-        throw ss.str();
+        throw std::runtime_error(ss.str());
     }
 }
 
@@ -168,11 +165,12 @@ void AuditConfig::set_descriptors_path(const std::string &directory) {
     } else {
         fname = descriptors_path;
     }
-    FILE* fp = fopen(fname.c_str(), "r");
-    if (fp == nullptr) {
+    auto* fp = fopen(fname.c_str(), "r");
+    if (!fp) {
         std::stringstream ss;
-        ss << "Failed to open \"" << fname.c_str() << "\": " << cb_strerror();
-        throw ss.str();
+        ss << "AuditConfig::set_descriptors_path(): Failed to open \""
+           << fname.c_str() << "\"" << cb_strerror();
+        throw std::system_error(errno, std::system_category(), ss.str());
     }
     fclose(fp);
 }
@@ -185,8 +183,9 @@ std::string AuditConfig::get_descriptors_path() const {
 void AuditConfig::set_version(uint32_t ver) {
     if ((ver != 1) && (ver != 2))  {
            std::stringstream ss;
-           ss << "error: version " << ver << " is not supported";
-           throw ss.str();
+           ss << "AuditConfig::set_version(): version " << ver
+              << " is not supported";
+           throw std::invalid_argument(ss.str());
        }
     version = ver;
 }

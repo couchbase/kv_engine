@@ -80,7 +80,7 @@ std::string AuditConfigTest::testdir;
 
 TEST_F(AuditConfigTest, UnknownTag) {
     json["foo"] = 5;
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    EXPECT_THROW(config.initialize_config(json), std::invalid_argument);
 }
 
 // version
@@ -120,7 +120,7 @@ TEST_F(AuditConfigTest, TestLegalVersion) {
         if ((version == 1) || (version == 2)) {
             EXPECT_NO_THROW(config.initialize_config(json));
         } else {
-            EXPECT_THROW(config.initialize_config(json), std::string);
+            EXPECT_THROW(config.initialize_config(json), std::invalid_argument);
         }
     }
 }
@@ -151,7 +151,7 @@ TEST_F(AuditConfigTest, TestRotateSizeLegalValue) {
 
 TEST_F(AuditConfigTest, TestRotateSizeIllegalValue) {
     json["rotate_size"] = -1;
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    EXPECT_THROW(config.initialize_config(json), std::invalid_argument);
 }
 
 // rotate_interval
@@ -195,9 +195,9 @@ TEST_F(AuditConfigTest, TestRotateIntervalIllegalValue) {
     const uint32_t max_file_rotation_time = defaultvalue.get_max_file_rotation_time();
 
     json["rotate_interval"] = min_file_rotation_time - 1;
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    EXPECT_THROW(config.initialize_config(json), std::invalid_argument);
     json["rotate_interval"] = max_file_rotation_time + 1;
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    EXPECT_THROW(config.initialize_config(json), std::invalid_argument);
 }
 
 // auditd_enabled
@@ -290,7 +290,7 @@ TEST_F(AuditConfigTest, TestGetSetSanitizeLogPathMixedSeparators) {
 #ifndef WIN32
 TEST_F(AuditConfigTest, TestFailToCreateDirLogPath) {
     json["log_path"] = "/itwouldsuckifthisexists";
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    EXPECT_THROW(config.initialize_config(json), std::runtime_error);
 }
 #endif
 
@@ -319,7 +319,7 @@ TEST_F(AuditConfigTest, TestSetMissingEventDescrFileDescriptorsPath) {
     std::string path = testdir + std::string("/foo");
     cb::io::mkdirp(path);
 
-    EXPECT_THROW(config.set_descriptors_path(path), std::string);
+    EXPECT_THROW(config.set_descriptors_path(path), std::system_error);
     EXPECT_NO_THROW(cb::io::rmrf(path))
         << "Failed to remove: " << path
         << ": " << strerror(errno) << std::endl;
