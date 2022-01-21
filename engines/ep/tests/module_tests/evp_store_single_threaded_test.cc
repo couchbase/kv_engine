@@ -20,6 +20,7 @@
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_ep_bucket.h"
 #include "../mock/mock_item_freq_decayer.h"
+#include "../mock/mock_kvstore.h"
 #include "../mock/mock_stream.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "bgfetcher.h"
@@ -5290,4 +5291,53 @@ TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_Del) {
     // Now we can delete docs
     EXPECT_EQ(cb::engine_errc::success,
               store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
+}
+
+TEST_P(STParamPersistentBucketTest, MB_47134) {
+    using namespace testing;
+    auto& mockKVStore = MockKVStore::replaceRWKVStoreWithMock(*store, 0);
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+
+    store_item(vbid, makeStoredDocKey("A"), "value");
+    store_item(vbid, makeStoredDocKey("B"), "value");
+
+    // Store A:1, B:2
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+
+    // Create C:3
+    store_item(vbid, makeStoredDocKey("C"), "value");
+
+    SCOPED_TRACE("");
+
+    EXPECT_EQ(1, vb.dirtyQueueSize);
+
+    EXPECT_CALL(mockKVStore, commit(_, _))
+            .WillOnce([this, &vb](auto, auto) {
+                store_item(vbid, makeStoredDocKey("B"), "value");
+                EXPECT_EQ(2, vb.dirtyQueueSize);
+                // Return flush failure
+                return false;
+            })
+            .WillRepeatedly(DoDefault());
+
+    // This flush fails, we have not written anything to disk
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+
+    // 2 items are dirty - C:3 and B:4
+    EXPECT_EQ(2, vb.dirtyQueueSize);
+
+    // C:3 B:4 flushed - MB_47134 underflow occurs here
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+
+    // Flush stats updated
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+    EXPECT_EQ(0, vb.dirtyQueueAge);
+    EXPECT_EQ(0, vb.dirtyQueueMem);
+    EXPECT_EQ(0, vb.dirtyQueuePendingWrites);
 }
