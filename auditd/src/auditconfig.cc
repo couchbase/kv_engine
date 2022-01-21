@@ -454,8 +454,5 @@ void AuditConfig::initialize_config(const nlohmann::json& json) {
         uuid = other.uuid;
     }
 
-    min_file_rotation_time = other.min_file_rotation_time;
-    max_file_rotation_time = other.max_file_rotation_time;
-    max_rotate_file_size = other.max_rotate_file_size;
     version = other.version;
 }

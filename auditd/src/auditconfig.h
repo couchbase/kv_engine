@@ -27,18 +27,14 @@ public:
                             /* event state defined as disabled */ disabled,
                             /* event state is not defined */ undefined };
 
-    AuditConfig() :
-        auditd_enabled(false),
-        rotate_interval(900),
-        rotate_size(20 * 1024 * 1024),
-        buffered(true),
-        filtering_enabled(false),
-        version(0),
-        uuid(""),
-        min_file_rotation_time(900), // 15 minutes
-        max_file_rotation_time(604800), // 1 week
-        max_rotate_file_size(500 * 1024 * 1024)
-    {
+    AuditConfig()
+        : auditd_enabled(false),
+          rotate_interval(900),
+          rotate_size(20 * 1024 * 1024),
+          buffered(true),
+          filtering_enabled(false),
+          version(0),
+          uuid("") {
         // Empty
     }
 
@@ -82,24 +78,12 @@ public:
     void set_uuid(const std::string &uuid);
     std::string get_uuid() const;
 
-    void set_min_file_rotation_time(uint32_t min_file_rotation_time) {
-        AuditConfig::min_file_rotation_time = min_file_rotation_time;
-    }
-
     uint32_t get_min_file_rotation_time() const {
         return min_file_rotation_time;
     }
 
-    void set_max_file_rotation_time(uint32_t max_file_rotation_time) {
-        AuditConfig::max_file_rotation_time = max_file_rotation_time;
-    }
-
     uint32_t get_max_file_rotation_time() const {
         return max_file_rotation_time;
-    }
-
-    size_t get_max_rotate_file_size() const {
-        return max_rotate_file_size;
     }
 
     /**
@@ -154,7 +138,7 @@ protected:
     mutable std::mutex uuid_mutex;
     std::string uuid;
 
-    cb::RelaxedAtomic<uint32_t> min_file_rotation_time;
-    cb::RelaxedAtomic<uint32_t> max_file_rotation_time;
-    cb::RelaxedAtomic<size_t> max_rotate_file_size;
+    const uint32_t min_file_rotation_time = 900; // 15 minutes
+    const uint32_t max_file_rotation_time = 604800; // 1 week
+    const size_t max_rotate_file_size = 500 * 1024 * 1024; // 500MB
 };
