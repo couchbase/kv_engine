@@ -90,6 +90,35 @@ MockKVStore::MockKVStore(std::unique_ptr<KVStoreIface> real)
                 .WillByDefault([this](auto ctx, auto& commit) {
                     return this->realKVS->commit(std::move(ctx), commit);
                 });
+        ON_CALL(*this, prepareToDeleteImpl(_)).WillByDefault([this](Vbid vbid) {
+            return this->realKVS->prepareToDeleteImpl(vbid);
+        });
+        ON_CALL(*this, prepareToCreateImpl(_)).WillByDefault([this](Vbid vbid) {
+            return this->realKVS->prepareToCreateImpl(vbid);
+        });
+        ON_CALL(*this, getCollectionsManifest(_))
+                .WillByDefault([this](Vbid vbid) {
+                    return this->realKVS->getCollectionsManifest(vbid);
+                });
+        ON_CALL(*this, getItemCount(_)).WillByDefault([this](Vbid vbid) {
+            return this->realKVS->getItemCount(vbid);
+        });
+        ON_CALL(*this, delVBucket(_, _))
+                .WillByDefault([this](Vbid vbid, uint64_t rev) {
+                    return this->realKVS->delVBucket(vbid, rev);
+                });
+        ON_CALL(*this, prepareToCreate(_)).WillByDefault([this](Vbid vbid) {
+            return this->realKVS->prepareToCreate(vbid);
+        });
+        ON_CALL(*this, prepareToDelete(_)).WillByDefault([this](Vbid vbid) {
+            return this->realKVS->prepareToDelete(vbid);
+        });
+        ON_CALL(*this, rollback(_, _, _))
+                .WillByDefault(
+                        [this](auto vbid, auto rollbackSeqno, auto rollbackCB) {
+                            return this->realKVS->rollback(
+                                    vbid, rollbackSeqno, std::move(rollbackCB));
+                        });
     }
 }
 

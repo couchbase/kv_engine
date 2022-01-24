@@ -5401,3 +5401,51 @@ TEST_P(STParamPersistentBucketTest,
     EXPECT_EQ(0, vb.dirtyQueueMem);
     EXPECT_EQ(0, vb.dirtyQueuePendingWrites);
 }
+
+TEST_P(STParamPersistentBucketTest,
+       RollBackToZeroAfterOnDiskPrepareReadFailure) {
+    using namespace testing;
+    auto& mockKVStore = MockKVStore::replaceRWKVStoreWithMock(*store, 0);
+
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    auto& vbucket = *engine->getVBucket(vbid);
+    // Write a prepare so we have something for loadPreparedSyncWrites() to try
+    // and load and 5 items to disk we will try to rollback to the last of these
+    // items
+    store_item(vbid,
+               makeDiskDocKey("key123", true, CollectionID()).getDocKey(),
+               "value",
+               0,
+               {cb::engine_errc::sync_write_pending},
+               PROTOCOL_BINARY_RAW_BYTES,
+               {{cb::durability::Level::Majority, cb::durability::Timeout{}}});
+
+    ASSERT_TRUE(store_items(5, vbid, makeStoredDocKey("key"), "value"));
+    auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+    EXPECT_EQ(6, res.numFlushed);
+
+    // Add another 5 items to disk so we can tell EP Engine to roll these back
+    ASSERT_TRUE(store_items(5, vbid, makeStoredDocKey("key"), "value"));
+    res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+    EXPECT_EQ(5, res.numFlushed);
+    EXPECT_EQ(11, vbucket.getHighSeqno());
+
+    // Set the vbucket to a replica so we can rollback the data on disk
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    // Setup so that we fail during EPBucket::loadPreparedSyncWrites()
+    EXPECT_CALL(mockKVStore, rollback(_, _, _))
+            .WillOnce(Return(RollbackResult(false)))
+            .WillRepeatedly(DoDefault());
+
+    // Try and rollback to seqno 6, this should fail as we're unable to load
+    // prepares on disk due to this we should rollback to seqno 0
+    auto status = engine->getKVBucket()->rollback(vbid, 6);
+    EXPECT_EQ(TaskStatus::Complete, status);
+    auto& vbucketR = *engine->getVBucket(vbid);
+    EXPECT_EQ(0, vbucketR.getHighSeqno());
+    EXPECT_EQ(0, vbucketR.getNumItems());
+}
