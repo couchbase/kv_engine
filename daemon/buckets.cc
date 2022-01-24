@@ -142,7 +142,7 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
     cb::engine_errc result;
     auto cid = cookie.getConnectionId();
 
-    LOG_INFO("{}: Create bucket [{}]", cid, name);
+    LOG_INFO("{}: Create {} bucket [{}]", cid, to_string(type), name);
 
     size_t ii;
     size_t first_free = all_buckets.size();
@@ -208,6 +208,11 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
     }
 
     try {
+        LOG_INFO(R"({}: Initialize {} bucket [{}] using configuration: "{}")",
+                 cid,
+                 to_string(type),
+                 name,
+                 config);
         result = engine.initialize(config);
     } catch (const std::runtime_error& e) {
         LOG_ERROR("{}: Failed to create bucket [{}]: {}", cid, name, e.what());

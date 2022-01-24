@@ -2061,7 +2061,6 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
         return cb::engine_errc::failed;
     }
     name = configuration.getCouchBucket();
-    EP_LOG_INFO(R"(EPEngine::initialize: using configuration:"{}")", config);
 
     // Create the bucket data directory, ns_server should have created the
     // process level one but they expect us to create the bucket level one.
