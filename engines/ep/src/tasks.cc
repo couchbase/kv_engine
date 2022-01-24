@@ -71,7 +71,16 @@ bool CompactTask::run() {
     auto reschedule =
             bucket.doCompact(vbid, compactionData.first, compactionData.second);
 
-    bucket.updateCompactionTasks(vbid, !reschedule /*canErase if !reschedule*/);
+    // If this compaction has finished its work (doesn't need to be
+    // re-scheduled), then clean up the task and see if any other tasks
+    // should now be woken up.
+    // Note that compaction for this vBucket may have been re-scheduled
+    // while it was running (e.g. one or more collections have been dropped
+    // and we need to compact to clean them up), hence updateCompactionTasks()
+    // may cause us to have to re-run the task.
+    if (!reschedule) {
+        reschedule = bucket.updateCompactionTasks(vbid);
+    }
 
     return isTaskDone(compactionData.second) || reschedule;
 }

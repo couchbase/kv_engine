@@ -1420,28 +1420,25 @@ bool EPBucket::doCompact(Vbid vbid,
     return reschedule;
 }
 
-bool EPBucket::updateCompactionTasks(Vbid vbid, bool canErase) {
+bool EPBucket::updateCompactionTasks(Vbid vbid) {
     auto handle = compactionTasks.wlock();
     // Copy the size before we may erase a task
     auto size = handle->size();
-    bool reschedule = false;
 
     // process the caller and then find a second task to wake
-    if (canErase) {
-        if (auto itr = handle->find(vbid); itr != handle->end()) {
-            const auto& task = (*itr).second;
-            if (task->isRescheduleRequired()) {
-                // Nope can't erase!
-                reschedule = true;
-            } else {
-                // Done, can now erase from the compactionTasks map
-                handle->erase(itr);
-            }
+    if (auto itr = handle->find(vbid); itr != handle->end()) {
+        const auto& task = (*itr).second;
+        if (task->isRescheduleRequired()) {
+            // Nope can't erase! Must re-schedule this task.
+            return true;
         } else {
-            throw std::logic_error(
-                    "EPBucket::updateCompactionTasks no task for vbid:" +
-                    vbid.to_string());
+            // Done, can now erase from the compactionTasks map
+            handle->erase(itr);
         }
+    } else {
+        throw std::logic_error(
+                "EPBucket::updateCompactionTasks no task for vbid:" +
+                vbid.to_string());
     }
 
     // If another task does exist, find it and wake it
@@ -1456,7 +1453,7 @@ bool EPBucket::updateCompactionTasks(Vbid vbid, bool canErase) {
             }
         }
     }
-    return reschedule;
+    return false;
 }
 
 cb::engine_errc EPBucket::getFileStats(const BucketStatCollector& collector) {

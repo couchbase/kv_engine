@@ -2145,6 +2145,69 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     EXPECT_EQ(cb::engine_errc::failed, mock_waitfor_cookie(cookie));
 }
 
+/**
+ * MB-50555: Verify that when multiple compactions for different vbs are
+ * scheduled, that the limit is not exceeded if one of the Compaction tasks
+ * needs to be re-scheduled as the VBucket is locked.
+ */
+TEST_P(EPBucketTestNoRocksDb,
+       MB50555_ScheduleCompactionEnforceConcurrencyLimit) {
+    auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+
+    // Change compaction concurrency ratio to a very low value so we only allow
+    // a single compactor task to run at once.
+    engine->getConfiguration().setCompactionMaxConcurrentRatio(0.0001);
+
+    // Schedule the first vb compaction. This should be ready to run
+    // on an executor thread.
+    CompactionConfig config{100, 1, true, true};
+    ASSERT_EQ(cb::engine_errc::would_block,
+              mockEPBucket->scheduleCompaction(
+                      vbid, config, nullptr, std::chrono::seconds(0)));
+    auto task1 = mockEPBucket->getCompactionTask(vbid);
+    ASSERT_TRUE(task1);
+    ASSERT_EQ(task_state_t::TASK_RUNNING, task1->getState());
+
+    // Schedule a second compaction task for a second vbid. This one should
+    // be queued as we have exceeded the number of concurrent compaction
+    // tasks permitted.
+    Vbid vbid2{2};
+    store->setVBucketState(vbid2, vbucket_state_active);
+    ASSERT_EQ(cb::engine_errc::would_block,
+              mockEPBucket->scheduleCompaction(
+                      vbid2, config, nullptr, std::chrono::seconds(0)));
+    auto task2 = mockEPBucket->getCompactionTask(vbid2);
+    ASSERT_TRUE(task2);
+    ASSERT_EQ(task_state_t::TASK_SNOOZED, task2->getState());
+
+    // Take the VBucket lock for vbid, then trigger compaction. This should
+    // // cause doCompact to fail (it cannot compact and hence task should be
+    // rescheduled.
+    {
+        auto lockedVB = engine->getKVBucket()->getLockedVBucket(vbid);
+        ASSERT_TRUE(task1->run());
+    }
+
+    // Test: Check that only one task is set to RUNNING (the one for vbid);
+    // we should not have woken up the second one yet.
+    // Both tasks should also still exist.
+    task1 = mockEPBucket->getCompactionTask(vbid);
+    ASSERT_TRUE(task1);
+    EXPECT_EQ(task_state_t::TASK_RUNNING, task1->getState());
+
+    task2 = mockEPBucket->getCompactionTask(vbid2);
+    ASSERT_TRUE(task2);
+    EXPECT_EQ(task_state_t::TASK_SNOOZED, task2->getState());
+
+    // Test 2: Run task1 a second time - without taking the VBucket lock. This
+    // should complete, and wake up task2.
+    EXPECT_FALSE(task1->run());
+    task1 = mockEPBucket->getCompactionTask(vbid);
+    EXPECT_FALSE(task1);
+
+    EXPECT_EQ(task_state_t::TASK_RUNNING, task2->getState());
+}
+
 class EPBucketTestCouchstore : public EPBucketTest {
 public:
     void SetUp() override {

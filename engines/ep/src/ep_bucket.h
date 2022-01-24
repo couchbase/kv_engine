@@ -159,8 +159,9 @@ public:
      * will be 'poked' to run. This method is called from CompactTask
      *
      * @param vbid id of vbucket that has completed compaction
+     * @returns True if the current task must be re-scheduled, else false.
      */
-    bool updateCompactionTasks(Vbid vbid, bool canErase);
+    bool updateCompactionTasks(Vbid vbid);
 
     cb::engine_errc getFileStats(const BucketStatCollector& collector) override;
 

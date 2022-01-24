@@ -28,6 +28,7 @@ enum task_state_t {
 };
 
 std::string to_string(task_state_t state);
+std::ostream& operator<<(std::ostream& os, const task_state_t& state);
 
 enum class TaskId : int {
 #define TASK(name, type, prio) name,
