@@ -287,10 +287,6 @@ public:
     Counter beginFailed;
     //! Number of times a commit failed.
     Counter commitFailed;
-    //! How long an object is dirty before written.
-    std::atomic<rel_time_t> dirtyAge;
-    //! Oldest enqueued object we've seen while persisting.
-    std::atomic<rel_time_t> dirtyAgeHighWat;
     //! Amount of time spent in the commit phase.
     std::atomic<rel_time_t> commit_time;
     //! Number of times we deleted a vbucket.

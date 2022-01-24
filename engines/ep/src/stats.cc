@@ -46,8 +46,6 @@ EPStats::EPStats()
       expired_pager(0),
       beginFailed(0),
       commitFailed(0),
-      dirtyAge(0),
-      dirtyAgeHighWat(0),
       commit_time(0),
       vbucketDeletions(0),
       vbucketDeletionFail(0),
@@ -277,8 +275,6 @@ void EPStats::reset() {
     tooYoung.store(0);
     tooOld.store(0);
     totalPersistVBState.store(0);
-    dirtyAge.store(0);
-    dirtyAgeHighWat.store(0);
     commit_time.store(0);
     cursorsDropped.store(0);
     memFreedByCheckpointRemoval.store(0);

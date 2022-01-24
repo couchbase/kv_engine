@@ -3273,8 +3273,6 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
         collector.addStat(Key::ep_bg_load, epstats.bgLoad);
     }
 
-    collector.addStat(Key::ep_storage_age, epstats.dirtyAge);
-    collector.addStat(Key::ep_storage_age_highwat, epstats.dirtyAgeHighWat);
     collector.addStat(Key::ep_num_workers,
                       ExecutorPool::get()->getNumWorkersStat());
 

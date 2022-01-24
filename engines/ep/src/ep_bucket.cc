@@ -1169,9 +1169,6 @@ void EPBucket::flushOneDelOrSet(TransactionContext& txnCtx,
             std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - qi->getQueuedTime());
     stats.dirtyAgeHisto.add(dirtyAge);
-    stats.dirtyAge.store(static_cast<rel_time_t>(dirtyAge.count()));
-    stats.dirtyAgeHighWat.store(std::max(stats.dirtyAge.load(),
-                                         stats.dirtyAgeHighWat.load()));
 
     auto* rwUnderlying = getRWUnderlying(qi->getVBucketId());
     if (!deleted) {

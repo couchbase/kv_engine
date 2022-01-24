@@ -133,8 +133,6 @@ STAT(default_engine_maxbytes,
 // TODO: applying a "kv_" prefix globally would be consistent but lead to kv_ep_
 //  for some stats. Providing metric family names without ep_ would avoid this
 // "All" stats group (doEngineStats)
-STAT(ep_storage_age, , microseconds, , )
-STAT(ep_storage_age_highwat, , microseconds, , )
 STAT(ep_num_workers, , count, , )
 STAT(ep_bucket_priority,
      ,

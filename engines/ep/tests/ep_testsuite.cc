@@ -7406,8 +7406,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_rocksdb_uc_max_size_amplification_percent",
               "ep_rollback_count",
               "ep_startup_time",
-              "ep_storage_age",
-              "ep_storage_age_highwat",
               "ep_storedval_num",
               "ep_storedval_overhead",
               "ep_storedval_size",
