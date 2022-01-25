@@ -19,15 +19,12 @@
 #pragma once
 
 #include "collections/collections_types.h"
-#include <flatbuffers/flatbuffers.h>
-#include <unordered_map>
 #include <vector>
 
 class DiskDocKey;
 class Item;
 
-namespace Collections {
-namespace KVStore {
+namespace Collections::KVStore {
 
 /**
  * KVStore will store the start-seqno of the collection and the meta-data of
@@ -95,7 +92,7 @@ struct Manifest {
     explicit Manifest(Empty) {
     }
 
-    ~Manifest(){};
+    ~Manifest() = default;
 
     /**
      * compare Manifest - note that there is no sorting applied to the vectors
@@ -191,5 +188,4 @@ void verifyFlatbuffersData(cb::const_byte_buffer buf,
 using DroppedCb = std::function<void(
         const DiskDocKey& key, int64_t seqno, bool aborted, int64_t pcs)>;
 
-} // end namespace KVStore
-} // end namespace Collections
+} // namespace Collections::KVStore

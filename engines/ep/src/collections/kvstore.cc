@@ -13,6 +13,7 @@
 #include "collections/kvstore_generated.h"
 #include "collections/vbucket_manifest.h"
 #include "item.h"
+#include <flatbuffers/flatbuffers.h>
 #include <iostream>
 #include <sstream>
 #include <unordered_set>
