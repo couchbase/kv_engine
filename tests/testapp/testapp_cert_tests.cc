@@ -9,11 +9,12 @@
  */
 
 #include "testapp.h"
+#include <boost/filesystem/path.hpp>
 #include <evutil.h>
-#include <string>
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
 #include <platform/process_monitor.h>
+#include <string>
 
 /**
  * This test suite tests the various settings for authenticating over SSL
@@ -307,3 +308,52 @@ TEST_F(SslCertTest, LoginWhenMandatoryGoClient) {
     EXPECT_EQ("Success", status) << json.dump(2);
 }
 #endif
+
+/// Verify we can't connect with the client certificate if the client
+/// don't have the certificate in the trusted certificate store.
+TEST_F(SslCertTest, MB50564_intermediate_cert_not_in_trusted_store) {
+    reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
+
+    auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
+    setClientCertData(*connection, "jane");
+    connection->connect();
+    try {
+        connection->setXerrorSupport(true);
+        FAIL() << "Server should not accept client";
+    } catch (const std::system_error&) {
+    }
+}
+
+/// Verify that the client can connect and authenticate if it tries
+/// to use the certificate chain (including the intermediate certificate
+/// used to sign both the client and server certificate)
+TEST_F(SslCertTest, MB50564_intermediate_cert_not_in_trusted_store_using_chain) {
+    reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
+
+    auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
+    const auto certfile = boost::filesystem::path(OBJECT_ROOT) / "tests" /
+                        "cert" / "clients" / "jane_chain.pem";
+    setClientCertData(*connection, "jane");
+    connection->setSslCertFile(certfile.generic_string());
+    connection->connect();
+    connection->setXerrorSupport(true);
+}
+
+/// Verify that the client can connect if it put both the root ca and
+/// the intermediate certificate in the trusted store.
+TEST_F(SslCertTest, MB50564_intermediate_cert_in_trusted_store) {
+    reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
+    auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
+
+    // Put the intermediate certificate and the root certificate in the
+    // trusted ca store
+    const auto cafile = boost::filesystem::path(OBJECT_ROOT) / "tests" /
+                        "cert" / "intermediate" / "client_intermediate_ca.pem";
+    setClientCertData(*connection, "jane");
+    connection->setCaFile(cafile.generic_string());
+    connection->connect();
+    connection->setXerrorSupport(true);
+}

@@ -15,14 +15,13 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/chain.cert
                    -D FILE1=${CMAKE_CURRENT_BINARY_DIR}/node1.cert
                    -D FILE2=${CMAKE_CURRENT_BINARY_DIR}/../intermediate/intermediate.cert
                    -D DESTINATION=${CMAKE_CURRENT_BINARY_DIR}/chain.cert.in
-                   -P ${CMAKE_CURRENT_SOURCE_DIR}/ConcatinateFiles.cmake
+                   -P ${CMAKE_CURRENT_SOURCE_DIR}/../ConcatinateFiles.cmake
                    COMMAND
                    ${CMAKE_COMMAND}
                    -E copy ${CMAKE_CURRENT_BINARY_DIR}/chain.cert.in
                    ${CMAKE_CURRENT_BINARY_DIR}/chain.cert
                    DEPENDS
                    ${CMAKE_CURRENT_BINARY_DIR}/node1.cert
-                   ${CMAKE_CURRENT_SOURCE_DIR}/ConcatinateFiles.cmake
                    COMMENT "Generate cerificate chain for node1")
 
 add_custom_target(Generate_kv_engine_X509_Test_Node_Certificate

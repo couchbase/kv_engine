@@ -59,6 +59,19 @@
     "privileges": [],
     "domain": "local"
   },
+  "Jane": {
+    "buckets": {
+      "default": [
+        "Read",
+        "Insert",
+        "Delete",
+        "Upsert",
+        "XattrRead"
+      ]
+    },
+    "privileges": [],
+    "domain": "local"
+  },
   "jones": {
     "buckets": {
       "rbac_test": [

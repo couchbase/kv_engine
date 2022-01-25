@@ -11,6 +11,7 @@
 #include "ssl_utils.h"
 #include <nlohmann/json.hpp>
 #include <platform/base64.h>
+#include <logger/logger.h>
 
 std::string getString(const nlohmann::json& spec,
                       const std::string key,
@@ -227,20 +228,21 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
         // FALLTHROUGH
     case ClientCertMode::Enabled: {
         ssl_flags |= SSL_VERIFY_PEER;
-        auto* certNames = SSL_load_client_CA_file(certificate_chain.c_str());
-        if (!certNames) {
-            throw CreateSslContextException(
-                    "Failed to read SSL cert " + certificate_chain,
-                    "SSL_load_client_CA_file",
-                    getOpenSslError());
+        if (ca_file.empty()) {
+            LOG_WARNING_RAW(
+                    "Configuration does not include a CA file; verify "
+                    "locations and client CA list not set");
+        } else {
+            auto* certNames = SSL_load_client_CA_file(ca_file.c_str());
+            if (!certNames) {
+                throw CreateSslContextException(
+                        "Failed to read SSL cert " + ca_file,
+                        "SSL_load_client_CA_file",
+                        getOpenSslError());
+            }
+            SSL_CTX_set_client_CA_list(server_ctx, certNames);
+            SSL_CTX_load_verify_locations(server_ctx, ca_file.c_str(), nullptr);
         }
-        if (!ca_file.empty()) {
-            SSL_add_file_cert_subjects_to_stack(certNames, ca_file.c_str());
-        }
-
-        SSL_CTX_set_client_CA_list(server_ctx, certNames);
-        SSL_CTX_load_verify_locations(
-                server_ctx, certificate_chain.c_str(), nullptr);
         SSL_CTX_set_verify(server_ctx, ssl_flags, nullptr);
         break;
     }
