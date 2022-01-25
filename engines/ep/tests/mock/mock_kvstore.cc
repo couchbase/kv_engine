@@ -119,6 +119,10 @@ MockKVStore::MockKVStore(std::unique_ptr<KVStoreIface> real)
                             return this->realKVS->rollback(
                                     vbid, rollbackSeqno, std::move(rollbackCB));
                         });
+        ON_CALL(*this, getPersistedVBucketState(_))
+                .WillByDefault([this](auto vbid) {
+                    return this->realKVS->getPersistedVBucketState(vbid);
+                });
     }
 }
 

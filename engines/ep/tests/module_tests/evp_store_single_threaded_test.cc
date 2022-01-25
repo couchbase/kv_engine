@@ -5476,3 +5476,55 @@ TEST_P(STParamPersistentBucketTest,
     EXPECT_EQ(0, vbucketR.getHighSeqno());
     EXPECT_EQ(0, vbucketR.getNumItems());
 }
+
+TEST_P(STParamPersistentBucketTest, FlushVBStateUpdatesCommitStats) {
+    using namespace testing;
+    auto& mockKVStore = MockKVStore::replaceRWKVStoreWithMock(*store, 0);
+
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.commitFailed);
+    ASSERT_EQ(0, stats.flusherCommits);
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(kvstore);
+    EXPECT_EQ(vbucket_state_active,
+              kvstore->getPersistedVBucketState(vbid).transition.state);
+    EXPECT_EQ(vbucket_state_active,
+              kvstore->getCachedVBucketState(vbid)->transition.state);
+    EXPECT_EQ(0, stats.commitFailed);
+    EXPECT_EQ(1, stats.flusherCommits);
+
+    EXPECT_CALL(mockKVStore, snapshotVBucket(_, _))
+            .WillOnce(Return(false))
+            .WillRepeatedly(DoDefault());
+
+    // Set new vbstate in memory only
+    setVBucketState(vbid, vbucket_state_replica);
+    EXPECT_EQ(vbucket_state_active,
+              kvstore->getPersistedVBucketState(vbid).transition.state);
+    EXPECT_EQ(vbucket_state_active,
+              kvstore->getCachedVBucketState(vbid)->transition.state);
+
+    // Flush and verify failure
+    auto& bucket = dynamic_cast<EPBucket&>(*store);
+    auto res = bucket.flushVBucket(vbid);
+    EXPECT_EQ(MoreAvailable::Yes, res.moreAvailable);
+    EXPECT_EQ(1, stats.commitFailed);
+    EXPECT_EQ(1, stats.flusherCommits);
+    EXPECT_EQ(vbucket_state_active,
+              kvstore->getPersistedVBucketState(vbid).transition.state);
+    EXPECT_EQ(vbucket_state_active,
+              kvstore->getCachedVBucketState(vbid)->transition.state);
+
+    // The next flush attempt succeeds
+    res = bucket.flushVBucket(vbid);
+    EXPECT_EQ(MoreAvailable::No, res.moreAvailable);
+    EXPECT_EQ(1, stats.commitFailed);
+    EXPECT_EQ(2, stats.flusherCommits);
+    EXPECT_EQ(vbucket_state_replica,
+              kvstore->getPersistedVBucketState(vbid).transition.state);
+    EXPECT_EQ(vbucket_state_replica,
+              kvstore->getCachedVBucketState(vbid)->transition.state);
+}

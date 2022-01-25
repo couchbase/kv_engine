@@ -1209,61 +1209,6 @@ TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails_VBStateOnly) {
               kvstore->getCachedVBucketState(vbid)->transition.state);
 }
 
-TEST_P(STParamCouchstoreBucketTest, FlushVBStateUpdatesCommitStats) {
-    const auto& stats = engine->getEpStats();
-    ASSERT_EQ(0, stats.commitFailed);
-    ASSERT_EQ(0, stats.flusherCommits);
-
-    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-
-    auto* kvstore = dynamic_cast<CouchKVStore*>(store->getRWUnderlying(vbid));
-    ASSERT_TRUE(kvstore);
-    EXPECT_EQ(vbucket_state_active,
-              kvstore->getPersistedVBucketState(vbid).transition.state);
-    EXPECT_EQ(vbucket_state_active,
-              kvstore->getCachedVBucketState(vbid)->transition.state);
-    EXPECT_EQ(0, stats.commitFailed);
-    EXPECT_EQ(1, stats.flusherCommits);
-
-    // Use mock ops to inject syscall failures
-    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    replaceCouchKVStore(ops);
-    EXPECT_CALL(ops, sync(testing::_, testing::_))
-            .Times(testing::AnyNumber())
-            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE)) // data
-            .WillRepeatedly(testing::DoDefault());
-    kvstore = dynamic_cast<CouchKVStore*>(store->getRWUnderlying(vbid));
-    ASSERT_TRUE(kvstore);
-
-    // Set new vbstate in memory only
-    setVBucketState(vbid, vbucket_state_replica);
-    EXPECT_EQ(vbucket_state_active,
-              kvstore->getPersistedVBucketState(vbid).transition.state);
-    EXPECT_EQ(vbucket_state_active,
-              kvstore->getCachedVBucketState(vbid)->transition.state);
-
-    // Flush and verify failure
-    auto& bucket = dynamic_cast<EPBucket&>(*store);
-    auto res = bucket.flushVBucket(vbid);
-    EXPECT_EQ(MoreAvailable::Yes, res.moreAvailable);
-    EXPECT_EQ(1, stats.commitFailed);
-    EXPECT_EQ(1, stats.flusherCommits);
-    EXPECT_EQ(vbucket_state_active,
-              kvstore->getPersistedVBucketState(vbid).transition.state);
-    EXPECT_EQ(vbucket_state_active,
-              kvstore->getCachedVBucketState(vbid)->transition.state);
-
-    // The next flush attempt succeeds
-    res = bucket.flushVBucket(vbid);
-    EXPECT_EQ(MoreAvailable::No, res.moreAvailable);
-    EXPECT_EQ(1, stats.commitFailed);
-    EXPECT_EQ(2, stats.flusherCommits);
-    EXPECT_EQ(vbucket_state_replica,
-              kvstore->getPersistedVBucketState(vbid).transition.state);
-    EXPECT_EQ(vbucket_state_replica,
-              kvstore->getCachedVBucketState(vbid)->transition.state);
-}
-
 TEST_P(STParamCouchstoreBucketTest,
        BootstrapProcedureLeavesNoCorruptedFileAtFailure) {
     using namespace testing;
