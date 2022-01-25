@@ -2557,7 +2557,6 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
     case Status::IOError:
     case Status::Compress:
     case Status::Exists:
-    case Status::NotExists:
     case Status::ReadOnly:
     case Status::TransientIO:
     case Status::Busy:
@@ -2568,6 +2567,12 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
         logger->critical("MagmaKVStore::rollback Rollback {} status:{}",
                          vbid,
                          status.String());
+        // Fall through
+    case Status::NotExists:
+        logger->warn(
+                "MagmaKVStore::rollback {} KVStore not found, nothing has "
+                "been persisted yet.",
+                vbid);
         // Fall through
     case Status::CheckpointNotFound:
         // magma->Rollback returns non-success in the case where we have no
