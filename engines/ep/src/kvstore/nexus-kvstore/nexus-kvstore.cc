@@ -2283,6 +2283,17 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
         handleError(msg, vbid);
     }
 
+    if (primaryCtx->maxSeqno != secondaryCtx->maxSeqno) {
+        auto msg = fmt::format(
+                "NexusKVStore::initBySeqnoScanContext: {}: "
+                "scan ctx maxSeqno not equal "
+                "primary:{} secondary:{}",
+                vbid,
+                primaryCtx->maxSeqno,
+                secondaryCtx->maxSeqno);
+        handleError(msg, vbid);
+    }
+
     // Acquiring the lock at the start of this function means that nothing
     // should be running that can modify the file handle that we grab here. We
     // need this in the NexusScanContext as it's exposed to callers
