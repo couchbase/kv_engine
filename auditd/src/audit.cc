@@ -168,42 +168,44 @@ bool AuditImpl::reconfigure(std::string file) {
 
 bool AuditImpl::configure() {
     bool is_enabled_before_reconfig = config.is_auditd_enabled();
-    const auto configuration =
-            cb::io::loadFile(configfile, std::chrono::seconds{5});
-    if (configuration.empty()) {
+    std::string file_content;
+    try {
+        file_content = cb::io::loadFile(configfile, std::chrono::seconds{5});
+        if (file_content.empty()) {
+            LOG_WARNING(R"(Audit::configure: No data in "{}")", configfile);
+            return false;
+        }
+    } catch (const std::exception& exception) {
+        LOG_WARNING(R"(Audit::configure: Failed to load "{}": {})",
+                    configfile,
+                    exception.what());
         return false;
     }
 
     nlohmann::json config_json;
     try {
-        config_json = nlohmann::json::parse(configuration);
+        config_json = nlohmann::json::parse(file_content);
     } catch (const nlohmann::json::exception&) {
         LOG_WARNING(
                 R"(Audit::configure: JSON parsing error of "{}" with content: "{}")",
                 configfile,
-                cb::UserDataView(configuration));
+                cb::UserDataView(file_content));
         return false;
     }
 
-    bool failure = false;
     try {
         config.initialize_config(config_json);
-    } catch (std::string &msg) {
-        LOG_WARNING("Audit::configure: Invalid input: {}", msg);
-        failure = true;
     } catch (const nlohmann::json::exception& e) {
         LOG_WARNING(
                 R"(Audit::configure:: Configuration error in "{}". Error: {}.)"
                 R"(Content: {})",
                 cb::UserDataView(configfile),
                 cb::UserDataView(e.what()),
-                cb::UserDataView(configuration));
-        failure = true;
-    } catch (...) {
-        LOG_WARNING_RAW("Audit::configure: Invalid input");
-        failure = true;
-    }
-    if (failure) {
+                cb::UserDataView(file_content));
+        return false;
+    } catch (const std::exception& exception) {
+        LOG_WARNING("Audit::configure: Initialization failed: {}",
+                    exception.what());
         return false;
     }
 
@@ -225,27 +227,35 @@ bool AuditImpl::configure() {
         audit_events_file = cb::io::sanitizePath(audit_events_file);
     }
 
-    const auto str =
-            cb::io::loadFile(audit_events_file, std::chrono::seconds{5});
-    if (str.empty()) {
+    try {
+        file_content =
+                cb::io::loadFile(audit_events_file, std::chrono::seconds{5});
+        if (file_content.empty()) {
+            LOG_WARNING(R"(Audit::configure: No data in "{}")",
+                        audit_events_file);
+            return false;
+        }
+    } catch (const std::exception& exception) {
+        LOG_WARNING(R"(Audit::configure: Failed to load "{}": {})",
+                    audit_events_file,
+                    exception.what());
         return false;
     }
 
     nlohmann::json events_json;
     try {
-        events_json = nlohmann::json::parse(str);
-
+        events_json = nlohmann::json::parse(file_content);
         auto modules = events_json.at("modules");
         if (!process_module_descriptor(modules)) {
             return false;
         }
     } catch (const nlohmann::json::exception& e) {
         LOG_WARNING(
-                R"(Audit::configure: Audit event configuration error in "{}".)"
+                R"(Audit::configure: Audit event file_content error in "{}".)"
                 R"(Error: {}. Content: {})",
                 cb::UserDataView(audit_events_file),
                 cb::UserDataView(e.what()),
-                cb::UserDataView(str));
+                cb::UserDataView(file_content));
         return false;
     }
     auditfile.reconfigure(config);
@@ -270,9 +280,9 @@ bool AuditImpl::configure() {
 
     /*
      * We need to notify if the audit daemon is turned on or off during a
-     * reconfigure.  It is also possible that particular audit events may
-     * have been enabled or disabled.  Therefore we want to notify all of the
-     * current event states whenever we do a reconfigure.
+     * reconfiguration. It is also possible that particular audit events may
+     * have been enabled or disabled. We want to notify the current event
+     * states whenever we reconfigure.
      */
     notify_all_event_states();
 
