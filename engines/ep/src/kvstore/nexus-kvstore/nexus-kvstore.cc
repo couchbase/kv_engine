@@ -2560,7 +2560,6 @@ NexusKVStore::getDroppedCollections(Vbid vbid) const {
     for (const auto& dc : primaryDropped) {
         auto itr =
                 std::find(secondaryDropped.begin(), secondaryDropped.end(), dc);
-        //        auto itr = secondaryDropped.find(dc);
         if (itr == secondaryDropped.end()) {
             auto msg = fmt::format(
                     "NexusKVStore::getDroppedCollections: {}: found dropped "
@@ -2577,18 +2576,19 @@ NexusKVStore::getDroppedCollections(Vbid vbid) const {
     }
 
     if (!secondaryDropped.empty()) {
-        std::stringstream ss;
-        for (auto& dc : secondaryDropped) {
-            ss << "[cid:" << dc.collectionId << ",start:" << dc.startSeqno
-               << ",end:" << dc.endSeqno << "],";
-        }
-        ss.unget();
-
         auto msg = fmt::format(
                 "NexusKVStore::getDroppedCollections: {}: found dropped "
-                "collections for secondary but not primary {}",
-                vbid,
-                ss.str());
+                "collections for secondary but not primary ",
+                vbid);
+        for (auto& dc : secondaryDropped) {
+            fmt::format_to(std::back_inserter(msg),
+                           "[cid:{},start:{},end:{}],",
+                           dc.collectionId,
+                           dc.startSeqno,
+                           dc.endSeqno);
+        }
+        msg.pop_back();
+        handleError(msg, vbid);
     }
 
     return {primaryResult, primaryDropped};
