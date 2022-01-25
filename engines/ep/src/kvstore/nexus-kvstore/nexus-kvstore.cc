@@ -1705,18 +1705,18 @@ RollbackResult NexusKVStore::rollback(Vbid vbid,
     }
 
     if (!secondaryRollbacks.empty()) {
-        std::stringstream ss;
-        for (const auto& [key, seqno] : secondaryRollbacks) {
-            ss << "[key:" << cb::UserData(key.to_string()) << ",seqno:" << seqno
-               << "],";
-        }
-        ss.unget();
-
         auto msg = fmt::format(
-                "NexusKVStoer::rollback: {}: secondary callbacks invocations "
-                "not made by primary:{}",
-                vbid,
-                ss.str());
+                "NexusKVStore::rollback: {}: secondary callbacks invocations "
+                "not made by primary:",
+                vbid);
+        for (const auto& [key, seqno] : secondaryRollbacks) {
+            fmt::format_to(std::back_inserter(msg),
+                           "[key:{},seqno:{}],",
+                           cb::UserData(key.to_string()),
+                           seqno);
+        }
+        msg.pop_back();
+        handleError(msg, vbid);
     }
 
     doCollectionsMetadataChecks(vbid, nullptr, nullptr);
