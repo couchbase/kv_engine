@@ -215,6 +215,17 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
                                 "restoreValue()");
                     }
                 } else if (status == cb::engine_errc::no_such_key) {
+                    if (!v->isTempItem()) {
+                        throw std::logic_error(fmt::format(
+                                "({}) VBucket::completeBGFetchForSingleItem: "
+                                "non-temp non-resident StoredValue should "
+                                "always exist on disk, but doesn't. Will not"
+                                "change non-temp item to temp non-existent. "
+                                "seqno:{} isDeleted:{} ",
+                                getId(),
+                                v->getBySeqno(),
+                                v->isDeleted()));
+                    }
                     v->setNonExistent();
                     if (eviction == EvictionPolicy::Full) {
                         // For the full eviction, we should notify

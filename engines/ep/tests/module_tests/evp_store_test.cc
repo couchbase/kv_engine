@@ -1899,6 +1899,111 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest, RaceyFetchingDeletedMetaBgFetch) {
     EXPECT_FALSE(res.committed->isTempNonExistentItem());
 }
 
+TEST_P(EPBucketFullEvictionNoBloomFilterTest,
+       DeletedMetaBgFetchCreatesTempDeletedItem) {
+    // MB-50461: Verify that meta-only bgfetching a deleted item creates a
+    // temp deleted item.
+    // This has not changed in this MB, but should be guarded going forwards
+    // as the bgfetcher now expects that a non-temp SV should definitely
+    // exist on disk, and will throw if this is not true.
+    // A deleted SV _may_ remain in the HT after it has been purged from disk
+    // (cleaned up by item pager), but will always be resident (see  MB-50423).
+    // A future change to StoredValue::restoreMeta might break this expectation.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto key = makeStoredDocKey("key");
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    storeAndDeleteItem(vbid, key, "foobar");
+
+    {
+        // deleted value does not exist in HT
+        auto res = vb->ht.findForUpdate(key);
+        ASSERT_FALSE(res.committed);
+    }
+
+    ItemMetaData itemMeta;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    ASSERT_EQ(
+            cb::engine_errc::would_block,
+            store->getMetaData(key, vbid, cookie, itemMeta, deleted, datatype));
+
+    runBGFetcherTask();
+
+    auto res = vb->ht.findForUpdate(key);
+    ASSERT_TRUE(res.committed);
+    EXPECT_FALSE(res.committed->isResident());
+    EXPECT_TRUE(res.committed->isTempDeletedItem());
+}
+
+TEST_P(EPBucketFullEvictionNoBloomFilterTest,
+       BgFetchWillNotConvertNonTempItemIntoTemp) {
+    // MB-50461: Verify that a bgfetch for a non-resident, non-temp StoredValue
+    // will throw if the item does not exist on disk, rather than marking
+    // the non-temp SV as temp non-existent.
+    // Every non-temp SV in the HashTable should now either:
+    //     * have a corresponding item on disk
+    //  or * be a resident deleted item
+    // Deleted items may be purged from disk but will either not exist in the
+    // HT at all, or will be resident if they have been requested and bgfetched
+    // recently.
+    // Changing a non-temp item to temp in the bgfetcher could lead to stat
+    // misaccounting, and unexpected SV states (e.g., datatype=xattrs and
+    // deleted, but also temp non-existent).
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto key = makeStoredDocKey("key");
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    ASSERT_EQ(0, vb->ht.getNumItems());
+    ASSERT_EQ(0, vb->ht.getNumTempItems());
+
+    {
+        // the value doesn't exist yet
+        auto htRes = vb->ht.findForWrite(key);
+        ASSERT_FALSE(htRes.storedValue);
+
+        // so manually add a non-temp deleted item straight to the HT.
+        // This will not exist on disk.
+        auto item = make_item(
+                vbid, key, "foobar", 0, uint8_t(cb::mcbp::Datatype::Raw));
+        item.setDeleted();
+        auto* sv = vb->ht.unlocked_addNewStoredValue(htRes.lock, item);
+
+        // eject the value manually, now the item is non-resident.
+        sv->ejectValue();
+    }
+
+    ASSERT_EQ(1, vb->ht.getNumItems());
+    ASSERT_EQ(0, vb->ht.getNumTempItems());
+
+    // setup done - the hashtable now contains a non-resident deleted item,
+    // which does not exist on disk. This _shouldn't_ be possible in normal
+    // execution, and the bgfetcher should throw if it tries to bgfetch for this
+    // value.
+
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+
+    // trying to get the deleted value should require a bgfetch
+    ASSERT_EQ(cb::engine_errc::would_block,
+              store->get(makeStoredDocKey("key"), vbid, cookie, options)
+                      .getStatus());
+
+    try {
+        runBGFetcherTask();
+        FAIL();
+    } catch (const std::logic_error& e) {
+        // good!
+    }
+
+    EXPECT_EQ(1, vb->ht.getNumItems());
+    EXPECT_EQ(0, vb->ht.getNumTempItems());
+}
+
 class EPBucketTestNoRocksDb : public EPBucketTest {
 public:
     void SetUp() override {
