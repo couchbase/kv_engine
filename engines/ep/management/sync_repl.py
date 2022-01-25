@@ -42,6 +42,7 @@ collection = sys.argv[7]
 if len(sys.argv) > 8:
     value = sys.argv[8]
 level = memcacheConstants.DURABILITY_LEVEL_MAJORITY
+timeout = 1000
 
 if op == "get":
     print (client.get(key))
