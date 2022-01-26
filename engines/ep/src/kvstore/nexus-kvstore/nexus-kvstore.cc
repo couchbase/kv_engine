@@ -2386,9 +2386,18 @@ scan_error_t NexusKVStore::scan(BySeqnoScanContext& ctx) const {
         auto msg = fmt::format(
                 "NexusKVStore::scan: {}: {} primary scan "
                 "callbacks were not matched by secondary scan "
-                "callbacks",
+                "callbacks ",
                 ctx.vbid,
                 primaryScanCallback.callbacks.size());
+        for (auto& [item, status] : primaryScanCallback.callbacks) {
+            fmt::format_to(std::back_inserter(msg),
+                           "[key:'{}',seqno:{},deleted:{},status:{}],",
+                           cb::UserData(item.getKey().to_string()),
+                           item.getBySeqno(),
+                           item.isDeleted(),
+                           status);
+        }
+        msg.pop_back();
         handleError(msg, ctx.vbid);
     }
 
@@ -2396,9 +2405,17 @@ scan_error_t NexusKVStore::scan(BySeqnoScanContext& ctx) const {
         auto msg = fmt::format(
                 "NexusKVStore::scan: {}: {} primary cache "
                 "lookups were not matched by secondary cache "
-                "lookups",
+                "lookups ",
                 ctx.vbid,
                 primaryCacheLookup.callbacks.size());
+        for (auto& [cl, status] : primaryCacheLookup.callbacks) {
+            fmt::format_to(std::back_inserter(msg),
+                           "[key:'{}',seqno:{},status:{}],",
+                           cb::UserData(cl.getKey().to_string()),
+                           cl.getBySeqno(),
+                           status);
+        }
+        msg.pop_back();
         handleError(msg, ctx.vbid);
     }
 
