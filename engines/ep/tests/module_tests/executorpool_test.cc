@@ -517,6 +517,41 @@ TYPED_TEST(ExecutorPoolTest, SnoozeThenWake) {
     this->pool->unregisterTaskable(taskable, false);
 }
 
+// Test that waking a task immediately changes its state to TASK_RUNNING,
+TYPED_TEST(ExecutorPoolTest, WakeSetsTaskRunning) {
+    using namespace std::chrono;
+
+    // Create a pool; then immediatley change the number of NonIO threads
+    // to zero. This prevents any NonIO tasks from actually running, allowing
+    // us to examine Task state without having to worry about it changing
+    // under us.
+    this->makePool(1);
+    this->pool->setNumNonIO(0);
+
+    NiceMock<MockTaskable> taskable;
+    this->pool->registerTaskable(taskable);
+
+    // Setup - simple test task which does nothing.
+    // 1 hour - i.e. we don't want it to run when initially scheduled.
+    auto sleepTime = 60.0 * 60.0;
+    auto task = std::make_shared<LambdaTask>(
+            taskable, TaskId::ItemPager, sleepTime, false, [](LambdaTask&) {
+                return false;
+            });
+
+    // Schedule the task - should initially be marked SNOOZED.
+    this->pool->schedule(task);
+    ASSERT_EQ(task_state_t::TASK_SNOOZED, task->getState());
+
+    // Test: wake the task - state should change to RUNNING as soon as
+    // wake completes, without having to wait for task to actually run.
+    this->pool->wakeAndWait(task->getId());
+    EXPECT_EQ(task_state_t::TASK_RUNNING, task->getState());
+
+    this->pool->setNumNonIO(1);
+    this->pool->unregisterTaskable(taskable, false);
+}
+
 // Snooze negative test - attempt to wake a task which hasn't been scheduled.
 TYPED_TEST(ExecutorPoolTest, SnoozeWithoutSchedule) {
     this->makePool(1);
