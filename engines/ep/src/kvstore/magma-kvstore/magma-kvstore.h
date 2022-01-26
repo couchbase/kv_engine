@@ -275,6 +275,15 @@ public:
      */
     uint64_t prepareToDeleteImpl(Vbid vbid) override;
 
+    std::unique_ptr<RollbackCtx> prepareToRollback(Vbid vbid) override;
+
+    /**
+     * Re-enable implicit compaction for the given vBucket
+     *
+     * @param vbid to re-enable implicit compaction for
+     */
+    void resumeImplicitCompaction(Vbid vbid);
+
     std::optional<Collections::ManifestUid> getCollectionsManifestUid(
             KVFileHandle& kvFileHandle) const override;
 

@@ -426,3 +426,15 @@ magma::Status MagmaMemoryTrackingProxy::NewCheckpoint(
     cb::UseArenaMallocSecondaryDomain domainGuard;
     return magma->NewCheckpoint(kvID);
 }
+
+magma::Status MagmaMemoryTrackingProxy::StopBGCompaction(
+        const magma::Magma::KVStoreID kvID) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->StopBGCompaction(kvID);
+}
+
+magma::Status MagmaMemoryTrackingProxy::ResumeBGCompaction(
+        const magma::Magma::KVStoreID kvID) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->ResumeBGCompaction(kvID);
+}

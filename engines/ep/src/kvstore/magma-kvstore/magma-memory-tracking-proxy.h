@@ -189,6 +189,8 @@ public:
             const magma::Magma::WriteDocsCallback docCallback = nullptr,
             const magma::Magma::PostWriteDocsCallback postCallback = nullptr);
     magma::Status NewCheckpoint(const magma::Magma::KVStoreID kvID);
+    magma::Status StopBGCompaction(const magma::Magma::KVStoreID kvID);
+    magma::Status ResumeBGCompaction(const magma::Magma::KVStoreID kvID);
 
 private:
     std::unique_ptr<magma::Magma> magma;

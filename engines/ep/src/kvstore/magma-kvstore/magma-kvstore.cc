@@ -1143,6 +1143,43 @@ uint64_t MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
     return rev;
 }
 
+/**
+ * Magma specific RollbackCtx which resumes background (implicit) compactions
+ * for the given vBucket on destruction
+ */
+class MagmaRollbackCtx : public RollbackCtx {
+public:
+    MagmaRollbackCtx(MagmaKVStore& kvstore, Vbid vbid)
+        : kvstore(kvstore), vbid(vbid) {
+    }
+
+    ~MagmaRollbackCtx() override {
+        kvstore.resumeImplicitCompaction(vbid);
+    }
+
+protected:
+    MagmaKVStore& kvstore;
+    Vbid vbid;
+};
+
+std::unique_ptr<RollbackCtx> MagmaKVStore::prepareToRollback(Vbid vbid) {
+    // Before we lock the vBucket state lock we need to inhibit magma's
+    // background compactions to avoid a potential deadlock. Magma rollback
+    // needs to wait for compactions to finish and compactions may, if they are
+    // expiring an item, need to acquire the vBucket state lock for the duration
+    // of that operation. That could cause a deadlock so we'll halt background
+    // compactions before we take the vBucket state lock. The compaction should
+    // not take the vbsetMutex or the vBucket lock so we can safely lock those
+    // first. When the ctx object goes out of scope it will re-enable background
+    // compactions for the vBucket.
+    magma->StopBGCompaction(vbid.get());
+    return std::make_unique<MagmaRollbackCtx>(*this, vbid);
+}
+
+void MagmaKVStore::resumeImplicitCompaction(Vbid vbid) {
+    magma->ResumeBGCompaction(vbid.get());
+}
+
 // Note: It is assumed this can only be called from bg flusher thread or
 // there will be issues with writes coming from multiple threads.
 bool MagmaKVStore::snapshotVBucket(Vbid vbid, const vbucket_state& newVBState) {
