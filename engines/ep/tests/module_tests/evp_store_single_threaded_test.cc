@@ -5528,3 +5528,39 @@ TEST_P(STParamPersistentBucketTest, FlushVBStateUpdatesCommitStats) {
     EXPECT_EQ(vbucket_state_replica,
               kvstore->getCachedVBucketState(vbid)->transition.state);
 }
+
+TEST_P(STParamPersistentBucketTest,
+       BucketCreationFlagClearedOnlyAtFlushSuccess_PersistVBStateOnly) {
+    using namespace testing;
+    auto& mockKVStore = MockKVStore::replaceRWKVStoreWithMock(*store, 0);
+
+    ASSERT_FALSE(engine->getKVBucket()->getVBucket(vbid));
+
+    auto meta = nlohmann::json{
+            {"topology", nlohmann::json::array({{"active", "replica"}})}};
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setVBucketState(vbid, vbucket_state_active, &meta));
+
+    const auto vb = engine->getKVBucket()->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    ASSERT_TRUE(vb->isBucketCreation());
+
+    EXPECT_CALL(mockKVStore, snapshotVBucket(_, _))
+            .WillOnce(Return(false))
+            .WillRepeatedly(DoDefault());
+
+    // This flush fails, the bucket creation flag must be still set
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    ASSERT_EQ(1, vb->dirtyQueueSize);
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(1, vb->dirtyQueueSize);
+    EXPECT_TRUE(vb->isBucketCreation());
+
+    // This flush succeeds
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(0, vb->dirtyQueueSize);
+    EXPECT_FALSE(vb->isBucketCreation());
+}
