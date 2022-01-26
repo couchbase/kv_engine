@@ -185,21 +185,37 @@ Collections::VB::Manifest NexusKVStore::generateSecondaryVBManifest(
     // Having generated the Manifest object we now need to correct the disk
     // sizes as they may differ between KVStores. We'll load the disk sizes of
     // each collection now...
-
-    auto collections = secondaryManifest.wlock();
-
-    // Scope dataSize must begin at zero for the next loop
-    for (auto itr = collections.beginScopes(); itr != collections.endScopes();
-         ++itr) {
-        itr->second.setDataSize(0);
+    {
+        auto collections = secondaryManifest.wlock();
+        // Scope dataSize must begin at zero for the next loop
+        for (auto itr = collections.beginScopes();
+             itr != collections.endScopes();
+             ++itr) {
+            itr->second.setDataSize(0);
+        }
     }
 
-    for (auto& itr : collections) {
-        auto& [cid, entry] = itr;
-        auto [status, stats] = secondary->getCollectionStats(vbid, cid);
-        if (status == GetCollectionStatsStatus::Success) {
-            collections.setDiskSize(cid, stats.diskSize);
-            collections.updateDataSize(entry.getScopeID(), stats.diskSize);
+    // Check if vbucket state is on disk, if not it will cause secondary
+    // KVStore::getCollectionStats() to log a warning message for each
+    // collection in 'collections. This can happen in the situation where this
+    // is method is being called for the first NexusKVStore::commit() to disk
+    // since the vbucket has been created and we're trying to persist new
+    // collections.
+    try {
+        auto vbstate = secondary->getPersistedVBucketState(vbid);
+    } catch (std::exception& e) {
+        return secondaryManifest;
+    }
+
+    {
+        auto collections = secondaryManifest.wlock();
+        for (auto& itr : collections) {
+            auto& [cid, entry] = itr;
+            auto [status, stats] = secondary->getCollectionStats(vbid, cid);
+            if (status == GetCollectionStatsStatus::Success) {
+                collections.setDiskSize(cid, stats.diskSize);
+                collections.updateDataSize(entry.getScopeID(), stats.diskSize);
+            }
         }
     }
 
