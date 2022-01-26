@@ -14,8 +14,10 @@
 #include "collections/vbucket_manifest.h"
 #include "item.h"
 #include <flatbuffers/flatbuffers.h>
-#include <iostream>
-#include <sstream>
+#include <fmt/format.h>
+#include <fmt/ostream.h>
+#include <ostream>
+#include <string>
 #include <unordered_set>
 
 namespace Collections::KVStore {
@@ -27,13 +29,11 @@ void verifyFlatbuffersData(cb::const_byte_buffer buf,
     if (v.VerifyBuffer<T>(nullptr)) {
         return;
     }
-
-    std::stringstream ss;
-    ss << "verifyFlatbuffersData: " << caller
-       << " data invalid, ptr:" << reinterpret_cast<const void*>(buf.data())
-       << ", size:" << buf.size();
-
-    throw std::runtime_error(ss.str());
+    throw std::runtime_error(fmt::format(
+            "verifyFlatbuffersData:{} data invalid, ptr:{}, size:{:p}",
+            caller,
+            fmt::ptr(buf.data()),
+            buf.size()));
 }
 
 ManifestUid decodeManifestUid(cb::const_byte_buffer manifest) {
@@ -193,34 +193,39 @@ bool DroppedCollection::operator==(const DroppedCollection& other) const {
 std::ostream& operator<<(
         std::ostream& os,
         const Collections::KVStore::OpenCollection& collection) {
-    os << "meta:" << collection.metaData;
-    os << "startSeqno:" << collection.startSeqno;
-
-    return os;
+    return os << collection.metaData << ",startSeqno:" << collection.startSeqno;
 }
 
 std::ostream& operator<<(std::ostream& os,
                          const Collections::KVStore::OpenScope& scope) {
-    os << "meta:" << scope.metaData;
-    os << "startSeqno:" << scope.startSeqno;
-
-    return os;
+    return os << scope.metaData << ",startSeqno:" << scope.startSeqno;
 }
 
 std::ostream& operator<<(std::ostream& os,
                          const Collections::KVStore::Manifest& manifest) {
-    os << "manifestUid" << manifest.manifestUid << "droppedCollectionsExist"
-       << manifest.droppedCollectionsExist;
-
+    std::string scopesBuff;
     for (const auto& scope : manifest.scopes) {
-        os << scope;
+        fmt::format_to(std::back_inserter(scopesBuff), "[{}],", scope);
+    }
+    if (!scopesBuff.empty()) {
+        scopesBuff.pop_back();
     }
 
+    std::string collectionBuff;
     for (const auto& collection : manifest.collections) {
-        os << collection;
+        fmt::format_to(std::back_inserter(collectionBuff), "[{}],", collection);
+    }
+    if (!collectionBuff.empty()) {
+        collectionBuff.pop_back();
     }
 
-    return os;
+    return os << fmt::format(
+                   "manifestUid:{:#x} droppedCollectionsExist:{} scopes:{{{}}} "
+                   "collections:{{{}}}",
+                   manifest.manifestUid,
+                   manifest.droppedCollectionsExist,
+                   scopesBuff,
+                   collectionBuff);
 }
 
 } // namespace Collections::KVStore
