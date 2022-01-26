@@ -200,6 +200,8 @@ public:
                            Vbid vbid,
                            uint64_t bySeqNum) override;
 
+    std::unique_ptr<RollbackCtx> prepareToRollback(Vbid vbid) override;
+
     RollbackResult doRollback(Vbid vbid, uint64_t rollbackSeqno) override;
 
     void rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) override;

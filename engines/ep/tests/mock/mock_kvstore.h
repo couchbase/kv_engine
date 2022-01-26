@@ -208,6 +208,10 @@ public:
     MOCK_METHOD(bool, snapshotStats, (const nlohmann::json&), (override));
     MOCK_METHOD(uint64_t, prepareToDelete, (Vbid vbid), (override));
     MOCK_METHOD(void, prepareToCreate, (Vbid vbid), (override));
+    MOCK_METHOD(std::unique_ptr<RollbackCtx>,
+                prepareToRollback,
+                (Vbid vbid),
+                (override));
 
     /**
      * Helper function to replace the existing read-write KVStore in the given

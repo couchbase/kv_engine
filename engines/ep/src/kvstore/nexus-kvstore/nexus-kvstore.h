@@ -133,6 +133,7 @@ public:
     bool snapshotStats(const nlohmann::json& stats) override;
     void prepareToCreate(Vbid vbid) override;
     uint64_t prepareToDelete(Vbid vbid) override;
+    std::unique_ptr<RollbackCtx> prepareToRollback(Vbid vbid) override;
     uint64_t getLastPersistedSeqno(Vbid vbid) override;
     void prepareForDeduplication(std::vector<queued_item>& items) override;
     void setSystemEvent(TransactionContext& txnCtx,

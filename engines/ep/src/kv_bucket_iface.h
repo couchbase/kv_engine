@@ -873,6 +873,14 @@ protected:
                                  get_options_t options = TRACK_REFERENCE) = 0;
 
     /**
+     * Prepare the given vBucket for rollback
+     * @param vbid to prepare for rollback
+     *
+     * @return context object for this rollback
+     */
+    virtual std::unique_ptr<RollbackCtx> prepareToRollback(Vbid vbid) = 0;
+
+    /**
      * Do rollback of data on the underlying disk / data structure
      *
      * @param vbid vBucket id

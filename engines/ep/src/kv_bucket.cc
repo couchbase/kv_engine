@@ -2512,6 +2512,8 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
         return TaskStatus::Abort;
     }
 
+    auto ctx = prepareToRollback(vbid);
+
     // Acquire the vb stateLock in exclusive mode as we will recreate the
     // DurabilityMonitor in the vBucket as part of rollback and this could race
     // with stats calls.

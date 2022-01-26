@@ -17,6 +17,7 @@
 #include "ep_time.h"
 #include "kvstore_fwd.h"
 #include "kvstore_iface.h"
+#include "rollback_result.h"
 #include "utilities/testing_hook.h"
 #include "vbucket_fwd.h"
 
@@ -864,6 +865,11 @@ public:
     uint64_t prepareToDelete(Vbid vbid) override;
 
     void prepareToCreate(Vbid vbid) override;
+
+    std::unique_ptr<RollbackCtx> prepareToRollback(Vbid vbid) override {
+        // Do nothing by default, default ctx is fine
+        return std::make_unique<RollbackCtx>();
+    }
 
     void setSystemEvent(TransactionContext& txnCtx, const queued_item) override;
 

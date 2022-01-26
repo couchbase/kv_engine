@@ -47,3 +47,12 @@ public:
 };
 
 std::ostream& operator<<(std::ostream& os, const RollbackResult& result);
+
+/**
+ * RAII handle for the rollback to allow us to do something once the rollback is
+ * done, success or failure
+ */
+class RollbackCtx {
+public:
+    virtual ~RollbackCtx() = default;
+};

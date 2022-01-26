@@ -26,6 +26,7 @@ class KVFileHandle;
 class KVStoreConfig;
 class KVStoreStats;
 class RollbackCB;
+class RollbackCtx;
 class RollbackResult;
 class StorageProperties;
 class PersistenceCallback;
@@ -637,6 +638,15 @@ public:
      * Persist a snapshot of a collection of stats.
      */
     virtual bool snapshotStats(const nlohmann::json& stats) = 0;
+
+    /**
+     * Prepare for rollback of the vbucket
+     *
+     * @param vbid ID of the vbucket about to be rolled back
+     *
+     * @return context object for this rollback
+     */
+    virtual std::unique_ptr<RollbackCtx> prepareToRollback(Vbid vbid) = 0;
 
     /**
      * Prepare for create of the vbucket

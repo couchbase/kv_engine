@@ -1786,6 +1786,11 @@ private:
     uint64_t rollbackSeqno;
 };
 
+std::unique_ptr<RollbackCtx> EPBucket::prepareToRollback(Vbid vbid) {
+    auto* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
+    return rwUnderlying->prepareToRollback(vbid);
+}
+
 RollbackResult EPBucket::doRollback(Vbid vbid, uint64_t rollbackSeqno) {
     auto* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
     auto result = rwUnderlying->rollback(

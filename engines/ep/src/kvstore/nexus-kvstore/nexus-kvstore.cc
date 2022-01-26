@@ -2751,6 +2751,31 @@ uint64_t NexusKVStore::prepareToDelete(Vbid vbid) {
     return primaryResult;
 }
 
+/**
+ * Nexus specific RollbackCtx which stores the RollbackCtx for the primary and
+ * secondary
+ */
+class NexusRollbackCtx : public RollbackCtx {
+public:
+    NexusRollbackCtx(std::unique_ptr<RollbackCtx> primaryCtx,
+                     std::unique_ptr<RollbackCtx> secondaryCtx)
+        : primaryCtx(std::move(primaryCtx)),
+          secondaryCtx(std::move(secondaryCtx)) {
+    }
+
+protected:
+    std::unique_ptr<RollbackCtx> primaryCtx;
+    std::unique_ptr<RollbackCtx> secondaryCtx;
+};
+
+std::unique_ptr<RollbackCtx> NexusKVStore::prepareToRollback(Vbid vbid) {
+    auto primaryCtx = primary->prepareToRollback(vbid);
+    auto secondaryCtx = secondary->prepareToRollback(vbid);
+
+    return std::make_unique<NexusRollbackCtx>(std::move(primaryCtx),
+                                              std::move(secondaryCtx));
+}
+
 uint64_t NexusKVStore::getLastPersistedSeqno(Vbid vbid) {
     auto primarySeqno = primary->getLastPersistedSeqno(vbid);
     auto secondarySeqno = secondary->getLastPersistedSeqno(vbid);
