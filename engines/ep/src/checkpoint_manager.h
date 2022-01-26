@@ -16,6 +16,7 @@
 #include "cursor.h"
 #include "ep_types.h"
 #include "queue_op.h"
+#include "stats.h"
 #include "utilities/testing_hook.h"
 #include "vbucket_types.h"
 #include <platform/monotonic.h>
@@ -590,6 +591,9 @@ public:
     // @return the number of cursors registered in all checkpoints
     size_t getNumCursors() const;
 
+    // @return the amount of memory (in bytes) released by ItemExpel
+    size_t getMemFreedByItemExpel() const;
+
     /**
      * Member std::function variable, to allow us to inject code into
      * removeCursor() for unit MB36146
@@ -962,6 +966,29 @@ protected:
      *  for computing the value.
      */
     cb::AtomicNonNegativeCounter<size_t> estimatedMemUsage{0};
+
+    /**
+     * Helper class for local counters that need to reflect their updates on
+     * bucket-level EPStats.
+     */
+    class Counter {
+    public:
+        Counter(EPStats::Counter& global) : local(0), global(global) {
+        }
+        Counter& operator+=(size_t size);
+        Counter& operator-=(size_t size);
+
+        operator size_t() const {
+            return local;
+        }
+
+    private:
+        cb::AtomicNonNegativeCounter<size_t> local;
+        EPStats::Counter& global;
+    };
+
+    // Memory released by item expel in this CM
+    Counter memFreedByExpel;
 
     friend std::ostream& operator<<(std::ostream& os, const CheckpointManager& m);
 };

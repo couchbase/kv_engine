@@ -46,7 +46,8 @@ CheckpointManager::CheckpointManager(EPStats& st,
       lastBySeqno(lastSeqno),
       maxVisibleSeqno(maxVisibleSeqno),
       flusherCB(std::move(cb)),
-      checkpointDisposer(std::move(checkpointDisposer)) {
+      checkpointDisposer(std::move(checkpointDisposer)),
+      memFreedByExpel(stats.memFreedByCheckpointItemExpel) {
     std::lock_guard<std::mutex> lh(queueLock);
 
     lastBySeqno.setLabel("CheckpointManager(" + vb.getId().to_string() +
@@ -641,7 +642,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
             queuedItemsMemReleased +
             (Checkpoint::per_item_queue_overhead * numItemsExpelled);
 
-    stats.memFreedByCheckpointItemExpel += estimatedMemRecovered;
+    memFreedByExpel += estimatedMemRecovered;
 
     return {numItemsExpelled, estimatedMemRecovered};
 }
@@ -2026,4 +2027,22 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
             this,
             std::move(cursor),
             oldestCheckpoint};
+}
+
+CheckpointManager::Counter& CheckpointManager::Counter::operator+=(
+        size_t size) {
+    local += size;
+    global.fetch_add(size);
+    return *this;
+}
+
+CheckpointManager::Counter& CheckpointManager::Counter::operator-=(
+        size_t size) {
+    local -= size;
+    global.fetch_sub(size);
+    return *this;
+}
+
+size_t CheckpointManager::getMemFreedByItemExpel() const {
+    return memFreedByExpel;
 }

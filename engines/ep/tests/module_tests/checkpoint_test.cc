@@ -3700,6 +3700,10 @@ TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
     ASSERT_FALSE(pos->isCheckPointMetaItem());
     ASSERT_EQ(2, pos->getBySeqno());
 
+    ASSERT_EQ(0, manager.getMemFreedByItemExpel());
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.memFreedByCheckpointItemExpel);
+
     // Expelling set-vbstate + m:1
     const auto numExpelled = manager.expelUnreferencedCheckpointItems().count;
     EXPECT_EQ(2, numExpelled);
@@ -3724,6 +3728,10 @@ TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
     EXPECT_EQ(queued + index + queueOverhead,
               engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(queued + index + queueOverhead, manager.getEstimatedMemUsage());
+
+    EXPECT_GT(manager.getMemFreedByItemExpel(), 0);
+    EXPECT_EQ(manager.getMemFreedByItemExpel(),
+              stats.memFreedByCheckpointItemExpel);
 }
 
 TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
