@@ -4473,6 +4473,83 @@ TEST_P(CollectionsParameterizedTest, PerCollectionMemUsedAndDeleteVbucket) {
               engine->getEpStats().getCollectionMemUsed(CollectionID::Default));
 }
 
+class CollectionsPersistentNoNexusParameterizedTest
+    : public CollectionsParameterizedTest {};
+
+// MB-50519: Test didn't replicate a negative item count like in the MB (other
+// tests do that), but this test is useful to check that the item counts resolve
+// even after warmup interrupts the create/drop/compact steps
+// NoNexus as KVstore::getItemCount differs couchstore vs magma
+TEST_P(CollectionsPersistentNoNexusParameterizedTest,
+       update_into_new_generation) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    setCollections(cookie, cm);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    auto vb = store->getVBucket(vbid);
+    EXPECT_EQ(0, vb->getNumTotalItems());
+
+    auto k1 = StoredDocKey{"k", CollectionEntry::fruit};
+    ASSERT_TRUE(store_items(2, vbid, k1, "v1")); // store k0, k1
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    EXPECT_EQ(2, vb->getNumTotalItems());
+
+    // Now drop the collection (don't erase)
+    cm.remove(CollectionEntry::fruit);
+    setCollections(cookie, cm);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    // k1:v1 still counted until compaction driven erase
+    EXPECT_EQ(2, vb->getNumTotalItems());
+
+    // Add fruit back and "insert" k1, k1 still exists as a key but is logically
+    // deleted.
+    cm.add(CollectionEntry::fruit);
+    setCollections(cookie, cm);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // k1:v1 is already counted in the items, this update should not affect
+    // the bucket item count - however for the collection it is an insert
+    ASSERT_TRUE(store_items(2, vbid, k1, "v2"));
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // magma counting old/new generations until compaction
+    size_t expectedItems = isMagma() ? 4 : 2;
+    EXPECT_EQ(expectedItems, vb->getNumTotalItems());
+    auto rws = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(rws);
+    // The disk item count always includes the system event
+    // If we warmup we will subtract the system event count (1) from this number
+    // to obtain the "total items"
+    EXPECT_EQ(expectedItems + 1, rws->getItemCount(vbid));
+
+    vb.reset();
+    resetEngineAndWarmup();
+    vb = store->getVBucket(vbid);
+    rws = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(rws);
+    EXPECT_EQ(expectedItems, vb->getNumTotalItems());
+    EXPECT_EQ(expectedItems + 1, rws->getItemCount(vbid));
+
+    // Now purge the old fruit
+    runCompaction(vbid);
+    EXPECT_EQ(2, vb->getNumTotalItems()); // magma/couchstore aligned
+
+    // Both fruit system event + k0/k1 exist
+    EXPECT_EQ(3, rws->getItemCount(vbid));
+    vb.reset();
+
+    resetEngineAndWarmup();
+
+    vb = store->getVBucket(vbid);
+    rws = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(rws);
+    EXPECT_EQ(2, vb->getNumTotalItems()); // magma/couchstore aligned
+
+    // Both fruit system event + k0/k1 exist
+    EXPECT_EQ(3, rws->getItemCount(vbid));
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
                          CollectionsExpiryLimitTest,
                          ::testing::Bool(),
@@ -4505,3 +4582,9 @@ INSTANTIATE_TEST_SUITE_P(CollectionsMagma,
                          STParameterizedBucketTest::magmaConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 #endif
+
+INSTANTIATE_TEST_SUITE_P(
+        CollectionsPersistentNoNexus,
+        CollectionsPersistentNoNexusParameterizedTest,
+        STParameterizedBucketTest::persistentNoNexusConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);

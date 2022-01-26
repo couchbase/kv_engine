@@ -848,6 +848,7 @@ TEST_P(STParamMagmaBucketTest, UpdateDroppCollStatAfterReadBeforeCompact) {
     auto* kvstore = store->getRWUnderlying(vbid);
     auto& magmaKVStore = static_cast<MockMagmaKVStore&>(*kvstore);
     ASSERT_TRUE(kvstore);
+    EXPECT_EQ(1, magmaKVStore.getItemCount(vbid));
 
     // Need to create a new checkpoint so that the compaction on the prepare
     // namespace that we do before any other collection namespaces does not
@@ -859,13 +860,14 @@ TEST_P(STParamMagmaBucketTest, UpdateDroppCollStatAfterReadBeforeCompact) {
     auto key = makeStoredDocKey("fruitKey", CollectionEntry::fruit);
     store_item(vbid, key, "v1");
     flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(2, magmaKVStore.getItemCount(vbid));
 
     ASSERT_TRUE(magmaKVStore.newCheckpoint(vbid));
 
     cm.remove(CollectionEntry::fruit);
     vb->updateFromManifest(makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
-
+    EXPECT_EQ(1, magmaKVStore.getItemCount(vbid));
     ASSERT_EQ(1, vb->getNumTotalItems());
 
     bool workdone = false;
@@ -881,13 +883,19 @@ TEST_P(STParamMagmaBucketTest, UpdateDroppCollStatAfterReadBeforeCompact) {
                 cm.add(CollectionEntry::fruit);
                 vb->updateFromManifest(makeManifest(cm));
                 flushVBucketToDiskIfPersistent(vbid, 1);
+                EXPECT_EQ(2, magmaKVStore.getItemCount(vbid));
+                EXPECT_EQ(1, vb->getNumTotalItems());
 
                 store_item(vbid, key, "v2");
                 flushVBucketToDiskIfPersistent(vbid, 1);
+                // Before compaction expect to count for each store of fruitKey
+                // getItemCount includes fruit system event too
+                EXPECT_EQ(3, magmaKVStore.getItemCount(vbid));
                 EXPECT_EQ(2, vb->getNumTotalItems());
             });
 
     runCompaction(vbid);
+    EXPECT_EQ(2, magmaKVStore.getItemCount(vbid));
 
     // The "logical" insert from the hook still exists so doc count should be 1
     // still
@@ -902,6 +910,7 @@ TEST_P(STParamMagmaBucketTest, UpdateDroppCollStatAfterReadBeforeCompact) {
     cm.remove(CollectionEntry::fruit);
     vb->updateFromManifest(makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(1, magmaKVStore.getItemCount(vbid));
 
     std::tie(status, count) = magmaKVStore.getDroppedCollectionItemCount(
             vbid, CollectionEntry::fruit);
@@ -909,6 +918,8 @@ TEST_P(STParamMagmaBucketTest, UpdateDroppCollStatAfterReadBeforeCompact) {
 
     magmaKVStore.setPreCompactKVStoreHook([]() {});
     runCompaction(vbid);
+    // MB-50519: This was negative prior to fixing
+    EXPECT_EQ(0, magmaKVStore.getItemCount(vbid));
 
     std::tie(status, count) = magmaKVStore.getDroppedCollectionItemCount(
             vbid, CollectionEntry::fruit);

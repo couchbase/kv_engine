@@ -1361,6 +1361,8 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                 } else {
                     kvctx.onDiskPrepareDelta--;
                 }
+            } else if (req->isLogicalInsert()) {
+                ninserts++;
             }
         } else {
             // Old item doesn't exist and new is an insert.
