@@ -35,7 +35,7 @@
 #include "vbucketdeletiontask.h"
 #include <executor/executorpool.h>
 #include <folly/lang/Assume.h>
-#include <gsl/gsl-lite.h>
+#include <gsl/gsl-lite.hpp>
 #include <platform/histogram.h>
 
 EPVBucket::EPVBucket(Vbid i,
