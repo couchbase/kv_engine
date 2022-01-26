@@ -20,6 +20,7 @@
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
 #include <platform/scope_timer.h>
+#include <platform/timeutils.h>
 #include <utilities/engine_errc_2_mcbp.h>
 
 Bucket::Bucket() = default;
@@ -190,7 +191,16 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
     // People aren't allowed to use the engine in this state,
     // so we can do stuff without locking..
     try {
+        const auto start = std::chrono::steady_clock::now();
         bucket.setEngine(new_engine_instance(type, get_server_api));
+        const auto stop = std::chrono::steady_clock::now();
+        if ((stop - start) > std::chrono::seconds{1}) {
+            LOG_WARNING(
+                    "{}: Creation of bucket instance for bucket [{}] took {}",
+                    cid,
+                    name,
+                    cb::time2text(stop - start));
+        }
     } catch (const cb::engine_error& exception) {
         bucket.reset();
         LOG_ERROR("{}: Failed to create bucket [{}]: {}",
@@ -213,7 +223,15 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
                  to_string(type),
                  name,
                  config);
+        const auto start = std::chrono::steady_clock::now();
         result = engine.initialize(config);
+        const auto stop = std::chrono::steady_clock::now();
+        if ((stop - start) > std::chrono::seconds{1}) {
+            LOG_WARNING("{}: Initialization of bucket [{}] took {}",
+                        cid,
+                        name,
+                        cb::time2text(stop - start));
+        }
     } catch (const std::runtime_error& e) {
         LOG_ERROR("{}: Failed to create bucket [{}]: {}", cid, name, e.what());
         result = cb::engine_errc::failed;

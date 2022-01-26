@@ -10,6 +10,8 @@
 
 #include "nobucket_taskable.h"
 #include "memcached.h"
+#include <logger/logger.h>
+#include <platform/timeutils.h>
 
 const std::string& NoBucketTaskable::getName() const {
     return name;
@@ -38,4 +40,32 @@ bool NoBucketTaskable::isShutdown() {
 NoBucketTaskable& NoBucketTaskable::instance() {
     static NoBucketTaskable instance;
     return instance;
+}
+
+void NoBucketTaskable::logQTime(const GlobalTask& task,
+                                std::string_view threadName,
+                                std::chrono::steady_clock::duration enqTime) {
+    if (task.getTaskId() == TaskId::Core_CreateBucketTask) {
+        if (enqTime > std::chrono::seconds{1}) {
+            LOG_WARNING(
+                    "Slow scheduling for CreateBucket task on thread {}. "
+                    "Schedule overhead: {}",
+                    threadName,
+                    cb::time2text(enqTime));
+        }
+    }
+}
+
+void NoBucketTaskable::logRunTime(const GlobalTask& task,
+                                  std::string_view threadName,
+                                  std::chrono::steady_clock::duration runtime) {
+    if (task.getTaskId() == TaskId::Core_CreateBucketTask) {
+        if (runtime > std::chrono::seconds{5}) {
+            LOG_WARNING(
+                    "Slow runtime for CreateBucket task on thread {}. "
+                    "runtime: {}",
+                    threadName,
+                    cb::time2text(runtime));
+        }
+    }
 }

@@ -30,12 +30,12 @@ public:
     WorkLoadPolicy& getWorkLoadPolicy() override;
     void logQTime(const GlobalTask&,
                   std::string_view,
-                  std::chrono::steady_clock::duration) override {
-    }
+                  std::chrono::steady_clock::duration) override;
+
     void logRunTime(const GlobalTask&,
                     std::string_view,
-                    std::chrono::steady_clock::duration) override {
-    }
+                    std::chrono::steady_clock::duration) override;
+
     bool isShutdown() override;
 
     /// Get the one and only instance of the NoBucketTaskable
