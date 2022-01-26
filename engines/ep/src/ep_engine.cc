@@ -3097,6 +3097,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
                       kvBucket->getCMRecoveryUpperMarkBytes());
     collector.addStat(Key::ep_checkpoint_memory_recovery_lower_mark_bytes,
                       kvBucket->getCMRecoveryLowerMarkBytes());
+    collector.addStat(Key::ep_checkpoint_computed_max_size,
+                      kvBucket->getCheckpointMaxSize());
 
     kvBucket->getFileStats(collector);
 
