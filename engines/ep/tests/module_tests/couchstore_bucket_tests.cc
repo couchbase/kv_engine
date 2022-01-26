@@ -450,54 +450,6 @@ TEST_P(STParamCouchstoreBucketTest,
 }
 
 /**
- * @TODO magma: Test does not run for magma as we don't yet have a way of inject
- * errors.
- */
-TEST_P(STParamCouchstoreBucketTest,
-       BucketCreationFlagClearedOnlyAtFlushSuccess_PersistVBStateAndMutations) {
-    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    replaceCouchKVStore(ops);
-    EXPECT_CALL(ops, sync(testing::_, testing::_))
-            .Times(testing::AnyNumber())
-            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
-            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
-
-    ASSERT_FALSE(engine->getKVBucket()->getVBucket(vbid));
-
-    auto meta = nlohmann::json{
-            {"topology", nlohmann::json::array({{"active", "replica"}})}};
-    EXPECT_EQ(cb::engine_errc::success,
-              store->setVBucketState(vbid, vbucket_state_active, &meta));
-
-    const auto vb = engine->getKVBucket()->getVBucket(vbid);
-    ASSERT_TRUE(vb);
-
-    ASSERT_TRUE(vb->isBucketCreation());
-
-    store_item(vbid,
-               makeStoredDocKey("key"),
-               "value",
-               0 /*exptime*/,
-               {cb::engine_errc::success} /*expected*/,
-               PROTOCOL_BINARY_RAW_BYTES);
-
-    // This flush fails, the bucket creation flag must be still set
-    auto& epBucket = dynamic_cast<EPBucket&>(*store);
-    ASSERT_EQ(2, vb->dirtyQueueSize);
-    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
-    EXPECT_EQ(2, vb->dirtyQueueSize);
-    EXPECT_TRUE(vb->isBucketCreation());
-
-    // This flush succeeds
-    // Note: the returned num-flushed does not account meta-items
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
-    EXPECT_EQ(0, vb->dirtyQueueSize);
-    EXPECT_FALSE(vb->isBucketCreation());
-}
-
-/**
  * Check that when persisting a delete and the flush fails:
  *  - flush-stats are not updated
  *  - the (deleted) item is not removed from the HashTable
