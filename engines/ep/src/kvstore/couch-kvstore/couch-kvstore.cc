@@ -2303,9 +2303,12 @@ static couchstore_docinfos_options getDocFilter(const DocumentFilter& filter) {
     switch (filter) {
     case DocumentFilter::ALL_ITEMS:
     case DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS:
-        return COUCHSTORE_NO_OPTIONS;
+    // Whilst couchstore supports a NO_DELETES option we want to see deletes in
+    // CouchKVStore callbacks to increment the lastReadSeqno of the scan or we
+    // will potentially restart at the last alive item meaning we scan items
+    // unnecessarily.
     case DocumentFilter::NO_DELETES:
-        return COUCHSTORE_NO_DELETES;
+        return COUCHSTORE_NO_OPTIONS;
     }
 
     std::string err("getDocFilter: Illegal document filter!" +
@@ -2795,6 +2798,16 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     }
 
     sctx->diskBytesRead += docinfo->id.size + docinfo->rev_meta.size;
+
+    // Whilst couchstore supports a NO_DELETES option which would not even
+    // invoke this callback for a deleted item we want to see deletes in
+    // this callback to increment the lastReadSeqno of the scan or we will
+    // potentially restart at the last alive item meaning we scan items
+    // unnecessarily.
+    if (docinfo->deleted && sctx->docFilter == DocumentFilter::NO_DELETES) {
+        sctx->lastReadSeqno = byseqno;
+        return COUCHSTORE_SUCCESS;
+    }
 
     auto diskKey = makeDiskDocKey(docinfo->id);
 

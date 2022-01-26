@@ -1733,6 +1733,7 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
 
         if (magmakv::isDeleted(metaSlice) &&
             ctx.docFilter == DocumentFilter::NO_DELETES) {
+            ctx.lastReadSeqno = seqno;
             if (logger->should_log(spdlog::level::TRACE)) {
                 logger->TRACE(
                         "MagmaKVStore::scan SKIPPED(Deleted) {} key:{} "

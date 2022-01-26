@@ -1186,6 +1186,39 @@ TEST_P(KVStoreParamTest, GetItemCountInvalidVBucket) {
     EXPECT_THROW(kvstore->getItemCount(Vbid{123}), std::system_error);
 }
 
+TEST_P(KVStoreParamTest, DeletedItemsForNoDeletesScanMovesLastReadSeqno) {
+    uint64_t seqno = 1;
+
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+    auto key = makeStoredDocKey("key");
+    auto qi = makeCommittedItem(key, "value");
+    qi->setBySeqno(seqno++);
+    qi->setDeleted(DeleteSource::Explicit);
+    kvstore->del(*ctx, qi);
+
+    // Need a valid snap end
+    flush.proposedVBState.lastSnapEnd = seqno - 1;
+
+    kvstore->commit(std::move(ctx), flush);
+
+    // Strick mock, we don't expect any callback
+    auto cb = std::make_unique<StrictMock<MockGetValueCallback>>();
+    auto cl = std::make_unique<KVStoreTestCacheCallback>(0, 0, Vbid(0));
+    auto scanCtx =
+            kvstore->initBySeqnoScanContext(std::move(cb),
+                                            std::move(cl),
+                                            vbid,
+                                            1,
+                                            DocumentFilter::NO_DELETES,
+                                            ValueFilter::VALUES_COMPRESSED,
+                                            SnapshotSource::Head);
+
+    ASSERT_NE(nullptr, scanCtx);
+    kvstore->scan(*scanCtx);
+
+    EXPECT_EQ(1, scanCtx->lastReadSeqno);
+}
+
 TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
     using namespace std::string_view_literals;
     using namespace testing;

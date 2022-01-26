@@ -2369,7 +2369,7 @@ scan_error_t NexusKVStore::scan(BySeqnoScanContext& ctx) const {
 
     if (primaryCtx.lastReadSeqno != secondaryCtx.lastReadSeqno) {
         auto msg = fmt::format(
-                "NexusKVStore::scan: {}: last ready seqno not "
+                "NexusKVStore::scan: {}: last read seqno not "
                 "equal primary:{} secondary:{}",
                 ctx.vbid,
                 primaryCtx.lastReadSeqno,

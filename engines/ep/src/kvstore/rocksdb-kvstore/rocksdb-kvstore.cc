@@ -1574,10 +1574,13 @@ scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) const {
         // Skip deleted items if they were not requested - apart from
         // Prepared SyncWrites as the "deleted" there refers to the future
         // value (a Prepare is actually deleted using an Abort).
+        // TODO RDB: refactor this to the MagmaKVStore style of skip for deleted
+        // items
+        int64_t byseqno = itm->getBySeqno();
         if (!includeDeletes && itm->isDeleted() && !itm->isPending()) {
+            ctx.lastReadSeqno = byseqno;
             continue;
         }
-        int64_t byseqno = itm->getBySeqno();
 
         if (!key.getDocKey().isInSystemCollection()) {
             if (ctx.docFilter !=
