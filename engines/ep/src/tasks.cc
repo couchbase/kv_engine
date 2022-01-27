@@ -59,15 +59,6 @@ bool CompactTask::run() {
         runningCallback();
     }
 
-    /**
-     * MB-30015: Check to see if tombstones that have invalid
-     * data needs to be retained. The goal is to try and retain
-     * the erroneous tombstones especially in customer environments
-     * for further analysis
-     */
-    compactionData.first.retain_erroneous_tombstones =
-            bucket.isRetainErroneousTombstones();
-
     auto reschedule =
             bucket.doCompact(vbid, compactionData.first, compactionData.second);
 

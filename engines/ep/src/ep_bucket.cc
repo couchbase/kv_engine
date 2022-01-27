@@ -1398,6 +1398,14 @@ bool EPBucket::doCompact(Vbid vbid,
         return true;
     }
 
+    /**
+     * MB-30015: Check to see if tombstones that have invalid
+     * data needs to be retained. The goal is to try and retain
+     * the erroneous tombstones especially in customer environments
+     * for further analysis
+     */
+    config.retain_erroneous_tombstones = isRetainErroneousTombstones();
+
     bool reschedule = false;
     if (vb) {
         if (!compactInternal(vb, config)) {

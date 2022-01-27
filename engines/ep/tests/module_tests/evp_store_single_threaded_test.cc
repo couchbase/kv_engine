@@ -437,19 +437,29 @@ void SingleThreadedKVBucketTest::runCompaction(Vbid id,
     CompactionConfig compactConfig;
     compactConfig.purge_before_seq = purgeBeforeSeq;
     compactConfig.drop_deletes = dropDeletes;
-    store->scheduleCompaction(
-            id, compactConfig, nullptr, std::chrono::seconds(0));
-    // run the compaction task
-    std::string taskDescription = "Compact DB file " + std::to_string(id.get());
-    runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], taskDescription);
+    auto* epBucket = dynamic_cast<EPBucket*>(store);
+    if (epBucket) {
+        // Ensure the current thread-local engine is set to this bucket -
+        // some tests do not have this set beforehand; and on a 'real'
+        // setup the bucket would be switched to on the background thread
+        // when the CompactTask runs (see below)...
+        BucketAllocationGuard guard{engine.get()};
+
+        // Invoke compaction via the synchronous doCompact method, instead
+        // of scheduling on a bg thread via scheduleCompaction(); as that
+        // requires running an AuxIO task which is difficult to order
+        // correctly if other AuxIO tasks (e.g. Backfill) are also
+        // scheduled.
+        std::vector<const CookieIface*> emptyCookies;
+        epBucket->doCompact(id, compactConfig, emptyCookies);
+    }
 }
 
 void SingleThreadedKVBucketTest::scheduleAndRunCollectionsEraser(
         Vbid id, bool expectSuccess) {
     if (isPersistent()) {
-        store->scheduleCompaction(id, {}, nullptr, std::chrono::seconds(0));
-        std::string task = "Compact DB file " + std::to_string(id.get());
-        runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], task);
+        runCompaction(id, 0, false);
+
         if (expectSuccess) {
             auto [status, dropped] = store->getVBucket(id)
                                              ->getShard()
