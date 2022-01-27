@@ -1,0 +1,14 @@
+#! /bin/bash
+@CMAKE_INSTALL_PREFIX@/@CMAKE_INSTALL_BINDIR@/openssl $* \
+   > openssl.output.$$ \
+   2> openssl.error.$$
+exitcode=$?
+
+if [ ${exitcode} -ne 0 ]
+then
+   cat openssl.output.$$
+   cat openssl.error.$$ 1>&2
+fi
+
+rm -f openssl.output.$$ openssl.error.$$
+exit ${exitcode}

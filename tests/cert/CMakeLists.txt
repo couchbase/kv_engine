@@ -5,6 +5,31 @@ set(OPENSSL_BINARY
     "Path to the openssl binary in use (from cbdep)"
     FORCE)
 
+# Unfortunately openssl don't provide a -quiet option, but will always
+# spam the terminal with progress output. We can "easily" work around
+# that on *nix by creating a wrapper script and redirect output/error
+# (we could probably do the same on Windows, but given that we don't
+# have too many developers using windows the verbosity is probably
+# not a huge problem)
+if (UNIX)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/openssl_wrapper.sh.in
+                   ${CMAKE_CURRENT_BINARY_DIR}/openssl_wrapper
+                   @ONLY)
+    set(QUIET_OPENSSL_BINARY
+        ${CMAKE_CURRENT_BINARY_DIR}/openssl_wrapper
+        CACHE
+        PATH
+        "Path to the openssl binary in use (from cbdep)"
+        FORCE)
+else ()
+    set(QUIET_OPENSSL_BINARY
+        ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/openssl
+        CACHE
+        PATH
+        "Path to the openssl binary in use (from cbdep)"
+        FORCE)
+endif ()
+
 MACRO (Generate_kv_engine_X509_Certificate)
     cmake_parse_arguments(Cert "" "NAME;CONFIG;ROOT;EXTFILE;CA_TARGET" "" ${ARGN})
     add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.csr
@@ -16,7 +41,7 @@ MACRO (Generate_kv_engine_X509_Certificate)
                        ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.csr
                        ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.key.tmp
                        ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.csr.tmp
-                       COMMAND ${OPENSSL_BINARY}
+                       COMMAND ${QUIET_OPENSSL_BINARY}
                        req
                        -new
                        -newkey rsa:2048
@@ -41,7 +66,7 @@ MACRO (Generate_kv_engine_X509_Certificate)
                        -E remove -f
                        ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.cert
                        ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.cert.tmp
-                       COMMAND ${OPENSSL_BINARY}
+                       COMMAND ${QUIET_OPENSSL_BINARY}
                        x509
                        -req
                        -in ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.csr

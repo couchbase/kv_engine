@@ -4,7 +4,7 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ca_root_encrypted.key
                    ${CMAKE_COMMAND}
                    -E remove -f ${CMAKE_CURRENT_BINARY_DIR}/ca_root_encrypted.key
                    COMMAND
-                   ${OPENSSL_BINARY}
+                   ${QUIET_OPENSSL_BINARY}
                    rsa
                    -passout file:${CMAKE_CURRENT_SOURCE_DIR}/passphrase.txt
                    -des3
@@ -23,7 +23,7 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ca_root.cert
                    ${CMAKE_COMMAND}
                    -E remove -f ${CMAKE_CURRENT_BINARY_DIR}/ca_root.cert ${CMAKE_CURRENT_BINARY_DIR}/ca_root.key
                    COMMAND
-                   ${OPENSSL_BINARY}
+                   ${QUIET_OPENSSL_BINARY}
                    req
                    -new
                    -x509
