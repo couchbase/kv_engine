@@ -10,6 +10,8 @@
  */
 
 #include "evp_store_durability_test.h"
+
+#include "../mock/mock_kvstore.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint.h"
 #include "checkpoint_utils.h"
@@ -3073,25 +3075,13 @@ TEST_P(DurabilityCouchstoreBucketTest,
     testOnDiskPrepareSizeUpgrade(false /*removePrepareBytes*/);
 }
 
-TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
+TEST_P(DurabilityEPBucketTest, MB_36739) {
+    using namespace testing;
+    auto& mockKVStore = MockKVStore::replaceRWKVStoreWithMock(*store, 0);
+
     const auto& stats = engine->getEpStats();
     EXPECT_EQ(0, stats.commitFailed);
     EXPECT_EQ(1, stats.flusherCommits);
-
-    // Replace RW kvstore and use a gmocked ops so we an inject failure
-    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    replaceCouchKVStore(ops);
-
-    // Inject one fsync error when writing the pending mutation
-    //
-    // Note: Since MB-42224 at sync-header failure couchstore auto-retries
-    // the operation. Given that this test wants to verify a scenario where KV
-    // retries persistence, then we inject a sync-data failure (ie, it is the
-    // first call to fsync that fails, the second one succeeds).
-    EXPECT_CALL(ops, sync(testing::_, testing::_))
-            .Times(testing::AnyNumber())
-            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
-            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
 
     vbucket_state vbs =
             *store->getRWUnderlying(vbid)->getCachedVBucketState(vbid);
@@ -3102,6 +3092,10 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
     auto pending = makePendingItem(key, "value", req);
     EXPECT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
+
+    EXPECT_CALL(mockKVStore, commit(_, _))
+            .WillOnce(Return(false))
+            .WillRepeatedly(DoDefault());
 
     // Flush prepare, expect fail
     auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
