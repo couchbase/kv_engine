@@ -14,9 +14,7 @@
 
 #include "../mock/mock_ep_bucket.h"
 #include "../mock/mock_synchronous_ep_engine.h"
-#include "collections/collections_test_helpers.h"
 #include "item.h"
-#include "kv_bucket.h"
 #include "kvstore/nexus-kvstore/nexus-kvstore.h"
 #include "test_helpers.h"
 #include "test_manifest.h"
@@ -126,8 +124,7 @@ void NexusKVStoreTest::implicitCompactionTest(
 
     ThreadGate tg(2);
     auto& bucket = dynamic_cast<EPBucket&>(*store);
-    bucket.postPurgeSeqnoImplicitCompactionHook =
-            [&tg, &postPurgeSeqnoUpdateFn]() -> void { tg.threadUp(); };
+    bucket.postPurgeSeqnoImplicitCompactionHook = [&tg]() { tg.threadUp(); };
 
     auto dummyKey = makeStoredDocKey("keyA");
     store_item(vbid, dummyKey, "value");
@@ -371,7 +368,7 @@ TEST_P(NexusKVStoreTest, DropCollectionMidFlush) {
     // Previously the post commit checks would fail to find the dropped
     // collection in the manifest but assumed it was there and segfaulted
     auto* kvstore = store->getRWUnderlying(vbid);
-    kvstore->setPostFlushHook([this, &vb, &cm]() {
+    kvstore->setPostFlushHook([&vb, &cm]() {
         vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::meat)));
     });
 
@@ -494,7 +491,7 @@ TEST_P(NexusKVStoreTest, SecondaryExpiresFromSameTime) {
 
     auto& nexusKVStore = dynamic_cast<NexusKVStore&>(*kvstore);
     std::unique_ptr<TimeTraveller> t;
-    nexusKVStore.preCompactionHook = [this, &expiredKey, &t]() {
+    nexusKVStore.preCompactionHook = [&t]() {
         // Jump forwards to check that primary and secondary use the same
         // expiry point
         t = std::make_unique<TimeTraveller>(100);
@@ -660,7 +657,7 @@ TEST_P(NexusKVStoreTest, ConcurrentCompactionLogicalDeletionToOneKVStore) {
 
     auto& nexusKVStore = dynamic_cast<NexusKVStore&>(*kvstore);
     nexusKVStore.midCompactionHook =
-            [this, &purgedKey, &cm, &vb](std::unique_lock<std::mutex>& vbLock) {
+            [this, &cm, &vb](std::unique_lock<std::mutex>& vbLock) {
                 if (vbLock.owns_lock()) {
                     vbLock.unlock();
                 }
