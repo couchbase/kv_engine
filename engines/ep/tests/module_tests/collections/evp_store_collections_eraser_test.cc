@@ -664,7 +664,7 @@ TEST_P(CollectionsEraserTest, MB_38313) {
     // Remove vbucket
     store->deleteVBucket(vbid, nullptr);
 
-    runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "Compact DB file 0"); // would fault (gsl exception)
 }
 
@@ -853,8 +853,8 @@ TEST_P(CollectionsEraserTest, DropEmptyCollection) {
 
     if (persistent()) {
         // Empty collection will not schedule compaction
-        EXPECT_EQ(0, getFutureQueueSize(WRITER_TASK_IDX));
-        EXPECT_EQ(0, getReadyQueueSize(WRITER_TASK_IDX));
+        EXPECT_EQ(0, getFutureQueueSize(AUXIO_TASK_IDX));
+        EXPECT_EQ(0, getReadyQueueSize(AUXIO_TASK_IDX));
     } else {
         runCollectionsEraser(vbid);
     }
@@ -1280,8 +1280,8 @@ TEST_P(CollectionsEraserSyncWriteTest, DropAfterAbort) {
     if (isPersistent()) {
         // Expect compaction task to be scheduled as the collections as we've
         // added an abort to the collection before it was dropped.
-        EXPECT_EQ(1, getFutureQueueSize(WRITER_TASK_IDX));
-        EXPECT_EQ(0, getReadyQueueSize(WRITER_TASK_IDX));
+        EXPECT_EQ(1, getFutureQueueSize(AUXIO_TASK_IDX));
+        EXPECT_EQ(0, getReadyQueueSize(AUXIO_TASK_IDX));
     }
 }
 
@@ -1649,8 +1649,8 @@ void CollectionsEraserPersistentOnly::testEmptyCollections(
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 
     // Expect that the eraser task is not scheduled
-    EXPECT_EQ(0, getFutureQueueSize(WRITER_TASK_IDX));
-    EXPECT_EQ(0, getReadyQueueSize(WRITER_TASK_IDX));
+    EXPECT_EQ(0, getFutureQueueSize(AUXIO_TASK_IDX));
+    EXPECT_EQ(0, getReadyQueueSize(AUXIO_TASK_IDX));
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -1695,7 +1695,7 @@ TEST_P(CollectionsEraserPersistentOnly, DropManyCompactOnce) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     EXPECT_EQ(1,
-              (*task_executor->getLpTaskQ()[WRITER_TASK_IDX])
+              (*task_executor->getLpTaskQ()[AUXIO_TASK_IDX])
                       .getFutureQueueSize());
 
     // Test extended to cover MB-43199
@@ -1710,7 +1710,7 @@ TEST_P(CollectionsEraserPersistentOnly, DropManyCompactOnce) {
 
     std::string taskDescription =
             "Compact DB file " + std::to_string(vbid.get());
-    runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "Compact DB file " + std::to_string(vbid.get()));
 
     for (auto* cookie : cookies) {
@@ -1753,7 +1753,7 @@ TEST_P(CollectionsEraserPersistentOnly, DocAliveCollRecreateDocAliveCollPurge) {
 
     // Collection Purge
     EXPECT_EQ(1,
-              (*task_executor->getLpTaskQ()[WRITER_TASK_IDX])
+              (*task_executor->getLpTaskQ()[AUXIO_TASK_IDX])
                       .getFutureQueueSize());
     runCollectionsEraser(vbid);
     EXPECT_EQ(1, vb->getNumItems());
@@ -1797,7 +1797,7 @@ TEST_P(CollectionsEraserPersistentOnly,
 
     // Collection Purge
     EXPECT_EQ(1,
-              (*task_executor->getLpTaskQ()[WRITER_TASK_IDX])
+              (*task_executor->getLpTaskQ()[AUXIO_TASK_IDX])
                       .getFutureQueueSize());
     runCollectionsEraser(vbid);
     EXPECT_EQ(0, vb->getNumItems());
@@ -1836,7 +1836,7 @@ TEST_P(CollectionsEraserPersistentOnly,
 
     // Collection Purge
     EXPECT_EQ(1,
-              (*task_executor->getLpTaskQ()[WRITER_TASK_IDX])
+              (*task_executor->getLpTaskQ()[AUXIO_TASK_IDX])
                       .getFutureQueueSize());
     runCollectionsEraser(vbid);
     EXPECT_EQ(1, vb->getNumItems());
@@ -1887,7 +1887,7 @@ TEST_P(CollectionsEraserPersistentOnly,
 
     // Collection Purge
     EXPECT_EQ(1,
-              (*task_executor->getLpTaskQ()[WRITER_TASK_IDX])
+              (*task_executor->getLpTaskQ()[AUXIO_TASK_IDX])
                       .getFutureQueueSize());
     runCollectionsEraser(vbid);
     EXPECT_EQ(0, vb->getNumItems());

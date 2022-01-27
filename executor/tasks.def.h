@@ -60,11 +60,11 @@ TASK(AccessScanner, AUXIO_TASK_IDX, 2)
 TASK(AccessScannerVisitor, AUXIO_TASK_IDX, 2)
 TASK(BackfillManagerTask, AUXIO_TASK_IDX, 4)
 TASK(Core_SettingsReloadTask, AUXIO_TASK_IDX, 0)
+TASK(CompactVBucketTask, AUXIO_TASK_IDX, 5)
 
 // Read/Write IO tasks
 TASK(RollbackTask, WRITER_TASK_IDX, 1)
 TASK(PersistCollectionsManifest, WRITER_TASK_IDX, 1)
-TASK(CompactVBucketTask, WRITER_TASK_IDX, 2)
 TASK(FlusherTask, WRITER_TASK_IDX, 5)
 TASK(StatSnap, WRITER_TASK_IDX, 9)
 

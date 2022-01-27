@@ -14,6 +14,7 @@
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
+#include "ep_bucket.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
 #include "tests/mock/mock_dcp.h"

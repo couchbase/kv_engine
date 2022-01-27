@@ -4325,7 +4325,7 @@ TEST_P(CollectionsMagmaParameterizedTest, DropDuringPurge) {
     // the compaction manually.
     store->scheduleCompaction(vbid, {}, nullptr, std::chrono::seconds(0));
     std::string task = "Compact DB file " + std::to_string(vbid.get());
-    runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], task);
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX], task);
 
     // Meat should still be there - before the fix dropped size would be 0
     auto dropped = store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
