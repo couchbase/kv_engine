@@ -124,7 +124,7 @@ nlohmann::json TlsConfiguration::to_json() const {
 TlsConfiguration::TlsConfiguration(const nlohmann::json& spec)
     : private_key(getString(spec, "private key")),
       certificate_chain(getString(spec, "certificate chain")),
-      ca_file(getString(spec, "CA file", true)),
+      ca_file(getString(spec, "CA file")),
       password(!getString(spec, "password", true).empty()),
       minimum_version(getTlsMinVersion(spec)),
       cipher_list(getCipherList(spec, "TLS 1.2")),
@@ -179,8 +179,7 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
                      SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
                              SSL_MODE_ENABLE_PARTIAL_WRITE);
 
-    if (!ca_file.empty() &&
-        !SSL_CTX_load_verify_locations(server_ctx, ca_file.c_str(), nullptr)) {
+    if (!SSL_CTX_load_verify_locations(server_ctx, ca_file.c_str(), nullptr)) {
         throw CreateSslContextException("Failed to use: " + ca_file,
                                         "SSL_CTX_load_verify_locations",
                                         getOpenSslError());
@@ -228,21 +227,15 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
         // FALLTHROUGH
     case ClientCertMode::Enabled: {
         ssl_flags |= SSL_VERIFY_PEER;
-        if (ca_file.empty()) {
-            LOG_WARNING_RAW(
-                    "Configuration does not include a CA file; verify "
-                    "locations and client CA list not set");
-        } else {
-            auto* certNames = SSL_load_client_CA_file(ca_file.c_str());
-            if (!certNames) {
-                throw CreateSslContextException(
-                        "Failed to read SSL cert " + ca_file,
-                        "SSL_load_client_CA_file",
-                        getOpenSslError());
-            }
-            SSL_CTX_set_client_CA_list(server_ctx, certNames);
-            SSL_CTX_load_verify_locations(server_ctx, ca_file.c_str(), nullptr);
+        auto* certNames = SSL_load_client_CA_file(ca_file.c_str());
+        if (!certNames) {
+            throw CreateSslContextException(
+                    "Failed to read SSL cert " + ca_file,
+                    "SSL_load_client_CA_file",
+                    getOpenSslError());
         }
+        SSL_CTX_set_client_CA_list(server_ctx, certNames);
+        SSL_CTX_load_verify_locations(server_ctx, ca_file.c_str(), nullptr);
         SSL_CTX_set_verify(server_ctx, ssl_flags, nullptr);
         break;
     }

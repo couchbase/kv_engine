@@ -23,6 +23,7 @@ protected:
         tls = {{"private key", OBJECT_ROOT "/tests/cert/root/ca_root.key"},
                {"certificate chain",
                 OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
+               {"CA file", OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
                {"minimum version", "TLS 1"},
                {"cipher list",
                 {{"TLS 1.2", "HIGH"},

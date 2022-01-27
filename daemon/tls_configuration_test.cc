@@ -24,6 +24,7 @@ public:
     TlsConfigurationFormatTest()
         : JsonValidatorTest({{"private key", getCertFile("ca_root.key")},
                              {"certificate chain", getCertFile("ca_root.cert")},
+                             {"CA file", getCertFile("ca_root.cert")},
                              {"minimum version", "TLS 1.2"},
                              {"cipher list",
                               {{"TLS 1.2", "HIGH"},
@@ -155,6 +156,7 @@ public:
     TlsConfigurationTest()
         : legalSpec({{"private key", getCertFile("ca_root.key")},
                      {"certificate chain", getCertFile("ca_root.cert")},
+                     {"CA file", getCertFile("ca_root.cert")},
                      {"minimum version", "TLS 1.2"},
                      {"cipher list",
                       {{"TLS 1.2", "HIGH"},
