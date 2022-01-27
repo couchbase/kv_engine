@@ -104,6 +104,44 @@ public:
     }
 };
 
+class CacheLookupCb : public StatusCallback<CacheLookup> {
+public:
+    void callback(CacheLookup& lookup) override {
+    }
+};
+
+class ScanCb : public StatusCallback<GetValue> {
+public:
+    void callback(GetValue& result) override {
+    }
+};
+
+class PausingScanCb : public StatusCallback<GetValue> {
+public:
+    void callback(GetValue& result) override {
+        if (tick) {
+            setStatus(cb::engine_errc::no_memory);
+            tick = false;
+            return;
+        }
+        tick = true;
+    }
+    bool tick = false;
+};
+
+class PausingCacheLookupCb : public StatusCallback<CacheLookup> {
+public:
+    void callback(CacheLookup& lookup) override {
+        if (tick) {
+            setStatus(cb::engine_errc::no_memory);
+            tick = false;
+            return;
+        }
+        tick = true;
+    }
+    bool tick = false;
+};
+
 void NexusKVStoreTest::implicitCompactionTest(
         std::function<void()> storeItemsForTest,
         std::function<void()> postPurgeSeqnoUpdateFn) {
@@ -321,19 +359,7 @@ void NexusKVStoreTest::implicitCompactionTestChecks(DiskDocKey key,
             cookie, ValueFilter::VALUES_DECOMPRESSED, 0 /*token*/));
     kvstore->getMulti(vbid, q);
 
-    // 4) Scan
-    class CacheLookupCb : public StatusCallback<CacheLookup> {
-    public:
-        void callback(CacheLookup& lookup) override {
-        }
-    };
-
-    class ScanCb : public StatusCallback<GetValue> {
-    public:
-        void callback(GetValue& result) override {
-        }
-    };
-
+    // 4a) Scan, all items at once
     auto cl = std::make_unique<CacheLookupCb>();
     auto cb = std::make_unique<ScanCb>();
     auto scanCtx =
@@ -344,6 +370,30 @@ void NexusKVStoreTest::implicitCompactionTestChecks(DiskDocKey key,
                                             DocumentFilter::ALL_ITEMS,
                                             ValueFilter::VALUES_COMPRESSED,
                                             SnapshotSource::Head);
+    kvstore->scan(*scanCtx);
+
+    // 4b) Scan, pause in cache callback at every item
+    auto pausingCl = std::make_unique<PausingCacheLookupCb>();
+    cb = std::make_unique<ScanCb>();
+    scanCtx = kvstore->initBySeqnoScanContext(std::move(cb),
+                                              std::move(pausingCl),
+                                              vbid,
+                                              1,
+                                              DocumentFilter::ALL_ITEMS,
+                                              ValueFilter::VALUES_COMPRESSED,
+                                              SnapshotSource::Head);
+    kvstore->scan(*scanCtx);
+
+    // 4c) Scan, pause in scan callback at every item
+    cl = std::make_unique<CacheLookupCb>();
+    auto pausingCb = std::make_unique<PausingScanCb>();
+    scanCtx = kvstore->initBySeqnoScanContext(std::move(pausingCb),
+                                              std::move(cl),
+                                              vbid,
+                                              1,
+                                              DocumentFilter::ALL_ITEMS,
+                                              ValueFilter::VALUES_COMPRESSED,
+                                              SnapshotSource::Head);
     kvstore->scan(*scanCtx);
 
     // 5) Misc stuff
@@ -774,6 +824,94 @@ TEST_P(NexusKVStoreTest, PrimarySecondaryTimingStats) {
     }
 
     store->getRWUnderlying(vbid)->addTimingStats(cbFunc, cookie);
+}
+
+TEST_P(NexusKVStoreTest, PausingCacheLookupScanHighPurgeSeqno) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(kvstore);
+
+    auto vb = store->getVBucket(vbid);
+
+    // Our test function here will purge a prepare from a magma KVStore via
+    // implicit compaction so we have a different set of scan items
+    implicitCompactionPrepareTest(makeStoredDocKey("keyPre"));
+
+    // Add and drop a collection to push our purgeSeqno even higher to test that
+    // we handle that correctly
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    vb->updateFromManifest(makeManifest(cm));
+
+    auto purgedKey = makeStoredDocKey("k", CollectionEntry::fruit.getId());
+    store_item(vbid, purgedKey, "value");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    auto cl = std::make_unique<PausingCacheLookupCb>();
+    auto cb = std::make_unique<ScanCb>();
+    auto scanCtx =
+            kvstore->initBySeqnoScanContext(std::move(cb),
+                                            std::move(cl),
+                                            vbid,
+                                            1,
+                                            DocumentFilter::ALL_ITEMS,
+                                            ValueFilter::VALUES_COMPRESSED,
+                                            SnapshotSource::Head);
+
+    cm.remove(CollectionEntry::fruit);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    runCollectionsEraser(vbid);
+
+    kvstore->scan(*scanCtx);
+}
+
+TEST_P(NexusKVStoreTest, PausingScanCallbackScanHighPurgeSeqno) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(kvstore);
+
+    auto vb = store->getVBucket(vbid);
+
+    implicitCompactionPrepareTest(makeStoredDocKey("keyPre"));
+
+    // Add and drop a collection to push our purgeSeqno even higher to test that
+    // we handle that correctly
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    vb->updateFromManifest(makeManifest(cm));
+
+    auto purgedKey = makeStoredDocKey("k", CollectionEntry::fruit.getId());
+    store_item(vbid, purgedKey, "value");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    auto cl = std::make_unique<CacheLookupCb>();
+    auto cb = std::make_unique<PausingScanCb>();
+    auto scanCtx =
+            kvstore->initBySeqnoScanContext(std::move(cb),
+                                            std::move(cl),
+                                            vbid,
+                                            1,
+                                            DocumentFilter::ALL_ITEMS,
+                                            ValueFilter::VALUES_COMPRESSED,
+                                            SnapshotSource::Head);
+
+    cm.remove(CollectionEntry::fruit);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    runCollectionsEraser(vbid);
+
+    kvstore->scan(*scanCtx);
 }
 
 INSTANTIATE_TEST_SUITE_P(Nexus,
