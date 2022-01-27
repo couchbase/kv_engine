@@ -135,9 +135,9 @@ void NexusKVStoreTest::implicitCompactionTest(
     flushVBucketToDiskIfPersistent(vbid, 1);
     TimeTraveller timmy{60 * 60 * 24 * 5};
 
+    storeItemsForTest();
     performWritesForImplicitCompaction();
 
-    storeItemsForTest();
 
     // Wait till the purge seqno has been set
     tg.threadUp();
@@ -238,6 +238,34 @@ void NexusKVStoreTest::implicitCompactionPrepareTest(StoredDocKey purgedKey) {
     auto key = DiskDocKey(purgedKey, true /*prepare*/);
 
     implicitCompactionTestChecks(key, purgedPrepareSeqno);
+
+    // Verify that we actually removed the prepare by checking skipped checks
+    // stats before and after a get
+    uint64_t skippedChecksBefore = 0;
+    auto getSkippedChecks = [&skippedChecksBefore](std::string_view key,
+                                                   std::string_view value,
+                                                   const void* cookie) {
+        if (key == "nexus_0:skipped_checks_due_to_purge") {
+            skippedChecksBefore = std::stoull(std::string(value));
+        }
+    };
+    auto* kvstore = store->getRWUnderlying(vbid);
+    kvstore->addStats(getSkippedChecks, cookie);
+
+    auto gv = kvstore->get(key, vbid);
+    gv = kvstore->getWithHeader(*kvstore->makeFileHandle(vbid),
+                                key,
+                                vbid,
+                                ValueFilter::VALUES_DECOMPRESSED);
+
+    auto checkSkippedChecks = [&skippedChecksBefore](std::string_view key,
+                                                     std::string_view value,
+                                                     const void* cookie) {
+        if (key == "nexus_0:skipped_checks_due_to_purge") {
+            EXPECT_NE(skippedChecksBefore, std::stoull(std::string(value)));
+        }
+    };
+    kvstore->addStats(checkSkippedChecks, cookie);
 }
 
 void NexusKVStoreTest::implicitCompactionTestChecks(DiskDocKey key,
