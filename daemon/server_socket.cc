@@ -141,11 +141,12 @@ LibeventServerSocketImpl::LibeventServerSocketImpl(
     if (!interface->tag.empty()) {
         tagstr = " \"" + interface->tag + "\"";
     }
-    LOG_INFO("{} Listen on IPv{}{}: {}",
+    LOG_INFO("{} Listen on IPv{}{}: {}{}",
              sfd,
              interface->family == AF_INET ? "4" : "6",
              tagstr,
-             sockname);
+             sockname,
+             interface->tls ? " (TLS)" : "");
     if (cb::net::listen(sfd, backlog) == SOCKET_ERROR) {
         LOG_WARNING("{}: Failed to listen on {}: {}",
                     sfd,
