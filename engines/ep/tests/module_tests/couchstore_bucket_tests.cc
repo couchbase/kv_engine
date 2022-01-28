@@ -947,56 +947,6 @@ TEST_P(STParamCouchstoreBucketTest, CompactionUpdatesBloomFilter) {
     EXPECT_EQ(expected, vb->getFilterSize());
 }
 
-TEST_P(STParamCouchstoreBucketTest,
-       RollbackCompletionCallbackStateAfterCompletionCallbackFailure) {
-    replaceCouchKVStoreWithMock();
-
-    setVBucketStateAndRunPersistTask(
-            vbid,
-            vbucket_state_active,
-            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
-
-    auto vb = store->getVBucket(vbid);
-    auto newKey = makeStoredDocKey("key");
-    auto item = makePendingItem(newKey, "value");
-    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
-    flushVBucketToDiskIfPersistent(vbid, 1);
-
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                      "replica",
-                      1));
-
-    vb->processResolvedSyncWrites();
-    flushVBucketToDiskIfPersistent(vbid, 1);
-
-    size_t collectionSize = 0;
-    {
-        Collections::Summary summary;
-        vb->getManifest().lock().updateSummary(summary);
-        EXPECT_LT(0, summary[CollectionID::Default].diskSize);
-        collectionSize = summary[CollectionID::Default].diskSize;
-    }
-
-    auto& mockEPBucket = dynamic_cast<MockEPBucket&>(*store);
-    mockEPBucket.setPostCompactionCompletionHook(
-            []() { throw std::runtime_error("oops"); });
-
-    runCompaction(vbid);
-
-    // Stats shouldn't change as we should abort the compaction
-    EXPECT_EQ(0, vb->getPurgeSeqno());
-    EXPECT_EQ(1, vb->getNumTotalItems());
-
-    {
-        Collections::Summary summary;
-        vb->getManifest().lock().updateSummary(summary);
-        EXPECT_EQ(1, summary[CollectionID::Default].itemCount);
-        EXPECT_EQ(collectionSize, summary[CollectionID::Default].diskSize);
-    }
-}
-
 /**
  * MB-42224: The test verifies that a failure in the header-sync phase at
  * flush-vbucket causes couchstore auto-retry. Also, the test verifies that

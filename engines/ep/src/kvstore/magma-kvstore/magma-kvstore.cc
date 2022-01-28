@@ -2415,8 +2415,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         try {
             ctx->completionCallback(*ctx);
         } catch (const std::exception& e) {
-            logger->critical("CompactionContext::completionCallback {}",
-                             e.what());
+            logger->error("CompactionContext::completionCallback {}", e.what());
             return false;
         }
     }

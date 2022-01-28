@@ -5618,3 +5618,57 @@ TEST_P(STParamPersistentBucketTest,
     EXPECT_EQ(0, vb->dirtyQueueSize);
     EXPECT_FALSE(vb->isBucketCreation());
 }
+
+TEST_P(STParamPersistentBucketTest,
+       RollbackCompletionCallbackStateAfterCompletionCallbackFailure) {
+    if (isNexus()) {
+        // This test CAN run under Nexus but the callback is only forwarded on
+        // to the primary so it reports a mismatch as the primary compaction
+        // fails and the secondary does not.
+        GTEST_SKIP();
+    }
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto vb = store->getVBucket(vbid);
+    auto newKey = makeStoredDocKey("key");
+    auto item = makePendingItem(newKey, "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              vb->seqnoAcknowledged(
+                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      "replica",
+                      1));
+
+    vb->processResolvedSyncWrites();
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    size_t collectionSize = 0;
+    {
+        Collections::Summary summary;
+        vb->getManifest().lock().updateSummary(summary);
+        EXPECT_LT(0, summary[CollectionID::Default].diskSize);
+        collectionSize = summary[CollectionID::Default].diskSize;
+    }
+
+    auto& mockEPBucket = dynamic_cast<MockEPBucket&>(*store);
+    mockEPBucket.setPostCompactionCompletionHook(
+            []() { throw std::runtime_error("oops"); });
+
+    runCompaction(vbid);
+
+    // Stats shouldn't change as we should abort the compaction
+    EXPECT_EQ(0, vb->getPurgeSeqno());
+    EXPECT_EQ(1, vb->getNumTotalItems());
+
+    {
+        Collections::Summary summary;
+        vb->getManifest().lock().updateSummary(summary);
+        EXPECT_EQ(1, summary[CollectionID::Default].itemCount);
+        EXPECT_EQ(collectionSize, summary[CollectionID::Default].diskSize);
+    }
+}
