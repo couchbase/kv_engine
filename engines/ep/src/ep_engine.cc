@@ -583,20 +583,19 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
 
         if (key == "max_size" || key == "cache_size") {
             size_t vsize = std::stoull(val);
-            getConfiguration().setMaxSize(vsize);
+            configuration.setMaxSize(vsize);
         } else if (key == "mem_low_wat") {
-            getConfiguration().setMemLowWat(std::stoull(val));
+            configuration.setMemLowWat(std::stoull(val));
         } else if (key == "mem_high_wat") {
-            getConfiguration().setMemHighWat(std::stoull(val));
+            configuration.setMemHighWat(std::stoull(val));
         } else if (key == "backfill_mem_threshold") {
-            getConfiguration().setBackfillMemThreshold(std::stoull(val));
+            configuration.setBackfillMemThreshold(std::stoull(val));
         } else if (key == "durability_timeout_task_interval") {
-            getConfiguration().setDurabilityTimeoutTaskInterval(
-                    std::stoull(val));
+            configuration.setDurabilityTimeoutTaskInterval(std::stoull(val));
         } else if (key == "durability_min_level") {
-            getConfiguration().setDurabilityMinLevel(val);
+            configuration.setDurabilityMinLevel(val);
         } else if (key == "mutation_mem_threshold") {
-            getConfiguration().setMutationMemThreshold(std::stoull(val));
+            configuration.setMutationMemThreshold(std::stoull(val));
         } else if (key == "timing_log") {
             EPStats& epStats = getEpStats();
             std::ostream* old = epStats.timingLog;
@@ -618,133 +617,130 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
                 }
             }
         } else if (key == "exp_pager_enabled") {
-            getConfiguration().setExpPagerEnabled(cb_stob(val));
+            configuration.setExpPagerEnabled(cb_stob(val));
         } else if (key == "exp_pager_stime") {
-            getConfiguration().setExpPagerStime(std::stoull(val));
+            configuration.setExpPagerStime(std::stoull(val));
         } else if (key == "exp_pager_initial_run_time") {
-            getConfiguration().setExpPagerInitialRunTime(std::stoll(val));
+            configuration.setExpPagerInitialRunTime(std::stoll(val));
         } else if (key == "flusher_total_batch_limit") {
-            getConfiguration().setFlusherTotalBatchLimit(std::stoll(val));
+            configuration.setFlusherTotalBatchLimit(std::stoll(val));
         } else if (key == "getl_default_timeout") {
-            getConfiguration().setGetlDefaultTimeout(std::stoull(val));
+            configuration.setGetlDefaultTimeout(std::stoull(val));
         } else if (key == "getl_max_timeout") {
-            getConfiguration().setGetlMaxTimeout(std::stoull(val));
+            configuration.setGetlMaxTimeout(std::stoull(val));
         } else if (key == "ht_resize_interval") {
-            getConfiguration().setHtResizeInterval(std::stoull(val));
+            configuration.setHtResizeInterval(std::stoull(val));
         } else if (key == "max_item_privileged_bytes") {
-            getConfiguration().setMaxItemPrivilegedBytes(std::stoull(val));
+            configuration.setMaxItemPrivilegedBytes(std::stoull(val));
         } else if (key == "max_item_size") {
-            getConfiguration().setMaxItemSize(std::stoull(val));
+            configuration.setMaxItemSize(std::stoull(val));
         } else if (key == "access_scanner_enabled") {
-            getConfiguration().setAccessScannerEnabled(cb_stob(val));
+            configuration.setAccessScannerEnabled(cb_stob(val));
         } else if (key == "alog_path") {
-            getConfiguration().setAlogPath(val);
+            configuration.setAlogPath(val);
         } else if (key == "alog_max_stored_items") {
-            getConfiguration().setAlogMaxStoredItems(std::stoull(val));
+            configuration.setAlogMaxStoredItems(std::stoull(val));
         } else if (key == "alog_resident_ratio_threshold") {
-            getConfiguration().setAlogResidentRatioThreshold(std::stoull(val));
+            configuration.setAlogResidentRatioThreshold(std::stoull(val));
         } else if (key == "alog_sleep_time") {
-            getConfiguration().setAlogSleepTime(std::stoull(val));
+            configuration.setAlogSleepTime(std::stoull(val));
         } else if (key == "alog_task_time") {
-            getConfiguration().setAlogTaskTime(std::stoull(val));
+            configuration.setAlogTaskTime(std::stoull(val));
             /* Start of ItemPager parameters */
         } else if (key == "bfilter_fp_prob") {
-            getConfiguration().setBfilterFpProb(std::stof(val));
+            configuration.setBfilterFpProb(std::stof(val));
         } else if (key == "bfilter_key_count") {
-            getConfiguration().setBfilterKeyCount(std::stoull(val));
+            configuration.setBfilterKeyCount(std::stoull(val));
         } else if (key == "pager_active_vb_pcnt") {
-            getConfiguration().setPagerActiveVbPcnt(std::stoull(val));
+            configuration.setPagerActiveVbPcnt(std::stoull(val));
         } else if (key == "pager_sleep_time_ms") {
-            getConfiguration().setPagerSleepTimeMs(std::stoull(val));
+            configuration.setPagerSleepTimeMs(std::stoull(val));
         } else if (key == "item_eviction_age_percentage") {
-            getConfiguration().setItemEvictionAgePercentage(std::stoull(val));
+            configuration.setItemEvictionAgePercentage(std::stoull(val));
         } else if (key == "item_eviction_freq_counter_age_threshold") {
-            getConfiguration().setItemEvictionFreqCounterAgeThreshold(
+            configuration.setItemEvictionFreqCounterAgeThreshold(
                     std::stoull(val));
         } else if (key == "item_freq_decayer_chunk_duration") {
-            getConfiguration().setItemFreqDecayerChunkDuration(
-                    std::stoull(val));
+            configuration.setItemFreqDecayerChunkDuration(std::stoull(val));
         } else if (key == "item_freq_decayer_percent") {
-            getConfiguration().setItemFreqDecayerPercent(std::stoull(val));
+            configuration.setItemFreqDecayerPercent(std::stoull(val));
             /* End of ItemPager parameters */
         } else if (key == "warmup_min_memory_threshold") {
-            getConfiguration().setWarmupMinMemoryThreshold(std::stoull(val));
+            configuration.setWarmupMinMemoryThreshold(std::stoull(val));
         } else if (key == "warmup_min_items_threshold") {
-            getConfiguration().setWarmupMinItemsThreshold(std::stoull(val));
+            configuration.setWarmupMinItemsThreshold(std::stoull(val));
         } else if (key == "num_reader_threads") {
             ssize_t value = std::stoll(val);
-            getConfiguration().setNumReaderThreads(value);
+            configuration.setNumReaderThreads(value);
             ExecutorPool::get()->setNumReaders(
                     ThreadPoolConfig::ThreadCount(value));
         } else if (key == "num_writer_threads") {
             ssize_t value = std::stoull(val);
-            getConfiguration().setNumWriterThreads(value);
+            configuration.setNumWriterThreads(value);
             ExecutorPool::get()->setNumWriters(
                     ThreadPoolConfig::ThreadCount(value));
         } else if (key == "num_auxio_threads") {
             size_t value = std::stoull(val);
-            getConfiguration().setNumAuxioThreads(value);
+            configuration.setNumAuxioThreads(value);
             ExecutorPool::get()->setNumAuxIO(value);
         } else if (key == "num_nonio_threads") {
             size_t value = std::stoull(val);
-            getConfiguration().setNumNonioThreads(value);
+            configuration.setNumNonioThreads(value);
             ExecutorPool::get()->setNumNonIO(value);
         } else if (key == "bfilter_enabled") {
-            getConfiguration().setBfilterEnabled(cb_stob(val));
+            configuration.setBfilterEnabled(cb_stob(val));
         } else if (key == "bfilter_residency_threshold") {
-            getConfiguration().setBfilterResidencyThreshold(std::stof(val));
+            configuration.setBfilterResidencyThreshold(std::stof(val));
         } else if (key == "defragmenter_enabled") {
-            getConfiguration().setDefragmenterEnabled(cb_stob(val));
+            configuration.setDefragmenterEnabled(cb_stob(val));
         } else if (key == "defragmenter_interval") {
             auto v = std::stod(val);
-            getConfiguration().setDefragmenterInterval(v);
+            configuration.setDefragmenterInterval(v);
         } else if (key == "item_compressor_interval") {
             size_t v = std::stoull(val);
             // Adding separate validation as external limit is minimum 1
             // to prevent setting item compressor to constantly run
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
-            getConfiguration().setItemCompressorInterval(v);
+            configuration.setItemCompressorInterval(v);
         } else if (key == "item_compressor_chunk_duration") {
-            getConfiguration().setItemCompressorChunkDuration(std::stoull(val));
+            configuration.setItemCompressorChunkDuration(std::stoull(val));
         } else if (key == "defragmenter_age_threshold") {
-            getConfiguration().setDefragmenterAgeThreshold(std::stoull(val));
+            configuration.setDefragmenterAgeThreshold(std::stoull(val));
         } else if (key == "defragmenter_chunk_duration") {
-            getConfiguration().setDefragmenterChunkDuration(std::stoull(val));
+            configuration.setDefragmenterChunkDuration(std::stoull(val));
         } else if (key == "defragmenter_stored_value_age_threshold") {
-            getConfiguration().setDefragmenterStoredValueAgeThreshold(
+            configuration.setDefragmenterStoredValueAgeThreshold(
                     std::stoull(val));
         } else if (key == "defragmenter_run") {
             runDefragmenterTask();
         } else if (key == "defragmenter_mode") {
-            getConfiguration().setDefragmenterMode(val);
+            configuration.setDefragmenterMode(val);
         } else if (key == "defragmenter_auto_lower_threshold") {
-            getConfiguration().setDefragmenterAutoLowerThreshold(
-                    std::stof(val));
+            configuration.setDefragmenterAutoLowerThreshold(std::stof(val));
         } else if (key == "defragmenter_auto_upper_threshold") {
-            getConfiguration().setDefragmenterAutoUpperThreshold(
-                    std::stof(val));
+            configuration.setDefragmenterAutoUpperThreshold(std::stof(val));
         } else if (key == "defragmenter_auto_max_sleep") {
-            getConfiguration().setDefragmenterAutoMaxSleep(std::stof(val));
+            configuration.setDefragmenterAutoMaxSleep(std::stof(val));
         } else if (key == "defragmenter_auto_min_sleep") {
-            getConfiguration().setDefragmenterAutoMinSleep(std::stof(val));
+            configuration.setDefragmenterAutoMinSleep(std::stof(val));
         } else if (key == "defragmenter_auto_pid_p") {
-            getConfiguration().setDefragmenterAutoPidP(std::stof(val));
+            configuration.setDefragmenterAutoPidP(std::stof(val));
         } else if (key == "defragmenter_auto_pid_i") {
-            getConfiguration().setDefragmenterAutoPidI(std::stof(val));
+            configuration.setDefragmenterAutoPidI(std::stof(val));
         } else if (key == "defragmenter_auto_pid_d") {
-            getConfiguration().setDefragmenterAutoPidD(std::stof(val));
+            configuration.setDefragmenterAutoPidD(std::stof(val));
         } else if (key == "defragmenter_auto_pid_dt") {
-            getConfiguration().setDefragmenterAutoPidDt(std::stof(val));
+            configuration.setDefragmenterAutoPidDt(std::stof(val));
         } else if (key == "compaction_write_queue_cap") {
-            getConfiguration().setCompactionWriteQueueCap(std::stoull(val));
+            configuration.setCompactionWriteQueueCap(std::stoull(val));
         } else if (key == "compaction_max_concurrent_ratio") {
-            getConfiguration().setCompactionMaxConcurrentRatio(std::stof(val));
+            configuration.setCompactionMaxConcurrentRatio(std::stof(val));
         } else if (key == "chk_expel_enabled") {
-            getConfiguration().setChkExpelEnabled(cb_stob(val));
+            configuration.setChkExpelEnabled(cb_stob(val));
         } else if (key == "dcp_min_compression_ratio") {
-            getConfiguration().setDcpMinCompressionRatio(std::stof(val));
+            configuration.setDcpMinCompressionRatio(std::stof(val));
         } else if (key == "dcp_noop_mandatory_for_v5_features") {
-            getConfiguration().setDcpNoopMandatoryForV5Features(cb_stob(val));
+            configuration.setDcpNoopMandatoryForV5Features(cb_stob(val));
         } else if (key == "access_scanner_run") {
             if (!(runAccessScannerTask())) {
                 rv = cb::engine_errc::temporary_failure;
@@ -752,105 +748,103 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         } else if (key == "vb_state_persist_run") {
             runVbStatePersistTask(Vbid(std::stoi(val)));
         } else if (key == "ephemeral_full_policy") {
-            getConfiguration().setEphemeralFullPolicy(val);
+            configuration.setEphemeralFullPolicy(val);
         } else if (key == "ephemeral_metadata_mark_stale_chunk_duration") {
-            getConfiguration().setEphemeralMetadataMarkStaleChunkDuration(
+            configuration.setEphemeralMetadataMarkStaleChunkDuration(
                     std::stoull(val));
         } else if (key == "ephemeral_metadata_purge_age") {
-            getConfiguration().setEphemeralMetadataPurgeAge(std::stoull(val));
+            configuration.setEphemeralMetadataPurgeAge(std::stoull(val));
         } else if (key == "ephemeral_metadata_purge_interval") {
-            getConfiguration().setEphemeralMetadataPurgeInterval(
-                    std::stoull(val));
+            configuration.setEphemeralMetadataPurgeInterval(std::stoull(val));
         } else if (key == "ephemeral_metadata_purge_stale_chunk_duration") {
-            getConfiguration().setEphemeralMetadataPurgeStaleChunkDuration(
+            configuration.setEphemeralMetadataPurgeStaleChunkDuration(
                     std::stoull(val));
         } else if (key == "fsync_after_every_n_bytes_written") {
-            getConfiguration().setFsyncAfterEveryNBytesWritten(
-                    std::stoull(val));
+            configuration.setFsyncAfterEveryNBytesWritten(std::stoull(val));
         } else if (key == "xattr_enabled") {
-            getConfiguration().setXattrEnabled(cb_stob(val));
+            configuration.setXattrEnabled(cb_stob(val));
         } else if (key == "compression_mode") {
-            getConfiguration().setCompressionMode(val);
+            configuration.setCompressionMode(val);
         } else if (key == "min_compression_ratio") {
             float min_comp_ratio;
             if (safe_strtof(val, min_comp_ratio)) {
-                getConfiguration().setMinCompressionRatio(min_comp_ratio);
+                configuration.setMinCompressionRatio(min_comp_ratio);
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "max_ttl") {
-            getConfiguration().setMaxTtl(std::stoull(val));
+            configuration.setMaxTtl(std::stoull(val));
         } else if (key == "mem_used_merge_threshold_percent") {
-            getConfiguration().setMemUsedMergeThresholdPercent(std::stof(val));
+            configuration.setMemUsedMergeThresholdPercent(std::stof(val));
         } else if (key == "retain_erroneous_tombstones") {
-            getConfiguration().setRetainErroneousTombstones(cb_stob(val));
+            configuration.setRetainErroneousTombstones(cb_stob(val));
         } else if (key == "couchstore_tracing") {
-            getConfiguration().setCouchstoreTracing(cb_stob(val));
+            configuration.setCouchstoreTracing(cb_stob(val));
         } else if (key == "couchstore_write_validation") {
-            getConfiguration().setCouchstoreWriteValidation(cb_stob(val));
+            configuration.setCouchstoreWriteValidation(cb_stob(val));
         } else if (key == "couchstore_mprotect") {
-            getConfiguration().setCouchstoreMprotect(cb_stob(val));
+            configuration.setCouchstoreMprotect(cb_stob(val));
         } else if (key == "allow_sanitize_value_in_deletion") {
-            getConfiguration().setAllowSanitizeValueInDeletion(cb_stob(val));
+            configuration.setAllowSanitizeValueInDeletion(cb_stob(val));
         } else if (key == "pitr_enabled") {
-            getConfiguration().setPitrEnabled(cb_stob(val));
+            configuration.setPitrEnabled(cb_stob(val));
         } else if (key == "pitr_max_history_age") {
             uint32_t value;
             if (safe_strtoul(val, value)) {
-                getConfiguration().setPitrMaxHistoryAge(value);
+                configuration.setPitrMaxHistoryAge(value);
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "pitr_granularity") {
             uint32_t value;
             if (safe_strtoul(val, value)) {
-                getConfiguration().setPitrGranularity(value);
+                configuration.setPitrGranularity(value);
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "magma_fragmentation_percentage") {
             float value;
             if (safe_strtof(val, value)) {
-                getConfiguration().setMagmaFragmentationPercentage(value);
+                configuration.setMagmaFragmentationPercentage(value);
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "persistent_metadata_purge_age") {
             uint32_t value;
             if (safe_strtoul(val, value)) {
-                getConfiguration().setPersistentMetadataPurgeAge(value);
+                configuration.setPersistentMetadataPurgeAge(value);
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "magma_flusher_thread_percentage") {
             uint32_t value;
             if (safe_strtoul(val, value)) {
-                getConfiguration().setMagmaFlusherThreadPercentage(value);
+                configuration.setMagmaFlusherThreadPercentage(value);
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "couchstore_file_cache_max_size") {
             uint32_t value;
             if (safe_strtoul(val, value)) {
-                getConfiguration().setCouchstoreFileCacheMaxSize(value);
+                configuration.setCouchstoreFileCacheMaxSize(value);
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "magma_mem_quota_ratio") {
             float value;
             if (safe_strtof(val, value)) {
-                getConfiguration().setMagmaMemQuotaRatio(value);
+                configuration.setMagmaMemQuotaRatio(value);
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "magma_enable_block_cache") {
-            getConfiguration().setMagmaEnableBlockCache(cb_stob(val));
+            configuration.setMagmaEnableBlockCache(cb_stob(val));
         } else if (key == "compaction_expire_from_start") {
-            getConfiguration().setCompactionExpireFromStart(cb_stob(val));
+            configuration.setCompactionExpireFromStart(cb_stob(val));
         } else if (key == "vbucket_mapping_sanity_checking") {
-            getConfiguration().setVbucketMappingSanityChecking(cb_stob(val));
+            configuration.setVbucketMappingSanityChecking(cb_stob(val));
         } else if (key == "vbucket_mapping_sanity_checking_error_mode") {
-            getConfiguration().setVbucketMappingSanityCheckingErrorMode(val);
+            configuration.setVbucketMappingSanityCheckingErrorMode(val);
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::invalid_arguments;
