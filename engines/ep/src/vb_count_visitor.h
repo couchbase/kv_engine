@@ -126,6 +126,10 @@ public:
         return checkpointMemOverheadIndex;
     }
 
+    size_t getCheckpointMemFreedByItemExpel() const {
+        return checkpointMemFreedByItemExpel;
+    }
+
     size_t getBloomFilterMemory() const {
         return bloomFilterMemory;
     }
@@ -235,6 +239,8 @@ private:
     size_t checkpointMemOverhead{0};
     size_t checkpointMemOverheadQueue{0};
     size_t checkpointMemOverheadIndex{0};
+
+    size_t checkpointMemFreedByItemExpel{0};
 
     size_t bloomFilterMemory{0};
 

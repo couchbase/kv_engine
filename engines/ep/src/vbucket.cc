@@ -328,6 +328,10 @@ size_t VBucket::getCMMemOverheadIndex() const {
     return checkpointManager->getMemOverheadIndex();
 }
 
+size_t VBucket::getCMMemFreedByItemExpel() const {
+    return checkpointManager->getMemFreedByItemExpel();
+}
+
 size_t VBucket::getSyncWriteAcceptedCount() const {
     folly::SharedMutex::ReadHolder lh(stateLock);
     if (!durabilityMonitor) {

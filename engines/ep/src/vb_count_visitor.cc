@@ -51,6 +51,8 @@ void VBucketCountVisitor::visitBucket(VBucket& vb) {
         checkpointMemOverheadQueue += vb.getCMMemOverheadQueue();
         checkpointMemOverheadIndex += vb.getCMMemOverheadIndex();
 
+        checkpointMemFreedByItemExpel += vb.getCMMemFreedByItemExpel();
+
         bloomFilterMemory += vb.getFilterMemoryFootprint();
 
         opsCreate += vb.opsCreate;
