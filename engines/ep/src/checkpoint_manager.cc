@@ -47,7 +47,8 @@ CheckpointManager::CheckpointManager(EPStats& st,
       maxVisibleSeqno(maxVisibleSeqno),
       flusherCB(std::move(cb)),
       checkpointDisposer(std::move(checkpointDisposer)),
-      memFreedByExpel(stats.memFreedByCheckpointItemExpel) {
+      memFreedByExpel(stats.memFreedByCheckpointItemExpel),
+      memFreedByCheckpointRemoval(stats.memFreedByCheckpointRemoval) {
     std::lock_guard<std::mutex> lh(queueLock);
 
     lastBySeqno.setLabel("CheckpointManager(" + vb.getId().to_string() +
@@ -559,7 +560,7 @@ CheckpointManager::updateStatsForCheckpointRemoval(
     }
     numItems.fetch_sub(numNonMetaItemsRemoved + numMetaItemsRemoved);
     stats.itemsRemovedFromCheckpoints.fetch_add(numNonMetaItemsRemoved);
-    stats.memFreedByCheckpointRemoval += memoryReleased;
+    memFreedByCheckpointRemoval += memoryReleased;
 
     EP_LOG_DEBUG(
             "CheckpointManager::updateStatsForCheckpointRemoval: Removed {} "
@@ -2045,4 +2046,8 @@ CheckpointManager::Counter& CheckpointManager::Counter::operator-=(
 
 size_t CheckpointManager::getMemFreedByItemExpel() const {
     return memFreedByExpel;
+}
+
+size_t CheckpointManager::getMemFreedByCheckpointRemoval() const {
+    return memFreedByCheckpointRemoval;
 }

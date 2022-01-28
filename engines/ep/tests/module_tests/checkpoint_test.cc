@@ -3738,10 +3738,14 @@ TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
     testCheckpointManagerMemUsage();
 
     // confirm that no items have been removed from the checkpoint manager
-    ASSERT_EQ(0, engine->getEpStats().itemsRemovedFromCheckpoints);
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
+    ASSERT_EQ(0, stats.memFreedByCheckpointRemoval);
 
     auto vb = store->getVBuckets().getBucket(vbid);
     auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+    ASSERT_EQ(0, manager.getMemFreedByCheckpointRemoval());
+
     // set the eager checkpoint disposer to allow checkpoints to be destroyed
     // "inline" when removed. This avoids needing to drive background tasks.
     manager.setCheckpointDisposer(ImmediateCkptDisposer);
@@ -3812,6 +3816,10 @@ TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
     EXPECT_EQ(queued + index + queueOverhead,
               engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(queued + index + queueOverhead, manager.getEstimatedMemUsage());
+
+    EXPECT_GT(manager.getMemFreedByCheckpointRemoval(), 0);
+    EXPECT_EQ(manager.getMemFreedByCheckpointRemoval(),
+              stats.memFreedByCheckpointRemoval);
 }
 
 TEST_P(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {

@@ -594,6 +594,8 @@ public:
     // @return the amount of memory (in bytes) released by ItemExpel
     size_t getMemFreedByItemExpel() const;
 
+    size_t getMemFreedByCheckpointRemoval() const;
+
     /**
      * Member std::function variable, to allow us to inject code into
      * removeCursor() for unit MB36146
@@ -989,6 +991,9 @@ protected:
 
     // Memory released by item expel in this CM
     Counter memFreedByExpel;
+
+    // Memory released by checkpoint removal in this CM
+    Counter memFreedByCheckpointRemoval;
 
     friend std::ostream& operator<<(std::ostream& os, const CheckpointManager& m);
 };

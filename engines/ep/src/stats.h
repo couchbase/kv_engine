@@ -306,7 +306,7 @@ public:
     Counter cursorsDropped;
 
     //! Amount of memory we have freed by checkpoint removal
-    std::atomic<size_t> memFreedByCheckpointRemoval;
+    Counter memFreedByCheckpointRemoval;
 
     //! Amount of memory we have freed by checkpoint item expel
     Counter memFreedByCheckpointItemExpel;
