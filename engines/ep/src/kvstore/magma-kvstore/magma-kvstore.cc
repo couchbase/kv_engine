@@ -2520,12 +2520,14 @@ std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) const {
                     "snapshot as magma is in read-only mode",
                     vbid);
         } else if (status.ErrorCode() == magma::Status::DiskFull) {
+            ++st.numOpenFailure;
             logger->warn(
                     "MagmaKVStore::makeFileHandle {} creating in memory "
                     "snapshot as magma returned DiskFull when trying to Sync "
                     "KVStore",
                     vbid);
         } else {
+            ++st.numOpenFailure;
             logger->warn(
                     "MagmaKVStore::makeFileHandle {} Failed to sync kvstore "
                     "with status {}, so we'll be unable to create a disk "
