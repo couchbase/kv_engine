@@ -3376,6 +3376,7 @@ GetValue MagmaKVStore::getBySeqno(KVFileHandle& handle,
     bool found;
     auto [status, key, meta, value] = magma->GetBySeqno(snapshot, seq, found);
     if (!status.IsOK()) {
+        ++st.numGetFailure;
         logger->warn(
                 "MagmaKVStore::getBySeqno {} Failed to get seqno:{} kvstore "
                 "with status {}",
