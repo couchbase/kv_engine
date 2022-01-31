@@ -930,6 +930,84 @@ TEST_P(KVBucketParamTest, AddNMVB) {
     EXPECT_EQ(cb::engine_errc::not_my_vbucket, store->add(item, cookie));
 }
 
+/**
+ * Test that add() behaves correctly when "adding" a Deleted item.
+ * This is a slightly obscure use-case; exposed via subdoc for transactions
+ * support (see  AccessDeleted | CreateAsDeleted).
+ * Such an operation should only succeed if there is neither an alive document
+ * nor a deleted (tombstone) - if a deleted document exists then the operation
+ * should fail.
+ */
+TEST_P(KVBucketParamTest, AddDeleted) {
+    auto vb = store->getVBucket(vbid);
+    StoredDocKey key = makeStoredDocKey("aKey");
+
+    auto deletedItem = make_item(vbid, key, "deleted value");
+    deletedItem.setDeleted();
+    if (persistent()) {
+        EXPECT_EQ(cb::engine_errc::would_block, store->add(deletedItem, cookie))
+                << "Add() of deleted item (no alive or tombstone) should "
+                   "require bgFetch to check for on-disk tombstone.";
+
+        {
+            auto result = vb->ht.findForWrite(key);
+            ASSERT_TRUE(result.storedValue);
+            EXPECT_TRUE(result.storedValue->isTempInitialItem());
+        }
+        EXPECT_EQ(cb::engine_errc::would_block, store->add(deletedItem, cookie))
+                << "Add() of deleted item when a temp_initial_item has been "
+                   "added for pending bgFetch should return would_block";
+
+        runBGFetcherTask();
+        EXPECT_EQ(cb::engine_errc::success, store->add(deletedItem, cookie))
+                << "After bgfetch finds temp_non_existent, add of deleted item "
+                   "should succeed";
+    } else {
+        EXPECT_EQ(cb::engine_errc::success, store->add(deletedItem, cookie))
+                << "Add() of deleted item for (no alive or tombstone) for "
+                   "ephemeral should succeed.";
+    }
+
+    EXPECT_EQ(cb::engine_errc::not_stored, store->add(deletedItem, cookie))
+            << "Add() of deleted item (when tombstone resident) should fail as "
+               "a deleted already exists";
+
+    if (persistent()) {
+        // Check behaviour when tombstone has been ejected from memory but
+        // still present on disk.
+        // This is not applicable to ephemeral as tombstones are only
+        // ever held in memory; removing a tombstone from memory is
+        // semantically the same as purging it entirely.
+
+        // Flushing a deleted item should remove it from the HashTable
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        {
+            auto result = vb->ht.findForWrite(key);
+            ASSERT_FALSE(result.storedValue);
+        }
+
+        auto deleted2 = make_item(vbid, key, "deleted value 2");
+        deleted2.setDeleted();
+        EXPECT_EQ(cb::engine_errc::would_block, store->add(deleted2, cookie))
+                << "Add() of deleted item (when tombstone ejected) should "
+                   "require bgFetch";
+
+        runBGFetcherTask();
+        EXPECT_EQ(cb::engine_errc::not_stored, store->add(deleted2, cookie))
+                << "After bgfetch finds existing tombstone, add of deleted "
+                   "item should fail";
+    }
+
+    // add an alive document, then attempt to "Add" a deleted one.
+    auto aliveItem = make_item(vbid, key, "value2");
+    ASSERT_EQ(cb::engine_errc::success, store->add(aliveItem, cookie));
+
+    auto deleted4 = make_item(vbid, key, "deleted value 4");
+    deleted4.setDeleted();
+    EXPECT_EQ(cb::engine_errc::not_stored, store->add(deleted4, cookie))
+            << "Add() of deleted item when alive item present should fail";
+}
+
 // SetWithMeta tests //////////////////////////////////////////////////////////
 
 // Test basic setWithMeta

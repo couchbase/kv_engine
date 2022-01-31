@@ -2343,6 +2343,126 @@ TEST_P(DurabilityBucketTest, SyncDeleteAfterAbortedSyncDelete) {
     EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 }
 
+/*
+ * Test that add() behaves correctly when "adding" a SyncDeleted item.
+ * This is a slightly obscure use-case; exposed via subdoc for transactions
+ * support (see  AccessDeleted | CreateAsDeleted).
+ * Such an operation should only succeed if there is neither an alive document
+ * nor a deleted (tombstone) - if a deleted document exists then the operation
+ * should fail.
+ *
+ * Tests each possible state of existing document in the VBucket.
+ */
+
+/// 1. HashTable has no committed or pending item for the key.
+TEST_P(DurabilityBucketTest, AddSyncDelete_NoCommittedNoPending) {
+    setVBucketToActiveWithValidTopology();
+    StoredDocKey key = makeStoredDocKey("aKey");
+    auto syncDelete = makePendingItem(key, "deleted value");
+    syncDelete->setDeleted();
+    if (persistent()) {
+        EXPECT_EQ(cb::engine_errc::would_block, store->add(*syncDelete, cookie))
+                << "Add() of deleted item (no alive or tombstone) should "
+                   "require bgFetch to check for on-disk tombstone.";
+    } else {
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
+                  store->add(*syncDelete, cookie))
+                << "Add() of deleted item for (no alive or tombstone) for "
+                   "ephemeral should succeed.";
+    }
+}
+
+/// 2. HashTable has the tempInitial / tempNonExistent items present
+TEST_P(DurabilityEPBucketTest, AddSyncDelete_TempItems) {
+    setVBucketToActiveWithValidTopology();
+
+    auto vb = store->getVBucket(vbid);
+    StoredDocKey key = makeStoredDocKey("aKey");
+    auto syncDelete = makePendingItem(key, "deleted value");
+    syncDelete->setDeleted();
+
+    // HashTable with (Committed) tempInitialItem.
+    ASSERT_EQ(cb::engine_errc::would_block, store->add(*syncDelete, cookie));
+    {
+        auto result = vb->ht.findForWrite(key);
+        ASSERT_TRUE(result.storedValue);
+        ASSERT_TRUE(result.storedValue->isTempInitialItem());
+    }
+    EXPECT_EQ(cb::engine_errc::would_block, store->add(*syncDelete, cookie))
+            << "Add() of deleted item when a temp_initial_item has been "
+               "added for pending bgFetch should return would_block";
+
+    // HashTable with (Committed) tempNonExistentItem.
+    runBGFetcherTask();
+    {
+        auto result = vb->ht.findForWrite(key);
+        ASSERT_TRUE(result.storedValue);
+        ASSERT_TRUE(result.storedValue->isTempNonExistentItem());
+    }
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
+              store->add(*syncDelete, cookie))
+            << "After bgfetch finds temp_non_existent, add of SyncDelete "
+               "should result in pending SyncWrite.";
+}
+
+/// 3. HashTable has tempDeleted item present
+TEST_P(DurabilityEPBucketTest, AddSyncDelete_TempDeletedItem) {
+    setVBucketToActiveWithValidTopology();
+
+    auto vb = store->getVBucket(vbid);
+    StoredDocKey key = makeStoredDocKey("aKey");
+
+    // Delete a key then persist it, which triggers the removal from memory
+    // of deleted items.
+    auto deletedItem = make_item(vbid, key, "deleted value");
+    deletedItem.setDeleted();
+    ASSERT_EQ(cb::engine_errc::success, store->set(deletedItem, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    {
+        const auto readHandle = vb->lockCollections();
+        auto res = vb->ht.findOnlyCommitted(key);
+        ASSERT_FALSE(res.storedValue);
+    }
+
+    // Issue a SyncDelete to set up for a tempDeleteItem.
+    auto syncDelete = makePendingItem(key, "deleted value");
+    syncDelete->setDeleted();
+    ASSERT_EQ(cb::engine_errc::would_block, store->add(*syncDelete, cookie));
+    runBGFetcherTask();
+    {
+        auto result = vb->ht.findForWrite(key);
+        ASSERT_TRUE(result.storedValue);
+        ASSERT_TRUE(result.storedValue->isTempDeletedItem());
+    }
+
+    auto syncDelete2 = makePendingItem(key, "deleted value 2");
+    syncDelete2->setDeleted();
+    EXPECT_EQ(cb::engine_errc::not_stored, store->add(*syncDelete2, cookie))
+            << "After bgfetch finds temp_deleted, add of SyncDelete "
+               "should fail";
+}
+
+/**
+ * 4. HashTable has Delete present (i.e. committed but not yet flushed to disk,
+ *    given on persistence we normally remove SyncDeletes from the HT.
+ */
+TEST_P(DurabilityBucketTest, AddSyncDelete_CommittedDelete) {
+    setVBucketToActiveWithValidTopology();
+
+    auto vb = store->getVBucket(vbid);
+    StoredDocKey key = makeStoredDocKey("aKey");
+
+    auto deletedItem = make_item(vbid, key, "deleted value");
+    deletedItem.setDeleted();
+    ASSERT_EQ(cb::engine_errc::success, store->set(deletedItem, cookie));
+
+    auto syncDelete = makePendingItem(key, "deleted value 2");
+    syncDelete->setDeleted();
+    EXPECT_EQ(cb::engine_errc::not_stored, store->add(*syncDelete, cookie))
+            << "Add() of deleted item when a Delete already present should "
+               "fail.";
+}
+
 /**
  * Test that the DurabilityCompletionTask correctly deals with a vBucket going
  * away.
@@ -4892,7 +5012,7 @@ INSTANTIATE_TEST_SUITE_P(
         STParameterizedBucketTest::PrintToStringParamName);
 
 // Test cases which run against all ephemeral.
-INSTANTIATE_TEST_SUITE_P(AllBackends,
+INSTANTIATE_TEST_SUITE_P(AllEphemeral,
                          DurabilityEphemeralBucketTest,
                          STParameterizedBucketTest::ephConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

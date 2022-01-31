@@ -3508,6 +3508,30 @@ std::pair<AddStatus, std::optional<VBNotifyCtx>> VBucket::processAdd(
         return {AddStatus::Exists, {}};
     }
 
+    // If attempting to add a deleted item, then there cannot be _any_
+    // StoredValue present - alive or deleted - including a tombstone.
+    if (itm.isDeleted()) {
+        if (!committed && !areDeletedItemsAlwaysResident()) {
+            // No committed item resident, but tombstone could exist. Must
+            // bgfetch to confirm / deny.
+            return {AddStatus::AddTmpAndBgFetch, {}};
+        }
+        if (committed) {
+            if (committed->isTempInitialItem()) {
+                // We have a tempInitialItem - need to wait for bgFetch to
+                // complete to see if a tombstone exists or not...
+                return {AddStatus::BgFetch, {}};
+            }
+            if (!committed->isTempNonExistentItem()) {
+                // .. anything apart from TempNonExistent (alive, deleted,
+                // tempDeleted, ...) means there is an existing item of some
+                // form (alive or deleted) and hence an add() of a Deleted item
+                // must fail.
+                return {AddStatus::Exists, {}};
+            }
+        }
+    }
+
     if (bucket && bucket->verifyCheckpointMemoryState() ==
                           KVBucket::CheckpointMemoryState::Full) {
         return {AddStatus::NoMem, {}};
