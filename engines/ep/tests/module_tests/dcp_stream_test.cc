@@ -2938,7 +2938,7 @@ void SingleThreadedActiveStreamTest::testProducerIncludesUserXattrsInDelete(
               engine->store(cookie,
                             item.get(),
                             cas,
-                            OPERATION_ADD,
+                            OPERATION_SET,
                             durReqs,
                             DocumentState::Deleted));
 
@@ -3099,7 +3099,7 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
               engine->store(cookie,
                             item.get(),
                             cas,
-                            OPERATION_ADD,
+                            OPERATION_SET,
                             durReqs,
                             DocumentState::Deleted));
 
