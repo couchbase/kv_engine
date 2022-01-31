@@ -870,7 +870,7 @@ TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
                 delWait.wait(lock, [&okToDelete] { return okToDelete; });
                 okToDelete = false;
             }
-            kvstore->delVBucket(Vbid(0), 0);
+            kvstore->delVBucket(Vbid(0), std::make_unique<KVStoreRevision>(0));
             if (deletes++ > minNumDeletes) {
                 stop = true;
             }

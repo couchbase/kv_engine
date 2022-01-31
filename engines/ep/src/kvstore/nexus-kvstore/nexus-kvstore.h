@@ -61,7 +61,8 @@ public:
                   ValueFilter filter,
                   const GetRangeCb& cb) const override;
     void del(TransactionContext& txnCtx, queued_item item) override;
-    void delVBucket(Vbid vbucket, uint64_t fileRev) override;
+    void delVBucket(Vbid vbucket,
+                    std::unique_ptr<KVStoreRevision> fileRev) override;
     std::vector<vbucket_state*> listPersistedVbuckets() override;
     bool snapshotVBucket(Vbid vbucketId, const vbucket_state& vbstate) override;
     bool compactDB(std::unique_lock<std::mutex>& vbLock,
@@ -132,7 +133,7 @@ public:
     nlohmann::json getPersistedStats() const override;
     bool snapshotStats(const nlohmann::json& stats) override;
     void prepareToCreate(Vbid vbid) override;
-    uint64_t prepareToDelete(Vbid vbid) override;
+    std::unique_ptr<KVStoreRevision> prepareToDelete(Vbid vbid) override;
     std::unique_ptr<RollbackCtx> prepareToRollback(Vbid vbid) override;
     uint64_t getLastPersistedSeqno(Vbid vbid) override;
     void prepareForDeduplication(std::vector<queued_item>& items) override;
@@ -157,7 +158,7 @@ public:
     TestingHook<std::unique_lock<std::mutex>&> midCompactionHook;
 
 protected:
-    uint64_t prepareToDeleteImpl(Vbid vbid) override;
+    std::unique_ptr<KVStoreRevision> prepareToDeleteImpl(Vbid vbid) override;
     void prepareToCreateImpl(Vbid vbid) override;
 
     /**

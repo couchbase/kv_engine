@@ -1098,14 +1098,16 @@ void MagmaKVStore::del(TransactionContext& txnCtx, queued_item item) {
     ctx.pendingReqs.emplace_back(std::move(item));
 }
 
-void MagmaKVStore::delVBucket(Vbid vbid, uint64_t kvstoreRev) {
+void MagmaKVStore::delVBucket(Vbid vbid,
+                              std::unique_ptr<KVStoreRevision> kvstoreRev) {
     auto status = magma->DeleteKVStore(
-            vbid.get(), static_cast<Magma::KVStoreRevision>(kvstoreRev));
+            vbid.get(),
+            static_cast<Magma::KVStoreRevision>(kvstoreRev->getRevision()));
     logger->info(
             "MagmaKVStore::delVBucket DeleteKVStore {} kvstoreRev:{}. "
             "status:{}",
             vbid,
-            kvstoreRev,
+            kvstoreRev->getRevision(),
             status.String());
 }
 
@@ -1121,10 +1123,10 @@ void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
                  kvstoreRevList[getCacheSlot(vbid)]);
 }
 
-uint64_t MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
+std::unique_ptr<KVStoreRevision> MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
     auto [status, kvsRev] = magma->GetKVStoreRevision(vbid.get());
     if (status) {
-        return kvsRev;
+        return std::make_unique<KVStoreRevision>(kvsRev);
     }
 
     // Even though we couldn't get the kvstore revision from magma, we'll use
@@ -1138,7 +1140,7 @@ uint64_t MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
             vbid,
             status.String(),
             rev);
-    return rev;
+    return std::make_unique<KVStoreRevision>(rev);
 }
 
 /**
@@ -3156,7 +3158,7 @@ void MagmaKVStore::pendingTasks() {
         uint64_t vb_version;
         std::tie(vbid, vb_version) = vbucketsToDelete.front();
         vbucketsToDelete.pop();
-        delVBucket(vbid, vb_version);
+        delVBucket(vbid, std::make_unique<KVStoreRevision>(vb_version));
     }
 }
 

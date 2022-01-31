@@ -875,9 +875,12 @@ void NexusKVStore::del(TransactionContext& txnCtx, queued_item item) {
     secondary->del(*nexusTxnCtx.secondaryContext, item);
 }
 
-void NexusKVStore::delVBucket(Vbid vbucket, uint64_t fileRev) {
-    primary->delVBucket(vbucket, fileRev);
-    secondary->delVBucket(vbucket, fileRev);
+void NexusKVStore::delVBucket(Vbid vbucket,
+                              std::unique_ptr<KVStoreRevision> fileRev) {
+    auto secondaryFileRev =
+            std::make_unique<KVStoreRevision>(fileRev->getRevision());
+    primary->delVBucket(vbucket, std::move(fileRev));
+    secondary->delVBucket(vbucket, std::move(secondaryFileRev));
 }
 
 bool NexusKVStore::compareVBucketState(Vbid vbid,
@@ -2762,11 +2765,11 @@ void NexusKVStore::prepareToCreate(Vbid vbid) {
     secondary->prepareToCreate(vbid);
 }
 
-uint64_t NexusKVStore::prepareToDelete(Vbid vbid) {
+std::unique_ptr<KVStoreRevision> NexusKVStore::prepareToDelete(Vbid vbid) {
     auto primaryResult = primary->prepareToDelete(vbid);
     auto secondaryResult = secondary->prepareToDelete(vbid);
 
-    if (primaryResult != secondaryResult) {
+    if (primaryResult->getRevision() != secondaryResult->getRevision()) {
         // This is a warning, rather than an error, as magma and couchsore deal
         // with vBucket revisioning differently and comparisons aren't
         // meaningful. The revisions can be different because CouchKVStore will
@@ -2776,8 +2779,8 @@ uint64_t NexusKVStore::prepareToDelete(Vbid vbid) {
                 "NexusKVStore::prepareToDelete: {}: primaryResult:{} "
                 "secondaryResult:{}",
                 vbid,
-                primaryResult,
-                secondaryResult);
+                primaryResult->getRevision(),
+                secondaryResult->getRevision());
     }
 
     return primaryResult;
@@ -2843,17 +2846,17 @@ void NexusKVStore::delSystemEvent(TransactionContext& txnCtx,
     secondary->delSystemEvent(*nexusTxnCtx.secondaryContext, item);
 }
 
-uint64_t NexusKVStore::prepareToDeleteImpl(Vbid vbid) {
+std::unique_ptr<KVStoreRevision> NexusKVStore::prepareToDeleteImpl(Vbid vbid) {
     auto primaryResult = primary->prepareToDeleteImpl(vbid);
     auto secondaryResult = secondary->prepareToDeleteImpl(vbid);
 
-    if (primaryResult != secondaryResult) {
+    if (primaryResult->getRevision() != secondaryResult->getRevision()) {
         auto msg = fmt::format(
                 "NexusKVStore::prepareToDeleteImpl: {}: primaryResult:{} "
                 "secondaryResult:{}",
                 vbid,
-                primaryResult,
-                secondaryResult);
+                primaryResult->getRevision(),
+                secondaryResult->getRevision());
         handleError(msg, vbid);
     }
 

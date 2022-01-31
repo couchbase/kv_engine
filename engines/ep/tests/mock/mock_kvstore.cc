@@ -104,8 +104,8 @@ MockKVStore::MockKVStore(std::unique_ptr<KVStoreIface> real)
             return this->realKVS->getItemCount(vbid);
         });
         ON_CALL(*this, delVBucket(_, _))
-                .WillByDefault([this](Vbid vbid, uint64_t rev) {
-                    return this->realKVS->delVBucket(vbid, rev);
+                .WillByDefault([this](auto vbid, auto rev) {
+                    return this->realKVS->delVBucket(vbid, std::move(rev));
                 });
         ON_CALL(*this, prepareToCreate(_)).WillByDefault([this](Vbid vbid) {
             return this->realKVS->prepareToCreate(vbid);

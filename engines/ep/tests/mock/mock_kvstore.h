@@ -89,7 +89,10 @@ public:
                 del,
                 (TransactionContext & txnCtx, queued_item item),
                 (override));
-    MOCK_METHOD(void, delVBucket, (Vbid vbucket, uint64_t fileRev), (override));
+    MOCK_METHOD(void,
+                delVBucket,
+                (Vbid vbucket, std::unique_ptr<KVStoreRevision> fileRev),
+                (override));
     MOCK_METHOD(std::vector<vbucket_state*>,
                 listPersistedVbuckets,
                 (),
@@ -199,14 +202,20 @@ public:
                 setStorageThreads,
                 (ThreadPoolConfig::StorageThreadCount num),
                 (override));
-    MOCK_METHOD(uint64_t, prepareToDeleteImpl, (Vbid vbid), (override));
+    MOCK_METHOD(std::unique_ptr<KVStoreRevision>,
+                prepareToDeleteImpl,
+                (Vbid vbid),
+                (override));
     MOCK_METHOD(void, prepareToCreateImpl, (Vbid vbid), (override));
     MOCK_METHOD(std::unique_ptr<TransactionContext>,
                 begin,
                 (Vbid vbid, std::unique_ptr<PersistenceCallback> pcb),
                 (override));
     MOCK_METHOD(bool, snapshotStats, (const nlohmann::json&), (override));
-    MOCK_METHOD(uint64_t, prepareToDelete, (Vbid vbid), (override));
+    MOCK_METHOD(std::unique_ptr<KVStoreRevision>,
+                prepareToDelete,
+                (Vbid vbid),
+                (override));
     MOCK_METHOD(void, prepareToCreate, (Vbid vbid), (override));
     MOCK_METHOD(std::unique_ptr<RollbackCtx>,
                 prepareToRollback,

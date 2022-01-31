@@ -233,7 +233,8 @@ public:
      * @param vbucket vbucket id
      * @param fileRev the revision of the file to delete
      */
-    void delVBucket(Vbid vbucket, uint64_t fileRev) override;
+    void delVBucket(Vbid vbucket,
+                    std::unique_ptr<KVStoreRevision> fileRev) override;
 
     /**
      * Retrieve the list of persisted vbucket states
@@ -365,7 +366,7 @@ public:
      * @param vbid ID of the vbucket being deleted
      * @return the revision ID to delete (via ::delVBucket)
      */
-    uint64_t prepareToDeleteImpl(Vbid vbid) override;
+    std::unique_ptr<KVStoreRevision> prepareToDeleteImpl(Vbid vbid) override;
 
     std::optional<Collections::ManifestUid> getCollectionsManifestUid(
             KVFileHandle& kvFileHandle) const override;

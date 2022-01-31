@@ -141,7 +141,7 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
     state.transition.state = vbucket_state_active;
     kvstore->snapshotVBucket(vbid, state);
     auto kvsRev = kvstore->prepareToDelete(Vbid(0));
-    ASSERT_EQ(0, int(kvsRev));
+    ASSERT_EQ(0, kvsRev->getRevision());
     EXPECT_NO_THROW(kvstore->prepareToCreate(Vbid(0)));
 }
 
@@ -558,7 +558,7 @@ TEST_F(MagmaKVStoreTest, ReadLocalDocErrorCode) {
     EXPECT_EQ(magma::Status::Code::NotFound, res.first.ErrorCode());
 
     auto kvsRev = kvstore->prepareToDelete(Vbid(0));
-    kvstore->delVBucket(vbid, kvsRev);
+    kvstore->delVBucket(vbid, std::move(kvsRev));
 
     res = kvstore->readLocalDoc(vbid, LocalDocKey::vbstate);
     EXPECT_EQ(magma::Status::Code::NotExists, res.first.ErrorCode());
@@ -569,7 +569,7 @@ TEST_F(MagmaKVStoreTest, KVStoreRevisionAfterReopen) {
 
     auto kvsRev = kvstore->getKVStoreRevision(vbid);
     auto currRev = kvstore->prepareToDelete(vbid);
-    EXPECT_EQ(kvsRev, currRev);
+    EXPECT_EQ(kvsRev, currRev->getRevision());
 
     // Reopen kvstore
     kvstore.reset();

@@ -183,7 +183,8 @@ public:
     // This is a blocking call. The function waits until other threads have
     // finished processing on a VBucket DB (e.g., 'commit') before deleting
     // the VBucket and returning to the caller.
-    void delVBucket(Vbid vbucket, uint64_t vb_version) override;
+    void delVBucket(Vbid vbucket,
+                    std::unique_ptr<KVStoreRevision> vb_version) override;
 
     std::vector<vbucket_state*> listPersistedVbuckets() override;
 
@@ -292,7 +293,7 @@ public:
         // TODO DJR 2017-05-19 implement this.
     }
 
-    uint64_t prepareToDeleteImpl(Vbid vbid) override {
+    std::unique_ptr<KVStoreRevision> prepareToDeleteImpl(Vbid vbid) override {
         // TODO DJR 2017-05-19 implement this.
         return 0;
     }

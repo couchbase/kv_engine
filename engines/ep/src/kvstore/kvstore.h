@@ -862,7 +862,7 @@ public:
         return false;
     }
 
-    uint64_t prepareToDelete(Vbid vbid) override;
+    std::unique_ptr<KVStoreRevision> prepareToDelete(Vbid vbid) override;
 
     void prepareToCreate(Vbid vbid) override;
 

@@ -822,8 +822,9 @@ TEST_P(StreamTest, DiskBackfillFail) {
     addItemsAndRemoveCheckpoint(numItems);
 
     /* Delete the vb file so that the backfill would fail */
-    engine->getKVBucket()->getRWUnderlying(vbid)->delVBucket(vbid,
-                                                             /* file rev */ 1);
+    engine->getKVBucket()->getRWUnderlying(vbid)->delVBucket(
+            vbid,
+            /* file rev */ std::make_unique<KVStoreRevision>(1));
 
     /* Set up a DCP stream for the backfill */
     setup_dcp_stream();

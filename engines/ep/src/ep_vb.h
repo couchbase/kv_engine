@@ -17,6 +17,7 @@
 class BgFetcher;
 class EPBucket;
 class KVStoreIface;
+class KVStoreRevision;
 
 struct vbucket_state;
 
@@ -156,11 +157,12 @@ public:
     void setupDeferredDeletion(const CookieIface* cookie) override;
 
     /**
+     * Should only be called by the deletion task which ensures that all other
+     * references to this object are out of scope.
+     *
      * @return the file revision to be unlinked by the deferred deletion task
      */
-    uint64_t getDeferredDeletionFileRevision() const {
-        return deferredDeletionFileRevision;
-    }
+    std::unique_ptr<KVStoreRevision> takeDeferredDeletionFileRevision();
 
     /**
      * Schedule a VBucketMemoryAndDiskDeletionTask to delete this object.
@@ -388,7 +390,7 @@ private:
      * When deferred deletion is enabled for this object we store the database
      * file revision we will unlink from disk.
      */
-    uint64_t deferredDeletionFileRevision;
+    std::unique_ptr<KVStoreRevision> deferredDeletionFileRevision;
 
     friend class EPVBucketTest;
 };

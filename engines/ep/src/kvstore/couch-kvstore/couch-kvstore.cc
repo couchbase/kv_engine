@@ -803,8 +803,9 @@ void CouchKVStore::del(TransactionContext& txnCtx, queued_item item) {
     ctx.pendingReqsQ.emplace_back(std::move(item));
 }
 
-void CouchKVStore::delVBucket(Vbid vbucket, uint64_t fileRev) {
-    unlinkCouchFile(vbucket, fileRev);
+void CouchKVStore::delVBucket(Vbid vbucket,
+                              std::unique_ptr<KVStoreRevision> fileRev) {
+    unlinkCouchFile(vbucket, fileRev->getRevision());
 }
 
 std::vector<vbucket_state *> CouchKVStore::listPersistedVbuckets() {
@@ -3948,14 +3949,14 @@ void CouchKVStore::prepareToCreateImpl(Vbid vbid) {
     (*dbFileRevMap->wlock())[getCacheSlot(vbid)]++;
 }
 
-uint64_t CouchKVStore::prepareToDeleteImpl(Vbid vbid) {
+std::unique_ptr<KVStoreRevision> CouchKVStore::prepareToDeleteImpl(Vbid vbid) {
     // Clear the stats so it looks empty (real deletion of the disk data occurs
     // later)
     cachedDeleteCount[getCacheSlot(vbid)] = 0;
     cachedFileSize[getCacheSlot(vbid)] = 0;
     cachedSpaceUsed[getCacheSlot(vbid)] = 0;
     cachedOnDiskPrepareSize[getCacheSlot(vbid)] = 0;
-    return getDbRevision(vbid);
+    return std::make_unique<KVStoreRevision>(getDbRevision(vbid));
 }
 
 CouchKVStore::ReadLocalDocResult CouchKVStore::readLocalDoc(

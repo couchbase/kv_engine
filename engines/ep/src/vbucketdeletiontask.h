@@ -14,6 +14,7 @@
 #include <executor/globaltask.h>
 
 class EPVBucket;
+class KVStoreRevision;
 class KVShard;
 class VBucket;
 
@@ -87,5 +88,5 @@ public:
 
 protected:
     KVShard& shard;
-    uint64_t vbDeleteRevision;
+    std::unique_ptr<KVStoreRevision> vbDeleteRevision;
 };

@@ -143,7 +143,8 @@ public:
 
     void del(TransactionContext& txnCtx, queued_item itm) override;
 
-    void delVBucket(Vbid vbucket, uint64_t kvstoreRev) override;
+    void delVBucket(Vbid vbucket,
+                    std::unique_ptr<KVStoreRevision> kvstoreRev) override;
 
     std::vector<vbucket_state*> listPersistedVbuckets() override;
 
@@ -273,7 +274,7 @@ public:
     /**
      * Soft delete the kvstore.
      */
-    uint64_t prepareToDeleteImpl(Vbid vbid) override;
+    std::unique_ptr<KVStoreRevision> prepareToDeleteImpl(Vbid vbid) override;
 
     std::unique_ptr<RollbackCtx> prepareToRollback(Vbid vbid) override;
 

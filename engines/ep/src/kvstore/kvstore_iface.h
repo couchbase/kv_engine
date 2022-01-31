@@ -77,6 +77,21 @@ using MakeCompactionContextCallback =
 using vb_bgfetch_queue_t =
         std::unordered_map<DiskDocKey, vb_bgfetch_item_ctx_t>;
 
+// Revision of a KVStore used by prepareToDelete et. al. to allow Nexus to deal
+// with different implementations dealing with revisioning differently.
+class KVStoreRevision {
+public:
+    KVStoreRevision(uint64_t rev) : rev(rev) {
+    }
+
+    uint64_t getRevision() const {
+        return rev;
+    }
+
+protected:
+    uint64_t rev;
+};
+
 /**
  * Functional interface of a KVStore. Each KVStore implementation must implement
  * each of these functions.
@@ -245,7 +260,8 @@ public:
      * @param vbucket vbucket id
      * @param fileRev the revision of the file to delete
      */
-    virtual void delVBucket(Vbid vbucket, uint64_t fileRev) = 0;
+    virtual void delVBucket(Vbid vbucket,
+                            std::unique_ptr<KVStoreRevision> fileRev) = 0;
 
     /**
      * Get a list of all persisted vbuckets (with their states).
@@ -660,7 +676,7 @@ public:
      * @param vbid ID of the vbucket being deleted
      * @return the revision ID to delete (via ::delVBucket)
      */
-    virtual uint64_t prepareToDelete(Vbid vbid) = 0;
+    virtual std::unique_ptr<KVStoreRevision> prepareToDelete(Vbid vbid) = 0;
 
     virtual uint64_t getLastPersistedSeqno(Vbid vbid) = 0;
 
@@ -692,7 +708,7 @@ public:
      * @param vbid ID of the vbucket being deleted
      * @return the revision ID to delete (via ::delVBucket)
      */
-    virtual uint64_t prepareToDeleteImpl(Vbid vbid) = 0;
+    virtual std::unique_ptr<KVStoreRevision> prepareToDeleteImpl(Vbid vbid) = 0;
 
     /*
      * Prepare for a creation of the vbucket file - Implementation specific

@@ -769,7 +769,8 @@ void RocksDBKVStore::del(TransactionContext& txnCtx, queued_item item) {
     ctx.pendingReqs->emplace_back(std::move(item));
 }
 
-void RocksDBKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
+void RocksDBKVStore::delVBucket(Vbid vbid,
+                                std::unique_ptr<KVStoreRevision> vb_version) {
     std::lock_guard<std::mutex> lg1(writeMutex);
     std::lock_guard<std::mutex> lg2(vbhMutex);
 

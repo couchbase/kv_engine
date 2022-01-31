@@ -897,8 +897,8 @@ void EPVBucket::setupDeferredDeletion(const CookieIface* cookie) {
     EP_LOG_INFO("EPVBucket::setupDeferredDeletion({}) {}, revision:{}",
                 static_cast<const void*>(cookie),
                 getId(),
-                revision);
-    deferredDeletionFileRevision = revision;
+                revision->getRevision());
+    deferredDeletionFileRevision = std::move(revision);
     setDeferredDeletion(true);
 }
 
@@ -1218,4 +1218,8 @@ void EPVBucket::clearCMAndResetDiskQueueStats(uint64_t seqno) {
     dirtyQueueSize.fetch_sub(size);
     stats.diskQueueSize.fetch_sub(size);
     dirtyQueueAge.store(0);
+}
+
+std::unique_ptr<KVStoreRevision> EPVBucket::takeDeferredDeletionFileRevision() {
+    return std::move(deferredDeletionFileRevision);
 }

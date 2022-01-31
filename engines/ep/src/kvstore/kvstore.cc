@@ -457,12 +457,11 @@ uint64_t KVStore::getLastPersistedSeqno(Vbid vbid) {
     return 0;
 }
 
-uint64_t KVStore::prepareToDelete(Vbid vbid) {
+std::unique_ptr<KVStoreRevision> KVStore::prepareToDelete(Vbid vbid) {
     // MB-34380: We must clear the cached state
     resetCachedVBState(vbid);
     return prepareToDeleteImpl(vbid);
 }
-
 
 void KVStore::prepareToCreate(Vbid vbid) {
     resetCachedVBState(vbid);

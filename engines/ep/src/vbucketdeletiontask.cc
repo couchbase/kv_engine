@@ -82,7 +82,7 @@ VBucketMemoryAndDiskDeletionTask::VBucketMemoryAndDiskDeletionTask(
                                 static_cast<VBucket*>(vb),
                                 TaskId::VBucketMemoryAndDiskDeletionTask),
       shard(shard),
-      vbDeleteRevision(vb->getDeferredDeletionFileRevision()) {
+      vbDeleteRevision(vb->takeDeferredDeletionFileRevision()) {
     description += " and disk";
 }
 
@@ -94,7 +94,8 @@ bool VBucketMemoryAndDiskDeletionTask::run() {
     notifyAllPendingConnsFailed(false);
 
     auto start = std::chrono::steady_clock::now();
-    shard.getRWUnderlying()->delVBucket(vbucket->getId(), vbDeleteRevision);
+    shard.getRWUnderlying()->delVBucket(vbucket->getId(),
+                                        std::move(vbDeleteRevision));
     auto elapsed = std::chrono::steady_clock::now() - start;
     auto wallTime =
             std::chrono::duration_cast<std::chrono::microseconds>(elapsed);
