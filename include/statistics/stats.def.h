@@ -584,6 +584,11 @@ STAT(vb_mem_freed_by_checkpoint_item_expel,
      bytes,
      , )
 
+STAT(vb_mem_freed_by_checkpoint_removal,
+     FMT("vb_{state}_mem_freed_by_checkpoint_removal"),
+     bytes,
+     , )
+
 STAT(vb_ht_memory, FMT("vb_{state}_ht_memory"), bytes, vb_ht_memory, )
 STAT(vb_ht_item_memory,
      FMT("vb_{state}_ht_item_memory"),

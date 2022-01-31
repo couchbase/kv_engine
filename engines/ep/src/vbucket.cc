@@ -332,6 +332,10 @@ size_t VBucket::getCMMemFreedByItemExpel() const {
     return checkpointManager->getMemFreedByItemExpel();
 }
 
+size_t VBucket::getCMMemFreedByRemoval() const {
+    return checkpointManager->getMemFreedByCheckpointRemoval();
+}
+
 size_t VBucket::getSyncWriteAcceptedCount() const {
     folly::SharedMutex::ReadHolder lh(stateLock);
     if (!durabilityMonitor) {

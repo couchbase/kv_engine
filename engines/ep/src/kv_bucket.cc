@@ -1362,6 +1362,8 @@ void KVBucket::appendAggregatedVBucketStats(
 
         stateCol.addStat(Key::vb_mem_freed_by_checkpoint_item_expel,
                          visitor.getCheckpointMemFreedByItemExpel());
+        stateCol.addStat(Key::vb_mem_freed_by_checkpoint_removal,
+                         visitor.getCheckpointMemFreedByRemoval());
 
         stateCol.addStat(Key::vb_ht_memory, visitor.getHashtableMemory());
         stateCol.addStat(Key::vb_ht_item_memory, visitor.getItemMemory());

@@ -207,6 +207,7 @@ public:
     size_t getCMMemOverheadIndex() const;
 
     size_t getCMMemFreedByItemExpel() const;
+    size_t getCMMemFreedByRemoval() const;
 
     uint64_t getPurgeSeqno() const {
         return purge_seqno;
