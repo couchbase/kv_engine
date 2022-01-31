@@ -2205,10 +2205,11 @@ INSTANTIATE_TEST_SUITE_P(MagmaFullOrValue,
                          STParameterizedBucketTest::magmaConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_SUITE_P(NexusFullOrValue,
-                         DurabilityWarmupTest,
-                         STParameterizedBucketTest::nexusConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(
+        NexusFullOrValue,
+        DurabilityWarmupTest,
+        STParameterizedBucketTest::nexusCouchstoreMagmaConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
 #endif
 
 #ifdef EP_USE_ROCKSDB
