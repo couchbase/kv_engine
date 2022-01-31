@@ -388,7 +388,7 @@ private:
      * When deferred deletion is enabled for this object we store the database
      * file revision we will unlink from disk.
      */
-    std::atomic<uint64_t> deferredDeletionFileRevision;
+    uint64_t deferredDeletionFileRevision;
 
     friend class EPVBucketTest;
 };

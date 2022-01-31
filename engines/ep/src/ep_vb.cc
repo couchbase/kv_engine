@@ -898,7 +898,7 @@ void EPVBucket::setupDeferredDeletion(const CookieIface* cookie) {
                 static_cast<const void*>(cookie),
                 getId(),
                 revision);
-    deferredDeletionFileRevision.store(revision);
+    deferredDeletionFileRevision = revision;
     setDeferredDeletion(true);
 }
 
