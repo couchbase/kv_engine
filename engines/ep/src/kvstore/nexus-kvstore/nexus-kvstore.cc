@@ -875,11 +875,35 @@ void NexusKVStore::del(TransactionContext& txnCtx, queued_item item) {
     secondary->del(*nexusTxnCtx.secondaryContext, item);
 }
 
+class NexusKVStoreRevision : public KVStoreRevision {
+public:
+    NexusKVStoreRevision(uint64_t primaryRevision, uint64_t secondaryRevision)
+        : KVStoreRevision(primaryRevision),
+          secondaryRevision(secondaryRevision) {
+    }
+
+    uint64_t getPrimaryRevision() const {
+        return getRevision();
+    }
+
+    uint64_t getSecondaryRevision() const {
+        return secondaryRevision;
+    }
+
+protected:
+    uint64_t secondaryRevision;
+};
+
 void NexusKVStore::delVBucket(Vbid vbucket,
                               std::unique_ptr<KVStoreRevision> fileRev) {
-    auto secondaryFileRev =
-            std::make_unique<KVStoreRevision>(fileRev->getRevision());
-    primary->delVBucket(vbucket, std::move(fileRev));
+    auto& nexusFileRev = dynamic_cast<NexusKVStoreRevision&>(*fileRev);
+
+    auto primaryFileRev = std::make_unique<KVStoreRevision>(
+            nexusFileRev.getPrimaryRevision());
+    auto secondaryFileRev = std::make_unique<KVStoreRevision>(
+            nexusFileRev.getSecondaryRevision());
+
+    primary->delVBucket(vbucket, std::move(primaryFileRev));
     secondary->delVBucket(vbucket, std::move(secondaryFileRev));
 }
 
@@ -2893,7 +2917,8 @@ std::unique_ptr<KVStoreRevision> NexusKVStore::prepareToDelete(Vbid vbid) {
                 secondaryResult->getRevision());
     }
 
-    return primaryResult;
+    return std::make_unique<NexusKVStoreRevision>(
+            primaryResult->getRevision(), secondaryResult->getRevision());
 }
 
 /**

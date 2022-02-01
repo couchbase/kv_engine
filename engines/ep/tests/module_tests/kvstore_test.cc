@@ -831,6 +831,12 @@ TEST_P(KVStoreParamTest, InvalidSnapshotDetected) {
 // Expect ThreadSanitizer to pick this.
 // Rocks has race condition issues
 TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
+    if (isNexus()) {
+        // Test doesn't poke the typical deletion path w.r.t revisions so does
+        // not work for Nexus which returns a custom revision type
+        GTEST_SKIP();
+    }
+
     std::atomic<bool> stop{false};
     bool okToDelete{false};
     uint32_t deletes{0};

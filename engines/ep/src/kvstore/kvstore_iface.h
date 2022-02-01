@@ -81,6 +81,8 @@ using vb_bgfetch_queue_t =
 // with different implementations dealing with revisioning differently.
 class KVStoreRevision {
 public:
+    virtual ~KVStoreRevision() = default;
+
     KVStoreRevision(uint64_t rev) : rev(rev) {
     }
 

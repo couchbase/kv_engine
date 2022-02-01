@@ -28,6 +28,7 @@
 // variants though which aren't necessarily EE, but we don't currently test.
 // Instead of making this entire test suite EE only, just supress the warning.
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(NexusKVStoreTest);
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(NexusKVStoreAbortingTest);
 
 /**
  * Test fixture for the NexusKVStore test harness
@@ -101,6 +102,14 @@ public:
 
     bool isMagmaPrimary() {
         return engine->getConfiguration().getNexusPrimaryBackend() == "magma";
+    }
+};
+
+class NexusKVStoreAbortingTest : public NexusKVStoreTest {
+public:
+    void SetUp() override {
+        config_string += "nexus_error_handling=abort;";
+        NexusKVStoreTest::SetUp();
     }
 };
 
@@ -914,7 +923,54 @@ TEST_P(NexusKVStoreTest, PausingScanCallbackScanHighPurgeSeqno) {
     kvstore->scan(*scanCtx);
 }
 
+TEST_P(NexusKVStoreAbortingTest,
+       RevisionsDifferentCompactionFindsRevForCouchstore) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Compaction bumps the couchstore file rev but not the magma file rev
+    runCompaction(vbid, 0, true);
+
+    // PrepareToDelete but don't actually delete the files yet
+    store->deleteVBucket(vbid, cookie);
+
+    // Run and persist the state
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+
+    // Before the fix the compaction was a success for couchstore as the file
+    // now exists on disk but a failure for magma as the delayed deletion of the
+    // incorrect revision 2 removed the vBucket state that we had just
+    // persisted with revision 2.
+    runCompaction(vbid, 0, true);
+}
+
+TEST_P(NexusKVStoreAbortingTest,
+       RevisionsDifferentCompactionsFindsRevForMagma) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Compaction bumps the couchstore file rev but not the magma file rev
+    runCompaction(vbid, 0, true);
+
+    // Delete the vBucket and remove the files from disk
+    store->deleteVBucket(vbid, cookie);
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+
+    // Set the state to allow the next compaction to run (we need a vBucket in
+    // memory) but don't persist it.
+    setVBucketState(vbid, vbucket_state_active);
+
+    // Before the fix the compaction was a success for magma as the files of the
+    // old revision were compacted and a failure for couchstore because there
+    // is no file for this vBucket on disk anymore.
+    runCompaction(vbid, 0, true);
+}
+
 INSTANTIATE_TEST_SUITE_P(Nexus,
                          NexusKVStoreTest,
+                         NexusKVStoreTest::couchstoreMagmaVariants(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(NexusAbortingTest,
+                         NexusKVStoreAbortingTest,
                          NexusKVStoreTest::couchstoreMagmaVariants(),
                          STParameterizedBucketTest::PrintToStringParamName);
