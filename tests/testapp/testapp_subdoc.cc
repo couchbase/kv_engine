@@ -1169,21 +1169,22 @@ TEST_P(SubdocTestappTest, SubdocArrayAddUnique_Simple) {
                       cb::mcbp::Status::SubdocPathEexists);
     }
 
-#if 0 // TODO: According to the spec this shouldn't be permitted, however it
-      // currently works...
-    // f). Check it is not permitted to add non-primitive types (arrays, objects).
-    const std::vector<std::string> invalid_unique_values({
-        "{\"foo\": \"bar\"}",
-        "[0,1,2]"});
+    // f). Check it is not permitted to add non-primitive types (arrays,
+    // objects).
+    const std::vector<std::string> invalid_unique_values(
+            {R"({"foo": "bar"})", "[0,1,2]"});
     for (const auto& v : invalid_unique_values) {
-        EXPECT_SUBDOC_CMD(BinprotSubdocCommand(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
-                                    "b", "", v),
-                          cb::mcbp::Status::SubdocPathMismatch, "");
+        EXPECT_SUBDOC_CMD(BinprotSubdocCommand(
+                                  cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                                  "b",
+                                  "",
+                                  v),
+                          cb::mcbp::Status::SubdocValueCantinsert,
+                          "");
     }
-#endif
     delete_object("b");
 
-    // g). Attempts to add_unique to a array with non-primitive values should
+    // g). Attempts to add_unique to an array with non-primitive values should
     // fail.
     store_document("c", R"([{"a":"b"}])");
     EXPECT_SD_ERR(
