@@ -528,6 +528,10 @@ bool SingleThreadedKVBucketTest::isMagma() const {
            isNexusMagmaPrimary();
 }
 
+bool SingleThreadedKVBucketTest::isCouchstore() const {
+    return engine->getConfiguration().getBackend() == "couchdb";
+}
+
 bool SingleThreadedKVBucketTest::isNexusMagmaPrimary() const {
     return engine->getConfiguration().getBackend() == "nexus" &&
            engine->getConfiguration().getNexusPrimaryBackend() == "magma";

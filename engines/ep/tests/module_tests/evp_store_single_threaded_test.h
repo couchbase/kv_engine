@@ -164,6 +164,8 @@ public:
     /// @returns true if this is a magma bucket
     bool isMagma() const;
 
+    bool isCouchstore() const;
+
     bool isNexusMagmaPrimary() const;
 
     bool needsBGFetch(cb::engine_errc ec) const {
