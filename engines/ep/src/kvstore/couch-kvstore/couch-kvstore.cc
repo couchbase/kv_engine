@@ -2570,13 +2570,15 @@ void CouchKVStore::logOpenError(std::string_view caller,
                                 Vbid vbid,
                                 std::string_view filename,
                                 couchstore_open_flags options) const {
-    logger.log(level,
-               "CouchKVStore::{}: Open error:{} [{}], filename:{}, option:{}",
-               caller,
-               couchstore_strerror(errCode),
-               cb_strerror(),
-               filename,
-               options);
+    logger.log(
+            level,
+            "CouchKVStore::{}: {} Open error:{} [{}], filename:{}, option:{}",
+            caller,
+            vbid,
+            couchstore_strerror(errCode),
+            cb_strerror(),
+            filename,
+            options);
 
     if (errCode == COUCHSTORE_ERROR_NO_SUCH_FILE) {
         logExistingVBucketFiles(vbid);
