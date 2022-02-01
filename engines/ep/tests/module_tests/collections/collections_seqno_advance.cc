@@ -133,11 +133,11 @@ public:
     void setupOneOperation(InputType type, ForStream fs) {
         switch (fs) {
         case ForStream::Yes: {
-            queueOperation(seqno, type, myCollection);
+            queueOperation(currentSeqno, type, myCollection);
             break;
         }
         case ForStream::No: {
-            queueOperation(seqno, type, CollectionEntry::vegetable);
+            queueOperation(currentSeqno, type, CollectionEntry::vegetable);
             break;
         }
         }
@@ -145,7 +145,7 @@ public:
         switch (type) {
         case InputType::Mutation:
         case InputType::Prepare:
-            ++seqno;
+            ++currentSeqno;
             break;
         case InputType::CPEndStart:
         case InputType::CPStart:
@@ -216,7 +216,7 @@ public:
     }
 
     // Starting seqno, each operation will increment this
-    uint64_t seqno{1};
+    uint64_t currentSeqno{1};
 
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockActiveStream> stream;
