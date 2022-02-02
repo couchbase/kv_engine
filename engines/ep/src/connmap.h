@@ -68,7 +68,7 @@ public:
     bool vbConnectionExists(ConnHandler* conn, Vbid vbid);
 
     /**
-     * Notifies the front-end synchronously on this thread that this paused
+     * Notifies the front-end asynchronously that this paused
      * connection should be re-considered for work.
      *
      * @param conn connection to be notified.

@@ -294,14 +294,6 @@ public:
      * If so notify the front-end that this paused connection should be
      * woken-up.
      */
-    void immediatelyNotifyIfNecessary();
-
-    /**
-     * Check if the enough bytes have been removed from the flow control
-     * buffer, for the consumer to send an ACK back to the producer.
-     * If so schedule a notification to the front-end that this paused
-     * connection should be woken-up.
-     */
     void scheduleNotifyIfNecessary();
 
     void setProcessorYieldThreshold(size_t newValue) {
@@ -313,15 +305,8 @@ public:
     }
 
     /**
-     * Notifies the front-end synchronously on this thread that this paused
+     * Notifies the front-end asynchronously that this paused
      * connection should be re-considered for work.
-     */
-    void immediatelyNotify();
-
-    /**
-     * Schedule a notification to the front-end on a background thread for
-     * the ConnNotifier to pick that notifies this paused connection should
-     * be re-considered for work.
      */
     void scheduleNotify();
 

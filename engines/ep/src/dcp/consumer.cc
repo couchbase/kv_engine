@@ -1239,7 +1239,7 @@ process_items_error_t DcpConsumer::drainStreamsBufferedItems(
             flowControl.incrFreedBytes(bytesProcessed);
 
             // Notifying memcached on clearing items for flow control
-            immediatelyNotifyIfNecessary();
+            scheduleNotifyIfNecessary();
 
             iterations++;
             break;
@@ -1697,7 +1697,7 @@ bool DcpConsumer::isStreamPresent(Vbid vbucket) {
     return stream && stream->isActive();
 }
 
-void DcpConsumer::immediatelyNotifyIfNecessary() {
+void DcpConsumer::scheduleNotifyIfNecessary() {
     if (flowControl.isBufferSufficientlyDrained()) {
         /**
          * Notify memcached to get flow control buffer ack out.
@@ -1705,12 +1705,6 @@ void DcpConsumer::immediatelyNotifyIfNecessary() {
          * the memcached as it would cause delay in buffer ack being
          * sent out to the producer.
          */
-        immediatelyNotify();
-    }
-}
-
-void DcpConsumer::scheduleNotifyIfNecessary() {
-    if (flowControl.isBufferSufficientlyDrained()) {
         scheduleNotify();
     }
 }
@@ -1724,12 +1718,8 @@ std::shared_ptr<PassiveStream> DcpConsumer::findStream(Vbid vbid) {
     }
 }
 
-void DcpConsumer::immediatelyNotify() {
-    engine_.getDcpConnMap().notifyPausedConnection(shared_from_this());
-}
-
 void DcpConsumer::scheduleNotify() {
-    engine_.getDcpConnMap().addConnectionToPending(shared_from_this());
+    engine_.getDcpConnMap().notifyPausedConnection(shared_from_this());
 }
 
 cb::engine_errc DcpConsumer::systemEvent(uint32_t opaque,

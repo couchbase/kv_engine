@@ -270,7 +270,7 @@ void DcpConnMap::closeStreams(CookieToConnectionMap& map) {
                 // The consumer may be in EWOULDBLOCK (if it's idle), therefore
                 // notify him to ensure the front-end connection can close the
                 // TCP connection.
-                consumer->immediatelyNotify();
+                consumer->scheduleNotify();
             }
         }
     }

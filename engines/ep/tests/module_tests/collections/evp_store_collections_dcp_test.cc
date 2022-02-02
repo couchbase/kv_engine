@@ -33,6 +33,7 @@
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_dcp.h"
+#include "tests/mock/mock_dcp_conn_map.h"
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_global_task.h"

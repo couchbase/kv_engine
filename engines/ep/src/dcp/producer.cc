@@ -110,19 +110,23 @@ bool DcpProducer::BufferLog::pauseIfFull() {
 }
 
 void DcpProducer::BufferLog::unpauseIfSpaceAvailable() {
-    std::shared_lock<folly::SharedMutex> rhl(logLock);
-    if (getState_UNLOCKED() == Full) {
-        EP_LOG_INFO(
-                "{} Unable to notify paused connection because "
-                "DcpProducer::BufferLog is full; ackedBytes:{}"
-                ", bytesSent:{}, maxBytes:{}",
-                producer.logHeader(),
-                ackedBytes,
-                uint64_t(bytesOutstanding),
-                uint64_t(maxBytes));
-    } else {
-        producer.scheduleNotify();
+    {
+        std::shared_lock<folly::SharedMutex> rhl(logLock);
+        if (getState_UNLOCKED() == Full) {
+            EP_LOG_INFO(
+                    "{} Unable to notify paused connection because "
+                    "DcpProducer::BufferLog is full; ackedBytes:{}"
+                    ", bytesSent:{}, maxBytes:{}",
+                    producer.logHeader(),
+                    ackedBytes,
+                    uint64_t(bytesOutstanding),
+                    uint64_t(maxBytes));
+            return;
+        }
     }
+    // notify the producer outside of the buffer lock - avoids possible
+    // lock order inversion as notification takes the connmap releaseLock
+    producer.immediatelyNotify();
 }
 
 void DcpProducer::BufferLog::acknowledge(size_t bytes) {
@@ -141,7 +145,7 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
                     ackedBytes,
                     uint64_t(bytesOutstanding),
                     uint64_t(maxBytes));
-            producer.scheduleNotify();
+            producer.immediatelyNotify();
         }
     }
 }
@@ -1828,10 +1832,6 @@ void DcpProducer::notifyStreamReady(Vbid vbucket) {
 
 void DcpProducer::immediatelyNotify() {
     engine_.getDcpConnMap().notifyPausedConnection(shared_from_this());
-}
-
-void DcpProducer::scheduleNotify() {
-    engine_.getDcpConnMap().addConnectionToPending(shared_from_this());
 }
 
 cb::engine_errc DcpProducer::maybeDisconnect() {

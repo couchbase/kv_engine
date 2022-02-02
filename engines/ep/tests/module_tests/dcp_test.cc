@@ -2812,10 +2812,10 @@ TEST_P(FlowControlTest, NotifyConsumerOnlyIfFlowControlEnabled) {
                                  {}, // meta
                                  0)); // nru
 
-    // Before the fix the consumer would appear in pending notifications even
-    // when Flow Control is disabled.
-    const auto expected = flowControlEnabled ? 1 : 0;
-    EXPECT_EQ(expected, connMap.getPendingNotifications().size());
+    // Before the fix the consumer would be notified even when Flow Control is
+    // disabled.
+    EXPECT_EQ(flowControlEnabled,
+              mock_cookie_notified(cookie_to_mock_cookie(cookie)));
 
     connMap.removeConn(cookie);
 }
