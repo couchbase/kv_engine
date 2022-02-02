@@ -627,6 +627,8 @@ if(CB_ENABLE_HEADER_INCLUDE_CHECK)
       src/bucket_logger_impl.h # Included via bucket_logger.h
       src/config.cmake.h  # XXXX
       src/tasks.def.h  # X-Macro file; cannot be compiled by itself
+      src/threadlocal_posix.h  # POSIX specific code; included via threadlocal.h
+      src/threadlocal_win32.h  # Win32 specific code; included via threadlocal.h
     )
     if(NOT EP_USE_MAGMA)
       list(REMOVE_ITEM ep_headers

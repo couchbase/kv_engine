@@ -131,7 +131,7 @@ void ConnMap::addConnectionToPending(const std::shared_ptr<ConnHandler>& conn) {
     }
 
     if (conn.get() && conn->isPaused()) {
-        pendingNotifications.enqueue(conn);
+        pendingNotifications.push(conn);
         // Wake up the connection notifier so that
         // it can notify the event to a given paused connection.
         connNotifier->notifyMutationEvent();
@@ -139,19 +139,25 @@ void ConnMap::addConnectionToPending(const std::shared_ptr<ConnHandler>& conn) {
 }
 
 void ConnMap::processPendingNotifications() {
-    TRACE_EVENT0("ep-engine/ConnMap", "processPendingNotifications");
+    std::queue<std::weak_ptr<ConnHandler>> queue;
+    pendingNotifications.getAll(queue);
+
+    TRACE_EVENT1("ep-engine/ConnMap",
+                 "processPendingNotifications",
+                 "#pending",
+                 queue.size());
 
     TRACE_LOCKGUARD_TIMED(releaseLock,
                           "mutex",
                           "ConnMap::processPendingNotifications::releaseLock",
                           SlowMutexThreshold);
 
-    std::weak_ptr<ConnHandler> toNotify;
-    while (pendingNotifications.try_dequeue(toNotify)) {
-        auto conn = toNotify.lock();
+    while (!queue.empty()) {
+        auto conn = queue.front().lock();
         if (conn && conn->isPaused()) {
             engine.scheduleDcpStep(*conn->getCookie());
         }
+        queue.pop();
     }
 }
 
