@@ -75,32 +75,34 @@ static void subdoc_print_command(Connection& c,
                                  const size_t pathlen,
                                  const char* value,
                                  const size_t vallen) {
-    char clean_key[KEY_MAX_LENGTH + 32];
-    char clean_path[SUBDOC_PATH_MAX_LENGTH];
-    char clean_value[80]; // only print the first few characters of the value.
-    if ((key_to_printable_buffer(clean_key,
-                                 sizeof(clean_key),
+    std::array<char, KEY_MAX_LENGTH + 32> clean_key;
+    std::array<char, SUBDOC_PATH_MAX_LENGTH> clean_path;
+
+    if ((key_to_printable_buffer(clean_key.data(),
+                                 clean_key.size(),
                                  c.getId(),
                                  true,
                                  to_string(cb::mcbp::ClientOpcode(cmd)).c_str(),
                                  key,
                                  keylen)) &&
         (buf_to_printable_buffer(
-                clean_path, sizeof(clean_path), path, pathlen))) {
-        // print key, path & value if there is a value.
+                clean_path.data(), clean_path.size(), path, pathlen))) {
+        // print key, path & value if there is a value, but only print first
+        // few characters of the value
+        std::array<char, 80> clean_value;
         if ((vallen > 0) &&
             (buf_to_printable_buffer(
-                    clean_value, sizeof(clean_value), value, vallen))) {
+                    clean_value.data(), clean_value.size(), value, vallen))) {
             LOG_DEBUG("{} path:'{}' value:'{}'",
-                      cb::UserDataView(clean_key),
-                      cb::UserDataView(clean_path),
-                      cb::UserDataView(clean_value));
+                      cb::UserDataView(clean_key.data()),
+                      cb::UserDataView(clean_path.data()),
+                      cb::UserDataView(clean_value.data()));
 
         } else {
             // key & path only
             LOG_DEBUG("{} path:'{}'",
-                      cb::UserDataView(clean_key),
-                      cb::UserDataView(clean_path));
+                      cb::UserDataView(clean_key.data()),
+                      cb::UserDataView(clean_path.data()));
         }
     }
 }
@@ -191,7 +193,7 @@ void SubdocCmdContext::create_multi_path_context(
 
     size_t offset = 0;
     while (offset < value.size()) {
-        cb::mcbp::ClientOpcode binprot_cmd = cb::mcbp::ClientOpcode::Invalid;
+        cb::mcbp::ClientOpcode binprot_cmd;
         protocol_binary_subdoc_flag flags;
         size_t headerlen;
         std::string_view path;
@@ -268,13 +270,14 @@ void SubdocCmdContext::create_multi_path_context(
         const char* key = reinterpret_cast<const char*>(keybuf.data());
         const auto keylen = gsl::narrow<uint16_t>(keybuf.size());
 
-        const char path[] = "<multipath>";
+        using namespace std::literals;
+        const auto path = "<multipath>"sv;
         subdoc_print_command(cookie.getConnection(),
                              request.getClientOpcode(),
                              key,
                              keylen,
-                             path,
-                             strlen(path),
+                             path.data(),
+                             path.size(),
                              value.data(),
                              value.size());
     }
@@ -410,8 +413,7 @@ std::string_view SubdocCmdContext::expand_virtual_document_macro(
         std::string_view macro) {
     if (macro == R"("${$document}")") {
         // the entire document is requested!
-        auto sv = get_document_vattr();
-        return {sv.data(), sv.size()};
+        return get_document_vattr();
     }
     // Skip the "${$document prefix
     macro = {macro.data() + 12, macro.size() - 12};
@@ -534,7 +536,6 @@ void SubdocCmdContext::generate_macro_padding(std::string_view payload,
             throw std::logic_error(
                     "generate_macro_padding: invalid macro expandedSize: " +
                     std::to_string(macro.expandedSize));
-            break;
         }
 
         for (auto& op : getOperations(Phase::XATTR)) {
@@ -618,7 +619,7 @@ std::string_view SubdocCmdContext::get_document_vattr() {
         }
     }
 
-    return std::string_view(document_vattr.data(), document_vattr.size());
+    return document_vattr;
 }
 
 std::string_view SubdocCmdContext::get_vbucket_vattr() {
@@ -640,7 +641,7 @@ std::string_view SubdocCmdContext::get_vbucket_vattr() {
 std::string_view SubdocCmdContext::get_xtoc_vattr() {
     if (!mcbp::datatype::is_xattr(in_datatype)) {
         xtoc_vattr = R"({"$XTOC":[]})";
-        return std::string_view(xtoc_vattr.data(), xtoc_vattr.size());
+        return xtoc_vattr;
     }
     if (xtoc_vattr.empty()) {
         const auto bodyoffset = cb::xattr::get_body_offset(in_doc.view);
@@ -665,7 +666,7 @@ std::string_view SubdocCmdContext::get_xtoc_vattr() {
         doc["$XTOC"] = arr;
         xtoc_vattr = doc.dump();
     }
-    return std::string_view(xtoc_vattr.data(), xtoc_vattr.size());
+    return xtoc_vattr;
 }
 
 cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
@@ -706,10 +707,10 @@ cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
         // Need to expand before attempting to extract from it.
         try {
             if (!cookie.inflateSnappy(in_doc.view, inflated_doc_buffer)) {
-                char clean_key[KEY_MAX_LENGTH + 32];
+                std::array<char, KEY_MAX_LENGTH + 32> clean_key;
                 if (buf_to_printable_buffer(
-                            clean_key,
-                            sizeof(clean_key),
+                            clean_key.data(),
+                            clean_key.size(),
                             reinterpret_cast<const char*>(info.key.data()),
                             info.key.size())) {
                     LOG_WARNING(
@@ -717,7 +718,7 @@ cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
                             " size. Key: '{}' may have an "
                             "incorrect datatype of COMPRESSED_JSON.",
                             c.getId(),
-                            cb::UserDataView(clean_key));
+                            cb::UserDataView(clean_key.data()));
                 }
 
                 return cb::mcbp::Status::Einternal;
