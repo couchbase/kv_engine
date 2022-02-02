@@ -69,12 +69,9 @@ uint64_t SubdocCmdContext::getOperationValueBytesTotal() const {
 // Debug - print details of the specified subdocument command.
 static void subdoc_print_command(Connection& c,
                                  cb::mcbp::ClientOpcode cmd,
-                                 const char* key,
-                                 const uint16_t keylen,
-                                 const char* path,
-                                 const size_t pathlen,
-                                 const char* value,
-                                 const size_t vallen) {
+                                 std::string_view key,
+                                 std::string_view path,
+                                 std::string_view value) {
     std::array<char, KEY_MAX_LENGTH + 32> clean_key;
     std::array<char, SUBDOC_PATH_MAX_LENGTH> clean_path;
 
@@ -83,16 +80,19 @@ static void subdoc_print_command(Connection& c,
                                  c.getId(),
                                  true,
                                  to_string(cb::mcbp::ClientOpcode(cmd)).c_str(),
-                                 key,
-                                 keylen)) &&
-        (buf_to_printable_buffer(
-                clean_path.data(), clean_path.size(), path, pathlen))) {
+                                 key.data(),
+                                 key.size())) &&
+        (buf_to_printable_buffer(clean_path.data(),
+                                 clean_path.size(),
+                                 path.data(),
+                                 path.size()))) {
         // print key, path & value if there is a value, but only print first
         // few characters of the value
         std::array<char, 80> clean_value;
-        if ((vallen > 0) &&
-            (buf_to_printable_buffer(
-                    clean_value.data(), clean_value.size(), value, vallen))) {
+        if (!value.empty() && (buf_to_printable_buffer(clean_value.data(),
+                                                       clean_value.size(),
+                                                       value.data(),
+                                                       value.size()))) {
             LOG_DEBUG("{} path:'{}' value:'{}'",
                       cb::UserDataView(clean_key.data()),
                       cb::UserDataView(clean_path.data()),
@@ -170,16 +170,11 @@ void SubdocCmdContext::create_single_path_context(
     if (Settings::instance().getVerbose() > 1) {
         const auto keybuf = request.getKey();
         const char* key = reinterpret_cast<const char*>(keybuf.data());
-        const auto keylen = gsl::narrow<uint16_t>(keybuf.size());
-
         subdoc_print_command(cookie.getConnection(),
                              request.getClientOpcode(),
-                             key,
-                             keylen,
-                             path.data(),
-                             path.size(),
-                             value.data(),
-                             value.size());
+                             {key, keybuf.size()},
+                             path,
+                             value);
     }
 }
 
@@ -268,18 +263,12 @@ void SubdocCmdContext::create_multi_path_context(
     if (Settings::instance().getVerbose() > 1) {
         const auto keybuf = request.getKey();
         const char* key = reinterpret_cast<const char*>(keybuf.data());
-        const auto keylen = gsl::narrow<uint16_t>(keybuf.size());
-
         using namespace std::literals;
-        const auto path = "<multipath>"sv;
         subdoc_print_command(cookie.getConnection(),
                              request.getClientOpcode(),
-                             key,
-                             keylen,
-                             path.data(),
-                             path.size(),
-                             value.data(),
-                             value.size());
+                             {key, keybuf.size()},
+                             "<multipath>"sv,
+                             value);
     }
 }
 
