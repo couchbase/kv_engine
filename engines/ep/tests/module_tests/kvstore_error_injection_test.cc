@@ -14,6 +14,7 @@
 #include "../mock/mock_magma_kvstore.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
+#include "checkpoint_utils.h"
 #include "collections/collection_persisted_stats.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
@@ -45,6 +46,12 @@ public:
      * Make the next KVStore::commit (flush) operation fail
      */
     virtual void failNextCommit() = 0;
+
+    /**
+     * Make the next KVStore::snapshotVBucket (flush vbstate only) operation
+     * fail
+     */
+    virtual void failNextSnapshotVBucket() = 0;
 };
 
 class CouchKVStoreErrorInjector : public ErrorInjector {
@@ -55,6 +62,13 @@ public:
     }
 
     void failNextCommit() override {
+        using namespace testing;
+        EXPECT_CALL(ops, sync(_, _))
+                .WillOnce(Return(COUCHSTORE_ERROR_WRITE))
+                .WillRepeatedly(Return(COUCHSTORE_SUCCESS));
+    }
+
+    void failNextSnapshotVBucket() override {
         using namespace testing;
         EXPECT_CALL(ops, sync(_, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_WRITE))
@@ -79,6 +93,13 @@ public:
                                                 kvstats_ctx& ctx) -> int {
             kvstore->saveDocsErrorInjector = nullptr;
             return magma::Status::IOError;
+        };
+    }
+
+    void failNextSnapshotVBucket() override {
+        kvstore->snapshotVBucketErrorInjector = [this]() {
+            kvstore->snapshotVBucketErrorInjector = nullptr;
+            return false;
         };
     }
 
@@ -387,6 +408,76 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistNonMetaItems) {
     EXPECT_EQ(cb::engine_errc::success, docB.getStatus());
     EXPECT_EQ(0, docB.item->getNBytes());
     EXPECT_TRUE(docB.item->isDeleted());
+}
+
+/**
+ * We flush if we have at least:
+ *  1) one non-meta item
+ *  2) or, one set-vbstate item in the write queue
+ * In the two cases we execute two different code paths that may both fail and
+ * trigger the reset of the persistence cursor.
+ * This test verifies scenario (2) by checking that we persist the new vbstate
+ * when we re-attempt flush.
+ *
+ * The test verifies MB-37920 too. Ie, the cached vbstate is not updated if
+ * persistence fails.
+ */
+TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistVBStateOnly_ErrorWrite) {
+    auto& kvStore = *store->getRWUnderlying(vbid);
+    const auto checkCachedAndOnDiskVBState =
+            [this, &kvStore](vbucket_state_t expectedState) -> void {
+        EXPECT_EQ(expectedState,
+                  kvStore.getCachedVBucketState(vbid)->transition.state);
+        EXPECT_EQ(expectedState,
+                  kvStore.getPersistedVBucketState(vbid).transition.state);
+    };
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    {
+        SCOPED_TRACE("");
+        checkCachedAndOnDiskVBState(vbucket_state_active);
+    }
+
+    const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+
+    const auto checkSetVBStateItemForCursor = [&vb]() -> void {
+        const auto& manager = *vb.checkpointManager;
+        auto pos = CheckpointCursorIntrospector::getCurrentPos(
+                *manager.getPersistenceCursor());
+        ASSERT_EQ(queue_op::set_vbucket_state, (*(pos++))->getOperation());
+    };
+
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setVBucketState(vbid, vbucket_state_replica));
+    {
+        SCOPED_TRACE("");
+        checkCachedAndOnDiskVBState(vbucket_state_active);
+        checkSetVBStateItemForCursor();
+        EXPECT_EQ(1, vb.dirtyQueueSize);
+    }
+
+    // This flush fails, we have not written anything to disk
+    errorInjector->failNextSnapshotVBucket();
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(1, vb.dirtyQueueSize);
+    {
+        SCOPED_TRACE("");
+        checkCachedAndOnDiskVBState(vbucket_state_active);
+        checkSetVBStateItemForCursor();
+    }
+
+    // This flush succeeds, we must write the new vbstate on disk
+    // Note: set-vbstate items are not accounted in numFlushed
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+    {
+        SCOPED_TRACE("");
+        checkCachedAndOnDiskVBState(vbucket_state_replica);
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(

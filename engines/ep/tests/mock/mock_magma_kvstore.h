@@ -28,6 +28,8 @@ public:
                  VB::Commit& commitData,
                  kvstats_ctx& kvctx) override;
 
+    bool snapshotVBucket(Vbid vbid, const vbucket_state& newVBState) override;
+
     magma::Status addLocalDoc(Vbid vbid,
                               std::string_view key,
                               std::string value);
@@ -66,6 +68,7 @@ public:
     TestingHook<> readVBStateFromDiskHook;
 
     std::function<int(VB::Commit&, kvstats_ctx&)> saveDocsErrorInjector;
+    std::function<bool()> snapshotVBucketErrorInjector;
 };
 
 #endif

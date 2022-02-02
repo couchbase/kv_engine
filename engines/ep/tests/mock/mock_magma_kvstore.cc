@@ -37,6 +37,15 @@ int MockMagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     return MagmaKVStore::saveDocs(txnCtx, commitData, kvctx);
 }
 
+bool MockMagmaKVStore::snapshotVBucket(Vbid vbid,
+                                       const vbucket_state& newVBState) {
+    if (snapshotVBucketErrorInjector) {
+        return snapshotVBucketErrorInjector();
+    }
+
+    return MagmaKVStore::snapshotVBucket(vbid, newVBState);
+}
+
 magma::Status MockMagmaKVStore::addLocalDoc(Vbid vbid,
                                             std::string_view key,
                                             std::string value) {
