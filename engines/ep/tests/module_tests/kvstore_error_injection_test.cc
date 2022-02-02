@@ -18,10 +18,15 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_bucket.h"
 #include "test_helpers.h"
+#include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/test_fileops.h"
 #include "vbucket.h"
 
 #include <folly/portability/GMock.h>
+
+using FlushResult = EPBucket::FlushResult;
+using MoreAvailable = EPBucket::MoreAvailable;
+using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 /**
  * Error injector interface with implementations for each KVStore that we care
@@ -163,6 +168,64 @@ TEST_P(KVStoreErrorInjectionTest, ItemCountsAndCommitFailure_MB_41321) {
         EXPECT_EQ(0, stats.diskSize);
     } else {
         EXPECT_GT(stats.diskSize, 0); // tombstone data remains
+    }
+}
+
+TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistingCollectionChange) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    CollectionsManifest cm(CollectionEntry::dairy);
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    vb->updateFromManifest(makeManifest(cm));
+
+    // Check nothing persisted to disk, only default collection exists
+    auto* kvstore = store->getRWUnderlying(vbid);
+    auto [s1, m1] = kvstore->getCollectionsManifest(vbid);
+    ASSERT_TRUE(s1);
+    EXPECT_EQ(1, m1.collections.size());
+    const Collections::CollectionMetaData defaultState;
+    EXPECT_EQ(defaultState, m1.collections[0].metaData);
+    EXPECT_EQ(0, m1.collections[0].startSeqno);
+    // This flush fails, we have not written anything to disk
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    {
+        errorInjector->failNextCommit();
+        EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+                  epBucket.flushVBucket(vbid));
+        // Flush stats not updated
+        EXPECT_EQ(1, vb->dirtyQueueSize);
+    }
+
+    // Check nothing persisted to disk, only default collection exists
+    auto [s2, m2] = kvstore->getCollectionsManifest(vbid);
+    ASSERT_TRUE(s2);
+    EXPECT_EQ(1, m2.collections.size());
+    EXPECT_EQ(defaultState, m2.collections[0].metaData);
+    EXPECT_EQ(0, m2.collections[0].startSeqno);
+
+    // This flush succeeds
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    // Flush stats updated
+    EXPECT_EQ(0, vb->dirtyQueueSize);
+
+    auto [s3, m3] = kvstore->getCollectionsManifest(vbid);
+    ASSERT_TRUE(s3);
+    EXPECT_EQ(2, m3.collections.size());
+
+    Collections::CollectionMetaData dairyState{ScopeID::Default,
+                                               CollectionEntry::dairy,
+                                               CollectionEntry::dairy.name,
+                                               {/*no ttl*/}};
+    // no ordering of returned collections, both default and dairy must exist
+    for (const auto& c : m3.collections) {
+        if (c.metaData.cid == CollectionID::Default) {
+            EXPECT_EQ(c.metaData, defaultState);
+            EXPECT_EQ(0, c.startSeqno);
+        } else {
+            EXPECT_EQ(c.metaData, dairyState);
+            EXPECT_EQ(1, c.startSeqno);
+        }
     }
 }
 
