@@ -332,7 +332,7 @@ const DocKey Cookie::getRequestKey() const {
     return connection.makeDocKey(getRequest().getKey());
 }
 
-std::string Cookie::getPrintableRequestKey() const {
+std::string Cookie::getPrintableRequestKey(bool addUserDataTags) const {
     const auto key = getRequest().getKey();
 
     std::string buffer{reinterpret_cast<const char*>(key.data()), key.size()};
@@ -342,7 +342,11 @@ std::string Cookie::getPrintableRequestKey() const {
         }
     }
 
-    return cb::tagUserData(buffer);
+    if (addUserDataTags) {
+        return cb::tagUserData(buffer);
+    }
+
+    return buffer;
 }
 
 std::string Cookie::getPrintableRequestCollectionID() const {
