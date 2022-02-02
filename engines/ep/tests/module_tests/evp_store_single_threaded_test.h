@@ -698,20 +698,6 @@ protected:
     void backfillExpiryOutput(bool xattr);
 
     /**
-     * All the tests below check that we don't lose any item, any vbstate and
-     * that we update flush-stats properly when flush fails and we re-attemt the
-     * flush later.
-     *
-     * @param failureCode How the flush fails, this is the injected error-code
-     *  return by KVStore::commit in our tests
-     * @param vbDeletion Some tests get this additional arg to verify that all
-     *  goes as expected when the flusher processes VBuckets set for deferred
-     *  deletion
-     */
-    void testFlushFailureAtPersistDelete(couchstore_error_t failureCode,
-                                         bool vbDeletion = false);
-
-    /**
      * Test to check that we update and use persistedDeletes correctly.
      *
      * @param dropDeletes compaction config param

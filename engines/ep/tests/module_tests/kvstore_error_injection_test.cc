@@ -138,6 +138,7 @@ public:
      *  deletion
      */
     void testFlushFailureStatsAtDedupedNonMetaItems(bool vbDeletion = false);
+    void testFlushFailureAtPersistDelete(bool vbDeletion = false);
 
 protected:
     std::unique_ptr<ErrorInjector> errorInjector;
@@ -606,6 +607,99 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureStatsAtDedupedNonMetaItems) {
 TEST_P(KVStoreErrorInjectionTest,
        FlushFailureStatsAtDedupedNonMetaItems_VBDeletion) {
     testFlushFailureStatsAtDedupedNonMetaItems(true);
+}
+
+/**
+ * Check that when persisting a delete and the flush fails:
+ *  - flush-stats are not updated
+ *  - the (deleted) item is not removed from the HashTable
+ */
+void KVStoreErrorInjectionTest::testFlushFailureAtPersistDelete(
+        bool vbDeletion) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    if (vbDeletion) {
+        vb.setDeferredDeletion(true);
+    }
+
+    // Active receives M(keyA):1 and deletion, M is deduplicated.
+    const auto storedKey = makeStoredDocKey("keyA");
+    store_item(vbid,
+               storedKey,
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::success} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES);
+
+    delete_item(vbid, storedKey);
+
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    // Mutation deduplicated, just deletion
+    ASSERT_EQ(1, manager.getNumItemsForPersistence());
+
+    // Pre-conditions:
+    // - stats account for the deletion in the write queue
+    // - the deletion is in the HashTable
+    EXPECT_EQ(1, vb.dirtyQueueSize);
+    const auto checkPreFlushHTState = [&vb, &storedKey]() -> void {
+        const auto res = vb.ht.findForUpdate(storedKey);
+        ASSERT_FALSE(res.pending);
+        ASSERT_TRUE(res.committed);
+        ASSERT_TRUE(res.committed->isDeleted());
+        ASSERT_TRUE(res.committed->isDirty());
+    };
+    checkPreFlushHTState();
+
+    // Test: flush fails, we have not written anything to disk
+    errorInjector->failNextCommit();
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    ASSERT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+
+    // Post-conditions:
+    //  - no doc on disk
+    //  - flush stats not updated
+    //  - the deletion is still dirty in the HashTable
+    auto kvstore = store->getRWUnderlying(vbid);
+    const auto diskKey = makeDiskDocKey("keyA");
+    auto doc = kvstore->get(diskKey, vbid);
+    EXPECT_EQ(cb::engine_errc::no_such_key, doc.getStatus());
+    ASSERT_FALSE(doc.item);
+    EXPECT_EQ(1, vb.dirtyQueueSize);
+    checkPreFlushHTState();
+
+    // Check out that all goes well when we re-attemp the flush
+
+    // This flush succeeds, we must write all the expected items on disk.
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    // Doc on disk, flush stats updated and deletion removed from the HT
+    doc = kvstore->get(diskKey, vbid);
+    EXPECT_EQ(cb::engine_errc::success, doc.getStatus());
+    EXPECT_EQ(0, doc.item->getNBytes());
+    EXPECT_TRUE(doc.item->isDeleted());
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+    {
+        const auto res = vb.ht.findForUpdate(storedKey);
+        ASSERT_FALSE(res.pending);
+        ASSERT_FALSE(res.committed);
+    }
+
+    // All done, nothing to flush
+    ASSERT_EQ(0, manager.getNumItemsForPersistence());
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+
+    vb.setDeferredDeletion(false);
+}
+
+TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPerstingDelete) {
+    testFlushFailureAtPersistDelete();
+}
+TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPerstingDelete_VBDeletion) {
+    testFlushFailureAtPersistDelete(true);
 }
 
 INSTANTIATE_TEST_SUITE_P(
