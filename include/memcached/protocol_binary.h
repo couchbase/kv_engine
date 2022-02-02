@@ -328,6 +328,11 @@ enum class doc_flag : uint8_t {
     /**
      * (Mutation) Add the document only if it does not exist. Implies
      * SUBDOC_FLAG_MKDIR_P. Not valid with Mkdoc.
+     *
+     * If specified with CreateAsDeleted, then the document must not have a
+     * tombstone (in addition to not being in the alive state) - i.e.
+     * Add|CreateAsDeleted can only succeed if there is no alive document or
+     * no tombstone for the given key.
      */
     Add = 0x02,
 
