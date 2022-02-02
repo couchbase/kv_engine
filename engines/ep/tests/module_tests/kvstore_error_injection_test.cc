@@ -702,6 +702,123 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPerstingDelete_VBDeletion) {
     testFlushFailureAtPersistDelete(true);
 }
 
+/**
+ * We flush if we have at least:
+ *  1) one non-meta item
+ *  2) or, one set-vbstate item in the write queue
+ * In the two cases we execute two different code paths that may both fail and
+ * trigger the reset of the persistence cursor.
+ * This test verifies scenario (1) by checking that we persist all the expected
+ * items when we re-attempt flush.
+ */
+TEST_P(KVStoreErrorInjectionTest, ResetPCursorAtPersistNonMetaItems) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // Active receives PRE(keyA):1, M(keyB):2, D(keyB):3
+    // Note that the set of mutation is just functional to testing that we write
+    // to disk all the required vbstate entries at flush
+
+    {
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   makeStoredDocKey("keyA"),
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::sync_write_pending} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES,
+                   {cb::durability::Requirements()});
+    }
+
+    {
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   makeStoredDocKey("keyB"),
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES);
+    }
+
+    {
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   makeStoredDocKey("keyB"),
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES,
+                   {} /*dur-reqs*/,
+                   true /*deleted*/);
+    }
+
+    // M(keyB):2 deduplicated, just 2 items for cursor
+    const auto vb = engine->getKVBucket()->getVBucket(vbid);
+    ASSERT_EQ(2, vb->checkpointManager->getNumItemsForPersistence());
+    EXPECT_EQ(2, vb->dirtyQueueSize);
+
+    auto& kvStore = *store->getRWUnderlying(vbid);
+    const auto checkCachedAndOnDiskVBState = [this, &kvStore](
+                                                     uint64_t lastSnapStart,
+                                                     uint64_t lastSnapEnd,
+                                                     uint64_t highSeqno,
+                                                     CheckpointType type,
+                                                     uint64_t hps,
+                                                     uint64_t hcs,
+                                                     uint64_t maxDelRevSeqno) {
+        const auto& cached = *kvStore.getCachedVBucketState(vbid);
+        const auto& onDisk = kvStore.getPersistedVBucketState(vbid);
+        for (const auto& vbs : {cached, onDisk}) {
+            EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
+            EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
+            EXPECT_EQ(highSeqno, vbs.highSeqno);
+            EXPECT_EQ(type, vbs.checkpointType);
+            EXPECT_EQ(hps, vbs.highPreparedSeqno);
+            EXPECT_EQ(hcs, vbs.persistedCompletedSeqno);
+            EXPECT_EQ(maxDelRevSeqno, vbs.maxDeletedSeqno);
+        }
+    };
+
+    // This flush fails, we have not written anything to disk
+    errorInjector->failNextCommit();
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    // Flush stats not updated
+    EXPECT_EQ(2, vb->dirtyQueueSize);
+    {
+        SCOPED_TRACE("");
+        checkCachedAndOnDiskVBState(0 /*lastSnapStart*/,
+                                    0 /*lastSnapEnd*/,
+                                    0 /*highSeqno*/,
+                                    CheckpointType::Memory,
+                                    0 /*HPS*/,
+                                    0 /*HCS*/,
+                                    0 /*maxDelRevSeqno*/);
+    }
+
+    // This flush succeeds, we must write all the expected items and new vbstate
+    // on disk
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    // Flush stats updated
+    EXPECT_EQ(0, vb->dirtyQueueSize);
+    {
+        SCOPED_TRACE("");
+        // Notes: expected (snapStart = snapEnd) for complete snap flushed,
+        //  which is always the case at Active
+        checkCachedAndOnDiskVBState(3 /*lastSnapStart*/,
+                                    3 /*lastSnapEnd*/,
+                                    3 /*highSeqno*/,
+                                    CheckpointType::Memory,
+                                    1 /*HPS*/,
+                                    0 /*HCS*/,
+                                    2 /*maxDelRevSeqno*/);
+    }
+}
+
 INSTANTIATE_TEST_SUITE_P(
         CouchstoreOrMagma,
         KVStoreErrorInjectionTest,
