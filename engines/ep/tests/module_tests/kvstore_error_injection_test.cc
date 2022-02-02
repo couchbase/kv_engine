@@ -128,6 +128,17 @@ public:
         }
     }
 
+    /**
+     * All the tests below check that we don't lose any item, any vbstate and
+     * that we update flush-stats properly when flush fails and we re-attempt
+     * the flush later.
+     *
+     * @param vbDeletion Some tests get this additional arg to verify that all
+     *  goes as expected when the flusher processes VBuckets set for deferred
+     *  deletion
+     */
+    void testFlushFailureStatsAtDedupedNonMetaItems(bool vbDeletion = false);
+
 protected:
     std::unique_ptr<ErrorInjector> errorInjector;
 };
@@ -478,6 +489,123 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistVBStateOnly_ErrorWrite) {
         SCOPED_TRACE("");
         checkCachedAndOnDiskVBState(vbucket_state_replica);
     }
+}
+
+/**
+ * Check that flush stats are updated only at flush success.
+ * Covers the case where the number of items pulled from the CheckpointManager
+ * is different (higher) than the actual number of items flushed. Ie, flusher
+ * deduplication occurs.
+ */
+void KVStoreErrorInjectionTest::testFlushFailureStatsAtDedupedNonMetaItems(
+        bool vbDeletion) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Do we want to test the case where the flusher is running on a vbucket set
+    // set for deferred deletion?
+    // Nothing changes in the logic of this test, just that we hit an additional
+    // code-path where flush-stats are wrongly updated at flush failure
+    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    if (vbDeletion) {
+        vb.setDeferredDeletion(true);
+    }
+
+    // Active receives M(keyA):1, M(keyA):2.
+    // They are queued into different checkpoints. We enforce that as we want to
+    // stress deduplication at flush-vbucket, so we just avoid checkpoint dedup.
+
+    {
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   makeStoredDocKey("keyA"),
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES);
+    }
+
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    manager.createNewCheckpoint();
+    ASSERT_EQ(0, manager.getNumOpenChkItems());
+
+    const auto storedKey = makeStoredDocKey("keyA");
+    const std::string value2 = "value2";
+    {
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   storedKey,
+                   value2,
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES);
+    }
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(2, manager.getNumItemsForPersistence());
+
+    EXPECT_EQ(2, vb.dirtyQueueSize);
+
+    const auto checkPreFlushHTState = [&vb, &storedKey]() -> void {
+        const auto res = vb.ht.findForUpdate(storedKey);
+        ASSERT_FALSE(res.pending);
+        ASSERT_TRUE(res.committed);
+        ASSERT_FALSE(res.committed->isDeleted());
+        ASSERT_TRUE(res.committed->isDirty());
+    };
+    checkPreFlushHTState();
+
+    // This flush fails, we have not written anything to disk
+    errorInjector->failNextCommit();
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    // Flush stats not updated
+    EXPECT_EQ(2, vb.dirtyQueueSize);
+    // HT state
+    checkPreFlushHTState();
+    // No doc on disk
+    auto kvstore = store->getRWUnderlying(vbid);
+    const auto diskKey = makeDiskDocKey("keyA");
+    auto doc = kvstore->get(diskKey, vbid);
+    EXPECT_EQ(cb::engine_errc::no_such_key, doc.getStatus());
+    ASSERT_FALSE(doc.item);
+
+    // This flush succeeds, we must write all the expected items and new vbstate
+    // on disk
+    // Flusher deduplication, just 1 item flushed
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
+              epBucket.flushVBucket(vbid));
+    EXPECT_TRUE(vb.checkpointManager->hasClosedCheckpointWhichCanBeRemoved());
+    // Flush stats updated
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+    // HT state
+    const auto res = vb.ht.findForUpdate(storedKey);
+    ASSERT_FALSE(res.pending);
+    ASSERT_TRUE(res.committed);
+    ASSERT_FALSE(res.committed->isDeleted());
+    ASSERT_FALSE(res.committed->isDirty());
+    // doc persisted
+    doc = kvstore->get(diskKey, vbid);
+    EXPECT_EQ(cb::engine_errc::success, doc.getStatus());
+    ASSERT_TRUE(doc.item);
+    ASSERT_GT(doc.item->getNBytes(), 0);
+    EXPECT_EQ(std::string_view(value2.c_str(), value2.size()),
+              std::string_view(doc.item->getData(), doc.item->getNBytes()));
+    EXPECT_FALSE(doc.item->isDeleted());
+
+    // Cleanup: reset the flag to avoid that we schedule the actual deletion at
+    //  TearDown, the ExecutorPool will be already gone at that point and the
+    //  test will SegFault
+    vb.setDeferredDeletion(false);
+}
+
+TEST_P(KVStoreErrorInjectionTest, FlushFailureStatsAtDedupedNonMetaItems) {
+    testFlushFailureStatsAtDedupedNonMetaItems();
+}
+
+TEST_P(KVStoreErrorInjectionTest,
+       FlushFailureStatsAtDedupedNonMetaItems_VBDeletion) {
+    testFlushFailureStatsAtDedupedNonMetaItems(true);
 }
 
 INSTANTIATE_TEST_SUITE_P(

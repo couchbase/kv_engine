@@ -708,8 +708,6 @@ protected:
      *  goes as expected when the flusher processes VBuckets set for deferred
      *  deletion
      */
-    void testFlushFailureStatsAtDedupedNonMetaItems(
-            couchstore_error_t failureCode, bool vbDeletion = false);
     void testFlushFailureAtPersistDelete(couchstore_error_t failureCode,
                                          bool vbDeletion = false);
 
