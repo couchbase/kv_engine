@@ -13,6 +13,7 @@
 #include "../couchstore/src/internal.h"
 #include "../mock/mock_magma_kvstore.h"
 #include "../mock/mock_synchronous_ep_engine.h"
+#include "checkpoint_manager.h"
 #include "collections/collection_persisted_stats.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
@@ -21,6 +22,7 @@
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/test_fileops.h"
 #include "vbucket.h"
+#include "vbucket_state.h"
 
 #include <folly/portability/GMock.h>
 
@@ -227,6 +229,164 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistingCollectionChange) {
             EXPECT_EQ(1, c.startSeqno);
         }
     }
+}
+
+/**
+ * We flush if we have at least:
+ *  1) one non-meta item
+ *  2) or, one set-vbstate item in the write queue
+ * In the two cases we execute two different code paths that may both fail and
+ * trigger the reset of the persistence cursor.
+ * This test verifies scenario (1) by checking that we persist all the expected
+ * items when we re-attempt flush.
+ */
+TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistNonMetaItems) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // Active receives PRE(keyA):1, M(keyB):2, D(keyB):3
+    // Note that the set of mutation is just functional to testing that we write
+    // to disk all the required vbstate entries at flush
+    const std::string valueA = "valueA";
+    {
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   makeStoredDocKey("keyA"),
+                   valueA,
+                   0 /*exptime*/,
+                   {cb::engine_errc::sync_write_pending} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES,
+                   {cb::durability::Requirements()});
+    }
+
+    {
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   makeStoredDocKey("keyB"),
+                   "valueB",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES);
+    }
+
+    delete_item(vbid, makeStoredDocKey("keyB"));
+
+    // M(keyB):2 deduplicated, just 2 items for cursor
+    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    ASSERT_EQ(2, vb.checkpointManager->getNumItemsForPersistence());
+    EXPECT_EQ(2, vb.dirtyQueueSize);
+
+    const auto checkPreFlushHTState = [&vb]() -> void {
+        const auto resA = vb.ht.findForUpdate(makeStoredDocKey("keyA"));
+        ASSERT_TRUE(resA.pending);
+        ASSERT_FALSE(resA.pending->isDeleted());
+        ASSERT_TRUE(resA.pending->isDirty());
+        ASSERT_FALSE(resA.committed);
+
+        const auto resB = vb.ht.findForUpdate(makeStoredDocKey("keyB"));
+        ASSERT_FALSE(resB.pending);
+        ASSERT_TRUE(resB.committed);
+        ASSERT_TRUE(resB.committed->isDeleted());
+        ASSERT_TRUE(resB.committed->isDirty());
+    };
+    checkPreFlushHTState();
+
+    auto& kvStore = *store->getRWUnderlying(vbid);
+    const auto checkCachedAndOnDiskVBState = [this, &kvStore](
+                                                     uint64_t lastSnapStart,
+                                                     uint64_t lastSnapEnd,
+                                                     uint64_t highSeqno,
+                                                     CheckpointType type,
+                                                     uint64_t hps,
+                                                     uint64_t hcs,
+                                                     uint64_t maxDelRevSeqno) {
+        const auto& cached = *kvStore.getCachedVBucketState(vbid);
+        const auto& onDisk = kvStore.getPersistedVBucketState(vbid);
+        for (const auto& vbs : {cached, onDisk}) {
+            EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
+            EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
+            EXPECT_EQ(highSeqno, vbs.highSeqno);
+            EXPECT_EQ(type, vbs.checkpointType);
+            EXPECT_EQ(hps, vbs.highPreparedSeqno);
+            EXPECT_EQ(hcs, vbs.persistedCompletedSeqno);
+            EXPECT_EQ(maxDelRevSeqno, vbs.maxDeletedSeqno);
+        }
+    };
+
+    // This flush fails, we have not written anything to disk
+    errorInjector->failNextCommit();
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    // Flush stats not updated
+    EXPECT_EQ(2, vb.dirtyQueueSize);
+    {
+        SCOPED_TRACE("");
+        checkCachedAndOnDiskVBState(0 /*lastSnapStart*/,
+                                    0 /*lastSnapEnd*/,
+                                    0 /*highSeqno*/,
+                                    CheckpointType::Memory,
+                                    0 /*HPS*/,
+                                    0 /*HCS*/,
+                                    0 /*maxDelRevSeqno*/);
+        checkPreFlushHTState();
+    }
+
+    // Check nothing persisted to disk
+    auto kvstore = store->getRWUnderlying(vbid);
+    const auto keyA = makeDiskDocKey("keyA", true);
+    auto docA = kvstore->get(keyA, vbid);
+    EXPECT_EQ(cb::engine_errc::no_such_key, docA.getStatus());
+    ASSERT_FALSE(docA.item);
+    const auto keyB = makeDiskDocKey("keyB");
+    auto docB = kvstore->get(keyB, vbid);
+    EXPECT_EQ(cb::engine_errc::no_such_key, docB.getStatus());
+    ASSERT_FALSE(docB.item);
+
+    // This flush succeeds, we must write all the expected items and new vbstate
+    // on disk
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    // Flush stats updated
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+    {
+        SCOPED_TRACE("");
+        // Notes: expected (snapStart = snapEnd) for complete snap flushed,
+        //  which is always the case at Active
+        checkCachedAndOnDiskVBState(3 /*lastSnapStart*/,
+                                    3 /*lastSnapEnd*/,
+                                    3 /*highSeqno*/,
+                                    CheckpointType::Memory,
+                                    1 /*HPS*/,
+                                    0 /*HCS*/,
+                                    2 /*maxDelRevSeqno*/);
+
+        // Check HT state
+        const auto resA = vb.ht.findForUpdate(makeStoredDocKey("keyA"));
+        ASSERT_TRUE(resA.pending);
+        ASSERT_FALSE(resA.pending->isDeleted());
+        ASSERT_FALSE(resA.pending->isDirty());
+        ASSERT_FALSE(resA.committed);
+
+        const auto resB = vb.ht.findForUpdate(makeStoredDocKey("keyB"));
+        ASSERT_FALSE(resB.pending);
+        ASSERT_FALSE(resB.committed);
+    }
+
+    // Check persisted docs
+    docA = kvstore->get(keyA, vbid);
+    EXPECT_EQ(cb::engine_errc::success, docA.getStatus());
+    ASSERT_TRUE(docA.item);
+    ASSERT_GT(docA.item->getNBytes(), 0);
+    EXPECT_EQ(std::string_view(valueA.c_str(), valueA.size()),
+              std::string_view(docA.item->getData(), docA.item->getNBytes()));
+    EXPECT_FALSE(docA.item->isDeleted());
+    docB = kvstore->get(keyB, vbid);
+    EXPECT_EQ(cb::engine_errc::success, docB.getStatus());
+    EXPECT_EQ(0, docB.item->getNBytes());
+    EXPECT_TRUE(docB.item->isDeleted());
 }
 
 INSTANTIATE_TEST_SUITE_P(
