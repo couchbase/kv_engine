@@ -33,6 +33,8 @@ import os
 import sys
 import shutil
 import subprocess
+import urllib3
+import warnings
 
 # Import non-default modules - given these may not be present,
 # give the user a helpful message if not found.
@@ -46,6 +48,10 @@ On RHEL / CentOS, this is available via the 'python-requests' package:
     sudo yum install python-requests
 """.format(e), file=sys.stderr)
     sys.exit(1)
+
+# If requests.get disables TLS cert verify (which we do below as we
+# don't necessarily have the certs for centos.org et al installed).
+warnings.simplefilter("ignore", urllib3.exceptions.InsecureRequestWarning)
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('urllib3').setLevel(logging.ERROR)
@@ -75,7 +81,7 @@ def try_download_from_url(base_url, package):
                "exists.").format(filename), file=sys.stderr)
         return filename
     url = base_url + "/" + filename
-    response = requests.get(url, stream=True)
+    response = requests.get(url, stream=True, verify=False)
     if response.status_code == 200:
         logging.info("Found at {}".format(url))
         with open(filename, 'wb') as rpm_file:
