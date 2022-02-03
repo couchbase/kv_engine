@@ -111,6 +111,13 @@ void CollectionsDcpTest::createDcpObjects(
         bool enableSyncRep,
         uint64_t streamEndSeqno) {
     createDcpConsumer();
+
+    if (producer) {
+        // cleanup any existing producer streams - we're about to overwrite it
+        // and don't want dangling references in ConnStore/Map
+        producer->closeAllStreams();
+    }
+
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);
 
