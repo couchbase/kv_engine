@@ -112,14 +112,19 @@ void CollectionsDcpTest::createDcpObjects(
         uint64_t streamEndSeqno) {
     createDcpConsumer();
 
+    auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+
     if (producer) {
         // cleanup any existing producer streams - we're about to overwrite it
         // and don't want dangling references in ConnStore/Map
         producer->closeAllStreams();
+        mockConnMap.removeConn(producer->getCookie());
+        producer.reset();
     }
 
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);
+    mockConnMap.addConn(cookieP, producer);
 
     // Give the producers object access to the consumer and vbid of replica
     producers->consumer = consumer.get();

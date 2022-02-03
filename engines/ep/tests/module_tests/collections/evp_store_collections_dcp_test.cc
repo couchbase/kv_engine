@@ -2506,15 +2506,15 @@ public:
 void MB48010CollectionsDCPParamTest::SetUp() {
     CollectionsDcpParameterizedTest::SetUp();
 
-    // Destroys all, we don't want DCP until later (unless we're ephemeral and
-    // have to jump through some hoops to get a backfill stream going...)
-    if (isPersistent()) {
-        resetEngineAndWarmup();
-    }
-
     // Test requires a replica vbucket so we do the merging of disk/memry
     store->setVBucketState(vbid, vbucket_state_replica);
     VBucketPtr vb = store->getVBucket(vbid);
+
+    // changing the vbucket state ended the associated stream.
+    // (see DcpConnMap::vbucketStateChanged)
+    // Recreate it.
+    createDcpObjects(std::make_optional(
+            std::string_view{}) /*collections on, but no filter*/);
 
     // 1) Create a snapshot which we will populate as if DCP is sending messages
     // This snapshot will cover 0 to 5
@@ -2548,12 +2548,19 @@ void MB48010CollectionsDCPParamTest::SetUp() {
                       cb::engine_errc::success);
         stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
                       cb::engine_errc::success);
-    }
 
-    // IMPORTANT: Run expel so that some flushed items are removed from memory
-    // The DCP stream has to run a backfill for the snapshot
-    auto expel = vb->checkpointManager->expelUnreferencedCheckpointItems();
-    EXPECT_NE(0, expel.count);
+        // IMPORTANT: Run expel so that some flushed items are removed from
+        // memory The DCP stream has to run a backfill for the snapshot
+        auto expel = vb->checkpointManager->expelUnreferencedCheckpointItems();
+        EXPECT_NE(0, expel.count);
+    } else {
+        // Destroys all, we don't want DCP until later (unless we're ephemeral
+        // and have to jump through some hoops to get a backfill stream
+        // going...)
+        // ensure ptr doesnt extend life of vb past the engine
+        vb.reset();
+        resetEngineAndWarmup();
+    }
 
     if (ephemeral()) {
         // Nuke the dcp stuff without restart - which would break the test for
