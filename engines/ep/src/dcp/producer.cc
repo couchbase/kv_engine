@@ -1562,7 +1562,10 @@ void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) const {
     aggregator.conn_queueDrain += itemsSent;
     aggregator.conn_totalBytes += totalBytesSent;
     aggregator.conn_totalUncompressedDataSize += totalUncompressedDataSize;
-    aggregator.conn_queueRemaining += getItemsRemaining();
+    auto streamAggStats = getStreamAggStats();
+
+    aggregator.conn_queueRemaining += streamAggStats.itemsRemaining;
+    aggregator.conn_queueMemory += streamAggStats.readyQueueMemory;
 }
 
 void DcpProducer::notifySeqnoAvailable(Vbid vbucket,
@@ -1908,6 +1911,25 @@ size_t DcpProducer::getItemsRemaining() const {
             });
 
     return remainingSize;
+}
+
+DcpProducer::StreamAggStats DcpProducer::getStreamAggStats() const {
+    DcpProducer::StreamAggStats stats{};
+
+    std::for_each(
+            streams->begin(),
+            streams->end(),
+            [&stats](const StreamsMap::value_type& vt) {
+                for (auto itr = vt.second->rlock(); !itr.end(); itr.next()) {
+                    auto* as = itr.get().get();
+                    if (as) {
+                        stats.itemsRemaining += as->getItemsRemaining();
+                        stats.readyQueueMemory += as->getReadyQueueMemory();
+                    }
+                }
+            });
+
+    return stats;
 }
 
 size_t DcpProducer::getTotalBytesSent() {

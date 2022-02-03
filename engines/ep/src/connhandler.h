@@ -36,11 +36,18 @@ class EventuallyPersistentEngine;
  */
 struct ConnCounter {
     ConnCounter()
-        : conn_queue(0), totalConns(0), totalProducers(0),
-          conn_queueFill(0), conn_queueDrain(0), conn_totalBytes(0),
-          conn_totalUncompressedDataSize(0), conn_queueRemaining(0),
-          conn_queueBackoff(0), conn_queueItemOnDisk(0)
-    {}
+        : conn_queue(0),
+          totalConns(0),
+          totalProducers(0),
+          conn_queueFill(0),
+          conn_queueDrain(0),
+          conn_totalBytes(0),
+          conn_totalUncompressedDataSize(0),
+          conn_queueRemaining(0),
+          conn_queueBackoff(0),
+          conn_queueItemOnDisk(0),
+          conn_queueMemory(0) {
+    }
 
     ConnCounter& operator+=(const ConnCounter& other) {
         conn_queue += other.conn_queue;
@@ -53,6 +60,7 @@ struct ConnCounter {
         conn_queueRemaining += other.conn_queueRemaining;
         conn_queueBackoff += other.conn_queueBackoff;
         conn_queueItemOnDisk += other.conn_queueItemOnDisk;
+        conn_queueMemory += other.conn_queueMemory;
 
         return *this;
     }
@@ -68,6 +76,7 @@ struct ConnCounter {
     size_t      conn_queueRemaining;
     size_t      conn_queueBackoff;
     size_t      conn_queueItemOnDisk;
+    size_t conn_queueMemory;
 };
 
 class ConnHandler : public DcpConnHandlerIface {

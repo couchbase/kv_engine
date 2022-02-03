@@ -101,7 +101,7 @@ std::unique_ptr<DcpResponse> Stream::popFromReadyQ() {
     return nullptr;
 }
 
-uint64_t Stream::getReadyQueueMemory() {
+uint64_t Stream::getReadyQueueMemory() const {
     return readyQueueMemory.load(std::memory_order_relaxed);
 }
 

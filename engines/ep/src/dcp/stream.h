@@ -107,14 +107,14 @@ public:
         return id == cb::mcbp::DcpStreamId(0);
     }
 
+    uint64_t getReadyQueueMemory() const;
+
 protected:
     /* To be called after getting streamMutex lock */
     void pushToReadyQ(std::unique_ptr<DcpResponse> resp);
 
     /* To be called after getting streamMutex lock */
     std::unique_ptr<DcpResponse> popFromReadyQ();
-
-    uint64_t getReadyQueueMemory();
 
     std::string name_;
     const uint32_t flags_;

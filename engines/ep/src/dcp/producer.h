@@ -460,6 +460,13 @@ protected:
 
     size_t getItemsRemaining() const;
 
+    struct StreamAggStats {
+        size_t itemsRemaining;
+        size_t readyQueueMemory;
+    };
+
+    StreamAggStats getStreamAggStats() const;
+
     /**
      * Map the cb::mcbp::DcpStreamEndStatus to one the client can understand.
      * Maps cb::mcbp::DcpStreamEndStatus::FilterEmpty to

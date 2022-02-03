@@ -729,6 +729,10 @@ STAT(connagg_total_uncompressed_data_size,
      FMT("{connection_type}:total_uncompressed_data_size"),
      bytes,
      dcp_total_uncompressed_data_size, )
+STAT(connagg_ready_queue_bytes,
+     FMT("{connection_type}:ready_queue_bytes"),
+     bytes,
+     dcp_ready_queue_size, )
 
 // aggregated dcp producer stats
 
