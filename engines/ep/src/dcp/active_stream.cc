@@ -847,7 +847,14 @@ std::unique_ptr<DcpResponse> ActiveStream::nextQueuedItem(
         if (producer.bufferLogInsert(response->getMessageSize())) {
             auto seqno = response->getBySeqno();
             if (seqno) {
-                lastSentSeqno.store(*seqno);
+                // When OSO is enabled, and we're backfilling lastSentSeqno
+                // isn't monotonic so just reset() to set it.
+                if (producer.isOutOfOrderSnapshotsEnabled() &&
+                    isBackfilling()) {
+                    lastSentSeqno.reset(*seqno);
+                } else {
+                    lastSentSeqno.store(*seqno);
+                }
 
                 if (isBackfilling()) {
                     backfillItems.sent++;

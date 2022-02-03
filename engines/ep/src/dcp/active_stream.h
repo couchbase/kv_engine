@@ -767,7 +767,7 @@ private:
     std::atomic<uint64_t> lastReadSeqnoUnSnapshotted;
 
     //! The last sequence number sent to the network layer
-    std::atomic<uint64_t> lastSentSeqno;
+    AtomicMonotonic<uint64_t, ThrowExceptionPolicy> lastSentSeqno;
 
     //! The seqno of the last SeqnoAdvance sent
     std::atomic<uint64_t> lastSentSeqnoAdvance;
