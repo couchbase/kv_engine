@@ -30,10 +30,22 @@ Example usage:
 import fileinput
 import logging
 import os
-import requests
+import sys
 import shutil
 import subprocess
-import sys
+
+# Import non-default modules - given these may not be present,
+# give the user a helpful message if not found.
+try:
+    import requests
+except ImportError as e:
+    print("""Fatal: Unable to import Python 'requests' module: '{}'
+
+On RHEL / CentOS, this is available via the 'python-requests' package:
+
+    sudo yum install python-requests
+""".format(e), file=sys.stderr)
+    sys.exit(1)
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('urllib3').setLevel(logging.ERROR)
