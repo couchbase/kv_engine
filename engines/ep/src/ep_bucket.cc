@@ -1082,15 +1082,22 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
 
         const int maxConcurrentWriterTasks = std::min(
                 ExecutorPool::get()->getNumWriters(), vbMap.getNumShards());
+        const int maxConcurrentAuxIOTasks = ExecutorPool::get()->getNumAuxIO();
+        const int compactionConcurrentTaskLimit =
+                std::min(maxConcurrentWriterTasks, maxConcurrentAuxIOTasks);
 
         // Calculate how many compaction tasks we will permit. We always
         // allow at least one (see `if (handle->size() > 1)` above,
-        // then we limit to a fraction of the available WriterTasks,
-        // however imposing an upper bound so there is at least 1
-        // Writer task slot available for other tasks (i.e. Flusher).
+        // then we limit to a fraction of the available AuxIO/WriterTasks
+        // (whichever is lower) imposing an upper bound so there is at least 1
+        // AuxIO task slot available for other tasks (i.e. BackfillManagerTask).
+        // We want to take the lower of AuxIO and Writer threads when
+        // calculating this number as whilst we run compaction tasks on the
+        // AuxIO pool we don't want to saturate disk if we have few writers, and
+        // we don't want to saturate the AuxIO pool if we have more writers.
         const int maxConcurrentCompactTasks = std::min(
-                int(maxConcurrentWriterTasks * compactionMaxConcurrency),
-                maxConcurrentWriterTasks - 1);
+                int(compactionConcurrentTaskLimit * compactionMaxConcurrency),
+                maxConcurrentAuxIOTasks - 1);
 
         if (int(handle->size()) > maxConcurrentCompactTasks ||
             engine.getWorkLoadPolicy().getWorkLoadPattern() == READ_HEAVY) {
