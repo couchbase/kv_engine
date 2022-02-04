@@ -3235,6 +3235,13 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
         auto uid = kvs.getCollectionsManifestUid(*fileHandle);
         EXPECT_TRUE(uid.has_value());
         EXPECT_EQ(cm.getUid(), uid.value());
+        if (dropAtEnd) {
+            EXPECT_EQ(0, kvs.getItemCount(id));
+        } else {
+            // KVStore item count includes collection system events, of which
+            // one exists.
+            EXPECT_EQ(expected + 1, kvs.getItemCount(id));
+        }
     };
 
     auto* activeKVS = vb->getShard()->getRWUnderlying();

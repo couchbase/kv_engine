@@ -1341,6 +1341,12 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
         }
 
         if (docExists) {
+            // Storing a delete of a previous live document (in a previous
+            // generation of the collection) has no affect on item count
+            if (req->isLogicalInsert() && req->isDelete()) {
+                return;
+            }
+
             if (!isTombstone) {
                 req->markOldItemAlive();
             }
