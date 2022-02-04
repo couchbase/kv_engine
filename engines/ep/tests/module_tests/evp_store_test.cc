@@ -2208,6 +2208,46 @@ TEST_P(EPBucketTestNoRocksDb,
     EXPECT_EQ(task_state_t::TASK_RUNNING, task2->getState());
 }
 
+TEST_P(EPBucketTestNoRocksDb,
+       ScheduleCompactionEnforceConcurrencyLimitReusingTasks) {
+    auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+
+    // Change compaction concurrency ratio to a very low value so we only allow
+    // a single compactor task to run at once.
+    engine->getConfiguration().setCompactionMaxConcurrentRatio(0.0001);
+
+    // Schedule the first vb compaction. This should be ready to run
+    // on an executor thread.
+    CompactionConfig config{100, 1, true, true};
+    ASSERT_EQ(cb::engine_errc::would_block,
+              mockEPBucket->scheduleCompaction(
+                      vbid, config, nullptr, std::chrono::seconds(0)));
+    auto task1 = mockEPBucket->getCompactionTask(vbid);
+    ASSERT_TRUE(task1);
+    ASSERT_EQ(task_state_t::TASK_RUNNING, task1->getState());
+
+    // Schedule a second compaction task for a second vbid. This one should
+    // be queued as we have exceeded the number of concurrent compaction
+    // tasks permitted.
+    Vbid vbid2{2};
+    store->setVBucketState(vbid2, vbucket_state_active);
+    ASSERT_EQ(cb::engine_errc::would_block,
+              mockEPBucket->scheduleCompaction(
+                      vbid2, config, nullptr, std::chrono::seconds(0)));
+    auto task2 = mockEPBucket->getCompactionTask(vbid2);
+    ASSERT_TRUE(task2);
+    ASSERT_EQ(task_state_t::TASK_SNOOZED, task2->getState());
+
+    // Re-schedule the compaction for vbid2. Before the fix this would cause it
+    // to be run immediately, and not obey the concurrent compaction limit.
+    ASSERT_EQ(cb::engine_errc::would_block,
+              mockEPBucket->scheduleCompaction(
+                      vbid2, config, nullptr, std::chrono::seconds(0)));
+    EXPECT_TRUE(task2);
+    ASSERT_EQ(task_state_t::TASK_RUNNING, task1->getState());
+    EXPECT_EQ(task_state_t::TASK_SNOOZED, task2->getState());
+}
+
 class EPBucketTestCouchstore : public EPBucketTest {
 public:
     void SetUp() override {
