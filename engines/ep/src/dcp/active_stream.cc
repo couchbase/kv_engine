@@ -146,6 +146,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         itemsReady.store(true);
         // lock is released on leaving the scope
     }
+    auto streamInfo = "ActiveStream " + name_ + " " + logPrefix;
+    nextSnapStart.setLabel(streamInfo + " nextSnapStart");
 }
 
 ActiveStream::~ActiveStream() {
@@ -1362,9 +1364,12 @@ void ActiveStream::snapshot(
         uint64_t snapStart = *seqnoStart;
         uint64_t snapEnd = *seqnoEnd;
 
-        if (nextSnapshotIsCheckpoint && nextSnapStart) {
-            snapStart = *nextSnapStart;
-            nextSnapStart = std::nullopt;
+        // Pin the snapshot start seqno to the checkpoint's start seqno if this
+        // a checkpoint snapshot. But only do this if there's a gap in the seqno
+        // range between the last snapshot's endSeqno and this snapshot's
+        // startSeqno
+        if (nextSnapshotIsCheckpoint && nextSnapStart > lastSentSnapEndSeqno) {
+            snapStart = nextSnapStart;
         }
 
         /*

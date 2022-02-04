@@ -643,15 +643,22 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
             cm.remove(CollectionEntry::fruit).remove(CollectionEntry::dairy)));
 
     notifyAndStepToCheckpoint();
+    EXPECT_EQ(4, producers->last_snap_start_seqno);
+    EXPECT_EQ(4, producers->last_snap_end_seqno);
 
-    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
+              producers->last_system_event);
     EXPECT_EQ(3, replica->lockCollections().getManifestUid());
+    EXPECT_EQ(4, producers->last_byseqno);
 
-    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
-    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(5, producers->last_snap_start_seqno);
+    EXPECT_EQ(5, producers->last_snap_end_seqno);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
+              producers->last_system_event);
     EXPECT_EQ(5, replica->lockCollections().getManifestUid());
 
     // Add and remove
@@ -1237,6 +1244,9 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
 
         // Drop collection in a new snapshot
         stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+        EXPECT_EQ(8, producers->last_snap_start_seqno);
+        EXPECT_EQ(8, producers->last_snap_end_seqno);
+
         stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
         EXPECT_EQ(producers->last_collection_id,
                   CollectionEntry::fruit.getId());
@@ -3754,6 +3764,87 @@ TEST_P(CollectionsDcpParameterizedTest, MB_49453) {
 
     // Before fix, another snapshot appeared, and violated seqno ordering
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+}
+
+/**
+ * Regression test for MB-50543 to ensure we don't send a snapshot start seqno
+ * that isn't monotonic.
+ *
+ * This could happen if the ActiveStream picks up items from two checkpoints
+ * when running the checkpoint processor. But the first set of item's doesn't
+ * have a queue_op::checkpoint_start, but its checkpoint range is still added to
+ * OutstandingItemsResult::ranges as items are from the checkpoint. Which causes
+ * us to use the last checkpoint's range when processing the next
+ * queue_op::checkpoint_start.
+ */
+TEST_P(CollectionsDcpParameterizedTest, MB_50543) {
+    auto vb = store->getVBucket(vbid);
+    // 1. Create 5 documents and then close the checkpoint, this means that
+    // later we will move away from the initial snapshot and start seqno of zero
+    ASSERT_TRUE(store_items(5, vbid, makeStoredDocKey("setOne"), "value"));
+    vb->checkpointManager->createNewCheckpoint();
+
+    // 2. Ensure we can step though all all the mutations we've just writen
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(5, producers->last_snap_end_seqno);
+    EXPECT_TRUE(MARKER_FLAG_CHK & producers->last_flags);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("setOne0", producers->last_key);
+    EXPECT_EQ(1, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("setOne1", producers->last_key);
+    EXPECT_EQ(2, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("setOne2", producers->last_key);
+    EXPECT_EQ(3, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("setOne3", producers->last_key);
+    EXPECT_EQ(4, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("setOne4", producers->last_key);
+    EXPECT_EQ(5, producers->last_byseqno);
+
+    // 3. Then write 5 new docs and close the checkpoint.
+    ASSERT_TRUE(store_items(5, vbid, makeStoredDocKey("setTwo"), "value"));
+    vb->checkpointManager->createNewCheckpoint();
+    // 4. Write a doc in the open checkpoint
+    ASSERT_TRUE(store_items(1, vbid, makeStoredDocKey("final"), "value"));
+
+    // 5. Run the checkpoint processor and expect that we see a disk snapshot
+    // for the 5 "setTwo" documents.
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(6, producers->last_snap_start_seqno);
+    EXPECT_EQ(10, producers->last_snap_end_seqno);
+    EXPECT_TRUE(MARKER_FLAG_CHK & producers->last_flags);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("setTwo0", producers->last_key);
+    EXPECT_EQ(6, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("setTwo1", producers->last_key);
+    EXPECT_EQ(7, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("setTwo2", producers->last_key);
+    EXPECT_EQ(8, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("setTwo3", producers->last_key);
+    EXPECT_EQ(9, producers->last_byseqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("setTwo4", producers->last_key);
+    EXPECT_EQ(10, producers->last_byseqno);
+
+    // 6. Expect item from the open checkpoint that was sent from the same
+    // checkpoint processor run
+    // MB-50543 would cause us here to set the snapshot's startSeqno to be set
+    // backwards to a seqno value of 6. So ensure that last_snap_start_seqno is
+    // indeed 11.
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(11, producers->last_snap_start_seqno);
+    EXPECT_EQ(11, producers->last_snap_end_seqno);
+    EXPECT_TRUE(MARKER_FLAG_CHK & producers->last_flags);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("final0", producers->last_key);
+    EXPECT_EQ(11, producers->last_byseqno);
 }
 
 // Test cases which run for persistent and ephemeral buckets

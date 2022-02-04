@@ -784,12 +784,12 @@ private:
 
     /*
      * The next snapshot start that we will send (set when we set
-     * nextSnapshotIsCheckpoint). Optional as we reset this after use until the
-     * next checkpoint start which is simpler than dealing with some transitions
-     * between backfill and memory which also set nextSnapshotIsCheckpoint to
-     * true but do not need an overrided snap start.
+     * nextSnapshotIsCheckpoint). Updated at the next checkpoint start which is
+     * simpler than dealing with some transitions between backfill and memory
+     * which also set nextSnapshotIsCheckpoint to true but do not need an
+     * override snap start.
      */
-    std::optional<uint64_t> nextSnapStart = {};
+    WeaklyMonotonic<uint64_t> nextSnapStart;
 
     //! The current vbucket state to send in the takeover stream
     vbucket_state_t takeoverState;
