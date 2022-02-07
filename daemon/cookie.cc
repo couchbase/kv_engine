@@ -782,6 +782,25 @@ cb::rbac::PrivilegeAccess Cookie::testPrivilege(
     return ctx.check(privilege, sid, cid);
 }
 
+cb::rbac::PrivilegeAccess Cookie::checkForPrivilegeAtLeastInOneCollection(
+        cb::rbac::Privilege privilege) const {
+    auto ret =
+            privilegeContext.checkForPrivilegeAtLeastInOneCollection(privilege);
+
+    if (ret.success() && euidPrivilegeContext) {
+        if (std::find(euidExtraPrivileges.begin(),
+                      euidExtraPrivileges.end(),
+                      privilege) != euidExtraPrivileges.end()) {
+            // the caller explicitly granted the privilege
+            return cb::rbac::PrivilegeAccessOk;
+        }
+        return euidPrivilegeContext->checkForPrivilegeAtLeastInOneCollection(
+                privilege);
+    }
+
+    return ret;
+}
+
 cb::mcbp::Status Cookie::setEffectiveUser(const cb::rbac::UserIdent& e) {
     if (e.name.empty()) {
         setErrorContext("Username must be at least one character");

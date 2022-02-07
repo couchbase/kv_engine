@@ -92,6 +92,9 @@ public:
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) const = 0;
 
+    virtual cb::rbac::PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
+            cb::rbac::Privilege privilege) const = 0;
+
     /// Get the payload from the command.
     virtual std::string_view getInflatedInputPayload() const = 0;
 };

@@ -63,6 +63,11 @@ static PrivilegeAccess requireInsertOrUpsert(Cookie& cookie) {
     }
 }
 
+template <Privilege T>
+static PrivilegeAccess requirePrivilegeInAtLeastOneCollection(Cookie& cookie) {
+    return cookie.checkForPrivilegeAtLeastInOneCollection(T);
+}
+
 static PrivilegeAccess empty(Cookie& cookie) {
     return cb::rbac::PrivilegeAccessOk;
 }
@@ -194,9 +199,9 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     // And select the one they have access to
     setup(cb::mcbp::ClientOpcode::SelectBucket, empty);
 
-    // ObserveSeqno checks privileges inside ep_engine as it requires an OR of
-    // MetaRead and ReadSeqno
-    setup(cb::mcbp::ClientOpcode::ObserveSeqno, empty);
+    setup(cb::mcbp::ClientOpcode::ObserveSeqno,
+          requirePrivilegeInAtLeastOneCollection<Privilege::Read>);
+
     // The payload of observe contains a list of keys to observe, and
     // the underlying engine check for the Read privilege
     setup(cb::mcbp::ClientOpcode::Observe, empty);

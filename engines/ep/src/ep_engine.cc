@@ -5145,6 +5145,30 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
     return status;
 }
 
+cb::engine_errc
+EventuallyPersistentEngine::checkForPrivilegeAtLeastInOneCollection(
+        const CookieIface& cookie, cb::rbac::Privilege privilege) const {
+    try {
+        switch (serverApi->cookie
+                        ->check_for_privilege_at_least_in_one_collection(
+                                cookie, privilege)
+                        .getStatus()) {
+        case cb::rbac::PrivilegeAccess::Status::Ok:
+            return cb::engine_errc::success;
+        case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
+        case cb::rbac::PrivilegeAccess::Status::Fail:
+            return cb::engine_errc::no_access;
+        }
+    } catch (const std::exception& e) {
+        EP_LOG_ERR(
+                "EPE::checkForPrivilegeAtLeastInOneCollection: received "
+                "exception while checking privilege: {}",
+                e.what());
+    }
+
+    return cb::engine_errc::failed;
+}
+
 cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
         const CookieIface* cookie,
         cb::rbac::Privilege priv,
@@ -5314,18 +5338,6 @@ cb::engine_errc EventuallyPersistentEngine::observe_seqno(
         const CookieIface* cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
-    // Do a bucket privilege check, either MetaRead or ReadSeqno will suffice
-    auto accessStatus =
-            checkPrivilege(cookie, cb::rbac::Privilege::MetaRead, {}, {});
-    if (accessStatus != cb::engine_errc::success) {
-        accessStatus =
-                checkPrivilege(cookie, cb::rbac::Privilege::ReadSeqno, {}, {});
-    }
-
-    if (accessStatus != cb::engine_errc::success) {
-        return accessStatus;
-    }
-
     Vbid vb_id = request.getVBucket();
     auto value = request.getValue();
     auto vb_uuid = static_cast<uint64_t>(

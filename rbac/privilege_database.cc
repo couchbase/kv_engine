@@ -220,6 +220,21 @@ PrivilegeAccess Scope::check(Privilege privilege,
     return iter->second.check(privilege);
 }
 
+PrivilegeAccess Scope::checkForPrivilegeAtLeastInOneCollection(
+        Privilege privilege) const {
+    if (privilegeMask.test(uint8_t(privilege))) {
+        return PrivilegeAccessOk;
+    }
+
+    for (const auto& [id, c] : collections) {
+        if (c.check(privilege) == PrivilegeAccessOk) {
+            return PrivilegeAccessOk;
+        }
+    }
+
+    return PrivilegeAccessFail;
+}
+
 bool Bucket::operator==(const Bucket& other) const {
     return privilegeMask == other.privilegeMask && scopes == other.scopes;
 }
@@ -295,6 +310,24 @@ PrivilegeAccess Bucket::check(Privilege privilege,
     }
 
     return status;
+}
+
+PrivilegeAccess Bucket::checkForPrivilegeAtLeastInOneCollection(
+        Privilege privilege) const {
+    if (privilegeMask.test(uint8_t(privilege))) {
+        return PrivilegeAccessOk;
+    }
+
+    for (const auto& [id, scope] : scopes) {
+        // Check if there is something in the scope
+        (void)id;
+        if (scope.checkForPrivilegeAtLeastInOneCollection(privilege) ==
+            PrivilegeAccessOk) {
+            return PrivilegeAccessOk;
+        }
+    }
+
+    return PrivilegeAccessFail;
 }
 
 bool UserEntry::operator==(const UserEntry& other) const {
@@ -476,6 +509,35 @@ PrivilegeAccess PrivilegeContext::check(Privilege privilege,
                 privilege,
                 sid ? std::optional<uint32_t>(*sid) : std::nullopt,
                 cid ? std::optional<uint32_t>(*cid) : std::nullopt);
+    }
+
+    return PrivilegeAccessFail;
+}
+
+PrivilegeAccess PrivilegeContext::checkForPrivilegeAtLeastInOneCollection(
+        Privilege privilege) const {
+    const auto idx = size_t(privilege);
+#ifndef NDEBUG
+    if (idx >= mask.size()) {
+        throw std::invalid_argument("Invalid privilege passed for the check)");
+    }
+#endif
+
+    // Check if the user dropped the privilege over the connection.
+    if (!droppedPrivileges.empty()) {
+        if (std::find(droppedPrivileges.begin(),
+                      droppedPrivileges.end(),
+                      privilege) != droppedPrivileges.end()) {
+            return PrivilegeAccessFail;
+        }
+    }
+
+    if (mask.test(idx)) {
+        return PrivilegeAccessOk;
+    }
+
+    if (bucket) {
+        return bucket->checkForPrivilegeAtLeastInOneCollection(privilege);
     }
 
     return PrivilegeAccessFail;

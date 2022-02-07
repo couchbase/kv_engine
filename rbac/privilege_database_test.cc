@@ -387,4 +387,106 @@ TEST_F(CollectionPrivVisibility, can_read_0x32_only) {
     EXPECT_EQ(cb::rbac::PrivilegeAccess::Status::Fail, status.getStatus());
 }
 
+TEST(CheckForPrivilegeAtLeastInOneCollection, PrivilegeMissing) {
+    nlohmann::json access = R"({
+  "privileges": [
+    "Audit"
+  ],
+  "scopes": {
+    "0x32": {
+      "collections": {
+        "0x32": {
+          "privileges": [
+            "Read"
+          ]
+        }
+      },
+      "privileges": [
+        "SystemXattrRead"
+      ]
+    }
+  }
+})"_json;
+    MockBucket bucket(access);
+    EXPECT_EQ(
+            PrivilegeAccessFail,
+            bucket.checkForPrivilegeAtLeastInOneCollection(Privilege::Upsert));
+}
+
+TEST(CheckForPrivilegeAtLeastInOneCollection, PrivilegeInBucket) {
+    nlohmann::json access = R"({
+  "privileges": [
+    "Read"
+  ]
+})"_json;
+    MockBucket bucket(access);
+    EXPECT_EQ(PrivilegeAccessOk,
+              bucket.checkForPrivilegeAtLeastInOneCollection(Privilege::Read));
+}
+
+TEST(CheckForPrivilegeAtLeastInOneCollection, PrivilegeInScope) {
+    nlohmann::json access = R"({
+  "privileges": [
+    "Audit"
+  ],
+  "scopes": {
+    "0x31": {
+      "privileges": [
+        "Upsert"
+      ]
+    },
+    "0x32": {
+      "collections": {
+        "0x32": {
+          "privileges": [
+            "Upsert"
+          ]
+        }
+      },
+      "privileges": [
+        "Read"
+      ]
+    }
+  }
+})"_json;
+    MockBucket bucket(access);
+    EXPECT_EQ(PrivilegeAccessOk,
+              bucket.checkForPrivilegeAtLeastInOneCollection(Privilege::Read));
+}
+
+TEST(CheckForPrivilegeAtLeastInOneCollection, PrivilegeInCollection) {
+    nlohmann::json access = R"({
+  "privileges": [
+    "Audit"
+  ],
+  "scopes": {
+    "0x31": {
+      "privileges": [
+        "Upsert"
+      ]
+    },
+    "0x32": {
+      "collections": {
+        "0x31": {
+          "privileges": [
+            "Upsert"
+          ]
+        },
+        "0x32": {
+          "privileges": [
+             "Read"
+          ]
+        }
+      },
+      "privileges": [
+        "Upsert"
+      ]
+    }
+  }
+})"_json;
+    MockBucket bucket(access);
+    EXPECT_EQ(PrivilegeAccessOk,
+              bucket.checkForPrivilegeAtLeastInOneCollection(Privilege::Read));
+}
+
 } // namespace cb::rbac

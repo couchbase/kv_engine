@@ -277,7 +277,10 @@ struct MockServerCookieApi : public ServerCookieIface {
             std::optional<CollectionID> cid) override {
         return cookie.testPrivilege(privilege, sid, cid);
     }
-
+    cb::rbac::PrivilegeAccess check_for_privilege_at_least_in_one_collection(
+            const CookieIface& cookie, cb::rbac::Privilege privilege) override {
+        return cookie.checkForPrivilegeAtLeastInOneCollection(privilege);
+    }
     uint32_t get_privilege_context_revision(
             const CookieIface& cookie) override {
         return privilege_context_revision;

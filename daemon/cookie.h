@@ -548,6 +548,9 @@ public:
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) const override;
 
+    cb::rbac::PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
+            cb::rbac::Privilege privilege) const override;
+
     /// Get the underlying privilege context
     const cb::rbac::PrivilegeContext& getPrivilegeContext() const {
         return privilegeContext;

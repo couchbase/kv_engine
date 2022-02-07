@@ -13,6 +13,8 @@
 #include <mcbp/protocol/status.h>
 
 MockCookie::CheckPrivilegeFunction MockCookie::checkPrivilegeFunction;
+MockCookie::CheckForPrivilegeAtLeastInOneCollectionFunction
+        MockCookie::checkForPrivilegeAtLeastInOneCollectionFunction;
 
 MockCookie::MockCookie(EngineIface* e) : engine(e) {
     mock_register_cookie(*this);
@@ -99,6 +101,14 @@ cb::rbac::PrivilegeAccess MockCookie::testPrivilege(
         return checkPrivilegeFunction(*this, privilege, sid, cid);
     }
 
+    return cb::rbac::PrivilegeAccessOk;
+}
+cb::rbac::PrivilegeAccess MockCookie::checkForPrivilegeAtLeastInOneCollection(
+        cb::rbac::Privilege privilege) const {
+    if (checkForPrivilegeAtLeastInOneCollectionFunction) {
+        return checkForPrivilegeAtLeastInOneCollectionFunction(*this,
+                                                               privilege);
+    }
     return cb::rbac::PrivilegeAccessOk;
 }
 

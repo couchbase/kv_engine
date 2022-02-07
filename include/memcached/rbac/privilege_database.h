@@ -108,6 +108,11 @@ public:
                           std::optional<uint32_t> collection,
                           bool parentHasCollectionPrivileges) const;
 
+    /// Check if the provided privilege exists in the scope or one of the
+    /// collections in the scope
+    PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
+            Privilege privilege) const;
+
     /// Check if this object is identical to another object
     bool operator==(const Scope& other) const;
 
@@ -147,6 +152,11 @@ public:
     PrivilegeAccess check(Privilege privilege,
                           std::optional<uint32_t> scope,
                           std::optional<uint32_t> collection) const;
+
+    /// Check if the provided privilege exists in the bucket or one of the
+    /// scopes in the bucket
+    PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
+            Privilege privilege) const;
 
     /// Check if this object is identical to another object
     bool operator==(const Bucket& other) const;
@@ -307,6 +317,16 @@ public:
     PrivilegeAccess check(Privilege privilege,
                           std::optional<ScopeID> sid,
                           std::optional<CollectionID> cid) const;
+
+    /**
+     * Check if the given privilege exists in at least one of the bucket/
+     * scope/collection
+     *
+     * @param privilege the privilege to check
+     * @return if access is granted or not.
+     */
+    PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
+            Privilege privilege) const;
 
     /**
      * Get the generation of the Privilege Database this context maps

@@ -151,8 +151,8 @@ void RbacSeqnosTests::SetUp() {
 }
 
 void RbacSeqnosTests::configureUsers(const nlohmann::json& userConfig) {
-    cluster->getAuthProviderService().upsertUser(
-            {"userCannot", "pass", userConfig});
+    auto& provider = cluster->getAuthProviderService();
+    provider.upsertUser({"userCannot", "pass", userConfig});
     std::vector<std::vector<std::string>> privileges = {
             {"ReadSeqno"},
             {"MetaRead"},
@@ -165,10 +165,37 @@ void RbacSeqnosTests::configureUsers(const nlohmann::json& userConfig) {
         for (const auto& priv : testPrivs) {
             config["buckets"]["default"]["privileges"].push_back(priv);
         }
-        cluster->getAuthProviderService().upsertUser(
-                {"userCan" + std::to_string(i), "pass", config});
+        provider.upsertUser({"userCan" + std::to_string(i), "pass", config});
         i++;
     }
+
+    // userObserveSeqnoCan1 have Read permission on the entire bucket
+    auto config = userConfig;
+    config["buckets"]["default"]["privileges"].push_back("Read");
+    provider.upsertUser({"userObserveSeqnoCan1", "pass", config});
+
+    // userObserveSeqnoCan2 have scope wide read on Scope 0
+    config = userConfig;
+    config["buckets"]["default"] = nlohmann::json::parse(R"({
+  "scopes": {
+    "0": {
+      "collections": {"0": { "privileges": ["SimpleStats"] }},
+      "privileges": ["Read"]
+    }
+   }
+})");
+    provider.upsertUser({"userObserveSeqnoCan2", "pass", config});
+
+    // userObserveSeqnoCan3 have read access to collection 0
+    config = userConfig;
+    config["buckets"]["default"] = nlohmann::json::parse(R"({
+  "scopes": {
+    "0": {
+      "collections": {"0": { "privileges": ["Read"] }}
+    }
+   }
+})");
+    provider.upsertUser({"userObserveSeqnoCan3", "pass", config});
 }
 
 TEST_F(RbacSeqnosTests, ObserveSeqno) {
@@ -179,18 +206,19 @@ TEST_F(RbacSeqnosTests, ObserveSeqno) {
     try {
         conn->observeSeqno(Vbid(0), highSeqno.vbucketuuid);
         FAIL() << "This user should not be able to run observeSeqno";
-    } catch (...) {
+    } catch (const ConnectionError& ex) {
+        EXPECT_TRUE(ex.isAccessDenied()) << ex.what();
+    } catch (const std::exception& ex) {
+        FAIL() << "Unknown exception: " << ex.what();
     }
 
-    for (int user : {1, 2, 3}) {
-        conn->authenticate("userCan" + std::to_string(user), "pass");
+    for (const auto& user :
+         std::vector<std::string>{{"userObserveSeqnoCan1"},
+                                  {"userObserveSeqnoCan2"},
+                                  {"userObserveSeqnoCan3"}}) {
+        conn->authenticate(user, "pass");
         conn->selectBucket(bucket);
-
-        try {
-            conn->observeSeqno(Vbid(0), highSeqno.vbucketuuid);
-        } catch (...) {
-            FAIL() << "Should be able to observe for userCan" << user;
-        }
+        conn->observeSeqno(Vbid(0), highSeqno.vbucketuuid);
     }
 }
 

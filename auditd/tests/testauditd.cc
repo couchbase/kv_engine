@@ -85,6 +85,10 @@ public:
             std::optional<CollectionID> cid) override {
         throw std::runtime_error("Not implemented");
     }
+    cb::rbac::PrivilegeAccess check_for_privilege_at_least_in_one_collection(
+            const CookieIface&, cb::rbac::Privilege) override {
+        throw std::runtime_error("Not implemented");
+    }
     uint32_t get_privilege_context_revision(
             const CookieIface& cookie) override {
         throw std::runtime_error("Not implemented");

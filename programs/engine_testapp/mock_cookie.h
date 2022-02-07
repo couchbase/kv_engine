@@ -141,8 +141,20 @@ public:
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) const override;
 
+    using CheckForPrivilegeAtLeastInOneCollectionFunction =
+            std::function<cb::rbac::PrivilegeAccess(const CookieIface&,
+                                                    cb::rbac::Privilege)>;
+    static void setCheckForPrivilegeAtLeastInOneCollectionFunction(
+            CheckForPrivilegeAtLeastInOneCollectionFunction func) {
+        checkForPrivilegeAtLeastInOneCollectionFunction = std::move(func);
+    }
+    cb::rbac::PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
+            cb::rbac::Privilege privilege) const override;
+
 protected:
     static CheckPrivilegeFunction checkPrivilegeFunction;
+    static CheckForPrivilegeAtLeastInOneCollectionFunction
+            checkForPrivilegeAtLeastInOneCollectionFunction;
 
     std::atomic<void*> engine_data{nullptr};
     uint32_t sfd{};

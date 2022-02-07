@@ -857,6 +857,9 @@ public:
 
     cb::HlcTime getVBucketHlcNow(Vbid vbucket) override;
 
+    cb::engine_errc checkForPrivilegeAtLeastInOneCollection(
+            const CookieIface& cookie, cb::rbac::Privilege privilege) const;
+
     /**
      * Check the access for the given privilege for the bucket.scope.collection
      */
