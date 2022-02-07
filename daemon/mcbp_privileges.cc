@@ -214,8 +214,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /**
      * CMD_GET_META is used to retrieve the meta section for an item.
      */
-    setup(cb::mcbp::ClientOpcode::GetMeta, require<Privilege::MetaRead>);
-    setup(cb::mcbp::ClientOpcode::GetqMeta, require<Privilege::MetaRead>);
+    setup(cb::mcbp::ClientOpcode::GetMeta, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::GetqMeta, require<Privilege::Read>);
     setup(cb::mcbp::ClientOpcode::SetWithMeta, require<Privilege::MetaWrite>);
     setup(cb::mcbp::ClientOpcode::SetqWithMeta, require<Privilege::MetaWrite>);
     setup(cb::mcbp::ClientOpcode::AddWithMeta, require<Privilege::MetaWrite>);
@@ -240,10 +240,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
           require<Privilege::NodeManagement>);
     /// Command to manage interfaces
     setup(cb::mcbp::ClientOpcode::Ifconfig, require<Privilege::NodeManagement>);
-    /**
-     * Command that returns meta data for typical memcached ops
-     */
-    setup(cb::mcbp::ClientOpcode::ReturnMeta, require<Privilege::MetaRead>);
+    /// Command that returns meta data for Set, Add, Del
     setup(cb::mcbp::ClientOpcode::ReturnMeta, require<Privilege::MetaWrite>);
     /**
      * Command to trigger compaction of a vbucket
