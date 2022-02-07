@@ -197,7 +197,9 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     // ObserveSeqno checks privileges inside ep_engine as it requires an OR of
     // MetaRead and ReadSeqno
     setup(cb::mcbp::ClientOpcode::ObserveSeqno, empty);
-    setup(cb::mcbp::ClientOpcode::Observe, require<Privilege::MetaRead>);
+    // The payload of observe contains a list of keys to observe, and
+    // the underlying engine check for the Read privilege
+    setup(cb::mcbp::ClientOpcode::Observe, empty);
 
     setup(cb::mcbp::ClientOpcode::EvictKey, require<Privilege::NodeManagement>);
     setup(cb::mcbp::ClientOpcode::GetLocked, require<Privilege::Read>);
