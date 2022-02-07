@@ -158,42 +158,7 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
             LOG_TRACE("FollyExecutorPool: Run task \"{}\" id {}",
                       proxy.task->getDescription(),
                       proxy.task->getId());
-            bool runAgain = false;
-            // Check if Task is still alive. If not don't run.
-            if (!proxy.task->isdead()) {
-                // Call GlobalTask::run(), noting the result.
-                // If true: Read GlobalTask::wakeTime. If "now", then re-queue
-                // directly on the CPUThreadPool. If some time in the future,
-                // then schedule on the IOThreadPool for the given time.
-                // If false: Cancel task, will not run again.
-
-                const auto executedAt = steady_clock::now();
-
-                // Calculate and record scheduler overhead.
-                auto scheduleOverhead = executedAt - proxy.task->getWaketime();
-                // scheduleOverhead can be a negative number if the task has
-                // been woken up before we expected it too be. In this case this
-                // means that we have no schedule overhead and thus need to set
-                // it too 0.
-                if (scheduleOverhead < steady_clock::duration::zero()) {
-                    scheduleOverhead = steady_clock::duration::zero();
-                }
-                proxy.task->getTaskable().logQTime(*proxy.task,
-                                                   proxy.getCurrentThreadName(),
-                                                   scheduleOverhead);
-
-                const auto start = steady_clock::now();
-                proxy.task->updateLastStartTime(start);
-
-                proxy.task->setState(TASK_RUNNING, TASK_SNOOZED);
-                runAgain = proxy.task->execute();
-
-                const auto end = steady_clock::now();
-                auto runtime = end - start;
-                proxy.task->getTaskable().logRunTime(
-                        *proxy.task, proxy.getCurrentThreadName(), runtime);
-                proxy.task->updateRuntime(runtime);
-            }
+            bool runAgain = proxy.task->execute(proxy.getCurrentThreadName());
 
             // If runAgain is false, then task should be cancelled. This is
             // performed in this thread to ensure cancancellation serialised -

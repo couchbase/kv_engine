@@ -116,21 +116,6 @@ void CB3ExecutorThread::run() {
                 continue;
             }
 
-            // Measure scheduling overhead as difference between the time
-            // that the task wanted to wake up and the current time
-            const std::chrono::steady_clock::time_point woketime =
-                    currentTask->getWaketime();
-
-            auto scheduleOverhead = getCurTime() - woketime;
-            // scheduleOverhead can be a negative number if the task has been
-            // woken up before we expected it too be. In this case this means
-            // that we have no schedule overhead and thus need to set it too 0.
-            if (scheduleOverhead.count() < 0) {
-                scheduleOverhead = std::chrono::steady_clock::duration::zero();
-            }
-
-            currentTask->getTaskable().logQTime(
-                    *currentTask, getName(), scheduleOverhead);
             updateTaskStart();
 
             const auto curTaskDescr = currentTask->getDescription();
@@ -140,15 +125,7 @@ void CB3ExecutorThread::run() {
                       currentTask->getId());
 
             // Now Run the Task ....
-            currentTask->setState(TASK_RUNNING, TASK_SNOOZED);
-            bool again = currentTask->execute();
-
-            // Task done, log it ...
-            std::chrono::steady_clock::duration runtime(
-                    std::chrono::steady_clock::now() - getTaskStart());
-            currentTask->getTaskable().logRunTime(
-                    *currentTask, getName(), runtime);
-            currentTask->updateRuntime(runtime);
+            bool again = currentTask->execute(getName());
 
             // Check if task is run once or needs to be rescheduled..
             if (!again || currentTask->isdead()) {

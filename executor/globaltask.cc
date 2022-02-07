@@ -62,10 +62,47 @@ GlobalTask::~GlobalTask() {
     }
 }
 
-bool GlobalTask::execute() {
+bool GlobalTask::execute(std::string_view threadName) {
+    using namespace std::chrono;
+    if (isdead()) {
+        return false;
+    }
+
     // Invoke run with the engine as the target for alloc/dalloc
     BucketAllocationGuard guard(engine);
-    return run();
+
+    // Call GlobalTask::run(), noting the result.
+    // If true: Read GlobalTask::wakeTime. If "now", then re-queue
+    // directly on the CPUThreadPool. If some time in the future,
+    // then schedule on the IOThreadPool for the given time.
+    // If false: Cancel task, will not run again.
+
+    const auto executedAt = steady_clock::now();
+
+    // Calculate and record scheduler overhead.
+    auto scheduleOverhead = executedAt - getWaketime();
+    // scheduleOverhead can be a negative number if the task has
+    // been woken up before we expected it too be. In this case this
+    // means that we have no schedule overhead and thus need to set
+    // it too 0.
+    if (scheduleOverhead < steady_clock::duration::zero()) {
+        scheduleOverhead = steady_clock::duration::zero();
+    }
+
+    getTaskable().logQTime(*this, threadName, scheduleOverhead);
+
+    const auto start = steady_clock::now();
+    updateLastStartTime(start);
+
+    setState(TASK_RUNNING, TASK_SNOOZED);
+    bool runAgain = run();
+
+    const auto end = steady_clock::now();
+    auto runtime = end - start;
+    getTaskable().logRunTime(*this, threadName, runtime);
+    updateRuntime(runtime);
+
+    return runAgain;
 }
 
 void GlobalTask::snooze(const double secs) {

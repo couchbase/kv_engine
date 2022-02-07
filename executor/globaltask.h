@@ -68,7 +68,7 @@ public:
     virtual ~GlobalTask();
 
     /// execute the task and return true if it should be rescheduled
-    bool execute();
+    bool execute(std::string_view threadName);
 
     /**
      * Gives a description of this task.

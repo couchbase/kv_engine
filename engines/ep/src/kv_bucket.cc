@@ -2600,11 +2600,11 @@ void KVBucket::wakeUpCheckpointMemRecoveryTask() {
 }
 
 void KVBucket::runDefragmenterTask() {
-    defragmenterTask->execute();
+    defragmenterTask->execute("");
 }
 
 void KVBucket::runItemFreqDecayerTask() {
-    itemFreqDecayerTask->execute();
+    itemFreqDecayerTask->execute("");
 }
 
 bool KVBucket::runAccessScannerTask() {
