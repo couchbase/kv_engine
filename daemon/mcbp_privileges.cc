@@ -207,9 +207,11 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
 
     /**
      * Return the last closed checkpoint Id for a given VBucket.
+     * This command is deprecated and will be removed in the next
+     * version of Couchbase
      */
     setup(cb::mcbp::ClientOpcode::LastClosedCheckpoint,
-          require<Privilege::MetaRead>);
+          require<Privilege::Read>);
 
     /**
      * CMD_GET_META is used to retrieve the meta section for an item.
