@@ -4501,7 +4501,8 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
                                              CheckpointType expectedCkptType,
                                              uint64_t expectedSnapStart,
                                              uint64_t expectedSnapEnd) -> void {
-        ASSERT_EQ(expectedCkptType, ckptMgr.getOpenCheckpointType());
+        ASSERT_EQ(expectedCkptType,
+                  getSuperCheckpointType(ckptMgr.getOpenCheckpointType()));
         auto currSnap = ckptMgr.getSnapshotInfo();
         ASSERT_EQ(expectedSnapStart, currSnap.range.getStart());
         ASSERT_EQ(expectedSnapEnd, currSnap.range.getEnd());
@@ -4963,7 +4964,8 @@ void DurabilityPromotionStreamTest::
                                              CheckpointType expectedCkptType,
                                              uint64_t expectedSnapStart,
                                              uint64_t expectedSnapEnd) -> void {
-        ASSERT_EQ(expectedCkptType, ckptMgr.getOpenCheckpointType());
+        ASSERT_EQ(expectedCkptType,
+                  getSuperCheckpointType(ckptMgr.getOpenCheckpointType()));
         auto currSnap = ckptMgr.getSnapshotInfo();
         ASSERT_EQ(expectedSnapStart, currSnap.range.getStart());
         ASSERT_EQ(expectedSnapEnd, currSnap.range.getEnd());

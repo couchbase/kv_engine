@@ -78,7 +78,26 @@ enum class CheckpointType : uint8_t {
      * Default checkpoint type
      */
     Memory,
+
+    /**
+     * Initial disk checkpoints are disk snapshots received by a replica when
+     * the replica has no items for the vbucket being streamed i.e. its
+     * highSeqno=0.
+     *
+     * This type is a subtype of Disk checkpoint i.e. every InitialDisk
+     * checkpoint is a Disk checkpoint. In most cases, method
+     * isDiskCheckpointType can be used when the distinction between the two is
+     * not required.
+     */
+    InitialDisk,
 };
+
+// Returns true if given type is either a Disk checkpoint or its subtype.
+bool isDiskCheckpointType(CheckpointType type);
+
+// A type could logically be a subtype of another. This method returns its
+// supertype.
+CheckpointType getSuperCheckpointType(CheckpointType type);
 
 enum class ConflictResolutionMode {
     /// Resolve conflicts based on document revision id (revid).

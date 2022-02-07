@@ -473,8 +473,8 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     // the start (seqno 0), we can issue Insert operations. This benefits some
     // KVStore implementations since a lookup isn't needed. This scenario
     // commonly occurs in rebalance where a vbucket is taken over by a new node.
-    if (toFlush.checkpointType == CheckpointType::Disk &&
-        toFlush.ranges.size() == 1 && toFlush.ranges[0].getStart() == 0) {
+    if (toFlush.ranges.size() == 1 &&
+        toFlush.checkpointType == CheckpointType::InitialDisk) {
         writeOp = WriteOperation::Insert;
     }
 
@@ -553,7 +553,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
         const auto op = item->getOperation();
         if ((op == queue_op::commit_sync_write ||
              op == queue_op::abort_sync_write) &&
-            toFlush.checkpointType != CheckpointType::Disk) {
+            !isDiskCheckpointType(toFlush.checkpointType)) {
             // If we are receiving a disk snapshot then we want to skip
             // the HCS update as we will persist a correct one when we
             // flush the last item. If we were to persist an incorrect
@@ -658,7 +658,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
                 // HCS may be weakly monotonic when received via a disk
                 // snapshot so we special case this for the disk
                 // snapshot instead of relaxing the general constraint.
-                if (toFlush.checkpointType == CheckpointType::Disk &&
+                if (isDiskCheckpointType(toFlush.checkpointType) &&
                     itr->highCompletedSeqno !=
                             proposedVBState.persistedCompletedSeqno) {
                     hcs = itr->highCompletedSeqno;
@@ -2034,7 +2034,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
     // prepare at seqno 1. This will cause us to have a completed SyncWrite in
     // the DM when we transition to memory which will block any further
     // SyncWrite completions on this node.
-    if (vbState->checkpointType == CheckpointType::Disk &&
+    if (isDiskCheckpointType(vbState->checkpointType) &&
         static_cast<uint64_t>(vbState->highSeqno) != vbState->lastSnapEnd) {
         endSeqno = vbState->highSeqno;
 

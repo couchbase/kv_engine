@@ -4035,7 +4035,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
     ASSERT_EQ(1, ckptList.size());
-    ASSERT_EQ(CheckpointType::Disk, ckptList.front()->getCheckpointType());
+    ASSERT_TRUE(ckptList.front()->isDiskCheckpoint());
     ASSERT_EQ(1, ckptList.front()->getSnapshotStartSeqno());
     ASSERT_EQ(2, ckptList.front()->getSnapshotEndSeqno());
     ASSERT_EQ(0, ckptList.front()->getNumItems());
@@ -4075,7 +4075,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
                                  0));
 
     ASSERT_EQ(1, ckptList.size());
-    ASSERT_EQ(CheckpointType::Disk, ckptList.front()->getCheckpointType());
+    ASSERT_TRUE(ckptList.front()->isDiskCheckpoint());
     ASSERT_EQ(1, ckptList.front()->getSnapshotStartSeqno());
     ASSERT_EQ(2, ckptList.front()->getSnapshotEndSeqno());
     ASSERT_EQ(2, ckptList.front()->getNumItems());
@@ -4107,7 +4107,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     // snapshots cannot be merged into the same checkpoint if the merge involves
     // Disk snapshots.
     ASSERT_EQ(2, ckptList.size());
-    ASSERT_EQ(CheckpointType::Disk, ckptList.front()->getCheckpointType());
+    ASSERT_TRUE(ckptList.front()->isDiskCheckpoint());
     ASSERT_EQ(CHECKPOINT_CLOSED, ckptList.front()->getState());
     ASSERT_EQ(1, ckptList.front()->getSnapshotStartSeqno());
     ASSERT_EQ(2, ckptList.front()->getSnapshotEndSeqno());
@@ -4461,23 +4461,45 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
 
     stream->processMarker(&marker);
     auto vb = engine->getVBucket(vbid);
-    ASSERT_TRUE(vb->isReceivingInitialDiskSnapshot());
+    ASSERT_TRUE(vb->checkpointManager->isOpenCheckpointInitialDisk());
 
-    for (uint64_t seqno = 1; seqno <= 3; seqno++) {
+    for (uint64_t seqno = 1; seqno <= 2; seqno++) {
         auto ret = stream->messageReceived(
                 makeMutationConsumerMessage(seqno, vbid, value, 0));
         ASSERT_EQ(cb::engine_errc::success, ret);
     }
 
-    flushVBucketToDiskIfPersistent(vbid, 3);
-    EXPECT_EQ(vb->getNumItems(), 3);
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    EXPECT_EQ(vb->getNumItems(), 2);
 
     size_t inserts = 0;
     size_t upserts = 0;
     store->getKVStoreStat("magma_NInserts", inserts);
     store->getKVStoreStat("magma_NSets", upserts);
-    EXPECT_EQ(inserts, 3);
+    EXPECT_EQ(inserts, 2);
     EXPECT_EQ(upserts, 0);
+
+    // Simulate backfill interruption. Reconnect and receive a disk snapshot
+    // with snap_start_seqno=0. However this is not an initial disk snapshot as
+    // we've already received items before i.e. vb->getHighSeqno() > 0. Hence
+    // expect upserts for items in this snapshot.
+    stream->reconnectStream(vb, 0, 2);
+    stream->processMarker(&marker);
+
+    ASSERT_FALSE(vb->checkpointManager->isOpenCheckpointInitialDisk());
+    auto ret = stream->messageReceived(
+            makeMutationConsumerMessage(3, vbid, value, 0));
+    ASSERT_EQ(cb::engine_errc::success, ret);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(vb->getNumItems(), 3);
+
+    inserts = 0;
+    upserts = 0;
+    store->getKVStoreStat("magma_NInserts", inserts);
+    store->getKVStoreStat("magma_NSets", upserts);
+    EXPECT_EQ(inserts, 2);
+    EXPECT_EQ(upserts, 1);
 
     // Receive next disk snapshot. Expect upserts for items in this snapshot.
     marker = SnapshotMarker(
@@ -4492,7 +4514,7 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
             {} /*streamId*/);
 
     stream->processMarker(&marker);
-    ASSERT_FALSE(vb->isReceivingInitialDiskSnapshot());
+    ASSERT_FALSE(vb->checkpointManager->isOpenCheckpointInitialDisk());
 
     for (uint64_t seqno = 4; seqno <= 6; seqno++) {
         auto ret = stream->messageReceived(
@@ -4507,8 +4529,8 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
     upserts = 0;
     store->getKVStoreStat("magma_NInserts", inserts);
     store->getKVStoreStat("magma_NSets", upserts);
-    EXPECT_EQ(inserts, 3);
-    EXPECT_EQ(upserts, 3);
+    EXPECT_EQ(inserts, 2);
+    EXPECT_EQ(upserts, 4);
 }
 #endif /*EP_USE_MAGMA*/
 
@@ -4584,7 +4606,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
                                      uint64_t maxDelRevSeqno) {
         EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
         EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
-        EXPECT_EQ(type, vbs.checkpointType);
+        EXPECT_EQ(type, getSuperCheckpointType(vbs.checkpointType));
         EXPECT_EQ(hps, vbs.highPreparedSeqno);
         EXPECT_EQ(hcs, vbs.persistedCompletedSeqno);
         EXPECT_EQ(maxDelRevSeqno, vbs.maxDeletedSeqno);

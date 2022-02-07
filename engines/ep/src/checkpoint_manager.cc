@@ -951,8 +951,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     // rebalance. Memory checkpoints can still grow unbounded due to max number
     // of checkpoints constraint, but that should be solved by reducing
     // Checkpoint size and increasing max number.
-    bool hardLimit = (*cursor.getCheckpoint())->getCheckpointType() ==
-                             CheckpointType::Disk &&
+    bool hardLimit = (*cursor.getCheckpoint())->isDiskCheckpoint() &&
                      cursor.getName() == pCursorName;
 
     // For persistence, we register a backup pcursor for resetting the pcursor
@@ -1013,8 +1012,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             // or (2) checkpoints of different type. So, break if we have just
             // finished with processing a Disk Checkpoint, regardless of what
             // comes next.
-            if ((*cursor.getCheckpoint())->getCheckpointType() ==
-                CheckpointType::Disk) {
+            if ((*cursor.getCheckpoint())->isDiskCheckpoint()) {
                 // Moving the cursor to the next checkpoint potentially allows
                 // the CheckpointRemover to free the checkpoint that we are
                 // leaving.
@@ -1263,7 +1261,7 @@ void CheckpointManager::createSnapshot(
         std::optional<uint64_t> highCompletedSeqno,
         CheckpointType checkpointType,
         uint64_t visibleSnapEnd) {
-    if (checkpointType == CheckpointType::Disk) {
+    if (isDiskCheckpointType(checkpointType)) {
         Expects(highCompletedSeqno.has_value());
     }
 
@@ -1291,7 +1289,7 @@ void CheckpointManager::extendOpenCheckpoint(uint64_t snapEnd,
     std::lock_guard<std::mutex> lh(queueLock);
     auto& ckpt = getOpenCheckpoint_UNLOCKED(lh);
 
-    if (ckpt.getCheckpointType() == CheckpointType::Disk) {
+    if (ckpt.isDiskCheckpoint()) {
         throw std::logic_error(
                 "CheckpointManager::extendOpenCheckpoint: Cannot extend a Disk "
                 "checkpoint");
@@ -1637,6 +1635,11 @@ void CheckpointManager::takeAndResetCursors(CheckpointManager& other) {
 bool CheckpointManager::isOpenCheckpointDisk() {
     std::lock_guard<std::mutex> lh(queueLock);
     return checkpointList.back()->isDiskCheckpoint();
+}
+
+bool CheckpointManager::isOpenCheckpointInitialDisk() {
+    std::lock_guard<std::mutex> lh(queueLock);
+    return checkpointList.back()->isInitialDiskCheckpoint();
 }
 
 void CheckpointManager::updateStatsForStateChange(vbucket_state_t from,

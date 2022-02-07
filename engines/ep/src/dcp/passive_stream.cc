@@ -957,6 +957,12 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                       ? CheckpointType::Disk
                                       : CheckpointType::Memory;
 
+        // Check whether the snapshot can be considered as an initial disk
+        // checkpoint for the replica.
+        if (checkpointType == CheckpointType::Disk && vb->getHighSeqno() == 0) {
+            checkpointType = CheckpointType::InitialDisk;
+        }
+
         auto& ckptMgr = *vb->checkpointManager;
 
         std::optional<uint64_t> hcs = marker->getHighCompletedSeqno();
@@ -989,7 +995,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         auto visibleSeq =
                 marker->getMaxVisibleSeqno().value_or(marker->getEndSeqno());
 
-        if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
+        if (checkpointType == CheckpointType::InitialDisk) {
             // Case: receiving the first snapshot in a Disk snapshot.
             // Note that replica may never execute here as the active may switch
             // directly to in-memory and send the first snapshot in a Memory

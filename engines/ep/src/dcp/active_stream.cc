@@ -922,7 +922,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
 
     result.checkpointType = itemsForCursor.checkpointType;
     result.ranges = itemsForCursor.ranges;
-    if (result.checkpointType == CheckpointType::Disk) {
+    if (isDiskCheckpointType(result.checkpointType)) {
         result.diskCheckpointState =
                 OutstandingItemsResult::DiskCheckpointState();
         Expects(itemsForCursor.highCompletedSeqno);
@@ -1337,7 +1337,7 @@ void ActiveStream::snapshot(
     lastReadSeqno.store(lastReadSeqnoUnSnapshotted);
 
     if (isCurrentSnapshotCompleted()) {
-        const auto isCkptTypeDisk = checkpointType == CheckpointType::Disk;
+        const auto isCkptTypeDisk = isDiskCheckpointType(checkpointType);
         uint32_t flags = isCkptTypeDisk ? MARKER_FLAG_DISK : MARKER_FLAG_MEMORY;
 
         // Get OptionalSeqnos which for the items list types should have values
@@ -2296,7 +2296,7 @@ void ActiveStream::sendSnapshotAndSeqnoAdvanced(CheckpointType checkpointType,
                                                 uint64_t end) {
     start = adjustStartIfFirstSnapshot(start);
 
-    const auto isCkptTypeDisk = checkpointType == CheckpointType::Disk;
+    const auto isCkptTypeDisk = isDiskCheckpointType(checkpointType);
     uint32_t flags = isCkptTypeDisk ? MARKER_FLAG_DISK : MARKER_FLAG_MEMORY;
 
     pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,

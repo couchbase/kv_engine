@@ -535,12 +535,17 @@ public:
 
     /// @return true if this is a disk checkpoint (replica streaming from disk)
     bool isDiskCheckpoint() const {
-        return checkpointType == CheckpointType::Disk;
+        return isDiskCheckpointType(checkpointType);
     }
 
     /// @return true if this is a memory checkpoint
     bool isMemoryCheckpoint() const {
         return checkpointType == CheckpointType::Memory;
+    }
+
+    /// @return true if this is an initial disk checkpoint.
+    bool isInitialDiskCheckpoint() const {
+        return checkpointType == CheckpointType::InitialDisk;
     }
 
     CheckpointType getCheckpointType() const {

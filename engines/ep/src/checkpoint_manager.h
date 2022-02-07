@@ -554,6 +554,10 @@ public:
     /// @return true if the current open checkpoint is a DiskCheckpoint
     bool isOpenCheckpointDisk();
 
+    /// @return true if the current open checkpoint is an InitialDisk
+    /// checkpoint.
+    bool isOpenCheckpointInitialDisk();
+
     void updateStatsForStateChange(vbucket_state_t from, vbucket_state_t to);
 
     /**

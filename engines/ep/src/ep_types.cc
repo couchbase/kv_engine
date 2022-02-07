@@ -15,6 +15,23 @@
 #include <optional>
 #include <ostream>
 
+bool isDiskCheckpointType(CheckpointType type) {
+    return type == CheckpointType::InitialDisk || type == CheckpointType::Disk;
+}
+
+CheckpointType getSuperCheckpointType(CheckpointType type) {
+    switch (type) {
+    // Supertypes.
+    case CheckpointType::Disk:
+    case CheckpointType::Memory:
+        return type;
+    // Subtypes.
+    case CheckpointType::InitialDisk:
+        return CheckpointType::Disk;
+    }
+    folly::assume_unreachable();
+}
+
 GenerateBySeqno getGenerateBySeqno(const OptionalSeqno& seqno) {
     return seqno ? GenerateBySeqno::No : GenerateBySeqno::Yes;
 }
@@ -67,6 +84,8 @@ std::string to_string(CheckpointType checkpointType) {
         return "Disk";
     case CheckpointType::Memory:
         return "Memory";
+    case CheckpointType::InitialDisk:
+        return "InitialDisk";
     }
     folly::assume_unreachable();
 }

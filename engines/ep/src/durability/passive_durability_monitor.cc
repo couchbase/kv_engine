@@ -645,7 +645,7 @@ void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
                 static_cast<int64_t>(pdm.vb.getPersistenceSeqno()) >=
                 snapshotEnd.seqno;
 
-        const bool isDiskSnapshot = snapshotEnd.type == CheckpointType::Disk;
+        const bool isDiskSnapshot = isDiskCheckpointType(snapshotEnd.type);
 
         using namespace cb::durability;
 

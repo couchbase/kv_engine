@@ -239,6 +239,8 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
             vbs.checkpointType = CheckpointType::Disk;
         } else if (str == "Memory") {
             vbs.checkpointType = CheckpointType::Memory;
+        } else if (str == "InitialDisk") {
+            vbs.checkpointType = CheckpointType::InitialDisk;
         } else {
             throw std::invalid_argument(
                     "VBucketState::from_json checkpointType was not an "
