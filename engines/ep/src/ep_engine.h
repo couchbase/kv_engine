@@ -1313,19 +1313,15 @@ protected:
     void maybeSaveShardCount(WorkLoadPolicy& workload);
 
     /**
-     * Do checks for get-all-vbseqnos, which can be executed based on either
-     * MetaRead or (since Neo) ReadSeqno for specific cases.
+     * Do checks for get-all-vbseqnos, which can be executed based on
+     * Read for specific cases.
      *
-     * MetaRead allows all variations of the command, e.g. a bucket request
-     * or a specific collection request.
+     * A collection aware client must have Read for the requested collection ID,
+     * or at least Read for one collection/scope if requesting "bucket wide"
+     * seqno.
      *
-     * ReadSeqno permits only a bucket request, no collection specific request
-     * permitted.
-     *
-     * For clients that don't enable collections, they are 'pinned' to the
-     * CollectionID::Default. They are permitted ReadSeqno or MetaRead, so even
-     * though the request is for a "specific" collection, they didn't explicitly
-     * request it.
+     * A client which isn't collection aware must have Read access to the
+     * default collection.
      *
      * @param cookie connection cookie
      * @param collection optional collection for when the command operates with

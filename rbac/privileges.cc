@@ -31,7 +31,6 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"DcpConsumer", Privilege::DcpConsumer},
         {"DcpProducer", Privilege::DcpProducer},
         {"DcpStream", Privilege::DcpStream},
-        {"MetaRead", Privilege::MetaRead},
         {"MetaWrite", Privilege::MetaWrite},
         {"IdleConnection", Privilege::IdleConnection},
         {"SystemXattrRead", Privilege::SystemXattrRead},
@@ -41,8 +40,7 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"Impersonate", Privilege::Impersonate},
         {"Select", Privilege::Select},
         {"Settings", Privilege::Settings},
-        {"SystemSettings", Privilege::SystemSettings},
-        {"ReadSeqno", Privilege::ReadSeqno}};
+        {"SystemSettings", Privilege::SystemSettings}};
 
 std::string to_string(Privilege privilege) {
     for (const auto& entry : privilegemap) {
@@ -87,14 +85,12 @@ bool is_bucket_privilege(Privilege priv) {
     case Privilege::DcpConsumer:
     case Privilege::DcpProducer:
     case Privilege::DcpStream:
-    case Privilege::MetaRead:
     case Privilege::MetaWrite:
     case Privilege::SystemXattrRead:
     case Privilege::SystemXattrWrite:
     case Privilege::Select:
     case Privilege::Settings:
     case Privilege::SimpleStats:
-    case Privilege::ReadSeqno:
         return true;
 
     case Privilege::BucketManagement:
@@ -122,7 +118,6 @@ bool is_collection_privilege(Privilege priv) {
     case Privilege::Insert:
     case Privilege::Delete:
     case Privilege::Upsert:
-    case Privilege::MetaRead:
     case Privilege::MetaWrite:
     case Privilege::SystemXattrRead:
     case Privilege::SystemXattrWrite:
@@ -145,7 +140,6 @@ bool is_collection_privilege(Privilege priv) {
     case Privilege::Impersonate:
     case Privilege::SystemSettings:
     case Privilege::Stats:
-    case Privilege::ReadSeqno:
         return false;
     }
 

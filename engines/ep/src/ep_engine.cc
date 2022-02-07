@@ -6837,45 +6837,41 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
 
 cb::engine_errc EventuallyPersistentEngine::doGetAllVbSeqnosPrivilegeCheck(
         const CookieIface* cookie, std::optional<CollectionID> collection) {
-    cb::engine_errc accessStatus = cb::engine_errc::no_access;
-
     // 1) Clients that have not enabled collections (i.e. HELLO(collections)).
-    // The client is directed to operate only against the default collection and
-    // they are permitted to use GetAllVbSeqnos with MetaRead or ReadSeqno
+    //   The client is directed to operate only against the default collection
+    //   and they are permitted to use GetAllVbSeqnos with Read access to the
+    //   default collection
     //
-    // 2) Clients that have encoded a collection require MetaRead
-    // 3) Clients that making a bucket request can use GetAllVbSeqnos via either
-    //    MetaRead or ReadSeqno
+    // 2) Clients that have encoded a collection require Read towards that
+    //    collection
+    //
+    // 3) Clients that have enabked collections making a bucket request can
+    //    use GetAllVbSeqnos as long as they have at least Read privilege
+    //    for one collection/scope in the bucket
     if (!cookie->isCollectionsSupported()) {
-        accessStatus =
-                checkPrivilege(cookie, cb::rbac::Privilege::ReadSeqno, {}, {});
+        auto accessStatus = checkPrivilege(cookie,
+                                           cb::rbac::Privilege::Read,
+                                           ScopeID::Default,
+                                           CollectionID::Default);
+        // For the legacy client always return an access error. This covers
+        // the case where in a collection enabled world, unknown_collection
+        // is returned for the no-privs case (to prevent someone finding
+        // collection ids via access checks). unknown_collection could also
+        // trigger a disconnect (unless xerror is enabled)
         if (accessStatus != cb::engine_errc::success) {
-            accessStatus = checkPrivilege(cookie,
-                                          cb::rbac::Privilege::MetaRead,
-                                          ScopeID::Default,
-                                          CollectionID::Default);
-            // For the legacy client always return an access error. This covers
-            // the case where in a collection enabled world, unknown_collection
-            // is returned for the no-privs case (to prevent someone finding
-            // collection ids via access checks). unknown_collection could also
-            // trigger a disconnect (unless xerror is enabled)
-            if (accessStatus != cb::engine_errc::success) {
-                accessStatus = cb::engine_errc::no_access;
-            }
+            accessStatus = cb::engine_errc::no_access;
         }
-    } else if (collection) {
-        accessStatus = checkPrivilege(
-                cookie, cb::rbac::Privilege::MetaRead, collection.value());
-    } else {
-        accessStatus =
-                checkPrivilege(cookie, cb::rbac::Privilege::ReadSeqno, {}, {});
-        if (accessStatus != cb::engine_errc::success) {
-            accessStatus = checkPrivilege(
-                    cookie, cb::rbac::Privilege::MetaRead, {}, {});
-        }
+
+        return accessStatus;
     }
 
-    return accessStatus;
+    if (collection) {
+        return checkPrivilege(
+                cookie, cb::rbac::Privilege::Read, collection.value());
+    }
+
+    return checkForPrivilegeAtLeastInOneCollection(*cookie,
+                                                   cb::rbac::Privilege::Read);
 }
 
 void EventuallyPersistentEngine::updateDcpMinCompressionRatio(float value) {
