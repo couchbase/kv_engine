@@ -1360,24 +1360,6 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_UnknownVattr) {
               multiResp.getResults()[0].status);
 }
 
-TEST_P(XattrTest, MB_25786_XTOC_VattrAndBody) {
-    verify_xtoc_user_system_xattr();
-    BinprotSubdocMultiLookupResponse multiResp;
-    // Also check we can't use $XTOC if we can't read any xattrs
-    userConnection->dropPrivilege(cb::rbac::Privilege::SystemXattrRead);
-    userConnection->dropPrivilege(cb::rbac::Privilege::XattrRead);
-    BinprotSubdocMultiLookupCommand cmd;
-    cmd.setKey(name);
-    cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
-    cmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
-    userConnection->sendCommand(cmd);
-    userConnection->recvResponse(multiResp);
-    EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, multiResp.getResults()[0].status);
-    EXPECT_EQ("", multiResp.getResults()[0].value);
-    rebuildUserConnection(TestappXattrClientTest::isTlsEnabled());
-}
-
 TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrReadPrivOnly) {
     verify_xtoc_user_system_xattr();
     BinprotSubdocMultiLookupCommand cmd;
@@ -1397,7 +1379,7 @@ TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrReadPrivOnly) {
     rebuildUserConnection(TestappXattrClientTest::isTlsEnabled());
 }
 
-TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrSystemReadPrivOnly) {
+TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrSystemReadPriv) {
     verify_xtoc_user_system_xattr();
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
@@ -1406,13 +1388,12 @@ TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrSystemReadPrivOnly) {
 
     BinprotSubdocMultiLookupResponse multiResp;
 
-    userConnection->dropPrivilege(cb::rbac::Privilege::XattrRead);
     multiResp.clear();
     userConnection->sendCommand(cmd);
     userConnection->recvResponse(multiResp);
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
-    EXPECT_EQ(R"(["_sync"])", multiResp.getResults()[0].value);
+    EXPECT_EQ(R"(["_sync","userXattr"])", multiResp.getResults()[0].value);
     rebuildUserConnection(TestappXattrClientTest::isTlsEnabled());
 }
 

@@ -416,39 +416,6 @@ TEST_P(RbacRoleTest, Remove_WriteOnly) {
     }
 }
 
-TEST_P(RbacRoleTest, NoAccessToUserXattrs) {
-    auto& rw = getRWConnection();
-    store(rw, MutationType::Add);
-
-    // The read only user should not have access to create a user xattr
-    auto resp = createXattr(getROConnection(), "meta.author", "\"larry\"");
-    ASSERT_FALSE(resp.isSuccess());
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
-
-    // The write only user should have access to create a user xattr
-    resp = createXattr(getWOConnection(), "meta.author", "\"larry\"");
-    ASSERT_TRUE(resp.isSuccess());
-
-    // The read only user should be able to read it
-    resp = getXattr(getROConnection(), "meta.author");
-    ASSERT_TRUE(resp.isSuccess());
-
-    // The write only user should NOT be able to read it
-    resp = getXattr(getWOConnection(), "meta.author");
-    ASSERT_FALSE(resp.isSuccess());
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
-
-    // The rw user only have access to the system xattrs. Read and write
-    // user xattrs should fail!
-    resp = createXattr(getRWConnection(), "meta.author", "\"larry\"");
-    ASSERT_FALSE(resp.isSuccess());
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
-
-    resp = getXattr(getRWConnection(), "meta.author");
-    ASSERT_FALSE(resp.isSuccess());
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
-}
-
 TEST_P(RbacRoleTest, NoAccessToSystemXattrs) {
     auto& rw = getRWConnection();
     store(rw, MutationType::Add);

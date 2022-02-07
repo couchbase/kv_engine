@@ -660,28 +660,13 @@ static bool operate_single_doc(SubdocCmdContext& context,
 
 static cb::engine_errc validate_vattr_privilege(SubdocCmdContext& context,
                                                 std::string_view key) {
-    // The $document vattr doesn't require any xattr permissions.
-    if (key[1] == 'X') {
-        // In the xtoc case we want to see which privileges the connection has
-        // to determine which XATTRs we tell the user about
-
-        bool xattrRead =
-                context.cookie.checkPrivilege(cb::rbac::Privilege::XattrRead)
-                        .success();
-        bool xattrSysRead =
-                context.cookie
-                        .checkPrivilege(cb::rbac::Privilege::SystemXattrRead)
-                        .success();
-
-        if (xattrRead && xattrSysRead) {
-            context.xtocSemantics = XtocSemantics::All;
-        } else if (xattrRead) {
-            context.xtocSemantics = XtocSemantics::User;
-        } else if (xattrSysRead) {
-            context.xtocSemantics = XtocSemantics::System;
-        } else {
-            return cb::engine_errc::no_access;
-        }
+    // The $document vattr doesn't require any xattr permissions,
+    // but in order to get the system XATTRs included in XTOC you need
+    // the system xattr privilege
+    if (key[1] == 'X' &&
+        context.cookie.checkPrivilege(cb::rbac::Privilege::SystemXattrRead)
+                .success()) {
+        context.xtocSemantics = XtocSemantics::All;
     }
     return cb::engine_errc::success;
 }
@@ -699,24 +684,16 @@ static cb::engine_errc validate_xattr_privilege(SubdocCmdContext& context) {
     }
 
     auto key = context.get_xattr_key();
-    if (key.empty()) {
+    if (key.empty() || !cb::xattr::is_system_xattr(key)) {
         return cb::engine_errc::success;
     }
 
     cb::rbac::Privilege privilege;
-    // We've got an XATTR..
+    // We've got a system xattr
     if (context.traits.is_mutator) {
-        if (cb::xattr::is_system_xattr(key)) {
-            privilege = cb::rbac::Privilege::SystemXattrWrite;
-        } else {
-            privilege = cb::rbac::Privilege::XattrWrite;
-        }
+        privilege = cb::rbac::Privilege::SystemXattrWrite;
     } else {
-        if (cb::xattr::is_system_xattr(key)) {
-            privilege = cb::rbac::Privilege::SystemXattrRead;
-        } else {
-            privilege = cb::rbac::Privilege::XattrRead;
-        }
+        privilege = cb::rbac::Privilege::SystemXattrRead;
     }
 
     return context.cookie.checkPrivilege(privilege).success()

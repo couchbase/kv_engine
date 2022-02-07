@@ -28,6 +28,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
 #include <utilities/engine_errc_2_mcbp.h>
+#include <string_view>
 
 using cb::mcbp::Status;
 
@@ -354,10 +355,17 @@ Status McbpValidator::verify_header(Cookie& cookie,
                     return false;
                 }
                 try {
-                    cookie.addImposedUserExtraPrivilege(
-                            cb::rbac::to_privilege(std::string{
-                                    reinterpret_cast<const char*>(data.data()),
-                                    data.size()}));
+                    std::string_view str{
+                            reinterpret_cast<const char*>(data.data()),
+                            data.size()};
+                    using namespace std::literals;
+                    if (str != "XattrRead"sv && str != "XattrWrite"sv) {
+                        cookie.addImposedUserExtraPrivilege(
+                                cb::rbac::to_privilege(std::string{
+                                        reinterpret_cast<const char*>(
+                                                data.data()),
+                                        data.size()}));
+                    }
                 } catch (const std::invalid_argument&) {
                     cookie.setErrorContext("Failed to look up the privilege");
                     status = Status ::Einval;

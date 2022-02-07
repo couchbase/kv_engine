@@ -61,7 +61,7 @@ protected:
 enum class MutationSemantics : uint8_t { Add, Replace, Set };
 
 // Used to describe which xattr keys the xtoc vattr should return
-enum class XtocSemantics : uint8_t { None, User, System, All };
+enum class XtocSemantics : uint8_t { User, All };
 
 /** Subdoc command context. An instance of this exists for the lifetime of
  *  each subdocument command, and it used to hold information which needs to
@@ -256,7 +256,7 @@ public:
     // reality this means we do a bucket_remove rather than a bucket_update
     bool no_sys_xattrs = false;
 
-    XtocSemantics xtocSemantics = XtocSemantics::None;
+    XtocSemantics xtocSemantics = XtocSemantics::User;
 
     // If we need to create a new document (Add / Set), what state should
     // that document be created in?

@@ -645,7 +645,6 @@ std::string_view SubdocCmdContext::get_xtoc_vattr() {
             bool isSystemXattr = cb::xattr::is_system_xattr(key);
 
             if (xtocSemantics == XtocSemantics::All ||
-                (isSystemXattr && (xtocSemantics == XtocSemantics::System)) ||
                 (!isSystemXattr && (xtocSemantics == XtocSemantics::User))) {
                 arr.push_back(key);
             }
