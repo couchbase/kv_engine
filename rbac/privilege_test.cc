@@ -15,7 +15,7 @@
 
 TEST(UserEntryTest, ParseLegalConfigOldFormat) {
     nlohmann::json json;
-    json["trond"]["privileges"] = {"Audit", "BucketManagement"};
+    json["trond"]["privileges"] = {"Audit", "Administrator"};
     json["trond"]["buckets"]["bucket1"] = {"Read", "Insert"};
     json["trond"]["buckets"]["bucket2"] = {"Read"};
     json["trond"]["domain"] = "external";
@@ -24,7 +24,7 @@ TEST(UserEntryTest, ParseLegalConfigOldFormat) {
     {
         cb::rbac::PrivilegeMask privs{};
         privs[int(cb::rbac::Privilege::Audit)] = true;
-        privs[int(cb::rbac::Privilege::BucketManagement)] = true;
+        privs[int(cb::rbac::Privilege::Administrator)] = true;
         EXPECT_EQ(privs, ue.getPrivileges());
     }
 
@@ -78,7 +78,7 @@ TEST(UserEntryTest, PrivilegesIsOptional) {
 
 TEST(UserEntryTest, BucketsIsOptional) {
     nlohmann::json json;
-    json["trond"]["privileges"] = {"Audit", "BucketManagement"};
+    json["trond"]["privileges"] = {"Audit", "Administrator"};
     cb::rbac::UserEntry ue("trond", *json.begin(), cb::rbac::Domain::Local);
 }
 
@@ -133,7 +133,7 @@ TEST(PrivilegeDatabaseTest, GenerationCounter) {
 
 TEST(PrivilegeDatabaseTest, to_json) {
     nlohmann::json json;
-    json["trond"]["privileges"] = {"BucketManagement", "Audit"};
+    json["trond"]["privileges"] = {"Administrator", "Audit"};
     json["trond"]["buckets"]["mybucket"]["privileges"] = {"Read", "Upsert"};
     json["trond"]["buckets"]["app"]["privileges"] = {"Delete"};
     json["trond"]["domain"] = "external";

@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -100,13 +99,12 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::Decrementq, require<Privilege::Upsert>);
     setup(cb::mcbp::ClientOpcode::Quit, empty);
     setup(cb::mcbp::ClientOpcode::Quitq, empty);
-    setup(cb::mcbp::ClientOpcode::Flush, require<Privilege::BucketManagement>);
-    setup(cb::mcbp::ClientOpcode::Flushq, require<Privilege::BucketManagement>);
+    setup(cb::mcbp::ClientOpcode::Flush, require<Privilege::NodeSupervisor>);
+    setup(cb::mcbp::ClientOpcode::Flushq, require<Privilege::NodeSupervisor>);
     setup(cb::mcbp::ClientOpcode::Noop, empty);
     setup(cb::mcbp::ClientOpcode::Version, empty);
     setup(cb::mcbp::ClientOpcode::Stat, empty);
-    setup(cb::mcbp::ClientOpcode::Verbosity,
-          require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::Verbosity, require<Privilege::Administrator>);
     setup(cb::mcbp::ClientOpcode::Touch, require<Privilege::Upsert>);
     setup(cb::mcbp::ClientOpcode::Gat, require<Privilege::Read>);
     setup(cb::mcbp::ClientOpcode::Gat, require<Privilege::Upsert>);
@@ -118,22 +116,22 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::SaslAuth, empty);
     setup(cb::mcbp::ClientOpcode::SaslStep, empty);
     /* Control */
-    setup(cb::mcbp::ClientOpcode::IoctlGet, require<Privilege::NodeManagement>);
-    setup(cb::mcbp::ClientOpcode::IoctlSet, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::IoctlGet, require<Privilege::Administrator>);
+    setup(cb::mcbp::ClientOpcode::IoctlSet, require<Privilege::Administrator>);
 
     /* Config */
     setup(cb::mcbp::ClientOpcode::ConfigValidate,
-          require<Privilege::NodeManagement>);
+          require<Privilege::NodeSupervisor>);
     setup(cb::mcbp::ClientOpcode::ConfigReload,
-          require<Privilege::NodeManagement>);
+          require<Privilege::NodeSupervisor>);
 
     /* Audit */
     setup(cb::mcbp::ClientOpcode::AuditPut, require<Privilege::Audit>);
     setup(cb::mcbp::ClientOpcode::AuditConfigReload,
-          require<Privilege::AuditManagement>);
+          require<Privilege::NodeSupervisor>);
 
     /* Shutdown the server */
-    setup(cb::mcbp::ClientOpcode::Shutdown, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::Shutdown, require<Privilege::NodeSupervisor>);
 
     setup(cb::mcbp::ClientOpcode::SetBucketUnitThrottleLimits,
           require<Privilege::BucketThrottleManagement>);
@@ -142,11 +140,11 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
 
     /* VBucket commands */
     setup(cb::mcbp::ClientOpcode::SetVbucket,
-          require<Privilege::BucketManagement>);
+          require<Privilege::NodeSupervisor>);
     // The testrunner client seem to use this command..
     setup(cb::mcbp::ClientOpcode::GetVbucket, empty);
     setup(cb::mcbp::ClientOpcode::DelVbucket,
-          require<Privilege::BucketManagement>);
+          require<Privilege::NodeSupervisor>);
     /* End VBucket commands */
 
     /* Vbucket command to get the VBUCKET sequence numbers for all
@@ -188,17 +186,17 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /* End DCP */
 
     setup(cb::mcbp::ClientOpcode::StopPersistence,
-          require<Privilege::NodeManagement>);
+          require<Privilege::Administrator>);
     setup(cb::mcbp::ClientOpcode::StartPersistence,
-          require<Privilege::NodeManagement>);
-    setup(cb::mcbp::ClientOpcode::SetParam, require<Privilege::NodeManagement>);
+          require<Privilege::Administrator>);
+    setup(cb::mcbp::ClientOpcode::SetParam, require<Privilege::Administrator>);
     setup(cb::mcbp::ClientOpcode::GetReplica, require<Privilege::Read>);
 
     /* Bucket engine */
     setup(cb::mcbp::ClientOpcode::CreateBucket,
-          require<Privilege::BucketManagement>);
+          require<Privilege::NodeSupervisor>);
     setup(cb::mcbp::ClientOpcode::DeleteBucket,
-          require<Privilege::BucketManagement>);
+          require<Privilege::NodeSupervisor>);
     // Everyone should be able to list their own buckets
     setup(cb::mcbp::ClientOpcode::ListBuckets, empty);
     // And select the one they have access to
@@ -211,7 +209,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     // the underlying engine check for the Read privilege
     setup(cb::mcbp::ClientOpcode::Observe, empty);
 
-    setup(cb::mcbp::ClientOpcode::EvictKey, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::EvictKey, require<Privilege::Administrator>);
     setup(cb::mcbp::ClientOpcode::GetLocked, require<Privilege::Read>);
     setup(cb::mcbp::ClientOpcode::UnlockKey, require<Privilege::Read>);
 
@@ -239,31 +237,31 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
      * Command to create a new checkpoint on a given vbucket by force
      */
     setup(cb::mcbp::ClientOpcode::CreateCheckpoint,
-          require<Privilege::NodeManagement>);
+          require<Privilege::NodeSupervisor>);
     /**
      * Command to enable data traffic after completion of warm
      */
     setup(cb::mcbp::ClientOpcode::EnableTraffic,
-          require<Privilege::NodeManagement>);
+          require<Privilege::NodeSupervisor>);
     /**
      * Command to disable data traffic temporarily
      */
     setup(cb::mcbp::ClientOpcode::DisableTraffic,
-          require<Privilege::NodeManagement>);
+          require<Privilege::NodeSupervisor>);
     /// Command to manage interfaces
-    setup(cb::mcbp::ClientOpcode::Ifconfig, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::Ifconfig, require<Privilege::NodeSupervisor>);
     /// Command that returns meta data for Set, Add, Del
     setup(cb::mcbp::ClientOpcode::ReturnMeta, require<Privilege::MetaWrite>);
     /**
      * Command to trigger compaction of a vbucket
      */
     setup(cb::mcbp::ClientOpcode::CompactDb,
-          require<Privilege::NodeManagement>);
+          require<Privilege::NodeSupervisor>);
     /**
      * Command to set cluster configuration
      */
     setup(cb::mcbp::ClientOpcode::SetClusterConfig,
-          require<Privilege::SecurityManagement>);
+          require<Privilege::NodeSupervisor>);
     /**
      * Command that returns cluster configuration (open to anyone)
      */
@@ -274,7 +272,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
      * Command to wait for the dcp sequence number persistence
      */
     setup(cb::mcbp::ClientOpcode::SeqnoPersistence,
-          require<Privilege::NodeManagement>);
+          require<Privilege::NodeSupervisor>);
     /**
      * Command to get all keys
      */
@@ -320,36 +318,36 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
           require<Privilege::Upsert>);
 
     /* Scrub the data */
-    setup(cb::mcbp::ClientOpcode::Scrub, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::Scrub, require<Privilege::Administrator>);
     /* Refresh the ISASL data */
     setup(cb::mcbp::ClientOpcode::IsaslRefresh,
-          require<Privilege::SecurityManagement>);
+          require<Privilege::NodeSupervisor>);
     /* Refresh the SSL certificates */
     setup(cb::mcbp::ClientOpcode::SslCertsRefresh,
-          require<Privilege::SecurityManagement>);
+          require<Privilege::NodeSupervisor>);
     /* Internal timer ioctl */
     setup(cb::mcbp::ClientOpcode::GetCmdTimer, empty);
     /* ns_server - memcached session validation */
     setup(cb::mcbp::ClientOpcode::SetCtrlToken,
-          require<Privilege::SessionManagement>);
+          require<Privilege::NodeSupervisor>);
     setup(cb::mcbp::ClientOpcode::GetCtrlToken,
-          require<Privilege::SessionManagement>);
+          require<Privilege::NodeSupervisor>);
 
     // Drop a privilege from the effective set
     setup(cb::mcbp::ClientOpcode::DropPrivilege, empty);
 
     setup(cb::mcbp::ClientOpcode::UpdateExternalUserPermissions,
-          require<Privilege::SecurityManagement>);
+          require<Privilege::NodeSupervisor>);
 
     /* Refresh the RBAC data */
     setup(cb::mcbp::ClientOpcode::RbacRefresh,
-          require<Privilege::SecurityManagement>);
+          require<Privilege::NodeSupervisor>);
 
     setup(cb::mcbp::ClientOpcode::AuthProvider,
-          require<Privilege::SecurityManagement>);
+          require<Privilege::NodeSupervisor>);
 
     setup(cb::mcbp::ClientOpcode::CollectionsSetManifest,
-          require<Privilege::BucketManagement>);
+          require<Privilege::NodeSupervisor>);
 
     /// all clients may need to read the manifest
     setup(cb::mcbp::ClientOpcode::CollectionsGetManifest, empty);

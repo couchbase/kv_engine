@@ -48,32 +48,23 @@ enum class Privilege {
      * dcp information etc).
      */
     Stats,
-    /**
-     * The `BucketManagement` privilege allows for bucket management
-     * (create or delete buckets, toggle vbucket states etc).
-     */
-    BucketManagement,
-    /**
-     * The `NodeManagement` privilege allows for changing verbosity
-     * level, reloading configuration files (This privilege should
-     * be split into multiple others)
-     */
-    NodeManagement,
-    /**
-     * The `SessionManagement` privilege allows for changing (and fetching)
-     * the session context registered by ns_server
-     */
-    SessionManagement,
+
+    /// The `NodeSupervisor` privilege replace all of the various
+    /// privileges which should only be granted to "ns_server" in order
+    /// to do bucket management, session management, external auth
+    /// provider etc.
+    NodeSupervisor,
+
+    /// The `Administrator` privilege may be granter to _users_
+    /// which should be allowed to run "ioctl", set engine parameters
+    /// etc.
+    Administrator,
+
     /**
      * The `Audit` privilege allows for adding audit events to the
      * audit trail
      */
     Audit,
-    /**
-     * The `AuditManagement` privilege allows for reconfigure audit
-     * subsystem
-     */
-    AuditManagement,
     /**
      * The `DcpConsumer` privilege allows for setting up a DCP consumer in the
      * selected bucket to apply DCP mutations.
@@ -108,13 +99,6 @@ enum class Privilege {
      * system attributes on the documents
      */
     SystemXattrWrite,
-
-    /**
-     * The `SecurityManagement` privilege allows the connection to perform
-     * security related functionality (like reloading password database,
-     * SSL certificates, reload RBAC database, set cluster config, )
-     */
-    SecurityManagement,
 
     /**
      * The `BucketThrottleManagement` privilege allows the connection

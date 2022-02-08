@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -23,11 +22,7 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"Upsert", Privilege::Upsert},
         {"SimpleStats", Privilege::SimpleStats},
         {"Stats", Privilege::Stats},
-        {"BucketManagement", Privilege::BucketManagement},
-        {"NodeManagement", Privilege::NodeManagement},
-        {"SessionManagement", Privilege::SessionManagement},
         {"Audit", Privilege::Audit},
-        {"AuditManagement", Privilege::AuditManagement},
         {"DcpConsumer", Privilege::DcpConsumer},
         {"DcpProducer", Privilege::DcpProducer},
         {"DcpStream", Privilege::DcpStream},
@@ -35,10 +30,11 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"IdleConnection", Privilege::IdleConnection},
         {"SystemXattrRead", Privilege::SystemXattrRead},
         {"SystemXattrWrite", Privilege::SystemXattrWrite},
-        {"SecurityManagement", Privilege::SecurityManagement},
         {"BucketThrottleManagement", Privilege::BucketThrottleManagement},
         {"Unthrottled", Privilege::Unthrottled},
         {"Unmetered", Privilege::Unmetered},
+        {"Administrator", Privilege::Administrator},
+        {"NodeSupervisor", Privilege::NodeSupervisor},
         {"Impersonate", Privilege::Impersonate},
         {"Settings", Privilege::Settings},
         {"SystemSettings", Privilege::SystemSettings},
@@ -95,13 +91,10 @@ bool is_bucket_privilege(Privilege priv) {
     case Privilege::RangeScan:
         return true;
 
-    case Privilege::BucketManagement:
-    case Privilege::NodeManagement:
-    case Privilege::SessionManagement:
+    case Privilege::NodeSupervisor:
+    case Privilege::Administrator:
     case Privilege::Audit:
-    case Privilege::AuditManagement:
     case Privilege::IdleConnection:
-    case Privilege::SecurityManagement:
     case Privilege::Impersonate:
     case Privilege::SystemSettings:
     case Privilege::Stats:
@@ -133,13 +126,10 @@ bool is_collection_privilege(Privilege priv) {
     case Privilege::DcpConsumer:
     case Privilege::DcpProducer:
     case Privilege::Settings:
-    case Privilege::BucketManagement:
-    case Privilege::NodeManagement:
-    case Privilege::SessionManagement:
+    case Privilege::Administrator:
+    case Privilege::NodeSupervisor:
     case Privilege::Audit:
-    case Privilege::AuditManagement:
     case Privilege::IdleConnection:
-    case Privilege::SecurityManagement:
     case Privilege::Impersonate:
     case Privilege::SystemSettings:
     case Privilege::Stats:
