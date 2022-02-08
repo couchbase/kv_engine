@@ -55,9 +55,9 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
              snap_end_seqno),
       engine(e),
       consumerPtr(c),
-      last_seqno(vb_high_seqno),
-      cur_snapshot_start(0),
-      cur_snapshot_end(0),
+      last_seqno(vb_high_seqno, {*this}),
+      cur_snapshot_start(0, {*this}),
+      cur_snapshot_end(0, {*this}),
       cur_snapshot_type(Snapshot::None),
       cur_snapshot_ack(false),
       cur_snapshot_prepare(false),
@@ -241,7 +241,11 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
         snap_start_seqno_ = info.range.getStart();
         start_seqno_ = info.start;
         snap_end_seqno_ = info.range.getEnd();
-        last_seqno.store(start_seqno);
+        last_seqno.reset(start_seqno);
+        // The start_seqno & cur_snapshot_end shouldn't be less than start_seqno
+        // to set it's starting val to start_seqno
+        cur_snapshot_start.reset(start_seqno);
+        cur_snapshot_end.reset(start_seqno);
 
         log(spdlog::level::level_enum::info,
             "({}) Attempting to reconnect stream with opaque {}, start seq "
@@ -945,7 +949,11 @@ cb::engine_errc PassiveStream::processDropScope(VBucket& vb,
 void PassiveStream::processMarker(SnapshotMarker* marker) {
     VBucketPtr vb = engine->getVBucket(vb_);
 
-    cur_snapshot_start.store(marker->getStartSeqno());
+    // cur_snapshot_start is initialised to 0 so only set it for numbers > 0,
+    // as the first snapshot maybe have a snap_start_seqno of 0.
+    if (marker->getStartSeqno() > 0) {
+        cur_snapshot_start.store(marker->getStartSeqno());
+    }
     cur_snapshot_end.store(marker->getEndSeqno());
     const auto prevSnapType = cur_snapshot_type.load();
     cur_snapshot_type.store((marker->getFlags() & MARKER_FLAG_DISK)
@@ -1324,4 +1332,11 @@ void PassiveStream::Buffer::moveToFront(
         PassiveStream::Buffer::BufferType bufferItem) {
     bytes += bufferItem.second;
     messages.front().first = std::move(bufferItem.first);
+}
+
+std::string PassiveStream::Labeller::getLabel(const char* name) const {
+    return fmt::format("PassiveStream({} {})::{}",
+                       stream.getVBucket(),
+                       stream.getName(),
+                       name);
 }

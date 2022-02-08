@@ -2170,6 +2170,14 @@ TEST_P(RollbackDcpTest, RollbackCollectionCounts) {
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
     EXPECT_EQ(rollbackSeqno, vb->getHighSeqno());
 
+    {
+        // Simulate the stream reconnecting from the high seqno, after the
+        // rollback has been performed
+        auto* stream = dynamic_cast<MockPassiveStream*>(
+                (consumer->getVbucketStream(vbid).get()));
+        stream->reconnectStream(vb, 0, vb->getHighSeqno());
+    }
+
     check(2);
     doDelete(key1);
     check(1);

@@ -820,7 +820,7 @@ TEST_F(CollectionsDcpStreamsTest,
                       0));
     // Ensure on disk item count is 0 as we've not flushed anything
     EXPECT_EQ(0, vbucketPtr->getNumTotalItems());
-
+    ++seqno;
     // Update snap range for next snapshot marker to contain the collection
     // drop SystemEvent
     snapStart = seqno;

@@ -1637,8 +1637,8 @@ void DurabilityPassiveStreamTest::
     marker = SnapshotMarker(
             opaque,
             vbid,
-            streamStartSeqno + 2 /*snapStart*/,
-            streamStartSeqno + 2 /*snapEnd*/,
+            11 /*snapStart*/,
+            11 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
@@ -1689,7 +1689,7 @@ TEST_P(DurabilityPassiveStreamTest,
 
     marker = SnapshotMarker(opaque,
                             vbid,
-                            1 /*snapStart*/,
+                            2 /*snapStart*/,
                             ~1 /*snapEnd*/,
                             dcp_marker_flag_t::MARKER_FLAG_DISK,
                             0 /*HCS*/,
@@ -3023,6 +3023,11 @@ TEST_P(DurabilityPassiveStreamTest,
 
     // 2) Pretend we disconnected by just sending another snapshot marker, all
     // the state required gets updated when we process the snapshot marker
+
+    // Simulate stream disconnect and reconnect
+    consumer->closeAllStreams();
+    setupConsumerAndPassiveStream();
+
     marker = SnapshotMarker(
             opaque,
             vbid,

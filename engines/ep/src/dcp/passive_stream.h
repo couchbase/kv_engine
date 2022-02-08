@@ -269,10 +269,17 @@ protected:
      */
     bool supportsSyncReplication{false};
 
-    std::atomic<uint64_t> last_seqno;
+    struct Labeller {
+        std::string getLabel(const char* name) const;
+        const PassiveStream& stream;
+    };
 
-    std::atomic<uint64_t> cur_snapshot_start;
-    std::atomic<uint64_t> cur_snapshot_end;
+    ATOMIC_MONOTONIC4(uint64_t, last_seqno, Labeller, ThrowExceptionPolicy);
+    ATOMIC_WEAKLY_MONOTONIC3(uint64_t, cur_snapshot_start, Labeller);
+    ATOMIC_MONOTONIC4(uint64_t,
+                      cur_snapshot_end,
+                      Labeller,
+                      ThrowExceptionPolicy);
     std::atomic<Snapshot> cur_snapshot_type;
     bool cur_snapshot_ack;
 

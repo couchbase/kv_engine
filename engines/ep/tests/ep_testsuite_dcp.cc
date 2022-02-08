@@ -1192,7 +1192,7 @@ extern "C" {
             ctx->dcp->snapshot_marker(*cookie,
                                       stream_opaque,
                                       Vbid(0),
-                                      ctx->items,
+                                      ctx->items + i,
                                       ctx->items + i,
                                       2,
                                       0 /*HCS*/,
@@ -4888,13 +4888,14 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
             get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
             "Consumer flow ctl mutation bytes not accounted correctly");
 
+    bySeqno++;
     // Send snapshot marker
     checkeq(cb::engine_errc::success,
             dcp->snapshot_marker(*cookie,
                                  opaque,
                                  Vbid(0),
-                                 10,
-                                 15,
+                                 bySeqno,
+                                 bySeqno + 5,
                                  300,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
@@ -4916,7 +4917,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
                           cas,
                           vbucket,
                           flags,
-                          bySeqno,
+                          bySeqno + 5,
                           revSeqno,
                           exprtime,
                           lockTime,
@@ -7978,7 +7979,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
                                  stream_opaque,
                                  Vbid(0),
                                  1,
-                                 1000,
+                                 num_items,
                                  MARKER_FLAG_CHK,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),

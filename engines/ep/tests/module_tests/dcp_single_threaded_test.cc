@@ -246,7 +246,7 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
     consumer->snapshotMarker(1 /*opaque*/,
                              vbid,
                              0 /*start_seqno*/,
-                             0 /*end_seqno*/,
+                             1 /*end_seqno*/,
                              MARKER_FLAG_DISK,
                              0 /*HCS*/,
                              {} /*maxVisibleSeqno*/);
@@ -256,7 +256,7 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
 
     consumer->snapshotMarker(1 /*opaque*/,
                              vbid,
-                             1 /*start_seqno*/,
+                             2 /*start_seqno*/,
                              2 /*end_seqno*/,
                              0 /*flags*/,
                              {} /*HCS*/,
