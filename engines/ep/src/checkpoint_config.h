@@ -62,6 +62,8 @@ public:
         return persistenceEnabled;
     }
 
+    static void addConfigChangeListener(EventuallyPersistentEngine& engine);
+
 protected:
     friend class CheckpointConfigChangeListener;
     friend class EventuallyPersistentEngine;
@@ -81,8 +83,6 @@ protected:
     void allowKeepClosedCheckpoints(bool value) {
         keepClosedCheckpoints = value;
     }
-
-    static void addConfigChangeListener(EventuallyPersistentEngine& engine);
 
 private:
     class ChangeListener;

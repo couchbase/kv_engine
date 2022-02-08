@@ -67,6 +67,7 @@ SynchronousEPEngine::SynchronousEPEngine(std::string extra_config)
 
     // checkpointConfig is needed by CheckpointManager (via EPStore).
     checkpointConfig = std::make_unique<CheckpointConfig>(*this);
+    CheckpointConfig::addConfigChangeListener(*this);
 
     dcpFlowControlManager_ = std::make_unique<DcpFlowControlManager>(*this);
 

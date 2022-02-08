@@ -331,6 +331,9 @@ public:
      */
     size_t getNumOpenChkItems() const;
 
+    /// @returns the number of Checkpoints this Manager has.
+    size_t getNumCheckpoints() const;
+
     /* WARNING! This method can return inaccurate counts - see MB-28431. It
      * at *least* can suffer from overcounting by at least 1 (in scenarios as
      * yet not clear).

@@ -152,6 +152,9 @@ protected:
 
         void transferResponseMessage();
 
+        /// Inject a CloseStream message into the consumer side of the route.
+        void closeStreamAtConsumer();
+
         std::pair<ActiveStream*, MockPassiveStream*> getStreams();
 
         Vbid vbid;
@@ -483,6 +486,10 @@ void DCPLoopbackStreamTest::DcpRoute::transferResponseMessage() {
             FAIL() << *consumerMsg;
         }
     }
+}
+
+void DCPLoopbackStreamTest::DcpRoute::closeStreamAtConsumer() {
+    this->consumer->closeStream(0, vbid, {});
 }
 
 std::pair<cb::engine_errc, uint64_t>
@@ -994,6 +1001,71 @@ TEST_F(DCPLoopbackStreamTest, MB_36948_SnapshotEndsOnPrepare) {
     EXPECT_EQ(3,
               replicaVB->checkpointManager->getSnapshotInfo().range.getEnd());
     EXPECT_EQ(2, replicaVB->checkpointManager->getVisibleSnapshotEndSeqno());
+}
+
+/**
+ * Regression test for mB-50874 - a scenario where a replica:
+ *    1. receives a DCP snapshot marker which has the first seqno de-duplicated
+ *    2. DCP stream is closed (e.g. ns_server failing over the active)
+ *    3. vbucket is promoted to active
+ *
+ * This results in a Checkpoint where the snapshot start - updated from
+ * SnapshotMarker at (1) - is greater than the lastBySeqno and this ends
+ * up throwing an exception in the Flusher when we next persist anything.
+ */
+TEST_F(DCPLoopbackStreamTest, MB50874_DeDuplicatedMutationsReplicaToActive) {
+    // We need a new checkpoint (MARKER_FLAG_CHK set) when the active node
+    // generates markers - reduce chkMaxItems to the minimum to simplify this.
+    engines[Node0]->getConfiguration().setChkMaxItems(MIN_CHECKPOINT_ITEMS);
+
+    // Setup - fill up the initial checkpoint, with items, so when we
+    // queue the next mutations a new checkpoints is created.
+    for (int i = 0; i < MIN_CHECKPOINT_ITEMS; i++) {
+        auto key = makeStoredDocKey("key_" + std::to_string(i));
+        ASSERT_EQ(ENGINE_SUCCESS, storeSet(key));
+    }
+    auto srcVB = engines[Node0]->getVBucket(vbid);
+    ASSERT_EQ(1, srcVB->checkpointManager->getNumCheckpoints());
+
+    // Now modify one more key, which should create a new Checkpoint.
+    auto key = makeStoredDocKey("deduplicated_key");
+    ASSERT_EQ(ENGINE_SUCCESS, storeSet(key));
+    // ... and modify again so we de-duplicate and have a seqno gap.
+    ASSERT_EQ(ENGINE_SUCCESS, storeSet(key));
+
+    // Sanity check our state - should have a 2nd checkpoint now.
+    ASSERT_EQ(2, srcVB->checkpointManager->getNumCheckpoints());
+
+    // Create a DCP connection between node0 and 1, and stream the initial
+    // marker and the 10 mutations.
+    auto route0_1 = createDcpRoute(Node0, Node1);
+    ASSERT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+    route0_1.transferSnapshotMarker(
+            0, 10, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    for (int i = 0; i < MIN_CHECKPOINT_ITEMS; i++) {
+        route0_1.transferMessage(DcpResponse::Event::Mutation);
+    }
+
+    // Test - transfer the snapshot marker (but no mutations), then close stream
+    // and promote to active; and try to accept a new mutation.
+    route0_1.transferSnapshotMarker(
+            12, 12, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+
+    route0_1.closeStreamAtConsumer();
+    engines[Node1]->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
+
+    // Prior to the fix, this check fails.
+    auto& dstCkptMgr = *engines[Node1]->getVBucket(vbid)->checkpointManager;
+    EXPECT_LE(dstCkptMgr.getOpenSnapshotStartSeqno(),
+              dstCkptMgr.getHighSeqno() + 1)
+            << "Checkpoint start should be less than or equal to next seqno to "
+               "be assigned (highSeqno + 1)";
+
+    // Prior to the fix, this throws std::logic_error from
+    // CheckpointManager::queueDirty as lastBySeqno is outside snapshot range.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engines[Node1]->getKVBucket()->set(
+                      *makeCommittedItem(key, "value"), cookie));
 }
 
 TEST_F(DCPLoopbackStreamTest, MB_41255_dcp_delete_evicted_xattr) {
