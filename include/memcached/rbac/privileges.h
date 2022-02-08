@@ -130,9 +130,6 @@ enum class Privilege {
      */
     Impersonate,
 
-    /// The `Select` privilege allows the connection to select buckets
-    Select,
-
     /// The `Settings` privilege allows the connection to fetch the bucket
     /// configuration via CCCP
     Settings,
