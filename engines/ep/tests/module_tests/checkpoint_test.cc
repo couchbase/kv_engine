@@ -2947,8 +2947,8 @@ TEST_P(ReplicaCheckpointTest, MB_47516) {
     // 1) Receive a snapshot, two items is plenty for the test
     this->manager->createSnapshot(
             1001, 1002, 1002, CheckpointType::Disk, 1002);
-    ASSERT_TRUE(this->queueNewItem("k1001")); // 1001
-    ASSERT_TRUE(this->queueNewItem("k1002")); // 1002
+    ASSERT_TRUE(this->queueReplicatedItem("k1001", 1001)); // 1001
+    ASSERT_TRUE(this->queueReplicatedItem("k1002", 1002)); // 1002
 
     // 1.1) persist these, cursor now past them and we can expel
     std::vector<queued_item> items;
@@ -2991,8 +2991,8 @@ TEST_P(ReplicaCheckpointTest, MB_47516) {
 TEST_P(ReplicaCheckpointTest, MB_47551) {
     // 1) Receive a snapshot, two items is plenty for the test
     this->manager->createSnapshot(1001, 1002, 1002, CheckpointType::Disk, 1002);
-    ASSERT_TRUE(this->queueNewItem("k1001")); // 1001
-    ASSERT_TRUE(this->queueNewItem("k1002")); // 1002
+    ASSERT_TRUE(this->queueReplicatedItem("k1001", 1001)); // 1001
+    ASSERT_TRUE(this->queueReplicatedItem("k1002", 1002)); // 1002
 
     // No as if vb-state changed, new checkpoint
     this->manager->createNewCheckpoint();

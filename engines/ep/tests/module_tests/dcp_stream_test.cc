@@ -2782,7 +2782,10 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
     auto& vb = *store->getVBucket(vbid);
     ASSERT_EQ(0, vb.getHighSeqno());
 
-    const uint64_t initialEndSeqno = 10;
+    // If using durability, we'll send a second snapshot (as prepare's and
+    // commits of the same key can't be in the same checkpoint) so just set this
+    // snapshot's range for the prepare
+    const uint64_t initialEndSeqno = durReqs ? 1 : 10;
     EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(1 /*opaque*/,
                                        vbid,
@@ -2862,7 +2865,7 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
                   vb.commit(key, 1, {}, vb.lockCollections(key)));
         // Replica doesn't like 2 prepares for the same key into the same
         // checkpoint.
-        const int64_t newStartSeqno = initialEndSeqno + 1;
+        const int64_t newStartSeqno = initialEndSeqno + 2;
         EXPECT_EQ(cb::engine_errc::success,
                   consumer->snapshotMarker(1 /*opaque*/,
                                            vbid,

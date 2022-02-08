@@ -497,7 +497,7 @@ TEST_F(WarmupTest, MB_32577) {
               engine->snapshot_marker(*cookie,
                                       /*opaque*/ 1,
                                       vbid,
-                                      /*start_seqno*/ 0,
+                                      /*start_seqno*/ 1,
                                       /*end_seqno*/ 100,
                                       zeroFlags,
                                       /*HCS*/ {},

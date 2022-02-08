@@ -1119,6 +1119,8 @@ TEST_F(VBucketManifestTest, scope_limits_corrected_by_update_drop_one_scope) {
     EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop2, 819200)));
     EXPECT_TRUE(manifest.getActiveManifest().doesScopeWithDataLimitExist());
 
+    // Reset the replica's checkpoint seqno range so we can write to it
+    manifest.vbR->checkpointManager->createNewCheckpoint();
     // Now drive the replica as if it was now active - i.e call update, this
     // happens when a replica becomes active and is what would correct the
     // limits
@@ -1141,6 +1143,8 @@ TEST_F(VBucketManifestTest, scope_limits_corrected_by_update_drop_two_scopes) {
     EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop2, 819200)));
     EXPECT_TRUE(manifest.getActiveManifest().doesScopeWithDataLimitExist());
 
+    // Reset the replica's checkpoint seqno range so we can write to it
+    manifest.vbR->checkpointManager->createNewCheckpoint();
     // Now drive the replica as if it was now active - i.e call update, this
     // happens when a replica becomes active and is what would correct the
     // limits

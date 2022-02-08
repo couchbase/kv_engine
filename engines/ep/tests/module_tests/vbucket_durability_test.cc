@@ -825,10 +825,12 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbortReplica) {
     ASSERT_FALSE(ht->findOnlyPrepared(key).storedValue);
 
     auto nonPendingItem = make_item(vbucket->getId(), key, "value");
-
+    nonPendingItem.setBySeqno(lastSeqno + 1);
+    VBQueueItemCtx ctx;
+    ctx.genBySeqno = GenerateBySeqno::No;
     // store a normal item
     EXPECT_EQ(MutationStatus::WasClean,
-              public_processSet(nonPendingItem, 0 /*cas*/, VBQueueItemCtx()));
+              public_processSet(nonPendingItem, 0 /*cas*/, ctx));
 
     EXPECT_EQ(1, ht->getNumItems());
     // item is found in hashtable
@@ -1879,34 +1881,39 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
         vbucket_state_t initialState) {
     ASSERT_TRUE(vbucket);
     simulateSetVBState(initialState);
+    const auto baseSeqno = vbucket->getHighSeqno();
 
-    ckptMgr->createSnapshot(3, 3, 0, CheckpointType::Disk, 3);
+    ckptMgr->createSnapshot(baseSeqno + 3,
+                            baseSeqno + 3,
+                            0,
+                            CheckpointType::Disk,
+                            baseSeqno + 3);
 
     // Queue some Prepares into the PDM
     auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
     ASSERT_EQ(0, pdm.getNumTracked());
-    const std::vector<SyncWriteSpec> seqnos{1, 2};
+    const std::vector<SyncWriteSpec> seqnos{baseSeqno + 1, baseSeqno + 2};
 
     testAddPrepare(seqnos);
     ASSERT_EQ(seqnos.size(), pdm.getNumTracked());
 
     // Store an unrelated item
     setOne(makeStoredDocKey("committedItem"));
-    ASSERT_EQ(3, vbucket->getHighSeqno());
+    ASSERT_EQ(baseSeqno + 3, vbucket->getHighSeqno());
 
     // "Persist" them too and notify the PDM.
-    pdm.notifySnapshotEndReceived(3);
-    vbucket->setPersistenceSeqno(3);
+    pdm.notifySnapshotEndReceived(baseSeqno + 3);
+    vbucket->setPersistenceSeqno(baseSeqno + 3);
     pdm.notifyLocalPersistence();
     EXPECT_EQ(2, pdm.getNumTracked());
-    EXPECT_EQ(2, pdm.getHighPreparedSeqno());
+    EXPECT_EQ(baseSeqno + 2, pdm.getHighPreparedSeqno());
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
 
     // VBState transitions from Replica to Active with a null topology
     simulateSetVBState(vbucket_state_active, {});
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
 
-    EXPECT_EQ(2, adm.getHighPreparedSeqno());
+    EXPECT_EQ(baseSeqno + 2, adm.getHighPreparedSeqno());
     EXPECT_EQ(0, adm.getHighCompletedSeqno());
     EXPECT_EQ(2, adm.getNumTracked());
 
@@ -1916,24 +1923,24 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
 
     // Note: transitioning from a null topology resets the HPS, see ADM code for
     // details.
-    EXPECT_EQ(3, adm.getHighPreparedSeqno());
-    EXPECT_EQ(2, adm.getHighCompletedSeqno());
+    EXPECT_EQ(baseSeqno + 3, adm.getHighPreparedSeqno());
+    EXPECT_EQ(baseSeqno + 2, adm.getHighCompletedSeqno());
     EXPECT_EQ(0, adm.getNumTracked());
 
     // Adding a SyncWrite does not update the HPS
     auto key = makeStoredDocKey("newPrepare");
     auto newPrepare = makePendingItem(key, "value");
-    newPrepare->setBySeqno(4);
+    newPrepare->setBySeqno(baseSeqno + 4);
     ht->set(*newPrepare.get());
     adm.addSyncWrite(nullptr /*cookie*/, newPrepare);
-    EXPECT_EQ(3, adm.getHighPreparedSeqno());
-    EXPECT_EQ(2, adm.getHighCompletedSeqno());
+    EXPECT_EQ(baseSeqno + 3, adm.getHighPreparedSeqno());
+    EXPECT_EQ(baseSeqno + 2, adm.getHighCompletedSeqno());
     EXPECT_EQ(1, adm.getNumTracked());
 
     adm.checkForCommit();
     adm.processCompletedSyncWriteQueue();
-    EXPECT_EQ(4, adm.getHighPreparedSeqno());
-    EXPECT_EQ(4, adm.getHighCompletedSeqno());
+    EXPECT_EQ(baseSeqno + 4, adm.getHighPreparedSeqno());
+    EXPECT_EQ(baseSeqno + 4, adm.getHighCompletedSeqno());
     EXPECT_EQ(0, adm.getNumTracked());
 }
 

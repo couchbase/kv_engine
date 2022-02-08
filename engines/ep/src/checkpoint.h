@@ -638,7 +638,7 @@ private:
     EPStats& stats;
     const uint64_t checkpointId;
     const uint64_t snapStartSeqno;
-    uint64_t                       snapEndSeqno;
+    WeaklyMonotonic<uint64_t, ThrowExceptionPolicy> snapEndSeqno{0};
 
     /// The maximum visible snapshot end (hides prepare/abort), this could be
     /// a WeaklyMonotonic, but many unit tests will violate that.

@@ -2250,6 +2250,7 @@ void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
     stream->acceptStream(cb::mcbp::Status::Success, opaque);
 
     ASSERT_TRUE(stream->isActive());
+    const auto hcs = store->getVBucket(vbid)->getHighCompletedSeqno();
     // At Replica we don't expect multiple Durability items (for the same key)
     // within the same snapshot. That is because the Active prevents that for
     // avoiding de-duplication.
@@ -2257,16 +2258,15 @@ void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
     // the MARKER_FLAG_CHK set before the Consumer receives the Commit. That
     // will force the Consumer closing the open checkpoint (which Contains the
     // Prepare) and creating a new open one for queueing the Commit.
-    SnapshotMarker marker(
-            opaque,
-            vbid,
-            7 /*snapStart*/,
-            9 /*snapEnd*/,
-            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-            {} /*HCS*/,
-            {} /*maxVisibleSeqno*/,
-            {}, // timestamp
-            {} /*streamId*/);
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          7 /*snapStart*/,
+                          9 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                          hcs /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
+                          {}, // timestamp
+                          {} /*streamId*/);
     stream->processMarker(&marker);
 
     // Do second prepare for each of three keys
@@ -2274,13 +2274,8 @@ void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
     //                               ^^^^ ^^^^ ^^^^
     seqno = 7;
     for (const auto& key : keys) {
-        queued_items.push_back(makeAndReceiveSnapMarkerAndDcpPrepare(
-                key,
-                cas,
-                seqno++,
-                cb::durability::Level::Majority,
-                MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                0 /*HCS*/));
+        queued_items.push_back(makeAndReceiveDcpPrepare(
+                key, cas, seqno++, cb::durability::Level::Majority));
     }
 
     marker = SnapshotMarker(

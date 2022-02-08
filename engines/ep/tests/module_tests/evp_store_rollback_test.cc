@@ -839,7 +839,7 @@ TEST_P(RollbackTest, RollbackUnpersistedItemsFromCheckpointsOfDifferentType) {
     store_item(vbid, makeStoredDocKey("key_memory"), "not rolled back");
 
     vb->checkpointManager->createSnapshot(vb->getHighSeqno() + 1,
-                                          vb->getHighSeqno() + 2,
+                                          vb->getHighSeqno() + 1,
                                           0 /*highCompletedSeqno*/,
                                           CheckpointType::Disk,
                                           vb->getHighSeqno() + 1);

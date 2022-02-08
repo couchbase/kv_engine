@@ -2136,9 +2136,10 @@ void PassiveDurabilityMonitorTest::testResolvePrepareOutOfOrder(
     auto req =
             cb::durability::Requirements{cb::durability::Level::Majority,
                                          cb::durability::Timeout::Infinity()};
-
+    // Reuse the checkpoint manager by setting the seqno range to the same as
+    // above
     vb->checkpointManager->createSnapshot(
-            1, 6, 3 /*HCS*/, CheckpointType::Disk, 0 /*MVS*/);
+            1, 7, 3 /*HCS*/, CheckpointType::Disk, 0 /*MVS*/);
 
     for (uint64_t seqno = 1; seqno < 4; seqno++) {
         auto item = Item(makeStoredDocKey("key" + std::to_string(seqno)),
@@ -3622,14 +3623,42 @@ TEST_P(PassiveDurabilityMonitorTest, dropLastKeyAndCompletePrevious) {
 }
 
 TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndCompleteNextDiskSnap) {
-    vb->checkpointManager->createSnapshot(1, 4, 1, CheckpointType::Disk, 4);
-
-    testDropFirstKey();
+    vb->checkpointManager->createSnapshot(1, 2, 0, CheckpointType::Disk, 0);
 
     auto& pdm = getPassiveDM();
+    using namespace cb::durability;
+    uint64_t currentSeqno{1};
 
-    pdm.notifySnapshotEndReceived(3);
-    pdm.completeSyncWrite(makeStoredDocKey("key2"), PassiveDurabilityMonitor::Resolution::Commit, 2);
+    auto item = makePendingItem(
+            makeStoredDocKey("key" + std::to_string(currentSeqno)),
+            "value",
+            Requirements{Level::Majority, Timeout::Infinity()});
+    item->setBySeqno(currentSeqno);
+    processSet(*item);
+
+    currentSeqno++;
+    item = makePendingItem(
+            makeStoredDocKey("key" + std::to_string(currentSeqno)),
+            "value",
+            Requirements{Level::Majority, Timeout::Infinity()});
+    item->setBySeqno(currentSeqno);
+    processSet(*item);
+
+    ASSERT_EQ(2, pdm.getNumTracked());
+    ASSERT_EQ(0, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
+
+    vb->checkpointManager->createSnapshot(3, 4, 2, CheckpointType::Memory, 4);
+    pdm.eraseSyncWrite(makeStoredDocKey("key1"), 1);
+
+    EXPECT_EQ(1, pdm.getNumTracked());
+    EXPECT_EQ(0, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(0, pdm.getHighPreparedSeqno());
+
+    pdm.notifySnapshotEndReceived(4);
+    pdm.completeSyncWrite(makeStoredDocKey("key2"),
+                          PassiveDurabilityMonitor::Resolution::Commit,
+                          2);
 
     EXPECT_EQ(0, pdm.getNumTracked());
     EXPECT_EQ(2, pdm.getHighCompletedSeqno());
@@ -3637,13 +3666,39 @@ TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndCompleteNextDiskSnap) {
 }
 
 TEST_P(PassiveDurabilityMonitorTest, dropLastKeyAndCompletePreviousDiskSnap) {
-    vb->checkpointManager->createSnapshot(1, 4, 1, CheckpointType::Disk, 4);
-
-    testDropLastKey();
+    vb->checkpointManager->createSnapshot(1, 2, 0, CheckpointType::Disk, 0);
 
     auto& pdm = getPassiveDM();
+    using namespace cb::durability;
+    uint64_t currentSeqno{1};
 
-    pdm.notifySnapshotEndReceived(3);
+    auto item = makePendingItem(
+            makeStoredDocKey("key" + std::to_string(currentSeqno)),
+            "value",
+            Requirements{Level::Majority, Timeout::Infinity()});
+    item->setBySeqno(currentSeqno);
+    processSet(*item);
+
+    currentSeqno++;
+    item = makePendingItem(
+            makeStoredDocKey("key" + std::to_string(currentSeqno)),
+            "value",
+            Requirements{Level::Majority, Timeout::Infinity()});
+    item->setBySeqno(currentSeqno);
+    processSet(*item);
+
+    ASSERT_EQ(2, pdm.getNumTracked());
+    ASSERT_EQ(0, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
+
+    vb->checkpointManager->createSnapshot(3, 4, 2, CheckpointType::Memory, 3);
+    pdm.eraseSyncWrite(makeStoredDocKey("key2"), 2);
+
+    EXPECT_EQ(1, pdm.getNumTracked());
+    EXPECT_EQ(0, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(0, pdm.getHighPreparedSeqno());
+
+    pdm.notifySnapshotEndReceived(4);
     pdm.completeSyncWrite(makeStoredDocKey("key1"), PassiveDurabilityMonitor::Resolution::Commit, 1);
 
     EXPECT_EQ(0, pdm.getNumTracked());

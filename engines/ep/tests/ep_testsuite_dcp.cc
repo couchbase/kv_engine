@@ -3645,16 +3645,40 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
+    auto startSeqno = num_items + 1;
+    auto snapshotNumItems = 5;
     checkeq(cb::engine_errc::success,
             dcp->snapshot_marker(*cookie,
                                  stream_opaque,
                                  Vbid(0),
-                                 num_items,
-                                 num_items + 100,
+                                 startSeqno,
+                                 startSeqno + snapshotNumItems,
                                  0 /*flags*/,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "Failed to send snapshot marker");
+    // Send items for snapshot
+    for (auto i = 0; i < snapshotNumItems; i++) {
+        const std::string key("key" + std::to_string(i));
+        const DocKey docKey(key, DocKeyEncodesCollectionId::No);
+        checkeq(cb::engine_errc::success,
+                dcp->mutation(*cookie,
+                              stream_opaque,
+                              docKey,
+                              {(const uint8_t*)"value", 5},
+                              0, // privileged bytes
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              0, // cas
+                              Vbid(0),
+                              0, // flags
+                              startSeqno + i, // by_seqno
+                              0, // rev_seqno
+                              0, // expiration
+                              0, // lock_time
+                              {}, // meta
+                              INITIAL_NRU_VALUE),
+                "Failed to dcp mutate.");
+    }
 
     wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
@@ -7666,18 +7690,18 @@ static enum test_result test_mb19982(EngineIface* h) {
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
-    for (int i = 1; i <= num_items; i++) {
-        checkeq(dcp->snapshot_marker(*cookie,
-                                     stream_opaque,
-                                     Vbid(0),
-                                     num_items,
-                                     num_items + i,
-                                     2,
-                                     0 /*HCS*/,
-                                     {} /*maxVisibleSeqno*/),
-                cb::engine_errc::success,
-                "Failed to send snapshot marker");
+    checkeq(dcp->snapshot_marker(*cookie,
+                                 stream_opaque,
+                                 Vbid(0),
+                                 num_items + 1,
+                                 num_items * 2,
+                                 MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                                 0 /*HCS*/,
+                                 {} /*maxVisibleSeqno*/),
+            cb::engine_errc::success,
+            "Failed to send snapshot marker");
 
+    for (int i = 1; i <= num_items; i++) {
         const std::string key("key-" + std::to_string(i));
         const DocKey docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
