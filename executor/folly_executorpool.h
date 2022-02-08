@@ -15,8 +15,9 @@
 
 #include <memory>
 
+class CancellableCPUExecutor;
+
 namespace folly {
-class CPUThreadPoolExecutor;
 class IOThreadPoolExecutor;
 } // namespace folly
 
@@ -26,8 +27,11 @@ class IOThreadPoolExecutor;
  * Initial implementation matches the CB3 Executor pool, which is not
  * idiomatic to Folly but gives a starting point to evolve / simplify later:
  *
- * 1. 4 pools of folly::CPUThreadPoolExecutors are used for each of the
- *    Reader/Writer/AuxIO/NonIO thread pools.
+ * 1. 4 pools of CancellableCpuExecutor are used for each of the
+ *    Reader/Writer/AuxIO/NonIO thread pools. This wraps a
+ *    folly::CPUThreadPoolExecutor with a custom queue that we use to allow us
+ *    to remove pending work for a given Taskable if that Taskable is going
+ *    away.
  *    This can likely be simplified - for example combining the IO pools into
  *    a single pool, then using priorities to ensure correct priorization.
  *
@@ -187,7 +191,7 @@ public:
 
 private:
     /// @returns the CPU pool to use for the given task type.
-    folly::CPUThreadPoolExecutor* getPoolForTaskType(task_type_t type);
+    CancellableCPUExecutor* getPoolForTaskType(task_type_t type);
 
     /// Reschedule the given task based on it's current sleepTime and if
     /// the task is dead (or should run again).
@@ -208,10 +212,10 @@ private:
 
     /// Underlying Folly thread pools.
     std::unique_ptr<folly::IOThreadPoolExecutor> futurePool;
-    std::unique_ptr<folly::CPUThreadPoolExecutor> readerPool;
-    std::unique_ptr<folly::CPUThreadPoolExecutor> writerPool;
-    std::unique_ptr<folly::CPUThreadPoolExecutor> auxPool;
-    std::unique_ptr<folly::CPUThreadPoolExecutor> nonIoPool;
+    std::unique_ptr<CancellableCPUExecutor> readerPool;
+    std::unique_ptr<CancellableCPUExecutor> writerPool;
+    std::unique_ptr<CancellableCPUExecutor> auxPool;
+    std::unique_ptr<CancellableCPUExecutor> nonIoPool;
 
     size_t maxReaders;
     size_t maxWriters;

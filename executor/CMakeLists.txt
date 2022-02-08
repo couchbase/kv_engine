@@ -1,4 +1,5 @@
 add_library(mcd_executor STATIC
+            cancellable_cpu_executor.cc
             cb3_executorpool.cc
             cb3_executorpool.h
             cb3_executorthread.cc
@@ -18,8 +19,7 @@ add_library(mcd_executor STATIC
             cb3_taskqueue.cc
             cb3_taskqueue.h
             tasks.def.h
-            workload.h
-        )
+            workload.h)
 target_link_libraries(mcd_executor PUBLIC Folly::folly hdrhistogram platform spdlog::spdlog statistics)
 cb_enable_unity_build(mcd_executor)
 kv_enable_pch(mcd_executor)

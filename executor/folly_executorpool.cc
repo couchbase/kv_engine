@@ -10,6 +10,9 @@
  */
 
 #include "folly_executorpool.h"
+
+//#include "custom_folly_cpu_thread_pool_executor.h"
+#include "cancellable_cpu_executor.h"
 #include "globaltask.h"
 #include "taskable.h"
 
@@ -83,7 +86,7 @@ public:
  */
 struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
     TaskProxy(FollyExecutorPool& executor,
-              folly::CPUThreadPoolExecutor& pool,
+              CancellableCPUExecutor& pool,
               ExTask task_)
         : task(std::move(task_)),
           taskId(task->getId()),
@@ -152,7 +155,7 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
         scheduledOnCpuPool = true;
 
         // Perform work on the appropriate CPU pool.
-        cpuPool.add([&proxy = *this] {
+        cpuPool.addWithTask(*task, [&proxy = *this] {
             Expects(proxy.task.get());
 
             LOG_TRACE("FollyExecutorPool: Run task \"{}\" id {}",
@@ -292,7 +295,7 @@ private:
     FollyExecutorPool& executor;
 
     // TaskPool to be run on.
-    folly::CPUThreadPoolExecutor& cpuPool;
+    CancellableCPUExecutor& cpuPool;
 };
 
 /*
@@ -355,7 +358,7 @@ struct FollyExecutorPool::State {
      * @param task The Task to schedule.
      */
     bool scheduleTask(FollyExecutorPool& executor,
-                      folly::CPUThreadPoolExecutor& pool,
+                      CancellableCPUExecutor& pool,
                       ExTask task) {
         auto& owner = taskOwners.at(&task->getTaskable());
         if (!owner.registered) {
@@ -650,13 +653,13 @@ FollyExecutorPool::FollyExecutorPool(size_t maxThreads,
     futurePool = std::make_unique<folly::IOThreadPoolExecutor>(
             1, std::make_shared<folly::NamedThreadFactory>("SchedulerPool"));
 
-    readerPool = std::make_unique<folly::CPUThreadPoolExecutor>(
+    readerPool = std::make_unique<CancellableCPUExecutor>(
             maxReaders, makeThreadFactory("ReaderPool", READER_TASK_IDX));
-    writerPool = std::make_unique<folly::CPUThreadPoolExecutor>(
+    writerPool = std::make_unique<CancellableCPUExecutor>(
             maxWriters, makeThreadFactory("WriterPool", WRITER_TASK_IDX));
-    auxPool = std::make_unique<folly::CPUThreadPoolExecutor>(
+    auxPool = std::make_unique<CancellableCPUExecutor>(
             maxAuxIO, makeThreadFactory("AuxIoPool", AUXIO_TASK_IDX));
-    nonIoPool = std::make_unique<folly::CPUThreadPoolExecutor>(
+    nonIoPool = std::make_unique<CancellableCPUExecutor>(
             maxNonIO, makeThreadFactory("NonIoPool", NONIO_TASK_IDX));
 }
 
@@ -1040,7 +1043,7 @@ void FollyExecutorPool::doTaskQStat(Taskable& taskable,
                     cookie);
 }
 
-folly::CPUThreadPoolExecutor* FollyExecutorPool::getPoolForTaskType(
+CancellableCPUExecutor* FollyExecutorPool::getPoolForTaskType(
         task_type_t type) {
     switch (type) {
     case NO_TASK_TYPE:
