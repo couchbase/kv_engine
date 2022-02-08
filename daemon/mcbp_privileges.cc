@@ -345,7 +345,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::AuthProvider,
           require<Privilege::SecurityManagement>);
 
-    /// @todo change priv to CollectionManagement
     setup(cb::mcbp::ClientOpcode::CollectionsSetManifest,
           require<Privilege::BucketManagement>);
 

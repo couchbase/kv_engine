@@ -109,11 +109,6 @@ enum class Privilege {
      * system attributes on the documents
      */
     SystemXattrWrite,
-    /**
-     * The `CollectionManagement` privilege allows the connection to create or
-     * delete collections.
-     */
-    CollectionManagement,
 
     /**
      * The `SecurityManagement` privilege allows the connection to perform
