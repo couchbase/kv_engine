@@ -13,7 +13,6 @@
 
 #include "bucket_logger.h"
 #include "configuration.h"
-#include "conn_notifier.h"
 #include "conn_store.h"
 #include "dcp/consumer.h"
 #include "dcp/producer.h"
@@ -189,7 +188,6 @@ DcpProducer* DcpConnMap::newProducer(const CookieIface* cookie,
 void DcpConnMap::shutdownAllConnections() {
     EP_LOG_INFO_RAW("Shutting down dcp connections!");
 
-    connNotifier->stop();
     manageConnections();
 
     // Take a copy of the connection map (under lock), then using the

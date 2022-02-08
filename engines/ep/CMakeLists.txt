@@ -302,7 +302,6 @@ ADD_LIBRARY(ep_objs OBJECT
             src/checkpoint_manager.cc
             src/checkpoint_remover.cc
             src/conflict_resolution.cc
-            src/conn_notifier.cc
             src/connhandler.cc
             src/connmap.cc
             src/conn_store.cc

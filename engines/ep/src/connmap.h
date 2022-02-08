@@ -11,12 +11,12 @@
 
 #pragma once
 
-#include "atomicqueue.h"
 #include "conn_store_fwd.h"
 #include "dcp/dcp-types.h"
 
+#include <mutex>
+
 // Forward declaration
-class ConnNotifier;
 class EventuallyPersistentEngine;
 class Vbid;
 
@@ -75,22 +75,6 @@ public:
      */
     void notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn);
 
-    /**
-     * Schedule a notify by adding it to the pendingNotifications queue.
-     * It will be processed later by the ConnNotifer (in a separate thread)
-     * by the processPendingNotifications method.
-     *
-     * @param conn connection to be scheduled for notification.
-     */
-    void addConnectionToPending(const std::shared_ptr<ConnHandler>& conn);
-
-    /**
-     * Notifies the front-end for all the connections in the
-     * pendingNotifications queue that they should now be re-considered for
-     * work.
-     */
-    void processPendingNotifications();
-
     EventuallyPersistentEngine& getEngine() {
         return engine;
     }
@@ -104,10 +88,6 @@ protected:
 
     /* Handle to the engine who owns us */
     EventuallyPersistentEngine &engine;
-
-    AtomicQueue<std::weak_ptr<ConnHandler>> pendingNotifications;
-
-    const std::shared_ptr<ConnNotifier> connNotifier;
 
     // ConnStore is pretty big (the header) so use PIMPL to avoid including it
     // wherever ConnMap is included

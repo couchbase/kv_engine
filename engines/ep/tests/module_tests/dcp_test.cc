@@ -1562,12 +1562,6 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     // 0. Should start with no notifications.
     ASSERT_EQ(0, notify_count);
 
-    // 1. Check that the periodic connNotifier (processPendingNotifications)
-    // isn't sufficient to notify (it shouldn't be, as our connection has
-    // no notification pending).
-    connMap.processPendingNotifications();
-    ASSERT_EQ(0, notify_count);
-
     // 1. Simulate a bucket deletion.
     connMap.shutdownAllConnections();
 
@@ -1621,13 +1615,7 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     // 0. Should start with no notifications.
     ASSERT_EQ(0, notify_count);
 
-    // 1. Check that the periodic connNotifier (processPendingNotifications)
-    // isn't sufficient to notify (it shouldn't be, as our connection has
-    // no notification pending).
-    connMap.processPendingNotifications();
-    ASSERT_EQ(0, notify_count);
-
-    // 2. Simulate a bucket deletion.
+    // 1. Simulate a bucket deletion.
     connMap.shutdownAllConnections();
 
     // Can also get a second notify as part of manageConnections being called
@@ -2322,29 +2310,17 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify) {
     // Should be 0 when we begin
     ASSERT_EQ(0, notifyTest.getCallbacks());
     ASSERT_TRUE(notifyTest.producer->isPaused());
-    ASSERT_EQ(0, notifyTest.connMap->getPendingNotifications().size());
 
-    // 1. Call addConnectionToPending - this will queue the producer
-    notifyTest.connMap->addConnectionToPending(
-            notifyTest.producer->shared_from_this());
-    EXPECT_EQ(1, notifyTest.connMap->getPendingNotifications().size());
+    // 1. notify the producer
+    notifyTest.producer->immediatelyNotify();
 
-    // 2. Call processPendingNotifications this will invoke notifyIOComplete
-    //    which we've hooked into. For step 3 go to dcp_test_notify_io_complete
-    notifyTest.connMap->processPendingNotifications();
-
-    // 2.1 One callback should of occurred, and we should have zero
-    //     notifications pending (see dcp_test_notify_io_complete).
+    // 2 One callback should've occurred
     EXPECT_EQ(1, notifyTest.getCallbacks());
-    ASSERT_EQ(0, notifyTest.connMap->getPendingNotifications().size());
-    // 2.2 Re-add the connection to pending.
-    notifyTest.connMap->addConnectionToPending(
-            notifyTest.producer->shared_from_this());
 
-    // 4. Call processPendingNotifications again, is there a new connection?
-    notifyTest.connMap->processPendingNotifications();
+    // notify the producer again
+    notifyTest.producer->immediatelyNotify();
 
-    // 5. There should of been 2 callbacks
+    // 5. There should've been 2 callbacks
     EXPECT_EQ(2, notifyTest.getCallbacks());
 }
 
@@ -2369,37 +2345,24 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
     // Should be 0 when we begin
     ASSERT_EQ(notifyTest.getCallbacks(), 0);
     ASSERT_TRUE(notifyTest.producer->isPaused());
-    ASSERT_EQ(0, notifyTest.connMap->getPendingNotifications().size());
 
-    // 1. Call addConnectionToPending - this will queue the producer
-    notifyTest.connMap->addConnectionToPending(
-            notifyTest.producer->shared_from_this());
-    EXPECT_EQ(1, notifyTest.connMap->getPendingNotifications().size());
-
-    // 2. Mark connection as not paused.
+    // 1. Mark connection as not paused.
     notifyTest.producer->unPause();
 
-    // 3. Call processPendingNotifications - as the connection is not paused
+    // 2. notify the connection - as the connection is not paused
     // this should *not* invoke notifyIOComplete.
-    notifyTest.connMap->processPendingNotifications();
+    notifyTest.producer->immediatelyNotify();
 
     // 3.1 Should have not had any callbacks.
     EXPECT_EQ(0, notifyTest.getCallbacks());
-    // 3.2 Should have no pending notifications.
-    EXPECT_EQ(0, notifyTest.connMap->getPendingNotifications().size());
 
     // 4. Now mark the connection as paused.
     ASSERT_FALSE(notifyTest.producer->isPaused());
     notifyTest.producer->pause();
 
-    // 4. Add another notification - should queue the producer again.
-    notifyTest.connMap->addConnectionToPending(
-            notifyTest.producer->shared_from_this());
-    EXPECT_EQ(1, notifyTest.connMap->getPendingNotifications().size());
-
-    // 5. Call processPendingNotifications a second time - as connection is
-    //    paused this time we *should* get a callback.
-    notifyTest.connMap->processPendingNotifications();
+    // 4. notify the connection - as connection is
+    //    //    paused this time we *should* get a callback.
+    notifyTest.producer->immediatelyNotify();
     EXPECT_EQ(1, notifyTest.getCallbacks());
 }
 

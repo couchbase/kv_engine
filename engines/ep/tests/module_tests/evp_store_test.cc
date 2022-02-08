@@ -88,14 +88,6 @@ void EPBucketBloomFilterParameterizedTest::SetUp() {
 // Verify that when handling a bucket delete with open DCP
 // connections, we don't deadlock when notifying the front-end
 // connection.
-// This is a potential issue because notify_IO_complete
-// needs to lock the worker thread mutex the connection is assigned
-// to, to update the event list for that connection, which the worker
-// thread itself will have locked while it is running. Normally
-// deadlock is avoided by using a background thread (ConnNotifier),
-// which only calls notify_IO_complete and isnt' involved with any
-// other mutexes, however we cannot use that task as it gets shut down
-// during shutdownAllConnections.
 // This test requires ThreadSanitizer or similar to validate;
 // there's no guarantee we'll actually deadlock on any given run.
 TEST_P(EPBucketTest, test_mb20751_deadlock_on_disconnect_delete) {

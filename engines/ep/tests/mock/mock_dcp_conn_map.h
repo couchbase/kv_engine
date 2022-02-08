@@ -10,7 +10,6 @@
  */
 #pragma once
 
-#include "conn_notifier.h"
 #include "connhandler.h"
 #include "dcp/dcpconnmap.h"
 
@@ -28,14 +27,7 @@ public:
         return deadConnections.size();
     }
 
-    AtomicQueue<std::weak_ptr<ConnHandler>>& getPendingNotifications() {
-        return pendingNotifications;
-    }
-
     void initialize() {
-        // The ConnNotifier is created in the base-class ctor and deleted in the
-        // base-class dtor.
-        // We do not schedule any ConnNotifierCallback task.
         // We do not schedule any ConnManager task.
     }
 

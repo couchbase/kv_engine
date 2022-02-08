@@ -10,7 +10,6 @@
  */
 
 #include "connmap.h"
-#include "conn_notifier.h"
 #include "conn_store.h"
 #include "connhandler.h"
 #include "dcp/backfill-manager.h"
@@ -98,19 +97,15 @@ private:
 
 ConnMap::ConnMap(EventuallyPersistentEngine& theEngine)
     : engine(theEngine),
-      connNotifier(std::make_shared<ConnNotifier>(*this)),
       connStore(std::make_unique<ConnStore>(theEngine)) {
 }
 
 void ConnMap::initialize() {
-    connNotifier->start();
     ExTask connMgr = std::make_shared<ConnManager>(&engine, this);
     ExecutorPool::get()->schedule(connMgr);
 }
 
-ConnMap::~ConnMap() {
-    connNotifier->stop();
-}
+ConnMap::~ConnMap() = default;
 
 void ConnMap::notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn) {
     if (engine.getEpStats().isShutdown) {
@@ -122,42 +117,6 @@ void ConnMap::notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn) {
         if (conn.get() && conn->isPaused()) {
             engine.scheduleDcpStep(*conn->getCookie());
         }
-    }
-}
-
-void ConnMap::addConnectionToPending(const std::shared_ptr<ConnHandler>& conn) {
-    if (engine.getEpStats().isShutdown) {
-        return;
-    }
-
-    if (conn.get() && conn->isPaused()) {
-        pendingNotifications.push(conn);
-        // Wake up the connection notifier so that
-        // it can notify the event to a given paused connection.
-        connNotifier->notifyMutationEvent();
-    }
-}
-
-void ConnMap::processPendingNotifications() {
-    std::queue<std::weak_ptr<ConnHandler>> queue;
-    pendingNotifications.getAll(queue);
-
-    TRACE_EVENT1("ep-engine/ConnMap",
-                 "processPendingNotifications",
-                 "#pending",
-                 queue.size());
-
-    TRACE_LOCKGUARD_TIMED(releaseLock,
-                          "mutex",
-                          "ConnMap::processPendingNotifications::releaseLock",
-                          SlowMutexThreshold);
-
-    while (!queue.empty()) {
-        auto conn = queue.front().lock();
-        if (conn && conn->isPaused()) {
-            engine.scheduleDcpStep(*conn->getCookie());
-        }
-        queue.pop();
     }
 }
 

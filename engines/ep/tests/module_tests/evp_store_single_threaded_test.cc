@@ -2532,8 +2532,8 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
     EXPECT_EQ(0, lpAuxioQ->getReadyQueueSize());
 
     auto lpNonIoQ = task_executor->getLpTaskQ()[NONIO_TASK_IDX];
-    // Initially have ConnNotifierCallback and ConnManagerTasks on NonIO queue.
-    const size_t numInitialNonIoTasks = 2;
+    // Initially one ConnManagerTask on NonIO queue.
+    const size_t numInitialNonIoTasks = 1;
     EXPECT_EQ(numInitialNonIoTasks, lpNonIoQ->getFutureQueueSize());
     EXPECT_EQ(0, lpNonIoQ->getReadyQueueSize());
 

@@ -66,7 +66,6 @@ void StreamTest::SetUp() {
 }
 
 void StreamTest::TearDown() {
-    engine->getDcpConnMap().processPendingNotifications();
     if (producer) {
         producer->cancelCheckpointCreatorTask();
     }
