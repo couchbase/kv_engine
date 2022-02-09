@@ -5279,7 +5279,7 @@ cb::engine_errc EventuallyPersistentEngine::observe(
         }
 
         // Get key stats
-        uint16_t keystatus = 0;
+        uint8_t keystatus = 0;
         struct key_stats kstats = {};
         rv = kvBucket->getKeyStats(
                 key, vb_id, cookie, kstats, WantsDeleted::Yes);
