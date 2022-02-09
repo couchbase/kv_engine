@@ -5676,3 +5676,55 @@ TEST_P(STParamPersistentBucketTest,
         EXPECT_EQ(collectionSize, summary[CollectionID::Default].diskSize);
     }
 }
+
+TEST_P(STParamPersistentBucketTest, CancelCompaction) {
+    // Nexus only forwards the callback to the primary so this test doesn't
+    // work for it.
+    if (isNexus()) {
+        GTEST_SKIP();
+    }
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Need two items, one to expire to hit our hook and one to skip with the
+    // shutdown check
+    auto keyToKeep = makeStoredDocKey("key2");
+    store_item(vbid, makeStoredDocKey("key1"), "value", 1);
+    store_item(vbid, keyToKeep, "value");
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    class ExpiryCb : public Callback<Item&, time_t&> {
+    public:
+        explicit ExpiryCb(EPStats& stats) : stats(stats) {
+        }
+
+        void callback(Item& item, time_t& time) override {
+            stats.isShutdown = true;
+        }
+
+        EPStats& stats;
+    };
+
+    dynamic_cast<MockEPBucket*>(store)->mockMakeCompactionContext =
+            [this](std::shared_ptr<CompactionContext> ctx) {
+                auto callback =
+                        std::make_shared<ExpiryCb>(engine->getEpStats());
+                ctx->expiryCallback = callback;
+                ctx->timeToExpireFrom = 10;
+                return ctx;
+            };
+
+    runCompaction(vbid);
+
+    EXPECT_EQ(1,
+              store->getRWUnderlying(vbid)
+                      ->getKVStoreStat()
+                      .numCompactionFailure);
+
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+    EXPECT_EQ(cb::engine_errc::success,
+              checkKeyExists(keyToKeep, vbid, options));
+}

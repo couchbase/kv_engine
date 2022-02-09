@@ -315,6 +315,10 @@ std::pair<Status, bool> MagmaKVStore::compactionCallBack(
         return {Status::OK(), false};
     }
 
+    if (cbCtx.ctx->isShuttingDown()) {
+        return {{Status::Cancelled, "Shutting down"}, false};
+    }
+
     auto vbid = cbCtx.vbid;
     std::string userSanitizedItemStr;
     if (logger->should_log(spdlog::level::TRACE)) {

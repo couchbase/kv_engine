@@ -1289,6 +1289,8 @@ std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
         postPurgeSeqnoImplicitCompactionHook();
     };
 
+    auto& epStats = getEPEngine().getEpStats();
+    ctx->isShuttingDown = [&epStats]() -> bool { return epStats.isShutdown; };
     return ctx;
 }
 

@@ -879,6 +879,10 @@ static int time_purge_hook(Db& d,
         return couchstore_set_purge_seq(&d, ctx.getRollbackPurgeSeqno());
     }
 
+    if (ctx.isShuttingDown()) {
+        return COUCHSTORE_ERROR_CANCEL;
+    }
+
     auto metadata = MetaDataFactory::createMetaData(info->rev_meta);
     uint32_t exptime = metadata->getExptime();
 

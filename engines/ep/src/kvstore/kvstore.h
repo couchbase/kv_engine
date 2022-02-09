@@ -236,6 +236,7 @@ struct CompactionContext {
           timeToExpireFrom(timeToExpireFrom),
           purgedItemCtx(std::make_unique<PurgedItemCtx>(purgeSeq)),
           vb(vb) {
+        isShuttingDown = []() { return false; };
     }
 
     uint64_t getRollbackPurgeSeqno() const {
@@ -289,6 +290,14 @@ struct CompactionContext {
      * purging items.
      */
     std::unique_ptr<PurgedItemCtx> purgedItemCtx;
+
+    /**
+     * Function which tells us that the bucket is shutting down and to stop
+     * compacting. Compaction is often a very long running task which would
+     * impede shutdown which can cause rebalance failures in ns_server when we
+     * hit bucket shutdown timeouts.
+     */
+    std::function<bool()> isShuttingDown;
 
 private:
     /// Pointer to the in memory vbucket that we're compacting for

@@ -1172,6 +1172,8 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
             primaryCtx->getRollbackPurgeSeqno(),
             primaryCtx->timeToExpireFrom);
 
+    secondaryCtx->isShuttingDown = primaryCtx->isShuttingDown;
+
     // Don't set the NexusExpiryCB cb member to avoid forwarding expiries to
     // the engine (we will do so for the primary)
     auto secondaryExpiryCb = std::make_shared<NexusExpiryCB>();
