@@ -204,10 +204,12 @@ public:
 MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
         MagmaKVStore& magmaKVStore,
         Vbid vbid,
-        std::shared_ptr<CompactionContext> compactionContext)
+        std::shared_ptr<CompactionContext> compactionContext,
+        std::optional<CollectionID> cid)
     : vbid(vbid),
       ctx(std::move(compactionContext)),
-      magmaKVStore(magmaKVStore) {
+      magmaKVStore(magmaKVStore),
+      onlyThisCollection(cid) {
     magmaKVStore.logger->TRACE("MagmaCompactionCB constructor");
 
     // If we've not got a CompactionContext then this must be an implicit
@@ -283,6 +285,13 @@ bool MagmaKVStore::MagmaCompactionCB::operator()(
         SetStatus({Status::Internal, msg});
     }
     return false;
+}
+
+bool MagmaKVStore::MagmaCompactionCB::canPurge(CollectionID collection) {
+    if (!onlyThisCollection) {
+        return true;
+    }
+    return onlyThisCollection.value() == collection;
 }
 
 struct MagmaKVStoreTransactionContext : public TransactionContext {
@@ -369,7 +378,9 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
         // As such use the docKey (i.e. without any DurabilityPrepare
         // namespace) when checking if logically deleted;
         auto diskKey = makeDiskDocKey(keySlice);
-        if (cbCtx.ctx->eraserContext->isLogicallyDeleted(diskKey.getDocKey(),
+
+        if (cbCtx.canPurge(diskKey.getDocKey().getCollectionID()) &&
+            cbCtx.ctx->eraserContext->isLogicallyDeleted(diskKey.getDocKey(),
                                                          seqno)) {
             try {
                 // Inform vb that the key@seqno is dropped
@@ -2306,26 +2317,6 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
             dcInfo.emplace_back(dc, itemCount);
         }
 
-        // For magma we also need to compact the prepare namespace as this is
-        // disjoint from the collection namespaces.
-        cb::mcbp::unsigned_leb128<CollectionIDType> leb128(CollectionID::DurabilityPrepare);
-        Slice prepareSlice(reinterpret_cast<const char*>(leb128.data()),
-                           leb128.size());
-        status = magma->CompactKVStore(
-                vbid.get(), prepareSlice, prepareSlice, compactionCB);
-        compactionStatusHook(status);
-        if (!status) {
-            logger->warn(
-                    "MagmaKVStore::compactDBInternal CompactKVStore {} "
-                    "over the prepare namespace failed with status:{}",
-                    vbid,
-                    status.String());
-            // It's important that we return here because a failure to do so
-            // would result in us not cleaning up prepares for a dropped
-            // collection if the compaction of a dropped collection succeeds.
-            return false;
-        }
-
         for (auto& [dc, itemCount] : dcInfo) {
             std::string keyString =
                     Collections::makeCollectionIdIntoString(dc.collectionId);
@@ -2347,28 +2338,31 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
             // it that many times, we only want to do it once.
             bool statsDeltaApplied = false;
 
-            auto compactionCB = [this,
-                                 vbid,
-                                 &ctx,
-                                 &statsDeltaApplied,
-                                 cid = dc.collectionId,
-                                 itemCount = itemCount](
-                                        const Magma::KVStoreID kvID) {
-                auto ret = std::make_unique<MagmaKVStore::MagmaCompactionCB>(
-                        *this, vbid, ctx);
+            auto compactionCBAndDecrementItemCount =
+                    [this,
+                     vbid,
+                     &ctx,
+                     &statsDeltaApplied,
+                     cid = dc.collectionId,
+                     itemCount = itemCount](const Magma::KVStoreID kvID) {
+                        auto ret = std::make_unique<
+                                MagmaKVStore::MagmaCompactionCB>(
+                                *this, vbid, ctx, cid);
 
-                if (!statsDeltaApplied) {
-                    statsDeltaApplied = true;
-                    ret->processCollectionPurgeDelta(cid, -itemCount);
-                }
+                        if (!statsDeltaApplied) {
+                            statsDeltaApplied = true;
+                            ret->processCollectionPurgeDelta(cid, -itemCount);
+                        }
 
-                preCompactKVStoreHook();
+                        preCompactKVStoreHook();
 
-                return ret;
-            };
+                        return ret;
+                    };
 
-            status = magma->CompactKVStore(
-                    vbid.get(), keySlice, keySlice, compactionCB);
+            status = magma->CompactKVStore(vbid.get(),
+                                           keySlice,
+                                           keySlice,
+                                           compactionCBAndDecrementItemCount);
 
             compactionStatusHook(status);
 
@@ -2416,6 +2410,28 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
             purgedCollections.insert(dc.collectionId);
             purgedCollectionsEndSeqno =
                     std::max(dc.endSeqno, purgedCollectionsEndSeqno);
+        }
+
+        // Finally, we also need to compact the prepare namespace as this is
+        // disjoint from the collection namespaces. This is done after the
+        // main collection purge and uses a simpler callback
+        cb::mcbp::unsigned_leb128<CollectionIDType> leb128(
+                CollectionID::DurabilityPrepare);
+        Slice prepareSlice(reinterpret_cast<const char*>(leb128.data()),
+                           leb128.size());
+        status = magma->CompactKVStore(
+                vbid.get(), prepareSlice, prepareSlice, compactionCB);
+        compactionStatusHook(status);
+        if (!status) {
+            logger->warn(
+                    "MagmaKVStore::compactDBInternal CompactKVStore {} "
+                    "over the prepare namespace failed with status:{}",
+                    vbid,
+                    status.String());
+            // It's important that we return here because a failure to do so
+            // would result in us not cleaning up prepares for a dropped
+            // collection if the compaction of a dropped collection succeeds.
+            return false;
         }
     }
 
@@ -3130,6 +3146,8 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_WALDiskUsage", magmaStats->WalStats.DiskUsed);
     fill("magma_BlockCacheMemUsed", magmaStats->BlockCacheMemUsed);
     fill("magma_KeyIndexSize", magmaStats->KeyStats.LogicalDataSize);
+    fill("magma_KeyIndexNTableFiles", magmaStats->KeyStats.NTableFiles);
+
     fill("magma_SeqIndex_IndexBlockSize",
          magmaStats->SeqStats.TotalIndexBlocksSize);
     fill("magma_WriteCacheMemUsed", magmaStats->WriteCacheMemUsed);

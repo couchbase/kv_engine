@@ -668,6 +668,62 @@ TEST_P(CollectionsEraserTest, MB_38313) {
                 "Compact DB file 0"); // would fault (gsl exception)
 }
 
+// Test reproduces an issue seen in MB-50747 where MagmaKVStore skipped updating
+// the item count when the dairy collection drops
+TEST_P(CollectionsEraserTest, MB_50747_ItemCountOvercount) {
+    // Ephemeral doesn't have comparable compaction so not valid to test here
+    if (!persistent()) {
+        return;
+    }
+
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto* kvStore = store->getRWUnderlying(vbid);
+    EXPECT_EQ(1, kvStore->getItemCount(vbid));
+
+    // Do one SyncWrite and one normal
+    auto key = StoredDocKey{"butter1", CollectionEntry::dairy};
+    auto item = makePendingItem(key, "nice");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+    store_item(vbid, StoredDocKey{"butter2", CollectionEntry::dairy}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Magma doesn't count prepares
+    size_t prepareCount = isMagma() ? 0 : 1;
+
+    // system event + key
+    EXPECT_EQ(2 + prepareCount, kvStore->getItemCount(vbid));
+
+    // This will reproduce the conditions when magma is the backend. Both keys
+    // will end up in the same sstable and compaction would purge both keys
+    // from the prepare namespace purge, meaning the explicit purge of dairy
+    // skipped an item count update
+    runCompaction(vbid);
+
+    if (isMagma()) {
+        std::array<std::string_view, 1> keys = {{"magma_KeyIndexNTableFiles"}};
+        auto storeStats = kvStore->getStats(keys);
+        ASSERT_EQ(1, storeStats.count("magma_KeyIndexNTableFiles"));
+        EXPECT_EQ(1, storeStats["magma_KeyIndexNTableFiles"]);
+    }
+
+    // Drop the collection
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
+
+    runCollectionsEraser(vbid);
+
+    // Item count should now be zero
+    EXPECT_EQ(0, kvStore->getItemCount(vbid));
+}
+
 TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
     // Ephemeral doesn't have comparable compaction so not valid to test here
     if (!persistent()) {

@@ -634,7 +634,8 @@ protected:
         MagmaCompactionCB(
                 MagmaKVStore& magmaKVStore,
                 Vbid vbid,
-                std::shared_ptr<CompactionContext> compactionContext = nullptr);
+                std::shared_ptr<CompactionContext> compactionContext = nullptr,
+                std::optional<CollectionID> cid = std::nullopt);
 
         ~MagmaCompactionCB() override;
         bool operator()(const magma::Slice& keySlice,
@@ -653,6 +654,11 @@ protected:
          * @param delta to add
          */
         void processCollectionPurgeDelta(CollectionID cid, int64_t delta);
+
+        /**
+         * @return true if this collection can be purged
+         */
+        bool canPurge(CollectionID collection);
 
         /**
          * Vbucket being compacted - required so that we can work out which
@@ -677,6 +683,11 @@ protected:
          * Stats updates made during compaction
          */
         MagmaDbStats magmaDbStats;
+
+        /**
+         * Optionally only collection-purge items from this collection
+         */
+        std::optional<CollectionID> onlyThisCollection;
     };
 
     /**
