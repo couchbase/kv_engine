@@ -160,6 +160,9 @@ public:
                                               uint64_t manifestUid) override {
         wrapped->set_unknown_collection_error_context(cookie, manifestUid);
     }
+    bool is_valid_json(CookieIface& cookie, std::string_view view) override {
+        return wrapped->is_valid_json(cookie, view);
+    }
 
 protected:
     ServerCookieIface* wrapped;

@@ -242,4 +242,8 @@ struct ServerCookieIface {
      */
     virtual void set_unknown_collection_error_context(CookieIface& cookie,
                                                       uint64_t manifestUid) = 0;
+
+    /// Validate the JSON. This method must NOT be called from a background
+    /// thread as it use the front-end-threads instance for a JSON validator
+    virtual bool is_valid_json(CookieIface& cookie, std::string_view) = 0;
 };

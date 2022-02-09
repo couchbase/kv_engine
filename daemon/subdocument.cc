@@ -612,12 +612,11 @@ static bool operate_single_doc(SubdocCmdContext& context,
                     if (op.traits.scope == CommandScope::WholeDoc) {
                         // the entire document has been replaced as part of a
                         // wholedoc op update the datatype to match
-                        JSON_checker::Validator validator;
-                        bool isValidJson = validator.validate(current.view);
 
                         // don't alter context.in_datatype directly here in case
                         // we are in xattrs phase
-                        if (isValidJson) {
+                        if (context.connection.getThread().isValidJson(
+                                    context.cookie, current.view)) {
                             doc_datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
                         } else {
                             doc_datatype &= ~PROTOCOL_BINARY_DATATYPE_JSON;

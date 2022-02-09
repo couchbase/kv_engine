@@ -12,6 +12,9 @@
 #include "mock_server.h"
 #include "daemon/doc_pre_expiry.h"
 #include "mock_cookie.h"
+
+#include <JSON_checker.h>
+#include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
 #include <memcached/engine.h>
@@ -23,15 +26,13 @@
 #include <utilities/engine_errc_2_mcbp.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
-
-#include <gsl/gsl-lite.hpp>
 #include <array>
 #include <atomic>
 #include <cstring>
 #include <ctime>
 #include <list>
-#include <queue>
 #include <mutex>
+#include <queue>
 
 #define REALTIME_MAXDELTA 60*60*24*3
 
@@ -335,6 +336,11 @@ struct MockServerCookieApi : public ServerCookieIface {
 
     void scheduleDcpStep(const CookieIface& cookie) override {
         notify_io_complete(cookie, cb::engine_errc::success);
+    }
+
+    bool is_valid_json(CookieIface&, std::string_view view) override {
+        JSON_checker::Validator validator;
+        return validator.validate(view);
     }
 };
 

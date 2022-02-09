@@ -72,11 +72,16 @@ struct FrontEndThread {
      */
     Subdoc::Operation subdoc_op;
 
-    /**
-     * Shared validator used by all connections serviced by this thread
-     * when they need to validate a JSON document
-     */
-    JSON_checker::Validator validator;
+    /// Check to see if the data in view is valid JSON and update
+    /// the bucket histogram (and cookie trace scope) with time spent
+    /// for JSON validation
+    bool isValidJson(Cookie& cookie, std::string_view view);
+
+    bool isValidJson(Cookie& cookie, cb::const_byte_buffer view) {
+        return isValidJson(
+                cookie,
+                {reinterpret_cast<const char*>(view.data()), view.size()});
+    }
 
     /// Is the thread running or not
     std::atomic_bool running{false};
@@ -131,6 +136,10 @@ protected:
     protected:
         folly::Synchronized<std::vector<Entry>, std::mutex> connections;
     } new_conn_queue;
+
+    /// Shared validator used by all connections serviced by this thread
+    /// when they need to validate a JSON document
+    JSON_checker::Validator validator;
 };
 
 class Hdr1sfMicroSecHistogram;

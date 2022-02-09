@@ -59,17 +59,9 @@ void SteppableCommandContext::drive() {
 void SteppableCommandContext::setDatatypeJSONFromValue(
         const cb::const_byte_buffer& value,
         protocol_binary_datatype_t& datatype) {
-    // Record how long JSON checking takes to both Tracer and bucket-level
-    // histogram.
-    using namespace cb::tracing;
-    ScopeTimer<HdrMicroSecStopwatch, SpanStopwatch> timer(
-            std::forward_as_tuple(
-                    cookie.getConnection().getBucket().jsonValidateTimes),
-            std::forward_as_tuple(cookie, Code::JsonValidate));
-
     // Determine if document is JSON or not. We do not trust what the client
     // sent - instead we check for ourselves.
-    if (connection.getThread().validator.validate(value.data(), value.size())) {
+    if (connection.getThread().isValidJson(cookie, value)) {
         datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
     } else {
         datatype &= ~PROTOCOL_BINARY_DATATYPE_JSON;

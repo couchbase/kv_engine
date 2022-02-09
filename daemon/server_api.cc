@@ -193,6 +193,12 @@ struct ServerCookieApi : public ServerCookieIface {
                                               uint64_t manifestUid) override {
         getCookie(cookie).setUnknownCollectionErrorContext(manifestUid);
     }
+
+    bool is_valid_json(CookieIface& cookieIface,
+                       std::string_view view) override {
+        auto& cookie = getCookie(cookieIface);
+        return cookie.getConnection().getThread().isValidJson(cookie, view);
+    }
 };
 
 class ServerApiImpl : public ServerApi {

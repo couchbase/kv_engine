@@ -47,7 +47,6 @@
 #include "warmup.h"
 #include <executor/executorpool.h>
 
-#include <JSON_checker.h>
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
@@ -5666,8 +5665,9 @@ protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
             body = cb::xattr::get_body(body);
         }
 
-        if (checkUTF8JSON(reinterpret_cast<const uint8_t*>(body.data()),
-                          body.size())) {
+        NonBucketAllocationGuard guard;
+        if (serverApi->cookie->is_valid_json(*const_cast<CookieIface*>(cookie),
+                                             body)) {
             datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
         }
     }

@@ -120,6 +120,10 @@ public:
         throw std::runtime_error(
                 "set_unknown_collection_error_context not implemented");
     }
+    bool is_valid_json(CookieIface&, std::string_view) override {
+        throw std::runtime_error(
+                "set_unknown_collection_error_context not implemented");
+    }
 };
 
 class AuditDaemonTest
