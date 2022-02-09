@@ -246,7 +246,13 @@ protected:
         void initialise(const char* raw) {
             operation = Operation(raw[0]);
             uint64_t buf;
-            std::memcpy(&buf, &raw[1], sizeof(cb::uint48_t));
+            if (folly::kIsLittleEndian) {
+                std::memcpy(&buf, &raw[1], sizeof(cb::uint48_t));
+            } else {
+                std::memcpy(reinterpret_cast<uint8_t*>(&buf) + 2,
+                            &raw[1],
+                            sizeof(cb::uint48_t));
+            }
             details.raw = cb::uint48_t(buf).ntoh();
         };
 
