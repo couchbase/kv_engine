@@ -38,6 +38,7 @@
 #include <phosphor/phosphor.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
+#include <platform/strerror.h>
 
 #include <spdlog/common.h>
 #include <charconv>

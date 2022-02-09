@@ -23,12 +23,13 @@
 #include <folly/Synchronized.h>
 #include <libcouchstore/couch_db.h>
 #include <platform/monotonic.h>
-#include <platform/strerror.h>
 #include <relaxed_atomic.h>
 #include <spdlog/common.h>
 
+#include <deque>
 #include <map>
 #include <memory>
+#include <queue>
 #include <string>
 #include <vector>
 
