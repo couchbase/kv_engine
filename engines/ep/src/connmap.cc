@@ -107,16 +107,6 @@ void ConnMap::initialize() {
 
 ConnMap::~ConnMap() = default;
 
-void ConnMap::notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn) {
-    if (engine.getEpStats().isShutdown) {
-        return;
-    }
-
-    if (conn.get() && conn->isPaused()) {
-        engine.scheduleDcpStep(*conn->getCookie());
-    }
-}
-
 void ConnMap::addVBConnByVBId(ConnHandler& conn, Vbid vbid) {
     connStore->addVBConnByVbid(vbid, conn);
 }

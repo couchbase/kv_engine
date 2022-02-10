@@ -233,12 +233,6 @@ public:
         return multipleStreamRequests == MultipleStreamRequests::Yes;
     }
 
-    /**
-     * Notifies the front-end asynchronously that this paused
-     * connection should be re-considered for work.
-     */
-    void immediatelyNotify();
-
     void setLastReceiveTime(const rel_time_t time) {
         lastReceiveTime = time;
     }

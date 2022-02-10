@@ -67,14 +67,6 @@ public:
      */
     bool vbConnectionExists(ConnHandler* conn, Vbid vbid);
 
-    /**
-     * Notifies the front-end asynchronously that this paused
-     * connection should be re-considered for work.
-     *
-     * @param conn connection to be notified.
-     */
-    void notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn);
-
     EventuallyPersistentEngine& getEngine() {
         return engine;
     }

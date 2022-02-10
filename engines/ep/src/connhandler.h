@@ -360,6 +360,12 @@ public:
         return idleTimeout;
     }
 
+    /**
+     * Notifies the front-end asynchronously that this paused
+     * connection should be re-considered for work.
+     */
+    void scheduleNotify();
+
 protected:
     EventuallyPersistentEngine &engine_;
     EPStats &stats;

@@ -260,7 +260,7 @@ void DcpConnMap::closeStreams(CookieToConnectionMap& map) {
             // The producer may be in EWOULDBLOCK (if it's idle), therefore
             // notify him to ensure the front-end connection can close the TCP
             // connection.
-            producer->immediatelyNotify();
+            producer->scheduleNotify();
         } else {
             auto consumer = std::dynamic_pointer_cast<DcpConsumer>(itr.second);
             if (consumer) {

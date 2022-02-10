@@ -304,12 +304,6 @@ public:
         processBufferedMessagesBatchSize = newValue;
     }
 
-    /**
-     * Notifies the front-end asynchronously that this paused
-     * connection should be re-considered for work.
-     */
-    void scheduleNotify();
-
     void setDisconnect() override;
 
     void setAllowSanitizeValueInDeletion(bool value) {

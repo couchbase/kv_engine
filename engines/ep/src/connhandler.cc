@@ -419,6 +419,15 @@ void ConnHandler::unPause() {
     });
 }
 
+void ConnHandler::scheduleNotify() {
+    if (engine_.getEpStats().isShutdown) {
+        return;
+    }
+    if (isPaused()) {
+        engine_.scheduleDcpStep(*getCookie());
+    }
+}
+
 // Explicit instantition of addStat() used outside of ConnHandler and
 // derived classes - for example from BackfillManager::addStats().
 template void ConnHandler::addStat<std::string>(const char *nm,

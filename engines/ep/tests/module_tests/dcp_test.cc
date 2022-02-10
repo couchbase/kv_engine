@@ -2312,13 +2312,13 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify) {
     ASSERT_TRUE(notifyTest.producer->isPaused());
 
     // 1. notify the producer
-    notifyTest.producer->immediatelyNotify();
+    notifyTest.producer->scheduleNotify();
 
     // 2 One callback should've occurred
     EXPECT_EQ(1, notifyTest.getCallbacks());
 
     // notify the producer again
-    notifyTest.producer->immediatelyNotify();
+    notifyTest.producer->scheduleNotify();
 
     // 5. There should've been 2 callbacks
     EXPECT_EQ(2, notifyTest.getCallbacks());
@@ -2351,7 +2351,7 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
 
     // 2. notify the connection - as the connection is not paused
     // this should *not* invoke notifyIOComplete.
-    notifyTest.producer->immediatelyNotify();
+    notifyTest.producer->scheduleNotify();
 
     // 3.1 Should have not had any callbacks.
     EXPECT_EQ(0, notifyTest.getCallbacks());
@@ -2362,7 +2362,7 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
 
     // 4. notify the connection - as connection is
     //    //    paused this time we *should* get a callback.
-    notifyTest.producer->immediatelyNotify();
+    notifyTest.producer->scheduleNotify();
     EXPECT_EQ(1, notifyTest.getCallbacks());
 }
 

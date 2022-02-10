@@ -125,7 +125,7 @@ void DcpProducer::BufferLog::unpauseIfSpaceAvailable() {
         }
     }
     // notify the producer outside of the buffer lock
-    producer.immediatelyNotify();
+    producer.scheduleNotify();
 }
 
 void DcpProducer::BufferLog::acknowledge(size_t bytes) {
@@ -144,7 +144,7 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
                     ackedBytes,
                     uint64_t(bytesOutstanding),
                     uint64_t(maxBytes));
-            producer.immediatelyNotify();
+            producer.scheduleNotify();
         }
     }
 }
@@ -1827,10 +1827,6 @@ void DcpProducer::notifyStreamReady(Vbid vbucket) {
         // Transitioned from empty to non-empty readyQ - unpause the Producer.
         log.unpauseIfSpaceAvailable();
     }
-}
-
-void DcpProducer::immediatelyNotify() {
-    engine_.getDcpConnMap().notifyPausedConnection(shared_from_this());
 }
 
 cb::engine_errc DcpProducer::maybeDisconnect() {

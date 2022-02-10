@@ -1718,10 +1718,6 @@ std::shared_ptr<PassiveStream> DcpConsumer::findStream(Vbid vbid) {
     }
 }
 
-void DcpConsumer::scheduleNotify() {
-    engine_.getDcpConnMap().notifyPausedConnection(shared_from_this());
-}
-
 cb::engine_errc DcpConsumer::systemEvent(uint32_t opaque,
                                          Vbid vbucket,
                                          mcbp::systemevent::id event,

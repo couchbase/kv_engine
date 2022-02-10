@@ -227,7 +227,7 @@ TEST_P(DcpStreamSyncReplTest, PendingNotificationWithSyncReplication) {
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
     // Verify number of io notification calls for the producer
-    producer->immediatelyNotify();
+    producer->scheduleNotify();
     EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(producerCookie));
 
     // Store our doc
