@@ -432,6 +432,13 @@ TEST_P(StatsTest, TestUnprivilegedConnections) {
 
     // Verify that total_recv is updated
     EXPECT_LT(total_recv, stats.front()["total_recv"].get<uint64_t>());
+
+#ifdef __linux__
+    EXPECT_EQ(0, stats.front()["SIOCINQ"]);
+    EXPECT_EQ(0, stats.front()["SIOCOUTQ"]);
+    EXPECT_NE(0, stats.front()["SNDBUF"]);
+    EXPECT_NE(0, stats.front()["RCVBUF"]);
+#endif
 }
 
 TEST_P(StatsTest, TestConnectionsInvalidNumber) {

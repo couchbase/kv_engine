@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -49,6 +48,14 @@
 #include <utilities/logtags.h>
 
 #include <exception>
+
+#ifdef __linux__
+#include <linux/sockios.h>
+#include <netinet/in.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#endif
+
 #ifndef WIN32
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
@@ -215,6 +222,32 @@ nlohmann::json Connection::toJSON() const {
     ret["sendqueue"]["size"] = sendQueueInfo.size;
     ret["sendqueue"]["last"] = sendQueueInfo.last.time_since_epoch().count();
     ret["sendqueue"]["term"] = sendQueueInfo.term;
+
+#ifdef __linux__
+    int value;
+    if (ioctl(socketDescriptor, SIOCINQ, &value) == 0) {
+        ret["SIOCINQ"] = value;
+    }
+    if (ioctl(socketDescriptor, SIOCOUTQ, &value) == 0) {
+        ret["SIOCOUTQ"] = value;
+    }
+    socklen_t intsize = sizeof(int);
+    int iobufsize;
+    if (cb::net::getsockopt(socketDescriptor,
+                            SOL_SOCKET,
+                            SO_SNDBUF,
+                            reinterpret_cast<void*>(&iobufsize),
+                            &intsize) == 0) {
+        ret["SNDBUF"] = iobufsize;
+    }
+    if (cb::net::getsockopt(socketDescriptor,
+                            SOL_SOCKET,
+                            SO_RCVBUF,
+                            reinterpret_cast<void*>(&iobufsize),
+                            &intsize) == 0) {
+        ret["RCVBUF"] = iobufsize;
+    }
+#endif
 
     return ret;
 }
