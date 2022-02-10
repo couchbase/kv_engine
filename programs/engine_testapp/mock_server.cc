@@ -13,8 +13,8 @@
 #include "daemon/doc_pre_expiry.h"
 #include "mock_cookie.h"
 
-#include <JSON_checker.h>
 #include <gsl/gsl-lite.hpp>
+#include <json/syntax_validator.h>
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
 #include <memcached/engine.h>
@@ -339,8 +339,8 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     bool is_valid_json(CookieIface&, std::string_view view) override {
-        JSON_checker::Validator validator;
-        return validator.validate(view);
+        auto validator = cb::json::SyntaxValidator::New();
+        return validator->validate(view);
     }
 };
 

@@ -8,7 +8,7 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include <JSON_checker.h>
+#include <json/syntax_validator.h>
 #include <memcached/protocol_binary.h>
 #include <xattr/blob.h>
 #include <xattr/key_validator.h>
@@ -36,6 +36,10 @@ static std::string_view trim_string(std::string_view blob) {
 }
 
 bool validate(std::string_view blob) {
+    return validate(*cb::json::SyntaxValidator::New(), blob);
+}
+
+bool validate(cb::json::SyntaxValidator& validator, std::string_view blob) {
     if (blob.size() < 4) {
         // we must have room for the length field
         return false;
@@ -58,7 +62,6 @@ bool validate(std::string_view blob) {
 
         // @todo fix the hash thing so I can use the keybuf directly
         std::unordered_set<std::string> keys;
-        JSON_checker::Validator validator;
 
         // Iterate over all of the KV pairs
         while (offset < size) {

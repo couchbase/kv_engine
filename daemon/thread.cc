@@ -21,6 +21,7 @@
 #include "stats.h"
 #include "tracing.h"
 #include <hdrhistogram/hdrhistogram.h>
+#include <json/syntax_validator.h>
 #include <memcached/tracer.h>
 #include <openssl/conf.h>
 #include <phosphor/phosphor.h>
@@ -28,7 +29,7 @@
 #include <platform/scope_timer.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
-
+#include <xattr/utils.h>
 #include <atomic>
 #include <condition_variable>
 #include <cstdlib>
@@ -210,6 +211,11 @@ void FrontEndThread::dispatch(SOCKET sfd,
     }
 }
 
+FrontEndThread::FrontEndThread() : validator(cb::json::SyntaxValidator::New()) {
+}
+
+FrontEndThread::~FrontEndThread() = default;
+
 bool FrontEndThread::isValidJson(Cookie& cookie, std::string_view view) {
     // Record how long JSON checking takes to both Tracer and bucket-level
     // histogram.
@@ -218,7 +224,11 @@ bool FrontEndThread::isValidJson(Cookie& cookie, std::string_view view) {
             std::forward_as_tuple(
                     cookie.getConnection().getBucket().jsonValidateTimes),
             std::forward_as_tuple(cookie, Code::JsonValidate));
-    return validator.validate(view);
+    return validator->validate(view);
+}
+
+bool FrontEndThread::isXattrBlobValid(std::string_view view) {
+    return cb::xattr::validate(*validator, view);
 }
 
 /******************************* GLOBAL STATS ******************************/
@@ -289,5 +299,3 @@ void threads_shutdown() {
     }
     threads.clear();
 }
-
-FrontEndThread::~FrontEndThread() = default;

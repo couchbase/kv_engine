@@ -15,6 +15,7 @@ target_link_libraries(mock_server INTERFACE
                       mcd_util
                       platform
                       hdrhistogram
+                      json_validator
                       xattr
                       ${MALLOC_LIBRARIES})
 

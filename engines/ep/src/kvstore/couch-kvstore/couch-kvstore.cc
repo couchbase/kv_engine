@@ -30,7 +30,6 @@
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
 
-#include <JSON_checker.h>
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/isotime.h>

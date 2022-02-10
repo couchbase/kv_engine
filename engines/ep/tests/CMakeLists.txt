@@ -143,7 +143,6 @@ target_link_libraries(ep-engine_ep_unit_tests PRIVATE
         mcd_executor
         GTest::gtest
         GTest::gmock
-        JSON_checker
         hdrhistogram
         memcached_logger
         mcbp

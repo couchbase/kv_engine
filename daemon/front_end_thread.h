@@ -12,7 +12,6 @@
 #pragma once
 
 #include "ssl_utils.h"
-#include <JSON_checker.h>
 #include <folly/Synchronized.h>
 #include <folly/io/async/EventBase.h>
 #include <memcached/engine_error.h>
@@ -28,17 +27,17 @@
 #include <unordered_map>
 #include <vector>
 
+namespace cb::json {
+class SyntaxValidator;
+}
+
 class Cookie;
 class Connection;
 class ListeningPort;
 struct thread_stats;
 
 struct FrontEndThread {
-    /**
-     * Destructor.
-     *
-     * Close the notification pipe (if open)
-     */
+    FrontEndThread();
     ~FrontEndThread();
 
     /// unique ID of this thread
@@ -82,6 +81,9 @@ struct FrontEndThread {
                 cookie,
                 {reinterpret_cast<const char*>(view.data()), view.size()});
     }
+
+    /// Use the JSON SyntaxValidator to validate the XATTR blob
+    bool isXattrBlobValid(std::string_view view);
 
     /// Is the thread running or not
     std::atomic_bool running{false};
@@ -139,7 +141,7 @@ protected:
 
     /// Shared validator used by all connections serviced by this thread
     /// when they need to validate a JSON document
-    JSON_checker::Validator validator;
+    std::unique_ptr<cb::json::SyntaxValidator> validator;
 };
 
 class Hdr1sfMicroSecHistogram;

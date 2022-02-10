@@ -128,7 +128,7 @@ public:
      */
     Hdr1sfMicroSecHistogram subjson_operation_times;
 
-    /// JSON_checker validate() execution time histogram.
+    /// JSON validation time histogram.
     Hdr1sfMicroSecHistogram jsonValidateTimes;
 
     /// Snappy decompression time histogram.

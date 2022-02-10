@@ -225,7 +225,7 @@ target_link_libraries(memcached_daemon
                       engine_utilities
                       gsl::gsl-lite
                       platform_cb_malloc_arena
-                      JSON_checker
+                      json_validator
                       memcached_rbac
                       phosphor
                       xattr

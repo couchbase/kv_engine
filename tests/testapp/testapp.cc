@@ -10,7 +10,6 @@
 #include "testapp.h"
 #include "testapp_binprot.h"
 
-#include <JSON_checker.h>
 #include <boost/filesystem.hpp>
 #include <cbsasl/client.h>
 #include <folly/portability/GTest.h>
@@ -18,8 +17,9 @@
 #include <folly/portability/SysTypes.h>
 #include <getopt.h>
 #include <gsl/gsl-lite.hpp>
-#include <include/memcached/protocol_binary.h>
+#include <json/syntax_validator.h>
 #include <mcbp/protocol/framebuilder.h>
+#include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <platform/backtrace.h>
 #include <platform/cb_malloc.h>
@@ -322,8 +322,8 @@ void TestappTest::setClientCertData(MemcachedConnection& connection,
 }
 
 bool TestappTest::isJSON(std::string_view value) {
-    JSON_checker::Validator validator;
-    return validator.validate(value);
+    auto validator = cb::json::SyntaxValidator::New();
+    return validator->validate(value);
 }
 
 // per test setup function.

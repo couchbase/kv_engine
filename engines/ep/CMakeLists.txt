@@ -107,7 +107,6 @@ cb_add_test_executable(kvstore_gen tools/kvstore_gen.cc
 kv_enable_pch(kvstore_gen)
 
 target_link_libraries(kvstore_gen PRIVATE
-        JSON_checker
         cbcompress
         engine_utilities
         ep-engine_collections
@@ -443,7 +442,6 @@ target_link_libraries(ep
         PRIVATE
                 ${EP_STORAGE_LIBS}
                 ${LIBEVENT_LIBRARIES}
-                JSON_checker
                 cbcompress
                 hdrhistogram
                 engine_utilities
@@ -473,7 +471,6 @@ function(add_ep_testsuite name source)
   target_link_libraries(${name}
     PRIVATE
         ${LIBEVENT_LIBRARIES}
-        JSON_checker
         cbcompress
         engine_testapp_dependencies
         engine_utilities
@@ -557,7 +554,6 @@ TARGET_LINK_LIBRARIES(ep_engine_benchmarks
                 mcd_executor
                 GTest::gtest
                 GTest::gmock
-                JSON_checker
                 mcbp
                 mcd_util
                 mcd_time
@@ -587,7 +583,6 @@ target_link_libraries(ep-engine_sizes
         PRIVATE
                 ${EP_STORAGE_LIBS}
                 ${LIBEVENT_LIBRARIES}
-                JSON_checker
                 cbcompress
                 engine_utilities
                 ep-engine_collections

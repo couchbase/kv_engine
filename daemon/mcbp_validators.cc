@@ -14,6 +14,7 @@
 #include "connection.h"
 #include "cookie.h"
 #include "enginemap.h"
+#include "front_end_thread.h"
 #include "memcached.h"
 #include "network_interface_description.h"
 #include "subdocument_validators.h"
@@ -38,7 +39,9 @@ static bool is_valid_xattr_blob(Cookie& cookie,
         // no xattr segment
         return true;
     }
-    return cb::xattr::validate(cookie.getInflatedInputPayload());
+
+    return cookie.getConnection().getThread().isXattrBlobValid(
+            cookie.getInflatedInputPayload());
 }
 
 bool is_document_key_valid(Cookie& cookie) {

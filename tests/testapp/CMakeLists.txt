@@ -88,6 +88,7 @@ target_link_libraries(memcached_testapp PRIVATE
     mcd_util
     mc_client_connection
     cbsasl
+    json_validator
     platform
     platform_cb_malloc_arena
     GTest::gtest

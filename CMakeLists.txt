@@ -166,6 +166,7 @@ function(kv_enable_pch target)
     endif()
 endfunction()
 
+add_subdirectory(json)
 ADD_SUBDIRECTORY(etc)
 ADD_SUBDIRECTORY(auditd)
 ADD_SUBDIRECTORY(cbcrypto)

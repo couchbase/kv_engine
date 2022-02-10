@@ -14,6 +14,11 @@
 #include <unordered_map>
 
 namespace cb {
+
+namespace json {
+class SyntaxValidator;
+}
+
 /**
  * The XATTR support in Couchbase is implemented in the core by storing them
  * together with the actual data. Their presence is flagged by setting the
@@ -33,7 +38,11 @@ namespace xattr {
  *              that it is safe to use the rest of the methods in
  *              cb::xattr to access them
  */
+bool validate(cb::json::SyntaxValidator& validator, std::string_view blob);
+
+/// Same as the above but a new syntax validator gets created every time
 bool validate(std::string_view blob);
+
 
 /**
  * Get the offset of the body into the specified payload
