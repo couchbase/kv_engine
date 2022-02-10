@@ -124,8 +124,7 @@ void DcpProducer::BufferLog::unpauseIfSpaceAvailable() {
             return;
         }
     }
-    // notify the producer outside of the buffer lock - avoids possible
-    // lock order inversion as notification takes the connmap releaseLock
+    // notify the producer outside of the buffer lock
     producer.immediatelyNotify();
 }
 

@@ -80,12 +80,6 @@ public:
     }
 
 protected:
-    // Synchronises notifying and releasing connections.
-    // When we call Connection::release() memcached can free up the connection
-    // at any time, so we need to ensure that we notify only valid connections
-    // when we call back into memcached by notify_io_complete(cookie).
-    std::mutex releaseLock;
-
     /* Handle to the engine who owns us */
     EventuallyPersistentEngine &engine;
 

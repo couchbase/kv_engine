@@ -373,23 +373,12 @@ void DcpConnMap::manageConnections() {
         }
     }
 
-    {
-        TRACE_LOCKGUARD_TIMED(releaseLock,
-                              "mutex",
-                              "DcpConnMap::manageConnections::releaseLock",
-                              SlowMutexThreshold);
-
-        for (auto& it : toNotify) {
-            if (it.get()) {
-                engine.scheduleDcpStep(*it->getCookie());
-            }
+    for (auto& it : toNotify) {
+        if (it.get()) {
+            engine.scheduleDcpStep(*it->getCookie());
         }
     }
 
-    // calling removeVBConnections on dead producers does not interact with
-    // the associated connection, and the cookie/connection will not be released
-    // until the DcpProducer is destroyed - no need to do this step under
-    // the releaseLock.
     while (!release.empty()) {
         auto conn = release.front();
         release.pop_front();

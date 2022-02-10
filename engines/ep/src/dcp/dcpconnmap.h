@@ -162,8 +162,6 @@ protected:
     //
     // Synchonises access to the {map_} members, i.e. adding
     // removing connections.
-    // Actual modification of the underlying
-    // ConnHandler objects is guarded by {releaseLock}.
     std::mutex connsLock;
 
     /*
