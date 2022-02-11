@@ -693,9 +693,13 @@ FollyExecutorPool::~FollyExecutorPool() {
     // call reset() and set ptr to null before all IO threads have stopped.
     // Instead we must explicitly stop all IO threads, then reset()
     // the futurePool.
+    nonIoPool->join();
     nonIoPool.reset();
+    auxPool->join();
     auxPool.reset();
+    writerPool->join();
     writerPool.reset();
+    readerPool->join();
     readerPool.reset();
 
     auto* eventBase = futurePool->getEventBase();
