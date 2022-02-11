@@ -181,7 +181,7 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
         });
     }
 
-    void resetTaskPtrViaCpuPool(std::atomic<int>& pendingTaskResets) {
+    void resetTaskPtr() {
         using namespace std::chrono;
 
         LOG_TRACE(
@@ -192,27 +192,14 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
                 GlobalTask::getTaskName(task->getTaskId()),
                 task->getDescription());
 
-        // Move `task` from this object (leaving it as null)
-        cpuPool.add([ptrToReset = std::move(task),
-                     &pendingTaskResets]() mutable {
-            LOG_TRACE(
-                    "FollyExecutorPool::TaskProxy::resetTaskPtrViaCpuPool "
-                    "lambda() id:{} name:{} state:{}",
-                    ptrToReset->getId(),
-                    GlobalTask::getTaskName(ptrToReset->getTaskId()),
-                    to_string(ptrToReset->getState()));
-
-            // Reset the shared_ptr, decrementing it's refcount and potentially
-            // deleting the owned object if no other objects (Engine etc) have
-            // retained a refcount.
-            // Must account this to the relevent bucket.
-            {
-                BucketAllocationGuard guard(ptrToReset->getEngine());
-                ptrToReset.reset();
-                // Task has been reset; decrement count of pendingTaskResets.
-                pendingTaskResets--;
-            }
-        });
+        // Reset the shared_ptr, decrementing it's refcount and potentially
+        // deleting the owned object if no other objects (Engine etc) have
+        // retained a refcount.
+        // Must account this to the relevent bucket.
+        {
+            BucketAllocationGuard guard(task->getEngine());
+            task.reset();
+        }
     }
 
     /**
@@ -252,10 +239,9 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
 
         if (!task) {
             // Task has been cancelled ('task' shared ptr reset to
-            // null via resetTaskPtrViaCpuPool), but TaskProxy not yet
-            // been cleaned up) - i.e. a wake and cancel have raced.
-            // Cannot wake (until GlobalTask is re-scheduled) -
-            // return.
+            // null via resetTaskPtr), but TaskProxy not yet been cleaned up)
+            // - i.e. a wake and cancel have raced. Cannot wake (until
+            // GlobalTask is re-scheduled) - return.
             return;
         }
 
@@ -333,10 +319,6 @@ struct TaskOwner {
 
     /// Map of taskID to TaskProxy.
     TaskLocator locator;
-
-    /// Number of tasks which are pending reset (on the relevent CPU pool),
-    /// used to determine when it is safe for unregisterTaskable() to complete.
-    std::atomic<int> pendingTaskResets{0};
 };
 
 /// Map of task owners (buckets) to the tasks they own.
@@ -460,10 +442,10 @@ struct FollyExecutorPool::State {
                 auto& proxy = it->second;
                 if (!proxy->task) {
                     // Task has been cancelled ('task' shared ptr reset to
-                    // null via resetTaskPtrViaCpuPool), but TaskProxy not yet
-                    // been cleaned up) - i.e. a snooze and cancel have raced.
-                    // Treat as if cancellation has completed and task no
-                    // longer present.
+                    // null via resetTaskPtr), but TaskProxy not yet been
+                    // cleaned up) - i.e. a snooze and cancel have raced. Treat
+                    // as if cancellation has completed and task no longer
+                    // present.
                     return false;
                 }
                 proxy->task->snooze(toSleep);
@@ -543,8 +525,7 @@ struct FollyExecutorPool::State {
                 // reference (shared ownership) to the owned GlobalTask and
                 // delete the TaskProxy from  taskOwners.  Decrementing our
                 // refcount could delete the GlobalTask (if we are the last
-                // owner). This must occur on a CPU thread given GlobalTask
-                // destruction can be an arbitrary amount of work.
+                // owner).
                 if (it->second->scheduledOnCpuPool) {
                     // Task is currently scheduled on CPU pool - TaskProxy is
                     // in use by CPU thread.  Given we just called cancel() on
@@ -558,17 +539,10 @@ struct FollyExecutorPool::State {
                 // First cancel any pending timeout - shouldn't run again.
                 it->second->cancelTimeout();
 
-                // Increment count of tasks which are pending reset;
-                // we must wait for this to be zero (i.e. the reset has
-                // executed on the CPU pool) before a Taskable can
-                // be considered unregistered.
-                tasks.pendingTaskResets++;
-
-                // Next, to perform refcount drop on CPU thread, we move the
-                // shared_ptr<GlobalTask> from TaskProxy, then pass the moved
-                // shared_ptr to CPU pool to perform refcount decrement
-                // (and potential GlobalTask deletion).
-                it->second->resetTaskPtrViaCpuPool(tasks.pendingTaskResets);
+                // Next, to perform refcount drop, we reset the
+                // shared_ptr<GlobalTask> from TaskProxy to perform refcount
+                // decrement (and potential GlobalTask deletion).
+                it->second->resetTaskPtr();
 
                 // We can now erase the TaxkProxy from taskOwners.
                 tasks.locator.erase(it);
@@ -584,12 +558,11 @@ struct FollyExecutorPool::State {
     }
 
     /**
-     * Returns the number of tasks owned by the specified taskable, plus
-     * any pending reset after being cancelled.
+     * Returns the number of tasks owned by the specified taskable
      */
     int numTasksForOwner(const Taskable& taskable) {
         auto& owner = taskOwners.at(&taskable);
-        return owner.locator.size() + owner.pendingTaskResets;
+        return owner.locator.size();
     };
 
     /**
@@ -1119,10 +1092,9 @@ void FollyExecutorPool::rescheduleTaskAfterRun(TaskProxy& proxy) {
         proxy.cancelTimeout();
 
         // Begin process of cancelling the task - mark as cancelled in
-        // taskOwners and schedule another CPU thread pool function to decrement
-        // the refcount and potentially delete the GlobalTask.
+        // taskOwners, decrement the refcount and potentially delete the
+        // GlobalTask.
         state->cancelTask(proxy.task->getId());
-
         return;
     }
 
