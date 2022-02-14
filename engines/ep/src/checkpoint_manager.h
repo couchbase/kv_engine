@@ -403,13 +403,6 @@ public:
     uint64_t createNewCheckpoint(bool force = false);
 
     /**
-     * Return memory consumption of all the checkpoints managed
-     */
-    size_t getMemoryUsage_UNLOCKED() const;
-
-    size_t getMemoryUsage() const;
-
-    /**
      * @return the memory usage of all the checkpoints managed
      */
     size_t getMemUsage() const;

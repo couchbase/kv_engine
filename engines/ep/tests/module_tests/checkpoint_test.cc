@@ -2142,8 +2142,7 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
      */
 
     // Get the memory usage before expelling
-    const auto checkpointMemoryUsageBeforeExpel =
-            this->manager->getMemoryUsage();
+    const auto memUsageBeforeExpel = manager->getMemUsage();
 
     const auto expelResult = manager->expelUnreferencedCheckpointItems();
     EXPECT_EQ(1, expelResult.count);
@@ -2171,7 +2170,7 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
 
     EXPECT_EQ(expectedMemoryRecovered, expelResult.memory);
     EXPECT_EQ(expectedMemoryRecovered,
-              checkpointMemoryUsageBeforeExpel - manager->getMemoryUsage());
+              memUsageBeforeExpel - manager->getMemUsage());
 }
 
 TEST_P(CheckpointTest, testExpelCheckpointItemsMemoryRecoveredMemory) {
@@ -3571,7 +3570,7 @@ TEST_P(CheckpointMemoryTrackingTest, Deduplication) {
     const auto preValueSize = queue.back()->getNBytes();
 
     // Pre-dedup mem state
-    const auto initialTotal = manager.getMemoryUsage();
+    const auto initialTotal = manager.getMemUsage();
     const auto initialQueued = checkpoint.getQueuedItemsMemUsage();
     const auto initialQueueOverhead = checkpoint.getMemOverheadQueue();
     const auto initialIndexOverhead = checkpoint.getMemOverheadIndex();
@@ -3592,7 +3591,7 @@ TEST_P(CheckpointMemoryTrackingTest, Deduplication) {
             CheckpointManagerTestIntrospector::public_getOpenCheckpoint(manager)
                     .getId());
     EXPECT_EQ(10, checkpoint.getNumItems());
-    EXPECT_EQ(initialTotal + preValueSize, manager.getMemoryUsage());
+    EXPECT_EQ(initialTotal + preValueSize, manager.getMemUsage());
     EXPECT_EQ(initialQueued + preValueSize,
               checkpoint.getQueuedItemsMemUsage());
     EXPECT_EQ(initialQueueOverhead, checkpoint.getMemOverheadQueue());

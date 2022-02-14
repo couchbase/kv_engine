@@ -1398,14 +1398,6 @@ uint64_t CheckpointManager::createNewCheckpoint(bool force) {
     return getOpenCheckpointId(lh);
 }
 
-size_t CheckpointManager::getMemoryUsage_UNLOCKED() const {
-    size_t memUsage = 0;
-    for (const auto& checkpoint : checkpointList) {
-        memUsage += checkpoint->getMemUsage();
-    }
-    return memUsage;
-}
-
 size_t CheckpointManager::getMemOverheadAllocatorBytes(
         const std::lock_guard<std::mutex>& lh) const {
     size_t memUsage = 0;
@@ -1413,11 +1405,6 @@ size_t CheckpointManager::getMemOverheadAllocatorBytes(
         memUsage += checkpoint->getMemOverheadAllocatorBytes();
     }
     return memUsage;
-}
-
-size_t CheckpointManager::getMemoryUsage() const {
-    std::lock_guard<std::mutex> lh(queueLock);
-    return getMemoryUsage_UNLOCKED();
 }
 
 size_t CheckpointManager::getMemUsage() const {
@@ -1566,8 +1553,7 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
         }
         checked_snprintf(
                 buf.data(), buf.size(), "vb_%d:mem_usage", vbucketId.get());
-        add_casted_stat(
-                buf.data(), getMemoryUsage_UNLOCKED(), add_stat, cookie);
+        add_casted_stat(buf.data(), memUsage, add_stat, cookie);
 
         for (const auto& cursor : cursors) {
             checked_snprintf(buf.data(),
