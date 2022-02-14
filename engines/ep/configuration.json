@@ -1318,9 +1318,15 @@
             "type": "size_t"
         },
         "magma_mem_quota_ratio": {
-            "default": "0.1",
+            "default": "0.5",
             "dynamic": true,
-            "descr": "Magma total memory ratio of the Bucket Quota across all shards.",
+            "descr": "Magma total memory ratio of the Bucket Quota across all shards and Magma limit's it's memory usage to this value.",
+            "type": "float"
+        },
+        "magma_mem_quota_low_watermark_ratio": {
+            "default": "0.2",
+            "dynamic": false,
+            "descr": "Fraction of memory quota used by magma as it's low water mark. Magma uses this low watermark to size it's write cache and block cache. This sizing includes bloom filters memory usage but bloom filter eviction is based on the memory quota",
             "type": "float"
         },
         "magma_enable_direct_io": {

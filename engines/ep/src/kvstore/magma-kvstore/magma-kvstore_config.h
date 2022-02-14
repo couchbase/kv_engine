@@ -42,6 +42,10 @@ public:
     }
     void setBucketQuota(size_t value);
 
+    float getMagmaMemoryQuotaLowWaterMarkRatio() const {
+        return magmaMemoryQuotaLowWaterMarkRatio;
+    }
+
     size_t getMagmaDeleteMemtableWritecache() const {
         return magmaDeleteMemtableWritecache;
     }
@@ -267,6 +271,12 @@ private:
 
     // Magma Memory Quota as a ratio of Bucket Quota
     std::atomic<float> magmaMemQuotaRatio;
+
+    // This ratio is the fraction of memory quota used as Magma's low watermark.
+    // The low watermark is used to size the writecache and block cache in
+    // magma. This sizing accounts for bloom filter memory usage but bloom
+    // filters are not evicted until the memory quota is reached.
+    float magmaMemoryQuotaLowWaterMarkRatio;
 
     // Magma uses a write ahead log to quickly persist items during bg
     // flushing. This buffer contains the items along with control records

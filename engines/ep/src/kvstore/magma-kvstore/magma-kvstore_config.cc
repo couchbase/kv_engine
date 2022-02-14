@@ -65,6 +65,8 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
                                        uint16_t shardid)
     : KVStoreConfig(config, backend, numShards, shardid) {
     bucketQuota = config.getMaxSize();
+    magmaMemoryQuotaLowWaterMarkRatio =
+            config.getMagmaMemQuotaLowWatermarkRatio();
     magmaDeleteMemtableWritecache = config.getMagmaDeleteMemtableWritecache();
     magmaDeleteFragRatio = config.getMagmaDeleteFragRatio();
     magmaMaxCheckpoints = config.getMagmaMaxCheckpoints();

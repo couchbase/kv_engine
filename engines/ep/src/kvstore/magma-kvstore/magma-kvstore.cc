@@ -593,6 +593,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaBloomFilterAccuracy();
     configuration.magmaCfg.BloomFilterAccuracyForBottomLevel =
             configuration.getMagmaBloomFilterAccuracyForBottomLevel();
+    configuration.magmaCfg.MemoryQuotaLowWaterMarkRatio =
+            configuration.getMagmaMemoryQuotaLowWaterMarkRatio();
 
     configuration.setStore(this);
     {
@@ -3120,10 +3122,12 @@ GetStatsMap MagmaKVStore::getStats(
         }
     };
     fill("memory_quota", magmaStats->MemoryQuota);
-    fill("write_cache_quota", magmaStats->WriteCacheQuota);
     fill("failure_get", st.numGetFailure.load());
     fill("failure_compaction", st.numCompactionFailure.load());
     fill("storage_mem_used", magmaStats->TotalMemUsed);
+    fill("magma_MemoryQuotaLowWaterMark", magmaStats->MemoryQuotaLowWaterMark);
+    fill("magma_BloomFilterMemoryQuota", magmaStats->BloomFilterMemoryQuota);
+    fill("magma_WriteCacheQuota", magmaStats->WriteCacheQuota);
     fill("magma_NCompacts", magmaStats->NCompacts);
     fill("magma_NFlushes", magmaStats->NFlushes);
     fill("magma_NTTLCompacts", magmaStats->NTTLCompacts);

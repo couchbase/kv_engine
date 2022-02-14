@@ -146,7 +146,10 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
 }
 
 TEST_F(MagmaKVStoreTest, getStats) {
-    constexpr std::array<std::string_view, 40> statNames = {{
+    constexpr std::array<std::string_view, 43> statNames = {{
+            "magma_MemoryQuotaLowWaterMark",
+            "magma_BloomFilterMemoryQuota",
+            "magma_WriteCacheQuota",
             "magma_NCompacts",
             "magma_NFlushes",
             "magma_NTTLCompacts",
@@ -202,6 +205,9 @@ TEST_F(MagmaKVStoreTest, getStat) {
     size_t value;
     ASSERT_FALSE(kvstore->getStat("foobar", value));
     ASSERT_TRUE(kvstore->getStat("memory_quota", value));
+    ASSERT_TRUE(kvstore->getStat("magma_MemoryQuotaLowWaterMark", value));
+    ASSERT_TRUE(kvstore->getStat("magma_BloomFilterMemoryQuota", value));
+    ASSERT_TRUE(kvstore->getStat("magma_WriteCacheQuota", value));
 
     ASSERT_TRUE(kvstore->getStat("magma_NSets", value));
     ASSERT_TRUE(kvstore->getStat("magma_NGets", value));
@@ -267,7 +273,7 @@ TEST_F(MagmaKVStoreTest, setMaxDataSize) {
     size_t memQuota;
     ASSERT_TRUE(kvstore->getStat("memory_quota", memQuota));
     size_t writeCacheQuota;
-    ASSERT_TRUE(kvstore->getStat("write_cache_quota", writeCacheQuota));
+    ASSERT_TRUE(kvstore->getStat("magma_WriteCacheQuota", writeCacheQuota));
 
     kvstore->setMaxDataSize(memQuota / 10);
 
@@ -282,7 +288,8 @@ TEST_F(MagmaKVStoreTest, setMaxDataSize) {
     ASSERT_LT(memQuotaAfter, memQuota);
 
     size_t writeCacheQuotaAfter;
-    ASSERT_TRUE(kvstore->getStat("write_cache_quota", writeCacheQuotaAfter));
+    ASSERT_TRUE(
+            kvstore->getStat("magma_WriteCacheQuota", writeCacheQuotaAfter));
     ASSERT_LT(writeCacheQuotaAfter, writeCacheQuota);
 }
 
