@@ -29,6 +29,11 @@ public:
         return checkpointManager.checkpointList.back()->toWrite;
     }
 
+    static Checkpoint& public_getOpenCheckpoint(
+            const CheckpointManager& manager) {
+        return *manager.checkpointList.back();
+    }
+
     static std::vector<std::string> getNonMetaItemKeys(
             const Checkpoint& checkpoint) {
         std::vector<std::string> keys;
@@ -45,6 +50,11 @@ public:
         auto& checkpoint = *checkpointManager.checkpointList.back();
         Expects(checkpoint.getState() == CHECKPOINT_OPEN);
         checkpoint.setCheckpointType(type);
+    }
+
+    static size_t getCheckpointNumIndexEntries(const Checkpoint& checkpoint) {
+        return checkpoint.committedKeyIndex.size() +
+               checkpoint.preparedKeyIndex.size();
     }
 };
 
