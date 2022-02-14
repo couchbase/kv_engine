@@ -289,7 +289,7 @@ int64_t VBucket::getHighCompletedSeqno() const {
 }
 
 size_t VBucket::getChkMgrMemUsage() const {
-    return checkpointManager->getEstimatedMemUsage();
+    return checkpointManager->getMemUsage();
 }
 
 size_t VBucket::getCMQueuedItemsMemUsage() const {

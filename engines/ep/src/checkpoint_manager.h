@@ -410,9 +410,9 @@ public:
     size_t getMemoryUsage() const;
 
     /**
-     * @return the estimated memory usage of all the checkpoints managed
+     * @return the memory usage of all the checkpoints managed
      */
-    size_t getEstimatedMemUsage() const;
+    size_t getMemUsage() const;
 
     /**
      * Return the mem usage of all queued items in all checkpoints
@@ -965,13 +965,13 @@ protected:
     AggregatedFlushStats persistenceFailureStatOvercounts;
 
     /**
-     *  Estimated memory usage of all checkpoints in this CM.
+     *  Memory usage of all checkpoints in this CM.
      *  This accounts for queued items mem-usage and key-index mem-usage.
      *  Updated in-place by all checkpoint operations that affect it.
      *  Used as an optimization for avoiding to scan the full checkpoint-list
      *  for computing the value.
      */
-    cb::AtomicNonNegativeCounter<size_t> estimatedMemUsage{0};
+    cb::AtomicNonNegativeCounter<size_t> memUsage{0};
 
     /**
      * Helper class for local counters that need to reflect their updates on

@@ -3338,8 +3338,7 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     EXPECT_EQ(0, initialIndex);
     EXPECT_EQ(initialQueued + initialQueueOverhead,
               stats.getCheckpointManagerEstimatedMemUsage());
-    EXPECT_EQ(initialQueued + initialQueueOverhead,
-              manager.getEstimatedMemUsage());
+    EXPECT_EQ(initialQueued + initialQueueOverhead, manager.getMemUsage());
 
     size_t itemsAlloc = 0;
     size_t queueAlloc = 0;
@@ -3370,7 +3369,7 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     EXPECT_EQ(initialIndex + keyIndexAlloc, index);
     EXPECT_EQ(queued + index + queueOverhead,
               stats.getCheckpointManagerEstimatedMemUsage());
-    EXPECT_EQ(queued + index + queueOverhead, manager.getEstimatedMemUsage());
+    EXPECT_EQ(queued + index + queueOverhead, manager.getMemUsage());
 }
 
 TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsage) {
@@ -3458,7 +3457,7 @@ TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
     EXPECT_EQ(initialIndex, index);
     EXPECT_EQ(queued + index + queueOverhead,
               engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
-    EXPECT_EQ(queued + index + queueOverhead, manager.getEstimatedMemUsage());
+    EXPECT_EQ(queued + index + queueOverhead, manager.getMemUsage());
 
     EXPECT_GT(manager.getMemFreedByItemExpel(), 0);
     EXPECT_EQ(manager.getMemFreedByItemExpel(),
@@ -3546,7 +3545,7 @@ TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
     EXPECT_EQ(expectedFinalIndexAllocation, index);
     EXPECT_EQ(queued + index + queueOverhead,
               engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
-    EXPECT_EQ(queued + index + queueOverhead, manager.getEstimatedMemUsage());
+    EXPECT_EQ(queued + index + queueOverhead, manager.getMemUsage());
 
     EXPECT_GT(manager.getMemFreedByCheckpointRemoval(), 0);
     EXPECT_EQ(manager.getMemFreedByCheckpointRemoval(),
@@ -3646,7 +3645,7 @@ TEST_P(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
 
     auto& epstats = engine->getEpStats();
 
-    auto initialCMMemUsage = manager.getEstimatedMemUsage();
+    auto initialCMMemUsage = manager.getMemUsage();
     auto initialEPMemUsage = epstats.getCheckpointManagerEstimatedMemUsage();
 
     // the destroyer doesn't own anything yet, so should have no mem usage
@@ -3661,10 +3660,9 @@ TEST_P(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     }
     // as soon as checkpoints are removed, the manager's memory usage should
     // decrease...
-    EXPECT_LT(manager.getEstimatedMemUsage(), initialCMMemUsage);
+    EXPECT_LT(manager.getMemUsage(), initialCMMemUsage);
     // ... and the destroyer task's should increase by the same amount
-    EXPECT_EQ(initialCMMemUsage - manager.getEstimatedMemUsage(),
-              task.getMemoryUsage());
+    EXPECT_EQ(initialCMMemUsage - manager.getMemUsage(), task.getMemoryUsage());
 
     // Also the counter in EPStats accounts only checkpoints owned by CM, so it
     // must be already updated now that checkpoints are owned by the destroyer

@@ -1420,9 +1420,9 @@ size_t CheckpointManager::getMemoryUsage() const {
     return getMemoryUsage_UNLOCKED();
 }
 
-size_t CheckpointManager::getEstimatedMemUsage() const {
+size_t CheckpointManager::getMemUsage() const {
     // Atomic, don't need to acquire the CM lock
-    return estimatedMemUsage;
+    return memUsage;
 }
 
 size_t CheckpointManager::getQueuedItemsMemUsage() const {

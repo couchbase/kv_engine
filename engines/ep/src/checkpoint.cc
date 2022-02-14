@@ -74,9 +74,9 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
       toWrite(queueAllocator),
       committedKeyIndex(keyIndexAllocator),
       preparedKeyIndex(keyIndexAllocator),
-      keyIndexMemUsage(st, &manager.estimatedMemUsage),
-      queuedItemsMemUsage(st, &manager.estimatedMemUsage),
-      queueMemOverhead(st, &manager.estimatedMemUsage),
+      keyIndexMemUsage(st, &manager.memUsage),
+      queuedItemsMemUsage(st, &manager.memUsage),
+      queueMemOverhead(st, &manager.memUsage),
       checkpointType(checkpointType),
       highCompletedSeqno(std::move(highCompletedSeqno)) {
     auto& core = stats.coreLocal.get();

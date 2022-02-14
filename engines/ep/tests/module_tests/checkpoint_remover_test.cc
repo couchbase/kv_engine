@@ -874,7 +874,7 @@ TEST_F(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
     auto& epstats = engine->getEpStats();
 
     auto initialMemUsed = epstats.getCheckpointManagerEstimatedMemUsage();
-    auto initialMemUsedCM = cm.getEstimatedMemUsage();
+    auto initialMemUsedCM = cm.getMemUsage();
 
     // Add items to the initial (open) checkpoint until they exceed the
     // permitted memory usage
@@ -898,8 +898,8 @@ TEST_F(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
     const auto preDetachGlobalMemUsage =
             epstats.getCheckpointManagerEstimatedMemUsage();
     EXPECT_GT(preDetachGlobalMemUsage, initialMemUsed);
-    auto peakMemUsedCM = cm.getEstimatedMemUsage();
-    EXPECT_GT(cm.getEstimatedMemUsage(), initialMemUsedCM);
+    auto peakMemUsedCM = cm.getMemUsage();
+    EXPECT_GT(cm.getMemUsage(), initialMemUsedCM);
 
     const auto& destroyer = getCkptDestroyerTask(vbid);
     // the destroyer doesn't own anything yet, so should have no mem usage
@@ -914,10 +914,9 @@ TEST_F(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
 
     // the checkpoints should have been disassociated from their manager,
     // so the tracked memory usage should have decreased...
-    EXPECT_LE(cm.getEstimatedMemUsage(), initialMemUsedCM);
+    EXPECT_LE(cm.getMemUsage(), initialMemUsedCM);
     // and now the checkpoint mem usage is accounted against the destroyer task
-    EXPECT_EQ(peakMemUsedCM - cm.getEstimatedMemUsage(),
-              destroyer.getMemoryUsage());
+    EXPECT_EQ(peakMemUsedCM - cm.getMemUsage(), destroyer.getMemoryUsage());
     // Also the counter in EPStats accounts only checkpoints owned by CM, so it
     // must be already updated now that checkpoints are owned by the destroyer
     const auto postDetachGlobalMemUsage =
@@ -933,7 +932,7 @@ TEST_F(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
     // change again now
     EXPECT_EQ(postDetachGlobalMemUsage,
               epstats.getCheckpointManagerEstimatedMemUsage());
-    EXPECT_EQ(cm.getEstimatedMemUsage(),
+    EXPECT_EQ(cm.getMemUsage(),
               epstats.getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(0, destroyer.getMemoryUsage());
 }
