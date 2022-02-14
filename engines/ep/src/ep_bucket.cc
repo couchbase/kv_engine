@@ -1290,7 +1290,11 @@ std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
     };
 
     auto& epStats = getEPEngine().getEpStats();
-    ctx->isShuttingDown = [&epStats]() -> bool { return epStats.isShutdown; };
+    ctx->isShuttingDown = [&epStats, &ctxRef = *ctx]() -> bool {
+        // stop compaction if the bucket is shutting down, or the vbucket
+        // is awaiting deferred deletion.
+        return epStats.isShutdown || ctxRef.getVBucket()->isDeletionDeferred();
+    };
     return ctx;
 }
 

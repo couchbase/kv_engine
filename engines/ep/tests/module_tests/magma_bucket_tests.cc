@@ -548,9 +548,10 @@ TEST_P(STParamMagmaBucketTest, MB_47566) {
         auto& lock = vb.getLock();
         compactionGate.threadUp();
         bool result = false;
-        // Ensure that the compaction doesn't throw and completes successfully
+        // Ensure that the compaction doesn't throw
         EXPECT_NO_THROW(result = kvstore->compactDB(lock, ctx));
-        EXPECT_TRUE(result);
+        // rollback reset the vbucket, so the compaction was cancelled mid way
+        EXPECT_FALSE(result);
         // if for some reason the compaction failed and the compaction callback
         // wasn't called ensure we don't hang the main thread by calling
         // threadUp()

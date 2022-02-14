@@ -5677,13 +5677,8 @@ TEST_P(STParamPersistentBucketTest,
     }
 }
 
-TEST_P(STParamPersistentBucketTest, CancelCompaction) {
-    // Nexus only forwards the callback to the primary so this test doesn't
-    // work for it.
-    if (isNexus()) {
-        GTEST_SKIP();
-    }
-
+void STParamPersistentBucketTest::testCancelCompaction(
+        std::function<void()> event) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     // Need two items, one to expire to hit our hook and one to skip with the
@@ -5696,20 +5691,19 @@ TEST_P(STParamPersistentBucketTest, CancelCompaction) {
 
     class ExpiryCb : public Callback<Item&, time_t&> {
     public:
-        explicit ExpiryCb(EPStats& stats) : stats(stats) {
+        explicit ExpiryCb(std::function<void()> cb) : cb(std::move(cb)) {
         }
 
         void callback(Item& item, time_t& time) override {
-            stats.isShutdown = true;
+            cb();
         }
 
-        EPStats& stats;
+        std::function<void()> cb;
     };
 
     dynamic_cast<MockEPBucket*>(store)->mockMakeCompactionContext =
-            [this](std::shared_ptr<CompactionContext> ctx) {
-                auto callback =
-                        std::make_shared<ExpiryCb>(engine->getEpStats());
+            [this, &event](std::shared_ptr<CompactionContext> ctx) {
+                auto callback = std::make_shared<ExpiryCb>(event);
                 ctx->expiryCallback = callback;
                 ctx->timeToExpireFrom = 10;
                 return ctx;
@@ -5727,4 +5721,31 @@ TEST_P(STParamPersistentBucketTest, CancelCompaction) {
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
     EXPECT_EQ(cb::engine_errc::success,
               checkKeyExists(keyToKeep, vbid, options));
+}
+
+TEST_P(STParamPersistentBucketTest, CancelCompactionOnEngineShutdown) {
+    // Nexus only forwards the callback to the primary so this test doesn't
+    // work for it.
+    if (isNexus()) {
+        GTEST_SKIP();
+    }
+    testCancelCompaction(
+            [&stats = engine->getEpStats()] { stats.isShutdown = true; });
+}
+
+TEST_P(STParamPersistentBucketTest, CancelCompactionOnVbucketDelete) {
+    // Nexus only forwards the callback to the primary so this test doesn't
+    // work for it.
+    if (isNexus()) {
+        GTEST_SKIP();
+    }
+    testCancelCompaction([this] {
+        auto vb = store->getVBucket(vbid);
+        if (!vb->isDeletionDeferred()) {
+            vb->setDeferredDeletion(true);
+        }
+    });
+    // for successful test teardown, un-set deferred deletion so the vb
+    // can be deleted normally after the executor pool has gone.
+    store->getVBucket(vbid)->setDeferredDeletion(false);
 }

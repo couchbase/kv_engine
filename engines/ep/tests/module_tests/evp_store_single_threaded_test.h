@@ -734,6 +734,14 @@ protected:
 
     void testFailoverTableEntryPersistedAtWarmup(std::function<void()>);
 
+    /**
+     * Test that a running compaction is cancelled early after `event` runs.
+     *
+     * @param event callback executing behaviour which should trigger
+     *              cancellation (e.g., shut down engine, delete vb).
+     */
+    void testCancelCompaction(std::function<void()> event);
+
 protected:
     EPBucket& getEPBucket();
 };
