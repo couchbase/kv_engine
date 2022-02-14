@@ -555,7 +555,7 @@ CheckpointManager::updateStatsForCheckpointRemoval(
     for (const auto& checkpoint : toRemove) {
         numNonMetaItemsRemoved += checkpoint->getNumItems();
         numMetaItemsRemoved += checkpoint->getNumMetaItems();
-        memoryReleased += checkpoint->getMemConsumption();
+        memoryReleased += checkpoint->getMemUsage();
         checkpoint->detachFromManager();
     }
     numItems.fetch_sub(numNonMetaItemsRemoved + numMetaItemsRemoved);
@@ -1201,7 +1201,7 @@ void CheckpointManager::checkOpenCheckpoint(
     // Note: The condition ensures that we always allow at least 1 non-meta item
     //  in the open checkpoint, regardless of any setting.
     const auto memTrigger =
-            (openCkpt.getMemConsumption() >= vb.getCheckpointMaxSize()) &&
+            (openCkpt.getMemUsage() >= vb.getCheckpointMaxSize()) &&
             (numItems > 0);
 
     if (forceCreation || numItemsTrigger || timeTrigger || memTrigger) {
@@ -1401,7 +1401,7 @@ uint64_t CheckpointManager::createNewCheckpoint(bool force) {
 size_t CheckpointManager::getMemoryUsage_UNLOCKED() const {
     size_t memUsage = 0;
     for (const auto& checkpoint : checkpointList) {
-        memUsage += checkpoint->getMemConsumption();
+        memUsage += checkpoint->getMemUsage();
     }
     return memUsage;
 }
@@ -1440,7 +1440,7 @@ size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() const {
     size_t memUsage = 0;
     for (const auto& checkpoint : checkpointList) {
         if (checkpoint->isNoCursorsInCheckpoint()) {
-            memUsage += checkpoint->getMemConsumption();
+            memUsage += checkpoint->getMemUsage();
         } else {
             break;
         }

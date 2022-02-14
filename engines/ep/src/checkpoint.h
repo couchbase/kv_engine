@@ -478,9 +478,8 @@ public:
      * memory used by all items held in the checkpoint plus the checkpoint
      * overhead.
      */
-    size_t getMemConsumption() const {
-        // @todo MB-48587: Don't mix counters and allocator-bytes
-        return queuedItemsMemUsage + getMemOverheadAllocatorBytes();
+    size_t getMemUsage() const {
+        return queuedItemsMemUsage + getMemOverhead();
     }
 
     /**
