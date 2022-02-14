@@ -1472,21 +1472,14 @@ TYPED_TEST_SUITE(ExecutorPoolEpEngineTest, ExecutorPoolTypes);
 
 class ScheduleOnDestruct {
 public:
-    ScheduleOnDestruct(ExecutorPool& pool,
-                       Taskable& taskable,
-                       SyncObject& cv,
-                       bool& stopTaskHasRun)
-        : pool(pool),
-          taskable(taskable),
-          cv(cv),
-          stopTaskHasRun(stopTaskHasRun) {
+    ScheduleOnDestruct(ExecutorPool& pool, Taskable& taskable, ThreadGate& tg)
+        : pool(pool), taskable(taskable), tg(tg) {
     }
     ~ScheduleOnDestruct();
 
     ExecutorPool& pool;
     Taskable& taskable;
-    SyncObject& cv;
-    bool& stopTaskHasRun;
+    ThreadGate& tg;
 };
 
 class ScheduleOnDestructTask : public GlobalTask {
@@ -1494,10 +1487,9 @@ public:
     ScheduleOnDestructTask(EventuallyPersistentEngine& bucket,
                            Taskable& taskable,
                            ExecutorPool& pool,
-                           SyncObject& cv,
-                           bool& stopTaskHasRun)
+                           ThreadGate& tg)
         : GlobalTask(&bucket, TaskId::ItemPager, 10, true),
-          scheduleOnDestruct(pool, taskable, cv, stopTaskHasRun) {
+          scheduleOnDestruct(pool, taskable, tg) {
     }
 
     bool run() override {
@@ -1517,16 +1509,12 @@ public:
 
 class StopTask : public GlobalTask {
 public:
-    StopTask(Taskable& taskable, SyncObject& cv, bool& taskHasRun)
-        : GlobalTask(taskable, TaskId::ItemPager, 10, false),
-          taskHasRun(taskHasRun),
-          cv(cv) {
+    StopTask(Taskable& taskable, ThreadGate& tg)
+        : GlobalTask(taskable, TaskId::ItemPager, 10, false), tg(tg) {
     }
 
     bool run() override {
-        std::lock_guard<std::mutex> guard(cv);
-        taskHasRun = true;
-        cv.notify_one();
+        tg.threadUp();
         return false;
     }
 
@@ -1538,9 +1526,7 @@ public:
         return std::chrono::seconds(60);
     }
 
-    // Flag and CV to notify main thread that this task has run.
-    bool& taskHasRun;
-    SyncObject& cv;
+    ThreadGate& tg;
 };
 
 ScheduleOnDestruct::~ScheduleOnDestruct() {
@@ -1555,7 +1541,7 @@ ScheduleOnDestruct::~ScheduleOnDestruct() {
     // also ignored.
     BucketAllocationGuard guard(nullptr);
 
-    ExTask task = std::make_shared<StopTask>(taskable, cv, stopTaskHasRun);
+    ExTask task = std::make_shared<StopTask>(taskable, tg);
     // Schedule a Task from the destructor. This is done to validate we
     // do not deadlock when scheduling when called via cancel().
 
@@ -1599,13 +1585,12 @@ TYPED_TEST(ExecutorPoolEpEngineTest, cancel_can_schedule) {
     NiceMock<MockTaskable> mockTaskable;
     pool->registerTaskable(mockTaskable);
 
-    // Condition variable and flag to allow this main thread to wait on the
+    // ThreadGate to allow this main thread to wait on the
     // final StopTask to be run.
-    SyncObject cv;
-    bool stopTaskHasRun = false;
+    ThreadGate tg(2);
     auto memUsedA = this->engine->getEpStats().getPreciseTotalMemoryUsed();
     ExTask task = std::make_shared<ScheduleOnDestructTask>(
-            *this->engine, mockTaskable, *pool, cv, stopTaskHasRun);
+            *this->engine, mockTaskable, *pool, tg);
 
     auto id = task->getId();
     ASSERT_EQ(id, pool->schedule(task));
@@ -1616,10 +1601,7 @@ TYPED_TEST(ExecutorPoolEpEngineTest, cancel_can_schedule) {
     pool->wake(id);
 
     // Wait on StopTask to run.
-    {
-        std::unique_lock<std::mutex> guard(cv);
-        cv.wait(guard, [&stopTaskHasRun] { return stopTaskHasRun; });
-    }
+    tg.threadUp();
 
     EXPECT_EQ(memUsedA, this->engine->getEpStats().getPreciseTotalMemoryUsed());
 
