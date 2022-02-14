@@ -1649,6 +1649,8 @@ static enum test_result test_multiple_vb_compactions(EngineIface* h) {
         ++count;
     }
 
+    wait_for_flusher_to_settle(h);
+
     // Compact multiple vbuckets.
     const int n_threads = 4;
     cb_thread_t threads[n_threads];
