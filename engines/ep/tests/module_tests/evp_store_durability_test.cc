@@ -5006,10 +5006,18 @@ INSTANTIATE_TEST_SUITE_P(AllBackends,
 
 // Test cases which run against all persistent storage backends.
 INSTANTIATE_TEST_SUITE_P(
-        AllBackends,
+        NormalBackends,
         DurabilityEPBucketTest,
-        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
+        STParameterizedBucketTest::persistentNoNexusConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
+
+#ifdef EP_USE_MAGMA
+INSTANTIATE_TEST_SUITE_P(
+        NexusBackends,
+        DurabilityEPBucketTest,
+        STParameterizedBucketTest::nexusCouchstoreMagmaAllConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
+#endif
 
 // Test cases which run against all ephemeral.
 INSTANTIATE_TEST_SUITE_P(AllEphemeral,

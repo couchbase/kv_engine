@@ -512,6 +512,19 @@ public:
                                 "full_eviction"));
     }
 
+    static auto nexusCouchstoreMagmaAllConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+                std::make_tuple("persistent_nexus_couchstore_magma"s,
+                                "value_only"),
+                std::make_tuple("persistent_nexus_couchstore_magma"s,
+                                "full_eviction"),
+                std::make_tuple("persistent_nexus_magma_couchstore"s,
+                                "value_only"),
+                std::make_tuple("persistent_nexus_magma_couchstore"s,
+                                "full_eviction"));
+    }
+
 #endif
 
 #ifdef EP_USE_ROCKSDB
