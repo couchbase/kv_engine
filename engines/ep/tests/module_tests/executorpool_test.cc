@@ -1948,6 +1948,7 @@ TYPED_TEST(ExecutorPoolEpEngineTest, PoolThreadsAreRegisteredWithPhosphor) {
     for (const auto& event : *buffer) {
         if (event.getName() == std::string_view("TestTask")) {
             // success, trace was recorded from NonIO thread
+            pool.unregisterTaskable(taskable, false /*force*/);
             return;
         }
     }
