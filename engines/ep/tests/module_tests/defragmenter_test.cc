@@ -378,8 +378,20 @@ TEST_P(DefragmenterTest, MaxDefragValueSize) {
 #else
 TEST_P(DefragmenterTest, DISABLED_MaxDefragValueSize) {
 #endif
+    // maximum defragmentable value size is the largest 'small' bin
+    // size jemalloc tracks.
+    const auto pageSize = sysconf(_SC_PAGESIZE);
+    switch (pageSize) {
+    case 4096:
+        EXPECT_EQ(14336, DefragmenterTask::getMaxValueSize());
+        break;
+    case 16384:
+        EXPECT_EQ(57344, DefragmenterTask::getMaxValueSize());
+        break;
+    default:
+        FAIL() << "Unhandled page size " << pageSize;
+    }
 
-    EXPECT_EQ(14336, DefragmenterTask::getMaxValueSize());
 }
 
 class DefragmenterTaskTest : public SingleThreadedKVBucketTest {
