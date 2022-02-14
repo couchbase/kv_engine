@@ -449,6 +449,21 @@ public:
         );
     }
 
+    static auto allConfigValuesNoNexus() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+                std::make_tuple("ephemeral"s, "auto_delete"s),
+                std::make_tuple("ephemeral"s, "fail_new_data"),
+                std::make_tuple("persistent_couchstore"s, "value_only"s),
+                std::make_tuple("persistent_couchstore"s, "full_eviction"s)
+#ifdef EP_USE_MAGMA
+                        ,
+                std::make_tuple("persistent_magma"s, "value_only"s),
+                std::make_tuple("persistent_magma"s, "full_eviction"s)
+#endif
+        );
+    }
+
     static auto ephAndCouchstoreConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(

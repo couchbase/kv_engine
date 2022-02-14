@@ -2646,7 +2646,7 @@ TEST_P(STFullEvictionNoBloomFilterPagerTest, TempDeletedNotExpired) {
 
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
                          STItemPagerTest,
-                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::allConfigValuesNoNexus(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
