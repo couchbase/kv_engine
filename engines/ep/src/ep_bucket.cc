@@ -1058,56 +1058,6 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
     auto& task = itr->second;
     CompactionConfig tasksConfig;
 
-    if (handle->size() > 1) {
-        // Avoid too many concurrent compaction tasks as they
-        // could impact flushing throughout (and latency) in a
-        // couple of related ways:
-        //
-        // 1. We can only concurrently execute as many Writer
-        //    tasks as we have Writer threads - if compaction
-        //    tasks consume most / all of the available threads
-        //    then no Flusher tasks can run.
-        //
-        // 2. When compacting a given vBucket, flushing the same
-        //    vBucket is potentially impacted. For Couchstore we
-        //    must interlock the final phase of compaction and
-        //    flushing; pausing flushing while compaction "catches
-        //    up" with any updates made since the last compaction
-        //    iteration.
-        //    (Note Magma handles its own compaction and hence
-        //    isn't directly subject to this case).
-        //
-        // We therefore limit the number of concurrent compactors
-        // in the following (somewhat non-scientific way).
-
-        const int maxConcurrentWriterTasks = std::min(
-                ExecutorPool::get()->getNumWriters(), vbMap.getNumShards());
-        const int maxConcurrentAuxIOTasks = ExecutorPool::get()->getNumAuxIO();
-        const int compactionConcurrentTaskLimit =
-                std::min(maxConcurrentWriterTasks, maxConcurrentAuxIOTasks);
-
-        // Calculate how many compaction tasks we will permit. We always
-        // allow at least one (see `if (handle->size() > 1)` above,
-        // then we limit to a fraction of the available AuxIO/WriterTasks
-        // (whichever is lower) imposing an upper bound so there is at least 1
-        // AuxIO task slot available for other tasks (i.e. BackfillManagerTask).
-        // We want to take the lower of AuxIO and Writer threads when
-        // calculating this number as whilst we run compaction tasks on the
-        // AuxIO pool we don't want to saturate disk if we have few writers, and
-        // we don't want to saturate the AuxIO pool if we have more writers.
-        const int maxConcurrentCompactTasks = std::min(
-                int(compactionConcurrentTaskLimit * compactionMaxConcurrency),
-                maxConcurrentAuxIOTasks - 1);
-
-        if (int(handle->size()) > maxConcurrentCompactTasks ||
-            engine.getWorkLoadPolicy().getWorkLoadPattern() == READ_HEAVY) {
-            // Snooze a new compaction task.
-            // We will wake it up when one of the existing compaction tasks
-            // is done.
-            execDelay = std::chrono::seconds(INT_MAX);
-        }
-    }
-
     if (!emplaced) {
         // The existing task must be poked - it needs to either reschedule if
         // it is currently running or run with the given config.
@@ -1121,6 +1071,58 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
         // Nothing in the map for this vbid now construct the task
         itr->second =
                 std::make_shared<CompactTask>(*this, vbid, config, cookie);
+        if (handle->size() > 1) {
+            // Avoid too many concurrent compaction tasks as they
+            // could impact flushing throughout (and latency) in a
+            // couple of related ways:
+            //
+            // 1. We can only concurrently execute as many Writer
+            //    tasks as we have Writer threads - if compaction
+            //    tasks consume most / all of the available threads
+            //    then no Flusher tasks can run.
+            //
+            // 2. When compacting a given vBucket, flushing the same
+            //    vBucket is potentially impacted. For Couchstore we
+            //    must interlock the final phase of compaction and
+            //    flushing; pausing flushing while compaction "catches
+            //    up" with any updates made since the last compaction
+            //    iteration.
+            //    (Note Magma handles its own compaction and hence
+            //    isn't directly subject to this case).
+            //
+            // We therefore limit the number of concurrent compactors
+            // in the following (somewhat non-scientific way).
+
+            const int maxConcurrentWriterTasks = std::min(
+                    ExecutorPool::get()->getNumWriters(), vbMap.getNumShards());
+            const int maxConcurrentAuxIOTasks =
+                    ExecutorPool::get()->getNumAuxIO();
+            const int compactionConcurrentTaskLimit =
+                    std::min(maxConcurrentWriterTasks, maxConcurrentAuxIOTasks);
+
+            // Calculate how many compaction tasks we will permit. We always
+            // allow at least one (see `if (handle->size() > 1)` above,
+            // then we limit to a fraction of the available AuxIO/WriterTasks
+            // (whichever is lower) imposing an upper bound so there is at least
+            // 1 AuxIO task slot available for other tasks (i.e.
+            // BackfillManagerTask). We want to take the lower of AuxIO and
+            // Writer threads when calculating this number as whilst we run
+            // compaction tasks on the AuxIO pool we don't want to saturate disk
+            // if we have few writers, and we don't want to saturate the AuxIO
+            // pool if we have more writers.
+            const int maxConcurrentCompactTasks =
+                    std::min(int(compactionConcurrentTaskLimit *
+                                 compactionMaxConcurrency),
+                             maxConcurrentAuxIOTasks - 1);
+
+            if (int(handle->size()) > maxConcurrentCompactTasks ||
+                engine.getWorkLoadPolicy().getWorkLoadPattern() == READ_HEAVY) {
+                // Snooze a new compaction task.
+                // We will wake it up when one of the existing compaction tasks
+                // is done.
+                execDelay = std::chrono::seconds(INT_MAX);
+            }
+        }
 
         if (execDelay.count() > 0.0) {
             task->snooze(execDelay.count());
