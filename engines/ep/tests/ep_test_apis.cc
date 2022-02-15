@@ -271,7 +271,13 @@ bool add_response_ret_meta(std::string_view key,
     if (extras.size() == 16) {
         const auto* ext_bytes = reinterpret_cast<const uint8_t*>(extras.data());
         memcpy(&last_meta.flags, ext_bytes, 4);
-        memcpy(&last_meta.exptime, ext_bytes + 4, 4);
+
+        if (folly::kIsLittleEndian) {
+            memcpy(&last_meta.exptime, ext_bytes + 4, 4);
+        } else {
+            memcpy(reinterpret_cast<char*>(&last_meta.exptime) + 4, ext_bytes + 4, 4);
+        }
+
         last_meta.exptime = ntohl(last_meta.exptime);
         uint64_t revId = 0;
         memcpy(&revId, ext_bytes + 8, 8);
