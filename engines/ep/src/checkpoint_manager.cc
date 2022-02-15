@@ -1218,6 +1218,11 @@ size_t CheckpointManager::getNumOpenChkItems() const {
     return getOpenCheckpoint_UNLOCKED(lh).getNumItems();
 }
 
+size_t CheckpointManager::getNumCheckpoints() const {
+    LockHolder lh(queueLock);
+    return checkpointList.size();
+}
+
 void CheckpointManager::checkOpenCheckpoint_UNLOCKED(const LockHolder& lh,
                                                      bool forceCreation,
                                                      bool timeBound) {
@@ -1424,13 +1429,30 @@ uint64_t CheckpointManager::createNewCheckpoint(bool force) {
     LockHolder lh(queueLock);
 
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
-
-    if (openCkpt.getNumItems() == 0 && !force) {
-        return openCkpt.getId();
+    if (openCkpt.getNumItems() > 0 || force) {
+        addNewCheckpoint_UNLOCKED(openCkpt.getId() + 1);
     }
 
-    addNewCheckpoint_UNLOCKED(openCkpt.getId() + 1);
-    return getOpenCheckpointId_UNLOCKED(lh);
+    auto& openCkpt2 = getOpenCheckpoint_UNLOCKED(lh);
+
+    /* MB-50874: Ensure that the snapshot start of our newly-active
+     * checkpoint is not greater than CheckpointManager::lastBySeqno.
+     * Note in Neo this issue no longer occurs as the snap_start is sent
+     * correctly - see MB-50333.
+     */
+    if (static_cast<uint64_t>(lastBySeqno) <
+        openCkpt2.getSnapshotStartSeqno()) {
+        EP_LOG_INFO(
+                "CheckpointManager::createNewCheckpoint(): {} Found "
+                "lastBySeqno:{} less than snapStart:{}, adjusting snapStart to lastBySeqno + 1",
+                vbucketId,
+                lastBySeqno,
+                openCkpt2.getSnapshotStartSeqno(),
+                lastBySeqno + 1);
+        openCkpt2.setSnapshotStartSeqno(lastBySeqno + 1);
+    }
+
+    return openCkpt2.getId();
 }
 
 size_t CheckpointManager::getMemoryUsage_UNLOCKED() const {
