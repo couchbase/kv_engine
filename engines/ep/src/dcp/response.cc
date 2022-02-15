@@ -228,7 +228,10 @@ uint32_t AbortSyncWrite::getMessageSize() const {
 
 uint32_t SnapshotMarker::getMessageSize() const {
     auto rv = baseMsgBytes;
-    if (highCompletedSeqno || maxVisibleSeqno) {
+    if (timestamp) {
+        rv += sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
+              sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_1Value);
+    } else if (highCompletedSeqno || maxVisibleSeqno) {
         rv += sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
               sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);
     } else {

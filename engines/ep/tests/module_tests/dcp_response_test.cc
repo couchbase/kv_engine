@@ -111,3 +111,134 @@ TEST(DcpResponseTest, DcpAbort_getMessageSize) {
 
     EXPECT_EQ(collectionUnAwareSize, rsp4->getMessageSize());
 }
+
+TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
+    auto smV1 = SnapshotMarker(1, // opaque
+                               Vbid(2), // vbucket
+                               3, // start_seqno
+                               4, // end_seqno
+                               5, // flags
+                               {}, // highCompletedSeqno
+                               {}, // maxVisibleSeqno
+                               {}, // timestamp
+                               {}); // sid
+
+    const uint32_t smV1_size =
+            SnapshotMarkerResponse::baseMsgBytes +
+            sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload);
+
+    EXPECT_EQ(smV1_size, smV1.getMessageSize());
+
+    auto smV2_0_high_completed_seqno = SnapshotMarker(1, // opaque
+                                                      Vbid(2), // vbucket
+                                                      3, // start_seqno
+                                                      4, // end_seqno
+                                                      5, // flags
+                                                      6, // highCompletedSeqno
+                                                      {}, // maxVisibleSeqno
+                                                      {}, // timestamp
+                                                      {}); // sid
+
+    auto smV2_0_max_visible_seqno = SnapshotMarker(1, // opaque
+                                                   Vbid(2), // vbucket
+                                                   3, // start_seqno
+                                                   4, // end_seqno
+                                                   5, // flags
+                                                   {}, // highCompletedSeqno
+                                                   6, // maxVisibleSeqno
+                                                   {}, // timestamp
+                                                   {}); // sid
+
+    const uint32_t smV2_0_size =
+            SnapshotMarkerResponse::baseMsgBytes +
+            sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
+            sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);
+
+    EXPECT_EQ(smV2_0_size, smV2_0_high_completed_seqno.getMessageSize());
+    EXPECT_EQ(smV2_0_size, smV2_0_max_visible_seqno.getMessageSize());
+
+    auto smV2_1_timestamp = SnapshotMarker(1, // opaque
+                                           Vbid(2), // vbucket
+                                           3, // start_seqno
+                                           4, // end_seqno
+                                           5, // flags
+                                           {}, // highCompletedSeqno
+                                           {}, // maxVisibleSeqno
+                                           6, // timestamp
+                                           {}); // sid
+
+    const uint32_t smV2_1_size =
+            SnapshotMarkerResponse::baseMsgBytes +
+            sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
+            sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_1Value);
+
+    EXPECT_EQ(smV2_1_size, smV2_1_timestamp.getMessageSize());
+}
+
+TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
+    auto smV1 = SnapshotMarker(1, // opaque
+                               Vbid(2), // vbucket
+                               3, // start_seqno
+                               4, // end_seqno
+                               5, // flags
+                               {}, // highCompletedSeqno
+                               {}, // maxVisibleSeqno
+                               {}, // timestamp
+                               cb::mcbp::DcpStreamId(6)); // sid
+
+    const uint32_t smV1_size =
+            SnapshotMarkerResponse::baseMsgBytes +
+            sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
+            sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+
+    EXPECT_EQ(smV1_size, smV1.getMessageSize());
+
+    auto smV2_0_high_completed_seqno =
+            SnapshotMarker(1, // opaque
+                           Vbid(2), // vbucket
+                           3, // start_seqno
+                           4, // end_seqno
+                           5, // flags
+                           6, // highCompletedSeqno
+                           {}, // maxVisibleSeqno
+                           {}, // timestamp
+                           cb::mcbp::DcpStreamId(7)); // sid
+
+    auto smV2_0_max_visible_seqno =
+            SnapshotMarker(1, // opaque
+                           Vbid(2), // vbucket
+                           3, // start_seqno
+                           4, // end_seqno
+                           5, // flags
+                           {}, // highCompletedSeqno
+                           6, // maxVisibleSeqno
+                           {}, // timestamp
+                           cb::mcbp::DcpStreamId(7)); // sid
+
+    const uint32_t smV2_0_size =
+            SnapshotMarkerResponse::baseMsgBytes +
+            sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
+            sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value) +
+            sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+
+    EXPECT_EQ(smV2_0_size, smV2_0_high_completed_seqno.getMessageSize());
+    EXPECT_EQ(smV2_0_size, smV2_0_max_visible_seqno.getMessageSize());
+
+    auto smV2_1_timestamp = SnapshotMarker(1, // opaque
+                                           Vbid(2), // vbucket
+                                           3, // start_seqno
+                                           4, // end_seqno
+                                           5, // flags
+                                           {}, // highCompletedSeqno
+                                           {}, // maxVisibleSeqno
+                                           6, // timestamp
+                                           cb::mcbp::DcpStreamId(7)); // sid
+
+    const uint32_t smV2_1_size =
+            SnapshotMarkerResponse::baseMsgBytes +
+            sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
+            sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_1Value) +
+            sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+
+    EXPECT_EQ(smV2_1_size, smV2_1_timestamp.getMessageSize());
+}
