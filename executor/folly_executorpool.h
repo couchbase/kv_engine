@@ -61,7 +61,12 @@ class IOThreadPoolExecutor;
  *    changes (wakeup / snooze / cancel) are performed on the single IO thread
  *    via it's eventBase. This enforces a sequential order on any scheduling
  *    change - it is not possible to also be attempting to change the schedule
- *    on a different thread.
+ *    on a different thread. We use the
+ *    runImmediatelyOrRunInEventBaseThreadAndWait function of the eventBase to
+ *    achieve this by running all tasks on the IO thread. The IO thread is
+ *    allowed to call back into one of these ExecutorPool functions itself
+ *    and the function will run immediately as the eventBase identifies that
+ *    the calling thread is the IO thread.
  *    This differs to the approach taken by CB3ExecutorPool, where cancel /
  *    wake / snooze execute on the thread calling them, with judicious use of
  *    mutexes to ensure correctness.
@@ -121,6 +126,8 @@ on IO thread>>
  *    second [1], so for an initial implementation this  seems a reasonable
  *    design - if the single IO thread / context switches are a bottleneck we
  *    can revisit down the line.
+ *
+ *
  *
  * [1] https://github.com/facebook/folly/blob/master/folly/io/async/README.md
  */

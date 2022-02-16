@@ -703,7 +703,7 @@ FollyExecutorPool::~FollyExecutorPool() {
     readerPool.reset();
 
     auto* eventBase = futurePool->getEventBase();
-    eventBase->runInEventBaseThreadAndWait(
+    eventBase->runImmediatelyOrRunInEventBaseThreadAndWait(
             [eventBase] { eventBase->timer().cancelAll(); });
     futurePool.reset();
 }
@@ -776,7 +776,7 @@ void FollyExecutorPool::registerTaskable(Taskable& taskable) {
                  taskable.getName());
     }
 
-    futurePool->getEventBase()->runInEventBaseThreadAndWait(
+    futurePool->getEventBase()->runImmediatelyOrRunInEventBaseThreadAndWait(
             [state = this->state.get(), &taskable]() {
                 state->addTaskable(taskable);
             });
@@ -816,7 +816,7 @@ void FollyExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
     // can currently be running on the futurePool (and hence being added to
     // CPU pool.
     auto* eventBase = futurePool->getEventBase();
-    eventBase->runInEventBaseThreadAndWait(
+    eventBase->runImmediatelyOrRunInEventBaseThreadAndWait(
             [state = this->state.get(), &taskable, force] {
                 state->cancelTasksOwnedBy(taskable, force);
             });
@@ -828,9 +828,10 @@ void FollyExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
     // cleaned up.
     auto isTaskOwnersEmpty = [eventBase, &state = this->state, &taskable] {
         bool empty = false;
-        eventBase->runInEventBaseThreadAndWait([&state, &taskable, &empty] {
-            empty = state->numTasksForOwner(taskable) == 0;
-        });
+        eventBase->runImmediatelyOrRunInEventBaseThreadAndWait(
+                [&state, &taskable, &empty] {
+                    empty = state->numTasksForOwner(taskable) == 0;
+                });
         return empty;
     };
 
@@ -839,7 +840,7 @@ void FollyExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
     }
 
     // Finally, remove entry for the unregistered Taskable.
-    eventBase->runInEventBaseThreadAndWait(
+    eventBase->runImmediatelyOrRunInEventBaseThreadAndWait(
             [&state = this->state, &taskable]() mutable {
                 state->removeTaskable(taskable);
             });
@@ -848,7 +849,7 @@ void FollyExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
 size_t FollyExecutorPool::getNumTaskables() const {
     NonBucketAllocationGuard guard;
     int numTaskables = 0;
-    futurePool->getEventBase()->runInEventBaseThreadAndWait(
+    futurePool->getEventBase()->runImmediatelyOrRunInEventBaseThreadAndWait(
             [state = this->state.get(), &numTaskables] {
                 numTaskables = state->numTaskables();
             });
@@ -868,9 +869,10 @@ size_t FollyExecutorPool::schedule(ExTask task) {
     auto* eventBase = futurePool->getEventBase();
     auto* pool = getPoolForTaskType(GlobalTask::getTaskType(task->getTaskId()));
     Expects(pool);
-    eventBase->runInEventBaseThreadAndWait([eventBase, this, pool, &task] {
-        state->scheduleTask(*this, *pool, task);
-    });
+    eventBase->runImmediatelyOrRunInEventBaseThreadAndWait(
+            [eventBase, this, pool, &task] {
+                state->scheduleTask(*this, *pool, task);
+            });
 
     return task->getId();
 }
@@ -884,7 +886,7 @@ bool FollyExecutorPool::cancel(size_t taskId, bool eraseTask) {
 
     auto* eventBase = futurePool->getEventBase();
     bool found = false;
-    eventBase->runInEventBaseThreadAndWait(
+    eventBase->runImmediatelyOrRunInEventBaseThreadAndWait(
             [&found, state = state.get(), taskId] {
                 found = state->cancelTask(taskId);
             });
@@ -908,7 +910,7 @@ bool FollyExecutorPool::wakeAndWait(size_t taskId) {
 
     auto* eventBase = futurePool->getEventBase();
     bool found = false;
-    eventBase->runInEventBaseThreadAndWait(
+    eventBase->runImmediatelyOrRunInEventBaseThreadAndWait(
             [&found, state = state.get(), taskId] {
                 found = state->wakeTask(taskId);
             });
@@ -935,7 +937,7 @@ bool FollyExecutorPool::snoozeAndWait(size_t taskId, double toSleep) {
 
     auto* eventBase = futurePool->getEventBase();
     bool found = false;
-    eventBase->runInEventBaseThreadAndWait(
+    eventBase->runImmediatelyOrRunInEventBaseThreadAndWait(
             [&found, state = state.get(), taskId, toSleep] {
                 found = state->snoozeTask(taskId, toSleep);
             });
@@ -962,7 +964,7 @@ void FollyExecutorPool::doTasksStat(Taskable& taskable,
     // Take a copy of the taskOwners map.
     auto* eventBase = futurePool->getEventBase();
     std::vector<ExTask> tasks;
-    eventBase->runInEventBaseThreadAndWait(
+    eventBase->runImmediatelyOrRunInEventBaseThreadAndWait(
             [state = this->state.get(), &taskable, &tasks] {
                 tasks = state->copyTasksForOwner(taskable);
             });
@@ -1022,7 +1024,7 @@ void FollyExecutorPool::doTaskQStat(Taskable& taskable,
     // racy to directly access the taskOwners from this thread.
     auto* eventBase = futurePool->getEventBase();
     std::array<int, NUM_TASK_GROUPS> waitingTasksPerGroup;
-    eventBase->runInEventBaseThreadAndWait(
+    eventBase->runImmediatelyOrRunInEventBaseThreadAndWait(
             [state = this->state.get(), &waitingTasksPerGroup] {
                 waitingTasksPerGroup = state->getWaitingTasksPerGroup();
             });
