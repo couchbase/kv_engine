@@ -641,20 +641,23 @@ int main(int argc, char **argv) {
                 continue;
             }
             if (!quiet) {
-                printf("Running [%04d/%04d]: %s...",
-                       gsl::narrow_cast<int>(i + num_cases * loop_count),
-                       gsl::narrow_cast<int>(num_cases * (loop_count + 1)),
-                       testcases[i].name.c_str());
-                fflush(stdout);
+                auto msg = fmt::format(
+                        "Running [{}/{}]: {}...",
+                        gsl::narrow_cast<int>(i + num_cases * loop_count),
+                        gsl::narrow_cast<int>(num_cases * (loop_count + 1)),
+                        testcases[i].name.c_str());
+                std::cout << msg;
             } else if(dot) {
-                printf(".");
+                std::cout << ".";
                 need_newline = true;
                 /* Add a newline every few tests */
                 if ((i+1) % 70 == 0) {
-                    printf("\n");
+                    std::cout << std::endl;
                     need_newline = false;
                 }
             }
+
+            std::cout.flush();
 
             {
                 enum test_result ecode = FAIL;
