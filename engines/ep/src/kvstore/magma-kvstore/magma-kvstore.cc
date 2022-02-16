@@ -663,8 +663,14 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.LogContext = logger;
     configuration.magmaCfg.UID = loggerName;
 
-    // Open the magma instance for this shard and populate the vbstate.
     magma = std::make_unique<MagmaMemoryTrackingProxy>(configuration.magmaCfg);
+
+    setMaxDataSize(configuration.getBucketQuota());
+    setMagmaFragmentationPercentage(
+            configuration.getMagmaFragmentationPercentage());
+    calculateAndSetMagmaThreads();
+
+    // Open the magma instance for this shard and populate the vbstate.
     auto status = magma->Open();
 
     if (status.ErrorCode() == Status::Code::DiskFull) {
@@ -697,11 +703,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
         logger->critical(err);
         throw std::logic_error(err);
     }
-
-    setMaxDataSize(configuration.getBucketQuota());
-    setMagmaFragmentationPercentage(
-            configuration.getMagmaFragmentationPercentage());
-    calculateAndSetMagmaThreads();
 
     magma->executeOnKVStoreList(
             [this](const std::vector<magma::Magma::KVStoreID>& kvstores) {
