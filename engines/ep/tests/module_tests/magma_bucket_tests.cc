@@ -24,6 +24,8 @@
 #include "vbucket.h"
 #include <utilities/test_manifest.h>
 
+#include <folly/synchronization/Baton.h>
+
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
 using WakeCkptRemover = EPBucket::WakeCkptRemover;
@@ -509,8 +511,9 @@ TEST_P(STParamMagmaBucketTest, MB_47566) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
     auto& epBucket = dynamic_cast<EPBucket&>(*engine->getKVBucket());
-    ThreadGate compactionGate(2);
-    ThreadGate compactionCompletionGate(2);
+    folly::Baton<> compactionStarted;
+    folly::Baton<> rollbackCompleted;
+    folly::Baton<> compactionCompleted;
 
     CompactionConfig config;
     // Set drop deletes so we get rid of the fruit collection's documents
@@ -523,10 +526,14 @@ TEST_P(STParamMagmaBucketTest, MB_47566) {
     // thread to have performed the rollback before calling the real compaction
     // completion callback
     ctx->completionCallback = [this,
-                               &compactionCompletionGate,
+                               &compactionStarted,
+                               &rollbackCompleted,
                                runWithFix,
                                realCompletionCallback](CompactionContext& ctx) {
-        compactionCompletionGate.threadUp();
+        // notify that compaction has started
+        compactionStarted.post();
+        // now wait for rollback to run and finish before continuing
+        rollbackCompleted.wait();
         if (runWithFix) {
             realCompletionCallback(ctx);
         } else {
@@ -537,37 +544,32 @@ TEST_P(STParamMagmaBucketTest, MB_47566) {
     };
 
     // Lambda to perform the compaction on another thread
-    auto tPerformCompaction = [this,
-                               ctx,
-                               &epBucket,
-                               &compactionGate,
-                               &compactionCompletionGate]() {
+    auto tPerformCompaction = [this, ctx, &epBucket, &compactionCompleted]() {
         ObjectRegistry::onSwitchThread(engine.get());
         auto* kvstore = epBucket.getRWUnderlying(vbid);
         auto vb = store->getLockedVBucket(vbid, std::try_to_lock);
         auto& lock = vb.getLock();
-        compactionGate.threadUp();
         bool result = false;
         // Ensure that the compaction doesn't throw
+        // note - this may unlock the provided mutex.
         EXPECT_NO_THROW(result = kvstore->compactDB(lock, ctx));
-        // rollback reset the vbucket, so the compaction was cancelled mid way
-        EXPECT_FALSE(result);
-        // if for some reason the compaction failed and the compaction callback
-        // wasn't called ensure we don't hang the main thread by calling
-        // threadUp()
-        if (!result && !compactionCompletionGate.isComplete()) {
-            compactionCompletionGate.threadUp();
-        }
+        // rollback reset the vbucket, but it occurred after all items
+        // had been visited, so it did not cancel the compaction early.
+        EXPECT_TRUE(result);
+        // compaction is done, any underflow should have happened by now.
+        compactionCompleted.post();
     };
     // Start compaction thread
     std::thread compactionThread(tPerformCompaction);
     // Wait till the compaction task is about to compact
-    compactionGate.threadUp();
+    compactionStarted.wait();
     // Now that compaction has been started reset the vbucket by rolling back to
     // seqno 0
     EXPECT_NE(TaskStatus::Abort, epBucket.rollback(vbid, 0));
-    // After we've run rollback let the compaction callback run
-    compactionCompletionGate.threadUp();
+    // notify the compaction so it continues running
+    rollbackCompleted.post();
+    // Wait for compaction to finish
+    compactionCompleted.wait();
     // Wait for compaction thread to complete
     compactionThread.join();
 }
