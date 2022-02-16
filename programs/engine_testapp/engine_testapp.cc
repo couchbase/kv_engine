@@ -133,12 +133,12 @@ static int report_test(const char* name,
                 std::cout << " ";
             }
             std::cout << "\r";
-            std::cout.flush();
         } else {
             std::cout << "(" << duration_ms.count() << " ms) " << color << msg
                       << TerminalColor::Reset << std::endl;
         }
     }
+    std::cout.flush();
     return rc;
 }
 
