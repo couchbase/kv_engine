@@ -2150,6 +2150,32 @@ TEST_P(CollectionsEraserPersistentWithFailure, FailAndRetry) {
     EXPECT_EQ(postFailure, postSuccess);
 }
 
+// Delete an item in the same flush batch as the drop of its collection.
+// MB-50747 would mean the vbucket item count was decremented when it should
+// remain unchanged, this lead to a negative count
+TEST_P(CollectionsEraserTest, MB_50747_delete_and_drop) {
+    // add a collection
+    CollectionsManifest cm(CollectionEntry::fruit);
+    vb->updateFromManifest(makeManifest(cm));
+    auto key = makeStoredDocKey("peach", CollectionEntry::fruit);
+    store_item(vbid, key, "value");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    delete_item(vbid, key);
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    runCollectionsEraser(vbid);
+    if (persistent()) {
+        // Check prepares and disk count
+        auto kvstore = store->getRWUnderlying(vbid);
+        ASSERT_TRUE(kvstore);
+        EXPECT_EQ(0, kvstore->getItemCount(vbid));
+    }
+
+    EXPECT_EQ(0, vb->getNumItems());
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsEraserTests,
                          CollectionsEraserTest,
