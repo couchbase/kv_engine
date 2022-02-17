@@ -940,10 +940,17 @@ protected:
         }
         uint16_t raw;
 
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
         struct value_ptr_tag_fields {
             uint8_t frequencyCounter;
             uint8_t age;
         } fields;
+#else
+        struct value_ptr_tag_fields {
+            uint8_t age;
+            uint8_t frequencyCounter;
+        } fields;
+#endif
     };
 
     /// @return the tag part of the value TaggedPtr
