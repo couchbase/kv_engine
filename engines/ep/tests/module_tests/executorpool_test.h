@@ -53,6 +53,8 @@ protected:
                   int numNonIO = 2);
 
     std::unique_ptr<T> pool;
+
+    void testUnregisterClearsUpTasks(bool force, bool completeBeforeShutdown);
 };
 
 /**

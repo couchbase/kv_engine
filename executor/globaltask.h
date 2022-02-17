@@ -67,8 +67,13 @@ public:
 
     virtual ~GlobalTask();
 
-    /// execute the task and return true if it should be rescheduled
-    bool execute(std::string_view threadName);
+    /**
+     * Execute the task and return true if it should be rescheduled
+     *
+     * virtual to allow mocking, other subclasses should put the work that they
+     * want to do in the run function.
+     */
+    virtual bool execute(std::string_view threadName);
 
     /**
      * Gives a description of this task.

@@ -17,6 +17,7 @@
 #include "../mock/mock_add_stat_fn.h"
 #include "lambda_task.h"
 #include "test_helpers.h"
+#include "tests/mock/mock_global_task.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "thread_gate.h"
 #include <executor/folly_executorpool.h>
@@ -1231,6 +1232,94 @@ TYPED_TEST(ExecutorPoolTest, SchedulerStats) {
     EXPECT_TRUE(tg.isComplete()) << "Timeout waiting for task to wake";
 
     this->pool->unregisterTaskable(taskable, true);
+}
+
+template <typename T>
+void ExecutorPoolTest<T>::testUnregisterClearsUpTasks(
+        bool force, bool completeBeforeShutdown) {
+    this->makePool(1);
+
+    // One NonIO so that we can test via our task
+    this->pool->setNumNonIO(1);
+
+    NiceMock<MockTaskable> taskable;
+    this->pool->registerTaskable(taskable);
+
+    std::thread th1;
+    ThreadGate tg1{2};
+    ThreadGate tg2{2};
+
+    // Task which runs, schedules another task, then triggers a shutdown in
+    // another thread. Running only 1 NonIO means that the task we schedule
+    // here is not going to run until this one completes, which it can't do
+    // until the other threads reaches a certain point in unregisterTaskable.
+    // We use a StrictMock to check that we are/are not calling execute on the
+    // task as required. We should only execute the task if this is not a
+    // forceful shutdown and the task is set to complete before shutdown.
+    ExTask task = std::make_shared<LambdaTask>(
+            taskable, TaskId::ItemPager, 0, false, [&](LambdaTask&) {
+                ExTask task2 = std::make_shared<StrictMock<MockGlobalTask>>(
+                        taskable, TaskId::ItemPager, 0, completeBeforeShutdown);
+
+                if (completeBeforeShutdown && !force) {
+                    EXPECT_CALL(static_cast<MockGlobalTask&>(*task2),
+                                execute(_))
+                            .RetiresOnSaturation();
+                }
+
+                this->pool->schedule(task2);
+
+                th1 = std::thread{[&]() {
+                    this->pool->unregisterTaskablePostCancelHook = [&]() {
+                        tg2.threadUp();
+                    };
+
+                    this->pool->unregisterTaskable(taskable, force);
+                    tg1.threadUp();
+                }};
+
+                tg2.threadUp();
+                return false;
+            });
+
+    this->pool->schedule(task);
+
+    tg1.threadUp();
+    th1.join();
+}
+
+TYPED_TEST(ExecutorPoolTest, UnregisterClearsUpTasksNormalShutdownNormalTask) {
+    if (typeid(TypeParam) != typeid(FollyExecutorPool)) {
+        // Not yet implemented for CB3ExecutorPool.
+        GTEST_SKIP();
+    }
+    this->testUnregisterClearsUpTasks(false, false);
+}
+
+TYPED_TEST(ExecutorPoolTest, UnregisterClearsUpTasksForceShutdownNormalTask) {
+    if (typeid(TypeParam) != typeid(FollyExecutorPool)) {
+        // Not yet implemented for CB3ExecutorPool.
+        GTEST_SKIP();
+    }
+    this->testUnregisterClearsUpTasks(true, false);
+}
+
+TYPED_TEST(ExecutorPoolTest,
+           UnregisterClearsUpTasksNormalShutdownCompleteBeforeShutdownTask) {
+    if (typeid(TypeParam) != typeid(FollyExecutorPool)) {
+        // Not yet implemented for CB3ExecutorPool.
+        GTEST_SKIP();
+    }
+    this->testUnregisterClearsUpTasks(false, true);
+}
+
+TYPED_TEST(ExecutorPoolTest,
+           UnregisterClearsUpTasksForceShutdownCompleteBeforeShutdownTask) {
+    if (typeid(TypeParam) != typeid(FollyExecutorPool)) {
+        // Not yet implemented for CB3ExecutorPool.
+        GTEST_SKIP();
+    }
+    this->testUnregisterClearsUpTasks(true, true);
 }
 
 TYPED_TEST_SUITE(ExecutorPoolDynamicWorkerTest, ExecutorPoolTypes);

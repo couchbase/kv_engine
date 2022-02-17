@@ -496,9 +496,10 @@ struct FollyExecutorPool::State {
      * Cancel the specified task.
      *
      * @param taskId Task to cancel
+     * @param force forcefully cancel the task
      * @return True if task found, else false.
      */
-    bool cancelTask(size_t taskId) {
+    bool cancelTask(size_t taskId, bool force = false) {
         // Search for the given taskId across all buckets.
         // PERF: CB3ExecutorPool uses a secondary map (taskLocator)
         // to allow O(1) lookup by taskId, however cancel() isn't a
@@ -529,7 +530,7 @@ struct FollyExecutorPool::State {
                 // delete the TaskProxy from  taskOwners.  Decrementing our
                 // refcount could delete the GlobalTask (if we are the last
                 // owner).
-                if (it->second->scheduledOnCpuPool) {
+                if (it->second->scheduledOnCpuPool && !force) {
                     // Task is currently scheduled on CPU pool - TaskProxy is
                     // in use by CPU thread.  Given we just called cancel() on
                     // the GlobalTask, we can rely on rescheduleTaskAfterRun to
@@ -797,9 +798,46 @@ void FollyExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
                 state->cancelTasksOwnedBy(taskable, force);
             });
 
+    // Step 2 - Have the eventbase of the futurePool remove tasks associated
+    // with this Taskable from the queues of the ExecutorPools (things due to be
+    // run immediately) to speed up shutdown
+    eventBase->runImmediatelyOrRunInEventBaseThreadAndWait([this, &taskable]() {
+        LOG_DEBUG("Removing tasks from read pool for taskable {}",
+                  taskable.getName());
+        for (auto task : readerPool->removeTasksForTaskable(taskable)) {
+            LOG_DEBUG("Cancelling task from runningQ with ID:{}",
+                      task->getId());
+            state->cancelTask(task->getId(), true);
+        }
+
+        LOG_DEBUG("Removing tasks from writer pool for taskable {}",
+                  taskable.getName());
+        for (auto task : writerPool->removeTasksForTaskable(taskable)) {
+            LOG_DEBUG("Cancelling task from runningQ with ID:{}",
+                      task->getId());
+            state->cancelTask(task->getId(), true);
+        }
+
+        LOG_DEBUG("Removing tasks from aux pool for taskable {}",
+                  taskable.getName());
+        for (auto task : auxPool->removeTasksForTaskable(taskable)) {
+            LOG_DEBUG("Cancelling task from runningQ with ID:{}",
+                      task->getId());
+            state->cancelTask(task->getId(), true);
+        }
+
+        LOG_DEBUG("Removing tasks from nonIo pool for taskable {}",
+                  taskable.getName());
+        for (auto task : nonIoPool->removeTasksForTaskable(taskable)) {
+            LOG_DEBUG("Cancelling task from runningQ with ID:{}",
+                      task->getId());
+            state->cancelTask(task->getId(), true);
+        }
+    });
+
     unregisterTaskablePostCancelHook();
 
-    // Step 2 - poll for taskOwners to become empty. This will only
+    // Step 3 - poll for taskOwners to become empty. This will only
     // occur once all outstanding, running tasks have been cancelled and
     // cleaned up.
     auto isTaskOwnersEmpty = [eventBase, &state = this->state, &taskable] {

@@ -9,7 +9,7 @@
  */
 #include "cancellable_cpu_executor.h"
 
-#include <gsl/gsl-lite.hpp>
+#include <logger/logger.h>
 
 void CancellableCPUExecutor::addWithTask(GlobalTask& task, folly::Func func) {
     tasks.enqueue(QueueElem(task, std::move(func)));
@@ -26,12 +26,45 @@ void CancellableCPUExecutor::addWithTask(GlobalTask& task, folly::Func func) {
         // up to date. Were the scheduler thread to run and add something
         // new to our queue after the fence then that would be fine as it
         // would mean that a new task is available (and a thread will be
-        // woken if not busy to run it). The scheduler thread does not
-        // remove tasks from the queue.
+        // woken if not busy to run it). The scheduler thread may remove
+        // a task if we are unregistering a taskable, but that's fine too as
+        // that requires a weaker level of consistency (release/acquire) as
+        // it only modifies that tasks queue and not the cpuPool queue.
         std::atomic_thread_fence(std::memory_order_seq_cst);
         auto task = tasks.try_dequeue();
 
-        Expects(task);
-        task->func();
+        // No guarantees that we find a task here, we may have left
+        // tasks in the cpuPool queue to wake but removed them if we
+        // have unregistered a taskable. We should always have more or the
+        // same amount of tasks (notifications) in the cpuPool as our queue
+        // so just try_dequeue
+        if (task) {
+            task->func();
+        }
     });
+}
+
+std::vector<GlobalTask*> CancellableCPUExecutor::removeTasksForTaskable(
+        const Taskable& taskable) {
+    std::vector<QueueElem> tasksToPushBack;
+    std::vector<GlobalTask*> tasksToCancel;
+
+    // Pop everything into our two vectors as appropriate so that we can
+    // cancel the tasks for this taskable and reschedule the others. No
+    // memory barriers needed here as we're only concerned with the tasks
+    // queue at this point so release/acquire consistency is adequate.
+    while (auto elem = tasks.try_dequeue()) {
+        if (elem && &elem->task.getTaskable() == &taskable &&
+            elem->task.isdead()) {
+            tasksToCancel.push_back(&elem->task);
+        } else {
+            tasksToPushBack.push_back(std::move(*elem));
+        }
+    }
+
+    for (auto& taskToPushBack : tasksToPushBack) {
+        addWithTask(taskToPushBack.task, std::move(taskToPushBack.func));
+    }
+
+    return tasksToCancel;
 }

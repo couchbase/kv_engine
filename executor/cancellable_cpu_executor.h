@@ -60,6 +60,16 @@ public:
      */
     void addWithTask(GlobalTask& task, folly::Func func);
 
+    /**
+     * Remove tasks for the given taskable from our work queue. Should always
+     * be run on the SchedulerPool (EventBase) to ensure that tasks are not
+     * scheduled on this pool while we run.
+     *
+     * @param taskable to remove tasks for
+     * @return vector of GlobalTask* for this taskable
+     */
+    std::vector<GlobalTask*> removeTasksForTaskable(const Taskable& taskable);
+
 private:
     /**
      * Element of our queue

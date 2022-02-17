@@ -12,15 +12,24 @@
 #pragma once
 
 #include <executor/globaltask.h>
+
 #include <string>
+
+#include <folly/portability/GMock.h>
 
 /**
  * Mock Task class. Doesn't actually run() or snooze() - they both do nothing.
  */
 class MockGlobalTask : public GlobalTask {
 public:
-    MockGlobalTask(Taskable& t, TaskId id) : GlobalTask(t, id) {
+    MockGlobalTask(Taskable& t,
+                   TaskId id,
+                   double sleeptime = 0,
+                   bool completeBeforeShutdown = true)
+        : GlobalTask(t, id, sleeptime, completeBeforeShutdown) {
     }
+
+    MOCK_METHOD(bool, execute, (std::string_view), (override));
 
     bool run() override {
         return false;
