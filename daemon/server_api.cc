@@ -105,14 +105,16 @@ struct ServerCookieApi : public ServerCookieIface {
     void release(const CookieIface& void_cookie) override {
         auto& cookie = getCookie(void_cookie);
         auto& connection = cookie.getConnection();
-        connection.getThread().eventBase.runInEventBaseThread([&cookie]() {
-            TRACE_LOCKGUARD_TIMED(cookie.getConnection().getThread().mutex,
-                                  "mutex",
-                                  "release",
-                                  SlowMutexThreshold);
-            cookie.decrementRefcount();
-            cookie.getConnection().triggerCallback();
-        });
+        connection.getThread().eventBase.runInEventBaseThreadAlwaysEnqueue(
+                [&cookie]() {
+                    TRACE_LOCKGUARD_TIMED(
+                            cookie.getConnection().getThread().mutex,
+                            "mutex",
+                            "release",
+                            SlowMutexThreshold);
+                    cookie.decrementRefcount();
+                    cookie.getConnection().triggerCallback();
+                });
     }
 
     void set_priority(const CookieIface& cookie,

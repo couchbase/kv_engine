@@ -136,7 +136,7 @@ void FrontEndThread::dispatch_new_connections() {
 
 void notifyIoComplete(Cookie& cookie, cb::engine_errc status) {
     auto& thr = cookie.getConnection().getThread();
-    thr.eventBase.runInEventBaseThread([&cookie, status]() {
+    thr.eventBase.runInEventBaseThreadAlwaysEnqueue([&cookie, status]() {
         TRACE_LOCKGUARD_TIMED(cookie.getConnection().getThread().mutex,
                               "mutex",
                               "notifyIoComplete",
@@ -165,13 +165,14 @@ void scheduleDcpStep(Cookie& cookie) {
         throw std::logic_error("scheduleDcpStep: cookie must be reserved!");
     }
 
-    connection.getThread().eventBase.runInEventBaseThread([&connection]() {
-        TRACE_LOCKGUARD_TIMED(connection.getThread().mutex,
-                              "mutex",
-                              "scheduleDcpStep",
-                              SlowMutexThreshold);
-        connection.triggerCallback();
-    });
+    connection.getThread().eventBase.runInEventBaseThreadAlwaysEnqueue(
+            [&connection]() {
+                TRACE_LOCKGUARD_TIMED(connection.getThread().mutex,
+                                      "mutex",
+                                      "scheduleDcpStep",
+                                      SlowMutexThreshold);
+                connection.triggerCallback();
+            });
 }
 
 void FrontEndThread::dispatch(SOCKET sfd,
