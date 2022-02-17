@@ -1839,7 +1839,7 @@ public:
         // only make a best effort here and check thoroughly if the purge seqno
         // for both is 0.
         if (kvstore.getPurgeSeqno(vbid) != 0) {
-            EP_LOG_INFO(
+            EP_LOG_DEBUG(
                     "NexusKVStore::SecondaryGetAllKeys::callback {}: purge "
                     "seqno is non-zero ({}) so no checks are valid",
                     vbid,
