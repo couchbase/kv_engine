@@ -11,22 +11,15 @@
 
 #pragma once
 
-#include "checkpoint_cursor.h"
 #include "checkpoint_types.h"
 #include "ep_types.h"
 #include "item.h"
-#include <platform/monotonic.h>
-
 #include <folly/Synchronized.h>
 #include <folly/container/F14Map.h>
 #include <memcached/engine_common.h>
+#include <platform/monotonic.h>
 #include <platform/non_negative_counter.h>
 #include <optional>
-
-#include <list>
-#include <map>
-#include <set>
-#include <unordered_map>
 
 /**
  * The state of a given checkpoint.
@@ -460,8 +453,8 @@ public:
      * toWrite.
      */
     ChkptQueueIterator begin() const {
-        return ChkptQueueIterator(const_cast<CheckpointQueue&>(toWrite),
-                                  ChkptQueueIterator::Position::begin);
+        return {const_cast<CheckpointQueue&>(toWrite),
+                ChkptQueueIterator::Position::begin};
     }
 
     /**
@@ -469,8 +462,8 @@ public:
      * toWrite.
      */
     ChkptQueueIterator end() const {
-        return ChkptQueueIterator(const_cast<CheckpointQueue&>(toWrite),
-                                  ChkptQueueIterator::Position::end);
+        return {const_cast<CheckpointQueue&>(toWrite),
+                ChkptQueueIterator::Position::end};
     }
 
     /**

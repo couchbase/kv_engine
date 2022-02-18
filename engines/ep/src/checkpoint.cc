@@ -13,14 +13,11 @@
 #include <platform/checked_snprintf.h>
 #include <string>
 #include <utility>
-
 #include "bucket_logger.h"
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
-#include "checkpoint_remover.h"
 #include "ep_time.h"
 #include "stats.h"
-
 #include <statistics/cbstat_collector.h>
 
 class CookieIface;
@@ -551,7 +548,7 @@ CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last,
 }
 
 CheckpointIndexKeyType Checkpoint::makeIndexKey(const queued_item& item) const {
-    return CheckpointIndexKeyType(item->getKey(), keyIndexKeyAllocator);
+    return {item->getKey(), keyIndexKeyAllocator};
 }
 
 void Checkpoint::addStats(const AddStatFn& add_stat,
