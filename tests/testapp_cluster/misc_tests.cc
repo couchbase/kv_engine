@@ -14,6 +14,7 @@
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
 #include <cluster_framework/dcp_replicator.h>
+#include <memcached/stat_group.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <protocol/connection/frameinfo.h>
@@ -264,4 +265,72 @@ TEST_F(BasicClusterTest, MB_47216) {
     conn->authenticate("@admin", "password", "PLAIN");
     rsp = conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
     EXPECT_TRUE(rsp.isSuccess());
+}
+
+// Verifies that we can successfully request all stat groups. Given the
+// different and varying formats of different stat groups, there's no
+// check on the actual content returned, other than that _something_ is
+// returned for the groups which we expect there to be.
+TEST_F(BasicClusterTest, AllStatGroups) {
+    auto bucket = cluster->getBucket("default");
+    auto conn = bucket->getAuthedConnection(Vbid(0));
+
+    // Add a single key so we can ask for stats on it.
+    Document doc;
+    doc.info.id = "test_key";
+    conn->mutate(doc, Vbid{0}, MutationType::Set);
+
+    StatsGroupManager::getInstance().iterate([&conn](const StatGroup& group) {
+        std::string key{group.key};
+
+        // Adjust request 'key' for some stats (groups require an
+        // argument etc).
+        switch (group.id) {
+        case StatGroupId::DcpVbtakeover:
+            // Requires a vBucket and name of a DCP connection
+            key += " 0 n_0->n_1";
+            break;
+        case StatGroupId::Dcpagg:
+            // While Dcpagg group's stat name is 'dcpagg', a client must
+            // specify a prefix to aggregate, or '_' as a wildcard.
+            key += " _";
+            break;
+        case StatGroupId::Key:
+        case StatGroupId::KeyById:
+        case StatGroupId::Vkey:
+        case StatGroupId::VkeyById:
+            // These require a key to exist otherwise they return
+            // ENOENT.
+            key += " test_key 0";
+            break;
+        case StatGroupId::DurabilityMonitor:
+        case StatGroupId::_CheckpointDump:
+        case StatGroupId::_HashDump:
+        case StatGroupId::_DurabilityDump:
+        case StatGroupId::_VbucketDump:
+            // These require a vbucket argument.
+            key += " 0";
+            break;
+        default:
+            break;
+        }
+
+        SCOPED_TRACE(key);
+
+        // Some stat groups require particular server state to return
+        // anything. Skip these in this simple smoketest for now.
+        switch (group.id) {
+        case StatGroupId::Slabs:
+        case StatGroupId::Items:
+        case StatGroupId::Sizes:
+        case StatGroupId::Scrub:
+            // These are all specific to default engine.
+            break;
+        default:
+            // Use adminConnection as some stats are privileged.
+            // stats() throws if the request is not successful (and
+            // hence test would fail).
+            EXPECT_NO_THROW(conn->stats(key));
+        }
+    });
 }

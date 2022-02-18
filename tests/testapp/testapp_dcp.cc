@@ -19,7 +19,13 @@
 #include <xattr/utils.h>
 
 class DcpTest : public TestappClientTest {
-
+protected:
+    void SetUp() override {
+        if (mcd_env->getTestBucket().getName() == "default_engine") {
+            GTEST_SKIP() << "Skipping as DCP not supported";
+        }
+        TestappClientTest::SetUp();
+    }
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -128,4 +134,34 @@ TEST_P(DcpTest, CantDcpOpenTwice) {
     auto json = nlohmann::json::parse(rsp.getDataString());
     EXPECT_EQ("The connection is already opened as a DCP connection",
               json["error"]["context"]);
+}
+
+// Basic smoke test for "dcp" and "dcpagg" stat group - check they can be
+// retrieved (regression tests for MB-48816).
+TEST_P(DcpTest, DcpStats) {
+    auto& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
+    conn.sendCommand(BinprotDcpOpenCommand{
+            "testapp_dcp", cb::mcbp::request::DcpOpenPayload::Producer});
+
+    BinprotResponse rsp;
+    conn.recvResponse(rsp);
+    ASSERT_TRUE(rsp.isSuccess());
+
+    userConnection->stats("dcp");
+}
+
+TEST_P(DcpTest, DcpAggStats) {
+    auto& conn = getConnection();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
+    conn.sendCommand(BinprotDcpOpenCommand{
+            "testapp_dcp", cb::mcbp::request::DcpOpenPayload::Producer});
+
+    BinprotResponse rsp;
+    conn.recvResponse(rsp);
+    ASSERT_TRUE(rsp.isSuccess());
+
+    userConnection->stats("dcpagg _");
 }
