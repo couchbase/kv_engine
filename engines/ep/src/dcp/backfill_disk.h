@@ -55,6 +55,13 @@ public:
 
     void callback(GetValue& val) override;
 
+    /**
+     * The on disk "High Completed Seqno", used in the callback method to decide
+     * if we need to send a prepare we find on disk or not (prepare seqnos <= to
+     * persistedCompletedSeqno do not need to be sent over a DCP stream).
+     */
+    uint64_t persistedCompletedSeqno;
+
 private:
     std::weak_ptr<ActiveStream> streamPtr;
 };

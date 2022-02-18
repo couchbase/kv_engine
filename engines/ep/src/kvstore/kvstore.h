@@ -512,11 +512,13 @@ public:
                     ValueFilter _valFilter,
                     const std::vector<Collections::KVStore::DroppedCollection>&
                             droppedCollections,
-                    int64_t maxSeqno);
+                    int64_t maxSeqno,
+                    uint64_t persistedCompletedSeqno);
     std::vector<ByIdRange> ranges;
     // Key should be set by KVStore when a scan must be paused, this is where
     // a scan can resume from
     DiskDocKey lastReadKey;
+    const uint64_t persistedCompletedSeqno;
 };
 
 struct FileStats {

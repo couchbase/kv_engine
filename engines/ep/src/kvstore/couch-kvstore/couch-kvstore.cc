@@ -2292,15 +2292,17 @@ std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
         return nullptr;
     }
 
-    auto sctx = std::make_unique<ByIdScanContext>(std::move(cb),
-                                                  std::move(cl),
-                                                  vbid,
-                                                  std::move(handle),
-                                                  ranges,
-                                                  options,
-                                                  valOptions,
-                                                  droppedCollections,
-                                                  info.updateSeqNum);
+    auto sctx = std::make_unique<ByIdScanContext>(
+            std::move(cb),
+            std::move(cl),
+            vbid,
+            std::move(handle),
+            ranges,
+            options,
+            valOptions,
+            droppedCollections,
+            info.updateSeqNum,
+            readVbStateResult.state.persistedCompletedSeqno);
     sctx->logger = &logger;
     return sctx;
 }

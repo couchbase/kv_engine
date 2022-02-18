@@ -15,6 +15,8 @@
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/response.h"
 #include "dcp_stream_test.h"
+#include "durability/active_durability_monitor.h"
+#include "ep_bucket.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "test_helpers.h"
@@ -607,12 +609,26 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
     // backfill.
     using cb::durability::Level;
     auto prepared = storePending(docState, "1", "X", {level, {}});
-    ASSERT_EQ(cb::engine_errc::success,
-              vb0->commit(prepared->getKey(),
-                          prepared->getBySeqno(),
-                          {},
-                          vb0->lockCollections(prepared->getKey())));
-    removeCheckpoint(2);
+
+    auto& pdm = dynamic_cast<ActiveDurabilityMonitor&>(
+            const_cast<DurabilityMonitor&>(vb0->getDurabilityMonitor()));
+    EXPECT_EQ(1, pdm.getNumTracked());
+    EXPECT_EQ(0, pdm.getHighCompletedSeqno());
+
+    removeCheckpoint(1);
+    EXPECT_EQ(1, vb0->getPersistenceSeqno());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              vb0->seqnoAcknowledged(
+                      folly::SharedMutex::ReadHolder(vb0->getStateLock()),
+                      "replica",
+                      vb0->getHighSeqno() /*prepareSeqno*/));
+    vb0->processResolvedSyncWrites();
+    EXPECT_EQ(0, pdm.getNumTracked());
+    EXPECT_EQ(1, pdm.getHighCompletedSeqno());
+
+    removeCheckpoint(1);
+    EXPECT_EQ(2, vb0->getPersistenceSeqno());
 
     // Create sync repl DCP stream
     setup_dcp_stream(0,
@@ -629,15 +645,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
     // Wait for the backfill task to have pushed all items to the Stream::readyQ
     // Note: we expect 1 SnapshotMarker + numItems in the readyQ
     std::chrono::microseconds uSleepTime(128);
-    size_t expected = 2;
-    if (bucketType == "ephemeral") {
-        // Ephemeral doesn't sent committed prepares as the HTTombstonePurger
-        // marks items stale out of seqno order so items can be purged out of
-        // seqno order and a promotion to active would cause a recommit of that
-        // item
-        expected = 1;
-    }
-    while (stream->public_readyQSize() < 1 + expected) {
+    while (stream->public_readyQSize() < 2) {
         uSleepTime = decayingSleep(uSleepTime);
     }
 
@@ -647,10 +655,6 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
     EXPECT_EQ(0, dcpSnapMarker.getStartSeqno());
     EXPECT_EQ(2, dcpSnapMarker.getEndSeqno());
 
-    if (bucketType != "ephemeral") {
-        item = stream->public_nextQueuedItem(*producer);
-        verifyDcpPrepare(*prepared, *item);
-    }
 
     item = stream->public_nextQueuedItem(*producer);
     // In general, a backfill from disk will send a mutation instead of a

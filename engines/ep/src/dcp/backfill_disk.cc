@@ -102,6 +102,22 @@ void DiskCallback::callback(GetValue& val) {
         throw std::invalid_argument("DiskCallback::callback: val is NULL");
     }
 
+    auto committedState = val.item->getCommitted();
+    switch (committedState) {
+    case CommittedState::CommittedViaMutation:
+    case CommittedState::CommittedViaPrepare:
+    case CommittedState::PrepareAborted:
+        break;
+    case CommittedState::Pending:
+    case CommittedState::PreparedMaybeVisible:
+    case CommittedState::PrepareCommitted:
+        if (val.item->getBySeqno() <=
+            static_cast<int64_t>(persistedCompletedSeqno)) {
+            setStatus(cb::engine_errc::success);
+            return;
+        }
+    }
+
     // MB-26705: Make the backfilled item cold so ideally the consumer would
     // evict this before any cached item if they get into memory pressure.
     val.item->setFreqCounterValue(0);

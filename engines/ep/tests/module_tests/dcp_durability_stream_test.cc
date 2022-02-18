@@ -900,14 +900,9 @@ TEST_P(DurabilityActiveStreamTest,
     bfm.backfill();
     bfm.backfill();
 
-    // Ephemeral doesn't sent committed prepares as the HTTombstonePurger marks
-    // items stale out of seqno order so items can be purged out of seqno order
-    // and a promotion to active would cause a recommit of that item
-    auto expected = 3;
-    if (!persistent()) {
-        expected = 2;
-    }
-    EXPECT_EQ(expected, stream->public_readyQSize());
+    // We should only expect the snapshot marker and completed item. As we don't
+    // send completed prepares from backfill.
+    EXPECT_EQ(2, stream->public_readyQSize());
 
     auto resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
@@ -928,7 +923,7 @@ TEST_P(DurabilityActiveStreamTest,
  * sent to a consumer to ensure that when we transition to in memory streaming
  * we don't fail as we don't have a corresponding prepare
  */
-TEST_P(DurabilityActiveStreamEphemeralTest,
+TEST_P(DurabilityActiveStreamTest,
        BackfillSnapshotSendsFreshlyCompletedPrepare) {
     // 1) Prepare
     auto vb = engine->getVBucket(vbid);
@@ -944,6 +939,7 @@ TEST_P(DurabilityActiveStreamEphemeralTest,
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+    flushVBucketToDiskIfPersistent(vbid);
     vb->notifyActiveDMOfLocalSyncWrite();
 
     // 2) Start backfill but don't process items
@@ -966,6 +962,7 @@ TEST_P(DurabilityActiveStreamEphemeralTest,
                       "replica",
                       1));
     vb->processResolvedSyncWrites();
+    flushVBucketToDiskIfPersistent(vbid);
 
     // 4) Process backfill, prepare seen
     bfm.backfill();
@@ -1026,11 +1023,7 @@ TEST_P(DurabilityActiveStreamTest, DiskSnapshotSendsHCSWithSyncRepSupport) {
     ASSERT_EQ(0, producer->getBytesOutstanding());
 
     // readyQ must contain a SnapshotMarker
-    auto expected = 3;
-    if (!persistent()) {
-        expected = 2;
-    }
-    ASSERT_EQ(expected, stream->public_readyQSize());
+    ASSERT_EQ(2, stream->public_readyQSize());
     auto resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
@@ -6014,11 +6007,6 @@ INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          DurabilityPassiveStreamTest,
                          STParameterizedBucketTest::allConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
-                         DurabilityActiveStreamEphemeralTest,
-                         STParameterizedBucketTest::ephConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,

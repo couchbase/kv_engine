@@ -85,6 +85,11 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
         transitionState(backfill_state_done);
         return backfill_finished;
     }
+    // Set the persistedCompletedSeqno of DiskCallback taken from the
+    // persistedCompletedSeqno of the scan context so it's consistent with
+    // the file handle
+    dynamic_cast<DiskCallback&>(scanCtx->getValueCallback())
+            .persistedCompletedSeqno = scanCtx->persistedCompletedSeqno;
 
     auto [collHighSuccess, collHigh] =
             getHighSeqnoOfCollections(*scanCtx, *kvstore, stream->getFilter());
