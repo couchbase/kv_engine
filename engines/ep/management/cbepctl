@@ -198,7 +198,8 @@ Available params for "set":
     item_num_based_new_chk       - true if a new checkpoint can be created based
                                    on.
                                    the number of items in the open checkpoint.
-    max_checkpoints              - Max number of checkpoints allowed per vbucket.
+    max_checkpoints              - Desired/expected max number of checkpoints in each VBucket for balanced systems where the load is approximately evenly spread across vbuckets. That is NOT a hard limit (see also max_checkpoints_hard_limit_multiplier). Directly used in the auto-computation for the actual checkpoint_max_size.
+    max_checkpoints_hard_limit_multiplier - Defines the actual max checkpoints (per vbucket) hard limit as (max_checkpoints * multiplier). The multiplier doesn't affect the auto checkpoint_max_size computation.
     checkpoint_memory_ratio      - Max ratio of the bucket quota that can be allocated in checkpoints.
     checkpoint_memory_recovery_upper_mark - Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that triggers attempt of memory releasing from checkpoint.
     checkpoint_memory_recovery_lower_mark - Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that represents the target of checkpoint memory recovery. Memory recovery yields when reached.

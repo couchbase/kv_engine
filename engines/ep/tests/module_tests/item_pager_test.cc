@@ -57,11 +57,24 @@ protected:
         if (!config_string.empty()) {
             config_string += ";";
         }
+
+        // Notes on config:
+        // - max_checkpoints_hard_limit_multiplier=1 -> Quota tests (eg
+        //   ItemPager tests) rely on reproducing a specific memory state as
+        //   precondition for the test itself. That has been found quite fragile
+        //   multiple times (eg, magma, see specific config below). As soon as
+        //   we increase the maximum number of checkpoints allowed in the single
+        //   vbucket, that interferes with the multiple variants of
+        //   ::populateUntil(), thus invalidating the test. Thus, we just set
+        //   multiplier=1 (ie, the previous default) here. All the other unit
+        //   tests in EP run with the new default (multiplier=10), so coverage
+        //   is guaranteed.
         config_string +=
                 "ht_size=47;"
                 "magma_checkpoint_interval=0;"
                 "magma_min_checkpoint_interval=0;"
-                "magma_sync_every_batch=true";
+                "magma_sync_every_batch=true;"
+                "max_checkpoints_hard_limit_multiplier=1";
 
         STParameterizedBucketTest::SetUp();
 
