@@ -394,6 +394,12 @@ private:
                             const VBNotifyCtx& notifyCtx);
 
     /**
+     * Remove the given stored value from the hash-table
+     */
+    void dropStoredValue(const HashTable::HashBucketLock& hbl,
+                         StoredValue& value);
+
+    /**
      * Lock to synchronize order of bucket elements.
      * The sequence number is not generated in EphemeralVBucket for now. It is
      * generated in the CheckpointManager and is synchronized on "queueLock" in

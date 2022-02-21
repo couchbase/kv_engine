@@ -106,6 +106,11 @@ bool EphemeralVBucket::pageOut(const Collections::VB::ReadHandle& readHandle,
                                const HashTable::HashBucketLock& lh,
                                StoredValue*& v,
                                bool isDropped) {
+    if (isDropped) {
+        dropStoredValue(lh, *v);
+        return true;
+    }
+
     auto cid = v->getKey().getCollectionID();
     if (!eligibleToPageOut(lh, *v) || !readHandle.exists(cid)) {
         return false;
@@ -946,29 +951,16 @@ void EphemeralVBucket::dropKey(const DocKey& key, int64_t bySeqno) {
 
     {
         auto res = ht.findForUpdate(key);
-        auto releaseAndMarkStale = [this](const HashTable::HashBucketLock& hbl,
-                                          StoredValue* sv) {
-            auto ownedSV = ht.unlocked_release(hbl, sv);
-            {
-                std::lock_guard<std::mutex> listWriteLg(
-                        seqList->getListWriteLock());
-                // Mark the item stale, with no replacement item
-                seqList->markItemStale(
-                        listWriteLg, std::move(ownedSV), nullptr);
-            }
-        };
-
         if (res.pending) {
             // We don't need to drop a complete prepare or an abort from the DM
             // so only call for in-flight prepares
             if (res.pending->isPending()) {
                 prepareSeqno = res.pending->getBySeqno();
             }
-
-            releaseAndMarkStale(res.getHBL(), res.pending.release());
+            dropStoredValue(res.getHBL(), *res.pending.release());
         }
         if (res.committed) {
-            releaseAndMarkStale(res.getHBL(), res.committed);
+            dropStoredValue(res.getHBL(), *res.committed);
         }
     } // hashtable lock released here
 
@@ -980,6 +972,16 @@ void EphemeralVBucket::dropKey(const DocKey& key, int64_t bySeqno) {
     }
 
     return;
+}
+
+void EphemeralVBucket::dropStoredValue(const HashTable::HashBucketLock& hbl,
+                                       StoredValue& sv) {
+    auto ownedSV = ht.unlocked_release(hbl, &sv);
+    {
+        std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());
+        // Mark the item stale, with no replacement item
+        seqList->markItemStale(listWriteLg, std::move(ownedSV), nullptr);
+    }
 }
 
 uint64_t EphemeralVBucket::addSystemEventItem(

@@ -655,9 +655,6 @@ TEST_P(STItemPagerTest, PagerEvictsSomething) {
 }
 
 TEST_P(STItemPagerTest, PagerDropsCollectionData) {
-    if (!persistent()) {
-        GTEST_SKIP();
-    }
     pagerEvictsSomething(true);
 }
 

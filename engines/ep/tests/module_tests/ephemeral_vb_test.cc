@@ -167,10 +167,10 @@ TEST_F(EphemeralVBucketTest, PageOutAfterCollectionsDrop) {
     auto lock_sv = lockAndFind(key);
     auto* storedVal = lock_sv.second;
 
-    // Try and page it out, but with MB-43745 we would of seen an exception
+    // page it out, but with MB-43745 we would of seen an exception
     // here.
-    EXPECT_FALSE(vbucket->pageOut(readHandle, lock_sv.first, storedVal, true));
-    EXPECT_EQ(1, vbucket->getNumItems());
+    EXPECT_TRUE(vbucket->pageOut(readHandle, lock_sv.first, storedVal, true));
+    EXPECT_EQ(0, vbucket->getNumItems()); // and item now gone
 }
 
 // NRU: check the seqlist has correct statistics for a create, pageout,
