@@ -36,7 +36,7 @@ void CheckpointRemoverTest::SetUp() {
     config_string +=
             "max_vbuckets=8;checkpoint_remover_task_count=2;max_checkpoints=2";
 
-    SingleThreadedKVBucketTest::SetUp();
+    STParameterizedBucketTest::SetUp();
 }
 
 size_t CheckpointRemoverTest::getMaxCheckpointItems(VBucket& vb) {
@@ -48,7 +48,7 @@ size_t CheckpointRemoverTest::getMaxCheckpointItems(VBucket& vb) {
  * checkpoint mem-usage" order. Also verifies that vbuckets are sharded across
  * tasks.
  */
-TEST_F(CheckpointRemoverTest, CheckpointRemoverVBucketOrder) {
+TEST_P(CheckpointRemoverTest, CheckpointRemoverVBucketOrder) {
     const auto numVBuckets = 5;
     for (uint16_t vbid = 0; vbid < numVBuckets; ++vbid) {
         setVBucketStateAndRunPersistTask(Vbid(vbid), vbucket_state_active);
@@ -100,7 +100,7 @@ TEST_F(CheckpointRemoverTest, CheckpointRemoverVBucketOrder) {
  * drop. We should not be allowed to drop any cursors in a checkpoint when the
  * persistence cursor is present.
  */
-TEST_F(CheckpointRemoverEPTest, CursorsEligibleToDrop) {
+TEST_P(CheckpointRemoverEPTest, CursorsEligibleToDrop) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
     auto* checkpointManager =
@@ -147,7 +147,7 @@ TEST_F(CheckpointRemoverEPTest, CursorsEligibleToDrop) {
 }
 
 // Test that we correctly determine whether to trigger memory recovery.
-TEST_F(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
+TEST_P(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     const size_t bucketQuota = 1024 * 1024 * 100;
@@ -179,6 +179,10 @@ TEST_F(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
         store->set(item, cookie);
     } while (stats.getCheckpointManagerEstimatedMemUsage() <
              checkpointMemoryLimit);
+
+    // Need to flush to disk for full-eviction buckets so getNumItems() returns
+    // the correct value.
+    flushVBucket(vbid);
     auto vb = store->getVBucket(vbid);
     EXPECT_GT(vb->getNumItems(), 0);
     EXPECT_EQ(numItems, vb->getNumItems());
@@ -191,7 +195,7 @@ TEST_F(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
 }
 
 // Test that we correctly determine when to stop memory recovery.
-TEST_F(CheckpointRemoverEPTest, MemoryRecoveryEnd) {
+TEST_P(CheckpointRemoverEPTest, MemoryRecoveryEnd) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     scheduleCheckpointRemoverTask();
@@ -265,7 +269,7 @@ TEST_F(CheckpointRemoverEPTest, MemoryRecoveryEnd) {
 }
 
 void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
-        bool moveCursor) {
+        MemRecoveryMode mode) {
     // 1) Get enough checkpoint metadata to trigger expel
     // 2) doesn't hit maxDataSize first
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -277,7 +281,6 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
 
     auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
     createDcpStream(*producer);
-
     ActiveStream& activeStream =
             reinterpret_cast<ActiveStream&>(*producer->findStream(vbid));
     auto cursor = activeStream.getCursor().lock();
@@ -301,7 +304,7 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
         store_item(vbid, makeStoredDocKey(doc_key), value);
         ++ii;
     }
-    flush_vbucket_to_disk(vbid, ii);
+    flushVBucketToDiskIfPersistent(vbid, ii);
 
     const auto inititalNumCheckpoints = stats.getNumCheckpoints();
     EXPECT_GT(inititalNumCheckpoints, 0);
@@ -309,11 +312,11 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
     const auto memToClear = store->getRequiredCheckpointMemoryReduction();
     EXPECT_GT(memToClear, 0);
 
-    if (moveCursor) {
-        // Testing ItemExpel
+    if (mode == MemRecoveryMode::ItemExpelWithCursor) {
+        // Advance cursor so ItemExpel can occur.
         std::vector<queued_item> items;
         manager->getNextItemsForCursor(cursor.get(), items);
-    } // Testing CursorDrop otherwise
+    }
 
     const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
             engine.get(),
@@ -323,22 +326,26 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
     remover->run();
     getCkptDestroyerTask(vbid).run();
 
-    if (moveCursor) {
+    switch (mode) {
+    case MemRecoveryMode::ItemExpelWithCursor:
         EXPECT_EQ(stats.getNumCheckpoints(), inititalNumCheckpoints);
-    } else {
+        break;
+    case MemRecoveryMode::CursorDrop:
         EXPECT_LT(stats.getNumCheckpoints(), inititalNumCheckpoints);
+        break;
     }
 
     EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
 }
 
 // Test that we correctly apply expelling before cursor dropping.
-TEST_F(CheckpointRemoverEPTest, expelButNoCursorDrop) {
+TEST_P(CheckpointRemoverEPTest, expelButNoCursorDrop) {
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(0, stats.memFreedByCheckpointRemoval);
     ASSERT_EQ(0, stats.memFreedByCheckpointItemExpel);
 
-    testExpellingOccursBeforeCursorDropping(true);
+    testExpellingOccursBeforeCursorDropping(
+            MemRecoveryMode::ItemExpelWithCursor);
     EXPECT_NE(0, stats.itemsExpelledFromCheckpoints);
     EXPECT_EQ(0, stats.cursorsDropped);
     EXPECT_EQ(0, stats.memFreedByCheckpointRemoval);
@@ -347,7 +354,7 @@ TEST_F(CheckpointRemoverEPTest, expelButNoCursorDrop) {
 
 // Test that we correctly trigger cursor dropping when have checkpoint
 // with cursor at the start and so cannot use expelling.
-TEST_F(CheckpointRemoverEPTest, notExpelButCursorDrop) {
+TEST_P(CheckpointRemoverEPTest, notExpelButCursorDrop) {
     auto& config = engine->getConfiguration();
     config.setChkMaxItems(10);
     config.setMaxCheckpoints(20);
@@ -356,7 +363,7 @@ TEST_F(CheckpointRemoverEPTest, notExpelButCursorDrop) {
     ASSERT_EQ(0, stats.memFreedByCheckpointItemExpel);
     ASSERT_EQ(0, stats.memFreedByCheckpointRemoval);
 
-    testExpellingOccursBeforeCursorDropping(false);
+    testExpellingOccursBeforeCursorDropping(MemRecoveryMode::CursorDrop);
     EXPECT_EQ(0, engine->getEpStats().itemsExpelledFromCheckpoints);
     EXPECT_EQ(1, engine->getEpStats().cursorsDropped);
     EXPECT_EQ(0, stats.memFreedByCheckpointItemExpel);
@@ -366,7 +373,7 @@ TEST_F(CheckpointRemoverEPTest, notExpelButCursorDrop) {
 // Test written for MB-36366. With the fix removed this test failed because
 // post expel, we continued onto cursor dropping.
 // MB-36447 - unreliable test, disabling for now
-TEST_F(CheckpointRemoverEPTest, DISABLED_noCursorDropWhenTargetMet) {
+TEST_P(CheckpointRemoverEPTest, DISABLED_noCursorDropWhenTargetMet) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto& config = engine->getConfiguration();
     const auto& task = std::make_shared<CheckpointMemRecoveryTask>(
@@ -449,7 +456,7 @@ std::vector<queued_item> CheckpointRemoverEPTest::getItemsWithCursor(
     return items;
 }
 
-TEST_F(CheckpointRemoverEPTest, expelsOnlyIfOldestCheckpointIsReferenced) {
+TEST_P(CheckpointRemoverEPTest, expelsOnlyIfOldestCheckpointIsReferenced) {
     // Check to confirm checkpoint expelling will only run if there are cursors
     // in the oldest checkpoint. If there are not, the entire checkpoint should
     // be closed
@@ -542,7 +549,7 @@ TEST_F(CheckpointRemoverEPTest, expelsOnlyIfOldestCheckpointIsReferenced) {
     EXPECT_EQ(beforeCount - 2, afterCount);
 }
 
-TEST_F(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
+TEST_P(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
     // MB-35812 - Confirm that checkpoint expelling correctly selects the
     // earliest cursor, and that the cursor is in the oldest reffed checkpoint.
 
@@ -608,7 +615,7 @@ TEST_F(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
     // be selected, despite not being in the oldest checkpoint.
     EXPECT_NO_THROW(cm->expelUnreferencedCheckpointItems());
 }
-TEST_F(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
+TEST_P(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -649,7 +656,7 @@ TEST_F(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
     EXPECT_EQ(2, cm->getNumCheckpoints());
 }
 
-TEST_F(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
+TEST_P(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -687,7 +694,7 @@ TEST_F(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
     EXPECT_EQ(3, cm->getNumOpenChkItems());
 }
 
-TEST_F(CheckpointRemoverEPTest,
+TEST_P(CheckpointRemoverEPTest,
        CheckpointExpellingInvalidatesKeyIndexCorrectly) {
     /*
      * Ensure that expelling correctly marks invalidated keyIndex entries as
@@ -753,7 +760,7 @@ TEST_F(CheckpointRemoverEPTest,
     EXPECT_EQ(2, cm->getNumCheckpoints());
 }
 
-TEST_F(CheckpointRemoverEPTest, MB_48233) {
+TEST_P(CheckpointRemoverEPTest, MB_48233) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     // Run the remover one first time. Before the fix this step leaves the
@@ -781,7 +788,7 @@ TEST_F(CheckpointRemoverEPTest, MB_48233) {
               store->getCheckpointMemoryState());
 
     // Make items eligible for expelling
-    flush_vbucket_to_disk(vbid, store->getVBucket(vbid)->getNumItems());
+    flushVBucket(vbid);
 
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(0,
@@ -798,7 +805,7 @@ TEST_F(CheckpointRemoverEPTest, MB_48233) {
               0);
 }
 
-TEST_F(CheckpointRemoverEPTest, CheckpointRemovalWithoutCursorDrop) {
+TEST_P(CheckpointRemoverEPTest, CheckpointRemovalWithoutCursorDrop) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto& config = engine->getConfiguration();
 
@@ -824,8 +831,8 @@ TEST_F(CheckpointRemoverEPTest, CheckpointRemovalWithoutCursorDrop) {
     // Create a new checkpoint to move all cursors into it
     manager.createNewCheckpoint(true);
 
+    flushVBucket(vbid);
     const auto initialNumItems = vb->getNumItems();
-    flush_vbucket_to_disk(vbid, initialNumItems);
 
     // Move the DCP cursor to make some checkpoints eligible for removal without
     // dropping the cursor
@@ -855,7 +862,7 @@ TEST_F(CheckpointRemoverEPTest, CheckpointRemovalWithoutCursorDrop) {
     EXPECT_EQ(0, engine->getEpStats().cursorsDropped);
 }
 
-TEST_F(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
+TEST_P(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     // Schedule the remover and destroyer tasks, ready for use.
     // They sleep forever, but must be scheduled to be woken later in the test
@@ -936,3 +943,18 @@ TEST_F(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
               epstats.getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(0, destroyer.getMemoryUsage());
 }
+
+INSTANTIATE_TEST_SUITE_P(
+        EphemeralOrPersistent,
+        CheckpointRemoverTest,
+        // Not necessarily to test all the different KVStores, we just want to
+        // check Persistent vs Ephemeral memory handling.
+        STParameterizedBucketTest::ephAndCouchstoreConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         CheckpointRemoverEPTest,
+                         // Not necessarily to test all the different KVStores,
+                         // we just want to check Persistent memory handling.
+                         STParameterizedBucketTest::couchstoreConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
