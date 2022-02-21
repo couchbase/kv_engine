@@ -20,8 +20,6 @@
  *
  */
 
-#pragma once
-
 #include <memcached/dockey.h>
 #include <memcached/types.h>
 #include <nlohmann/json.hpp>

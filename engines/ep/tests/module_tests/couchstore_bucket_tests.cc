@@ -183,7 +183,8 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
         ASSERT_TRUE(res.storedValue);
         ASSERT_EQ(2, res.storedValue->getBySeqno());
         EXPECT_TRUE(res.storedValue->isDirty());
-        EXPECT_FALSE(epVB.pageOut(readHandle, res.lock, res.storedValue));
+        EXPECT_FALSE(
+                epVB.pageOut(readHandle, res.lock, res.storedValue, false));
     }
 
     // Note: The flusher has never persisted s:2

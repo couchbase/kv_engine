@@ -104,7 +104,8 @@ void EphemeralVBucket::completeStatsVKey(const DocKey& key,
 
 bool EphemeralVBucket::pageOut(const Collections::VB::ReadHandle& readHandle,
                                const HashTable::HashBucketLock& lh,
-                               StoredValue*& v) {
+                               StoredValue*& v,
+                               bool isDropped) {
     auto cid = v->getKey().getCollectionID();
     if (!eligibleToPageOut(lh, *v) || !readHandle.exists(cid)) {
         return false;

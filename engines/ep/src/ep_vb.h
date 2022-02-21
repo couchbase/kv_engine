@@ -109,7 +109,8 @@ public:
 
     bool pageOut(const Collections::VB::ReadHandle& readHandle,
                  const HashTable::HashBucketLock& lh,
-                 StoredValue*& v) override;
+                 StoredValue*& v,
+                 bool isDropped) override;
 
     bool eligibleToPageOut(const HashTable::HashBucketLock& lh,
                            const StoredValue& v) const override;
@@ -370,6 +371,12 @@ private:
      * @param seqno The high-seqno to set for the cleared CM
      */
     void clearCMAndResetDiskQueueStats(uint64_t seqno);
+
+    /**
+     * Remove the given stored value from the hash-table
+     */
+    void dropStoredValue(const HashTable::HashBucketLock& hbl,
+                         StoredValue& value);
 
     /**
      * Total number of alive (non-deleted), Committed items on-disk in this

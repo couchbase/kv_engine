@@ -1137,12 +1137,14 @@ public:
      * @param v[in, out] Ref to the StoredValue to be ejected. Based on the
      *                   VBucket type, policy in the vbucket contents of v and
      *                   v itself may be changed
+     * @param isDropped v belongs to a dropped collection
      *
      * @return true if an item is ejected.
      */
     virtual bool pageOut(const Collections::VB::ReadHandle& readHandle,
                          const HashTable::HashBucketLock& lh,
-                         StoredValue*& v) = 0;
+                         StoredValue*& v,
+                         bool isDropped) = 0;
 
     /*
      * Check to see if a StoredValue is eligible to be paged out of memory.

@@ -99,7 +99,8 @@ public:
 
     bool pageOut(const Collections::VB::ReadHandle& readHandle,
                  const HashTable::HashBucketLock& lh,
-                 StoredValue*& v) override;
+                 StoredValue*& v,
+                 bool isDropped) override;
 
     bool eligibleToPageOut(const HashTable::HashBucketLock& lh,
                            const StoredValue& v) const override;

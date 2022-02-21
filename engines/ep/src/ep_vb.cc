@@ -619,7 +619,13 @@ cb::mcbp::Status EPVBucket::evictKey(
 
 bool EPVBucket::pageOut(const Collections::VB::ReadHandle& readHandle,
                         const HashTable::HashBucketLock& lh,
-                        StoredValue*& v) {
+                        StoredValue*& v,
+                        bool isDropped) {
+    if (isDropped) {
+        Expects(v);
+        dropStoredValue(lh, *v);
+        return true;
+    }
     return ht.unlocked_ejectItem(lh, v, eviction);
 }
 
@@ -1003,11 +1009,16 @@ void EPVBucket::dropKey(const DocKey& key, int64_t bySeqno) {
 
     auto res = ht.findForUpdate(key);
     if (res.committed && res.committed->getBySeqno() == bySeqno) {
-        ht.unlocked_del(res.getHBL(), res.committed);
+        dropStoredValue(res.getHBL(), *res.committed);
     }
     if (res.pending && res.pending->getBySeqno() == bySeqno) {
-        ht.unlocked_del(res.getHBL(), res.pending.release());
+        dropStoredValue(res.getHBL(), *res.pending.release());
     }
+}
+
+void EPVBucket::dropStoredValue(const HashTable::HashBucketLock& hbl,
+                                StoredValue& value) {
+    ht.unlocked_del(hbl, &value);
 }
 
 /*

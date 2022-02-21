@@ -127,7 +127,9 @@ protected:
     uint64_t ageThreshold;
 
 private:
-    bool doEviction(const HashTable::HashBucketLock& lh, StoredValue* v);
+    bool doEviction(const HashTable::HashBucketLock& lh,
+                    StoredValue* v,
+                    bool isDropped);
 
     /*
      * Calculate the age when the item was last stored / modified.

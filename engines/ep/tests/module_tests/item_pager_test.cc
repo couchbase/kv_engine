@@ -28,6 +28,7 @@
 #include "kvstore/kvstore.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
+#include "tests/module_tests/collections/collections_test_helpers.h"
 #include "vbucket.h"
 
 #include <folly/portability/GTest.h>
@@ -36,6 +37,7 @@
 #include <programs/engine_testapp/mock_server.h>
 #include <statistics/labelled_collector.h>
 #include <string_utilities.h>
+#include <utilities/test_manifest.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
@@ -410,6 +412,8 @@ protected:
         numConcurrentExpiryPagers = num;
     }
 
+    void pagerEvictsSomething(bool dropCollection);
+
     size_t numConcurrentPagers = 1;
     int numConcurrentExpiryPagers = 1;
     /// Has the item pager been scheduled to run?
@@ -551,14 +555,16 @@ TEST_P(STItemPagerTest, HighWaterMarkTriggersPager) {
     runHighMemoryPager();
 }
 
-TEST_P(STItemPagerTest, PagerEvictsSomething) {
+void STItemPagerTest::pagerEvictsSomething(bool dropCollection) {
     // Pager can't run in fail_new_data policy so test is invalid
     if (ephemeralFailNewData()) {
         return;
     }
 
     // Fill to just over HWM
-    populateUntilAboveHighWaterMark(vbid);
+    // When dropCollection is true, set the freqCount to be high so items are
+    // not eligible for paging by MFU, but instead get dropped
+    populateUntilAboveHighWaterMark(vbid, dropCollection ? 255 : 0);
 
     // Flush so items are eligible for ejection
     flushDirectlyIfPersistent(vbid);
@@ -566,50 +572,93 @@ TEST_P(STItemPagerTest, PagerEvictsSomething) {
     auto vb = store->getVBucket(vbid);
     auto items = vb->getNumItems();
 
+    if (dropCollection) {
+        CollectionsManifest cm(NoDefault{});
+        vb->updateFromManifest(makeManifest(cm));
+    }
+
+    auto memUsed = engine->getEpStats().getPreciseTotalMemoryUsed();
+
     // Success if the pager is now ready
     runHighMemoryPager();
 
     if (persistent()) {
         // Should have evicted something
-        EXPECT_LT(0, store->getVBucket(vbid)->getNumNonResidentItems());
-        EXPECT_EQ(vb->getNumItems(), items);
+        if (dropCollection) {
+            if (isFullEviction()) {
+                // FE uses the 'disk' item count and disk still stores the item.
+                EXPECT_EQ(items, vb->getNumItems());
+                EXPECT_EQ(items,
+                          store->getVBucket(vbid)->getNumNonResidentItems());
 
-        // Bump up max size and HWM so we don't encounter memory issues during
-        // get phase
-        auto quota = engine->getEpStats().getPreciseTotalMemoryUsed() * 2;
-        engine->getConfiguration().setMaxSize(quota);
-        engine->getConfiguration().setMemHighWat(quota * 0.85);
-
-        // Read all of our items to verify that they are still there. Some will
-        // be on disk
-        for (size_t i = 0; i < items; i++) {
-            auto key = makeStoredDocKey("key_" + std::to_string(i));
-            auto gv = getInternal(key,
-                                  vbid,
-                                  cookie,
-                                  ForGetReplicaOp::No,
-                                  get_options_t::QUEUE_BG_FETCH);
-            switch (gv.getStatus()) {
-            case cb::engine_errc::success:
-                break;
-            case cb::engine_errc::would_block: {
-                ASSERT_TRUE(vb->hasPendingBGFetchItems());
-                runBGFetcherTask();
-                gv = getInternal(key,
-                                 vbid,
-                                 cookie,
-                                 ForGetReplicaOp::No,
-                                 get_options_t::NONE);
-                EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
-                break;
+            } else {
+                // VE the count goes down
+                EXPECT_EQ(0, vb->getNumItems());
+                EXPECT_EQ(0, store->getVBucket(vbid)->getNumNonResidentItems());
             }
-            default:
-                FAIL() << "Unexpected status";
+
+        } else {
+            EXPECT_LT(0, store->getVBucket(vbid)->getNumNonResidentItems());
+            EXPECT_EQ(items, vb->getNumItems());
+        }
+
+        // Check memory went down before reading data back
+        EXPECT_LE(engine->getEpStats().getPreciseTotalMemoryUsed(), memUsed);
+
+        // Cannot read the keys if dropColection==true
+        if (!dropCollection) {
+            // Bump up max size and HWM so we don't encounter memory issues
+            // during get phase
+            auto quota = engine->getEpStats().getPreciseTotalMemoryUsed() * 2;
+            engine->getConfiguration().setMaxSize(quota);
+            engine->getConfiguration().setMemHighWat(quota * 0.85);
+
+            // Read all of our items to verify that they are still there. Some
+            // will be on disk
+            for (size_t i = 0; i < items; i++) {
+                auto key = makeStoredDocKey("key_" + std::to_string(i));
+                auto gv = getInternal(key,
+                                      vbid,
+                                      cookie,
+                                      ForGetReplicaOp::No,
+                                      get_options_t::QUEUE_BG_FETCH);
+                switch (gv.getStatus()) {
+                case cb::engine_errc::success:
+                    break;
+                case cb::engine_errc::would_block: {
+                    ASSERT_TRUE(vb->hasPendingBGFetchItems());
+                    runBGFetcherTask();
+                    gv = getInternal(key,
+                                     vbid,
+                                     cookie,
+                                     ForGetReplicaOp::No,
+                                     get_options_t::NONE);
+                    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
+                    break;
+                }
+                default:
+                    FAIL() << "Unexpected status:" << gv.getStatus();
+                }
             }
         }
     } else {
-        EXPECT_LT(vb->getNumItems(), items);
+        if (dropCollection) {
+            EXPECT_EQ(0, vb->getNumItems());
+        } else {
+            EXPECT_LT(vb->getNumItems(), items);
+        }
     }
+}
+
+TEST_P(STItemPagerTest, PagerEvictsSomething) {
+    pagerEvictsSomething(false);
+}
+
+TEST_P(STItemPagerTest, PagerDropsCollectionData) {
+    if (!persistent()) {
+        GTEST_SKIP();
+    }
+    pagerEvictsSomething(true);
 }
 
 // Tests that for the hifi_mfu eviction algorithm we visit replica vbuckets

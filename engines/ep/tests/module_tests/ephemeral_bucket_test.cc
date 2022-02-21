@@ -78,7 +78,7 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
                    StoredValue& v) override {
             if (v.getKey() == key) {
                 StoredValue* vPtr = &v;
-                EXPECT_TRUE(vb.pageOut(readHandle, lh, vPtr));
+                EXPECT_TRUE(vb.pageOut(readHandle, lh, vPtr, false));
             }
             return true;
         }

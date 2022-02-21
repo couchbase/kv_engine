@@ -118,13 +118,18 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
     // For replica vbuckets, young items are not protected from eviction.
     const bool isReplica = currentBucket->getState() == vbucket_state_replica;
 
+    // Any dropped documents can be discarded
+    const bool isDropped =
+            readHandle.isLogicallyDeleted(v.getKey(), v.getBySeqno());
+
     bool evicted = false;
     bool eligibleForPaging = false;
 
-    if (belowMFUThreshold && (meetsAgeRequirements || isReplica)) {
+    if ((belowMFUThreshold && (meetsAgeRequirements || isReplica)) ||
+        isDropped) {
         // try to evict, may fail if sv is not eligible due to being
         // pending/non-resident/dirty.
-        evicted = eligibleForPaging = doEviction(lh, &v);
+        evicted = eligibleForPaging = doEviction(lh, &v, isDropped);
     } else {
         // just check eligibility without trying to evict
         eligibleForPaging = currentBucket->eligibleToPageOut(lh, v);
@@ -336,18 +341,20 @@ PagingVisitor::getVBucketComparator() const {
 }
 
 bool PagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
-                               StoredValue* v) {
+                               StoredValue* v,
+                               bool isDropped) {
     auto policy = store.getItemEvictionPolicy();
     StoredDocKey key(v->getKey());
 
-    if (currentBucket->pageOut(readHandle, lh, v)) {
+    if (currentBucket->pageOut(readHandle, lh, v, isDropped)) {
         ++ejected;
 
         /**
          * For FULL EVICTION MODE, add all items that are being
-         * evicted to the corresponding bloomfilter.
+         * evicted (but not dropped) to the corresponding bloomfilter. Ignoring
+         * dropped items as they cannot be read back.
          */
-        if (policy == ::EvictionPolicy::Full) {
+        if (!isDropped && policy == ::EvictionPolicy::Full) {
             currentBucket->addToFilter(key);
         }
         // performed eviction so return true
