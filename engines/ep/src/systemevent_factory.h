@@ -19,6 +19,7 @@
 
 #include <string>
 
+class DiskDocKey;
 class Item;
 class KVStore;
 class SystemEventMessage;
@@ -87,6 +88,16 @@ public:
      * @return StoredDocKey with scope system event key
      */
     static StoredDocKey makeScopeEventKey(ScopeID sid);
+
+    /**
+     * make a pair of keys (start and end) for use in a OSO range scan. This
+     * pair of keys will return the set of keys that are system events for the
+     * given collection.
+     * @param cid The ID of the collection
+     * @return pair of keys denoting the range for the collection
+     */
+    static std::pair<DiskDocKey, DiskDocKey>
+    makeCollectionEventKeyPairForRangeScan(CollectionID cid);
 
     /**
      * Given a key from makeCollectionEventKey/makeCollectionEvent, returns the
