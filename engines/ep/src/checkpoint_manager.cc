@@ -1035,22 +1035,28 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     }
 
     if (getGlobalBucketLogger()->should_log(spdlog::level::debug)) {
-        std::stringstream ranges;
+        std::string ranges;
         for (const auto& range : result.ranges) {
-            const auto hcs = range.highCompletedSeqno;
-            ranges << "{" << range.range.getStart() << ","
-                   << range.range.getEnd()
-                   << "} with HCS:" << to_string_or_none(hcs);
+            fmt::format_to(std::back_inserter(ranges),
+                           "[{{{},{}}} HCS:{} HPS:{}],",
+                           range.range.getStart(),
+                           range.range.getEnd(),
+                           to_string_or_none(range.highCompletedSeqno),
+                           to_string_or_none(range.highPreparedSeqno));
         }
+        if (!ranges.empty()) {
+            ranges.pop_back();
+        }
+
         EP_LOG_DEBUG(
                 "CheckpointManager::getItemsForCursor() "
-                "cursor:{} result:{{#items:{} ranges:size:{} {} "
+                "cursor:{} result:{{items:{} ranges:size:{} {} "
                 "moreAvailable:{}}}",
                 cursor.getName(),
                 uint64_t(itemCount),
                 result.ranges.size(),
-                ranges.str(),
-                result.moreAvailable ? "true" : "false");
+                ranges,
+                result.moreAvailable);
     }
 
     cursor.incrNumVisit();
