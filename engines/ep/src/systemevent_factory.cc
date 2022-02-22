@@ -14,6 +14,7 @@
 #include "collections/collections_types.h"
 #include "collections/vbucket_manifest.h"
 #include "dcp/response.h"
+#include "diskdockey.h"
 #include "item.h"
 
 #include <mcbp/protocol/unsigned_leb128.h>
@@ -62,6 +63,15 @@ StoredDocKey SystemEventFactory::makeCollectionEventKey(CollectionID cid) {
     StoredDocKey key1{Collections::CollectionEventDebugTag, cid};
     StoredDocKey key2{key1, CollectionID{uint32_t(SystemEvent::Collection)}};
     return StoredDocKey(key2, CollectionID::System);
+}
+
+std::pair<DiskDocKey, DiskDocKey>
+SystemEventFactory::makeCollectionEventKeyPairForRangeScan(CollectionID cid) {
+    auto start = makeCollectionEventKey(cid);
+    std::string end(start.keyData(), start.size());
+    // Append 255 so that end now encompasses the required range
+    end += std::numeric_limits<uint8_t>::max();
+    return {DiskDocKey{start}, DiskDocKey{end.data(), end.size()}};
 }
 
 CollectionID SystemEventFactory::getCollectionIDFromKey(const DocKey& key) {

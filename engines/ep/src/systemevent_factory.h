@@ -19,6 +19,7 @@
 
 #include <string>
 
+class DiskDocKey;
 class Item;
 class KVStore;
 class SystemEventMessage;
@@ -61,11 +62,21 @@ public:
 
     /**
      * Make a key for a Collection SystemEvent. This is the same key that an
-     * Item of makeCollectionEVent would have.
+     * Item of makeCollectionEvent would have.
      * @param cid The ID of the collection
      * @return StoredDocKey with a collection system event key
      */
     static StoredDocKey makeCollectionEventKey(CollectionID cid);
+
+    /**
+     * make a pair of keys (start and end) for use in a OSO range scan. This
+     * pair of keys will return the set of keys that are system events for the
+     * given collection.
+     * @param cid The ID of the collection
+     * @return pair of keys denoting the range for the collection
+     */
+    static std::pair<DiskDocKey, DiskDocKey>
+    makeCollectionEventKeyPairForRangeScan(CollectionID cid);
 
     /**
      * Given a key from makeCollectionEventKey/makeCollectionEvent, returns the

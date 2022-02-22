@@ -43,30 +43,35 @@ backfill_status_t DCPBackfillByIdDisk::create() {
     // Create two ranges of keys to have loaded from the scan.
     // 1) system/collection/cid - for the 'metadata', i.e the create/drop marker
     // 2) the range for the collection itself
+    // The range for each of the above is the prefix we want and then the suffix
+    // of "\xff". E.g. for collection 8
+    // start="\8", end="\8\xFF"
 
     // The system event start/end we can make from SystemEventFactory
-    auto sysStart = SystemEventFactory::makeCollectionEventKey(cid);
-    auto sysEnd = SystemEventFactory::makeCollectionEventKey(uint32_t{cid} + 1);
+    auto sysRange =
+            SystemEventFactory::makeCollectionEventKeyPairForRangeScan(cid);
 
     // Create the start and end keys for the collection itself
     cb::mcbp::unsigned_leb128<CollectionIDType> start(uint32_t{cid});
 
-    // The end key is the start key + 1, so we clone the start key and increment
-    // the last (stop) byte by 1
+    // The end key is the "start key" + "\xff", so we clone the start key into
+    // an array that is 1 byte larger than the largest possible leb128 prefixe
+    // and set the byte after the leb128 prefix to be 0xff.
     std::array<uint8_t,
-               cb::mcbp::unsigned_leb128<CollectionIDType>::getMaxSize()>
+               cb::mcbp::unsigned_leb128<CollectionIDType>::getMaxSize() + 1>
             end;
     std::copy(start.begin(), start.end(), end.begin());
-    end[start.size() - 1]++;
+    end[start.size()] = std::numeric_limits<uint8_t>::max();
 
     std::vector<ByIdRange> ranges;
-    ranges.emplace_back(ByIdRange{DiskDocKey{sysStart}, DiskDocKey{sysEnd}});
-    ranges.emplace_back(ByIdRange{
-            DiskDocKey{{start.data(),
-                        start.size(),
-                        DocKeyEncodesCollectionId::Yes}},
-            DiskDocKey{
-                    {end.data(), end.size(), DocKeyEncodesCollectionId::Yes}}});
+    ranges.emplace_back(ByIdRange{sysRange.first, sysRange.second});
+    ranges.emplace_back(
+            ByIdRange{DiskDocKey{{start.data(),
+                                  start.size(),
+                                  DocKeyEncodesCollectionId::Yes}},
+                      DiskDocKey{{end.data(),
+                                  start.size() + 1,
+                                  DocKeyEncodesCollectionId::Yes}}});
 
     scanCtx = kvstore->initByIdScanContext(
             std::make_unique<DiskCallback>(stream),
