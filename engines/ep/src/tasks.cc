@@ -28,11 +28,13 @@ bool FlusherTask::run() {
     return flusher->step(this);
 }
 
-CompactTask::CompactTask(EPBucket& bucket,
-                         Vbid vbid,
-                         CompactionConfig config,
-                         const CookieIface* ck,
-                         bool completeBeforeShutdown)
+CompactTask::CompactTask(
+        EPBucket& bucket,
+        Vbid vbid,
+        CompactionConfig config,
+        std::chrono::steady_clock::time_point requestedStartTime,
+        const CookieIface* ck,
+        bool completeBeforeShutdown)
     : GlobalTask(&bucket.getEPEngine(),
                  TaskId::CompactVBucketTask,
                  0,
@@ -46,6 +48,8 @@ CompactTask::CompactTask(EPBucket& bucket,
     if (ck) {
         lockedState->cookiesWaiting.push_back(ck);
     }
+
+    lockedState->requestedStartTime = requestedStartTime;
 }
 
 bool CompactTask::run() {
@@ -53,14 +57,21 @@ bool CompactTask::run() {
 
     // pull out the config we have been requested to run with and any cookies
     // that maybe waiting.
-    auto compactionData = preDoCompact();
+    auto configAndCookies = preDoCompact();
+
+    if (!configAndCookies) {
+        // if we ran now, we wouldn't be respecting the requested compaction
+        // delay. Reschedule, preDoCompact has already updated the wake time.
+        return true;
+    }
+
+    auto [config, cookies] = *configAndCookies;
 
     if (runningCallback) {
         runningCallback();
     }
 
-    auto reschedule =
-            bucket.doCompact(vbid, compactionData.first, compactionData.second);
+    auto reschedule = bucket.doCompact(vbid, config, cookies);
 
     // If this compaction has finished its work (doesn't need to be
     // re-scheduled), then clean up the task and see if any other tasks
@@ -73,7 +84,7 @@ bool CompactTask::run() {
         reschedule = bucket.updateCompactionTasks(vbid);
     }
 
-    return isTaskDone(compactionData.second) || reschedule;
+    return isTaskDone(cookies) || reschedule;
 }
 
 std::string CompactTask::getDescription() const {
@@ -98,19 +109,25 @@ CompactionConfig CompactTask::getCurrentConfig() const {
     return compaction.rlock()->config;
 }
 
-std::pair<CompactionConfig, std::vector<const CookieIface*>>
+std::optional<std::pair<CompactionConfig, std::vector<const CookieIface*>>>
 CompactTask::preDoCompact() {
     auto lockedState = compaction.wlock();
+    if (lockedState->requestedStartTime > std::chrono::steady_clock::now()) {
+        updateWaketime(lockedState->requestedStartTime);
+        return {};
+    }
     lockedState->rescheduleRequired = false;
     // config and cookiesWaiting are moved out to the task run loop, any
     // subsequent schedule now operates on the 'empty' objects whilst run
     // gets on with compacting using the returned values.
-    return {std::move(lockedState->config),
-            std::move(lockedState->cookiesWaiting)};
+    return {{std::move(lockedState->config),
+             std::move(lockedState->cookiesWaiting)}};
 }
 
 CompactionConfig CompactTask::runCompactionWithConfig(
-        std::optional<CompactionConfig> config, const CookieIface* cookie) {
+        std::optional<CompactionConfig> config,
+        const CookieIface* cookie,
+        std::chrono::steady_clock::time_point requestedStartTime) {
     auto lockedState = compaction.wlock();
     if (config) {
         lockedState->config.merge(config.value());
@@ -119,6 +136,8 @@ CompactionConfig CompactTask::runCompactionWithConfig(
         lockedState->cookiesWaiting.push_back(cookie);
     }
     lockedState->rescheduleRequired = true;
+    // Whatever delay is set by the new request takes priority.
+    lockedState->requestedStartTime = requestedStartTime;
     return lockedState->config;
 }
 

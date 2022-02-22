@@ -1050,6 +1050,9 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
 
     auto handle = compactionTasks.wlock();
 
+    // find the earliest time the compaction task should start, to obey
+    // the requested delay
+    auto requestedStartTime = std::chrono::steady_clock::now() + delay;
     // Convert delay to ExecutorPool 'double' e.g. 1500ms = 1.5 secs
     std::chrono::duration<double> execDelay = delay;
 
@@ -1061,7 +1064,8 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
     if (!emplaced) {
         // The existing task must be poked - it needs to either reschedule if
         // it is currently running or run with the given config.
-        tasksConfig = task->runCompactionWithConfig(config, cookie);
+        tasksConfig = task->runCompactionWithConfig(
+                config, cookie, requestedStartTime);
         if (execDelay.count() > 0.0) {
             ExecutorPool::get()->snooze(task->getId(), execDelay.count());
         } else {
@@ -1069,8 +1073,8 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
         }
     } else {
         // Nothing in the map for this vbid now construct the task
-        itr->second =
-                std::make_shared<CompactTask>(*this, vbid, config, cookie);
+        itr->second = std::make_shared<CompactTask>(
+                *this, vbid, config, requestedStartTime, cookie);
         if (handle->size() > 1) {
             // Avoid too many concurrent compaction tasks as they
             // could impact flushing throughout (and latency) in a
