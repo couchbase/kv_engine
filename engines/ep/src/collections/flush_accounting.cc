@@ -159,9 +159,11 @@ void FlushAccounting::presetStats(CollectionID cid,
     auto [itr, inserted] = stats.try_emplace(cid, StatisticsUpdate{preStats});
     (void)itr;
 
-    // This function is used from a path where this should not be true, where
-    // only unique keys should be found.
-    Expects(inserted && "presetStats must insert unique collections");
+    if (isPiTR == IsPiTR::No) {
+        // This function is used from a path where this should not be true,
+        // where only unique keys should be found.
+        Expects(inserted && "presetStats must insert unique collections");
+    }
 }
 
 bool FlushAccounting::processSystemEvent(CollectionID cid,

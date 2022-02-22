@@ -44,6 +44,7 @@ enum class IsSystem : char { No, Yes };
 enum class IsDeleted : char { No, Yes };
 enum class IsCommitted : char { No, Yes };
 enum class IsCompaction : char { No, Yes };
+enum class IsPiTR : char { No, Yes };
 
 // Is the compaction callback invoked for the latest revision only, or any
 // revision?

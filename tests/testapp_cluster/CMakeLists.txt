@@ -8,6 +8,7 @@ cb_add_test_executable(cluster_test
                main.cc
                misc_tests.cc
                out_of_order_tests.cc
+               pitr_tests.cc
                rbac_tests.cc
                regression_tests.cc
                upgrade_test.cc

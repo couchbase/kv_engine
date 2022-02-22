@@ -279,6 +279,10 @@ public:
         return droppedStats;
     }
 
+    void setPiTR(IsPiTR pitr) {
+        isPiTR = pitr;
+    }
+
 private:
     /**
      * Function determines if the collection @ seqno is dropped, but only
@@ -373,5 +377,8 @@ private:
      * to know if the old document is logically deleted.
      */
     DroppedMap droppedInStore;
+
+    /// Are we running in a PiTR context?
+    IsPiTR isPiTR = IsPiTR::No;
 };
 } // namespace Collections::VB

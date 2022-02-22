@@ -1435,6 +1435,7 @@ CompactDBStatus CouchKVStore::compactDBInternal(
         CompactionReplayPrepareStats prepareStats;
 
         Collections::VB::FlushAccounting collectionStats;
+        collectionStats.setPiTR(IsPiTR::Yes);
         uint64_t purge_seqno = 0;
         errCode = cb::couchstore::compact(
                 *sourceDb,
@@ -1956,6 +1957,9 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
     // dropped collections (e.g. replace becomes insert etc...)
     Collections::VB::FlushAccounting collectionStats(droppedCollections,
                                                      IsCompaction::Yes);
+    if (configuration.isPitrEnabled()) {
+        collectionStats.setPiTR(IsPiTR::Yes);
+    }
 
     err = cb::couchstore::replay(
             source,
