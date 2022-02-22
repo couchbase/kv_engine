@@ -595,6 +595,12 @@ protected:
         return itms;
     }
 
+    /**
+     * Test that CouchKVStore::compactDB performs as expected when it errors
+     * during an open
+     */
+    void testCompactDBCompactDBEx();
+
     const std::string data_dir;
 
     ::testing::NiceMock<MockOps> ops;
@@ -888,10 +894,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_open_doc_with_docinfo) {
               itms[DiskDocKey{*items.at(0)}].value.getStatus());
 }
 
-/**
- * Injects error during CouchKVStore::compactDB/couchstore_compact_db_ex
- */
-TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
+void CouchKVStoreErrorInjectionTest::testCompactDBCompactDBEx() {
     populate_items(1);
 
     CompactionConfig config;
@@ -919,6 +922,17 @@ TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
         std::unique_lock<std::mutex> lock(mutex);
         kvstore->compactDB(lock, cctx);
     }
+}
+
+TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
+    testCompactDBCompactDBEx();
+}
+
+TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex_pitr) {
+    config.setPitrEnabled(true);
+    config.setPitrGranularity(std::chrono::nanoseconds(1000));
+    config.setPitrMaxHistoryAge(std::chrono::seconds(1));
+    testCompactDBCompactDBEx();
 }
 
 /**
