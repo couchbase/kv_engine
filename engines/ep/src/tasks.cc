@@ -84,7 +84,7 @@ bool CompactTask::run() {
         reschedule = bucket.updateCompactionTasks(vbid);
     }
 
-    return isTaskDone(cookies) || reschedule;
+    return !isTaskDone(cookies) || reschedule;
 }
 
 std::string CompactTask::getDescription() const {
@@ -97,12 +97,14 @@ bool CompactTask::isRescheduleRequired() const {
 
 bool CompactTask::isTaskDone(const std::vector<const CookieIface*>& cookies) {
     auto handle = compaction.wlock();
-    bool value = handle->rescheduleRequired;
+    bool shouldReschedule = handle->rescheduleRequired;
     handle->rescheduleRequired = false;
     // Any cookies remaining must be retained for a future run
     handle->cookiesWaiting.insert(
             handle->cookiesWaiting.end(), cookies.begin(), cookies.end());
-    return value || !handle->cookiesWaiting.empty();
+    // task is done if it did not need rescheduling, and does not have
+    // any cookies waiting for notification of compaction completion.
+    return !shouldReschedule && handle->cookiesWaiting.empty();
 }
 
 CompactionConfig CompactTask::getCurrentConfig() const {
