@@ -821,7 +821,8 @@ protected:
      * Returns the earliest cursor in checkpoints.
      *
      * @param lh Lock to CM mutex
-     * @return the lowest cursor
+     * @return the lowest cursor, or an empty pointer if there are zero cursors
+     * registered.
      */
     std::shared_ptr<CheckpointCursor> getLowestCursor(
             const std::lock_guard<std::mutex>& lh);

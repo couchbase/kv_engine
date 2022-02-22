@@ -33,6 +33,34 @@ class CheckpointRemoverTest : public STParameterizedBucketTest {
 public:
     void SetUp() override;
 
+    /// How is memory expected to be recovered in the below tests?
+    enum class MemRecoveryMode {
+        CursorDrop,
+        ItemExpelWithCursor,
+        ItemExpelWithoutCursor,
+    };
+
+    /**
+     * Helper function to the expelButNoCursorDrop and
+     * notExpelButCursorDrop tests. It adds a cursor to a checkpoint that
+     * been configured to more easily allow the triggering of memory
+     * recovery.  It then adds items to a checkpoint, flushes those items
+     * to disk.  Then depending on the mode parameter:
+     * - CursorDrop: Cursor left at start of checkpoint, expect memory to
+     *   be recovered by dropping it.
+     * - ItemExpelWithCursor: Cursor is moved past 90% of the items added -
+     *   so ItemExpel can occur.
+     * - ItemExpelWithoutCursor: Cursor is not added; relying solely on
+     *   item expel.
+     * It then invokes the run method of CheckpointMemRecoveryTask, which
+     * first attempts to recover memory by expelling followed, if necessary,
+     * by cursor dropping, and the subsequent removal of closed unreferenced
+     * checkpoints.
+     * @param mode  indicates the test variant.
+     * test should be moved forward.
+     */
+    void testExpellingOccursBeforeCursorDropping(MemRecoveryMode mode);
+
     /**
      * Get the maximum number of items allowed in a checkpoint for the given
      * vBucket
@@ -48,31 +76,6 @@ protected:
     EPBucket& getEPBucket() {
         return dynamic_cast<EPBucket&>(*store);
     }
-
-    /// How is memory expected to be recovered in the below tests?
-    enum class MemRecoveryMode {
-        CursorDrop,
-        ItemExpelWithCursor,
-    };
-
-    /**
-     * Helper function to the expelButNoCursorDrop and
-     * notExpelButCursorDrop tests. It adds a cursor to a checkpoint that
-     * been configured to more easily allow the triggering of memory
-     * recovery.  It then adds items to a checkpoint, flushes those items
-     * to disk.  Then depending on the mode parameter:
-     * - CursorDrop: Cursor left at start of checkpoint, expect memory to
-     *   be recovered by dropping it.
-     * - ItemExpelWithCursor: Cursor is moved past 90% of the items added -
-     *   so ItemExpel can occur.
-     * It then invokes the run method of CheckpointMemRecoveryTask, which
-     * first attempts to recover memory by expelling followed, if necessary,
-     * by cursor dropping, and the subsequent removal of closed unreferenced
-     * checkpoints.
-     * @param mode  indicates the test variant.
-     * test should be moved forward.
-     */
-    void testExpellingOccursBeforeCursorDropping(MemRecoveryMode mode);
 
     /**
      * Construct a cursor, and call getNextItemsForCursor.

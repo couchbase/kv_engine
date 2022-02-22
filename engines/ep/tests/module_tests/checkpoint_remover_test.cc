@@ -268,7 +268,7 @@ TEST_P(CheckpointRemoverEPTest, MemoryRecoveryEnd) {
     EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
 }
 
-void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
+void CheckpointRemoverTest::testExpellingOccursBeforeCursorDropping(
         MemRecoveryMode mode) {
     // 1) Get enough checkpoint metadata to trigger expel
     // 2) doesn't hit maxDataSize first
@@ -279,11 +279,15 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
     auto* manager =
             static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
 
-    auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
-    createDcpStream(*producer);
-    ActiveStream& activeStream =
-            reinterpret_cast<ActiveStream&>(*producer->findStream(vbid));
-    auto cursor = activeStream.getCursor().lock();
+    std::shared_ptr<MockDcpProducer> producer;
+    std::shared_ptr<CheckpointCursor> cursor;
+    if (mode != MemRecoveryMode::ItemExpelWithoutCursor) {
+        producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+        createDcpStream(*producer);
+        ActiveStream& activeStream =
+                reinterpret_cast<ActiveStream&>(*producer->findStream(vbid));
+        cursor = activeStream.getCursor().lock();
+    }
 
     config.setChkExpelEnabled(true);
     config.setMaxSize(1024 * 1024 * 100);
@@ -328,6 +332,7 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
 
     switch (mode) {
     case MemRecoveryMode::ItemExpelWithCursor:
+    case MemRecoveryMode::ItemExpelWithoutCursor:
         EXPECT_EQ(stats.getNumCheckpoints(), inititalNumCheckpoints);
         break;
     case MemRecoveryMode::CursorDrop:
@@ -339,7 +344,7 @@ void CheckpointRemoverEPTest::testExpellingOccursBeforeCursorDropping(
 }
 
 // Test that we correctly apply expelling before cursor dropping.
-TEST_P(CheckpointRemoverEPTest, expelButNoCursorDrop) {
+TEST_P(CheckpointRemoverTest, expelButNoCursorDrop) {
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(0, stats.memFreedByCheckpointRemoval);
     ASSERT_EQ(0, stats.memFreedByCheckpointItemExpel);
@@ -354,7 +359,7 @@ TEST_P(CheckpointRemoverEPTest, expelButNoCursorDrop) {
 
 // Test that we correctly trigger cursor dropping when have checkpoint
 // with cursor at the start and so cannot use expelling.
-TEST_P(CheckpointRemoverEPTest, notExpelButCursorDrop) {
+TEST_P(CheckpointRemoverTest, notExpelButCursorDrop) {
     auto& config = engine->getConfiguration();
     config.setChkMaxItems(10);
     config.setMaxCheckpoints(20);
@@ -368,6 +373,21 @@ TEST_P(CheckpointRemoverEPTest, notExpelButCursorDrop) {
     EXPECT_EQ(1, engine->getEpStats().cursorsDropped);
     EXPECT_EQ(0, stats.memFreedByCheckpointItemExpel);
     EXPECT_GT(stats.memFreedByCheckpointRemoval, 0);
+}
+
+// Test that we correctly apply expelling when there are zero cursors (e.g.
+// ephemeral)
+TEST_P(CheckpointRemoverTest, expelWithoutCursor) {
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.memFreedByCheckpointRemoval);
+    ASSERT_EQ(0, stats.memFreedByCheckpointItemExpel);
+
+    testExpellingOccursBeforeCursorDropping(
+            MemRecoveryMode::ItemExpelWithoutCursor);
+    EXPECT_NE(0, stats.itemsExpelledFromCheckpoints);
+    EXPECT_EQ(0, stats.cursorsDropped);
+    EXPECT_EQ(0, stats.memFreedByCheckpointRemoval);
+    EXPECT_GT(stats.memFreedByCheckpointItemExpel, 0);
 }
 
 // Test written for MB-36366. With the fix removed this test failed because

@@ -1846,6 +1846,9 @@ std::shared_ptr<CheckpointCursor> CheckpointManager::getLowestCursor(
                 // Compare by CheckpointCursor.
                 return *a.second < *b.second;
             });
+    if (entry == cursors.end()) {
+        return {};
+    }
     return entry->second;
 }
 
@@ -1908,14 +1911,16 @@ const CheckpointCursor& CheckpointManager::ExtractItemsResult::getExpelCursor()
 
 CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
         const std::lock_guard<std::mutex>& lh) {
-    Checkpoint* const oldestCheckpoint = checkpointList.front().get();
+    const auto oldestCkptIterator = checkpointList.begin();
+    Checkpoint* const oldestCheckpoint = oldestCkptIterator->get();
 
-    if (oldestCheckpoint->getNumCursorsInCheckpoint() == 0) {
-        // The oldest checkpoint is unreferenced, and may be deleted
-        // as a whole by the CheckpointMemRecoveryTask,
-        // expelling everything from it one by one would be a waste of time.
-        // Cannot expel from checkpoints which are not the oldest without
-        // leaving gaps in the items a cursor would read.
+    if ((oldestCheckpoint->getNumCursorsInCheckpoint() == 0) &&
+        oldestCheckpoint->getState() == checkpoint_state::CHECKPOINT_CLOSED) {
+        // The oldest checkpoint is unreferenced and closed, therefore may be
+        // deleted as a whole by the CheckpointMemRecoveryTask, expelling
+        // everything from it one by one would be a waste of time. Cannot expel
+        // from checkpoints which are not the oldest without leaving gaps in the
+        // items a cursor would read.
         return {};
     }
 
@@ -1926,37 +1931,47 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
 
     const auto lowestCursor = getLowestCursor(lh);
 
-    // Sanity check - if the oldest checkpoint is referenced, the cursor
-    // with the lowest seqno should be in that checkpoint.
-    if (lowestCursor->getCheckpoint()->get() != oldestCheckpoint) {
-        std::stringstream ss;
-        ss << "CheckpointManager::expelUnreferencedCheckpointItems: ("
-           << vb.getId()
-           << ") lowest found cursor is not in the oldest "
-              "checkpoint. Oldest checkpoint ID: "
-           << oldestCheckpoint->getId()
-           << " lowSeqno: " << oldestCheckpoint->getMinimumCursorSeqno()
-           << " highSeqno: " << oldestCheckpoint->getHighSeqno()
-           << " snapStart: " << oldestCheckpoint->getSnapshotStartSeqno()
-           << " snapEnd: " << oldestCheckpoint->getSnapshotEndSeqno()
-           << ". Lowest cursor: " << lowestCursor->getName()
-           << " seqno: " << (*lowestCursor->getPos())->getBySeqno()
-           << " ckptID: " << (*lowestCursor->getCheckpoint())->getId();
-        throw std::logic_error(ss.str());
+    if (lowestCursor) {
+        // Sanity check - if the oldest checkpoint is referenced, the cursor
+        // with the lowest seqno should be in that checkpoint.
+        if (lowestCursor->getCheckpoint()->get() != oldestCheckpoint) {
+            std::stringstream ss;
+            ss << "CheckpointManager::expelUnreferencedCheckpointItems: ("
+               << vb.getId()
+               << ") lowest found cursor is not in the oldest "
+                  "checkpoint. Oldest checkpoint ID: "
+               << oldestCheckpoint->getId()
+               << " lowSeqno: " << oldestCheckpoint->getMinimumCursorSeqno()
+               << " highSeqno: " << oldestCheckpoint->getHighSeqno()
+               << " snapStart: " << oldestCheckpoint->getSnapshotStartSeqno()
+               << " snapEnd: " << oldestCheckpoint->getSnapshotEndSeqno()
+               << ". Lowest cursor: " << lowestCursor->getName()
+               << " seqno: " << (*lowestCursor->getPos())->getBySeqno()
+               << " ckptID: " << (*lowestCursor->getCheckpoint())->getId();
+            throw std::logic_error(ss.str());
+        }
+
+        // Note: Important check as this avoids decrementing the begin()
+        // iterator in the following steps.
+        if (lowestCursor->getPos() == oldestCheckpoint->begin()) {
+            // Lowest cursor is at the checkpoint empty item, nothing to expel
+            return {};
+        }
     }
 
-    // Note: Important check as this avoids decrementing the begin() iterator
-    // in the following steps.
-    if (lowestCursor->getPos() == oldestCheckpoint->begin()) {
-        // Lowest cursor is at the checkpoint empty item, nothing to expel
-        return {};
-    }
+    // Calcuate the extent of the items to expel based on the lowest cursor,
+    // or in the case of no cursor - use the end of the checkpoint.
+    // This position is then adjusted backwards to ensure we expel up to
+    // a consistent seqno - i.e we should expel all or none of a given seqno.
+    auto iterator =
+            lowestCursor ? lowestCursor->getPos() : oldestCheckpoint->end();
+    auto distance = lowestCursor ? lowestCursor->getDistance()
+                                 : oldestCheckpoint->getNumberOfElements();
 
     // Never expel items pointed by cursor.
-    auto iterator = std::prev(lowestCursor->getPos());
-    // The distance between CheckpointQueue.begin() and 'iterator'.
-    auto distance = lowestCursor->getDistance();
-    // Note: If reached here lowestCursor points to some position > begin()
+    iterator = std::prev(iterator);
+
+    // Note: If reached here iterator points to some position > begin()
     Expects(distance > 0);
     --distance;
 
@@ -2009,12 +2024,10 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
     //  checkpoint at this point
     const auto name = "expel-cursor";
     Expects(cursors.find(name) == cursors.end());
-    const auto checkpoint = lowestCursor->getCheckpoint();
-    Expects(checkpoint->get() == oldestCheckpoint);
     const auto cursor =
             std::make_shared<CheckpointCursor>(name,
-                                               checkpoint,
-                                               (*checkpoint)->begin(),
+                                               oldestCkptIterator,
+                                               oldestCheckpoint->begin(),
                                                CheckpointCursor::Droppable::No,
                                                0);
     cursors[name] = cursor;

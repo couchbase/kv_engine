@@ -325,6 +325,17 @@ public:
     }
 
     /**
+     * Returns the total number of elements in toWrite (including all meta /
+     * non-meta / dummy items).
+     *
+     * Typically used as part of Cursor distance calculations, not directly
+     * related to items given to consumers etc.
+     */
+    size_t getNumberOfElements() const {
+        return toWrite.size();
+    }
+
+    /**
      * Return the current state of this checkpoint.
      */
     checkpoint_state getState() const {
