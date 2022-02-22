@@ -468,10 +468,10 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
         }
 
         void callback(GetValue& val) override {
-            // Scan can stop once we go past the maxSeqno, but the scan API is a
-            // bit ugly here, if we say no_memory the scan will stop
+            // Scan can stop once we go past the maxSeqno. Set status so that
+            // the scan will yield
             if (uint64_t(val.item->getBySeqno()) > maxSeqno) {
-                setStatus(cb::engine_errc::no_memory);
+                yield();
             }
 
             if (val.item->getKey().isInDefaultCollection() &&

@@ -1605,11 +1605,11 @@ ScanStatus RocksDBKVStore::scan(BySeqnoScanContext& ctx) const {
             ctx.getCacheCallback().callback(lookup);
 
             auto status = ctx.getCacheCallback().getStatus();
-            if (status == cb::engine_errc::key_already_exists) {
+            if (ctx.getCacheCallback().shouldYield()) {
+                return ScanStatus::Yield;
+            } else if (status == cb::engine_errc::key_already_exists) {
                 ctx.lastReadSeqno = byseqno;
                 continue;
-            } else if (status == cb::engine_errc::no_memory) {
-                return ScanStatus::Yield;
             } else if (status != cb::engine_errc::success) {
                 return ScanStatus::Cancelled;
             }
@@ -1619,7 +1619,7 @@ ScanStatus RocksDBKVStore::scan(BySeqnoScanContext& ctx) const {
         ctx.getValueCallback().callback(rv);
         auto status = ctx.getValueCallback().getStatus();
 
-        if (status == cb::engine_errc::no_memory) {
+        if (ctx.getValueCallback().shouldYield()) {
             return ScanStatus::Yield;
         } else if (status != cb::engine_errc::success) {
             return ScanStatus::Cancelled;

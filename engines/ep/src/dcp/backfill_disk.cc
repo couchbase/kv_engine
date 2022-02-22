@@ -101,12 +101,11 @@ void CacheCallback::callback(CacheLookup& lookup) {
 
     // Perform the backfill and set status to key_already_exists if successful.
     // Otherwise pause stream backfill as op failed - not enough free memory
-    bool backfillSuccess =
-            stream_->backfillReceived(std::move(item), BACKFILL_FROM_MEMORY);
-    cb::engine_errc newStatus = (backfillSuccess)
-                                        ? cb::engine_errc::key_already_exists
-                                        : cb::engine_errc::no_memory;
-    setStatus(newStatus);
+    if (stream_->backfillReceived(std::move(item), BACKFILL_FROM_MEMORY)) {
+        setStatus(cb::engine_errc::key_already_exists);
+    } else {
+        yield();
+    }
     return;
 }
 
@@ -148,7 +147,7 @@ void DiskCallback::callback(GetValue& val) {
     val.item->setFreqCounterValue(0);
 
     if (!stream_->backfillReceived(std::move(val.item), BACKFILL_FROM_DISK)) {
-        setStatus(cb::engine_errc::no_memory); // Pause the backfill
+        yield(); // Pause the backfill
     } else {
         setStatus(cb::engine_errc::success);
     }

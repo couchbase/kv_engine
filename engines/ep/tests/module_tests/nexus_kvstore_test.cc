@@ -141,7 +141,7 @@ class PausingScanCb : public StatusCallback<GetValue> {
 public:
     void callback(GetValue& result) override {
         if (tick) {
-            setStatus(cb::engine_errc::no_memory);
+            yield();
             tick = false;
             return;
         }
@@ -154,7 +154,7 @@ class PausingCacheLookupCb : public StatusCallback<CacheLookup> {
 public:
     void callback(CacheLookup& lookup) override {
         if (tick) {
-            setStatus(cb::engine_errc::no_memory);
+            yield();
             tick = false;
             return;
         }

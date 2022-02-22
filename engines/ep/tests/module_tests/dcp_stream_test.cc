@@ -1414,7 +1414,8 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success_not_resident) {
 /*
  * Tests the callback member function of the CacheCallback class.  This
  * particular test should result in the CacheCallback having a status of
- * cb::engine_errc::no_memory.
+ * cb::engine_errc::temporary_failure (no memory available). This would then
+ * normally cause backfill to yield
  */
 TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
     /*
@@ -1434,9 +1435,12 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
     /* Invoking callback should result in backfillReceived being called on
      * activeStream, which should return false (due to
      * DcpProducer::recordBackfillManagerBytesRead returning false), and hence
-     * set the callback status to cb::engine_errc::no_memory.
+     * set the callback status to cb::engine_errc::temporary_failure.
      */
-    EXPECT_EQ(cb::engine_errc::no_memory, callback.getStatus());
+    EXPECT_EQ(cb::engine_errc::temporary_failure, callback.getStatus());
+
+    // This is the same test
+    EXPECT_TRUE(callback.shouldYield());
 
     /* Verify that the item is not read in the backfill */
     EXPECT_EQ(0, stream->getNumBackfillItems());

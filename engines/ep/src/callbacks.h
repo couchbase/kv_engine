@@ -142,6 +142,14 @@ public:
         return myStatus;
     }
 
+    void yield() {
+        myStatus = cb::engine_errc::temporary_failure;
+    }
+
+    bool shouldYield() const {
+        return myStatus == cb::engine_errc::temporary_failure;
+    }
+
 private:
     cb::engine_errc myStatus;
 };

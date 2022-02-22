@@ -1788,7 +1788,7 @@ public:
                     // been persisted to disk as of post-rollback seqno.
                     break;
                 case MutationStatus::NoMem:
-                    setStatus(cb::engine_errc::no_memory);
+                                yield();
                     break;
                 case MutationStatus::InvalidCas:
                 case MutationStatus::IsLocked:
@@ -1928,11 +1928,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
             // to load any more prepares.
             if (val.item->getBySeqno() >
                 static_cast<int64_t>(highPreparedSeqno)) {
-                // ENOMEM may seem like an odd status code to abort the scan but
-                // disk backfill to a given seqno also returns
-                // cb::engine_errc::no_memory when it has received all the
-                // seqnos that it cares about to abort the scan.
-                setStatus(cb::engine_errc::no_memory);
+                yield(); // Trigger yield and return from KVStore::scan
                 return;
             }
 
@@ -2084,7 +2080,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
         break;
     case ScanStatus::Yield:
         // If we abort our scan early due to reaching the HPS (by setting
-        // storageCB.getStatus) then the scan result will be 'again' but we
+        // storageCB.getStatus) then the scan result will be 'Yield' but we
         // will have scanned correctly.
         break;
     case ScanStatus::Failed: {

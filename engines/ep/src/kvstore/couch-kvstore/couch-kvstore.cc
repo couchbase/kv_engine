@@ -2822,13 +2822,13 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
         CacheLookup lookup(diskKey, byseqno, vbucketId);
 
         cl.callback(lookup);
-        if (cl.getStatus() == cb::engine_errc::key_already_exists) {
+
+        if (cl.shouldYield()) {
+            return COUCHSTORE_ERROR_SCAN_YIELD;
+        } else if (cl.getStatus() == cb::engine_errc::key_already_exists) {
             sctx->lastReadSeqno = byseqno;
             return COUCHSTORE_SUCCESS;
         } else if (cl.getStatus() != cb::engine_errc::success) {
-            if (cl.getStatus() == cb::engine_errc::no_memory) {
-                return COUCHSTORE_ERROR_SCAN_YIELD;
-            }
             return COUCHSTORE_ERROR_SCAN_CANCELLED;
         }
     }
@@ -2884,10 +2884,9 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
 
     couchstore_free_document(doc);
 
-    if (cb.getStatus() != cb::engine_errc::success) {
-        if (cb.getStatus() == cb::engine_errc::no_memory) {
-            return COUCHSTORE_ERROR_SCAN_YIELD;
-        }
+    if (cb.shouldYield()) {
+        return COUCHSTORE_ERROR_SCAN_YIELD;
+    } else if (cb.getStatus() != cb::engine_errc::success) {
         return COUCHSTORE_ERROR_SCAN_CANCELLED;
     }
 

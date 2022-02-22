@@ -970,8 +970,7 @@ LoadStorageKVPairCallback::LoadStorageKVPairCallback(
 void LoadStorageKVPairCallback::callback(GetValue& val) {
     if (deltaDeadlineFromNow && std::chrono::steady_clock::now() >= deadline) {
         pausedDueToDeadLine = true;
-        // Use cb::engine_errc::no_memory to get KVStore to cancel the backfill
-        setStatus(cb::engine_errc::no_memory);
+        yield(); // force return from KVStore::scan
         return;
     }
 
@@ -1106,7 +1105,8 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
                 "Engine warmup is complete, request to stop "
                 "loading remaining database",
                 i->getVBucketId());
-        setStatus(cb::engine_errc::no_memory);
+        // This will trigger KVStore::scan to return to WarmupVisitor
+        yield();
     } else {
         setStatus(cb::engine_errc::success);
     }

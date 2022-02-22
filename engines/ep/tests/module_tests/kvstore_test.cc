@@ -845,9 +845,8 @@ TEST_P(KVStoreParamTest, DelVBucketWhileScanning) {
 
     // Setup the mock GetValue callback. We want to perform the scan in two
     // parts, to allow us to delete the vBucket while the scan is in progress.
-    // To do that, setup the callback to temporarily fail for the second item
-    // (return no_memory); which will cause the first scan to pause (and return
-    // ).
+    // To do that, setup the callback to yield the second item which will cause
+    // the first scan to yield (and return).
     auto mockGetCB = std::make_unique<MockGetValueCallback>();
     {
         ::testing::InSequence s;
@@ -860,16 +859,15 @@ TEST_P(KVStoreParamTest, DelVBucketWhileScanning) {
                     mock->setStatus(cb::engine_errc::success);
                 });
         EXPECT_CALL(*mockGetCB, callback(_))
-                .WillOnce([mock = mockGetCB.get()](GetValue&) {
-                    mock->setStatus(cb::engine_errc::no_memory);
-                });
+                .WillOnce(
+                        [mock = mockGetCB.get()](GetValue&) { mock->yield(); });
         EXPECT_CALL(*mockGetCB, callback(_))
                 .WillRepeatedly([mock = mockGetCB.get()](GetValue&) {
                     mock->setStatus(cb::engine_errc::success);
                 });
     }
 
-    // Initalise a scan
+    // Initialise a scan
     auto scanCtx = kvstore->initBySeqnoScanContext(
             std::move(mockGetCB),
             std::make_unique<KVStoreTestCacheCallback>(1, 5, Vbid(0)),
@@ -881,7 +879,7 @@ TEST_P(KVStoreParamTest, DelVBucketWhileScanning) {
     ASSERT_TRUE(scanCtx);
 
     // Begin the scan, which should pause after first item, before the second
-    // (so we know the underlying KVStore has definately started iterating on
+    // (so we know the underlying KVStore has definitely started iterating on
     // the disk structures).
     EXPECT_EQ(ScanStatus::Yield, kvstore->scan(*scanCtx));
 
@@ -1511,7 +1509,7 @@ public:
         EXPECT_LE(startSeqno, result.item->getBySeqno());
         EXPECT_LE(result.item->getBySeqno(), endSeqno);
         if (!didEnomem && result.item->getBySeqno() == enomemSeqno) {
-            setStatus(cb::engine_errc::no_memory);
+            yield();
             didEnomem = true;
             return;
         }

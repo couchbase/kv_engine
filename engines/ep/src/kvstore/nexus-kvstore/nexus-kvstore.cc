@@ -1993,10 +1993,10 @@ public:
             static_cast<uint64_t>(val.item->getBySeqno()) <=
                     kvstore.getPurgeSeqno(vbid)) {
             // primaryCallbacks could be empty if we're below the purge seqno
-            // and paused in an inconvenient place. Just return no_memory
-            // because we don't want the secondary scanning farther than the
-            // primary did and getting out of sync
-            setStatus(cb::engine_errc::no_memory);
+            // and paused in an inconvenient place. Yield because we don't want
+            // the secondary scanning farther than the primary did and getting
+            // out of sync
+            yield();
             kvstore.skippedChecksDueToPurging++;
             return;
         }
@@ -2113,14 +2113,13 @@ public:
     }
 
     void callback(CacheLookup& val) override {
-        // primaryCallbacks could be empty if we're below the purge seqno
-        // and paused in an inconvenient place. Just return no_memory
-        // because we don't want the secondary scanning farther than the
-        // primary did and getting out of sync
+        // primaryCallbacks could be empty if we're below the purge seqno and
+        // paused in an inconvenient place. Yield because we don't want the
+        // secondary scanning farther than the primary and getting out of sync
         if (primaryCallbacks.empty() &&
             static_cast<uint64_t>(val.getBySeqno()) <=
                     kvstore.getPurgeSeqno(vbid)) {
-            setStatus(cb::engine_errc::no_memory);
+            yield();
             kvstore.skippedChecksDueToPurging++;
             return;
         }
@@ -2144,7 +2143,7 @@ public:
                     // the last read seqno to resume from the same point as the
                     // primary
                     primaryCallbacks.clear();
-                    setStatus(cb::engine_errc::no_memory);
+                    yield();
                     return;
                 } else {
                     break;
@@ -2179,7 +2178,7 @@ public:
             if (static_cast<uint64_t>(val.getBySeqno()) <=
                 kvstore.getPurgeSeqno(vbid)) {
                 kvstore.skippedChecksDueToPurging++;
-                setStatus(cb::engine_errc::no_memory);
+                yield();
                 return;
             }
 
