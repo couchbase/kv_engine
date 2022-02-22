@@ -1361,7 +1361,7 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
     auto ctx = makeCompactionContext(vb->getId(), config, vb->getPurgeSeqno());
     auto* shard = vbMap.getShardByVbId(vb->getId());
     auto* store = shard->getRWUnderlying();
-    bool result = false;
+    CompactDBStatus result;
     try {
         result = store->compactDB(vb.getLock(), ctx);
     } catch (const std::exception& e) {
@@ -1370,7 +1370,8 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
         return false;
     }
 
-    if (getEPEngine().getConfiguration().isBfilterEnabled() && result) {
+    if (getEPEngine().getConfiguration().isBfilterEnabled() &&
+        result == CompactDBStatus::Success) {
         vb->swapFilter();
     } else {
         vb->clearFilter();
@@ -1384,7 +1385,7 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
             "size/items/tombstones/purge_seqno pre{{{}, {}, {}, {}}}, "
             "post{{{}, {}, {}, {}}}",
             vb->getId(),
-            result ? "ok" : "failed",
+            result,
             ctx->stats.tombstonesPurged,
             ctx->stats.preparesPurged,
             ctx->stats.prepareBytesPurged,
@@ -1399,7 +1400,7 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
             ctx->stats.post.items,
             ctx->stats.post.deletedItems,
             ctx->stats.post.purgeSeqno);
-    return result;
+    return result == CompactDBStatus::Success;
 }
 
 // Running on WriterTask - CompactTask

@@ -185,8 +185,8 @@ public:
     //    need to support a synchronous call. When compactDB is called, it will
     //    save the CompactionContext passed in to compactDB and will use it
     //    to perform compaction.
-    bool compactDB(std::unique_lock<std::mutex>& vbLock,
-                   std::shared_ptr<CompactionContext> ctx) override;
+    CompactDBStatus compactDB(std::unique_lock<std::mutex>& vbLock,
+                              std::shared_ptr<CompactionContext> ctx) override;
 
     size_t getNumPersistedDeletes(Vbid vbid) override {
         // TODO
@@ -586,8 +586,8 @@ protected:
     /**
      * CompactDB implementation. See comments on public compactDB.
      */
-    bool compactDBInternal(std::unique_lock<std::mutex>& vbLock,
-                           std::shared_ptr<CompactionContext> ctx);
+    CompactDBStatus compactDBInternal(std::unique_lock<std::mutex>& vbLock,
+                                      std::shared_ptr<CompactionContext> ctx);
 
     std::unique_ptr<Item> makeItem(Vbid vb,
                                    const magma::Slice& keySlice,

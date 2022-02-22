@@ -2834,7 +2834,8 @@ TEST_P(DurabilityEPBucketTest, DoNotExpirePendingItem) {
     // Compact. Nothing should be expired
     {
         auto vb = store->getLockedVBucket(vbid);
-        EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));
+        EXPECT_EQ(CompactDBStatus::Success,
+                  kvstore->compactDB(vb.getLock(), cctx));
     }
 
     // Check the committed item on disk.
@@ -2920,7 +2921,8 @@ TEST_P(DurabilityEPBucketTest,
 
     {
         auto vb = store->getLockedVBucket(vbid);
-        EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));
+        EXPECT_EQ(CompactDBStatus::Success,
+                  kvstore->compactDB(vb.getLock(), cctx));
     }
 
     // Check the Prepare on disk
@@ -3007,7 +3009,8 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
 
     {
         auto vb = store->getLockedVBucket(vbid);
-        EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));
+        EXPECT_EQ(CompactDBStatus::Success,
+                  kvstore->compactDB(vb.getLock(), cctx));
     }
     // Check the committed item on disk.
     gv = kvstore->get(DiskDocKey(key), Vbid(0));
@@ -3085,7 +3088,8 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
 
     {
         auto vb = store->getLockedVBucket(vbid);
-        EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));
+        EXPECT_EQ(CompactDBStatus::Success,
+                  kvstore->compactDB(vb.getLock(), cctx));
     }
 
     // Check the Abort on disk. We won't remove it until the purge interval has
@@ -3099,7 +3103,8 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
     {
         auto cctx = std::make_shared<CompactionContext>(vb, config, 0);
         auto vb = store->getLockedVBucket(vbid);
-        EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));
+        EXPECT_EQ(CompactDBStatus::Success,
+                  kvstore->compactDB(vb.getLock(), cctx));
     }
 
     // Now the Abort should be gone
@@ -3133,7 +3138,8 @@ void DurabilityCouchstoreBucketTest::
     auto& kvstore = dynamic_cast<CouchKVStore&>(*store->getOneRWUnderlying());
     {
         auto vb = store->getLockedVBucket(vbid);
-        EXPECT_TRUE(kvstore.compactDB(vb.getLock(), cctx));
+        EXPECT_EQ(CompactDBStatus::Success,
+                  kvstore.compactDB(vb.getLock(), cctx));
     }
 
     // Check onDiskPrepares is updated correctly after compaction.

@@ -1109,8 +1109,9 @@ protected:
     Vbid vbid;
 };
 
-bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
-                             std::shared_ptr<CompactionContext> primaryCtx) {
+CompactDBStatus NexusKVStore::compactDB(
+        std::unique_lock<std::mutex>& vbLock,
+        std::shared_ptr<CompactionContext> primaryCtx) {
     auto primaryVbPtr = primaryCtx->getVBucket();
     auto vbid = primaryVbPtr->getId();
 
@@ -1344,7 +1345,7 @@ bool NexusKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
     }
 
     // Compare the collections state if successful
-    if (firstResult) {
+    if (firstResult == CompactDBStatus::Success) {
         doCollectionsMetadataChecks(vbid, nullptr, nullptr);
     }
 

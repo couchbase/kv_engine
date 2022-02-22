@@ -63,7 +63,7 @@ public:
         std::unique_lock<std::mutex> lock(mutex);
         auto vb = TestEPVBucketFactory::makeVBucket(vbid);
         auto ctx = std::make_shared<CompactionContext>(vb, config, 0);
-        EXPECT_TRUE(kvstore.compactDB(lock, ctx));
+        EXPECT_EQ(CompactDBStatus::Success, kvstore.compactDB(lock, ctx));
     }
 };
 
@@ -125,7 +125,7 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     auto cctx = std::make_shared<CompactionContext>(vb, compactionConfig, 0);
     {
         auto vbLock = getVbLock();
-        EXPECT_TRUE(kvstore->compactDB(vbLock, cctx));
+        EXPECT_EQ(CompactDBStatus::Success, kvstore->compactDB(vbLock, cctx));
     }
     // Check statistics are correct.
     std::map<std::string, std::string> stats;
@@ -1767,7 +1767,7 @@ TEST_F(CouchstoreTest, MB40415_regression_test) {
     kvstore->setMb40415RegressionHook(true);
     std::mutex mutex;
     std::unique_lock<std::mutex> lock(mutex);
-    EXPECT_FALSE(kvstore->compactDB(lock, ctx));
+    EXPECT_EQ(CompactDBStatus::Failed, kvstore->compactDB(lock, ctx));
 }
 
 class CouchKVStoreMetaData : public ::testing::Test {};
@@ -2270,7 +2270,8 @@ TEST_F(CouchstoreTest, MB43121) {
     CompactionConfig config;
     auto vb = TestEPVBucketFactory::makeVBucket(vbid);
     auto ctx = std::make_shared<CompactionContext>(vb, config, 0);
-    ASSERT_FALSE(kvstore->compactDB(lock, ctx)) << "Compaciton should fail";
+    ASSERT_EQ(CompactDBStatus::Aborted, kvstore->compactDB(lock, ctx))
+            << "Compaciton should fail";
     ASSERT_TRUE(aborted) << "Callback not called";
     ASSERT_FALSE(filename.empty()) << "A filename should be set";
 

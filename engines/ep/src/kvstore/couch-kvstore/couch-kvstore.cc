@@ -1041,8 +1041,9 @@ static int time_purge_hook(Db& d,
     return COUCHSTORE_COMPACT_KEEP_ITEM;
 }
 
-bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
-                             std::shared_ptr<CompactionContext> hook_ctx) {
+CompactDBStatus CouchKVStore::compactDB(
+        std::unique_lock<std::mutex>& vbLock,
+        std::shared_ptr<CompactionContext> hook_ctx) {
     if (!hook_ctx->droppedKeyCb) {
         throw std::invalid_argument(
                 "CouchKVStore::compactDB: droppedKeyCb must be set ");
@@ -1058,7 +1059,7 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                 vbid);
         // The API don't let me tell the caller that a compaction is
         // already running so I just have to fail it..
-        return false;
+        return CompactDBStatus::Failed;
     }
 
     // Open the source VBucket database file
@@ -1073,7 +1074,7 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                      vbid,
                      sourceDb.getFilename(),
                      options);
-        return false;
+        return CompactDBStatus::Failed;
     }
     const auto compact_file =
             getDBFileName(dbname, vbid, sourceDb.getFileRev()) + ".compact";
@@ -1081,13 +1082,13 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
     vbCompactionRunning[getCacheSlot(vbid)] = true;
     vbAbortCompaction[getCacheSlot(vbid)] = false;
 
-    auto status = CompactDBInternalStatus::Failed;
+    auto status = CompactDBStatus::Failed;
     try {
         TRACE_EVENT1("CouchKVStore", "compactDB", "vbid", vbid.get());
         const auto start = std::chrono::steady_clock::now();
         status = compactDBInternal(
                 sourceDb, compact_file, vbLock, hook_ctx.get());
-        if (status == CompactDBInternalStatus::Success) {
+        if (status == CompactDBStatus::Success) {
             st.compactHisto.add(
                     std::chrono::duration_cast<std::chrono::microseconds>(
                             std::chrono::steady_clock::now() - start));
@@ -1099,20 +1100,20 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                 " - Details: {}",
                 vbid,
                 le.what());
-        status = CompactDBInternalStatus::Failed;
+        status = CompactDBStatus::Failed;
     }
 
-    if (status != CompactDBInternalStatus::Success) {
+    if (status != CompactDBStatus::Success) {
         switch (status) {
-        case CompactDBInternalStatus::Failed:
+        case CompactDBStatus::Failed:
             logger.error("CouchKVStore::compactDB: compaction failed for {}",
                          vbid);
             ++st.numCompactionFailure;
             break;
-        case CompactDBInternalStatus::Aborted:
+        case CompactDBStatus::Aborted:
             logger.info("CouchKVStore::compactDB: aborted for {}", vbid);
             break;
-        case CompactDBInternalStatus::Success:
+        case CompactDBStatus::Success:
             break;
         }
 
@@ -1128,7 +1129,7 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
     vbCompactionRunning[getCacheSlot(vbid)] = false;
     vbAbortCompaction[getCacheSlot(vbid)] = false;
 
-    return status == CompactDBInternalStatus::Success;
+    return status;
 }
 
 static FileInfo toFileInfo(const cb::couchstore::Header& info) {
@@ -1376,7 +1377,7 @@ couchstore_error_t CouchKVStore::replayPreCopyLocalDoc(
     return COUCHSTORE_SUCCESS;
 }
 
-CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
+CompactDBStatus CouchKVStore::compactDBInternal(
         DbHolder& sourceDb,
         const std::string& compact_file,
         std::unique_lock<std::mutex>& vbLock,
@@ -1524,7 +1525,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                     "CouchKVStore::compactDBInternal ({}) Failed to obtain "
                     "vbState for the highCompletedSeqno. Won't prune prepares",
                     vbid);
-            return CompactDBInternalStatus::Failed;
+            return CompactDBStatus::Failed;
         }
         auto [getDroppedStatus, droppedCollections] =
                 getDroppedCollections(*sourceDb);
@@ -1534,7 +1535,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                     "dropped collections - status:{}",
                     vbid,
                     couchstore_strerror(getDroppedStatus));
-            return CompactDBInternalStatus::Failed;
+            return CompactDBStatus::Failed;
         }
         hook_ctx->stats.collectionsPurged = droppedCollections.size();
 
@@ -1584,7 +1585,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                 couchstore_strerror(errCode),
                 couchkvstore_strerrno(sourceDb, errCode),
                 dbfile);
-        return CompactDBInternalStatus::Failed;
+        return CompactDBStatus::Failed;
     }
 
     // We're done with the "normal" compaction... Unfortunately we're still
@@ -1606,7 +1607,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                      vbid,
                      compact_file,
                      0);
-        return CompactDBInternalStatus::Failed;
+        return CompactDBStatus::Failed;
     }
     CompactionReplayPrepareStats prepareStats;
     {
@@ -1615,7 +1616,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
             logger.warn("Failed to read _local/vbstate for {}: {}",
                         vbid,
                         couchstore_strerror(status));
-            return CompactDBInternalStatus::Failed;
+            return CompactDBStatus::Failed;
         }
 
         // This field may not be present if first compaction after upgrade from
@@ -1642,7 +1643,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
     for (int ii = 0; ii < 10; ++ii) {
         concurrentCompactionPostLockHook(compact_file);
         if (vbAbortCompaction[getCacheSlot(vbid)]) {
-            return CompactDBInternalStatus::Aborted;
+            return CompactDBStatus::Aborted;
         }
         if (tryToCatchUpDbFile(*sourceDb,
                                *targetDb,
@@ -1660,7 +1661,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
     concurrentCompactionPostLockHook(compact_file);
 
     if (vbAbortCompaction[getCacheSlot(vbid)]) {
-        return CompactDBInternalStatus::Aborted;
+        return CompactDBStatus::Aborted;
     }
 
     // Block any writers, do the final catch up and swap the file
@@ -1683,7 +1684,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
     // whilst blocking any advancement of the vbucket's revision. If we
     // don't do this the compacted file is at risk of being used by a future
     // version of the vbucket.
-    auto status = CompactDBInternalStatus::Failed;
+    auto status = CompactDBStatus::Failed;
     const auto new_file = getDBFileName(dbname, vbid, new_rev);
     try {
         // Rename the .compact file to one with the next revision number
@@ -1694,13 +1695,13 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                     cb_strerror(),
                     compact_file,
                     new_file);
-            return CompactDBInternalStatus::Failed;
+            return CompactDBStatus::Failed;
         }
 
         status = compactDBTryAndSwitchToNewFile(
                          vbid, new_rev, hook_ctx, prepareStats)
-                         ? CompactDBInternalStatus::Success
-                         : CompactDBInternalStatus::Failed;
+                         ? CompactDBStatus::Success
+                         : CompactDBStatus::Failed;
     } catch (const std::exception& e) {
         logger.error(
                 "CouchKVStore::compactDBInternal: exception while performing "
@@ -1716,10 +1717,10 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                     cb_strerror(),
                     new_file);
         }
-        return CompactDBInternalStatus::Failed;
+        return CompactDBStatus::Failed;
     }
 
-    if (status == CompactDBInternalStatus::Success) {
+    if (status == CompactDBStatus::Success) {
         logger.debug(
                 "created new couch db file, name:{} rev:{}", new_file, new_rev);
         // Update the global VBucket file map so all operations use the new file

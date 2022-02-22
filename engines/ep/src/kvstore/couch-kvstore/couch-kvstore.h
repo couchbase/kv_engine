@@ -253,8 +253,8 @@ public:
      */
     bool snapshotVBucket(Vbid vbucketId, const vbucket_state& vbstate) override;
 
-    bool compactDB(std::unique_lock<std::mutex>& vbLock,
-                   std::shared_ptr<CompactionContext> ctx) override;
+    CompactDBStatus compactDB(std::unique_lock<std::mutex>& vbLock,
+                              std::shared_ptr<CompactionContext> ctx) override;
 
     void abortCompactionIfRunning(std::unique_lock<std::mutex>& vbLock,
                                   Vbid vbid) override;
@@ -760,18 +760,6 @@ protected:
                             CompactionContext& hook_ctx);
 
     /**
-     * The following status codes can be returned by compactDBInternal
-     * Success - Compaction was successful, vbucket switched over to the new
-     *           file.
-     * Aborted - Compaction did not switch over to new file. No error occurred,
-     *           but a 'state' change means compaction could not proceed, e.g.
-     *           the vbucket was concurrently deleted or rolled back.
-     * Failed -  Compaction did not switch over to new file because an error
-     *           occurred.
-     */
-    enum class CompactDBInternalStatus { Success, Aborted, Failed };
-
-    /**
      * Perform compaction using the context and dhook call back.
      *
      * @param sourceDb the source database to compact
@@ -779,13 +767,12 @@ protected:
      *                     compacted version
      * @param vbLock the lock to acquire exclusive write access to the bucket
      * @param hook_ctx a context with information for the compaction process
-     * @return CompactDBInternalStatus indicating the compaction outcome
+     * @return CompactDBStatus indicating the compaction outcome
      */
-    CompactDBInternalStatus compactDBInternal(
-            DbHolder& sourceDb,
-            const std::string& compact_file,
-            std::unique_lock<std::mutex>& vbLock,
-            CompactionContext* hook_ctx);
+    CompactDBStatus compactDBInternal(DbHolder& sourceDb,
+                                      const std::string& compact_file,
+                                      std::unique_lock<std::mutex>& vbLock,
+                                      CompactionContext* hook_ctx);
 
     /**
      * This is the final 'phase' of compaction, it assumes that we are going to

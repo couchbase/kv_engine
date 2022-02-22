@@ -101,7 +101,7 @@ public:
                 snapshotVBucket,
                 (Vbid vbucketId, const vbucket_state& vbstate),
                 (override));
-    MOCK_METHOD(bool,
+    MOCK_METHOD(CompactDBStatus,
                 compactDB,
                 (std::unique_lock<std::mutex> & vbLock,
                  std::shared_ptr<CompactionContext> c),

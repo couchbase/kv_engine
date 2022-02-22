@@ -127,7 +127,8 @@ TEST_P(STParamMagmaBucketTest, implicitCompactionContext) {
 
     {
         auto vb = store->getLockedVBucket(vbid);
-        EXPECT_TRUE(magmaKVStore->compactDB(vb.getLock(), cctx));
+        EXPECT_EQ(CompactDBStatus::Success,
+                  magmaKVStore->compactDB(vb.getLock(), cctx));
     }
 
     // Check the first key on disk - should not exist
@@ -549,13 +550,13 @@ TEST_P(STParamMagmaBucketTest, MB_47566) {
         auto* kvstore = epBucket.getRWUnderlying(vbid);
         auto vb = store->getLockedVBucket(vbid, std::try_to_lock);
         auto& lock = vb.getLock();
-        bool result = false;
+        CompactDBStatus result;
         // Ensure that the compaction doesn't throw
         // note - this may unlock the provided mutex.
         EXPECT_NO_THROW(result = kvstore->compactDB(lock, ctx));
         // rollback reset the vbucket, but it occurred after all items
         // had been visited, so it did not cancel the compaction early.
-        EXPECT_TRUE(result);
+        EXPECT_EQ(CompactDBStatus::Success, result);
         // compaction is done, any underflow should have happened by now.
         compactionCompleted.post();
     };
@@ -1031,7 +1032,8 @@ TEST_P(STParamMagmaBucketTest, ResurrectCollectionDuringCompaction) {
 
     {
         ObjectRegistry::onSwitchThread(engine.get());
-        EXPECT_TRUE(kvstore->compactDB(vb.getLock(), ctx));
+        EXPECT_EQ(CompactDBStatus::Success,
+                  kvstore->compactDB(vb.getLock(), ctx));
     }
 
     auto [status, dropped] = kvstore->getDroppedCollections(vbid);
@@ -1043,7 +1045,8 @@ TEST_P(STParamMagmaBucketTest, ResurrectCollectionDuringCompaction) {
     ctx->completionCallback = realCompletionCallback;
     {
         ObjectRegistry::onSwitchThread(engine.get());
-        EXPECT_TRUE(kvstore->compactDB(vb.getLock(), ctx));
+        EXPECT_EQ(CompactDBStatus::Success,
+                  kvstore->compactDB(vb.getLock(), ctx));
     }
 
     std::tie(status, dropped) = kvstore->getDroppedCollections(vbid);

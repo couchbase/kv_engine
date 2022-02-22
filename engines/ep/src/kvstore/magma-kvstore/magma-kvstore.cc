@@ -2208,24 +2208,36 @@ cb::engine_errc MagmaKVStore::getAllKeys(
     return cb::engine_errc::success;
 }
 
-bool MagmaKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
-                             std::shared_ptr<CompactionContext> ctx) {
+CompactDBStatus MagmaKVStore::compactDB(
+        std::unique_lock<std::mutex>& vbLock,
+        std::shared_ptr<CompactionContext> ctx) {
     vbLock.unlock();
     try {
-        auto res = compactDBInternal(vbLock, std::move(ctx));
+        auto vbid = ctx->getVBucket()->getId();
+        auto status = compactDBInternal(vbLock, std::move(ctx));
 
-        if (!res) {
-            st.numCompactionFailure++;
+        switch (status) {
+        case CompactDBStatus::Failed:
+            logger->error("MagmaKVStore::compactDB: compaction failed for {}",
+                          vbid);
+            ++st.numCompactionFailure;
+            break;
+        case CompactDBStatus::Aborted:
+            logger->info("MagmaKVStore::compactDB: aborted for {}", vbid);
+            break;
+        case CompactDBStatus::Success:
+            break;
         }
-        return res;
+        return status;
     } catch (const std::exception&) {
         st.numCompactionFailure++;
         throw;
     }
 }
 
-bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
-                                     std::shared_ptr<CompactionContext> ctx) {
+CompactDBStatus MagmaKVStore::compactDBInternal(
+        std::unique_lock<std::mutex>& vbLock,
+        std::shared_ptr<CompactionContext> ctx) {
     std::chrono::steady_clock::time_point start =
             std::chrono::steady_clock::now();
     auto vbid = ctx->getVBucket()->getId();
@@ -2260,7 +2272,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 "MagmaKVStore::compactDBInternal: {} Failed to get "
                 "dropped collections",
                 vbid);
-        return false;
+        return CompactDBStatus::Failed;
     }
 
     ctx->eraserContext =
@@ -2273,7 +2285,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 "compaction on {} but can't read vbstate. Status:{}",
                 vbid,
                 diskState.status.String());
-        return false;
+        return CompactDBStatus::Failed;
     }
     ctx->highCompletedSeqno = diskState.vbstate.persistedCompletedSeqno;
 
@@ -2287,7 +2299,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     Status status;
     std::unordered_set<CollectionID> purgedCollections;
     uint64_t purgedCollectionsEndSeqno = 0;
-    bool ret = true;
+    auto compactionStatus = CompactDBStatus::Success;
     if (dropped.empty()) {
         // Compact the entire key range
         Slice nullKey;
@@ -2299,7 +2311,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                     "{} status:{}",
                     vbid,
                     status.String());
-            return false;
+            return CompactDBStatus::Failed;
         }
     } else {
         std::vector<
@@ -2315,7 +2327,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                         "cid:{} {}",
                         dc.collectionId,
                         vbid);
-                return false;
+                return CompactDBStatus::Failed;
             }
             dcInfo.emplace_back(dc, itemCount);
         }
@@ -2377,7 +2389,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                         vbid,
                         cb::UserData{makeDiskDocKey(keySlice).to_string()},
                         status.String());
-                ret = false;
+                compactionStatus = CompactDBStatus::Failed;
                 continue;
             }
             // Can't track number of collection items purged properly in the
@@ -2434,7 +2446,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
             // It's important that we return here because a failure to do so
             // would result in us not cleaning up prepares for a dropped
             // collection if the compaction of a dropped collection succeeds.
-            return false;
+            return CompactDBStatus::Failed;
         }
     }
 
@@ -2447,7 +2459,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
             ctx->completionCallback(*ctx);
         } catch (const std::exception& e) {
             logger->error("CompactionContext::completionCallback {}", e.what());
-            return false;
+            return CompactDBStatus::Failed;
         }
     }
 
@@ -2469,7 +2481,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                     "MagmaKVStore::compactDbInternal {} failed "
                     "getDroppedCollections",
                     vbid);
-            return false;
+            return CompactDBStatus::Failed;
         }
 
         // 2) Generate a new flatbuffer document to write back
@@ -2501,7 +2513,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                     "Status:{}",
                     vbid,
                     status.String());
-            return false;
+            return CompactDBStatus::Failed;
         }
 
         if (doSyncEveryBatch) {
@@ -2513,7 +2525,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                         "Status:{}",
                         vbid,
                         status.String());
-                return false;
+                return CompactDBStatus::Failed;
             }
         }
 
@@ -2534,7 +2546,7 @@ bool MagmaKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     }
 
     updateStats(ctx->stats.post);
-    return ret;
+    return compactionStatus;
 }
 
 std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) const {

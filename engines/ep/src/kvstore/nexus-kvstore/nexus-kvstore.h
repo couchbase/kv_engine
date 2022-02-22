@@ -65,8 +65,8 @@ public:
                     std::unique_ptr<KVStoreRevision> fileRev) override;
     std::vector<vbucket_state*> listPersistedVbuckets() override;
     bool snapshotVBucket(Vbid vbucketId, const vbucket_state& vbstate) override;
-    bool compactDB(std::unique_lock<std::mutex>& vbLock,
-                   std::shared_ptr<CompactionContext> c) override;
+    CompactDBStatus compactDB(std::unique_lock<std::mutex>& vbLock,
+                              std::shared_ptr<CompactionContext> c) override;
     void abortCompactionIfRunning(std::unique_lock<std::mutex>& vbLock,
                                   Vbid vbid) override;
     vbucket_state* getCachedVBucketState(Vbid vbid) override;

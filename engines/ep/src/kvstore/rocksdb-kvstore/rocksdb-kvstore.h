@@ -197,12 +197,12 @@ public:
 
     size_t getNumShards();
 
-    bool compactDB(std::unique_lock<std::mutex>&,
-                   std::shared_ptr<CompactionContext>) override {
+    CompactDBStatus compactDB(std::unique_lock<std::mutex>&,
+                              std::shared_ptr<CompactionContext>) override {
         // Explicit compaction is not needed.
         // Compaction is continuously occurring in separate threads
         // under RocksDB's control
-        return true;
+        return CompactDBStatus::Success;
     }
 
     vbucket_state* getCachedVBucketState(Vbid vbucketId) override {

@@ -177,7 +177,8 @@ protected:
             auto cctx = dynamic_cast<EPBucket*>(store)->makeCompactionContext(
                     vbid, compactionConfig, 0);
             auto vb = store->getLockedVBucket(vbid);
-            EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));
+            EXPECT_EQ(CompactDBStatus::Success,
+                      kvstore->compactDB(vb.getLock(), cctx));
         }
 #endif
         return count;

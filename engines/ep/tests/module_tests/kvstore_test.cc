@@ -969,7 +969,7 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
         auto cctx = std::make_shared<CompactionContext>(vb, config, 0);
         for (int i = 0; i < 10; i++) {
             auto lock = getVbLock();
-            EXPECT_TRUE(kvstore->compactDB(lock, cctx));
+            EXPECT_EQ(CompactDBStatus::Success, kvstore->compactDB(lock, cctx));
         }
     };
 
@@ -1415,7 +1415,7 @@ TEST_P(KVStoreParamTestSkipRocks, SyncDeletePrepareNotPurgedByTimestamp) {
     auto cctx = std::make_shared<CompactionContext>(vb, compactionConfig, 0);
     {
         auto lock = getVbLock();
-        EXPECT_TRUE(kvstore->compactDB(lock, cctx));
+        EXPECT_EQ(CompactDBStatus::Success, kvstore->compactDB(lock, cctx));
     }
 
     EXPECT_EQ(0, cctx->stats.tombstonesPurged);
@@ -1504,7 +1504,7 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
     auto cctx = std::make_shared<CompactionContext>(vb, compactionConfig, 0);
     {
         auto lock = getVbLock();
-        EXPECT_TRUE(kvstore->compactDB(lock, cctx));
+        EXPECT_EQ(CompactDBStatus::Success, kvstore->compactDB(lock, cctx));
     }
 
     kvstore->scan(*scanCtx);
@@ -1615,7 +1615,7 @@ TEST_P(KVStoreParamTestSkipRocks, purgeSeqnoAfterCompaction) {
     auto cctx = std::make_shared<CompactionContext>(vb, compactionConfig, 0);
     {
         auto lock = getVbLock();
-        EXPECT_TRUE(kvstore->compactDB(lock, cctx));
+        EXPECT_EQ(CompactDBStatus::Success, kvstore->compactDB(lock, cctx));
     }
     EXPECT_EQ(1, cctx->stats.tombstonesPurged);
     EXPECT_EQ(1, cctx->getRollbackPurgeSeqno());

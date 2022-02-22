@@ -95,6 +95,18 @@ protected:
 };
 
 /**
+ * The following status codes can be returned by compactDB
+ * Success - Compaction was successful, vbucket switched over to the new
+ *           file.
+ * Aborted - Compaction did not switch over to new file. No error occurred,
+ *           but a 'state' change means compaction could not proceed, e.g.
+ *           the vbucket was concurrently deleted or rolled back.
+ * Failed -  Compaction did not switch over to new file because an error
+ *           occurred.
+ */
+enum class CompactDBStatus { Success, Aborted, Failed };
+
+/**
  * Functional interface of a KVStore. Each KVStore implementation must implement
  * each of these functions.
  */
@@ -289,10 +301,10 @@ public:
      *               upon return, the caller will take the appropriate action.
      * @param c shared_ptr to the CompactionContext that includes various
      * callbacks and compaction parameters
-     * @return true if the compaction was successful
+     * @return status of compaction
      */
-    virtual bool compactDB(std::unique_lock<std::mutex>& vbLock,
-                           std::shared_ptr<CompactionContext> c) = 0;
+    virtual CompactDBStatus compactDB(std::unique_lock<std::mutex>& vbLock,
+                                      std::shared_ptr<CompactionContext> c) = 0;
 
     /**
      * Abort compaction for the provided vbucket if it is running
