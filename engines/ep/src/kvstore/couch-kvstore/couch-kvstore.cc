@@ -1567,6 +1567,10 @@ CompactDBStatus CouchKVStore::compactDBInternal(
                 });
     }
     if (errCode != COUCHSTORE_SUCCESS) {
+        if (errCode == COUCHSTORE_ERROR_CANCEL) {
+            return CompactDBStatus::Aborted;
+        }
+
         logger.warn(
                 "CouchKVStore::compactDBInternal: cb::couchstore::compact() "
                 "error:{} [{}], name:{}",

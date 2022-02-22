@@ -271,6 +271,8 @@ public:
     Counter flushExpired;
     //! Number of times a compaction fails.
     Counter compactionFailed;
+    //! Number of times a compaction is aborted.
+    Counter compactionAborted;
 
     // Expiration stats. Note: These stats are not synchronous -
     // e.g. expired_pager can be incremented /before/ curr_items is

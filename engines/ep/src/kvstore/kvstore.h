@@ -578,6 +578,8 @@ public:
     mutable cb::RelaxedAtomic<size_t> numOpenFailure;
     cb::RelaxedAtomic<size_t> numVbSetFailure;
 
+    cb::RelaxedAtomic<size_t> numCompactionAborted;
+
     /**
      * Number of documents read (full and meta-only) from disk for background
      * fetch operations.

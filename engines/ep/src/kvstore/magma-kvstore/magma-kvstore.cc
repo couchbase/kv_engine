@@ -2286,6 +2286,9 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
         status = magma->CompactKVStore(
                 vbid.get(), nullKey, nullKey, compactionCB);
         if (!status) {
+            if (status.ErrorCode() == Status::Cancelled) {
+                return CompactDBStatus::Aborted;
+            }
             logger->warn(
                     "MagmaKVStore::compactDBInternal CompactKVStore failed. "
                     "{} status:{}",
@@ -2362,14 +2365,17 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
             compactionStatusHook(status);
 
             if (!status) {
-                logger->warn(
-                        "MagmaKVStore::compactDBInternal CompactKVStore {} "
-                        "CID:{} failed "
-                        "status:{}",
-                        vbid,
-                        cb::UserData{makeDiskDocKey(keySlice).to_string()},
-                        status.String());
-                compactionStatus = CompactDBStatus::Failed;
+                if (status.ErrorCode() == Status::Cancelled) {
+                    compactionStatus = CompactDBStatus::Aborted;
+                } else {
+                    logger->warn(
+                            "MagmaKVStore::compactDBInternal CompactKVStore {} "
+                            "CID:{} failed status:{}",
+                            vbid,
+                            cb::UserData{makeDiskDocKey(keySlice).to_string()},
+                            status.String());
+                    compactionStatus = CompactDBStatus::Failed;
+                }
                 continue;
             }
             // Can't track number of collection items purged properly in the
@@ -2418,11 +2424,15 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
                 vbid.get(), prepareSlice, prepareSlice, compactionCB);
         compactionStatusHook(status);
         if (!status) {
+            if (status.ErrorCode() == Status::Cancelled) {
+                return CompactDBStatus::Aborted;
+            }
             logger->warn(
                     "MagmaKVStore::compactDBInternal CompactKVStore {} "
                     "over the prepare namespace failed with status:{}",
                     vbid,
                     status.String());
+
             // It's important that we return here because a failure to do so
             // would result in us not cleaning up prepares for a dropped
             // collection if the compaction of a dropped collection succeeds.

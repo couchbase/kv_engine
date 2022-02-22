@@ -7649,7 +7649,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_item_flush_failed",
                           "ep_total_persisted",
                           "ep_uncommitted_items",
-                          "ep_compaction_failed"});
+                          "ep_compaction_failed",
+                          "ep_compaction_aborted"});
 
         // Config variables only valid for persistent
         std::initializer_list<std::string_view> persistentConfig = {

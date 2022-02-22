@@ -1722,7 +1722,7 @@ TEST_F(CouchstoreTest, MB40415_regression_test) {
     kvstore->setMb40415RegressionHook(true);
     std::mutex mutex;
     std::unique_lock<std::mutex> lock(mutex);
-    EXPECT_EQ(CompactDBStatus::Failed, kvstore->compactDB(lock, ctx));
+    EXPECT_EQ(CompactDBStatus::Aborted, kvstore->compactDB(lock, ctx));
 }
 
 class CouchKVStoreMetaData : public ::testing::Test {};

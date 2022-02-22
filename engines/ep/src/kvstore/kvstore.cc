@@ -159,6 +159,8 @@ void KVStoreStats::reset() {
     numOpenFailure = 0;
     numVbSetFailure = 0;
 
+    numCompactionAborted = 0;
+
     io_bg_fetch_docs_read = 0;
     io_num_write = 0;
     io_bgfetch_doc_bytes = 0;

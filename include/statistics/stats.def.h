@@ -220,6 +220,7 @@ STAT(ep_pending_ops_max,
 STAT(ep_pending_ops_max_duration, , microseconds, , )
 STAT(ep_pending_compactions, , count, , )
 STAT(ep_compaction_failed, , count, , )
+STAT(ep_compaction_aborted, , count, , )
 STAT(ep_rollback_count, , count, , )
 STAT(ep_vbucket_del_max_walltime, , microseconds, , )
 STAT(ep_vbucket_del_avg_walltime, , microseconds, , )

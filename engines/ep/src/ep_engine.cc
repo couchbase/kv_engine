@@ -3081,6 +3081,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         collector.addStat(Key::ep_total_persisted, epstats.totalPersisted);
         collector.addStat(Key::ep_uncommitted_items, epstats.flusher_todo);
         collector.addStat(Key::ep_compaction_failed, epstats.compactionFailed);
+        collector.addStat(Key::ep_compaction_aborted, epstats.compactionAborted);
     }
     collector.addStat(Key::ep_vbucket_del, epstats.vbucketDeletions);
     collector.addStat(Key::ep_vbucket_del_fail, epstats.vbucketDeletionFail);
