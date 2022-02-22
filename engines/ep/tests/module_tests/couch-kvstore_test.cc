@@ -601,6 +601,11 @@ protected:
      */
     void testCompactDBCompactDBEx();
 
+    /**
+     * Test that stats are update correctly when a compaction fails
+     */
+    void testCompactionFailedStats();
+
     const std::string data_dir;
 
     ::testing::NiceMock<MockOps> ops;
@@ -1263,7 +1268,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
 /**
  * Verify the failed compaction statistic is accurate.
  */
-TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTest) {
+void CouchKVStoreErrorInjectionTest::testCompactionFailedStats() {
     populate_items(1);
 
     CompactionConfig config;
@@ -1292,6 +1297,17 @@ TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTest) {
     kvstore->addStats(add_stat_callback, &stats);
 
     EXPECT_EQ("1", stats["rw_0:failure_compaction"]);
+}
+
+TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTest) {
+    testCompactionFailedStats();
+}
+
+TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTestPitr) {
+    config.setPitrEnabled(true);
+    config.setPitrGranularity(std::chrono::nanoseconds(1000));
+    config.setPitrMaxHistoryAge(std::chrono::seconds(1));
+    testCompactionFailedStats();
 }
 
 /**
