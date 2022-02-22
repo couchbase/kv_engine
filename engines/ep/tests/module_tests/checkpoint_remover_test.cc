@@ -947,14 +947,14 @@ TEST_P(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
 INSTANTIATE_TEST_SUITE_P(
         EphemeralOrPersistent,
         CheckpointRemoverTest,
-        // Not necessarily to test all the different KVStores, we just want to
+        // Not necessary to test all the different KVStores, we just want to
         // check Persistent vs Ephemeral memory handling.
         STParameterizedBucketTest::ephAndCouchstoreConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          CheckpointRemoverEPTest,
-                         // Not necessarily to test all the different KVStores,
+                         // Not necessary to test all the different KVStores,
                          // we just want to check Persistent memory handling.
                          STParameterizedBucketTest::couchstoreConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
