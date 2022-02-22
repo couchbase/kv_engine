@@ -21,11 +21,6 @@
 class CookieIface;
 class EventuallyPersistentEngine;
 
-enum class AllKeysCallbackStatus {
-    KeyAdded,
-    KeySkipped,
-};
-
 /**
  * Callback class used by AllKeysAPI, for caching fetched keys
  *

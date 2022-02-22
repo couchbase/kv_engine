@@ -1328,8 +1328,7 @@ TEST_P(CacheCallbackTest, CacheCallback_key_eexists) {
      * activeStream, which should return true and hence set the callback status
      * to cb::engine_errc::key_already_exists.
      */
-    EXPECT_EQ(cb::engine_errc::key_already_exists,
-              cb::engine_errc{callback.getStatus()});
+    EXPECT_EQ(cb::engine_errc::key_already_exists, callback.getStatus());
 
     /* Verify that the item is read in the backfill */
     EXPECT_EQ(numItems, stream->getNumBackfillItems());
@@ -1355,7 +1354,7 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success) {
      * activeStream, and hence the callback status should be set to
      * cb::engine_errc::success.
      */
-    EXPECT_EQ(cb::engine_errc::success, cb::engine_errc{callback.getStatus()});
+    EXPECT_EQ(cb::engine_errc::success, callback.getStatus());
 
     /* Verify that the item is not read in the backfill */
     EXPECT_EQ(0, stream->getNumBackfillItems());
@@ -1389,7 +1388,7 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success_not_resident) {
      * NOT being called on activeStream, and hence the callback status should be
      * set to cb::engine_errc::success
      */
-    EXPECT_EQ(cb::engine_errc::success, cb::engine_errc{callback.getStatus()});
+    EXPECT_EQ(cb::engine_errc::success, callback.getStatus());
 
     /* Verify that the item is not read in the backfill */
     EXPECT_EQ(0, stream->getNumBackfillItems());
@@ -1423,8 +1422,7 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
      * DcpProducer::recordBackfillManagerBytesRead returning false), and hence
      * set the callback status to cb::engine_errc::no_memory.
      */
-    EXPECT_EQ(cb::engine_errc::no_memory,
-              cb::engine_errc{callback.getStatus()});
+    EXPECT_EQ(cb::engine_errc::no_memory, callback.getStatus());
 
     /* Verify that the item is not read in the backfill */
     EXPECT_EQ(0, stream->getNumBackfillItems());

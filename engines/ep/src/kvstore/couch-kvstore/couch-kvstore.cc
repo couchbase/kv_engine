@@ -3818,7 +3818,7 @@ int populateAllKeys(Db* db, DocInfo* docinfo, void* ctx) {
     auto* allKeysCtx = static_cast<AllKeysCtx*>(ctx);
     auto key = makeDiskDocKey(docinfo->id);
     allKeysCtx->cb->callback(key);
-    return allKeysCtx->cb->getStatus() ? COUCHSTORE_ERROR_CANCEL
+    return allKeysCtx->cb->getStatus() != cb::engine_errc::success ? COUCHSTORE_ERROR_CANCEL
                                        : COUCHSTORE_SUCCESS;
 }
 

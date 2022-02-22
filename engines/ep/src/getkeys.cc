@@ -23,7 +23,7 @@
 #include <utility>
 
 void AllKeysCallback::callback(const DiskDocKey& key) {
-    setStatus(static_cast<int>(AllKeysCallbackStatus::KeySkipped));
+    setStatus(cb::engine_errc::not_stored);
     if (addedKeyCount >= maxCount) {
         return;
     }
@@ -60,7 +60,7 @@ void AllKeysCallback::callback(const DiskDocKey& key) {
     buffer.insert(buffer.end(), outKey.data(), outKey.data() + outKey.size());
 
     addedKeyCount++;
-    setStatus(static_cast<int>(AllKeysCallbackStatus::KeyAdded));
+    setStatus(cb::engine_errc::success);
     return;
 }
 

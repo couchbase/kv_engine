@@ -824,8 +824,7 @@ static bool batchWarmupCallback(Vbid vbId,
                     c->error++;
                 }
 
-                if (cb::engine_errc{c->cb.getStatus()} ==
-                    cb::engine_errc::success) {
+                if (c->cb.getStatus() == cb::engine_errc::success) {
                     c->loaded++;
                 } else {
                     // Failed to apply an Item, so fail the rest

@@ -131,21 +131,17 @@ public:
 template <typename... RV>
 class StatusCallback : public Callback<RV...> {
 public:
-    StatusCallback() : myStatus(0) {
-    }
-
-    virtual void setStatus(int status) {
-        myStatus = status;
+    StatusCallback() : myStatus(cb::engine_errc::success) {
     }
 
     virtual void setStatus(cb::engine_errc status) {
-        myStatus = static_cast<int>(status);
+        myStatus = status;
     }
 
-    virtual int getStatus() const {
+    virtual cb::engine_errc getStatus() const {
         return myStatus;
     }
 
 private:
-    int myStatus;
+    cb::engine_errc myStatus;
 };
