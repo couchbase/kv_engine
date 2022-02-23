@@ -1292,10 +1292,12 @@ std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
     };
 
     auto& epStats = getEPEngine().getEpStats();
-    ctx->isShuttingDown = [&epStats, &ctxRef = *ctx]() -> bool {
-        // stop compaction if the bucket is shutting down, or the vbucket
-        // is awaiting deferred deletion.
-        return epStats.isShutdown || ctxRef.getVBucket()->isDeletionDeferred();
+    ctx->isShuttingDown = [&epStats, &ctxRef = *ctx, this]() -> bool {
+        // stop compaction if the bucket is shutting down, the vbucket is
+        // awaiting deferred deletion.
+        return epStats.isShutdown ||
+               ctxRef.getVBucket()->isDeletionDeferred() ||
+               cancelEWBCompactionTasks;
     };
     return ctx;
 }
@@ -2384,4 +2386,6 @@ void EPBucket::releaseBlockedCookies() {
     // Stop warmup (if not yet completed) which will unblock any cookies which
     // were held pending if they were received before populateVBucketMap phase.
     stopWarmup();
+
+    cancelEWBCompactionTasks = true;
 }

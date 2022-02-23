@@ -5709,7 +5709,23 @@ void STParamPersistentBucketTest::testCancelCompaction(
                 return ctx;
             };
 
-    runCompaction(vbid);
+    CompactionConfig config;
+    config.internally_requested = false;
+    auto* epBucket = dynamic_cast<EPBucket*>(store);
+    if (epBucket) {
+        epBucket->scheduleCompaction(
+                vbid, config, cookie, std::chrono::milliseconds(0));
+    }
+
+    // Drive all the tasks through the queue
+    auto runTasks = [=](TaskQueue& queue) {
+        while (queue.getFutureQueueSize() > 0 ||
+               queue.getReadyQueueSize() > 0) {
+            ObjectRegistry::onSwitchThread(engine.get());
+            runNextTask(queue);
+        }
+    };
+    runTasks(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
 
     EXPECT_EQ(0, engine->getEpStats().compactionFailed);
     EXPECT_EQ(1, engine->getEpStats().compactionAborted);
@@ -5746,4 +5762,17 @@ TEST_P(STParamPersistentBucketTest, CancelCompactionOnVbucketDelete) {
     // for successful test teardown, un-set deferred deletion so the vb
     // can be deleted normally after the executor pool has gone.
     store->getVBucket(vbid)->setDeferredDeletion(false);
+}
+
+TEST_P(STParamPersistentBucketTest, CancelCompactionOnCancelEWBCookies) {
+    // Nexus only forwards the callback to the primary so this test doesn't
+    // work for it.
+    if (isNexus()) {
+        GTEST_SKIP();
+    }
+    testCancelCompaction([this] {
+        // Hit the store function rather than the engine one to avoid messing
+        // up the thread local we are running the test in.
+        store->releaseBlockedCookies();
+    });
 }

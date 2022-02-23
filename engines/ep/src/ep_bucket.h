@@ -269,6 +269,14 @@ public:
 
     void warmupCompleted();
 
+    /**
+     * Construct a compaction context.
+     *
+     * @param vbid to compact
+     * @param config of the compaction
+     * @param purgeSeqno starting rollback purge seqno
+     * @return
+     */
     virtual std::shared_ptr<CompactionContext> makeCompactionContext(
             Vbid vbid, CompactionConfig& config, uint64_t purgeSeqno);
 
@@ -422,6 +430,12 @@ protected:
 
     folly::Synchronized<std::unordered_map<Vbid, std::shared_ptr<CompactTask>>>
             compactionTasks;
+
+    /**
+     * Bool referenced during compaction that is checked to determine if we
+     * should abort the compaction due to an incoming shutdown.
+     */
+    std::atomic<bool> cancelEWBCompactionTasks = false;
 
     /**
      * Testing hook called from EPBucket::compactionCompletionCallback function
