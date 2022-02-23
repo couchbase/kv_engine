@@ -9,6 +9,7 @@ cb_add_test_executable(cluster_test
                misc_tests.cc
                out_of_order_tests.cc
                rbac_tests.cc
+               regression_tests.cc
                upgrade_test.cc
                upgrade_test.h)
 target_link_libraries(cluster_test PRIVATE cluster_framework)

@@ -309,8 +309,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /* Multi-Path commands */
     setup(cb::mcbp::ClientOpcode::SubdocMultiLookup, require<Privilege::Read>);
     setup(cb::mcbp::ClientOpcode::SubdocMultiMutation,
-          require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::SubdocMultiMutation,
           require<Privilege::Upsert>);
 
     setup(cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
