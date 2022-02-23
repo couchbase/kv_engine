@@ -1378,7 +1378,7 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
         stats.compactionFailed++;
         break;
     case CompactDBStatus::Aborted:
-        EP_LOG_INFO("EPBucket::compactInternal: compaction aborted for {}",
+        EP_LOG_DEBUG("EPBucket::compactInternal: compaction aborted for {}",
                     vb->getId());
         stats.compactionAborted++;
         break;
