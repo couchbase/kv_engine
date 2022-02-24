@@ -30,7 +30,6 @@ TEST_F(RbacTest, DcpOpenWithoutAccess) {
       "default": {
         "privileges": [
           "Read",
-          "XattrRead",
           "SimpleStats"
         ]
       }
@@ -58,7 +57,6 @@ TEST_F(RbacTest, DcpOpenWithProducerAccess) {
         "privileges": [
           "DcpProducer",
           "Read",
-          "XattrRead",
           "SimpleStats"
         ]
       }
@@ -87,7 +85,6 @@ TEST_F(RbacTest, DcpOpenWithConsumerAccess) {
         "privileges": [
           "DcpConsumer",
           "Read",
-          "XattrRead",
           "SimpleStats"
         ]
       }

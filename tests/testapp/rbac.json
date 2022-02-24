@@ -4,7 +4,6 @@
       "default": [
         "DcpConsumer",
         "DcpProducer",
-        "MetaRead",
         "MetaWrite",
         "Read",
         "SimpleStats",
@@ -12,14 +11,11 @@
         "Delete",
         "Upsert",
         "SystemXattrRead",
-        "SystemXattrWrite",
-        "XattrRead",
-        "XattrWrite"
+        "SystemXattrWrite"
       ],
       "bucket": [
         "DcpConsumer",
         "DcpProducer",
-        "MetaRead",
         "MetaWrite",
         "Read",
         "SimpleStats",
@@ -27,9 +23,7 @@
         "Delete",
         "Upsert",
         "SystemXattrRead",
-        "SystemXattrWrite",
-        "XattrRead",
-        "XattrWrite"
+        "SystemXattrWrite"
       ]
     },
     "privileges": [],
@@ -39,7 +33,6 @@
     "buckets": {
       "rbac_test": [
         "Read",
-        "XattrRead",
         "SimpleStats"
       ]
     },
@@ -52,8 +45,7 @@
         "Read",
         "Insert",
         "Delete",
-        "Upsert",
-        "XattrRead"
+        "Upsert"
       ]
     },
     "privileges": [],
@@ -65,8 +57,7 @@
         "Read",
         "Insert",
         "Delete",
-        "Upsert",
-        "XattrRead"
+        "Upsert"
       ]
     },
     "privileges": [],
@@ -77,8 +68,7 @@
       "rbac_test": [
         "Insert",
         "Delete",
-        "Upsert",
-        "XattrWrite"
+        "Upsert"
       ]
     },
     "privileges": [],

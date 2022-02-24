@@ -355,17 +355,10 @@ Status McbpValidator::verify_header(Cookie& cookie,
                     return false;
                 }
                 try {
-                    std::string_view str{
-                            reinterpret_cast<const char*>(data.data()),
-                            data.size()};
-                    using namespace std::literals;
-                    if (str != "XattrRead"sv && str != "XattrWrite"sv) {
-                        cookie.addImposedUserExtraPrivilege(
-                                cb::rbac::to_privilege(std::string{
-                                        reinterpret_cast<const char*>(
-                                                data.data()),
-                                        data.size()}));
-                    }
+                    cookie.addImposedUserExtraPrivilege(
+                            cb::rbac::to_privilege(std::string{
+                                    reinterpret_cast<const char*>(data.data()),
+                                    data.size()}));
                 } catch (const std::invalid_argument&) {
                     cookie.setErrorContext("Failed to look up the privilege");
                     status = Status ::Einval;

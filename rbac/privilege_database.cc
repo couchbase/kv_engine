@@ -95,10 +95,7 @@ static PrivilegeMask parsePrivileges(const nlohmann::json& privs,
         const std::string str{priv.get<std::string>()};
         if (str == "all") {
             ret.set();
-        } else if (str != "XattrRead" && str != "XattrWrite" &&
-                   str != "MetaRead" && str != "ReadSeqno") {
-            // Need to ignore those privileges until ns_server stop
-            // using them
+        } else {
             ret[int(to_privilege(str))] = true;
         }
     }

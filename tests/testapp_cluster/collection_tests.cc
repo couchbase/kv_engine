@@ -147,8 +147,6 @@ TEST_F(CollectionsTests, TestBasicRbac) {
                 "Insert",
                 "Delete",
                 "Upsert",
-                "XattrRead",
-                "XattrWrite",
                 "SystemXattrWrite"
               ]
             }
