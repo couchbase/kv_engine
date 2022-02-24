@@ -171,6 +171,9 @@ void TestappXattrClientTest::SetUp() {
     document.info.id = name;
     document.info.expiration = 0;
     document.value = memcached_cfg.dump();
+    if (hasJSONSupport() == ClientJSONSupport::Yes) {
+        document.info.datatype = cb::mcbp::Datatype::JSON;
+    }
 
     // If the client has Snappy support, enable passive compression
     // on the bucket and compress our initial document we work with.
