@@ -2212,27 +2212,7 @@ CompactDBStatus MagmaKVStore::compactDB(
         std::unique_lock<std::mutex>& vbLock,
         std::shared_ptr<CompactionContext> ctx) {
     vbLock.unlock();
-    try {
-        auto vbid = ctx->getVBucket()->getId();
-        auto status = compactDBInternal(vbLock, std::move(ctx));
-
-        switch (status) {
-        case CompactDBStatus::Failed:
-            logger->error("MagmaKVStore::compactDB: compaction failed for {}",
-                          vbid);
-            ++st.numCompactionFailure;
-            break;
-        case CompactDBStatus::Aborted:
-            logger->info("MagmaKVStore::compactDB: aborted for {}", vbid);
-            break;
-        case CompactDBStatus::Success:
-            break;
-        }
-        return status;
-    } catch (const std::exception&) {
-        st.numCompactionFailure++;
-        throw;
-    }
+    return compactDBInternal(vbLock, std::move(ctx));
 }
 
 CompactDBStatus MagmaKVStore::compactDBInternal(
@@ -3136,7 +3116,6 @@ GetStatsMap MagmaKVStore::getStats(
     };
     fill("memory_quota", magmaStats->MemoryQuota);
     fill("failure_get", st.numGetFailure.load());
-    fill("failure_compaction", st.numCompactionFailure.load());
     fill("storage_mem_used", magmaStats->TotalMemUsed);
     fill("magma_MemoryQuotaLowWaterMark", magmaStats->MemoryQuotaLowWaterMark);
     fill("magma_BloomFilterMemoryQuota", magmaStats->BloomFilterMemoryQuota);

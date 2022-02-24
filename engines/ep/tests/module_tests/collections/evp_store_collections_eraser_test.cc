@@ -2132,21 +2132,18 @@ TEST_P(CollectionsEraserPersistentWithFailure, FailAndRetry) {
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    size_t preFailure = 0;
-    EXPECT_TRUE(store->getKVStoreStat("failure_compaction", preFailure));
+    size_t preFailure = engine->getEpStats().compactionFailed;
 
     // Inject failure
     runAndFailCompaction();
 
-    size_t postFailure = 0;
-    EXPECT_TRUE(store->getKVStoreStat("failure_compaction", postFailure));
+    size_t postFailure = engine->getEpStats().compactionFailed;
     EXPECT_GT(postFailure, preFailure);
 
     // Rescheduled and should run again
     runCollectionsEraser(vbid);
 
-    size_t postSuccess = 0;
-    EXPECT_TRUE(store->getKVStoreStat("failure_compaction", postSuccess));
+    size_t postSuccess = engine->getEpStats().compactionFailed;
     EXPECT_EQ(postFailure, postSuccess);
 }
 

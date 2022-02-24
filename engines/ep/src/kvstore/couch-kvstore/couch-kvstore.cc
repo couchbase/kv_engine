@@ -1104,19 +1104,6 @@ CompactDBStatus CouchKVStore::compactDB(
     }
 
     if (status != CompactDBStatus::Success) {
-        switch (status) {
-        case CompactDBStatus::Failed:
-            logger.error("CouchKVStore::compactDB: compaction failed for {}",
-                         vbid);
-            ++st.numCompactionFailure;
-            break;
-        case CompactDBStatus::Aborted:
-            logger.info("CouchKVStore::compactDB: aborted for {}", vbid);
-            break;
-        case CompactDBStatus::Success:
-            break;
-        }
-
         removeCompactFile(compact_file, vbid);
     }
 
@@ -2102,10 +2089,7 @@ StorageProperties CouchKVStore::getStorageProperties() const {
 }
 
 bool CouchKVStore::getStat(std::string_view name, size_t& value) const {
-    if (name == "failure_compaction") {
-        value = st.numCompactionFailure.load();
-        return true;
-    } else if (name == "failure_get") {
+    if (name == "failure_get") {
         value = st.numGetFailure.load();
         return true;
     } else if (name == "io_document_write_bytes") {

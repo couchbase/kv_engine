@@ -1266,51 +1266,6 @@ TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
 }
 
 /**
- * Verify the failed compaction statistic is accurate.
- */
-void CouchKVStoreErrorInjectionTest::testCompactionFailedStats() {
-    populate_items(1);
-
-    CompactionConfig config;
-    auto vb = TestEPVBucketFactory::makeVBucket(vbid);
-    auto cctx = std::make_shared<CompactionContext>(vb, config, 0);
-
-    {
-        /* Establish FileOps expectation */
-        EXPECT_CALL(ops, open(_, _, _, _))
-                .WillOnce(Return(COUCHSTORE_ERROR_OPEN_FILE))
-                .RetiresOnSaturation();
-        EXPECT_CALL(ops, open(_, _, _, _)).Times(1).RetiresOnSaturation();
-        std::mutex vbmutex;
-        std::unique_lock<std::mutex> vblock(vbmutex);
-        kvstore->compactDB(vblock, cctx);
-    }
-
-    // Check the fail compaction statistic is correct.
-    std::map<std::string, std::string> stats;
-    auto add_stat_callback = [&stats](std::string_view key,
-                                      std::string_view value,
-                                      const void* ctx) {
-        stats.insert(std::make_pair(std::string(key.data(), key.size()),
-                                    std::string(value.data(), value.size())));
-    };
-    kvstore->addStats(add_stat_callback, &stats);
-
-    EXPECT_EQ("1", stats["rw_0:failure_compaction"]);
-}
-
-TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTest) {
-    testCompactionFailedStats();
-}
-
-TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTestPitr) {
-    config.setPitrEnabled(true);
-    config.setPitrGranularity(std::chrono::nanoseconds(1000));
-    config.setPitrMaxHistoryAge(std::chrono::seconds(1));
-    testCompactionFailedStats();
-}
-
-/**
  * Injects corruption (invalid header length) during
  * CouchKVStore::readVBState/couchstore_open_local_document
  */

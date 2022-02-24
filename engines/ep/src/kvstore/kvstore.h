@@ -572,7 +572,6 @@ public:
     cb::RelaxedAtomic<size_t> numLoadedVb;
 
     //stats tracking failures
-    cb::RelaxedAtomic<size_t> numCompactionFailure;
     mutable cb::RelaxedAtomic<size_t> numGetFailure;
     cb::RelaxedAtomic<size_t> numSetFailure;
     cb::RelaxedAtomic<size_t> numDelFailure;

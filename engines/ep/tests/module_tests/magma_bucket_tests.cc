@@ -637,7 +637,7 @@ TEST_P(STParamMagmaBucketTest, FailCompactKVStoreCall) {
     runCompaction(vbid);
 
     // Dropped collections all gone now
-    ASSERT_EQ(1, magmaKVStore.getKVStoreStat().numCompactionFailure);
+    ASSERT_EQ(1, engine->getEpStats().compactionFailed);
     std::tie(status, dc) = kvstore->getDroppedCollections(vbid);
     ASSERT_TRUE(status);
     EXPECT_TRUE(dc.empty());
@@ -690,7 +690,7 @@ TEST_P(STParamMagmaBucketTest, FailPrepareCompactKVStoreCall) {
     runCompaction(vbid);
 
     // Dropped collections all gone now
-    ASSERT_EQ(1, magmaKVStore.getKVStoreStat().numCompactionFailure);
+    ASSERT_EQ(1, engine->getEpStats().compactionFailed);
     std::tie(status, dc) = kvstore->getDroppedCollections(vbid);
     ASSERT_TRUE(status);
     EXPECT_TRUE(dc.empty());
@@ -976,7 +976,7 @@ TEST_P(STParamMagmaBucketTest,
     runCompaction(vbid);
 
     auto* kvstore = store->getRWUnderlying(vbid);
-    EXPECT_EQ(0, kvstore->getKVStoreStat().numCompactionFailure);
+    EXPECT_EQ(0, engine->getEpStats().compactionFailed);
 
     EXPECT_EQ(0, kvstore->getItemCount(vbid));
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumTotalItems());

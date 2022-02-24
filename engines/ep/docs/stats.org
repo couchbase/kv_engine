@@ -1182,7 +1182,6 @@ The following stats are available for the CouchStore database engine:
 | compaction                | Time spent in compacting vbucket database file                                                                                                      |
 | numLoadedVb               | Number of Vbuckets loaded into memory                                                                                                               |
 | lastCommDocs              | Number of docs in the last commit                                                                                                                   |
-| failure_compaction        | Number of failed compactions                                                                                                                        |
 | failure_set               | Number of failed set operation                                                                                                                      |
 | failure_get               | Number of failed get operation                                                                                                                      |
 | failure_vbset             | Number of failed vbucket set operation                                                                                                              |

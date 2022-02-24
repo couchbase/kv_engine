@@ -5711,10 +5711,7 @@ void STParamPersistentBucketTest::testCancelCompaction(
 
     runCompaction(vbid);
 
-    EXPECT_EQ(1,
-              store->getRWUnderlying(vbid)
-                      ->getKVStoreStat()
-                      .numCompactionFailure);
+    EXPECT_EQ(1, engine->getEpStats().compactionFailed);
 
     auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |

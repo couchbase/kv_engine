@@ -1782,10 +1782,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactDropCollection) {
 
     // Check that the compaction didn't fail. Before the fix it would fail as
     // we'd attempt to update the stats of the dropped collection and throw
-    EXPECT_EQ(0,
-              store->getRWUnderlying(vbid)
-                      ->getKVStoreStat()
-                      .numCompactionFailure);
+    EXPECT_EQ(0, engine->getEpStats().compactionFailed);
 
     // No stats for the dropped collection
     EXPECT_EQ(0,
@@ -1987,7 +1984,7 @@ void CollectionsCouchstoreParameterizedTest::ConcCompact(
     runCompaction(vbid, 0, false);
 
     // Check that the compaction didn't fail.
-    EXPECT_EQ(0, kvstore.getKVStoreStat().numCompactionFailure);
+    EXPECT_EQ(0, engine->getEpStats().compactionFailed);
 }
 
 TEST_P(CollectionsCouchstoreParameterizedTest,

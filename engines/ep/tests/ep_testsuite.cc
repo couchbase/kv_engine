@@ -6845,7 +6845,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
             {"kvstore",
              {"rw_0:backend_type",
               "rw_0:close",
-              "rw_0:failure_compaction",
               "rw_0:failure_del",
               "rw_0:failure_get",
               "rw_0:failure_open",
@@ -6866,7 +6865,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "rw_0:open",
               "rw_1:backend_type",
               "rw_1:close",
-              "rw_1:failure_compaction",
               "rw_1:failure_del",
               "rw_1:failure_get",
               "rw_1:failure_open",
@@ -6887,7 +6885,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "rw_1:open",
               "rw_2:backend_type",
               "rw_2:close",
-              "rw_2:failure_compaction",
               "rw_2:failure_del",
               "rw_2:failure_get",
               "rw_2:failure_open",
@@ -6908,7 +6905,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "rw_2:open",
               "rw_3:backend_type",
               "rw_3:close",
-              "rw_3:failure_compaction",
               "rw_3:failure_del",
               "rw_3:failure_get",
               "rw_3:failure_open",
@@ -7652,7 +7648,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_item_flush_expired",
                           "ep_item_flush_failed",
                           "ep_total_persisted",
-                          "ep_uncommitted_items"});
+                          "ep_uncommitted_items",
+                          "ep_compaction_failed"});
 
         // Config variables only valid for persistent
         std::initializer_list<std::string_view> persistentConfig = {

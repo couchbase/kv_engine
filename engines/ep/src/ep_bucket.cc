@@ -1365,9 +1365,24 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
     try {
         result = store->compactDB(vb.getLock(), ctx);
     } catch (const std::exception& e) {
-        EP_LOG_WARN("EPBucket::compactInternal(): compactDB() threw:'{}'",
-                    e.what());
+        EP_LOG_ERR("EPBucket::compactInternal(): compactDB() threw:'{}'",
+                   e.what());
+        stats.compactionFailed++;
         return false;
+    }
+
+    switch (result) {
+    case CompactDBStatus::Failed:
+        EP_LOG_ERR("EPBucket::compactInternal: compaction failed for {}",
+                   vb->getId());
+        stats.compactionFailed++;
+        break;
+    case CompactDBStatus::Aborted:
+        EP_LOG_INFO("EPBucket::compactInternal: compaction aborted for {}",
+                    vb->getId());
+        break;
+    case CompactDBStatus::Success:
+        break;
     }
 
     if (getEPEngine().getConfiguration().isBfilterEnabled() &&

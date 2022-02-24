@@ -153,7 +153,6 @@ void KVStoreStats::reset() {
     numClose = 0;
     numLoadedVb = 0;
 
-    numCompactionFailure = 0;
     numGetFailure = 0;
     numSetFailure = 0;
     numDelFailure = 0;
@@ -383,8 +382,6 @@ void KVStore::addStats(const AddStatFn& add_stat, const void* c) const {
     add_prefixed_stat(prefix, "numLoadedVb", st.numLoadedVb, add_stat, c);
 
     // failure stats
-    add_prefixed_stat(
-            prefix, "failure_compaction", st.numCompactionFailure, add_stat, c);
     add_prefixed_stat(prefix, "failure_open", st.numOpenFailure, add_stat, c);
     add_prefixed_stat(prefix, "failure_get", st.numGetFailure, add_stat, c);
 

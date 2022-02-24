@@ -3080,6 +3080,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         collector.addStat(Key::ep_flusher_todo, epstats.flusher_todo);
         collector.addStat(Key::ep_total_persisted, epstats.totalPersisted);
         collector.addStat(Key::ep_uncommitted_items, epstats.flusher_todo);
+        collector.addStat(Key::ep_compaction_failed, epstats.compactionFailed);
     }
     collector.addStat(Key::ep_vbucket_del, epstats.vbucketDeletions);
     collector.addStat(Key::ep_vbucket_del_fail, epstats.vbucketDeletionFail);
@@ -4885,12 +4886,13 @@ cb::engine_errc EventuallyPersistentEngine::doDiskinfoStats(
 void EventuallyPersistentEngine::doDiskFailureStats(
         const BucketStatCollector& collector) {
     using namespace cb::stats;
+
     size_t value = 0;
-    if (kvBucket->getKVStoreStat("failure_compaction", value)) {
-        // Total data write failures is compaction failures plus commit failures
-        auto writeFailure = value + stats.commitFailed;
-        collector.addStat(Key::ep_data_write_failed, writeFailure);
-    }
+
+    // Total data write failures is compaction failures plus commit failures
+    auto writeFailure = stats.commitFailed + stats.compactionFailed;
+    collector.addStat(Key::ep_data_write_failed, writeFailure);
+
     if (kvBucket->getKVStoreStat("failure_get", value)) {
         collector.addStat(Key::ep_data_read_failed, value);
     }
