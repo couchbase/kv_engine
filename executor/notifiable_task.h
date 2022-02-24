@@ -12,6 +12,8 @@
 
 #include <executor/globaltask.h>
 
+#include <climits>
+
 /**
  * Abstract class for tasks that needs to be reliably notified to run by the
  * user.
@@ -43,7 +45,7 @@ protected:
     virtual bool runInner() = 0;
 
     virtual size_t getSleepTime() const {
-        return std::numeric_limits<size_t>::max();
+        return INT_MAX;
     };
 
     std::atomic<bool> pendingRun{false};
