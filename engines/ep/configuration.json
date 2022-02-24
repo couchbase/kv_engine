@@ -924,7 +924,7 @@
             }
         },
         "nexus_concurrent_flush_compaction_enabled": {
-            "default": "false",
+            "default": "true",
             "descr": "Should NexusKVStore enable concurrent flushing and compaction?",
             "dynamic": false,
             "type": "bool",
