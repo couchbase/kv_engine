@@ -140,3 +140,7 @@ class ShardedCheckpointDestructionTest
 public:
     void SetUp() override;
 };
+
+class EphemeralCheckpointTest : public CheckpointTest {
+    void SetUp() override;
+};

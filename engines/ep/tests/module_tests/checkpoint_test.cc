@@ -3185,6 +3185,44 @@ TEST_P(CheckpointTest, ExpelCursor_NeverDrop) {
     EXPECT_EQ(0, toDrop.size());
 }
 
+// Check expel behaviour when the oldest checkpoint is an Open checkpoint
+// without any cursors (for example an Ephemeral bucket without a persistence
+// cursor).
+TEST_P(EphemeralCheckpointTest, Expel_OpenCheckpointNoCursor_OneItem) {
+    // Queue a single item - we should not be able to expel this (must keep
+    // the latest item).
+    ASSERT_TRUE(queueNewItem("key1"));
+    ASSERT_EQ(1, manager->getNumOpenChkItems());
+    ASSERT_EQ(1001, manager->getHighSeqno());
+
+    auto res = extractItemsToExpel();
+    EXPECT_EQ(0, res.getNumItems());
+
+    // Nothing should have changed in CheckpointManager.
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(1, manager->getNumOpenChkItems());
+    EXPECT_EQ(0, manager->getNumOfCursors());
+}
+
+TEST_P(EphemeralCheckpointTest, Expel_OpenCheckpointNoCursor_TwoItems) {
+    // Queue two items - we should be able to expel the oldest one (but should
+    // keep the younger one).
+    ASSERT_TRUE(queueNewItem("key1"));
+    ASSERT_TRUE(queueNewItem("key2"));
+    ASSERT_EQ(2, manager->getNumOpenChkItems());
+    ASSERT_EQ(1002, manager->getHighSeqno());
+
+    // One item should have been expelled, should be one less in CkptMgr.
+    {
+        auto res = extractItemsToExpel();
+        EXPECT_EQ(1, res.getNumItems());
+    }
+
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(2, manager->getNumOpenChkItems());
+    EXPECT_EQ(0, manager->getNumOfCursors());
+}
+
 TEST_P(CheckpointTest, MB_47134_vbstate_at_backup_cursor) {
     if (!persistent()) {
         GTEST_SKIP();
@@ -3284,6 +3322,14 @@ INSTANTIATE_TEST_SUITE_P(
         ::testing::Combine(
                 ::testing::Values(VBucketTestBase::VBType::Persistent,
                                   VBucketTestBase::VBType::Ephemeral),
+                ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
+        VBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(
+        AllEvictionModes,
+        EphemeralCheckpointTest,
+        ::testing::Combine(
+                ::testing::Values(VBucketTestBase::VBType::Ephemeral),
                 ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
         VBucketTest::PrintToStringParamName);
 
@@ -3899,4 +3945,16 @@ TEST_F(CheckpointConfigTest, CheckpointPeriod) {
     auto& manager = *store->getVBuckets().getBucket(vbid)->checkpointManager;
 
     EXPECT_EQ(1234, manager.getCheckpointConfig().getCheckpointPeriod());
+}
+
+void EphemeralCheckpointTest::SetUp() {
+    CheckpointTest::SetUp();
+    // Remove test-cursor - we want these tests to run in the same
+    // configuration as an Ephemeral bucket normally does.
+    ASSERT_TRUE(manager->removeCursor(cursor));
+
+    ASSERT_EQ(1000, manager->getHighSeqno());
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+    ASSERT_EQ(0, manager->getNumOpenChkItems());
+    ASSERT_EQ(0, manager->getNumOfCursors());
 }
