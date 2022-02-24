@@ -933,13 +933,10 @@ def stats_dispatcher(mc, with_logs='no'):
                     print("        ---------")
 
 @cmd
-def stats_durability_monitor(mc, vb=-1):
+def stats_durability_monitor(mc, vb):
     try:
         vb = int(vb)
-        if vb == -1:
-            cmd = 'durability-monitor'
-        else:
-            cmd = "durability-monitor %s" % (str(vb))
+        cmd = "durability-monitor %s" % (str(vb))
         stats_formatter(stats_perform(mc, cmd))
     except ValueError:
         print('Specified vbucket \"%s\" is not valid' % str(vb))
