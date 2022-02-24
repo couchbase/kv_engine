@@ -1484,10 +1484,8 @@ bool EPBucket::doCompact(Vbid vbid,
 
 bool EPBucket::updateCompactionTasks(Vbid vbid) {
     auto handle = compactionTasks.wlock();
-    // Copy the size before we may erase a task
-    auto size = handle->size();
 
-    // process the caller and then find a second task to wake
+    // remove the calling task if it does not need to run again.
     if (auto itr = handle->find(vbid); itr != handle->end()) {
         const auto& task = (*itr).second;
         if (task->isRescheduleRequired()) {
@@ -1503,41 +1501,6 @@ bool EPBucket::updateCompactionTasks(Vbid vbid) {
                 vbid.to_string());
     }
 
-    // If another task does exist, find it and wake it
-    if (size > 1) {
-        for (const auto& [key, task] : *handle) {
-            if (key != vbid) {
-                // Check if the task is not yet running (i.e. originally snoozed
-                // when added to compactionTasks), and if so wake it up.
-
-                // Note this approach (non-atomically reading task state;
-                // then calling wake) is racy in the general case, as we are
-                // reading the tasks' state while it is potentially being
-                // run on a different thread. However, in this particular case
-                // it is safe (not racy), as:
-                //   a) we never re-snooze a CompactionTask once woken,
-                //   b) All functions waking CompactionTasks take an exclusive
-                //      lock on compactionTasks,
-                //   c) We use wakeAndWait() instead of wake(), which ensures
-                //      that when wakeAndWait returns (and compactionTasks
-                //      is unlocked), the task state has definitely been
-                //      changed from SNOOZED to RUNNING.
-                // If the above conditions werre not the case, then we could
-                // potentially have two different threads calling
-                // updateCompactionTasks; finding the same task in TASK_SNOOZED
-                // state and both waking the same one - essentially "loosing"
-                // one tasks worth of concurrency - two tasks finish, only one
-                // new one starts...
-                // Note (2): This kind of task-type limiting would probably
-                // be better managed at the ExecutorPool level, as it has
-                // direct control of what is run when.
-                if (task->getState() == TASK_SNOOZED) {
-                    ExecutorPool::get()->wakeAndWait(task->getId());
-                    break;
-                }
-            }
-        }
-    }
     return false;
 }
 
