@@ -34,11 +34,12 @@ CompactTask::CompactTask(
         CompactionConfig config,
         std::chrono::steady_clock::time_point requestedStartTime,
         const CookieIface* ck,
+        cb::AwaitableSemaphore& semaphore,
         bool completeBeforeShutdown)
-    : GlobalTask(&bucket.getEPEngine(),
-                 TaskId::CompactVBucketTask,
-                 0,
-                 completeBeforeShutdown),
+    : LimitedConcurrencyTask(&bucket.getEPEngine(),
+                             TaskId::CompactVBucketTask,
+                             semaphore,
+                             completeBeforeShutdown),
       bucket(bucket),
       vbid(vbid) {
     auto lockedState = compaction.wlock();
@@ -52,8 +53,17 @@ CompactTask::CompactTask(
     lockedState->requestedStartTime = requestedStartTime;
 }
 
-bool CompactTask::run() {
+bool CompactTask::runInner() {
     TRACE_EVENT1("ep-engine/task", "CompactTask", "file_id", vbid.get());
+
+    // try to acquire a token
+    auto guard = acquireOrWait();
+    if (!guard) {
+        // too many tasks are already running. We have already been snoozed
+        // (see NotifiableTask::run()) so just return true to be rescheduled.
+        return true;
+    }
+    // token acquired, guard will release it when this scope ends.
 
     // pull out the config we have been requested to run with and any cookies
     // that maybe waiting.
@@ -67,9 +77,7 @@ bool CompactTask::run() {
 
     auto [config, cookies] = *configAndCookies;
 
-    if (runningCallback) {
-        runningCallback();
-    }
+    runningCallback();
 
     auto reschedule = bucket.doCompact(vbid, config, cookies);
 
@@ -84,7 +92,18 @@ bool CompactTask::run() {
         reschedule = bucket.updateCompactionTasks(vbid);
     }
 
-    return !isTaskDone(cookies) || reschedule;
+    // even if compaction completed, we may still need to reschedule if the
+    // config was updated by another compaction request while we were running
+    reschedule = !isTaskDone(cookies) || reschedule;
+
+    if (reschedule) {
+        // run again as soon as possible. If the compaction has a delay set,
+        // we will compute the right wake time next time we run in preDoCompact
+        // Task was snoozed forever by NotifiableTask::run()
+        wakeup();
+    }
+
+    return reschedule;
 }
 
 std::string CompactTask::getDescription() const {

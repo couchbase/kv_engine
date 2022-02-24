@@ -41,6 +41,7 @@
 #include "vbucket_bgfetch_item.h"
 #include "warmup.h"
 
+#include <folly/synchronization/Baton.h>
 #include <memcached/server_cookie_iface.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
@@ -49,6 +50,8 @@
 
 #include <thread>
 #include <utility>
+
+using namespace std::chrono_literals;
 
 void EPBucketTest::SetUp() {
     STParameterizedBucketTest::SetUp();
@@ -2160,9 +2163,26 @@ TEST_P(EPBucketTestNoRocksDb,
     ASSERT_TRUE(task1);
     ASSERT_EQ(task_state_t::TASK_RUNNING, task1->getState());
 
-    // Schedule a second compaction task for a second vbid. This one should
-    // be queued as we have exceeded the number of concurrent compaction
-    // tasks permitted.
+    // start the task running in a separate thread, and block it
+    folly::Baton<> task1Running;
+    folly::Baton<> task1Continue;
+    task1->setRunningCallback([&] {
+        task1Running.post();
+        task1Continue.wait();
+    });
+
+    auto task1Thread = std::thread([this, &task1] {
+        // Take the VBucket lock for vbid, then trigger compaction. This should
+        // // cause doCompact to fail (it cannot compact and hence task should
+        // be rescheduled.
+        auto lockedVB = engine->getKVBucket()->getLockedVBucket(vbid);
+        EXPECT_TRUE(task1->run());
+    });
+
+    // wait until it has started and is running.
+    task1Running.wait();
+
+    // Schedule a second compaction task for a second vbid.
     Vbid vbid2{2};
     store->setVBucketState(vbid2, vbucket_state_active);
     ASSERT_EQ(cb::engine_errc::would_block,
@@ -2170,34 +2190,229 @@ TEST_P(EPBucketTestNoRocksDb,
                       vbid2, config, nullptr, std::chrono::seconds(0)));
     auto task2 = mockEPBucket->getCompactionTask(vbid2);
     ASSERT_TRUE(task2);
+    // Task will initially be scheduled for execution "optimistically".
+    // Once it tries to run, it will find that it would exceed the configured
+    // compaction concurrency, and will snooze till notified.
+    task2->setRunningCallback([&] {
+        // verify that the task did not actually try to compact yet
+        FAIL() << "task2 should not have started running yet, this exceeds"
+                  "configured concurrency";
+    });
+    EXPECT_TRUE(task2->run());
+    task2->setRunningCallback(nullptr);
     ASSERT_EQ(task_state_t::TASK_SNOOZED, task2->getState());
 
-    // Take the VBucket lock for vbid, then trigger compaction. This should
-    // // cause doCompact to fail (it cannot compact and hence task should be
-    // rescheduled.
-    {
-        auto lockedVB = engine->getKVBucket()->getLockedVBucket(vbid);
-        ASSERT_TRUE(task1->run());
-    }
+    // allow the first task to finish, and reschedule itself.
+    task1Continue.post();
+    task1Thread.join();
 
-    // Test: Check that only one task is set to RUNNING (the one for vbid);
-    // we should not have woken up the second one yet.
-    // Both tasks should also still exist.
+    // clear the callback, don't need to synchronise the next run with the
+    // test thread.
+    task1->setRunningCallback(nullptr);
+
+    // Confirm task1 needs rescheduling as it did not complete compaction.
     task1 = mockEPBucket->getCompactionTask(vbid);
     ASSERT_TRUE(task1);
     EXPECT_EQ(task_state_t::TASK_RUNNING, task1->getState());
 
+    // task1 released it's semaphore token, which woke task2
     task2 = mockEPBucket->getCompactionTask(vbid2);
     ASSERT_TRUE(task2);
-    EXPECT_EQ(task_state_t::TASK_SNOOZED, task2->getState());
+    EXPECT_EQ(task_state_t::TASK_RUNNING, task2->getState());
+
+    // Both tasks should also still exist. Either task may start executing first
+    // and the other will be snoozed again, as above.
 
     // Test 2: Run task1 a second time - without taking the VBucket lock. This
-    // should complete, and wake up task2.
+    // should complete.
     EXPECT_FALSE(task1->run());
     task1 = mockEPBucket->getCompactionTask(vbid);
     EXPECT_FALSE(task1);
+}
 
+/**
+ * Helper class to start a compaction task running in another thread,
+ * then block it at the point it calls runningCallback
+ */
+class RunInThreadHelper {
+public:
+    RunInThreadHelper() = delete;
+    RunInThreadHelper(std::shared_ptr<CompactTask> task)
+        : task(std::move(task)) {
+        // set the callback so the task can be blocked once started
+        this->task->setRunningCallback([this] {
+            taskRunning.post();
+            taskContinue.wait();
+        });
+
+        // start running the task in a new thread
+        thread = std::thread([task = this->task] { task->run(); });
+
+        // wait until the task has reached runningCallback
+        using namespace std::chrono_literals;
+        EXPECT_TRUE(taskRunning.try_wait_for(5s))
+                << "Task did not start compaction";
+    }
+
+    RunInThreadHelper(RunInThreadHelper&&) = delete;
+    RunInThreadHelper(const RunInThreadHelper&) = delete;
+
+    RunInThreadHelper operator=(RunInThreadHelper&&) = delete;
+    RunInThreadHelper operator=(const RunInThreadHelper&) = delete;
+
+    /**
+     * Unblock the compaction task, allowing it to finish.
+     */
+    void finish() {
+        taskContinue.post();
+        thread.join();
+        this->task->setRunningCallback(nullptr);
+    }
+
+    ~RunInThreadHelper() {
+        if (thread.joinable()) {
+            finish();
+        }
+    }
+
+    folly::Baton<> taskRunning;
+    folly::Baton<> taskContinue;
+
+    std::shared_ptr<CompactTask> task;
+
+    std::thread thread;
+};
+
+TEST_P(EPBucketTestNoRocksDb,
+       ScheduleCompactionEnforceConcurrencyLimitReusingTasks) {
+    auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+
+    // Change compaction concurrency ratio to a very low value so we only allow
+    // a single compactor task to run at once.
+    engine->getConfiguration().setCompactionMaxConcurrentRatio(0.0001);
+
+    // Schedule the first vb compaction. This should be ready to run
+    // on an executor thread.
+    CompactionConfig config{100, 1, true, true};
+    ASSERT_EQ(cb::engine_errc::would_block,
+              mockEPBucket->scheduleCompaction(
+                      vbid, config, nullptr, std::chrono::seconds(0)));
+    auto task1 = mockEPBucket->getCompactionTask(vbid);
+    ASSERT_TRUE(task1);
+    ASSERT_EQ(task_state_t::TASK_RUNNING, task1->getState());
+
+    // Schedule a second compaction task for a second vbid. This task will
+    // initially be RUNNING, as the concurrency limit is checked when the task
+    // starts
+    Vbid vbid2{2};
+    store->setVBucketState(vbid2, vbucket_state_active);
+    ASSERT_EQ(cb::engine_errc::would_block,
+              mockEPBucket->scheduleCompaction(
+                      vbid2, config, nullptr, std::chrono::seconds(0)));
+    auto task2 = mockEPBucket->getCompactionTask(vbid2);
+    ASSERT_TRUE(task2);
+    ASSERT_EQ(task_state_t::TASK_RUNNING, task2->getState());
+
+    {
+        // start running the first task
+        RunInThreadHelper h{task1};
+
+        // verify that task2 cannot start compacting while task1 is active
+        task2->setRunningCallback([&] {
+            // verify that the task did not actually try to compact yet
+            FAIL() << "task2 should not have started running yet, this exceeds"
+                      "configured concurrency";
+        });
+        task2->run();
+
+        // task should have snoozed itself, waiting for task1 to finish
+        EXPECT_EQ(task_state_t::TASK_SNOOZED, task2->getState());
+
+        // Re-schedule the compaction for vbid2. Before the fix this would cause
+        // it to be run immediately, and not obey the concurrent compaction
+        // limit.
+        ASSERT_EQ(cb::engine_errc::would_block,
+                  mockEPBucket->scheduleCompaction(
+                          vbid2, config, nullptr, std::chrono::seconds(0)));
+        EXPECT_TRUE(task2);
+        // if task2 does try to compact, the test will fail (see above callback)
+        task2->run();
+        EXPECT_EQ(task_state_t::TASK_SNOOZED, task2->getState());
+
+        // task1 allowed to continue at end of scope
+    }
+    // as task1 finished it should have notified task2 to run
     EXPECT_EQ(task_state_t::TASK_RUNNING, task2->getState());
+}
+
+/**
+ * MB-50941: Verify that when compaction is re-scheduled for a vbucket which is
+ * already compacting, that we don't sleep the compaction task forever and
+ * never re-awaken it.
+ */
+TEST_P(EPBucketTestNoRocksDb,
+       MB50941_ScheduleCompactionEnforceConcurrencyLimit) {
+    auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+
+    // Change compaction concurrency ratio to a very low value so we only allow
+    // a single compactor task to run at once.
+    engine->getConfiguration().setCompactionMaxConcurrentRatio(0.0001);
+
+    // Schedule the first vb compaction. This should be ready to run
+    // on an executor thread.
+    CompactionConfig config{100, 1, true, true};
+    ASSERT_EQ(cb::engine_errc::would_block,
+              mockEPBucket->scheduleCompaction(vbid, config, nullptr, 0s));
+    auto task1 = mockEPBucket->getCompactionTask(vbid);
+    ASSERT_TRUE(task1);
+    ASSERT_EQ(task_state_t::TASK_RUNNING, task1->getState());
+
+    // Setup a callback to re-schedule compaction for the same vBucket while
+    // Compaction is running. This should result in compaction running
+    // again immediately following the first call.
+    task1->setRunningCallback([this, mockEPBucket]() {
+        CompactionConfig config{100, 1, true, true};
+        ASSERT_EQ(cb::engine_errc::would_block,
+                  mockEPBucket->scheduleCompaction(
+                          vbid, config, nullptr, std::chrono::seconds(0)));
+    });
+
+    // Test: trigger compaction. This should return true as it should be
+    // re-scheduled immediately due to the re-schedule which occurred while it
+    // eas running.
+    EXPECT_TRUE(task1->run());
+
+    // Check that the task is scheduled to run immediately, and not with
+    // a long delay.
+    EXPECT_LE(task1->getWaketime(), std::chrono::steady_clock::now());
+    EXPECT_EQ(task_state_t::TASK_RUNNING, task1->getState());
+}
+
+/**
+ * Verify that when compaction is scheduled for a vbucket which is already
+ * scheduled, that the delay of the original task is updated.
+ */
+TEST_P(EPBucketTestNoRocksDb, RescheduleWithSmallerDelay) {
+    auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+
+    // Schedule a compaction with a 60s delay - similar to what compaction
+    // for collection purge after drop does.
+    CompactionConfig config{100, 1, true, true};
+    ASSERT_EQ(cb::engine_errc::would_block,
+              mockEPBucket->scheduleCompaction(vbid, config, nullptr, 60s));
+    auto task1 = mockEPBucket->getCompactionTask(vbid);
+    ASSERT_TRUE(task1);
+    ASSERT_EQ(task_state_t::TASK_SNOOZED, task1->getState());
+
+    // Schedule a second compaction for same vBucket with zero delay - similar
+    // to what a manually-triggered compaction does.
+    ASSERT_EQ(cb::engine_errc::would_block,
+              mockEPBucket->scheduleCompaction(vbid, config, nullptr, 0s));
+    task1 = mockEPBucket->getCompactionTask(vbid);
+    ASSERT_TRUE(task1);
+    // Task should now be marked as Running with a wakeTime of immediate.
+    EXPECT_LE(task1->getWaketime(), std::chrono::steady_clock::now());
+    EXPECT_EQ(task_state_t::TASK_RUNNING, task1->getState());
 }
 
 class EPBucketTestCouchstore : public EPBucketTest {
