@@ -112,6 +112,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/stream_container_test.cc
         module_tests/systemevent_test.cc
         module_tests/tagged_ptr_test.cc
+        module_tests/task_concurrency_test.cc
         module_tests/test_helpers.cc
         module_tests/vbucket_test.cc
         module_tests/vbucket_durability_test.cc
