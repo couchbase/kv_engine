@@ -360,13 +360,23 @@ protected:
  * Allows tests to be defined once which are applicable to more than one
  * configuration, and then instantiated with appropriate config parameters.
  *
- * Parameterised on a pair of:
+ * Currently parameterised on a pair of:
  * - bucket type (ephemeral or persistent, and additional persistent variants
  *   (e.g. RocksDB) for additional storage backends.
  * - eviction type.
  *   - For ephemeral buckets: used for specifying ephemeral auto-delete /
  *     fail_new_data
  *   - For persistent buckets: used for specifying value_only or full_eviction
+ *
+ * @TODO update this comment
+ * We are currently in the process of changing the parameterization from a pair
+ * of bucket type and eviction type to a generic config in a single parameter.
+ * To maintain compatibility for both types of parameterization we either take
+ * the two already described parameters or the config string in place of the
+ * bucket type and leave the second parameter empty. When all tests use the
+ * config string we will remove the second parameter. GTest does not like having
+ * ';'s in the config string, it emits another set of empty test suites that
+ * ctest runs so we use ':' instead and replace it later.
  *
  * See `allConfigValues(), persistentConfigValues(), etc methods to instantiate
  * tests for some set / subset of the avbove parameters.
@@ -423,11 +433,18 @@ class STParameterizedBucketTest
       public ::testing::WithParamInterface<
               std::tuple<std::string, std::string>> {
 public:
+    // @TODO Remove the empty second param from the test config values. It is
+    // present while we migrate from the two more strictly typed params to
+    // a more flexible config string.
     static auto ephConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
-                std::make_tuple("ephemeral"s, "auto_delete"s),
-                std::make_tuple("ephemeral"s, "fail_new_data"s));
+                std::make_tuple("bucket_type=ephemeral:"
+                                "ephemeral_full_policy=auto_delete"s,
+                                ""s),
+                std::make_tuple("bucket_type=ephemeral:"
+                                "ephemeral_full_policy=fail_new_data"s,
+                                ""s));
     }
 
     static auto allConfigValues() {

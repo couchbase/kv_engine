@@ -55,6 +55,7 @@
 #include "vb_commit.h"
 #include "vbucket_state.h"
 #include "warmup.h"
+
 #include <executor/fake_executorpool.h>
 #include <executor/task_type.h>
 #include <folly/synchronization/Baton.h>
@@ -66,6 +67,7 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
+#include <regex>
 #include <thread>
 
 using FlushResult = EPBucket::FlushResult;
@@ -607,14 +609,23 @@ void STParameterizedBucketTest::SetUp() {
         config_string += ";";
     }
     auto bucketType = std::get<0>(GetParam());
-    config_string += generateBucketTypeConfig(bucketType);
     auto evictionPolicy = std::get<1>(GetParam());
 
-    if (!evictionPolicy.empty()) {
-        if (persistent()) {
-            config_string += ";item_eviction_policy=" + evictionPolicy;
-        } else {
-            config_string += ";ephemeral_full_policy=" + evictionPolicy;
+    // @TODO Remove the evictionPolicy param and rename bucketType when we
+    // finish moving the test config values to just be a config string
+    if (!bucketType.empty() &&
+        (evictionPolicy.empty() || evictionPolicy == "ignore")) {
+        std::replace(bucketType.begin(), bucketType.end(), ':', ';');
+        config_string += bucketType;
+    } else {
+        config_string += generateBucketTypeConfig(bucketType);
+
+        if (!evictionPolicy.empty()) {
+            if (persistent()) {
+                config_string += ";item_eviction_policy=" + evictionPolicy;
+            } else {
+                config_string += ";ephemeral_full_policy=" + evictionPolicy;
+            }
         }
     }
 
@@ -647,11 +658,21 @@ bool STParameterizedBucketTest::bloomFilterEnabled() const {
 std::string STParameterizedBucketTest::PrintToStringParamName(
         const ::testing::TestParamInfo<ParamType>& info) {
     auto bucket = std::get<0>(info.param);
-
     auto evictionPolicy = std::get<1>(info.param);
+
+    // @TODO Remove the evictionPolicy param and rename bucket when we finish
+    //  moving the test config values to just be a config string
     if (evictionPolicy.empty()) {
+        // GTest does not like "=" or ":" symbols in these param name strings
+        // so we have to remove them. We'll also remove some redundant config
+        // names while we're at it to make reading the param names easier.
+        std::replace(bucket.begin(), bucket.end(), ':', '_');
+        bucket = std::regex_replace(bucket, std::regex("bucket_type="), "");
+        bucket = std::regex_replace(
+                bucket, std::regex("ephemeral_full_policy="), "");
         return bucket;
     }
+
     return bucket + "_" + evictionPolicy;
 }
 

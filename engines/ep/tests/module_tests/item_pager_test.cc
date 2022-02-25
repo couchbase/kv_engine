@@ -89,7 +89,7 @@ protected:
         // How many nonIO tasks we expect initially
         // - 0 for persistent.
         // - 1 for Ephemeral (EphTombstoneHTCleaner).
-        if (std::get<0>(GetParam()) == "ephemeral") {
+        if (engine->getConfiguration().getBucketType() == "ephemeral") {
             ++initialNonIoTasks;
         }
 
@@ -326,7 +326,8 @@ protected:
 
         // For Ephemeral fail_new_data buckets we have no item pager, instead
         // the Expiry pager is used.
-        if (std::get<1>(GetParam()) == "fail_new_data") {
+        if (engine->getConfiguration().getEphemeralFullPolicy() ==
+            "fail_new_data") {
             // change the config and allow the listener to enable the task
             // (ensures the config is consistent with reality, rather than
             // directly enabling the task).
@@ -1569,7 +1570,8 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
     runHighMemoryPager();
 
     // Expected active vb behaviour depends on the full policy:
-    if (std::get<1>(GetParam()) == "fail_new_data") {
+    if (engine->getConfiguration().getEphemeralFullPolicy() ==
+        "fail_new_data") {
         EXPECT_EQ(store->getVBucket(replica_vb)->getNumItems(), replica_count)
                 << "Expected replica count to remain equal";
         EXPECT_EQ(store->getVBucket(active_vb)->getNumItems(), active_count)
