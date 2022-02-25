@@ -303,6 +303,11 @@ public:
         return tag;
     }
 
+    /// Set a new timeout value for the read timeouts
+    void setReadTimeout(std::chrono::seconds tmo) {
+        timeout = tmo;
+    }
+
     /**
      * Get the connection identifier used by the server to identify this
      * connection

@@ -859,9 +859,11 @@ void MemcachedConnection::recvFrame(Frame& frame,
             bool fired{false};
         } tmo(*eventBase);
 
+        auto timeoutvalue = readTimeout;
         if (readTimeout.count() == 0) {
             // none specified, use default
             tmo.scheduleTimeout(timeout.count(), {});
+            timeoutvalue = timeout;
         } else {
             tmo.scheduleTimeout(readTimeout.count(), {});
         }
@@ -878,12 +880,12 @@ void MemcachedConnection::recvFrame(Frame& frame,
             if (opcode == cb::mcbp::ClientOpcode::Invalid) {
                 throw TimeoutException(
                         "MemcachedConnection::recvFrame(): Timed out after waiting "
-                                + std::to_string(readTimeout.count()) + "ms for a response",
+                                + std::to_string(timeoutvalue.count()) + "ms for a response",
                                 opcode, readTimeout);
             } else {
                 throw TimeoutException(
                         "MemcachedConnection::recvFrame(): Timed out after waiting "
-                                + std::to_string(readTimeout.count()) + "ms for a response for "
+                                + std::to_string(timeoutvalue.count()) + "ms for a response for "
                                 + ::to_string(opcode), opcode, readTimeout);
             }
         }
