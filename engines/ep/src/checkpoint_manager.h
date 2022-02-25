@@ -653,8 +653,12 @@ protected:
      */
     uint64_t getOpenCheckpointId(const std::lock_guard<std::mutex>& lh);
 
-    uint64_t getLastClosedCheckpointId_UNLOCKED(
-            const std::lock_guard<std::mutex>& lh);
+    /**
+     *
+     * @param lh Lock to CM::queueLock
+     * @return the id of the last closed checkpoint
+     */
+    uint64_t getLastClosedCheckpointId(const std::lock_guard<std::mutex>& lh);
 
     /**
      * Helper method for queueing methods - update the global and per-VBucket
@@ -715,7 +719,16 @@ protected:
      */
     void registerBackupPersistenceCursor(const std::lock_guard<std::mutex>& lh);
 
-    size_t getNumItemsForCursor_UNLOCKED(const CheckpointCursor* cursor) const;
+    /**
+     * Returns the sum of the total number of items to be processed from the
+     * current checkpoint and all subsequent checkpoints
+     *
+     * @param lh Lock to CM::queueLock
+     * @param cursor
+     * @return number of items to be processed
+     */
+    size_t getNumItemsForCursor(const std::lock_guard<std::mutex>& lh,
+                                const CheckpointCursor* cursor) const;
 
     /**
      * Clears this CM, effectively removing all checkpoints in the list and
@@ -726,16 +739,18 @@ protected:
      */
     void clear(const std::lock_guard<std::mutex>& lh, uint64_t seqno);
 
-    /*
+    /**
+     *
+     * @param lh Lock to CM::queueLock
      * @return a reference to the open checkpoint
      */
-    Checkpoint& getOpenCheckpoint_UNLOCKED(
-            const std::lock_guard<std::mutex>& lh) const;
+    Checkpoint& getOpenCheckpoint(const std::lock_guard<std::mutex>& lh) const;
 
-    /*
+    /**
      * Closes the current open checkpoint and adds a new open checkpoint to
      * the checkpointList.
      *
+     * @param lh Lock to CM::queueLock
      * @param snapStartSeqno for the new checkpoint
      * @param snapEndSeqno for the new checkpoint
      * @param visibleSnapEnd for the new checkpoint
@@ -743,20 +758,23 @@ protected:
      * @param checkpointType is the checkpoint created from a replica receiving
      *                       a disk snapshot?
      */
-    void addNewCheckpoint_UNLOCKED(uint64_t snapStartSeqno,
-                                   uint64_t snapEndSeqno,
-                                   uint64_t visibleSnapEnd,
-                                   std::optional<uint64_t> highCompletedSeqno,
-                                   CheckpointType checkpointType);
+    void addNewCheckpoint(const std::lock_guard<std::mutex>& lh,
+                          uint64_t snapStartSeqno,
+                          uint64_t snapEndSeqno,
+                          uint64_t visibleSnapEnd,
+                          std::optional<uint64_t> highCompletedSeqno,
+                          CheckpointType checkpointType);
 
-    /*
+    /**
      * Closes the current open checkpoint and adds a new open checkpoint to
      * the checkpointList.
      *
      * Note: The function sets snapStart and snapEnd to 'lastBySeqno' for the
      *       new checkpoint.
+     *
+     * @param lh Lock to CM::queueLock
      */
-    void addNewCheckpoint_UNLOCKED();
+    void addNewCheckpoint(const std::lock_guard<std::mutex>& lh);
 
     /*
      * Add an open checkpoint to the checkpointList.

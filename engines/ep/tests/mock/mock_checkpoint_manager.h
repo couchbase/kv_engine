@@ -115,7 +115,7 @@ public:
 
     CheckpointType getOpenCheckpointType() const {
         std::lock_guard<std::mutex> lh(queueLock);
-        return getOpenCheckpoint_UNLOCKED(lh).getCheckpointType();
+        return getOpenCheckpoint(lh).getCheckpointType();
     }
 
     auto getPersistenceCursorPos() const {
