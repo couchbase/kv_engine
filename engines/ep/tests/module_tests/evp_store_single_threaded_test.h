@@ -523,8 +523,14 @@ public:
     static auto couchstoreConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
-                std::make_tuple("persistent_couchstore"s, "value_only"s),
-                std::make_tuple("persistent_couchstore"s, "full_eviction"s));
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=couchstore:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=couchstore:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s));
     }
 
 #ifdef EP_USE_MAGMA
@@ -620,9 +626,7 @@ public:
         return ephemeral() && std::get<1>(GetParam()) == "fail_new_data";
     }
 
-    bool fullEviction() const {
-        return persistent() && std::get<1>(GetParam()) == "full_eviction";
-    }
+    bool fullEviction() const;
 
     bool isRocksDB() const;
 

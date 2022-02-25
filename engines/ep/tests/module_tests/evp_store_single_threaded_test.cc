@@ -615,7 +615,16 @@ void STParameterizedBucketTest::SetUp() {
     // finish moving the test config values to just be a config string
     if (!bucketType.empty() &&
         (evictionPolicy.empty() || evictionPolicy == "ignore")) {
+        // GTest does not like ';' characters in test parameters so we use ':'
+        // as a placeholder and replace it here.
         std::replace(bucketType.begin(), bucketType.end(), ':', ';');
+
+        // Whilst we take the "couchdb" parameter for the backend in
+        // configuration.json we actually use couchstore so all of our test
+        // parameters are labelled "couchstore" and we need to replace those
+        // with "couchdb" to pass into the engine config.
+        bucketType = std::regex_replace(
+                bucketType, std::regex("couchstore"), "couchdb");
         config_string += bucketType;
     } else {
         config_string += generateBucketTypeConfig(bucketType);
@@ -630,6 +639,11 @@ void STParameterizedBucketTest::SetUp() {
     }
 
     SingleThreadedKVBucketTest::SetUp();
+}
+
+bool STParameterizedBucketTest::fullEviction() const {
+    return persistent() && engine->getConfiguration().getItemEvictionPolicy() ==
+                                   "full_eviction";
 }
 
 bool STParameterizedBucketTest::isRocksDB() const {
@@ -670,6 +684,9 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
         bucket = std::regex_replace(bucket, std::regex("bucket_type="), "");
         bucket = std::regex_replace(
                 bucket, std::regex("ephemeral_full_policy="), "");
+        bucket = std::regex_replace(bucket, std::regex("backend="), "");
+        bucket = std::regex_replace(
+                bucket, std::regex("item_eviction_policy="), "");
         return bucket;
     }
 
