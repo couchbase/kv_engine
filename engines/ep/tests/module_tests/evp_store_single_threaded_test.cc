@@ -684,9 +684,13 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
         bucket = std::regex_replace(bucket, std::regex("bucket_type="), "");
         bucket = std::regex_replace(
                 bucket, std::regex("ephemeral_full_policy="), "");
-        bucket = std::regex_replace(bucket, std::regex("backend="), "");
         bucket = std::regex_replace(
                 bucket, std::regex("item_eviction_policy="), "");
+        bucket = std::regex_replace(
+                bucket, std::regex("nexus_primary_backend="), "");
+        bucket = std::regex_replace(
+                bucket, std::regex("nexus_secondary_backend="), "");
+        bucket = std::regex_replace(bucket, std::regex("backend="), "");
         return bucket;
     }
 

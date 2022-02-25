@@ -550,23 +550,47 @@ public:
     static auto nexusCouchstoreMagmaConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
-                std::make_tuple("persistent_nexus_couchstore_magma"s,
-                                "value_only"),
-                std::make_tuple("persistent_nexus_couchstore_magma"s,
-                                "full_eviction"));
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=nexus:"
+                                "nexus_primary_backend=couchstore:"
+                                "nexus_secondary_backend=magma:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=nexus:"
+                                "nexus_primary_backend=couchstore:"
+                                "nexus_secondary_backend=magma:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s));
     }
 
     static auto nexusCouchstoreMagmaAllConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
-                std::make_tuple("persistent_nexus_couchstore_magma"s,
-                                "value_only"),
-                std::make_tuple("persistent_nexus_couchstore_magma"s,
-                                "full_eviction"),
-                std::make_tuple("persistent_nexus_magma_couchstore"s,
-                                "value_only"),
-                std::make_tuple("persistent_nexus_magma_couchstore"s,
-                                "full_eviction"));
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=nexus:"
+                                "nexus_primary_backend=couchstore:"
+                                "nexus_secondary_backend=magma:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=nexus:"
+                                "nexus_primary_backend=couchstore:"
+                                "nexus_secondary_backend=magma:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=nexus:"
+                                "nexus_primary_backend=magma:"
+                                "nexus_secondary_backend=couchstore:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=nexus:"
+                                "nexus_primary_backend=magma:"
+                                "nexus_secondary_backend=couchstore:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s));
     }
 
 #endif
