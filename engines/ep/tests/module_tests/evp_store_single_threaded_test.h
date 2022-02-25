@@ -537,8 +537,14 @@ public:
     static auto magmaConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
-                std::make_tuple("persistent_magma"s, "value_only"s),
-                std::make_tuple("persistent_magma"s, "full_eviction"s));
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=magma:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=magma:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s));
     }
 
     static auto nexusCouchstoreMagmaConfigValues() {
