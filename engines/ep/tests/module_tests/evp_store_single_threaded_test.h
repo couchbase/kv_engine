@@ -575,8 +575,14 @@ public:
     static auto rocksDbConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
-                std::make_tuple("persistent_rocksdb"s, "value_only"s),
-                std::make_tuple("persistent_rocksdb"s, "full_eviction"s));
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=rocksdb:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=rocksdb:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s));
     }
 #endif
 
