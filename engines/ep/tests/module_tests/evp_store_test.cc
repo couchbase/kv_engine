@@ -67,19 +67,7 @@ void EPBucketFullEvictionNoBloomFilterTest::SetUp() {
 }
 
 void EPBucketBloomFilterParameterizedTest::SetUp() {
-    auto bucketType = std::get<0>(GetParam());
-    config_string += generateBucketTypeConfig(bucketType);
-
-    config_string +=
-            std::string{";item_eviction_policy="} + std::get<1>(GetParam());
-
-    if (bloomFiltersEnabled()) {
-        config_string += ";bfilter_enabled=true";
-    } else {
-        config_string += ";bfilter_enabled=false";
-    }
-
-    SingleThreadedKVBucketTest::SetUp();
+    STParameterizedBucketTest::SetUp();
 
     // Have all the objects, activate vBucket zero so we can store data.
     store->setVBucketState(vbid, vbucket_state_active);
@@ -2246,18 +2234,6 @@ TEST_P(EPBucketTestCouchstore, CompactionWithPurgeOptions) {
     }
 }
 
-struct BFilterPrintToStringCombinedName {
-    std::string
-    operator()(const ::testing::TestParamInfo<
-               ::testing::tuple<std::string, std::string, bool>>& info) const {
-        std::string bfilter = "_bfilter_enabled";
-        if (!std::get<2>(info.param)) {
-            bfilter = "_bfilter_disabled";
-        }
-        return std::get<0>(info.param) + "_" + std::get<1>(info.param) +
-               bfilter;
-    }
-};
 
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_SUITE_P(
@@ -2282,11 +2258,17 @@ INSTANTIATE_TEST_SUITE_P(
 
 // Test cases which run in both Full and Value eviction, and with bloomfilter
 // on and off.
+INSTANTIATE_TEST_SUITE_P(FullAndValueEvictionBloomFilterOn,
+                         EPBucketBloomFilterParameterizedTest,
+                         EPBucketBloomFilterParameterizedTest::
+                                 persistentAllBackendsConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
 INSTANTIATE_TEST_SUITE_P(
-        FullAndValueEvictionBloomOnOff,
+        FullAndValueEvictionBloomFilterOff,
         EPBucketBloomFilterParameterizedTest,
-        EPBucketBloomFilterParameterizedTest::allConfigValues(),
-        BFilterPrintToStringCombinedName());
+        EPBucketBloomFilterParameterizedTest::bloomFilterDisabledConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(EPBucketTestNoRocksDb,
                          EPBucketTestNoRocksDb,

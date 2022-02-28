@@ -43,51 +43,41 @@ protected:
     void SetUp() override;
 };
 
-/**
- * Tests which we wish to parameterize based on eviction policy and bloom
- * filter configuration. Ideally we would just inherit from
- * STParameterizedBucketTest and add an additional bloom filter on/off config
- * parameter but that's not possible with the current GTest and my attempts to
- * hackily 'make it so' were not fruitful. Hopefully in the future they make it
- * easy to add parameters to already parameterized test suites. then we can rip
- * out this extra code.
- */
-class EPBucketBloomFilterParameterizedTest
-    : public SingleThreadedKVBucketTest,
-      public ::testing::WithParamInterface<
-              ::testing::tuple<std::string, std::string, bool>> {
+class EPBucketBloomFilterParameterizedTest : public STParameterizedBucketTest {
 public:
-    static auto allConfigValues() {
+    static auto bloomFilterDisabledConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
 #ifdef EP_USE_ROCKSDB
-                std::make_tuple("persistent_rocksdb"s, "value_only"s, false),
-                std::make_tuple("persistent_rocksdb"s, "value_only"s, true),
-                std::make_tuple("persistent_rocksdb"s, "full_eviction"s, false),
-                std::make_tuple("persistent_rocksdb"s, "full_eviction"s, true),
+                "bucket_type=persistent:"
+                "backend=rocksdb:"
+                "item_eviction_policy=value_only:"
+                "bfilter_enabled=false"s,
+                "bucket_type=persistent:"
+                "backend=rocksdb:"
+                "item_eviction_policy=full_eviction:"
+                "bfilter_enabled=false"s,
 #endif
 #ifdef EP_USE_MAGMA
-                std::make_tuple("persistent_magma"s, "value_only"s, false),
-                std::make_tuple("persistent_magma"s, "value_only"s, true),
-                std::make_tuple("persistent_magma"s, "full_eviction"s, false),
-                std::make_tuple("persistent_magma"s, "full_eviction"s, true),
+                "bucket_type=persistent:"
+                "backend=magma:"
+                "item_eviction_policy=value_only:"
+                "bfilter_enabled=false"s,
+                "bucket_type=persistent:"
+                "backend=magma:"
+                "item_eviction_policy=full_eviction:"
+                "bfilter_enabled=false"s,
 #endif
-                std::make_tuple("persistent_couchstore"s, "value_only"s, false),
-                std::make_tuple("persistent_couchstore"s, "value_only"s, true),
-                std::make_tuple(
-                        "persistent_couchstore"s, "full_eviction"s, false),
-                std::make_tuple(
-                        "persistent_couchstore"s, "full_eviction"s, true));
+                "bucket_type=persistent:"
+                "backend=couchstore:"
+                "item_eviction_policy=value_only:"
+                "bfilter_enabled=false"s,
+                "bucket_type=persistent:"
+                "backend=couchstore:"
+                "item_eviction_policy=full_eviction:"
+                "bfilter_enabled=false"s);
     }
 
 protected:
     void SetUp() override;
-
-    bool fullEviction() const {
-        return std::get<1>(GetParam()) == "full_eviction";
-    }
-
-    bool bloomFiltersEnabled() const {
-        return std::get<2>(GetParam()) == true;
-    }
 };

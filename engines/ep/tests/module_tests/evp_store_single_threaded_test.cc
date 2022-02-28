@@ -663,6 +663,8 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
     config = std::regex_replace(
             config, std::regex("nexus_secondary_backend="), "");
     config = std::regex_replace(config, std::regex("backend="), "");
+    config = std::regex_replace(
+            config, std::regex("bfilter_enabled="), "bfilter_");
     return config;
 }
 
