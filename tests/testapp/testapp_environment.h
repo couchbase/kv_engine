@@ -220,7 +220,7 @@ public:
     /// @param connection a connection to the server (must have admin
     ///                   privileges)
     /// @throws std::exception for errors (file io, server failure etc)
-    virtual void refreshPassordDatabase(MemcachedConnection& connection) = 0;
+    virtual void refreshPasswordDatabase(MemcachedConnection& connection) = 0;
 };
 
 extern std::unique_ptr<McdEnvironment> mcd_env;

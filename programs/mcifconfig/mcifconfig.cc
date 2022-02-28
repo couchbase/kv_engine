@@ -30,7 +30,7 @@ Options:
   --host hostname[:port]   The host (with an optional port) to connect to
   --port port              The port number to connect to
   --user username          The name of the user to authenticate as
-  --password password      The passord to use for authentication
+  --password password      The password to use for authentication
                            (use '-' to read from standard input, or
                            set the environment variable CB_PASSWORD)
   --tls[=cert,key]         Use TLS and optionally try to authenticate

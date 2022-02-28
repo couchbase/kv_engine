@@ -69,7 +69,7 @@ Options:
   -p or --port port              The port number to connect to
   -b or --bucket bucketname      The name of the bucket to operate on
   -u or --user username          The name of the user to authenticate as
-  -P or --password password      The passord to use for authentication
+  -P or --password password      The password to use for authentication
                                  (use '-' to read from standard input)
   --tls[=cert,key]               Use TLS and optionally try to authenticate
                                  by using the provided certificate and

@@ -26,7 +26,7 @@ Options:
                            (for IPv6 use: [address]:port if you'd like to
                            specify port).
   --user username          The name of the user to authenticate as
-  --password password      The passord to use for authentication
+  --password password      The password to use for authentication
                            (use '-' to read from standard input)
   --tls                    Try to use TLS
   --ipv4                   Connect over IPv4

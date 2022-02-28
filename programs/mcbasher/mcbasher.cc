@@ -60,7 +60,7 @@ Options:
   --port port              The port number to connect to
   --bucket bucketname      The name of the bucket to operate on
   --user username          The name of the user to authenticate as
-  --password password      The passord to use for authentication
+  --password password      The password to use for authentication
                            (use '-' to read from standard input, or
                            set the environment variable CB_PASSWORD)
   --no-color               Disable colors

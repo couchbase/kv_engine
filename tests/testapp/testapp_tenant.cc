@@ -196,7 +196,7 @@ TEST_P(TenantTest, TenantStats) {
     limits.num_connections = 5;
     user.setLimits(limits);
     db.upsert(std::move(user));
-    mcd_env->refreshPassordDatabase(*adminConnection);
+    mcd_env->refreshPasswordDatabase(*adminConnection);
 
     for (uint64_t ii = 1; ii < limits.num_connections; ++ii) {
         connections.push_back(clone->clone());

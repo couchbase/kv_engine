@@ -613,7 +613,7 @@ public:
         return !ipaddresses.second.empty();
     }
 
-    void refreshPassordDatabase(MemcachedConnection& connection) override {
+    void refreshPasswordDatabase(MemcachedConnection& connection) override {
         std::ofstream cbsasldb(isasl_file_name.generic_string());
         cbsasldb << passwordDatabase.to_json() << std::endl;
         cbsasldb.close();
@@ -621,7 +621,7 @@ public:
                 BinprotGenericCommand{cb::mcbp::ClientOpcode::IsaslRefresh});
         if (!rsp.isSuccess()) {
             throw ConnectionError(
-                    "refreshPassordDatabase: Failed to reload database", rsp);
+                    "refreshPasswordDatabase: Failed to reload database", rsp);
         }
     }
 
