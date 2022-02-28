@@ -64,6 +64,8 @@ public:
 
     uniqueSslPtr createClientSslHandle();
 
+    std::size_t getNumberOfDaemonConnections() const;
+
 protected:
     /**
      * Create the file containing all of the interfaces we're currently

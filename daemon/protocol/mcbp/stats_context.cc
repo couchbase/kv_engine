@@ -19,7 +19,6 @@
 #include <daemon/mc_time.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
-#include <daemon/server_socket.h>
 #include <daemon/settings.h>
 #include <daemon/stats.h>
 #include <daemon/stats_tasks.h>

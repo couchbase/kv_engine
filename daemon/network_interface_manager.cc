@@ -513,3 +513,7 @@ uniqueSslPtr NetworkInterfaceManager::createClientSslHandle() {
     });
     return ret;
 }
+
+std::size_t NetworkInterfaceManager::getNumberOfDaemonConnections() const {
+    return ServerSocket::getNumInstances();
+}

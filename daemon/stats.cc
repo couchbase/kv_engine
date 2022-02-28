@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2020-Present Couchbase, Inc.
  *
@@ -15,7 +14,7 @@
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "memcached.h"
-#include "server_socket.h"
+#include "network_interface_manager.h"
 #include "settings.h"
 
 #include <fmt/chrono.h>
@@ -40,7 +39,11 @@ static void server_global_stats(const StatCollector& collector) {
     collector.addStat(Key::version, get_server_version());
     collector.addStat(Key::memcached_version, MEMCACHED_VERSION);
 
-    collector.addStat(Key::daemon_connections, ServerSocket::getNumInstances());
+    collector.addStat(
+            Key::daemon_connections,
+            networkInterfaceManager
+                    ? networkInterfaceManager->getNumberOfDaemonConnections()
+                    : 0);
     collector.addStat(Key::curr_connections,
                       stats.curr_conns.load(std::memory_order_relaxed));
     collector.addStat(Key::system_connections,
