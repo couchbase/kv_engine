@@ -2068,15 +2068,13 @@ public:
     static auto configValues() {
         return ::testing::Values(
 #ifdef EP_USE_MAGMA
-                std::make_tuple("bucket_type=persistent:"
-                                "backend=magma:"
-                                "item_eviction_policy=value_only"s,
-                                ""s),
+                "bucket_type=persistent:"
+                "backend=magma:"
+                "item_eviction_policy=value_only"s,
 #endif
-                std::make_tuple("bucket_type=persistent:"
-                                "backend=couchstore:"
-                                "item_eviction_policy=value_only"s,
-                                ""s));
+                "bucket_type=persistent:"
+                "backend=couchstore:"
+                "item_eviction_policy=value_only"s);
     }
 };
 

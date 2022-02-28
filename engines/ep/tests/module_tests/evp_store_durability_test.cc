@@ -591,7 +591,6 @@ void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
     // Might be the case that running the couchstore full eviction variant
     // beforehand is breaking something.
 #ifdef THREAD_SANITIZER
-    auto bucketType = std::get<0>(GetParam());
     if (isRocksDB()) {
         return;
     }
