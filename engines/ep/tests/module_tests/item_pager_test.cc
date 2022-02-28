@@ -536,7 +536,7 @@ TEST_P(STItemPagerTest, ServerQuotaReached) {
     // should have dropped.
     auto& stats = engine->getEpStats();
     auto vb = engine->getVBucket(vbid);
-    if (std::get<1>(GetParam()) == "fail_new_data") {
+    if (ephemeralFailNewData()) {
         EXPECT_GT(stats.getPreciseTotalMemoryUsed(), stats.mem_low_wat.load())
                 << "Expected still to exceed low watermark after hitting "
                    "TMPFAIL with fail_new_data bucket";
@@ -566,7 +566,7 @@ TEST_P(STItemPagerTest, HighWaterMarkTriggersPager) {
 
 TEST_P(STItemPagerTest, PagerEvictsSomething) {
     // Pager can't run in fail_new_data policy so test is invalid
-    if ((std::get<1>(GetParam()) == "fail_new_data")) {
+    if (ephemeralFailNewData()) {
         return;
     }
 
@@ -630,7 +630,7 @@ TEST_P(STItemPagerTest, PagerEvictsSomething) {
 TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
     // For the Expiry Pager we do not enforce the visiting of replica buckets
     // first.
-    if ((std::get<1>(GetParam()) == "fail_new_data")) {
+    if (ephemeralFailNewData()) {
         return;
     }
     auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
@@ -664,7 +664,7 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
     runNextTask(lpNonioQ, "Paging out items.");
     runNextTask(lpNonioQ, "Item pager no vbucket assigned");
 
-    if (std::get<0>(GetParam()) == "ephemeral") {
+    if (ephemeral()) {
         // We should have not evicted from replica vbuckets
         EXPECT_EQ(count, store->getVBucket(replicaVB)->getNumItems());
         // We should have evicted from the active/pending vbuckets
@@ -1982,7 +1982,7 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
     // watermark before the item pager runs does not prevent future item
     // pager runs.
 
-    if (std::get<1>(GetParam()) == "fail_new_data") {
+    if (ephemeralFailNewData()) {
         // items are not auto-deleted, so the ItemPager does not run.
         GTEST_SKIP();
     }
