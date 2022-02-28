@@ -524,10 +524,20 @@ public:
     static auto ephAndCouchstoreConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
-                std::make_tuple("ephemeral"s, "auto_delete"s),
-                std::make_tuple("ephemeral"s, "fail_new_data"),
-                std::make_tuple("persistent_couchstore"s, "value_only"s),
-                std::make_tuple("persistent_couchstore"s, "full_eviction"s));
+                std::make_tuple("bucket_type=ephemeral:"
+                                "ephemeral_full_policy=auto_delete"s,
+                                ""s),
+                std::make_tuple("bucket_type=ephemeral:"
+                                "ephemeral_full_policy=fail_new_data"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=couchstore:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=couchstore:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s));
     }
 
     static auto persistentConfigValues() {
@@ -570,12 +580,24 @@ public:
     static auto persistentNoNexusConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
-                std::make_tuple("persistent_couchstore"s, "value_only"s),
-                std::make_tuple("persistent_couchstore"s, "full_eviction"s)
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=couchstore:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=couchstore:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s)
 #ifdef EP_USE_MAGMA
                         ,
-                std::make_tuple("persistent_magma"s, "value_only"s),
-                std::make_tuple("persistent_magma"s, "full_eviction"s)
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=magma:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=magma:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s)
 #endif
         );
     }
@@ -673,25 +695,60 @@ public:
     static auto persistentAllBackendsConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
-                std::make_tuple("persistent_couchstore"s, "value_only"s),
-                std::make_tuple("persistent_couchstore"s, "full_eviction"s)
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=couchstore:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=couchstore:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s)
 #ifdef EP_USE_MAGMA
                         ,
-                std::make_tuple("persistent_nexus_couchstore_magma"s,
-                                "value_only"),
-                std::make_tuple("persistent_nexus_couchstore_magma"s,
-                                "full_eviction"),
-                std::make_tuple("persistent_nexus_magma_couchstore"s,
-                                "value_only"),
-                std::make_tuple("persistent_nexus_magma_couchstore"s,
-                                "full_eviction"),
-                std::make_tuple("persistent_magma"s, "value_only"s),
-                std::make_tuple("persistent_magma"s, "full_eviction"s)
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=nexus:"
+                                "nexus_primary_backend=couchstore:"
+                                "nexus_secondary_backend=magma:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=nexus:"
+                                "nexus_primary_backend=couchstore:"
+                                "nexus_secondary_backend=magma:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=nexus:"
+                                "nexus_primary_backend=magma:"
+                                "nexus_secondary_backend=couchstore:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=nexus:"
+                                "nexus_primary_backend=magma:"
+                                "nexus_secondary_backend=couchstore:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=magma:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=magma:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s)
+
 #endif
 #ifdef EP_USE_ROCKSDB
                         ,
-                std::make_tuple("persistent_rocksdb"s, "value_only"s),
-                std::make_tuple("persistent_rocksdb"s, "full_eviction"s)
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=rocksdb:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=rocksdb:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s)
 #endif
         );
     }
@@ -700,14 +757,28 @@ public:
         using namespace std::string_literals;
         return ::testing::Values(
 #ifdef EP_USE_ROCKSDB
-                std::make_tuple("persistent_rocksdb"s, "full_eviction"s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=rocksdb:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s),
 #endif
 #ifdef EP_USE_MAGMA
-                std::make_tuple("persistent_nexus_couchstore_magma"s,
-                                "full_eviction"),
-                std::make_tuple("persistent_magma"s, "full_eviction"s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=nexus:"
+                                "nexus_primary_backend=couchstore:"
+                                "nexus_secondary_backend=magma:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=magma:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s),
 #endif
-                std::make_tuple("persistent_couchstore"s, "full_eviction"s));
+
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=couchstore:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s));
     }
 
     bool persistent() const {
