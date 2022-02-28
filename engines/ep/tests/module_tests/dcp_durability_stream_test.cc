@@ -211,7 +211,6 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
         // following indirectly calls VBucket::commit
         simulateStreamSeqnoAck(replica, prepareSeqno);
         // Note: At FE we have an exact item count only at persistence.
-        auto evictionType = std::get<1>(GetParam());
         if (ephemeral() || !fullEviction()) {
             EXPECT_EQ(1, vb->getNumItems());
         } else {

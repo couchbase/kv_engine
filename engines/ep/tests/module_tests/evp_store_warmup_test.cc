@@ -1091,8 +1091,8 @@ void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
     auto vb = engine->getVBucket(vbid);
     // @TODO: RocksDB currently only has an estimated item count in
     // full-eviction, so it fails this check. Skip if RocksDB && full_eviction.
-    if ((!isRocksDB()) || std::get<0>(GetParam()) == "value_only") {
-        EXPECT_EQ(1, vb->getNumTotalItems());
+    if (!isRocksDB() || !fullEviction()) {
+        EXPECT_EQ(1, vb->getNumItems());
     }
     EXPECT_EQ(1, vb->ht.getNumPreparedSyncWrites());
 
@@ -1178,7 +1178,7 @@ TEST_P(DurabilityWarmupTest, AbortedSyncWritePrepareIsNotLoaded) {
     auto vb = engine->getVBucket(vbid);
     // @TODO: RocksDB currently only has an estimated item count in
     // full-eviction, so it fails this check. Skip if RocksDB && full_eviction.
-    if (!isRocksDB() || std::get<0>(GetParam()) == "value_only") {
+    if (!isRocksDB() || !fullEviction()) {
         EXPECT_EQ(1, vb->getNumItems());
     }
     EXPECT_EQ(0, vb->ht.getNumPreparedSyncWrites());
