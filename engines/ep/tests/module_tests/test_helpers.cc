@@ -26,7 +26,9 @@
 #include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
+
 #include <memory>
+#include <regex>
 #include <thread>
 
 using namespace std::string_literals;
@@ -329,6 +331,20 @@ std::string generateBucketTypeConfig(std::string_view config) {
         ret += config;
     }
 
+    return ret;
+}
+
+std::string sanitizeTestParamConfigString(std::string_view config) {
+    std::string ret(config);
+    // GTest does not like ';' characters in test parameters so we use ':' as a
+    // placeholder and replace it here.
+    std::replace(ret.begin(), ret.end(), ':', ';');
+
+    // Whilst we take the "couchdb" parameter for the backend in
+    // configuration.json we actually use couchstore so all of our test
+    // parameters are labelled "couchstore" and we need to replace those with
+    // "couchdb" to pass into the engine config.
+    ret = std::regex_replace(ret, std::regex("couchstore"), "couchdb");
     return ret;
 }
 

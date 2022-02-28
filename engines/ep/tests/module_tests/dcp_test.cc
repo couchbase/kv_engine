@@ -1005,13 +1005,19 @@ protected:
             config_string += ";";
         }
 
-        bucketType = std::get<0>(GetParam());
+        if (std::get<1>(GetParam()).empty()) {
+            auto config = std::get<0>(GetParam());
+            config_string += sanitizeTestParamConfigString(config);
+        } else {
+            bucketType = std::get<0>(GetParam());
+            if (bucketType == "ephemeral") {
+                engine->getConfiguration().setEphemeralFullPolicy(
+                        std::get<1>(GetParam()));
+            }
+        };
+
         DCPTest::SetUp();
         vbid = Vbid(0);
-        if (bucketType == "ephemeral") {
-            engine->getConfiguration().setEphemeralFullPolicy(
-                    std::get<1>(GetParam()));
-        }
     }
 
     cb::engine_errc set_vb_state(Vbid vbid, vbucket_state_t state) {

@@ -234,3 +234,15 @@ std::string generateBackendConfig(std::string_view config);
  * @return config string
  */
 std::string generateNexusConfig(std::string_view testConfig);
+
+/**
+ * Sanitizes a config string parameter that we use to config GTest parameterized
+ * test suites. We need to sanitize the parameter string as GTest does not allow
+ * ';' characters in parameters but we use them in configuration.json config so
+ * our parameters use ':' as a placeholder. We also replace "couchstore" with
+ * "couchdb".
+ *
+ * @param config for the test
+ * @return config string
+ */
+std::string sanitizeTestParamConfigString(std::string_view config);

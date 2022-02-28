@@ -450,18 +450,42 @@ public:
     static auto allConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
-                std::make_tuple("ephemeral"s, "auto_delete"s),
-                std::make_tuple("ephemeral"s, "fail_new_data"),
-                std::make_tuple("persistent_couchstore"s, "value_only"s),
-                std::make_tuple("persistent_couchstore"s, "full_eviction"s)
+                std::make_tuple("bucket_type=ephemeral:"
+                                "ephemeral_full_policy=auto_delete"s,
+                                ""s),
+                std::make_tuple("bucket_type=ephemeral:"
+                                "ephemeral_full_policy=fail_new_data"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=couchstore:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=couchstore:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s)
 #ifdef EP_USE_MAGMA
                         ,
-                std::make_tuple("persistent_nexus_couchstore_magma"s,
-                                "value_only"),
-                std::make_tuple("persistent_nexus_couchstore_magma"s,
-                                "full_eviction"),
-                std::make_tuple("persistent_magma"s, "value_only"s),
-                std::make_tuple("persistent_magma"s, "full_eviction"s)
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=nexus:"
+                                "nexus_primary_backend=couchstore:"
+                                "nexus_secondary_backend=magma:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=nexus:"
+                                "nexus_primary_backend=couchstore:"
+                                "nexus_secondary_backend=magma:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=magma:"
+                                "item_eviction_policy=value_only"s,
+                                ""s),
+                std::make_tuple("bucket_type=persistent:"
+                                "backend=magma:"
+                                "item_eviction_policy=full_eviction"s,
+                                ""s)
 #endif
         );
     }
@@ -658,9 +682,7 @@ public:
         return std::get<0>(GetParam()).find("ephemeral") != std::string::npos;
     }
 
-    bool ephemeralFailNewData() const {
-        return ephemeral() && std::get<1>(GetParam()) == "fail_new_data";
-    }
+    bool ephemeralFailNewData() const;
 
     bool fullEviction() const;
 

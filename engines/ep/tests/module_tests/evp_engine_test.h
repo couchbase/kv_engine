@@ -90,9 +90,7 @@ protected:
     EngineIface* handle;
     EventuallyPersistentEngine* engine;
 
-    // Default to persistent couchstore buckets for tests that don't care about
-    // being parameterized on backend.
-    std::string bucketType = "persistent_couchstore";
+    std::string bucketType;
 
     /**
      * Maximum number vBuckets to create (reduced from normal production count

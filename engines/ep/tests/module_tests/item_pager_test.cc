@@ -1679,7 +1679,7 @@ void STExpiryPagerTest::expiredItemsDeleted() {
 
     auto key_1 = makeStoredDocKey("key_1");
 
-    if (::testing::get<1>(GetParam()) == "full_eviction") {
+    if (fullEviction()) {
         // Need an extra get() to trigger EWOULDBLOCK / bgfetch.
         EXPECT_EQ(cb::engine_errc::would_block, getKeyFn(key_1));
         runBGFetcherTask();
@@ -1712,7 +1712,7 @@ void STExpiryPagerTest::expiredItemsDeleted() {
     EXPECT_EQ(cb::engine_errc::no_such_key, getKeyFn(key_1))
             << "Key with TTL:10 should be removed.";
 
-    if (::testing::get<1>(GetParam()) == "full_eviction") {
+    if (fullEviction()) {
         // Need an extra get() to trigger EWOULDBLOCK / bgfetch.
         EXPECT_EQ(cb::engine_errc::would_block, getKeyFn(key_2));
         runBGFetcherTask();
@@ -1741,10 +1741,9 @@ TEST_P(STExpiryPagerTest, MB_25650) {
     // Ephemeral doesn't bgfetch, persistent full-eviction already had to
     // perform a bgfetch to check key_1 no longer exists in the above
     // expiredItemsDeleted().
-    const cb::engine_errc err =
-            persistent() && std::get<1>(GetParam()) == "value_only"
-                    ? cb::engine_errc::would_block
-                    : cb::engine_errc::success;
+    const cb::engine_errc err = persistent() && !fullEviction()
+                                        ? cb::engine_errc::would_block
+                                        : cb::engine_errc::success;
 
     // Bring document meta back into memory and run expiry on it
     EXPECT_EQ(err,
@@ -1800,10 +1799,9 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     // Ephemeral doesn't bgfetch, persistent full-eviction already had to
     // perform a bgfetch to check key_1 no longer exists in the above
     // expiredItemsDeleted().
-    const cb::engine_errc err =
-            persistent() && std::get<1>(GetParam()) == "value_only"
-                    ? cb::engine_errc::would_block
-                    : cb::engine_errc::success;
+    const cb::engine_errc err = persistent() && !fullEviction()
+                                        ? cb::engine_errc::would_block
+                                        : cb::engine_errc::success;
 
     // Bring the deleted key back with a getMeta call
     EXPECT_EQ(err,

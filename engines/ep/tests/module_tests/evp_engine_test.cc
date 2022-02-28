@@ -69,10 +69,13 @@ void EventuallyPersistentEngineTest::initializeEngine() {
     if (!config.empty()) {
         config += ";";
     }
-    config += "dbname=" + test_dbname + ";";
+    config += "dbname=" + test_dbname;
 
     // Set the bucketType
-    config += generateBucketTypeConfig(bucketType);
+    if (!bucketType.empty()) {
+        config += ";";
+        config += generateBucketTypeConfig(bucketType);
+    }
 
     // Setup vBucket and Shard count
     config += ";max_vbuckets=" + std::to_string(numVbuckets) +
