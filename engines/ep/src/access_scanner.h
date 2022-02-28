@@ -12,6 +12,8 @@
 
 #include <executor/globaltask.h>
 
+#include <platform/semaphore.h>
+#include <platform/semaphore_guard.h>
 #include <string>
 
 // Forward declaration.
@@ -37,9 +39,9 @@ public:
     std::atomic<size_t> completedCount;
 
 protected:
-    void createAndScheduleTask(size_t shard);
+    void createAndScheduleTask(size_t shard,
+                               cb::SemaphoreGuard<> semaphoreGuard);
 
-private:
     void updateAlogTime(double sleepSecs);
     void deleteAlogFile(const std::string& fileName);
 
@@ -48,7 +50,11 @@ private:
     EPStats& stats;
     double sleepTime;
     std::string alogPath;
-    std::atomic<bool> available;
+    /**
+     * semaphore is used to track creation and lifetime of the ItemAccessVisitor
+     * tasks that are spawned by this (one per shard).
+     */
+    cb::Semaphore semaphore;
     uint8_t residentRatioThreshold;
     uint64_t maxStoredItems;
 };

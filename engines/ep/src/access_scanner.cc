@@ -23,6 +23,7 @@
 #include <phosphor/phosphor.h>
 #include <platform/dirutils.h>
 #include <platform/platform_time.h>
+#include <platform/semaphore_guard.h>
 
 #include <memory>
 #include <numeric>
@@ -34,18 +35,16 @@ public:
                       Configuration& conf,
                       EPStats& _stats,
                       uint16_t sh,
-                      std::atomic<bool>& sfin,
-                      AccessScanner& aS,
+                      cb::SemaphoreGuard<> guard,
                       uint64_t items_to_scan)
-        : store(_store),
-          stats(_stats),
+        : stats(_stats),
           startTime(ep_real_time()),
           taskStart(std::chrono::steady_clock::now()),
           shardID(sh),
-          stateFinalizer(sfin),
-          as(aS),
+          semaphoreGuard(std::move(guard)),
           items_scanned(0),
           items_to_scan(items_to_scan) {
+        Expects(semaphoreGuard.valid());
         setVBucketFilter(VBucketFilter(
                 _store.getVBuckets().getShard(sh)->getVBuckets()));
         name = conf.getAlogPath();
@@ -57,7 +56,8 @@ public:
         log->open();
         if (!log->isOpen()) {
             EP_LOG_WARN("Failed to open access log: '{}'", next);
-            log.reset();
+            throw std::runtime_error(fmt::format(
+                    "ItemAccessVisitor failed log->isOpen {}", next));
         } else {
             EP_LOG_INFO(
                     "Attempting to generate new access file "
@@ -66,9 +66,13 @@ public:
         }
     }
 
+    ~ItemAccessVisitor() override {
+        ++stats.alogRuns;
+    }
+
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override {
         // Record resident, Committed HashTable items as 'accessed'.
-        if (log && v.isResident() && v.isCommitted()) {
+        if (v.isResident() && v.isCommitted()) {
             if (v.isExpired(startTime) || v.isDeleted()) {
                 EP_LOG_DEBUG("Skipping expired/deleted item: {}",
                              v.getBySeqno());
@@ -81,20 +85,15 @@ public:
     }
 
     void update(Vbid vbid) {
-        if (log != nullptr) {
             for (auto& it : accessed) {
                 log->newItem(vbid, it);
             }
-        }
         accessed.clear();
     }
 
     void visitBucket(VBucket& vb) override {
         update(vb.getId());
 
-        if (log == nullptr) {
-            return;
-        }
         HashTable::Position ht_start;
         if (vBucketFilter(vb.getId())) {
             while (ht_start != vb.ht.endPosition()) {
@@ -108,101 +107,72 @@ public:
     }
 
     void complete() override {
+        size_t num_items = log->itemsLogged[int(MutationLogType::New)];
+        log->commit1();
+        log->commit2();
+        log.reset();
 
-        if (log == nullptr) {
-            updateStateFinalizer(false);
-        } else {
-            size_t num_items = log->itemsLogged[int(MutationLogType::New)];
-            log->commit1();
-            log->commit2();
-            log.reset();
-            stats.alogRuntime.store(ep_real_time() - startTime);
-            stats.alogNumItems.store(num_items);
-            stats.accessScannerHisto.add(
-                    std::chrono::duration_cast<std::chrono::microseconds>(
-                            std::chrono::steady_clock::now() - taskStart));
+        stats.alogRuntime.store(ep_real_time() - startTime);
+        stats.alogNumItems.store(num_items);
+        stats.accessScannerHisto.add(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - taskStart));
 
-            if (num_items == 0) {
-                EP_LOG_INFO_RAW(
-                        "The new access log file is empty. "
-                        "Delete it without replacing the current access "
-                        "log...");
-                remove(next.c_str());
-                updateStateFinalizer(true);
-                return;
-            }
-
-            if (cb::io::isFile(prev) && remove(prev.c_str()) == -1) {
-                EP_LOG_WARN(
-                        "Failed to remove access log file "
-                        "'{}': {}",
-                        prev,
-                        strerror(errno));
-                remove(next.c_str());
-                updateStateFinalizer(true);
-                return;
-            }
-            EP_LOG_INFO("Removed old access log file: '{}'", prev);
-            if (cb::io::isFile(name) &&
-                rename(name.c_str(), prev.c_str()) == -1) {
-                EP_LOG_WARN(
-                        "Failed to rename access log file "
-                        "from '{}' to '{}': {}",
-                        name,
-                        prev,
-                        strerror(errno));
-                remove(next.c_str());
-                updateStateFinalizer(true);
-                return;
-            }
-            EP_LOG_INFO(
-                    "Renamed access log file from '{}' to "
-                    "'{}'",
-                    name,
-                    prev);
-            if (rename(next.c_str(), name.c_str()) == -1) {
-                EP_LOG_WARN(
-                        "Failed to rename access log file "
-                        "from '{}' to '{}': {}",
-                        next,
-                        name,
-                        strerror(errno));
-                remove(next.c_str());
-                updateStateFinalizer(true);
-                return;
-            }
-            EP_LOG_INFO(
-                    "New access log file '{}' created with "
-                    "{} keys",
-                    name,
-                    static_cast<uint64_t>(num_items));
-            updateStateFinalizer(true);
+        if (num_items == 0) {
+            EP_LOG_INFO_RAW(
+                    "The new access log file is empty. "
+                    "Delete it without replacing the current access "
+                    "log...");
+            remove(next.c_str());
+            return;
         }
+
+        if (cb::io::isFile(prev) && remove(prev.c_str()) == -1) {
+            EP_LOG_WARN(
+                    "Failed to remove access log file "
+                    "'{}': {}",
+                    prev,
+                    strerror(errno));
+            remove(next.c_str());
+            return;
+        }
+        EP_LOG_INFO("Removed old access log file: '{}'", prev);
+        if (cb::io::isFile(name) && rename(name.c_str(), prev.c_str()) == -1) {
+            EP_LOG_WARN(
+                    "Failed to rename access log file "
+                    "from '{}' to '{}': {}",
+                    name,
+                    prev,
+                    strerror(errno));
+            remove(next.c_str());
+            return;
+        }
+        EP_LOG_INFO(
+                "Renamed access log file from '{}' to "
+                "'{}'",
+                name,
+                prev);
+        if (rename(next.c_str(), name.c_str()) == -1) {
+            EP_LOG_WARN(
+                    "Failed to rename access log file "
+                    "from '{}' to '{}': {}",
+                    next,
+                    name,
+                    strerror(errno));
+            remove(next.c_str());
+            return;
+        }
+        EP_LOG_INFO(
+                "New access log file '{}' created with "
+                "{} keys",
+                name,
+                static_cast<uint64_t>(num_items));
     }
 
 private:
-    /**
-     * Finalizer method called at the end of completing a visit.
-     * @param created_log: Did we successfully create a MutationLog object on
-     * this run?
-     */
-    void updateStateFinalizer(bool created_log) {
-        if (++(as.completedCount) == store.getVBuckets().getNumShards()) {
-            bool inverse = false;
-            stateFinalizer.compare_exchange_strong(inverse, true);
-        }
-        if (created_log) {
-            // Successfully created an access log - increment stat.
-            // Done after the new file created
-            // to aid in testing - once the stat has the new value the access.log
-            // file can be safely checked.
-            ++stats.alogRuns;
-        }
-    }
 
     VBucketFilter vBucketFilter;
 
-    KVBucket& store;
     EPStats& stats;
     rel_time_t startTime;
     std::chrono::steady_clock::time_point taskStart;
@@ -214,8 +184,11 @@ private:
     std::vector<StoredDocKey> accessed;
 
     std::unique_ptr<MutationLog> log;
-    std::atomic<bool> &stateFinalizer;
-    AccessScanner &as;
+    /**
+     * The parent AccessScanner is tracking how many visitors exist, this
+     * guard will update the parent when the visitor destructs.
+     */
+    cb::SemaphoreGuard<> semaphoreGuard;
 
     // The number items scanned since last pause
     uint64_t items_scanned;
@@ -238,7 +211,7 @@ AccessScanner::AccessScanner(KVBucket& _store,
       conf(conf),
       stats(st),
       sleepTime(sleeptime),
-      available(true) {
+      semaphore(store.getVBuckets().getNumShards()) {
     residentRatioThreshold = conf.getAlogResidentRatioThreshold();
     alogPath = conf.getAlogPath();
     maxStoredItems = conf.getAlogMaxStoredItems();
@@ -281,10 +254,9 @@ AccessScanner::AccessScanner(KVBucket& _store,
 bool AccessScanner::run() {
     TRACE_EVENT0("ep-engine/task", "AccessScanner");
 
-    bool inverse = true;
-    if (available.compare_exchange_strong(inverse, false)) {
+    // Can we create a visitor per shard? We need 1 token per shard
+    if (semaphore.try_acquire(store.getVBuckets().getNumShards())) {
         store.resetAccessScannerTasktime();
-        completedCount = 0;
 
         bool deleteAccessLogFiles = false;
         /* Get the resident ratio */
@@ -300,11 +272,15 @@ bool AccessScanner::run() {
          access log and also we want to delete previously existing access log
          files*/
         if ((activeCountVisitor.getMemResidentPer() > residentRatioThreshold) &&
-            (replicaCountVisitor.getMemResidentPer() > residentRatioThreshold))
-        {
+            (replicaCountVisitor.getMemResidentPer() >
+             residentRatioThreshold)) {
             deleteAccessLogFiles = true;
         }
+
         for (size_t i = 0; i < store.getVBuckets().getNumShards(); i++) {
+            cb::SemaphoreGuard<> semaphoreGuard(&semaphore,
+                                                cb::adopt_token_t{});
+
             if (deleteAccessLogFiles) {
                 std::string name(alogPath + "." + std::to_string(i));
                 std::string prev(name + ".old");
@@ -322,7 +298,7 @@ bool AccessScanner::run() {
                 deleteAlogFile(name);
                 stats.accessScannerSkips++;
             } else {
-                createAndScheduleTask(i);
+                createAndScheduleTask(i, std::move(semaphoreGuard));
             }
         }
     }
@@ -363,10 +339,15 @@ void AccessScanner::deleteAlogFile(const std::string& fileName) {
  * @param shard vBucket shard being used to create the ItemAccessVisitor
  * @return True on successful creation, False if the task failed
  */
-void AccessScanner::createAndScheduleTask(const size_t shard) {
+void AccessScanner::createAndScheduleTask(const size_t shard,
+                                          cb::SemaphoreGuard<> semaphoreGuard) {
     try {
-        auto pv = std::make_unique<ItemAccessVisitor>(
-                store, conf, stats, shard, available, *this, maxStoredItems);
+        auto pv = std::make_unique<ItemAccessVisitor>(store,
+                                                      conf,
+                                                      stats,
+                                                      shard,
+                                                      std::move(semaphoreGuard),
+                                                      maxStoredItems);
 
         // p99.9 is typically ~200ms
         const auto maxExpectedDuration = 500ms;
@@ -376,10 +357,10 @@ void AccessScanner::createAndScheduleTask(const size_t shard) {
                          maxExpectedDuration);
     } catch (const std::exception& e) {
         EP_LOG_WARN(
-                "Error creating Item Access Scanner task: '{}'. Please verify "
-                "the "
-                "location specified for the access logs is valid and exists. "
-                "Current location is set at: '{}'",
+                "Failed to create ItemAccessVisitor for shard:{}, e:'{}'. "
+                "Please verify the location specified for the access logs is "
+                "valid and exists. Current location is set at: '{}'",
+                shard,
                 e.what(),
                 conf.getAlogPath());
     }

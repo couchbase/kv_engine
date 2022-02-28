@@ -1798,7 +1798,10 @@ public:
     }
 
     void public_createAndScheduleTask(const size_t shard) {
-        return createAndScheduleTask(shard);
+        // Note: AccessScanner:run normally acquires tokens before calling
+        // createAndScheduleTask, here we are acquiring one token.
+        cb::SemaphoreGuard<> semaphoreGuard(&semaphore);
+        return createAndScheduleTask(shard, std::move(semaphoreGuard));
     }
 };
 

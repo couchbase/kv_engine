@@ -3541,6 +3541,17 @@ static enum test_result test_access_scanner(EngineIface* h) {
                         "ep_num_access_scanner_skips",
                         access_scanner_skips + num_shards);
 
+    // MB-51240: expect another forced run to still increase the skips
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "access_scanner_run",
+                      "true"),
+            "Failed to trigger access scanner");
+    wait_for_stat_to_be(h,
+                        "ep_num_access_scanner_skips",
+                        access_scanner_skips + (2 * num_shards));
+
     /* Access log files should be removed because resident ratio > 95% */
     check(!cb::io::isFile(prev), ".old access log file should not exist");
     check(!cb::io::isFile(name), "access log file should not exist");
