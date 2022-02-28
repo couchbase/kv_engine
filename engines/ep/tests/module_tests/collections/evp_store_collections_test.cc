@@ -2899,8 +2899,8 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSizeRollback) {
  */
 StatChecker::PostFunc getPrepareStatCheckerPostFuncForBackend(
         std::string backend, StatChecker::PostFunc fn) {
-    if (backend.find("persistent_magma") != std::string::npos ||
-        backend.find("nexus_magma") != std::string::npos) {
+    if (backend.find(":backend=magma") != std::string::npos ||
+        backend.find("nexus_primary_backend=magma") != std::string::npos) {
         // Magma doesn't currently track prepares as we remove them during
         // compaction and we don't know if we are removing a stale one or not,
         // making it impossible to count them accurately. As such we also cannot

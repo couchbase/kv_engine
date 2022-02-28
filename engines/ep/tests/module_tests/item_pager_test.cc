@@ -2321,12 +2321,11 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
     runBGFetcherTask();
 
     // Full eviction first did a meta-fetch, now has todo a full fetch
-    auto err = std::get<1>(GetParam()) == "full_eviction"
-                       ? cb::engine_errc::would_block
-                       : cb::engine_errc::success;
+    auto err = fullEviction() ? cb::engine_errc::would_block
+                              : cb::engine_errc::success;
     EXPECT_EQ(err, deleteWithMeta());
 
-    if (std::get<1>(GetParam()) == "full_eviction") {
+    if (fullEviction()) {
         runBGFetcherTask();
         EXPECT_EQ(cb::engine_errc::success, deleteWithMeta());
     }
