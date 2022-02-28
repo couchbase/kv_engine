@@ -181,12 +181,10 @@ TEST_P(InterfacesTest, Mcbp) {
     // connected to
     auto interfaces = getInterfaces(*adminConnection);
     ASSERT_EQ("mcbp", interfaces.front()["type"]);
-    ASSERT_EQ("127.0.0.1", interfaces.front()["host"]);
-    ASSERT_NE(0, interfaces.front()["port"]);
 
-    nlohmann::json descr = {{"host", "127.0.0.1"},
+    nlohmann::json descr = {{"host", interfaces.front()["host"]},
                             {"port", interfaces.front()["port"]},
-                            {"family", "inet"},
+                            {"family", interfaces.front()["family"]},
                             {"system", false},
                             {"type", "mcbp"}};
 
@@ -198,7 +196,11 @@ TEST_P(InterfacesTest, Mcbp) {
 
     // But I should be allowed to bind to the ANY interface on the same
     // port
-    descr["host"] = "0.0.0.0";
+    if (interfaces.front()["family"] == "inet") {
+        descr["host"] = "0.0.0.0";
+    } else {
+        descr["host"] = "::";
+    }
     cmd.setValue(descr.dump());
     rsp = adminConnection->execute(cmd);
     ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
@@ -249,6 +251,7 @@ TEST_P(InterfacesTest, Mcbp) {
     ASSERT_FALSE(ipv4.empty());
     for (auto host : ipv4) {
         descr["host"] = host;
+        descr["family"] = "inet";
         cmd.setValue(descr.dump());
         rsp = adminConnection->execute(cmd);
         ASSERT_TRUE(rsp.isSuccess());
