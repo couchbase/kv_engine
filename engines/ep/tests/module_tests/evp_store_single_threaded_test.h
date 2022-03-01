@@ -168,6 +168,8 @@ public:
 
     bool isNexusMagmaPrimary() const;
 
+    bool isPitrEnabled() const;
+
     bool needsBGFetch(cb::engine_errc ec) const {
         if (ec == cb::engine_errc::would_block && isPersistent() &&
             isFullEviction()) {
@@ -570,6 +572,20 @@ public:
                 "bucket_type=persistent:"
                 "backend=couchstore:"
                 "item_eviction_policy=full_eviction"s);
+    }
+
+    static auto pitrEnabledConfigValues() {
+        // @TODO Add variants for magma if/when it supports PiTR.
+        using namespace std::string_literals;
+        return ::testing::Values(
+                "bucket_type=persistent:"
+                "backend=couchstore:"
+                "item_eviction_policy=value_only:"
+                "pitr_enabled=true"s,
+                "bucket_type=persistent:"
+                "backend=couchstore:"
+                "item_eviction_policy=full_eviction:"
+                "pitr_enabled=true"s);
     }
 
 #ifdef EP_USE_MAGMA

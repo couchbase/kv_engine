@@ -3016,21 +3016,44 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
 
     // Check the Prepare on disk
     gv = kvstore->get(prefixedKey, Vbid(0));
-    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+
+    auto expectedStatus = cb::engine_errc::no_such_key;
+    auto expectedPrepares = 0;
+    auto expectedItemCount = 1;
+    if (isPitrEnabled()) {
+        // We are trying to check if the prepare is present on disk. It is
+        // typically purged by compaction but with PiTR we have some extra
+        // criteria to hit that we don't in this test. As such, the prepare is
+        // still present on disk for PiTR tests.
+        expectedStatus = cb::engine_errc::success;
+        expectedPrepares = 1;
+        expectedItemCount = 2;
+    }
+    EXPECT_EQ(expectedStatus, gv.getStatus());
 
     // Check onDiskPrepares is updated correctly after compaction.
     vbstate = kvstore->getCachedVBucketState(vbid);
-    EXPECT_EQ(0, vbstate->onDiskPrepares);
-    EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
-    EXPECT_EQ(1, kvstore->getItemCount(vbid));
+    EXPECT_EQ(expectedPrepares, vbstate->onDiskPrepares);
+    EXPECT_EQ(expectedItemCount, kvstore->getItemCount(vbid));
+
+    if (!isPitrEnabled()) {
+        EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
+    } else {
+        EXPECT_NE(0, vbstate->getOnDiskPrepareBytes());
+    }
 
     vb.reset();
     resetEngineAndWarmup();
     kvstore = store->getOneRWUnderlying();
     vbstate = kvstore->getCachedVBucketState(vbid);
-    EXPECT_EQ(1, kvstore->getItemCount(vbid));
-    EXPECT_EQ(0, vbstate->onDiskPrepares);
-    EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
+    EXPECT_EQ(expectedItemCount, kvstore->getItemCount(vbid));
+    EXPECT_EQ(expectedPrepares, vbstate->onDiskPrepares);
+
+    if (!isPitrEnabled()) {
+        EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
+    } else {
+        EXPECT_NE(0, vbstate->getOnDiskPrepareBytes());
+    }
 }
 
 TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
@@ -3106,7 +3129,16 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
 
     // Now the Abort should be gone
     gv = kvstore->get(prefixedKey, Vbid(0));
-    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+
+    auto expectedStatus = cb::engine_errc::no_such_key;
+    if (isPitrEnabled()) {
+        // We are trying to check if the Abort is present on disk. It is
+        // typically purged by compaction but with PiTR we have some extra
+        // criteria to hit that we don't in this test. As such, the Abort is
+        // still present on disk for PiTR tests.
+        expectedStatus = cb::engine_errc::success;
+    }
+    EXPECT_EQ(expectedStatus, gv.getStatus());
     EXPECT_EQ(1, kvstore->getItemCount(vbid));
     EXPECT_EQ(0, vbstate->onDiskPrepares);
     EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
@@ -5013,6 +5045,11 @@ INSTANTIATE_TEST_SUITE_P(
         DurabilityEPBucketTest,
         STParameterizedBucketTest::persistentNoNexusConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(NormalBackendsPitrEnabled,
+                         DurabilityEPBucketTest,
+                         STParameterizedBucketTest::pitrEnabledConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
 #ifdef EP_USE_MAGMA
 INSTANTIATE_TEST_SUITE_P(

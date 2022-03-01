@@ -644,6 +644,10 @@ bool STParameterizedBucketTest::bloomFilterEnabled() const {
     return engine->getConfiguration().isBfilterEnabled();
 }
 
+bool SingleThreadedKVBucketTest ::isPitrEnabled() const {
+    return engine->getConfiguration().isPitrEnabled();
+}
+
 /// @returns a string representing this tests' parameters.
 std::string STParameterizedBucketTest::PrintToStringParamName(
         const ::testing::TestParamInfo<ParamType>& info) {
@@ -665,6 +669,12 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
     config = std::regex_replace(config, std::regex("backend="), "");
     config = std::regex_replace(
             config, std::regex("bfilter_enabled="), "bfilter_");
+    config = std::regex_replace(config, std::regex("pitr_enabled="), "pitr_");
+    config = std::regex_replace(
+            config, std::regex("pitr_granularity="), "pitr_granularity_");
+    config = std::regex_replace(config,
+                                std::regex("pitr_max_history_age="),
+                                "pitr_max_history_age_");
     return config;
 }
 
