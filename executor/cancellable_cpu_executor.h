@@ -55,10 +55,11 @@ public:
      * Add a task to run
      *
      * @param task which includes the taskable and taskId that we need in this
-     *        class
+     *        class. Task can be null if the work is not strictly associated
+     *        with a GlobalTask (i.e. a reset of a task pointer).
      * @param func the function to run (which runs the task)
      */
-    void addWithTask(GlobalTask& task, folly::Func func);
+    void add(GlobalTask* task, folly::Func func);
 
     /**
      * Remove tasks for the given taskable from our work queue. Should always
@@ -75,15 +76,21 @@ private:
      * Element of our queue
      */
     struct QueueElem {
-        QueueElem(GlobalTask& task, folly::Func func)
+        QueueElem(GlobalTask* task, folly::Func func)
             : task(task), func(std::move(func)) {
         }
 
-        // Taking a GlobalTask& here because it contains both the Taskable
+        bool isInternalExecutorTask() const {
+            return !task;
+        }
+
+        // Taking a GlobalTask* here because it contains both the Taskable
         // reference and the taskId which we need to cancel tasks. We take a
-        // GlobalTask& over an ExTask to avoid shared_ptr promotions for the
-        // sake of efficiency.
-        GlobalTask& task;
+        // GlobalTask* over an ExTask to avoid shared_ptr promotions for the
+        // sake of efficiency. We require this to be nullable as some tasks
+        // (the reset of task ptrs on the cpuPool) are not associated with a
+        // GlobalTask.
+        GlobalTask* task;
         folly::Func func;
     };
 
