@@ -8,38 +8,11 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-
+/**
+ * Header including all generated stat definitions created from
+ * stat_definitions.json.
+ *
+ */
 #pragma once
 
-#include "statdef.h"
-#include "units.h"
-
-#include <string>
-#include <string_view>
-#include <unordered_map>
-
-namespace cb::stats {
-
-// don't need labels for the enum
-#define LABEL(...)
-// don't need formatted cbstats keys for the enum, only the enum key is needed.
-#define FMT(CBStatName)
-#define STAT(statName, ...) statName,
-#define CBSTAT(statName, ...) statName,
-#define PSTAT(statName, ...) statName,
-enum class Key {
-#include "stats.def.h"
-
-    enum_max
-};
-#undef PSTAT
-#undef CBSTAT
-#undef STAT
-#undef FMT
-#undef LABEL
-
-using namespace units;
-
-extern const std::array<StatDef, size_t(Key::enum_max)> statDefinitions;
-
-} // namespace cb::stats
+#include "generated_stats.h"

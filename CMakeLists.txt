@@ -219,3 +219,8 @@ if(CB_ENABLE_HEADER_INCLUDE_CHECK)
       ${OPENTRACING_INCLUDE_DIR})
 endif(CB_ENABLE_HEADER_INCLUDE_CHECK)
 
+add_custom_target(generated_source_files
+        DEPENDS
+        ep_generated_source_files
+        generated_stats_source_files
+        )

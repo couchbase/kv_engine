@@ -1,0 +1,2356 @@
+/**
+ * //// stat_definitions.json
+ *
+ * stat_definitions.json contains definitions of the form:
+ *
+ * {
+ * "key": "unique_enum_key",
+ * "unit": "none",
+ * "cbstat": "key_used_for_cbstats_{format_arg}",
+ * "prometheus": {
+ *     "family": "metric_family",
+ *     "labels": {
+ *         "label_key": "label_value"
+ *     }
+ * }
+ * },
+ *
+ * * "key"
+ *    globally unique key, used when adding stats to a collector:
+ *     collector.addStat(Key::foobar, value);
+ *
+ * * "unit"
+ *    name of a cb::stats::unit declaration, e.g., "bytes", "microseconds".
+ *    see statistics/units.h for all values.
+ *    Indicates what the internally tracked value represents.
+ *    This is used to add the appropriate suffix to the Prometheus metric
+ *    family ("..._bytes", "..._seconds") and scale the recorded value to the
+ *    base unit required by Prometheus (nanoseconds -> seconds,
+ *    kilobytes->bytes)
+ *
+ * * "cbstat"
+ *    If set to false, this metric will not be exposed over cbstats.
+ *
+ *    If the key used for cbstats needs to be different than the enum
+ *    e.g., has unacceptable characters, or needs formatting at runtime,
+ *    it may be overriden here.
+ *    For example:
+ *     {
+ *     "key": "vb_num",
+ *     "unit": "count",
+ *     "cbstat": "vb_{state}_num",
+ *     "prometheus": {
+ *         "family": "num_vbuckets"
+ *     }
+ *     },
+ *    Uses a runtime "state" label in the cbstat key.
+ *    The same stat may be added with a different state label:
+ *     collector.withLabel("state", "active").addStat(Key::vb_num, value);
+ *     collector.withLabel("state", "replica").addStat(Key::vb_num, otherValue);
+ *    For Prometheus, this results in multiple time series under the family
+ *    "num_vbuckets", with differing labels.
+ *    CBstats instead needs to format the key "vb_{state}_num" to get back to
+ *    a unique value, "vb_active_num", "vb_replica_num".
+ *
+ * * "prometheus"
+ *    If set to false, this metric will not be exposed for prometheus.
+ *    otherwise, object containing "family", "labels" keys, both optional.
+ * ** "family"
+ *    If absent, defaults to the value of "key".
+ *    A non-unique metric family name. Several metrics can share the same
+ *    metric family name, with differing labels:
+ *    foobar{label="value"}
+ *    foobar{label="value2"}
+ * ** "labels"
+ *    Fixed labels which distinguish this stat from others in the metric family.
+ *    More labels may be added at runtime, but where a label is always fixed
+ *    ahead of time, it should be specified here.
+ *
+ *
+ * //// cb::stats::Key
+ *
+ * generated_stats.h declares an enum containing every "key" from the json.
+ *   namespace cb::stats {
+ *   enum class Key {
+ *   default_evictions,
+ *   default_curr_items,
+ *   ...
+ *
+ * This enum is used when adding stats to a collector:
+ * collector.addStats(Key::default_evictions, value);
+ *
+ * The underlying collector impl (cbstat or prometheus) will use the relevant
+ * information from the definitions in the json file.
+ *
+ *
+ * //// Examples
+ * * minimal CBStats-only metric
+ *     {
+ *     "key": "some_unique_key",
+ *     "unit": "none", // unit is only informational for cbstats
+ *     "prometheus": false
+ *     },
+ *  the cbstat key will default to the enum key as it has not been overriden.
+ * * minimal Prometheus-only metric
+ *    {
+ *    "key": "cmd_duration",
+ *    "unit": "microseconds",
+ *    "cbstat": false
+ *    }
+ *  the metric family defaults to the enum key, and no additional hard-coded
+ *  labels are present (though more may be added at runtime, like the "bucket"
+ *  label).
+ */
+
+
+
+[
+/* default_engine stats */
+    {
+        "key": "default_evictions",
+        "unit": "count",
+        "cbstat": "evictions",
+        "prometheus": {
+            "family": "memcache_evictions"
+        }
+    },
+    {
+        "key": "default_curr_items",
+        "unit": "count",
+        "cbstat": "curr_items",
+        "prometheus": {
+            "family": "memcache_curr_items"
+        }
+    },
+    {
+        "key": "default_total_items",
+        "unit": "count",
+        "cbstat": "total_items",
+        "prometheus": {
+            "family": "memcache_total_items"
+        }
+    },
+    {
+        "key": "default_bytes",
+        "unit": "bytes",
+        "cbstat": "bytes",
+        "prometheus": {
+            "family": "memcache_mem_size"
+        }
+    },
+    {
+        "key": "default_reclaimed",
+        "unit": "count",
+        "cbstat": "reclaimed",
+        "prometheus": {
+            "family": "memcache_reclaimed"
+        }
+    },
+    {
+        "key": "default_engine_maxbytes",
+        "unit": "count",
+        "cbstat": "engine_maxbytes",
+        "prometheus": {
+            "family": "memcache_engine_maxbytes"
+        }
+    },
+/* TODO: applying a "kv_" prefix globally would be consistent but lead to kv_ep_
+ *  for some stats. Providing metric family names without ep_ would avoid this
+ * "All" stats group (doEngineStats)
+ */
+    {
+        "key": "ep_num_workers",
+        "unit": "count"
+    },
+    {
+        "key": "ep_bucket_priority",
+        "unit": "none"
+    },
+/* TODO: make 0/1 rather than text for Prometheus? */
+    {
+        "key": "ep_total_enqueued",
+        "unit": "count"
+    },
+    {
+        "key": "ep_total_deduplicated",
+        "unit": "count"
+    },
+    {
+        "key": "ep_expired_access",
+        "unit": "count"
+    },
+    {
+        "key": "ep_expired_compactor",
+        "unit": "count"
+    },
+    {
+        "key": "ep_expired_pager",
+        "unit": "count"
+    },
+    {
+        "key": "ep_queue_size",
+        "unit": "count"
+    },
+    {
+        "key": "ep_diskqueue_items",
+        "unit": "count"
+    },
+    {
+        "key": "ep_commit_num",
+        "unit": "count"
+    },
+    {
+        "key": "ep_commit_time",
+        "unit": "microseconds"
+    },
+    {
+        "key": "ep_commit_time_total",
+        "unit": "microseconds"
+    },
+    {
+        "key": "ep_item_begin_failed",
+        "unit": "count"
+    },
+    {
+        "key": "ep_item_commit_failed",
+        "unit": "count"
+    },
+    {
+        "key": "ep_item_flush_expired",
+        "unit": "count"
+    },
+    {
+        "key": "ep_item_flush_failed",
+        "unit": "count"
+    },
+    {
+        "key": "ep_flusher_state",
+        "unit": "none"
+    },
+    {
+        "key": "ep_flusher_todo",
+        "unit": "count"
+    },
+    {
+        "key": "ep_total_persisted",
+        "unit": "count"
+    },
+    {
+        "key": "ep_uncommitted_items",
+        "unit": "count"
+    },
+    {
+        "key": "ep_vbucket_del",
+        "unit": "count"
+    },
+    {
+        "key": "ep_vbucket_del_fail",
+        "unit": "count"
+    },
+    {
+        "key": "ep_flush_duration_total",
+        "unit": "milliseconds"
+    },
+    {
+        "key": "ep_persist_vbstate_total",
+        "unit": "count"
+    },
+    {
+        "key": "mem_used",
+        "unit": "bytes"
+    },
+    {
+        "key": "mem_used_primary",
+        "unit": "bytes",
+        "prometheus": {
+            "family": "domain_memory_used",
+            "labels": {
+                "domain": "primary"
+            }
+        }
+    },
+    {
+        "key": "mem_used_secondary",
+        "unit": "bytes",
+        "prometheus": {
+            "family": "domain_memory_used",
+            "labels": {
+                "domain": "secondary"
+            }
+        }
+    },
+    {
+        "key": "mem_used_estimate",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_mem_low_wat_percent",
+        "unit": "percent"
+    },
+    {
+        "key": "ep_mem_high_wat_percent",
+        "unit": "percent"
+    },
+/* TODO: it's not advised to have metric like:
+ *   my_metric{label=a} 1
+ *   my_metric{label=b} 6
+ *   my_metric{label=total} 7
+ *  as a total is inconvenient for aggregation, _but_ we do track
+ * several stats which are logically totals which might include things _not_
+ * available under any other metric. Exposing it under a different metric name
+ * seems best. Note: "..._total" is expected to be reserved for Counters -
+ * totals over time, not totals of other things.
+ */
+    {
+        "key": "bytes",
+        "unit": "bytes",
+        "prometheus": {
+            "family": "total_memory_used"
+        }
+    },
+    {
+        "key": "ep_kv_size",
+        "unit": "bytes",
+        "prometheus": {
+            "family": "memory_used",
+            "labels": {
+                "for": "hashtable"
+            }
+        }
+    },
+    {
+        "key": "ep_blob_num",
+        "unit": "count"
+    },
+    {
+        "key": "ep_blob_overhead",
+        "unit": "bytes",
+        "prometheus": {
+            "family": "memory_overhead",
+            "labels": {
+                "for": "blobs"
+            }
+        }
+    },
+/* TODO: Assess what labels would actually be _useful_ for querying */
+    {
+        "key": "ep_value_size",
+        "unit": "bytes",
+        "prometheus": {
+            "family": "memory_used",
+            "labels": {
+                "for": "blobs"
+            }
+        }
+    },
+    {
+        "key": "ep_storedval_size",
+        "unit": "bytes",
+        "prometheus": {
+            "family": "memory_used",
+            "labels": {
+                "for": "storedvalues"
+            }
+        }
+    },
+    {
+        "key": "ep_storedval_overhead",
+        "unit": "bytes",
+        "prometheus": {
+            "family": "memory_overhead",
+            "labels": {
+                "for": "storedvalues"
+            }
+        }
+    },
+    {
+        "key": "ep_storedval_num",
+        "unit": "count"
+    },
+    {
+        "key": "ep_overhead",
+        "unit": "bytes",
+        "prometheus": {
+            "family": "total_memory_overhead"
+        }
+    },
+    {
+        "key": "ep_item_num",
+        "unit": "count"
+    },
+    {
+        "key": "ep_oom_errors",
+        "unit": "count"
+    },
+    {
+        "key": "ep_tmp_oom_errors",
+        "unit": "count"
+    },
+    {
+        "key": "ep_mem_tracker_enabled",
+        "unit": "none"
+    },
+    {
+        "key": "ep_bg_fetched",
+        "unit": "count"
+    },
+    {
+        "key": "ep_bg_meta_fetched",
+        "unit": "count"
+    },
+    {
+        "key": "ep_bg_remaining_items",
+        "unit": "count"
+    },
+    {
+        "key": "ep_bg_remaining_jobs",
+        "unit": "count"
+    },
+    {
+        "key": "ep_num_pager_runs",
+        "unit": "count"
+    },
+    {
+        "key": "ep_num_expiry_pager_runs",
+        "unit": "count"
+    },
+    {
+        "key": "ep_num_freq_decayer_runs",
+        "unit": "count"
+    },
+    {
+        "key": "ep_items_expelled_from_checkpoints",
+        "unit": "count"
+    },
+    {
+        "key": "ep_items_rm_from_checkpoints",
+        "unit": "count"
+    },
+    {
+        "key": "ep_num_value_ejects",
+        "unit": "count"
+    },
+    {
+        "key": "ep_num_eject_failures",
+        "unit": "count"
+    },
+    {
+        "key": "ep_num_not_my_vbuckets",
+        "unit": "count"
+    },
+    {
+        "key": "ep_pending_ops",
+        "unit": "count"
+    },
+    {
+        "key": "ep_pending_ops_total",
+        "unit": "count"
+    },
+/* TODO: are total-over-uptime stats relevant for prometheus
+ *  given the ability to sum over a time period?
+ */
+    {
+        "key": "ep_pending_ops_max",
+        "unit": "count"
+    },
+/* TODO: standardise labelling for "high watermark" style stats */
+    {
+        "key": "ep_pending_ops_max_duration",
+        "unit": "microseconds"
+    },
+    {
+        "key": "ep_pending_compactions",
+        "unit": "count"
+    },
+    {
+        "key": "ep_compaction_failed",
+        "unit": "count"
+    },
+    {
+        "key": "ep_compaction_aborted",
+        "unit": "count"
+    },
+    {
+        "key": "ep_rollback_count",
+        "unit": "count"
+    },
+    {
+        "key": "ep_vbucket_del_max_walltime",
+        "unit": "microseconds"
+    },
+    {
+        "key": "ep_vbucket_del_avg_walltime",
+        "unit": "microseconds"
+    },
+    {
+        "key": "ep_bg_num_samples",
+        "unit": "count"
+    },
+    {
+        "key": "ep_bg_min_wait",
+        "unit": "microseconds"
+    },
+    {
+        "key": "ep_bg_max_wait",
+        "unit": "microseconds"
+    },
+    {
+        "key": "ep_bg_wait_avg",
+        "unit": "microseconds"
+    },
+/* TODO: derived from two stats. Decide
+ *  whether to expose for prometheus
+ */
+    {
+        "key": "ep_bg_min_load",
+        "unit": "microseconds"
+    },
+    {
+        "key": "ep_bg_max_load",
+        "unit": "microseconds"
+    },
+    {
+        "key": "ep_bg_load_avg",
+        "unit": "microseconds"
+    },
+/* TODO: derived from two stats. Decide
+ *  whether to expose for prometheus
+ */
+    {
+        "key": "ep_bg_wait",
+        "unit": "microseconds"
+    },
+    {
+        "key": "ep_bg_load",
+        "unit": "microseconds"
+    },
+    {
+        "key": "ep_degraded_mode",
+        "unit": "none"
+    },
+    {
+        "key": "ep_num_access_scanner_runs",
+        "unit": "count"
+    },
+    {
+        "key": "ep_num_access_scanner_skips",
+        "unit": "count"
+    },
+    {
+        "key": "ep_access_scanner_last_runtime",
+        "unit": "seconds"
+    },
+/* TODO: relative to server start. Convert to absolute time? */
+    {
+        "key": "ep_access_scanner_num_items",
+        "unit": "count"
+    },
+    {
+        "key": "ep_access_scanner_task_time",
+        "unit": "none"
+    },
+/* TODO: this is a string, expose numeric time for Prometheus */
+    {
+        "key": "ep_expiry_pager_task_time",
+        "unit": "none"
+    },
+/* TODO: this is a string, expose numeric time for Prometheus */
+    {
+        "key": "ep_startup_time",
+        "unit": "seconds"
+    },
+    {
+        "key": "ep_warmup_thread",
+        "unit": "none"
+    },
+    {
+        "key": "ep_warmup_time",
+        "unit": "microseconds"
+    },
+    {
+        "key": "ep_warmup_oom",
+        "unit": "count"
+    },
+    {
+        "key": "ep_warmup_dups",
+        "unit": "count"
+    },
+    {
+        "key": "ep_warmup_state",
+        "unit": "none"
+    },
+    {
+        "key": "ep_warmup_key_count",
+        "unit": "count"
+    },
+    {
+        "key": "ep_warmup_value_count",
+        "unit": "count"
+    },
+    {
+        "key": "ep_warmup_min_item_threshold",
+        "unit": "count"
+    },
+    {
+        "key": "ep_warmup_keys_time",
+        "unit": "microseconds"
+    },
+    {
+        "key": "ep_warmup_estimated_key_count",
+        "unit": "none"
+    },
+    {
+        "key": "ep_warmup_estimate_time",
+        "unit": "microseconds"
+    },
+    {
+        "key": "ep_warmup_access_log",
+        "unit": "none"
+    },
+    {
+        "key": "ep_warmup_estimated_value_count",
+        "unit": "none"
+    },
+    {
+        "key": "ep_num_ops_get_meta",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "get_meta"
+            }
+        }
+    },
+    {
+        "key": "ep_num_ops_set_meta",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "set_meta"
+            }
+        }
+    },
+    {
+        "key": "ep_num_ops_del_meta",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "del_meta"
+            }
+        }
+    },
+    {
+        "key": "ep_num_ops_set_meta_res_fail",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops_failed",
+            "labels": {
+                "op": "set_meta"
+            }
+        }
+    },
+    {
+        "key": "ep_num_ops_del_meta_res_fail",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops_failed",
+            "labels": {
+                "op": "del_meta"
+            }
+        }
+    },
+    {
+        "key": "ep_num_ops_set_ret_meta",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "set_ret_meta"
+            }
+        }
+    },
+    {
+        "key": "ep_num_ops_del_ret_meta",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "del_ret_meta"
+            }
+        }
+    },
+    {
+        "key": "ep_num_ops_get_meta_on_set_meta",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "get_meta_for_set_meta"
+            }
+        }
+    },
+    {
+        "key": "ep_workload_pattern",
+        "unit": "none"
+    },
+    {
+        "key": "ep_defragmenter_num_visited",
+        "unit": "count"
+    },
+    {
+        "key": "ep_defragmenter_num_moved",
+        "unit": "count"
+    },
+    {
+        "key": "ep_defragmenter_sv_num_moved",
+        "unit": "count"
+    },
+    {
+        "key": "ep_item_compressor_num_visited",
+        "unit": "count"
+    },
+    {
+        "key": "ep_item_compressor_num_compressed",
+        "unit": "count"
+    },
+    {
+        "key": "ep_checkpoint_computed_max_size",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_cursors_dropped",
+        "unit": "count"
+    },
+    {
+        "key": "ep_mem_freed_by_checkpoint_removal",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_mem_freed_by_checkpoint_item_expel",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_num_checkpoints",
+        "unit": "count"
+    },
+    {
+        "key": "ep_data_write_failed",
+        "unit": "count"
+    },
+    {
+        "key": "ep_data_read_failed",
+        "unit": "count"
+    },
+    {
+        "key": "ep_io_document_write_bytes",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_io_total_read_bytes",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_io_total_write_bytes",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_io_compaction_read_bytes",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_io_compaction_write_bytes",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_io_bg_fetch_read_count",
+        "unit": "count"
+    },
+    {
+        "key": "ep_bg_fetch_avg_read_amplification",
+        "unit": "ratio"
+    },
+/* Magma stats */
+    {
+        "key": "ep_magma_sets",
+        "unit": "count"
+    },
+    {
+        "key": "ep_magma_gets",
+        "unit": "count"
+    },
+    {
+        "key": "ep_magma_inserts",
+        "unit": "count"
+    },
+/* Compaction. */
+    {
+        "key": "ep_magma_compactions",
+        "unit": "count"
+    },
+    {
+        "key": "ep_magma_flushes",
+        "unit": "count"
+    },
+    {
+        "key": "ep_magma_ttl_compactions",
+        "unit": "count"
+    },
+    {
+        "key": "ep_magma_filecount_compactions",
+        "unit": "count"
+    },
+    {
+        "key": "ep_magma_writer_compactions",
+        "unit": "count"
+    },
+/* Read amp. */
+    {
+        "key": "ep_magma_readamp",
+        "unit": "ratio"
+    },
+    {
+        "key": "ep_magma_readamp_get",
+        "unit": "ratio"
+    },
+    {
+        "key": "ep_magma_read_bytes",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_read_bytes_compact",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_read_bytes_get",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_bytes_outgoing",
+        "unit": "bytes"
+    },
+/* ReadIOAmp. */
+    {
+        "key": "ep_magma_readio",
+        "unit": "count"
+    },
+    {
+        "key": "ep_magma_readioamp",
+        "unit": "ratio"
+    },
+    {
+        "key": "ep_magma_bytes_per_read",
+        "unit": "ratio"
+    },
+/* Write amp. */
+    {
+        "key": "ep_magma_writeamp",
+        "unit": "ratio"
+    },
+    {
+        "key": "ep_magma_bytes_incoming",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_write_bytes",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_write_bytes_compact",
+        "unit": "bytes"
+    },
+/* Fragmentation. */
+    {
+        "key": "ep_magma_logical_data_size",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_logical_disk_size",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_fragmentation",
+        "unit": "ratio"
+    },
+/* Disk usage. */
+    {
+        "key": "ep_magma_total_disk_usage",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_wal_disk_usage",
+        "unit": "bytes"
+    },
+/* Memory usage. */
+    {
+        "key": "ep_magma_read_ahead_buffer_mem_used",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_lsmtree_object_mem_used",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_table_object_mem_used",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_histogram_mem_used",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_block_cache_mem_used",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_write_cache_mem_used",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_wal_mem_used",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_table_meta_mem_used",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_buffer_mem_used",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_bloom_filter_mem_used",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_total_mem_used",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_index_resident_ratio",
+        "unit": "ratio"
+    },
+/* Block cache. */
+    {
+        "key": "ep_magma_block_cache_hits",
+        "unit": "count"
+    },
+    {
+        "key": "ep_magma_block_cache_misses",
+        "unit": "count"
+    },
+    {
+        "key": "ep_magma_block_cache_hit_ratio",
+        "unit": "ratio"
+    },
+/* SST file count. */
+    {
+        "key": "ep_magma_tables_created",
+        "unit": "count"
+    },
+    {
+        "key": "ep_magma_tables_deleted",
+        "unit": "count"
+    },
+    {
+        "key": "ep_magma_tables",
+        "unit": "count"
+    },
+/* NSync. */
+    {
+        "key": "ep_magma_syncs",
+        "unit": "count"
+    },
+    {
+        "key": "ep_rocksdb_kMemTableTotal",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_rocksdb_kMemTableUnFlushed",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_rocksdb_kTableReadersTotal",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_rocksdb_kCacheTotal",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_rocksdb_default_kSizeAllMemTables",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_rocksdb_seqno_kSizeAllMemTables",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_rocksdb_block_cache_data_hit_ratio",
+        "unit": "ratio"
+    },
+    {
+        "key": "ep_rocksdb_block_cache_index_hit_ratio",
+        "unit": "ratio"
+    },
+    {
+        "key": "ep_rocksdb_block_cache_filter_hit_ratio",
+        "unit": "ratio"
+    },
+    {
+        "key": "ep_rocksdb_default_kTotalSstFilesSize",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_rocksdb_seqno_kTotalSstFilesSize",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_rocksdb_scan_totalSeqnoHits",
+        "unit": "count"
+    },
+    {
+        "key": "ep_rocksdb_scan_oldSeqnoHits",
+        "unit": "count"
+    },
+/* EPBucket::getFileStats */
+    {
+        "key": "ep_db_data_size",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_db_file_size",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_db_prepare_size",
+        "unit": "bytes"
+    },
+/* Timing stats */
+    {
+        "key": "cmd_duration",
+        "unit": "microseconds",
+        "cbstat": false
+    },
+    {
+        "key": "bg_wait",
+        "unit": "microseconds"
+    },
+    {
+        "key": "bg_load",
+        "unit": "microseconds"
+    },
+    {
+        "key": "pending_ops",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "access_scanner",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "checkpoint_remover",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "item_pager",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "expiry_pager",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "storage_age",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "set_with_meta",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "get_cmd",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "store_cmd",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "arith_cmd",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "get_stats_cmd",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "get_vb_cmd",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "set_vb_cmd",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "del_vb_cmd",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "chk_persistence_cmd",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "notify_io",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "disk_insert",
+        "unit": "microseconds",
+        "prometheus": {
+            "family": "disk",
+            "labels": {
+                "op": "insert"
+            }
+        }
+    },
+    {
+        "key": "disk_update",
+        "unit": "microseconds",
+        "prometheus": {
+            "family": "disk",
+            "labels": {
+                "op": "update"
+            }
+        }
+    },
+    {
+        "key": "disk_del",
+        "unit": "microseconds",
+        "prometheus": {
+            "family": "disk",
+            "labels": {
+                "op": "del"
+            }
+        }
+    },
+    {
+        "key": "disk_vb_del",
+        "unit": "microseconds",
+        "prometheus": {
+            "family": "disk",
+            "labels": {
+                "op": "vb_del"
+            }
+        }
+    },
+    {
+        "key": "disk_commit",
+        "unit": "microseconds",
+        "prometheus": {
+            "family": "disk",
+            "labels": {
+                "op": "commit"
+            }
+        }
+    },
+    {
+        "key": "item_alloc_sizes",
+        "unit": "bytes"
+    },
+/* TODO: this is not timing related but is in doTimingStats */
+    {
+        "key": "bg_batch_size",
+        "unit": "count"
+    },
+/* TODO: this is not timing related but is in doTimingStats */
+    {
+        "key": "persistence_cursor_get_all_items",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "dcp_cursors_get_all_items",
+        "unit": "microseconds",
+        "prometheus": false
+    },
+    {
+        "key": "sync_write_commit_majority",
+        "unit": "microseconds",
+        "prometheus": {
+            "family": "sync_write_commit_duration",
+            "labels": {
+                "level": "majority"
+            }
+        }
+    },
+    {
+        "key": "sync_write_commit_majority_and_persist_on_master",
+        "unit": "microseconds",
+        "prometheus": {
+            "family": "sync_write_commit_duration",
+            "labels": {
+                "level": "majority_and_persist_on_master"
+            }
+        }
+    },
+    {
+        "key": "sync_write_commit_persist_to_majority",
+        "unit": "microseconds",
+        "prometheus": {
+            "family": "sync_write_commit_duration",
+            "labels": {
+                "level": "persist_to_majority"
+            }
+        }
+    },
+/* server_stats */
+    {
+        "key": "uptime",
+        "unit": "seconds"
+    },
+    {
+        "key": "stat_reset",
+        "unit": "none"
+    },
+/* TODO: String indicating when stats were reset. Change
+ *  to a numeric stat for Prometheus?
+ */
+    {
+        "key": "time",
+        "unit": "seconds"
+    },
+/* The following 3 stats are not exposed to prometheus as we don't expect their
+ * values to change over time, assuming the system's clock configuration is
+ * constant. However it is useful to have them show in cbstats so we can read
+ * their current values either ad-hoc via cbstats or via cbcollect_info.
+ */
+    {
+        "key": "clock_fine_overhead_ns",
+        "unit": "none",
+        "prometheus": false
+    },
+    {
+        "key": "clock_coarse_overhead_ns",
+        "unit": "none",
+        "prometheus": false
+    },
+    {
+        "key": "clock_measurement_period_ns",
+        "unit": "none",
+        "prometheus": false
+    },
+    {
+        "key": "version",
+        "unit": "none"
+    },
+/* version string */
+    {
+        "key": "memcached_version",
+        "unit": "none"
+    },
+/* version string */
+    {
+        "key": "daemon_connections",
+        "unit": "count"
+    },
+    {
+        "key": "curr_connections",
+        "unit": "count"
+    },
+    {
+        "key": "system_connections",
+        "unit": "count"
+    },
+    {
+        "key": "total_connections",
+        "unit": "count"
+    },
+/* total since start/reset */
+    {
+        "key": "connection_structures",
+        "unit": "count"
+    },
+/* Amount of memory allocated by the daemon. */
+    {
+        "key": "daemon_memory_allocated",
+        "unit": "bytes"
+    },
+/* Resident size of memory allocated by the daemon itself. */
+    {
+        "key": "daemon_memory_resident",
+        "unit": "bytes"
+    },
+    {
+        "key": "cmd_get",
+        "unit": "count",
+        "prometheus": false
+    },
+/* this is not exposed to Prometheus as it duplicates
+ * the information provided by get_hits+get_misses
+ */
+    {
+        "key": "cmd_set",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "set"
+            }
+        }
+    },
+    {
+        "key": "cmd_flush",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "flush"
+            }
+        }
+    },
+    {
+        "key": "cmd_lock",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "lock"
+            }
+        }
+    },
+    {
+        "key": "cmd_subdoc_lookup",
+        "unit": "count",
+        "prometheus": {
+            "family": "subdoc_ops",
+            "labels": {
+                "op": "lookup"
+            }
+        }
+    },
+    {
+        "key": "cmd_subdoc_mutation",
+        "unit": "count",
+        "prometheus": {
+            "family": "subdoc_ops",
+            "labels": {
+                "op": "mutation"
+            }
+        }
+    },
+    {
+        "key": "bytes_subdoc_lookup_total",
+        "unit": "bytes",
+        "prometheus": {
+            "family": "subdoc_lookup_searched"
+        }
+    },
+/* type _bytes will be suffixed */
+    {
+        "key": "bytes_subdoc_lookup_extracted",
+        "unit": "bytes",
+        "prometheus": {
+            "family": "subdoc_lookup_extracted"
+        }
+    },
+    {
+        "key": "bytes_subdoc_mutation_total",
+        "unit": "bytes",
+        "prometheus": {
+            "family": "subdoc_mutation_updated"
+        }
+    },
+    {
+        "key": "bytes_subdoc_mutation_inserted",
+        "unit": "bytes",
+        "prometheus": {
+            "family": "subdoc_mutation_inserted"
+        }
+    },
+    {
+        "key": "stat_timings_mem_usage",
+        "unit": "bytes"
+    },
+/* aggregates over all buckets */
+    {
+        "key": "cmd_total_sets",
+        "unit": "count"
+    },
+    {
+        "key": "cmd_total_gets",
+        "unit": "count"
+    },
+    {
+        "key": "cmd_total_ops",
+        "unit": "count"
+    },
+/* aggregates over multiple operations for a single bucket */
+    {
+        "key": "cmd_mutation",
+        "unit": "count"
+    },
+    {
+        "key": "cmd_lookup",
+        "unit": "count"
+    },
+    {
+        "key": "stat_timings",
+        "unit": "microseconds",
+        "cbstat": "stat:{stat_key}{arg_suffix}",
+        "prometheus": false
+    },
+    {
+        "key": "auth_cmds",
+        "unit": "count"
+    },
+    {
+        "key": "auth_errors",
+        "unit": "count"
+    },
+    {
+        "key": "get_hits",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "get",
+                "result": "hit"
+            }
+        }
+    },
+    {
+        "key": "get_misses",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "get",
+                "result": "miss"
+            }
+        }
+    },
+    {
+        "key": "delete_misses",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "delete",
+                "result": "miss"
+            }
+        }
+    },
+    {
+        "key": "delete_hits",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "delete",
+                "result": "hit"
+            }
+        }
+    },
+    {
+        "key": "incr_misses",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "incr",
+                "result": "miss"
+            }
+        }
+    },
+    {
+        "key": "incr_hits",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "incr",
+                "result": "hit"
+            }
+        }
+    },
+    {
+        "key": "decr_misses",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "decr",
+                "result": "miss"
+            }
+        }
+    },
+    {
+        "key": "decr_hits",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "decr",
+                "result": "hit"
+            }
+        }
+    },
+    {
+        "key": "cas_misses",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "cas",
+                "result": "miss"
+            }
+        }
+    },
+    {
+        "key": "cas_hits",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "cas",
+                "result": "hit"
+            }
+        }
+    },
+    {
+        "key": "cas_badval",
+        "unit": "count",
+        "prometheus": {
+            "family": "ops",
+            "labels": {
+                "op": "cas",
+                "result": "badval"
+            }
+        }
+    },
+    {
+        "key": "bytes_read",
+        "unit": "bytes",
+        "prometheus": {
+            "family": "read"
+        }
+    },
+/* type _bytes will be suffixed */
+    {
+        "key": "bytes_written",
+        "unit": "bytes",
+        "prometheus": {
+            "family": "written"
+        }
+    },
+    {
+        "key": "rejected_conns",
+        "unit": "count"
+    },
+    {
+        "key": "threads",
+        "unit": "count"
+    },
+    {
+        "key": "conn_yields",
+        "unit": "count"
+    },
+    {
+        "key": "iovused_high_watermark",
+        "unit": "none"
+    },
+    {
+        "key": "msgused_high_watermark",
+        "unit": "none"
+    },
+    {
+        "key": "lock_errors",
+        "unit": "count"
+    },
+    {
+        "key": "cmd_lookup_10s_count",
+        "unit": "count"
+    },
+/* us suffix would be confusing in Prometheus as the stat is scaled to seconds */
+    {
+        "key": "cmd_lookup_10s_duration_us",
+        "unit": "microseconds",
+        "prometheus": {
+            "family": "cmd_lookup_10s_duration"
+        }
+    },
+    {
+        "key": "cmd_mutation_10s_count",
+        "unit": "count"
+    },
+/* us suffix would be confusing in Prometheus as the stat is scaled to seconds */
+    {
+        "key": "cmd_mutation_10s_duration_us",
+        "unit": "microseconds",
+        "prometheus": {
+            "family": "cmd_mutation_10s_duration"
+        }
+    },
+    {
+        "key": "total_resp_errors",
+        "unit": "count"
+    },
+    {
+        "key": "audit_enabled",
+        "unit": "none",
+        "cbstat": "enabled",
+        "prometheus": {
+            "family": "audit_enabled"
+        }
+    },
+    {
+        "key": "audit_dropped_events",
+        "unit": "count",
+        "cbstat": "dropped_events",
+        "prometheus": {
+            "family": "audit_dropped_events"
+        }
+    },
+    {
+        "key": "vb_num",
+        "unit": "count",
+        "cbstat": "vb_{state}_num",
+        "prometheus": {
+            "family": "num_vbuckets"
+        }
+    },
+    {
+        "key": "vb_curr_items",
+        "unit": "count",
+        "cbstat": "vb_{state}_curr_items",
+        "prometheus": {
+            "family": "vb_curr_items"
+        }
+    },
+    {
+        "key": "vb_hp_vb_req_size",
+        "unit": "count",
+        "cbstat": "vb_{state}_hp_vb_req_size",
+        "prometheus": {
+            "family": "num_high_pri_requests"
+        }
+    },
+    {
+        "key": "vb_num_non_resident",
+        "unit": "count",
+        "cbstat": "vb_{state}_num_non_resident",
+        "prometheus": {
+            "family": "vb_num_non_resident"
+        }
+    },
+    {
+        "key": "vb_perc_mem_resident",
+        "unit": "percent",
+        "cbstat": "vb_{state}_perc_mem_resident",
+        "prometheus": {
+            "family": "vb_perc_mem_resident"
+        }
+    },
+    {
+        "key": "vb_eject",
+        "unit": "count",
+        "cbstat": "vb_{state}_eject",
+        "prometheus": {
+            "family": "vb_eject"
+        }
+    },
+    {
+        "key": "vb_expired",
+        "unit": "count",
+        "cbstat": "vb_{state}_expired",
+        "prometheus": {
+            "family": "vb_expired"
+        }
+    },
+    {
+        "key": "vb_meta_data_memory",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_meta_data_memory",
+        "prometheus": {
+            "family": "vb_meta_data_memory"
+        }
+    },
+    {
+        "key": "vb_meta_data_disk",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_meta_data_disk",
+        "prometheus": {
+            "family": "vb_meta_data_disk"
+        }
+    },
+    {
+        "key": "vb_checkpoint_memory",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_checkpoint_memory",
+        "prometheus": {
+            "family": "vb_checkpoint_memory"
+        }
+    },
+    {
+        "key": "vb_checkpoint_memory_queue",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_checkpoint_memory_queue",
+        "prometheus": {
+            "family": "vb_checkpoint_memory_queue"
+        }
+    },
+    {
+        "key": "vb_checkpoint_memory_unreferenced",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_checkpoint_memory_unreferenced",
+        "prometheus": {
+            "family": "vb_checkpoint_memory_unreferenced"
+        }
+    },
+    {
+        "key": "vb_checkpoint_memory_overhead_allocator",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_checkpoint_memory_overhead_allocator"
+    },
+    {
+        "key": "vb_checkpoint_memory_overhead_allocator_queue",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_checkpoint_memory_overhead_allocator_queue"
+    },
+    {
+        "key": "vb_checkpoint_memory_overhead_allocator_index",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_checkpoint_memory_overhead_allocator_index"
+    },
+    {
+        "key": "vb_checkpoint_memory_overhead_allocator_index_key",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_checkpoint_memory_overhead_allocator_index_key"
+    },
+    {
+        "key": "vb_checkpoint_memory_overhead",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_checkpoint_memory_overhead",
+        "prometheus": {
+            "family": "vb_checkpoint_memory_overhead"
+        }
+    },
+    {
+        "key": "vb_checkpoint_memory_overhead_queue",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_checkpoint_memory_overhead_queue",
+        "prometheus": {
+            "family": "vb_checkpoint_memory_overhead_queue"
+        }
+    },
+    {
+        "key": "vb_checkpoint_memory_overhead_index",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_checkpoint_memory_overhead_index",
+        "prometheus": {
+            "family": "vb_checkpoint_memory_overhead_index"
+        }
+    },
+    {
+        "key": "vb_mem_freed_by_checkpoint_item_expel",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_mem_freed_by_checkpoint_item_expel"
+    },
+    {
+        "key": "vb_mem_freed_by_checkpoint_removal",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_mem_freed_by_checkpoint_removal"
+    },
+    {
+        "key": "vb_ht_memory",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_ht_memory",
+        "prometheus": {
+            "family": "vb_ht_memory"
+        }
+    },
+    {
+        "key": "vb_ht_item_memory",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_ht_item_memory",
+        "prometheus": {
+            "family": "vb_ht_item_memory"
+        }
+    },
+    {
+        "key": "vb_ht_item_memory_uncompressed",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_ht_item_memory_uncompressed",
+        "prometheus": {
+            "family": "vb_ht_item_memory_uncompressed"
+        }
+    },
+    {
+        "key": "vb_bloom_filter_memory",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_bloom_filter_memory",
+        "prometheus": {
+            "family": "vb_bloom_filter_memory"
+        }
+    },
+    {
+        "key": "vb_ops_create",
+        "unit": "count",
+        "cbstat": "vb_{state}_ops_create",
+        "prometheus": {
+            "family": "vb_ops_create"
+        }
+    },
+    {
+        "key": "vb_ops_update",
+        "unit": "count",
+        "cbstat": "vb_{state}_ops_update",
+        "prometheus": {
+            "family": "vb_ops_update"
+        }
+    },
+    {
+        "key": "vb_ops_delete",
+        "unit": "count",
+        "cbstat": "vb_{state}_ops_delete",
+        "prometheus": {
+            "family": "vb_ops_delete"
+        }
+    },
+    {
+        "key": "vb_ops_get",
+        "unit": "count",
+        "cbstat": "vb_{state}_ops_get",
+        "prometheus": {
+            "family": "vb_ops_get"
+        }
+    },
+    {
+        "key": "vb_ops_reject",
+        "unit": "count",
+        "cbstat": "vb_{state}_ops_reject",
+        "prometheus": {
+            "family": "vb_ops_reject"
+        }
+    },
+    {
+        "key": "vb_queue_size",
+        "unit": "count",
+        "cbstat": "vb_{state}_queue_size",
+        "prometheus": {
+            "family": "vb_queue_size"
+        }
+    },
+    {
+        "key": "vb_queue_memory",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_queue_memory",
+        "prometheus": {
+            "family": "vb_queue_memory"
+        }
+    },
+    {
+        "key": "vb_queue_age",
+        "unit": "milliseconds",
+        "cbstat": "vb_{state}_queue_age",
+        "prometheus": {
+            "family": "vb_queue_age"
+        }
+    },
+    {
+        "key": "vb_queue_pending",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_queue_pending",
+        "prometheus": {
+            "family": "vb_queue_pending"
+        }
+    },
+    {
+        "key": "vb_queue_fill",
+        "unit": "count",
+        "cbstat": "vb_{state}_queue_fill",
+        "prometheus": {
+            "family": "vb_queue_fill"
+        }
+    },
+    {
+        "key": "vb_queue_drain",
+        "unit": "count",
+        "cbstat": "vb_{state}_queue_drain",
+        "prometheus": {
+            "family": "vb_queue_drain"
+        }
+    },
+    {
+        "key": "vb_rollback_item_count",
+        "unit": "count",
+        "cbstat": "vb_{state}_rollback_item_count",
+        "prometheus": {
+            "family": "vb_rollback_item_count"
+        }
+    },
+    {
+        "key": "curr_items",
+        "unit": "count"
+    },
+    {
+        "key": "curr_temp_items",
+        "unit": "count"
+    },
+    {
+        "key": "curr_items_tot",
+        "unit": "count"
+    },
+    {
+        "key": "vb_sync_write_accepted_count",
+        "unit": "count",
+        "cbstat": "vb_{state}_sync_write_accepted_count",
+        "prometheus": {
+            "family": "vb_sync_write_accepted_count"
+        }
+    },
+    {
+        "key": "vb_sync_write_committed_count",
+        "unit": "count",
+        "cbstat": "vb_{state}_sync_write_committed_count",
+        "prometheus": {
+            "family": "vb_sync_write_committed_count"
+        }
+    },
+    {
+        "key": "vb_sync_write_aborted_count",
+        "unit": "count",
+        "cbstat": "vb_{state}_sync_write_aborted_count",
+        "prometheus": {
+            "family": "vb_sync_write_aborted_count"
+        }
+    },
+    {
+        "key": "ep_vb_total",
+        "unit": "count"
+    },
+    {
+        "key": "ep_total_new_items",
+        "unit": "count"
+    },
+    {
+        "key": "ep_total_del_items",
+        "unit": "count"
+    },
+    {
+        "key": "ep_diskqueue_memory",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_diskqueue_fill",
+        "unit": "count"
+    },
+    {
+        "key": "ep_diskqueue_drain",
+        "unit": "count"
+    },
+    {
+        "key": "ep_diskqueue_pending",
+        "unit": "count"
+    },
+    {
+        "key": "ep_ht_item_memory",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_meta_data_memory",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_meta_data_disk",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_checkpoint_memory",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_checkpoint_memory_unreferenced",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_checkpoint_memory_overhead_allocator",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_checkpoint_memory_pending_destruction",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_checkpoint_memory_quota",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_checkpoint_memory_recovery_upper_mark_bytes",
+        "unit": "none"
+    },
+    {
+        "key": "ep_checkpoint_memory_recovery_lower_mark_bytes",
+        "unit": "none"
+    },
+    {
+        "key": "ep_total_cache_size",
+        "unit": "bytes"
+    },
+    {
+        "key": "rollback_item_count",
+        "unit": "count"
+    },
+    {
+        "key": "ep_num_non_resident",
+        "unit": "count"
+    },
+    {
+        "key": "ep_chk_persistence_remains",
+        "unit": "count"
+    },
+    {
+        "key": "ep_hlc_drift",
+        "unit": "microseconds",
+        "cbstat": "ep_{state}_hlc_drift"
+    },
+    {
+        "key": "ep_hlc_drift_count",
+        "unit": "count",
+        "cbstat": "ep_{state}_hlc_drift_count"
+    },
+    {
+        "key": "ep_ahead_exceptions",
+        "unit": "count",
+        "cbstat": "ep_{state}_ahead_exceptions"
+    },
+    {
+        "key": "ep_behind_exceptions",
+        "unit": "count",
+        "cbstat": "ep_{state}_behind_exceptions"
+    },
+    {
+        "key": "ep_clock_cas_drift_threshold_exceeded",
+        "unit": "count"
+    },
+    {
+        "key": "datatype_count",
+        "unit": "count",
+        "cbstat": "ep_{vbucket_state}_datatype_{datatype}"
+    },
+    {
+        "key": "vb_auto_delete_count",
+        "unit": "count",
+        "cbstat": "vb_{state}_auto_delete_count",
+        "prometheus": {
+            "family": "vb_auto_delete_count"
+        }
+    },
+    {
+        "key": "vb_ht_tombstone_purged_count",
+        "unit": "count",
+        "cbstat": "vb_{state}_ht_tombstone_purged_count",
+        "prometheus": {
+            "family": "vb_ht_tombstone_purged_count"
+        }
+    },
+    {
+        "key": "vb_seqlist_count",
+        "unit": "count",
+        "cbstat": "vb_{state}_seqlist_count",
+        "prometheus": {
+            "family": "vb_seqlist_count"
+        }
+    },
+    {
+        "key": "vb_seqlist_deleted_count",
+        "unit": "count",
+        "cbstat": "vb_{state}_seqlist_deleted_count",
+        "prometheus": {
+            "family": "vb_seqlist_deleted_count"
+        }
+    },
+    {
+        "key": "vb_seqlist_purged_count",
+        "unit": "count",
+        "cbstat": "vb_{state}_seqlist_purged_count",
+        "prometheus": {
+            "family": "vb_seqlist_purged_count"
+        }
+    },
+    {
+        "key": "vb_seqlist_read_range_count",
+        "unit": "count",
+        "cbstat": "vb_{state}_seqlist_read_range_count",
+        "prometheus": {
+            "family": "vb_seqlist_read_range_count"
+        }
+    },
+    {
+        "key": "vb_seqlist_stale_count",
+        "unit": "count",
+        "cbstat": "vb_{state}_seqlist_stale_count",
+        "prometheus": {
+            "family": "vb_seqlist_stale_count"
+        }
+    },
+    {
+        "key": "vb_seqlist_stale_value_bytes",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_seqlist_stale_value_bytes",
+        "prometheus": {
+            "family": "vb_seqlist_stale_value"
+        }
+    },
+    {
+        "key": "vb_seqlist_stale_metadata_bytes",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_seqlist_stale_metadata_bytes",
+        "prometheus": {
+            "family": "vb_seqlist_stale_metadata"
+        }
+    },
+    {
+        "key": "connagg_connection_count",
+        "unit": "count",
+        "cbstat": "{connection_type}:count",
+        "prometheus": {
+            "family": "dcp_connection_count"
+        }
+    },
+    {
+        "key": "connagg_backoff",
+        "unit": "count",
+        "cbstat": "{connection_type}:backoff",
+        "prometheus": {
+            "family": "dcp_backoff"
+        }
+    },
+    {
+        "key": "connagg_producer_count",
+        "unit": "count",
+        "cbstat": "{connection_type}:producer_count",
+        "prometheus": {
+            "family": "dcp_producer_count"
+        }
+    },
+    {
+        "key": "connagg_items_sent",
+        "unit": "count",
+        "cbstat": "{connection_type}:items_sent",
+        "prometheus": {
+            "family": "dcp_items_sent"
+        }
+    },
+    {
+        "key": "connagg_items_remaining",
+        "unit": "count",
+        "cbstat": "{connection_type}:items_remaining",
+        "prometheus": {
+            "family": "dcp_items_remaining"
+        }
+    },
+    {
+        "key": "connagg_total_bytes",
+        "unit": "bytes",
+        "cbstat": "{connection_type}:total_bytes",
+        "prometheus": {
+            "family": "dcp_total_data_size"
+        }
+    },
+    {
+        "key": "connagg_total_uncompressed_data_size",
+        "unit": "bytes",
+        "cbstat": "{connection_type}:total_uncompressed_data_size",
+        "prometheus": {
+            "family": "dcp_total_uncompressed_data_size"
+        }
+    },
+    {
+        "key": "connagg_ready_queue_bytes",
+        "unit": "bytes",
+        "cbstat": "{connection_type}:ready_queue_bytes",
+        "prometheus": {
+            "family": "dcp_ready_queue_size"
+        }
+    },
+/* aggregated dcp producer stats */
+    {
+        "key": "dcp_count",
+        "unit": "count",
+        "cbstat": "ep_dcp_count",
+        "prometheus": false
+    },
+/* redundant in prometheus, is the sum
+ * of consumer and producer
+ */
+    {
+        "key": "dcp_consumer_count",
+        "unit": "count",
+        "cbstat": "ep_dcp_consumer_count",
+        "prometheus": {
+            "family": "dcp_count",
+            "labels": {
+                "type": "consumer"
+            }
+        }
+    },
+    {
+        "key": "dcp_producer_count",
+        "unit": "count",
+        "cbstat": "ep_dcp_producer_count",
+        "prometheus": {
+            "family": "dcp_count",
+            "labels": {
+                "type": "producer"
+            }
+        }
+    },
+    {
+        "key": "dcp_total_data_size",
+        "unit": "bytes",
+        "cbstat": "ep_dcp_total_bytes"
+    },
+    {
+        "key": "dcp_total_uncompressed_data_size",
+        "unit": "bytes",
+        "cbstat": "ep_dcp_total_uncompressed_data_size"
+    },
+    {
+        "key": "dcp_total_queue",
+        "unit": "count",
+        "cbstat": "ep_dcp_total_queue",
+        "prometheus": false
+    },
+/* derivable from fill and sent */
+    {
+        "key": "dcp_queue_fill",
+        "unit": "count",
+        "cbstat": "ep_dcp_queue_fill"
+    },
+    {
+        "key": "dcp_items_sent",
+        "unit": "count",
+        "cbstat": "ep_dcp_items_sent"
+    },
+    {
+        "key": "dcp_items_remaining",
+        "unit": "count",
+        "cbstat": "ep_dcp_items_remaining"
+    },
+    {
+        "key": "dcp_num_running_backfills",
+        "unit": "count",
+        "cbstat": "ep_dcp_num_running_backfills"
+    },
+    {
+        "key": "dcp_max_running_backfills",
+        "unit": "count",
+        "cbstat": "ep_dcp_max_running_backfills"
+    },
+    {
+        "key": "manifest_uid",
+        "unit": "none"
+    },
+    {
+        "key": "manifest_force",
+        "unit": "none",
+        "cbstat": "force"
+    },
+    {
+        "key": "collection_name",
+        "unit": "none",
+        "cbstat": "name"
+    },
+    {
+        "key": "collection_scope_name",
+        "unit": "none",
+        "cbstat": "scope_name"
+    },
+    {
+        "key": "collection_maxTTL",
+        "unit": "seconds",
+        "cbstat": "maxTTL"
+    },
+    {
+        "key": "scope_name",
+        "unit": "none",
+        "cbstat": "name"
+    },
+    {
+        "key": "scope_data_limit",
+        "unit": "none",
+        "cbstat": "data_limit"
+    },
+    {
+        "key": "scope_collection_count",
+        "unit": "count",
+        "cbstat": "collections"
+    },
+    {
+        "key": "collection_mem_used",
+        "unit": "bytes",
+        "cbstat": "collections_mem_used"
+    },
+    {
+        "key": "collection_item_count",
+        "unit": "count",
+        "cbstat": "items"
+    },
+    {
+        "key": "collection_data_size",
+        "unit": "bytes",
+        "cbstat": "data_size"
+    },
+    {
+        "key": "collection_ops_store",
+        "unit": "count",
+        "cbstat": "ops_store",
+        "prometheus": {
+            "family": "collection_ops",
+            "labels": {
+                "op": "store"
+            }
+        }
+    },
+    {
+        "key": "collection_ops_delete",
+        "unit": "count",
+        "cbstat": "ops_delete",
+        "prometheus": {
+            "family": "collection_ops",
+            "labels": {
+                "op": "delete"
+            }
+        }
+    },
+    {
+        "key": "collection_ops_get",
+        "unit": "count",
+        "cbstat": "ops_get",
+        "prometheus": {
+            "family": "collection_ops",
+            "labels": {
+                "op": "get"
+            }
+        }
+    }
+]

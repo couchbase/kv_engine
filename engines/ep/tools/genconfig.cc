@@ -23,7 +23,6 @@
 std::stringstream prototypes;
 std::stringstream initialization;
 std::stringstream implementation;
-std::stringstream stat_definitions;
 std::stringstream addStatImplementation;
 
 typedef std::string (*getValidatorCode)(const std::string&,
@@ -196,8 +195,6 @@ static void initialize() {
 using namespace std::string_literals;
 
 )";
-
-    stat_definitions << header;
 
     validators["range"] = getRangeValidatorCode;
     validators["enum"] = getEnumValidatorCode;
@@ -446,20 +443,6 @@ static void generate(const nlohmann::json& params, const std::string& key) {
                        << "}" << std::endl;
     }
 
-    // generate the stat definition for inclusion in stats.def.h
-    stat_definitions << "STAT(ep_" << key
-                     << ", , "
-                     // TODO MB-39505: units should be included for use in
-                     // Prometheus for now, use unit "none"
-                     << "none, , )" << std::endl;
-
-    if (hasAliases(json)) {
-        for (std::string alias : getAliases(json)) {
-            stat_definitions << "STAT(ep_" << alias << ", , none, , )"
-                             << std::endl;
-        }
-    }
-
     // collect all the aliases
     std::vector<std::string> names;
     if (hasAliases(json)) {
@@ -477,21 +460,18 @@ static void generate(const nlohmann::json& params, const std::string& key) {
 
 /**
  * Read "configuration.json" and generate getters and setters
- * for the parameters in there, and generate stat_config.def.h
- * to provide stat definitions.
+ * for the parameters in there.
  */
 int main(int argc, char **argv) {
-    if (argc < 5) {
-        std::cerr
-                << "Usage: " << argv[0] << " "
-                << "<input config file> <header> <source> <stat definitions>\n";
+    if (argc < 4) {
+        std::cerr << "Usage: " << argv[0] << " "
+                  << "<input config file> <header> <source>\n";
         return 1;
     }
 
     const char* file = argv[1];
     const char* header = argv[2];
     const char* source = argv[3];
-    const char* stats = argv[4];
 
     initialize();
 
@@ -539,13 +519,5 @@ int main(int argc, char **argv) {
              << addStatImplementation.str() << "}" << std::endl;
     implfile.close();
 
-    std::ofstream statsfile(stats);
-    if (!statsfile.is_open()) {
-        std::cerr << "Unable to create stat definition file : " << stats
-                  << std::endl;
-        return 1;
-    }
-    statsfile << stat_definitions.str() << std::endl;
-    statsfile.close();
     return 0;
 }
