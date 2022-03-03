@@ -127,6 +127,14 @@ public:
         runningCallback = callback;
     }
 
+    /**
+     * Take the cookies pending for this compaction. Used during bucket deletion
+     * to disconnect clients faster
+     *
+     * @return vector of cookies
+     */
+    std::vector<const CookieIface*> takeCookies();
+
 private:
     /**
      * @return a copy of the current config and clear rescheduleRequired

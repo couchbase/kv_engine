@@ -122,6 +122,14 @@ CompactionConfig CompactTask::runCompactionWithConfig(
     return lockedState->config;
 }
 
+std::vector<const CookieIface*> CompactTask::takeCookies() {
+    std::vector<const CookieIface*> ret;
+    auto lockedState = compaction.wlock();
+    lockedState->cookiesWaiting.swap(ret);
+
+    return ret;
+}
+
 bool StatSnap::run() {
     TRACE_EVENT0("ep-engine/task", "StatSnap");
     engine->getKVBucket()->snapshotStats(false /*shuttingDown*/);

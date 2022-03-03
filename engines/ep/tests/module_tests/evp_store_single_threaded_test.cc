@@ -5787,3 +5787,20 @@ TEST_P(STParamPersistentBucketTest, CancelCompactionOnCancelEWBCookies) {
         store->releaseBlockedCookies();
     });
 }
+
+TEST_P(STParamPersistentBucketTest,
+       PendingCompactionCookieNotifiedOnReleaseBlockedCookies) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    CompactionConfig config;
+    config.internally_requested = false;
+    auto* epBucket = dynamic_cast<EPBucket*>(store);
+    if (epBucket) {
+        epBucket->scheduleCompaction(
+                vbid, config, cookie, std::chrono::milliseconds(0));
+    }
+
+    store->releaseBlockedCookies();
+
+    EXPECT_EQ(cb::engine_errc::failed, mock_waitfor_cookie(cookie));
+}

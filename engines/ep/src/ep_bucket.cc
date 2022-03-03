@@ -2387,5 +2387,22 @@ void EPBucket::releaseBlockedCookies() {
     // were held pending if they were received before populateVBucketMap phase.
     stopWarmup();
 
+    // Abort any running compactions, there's no point running them for any
+    // external clients because we're disconnecting them.
     cancelEWBCompactionTasks = true;
+
+    // It's not enough to abort any running compactions though. We could have
+    // some waiting in the queue behind other tasks for other buckets which are
+    // not getting cancelled. As such, we should notify the cookies to
+    // disconnect them and let the tasks get cleaned up later.
+    auto compactionsHandle = compactionTasks.wlock();
+    for (auto& [vbid, task] : *compactionsHandle) {
+        auto cookies = task->takeCookies();
+        for (const auto& cookie : cookies) {
+            // The status doesn't really matter here, it gets returned as
+            // success if we are completing a blocked request but it feels wrong
+            // to return success here.
+            engine.notifyIOComplete(cookie, cb::engine_errc::failed);
+        }
+    }
 }
