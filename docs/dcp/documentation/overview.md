@@ -2,7 +2,7 @@
 
 ### Data Synchronization
 
-Data synchronization is an important part of any system that manages data, but its especially important in a distributed database. While a traditional databases rely on durability in order to prevent data loss during failures distributed databases rely on redundency of data by making sure that copies of the data are replicated to multiple servers. This allows a distributed system to prevent against against data loss in the face of node failures, rack failures and regional failures.
+Data synchronization is an important part of any system that manages data, but its especially important in a distributed database. While traditional databases rely on durability in order to prevent data loss during failures, distributed databases rely on redundency of data by making sure that copies of the data are replicated to multiple servers. This allows a distributed system to prevent against data loss in the face of node failures, rack failures and regional failures.
 
 The database is also the core of any datacenter deployment and the source of all information. The database however is typically not the only backend system in use and a data synchronization protocol is useful for keeping the data in all systems in the datacenter up to date with respect to the database. This is important both internally and externally to Couchbase. Internally Couchbase uses data synchronization to power its indexing, cross datacenter replication, and backup components. Externally the protocol can be used to move data into third-party systems such as Hadoop or ElasticSearch.
 
