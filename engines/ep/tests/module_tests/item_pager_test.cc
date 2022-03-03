@@ -775,7 +775,7 @@ TEST_P(STItemPagerTest, test_memory_limit) {
         ASSERT_EQ(cb::engine_errc::success, storeItem(item));
     }
 
-    if (std::get<0>(GetParam()) == "persistent") {
+    if (persistent()) {
         // flush so the HT item becomes clean
         flush_vbucket_to_disk(vbid);
 
@@ -817,11 +817,11 @@ TEST_P(STItemPagerTest, test_memory_limit) {
     // item_pager should be notified and ready to run
     runHighMemoryPager();
 
-    if (std::get<0>(GetParam()) == "persistent") {
+    if (persistent()) {
         EXPECT_EQ(1, stats.numValueEjects);
     }
 
-    if (std::get<1>(GetParam()) != "fail_new_data") {
+    if (ephemeralFailNewData()) {
         // Enough should of been freed so itemAllocate can succeed
         auto [status, item] =
                 engine->itemAllocate({"key2", DocKeyEncodesCollectionId::No},
@@ -2068,9 +2068,13 @@ public:
     static auto configValues() {
         return ::testing::Values(
 #ifdef EP_USE_MAGMA
-                std::make_tuple("persistent_magma"s, "value_only"s),
+                "bucket_type=persistent:"
+                "backend=magma:"
+                "item_eviction_policy=value_only"s,
 #endif
-                std::make_tuple("persistent_couchstore"s, "value_only"s));
+                "bucket_type=persistent:"
+                "backend=couchstore:"
+                "item_eviction_policy=value_only"s);
     }
 };
 

@@ -591,7 +591,6 @@ void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
     // Might be the case that running the couchstore full eviction variant
     // beforehand is breaking something.
 #ifdef THREAD_SANITIZER
-    auto bucketType = std::get<0>(GetParam());
     if (isRocksDB()) {
         return;
     }
@@ -1394,7 +1393,6 @@ void DurabilityEPBucketTest::verifyOnDiskItemCount(VBucket& vb,
                                                    uint64_t expectedValue) {
     // skip for rocksdb as it treats every mutation as an insertion
     // and so we would expect a different item count compared with couchstore
-    auto bucketType = std::get<0>(GetParam());
     if (isRocksDB()) {
         return;
     }
@@ -1405,7 +1403,6 @@ void DurabilityEPBucketTest::verifyCollectionItemCount(VBucket& vb,
                                                        CollectionID cID,
                                                        uint64_t expectedValue) {
     // skip for rocksdb as it dose not perform item counting for collections
-    auto bucketType = std::get<0>(GetParam());
     if (isRocksDB()) {
         return;
     }

@@ -776,7 +776,7 @@
             }
         },
         "max_checkpoints_hard_limit_multiplier" : {
-            "default": "10",
+            "default": "100",
             "descr": "Defines the actual max checkpoints (per vbucket) hard limit as (max_checkpoints * multiplier). The multiplier doesn't affect the auto checkpoint_max_size computation.",
             "dynamic": true,
             "type": "size_t",

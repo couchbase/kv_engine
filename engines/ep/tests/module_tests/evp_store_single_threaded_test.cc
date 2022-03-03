@@ -608,26 +608,7 @@ void STParameterizedBucketTest::SetUp() {
     if (!config_string.empty()) {
         config_string += ";";
     }
-    auto bucketType = std::get<0>(GetParam());
-    auto evictionPolicy = std::get<1>(GetParam());
-
-    // @TODO Remove the evictionPolicy param and rename bucketType when we
-    // finish moving the test config values to just be a config string
-    if (!bucketType.empty() &&
-        (evictionPolicy.empty() || evictionPolicy == "ignore")) {
-        config_string += sanitizeTestParamConfigString(bucketType);
-    } else {
-        config_string += generateBucketTypeConfig(bucketType);
-
-        if (!evictionPolicy.empty()) {
-            if (persistent()) {
-                config_string += ";item_eviction_policy=" + evictionPolicy;
-            } else {
-                config_string += ";ephemeral_full_policy=" + evictionPolicy;
-            }
-        }
-    }
-
+    config_string += sanitizeTestParamConfigString(GetParam());
     SingleThreadedKVBucketTest::SetUp();
 }
 
@@ -666,30 +647,23 @@ bool STParameterizedBucketTest::bloomFilterEnabled() const {
 /// @returns a string representing this tests' parameters.
 std::string STParameterizedBucketTest::PrintToStringParamName(
         const ::testing::TestParamInfo<ParamType>& info) {
-    auto bucket = std::get<0>(info.param);
-    auto evictionPolicy = std::get<1>(info.param);
+    auto config = info.param;
 
-    // @TODO Remove the evictionPolicy param and rename bucket when we finish
-    //  moving the test config values to just be a config string
-    if (evictionPolicy.empty()) {
-        // GTest does not like "=" or ":" symbols in these param name strings
-        // so we have to remove them. We'll also remove some redundant config
-        // names while we're at it to make reading the param names easier.
-        std::replace(bucket.begin(), bucket.end(), ':', '_');
-        bucket = std::regex_replace(bucket, std::regex("bucket_type="), "");
-        bucket = std::regex_replace(
-                bucket, std::regex("ephemeral_full_policy="), "");
-        bucket = std::regex_replace(
-                bucket, std::regex("item_eviction_policy="), "");
-        bucket = std::regex_replace(
-                bucket, std::regex("nexus_primary_backend="), "");
-        bucket = std::regex_replace(
-                bucket, std::regex("nexus_secondary_backend="), "");
-        bucket = std::regex_replace(bucket, std::regex("backend="), "");
-        return bucket;
-    }
-
-    return bucket + "_" + evictionPolicy;
+    // GTest does not like "=" or ":" symbols in these param name strings
+    // so we have to remove them. We'll also remove some redundant config
+    // names while we're at it to make reading the param names easier.
+    std::replace(config.begin(), config.end(), ':', '_');
+    config = std::regex_replace(config, std::regex("bucket_type="), "");
+    config = std::regex_replace(
+            config, std::regex("ephemeral_full_policy="), "");
+    config =
+            std::regex_replace(config, std::regex("item_eviction_policy="), "");
+    config = std::regex_replace(
+            config, std::regex("nexus_primary_backend="), "");
+    config = std::regex_replace(
+            config, std::regex("nexus_secondary_backend="), "");
+    config = std::regex_replace(config, std::regex("backend="), "");
+    return config;
 }
 
 /**
@@ -5812,4 +5786,21 @@ TEST_P(STParamPersistentBucketTest, CancelCompactionOnCancelEWBCookies) {
         // up the thread local we are running the test in.
         store->releaseBlockedCookies();
     });
+}
+
+TEST_P(STParamPersistentBucketTest,
+       PendingCompactionCookieNotifiedOnReleaseBlockedCookies) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    CompactionConfig config;
+    config.internally_requested = false;
+    auto* epBucket = dynamic_cast<EPBucket*>(store);
+    if (epBucket) {
+        epBucket->scheduleCompaction(
+                vbid, config, cookie, std::chrono::milliseconds(0));
+    }
+
+    store->releaseBlockedCookies();
+
+    EXPECT_EQ(cb::engine_errc::failed, mock_waitfor_cookie(cookie));
 }

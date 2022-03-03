@@ -11,7 +11,7 @@
 
 #include <logger/logger.h>
 
-void CancellableCPUExecutor::addWithTask(GlobalTask& task, folly::Func func) {
+void CancellableCPUExecutor::add(GlobalTask* task, folly::Func func) {
     tasks.enqueue(QueueElem(task, std::move(func)));
 
     cpuPool.add([this]() {
@@ -47,23 +47,43 @@ void CancellableCPUExecutor::addWithTask(GlobalTask& task, folly::Func func) {
 std::vector<GlobalTask*> CancellableCPUExecutor::removeTasksForTaskable(
         const Taskable& taskable) {
     std::vector<QueueElem> tasksToPushBack;
+    std::vector<QueueElem> tasksToRun;
     std::vector<GlobalTask*> tasksToCancel;
 
-    // Pop everything into our two vectors as appropriate so that we can
+    // Pop everything into our three vectors as appropriate so that we can
     // cancel the tasks for this taskable and reschedule the others. No
     // memory barriers needed here as we're only concerned with the tasks
     // queue at this point so release/acquire consistency is adequate.
     while (auto elem = tasks.try_dequeue()) {
-        if (elem && &elem->task.getTaskable() == &taskable &&
-            elem->task.isdead()) {
-            tasksToCancel.push_back(&elem->task);
-        } else {
+        if (elem) {
+            if (elem->isInternalExecutorTask()) {
+                // No task associated, must be a resetTaskPtr task, we need to
+                // run this now to get it out of the queue so that we can
+                // shutdown the bucket even if we are currently running long
+                // running tasks.
+                tasksToRun.push_back(std::move(*elem));
+                continue;
+            }
+
+            // We want to cancel anything that is associated with this taskable
+            // and already dead. If a task is not dead then it must be run
+            // before shutdown.
+            if (&elem->task->getTaskable() == &taskable &&
+                elem->task->isdead()) {
+                tasksToCancel.push_back(elem->task);
+                continue;
+            }
+
             tasksToPushBack.push_back(std::move(*elem));
         }
     }
 
+    for (auto& taskToRun : tasksToRun) {
+        taskToRun.func();
+    }
+
     for (auto& taskToPushBack : tasksToPushBack) {
-        addWithTask(taskToPushBack.task, std::move(taskToPushBack.func));
+        add(taskToPushBack.task, std::move(taskToPushBack.func));
     }
 
     return tasksToCancel;

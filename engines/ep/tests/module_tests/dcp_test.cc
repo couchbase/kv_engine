@@ -997,24 +997,14 @@ TEST_P(CompressionStreamTest, CompressionEnabled_NoValue) {
 }
 
 class ConnectionTest : public DCPTest,
-                       public ::testing::WithParamInterface<
-                               std::tuple<std::string, std::string>> {
+                       public ::testing::WithParamInterface<std::string> {
 protected:
     void SetUp() override {
         if (!config_string.empty()) {
             config_string += ";";
         }
 
-        if (std::get<1>(GetParam()).empty()) {
-            auto config = std::get<0>(GetParam());
-            config_string += sanitizeTestParamConfigString(config);
-        } else {
-            bucketType = std::get<0>(GetParam());
-            if (bucketType == "ephemeral") {
-                engine->getConfiguration().setEphemeralFullPolicy(
-                        std::get<1>(GetParam()));
-            }
-        };
+        config_string += sanitizeTestParamConfigString(GetParam());
 
         DCPTest::SetUp();
         vbid = Vbid(0);

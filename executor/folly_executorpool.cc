@@ -154,7 +154,7 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
         scheduledOnCpuPool = true;
 
         // Perform work on the appropriate CPU pool.
-        cpuPool.addWithTask(*task, [&proxy = *this] {
+        cpuPool.add(task.get(), [&proxy = *this] {
             Expects(proxy.task.get());
 
             LOG_TRACE("FollyExecutorPool: Run task \"{}\" id {}",
@@ -183,24 +183,44 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
         });
     }
 
-    void resetTaskPtr() {
-        using namespace std::chrono;
-
+    void resetTaskPtr(std::atomic<int>& pendingResets, bool resetOnScheduler) {
         LOG_TRACE(
-                "FollyExecutorPool::TaskProxy::resetTaskPtrViaCpuPool() id:{} "
+                "FollyExecutorPool::TaskProxy::resetTaskPtr() id:{} "
                 "name:{} descr:'{}' "
-                "enqueuing func to reset 'task' shared_ptr",
+                "enqueuing func to reset 'task' shared_ptr resetOnScheduler:{}",
                 task->getId(),
                 GlobalTask::getTaskName(task->getTaskId()),
-                task->getDescription());
+                task->getDescription(),
+                resetOnScheduler);
 
-        // Reset the shared_ptr, decrementing it's refcount and potentially
-        // deleting the owned object if no other objects (Engine etc) have
-        // retained a refcount.
-        // Must account this to the relevent bucket.
-        {
-            BucketAllocationGuard guard(task->getEngine());
-            task.reset();
+        using namespace std::chrono;
+
+        auto resetLambda = [ptrToReset = std::move(task),
+                            &pendingResets,
+                            resetOnScheduler]() mutable {
+            LOG_TRACE(
+                    "FollyExecutorPool::TaskProxy::resetTaskPtr() "
+                    "lambda() id:{} name:{} state:{} resetOnScheduler:{}",
+                    ptrToReset->getId(),
+                    GlobalTask::getTaskName(ptrToReset->getTaskId()),
+                    to_string(ptrToReset->getState()),
+                    resetOnScheduler);
+
+            // Reset the shared_ptr, decrementing it's refcount and potentially
+            // deleting the owned object if no other objects (Engine etc) have
+            // retained a refcount.
+            // Must account this to the relevent bucket.
+            {
+                BucketAllocationGuard guard(ptrToReset->getEngine());
+                ptrToReset.reset();
+                pendingResets--;
+            }
+        };
+
+        if (resetOnScheduler) {
+            resetLambda();
+        } else {
+            cpuPool.add(nullptr, std::move(resetLambda));
         }
     }
 
@@ -321,6 +341,10 @@ struct TaskOwner {
 
     /// Map of taskID to TaskProxy.
     TaskLocator locator;
+
+    /// Number of tasks which are pending reset (on the relevent CPU pool),
+    /// used to determine when it is safe for unregisterTaskable() to complete.
+    std::atomic<int> pendingTaskResets{0};
 };
 
 /// Map of task owners (buckets) to the tasks they own.
@@ -542,10 +566,16 @@ struct FollyExecutorPool::State {
                 // First cancel any pending timeout - shouldn't run again.
                 it->second->cancelTimeout();
 
+                // Increment count of tasks which are pending reset;
+                // we must wait for this to be zero (i.e. the reset has
+                // executed on the CPU pool) before a Taskable can
+                // be considered unregistered.
+                tasks.pendingTaskResets++;
+
                 // Next, to perform refcount drop, we reset the
                 // shared_ptr<GlobalTask> from TaskProxy to perform refcount
                 // decrement (and potential GlobalTask deletion).
-                it->second->resetTaskPtr();
+                it->second->resetTaskPtr(tasks.pendingTaskResets, force);
 
                 // We can now erase the TaxkProxy from taskOwners.
                 tasks.locator.erase(it);
@@ -561,11 +591,12 @@ struct FollyExecutorPool::State {
     }
 
     /**
-     * Returns the number of tasks owned by the specified taskable
+     * Returns the number of tasks owned by the specified taskable, plus
+     * any pending reset after being cancelled.
      */
     int numTasksForOwner(const Taskable& taskable) {
         auto& owner = taskOwners.at(&taskable);
-        return owner.locator.size();
+        return owner.locator.size() + owner.pendingTaskResets;
     };
 
     /**
