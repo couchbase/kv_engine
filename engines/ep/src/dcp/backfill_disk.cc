@@ -45,13 +45,13 @@ GetValue CacheCallback::get(VBucket& vb,
 void CacheCallback::callback(CacheLookup& lookup) {
     auto stream_ = streamPtr.lock();
     if (!stream_) {
-        setStatus(cb::engine_errc::success);
+        setStatus(cb::engine_errc::stream_not_found);
         return;
     }
 
     VBucketPtr vb = bucket.getVBucket(lookup.getVBucketId());
     if (!vb) {
-        setStatus(cb::engine_errc::success);
+        setStatus(cb::engine_errc::not_my_vbucket);
         return;
     }
 
@@ -94,7 +94,7 @@ DiskCallback::DiskCallback(std::shared_ptr<ActiveStream> s) : streamPtr(s) {
 void DiskCallback::callback(GetValue& val) {
     auto stream_ = streamPtr.lock();
     if (!stream_) {
-        setStatus(cb::engine_errc::success);
+        setStatus(cb::engine_errc::stream_not_found);
         return;
     }
 

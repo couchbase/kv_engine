@@ -2486,7 +2486,7 @@ std::unique_ptr<ByIdScanContext> NexusKVStore::initByIdScanContext(
             std::move(cb), std::move(cl), vbid, ranges, options, valOptions);
 }
 
-scan_error_t NexusKVStore::scan(BySeqnoScanContext& ctx) const {
+ScanStatus NexusKVStore::scan(BySeqnoScanContext& ctx) const {
     auto& nexusCtx = dynamic_cast<NexusKVStoreBySeqnoScanContext&>(ctx);
     auto& primaryCtx = *nexusCtx.primaryCtx;
     auto& secondaryCtx = *nexusCtx.secondaryCtx;
@@ -2582,7 +2582,7 @@ scan_error_t NexusKVStore::scan(BySeqnoScanContext& ctx) const {
     return primaryScanResult;
 }
 
-scan_error_t NexusKVStore::scan(ByIdScanContext& sctx) const {
+ScanStatus NexusKVStore::scan(ByIdScanContext& sctx) const {
     return primary->scan(sctx);
 }
 

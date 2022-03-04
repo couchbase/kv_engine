@@ -1844,13 +1844,10 @@ public:
 
     /// Remove a deleted-on-disk document from the VBucket's hashtable.
     void removeDeletedDoc(VBucket& vb, const Item& item) {
-        if (vb.removeItemFromMemory(item)) {
-            setStatus(cb::engine_errc::success);
-        } else {
-            // Document didn't exist in memory - may have been deleted in since
-            // the checkpoint.
-            setStatus(cb::engine_errc::no_such_key);
-        }
+        vb.removeItemFromMemory(item);
+        // If the doc was or was not in memory, still set status as success, the
+        // rollback can continue. !success here will cancel the scan
+        setStatus(cb::engine_errc::success);
     }
 
 private:
@@ -2109,18 +2106,22 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
     auto scanResult = kvStore->scan(*scanCtx);
 
     switch (scanResult) {
-    case scan_success:
+    case ScanStatus::Success:
         break;
-    case scan_again:
+    case ScanStatus::Yield:
         // If we abort our scan early due to reaching the HPS (by setting
         // storageCB.getStatus) then the scan result will be 'again' but we
         // will have scanned correctly.
         break;
-    case scan_failed: {
+    case ScanStatus::Failed: {
         EP_LOG_CRITICAL(
                 "EPBucket::loadPreparedSyncWrites: scan() failed for {}",
                 epVb.getId());
         return {0, 0, false};
+    }
+    case ScanStatus::Cancelled: {
+        // Cancelled is not expected as the callbacks never set a runtime error
+        Expects(ScanStatus::Cancelled != scanResult);
     }
     }
 

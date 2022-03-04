@@ -47,7 +47,7 @@ TEST_F(DCPBackfillDiskTest, ScanDiskError) {
     EXPECT_CALL(mockKVStore, initBySeqnoScanContext(_, _, _, _, _, _, _, _))
             .Times(1);
     EXPECT_CALL(mockKVStore, scan(An<BySeqnoScanContext&>()))
-            .WillOnce(Return(scan_failed));
+            .WillOnce(Return(ScanStatus::Failed));
 
     // Create producer now we have items only on disk.
     auto producer = std::make_shared<MockDcpProducer>(

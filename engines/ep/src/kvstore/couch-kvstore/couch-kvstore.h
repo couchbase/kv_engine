@@ -339,8 +339,8 @@ public:
             DocumentFilter options,
             ValueFilter valOptions) const override;
 
-    scan_error_t scan(BySeqnoScanContext& sctx) const override;
-    scan_error_t scan(ByIdScanContext& sctx) const override;
+    ScanStatus scan(BySeqnoScanContext& sctx) const override;
+    ScanStatus scan(ByIdScanContext& sctx) const override;
 
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) const override;
 

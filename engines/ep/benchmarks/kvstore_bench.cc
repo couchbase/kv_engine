@@ -179,7 +179,7 @@ BENCHMARK_DEFINE_F(KVStoreBench, Scan)(benchmark::State& state) {
         ASSERT_TRUE(scanContext);
 
         auto scanStatus = kvstore->scan(*scanContext);
-        ASSERT_EQ(scanStatus, scan_success);
+        ASSERT_EQ(scanStatus, ScanStatus::Success);
         const auto& callback = static_cast<const MockDiskCallback&>(
                 scanContext->getValueCallback());
 

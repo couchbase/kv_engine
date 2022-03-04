@@ -1479,9 +1479,9 @@ std::unique_ptr<BySeqnoScanContext> RocksDBKVStore::initBySeqnoScanContext(
                     /*no collections in rocksdb*/});
 }
 
-scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) const {
+ScanStatus RocksDBKVStore::scan(BySeqnoScanContext& ctx) const {
     if (ctx.lastReadSeqno == ctx.maxSeqno) {
-        return scan_success;
+        return ScanStatus::Success;
     }
 
     auto startSeqno = ctx.startSeqno;
@@ -1504,7 +1504,7 @@ scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) const {
     rocksdb::Slice startSeqnoSlice = getSeqnoSlice(&startSeqno);
     const auto vbh = getVBHandle(ctx.vbid);
     if (!vbh) {
-        return scan_failed;
+        return ScanStatus::Failed;
     }
     std::unique_ptr<rocksdb::Iterator> it(
             rdb->NewIterator(snapshotOpts, vbh->seqnoCFH.get()));
@@ -1597,21 +1597,25 @@ scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) const {
 
             ctx.getCacheCallback().callback(lookup);
 
-            auto status = cb::engine_errc{ctx.getCacheCallback().getStatus()};
+            auto status = ctx.getCacheCallback().getStatus();
             if (status == cb::engine_errc::key_already_exists) {
                 ctx.lastReadSeqno = byseqno;
                 continue;
             } else if (status == cb::engine_errc::no_memory) {
-                return scan_again;
+                return ScanStatus::Yield;
+            } else if (status != cb::engine_errc::success) {
+                return ScanStatus::Cancelled;
             }
         }
 
         GetValue rv(std::move(itm), cb::engine_errc::success, -1, onlyKeys);
         ctx.getValueCallback().callback(rv);
-        auto status = cb::engine_errc{ctx.getValueCallback().getStatus()};
+        auto status = ctx.getValueCallback().getStatus();
 
         if (status == cb::engine_errc::no_memory) {
-            return scan_again;
+            return ScanStatus::Yield;
+        } else if (status != cb::engine_errc::success) {
+            return ScanStatus::Cancelled;
         }
 
         ctx.lastReadSeqno = byseqno;
@@ -1619,7 +1623,7 @@ scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) const {
 
     cb_assert(it->status().ok()); // Check for any errors found during the scan
 
-    return scan_success;
+    return ScanStatus::Success;
 }
 
 bool RocksDBKVStore::getStatFromMemUsage(

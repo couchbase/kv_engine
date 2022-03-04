@@ -1713,13 +1713,13 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
     return {};
 }
 
-scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
+ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
     if (ctx.lastReadSeqno == ctx.maxSeqno) {
         logger->TRACE("MagmaKVStore::scan {} lastReadSeqno:{} == maxSeqno:{}",
                       ctx.vbid,
                       ctx.lastReadSeqno,
                       ctx.maxSeqno);
-        return scan_success;
+        return ScanStatus::Success;
     }
 
     auto startSeqno = ctx.startSeqno;
@@ -1820,7 +1820,18 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
                             ctx.vbid,
                             cb::UserData{diskKey.to_string()});
                 }
-                return scan_again;
+                return ScanStatus::Yield;
+            } else if (ctx.getCacheCallback().getStatus() !=
+                       cb::engine_errc::success) {
+                if (logger->should_log(spdlog::level::TRACE)) {
+                    logger->TRACE(
+                            "MagmaKVStore::scan lookup->callback {} "
+                            "key:{} returned {} -> ScanStatus::Cancelled",
+                            ctx.vbid,
+                            cb::UserData{diskKey.to_string()},
+                            to_string(ctx.getCacheCallback().getStatus()));
+                }
+                return ScanStatus::Cancelled;
             }
         }
 
@@ -1859,7 +1870,10 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
         GetValue rv(std::move(itm), cb::engine_errc::success, -1, onlyKeys);
         ctx.getValueCallback().callback(rv);
         auto callbackStatus = ctx.getValueCallback().getStatus();
-        if (callbackStatus == cb::engine_errc::no_memory) {
+        if (callbackStatus == cb::engine_errc::success) {
+            ctx.lastReadSeqno = seqno;
+            continue;
+        } else if (callbackStatus == cb::engine_errc::no_memory) {
             if (logger->should_log(spdlog::level::TRACE)) {
                 logger->TRACE(
                         "MagmaKVStore::scan callback {} "
@@ -1867,17 +1881,26 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
                         ctx.vbid,
                         cb::UserData{diskKey.to_string()});
             }
-            return scan_again;
+            return ScanStatus::Yield;
+        } else {
+            if (logger->should_log(spdlog::level::TRACE)) {
+                logger->TRACE(
+                        "MagmaKVStore::scan callback {} "
+                        "key:{} returned {} -> Aborted ",
+                        ctx.vbid,
+                        cb::UserData{diskKey.to_string()},
+                        to_string(callbackStatus));
+            }
+            return ScanStatus::Cancelled;
         }
-        ctx.lastReadSeqno = seqno;
     }
 
-    return scan_success;
+    return ScanStatus::Success;
 }
 
-scan_error_t MagmaKVStore::scan(ByIdScanContext& ctx) const {
+ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx) const {
     throw std::runtime_error("MagmaKVStore::scan (by id scan) unimplemented");
-    return scan_failed;
+    return ScanStatus::Failed;
 }
 
 void MagmaKVStore::mergeMagmaDbStatsIntoVBState(vbucket_state& vbstate,

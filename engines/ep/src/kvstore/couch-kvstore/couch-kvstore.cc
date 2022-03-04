@@ -2316,9 +2316,9 @@ static couchstore_docinfos_options getDocFilter(const DocumentFilter& filter) {
     throw std::runtime_error(err);
 }
 
-scan_error_t CouchKVStore::scan(BySeqnoScanContext& ctx) const {
+ScanStatus CouchKVStore::scan(BySeqnoScanContext& ctx) const {
     if (ctx.lastReadSeqno == ctx.maxSeqno) {
-        return scan_success;
+        return ScanStatus::Success;
     }
 
     TRACE_EVENT_START2("CouchKVStore",
@@ -2336,32 +2336,31 @@ scan_error_t CouchKVStore::scan(BySeqnoScanContext& ctx) const {
         start = ctx.lastReadSeqno + 1;
     }
 
-    couchstore_error_t errorCode;
-    errorCode = couchstore_changes_since(db,
-                                         start,
-                                         getDocFilter(ctx.docFilter),
-                                         bySeqnoScanCallback,
-                                         static_cast<void*>(&ctx));
+    couchstore_error_t errorCode =
+            couchstore_changes_since(db,
+                                     start,
+                                     getDocFilter(ctx.docFilter),
+                                     bySeqnoScanCallback,
+                                     static_cast<void*>(&ctx));
 
     TRACE_EVENT_END1(
             "CouchKVStore", "scan", "lastReadSeqno", ctx.lastReadSeqno);
 
-    if (errorCode != COUCHSTORE_SUCCESS) {
-        if (errorCode == COUCHSTORE_ERROR_CANCEL) {
-            return scan_again;
-        } else {
-            logger.warn(
-                    "CouchKVStore::scan couchstore_changes_since "
-                    "error:{} [{}]",
-                    couchstore_strerror(errorCode),
-                    couchkvstore_strerrno(db, errorCode));
-            return scan_failed;
-        }
+    if (errorCode == COUCHSTORE_SUCCESS) {
+        return ScanStatus::Success;
+    } else if (errorCode == COUCHSTORE_ERROR_SCAN_YIELD) {
+        return ScanStatus::Yield;
+    } else if (errorCode == COUCHSTORE_ERROR_SCAN_ABORTED) {
+        return ScanStatus::Cancelled;
     }
-    return scan_success;
+
+    logger.warn("CouchKVStore::scan couchstore_changes_since error:{} [{}]",
+                couchstore_strerror(errorCode),
+                couchkvstore_strerrno(db, errorCode));
+    return ScanStatus::Failed;
 }
 
-scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) const {
+ScanStatus CouchKVStore::scan(ByIdScanContext& ctx) const {
     TRACE_EVENT_START2("CouchKVStore",
                        "scan by id",
                        "vbid",
@@ -2392,7 +2391,7 @@ scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) const {
                                               byIdScanCallback,
                                               static_cast<void*>(&ctx));
         if (errorCode != COUCHSTORE_SUCCESS) {
-            if (errorCode == COUCHSTORE_ERROR_CANCEL) {
+            if (errorCode == COUCHSTORE_ERROR_SCAN_YIELD) {
                 // Update the startKey so backfill can resume from lastReadKey
                 range.startKey = ctx.lastReadKey;
             }
@@ -2405,24 +2404,23 @@ scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) const {
     TRACE_EVENT_END1(
             "CouchKVStore", "scan by id", "lastReadSeqno", ctx.lastReadSeqno);
 
-    if (errorCode != COUCHSTORE_SUCCESS) {
-        if (errorCode == COUCHSTORE_ERROR_CANCEL) {
-            return scan_again;
-        } else {
-            logger.warn(
-                    "CouchKVStore::scan couchstore_changes_since "
-                    "error:{} [{}]",
-                    couchstore_strerror(errorCode),
-                    couchkvstore_strerrno(db, errorCode));
-            // We don't know how many documents we _should_ have scanned,
-            // it could be 1, could be many more; so just count as a single
-            // "get" failure to the error is propogated up to ns_server (and
-            // can potentially be used to trigger auto-failover).
-            st.numGetFailure++;
-            return scan_failed;
-        }
+    if (errorCode == COUCHSTORE_SUCCESS) {
+        return ScanStatus::Success;
+    } else if (errorCode == COUCHSTORE_ERROR_SCAN_YIELD) {
+        return ScanStatus::Yield;
+    } else if (errorCode == COUCHSTORE_ERROR_SCAN_ABORTED) {
+        return ScanStatus::Cancelled;
     }
-    return scan_success;
+
+    logger.warn("CouchKVStore::scan couchstore_docinfos_by_id error:{} [{}]",
+                couchstore_strerror(errorCode),
+                couchkvstore_strerrno(db, errorCode));
+    // We don't know how many documents we _should_ have scanned, it could be 1,
+    // could be many more; so just count as a single  "get" failure to the error
+    // is propagated up to ns_server (and can potentially be used to trigger
+    // auto-failover).
+    st.numGetFailure++;
+    return ScanStatus::Failed;
 }
 
 cb::couchstore::Header CouchKVStore::getDbInfo(Vbid vbid) {
@@ -2828,13 +2826,14 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
         CacheLookup lookup(diskKey, byseqno, vbucketId);
 
         cl.callback(lookup);
-        if (cb::engine_errc{cl.getStatus()} ==
-            cb::engine_errc::key_already_exists) {
+        if (cl.getStatus() == cb::engine_errc::key_already_exists) {
             sctx->lastReadSeqno = byseqno;
             return COUCHSTORE_SUCCESS;
-        } else if (cb::engine_errc{cl.getStatus()} ==
-                   cb::engine_errc::no_memory) {
-            return COUCHSTORE_ERROR_CANCEL;
+        } else if (cl.getStatus() != cb::engine_errc::success) {
+            if (cl.getStatus() == cb::engine_errc::no_memory) {
+                return COUCHSTORE_ERROR_SCAN_YIELD;
+            }
+            return COUCHSTORE_ERROR_SCAN_ABORTED;
         }
     }
 
@@ -2888,8 +2887,11 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
 
     couchstore_free_document(doc);
 
-    if (cb::engine_errc{cb.getStatus()} == cb::engine_errc::no_memory) {
-        return COUCHSTORE_ERROR_CANCEL;
+    if (cb.getStatus() != cb::engine_errc::success) {
+        if (cb.getStatus() == cb::engine_errc::no_memory) {
+            return COUCHSTORE_ERROR_SCAN_YIELD;
+        }
+        return COUCHSTORE_ERROR_SCAN_ABORTED;
     }
 
     sctx->lastReadSeqno = byseqno;
@@ -2898,7 +2900,7 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
 
 static int byIdScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     auto status = couchstore_error_t(bySeqnoScanCallback(db, docinfo, ctx));
-    if (status == COUCHSTORE_ERROR_CANCEL) {
+    if (status == COUCHSTORE_ERROR_SCAN_YIELD) {
         auto* sctx = static_cast<ByIdScanContext*>(ctx);
         // save the resume point
         sctx->lastReadKey = makeDiskDocKey(docinfo->id);
@@ -3781,9 +3783,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
         return RollbackResult(false);
     }
 
-    scan_error_t error = scan(*ctx);
-
-    if (error != scan_success) {
+    if (scan(*ctx) != ScanStatus::Success) {
         return RollbackResult(false);
     }
 
@@ -3817,8 +3817,9 @@ int populateAllKeys(Db* db, DocInfo* docinfo, void* ctx) {
     auto* allKeysCtx = static_cast<AllKeysCtx*>(ctx);
     auto key = makeDiskDocKey(docinfo->id);
     allKeysCtx->cb->callback(key);
-    return allKeysCtx->cb->getStatus() != cb::engine_errc::success ? COUCHSTORE_ERROR_CANCEL
-                                       : COUCHSTORE_SUCCESS;
+    return allKeysCtx->cb->getStatus() != cb::engine_errc::success
+                   ? COUCHSTORE_ERROR_CANCEL
+                   : COUCHSTORE_SUCCESS;
 }
 
 cb::engine_errc CouchKVStore::getAllKeys(

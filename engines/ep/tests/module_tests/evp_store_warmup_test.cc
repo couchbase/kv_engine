@@ -2938,7 +2938,7 @@ protected:
                                 initBySeqnoScanContext(_, _, _, _, _, _, _, _))
                             .Times(1);
                     EXPECT_CALL(mockKVStore, scan(An<BySeqnoScanContext&>()))
-                            .WillOnce(Return(scan_failed));
+                            .WillOnce(Return(ScanStatus::Failed));
                     break;
                 }
 

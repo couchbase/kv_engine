@@ -339,7 +339,7 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(
             SnapshotSource::Head);
 
     ASSERT_TRUE(scanCtx);
-    EXPECT_EQ(scan_success, kvstore2->scan(*scanCtx));
+    EXPECT_EQ(ScanStatus::Success, kvstore2->scan(*scanCtx));
 
     const auto& cl = static_cast<const CollectionsOfflineUpgradeCallback&>(
             scanCtx->getCacheCallback());
@@ -447,7 +447,7 @@ TEST_F(CouchKVStoreTest, OpenHistoricalSnapshot) {
                 ValueFilter::VALUES_DECOMPRESSED,
                 SnapshotSource::Historical);
         ASSERT_TRUE(ctx);
-        ASSERT_EQ(scan_success, kvstore->scan(*ctx));
+        ASSERT_EQ(ScanStatus::Success, kvstore->scan(*ctx));
         ASSERT_EQ(1, byIdSeqnos.size());
         ASSERT_EQ(ii, byIdSeqnos.front());
     }

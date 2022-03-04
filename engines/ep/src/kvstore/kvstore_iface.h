@@ -60,7 +60,14 @@ enum class ValueFilter {
     VALUES_DECOMPRESSED
 };
 
-enum scan_error_t { scan_success, scan_again, scan_failed };
+enum class ScanStatus {
+    Success, // reached the end
+    Yield, // scan should yield and resume later
+    Cancelled, // scan cannot continue and is cancelled
+    Failed, // some critical failure occurred, e.g. a fatal system call error
+};
+
+std::ostream& operator<<(std::ostream& os, ScanStatus);
 
 enum class DocumentFilter {
     ALL_ITEMS,
@@ -501,14 +508,14 @@ public:
      * @param sctx non-const reference to the context, internal callbacks may
      *        write to the object as progress is made through the scan
      */
-    virtual scan_error_t scan(BySeqnoScanContext& sctx) const = 0;
+    virtual ScanStatus scan(BySeqnoScanContext& sctx) const = 0;
 
     /**
      * Run a ById scan
      * @param sctx non-const reference to the context, internal callbacks may
      *        write to the object as progress is made through the scan
      */
-    virtual scan_error_t scan(ByIdScanContext& sctx) const = 0;
+    virtual ScanStatus scan(ByIdScanContext& sctx) const = 0;
 
     /**
      * Obtain a KVFileHandle which holds the KVStore implementation's handle

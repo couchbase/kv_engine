@@ -203,7 +203,7 @@ TEST_P(KVStoreParamTestSkipRocks, CompressedTest) {
             SnapshotSource::Head);
 
     ASSERT_TRUE(scanCtx);
-    EXPECT_EQ(scan_success, kvstore->scan(*scanCtx));
+    EXPECT_EQ(ScanStatus::Success, kvstore->scan(*scanCtx));
 }
 
 MATCHER(IsDatatypeSnappy,
@@ -254,7 +254,7 @@ TEST_P(KVStoreParamTestSkipRocks, ZeroSizeValueNotCompressed) {
             SnapshotSource::Head);
 
     ASSERT_TRUE(scanCtx);
-    EXPECT_EQ(scan_success, kvstore->scan(*scanCtx));
+    EXPECT_EQ(ScanStatus::Success, kvstore->scan(*scanCtx));
 }
 
 class PersistenceCallbacks {
@@ -806,7 +806,7 @@ TEST_P(KVStoreParamTest, DelVBucketWhileScanning) {
     // Begin the scan, which should pause after first item, before the second
     // (so we know the underlying KVStore has definately started iterating on
     // the disk structures).
-    EXPECT_EQ(scan_again, kvstore->scan(*scanCtx));
+    EXPECT_EQ(ScanStatus::Yield, kvstore->scan(*scanCtx));
 
     // Delete the vBucket
     kvstore->delVBucket(vbid, kvstore->prepareToDelete(vbid));
@@ -1514,6 +1514,86 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
     // remaining keys that would have been returned so this test should
     // be verifying that we haven't lost the original snapshot of the scan.
     EXPECT_EQ(callback->nItems, 2);
+}
+
+TEST_P(KVStoreParamTest, ScanAborted) {
+    uint64_t seqno = 1;
+
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+    for (int j = 0; j < 2; j++) {
+        auto key = makeStoredDocKey("key" + std::to_string(j));
+        auto qi = makeCommittedItem(key, "value");
+        qi->setBySeqno(seqno++);
+        kvstore->set(*ctx, qi);
+    }
+    // Need a valid snap end for couchstore
+    flush.proposedVBState.lastSnapEnd = seqno - 1;
+
+    kvstore->commit(std::move(ctx), flush);
+
+    class ValueCallBack : public StatusCallback<GetValue> {
+    public:
+        ValueCallBack(bool doNotFail) : doNotFail(doNotFail) {
+        }
+
+        void callback(GetValue& result) override {
+            if (doNotFail) {
+                setStatus(cb::engine_errc::success);
+            } else {
+                EXPECT_EQ(0, calls);
+                ++calls;
+                setStatus(cb::engine_errc::not_my_vbucket);
+            }
+        }
+
+        bool doNotFail{false};
+        int calls{0};
+    };
+
+    class CacheCallBack : public StatusCallback<CacheLookup> {
+    public:
+        CacheCallBack(bool doNotFail) : doNotFail(doNotFail) {
+        }
+        void callback(CacheLookup& lookup) override {
+            if (doNotFail) {
+                setStatus(cb::engine_errc::success);
+            } else {
+                EXPECT_EQ(0, calls);
+                ++calls;
+                setStatus(cb::engine_errc::not_my_vbucket);
+            }
+        }
+        bool doNotFail{false};
+        int calls{0};
+    };
+
+    auto cb = std::make_unique<ValueCallBack>(true);
+    auto cl = std::make_unique<CacheCallBack>(false);
+    auto scanCtx =
+            kvstore->initBySeqnoScanContext(std::move(cb),
+                                            std::move(cl),
+                                            vbid,
+                                            1,
+                                            DocumentFilter::ALL_ITEMS,
+                                            ValueFilter::VALUES_COMPRESSED,
+                                            SnapshotSource::Head);
+
+    ASSERT_NE(nullptr, scanCtx);
+    EXPECT_EQ(ScanStatus::Cancelled, kvstore->scan(*scanCtx));
+
+    // Now test the other callback aborts
+    cb = std::make_unique<ValueCallBack>(false);
+    cl = std::make_unique<CacheCallBack>(true);
+    scanCtx = kvstore->initBySeqnoScanContext(std::move(cb),
+                                              std::move(cl),
+                                              vbid,
+                                              1,
+                                              DocumentFilter::ALL_ITEMS,
+                                              ValueFilter::VALUES_COMPRESSED,
+                                              SnapshotSource::Head);
+
+    ASSERT_NE(nullptr, scanCtx);
+    EXPECT_EQ(ScanStatus::Cancelled, kvstore->scan(*scanCtx));
 }
 
 TEST_P(KVStoreParamTest, GetBySeqno) {

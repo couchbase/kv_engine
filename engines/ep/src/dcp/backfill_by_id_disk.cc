@@ -129,23 +129,37 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
     const auto* kvstore = bucket.getROUnderlying(getVBucketId());
     Expects(kvstore);
 
-    scan_error_t error = kvstore->scan(static_cast<ByIdScanContext&>(*scanCtx));
-
-    if (error == scan_again) {
+    switch (kvstore->scan(static_cast<ByIdScanContext&>(*scanCtx))) {
+    case ScanStatus::Success:
+        transitionState(backfill_state_completing);
         return backfill_success;
+    case ScanStatus::Yield:
+        // Scan should run again (e.g. was paused by callback)
+        return backfill_success;
+    case ScanStatus::Cancelled:
+        // Aborted as vbucket/stream have gone away, normal behaviour
+        complete(true);
+        return backfill_finished;
+    case ScanStatus::Failed:
+        // Scan did not complete successfully. Propagate error to stream.
+        stream->log(spdlog::level::err,
+                    "DCPBackfillByIdDisk::scan(): ({}, {}) Scan failed Setting "
+                    "stream to dead state.",
+                    getVBucketId(),
+                    cid.to_string());
+        stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
+        return backfill_finished;
     }
 
-    transitionState(backfill_state_completing);
-
-    return backfill_success;
+    folly::assume_unreachable();
 }
 
 void DCPBackfillByIdDisk::complete(bool cancelled) {
     auto stream = streamPtr.lock();
     if (!stream) {
-        EP_LOG_WARN(
+        EP_LOG_INFO(
                 "DCPBackfillByIdDisk::complete(): "
-                "({}) backfill create ended prematurely as the associated "
+                "({}) backfill ended prematurely as the associated "
                 "stream is deleted by the producer conn; {}",
                 getVBucketId(),
                 cancelled ? "cancelled" : "finished");

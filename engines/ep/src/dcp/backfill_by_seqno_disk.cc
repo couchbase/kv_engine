@@ -176,17 +176,20 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
 
     auto& bySeqnoCtx = dynamic_cast<BySeqnoScanContext&>(*scanCtx);
     switch (kvstore->scan(bySeqnoCtx)) {
-    case scan_success:
+    case ScanStatus::Success:
         stream->setBackfillScanLastRead(scanCtx->lastReadSeqno);
         transitionState(backfill_state_completing);
         return backfill_success;
-    case scan_again:
+    case ScanStatus::Yield:
         // Scan should run again (e.g. was paused by callback)
         return backfill_success;
-    case scan_failed:
+    case ScanStatus::Cancelled:
+        // Aborted as vbucket/stream have gone away, normal behaviour
+        complete(true);
+        return backfill_finished;
+    case ScanStatus::Failed:
         // Scan did not complete successfully. Backfill is missing data,
-        // propogate error to stream and (unsuccessfully) finish scan.
-
+        // propagate error to stream and (unsuccessfully) finish scan.
         stream->log(spdlog::level::err,
                     "DCPBackfillBySeqnoDisk::create(): ({}, startSeqno:{}, "
                     "maxSeqno:{}) Scan failed at lastReadSeqno:{}. Setting "
@@ -205,7 +208,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
 void DCPBackfillBySeqnoDisk::complete(bool cancelled) {
     auto stream = streamPtr.lock();
     if (!stream) {
-        EP_LOG_WARN(
+        EP_LOG_INFO(
                 "DCPBackfillBySeqnoDisk::complete(): "
                 "({}) backfill create ended prematurely as the associated "
                 "stream is deleted by the producer conn; {}",
@@ -520,7 +523,7 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
     scanForHighestCommitttedItem->maxSeqno = endSeqnoForScan;
 
     const auto scanStatus = kvs.scan(*scanForHighestCommitttedItem);
-    if (scanStatus == scan_failed) {
+    if (scanStatus == ScanStatus::Failed) {
         // scan_again can be returned, but that is expected when the scan goes
         // past the end default collection high seqno
         stream.setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);

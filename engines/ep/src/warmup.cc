@@ -538,16 +538,16 @@ bool WarmupVbucketVisitor::visit(VBucket& vb) {
 
     ep.getEPEngine().hangWarmupHook();
 
-    auto errorCode = kvstore->scan(*currentScanCtx);
-    switch (errorCode) {
-    case scan_success:
+    auto scanStatus = kvstore->scan(*currentScanCtx);
+    switch (scanStatus) {
+    case ScanStatus::Success:
         // Finished backfill for this vbucket so we need to reset the scan ctx,
         // so that we can create a scan ctx for the next vbucket.
         currentScanCtx.reset();
         needToScanAgain = false;
         return true;
 
-    case scan_again:
+    case ScanStatus::Yield:
         needToScanAgain = kvCallback.isPausedDueToDeadLine();
         // if the 'scan_again' was due to a OOM (e.i. not due to our deadline
         // being met)causing warmup to be completed then log this and return
@@ -567,15 +567,18 @@ bool WarmupVbucketVisitor::visit(VBucket& vb) {
         }
         return !needToScanAgain;
 
-    case scan_failed:
+    case ScanStatus::Cancelled:
+        // Cancelled is unexpected
+    case ScanStatus::Failed:
         // Disk error scanning keys - cannot continue warmup.
         currentScanCtx.reset();
         throw std::runtime_error(fmt::format(
                 "WarmupVbucketVisitor::visit(): {} shardId:{} failed to "
-                "scan BySeqnoScanContext, for backfill task:'{}'",
+                "scan BySeqnoScanContext, for backfill task:'{}' {}",
                 vb.getId(),
                 backfillTask.getShardId(),
-                backfillTask.getDescription()));
+                backfillTask.getDescription(),
+                scanStatus));
     }
     folly::assume_unreachable();
 }

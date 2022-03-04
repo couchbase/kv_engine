@@ -675,3 +675,17 @@ std::ostream& operator<<(std::ostream& os, const DocumentFilter& df) {
     }
     return os;
 }
+
+std::ostream& operator<<(std::ostream& os, ScanStatus status) {
+    switch (status) {
+    case ScanStatus::Success:
+        return os << "ScanStatus::Success";
+    case ScanStatus::Yield:
+        return os << "ScanStatus::Yield";
+    case ScanStatus::Cancelled:
+        return os << "ScanStatus::Cancelled";
+    case ScanStatus::Failed:
+        return os << "ScanStatus::Failed";
+    }
+    folly::assume_unreachable();
+}
