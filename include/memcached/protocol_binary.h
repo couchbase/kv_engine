@@ -699,6 +699,14 @@ protected:
  * the server returns cb::engine_errc::rollback error.
  */
 #define DCP_ADD_STREAM_STRICT_VBUUID 32
+
+/**
+ * Request that the server sets the start-seqno to the vbucket high-seqno. The
+ * client is stating they have no DCP history and are not resuming, thus the
+ * input snapshot start/end and UUID are ignored.
+ * Only supported for stream_request (produce from latest)
+ */
+#define DCP_ADD_STREAM_FLAG_FROM_LATEST 64
     uint32_t flags = 0;
 };
 static_assert(sizeof(DcpAddStreamPayload) == 4, "Unexpected struct size");

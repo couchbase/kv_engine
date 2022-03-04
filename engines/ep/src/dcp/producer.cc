@@ -302,6 +302,14 @@ cb::engine_errc DcpProducer::streamRequest(
         return cb::engine_errc::not_my_vbucket;
     }
 
+    auto highSeqno = vb->getHighSeqno();
+    if (flags & DCP_ADD_STREAM_FLAG_FROM_LATEST) {
+        start_seqno = snap_start_seqno = snap_end_seqno = highSeqno;
+        if (vbucket_uuid == 0) {
+            vbucket_uuid = vb->failovers->getLatestUUID();
+        }
+    }
+
     // check for mandatory noop
     if ((includeXattrs == IncludeXattrs::Yes) || json.has_value()) {
         if (!noopCtx.enabled &&
@@ -445,7 +453,7 @@ cb::engine_errc DcpProducer::streamRequest(
             vb->failovers->getFailoverLog();
 
     if (flags & DCP_ADD_STREAM_FLAG_TO_LATEST) {
-        end_seqno = vb->getHighSeqno();
+        end_seqno = highSeqno;
     }
 
     if (flags & DCP_ADD_STREAM_FLAG_DISKONLY) {

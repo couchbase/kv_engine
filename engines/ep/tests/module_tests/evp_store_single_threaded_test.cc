@@ -5806,3 +5806,45 @@ TEST_P(STParamPersistentBucketTest,
 
     EXPECT_EQ(cb::engine_errc::failed, mock_waitfor_cookie(cookie));
 }
+
+TEST_P(STParameterizedBucketTest, DcpStartFromLatestSeqno) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    store_item(vbid, makeStoredDocKey("seqno1"), "value");
+    store_item(vbid, makeStoredDocKey("seqno2"), "value");
+
+    auto cookie = create_mock_cookie(engine.get());
+    auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+    MockDcpMessageProducers producers;
+
+    uint64_t rollbackSeqno;
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->streamRequest(DCP_ADD_STREAM_FLAG_FROM_LATEST,
+                                      1, // opaque
+                                      vbid,
+                                      0, // start_seqno
+                                      ~0ull, // end_seqno
+                                      0, // vbucket_uuid,
+                                      0, // snap_start_seqno,
+                                      0, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      &dcpAddFailoverLog,
+                                      {}));
+
+    // First mutation to receive
+    store_item(vbid, makeStoredDocKey("seqno3"), "value");
+
+    notifyAndStepToCheckpoint(*producer,
+                              producers,
+                              cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                              true /*inmemory*/);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(3, producers.last_byseqno);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ("seqno3", producers.last_key);
+    destroy_mock_cookie(cookie);
+    producer->closeAllStreams();
+    producer->cancelCheckpointCreatorTask();
+    producer.reset();
+}

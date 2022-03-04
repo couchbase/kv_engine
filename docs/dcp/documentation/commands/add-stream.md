@@ -22,10 +22,11 @@ following bits defined:
 
 * 0x01 (Takeover) - Specifies that the stream should send over all remaining data to the remote node and then set the remote nodes vbucket to active state and the source nodes vbucket to dead.
 * 0x02 (Disk Only) - Specifies that the stream should only send items only if they are on disk. The first item sent is specified by the start sequence number and items will be sent up to the sequence number specified by the end sequence number or the last on disk item when the stream is created.
-* 0x04 (Latest) - Specifies that the server should stream all mutations up to the current sequence number for that VBucket. The server will overwrite the value of the end sequence number field with the value of the latest sequence number.
+* 0x04 (To Latest) - Specifies that the server should stream all mutations up to the current sequence number for that VBucket. The server will overwrite the value of the end sequence number field with the value of the latest sequence number.
 * 0x08 (Removed in 5.0, use the NO_VALUE flag in DCP Open instead) (No Value) - Specifies that the server should stream only item key and metadata in the mutations and not stream the value of the item.
 * 0x10 (Active VB Only) - Specifies that the server should add stream only if the vbucket is active. If the vbucket is not active, the request fails with error ENGINE_NOT_MY_VBUCKET. This flag was added in Couchbase Server 5.0.
 * 0x20 (Strict VBUUID match) - Specifies that the server should check for vb_uuid match even at start_seqno 0 before adding the stream. Upon mismatch the sever should return ENGINE_ROLLBACK error.
+* 0x40 (From Latest) - Specifies that the server should stream mutations from the current sequence number, this means the start parameter is ignored.
 
 The following example shows the breakdown of the message:
 
