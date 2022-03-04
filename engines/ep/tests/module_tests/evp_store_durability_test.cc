@@ -3158,13 +3158,25 @@ void DurabilityCouchstoreBucketTest::
     setupSyncWritePrepareWithoutOnDiskPrepareBytes(
             "key", "value", removePrepareBytes);
 
+    auto& kvstore = dynamic_cast<CouchKVStore&>(*store->getOneRWUnderlying());
+    ASSERT_EQ(2, kvstore.getItemCount(vbid));
+
+    {
+        const auto* vbstateCached = kvstore.getCachedVBucketState(vbid);
+        EXPECT_EQ(1, vbstateCached->onDiskPrepares);
+        EXPECT_EQ(0, vbstateCached->getOnDiskPrepareBytes());
+
+        const auto vbstateDisk = kvstore.getPersistedVBucketState(vbid);
+        EXPECT_EQ(1, vbstateDisk.onDiskPrepares);
+        EXPECT_EQ(0, vbstateDisk.getOnDiskPrepareBytes());
+    }
+
     // Trigger compaction
     CompactionConfig config;
     auto cctx = std::make_shared<CompactionContext>(
             store->getVBucket(vbid), config, 0);
     cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
-    auto& kvstore = dynamic_cast<CouchKVStore&>(*store->getOneRWUnderlying());
     {
         auto vb = store->getLockedVBucket(vbid);
         EXPECT_EQ(CompactDBStatus::Success,
@@ -3172,11 +3184,29 @@ void DurabilityCouchstoreBucketTest::
     }
 
     // Check onDiskPrepares is updated correctly after compaction.
-    EXPECT_EQ(1, kvstore.getItemCount(vbid));
     const auto* vbstateCached = kvstore.getCachedVBucketState(vbid);
+    const auto vbstateDisk = kvstore.getPersistedVBucketState(vbid);
+
+    if (isPitrEnabled()) {
+        // The prepare is typically purged by compaction but with PiTR we have
+        // some extra criteria to hit that we don't in this test. As such, the
+        // prepare is still present on disk for PiTR tests.
+        EXPECT_EQ(2, kvstore.getItemCount(vbid));
+        EXPECT_EQ(1, vbstateCached->onDiskPrepares);
+        if (removePrepareBytes) {
+            EXPECT_EQ(0, vbstateCached->getOnDiskPrepareBytes());
+        } else {
+            EXPECT_NE(0, vbstateCached->getOnDiskPrepareBytes());
+        }
+
+        return;
+    }
+
+    EXPECT_EQ(1, kvstore.getItemCount(vbid));
+
     EXPECT_EQ(0, vbstateCached->onDiskPrepares);
     EXPECT_EQ(0, vbstateCached->getOnDiskPrepareBytes());
-    const auto vbstateDisk = kvstore.getPersistedVBucketState(vbid);
+
     EXPECT_EQ(0, vbstateDisk.onDiskPrepares);
     EXPECT_EQ(0, vbstateDisk.getOnDiskPrepareBytes());
 }
@@ -5034,9 +5064,14 @@ TEST_P(DurabilityEphemeralBucketTest, GetRandomCompletedPrepare) {
 }
 
 // Test cases which run against couchstore
-INSTANTIATE_TEST_SUITE_P(AllBackends,
+INSTANTIATE_TEST_SUITE_P(CouchstoreOnly,
                          DurabilityCouchstoreBucketTest,
                          STParameterizedBucketTest::couchstoreConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(CouchstoreOnlyPitrEnabled,
+                         DurabilityCouchstoreBucketTest,
+                         STParameterizedBucketTest::pitrEnabledConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 // Test cases which run against all persistent storage backends.
