@@ -113,8 +113,12 @@ TEST_P(CheckpointDurabilityTest,
                                      HasOperation(queue_op::checkpoint_end),
                                      HasOperation(queue_op::checkpoint_start),
                                      HasOperation(queue_op::mutation)));
-    // Verify: Should not have de-duplicated, should be in two checkpoints
-    EXPECT_EQ(2, manager->getNumCheckpoints());
+    // Verify: Should not have de-duplicated, items were in two different
+    // checkpoints but cursor move has allowed closed/unref checkpoint removal,
+    // so num-checkpoint down to 1 again. Core of the test here is that only 1
+    // item is in the open checkpoint, implying that previous mutation was in
+    // the removed checkpoint.
+    EXPECT_EQ(1, manager->getNumCheckpoints());
     EXPECT_EQ(1, manager->getNumOpenChkItems());
 }
 

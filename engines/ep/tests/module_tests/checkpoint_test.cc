@@ -36,11 +36,6 @@
 #define DCP_CURSOR_PREFIX "dcp-client-"
 
 void CheckpointTest::SetUp() {
-    // disable eager checkpoint removal - these tests cover the "original"
-    // lazy behaviour, and should continue to guard it.
-    // EagerCheckpointDisposalTest covers eager tests.
-    config.parseConfiguration("checkpoint_removal_mode=lazy",
-                              get_mock_server_api());
     checkpoint_config = std::make_unique<CheckpointConfig>(config);
     VBucketTest::SetUp();
     createManager();
@@ -441,14 +436,19 @@ TEST_P(CheckpointTest, ItemBasedCheckpointCreation) {
     EXPECT_FALSE(result.highCompletedSeqno);
     EXPECT_EQ(24, items.size());
 
-    // Should still have the same number of checkpoints and open items.
-    EXPECT_EQ(2, this->manager->getNumCheckpoints());
-    EXPECT_EQ(11, this->manager->getNumOpenChkItems());
+    // Cursor-move has allowed closed/unref checkpoint removal.
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    // Open checkpoint items unchanged
+    EXPECT_EQ(11, manager->getNumOpenChkItems());
 
-    // But adding a new item will create a new one.
-    EXPECT_TRUE(this->queueNewItem("key_epoch3"));
-    EXPECT_EQ(3, this->manager->getNumCheckpoints());
-    EXPECT_EQ(1, this->manager->getNumOpenChkItems()); // 1x op_set
+    // Adding a new item will create a new checkpoint -> +1
+    // But the same operation moves the cursor into the new open checkpoint, as
+    // cursor was is at the end of the old one. That allows to remove the old
+    // checkpoint that is now closed/unref -> -1
+    // So in the end the number of checkpoints stays unchanged
+    EXPECT_TRUE(queueNewItem("key_epoch3"));
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(1, manager->getNumOpenChkItems()); // 1x op_set
 }
 
 // Test checkpoint and cursor accounting - when checkpoints are closed the
@@ -521,13 +521,13 @@ TEST_P(CheckpointTest, CursorOffsetOnCheckpointClose) {
     EXPECT_TRUE(item->isCheckPointMetaItem());
     EXPECT_FALSE(isLastMutationItem);
 
-    // Both previous checkpoints are unreferenced. Close them. This will
-    // cause the offset of this cursor to be recalculated.
-    EXPECT_EQ(2, manager->removeClosedUnrefCheckpoints().count);
-
-    EXPECT_EQ(1, this->manager->getNumCheckpoints());
-
-    EXPECT_EQ(2, this->manager->getNumItemsForCursor(cursor));
+    // Both previous checkpoints became closed/unref, so they were removed for
+    // deallocation. This will cause the cursor offset to be recalculated.
+    // Note: Closed/unref checkpoints already removed, attempting to remove them
+    // manually is a NOP here
+    EXPECT_EQ(0, manager->removeClosedUnrefCheckpoints().count);
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(2, manager->getNumItemsForCursor(cursor));
 
     // Drain the remaining items.
     item = manager->nextItem(cursor, isLastMutationItem);
