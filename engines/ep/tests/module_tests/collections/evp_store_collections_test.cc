@@ -4558,6 +4558,11 @@ INSTANTIATE_TEST_SUITE_P(CollectionsEphemeralOrPersistent,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
+INSTANTIATE_TEST_SUITE_P(CollectionsEphemeralOrPersistentPitrEnabled,
+                         CollectionsParameterizedTest,
+                         STParameterizedBucketTest::pitrEnabledConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
 INSTANTIATE_TEST_SUITE_P(CollectionsEphemeralOnlyTests,
                          CollectionsEphemeralParameterizedTest,
                          STParameterizedBucketTest::ephConfigValues(),

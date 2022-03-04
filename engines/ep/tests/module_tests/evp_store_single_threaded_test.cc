@@ -469,7 +469,16 @@ void SingleThreadedKVBucketTest::scheduleAndRunCollectionsEraser(
                                              ->getRWUnderlying()
                                              ->getDroppedCollections(id);
             ASSERT_TRUE(status);
-            EXPECT_TRUE(dropped.empty());
+            if (!isPitrEnabled()) {
+                // We are trying to check if the dropped collections are
+                // still present on disk. The document is typically deleted
+                // during compaction but with PiTR we have some extra
+                // criteria to hit that we don't in this test (the compacting
+                // headers must be older than the max history age). As such,
+                // the dropped collections (and the data that belongs to them)
+                // are still present on disk for PiTR tests.
+                EXPECT_TRUE(dropped.empty());
+            }
         }
     } else {
         auto* bucket = dynamic_cast<EphemeralBucket*>(store);

@@ -5071,6 +5071,11 @@ INSTANTIATE_TEST_SUITE_P(AllBackends,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
+INSTANTIATE_TEST_SUITE_P(AllBackendsPitrEnabled,
+                         DurabilityBucketTest,
+                         STParameterizedBucketTest::pitrEnabledConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
 // maxVisibleSeqno tests run against all persistent storage backends.
 INSTANTIATE_TEST_SUITE_P(AllBackends,
                          BackingStoreMaxVisibleSeqnoTest,
