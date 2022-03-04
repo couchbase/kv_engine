@@ -2702,19 +2702,8 @@ TEST_P(CheckpointTest, CheckpointItemToString) {
     EXPECT_EQ("cid:0x1:0x1:0x63:_scope", event->getKey().to_string());
 }
 
-// sub class for eager unreffed checkpoint disposal related tests.
-class EagerCheckpointDisposalTest : public CheckpointTest {
-public:
-    void SetUp() override {
-        // This test suite specifically tests eager checkpoint removal.
-        // Ensure the checkpoint config is set to that.
-        config.parseConfiguration("checkpoint_removal_mode=eager",
-                                  get_mock_server_api());
-        checkpoint_config = std::make_unique<CheckpointConfig>(config);
-        VBucketTest::SetUp();
-        createManager();
-    }
-};
+// Test class for closed/unref checkpoint removal
+class CheckpointRemovalTest : public CheckpointTest {};
 
 using MockCheckpointDisposer =
         testing::MockFunction<void(CheckpointList&&, const Vbid&)>;
@@ -2758,7 +2747,7 @@ auto MatchCheckpointList(
     return ::testing::Pointwise(CheckpointMatcher(), expected);
 }
 
-TEST_P(EagerCheckpointDisposalTest, CursorMovement) {
+TEST_P(CheckpointRemovalTest, CursorMovement) {
     // Add two items to the initial (open) checkpoint.
     for (auto i : {1, 2}) {
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(i)));
@@ -2803,7 +2792,7 @@ TEST_P(EagerCheckpointDisposalTest, CursorMovement) {
     }
 }
 
-TEST_P(EagerCheckpointDisposalTest, NewClosedCheckpointMovesCursor) {
+TEST_P(CheckpointRemovalTest, NewClosedCheckpointMovesCursor) {
     // Add two items to the initial (open) checkpoint.
     for (auto i : {1, 2}) {
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(i)));
@@ -2850,7 +2839,7 @@ TEST_P(EagerCheckpointDisposalTest, NewClosedCheckpointMovesCursor) {
     }
 }
 
-TEST_P(EagerCheckpointDisposalTest, NewUnreffedClosedCheckpoint) {
+TEST_P(CheckpointRemovalTest, NewUnreffedClosedCheckpoint) {
     // remove the cursor now, so the newly closed checkpoint will be immediately
     // unreffed
     manager->removeCursor(cursor);
@@ -2882,7 +2871,7 @@ TEST_P(EagerCheckpointDisposalTest, NewUnreffedClosedCheckpoint) {
     }
 }
 
-TEST_P(EagerCheckpointDisposalTest, OnlyOldestCkptTriggersCB) {
+TEST_P(CheckpointRemovalTest, OnlyOldestCkptTriggersCB) {
     // Add two items to the initial (open) checkpoint.
     for (auto i : {1, 2}) {
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(i)));
@@ -2942,7 +2931,7 @@ TEST_P(EagerCheckpointDisposalTest, OnlyOldestCkptTriggersCB) {
     }
 }
 
-TEST_P(EagerCheckpointDisposalTest, RemoveCursorTriggersCB) {
+TEST_P(CheckpointRemovalTest, RemoveCursorTriggersCB) {
     // Add two items to the initial (open) checkpoint.
     for (auto i : {1, 2}) {
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(i)));
@@ -3300,7 +3289,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 INSTANTIATE_TEST_SUITE_P(
         AllVBTypesAllEvictionModes,
-        EagerCheckpointDisposalTest,
+        CheckpointRemovalTest,
         ::testing::Combine(
                 ::testing::Values(VBucketTestBase::VBType::Persistent,
                                   VBucketTestBase::VBType::Ephemeral),
