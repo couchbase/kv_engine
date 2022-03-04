@@ -17,6 +17,7 @@
 
 #include <array>
 #include <chrono>
+#include <optional>
 #include <sstream>
 #include <string>
 
@@ -69,6 +70,7 @@ public:
     CompactTask(EPBucket& bucket,
                 Vbid vbid,
                 CompactionConfig config,
+                std::chrono::steady_clock::time_point requestedStartTime,
                 const CookieIface* ck,
                 bool completeBeforeShutdown = false);
 
@@ -107,7 +109,9 @@ public:
      *         config) is returned.
      */
     CompactionConfig runCompactionWithConfig(
-            std::optional<CompactionConfig> config, const CookieIface* cookie);
+            std::optional<CompactionConfig> config,
+            const CookieIface* cookie,
+            std::chrono::steady_clock::time_point requestedStartTime);
 
     /**
      * @return true if a reschedule is required
@@ -137,9 +141,19 @@ public:
 
 private:
     /**
-     * @return a copy of the current config and clear rescheduleRequired
+     * Check if the requested start time of the current config has been reached,
+     * and if so return the config and clear rescheduleRequired.
+     *
+     * If the config has been updated, the requested delay may have updated
+     * the requested start time to later in the future - the task may need
+     * to sleep again. If this is the case, snooze() will be called.
+     *
+     * @return config and vector of cookies waiting for compaction to complete,
+     *         or nullopt if start time has not been reached
+     *
      */
-    std::pair<CompactionConfig, std::vector<const CookieIface*>> preDoCompact();
+    std::optional<std::pair<CompactionConfig, std::vector<const CookieIface*>>>
+    preDoCompact();
 
     /**
      * Using the input cookies and current "Compaction" state, determine if
@@ -160,6 +174,9 @@ private:
     struct Compaction {
         CompactionConfig config{};
         std::vector<const CookieIface*> cookiesWaiting;
+        // if delayed compaction was requested, this task should not
+        // start compaction until this time.
+        std::chrono::steady_clock::time_point requestedStartTime;
         bool rescheduleRequired{false};
     };
 
