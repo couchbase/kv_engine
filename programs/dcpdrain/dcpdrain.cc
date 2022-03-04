@@ -105,7 +105,7 @@ Options:
                                  }
   --stream-request-flags         Value to use for the 4-byte stream-request
                                  flags field.
-                                 Default value is DCP_ADD_STREAM_FLAG_LATEST
+                                 Default value is DCP_ADD_STREAM_FLAG_TO_LATEST
   --help                         This help text
 )";
 
@@ -497,7 +497,7 @@ int main(int argc, char** argv) {
     bool enableCollections{true};
     std::string streamRequestFileName;
     std::string streamIdFileName;
-    uint32_t streamRequestFlags = DCP_ADD_STREAM_FLAG_LATEST;
+    uint32_t streamRequestFlags = DCP_ADD_STREAM_FLAG_TO_LATEST;
     size_t num_connections = 1;
 
     cb::net::initialize();

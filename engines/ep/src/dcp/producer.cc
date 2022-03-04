@@ -444,7 +444,7 @@ cb::engine_errc DcpProducer::streamRequest(
     std::vector<vbucket_failover_t> failoverEntries =
             vb->failovers->getFailoverLog();
 
-    if (flags & DCP_ADD_STREAM_FLAG_LATEST) {
+    if (flags & DCP_ADD_STREAM_FLAG_TO_LATEST) {
         end_seqno = vb->getHighSeqno();
     }
 

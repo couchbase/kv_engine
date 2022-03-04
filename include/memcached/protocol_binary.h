@@ -675,7 +675,11 @@ protected:
  */
 #define DCP_ADD_STREAM_FLAG_TAKEOVER 1
 #define DCP_ADD_STREAM_FLAG_DISKONLY 2
-#define DCP_ADD_STREAM_FLAG_LATEST 4
+/**
+ * Request that the server sets the end-seqno (ignoring any client input)
+ * The end-seqno is set to the current high-seqno of the requested vbucket.
+ */
+#define DCP_ADD_STREAM_FLAG_TO_LATEST 4
 /**
  * This flag is not used anymore, and should NOT be
  * set. It is replaced by DCP_OPEN_NO_VALUE.

@@ -801,7 +801,7 @@ cb::engine_errc TestDcpConsumer::openStreams() {
 
         if (ctx.flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
             ctx.seqno.end  = std::numeric_limits<uint64_t>::max();
-        } else if (ctx.flags & DCP_ADD_STREAM_FLAG_LATEST ||
+        } else if (ctx.flags & DCP_ADD_STREAM_FLAG_TO_LATEST ||
                    ctx.flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
             std::string high_seqno("vb_" + std::to_string(ctx.vbucket.get()) +
                                    ":high_seqno");
@@ -2625,7 +2625,7 @@ static enum test_result test_dcp_producer_stream_latest(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
 
     DcpStreamCtx ctx;
-    ctx.flags = DCP_ADD_STREAM_FLAG_LATEST;
+    ctx.flags = DCP_ADD_STREAM_FLAG_TO_LATEST;
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {200, 205};
     ctx.snapshot = {200, 200};
@@ -6875,9 +6875,9 @@ static enum test_result test_failover_log_dcp(EngineIface* h) {
             /* vb_uuid not found in failover table, rollback to zero */
             {0, 0xBAD, 10, 0, high_seqno, 0, cb::engine_errc::rollback},
 
-            /* start_seqno > vb_high_seqno and DCP_ADD_STREAM_FLAG_LATEST
+            /* start_seqno > vb_high_seqno and DCP_ADD_STREAM_FLAG_TO_LATEST
                set - expect rollback */
-            {DCP_ADD_STREAM_FLAG_LATEST,
+            {DCP_ADD_STREAM_FLAG_TO_LATEST,
              uuid,
              high_seqno + 1,
              high_seqno + 1,

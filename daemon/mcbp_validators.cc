@@ -622,10 +622,9 @@ static Status dcp_add_stream_validator(Cookie& cookie) {
     const auto& payload = req.getCommandSpecifics<DcpAddStreamPayload>();
 
     const uint32_t flags = payload.getFlags();
-    const auto mask = DCP_ADD_STREAM_FLAG_TAKEOVER |
-                      DCP_ADD_STREAM_FLAG_DISKONLY |
-                      DCP_ADD_STREAM_FLAG_LATEST |
-                      DCP_ADD_STREAM_ACTIVE_VB_ONLY;
+    const auto mask =
+            DCP_ADD_STREAM_FLAG_TAKEOVER | DCP_ADD_STREAM_FLAG_DISKONLY |
+            DCP_ADD_STREAM_FLAG_TO_LATEST | DCP_ADD_STREAM_ACTIVE_VB_ONLY;
 
     if (flags & ~mask) {
         if (flags & DCP_ADD_STREAM_FLAG_NO_VALUE) {
