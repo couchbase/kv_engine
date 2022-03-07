@@ -82,7 +82,7 @@ public:
                     std::string_view threadName,
                     std::chrono::steady_clock::duration runTime) override;
 
-    bool isShutdown() override;
+    bool isShutdown() const override;
 
 private:
     EventuallyPersistentEngine* myEngine;

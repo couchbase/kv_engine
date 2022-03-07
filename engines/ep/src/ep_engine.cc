@@ -7009,7 +7009,7 @@ void EpEngineTaskable::logRunTime(const GlobalTask& task,
     myEngine->getKVBucket()->logRunTime(task, threadName, runTime);
 }
 
-bool EpEngineTaskable::isShutdown() {
+bool EpEngineTaskable::isShutdown() const {
     return myEngine->getEpStats().isShutdown;
 }
 

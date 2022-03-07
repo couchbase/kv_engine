@@ -79,7 +79,7 @@ public:
                             std::chrono::steady_clock::duration runTime) = 0;
 
     /// @returns True if the Taskable is (in the process of) shutting down.
-    virtual bool isShutdown() = 0;
+    virtual bool isShutdown() const = 0;
 
 protected:
     virtual ~Taskable() = default;

@@ -33,7 +33,7 @@ WorkLoadPolicy& NoBucketTaskable::getWorkLoadPolicy() {
     return policy;
 }
 
-bool NoBucketTaskable::isShutdown() {
+bool NoBucketTaskable::isShutdown() const {
     return is_memcached_shutting_down();
 }
 
