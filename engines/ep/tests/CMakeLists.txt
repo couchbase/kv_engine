@@ -105,6 +105,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/mutation_log_test.cc
         module_tests/objectregistry_test.cc
         module_tests/mutex_test.cc
+        module_tests/pitr_test.cc
         module_tests/probabilistic_counter_test.cc
         module_tests/stats_test.cc
         module_tests/storeddockey_test.cc

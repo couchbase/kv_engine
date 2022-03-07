@@ -1406,6 +1406,28 @@ CompactDBStatus CouchKVStore::compactDBInternal(
 
     couchstore_error_t errCode;
 
+    auto preCommitHook = [vbid, hook_ctx, this](Db& source, Db& compacted) {
+        if (mb40415_regression_hook) {
+            return COUCHSTORE_ERROR_CANCEL;
+        }
+
+        PendingLocalDocRequestQueue localDocQueue;
+        if (hook_ctx->eraserContext->needToUpdateCollectionsMetadata()) {
+            // Need to ensure the 'dropped' list on disk is now gone
+            localDocQueue.emplace_back(
+                    std::string{LocalDocKey::droppedCollections},
+                    CouchLocalDocRequest::IsDeleted{});
+            hook_ctx->eraserContext->setOnDiskDroppedDataExists(false);
+        }
+        auto ret = maybePatchMetaData(
+                source, compacted, hook_ctx->stats, localDocQueue, vbid);
+        if (ret == COUCHSTORE_SUCCESS) {
+            ret = updateLocalDocuments(compacted, localDocQueue);
+        }
+
+        return ret;
+    };
+
     // Perform COMPACTION of vbucket.couch.rev into
     // vbucket.couch.rev.compact
     if (configuration.isPitrEnabled()) {
@@ -1445,20 +1467,7 @@ CompactDBStatus CouchKVStore::compactDBInternal(
                 },
                 {},
                 def_iops,
-                [vbid, hook_ctx, this](Db& source, Db& compacted) {
-                    // we don't try to delete the dropped collection document
-                    // as it'll come back in the next database header anyway
-                    PendingLocalDocRequestQueue localDocQueue;
-                    auto ret = maybePatchMetaData(source,
-                                                  compacted,
-                                                  hook_ctx->stats,
-                                                  localDocQueue,
-                                                  vbid);
-                    if (ret == COUCHSTORE_SUCCESS) {
-                        ret = updateLocalDocuments(compacted, localDocQueue);
-                    }
-                    return ret;
-                },
+                preCommitHook,
                 timestamp.count(),
                 delta.count(),
                 [this, &vbid, hook_ctx](Db& db) {
@@ -1538,32 +1547,7 @@ CompactDBStatus CouchKVStore::compactDBInternal(
                 },
                 {},
                 def_iops,
-                [vbid, hook_ctx, this](Db& source, Db& compacted) {
-                    if (mb40415_regression_hook) {
-                        return COUCHSTORE_ERROR_CANCEL;
-                    }
-
-                    PendingLocalDocRequestQueue localDocQueue;
-                    if (hook_ctx->eraserContext
-                                ->needToUpdateCollectionsMetadata()) {
-                        // Need to ensure the 'dropped' list on disk is now gone
-                        localDocQueue.emplace_back(
-                                std::string{LocalDocKey::droppedCollections},
-                                CouchLocalDocRequest::IsDeleted{});
-                        hook_ctx->eraserContext->setOnDiskDroppedDataExists(
-                                false);
-                    }
-                    auto ret = maybePatchMetaData(source,
-                                                  compacted,
-                                                  hook_ctx->stats,
-                                                  localDocQueue,
-                                                  vbid);
-                    if (ret == COUCHSTORE_SUCCESS) {
-                        ret = updateLocalDocuments(compacted, localDocQueue);
-                    }
-
-                    return ret;
-                });
+                preCommitHook);
     }
     if (errCode != COUCHSTORE_SUCCESS) {
         if (errCode == COUCHSTORE_ERROR_CANCEL) {
