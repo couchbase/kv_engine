@@ -36,7 +36,7 @@ public:
                     std::string_view,
                     std::chrono::steady_clock::duration) override;
 
-    bool isShutdown() override;
+    bool isShutdown() const override;
 
     /// Get the one and only instance of the NoBucketTaskable
     static NoBucketTaskable& instance();

@@ -41,6 +41,6 @@ void MockTaskable::logRunTime(const GlobalTask& task,
                               std::chrono::steady_clock::duration runTime) {
 }
 
-bool MockTaskable::isShutdown() {
+bool MockTaskable::isShutdown() const {
     return false;
 }
