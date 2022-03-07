@@ -55,27 +55,24 @@ std::vector<GlobalTask*> CancellableCPUExecutor::removeTasksForTaskable(
     // memory barriers needed here as we're only concerned with the tasks
     // queue at this point so release/acquire consistency is adequate.
     while (auto elem = tasks.try_dequeue()) {
-        if (elem) {
-            if (elem->isInternalExecutorTask()) {
-                // No task associated, must be a resetTaskPtr task, we need to
-                // run this now to get it out of the queue so that we can
-                // shutdown the bucket even if we are currently running long
-                // running tasks.
-                tasksToRun.push_back(std::move(*elem));
-                continue;
-            }
-
-            // We want to cancel anything that is associated with this taskable
-            // and already dead. If a task is not dead then it must be run
-            // before shutdown.
-            if (&elem->task->getTaskable() == &taskable &&
-                elem->task->isdead()) {
-                tasksToCancel.push_back(elem->task);
-                continue;
-            }
-
-            tasksToPushBack.push_back(std::move(*elem));
+        if (elem->isInternalExecutorTask()) {
+            // No task associated, must be a resetTaskPtr task, we need to
+            // run this now to get it out of the queue so that we can
+            // shutdown the bucket even if we are currently running long
+            // running tasks.
+            tasksToRun.push_back(std::move(*elem));
+            continue;
         }
+
+        // We want to cancel anything that is associated with this taskable
+        // and already dead. If a task is not dead then it must be run
+        // before shutdown.
+        if (&elem->task->getTaskable() == &taskable && elem->task->isdead()) {
+            tasksToCancel.push_back(elem->task);
+            continue;
+        }
+
+        tasksToPushBack.push_back(std::move(*elem));
     }
 
     for (auto& taskToRun : tasksToRun) {
