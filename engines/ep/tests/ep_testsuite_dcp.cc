@@ -2002,18 +2002,18 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h) {
             get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint");
     checkeq(1, initial_ckpt_id, "Expected to start at checkpoint ID 1");
 
-    // Create two 'full' checkpoints by storing exactly 2 x 'chk_max_items'
+    // Create two 'full' checkpoints by storing 2 x 'chk_max_items' + 1
     // into the VBucket.
     const auto max_ckpt_items = get_int_stat(h, "ep_chk_max_items");
 
-    write_items(h, max_ckpt_items);
+    write_items(h, max_ckpt_items + 1);
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", max_ckpt_items);
     checkeq(initial_ckpt_id + 1,
             get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
             "Expected #checkpoints to increase by 1 after storing items");
 
-    write_items(h, max_ckpt_items, max_ckpt_items);
+    write_items(h, max_ckpt_items + 1, max_ckpt_items);
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", max_ckpt_items * 2);
     checkeq(initial_ckpt_id + 2,
@@ -2054,11 +2054,11 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h) {
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {105, 209};
     ctx.snapshot = {105, 105};
-    ctx.exp_mutations = 95; // 105 to 200
+    ctx.exp_mutations = 97; // 105 to 200
     ctx.exp_deletions = 100; // 201 to 300
 
     if (isPersistentBucket(h)) {
-        ctx.exp_markers = 2;
+        ctx.exp_markers = 3;
     } else {
         // the ephemeral stream request won't be broken into two snapshots of
         // backfill from disk vs the checkpoint in memory
@@ -2257,29 +2257,41 @@ static test_result testDcpProducerExpiredItemBackfill(
 }
 
 static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h) {
-    const int num_items = 400, batch_items = 200;
+    const auto max_ckpt_items = get_int_stat(h, "ep_chk_max_items");
+
+    const int batch_items = max_ckpt_items;
+    const int num_items = batch_items * 2;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
-        if (200 == start_seqno) {
+        if (start_seqno == batch_items) {
+            // stop persistence after the first batch is on disk
             wait_for_flusher_to_settle(h);
-            wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", 200);
+            wait_for_stat_to_be(h,
+                                "vb_0:persistence_seqno",
+                                batch_items,
+                                "vbucket-details");
             stop_persistence(h);
         }
         write_items(h, batch_items, start_seqno);
     }
 
+    // Wait for the first checkpoint to be removed.
+    // The second checkpoint is the open checkpoint (and for a persistent
+    // bucket, contains unpersisted items) and won't be removed
+    wait_for_stat_to_be_gte(h, "ep_items_rm_from_checkpoints", batch_items);
+
     auto* cookie = testHarness->create_cookie(h);
 
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
-    ctx.seqno = {0, 200};
+    ctx.seqno = {0, uint64_t(batch_items)};
     // The idea here is that at backfill we get the full Disk/SeqList snapshot.
     // Persistence has been stopped at seqno 200, while Ephemeral stores all
     // seqnos in the SeqList.
     if (isEphemeralBucket(h)) {
-        ctx.exp_mutations = 400;
+        ctx.exp_mutations = num_items;
     } else {
-        ctx.exp_mutations = 200;
+        ctx.exp_mutations = batch_items;
     }
     ctx.exp_markers = 1;
 
@@ -2348,6 +2360,11 @@ static enum test_result test_dcp_producer_disk_backfill_buffer_limits(
     wait_for_flusher_to_settle(h);
     verify_curr_items(h, num_items, "Wrong amount of items");
 
+    testHarness->time_travel(65);
+    // store one more item after advancing time to close the previous
+    // checkpoint, allowing it to be removed
+    wait_for_persisted_value(h, "padding-key", "some value");
+
     /* Wait for the checkpoint to be removed so that upon DCP connection
        backfill is scheduled */
     wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", num_items);
@@ -2357,7 +2374,7 @@ static enum test_result test_dcp_producer_disk_backfill_buffer_limits(
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, num_items};
-    ctx.exp_mutations = 3;
+    ctx.exp_mutations = num_items + 1;
     ctx.exp_markers = 1;
 
     TestDcpConsumer tdc("unittest", cookie, h);
@@ -2891,7 +2908,12 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
                        cdc.dcpConsumer->producers.last_byseqno,
                        exp_items);
 
-    /* Wait for new open (empty) checkpoint to be added */
+    testHarness->time_travel(65);
+    // store one more item to close the previous checkpoint, allowing it
+    // to be removed
+    wait_for_persisted_value(h, "padding-key", "some value");
+
+    /* Wait for new open checkpoint to be added */
     wait_for_stat_to_be(
             h, "vb_0:open_checkpoint_id", curr_chkpt_id + 1, "checkpoint");
 
@@ -3751,6 +3773,11 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
 
     // Front-end operations (sets)
     write_items(h, 2, 1, "key_");
+
+    testHarness->time_travel(65);
+    // store one more item to close the previous checkpoint, allowing it
+    // to be removed
+    wait_for_persisted_value(h, "padding-key", "some value");
 
     // Wait for a new open checkpoint
     wait_for_stat_to_be(
@@ -6129,6 +6156,11 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h) {
             get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value");
 
+    testHarness->time_travel(65);
+    // store one more item to close the previous checkpoint, allowing it
+    // to be removed
+    wait_for_persisted_value(h, "padding-key", "some value");
+
     wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 2, "checkpoint");
     wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
@@ -6136,7 +6168,7 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h) {
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
-    ctx.exp_mutations = 1;
+    ctx.exp_mutations = 2;
     ctx.exp_deletions = 1;
     ctx.exp_markers = 1;
     ctx.skip_estimate_check = true;
@@ -6208,6 +6240,11 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h) {
     checkeq(static_cast<int>(high_seqno - 1),
             get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value");
+
+    testHarness->time_travel(65);
+    // store one more item to close the previous checkpoint, allowing it
+    // to be removed
+    wait_for_persisted_value(h, "padding-key", "some value");
 
     wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 2, "checkpoint");
     wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");

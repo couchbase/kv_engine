@@ -1801,6 +1801,9 @@ static enum test_result test_vbucket_destroy_stats(EngineIface* h) {
     }
     wait_for_flusher_to_settle(h);
     testHarness->time_travel(65);
+    // store one more item to close the previous checkpoint, allowing it
+    // to be removed
+    wait_for_persisted_value(h, "padding-key", "some value", Vbid(1));
     wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     check(set_vbucket_state(h, Vbid(1), vbucket_state_dead),
@@ -2125,6 +2128,9 @@ static enum test_result test_mem_stats(EngineIface* h) {
     int itemsRemoved = get_int_stat(h, "ep_items_rm_from_checkpoints");
     wait_for_persisted_value(h, "key", value.c_str());
     testHarness->time_travel(65);
+    // store a second item after advancing time. This will trigger a checkpoint
+    // close, and will allow the previous checkpoint to be removed.
+    wait_for_persisted_value(h, "key2", value.c_str());
     if (isPersistentBucket(h)) {
         wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
     }
@@ -4254,12 +4260,15 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h) {
     // Store some data and check post-set state.
     wait_for_persisted_value(h, "k1", "some value");
     testHarness->time_travel(65);
+    // store one more item to close the previous checkpoint, allowing it
+    // to be removed
+    wait_for_persisted_value(h, "padding-key", "some value");
     wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     checkeq(0,
             get_int_stat(h, "ep_bg_fetched"),
             "Should start with zero bg fetches");
-    checkeq((initial_enqueued + 1),
+    checkeq((initial_enqueued + 2),
             get_int_stat(h, "ep_total_enqueued"),
             "Should have additional item enqueued after store");
     int kv_size = get_int_stat(h, "ep_kv_size");
@@ -4279,7 +4288,7 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h) {
     checkeq(1,
             get_int_stat(h, "ep_bg_fetched"),
             "BG fetches should be one after reading an evicted key");
-    checkeq((initial_enqueued + 1),
+    checkeq((initial_enqueued + 2),
             get_int_stat(h, "ep_total_enqueued"),
             "Item should not be marked dirty after reading an evicted key");
 
@@ -4294,6 +4303,9 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h) {
             "Failed remove with value.");
     wait_for_stat_change(h, "ep_total_persisted", numStored);
     testHarness->time_travel(65);
+    // store one more item to close the previous checkpoint, allowing it
+    // to be removed
+    wait_for_persisted_value(h, "padding-key", "some value");
     wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     return SUCCESS;
@@ -4327,6 +4339,9 @@ static enum test_result test_disk_gt_ram_paged_rm(EngineIface* h) {
             "Failed remove with value.");
     wait_for_stat_change(h, "ep_total_persisted", numStored);
     testHarness->time_travel(65);
+    // store one more item to close the previous checkpoint, allowing it
+    // to be removed
+    wait_for_persisted_value(h, "padding-key", "some value");
     wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     return SUCCESS;
