@@ -2516,6 +2516,9 @@ private:
     // prepare (if the associated Commit/Abort may have been deduped)
     int64_t allowedDuplicatePrepareThreshold = 0;
 
+    // Test hook used to determine if the method .getInternal() is called
+    TestingHook<> isCalledHook;
+
     friend class DurabilityMonitorTest;
     friend class SingleThreadedActiveStreamTest;
     friend class VBucketTestBase;

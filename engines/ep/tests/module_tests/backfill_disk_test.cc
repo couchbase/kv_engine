@@ -21,12 +21,20 @@
 #include "tests/mock/mock_kvstore.h"
 #include "tests/mock/mock_stream.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
+#include "tests/module_tests/vbucket_utils.h"
+
 #include <kv_bucket.h>
 
 using namespace ::testing;
 
 /// Test fixture for DCPBackfillDisk class tests.
-class DCPBackfillDiskTest : public SingleThreadedEPBucketTest {};
+class DCPBackfillDiskTest : public SingleThreadedEPBucketTest {
+protected:
+    void backfillGetDriver(IncludeValue incVal,
+                           IncludeXattrs incXattr,
+                           IncludeDeletedUserXattrs incDeletedXattr,
+                           int expectedGetCalls);
+};
 
 /**
  * Regression test for MB-47790 - if a backfill fails during the scan() phase
@@ -95,4 +103,89 @@ TEST_F(DCPBackfillDiskTest, ScanDiskError) {
 
     // Replace the MockKVStore with the real one so we can tidy up correctly
     MockKVStore::restoreOriginalRWKVStore(*store);
+}
+
+void DCPBackfillDiskTest::backfillGetDriver(
+        IncludeValue incVal,
+        IncludeXattrs incXattr,
+        IncludeDeletedUserXattrs incDeletedXattr,
+        int expectedGetCalls) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    // Create item, checkpoint and flush so item is to be backfilled from disk
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    flushAndRemoveCheckpoints(vbid);
+
+    // Set up and define expectations for the hook that is called in the body of
+    // CacheCallback::get(), i.e., when an item's value is retrieved from cache
+    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    testing::StrictMock<testing::MockFunction<void()>> getInternalHook;
+    VBucketTestIntrospector::setIsCalledHook(vb,
+                                             getInternalHook.AsStdFunction());
+    EXPECT_CALL(getInternalHook, Call()).Times(expectedGetCalls);
+
+    // Items now only on disk, create producer
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test-producer", 0 /*flags*/, false /*startTask*/);
+
+    auto stream = std::make_shared<MockActiveStream>(
+            engine.get(),
+            producer,
+            0, /* flags */
+            0, /* opaque */
+            vb, /* vbucket */
+            0, /* start seqNo */
+            1, /* end seqNo */
+            0, /* vbucket uuid */
+            0, /* snapshot start seqNo */
+            0, /* snapshot end seqNo */
+            incVal, /* includeValue */
+            incXattr, /* includeXattrs */
+            incDeletedXattr, /* includeDeletedUserXattrs */
+            std::string{}); /* jsonFilter */
+
+    stream->setActive();
+    ASSERT_TRUE(stream->isBackfilling());
+
+    auto& bfm = producer->getBFM();
+    ASSERT_EQ(backfill_success, bfm.backfill()); // initialize backfill
+
+    auto backfillRemaining = stream->getNumBackfillItemsRemaining();
+    ASSERT_TRUE(backfillRemaining);
+
+    ASSERT_EQ(backfill_success, bfm.backfill()); // scan
+    ASSERT_EQ(2, stream->public_readyQSize());
+
+    auto response = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, response->getEvent());
+
+    // Ensure an item mutation is in the DCP stream
+    response = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::Mutation, response->getEvent());
+
+    // Ensure this item has the correct key, and value (if IncludeValue::Yes)
+    MutationResponse mutResponse = dynamic_cast<MutationResponse&>(*response);
+    SingleThreadedRCPtr item = mutResponse.getItem();
+    EXPECT_EQ(item->getKey(), makeStoredDocKey("key"));
+
+    if (!(stream->isKeyOnly())) {
+        EXPECT_EQ(item->getValue()->to_s(), "value");
+    }
+}
+
+// Tests that CacheCallback::get is never called when a stream is keyOnly.
+TEST_F(DCPBackfillDiskTest, KeyOnlyBackfillSkipsScan) {
+    DCPBackfillDiskTest::backfillGetDriver(IncludeValue::No,
+                                           IncludeXattrs::No,
+                                           IncludeDeletedUserXattrs::No,
+                                           0);
+}
+
+// Complement to KeyOnlyBackfillSkipGet. Other tests already cover all cases,
+// but not using the hook. This test validates the hook, and thus
+// KeyOnlyBackfillSkipGet itself, is performing correctly and can be trusted.
+TEST_F(DCPBackfillDiskTest, ValueBackfillRegressionTest) {
+    DCPBackfillDiskTest::backfillGetDriver(IncludeValue::Yes,
+                                           IncludeXattrs::Yes,
+                                           IncludeDeletedUserXattrs::Yes,
+                                           1);
 }

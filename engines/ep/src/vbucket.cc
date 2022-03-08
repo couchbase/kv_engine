@@ -2784,11 +2784,10 @@ GetValue VBucket::getInternal(const CookieIface* cookie,
     const bool getDeletedValue = (options & GET_DELETED_VALUE);
     const bool bgFetchRequired = (options & QUEUE_BG_FETCH);
 
-    auto res = fetchValidValue(WantsDeleted::Yes,
-                               trackReference,
-                               cHandle,
-                               getReplicaItem);
+    auto res = fetchValidValue(
+            WantsDeleted::Yes, trackReference, cHandle, getReplicaItem);
 
+    this->isCalledHook();
     auto* v = res.storedValue;
     if (v) {
         // If the fetched value is a Prepared SyncWrite which may already have

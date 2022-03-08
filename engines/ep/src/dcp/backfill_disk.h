@@ -33,7 +33,23 @@ enum backfill_state_t {
 class CacheCallback : public StatusCallback<CacheLookup> {
 public:
     CacheCallback(KVBucket& bucket, std::shared_ptr<ActiveStream> s);
-
+    /**
+     * Function called for each key during stream backfill. Informs the caller
+     * if the information required to populate the DCP stream for the item is
+     * in-memory.
+     *
+     * If all required information is in-memory, the item is backfilled and
+     * status is set to cb::engine_errc::key_already_exists.
+     *
+     * If there is additional information required that isn't in-memory, or the
+     * item should not be included in the stream for some reason, the status is
+     * set to cb::engine_errc::success.
+     *
+     * The status is set to cb::engine_errc::no_memory only if there is not
+     * enough memory to backfill, pausing backfilling temporarily.
+     *
+     * @param lookup a reference to a CacheLookup
+     */
     void callback(CacheLookup& lookup) override;
 
 private:

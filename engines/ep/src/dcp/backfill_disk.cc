@@ -70,19 +70,44 @@ void CacheCallback::callback(CacheLookup& lookup) {
         return;
     }
 
-    auto gv = get(*vb, lookup, *stream_);
-    if (gv.getStatus() == cb::engine_errc::success) {
-        if (gv.item->getBySeqno() == lookup.getBySeqno()) {
-            if (stream_->backfillReceived(std::move(gv.item),
-                                          BACKFILL_FROM_MEMORY)) {
-                setStatus(cb::engine_errc::key_already_exists);
-                return;
-            }
-            setStatus(cb::engine_errc::no_memory); // Pause the backfill
+    auto item = std::unique_ptr<Item>();
+
+    // We don't need to read the value if the stream is KeyOnly AND this key
+    // is not a SystemEvent (which requires the full payload for all streams)
+    if (stream_->isKeyOnly() &&
+        !(lookup.getKey().getDocKey().isInSystemCollection())) {
+        // Create an empty value to backfill with
+        item = std::make_unique<Item>(
+                lookup.getKey().getDocKey(), /* docKey */
+                0, /* flags */
+                0, /* expiry */
+                nullptr, /* value */
+                0, /* how much memory to allocate */
+                PROTOCOL_BINARY_RAW_BYTES, /* binary protocol */
+                0, /* cas */
+                lookup.getBySeqno()); /* seqNo */
+
+    } else {
+        auto gv = get(*vb, lookup, *stream_);
+        // If we could not retrieve the value or the Item seqNo does not match,
+        // return success so the stream continues onto the next key; no backfill
+        if (gv.getStatus() != cb::engine_errc::success ||
+            gv.item->getBySeqno() != lookup.getBySeqno()) {
+            setStatus(cb::engine_errc::success);
             return;
         }
+        item = std::move(gv.item);
     }
-    setStatus(cb::engine_errc::success);
+
+    // Perform the backfill and set status to key_already_exists if successful.
+    // Otherwise pause stream backfill as op failed - not enough free memory
+    bool backfillSuccess =
+            stream_->backfillReceived(std::move(item), BACKFILL_FROM_MEMORY);
+    cb::engine_errc newStatus = (backfillSuccess)
+                                        ? cb::engine_errc::key_already_exists
+                                        : cb::engine_errc::no_memory;
+    setStatus(newStatus);
+    return;
 }
 
 DiskCallback::DiskCallback(std::shared_ptr<ActiveStream> s) : streamPtr(s) {

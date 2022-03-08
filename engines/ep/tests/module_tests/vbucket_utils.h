@@ -38,4 +38,8 @@ public:
     static void destroyDM(VBucket& vb) {
         vb.durabilityMonitor.reset();
     }
+
+    static void setIsCalledHook(VBucket& vb, std::function<void()> hook) {
+        vb.isCalledHook = hook;
+    }
 };
