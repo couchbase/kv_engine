@@ -908,7 +908,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
             cb::engine_errc::sync_write_pending,
             store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
 
-    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(1, ckptList.size());
     ASSERT_EQ(1, ckptList.back()->getNumItems());
     EXPECT_EQ(1, ckptMgr.getNumItemsForPersistence());
 
@@ -925,7 +925,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
                         {} /*commitSeqno*/,
                         vb.lockCollections(key)));
 
-    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(1, ckptList.size());
     ASSERT_EQ(2, ckptList.back()->getNumItems());
     EXPECT_EQ(1, ckptMgr.getNumItemsForPersistence());
     validateHighAndVisibleSeqno(vb, 4, 4);
@@ -1020,9 +1020,8 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     EXPECT_EQ(0, vb.opsUpdate);
     EXPECT_EQ(0, vb.opsDelete);
 
-    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(1, ckptList.size());
     ASSERT_EQ(1, ckptList.back()->getNumItems());
-
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     ASSERT_EQ(cb::engine_errc::success,
@@ -1042,7 +1041,7 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     EXPECT_EQ(0, vb.opsUpdate);
     EXPECT_EQ(1, vb.opsDelete);
 
-    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(1, ckptList.size());
     ASSERT_EQ(2, ckptList.back()->getNumItems());
 }
 
@@ -1157,7 +1156,7 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
     EXPECT_EQ(0, vb.getNumItems());
     EXPECT_EQ(expectedNumPrepares, vb.ht.getNumPreparedSyncWrites());
 
-    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(1, ckptList.size());
     ASSERT_EQ(1, ckptList.back()->getNumItems());
 }
 

@@ -167,13 +167,12 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_NormalWrite) {
     EXPECT_EQ(2, vb.getSeqListNumItems());
 
     // Steps to ensure backfill when we re-create the stream in the following
-    manager.createNewCheckpoint();
-    ASSERT_EQ(2, list.size());
-    const auto openCkptId = manager.getOpenCheckpointId();
-    ASSERT_EQ(1, manager.removeClosedUnrefCheckpoints().count);
-    // No new checkpoint created
-    ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
     ASSERT_EQ(1, list.size());
+    ASSERT_EQ(1, manager.getOpenCheckpointId());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    manager.createNewCheckpoint();
+    ASSERT_EQ(1, list.size());
+    ASSERT_EQ(2, manager.getOpenCheckpointId());
     ASSERT_EQ(0, manager.getNumOpenChkItems());
 
     // Re-create producer and stream
@@ -249,11 +248,27 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
     EXPECT_EQ(1, vb.getHighSeqno());
     EXPECT_EQ(1, vb.getSeqListNumItems());
     EXPECT_EQ(0, vb.getSeqListNumStaleItems());
+
+    ASSERT_EQ(1, list.size());
+    ASSERT_EQ(1, manager.getOpenCheckpointId());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+
     EXPECT_EQ(cb::engine_errc::success,
               vb.commit(key, 1 /*prepareSeqno*/, {}, vb.lockCollections(key)));
     EXPECT_EQ(2, vb.getHighSeqno());
     EXPECT_EQ(2, vb.getSeqListNumItems());
     EXPECT_EQ(0, vb.getSeqListNumStaleItems());
+
+    // Closed checkpoint removed, this ensures backfill in the next steps
+    // @todo: MB-51593 - I'm leaving the asserts here to show what's the current
+    // behaviour. Historically we aim to queue SW ops for the same key into
+    // different checkpoints. If that's still a requirement, then I would expect
+    //     ASSERT_EQ(1, list.size());
+    //     ASSERT_EQ(2, manager.getOpenCheckpointId());
+    //     ASSERT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, list.size());
+    ASSERT_EQ(1, manager.getOpenCheckpointId());
+    ASSERT_EQ(2, manager.getNumOpenChkItems());
 
     // Cover seqnos [1, 2] with a range-read, then queue another Prepare.
     {
@@ -273,11 +288,11 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
     EXPECT_EQ(3, vb.getSeqListNumItems());
     EXPECT_EQ(1, vb.getSeqListNumStaleItems());
 
-    // Steps to ensure backfill when we re-create the stream in the following
+    // Step to ensure that we have no item in memory, we want all of them in the
+    // backfill
     manager.createNewCheckpoint();
-    ASSERT_EQ(3, list.size());
-    EXPECT_EQ(3, manager.removeClosedUnrefCheckpoints().count);
     ASSERT_EQ(1, list.size());
+    ASSERT_EQ(3, manager.getOpenCheckpointId());
     ASSERT_EQ(0, manager.getNumOpenChkItems());
 
     // Re-create producer and stream

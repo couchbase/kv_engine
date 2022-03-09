@@ -461,7 +461,7 @@ protected:
         auto rollback = rollbackCollectionCreate
                                 ? rollback_item.getBySeqno() - 1
                                 : item_v2.getBySeqno();
-        ASSERT_EQ(FlushResult(MoreAvailable::No, 3, WakeCkptRemover::Yes),
+        ASSERT_EQ(FlushResult(MoreAvailable::No, 3, WakeCkptRemover::No),
                   getEPBucket().flushVBucket(vbid));
 
         cm.remove(CollectionEntry::dairy);
@@ -481,7 +481,7 @@ protected:
         }
 
         if (flush_before_rollback) {
-            ASSERT_EQ(FlushResult(MoreAvailable::No, 3, WakeCkptRemover::Yes),
+            ASSERT_EQ(FlushResult(MoreAvailable::No, 3, WakeCkptRemover::No),
                       getEPBucket().flushVBucket(vbid));
         }
 
@@ -2435,14 +2435,15 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
 
+    // Now remove the earlier checkpoint
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
     auto& ckpt_mgr =
             *(static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
     ckpt_mgr.createNewCheckpoint();
-    EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
+    ASSERT_EQ(1, stats.itemsRemovedFromCheckpoints);
+    EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
-
-    // Now remove the earlier checkpoint
-    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints().count);
 
     store->setVBucketState(vbid, vbucket_state_replica);
 

@@ -88,6 +88,9 @@ public:
         extraEngines.push_back(SynchronousEPEngine::build(config));
         engines[node] = extraEngines.back().get();
 
+        // Some tests expect KVBucket tasks being initialized
+        engines[node]->getKVBucket()->initialize();
+
         // Setup one vbucket in the requested state
         EXPECT_EQ(cb::engine_errc::success,
                   engines[node]->getKVBucket()->setVBucketState(vbid, vbState));
@@ -756,19 +759,23 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
     vb->checkpointManager->createNewCheckpoint();
     EXPECT_EQ(cb::engine_errc::success, storeSet("b"));
 
-    // Flush up to seqno:3 to disk.
+    // The next cursor move will remove the first checkpoint. That will force a
+    // DCP backfill in the next steps.
+    auto& manager = *vb->checkpointManager;
+    ASSERT_EQ(2, manager.getNumCheckpoints());
+    const auto openCkptId = manager.getOpenCheckpointId();
+
+    // Flush up to seqno:3 to disk. Closed checkpoint removed.
     flushVBucketToDiskIfPersistent(vbid, 3);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
 
     // Add 4:PRE(a), 5:SET(c), 6:SET(d)
     EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare("a"));
     EXPECT_EQ(cb::engine_errc::success, storeSet("c"));
     EXPECT_EQ(cb::engine_errc::success, storeSet("d"));
 
-    // Remove the first checkpoint (to force a DCP backfill).
-    auto& manager = *vb->checkpointManager;
-    const auto openCkptId = manager.getOpenCheckpointId();
-    ASSERT_EQ(2, manager.removeClosedUnrefCheckpoints().count);
     // No new checkpoint created
+    ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
     /* State is now:
      *  Disk:
@@ -898,6 +905,12 @@ TEST_P(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     //     3:SET(b)
     EXPECT_EQ(cb::engine_errc::success, storeSet("b"));
 
+    // The next cursor move will remove the first checkpoint. That will force a
+    // DCP backfill in the next steps.
+    auto& manager = *vb->checkpointManager;
+    ASSERT_EQ(2, manager.getNumCheckpoints());
+    const auto openCkptId = manager.getOpenCheckpointId();
+
     // Flush up to seqno:3 to disk.
     flushVBucketToDiskIfPersistent(vbid, 3);
 
@@ -906,15 +919,13 @@ TEST_P(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare("a"));
     EXPECT_EQ(cb::engine_errc::success, storeSet("c"));
 
-    // Trigger cursor dropping; then remove (now unreferenced) first checkpoint.
+    // Trigger cursor dropping. That removes the old checkpoint.
     auto* pStream = static_cast<ActiveStream*>(
             route0_1.producer->findStream(vbid).get());
     ASSERT_TRUE(route0_1.producer->handleSlowStream(
             vbid, pStream->getCursor().lock().get()));
-    auto& manager = *vb->checkpointManager;
-    const auto openCkptId = manager.getOpenCheckpointId();
-    ASSERT_EQ(2, manager.removeClosedUnrefCheckpoints().count);
     // No new checkpoint created
+    ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
 
     /* State is now:
@@ -975,6 +986,20 @@ TEST_P(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
 
     // setup Node2 so we have two replicas
     createNode(Node2, vbucket_state_replica);
+
+    // MB-51295: This test was written under CheckpointRemoval::Lazy, so it
+    // assumes that checkpoints stay in memory on Node1 and that they are
+    // streamed to replicas, unless differently driven. Here register a cursor
+    // for ensuring that pre-condition.
+    const auto dcpCursor =
+            engines[Node1]
+                    ->getKVBucket()
+                    ->getVBucket(vbid)
+                    ->checkpointManager
+                    ->registerCursorBySeqno(
+                            "test-cursor", 0, CheckpointCursor::Droppable::Yes)
+                    .cursor.lock();
+    ASSERT_TRUE(dcpCursor);
 
     auto route0_1 = createDcpRoute(Node0, Node1);
     auto route0_2 = createDcpRoute(Node0, Node2);

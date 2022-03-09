@@ -47,6 +47,22 @@ void CollectionsDcpTest::internalSetUp() {
     producers = std::make_unique<CollectionsDcpTestProducers>();
     createDcpObjects(std::make_optional(
             std::string_view{}) /*collections on, but no filter*/);
+
+    auto vb = store->getVBucket(vbid);
+    helperCursor = vb->checkpointManager
+                           ->registerCursorBySeqno(
+                                   "I'm a cursor placed for preventing "
+                                   "eager checkpoint removal :)",
+                                   0,
+                                   CheckpointCursor::Droppable::Yes)
+                           .cursor.lock();
+    ASSERT_TRUE(helperCursor);
+}
+
+void CollectionsDcpTest::moveHelperCursorToCMEnd() {
+    std::vector<queued_item> items;
+    store->getVBucket(vbid)->checkpointManager->getNextItemsForCursor(
+            helperCursor.get(), items);
 }
 
 Collections::KVStore::Manifest CollectionsDcpTest::getPersistedManifest(
@@ -154,6 +170,8 @@ void CollectionsDcpTest::TearDown() {
 }
 
 void CollectionsDcpTest::teardown() {
+    helperCursor.reset();
+
     if (consumer) {
         consumer->closeAllStreams();
         consumer->cancelTask();

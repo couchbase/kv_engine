@@ -23,7 +23,7 @@
 #include "durability/active_durability_monitor.h"
 #include "durability/durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
-#include "kv_bucket.h"
+#include "ep_bucket.h"
 #include "kvstore/kvstore.h"
 #include "test_helpers.h"
 #include "vbucket_state.h"
@@ -45,11 +45,18 @@ void DurabilityActiveStreamTest::TearDown() {
     SingleThreadedActiveStreamTest::TearDown();
 }
 
-void DurabilityActiveStreamTest::setUp(bool startCheckpointProcessorTask) {
-    setVBucketStateAndRunPersistTask(
-            vbid,
-            vbucket_state_active,
-            {{"topology", nlohmann::json::array({{active, replica}})}});
+void DurabilityActiveStreamTest::setUp(bool startCheckpointProcessorTask,
+                                       bool persist) {
+    setVBucketState(vbid,
+                    vbucket_state_active,
+                    {{"topology", nlohmann::json::array({{active, replica}})}});
+
+    if (isPersistent() && persist) {
+        // Trigger the flusher to flush state to disk.
+        const auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+        EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
+        EXPECT_EQ(0, res.numFlushed);
+    }
 
     // Enable SyncReplication and flow-control (Producer BufferLog)
     setupProducer({{"enable_sync_writes", "true"},
@@ -202,6 +209,9 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
     // The seqno of the Committed/Aborted item
     const auto completedSeqno = prepareSeqno + 1;
 
+    // Used later to verify tha tabort queued into a new checkpoint
+    const auto openId = ckptMgr.getOpenCheckpointId();
+
     switch (res) {
     case Resolution::Commit: {
         // FirstChain on Active has been set to {active, replica}. Given that
@@ -243,8 +253,7 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
         // (1) closing the open checkpoint (the one that contains the Prepare)
         // (2) creating a new open checkpoint
         // (3) queueing the Commit/Abort in the new open checkpoint
-        // So we must have 2 checkpoints now.
-        ASSERT_EQ(2, ckptList.size());
+        ASSERT_GT(ckptMgr.getOpenCheckpointId(), openId);
     }
 
     const auto* ckpt = ckptList.back().get();
@@ -456,6 +465,11 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
     // Get rid of set_vb_state and any other queue_op we are not interested in
     ckptMgr.clear(0 /*seqno*/);
 
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0,
+              stats.itemsRemovedFromCheckpoints +
+                      stats.itemsExpelledFromCheckpoints);
+
     const auto key = makeStoredDocKey("key");
     const auto& value = "value";
     auto item = makePendingItem(
@@ -469,16 +483,14 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
     auto prepareSeqno = vb->getHighSeqno();
 
+    const auto openId = ckptMgr.getOpenCheckpointId();
     EXPECT_EQ(cb::engine_errc::success,
               vb->abort(key,
                         prepareSeqno,
                         {} /*abortSeqno*/,
                         vb->lockCollections(key)));
-
-    EXPECT_EQ(
-            2,
-            CheckpointManagerTestIntrospector::public_getCheckpointList(ckptMgr)
-                    .size());
+    // Verify abort queued into a new checkpoint
+    EXPECT_GT(ckptMgr.getOpenCheckpointId(), openId);
 
     auto expected = 1;
     if (store->getOneROUnderlying()
@@ -488,11 +500,10 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
     }
     flushVBucketToDiskIfPersistent(vbid, expected);
 
-    // Remove our first checkpoint to backfill the prepare
-    const auto openCkptId = ckptMgr.getOpenCheckpointId();
-    ASSERT_EQ(1, ckptMgr.removeClosedUnrefCheckpoints().count);
-    // No new checkpoint created
-    ASSERT_EQ(openCkptId, ckptMgr.getOpenCheckpointId());
+    // Ensure we have removed the prepare to backfill it
+    ASSERT_EQ(1,
+              stats.itemsRemovedFromCheckpoints +
+                      stats.itemsExpelledFromCheckpoints);
 
     // Test that we actually dropped the checkpoint by number of items
     ASSERT_EQ(2, ckptMgr.getNumItems());
@@ -657,6 +668,11 @@ TEST_P(DurabilityActiveStreamTest, RemoveCorrectQueuedAckAtStreamSetDead) {
 }
 
 void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0,
+              stats.itemsRemovedFromCheckpoints +
+                      stats.itemsExpelledFromCheckpoints);
+
     auto vb = engine->getVBucket(vbid);
 
     const auto key = makeStoredDocKey("key");
@@ -707,13 +723,11 @@ void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
     auto expectedCursors = persistent() ? 1 : 0;
     ASSERT_EQ(expectedCursors, mockCkptMgr.getNumOfCursors());
 
-    // Need to close the previously existing checkpoints so that we can backfill
-    // from disk
-    const auto openCkptId = mockCkptMgr.getOpenCheckpointId();
-    auto size = mockCkptMgr.removeClosedUnrefCheckpoints().count;
-    // No new checkpoint created
-    ASSERT_EQ(openCkptId, mockCkptMgr.getOpenCheckpointId());
-    ASSERT_EQ(4, size);
+    // Need ensure that some items have been remove from checkpoint so that we
+    // can backfill from disk
+    ASSERT_GT(stats.itemsRemovedFromCheckpoints +
+                      stats.itemsExpelledFromCheckpoints,
+              0);
 }
 
 TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
@@ -853,7 +867,12 @@ TEST_P(DurabilityActiveStreamTest,
     EXPECT_EQ(1, vb->getHighPreparedSeqno());
     EXPECT_EQ(1, vb->getHighCompletedSeqno());
 
+    // Move the DCP cursor
+    items = stream->getOutstandingItems(*vb);
+    stream->public_processItems(items);
+
     flushVBucketToDiskIfPersistent(vbid, 2);
+    removeCheckpoint(*vb, 2);
 
     { // Locking scope for collections handle
         auto item = makePendingItem(
@@ -882,7 +901,7 @@ TEST_P(DurabilityActiveStreamTest,
     // remove the stream and the checkpoint to force a backfill
     stream.reset();
     flushVBucketToDiskIfPersistent(vbid, 2);
-    removeCheckpoint(*vb, 4);
+    removeCheckpoint(*vb, 2);
 
     stream = std::make_shared<MockActiveStream>(
             engine.get(), producer, 0 /*flags*/, 0 /*opaque*/, *vb);
@@ -2716,6 +2735,8 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepareCommit() {
     // the MARKER_FLAG_CHK set before the Consumer receives the Commit. That
     // will force the Consumer closing the open checkpoint (which Contains the
     // Prepare) and creating a new open one for queueing the Commit.
+    auto& manager = *vb->checkpointManager;
+    const auto openId = manager.getOpenCheckpointId();
     uint32_t opaque = 0;
     auto commitSeqno = prepareSeqno + 1;
     SnapshotMarker marker(
@@ -2729,15 +2750,14 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepareCommit() {
             {}, // timestamp
             {} /*streamId*/);
     stream->processMarker(&marker);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
-    // 2 checkpoints
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     *vb->checkpointManager);
-    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(1, ckptList.size());
+    ASSERT_GT(manager.getOpenCheckpointId(), openId);
     auto* ckpt = ckptList.front().get();
-    ASSERT_EQ(checkpoint_state::CHECKPOINT_CLOSED, ckpt->getState());
-    ckpt = ckptList.back().get();
     ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
     ASSERT_EQ(0, ckpt->getNumItems());
 
@@ -2745,6 +2765,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepareCommit() {
     ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<CommitSyncWriteConsumer>(
                       opaque, vbid, prepareSeqno, commitSeqno, key)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Ephemeral keeps the prepare in the hash table whilst ep modifies the
     // existing prepare
@@ -2800,27 +2821,23 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpPrepareCommitPrepare) {
     // First setup the first DCP_PREPARE and DCP_COMMIT.
     testReceiveDcpPrepareCommit();
 
+    auto vb = engine->getVBucket(vbid);
+    auto& manager = *vb->checkpointManager;
+    const auto openId = manager.getOpenCheckpointId();
+
     // Process the 2nd Prepare.
     auto key = makeStoredDocKey("key");
     const uint64_t cas = 1234;
     const uint64_t prepare2ndSeqno = 3;
     makeAndReceiveSnapMarkerAndDcpPrepare(key, cas, prepare2ndSeqno);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
-    // 3 checkpoints
-    auto vb = engine->getVBucket(vbid);
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
-                    *vb->checkpointManager);
-    ASSERT_EQ(3, ckptList.size());
+                    manager);
+    ASSERT_EQ(1, ckptList.size());
+    ASSERT_GT(manager.getOpenCheckpointId(), openId);
     auto ckptIt = ckptList.begin();
-    ASSERT_EQ(checkpoint_state::CHECKPOINT_CLOSED, (*ckptIt)->getState());
-    ASSERT_EQ(1, (*ckptIt)->getNumItems());
-
-    ckptIt++;
-    ASSERT_EQ(checkpoint_state::CHECKPOINT_CLOSED, (*ckptIt)->getState());
-    ASSERT_EQ(1, (*ckptIt)->getNumItems());
-
-    ckptIt++;
     ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, (*ckptIt)->getState());
     ASSERT_EQ(1, (*ckptIt)->getNumItems());
 
@@ -2861,6 +2878,9 @@ void DurabilityPassiveStreamTest::testReceiveDcpAbort() {
         FAIL();
     }
 
+    auto& manager = *vb->checkpointManager;
+    const auto openId = manager.getOpenCheckpointId();
+
     // So, we need to simulate a Producer sending another SnapshotMarker with
     // the MARKER_FLAG_CHK set before the Consumer receives the Abort. That
     // will force the Consumer closing the open checkpoint (which Contains the
@@ -2876,15 +2896,14 @@ void DurabilityPassiveStreamTest::testReceiveDcpAbort() {
             {}, // timestamp
             {} /*streamId*/);
     stream->processMarker(&marker);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
-    // 2 checkpoints
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     *vb->checkpointManager);
-    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(1, ckptList.size());
+    ASSERT_GT(manager.getOpenCheckpointId(), openId);
     auto* ckpt = ckptList.front().get();
-    ASSERT_EQ(checkpoint_state::CHECKPOINT_CLOSED, ckpt->getState());
-    ckpt = ckptList.back().get();
     ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
     ASSERT_EQ(0, ckpt->getNumItems());
 
@@ -4473,21 +4492,42 @@ void DurabilityPromotionStreamTest::TearDown() {
     DurabilityActiveStreamTest::TearDown();
 }
 
+void DurabilityPromotionStreamTest::registerCursorAtCMStartIfEphemeral() {
+    if (ephemeral()) {
+        auto vb = store->getVBucket(vbid);
+        ASSERT_TRUE(vb);
+        auto& manager = static_cast<CheckpointManager&>(*vb->checkpointManager);
+        const auto dcpCursor =
+                manager.registerCursorBySeqno(
+                               "a cursor", 0, CheckpointCursor::Droppable::Yes)
+                        .cursor.lock();
+        ASSERT_TRUE(dcpCursor);
+    }
+}
+
 void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     // 1) Receive a prepare followed by a commit in a disk checkpoint as a
     // replica then flush it
     DurabilityPassiveStreamTest::
             testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
                     2 /*snapStart*/, 4 /*snapEnd*/, DocumentState::Alive);
-    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Note: We need to plant a DCP cursor on ephemeral for preventing
+    // checkpoint removal at replica promotion
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+    if (ephemeral()) {
+        const auto dcpCursor =
+                ckptMgr.registerCursorBySeqno(
+                               "dcp", 0, CheckpointCursor::Droppable::Yes)
+                        .cursor.lock();
+        ASSERT_TRUE(dcpCursor);
+    }
 
     // Remove the Consumer and PassiveStream
     ASSERT_EQ(cb::engine_errc::success,
               consumer->closeStream(0 /*opaque*/, vbid));
     consumer.reset();
-
-    auto vb = engine->getVBucket(vbid);
-    auto& ckptMgr = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
 
     const auto checkOpenCheckpoint = [&ckptMgr](
                                              CheckpointType expectedCkptType,
@@ -4508,7 +4548,8 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     }
 
     // 3) Set up the Producer and ActiveStream
-    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
+    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/,
+                                      false /*persist*/);
 
     // The vbstate-change must have:
     // - closed the checkpoint snap{2, 4, Disk}
@@ -4691,6 +4732,10 @@ void DurabilityPromotionStreamTest::
     auto& ckptMgr = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
     ckptMgr.clear(0 /*seqno*/);
 
+    // Note: We need to plant a DCP cursor on ephemeral for preventing
+    // checkpoint removal at replica promotion
+    registerCursorAtCMStartIfEphemeral();
+
     // 1) Replica receives a first MemoryCheckpoint - snap{1, 1} + M:1
     uint32_t opaque = 1;
     const auto seqno = 1;
@@ -4751,13 +4796,10 @@ void DurabilityPromotionStreamTest::
               consumer->closeStream(0 /*opaque*/, vbid));
     consumer.reset();
 
-    // Note: step necessary only because the next set-vbstate expect an empty
-    //   write-queue. Expect to flush M:1, PRE:2 and M:3
-    flushVBucketToDiskIfPersistent(vbid, 3 /*expected num flushed*/);
-
     // 3) Simulate vbstate-change Replica->Active (we have also a Producer and
     // ActiveStream from this point onward)
-    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
+    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/,
+                                      false /*persist*/);
     ASSERT_TRUE(producer);
     auto* activeStream = DurabilityActiveStreamTest::stream.get();
     ASSERT_TRUE(activeStream);
@@ -4963,6 +5005,10 @@ void DurabilityPromotionStreamTest::
         ASSERT_EQ(expectedSnapEnd, currSnap.range.getEnd());
     };
 
+    // Note: We need to plant a DCP cursor on ephemeral for preventing
+    // checkpoint removal
+    registerCursorAtCMStartIfEphemeral();
+
     // 1) Replica receives PRE:1 and M:2 (logic CMT:2) in a disk checkpoint
     {
         SCOPED_TRACE("");
@@ -4996,13 +5042,10 @@ void DurabilityPromotionStreamTest::
               consumer->closeStream(0 /*opaque*/, vbid));
     consumer.reset();
 
-    // Note: step necessary only because the next set-vbstate expect an empty
-    //   write-queue. Expect to flush PRE:1, M:2, PRE:3 and M:4
-    flushVBucketToDiskIfPersistent(vbid, 4 /*expected num flushed*/);
-
     // 3) Simulate vbstate-change Replica->Active (we have also a Producer and
     // ActiveStream from this point onward)
-    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
+    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/,
+                                      false /*persist*/);
     ASSERT_TRUE(producer);
     auto* activeStream = DurabilityActiveStreamTest::stream.get();
     ASSERT_TRUE(activeStream);
@@ -5136,6 +5179,10 @@ TEST_P(DurabilityPromotionStreamTest,
 // snapStart.
 TEST_P(DurabilityPromotionStreamTest,
        DiskCheckpointStreamsSnapStartFromCheckpoint) {
+    // Note: We need to plant a DCP cursor on ephemeral for preventing
+    // checkpoint removal
+    registerCursorAtCMStartIfEphemeral();
+
     auto opaque = 0;
     // 1)
     SnapshotMarker marker(opaque,
@@ -5195,13 +5242,10 @@ TEST_P(DurabilityPromotionStreamTest,
               consumer->closeStream(0 /*opaque*/, vbid));
     consumer.reset();
 
-    // Note: step necessary only because the next set-vbstate expect an empty
-    //   write-queue.
-    flushVBucketToDiskIfPersistent(vbid, 2);
-
     // Simulate vbstate-change Replica->Active (we have also a Producer and
     // ActiveStream from this point onward)
-    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
+    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/,
+                                      false /*persist*/);
     ASSERT_TRUE(producer);
     auto* activeStream = DurabilityActiveStreamTest::stream.get();
     ASSERT_TRUE(activeStream);
@@ -5256,6 +5300,10 @@ TEST_P(DurabilityPromotionStreamTest,
 // 7) Stream snap marker of 2-3 for snapshot at 3 (previously this was 3-3).
 TEST_P(DurabilityPromotionStreamTest,
        MemoryCheckpointStreamsSnapStartFromCheckpoint) {
+    // Note: We need to plant a DCP cursor on ephemeral for preventing
+    // checkpoint removal
+    registerCursorAtCMStartIfEphemeral();
+
     auto opaque = 0;
     // 1)
     SnapshotMarker marker(
@@ -5322,13 +5370,10 @@ TEST_P(DurabilityPromotionStreamTest,
               consumer->closeStream(0 /*opaque*/, vbid));
     consumer.reset();
 
-    // Note: step necessary only because the next set-vbstate expect an empty
-    //   write-queue.
-    flushVBucketToDiskIfPersistent(vbid, 2);
-
     // Simulate vbstate-change Replica->Active (we have also a Producer and
     // ActiveStream from this point onward)
-    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
+    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/,
+                                      false /*persist*/);
     ASSERT_TRUE(producer);
     auto* activeStream = DurabilityActiveStreamTest::stream.get();
     ASSERT_TRUE(activeStream);
@@ -5444,6 +5489,7 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
                   vb->set(*prepare, cookie, *engine, {}, cHandle));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
+    removeCheckpoint(*vb, 2);
 
     ASSERT_EQ(cb::engine_errc::success,
               vb->abort(prepare->getKey(),
@@ -5452,7 +5498,7 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
                         vb->lockCollections(prepare->getKey())));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    removeCheckpoint(*vb, 3);
+    removeCheckpoint(*vb, 1);
 
     // Create NON sync repl DCP stream
     stream = producer->mockActiveStreamRequest(
@@ -5559,6 +5605,7 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
                   vb->set(*prepare, cookie, *engine, {}, cHandle));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
+    removeCheckpoint(*vb, 1);
 
     ASSERT_EQ(cb::engine_errc::success,
               vb->abort(key,
@@ -5567,7 +5614,7 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
                         vb->lockCollections(prepare->getKey())));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    removeCheckpoint(*vb, 2);
+    removeCheckpoint(*vb, 1);
 
     // Create NON sync repl DCP stream
     auto stream = producer->mockActiveStreamRequest(
@@ -5730,6 +5777,7 @@ void DurabilityActiveStreamTest::
                   vb->set(*prepare, cookie, *engine, {}, cHandle));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
+    removeCheckpoint(*vb, 1);
 
     ASSERT_EQ(cb::engine_errc::success,
               vb->abort(key,
@@ -5738,7 +5786,7 @@ void DurabilityActiveStreamTest::
                         vb->lockCollections(prepare->getKey())));
     // remove checkpoint to ensure stream backfills from disk
     flushVBucketToDiskIfPersistent(vbid, 1);
-    removeCheckpoint(*vb, 2);
+    removeCheckpoint(*vb, 1);
 
     // stream transitions back to backfilling because the cursor was dropped
     resp = stream->next(*producer);
@@ -5901,29 +5949,6 @@ TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
-}
-
-void DurabilityActiveStreamTest::removeCheckpoint(VBucket& vb, int numItems) {
-    /* Create new checkpoint so that we can remove the current checkpoint
-       and force a backfill in the DCP stream */
-    auto& ckpt_mgr = *vb.checkpointManager;
-    ckpt_mgr.createNewCheckpoint();
-
-    // flush to move the persistence cursor
-    flushVBucketToDiskIfPersistent(vb.getId(), 0);
-
-    int itemsRemoved = 0;
-
-    while (true) {
-        auto removed = ckpt_mgr.removeClosedUnrefCheckpoints().count;
-        itemsRemoved += removed;
-
-        if (itemsRemoved >= numItems || !removed) {
-            break;
-        }
-    }
-
-    EXPECT_EQ(numItems, itemsRemoved);
 }
 
 void DurabilityPassiveStreamEphemeralTest::testLogicalCommitCorrectTypeSetup() {

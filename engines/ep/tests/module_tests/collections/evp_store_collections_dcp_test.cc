@@ -2562,6 +2562,7 @@ void MB48010CollectionsDCPParamTest::SetUp() {
 
         // IMPORTANT: Run expel so that some flushed items are removed from
         // memory The DCP stream has to run a backfill for the snapshot
+        moveHelperCursorToCMEnd();
         auto expel = vb->checkpointManager->expelUnreferencedCheckpointItems();
         EXPECT_NE(0, expel.count);
     } else {
@@ -3872,6 +3873,7 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
 
     // 1.3. Create a new checkpoint, so we close the current one. Which will
     // allow us to remove it from memory.
+    moveHelperCursorToCMEnd();
     auto vb = store->getVBucket(vbid);
     vb->checkpointManager->createNewCheckpoint();
     vb->checkpointManager->removeClosedUnrefCheckpoints();

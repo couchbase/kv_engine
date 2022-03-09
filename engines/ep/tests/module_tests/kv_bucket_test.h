@@ -127,7 +127,11 @@ public:
      */
     void flushVBucketToDiskIfPersistent(Vbid vbid, int expected = 1);
 
-    void removeCheckpoint(VBucket& vb, int numItems);
+    /**
+     * Remove the open checkpoint and verify that the expected number of items
+     * is removed by that.
+     */
+    void removeCheckpoint(VBucket& vb, size_t expectedRemoved);
 
     void flushAndRemoveCheckpoints(Vbid vbid);
 

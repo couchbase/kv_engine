@@ -275,27 +275,12 @@ void KVBucketTest::flushVBucketToDiskIfPersistent(Vbid vbid, int expected) {
     }
 }
 
-void KVBucketTest::removeCheckpoint(VBucket& vb, int numItems) {
-    /* Create new checkpoint so that we can remove the current checkpoint
-       and force a backfill in the DCP stream */
-    auto& ckpt_mgr = *vb.checkpointManager;
-    ckpt_mgr.createNewCheckpoint();
-
-    // flush to move the persistence cursor
+void KVBucketTest::removeCheckpoint(VBucket& vb, size_t expectedRemoved) {
+    const auto& stats = engine->getEpStats();
+    const auto pre = stats.itemsRemovedFromCheckpoints;
+    vb.checkpointManager->createNewCheckpoint();
     flushVBucketToDiskIfPersistent(vb.getId(), 0);
-
-    int itemsRemoved = 0;
-
-    while (true) {
-        auto removed = ckpt_mgr.removeClosedUnrefCheckpoints().count;
-        itemsRemoved += removed;
-
-        if (itemsRemoved >= numItems || !removed) {
-            break;
-        }
-    }
-
-    EXPECT_EQ(numItems, itemsRemoved);
+    EXPECT_EQ(pre + expectedRemoved, stats.itemsRemovedFromCheckpoints);
 }
 
 void KVBucketTest::flushAndRemoveCheckpoints(Vbid vbid) {

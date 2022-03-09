@@ -25,7 +25,7 @@ protected:
     /**
      * Does the DurabilityActiveStreamTest specific setup
      */
-    void setUp(bool startCheckpointProcessorTask);
+    void setUp(bool startCheckpointProcessorTask, bool persist = true);
 
     /*
      * Queues a Prepare and verifies that the corresponding DCP_PREPARE
@@ -79,8 +79,6 @@ protected:
      */
     void testEmptyBackfillAfterCursorDroppingNoSyncWriteSupport(
             DocumentState docState, cb::durability::Level level);
-
-    void removeCheckpoint(VBucket& vb, int numItems);
 
     const std::string active = "active";
     const std::string replica = "replica";
@@ -301,6 +299,11 @@ public:
     void TearDown() override;
 
 protected:
+    /**
+     * Used in some tests for preventing checkpoint removal at replica promotion
+     */
+    void registerCursorAtCMStartIfEphemeral();
+
     /**
      * Test that Disk checkpoints received on a replica are streamed as Disk
      * snapshots when promoted to active.

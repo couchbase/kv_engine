@@ -164,9 +164,18 @@ TEST_P(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
     EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
     EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
 
+    // Place a cursor to prevent eager checkpoint removal
+    auto& manager = static_cast<MockCheckpointManager&>(
+            *engine->getVBucket(vbid)->checkpointManager);
+    const auto dcpCursor =
+            manager.registerCursorBySeqno(
+                           "dcp", 0, CheckpointCursor::Droppable::Yes)
+                    .cursor.lock();
+    ASSERT_TRUE(dcpCursor);
+
     // Now store some items so that the mem-usage in checkpoint crosses the
-    // checkpoint_upper_mark (default to 50% of the bucket quota as of writing),
-    // but the overall mem-usage in the system doesn't hit the LWM.
+    // Checkpoint Quota but the overall mem-usage in the system doesn't hit the
+    // global LWM.
     size_t numItems = 0;
     do {
         const auto value = std::string(bucketQuota / 10, 'x');
@@ -220,7 +229,7 @@ TEST_P(CheckpointRemoverEPTest, MemoryRecoveryEnd) {
     ASSERT_EQ(0, store->getRequiredCheckpointMemoryReduction());
 
     // Now store some items so that the mem-usage in checkpoint crosses the
-    // checkpoint_upper_mark
+    // Checkpoint Quota
     size_t numItems = 0;
     do {
         const auto value = std::string(bucketQuota / 100, 'x');
@@ -535,7 +544,16 @@ std::vector<queued_item> CheckpointRemoverEPTest::getItemsWithCursor(
     return items;
 }
 
-TEST_P(CheckpointRemoverEPTest, expelsOnlyIfOldestCheckpointIsReferenced) {
+/**
+ * @todo MB-51295: Remove this test and the related code path in ItemExpel.
+ * The test verifies that ItemExpel defers mem-recovery to checkpoint removal
+ * if (a) there's more than 1 checkpoint and (b) the oldest checkpoint is
+ * unreferenced. That is an impossible state by Eager checkpoint removal, as
+ * closed/unref checkpoints are removed as soon as they become unref.
+ * I just disable the test for now.
+ */
+TEST_P(CheckpointRemoverEPTest,
+       DISABLED_expelsOnlyIfOldestCheckpointIsReferenced) {
     // Check to confirm checkpoint expelling will only run if there are cursors
     // in the oldest checkpoint. If there are not, the entire checkpoint should
     // be closed
@@ -694,6 +712,7 @@ TEST_P(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
     // be selected, despite not being in the oldest checkpoint.
     EXPECT_NO_THROW(cm->expelUnreferencedCheckpointItems());
 }
+
 TEST_P(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
     setVBucketStateAndRunPersistTask(
             vbid,
@@ -718,10 +737,16 @@ TEST_P(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
     EXPECT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*prepare, cookie, nullptr /*StoreIfPredicate*/));
 
-    // Persist to move our cursor so that we can expel the prepare
+    ASSERT_EQ(1, cm->getNumCheckpoints());
+    const auto prepareCkptId = cm->getOpenCheckpointId();
+
+    // Persist to move our cursor so that we can expel the prepare.
+    // Purpose is verifying that the commit is correctly queued into a new
+    // checkpoint also in the case where the related prepare has been expelled -
+    // ie we stress the KeyIndex in this test
     flushVBucketToDiskIfPersistent(vbid, 3);
 
-    auto result = cm->expelUnreferencedCheckpointItems();
+    const auto result = cm->expelUnreferencedCheckpointItems();
     EXPECT_EQ(2, result.count);
 
     EXPECT_EQ(cb::engine_errc::success,
@@ -731,8 +756,10 @@ TEST_P(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
                          vb->lockCollections(prepareKey),
                          cookie));
 
-    // We should have opened a new checkpoint
-    EXPECT_EQ(2, cm->getNumCheckpoints());
+    // Still 1 checkpoint as the old one has been removed, but new checkpoint
+    // for the commit
+    EXPECT_EQ(1, cm->getNumCheckpoints());
+    EXPECT_GT(cm->getOpenCheckpointId(), prepareCkptId);
 }
 
 TEST_P(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
@@ -828,15 +855,18 @@ TEST_P(CheckpointRemoverEPTest,
 
     EXPECT_EQ(1, cm->getNumCheckpoints());
 
+    const auto prepareCkptId = cm->getOpenCheckpointId();
     auto prepare2 = makePendingItem(prepareKey, "value");
-
     EXPECT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*prepare2, cookie, nullptr /*StoreIfPredicate*/));
 
     // queueing second prepare should fail as it would dedupe the existing
     // prepare (even though it has been expelled) leading to a new
     // checkpoint being opened.
-    EXPECT_EQ(2, cm->getNumCheckpoints());
+    // Still 1 checkpoint as the old one jas been removed, but new checkpoint
+    // for the commit
+    EXPECT_EQ(1, cm->getNumCheckpoints());
+    EXPECT_GT(cm->getOpenCheckpointId(), prepareCkptId);
 }
 
 TEST_P(CheckpointRemoverEPTest, MB_48233) {
@@ -855,19 +885,25 @@ TEST_P(CheckpointRemoverEPTest, MB_48233) {
     auto& config = engine->getConfiguration();
     config.setChkExpelEnabled(true);
     config.setMaxSize(1024 * 1024 * 100);
+
+    // Load to OOM. At the same time, makes just 1 item eligible for expelling.
+    // Purpose here is:
+    //  1. Hit OOM
+    //  2. Give the MemoryRecoveryTask some item to expel
+    //  3. Prevent eager checkpoint removal. (1) wouldn't be verified otherwise
     const auto value = std::string(1024 * 1024, 'x');
     auto ret = cb::engine_errc::success;
-    for (size_t i = 0; ret != cb::engine_errc::no_memory; ++i) {
+    for (size_t seqno = 1; ret != cb::engine_errc::no_memory; ++seqno) {
         auto item = make_item(
-                vbid, makeStoredDocKey("key_" + std::to_string(i)), value);
+                vbid, makeStoredDocKey("key_" + std::to_string(seqno)), value);
         ret = store->set(item, cookie);
-    }
 
+        if (seqno == 2) {
+            flushVBucket(vbid);
+        }
+    }
     ASSERT_EQ(KVBucket::CheckpointMemoryState::Full,
               store->getCheckpointMemoryState());
-
-    // Make items eligible for expelling
-    flushVBucket(vbid);
 
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(0,
@@ -884,7 +920,12 @@ TEST_P(CheckpointRemoverEPTest, MB_48233) {
               0);
 }
 
-TEST_P(CheckpointRemoverEPTest, CheckpointRemovalWithoutCursorDrop) {
+/**
+ * @todo MB-51295: Remove, this is a Lazy only test.
+ * With Eager, CursorDrop is the only case where the CheckpointMemRecoveryTask
+ * is expected to remove checkpoints.
+ */
+TEST_P(CheckpointRemoverEPTest, DISABLED_CheckpointRemovalWithoutCursorDrop) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto& config = engine->getConfiguration();
 
@@ -941,67 +982,60 @@ TEST_P(CheckpointRemoverEPTest, CheckpointRemovalWithoutCursorDrop) {
     EXPECT_EQ(0, engine->getEpStats().cursorsDropped);
 }
 
-TEST_P(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
+TEST_P(CheckpointRemoverTest, CursorMoveWakesDestroyer) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-    // Schedule the remover and destroyer tasks, ready for use.
-    // They sleep forever, but must be scheduled to be woken later in the test
-    scheduleCheckpointRemoverTask();
+    // Schedule the Destroyer tasks, ready for use when it's time to wake it up.
     scheduleCheckpointDestroyerTasks();
-
-    // lower the threshold before checkpoint memory recovery is triggered
-    // to minimise the number of items required/time taken for test
-    auto& config = engine->getConfiguration();
-    config.setMaxSize(1024 * 1024 * 10);
-    store->setCheckpointMemoryRatio(0.1);
 
     auto vb = engine->getVBucket(vbid);
     auto& cm = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
-
     auto& epstats = engine->getEpStats();
+    const auto initialMemUsed = epstats.getCheckpointManagerEstimatedMemUsage();
+    const auto initialMemUsedCM = cm.getMemUsage();
 
-    auto initialMemUsed = epstats.getCheckpointManagerEstimatedMemUsage();
-    auto initialMemUsedCM = cm.getMemUsage();
+    // The test covers both persistent/ephemeral
+    auto dcpCursor =
+            cm.registerCursorBySeqno("dcp", 0, CheckpointCursor::Droppable::Yes)
+                    .cursor.lock();
+    ASSERT_TRUE(dcpCursor);
 
-    // Add items to the initial (open) checkpoint until they exceed the
-    // permitted memory usage
-    auto value = std::string(20 * 1024, 'x');
-    int i = 0;
-    while (!store->isCheckpointMemoryReductionRequired()) {
-        auto item = make_item(
-                vbid, makeStoredDocKey("key_" + std::to_string(i++)), value);
-        EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
-    }
+    // Store an item
+    auto item = make_item(vbid, makeStoredDocKey("key"), "value");
+    EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
     EXPECT_EQ(1, cm.getNumCheckpoints());
+    EXPECT_EQ(1, cm.getNumOpenChkItems());
 
+    // Create new open checkpoint
     cm.createNewCheckpoint();
     EXPECT_EQ(2, cm.getNumCheckpoints());
     EXPECT_EQ(0, cm.getNumOpenChkItems());
 
-    // move the persistence cursor out of the old checkpoint
-    flushVBucketToDiskIfPersistent(vbid, i);
-
-    // memory usage should be higher than it started
+    // Memory usage should be higher than it started
     const auto preDetachGlobalMemUsage =
             epstats.getCheckpointManagerEstimatedMemUsage();
     EXPECT_GT(preDetachGlobalMemUsage, initialMemUsed);
-    auto peakMemUsedCM = cm.getMemUsage();
+    const auto peakMemUsedCM = cm.getMemUsage();
     EXPECT_GT(cm.getMemUsage(), initialMemUsedCM);
 
+    // The destroyer doesn't own anything yet, so should have no mem usage
     const auto& destroyer = getCkptDestroyerTask(vbid);
-    // the destroyer doesn't own anything yet, so should have no mem usage
     EXPECT_EQ(0, destroyer.getMemoryUsage());
 
-    store->wakeUpCheckpointMemRecoveryTask();
+    // Move cursors out of the old checkpoint.
+    // That makes the old checkpoint closed/unref and queues it for destruction.
+    // This operation is also expected to wake up the Destroyer - we run that
+    // a few line down here.
+    {
+        std::vector<queued_item> items;
+        cm.getNextItemsForCursor(dcpCursor.get(), items);
+    }
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(1, cm.getNumCheckpoints());
 
-    // run the recovery task, this queues the checkpoints for destruction
-    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
-    runNextTask(nonIO, "CheckpointMemRecoveryTask:0");
-    runNextTask(nonIO, "CheckpointMemRecoveryTask:1");
-
-    // the checkpoints should have been disassociated from their manager,
-    // so the tracked memory usage should have decreased...
+    // The checkpoints should have been disassociated from their manager, so the
+    // tracked memory usage should have decreased..
     EXPECT_LE(cm.getMemUsage(), initialMemUsedCM);
-    // and now the checkpoint mem usage is accounted against the destroyer task
+    // .. and now the checkpoint mem usage is accounted against the destroyer
     EXPECT_EQ(peakMemUsedCM - cm.getMemUsage(), destroyer.getMemoryUsage());
     // Also the counter in EPStats accounts only checkpoints owned by CM, so it
     // must be already updated now that checkpoints are owned by the destroyer
@@ -1009,13 +1043,14 @@ TEST_P(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
             epstats.getCheckpointManagerEstimatedMemUsage();
     EXPECT_LT(postDetachGlobalMemUsage, preDetachGlobalMemUsage);
 
-    // run the task responsible for actually destroying the checkpoints
+    // Run the Destroyer
+    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
     runNextTask(nonIO, "Destroying closed unreferenced checkpoints");
 
-    // The checkpoints have been destroyed, the destroyer should have no
+    // The checkpoints have been released, the Destroyer should have no
     // checkpoint memory associated.
     // Note that the EPStats counter has already been updated so it must not
-    // change again now
+    // change again now.
     EXPECT_EQ(postDetachGlobalMemUsage,
               epstats.getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(cm.getMemUsage(),

@@ -110,14 +110,6 @@ void SingleThreadedKVBucketTest::SetUp() {
     // checkpoints (and may fail if checkpoint state is tested). This parameter
     // is 'seconds' and 86400 is 1 day.
     config_string += ";chk_period=86400";
-    // Lots of single threaded tests currently drive checkpoint removal
-    // directly. While it would be best to make these tests independent of the
-    // checkpoint removal mode, for now default them all to "lazy" to avoid
-    // test breakage. Specific eager tests exist, and over time more will move
-    // to eager by default.
-    if (config_string.find("checkpoint_removal_mode") == std::string::npos) {
-        config_string += ";checkpoint_removal_mode=lazy";
-    }
 
     KVBucketTest::SetUp();
 
@@ -202,17 +194,16 @@ void SingleThreadedKVBucketTest::shutdownAndPurgeTasks(
 }
 
 size_t SingleThreadedKVBucketTest::loadUpToOOM(VbucketOp op) {
-    const auto initialNumItems = store->getVBucket(vbid)->getNumItems();
-    size_t numItems = 0;
+    size_t numLoaded = 0;
     auto ret = cb::engine_errc::success;
     const auto value = std::string(1024 * 1024, 'x');
     do {
-        auto item =
-                make_item(vbid,
-                          makeStoredDocKey("key_" + std::to_string(++numItems)),
-                          value,
-                          0 /*exp*/,
-                          PROTOCOL_BINARY_RAW_BYTES);
+        auto item = make_item(
+                vbid,
+                makeStoredDocKey("key_" + std::to_string(++numLoaded)),
+                value,
+                0 /*exp*/,
+                PROTOCOL_BINARY_RAW_BYTES);
         switch (op) {
         case VbucketOp::Set:
             ret = store->set(item, cookie);
@@ -228,14 +219,6 @@ size_t SingleThreadedKVBucketTest::loadUpToOOM(VbucketOp op) {
             break;
         }
     } while (ret != cb::engine_errc::no_memory);
-
-    // Persist for allowing the num-items check at full-eviction too
-    if (persistent()) {
-        dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
-    }
-    const auto numLoaded = numItems - 1;
-    EXPECT_EQ(initialNumItems + numLoaded,
-              store->getVBucket(vbid)->getNumItems());
 
     return numLoaded;
 }
@@ -1273,8 +1256,8 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
                                                "cursor registered after "
                                                "cursor dropping.";
 
-    // Remove the closed checkpoint to force stream to backfill.
-    removeCheckpoint(*vb, 1);
+    // Ensure closed checkpoint were removed to force stream to backfill.
+    ASSERT_GT(engine->getEpStats().itemsRemovedFromCheckpoints, 0);
 
     // 2. Request next item from stream. Will transition to backfilling as part
     // of this.
@@ -1417,12 +1400,17 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
 
     // Next we to ensure the recreated stream really does a backfill, so drop
     // in-memory items
-    vb->checkpointManager->createNewCheckpoint();
+    auto& manager = *vb->checkpointManager;
+    auto openId = manager.getOpenCheckpointId();
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
+    manager.createNewCheckpoint();
+    EXPECT_GT(manager.getOpenCheckpointId(), openId);
+    EXPECT_EQ(1, stats.itemsRemovedFromCheckpoints);
     // Force persistence into new CP
     queueNewItem(*vb, "key2");
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
-    EXPECT_EQ(1, vb->checkpointManager->removeClosedUnrefCheckpoints().count);
 
     // Now store another item, without MB-29369 fix we would lose this item
     store_item(vbid, makeStoredDocKey("key3"), "value");
@@ -1603,12 +1591,10 @@ void MB22960callbackBeforeRegisterCursor(
 
         EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
                   store->flushVBucket(vb->getId()));
+        // The next step removes the current open checkpoint
+        auto openId = ckpt_mgr.getOpenCheckpointId();
         ckpt_mgr.createNewCheckpoint();
-        EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
-        EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
-
-        // Now remove the earlier checkpoint
-        EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints().count);
+        EXPECT_GT(ckpt_mgr.getOpenCheckpointId(), openId);
         EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
@@ -1631,12 +1617,10 @@ void MB22960callbackBeforeRegisterCursor(
 
         EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
                   store->flushVBucket(vb->getId()));
+        // The next step removes the current open checkpoint
+        openId = ckpt_mgr.getOpenCheckpointId();
         ckpt_mgr.createNewCheckpoint();
-        EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
-        EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
-
-        // Now remove the earlier checkpoint
-        EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints().count);
+        EXPECT_GT(ckpt_mgr.getOpenCheckpointId(), openId);
         EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
     }
@@ -1731,21 +1715,15 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
     EXPECT_EQ(0, ckpt_mgr.removeClosedUnrefCheckpoints().count);
     EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
 
+    // Dropping cursor removes 2 closed checkpoints
+    EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
     mock_stream->handleSlowStream();
-
+    EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
     EXPECT_TRUE(mock_stream->isInMemory())
         << "stream state should not have changed";
     EXPECT_TRUE(mock_stream->public_getPendingBackfill())
         << "pendingBackfill is not true";
-    EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
-
-    // We dropped the DCP cursor and the persistent cursor is at the last (3rd)
-    // checkpoint, so we can now remove the 2 closed checkpoints
-    EXPECT_EQ(1,
-              ckpt_mgr.getCheckpointList().back()->getNumCursorsInCheckpoint());
-    EXPECT_EQ(2, ckpt_mgr.removeClosedUnrefCheckpoints().count);
-    EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
 
     //schedule a backfill
     mock_stream->next(*producer);
@@ -2203,13 +2181,12 @@ TEST_P(STParamPersistentBucketTest, MB19892_BackfillNotDeleted) {
     ckpt_mgr.createNewCheckpoint();
 
     // Directly flush the vbucket, ensuring data is on disk.
-    //  (This would normally also wake up the checkpoint remover task, but
-    //   as that task was never registered with the ExecutorPool in this test
-    //   environment, we need to manually remove the prev checkpoint).
+    // That also removes the closed checkpoint
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
               getEPBucket().flushVBucket(vbid));
-
-    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(1, stats.itemsRemovedFromCheckpoints);
 
     // Create a DCP producer, and start a stream request.
     std::string name{"test_producer"};
@@ -2572,13 +2549,12 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
     EXPECT_EQ(0, lpNonIoQ->getReadyQueueSize());
 
     // Directly flush the vbucket, ensuring data is on disk.
-    //  (This would normally also wake up the checkpoint remover task, but
-    //   as that task was never registered with the ExecutorPool in this test
-    //   environment, we need to manually remove the prev checkpoint).
+    // Cursor move also allows to remove the closed checkpoint.
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
               getEPBucket().flushVBucket(vbid));
-
-    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(1, stats.itemsRemovedFromCheckpoints);
     vb.reset();
 
     EXPECT_EQ(0, lpAuxioQ->getFutureQueueSize());
@@ -2852,7 +2828,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
                                  bySeqno,
                                  /*revSeqno*/ 0,
                                  /*meta*/ {}));
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
     /* Close stream before deleting the connection */
     ASSERT_EQ(cb::engine_errc::success, consumer->closeStream(opaque, vbid));
@@ -3447,7 +3423,6 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
     // after flushing
     auto& ckpt_mgr = *vb->checkpointManager;
     ckpt_mgr.createNewCheckpoint();
-
     flush_vbucket_to_disk(vbid, initialKeys.size());
 
     // 4) Compact drop tombstones less than time=maxint and below seqno 3
@@ -3456,12 +3431,11 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
             engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
     runCompaction(vbid, 3);
 
-    // 5) Begin cursor dropping
+    // 5) Begin cursor dropping - that allows backfill later in the test
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
     mock_stream->handleSlowStream();
-
-    // remove the previous checkpoint to force a backfill
-    auto removed = ckpt_mgr.removeClosedUnrefCheckpoints().count;
-    EXPECT_EQ(2, removed);
+    ASSERT_EQ(2, stats.itemsRemovedFromCheckpoints);
 
     // Kick the stream into backfill
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
@@ -3528,11 +3502,13 @@ TEST_P(STParamPersistentBucketTest, MB_29512) {
 
     // 3) Force all memory items out so DCP will definitely go to disk and
     //    not memory.
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
     vb->checkpointManager->createNewCheckpoint();
+    ASSERT_EQ(2, stats.itemsRemovedFromCheckpoints);
     // Force persistence into new CP
     store_item(vbid, makeStoredDocKey("k3"), "k3");
     flush_vbucket_to_disk(vbid, 1);
-    EXPECT_EQ(2, vb->checkpointManager->removeClosedUnrefCheckpoints().count);
 
     // 4) Stream request picking up where we left off.
     uint64_t rollbackSeqno = 0;
@@ -4352,13 +4328,10 @@ void STParameterizedBucketTest::testValidateDatatypeForEmptyPayload(
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     auto& vb = *store->getVBucket(vbid);
-    ASSERT_EQ(0, vb.getHighSeqno());
     auto& manager = *vb.checkpointManager;
     manager.createNewCheckpoint(true);
-    const auto& ckptList =
-            CheckpointManagerTestIntrospector::public_getCheckpointList(
-                    manager);
-    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(0, vb.getHighSeqno());
 
     // Try to store an empty value with (datatype != raw)
     const auto key = makeStoredDocKey("key");
@@ -4414,6 +4387,9 @@ void STParameterizedBucketTest::testValidateDatatypeForEmptyPayload(
         }
 
         // Verify not in Checkpoint
+        const auto& ckptList =
+                CheckpointManagerTestIntrospector::public_getCheckpointList(
+                        manager);
         const auto* ckpt = ckptList.back().get();
         EXPECT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
         auto it = ckpt->begin();
@@ -4457,28 +4433,50 @@ void STParameterizedBucketTest::testCheckpointMemThresholdEnforced(
         VbucketOp op) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    setVBucketState(vbid, vbucket_state_active);
-    auto vb = store->getVBucket(vbid);
-    ASSERT_TRUE(vb);
-    ASSERT_EQ(0, vb->getNumItems());
-
     const auto ckptMemRatio = store->getCheckpointMemoryRatio();
-    ASSERT_GT(store->getCheckpointMemoryRatio(), 0);
+    size_t initialNumItems = 0;
+    {
+        auto vb = store->getVBucket(vbid);
+        ASSERT_TRUE(vb);
+        ASSERT_EQ(0, vb->getNumItems());
 
-    const auto initialNumItems = loadUpToOOM(op);
+        ASSERT_GT(store->getCheckpointMemoryRatio(), 0);
+
+        // Note: need to plant a cursor for preventing checkpoint removal and
+        // pushing to OOM
+        std::shared_ptr<CheckpointCursor> cursor;
+        if (ephemeral()) {
+            cursor = vb->checkpointManager
+                             ->registerCursorBySeqno(
+                                     "cursor",
+                                     0,
+                                     CheckpointCursor::Droppable::Yes)
+                             .cursor.lock();
+        }
+        initialNumItems = loadUpToOOM(op);
+        ASSERT_GT(initialNumItems, 0);
+    }
     ASSERT_GT(initialNumItems, 0);
 
     store->deleteVBucket(vbid);
     ASSERT_FALSE(store->getVBucket(vbid));
     setVBucketState(vbid, vbucket_state_active);
-    vb = store->getVBucket(vbid);
+    auto vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
     ASSERT_EQ(0, vb->getNumItems());
 
     // Set ratio to something lower
     store->setCheckpointMemoryRatio(ckptMemRatio / 2);
 
+    std::shared_ptr<CheckpointCursor> cursor;
+    if (ephemeral()) {
+        cursor = vb->checkpointManager
+                         ->registerCursorBySeqno(
+                                 "cursor", 0, CheckpointCursor::Droppable::Yes)
+                         .cursor.lock();
+    }
     const auto numItems = loadUpToOOM(op);
+    ASSERT_GT(numItems, 0);
     EXPECT_LT(numItems, initialNumItems);
 }
 
@@ -5247,6 +5245,16 @@ void SingleThreadedKVBucketTest::testExpiryObservesCMQuota(
     ASSERT_EQ(1, vb->getHighSeqno());
 
     // Load and hit the CM Quota
+    // Note: need to plant a cursor for preventing checkpoint removal and
+    // pushing to OOM
+    std::shared_ptr<CheckpointCursor> cursor;
+    if (!isPersistent()) {
+        cursor = vb->checkpointManager
+                         ->registerCursorBySeqno(
+                                 "cursor", 0, CheckpointCursor::Droppable::Yes)
+                         .cursor.lock();
+        ASSERT_TRUE(cursor);
+    }
     ASSERT_EQ(KVBucket::CheckpointMemoryState::Available,
               store->getCheckpointMemoryState());
     EXPECT_GT(loadUpToOOM(VbucketOp::Add), 1);
@@ -5266,6 +5274,10 @@ void SingleThreadedKVBucketTest::testExpiryObservesCMQuota(
     ASSERT_EQ(KVBucket::CheckpointMemoryState::Full,
               store->getCheckpointMemoryState());
     // Release all the releasable from checkpoints
+    if (!isPersistent()) {
+        std::vector<queued_item> items;
+        vb->checkpointManager->getNextItemsForCursor(cursor.get(), items);
+    }
     flushAndRemoveCheckpoints(vbid);
     flushAndExpelFromCheckpoints(vbid);
     EXPECT_EQ(KVBucket::CheckpointMemoryState::Available,
@@ -5331,6 +5343,16 @@ TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_Del) {
     ASSERT_EQ(0, vb->getHighSeqno());
 
     // Load and hit the CM Quota
+    // Note: need to plant a cursor for preventing checkpoint removal and
+    // pushing to OOM
+    std::shared_ptr<CheckpointCursor> cursor;
+    if (!isPersistent()) {
+        cursor = vb->checkpointManager
+                         ->registerCursorBySeqno(
+                                 "cursor", 0, CheckpointCursor::Droppable::Yes)
+                         .cursor.lock();
+        ASSERT_TRUE(cursor);
+    }
     ASSERT_EQ(KVBucket::CheckpointMemoryState::Available,
               store->getCheckpointMemoryState());
     EXPECT_GT(loadUpToOOM(VbucketOp::Add), 1);
@@ -5358,6 +5380,10 @@ TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_Del) {
     ASSERT_EQ(KVBucket::CheckpointMemoryState::Full,
               store->getCheckpointMemoryState());
     // Release all the releasable from checkpoints
+    if (!isPersistent()) {
+        std::vector<queued_item> items;
+        vb->checkpointManager->getNextItemsForCursor(cursor.get(), items);
+    }
     flushAndRemoveCheckpoints(vbid);
     flushAndExpelFromCheckpoints(vbid);
     EXPECT_EQ(KVBucket::CheckpointMemoryState::Available,

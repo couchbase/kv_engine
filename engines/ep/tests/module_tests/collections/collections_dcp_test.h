@@ -30,6 +30,11 @@ public:
 
     void internalSetUp();
 
+    /**
+     * Moves the helperCursor to the end of the CheckpointList.
+     */
+    void moveHelperCursorToCMEnd();
+
     Collections::KVStore::Manifest getPersistedManifest(Vbid vb) const;
 
     void createDcpStream(
@@ -111,6 +116,12 @@ public:
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockDcpConsumer> consumer;
     Vbid replicaVB;
+
+    // Most tests in this testsuite setup in-memory DCP streams and assume that
+    // checkpoints aren't eagerly removed through the test. This cursor is
+    // registered to ensure that pre-condition, and then moved in some test
+    // where necessary (eg, to allow checkpoint removal or expel).
+    std::shared_ptr<CheckpointCursor> helperCursor;
 };
 
 /**

@@ -576,7 +576,6 @@ void KVStoreErrorInjectionTest::testFlushFailureStatsAtDedupedNonMetaItems(
     // Flusher deduplication, just 1 item flushed
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
               epBucket.flushVBucket(vbid));
-    EXPECT_TRUE(vb.checkpointManager->hasClosedCheckpointWhichCanBeRemoved());
     // Flush stats updated
     EXPECT_EQ(0, vb.dirtyQueueSize);
     // HT state

@@ -353,8 +353,10 @@ TEST_F(SingleThreadedEphemeralTest, RangeIteratorVBDeleteRaceTest) {
     ASSERT_EQ(1, ckpt_mgr.getNumCheckpoints());
 
     // make checkpoint to cause backfill later rather than straight to in-memory
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
     ckpt_mgr.createNewCheckpoint();
-    ASSERT_EQ(2, ckpt_mgr.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(2, stats.itemsRemovedFromCheckpoints);
 
     // Create a Mock Dcp producer
     const std::string testName("test_producer");
@@ -503,13 +505,13 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
      * Simulate a stream-req that ends up in a backfill
      */
 
-    // Remove all checkpoints to cause a backfill
-    auto& ckptMgr =
+    // Remove all the closed checkpoints to cause a backfill
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(2, stats.itemsRemovedFromCheckpoints);
+    auto& manager =
             *(static_cast<MockCheckpointManager*>(vb.checkpointManager.get()));
-    ASSERT_EQ(2, ckptMgr.getNumCheckpoints());
-    ckptMgr.createNewCheckpoint();
-    ckptMgr.removeClosedUnrefCheckpoints();
-    ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
+    manager.createNewCheckpoint();
+    ASSERT_EQ(3, stats.itemsRemovedFromCheckpoints);
 
     // Create producer and stream, enable SyncRepl
     auto producer = std::make_shared<MockDcpProducer>(
