@@ -44,21 +44,23 @@ TEST_F(PiTR_Test, MB51007) {
                 });
 
     // Let the test run for 10 seconds
-    const auto timeout =
-            std::chrono::steady_clock::now() + std::chrono::seconds{10};
+    const auto timeLimit = std::chrono::seconds{10};
+    const auto timeout = std::chrono::steady_clock::now() + timeLimit;
     // Create a thread which constantly compact the database
     int num_compaction = 0;
-    std::thread compaction_thread{[&bucket, &timeout, &num_compaction]() {
-        auto conn = bucket->getAuthedConnection(Vbid{0});
-        do {
-            auto rsp = conn->execute(BinprotCompactDbCommand{});
-            ASSERT_TRUE(rsp.isSuccess())
-                    << "Compaction failed for some reason: "
-                    << to_string(rsp.getStatus()) << std::endl
-                    << rsp.getDataString();
-            ++num_compaction;
-        } while (std::chrono::steady_clock::now() < timeout);
-    }};
+    std::thread compaction_thread{
+            [&bucket, &timeout, &num_compaction, &timeLimit]() {
+                auto conn = bucket->getAuthedConnection(Vbid{0});
+                conn->setReadTimeout(timeLimit);
+                do {
+                    auto rsp = conn->execute(BinprotCompactDbCommand{});
+                    ASSERT_TRUE(rsp.isSuccess())
+                            << "Compaction failed for some reason: "
+                            << to_string(rsp.getStatus()) << std::endl
+                            << rsp.getDataString();
+                    ++num_compaction;
+                } while (std::chrono::steady_clock::now() < timeout);
+            }};
 
     int num_store = 0;
     do {
