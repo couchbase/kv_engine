@@ -2357,6 +2357,13 @@ ScanStatus CouchKVStore::scan(BySeqnoScanContext& ctx) const {
     logger.warn("CouchKVStore::scan couchstore_changes_since error:{} [{}]",
                 couchstore_strerror(errorCode),
                 couchkvstore_strerrno(db, errorCode));
+
+    // We don't know how many documents we _should_ have scanned, it could be 1,
+    // could be many more; so just count as a single  "get" failure to the error
+    // is propagated up to ns_server (and can potentially be used to trigger
+    // auto-failover).
+    st.numGetFailure++;
+
     return ScanStatus::Failed;
 }
 
