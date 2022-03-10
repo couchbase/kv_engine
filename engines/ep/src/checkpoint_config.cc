@@ -44,42 +44,33 @@ std::ostream& operator<<(std::ostream& os, const CheckpointRemoval& mode) {
  */
 class CheckpointConfig::ChangeListener : public ValueChangedListener {
 public:
-    explicit ChangeListener(const Configuration& config,
-                            CheckpointConfig& ckptConfig)
-        : config(config), checkpointConfig(ckptConfig) {
+    explicit ChangeListener(CheckpointConfig& c) : config(c) {
     }
 
     void sizeValueChanged(const std::string& key, size_t value) override {
-        if (key == "chk_period") {
-            checkpointConfig.setCheckpointPeriod(value);
-        } else if (key == "chk_max_items") {
-            checkpointConfig.setCheckpointMaxItems(value);
-        } else if (key == "max_checkpoints") {
-            const auto newMaxCheckpoints =
-                    value * config.getMaxCheckpointsHardLimitMultiplier();
-            checkpointConfig.setMaxCheckpoints(newMaxCheckpoints);
-        } else if (key == "max_checkpoints_hard_limit_multiplier") {
-            const auto newMaxCheckpoints = config.getMaxCheckpoints() * value;
-            checkpointConfig.setMaxCheckpoints(newMaxCheckpoints);
+        if (key.compare("chk_period") == 0) {
+            config.setCheckpointPeriod(value);
+        } else if (key.compare("chk_max_items") == 0) {
+            config.setCheckpointMaxItems(value);
+        } else if (key.compare("max_checkpoints") == 0) {
+            config.setMaxCheckpoints(value);
         }
     }
 
     void booleanValueChanged(const std::string& key, bool value) override {
         if (key.compare("item_num_based_new_chk") == 0) {
-            checkpointConfig.allowItemNumBasedNewCheckpoint(value);
+            config.allowItemNumBasedNewCheckpoint(value);
         }
     }
 
 private:
-    const Configuration& config;
-    CheckpointConfig& checkpointConfig;
+    CheckpointConfig& config;
 };
 
 CheckpointConfig::CheckpointConfig(Configuration& config)
     : checkpointPeriod(config.getChkPeriod()),
       checkpointMaxItems(config.getChkMaxItems()),
-      maxCheckpoints(config.getMaxCheckpoints() *
-                     config.getMaxCheckpointsHardLimitMultiplier()),
+      maxCheckpoints(config.getMaxCheckpoints()),
       itemNumBasedNewCheckpoint(config.isItemNumBasedNewChk()),
       persistenceEnabled(config.getBucketType() == "persistent"),
       checkpointRemovalMode(
@@ -88,22 +79,19 @@ CheckpointConfig::CheckpointConfig(Configuration& config)
 
 void CheckpointConfig::addConfigChangeListener(
         EventuallyPersistentEngine& engine) {
-    auto& config = engine.getConfiguration();
-    auto& ckptConfig = engine.getCheckpointConfig();
-    config.addValueChangedListener(
-            "chk_period", std::make_unique<ChangeListener>(config, ckptConfig));
-    config.addValueChangedListener(
+    Configuration& configuration = engine.getConfiguration();
+    configuration.addValueChangedListener(
+            "chk_period",
+            std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
+    configuration.addValueChangedListener(
             "chk_max_items",
-            std::make_unique<ChangeListener>(config, ckptConfig));
-    config.addValueChangedListener(
+            std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
+    configuration.addValueChangedListener(
             "max_checkpoints",
-            std::make_unique<ChangeListener>(config, ckptConfig));
-    config.addValueChangedListener(
-            "max_checkpoints_hard_limit_multiplier",
-            std::make_unique<ChangeListener>(config, ckptConfig));
-    config.addValueChangedListener(
+            std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
+    configuration.addValueChangedListener(
             "item_num_based_new_chk",
-            std::make_unique<ChangeListener>(config, ckptConfig));
+            std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
 }
 
 void CheckpointConfig::setCheckpointPeriod(size_t value) {
