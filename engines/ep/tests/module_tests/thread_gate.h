@@ -60,7 +60,7 @@ public:
 
 private:
     bool isComplete(const std::unique_lock<std::mutex>&) {
-        return thread_count == n_threads;
+        return thread_count >= n_threads;
     }
 
     const size_t n_threads;
