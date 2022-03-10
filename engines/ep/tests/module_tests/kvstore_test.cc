@@ -287,8 +287,13 @@ void KVStoreBackend::setup(const std::string& dataDir,
     configStr += generateBackendConfig("persistent_" + backend) + ";";
 
     if (backend == "magma") {
-        configStr += magmaConfig;
+        configStr += magmaConfig + ';';
     }
+
+    // Run with a fixed (and lower than default) number of shards and vBuckets -
+    // we rarely need all 1024 vBuckets or shards, and running with smaller
+    // numbers makes tests faster / consume less memory etc.
+    configStr += "max_vbuckets=16;max_num_shards=2";
 
     config.parseConfiguration(configStr.c_str(), get_mock_server_api());
     WorkLoadPolicy workload(config.getMaxNumWorkers(),
@@ -1189,7 +1194,7 @@ TEST_P(KVStoreParamTest, GetItemCount) {
 // Verify the negative behavour of getItemCount - if the given vbucket doens't
 // exist then getItemCount should throw std::system_error.
 TEST_P(KVStoreParamTest, GetItemCountInvalidVBucket) {
-    EXPECT_THROW(kvstore->getItemCount(Vbid{123}), std::system_error);
+    EXPECT_THROW(kvstore->getItemCount(Vbid{12}), std::system_error);
 }
 
 TEST_P(KVStoreParamTest, DeletedItemsForNoDeletesScanMovesLastReadSeqno) {
