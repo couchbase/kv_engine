@@ -2334,7 +2334,7 @@ ScanStatus CouchKVStore::scan(BySeqnoScanContext& ctx) const {
         return ScanStatus::Success;
     } else if (errorCode == COUCHSTORE_ERROR_SCAN_YIELD) {
         return ScanStatus::Yield;
-    } else if (errorCode == COUCHSTORE_ERROR_SCAN_ABORTED) {
+    } else if (errorCode == COUCHSTORE_ERROR_SCAN_CANCELLED) {
         return ScanStatus::Cancelled;
     }
 
@@ -2399,7 +2399,7 @@ ScanStatus CouchKVStore::scan(ByIdScanContext& ctx) const {
         return ScanStatus::Success;
     } else if (errorCode == COUCHSTORE_ERROR_SCAN_YIELD) {
         return ScanStatus::Yield;
-    } else if (errorCode == COUCHSTORE_ERROR_SCAN_ABORTED) {
+    } else if (errorCode == COUCHSTORE_ERROR_SCAN_CANCELLED) {
         return ScanStatus::Cancelled;
     }
 
@@ -2824,7 +2824,7 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
             if (cl.getStatus() == cb::engine_errc::no_memory) {
                 return COUCHSTORE_ERROR_SCAN_YIELD;
             }
-            return COUCHSTORE_ERROR_SCAN_ABORTED;
+            return COUCHSTORE_ERROR_SCAN_CANCELLED;
         }
     }
 
@@ -2882,7 +2882,7 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
         if (cb.getStatus() == cb::engine_errc::no_memory) {
             return COUCHSTORE_ERROR_SCAN_YIELD;
         }
-        return COUCHSTORE_ERROR_SCAN_ABORTED;
+        return COUCHSTORE_ERROR_SCAN_CANCELLED;
     }
 
     sctx->lastReadSeqno = byseqno;
