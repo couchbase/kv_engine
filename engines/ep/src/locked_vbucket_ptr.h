@@ -18,6 +18,7 @@
 #pragma once
 
 #include "vbucket_fwd.h"
+#include <gsl/gsl-lite.hpp>
 #include <mutex>
 
 /**
@@ -33,6 +34,7 @@ public:
     }
 
     VBucket& operator*() const {
+        Expects(vb && "Attempt to dereference a null LockedVBucketPtr");
         return *vb;
     }
 
