@@ -339,6 +339,22 @@ TEST_P(XattrNoDocDurabilityTest, MultipathCounter) {
     testMultipathCounter();
 }
 
+std::ostream& operator<<(std::ostream& os,
+                         const BinprotSubdocMultiMutationResponse& resp) {
+    auto& results = resp.getResults();
+    auto getValue = [](const std::string& s) {
+        if (s.empty()) {
+            return s;
+        }
+        return " [" + s + "]";
+    };
+    for (const auto& r : results) {
+        os << "\tindex " << uint32_t(r.index) << ": " << to_string(r.status)
+           << getValue(r.value) << std::endl;
+    }
+    return os;
+}
+
 // Positive test: Can User XAttrs be added to a document which doesn't exist
 // using the new CreateAsDeleted flag, using a combination of subdoc-multi
 // mutation types.
@@ -356,15 +372,16 @@ void XattrNoDocTest::testMultipathCombo() {
     }
 
     userConnection->sendCommand(cmd);
-    BinprotSubdocResponse resp;
+    BinprotSubdocMultiMutationResponse resp;
     userConnection->recvResponse(resp);
-    EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
+
+    ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus()) << resp;
 
     // Check the last path was created correctly.
-    resp = subdoc_get(
+    auto resp2 = subdoc_get(
             "txn.counter", SUBDOC_FLAG_XATTR_PATH, doc_flag::AccessDeleted);
-    ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-    EXPECT_EQ("1", resp.getValue());
+    ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp2.getStatus());
+    EXPECT_EQ("1", resp2.getValue());
 }
 
 TEST_P(XattrNoDocTest, MultipathCombo) {
@@ -432,7 +449,9 @@ TEST_P(XattrNoDocTest, ReplaceBodyWithXattr_DeletedDocument) {
         BinprotSubdocMultiMutationResponse multiResp;
         userConnection->recvResponse(multiResp);
         ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, multiResp.getStatus())
-                << "Failed to update the document to expand the Input macros";
+                << "Failed to update the document to expand the Input macros"
+                << std::endl
+                << multiResp;
         cas = multiResp.getCas();
     }
 
@@ -456,7 +475,7 @@ TEST_P(XattrNoDocTest, ReplaceBodyWithXattr_DeletedDocument) {
         BinprotSubdocMultiMutationResponse multiResp;
         userConnection->recvResponse(multiResp);
         ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
-                << multiResp.getDataString();
+                << multiResp;
     }
 
     // Verify that things looks like we expect them to
@@ -488,7 +507,7 @@ TEST_P(XattrNoDocTest, ReviveRequireDeletedDocument) {
 
     BinprotSubdocMultiMutationResponse resp;
     userConnection->recvResponse(resp);
-    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus()) << resp;
 
     cmd = {};
     cmd.setKey(name);

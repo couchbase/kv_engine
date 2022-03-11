@@ -1067,7 +1067,9 @@ void BinprotSubdocMultiMutationResponse::assign(std::vector<uint8_t>&& buf) {
     BinprotResponse::assign(std::move(buf));
     switch (getStatus()) {
     case cb::mcbp::Status::Success:
+    case cb::mcbp::Status::SubdocSuccessDeleted:
     case cb::mcbp::Status::SubdocMultiPathFailure:
+    case cb::mcbp::Status::SubdocMultiPathFailureDeleted:
         break;
     default:
         return;
