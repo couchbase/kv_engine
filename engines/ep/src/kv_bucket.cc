@@ -1149,19 +1149,16 @@ void KVBucket::scheduleVBStatePersist(Vbid vbid) {
 }
 
 cb::engine_errc KVBucket::deleteVBucket(Vbid vbid, const CookieIface* c) {
-    // Lock to prevent a race condition between a failed update and add
-    // (and delete).
-    VBucketPtr vb = vbMap.getBucket(vbid);
-    if (!vb) {
-        return cb::engine_errc::not_my_vbucket;
-    }
-
     {
         std::unique_lock<std::mutex> vbSetLh(vbsetMutex);
         // Obtain a locked VBucket to ensure we interlock with other
         // threads that are manipulating the VB (particularly ones which may
         // try and change the disk revision e.g. deleteAll and compaction).
         auto lockedVB = getLockedVBucket(vbid);
+        if (!lockedVB) {
+            return cb::engine_errc::not_my_vbucket;
+        }
+
         vbMap.setState(*lockedVB, vbucket_state_dead, nullptr);
         getRWUnderlying(vbid)->abortCompactionIfRunning(lockedVB.getLock(),
                                                         vbid);
