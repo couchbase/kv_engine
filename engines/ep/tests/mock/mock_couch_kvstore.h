@@ -66,6 +66,10 @@ public:
         : CouchKVStore(config) {
     }
 
+    MockCouchKVStore(const CouchKVStoreConfig& config, FileOpsInterface& ops)
+        : CouchKVStore(config, ops) {
+    }
+
     /// Read-Only constructor where we are given a RevisionMap
     MockCouchKVStore(const CouchKVStoreConfig& config,
                      std::shared_ptr<RevisionMap> dbFileRevMap)

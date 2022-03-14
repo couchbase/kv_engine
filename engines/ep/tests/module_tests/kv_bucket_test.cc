@@ -41,6 +41,7 @@
 #include "lambda_task.h"
 #include "replicationthrottle.h"
 #include "tasks.h"
+#include "tests/mock/mock_couch_kvstore.h"
 #include "tests/mock/mock_global_task.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
@@ -494,7 +495,7 @@ void KVBucketTest::replaceCouchKVStore(FileOpsInterface& ops) {
     ASSERT_EQ(engine->getConfiguration().getBackend(), "couchdb");
 
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto rw = std::make_unique<CouchKVStore>(
+    auto rw = std::make_unique<MockCouchKVStore>(
             dynamic_cast<const CouchKVStoreConfig&>(config), ops);
 
     const auto shardId = store->getShardId(vbid);
