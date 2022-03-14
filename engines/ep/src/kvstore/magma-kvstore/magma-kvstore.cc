@@ -707,7 +707,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
                 for (auto kvid : kvstores) {
                     auto status = loadVBStateCache(Vbid(kvid), true);
                     ++st.numLoadedVb;
-                    if (status != ReadVBStateStatus::Success) {
+                    if (status != ReadVBStateStatus::Success &&
+                        status != ReadVBStateStatus::NotFound) {
                         throw std::logic_error("MagmaKVStore vbstate vbid:" +
                                                std::to_string(kvid) +
                                                " not found."
@@ -2023,8 +2024,7 @@ KVStoreIface::ReadVBStateStatus MagmaKVStore::loadVBStateCache(
     // If the vBucket exists but does not have a vbucket_state (i.e. NotFound
     // is returned from readVBStateFromDisk) then just use a defaulted
     // vbucket_state (which defaults to the dead state).
-    if (readState.status != ReadVBStateStatus::Success &&
-        readState.status != ReadVBStateStatus::NotFound) {
+    if (readState.status != ReadVBStateStatus::Success) {
         logger->error("MagmaKVStore::loadVBStateCache {} failed. {}",
                       vbid,
                       to_string(readState.status));

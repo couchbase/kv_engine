@@ -356,7 +356,7 @@ TEST_F(MagmaKVStoreTest, initializeWithHeaderButNoVBState) {
     kvstore = std::make_unique<MockMagmaKVStore>(*kvstoreConfig);
 
     vbstate = kvstore->getCachedVBucketState(vbid);
-    EXPECT_EQ(defaultState, *vbstate);
+    EXPECT_FALSE(vbstate);
 
     res = kvstore->readVBStateFromDisk(vbid);
     EXPECT_EQ(res.status, KVStoreIface::ReadVBStateStatus::NotFound);
