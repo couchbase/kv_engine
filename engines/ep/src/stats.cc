@@ -34,10 +34,7 @@ EPStats::EPStats()
       flusherCommits(0),
       cumulativeFlushTime(0),
       cumulativeCommitTime(0),
-      tooYoung(0),
-      tooOld(0),
       totalPersisted(0),
-      totalPersistVBState(0),
       totalEnqueued(0),
       flushFailed(0),
       flushExpired(0),
@@ -46,41 +43,18 @@ EPStats::EPStats()
       expired_pager(0),
       beginFailed(0),
       commitFailed(0),
-      commit_time(0),
       vbucketDeletions(0),
       vbucketDeletionFail(0),
       mem_low_wat(0),
       mem_low_wat_percent(0),
       mem_high_wat(0),
       mem_high_wat_percent(0),
-      cursorsDropped(0),
-      memFreedByCheckpointRemoval(0),
       memFreedByCheckpointItemExpel(0),
-      pagerRuns(0),
-      expiryPagerRuns(0),
-      freqDecayerRuns(0),
-      itemsExpelledFromCheckpoints(0),
-      itemsRemovedFromCheckpoints(0),
-      numValueEjects(0),
-      numFailedEjects(0),
-      numNotMyVBuckets(0),
       forceShutdown(false),
-      oom_errors(0),
-      tmp_oom_errors(0),
-      pendingOps(0),
-      pendingOpsTotal(0),
-      pendingOpsMax(0),
-      pendingOpsMaxDuration(0),
       pendingCompactions(0),
-      bg_fetched(0),
       bg_meta_fetched(0),
       numRemainingBgItems(0),
       numRemainingBgJobs(0),
-      bgNumOperations(0),
-      bgWait(0),
-      bgLoad(0),
-      vbucketDelMaxWalltime(0),
-      vbucketDelTotWalltime(0),
       replicationThrottleThreshold(0),
       numOpsStore(0),
       numOpsDelete(0),
@@ -93,23 +67,18 @@ EPStats::EPStats()
       numOpsSetRetMeta(0),
       numOpsDelRetMeta(0),
       numOpsGetMetaOnSetWithMeta(0),
-      alogRuns(0),
-      accessScannerSkips(0),
       alogNumItems(0),
       alogTime(0),
       alogRuntime(0),
       expPagerTime(0),
       isShutdown(false),
       rollbackCount(0),
-      defragNumVisited(0),
-      defragNumMoved(0),
       defragStoredValueNumMoved(0),
-      compressorNumVisited(0),
-      compressorNumCompressed(0),
       dirtyAgeHisto(),
       diskCommitHisto(),
       timingLog(nullptr),
       maxDataSize(DEFAULT_MAX_DATA_SIZE) {
+    EPStats::reset(); // Initialize all remaining stats to their default values
     trackCollectionStats(CollectionID::Default);
 }
 
@@ -269,39 +238,38 @@ void EPStats::setHighWaterMark(size_t value) {
 }
 
 void EPStats::reset() {
-    tooYoung.store(0);
-    tooOld.store(0);
-    totalPersistVBState.store(0);
+    tooYoung.reset();
+    tooOld.reset();
+    totalPersistVBState.reset();
     commit_time.store(0);
-    cursorsDropped.store(0);
-    memFreedByCheckpointRemoval.store(0);
-    pagerRuns.store(0);
-    expiryPagerRuns.store(0);
-    freqDecayerRuns.store(0);
-    itemsExpelledFromCheckpoints.store(0);
-    itemsRemovedFromCheckpoints.store(0);
-    numValueEjects.store(0);
-    numFailedEjects.store(0);
-    numNotMyVBuckets.store(0);
-    bg_fetched.store(0);
-    bgNumOperations.store(0);
+    cursorsDropped.reset();
+    memFreedByCheckpointRemoval.reset();
+    pagerRuns.reset();
+    expiryPagerRuns.reset();
+    freqDecayerRuns.reset();
+    itemsExpelledFromCheckpoints.reset();
+    itemsRemovedFromCheckpoints.reset();
+    numValueEjects.reset();
+    numFailedEjects.reset();
+    numNotMyVBuckets.reset();
+    bg_fetched.reset();
+    bgNumOperations.reset();
     bgWait.store(0);
     bgLoad.store(0);
-    oom_errors.store(0);
-    tmp_oom_errors.store(0);
-    pendingOps.store(0);
-    pendingOpsTotal.store(0);
+    oom_errors.reset();
+    tmp_oom_errors.reset();
+    pendingOps.reset();
+    pendingOpsTotal.reset();
     pendingOpsMax.store(0);
     pendingOpsMaxDuration.store(0);
     vbucketDelMaxWalltime.store(0);
     vbucketDelTotWalltime.store(0);
-
-    alogRuns.store(0);
-    accessScannerSkips.store(0), defragNumVisited.store(0),
-            defragNumMoved.store(0);
-
-    compressorNumVisited.store(0);
-    compressorNumCompressed.store(0);
+    alogRuns.reset();
+    accessScannerSkips.reset();
+    defragNumVisited.reset();
+    defragNumMoved.reset();
+    compressorNumVisited.reset();
+    compressorNumCompressed.reset();
 
     pendingOpsHisto.reset();
     bgWaitHisto.reset();
