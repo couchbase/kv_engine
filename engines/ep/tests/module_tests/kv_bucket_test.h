@@ -314,8 +314,9 @@ public:
     Collections::Manager& getCollectionsManager();
 
     /**
-     * Replace the r/w KVStore with one that uses the given ops. This function
-     * will test the config to be sure the KVBucket is persistent/couchstore.
+     * Replace the r/w KVStore with a MockCouchKVStore that uses the given ops.
+     * This function will test the config to be sure the KVBucket is
+     * persistent/couchstore.
      */
     void replaceCouchKVStore(FileOpsInterface& ops);
 
