@@ -109,11 +109,6 @@ static enum test_result test_checkpoint_timeout(EngineIface* h) {
             store(h, nullptr, StoreSemantics::Set, "key", "value"),
             "Failed to store an item.");
     testHarness->time_travel(600);
-    // store another item after advancing time, should close the previous
-    // checkpoint
-    checkeq(cb::engine_errc::success,
-            store(h, nullptr, StoreSemantics::Set, "key2", "value"),
-            "Failed to store second item.");
     wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 2, "checkpoint");
     return SUCCESS;
 }

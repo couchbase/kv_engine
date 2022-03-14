@@ -390,6 +390,65 @@ TEST_P(CheckpointRemoverTest, expelWithoutCursor) {
     EXPECT_GT(stats.memFreedByCheckpointItemExpel, 0);
 }
 
+TEST_P(CheckpointRemoverTest, MemRecoveryByCheckpointCreation) {
+    setVBucketStateAndRunPersistTask(Vbid(0), vbucket_state_active);
+    setVBucketStateAndRunPersistTask(Vbid(1), vbucket_state_active);
+
+    auto& config = engine->getConfiguration();
+    config.setChkExpelEnabled(true);
+    config.setMaxSize(1024 * 1024 * 100);
+
+    // @todo: Convert to config.setCheckpointRemovalMode("eager") once the
+    //  param has been made dynamic
+    auto& ckptConfig = engine->getCheckpointConfig();
+    ckptConfig.setCheckpointRemovalMode(CheckpointRemoval::Eager);
+    ASSERT_TRUE(engine->getCheckpointConfig().isEagerCheckpointRemoval());
+
+    ASSERT_EQ(0, store->getRequiredCheckpointMemoryReduction());
+
+    // Compute paylaod size such that we enter a TempOOM phase when we store
+    // the second item.
+    const size_t valueSize =
+            config.getMaxSize() * config.getCheckpointMemoryRatio() *
+                    config.getCheckpointMemoryRecoveryUpperMark() / 2 +
+            1;
+    const auto value = std::string(valueSize, 'x');
+    // Store first item, no checkpoint OOM yet
+    store_item(Vbid(0), makeStoredDocKey("keyA"), value);
+    EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
+    // Store second item, Checkpoint OOM
+    store_item(Vbid(1), makeStoredDocKey("keyB"), value);
+    ASSERT_GT(store->getRequiredCheckpointMemoryReduction(), 0);
+
+    // Move the cursors to the end of the open checkpoint. Step required to
+    // allow checkpoint creation + cursor jumping into the new checkpoints in
+    // the next steps
+    flushVBucketToDiskIfPersistent(Vbid(0), 1);
+    flushVBucketToDiskIfPersistent(Vbid(1), 1);
+
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.itemsExpelledFromCheckpoints);
+    ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
+
+    // Mem-recovery is expected to:
+    // 1. Create a new checkpoint on at least 1 vbucket
+    // 2. Move the cursors from the closed checkpoint to the open one
+    // 3. Remove the closed (and now unred) checkpoint
+    const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
+            engine.get(),
+            engine->getEpStats(),
+            engine->getConfiguration().getChkRemoverStime(),
+            0);
+    remover->run();
+
+    // That allows to remove checkpoints and recover from OOM
+    // Before the fix, nothing removed from checkpoints and mem-reduction still
+    // required at this point
+    EXPECT_EQ(0, stats.itemsExpelledFromCheckpoints);
+    EXPECT_GT(stats.itemsRemovedFromCheckpoints, 0);
+    EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
+}
+
 // Test written for MB-36366. With the fix removed this test failed because
 // post expel, we continued onto cursor dropping.
 // MB-36447 - unreliable test, disabling for now
