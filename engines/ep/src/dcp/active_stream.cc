@@ -1179,27 +1179,12 @@ void ActiveStream::processItems(
             if (qi->getOperation() == queue_op::checkpoint_end) {
                 // At the end of each checkpoint remove its snapshot range, so
                 // we don't use it to set nextSnapStart for the next checkpoint.
-                // If statement ensures that we have indeed completed the
-                // snapshot range by checking that checkpoint_end seqno is
-                // greater than the end of the range. Also account for an edge
-                // case where we have closed checkpoint who's checkpoint_end is
-                // equal to snapshot end seqno. This can happen when snapshots
-                // partially received by a replica which is then promoted to
-                // active
+                // We can just erase the range at the head of ranges as every
+                // time as CheckpointManager::getItemsForCursor() will always
+                // ensure there is a snapshot range for if there is a
+                // queue_op::checkpoint_end in the items it returns.
                 auto rangeItr = outstandingItemsResult.ranges.begin();
-                auto snapEnd = static_cast<int64_t>(rangeItr->getEnd());
-                if (snapEnd < qi->getBySeqno() ||
-                    (rangeItr->isClosed && snapEnd == qi->getBySeqno())) {
-                    outstandingItemsResult.ranges.erase(rangeItr);
-                } else {
-                    log(spdlog::level::level_enum::err,
-                        "ActiveStream::processItems checkpoint_end:{} "
-                        "should not be in the current snapshot range "
-                        "s:{}->e:{}",
-                        qi->getBySeqno(),
-                        rangeItr->getStart(),
-                        rangeItr->getEnd());
-                }
+                outstandingItemsResult.ranges.erase(rangeItr);
             }
 
             if (qi->getOperation() == queue_op::checkpoint_start) {

@@ -60,8 +60,6 @@ struct CheckpointSnapshotRange {
     // HPS that should be flushed when the entire range has been persisted.
     // This is the seqno of the latest prepare in this checkpoint.
     std::optional<uint64_t> highPreparedSeqno = {};
-    // Is the checkpoint closed
-    bool isClosed = false;
 };
 
 /**

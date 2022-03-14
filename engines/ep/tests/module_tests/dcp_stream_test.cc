@@ -1146,7 +1146,7 @@ TEST_P(StreamTest, ProcessItemsCheckpointStartIsLastItem) {
     result.items.push_back(dummy);
     result.items.emplace_back(new Item(
             makeStoredDocKey("end"), vbid, queue_op::checkpoint_end, 1, 10));
-    result.ranges.push_back({{0, 9}, {}, {}, true});
+    result.ranges.push_back({{0, 9}, {}, {}});
 
     stream->public_processItems(result);
     result.items.clear();
@@ -1164,13 +1164,13 @@ TEST_P(StreamTest, ProcessItemsCheckpointStartIsLastItem) {
                                                 queue_op::checkpoint_end,
                                                 1,
                                                 /*seqno*/ 11)));
-    result.ranges.push_back({{10, 10}, {}, {}, true});
+    result.ranges.push_back({{10, 10}, {}, {}});
     result.items.push_back(queued_item(new Item(makeStoredDocKey("start"),
                                                 vbid,
                                                 queue_op::checkpoint_start,
                                                 2,
                                                 /*seqno*/ 11)));
-    result.ranges.push_back({{11, 11}, {}, {}, true});
+    result.ranges.push_back({{11, 11}, {}, {}});
 
     // Test - call processItems() twice: once with the items above, then with
     // a single mutation.
