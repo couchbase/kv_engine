@@ -478,10 +478,6 @@ public:
     struct DiskState {
         magma::Status status;
         vbucket_state vbstate;
-
-        // Revision number of the vBucket/kvstore that we store in the
-        // vbucket_state local doc for magma vBuckets
-        uint64_t kvstoreRev;
     };
 
     /**
