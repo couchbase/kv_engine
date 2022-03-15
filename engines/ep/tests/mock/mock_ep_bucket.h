@@ -29,6 +29,8 @@ public:
                 (VBucket&, const DiskDocKey&, int64_t, bool, int64_t),
                 (override));
 
+    using KVBucket::initializeExpiryPager;
+
     /**
      * Mock specific initialization. Does not override initialize function as
      * the general use of this mock requires avoiding the initialization of

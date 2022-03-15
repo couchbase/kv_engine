@@ -10,8 +10,16 @@
  */
 
 #include <benchmark/benchmark.h>
+
+#include "engine_fixture.h"
+
+#include "../tests/mock/mock_ep_bucket.h"
+
+#include <engines/ep/src/kv_bucket.h>
+#include <executor/fake_executorpool.h>
 #include <folly/portability/GTest.h>
 #include <statistics/cbstat_collector.h>
+#include <statistics/labelled_collector.h>
 
 #include <collections/manager.h>
 #include <collections/vbucket_manifest.h>
@@ -72,3 +80,87 @@ BENCHMARK_DEFINE_F(StatsBench, CollectionStats)(benchmark::State& state) {
 }
 
 BENCHMARK_REGISTER_F(StatsBench, CollectionStats)->Range(1, 1000);
+
+/**
+ * Fixture for engine stat benchmarks
+ */
+class EngineStatsBench : public EngineFixture {
+public:
+    void SetUp(const benchmark::State& state) override {
+        EngineFixture::SetUp(state);
+        if (state.thread_index() == 0) {
+            // stats check if expiry pager is initialised.
+            dynamic_cast<MockEPBucket&>(*engine->getKVBucket())
+                    .initializeExpiryPager(engine->getConfiguration());
+        }
+    }
+};
+
+/**
+ * Fixture for benchmarking engine stat which aggregate across all vbuckets.
+ */
+class MultiVBEngineStatsBench : public EngineStatsBench {
+public:
+    void SetUp(const benchmark::State& state) override {
+        if (!varConfig.empty()) {
+            varConfig += ";";
+        }
+        varConfig += "max_vbuckets=1024";
+        EngineStatsBench::SetUp(state);
+        if (state.thread_index() == 0) {
+            auto numVBs = state.range(0);
+            for (auto vbid = 0; vbid < numVBs; vbid++) {
+                ASSERT_EQ(cb::engine_errc::success,
+                          engine->getKVBucket()->setVBucketState(
+                                  Vbid(vbid), vbucket_state_active));
+            }
+        }
+    }
+
+    void TearDown(const benchmark::State& state) override {
+        if (state.thread_index() == 0) {
+            auto numVBs = state.range(0);
+            for (auto vbid = 0; vbid < numVBs; vbid++) {
+                ASSERT_EQ(cb::engine_errc::success,
+                          engine->getKVBucket()->deleteVBucket(Vbid(vbid),
+                                                               nullptr));
+                executorPool->runNextTask(AUXIO_TASK_IDX,
+                                          "Removing (dead) " +
+                                                  to_string(Vbid(vbid)) +
+                                                  " from memory and disk");
+            }
+        }
+        EngineFixture::TearDown(state);
+    }
+};
+
+BENCHMARK_DEFINE_F(EngineStatsBench, EngineStats)(benchmark::State& state) {
+    CBStatCollector collector(dummyCallback, cookie);
+    auto bucketCollector = collector.forBucket("foobar");
+    while (state.KeepRunning()) {
+        engine->doEngineStats(bucketCollector);
+    }
+}
+
+BENCHMARK_DEFINE_F(EngineStatsBench, Uuid)(benchmark::State& state) {
+    // UUID stat group generates a single response. This is a reasonable
+    // example of a "small" stat group.
+    while (state.KeepRunning()) {
+        engine->getStats(cookie, "uuid", "", dummyCallback);
+    }
+}
+
+BENCHMARK_DEFINE_F(MultiVBEngineStatsBench, VBucketDetailsStats)
+(benchmark::State& state) {
+    CBStatCollector collector(dummyCallback, cookie);
+    auto bucketCollector = collector.forBucket("foobar");
+    while (state.KeepRunning()) {
+        engine->doEngineStats(bucketCollector);
+    }
+}
+
+BENCHMARK_REGISTER_F(EngineStatsBench, EngineStats);
+BENCHMARK_REGISTER_F(EngineStatsBench, Uuid);
+
+BENCHMARK_REGISTER_F(MultiVBEngineStatsBench, VBucketDetailsStats)
+        ->Range(1, 1024);
