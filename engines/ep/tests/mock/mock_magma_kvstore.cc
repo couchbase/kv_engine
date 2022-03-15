@@ -16,7 +16,8 @@ MockMagmaKVStore::MockMagmaKVStore(MagmaKVStoreConfig& config)
     : MagmaKVStore(config) {
 }
 
-MagmaKVStore::DiskState MockMagmaKVStore::readVBStateFromDisk(Vbid vbid) {
+KVStoreIface::ReadVBStateResult MockMagmaKVStore::readVBStateFromDisk(
+        Vbid vbid) {
     return MagmaKVStore::readVBStateFromDisk(vbid);
 }
 

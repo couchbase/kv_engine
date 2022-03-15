@@ -459,7 +459,7 @@ public:
     /**
      * Read the vbstate from disk and load into cache
      */
-    magma::Status loadVBStateCache(Vbid vbid, bool resetKVStoreRev = false);
+    ReadVBStateStatus loadVBStateCache(Vbid vbid, bool resetKVStoreRev = false);
 
     /**
      * Write the vbucket_state to disk.
@@ -483,7 +483,7 @@ public:
     /**
      * Read the encoded vstate + docCount from the local db.
      */
-    DiskState readVBStateFromDisk(Vbid vbid) const;
+    ReadVBStateResult readVBStateFromDisk(Vbid vbid) const;
 
     /**s
      * Read the encoded vbstate from the given snapshot.
