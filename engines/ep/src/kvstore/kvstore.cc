@@ -689,3 +689,19 @@ std::ostream& operator<<(std::ostream& os, ScanStatus status) {
     }
     folly::assume_unreachable();
 }
+
+std::string to_string(KVStoreIface::ReadVBStateStatus status) {
+    switch (status) {
+    case KVStoreIface::ReadVBStateStatus::Success:
+        return "Success";
+    case KVStoreIface::ReadVBStateStatus::NotFound:
+        return "NotFound";
+    case KVStoreIface::ReadVBStateStatus::JsonInvalid:
+        return "JsonInvalid";
+    case KVStoreIface::ReadVBStateStatus::CorruptSnapshot:
+        return "CorruptSnapshot";
+    case KVStoreIface::ReadVBStateStatus::Error:
+        return "Error";
+    }
+    folly::assume_unreachable();
+}

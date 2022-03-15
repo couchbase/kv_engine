@@ -15,6 +15,7 @@
 #include "collections/kvstore.h"
 #include "ep_types.h"
 #include "persistence_callback.h"
+#include "vbucket_state.h"
 
 #include <memcached/engine_common.h>
 #include <memcached/thread_pool_config.h>
@@ -37,7 +38,6 @@ struct CompactionConfig;
 struct CompactionContext;
 struct DBFileInfo;
 struct TransactionContext;
-struct vbucket_state;
 
 namespace Collections::VB {
 struct PersistedStats;
@@ -331,6 +331,24 @@ public:
      * virtual.
      */
     virtual vbucket_state* getCachedVBucketState(Vbid vbid) = 0;
+
+    enum class ReadVBStateStatus : uint8_t {
+        Success = 0,
+        NotFound,
+        JsonInvalid,
+        CorruptSnapshot,
+        Error,
+    };
+
+    /**
+     * Result of the readVBState function
+     */
+    struct ReadVBStateResult {
+        ReadVBStateStatus status{ReadVBStateStatus::Success};
+
+        // Only valid if status == ReadVBStateStatus::Success
+        vbucket_state state;
+    };
 
     /**
      * Return the vbucket_state stored on disk for the given vBucket. Does NOT
@@ -739,3 +757,5 @@ public:
      */
     virtual void prepareToCreateImpl(Vbid vbid) = 0;
 };
+
+std::string to_string(KVStoreIface::ReadVBStateStatus status);

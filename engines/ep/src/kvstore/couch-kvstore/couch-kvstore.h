@@ -150,14 +150,6 @@ public:
     using PendingRequestQueue = std::deque<CouchRequest>;
     using PendingLocalDocRequestQueue = std::deque<CouchLocalDocRequest>;
 
-    enum class ReadVBStateStatus : uint8_t {
-        Success = 0,
-        NotFound,
-        JsonInvalid,
-        CorruptSnapshot,
-        CouchstoreError
-    };
-
     /**
      * Constructor - creates a read/write CouchKVStore
      *
@@ -828,16 +820,6 @@ protected:
     }
 
     /**
-     * Result of the readVBState function
-     */
-    struct ReadVBStateResult {
-        ReadVBStateStatus status{ReadVBStateStatus::Success};
-
-        // Only valid if status == ReadVBStateStatus::Success
-        vbucket_state state;
-    };
-
-    /**
      * Read the vbucket_state from disk.
      */
     ReadVBStateResult readVBState(Db* db, Vbid vbid) const;
@@ -1065,5 +1047,3 @@ struct CouchKVStoreTransactionContext : public TransactionContext {
      */
     CouchKVStore::PendingLocalDocRequestQueue pendingLocalReqsQ;
 };
-
-std::string to_string(CouchKVStore::ReadVBStateStatus status);

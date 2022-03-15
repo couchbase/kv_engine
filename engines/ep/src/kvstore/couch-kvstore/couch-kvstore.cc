@@ -198,22 +198,6 @@ static std::string getDBFileName(const std::string& dbname,
            std::to_string(rev);
 }
 
-std::string to_string(CouchKVStore::ReadVBStateStatus status) {
-    switch (status) {
-    case CouchKVStore::ReadVBStateStatus::Success:
-        return "Success";
-    case CouchKVStore::ReadVBStateStatus::NotFound:
-        return "NotFound";
-    case CouchKVStore::ReadVBStateStatus::JsonInvalid:
-        return "JsonInvalid";
-    case CouchKVStore::ReadVBStateStatus::CorruptSnapshot:
-        return "CorruptSnapshot";
-    case CouchKVStore::ReadVBStateStatus::CouchstoreError:
-        return "CouchstoreError";
-    }
-    folly::assume_unreachable();
-}
-
 /// @returns the document ID used to store cid
 std::string CouchKVStore::getCollectionStatsLocalDocId(CollectionID cid) {
     return fmt::format("|{:#x}|", uint32_t(cid));
@@ -3309,7 +3293,7 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db,
                 " error:{}, {}",
                 couchstore_strerror(couchStoreStatus),
                 vbId);
-        return {ReadVBStateStatus::CouchstoreError, {}};
+        return {ReadVBStateStatus::Error, {}};
     }
 
     // Proceed to read/parse the vbstate
