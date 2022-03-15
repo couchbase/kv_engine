@@ -21,7 +21,7 @@ KVStoreIface::ReadVBStateResult MockMagmaKVStore::readVBStateFromDisk(
     return MagmaKVStore::readVBStateFromDisk(vbid);
 }
 
-MagmaKVStore::DiskState MockMagmaKVStore::readVBStateFromDisk(
+KVStoreIface::ReadVBStateResult MockMagmaKVStore::readVBStateFromDisk(
         Vbid vbid, magma::Magma::Snapshot& snapshot) const {
     readVBStateFromDiskHook();
 

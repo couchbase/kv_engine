@@ -473,14 +473,6 @@ public:
     magma::Status writeVBStateToDisk(Vbid vbid, const vbucket_state& vbstate);
 
     /**
-     * Return value of readVBStateFromDisk.
-     */
-    struct DiskState {
-        magma::Status status;
-        vbucket_state vbstate;
-    };
-
-    /**
      * Read the encoded vstate + docCount from the local db.
      */
     ReadVBStateResult readVBStateFromDisk(Vbid vbid) const;
@@ -488,7 +480,7 @@ public:
     /**s
      * Read the encoded vbstate from the given snapshot.
      */
-    virtual DiskState readVBStateFromDisk(
+    virtual ReadVBStateResult readVBStateFromDisk(
             Vbid vbid, magma::Magma::Snapshot& snapshot) const;
 
     /**
