@@ -934,6 +934,18 @@ TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
 }
 
 TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex_pitr) {
+    populate_items(1);
+
+    // This test finds an old header that lacks a vbucket_state if we run it
+    // without any pre-amble. Find a header without a vbucket_state causes the
+    // compaction to fail and to abort before we hit our expectations in the
+    // test. To run this test we need to sleep for more than the max history age
+    // because the PiTR code in couchstore is using the system clock...
+    // @TODO MB-45408: we should not be sleeping in tests.
+    // @TODO MB-51037: We probably should not fail this compaction if we pick
+    //  up a header that does not have a vbucket_state.
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
     config.setPitrEnabled(true);
     config.setPitrGranularity(std::chrono::nanoseconds(1000));
     config.setPitrMaxHistoryAge(std::chrono::seconds(1));
