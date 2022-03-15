@@ -183,6 +183,11 @@ public:
         return {const_cast<uint8_t*>(cbb.data()), cbb.size()};
     }
 
+    std::string_view getKeyString() const {
+        const auto key = getKey();
+        return {reinterpret_cast<const char*>(key.data()), key.size()};
+    }
+
     /**
      * Get the byte buffer containing the value (this is not the entire
      * payload of the message, but the portion after the key in the packet)

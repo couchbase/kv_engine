@@ -12,6 +12,7 @@
 #include "stats_tasks.h"
 #include "connection.h"
 #include "cookie.h"
+#include "daemon/protocol/mcbp/engine_wrapper.h"
 #include "memcached.h"
 #include "nobucket_taskable.h"
 #include "tenant_manager.h"
@@ -20,6 +21,36 @@
 
 StatsTask::StatsTask(TaskId id, Cookie& cookie)
     : GlobalTask(NoBucketTaskable::instance(), id), cookie(cookie) {
+}
+
+StatsTaskBucketStats::StatsTaskBucketStats(Cookie& cookie,
+                                           std::string key,
+                                           std::string value)
+    : StatsTask(TaskId::Core_StatsBucketTask, cookie),
+      key(std::move(key)),
+      value(std::move(value)) {
+}
+
+bool StatsTaskBucketStats::run() {
+    command_error = bucket_get_stats(
+            cookie,
+            key,
+            cb::const_byte_buffer(
+                    reinterpret_cast<const uint8_t*>(value.data()),
+                    value.size()),
+            [this](std::string_view key,
+                   std::string_view value,
+                   const void* ctx) { stats.emplace_back(key, value); });
+    notifyIoComplete(cookie, cb::engine_errc::success);
+    return false;
+}
+
+std::string StatsTaskBucketStats::getDescription() const {
+    return "bucket stats";
+}
+
+std::chrono::microseconds StatsTaskBucketStats::maxExpectedDuration() const {
+    return std::chrono::seconds(1);
 }
 
 StatsTaskConnectionStats::StatsTaskConnectionStats(Cookie& cookie, int64_t fd)

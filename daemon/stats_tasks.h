@@ -40,6 +40,25 @@ protected:
     std::vector<std::pair<std::string, std::string>> stats;
 };
 
+/**
+ * Task gathering bucket stats.
+ *
+ * Used for stat groups which may be expensive to gather (e.g., per collection
+ * stats), to avoid occupying a frontend thread.
+ */
+class StatsTaskBucketStats : public StatsTask {
+public:
+    StatsTaskBucketStats(Cookie& cookie, std::string key, std::string value);
+    std::string getDescription() const override;
+    std::chrono::microseconds maxExpectedDuration() const override;
+
+protected:
+    bool run() override;
+
+    std::string key;
+    std::string value;
+};
+
 class StatsTaskConnectionStats : public StatsTask {
 public:
     StatsTaskConnectionStats(Cookie& cookie, int64_t fd);

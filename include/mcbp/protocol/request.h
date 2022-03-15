@@ -172,6 +172,8 @@ public:
 
     cb::byte_buffer getKey();
 
+    std::string_view getKeyString() const;
+
     cb::const_byte_buffer getValue() const;
 
     cb::byte_buffer getValue();

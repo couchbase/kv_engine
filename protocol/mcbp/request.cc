@@ -90,6 +90,9 @@ cb::const_byte_buffer Request::getKey() const {
 cb::byte_buffer Request::getKey() {
     return reinterpret_cast<Header*>(this)->getKey();
 }
+std::string_view Request::getKeyString() const {
+    return reinterpret_cast<const Header*>(this)->getKeyString();
+}
 cb::const_byte_buffer Request::getValue() const {
     return reinterpret_cast<const Header*>(this)->getValue();
 }

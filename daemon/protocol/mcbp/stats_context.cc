@@ -468,10 +468,15 @@ static cb::engine_errc stat_all_stats(const std::string& arg, Cookie& cookie) {
     return server_stats(collector, cookie.getConnection().getBucket());
 }
 
-static cb::engine_errc stat_bucket_stats(const std::string& arg,
-                                         Cookie& cookie) {
-    auto value = cookie.getRequest().getValue();
-    return bucket_get_stats(cookie, arg, value, appendStatsFn);
+static cb::engine_errc stat_bucket_stats(const std::string&, Cookie& cookie) {
+    auto key = cookie.getRequest().getKeyString();
+    auto value = cookie.getRequest().getValueString();
+
+    std::shared_ptr<StatsTask> task = std::make_shared<StatsTaskBucketStats>(
+            cookie, std::string(key), std::string(value));
+    cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
+    ExecutorPool::get()->schedule(task);
+    return cb::engine_errc::would_block;
 }
 
 // handler for scopes/collections - engine needs the key for processing
