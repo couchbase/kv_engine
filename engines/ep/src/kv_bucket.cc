@@ -73,16 +73,16 @@ public:
     void sizeValueChanged(const std::string& key, size_t value) override {
         if (key == "max_size") {
             store.getEPEngine().setMaxDataSize(value);
-        } else if (key.compare("mem_low_wat") == 0) {
+        } else if (key == "mem_low_wat") {
             stats.setLowWaterMark(value);
-        } else if (key.compare("mem_high_wat") == 0) {
+        } else if (key == "mem_high_wat") {
             stats.setHighWaterMark(value);
-        } else if (key.compare("replication_throttle_threshold") == 0) {
+        } else if (key == "replication_throttle_threshold") {
             stats.replicationThrottleThreshold.store(
-                                          static_cast<double>(value) / 100.0);
-        } else if (key.compare("warmup_min_memory_threshold") == 0) {
+                    static_cast<double>(value) / 100.0);
+        } else if (key == "warmup_min_memory_threshold") {
             stats.warmupMemUsedCap.store(static_cast<double>(value) / 100.0);
-        } else if (key.compare("warmup_min_items_threshold") == 0) {
+        } else if (key == "warmup_min_items_threshold") {
             stats.warmupNumReadCap.store(static_cast<double>(value) / 100.0);
         } else {
             EP_LOG_WARN(
@@ -94,7 +94,7 @@ public:
     }
 
     void floatValueChanged(const std::string& key, float value) override {
-        if (key.compare("mem_used_merge_threshold_percent") == 0) {
+        if (key == "mem_used_merge_threshold_percent") {
             store.getEPEngine()
                     .getArenaMallocClient()
                     .setEstimateUpdateThreshold(stats.getMaxDataSize(), value);
@@ -123,16 +123,16 @@ public:
     }
 
     void sizeValueChanged(const std::string& key, size_t value) override {
-        if (key.compare("compaction_write_queue_cap") == 0) {
+        if (key == "compaction_write_queue_cap") {
             store.setCompactionWriteQueueCap(value);
-        } else if (key.compare("exp_pager_stime") == 0) {
+        } else if (key == "exp_pager_stime") {
             store.setExpiryPagerSleeptime(value);
-        } else if (key.compare("mutation_mem_threshold") == 0) {
+        } else if (key == "mutation_mem_threshold") {
             VBucket::setMutationMemoryThreshold(value);
-        } else if (key.compare("backfill_mem_threshold") == 0) {
+        } else if (key == "backfill_mem_threshold") {
             double backfill_threshold = static_cast<double>(value) / 100;
             store.setBackfillMemoryThreshold(backfill_threshold);
-        } else if (key.compare("max_ttl") == 0) {
+        } else if (key == "max_ttl") {
             store.setMaxTtl(value);
         } else if (key == "checkpoint_max_size") {
             store.setCheckpointMaxSize(value);
@@ -144,29 +144,29 @@ public:
     }
 
     void ssizeValueChanged(const std::string& key, ssize_t value) override {
-        if (key.compare("exp_pager_initial_run_time") == 0) {
+        if (key == "exp_pager_initial_run_time") {
             store.setExpiryPagerTasktime(value);
         }
     }
 
     void booleanValueChanged(const std::string& key, bool value) override {
-        if (key.compare("bfilter_enabled") == 0) {
+        if (key == "bfilter_enabled") {
             store.setAllBloomFilters(value);
-        } else if (key.compare("exp_pager_enabled") == 0) {
+        } else if (key == "exp_pager_enabled") {
             if (value) {
                 store.enableExpiryPager();
             } else {
                 store.disableExpiryPager();
             }
-        } else if (key.compare("xattr_enabled") == 0) {
+        } else if (key == "xattr_enabled") {
             store.setXattrEnabled(value);
         }
     }
 
     void floatValueChanged(const std::string& key, float value) override {
-        if (key.compare("bfilter_residency_threshold") == 0) {
+        if (key == "bfilter_residency_threshold") {
             store.setBfiltersResidencyThreshold(value);
-        } else if (key.compare("dcp_min_compression_ratio") == 0) {
+        } else if (key == "dcp_min_compression_ratio") {
             store.getEPEngine().updateDcpMinCompressionRatio(value);
         } else if (key == "checkpoint_memory_ratio") {
             store.setCheckpointMemoryRatio(value);
