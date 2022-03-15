@@ -88,7 +88,7 @@ class CliTool(object):
             if type(e) is tuple and e[0] == 32 or \
                     isinstance(e, socket.error) and e.errno == 32:
                 print("Could not connect to %s:%d: "
-                    "Connection refused" % (host, port), file=sys.stderr)
+                      "Connection refused" % (host, port), file=sys.stderr)
             else:
                 raise
 

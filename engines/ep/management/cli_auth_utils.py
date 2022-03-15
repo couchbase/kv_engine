@@ -110,6 +110,10 @@ def cmd_decorator(f):
             print("No access to bucket:{0} - permission denied "
                   "or bucket does not exist.".format(bucket))
             sys.exit(1)
+        except mc_bin_client.ErrorKeyEnoent:
+            print(
+                "Error: bucket:{0} was not found - is this node running the Data Service?".format(bucket))
+            sys.exit(1)
 
     return g
 
