@@ -1928,7 +1928,8 @@ const KVStoreConfig& RocksDBKVStore::getConfig() const {
     return configuration;
 }
 
-vbucket_state RocksDBKVStore::getPersistedVBucketState(Vbid vbid) const {
+KVStoreIface::ReadVBStateResult RocksDBKVStore::getPersistedVBucketState(
+        Vbid vbid) const {
     auto handle = getVBHandle(vbid);
     auto state = readVBStateFromDisk(*handle);
     if (state.status != ReadVBStateStatus::Success) {
@@ -1938,7 +1939,7 @@ vbucket_state RocksDBKVStore::getPersistedVBucketState(Vbid vbid) const {
                 to_string(state.status));
     }
 
-    return state.state;
+    return state;
 }
 
 GetValue RocksDBKVStore::getBySeqno(KVFileHandle& handle,

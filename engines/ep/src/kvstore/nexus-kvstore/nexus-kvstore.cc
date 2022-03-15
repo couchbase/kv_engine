@@ -16,6 +16,7 @@
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "error_handler.h"
+#include "kvstore/kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore.h"
@@ -1006,13 +1007,29 @@ bool NexusKVStore::snapshotVBucket(Vbid vbucketId,
     auto primaryVbState = primary->getPersistedVBucketState(vbucketId);
     auto secondaryVbState = secondary->getPersistedVBucketState(vbucketId);
 
-    if (!compareVBucketState(vbucketId, primaryVbState, secondaryVbState)) {
+    if (primaryVbState.status != secondaryVbState.status) {
+        auto msg = fmt::format(
+                "NexusKVStore::getPersistedVBucketState: {}:"
+                "difference in status primary:{} secondary:{}",
+                vbucketId,
+                to_string(primaryVbState.status),
+                to_string(secondaryVbState.status));
+        handleError(msg, vbucketId);
+    }
+
+    if (primaryVbState.status != ReadVBStateStatus::Success) {
+        // Only valid to compare below if we have a good state.
+        return primaryResult;
+    }
+
+    if (!compareVBucketState(
+                vbucketId, primaryVbState.state, secondaryVbState.state)) {
         auto msg = fmt::format(
                 "NexusKVStore::snapshotVBucket: {} difference in vbstate "
                 "primary:{} secondary:{}",
                 vbucketId,
-                primaryVbState,
-                secondaryVbState);
+                primaryVbState.state,
+                secondaryVbState.state);
         handleError(msg, vbucketId);
     }
 
@@ -1485,18 +1502,35 @@ vbucket_state* NexusKVStore::getCachedVBucketState(Vbid vbid) {
     return primary->getCachedVBucketState(vbid);
 }
 
-vbucket_state NexusKVStore::getPersistedVBucketState(Vbid vbid) const {
+KVStoreIface::ReadVBStateResult NexusKVStore::getPersistedVBucketState(
+        Vbid vbid) const {
     auto primaryVbState = primary->getPersistedVBucketState(vbid);
     auto secondaryVbState = secondary->getPersistedVBucketState(vbid);
 
-    if (!compareVBucketState(vbid, primaryVbState, secondaryVbState)) {
+    if (primaryVbState.status != secondaryVbState.status) {
+        auto msg = fmt::format(
+                "NexusKVStore::getPersistedVBucketState: {}:"
+                "difference in status primary:{} secondary:{}",
+                vbid,
+                to_string(primaryVbState.status),
+                to_string(secondaryVbState.status));
+        handleError(msg, vbid);
+    }
+
+    if (primaryVbState.status != ReadVBStateStatus::Success) {
+        // Only valid to compare below if we have a good state.
+        return primaryVbState;
+    }
+
+    if (!compareVBucketState(
+                vbid, primaryVbState.state, secondaryVbState.state)) {
         auto msg = fmt::format(
                 "NexusKVStore::getPersistedVBucketState: {}: "
                 "difference in vBucket state primary:{} "
                 "secondary:{}",
                 vbid,
-                primaryVbState,
-                secondaryVbState);
+                primaryVbState.state,
+                secondaryVbState.state);
         handleError(msg, vbid);
     }
     return primaryVbState;
@@ -1536,15 +1570,31 @@ size_t NexusKVStore::getItemCount(Vbid vbid) {
     size_t primaryPrepares = 0;
     if (primary->getStorageProperties().hasPrepareCounting()) {
         auto vbState = primary->getPersistedVBucketState(vbid);
-        primaryPrepares = vbState.onDiskPrepares;
-        correctedPrimaryCount -= vbState.onDiskPrepares;
+        if (vbState.status != KVStoreIface::ReadVBStateStatus::Success) {
+            auto msg = fmt::format(
+                    "NexusKVStore::getItemCount: {}: failed to "
+                    "get vbucket state for primary:{}",
+                    vbid,
+                    to_string(vbid));
+            handleError(msg, vbid);
+        }
+        primaryPrepares = vbState.state.onDiskPrepares;
+        correctedPrimaryCount -= vbState.state.onDiskPrepares;
     }
 
     size_t secondaryPrepares = 0;
     if (secondary->getStorageProperties().hasPrepareCounting()) {
         auto vbState = secondary->getPersistedVBucketState(vbid);
-        secondaryPrepares = vbState.onDiskPrepares;
-        secondaryCount -= vbState.onDiskPrepares;
+        if (vbState.status != KVStoreIface::ReadVBStateStatus::Success) {
+            auto msg = fmt::format(
+                    "NexusKVStore::getItemCount: {}: failed to "
+                    "get vbucket state for secondary:{}",
+                    vbid,
+                    to_string(vbid));
+            handleError(msg, vbid);
+        }
+        secondaryPrepares = vbState.state.onDiskPrepares;
+        secondaryCount -= vbState.state.onDiskPrepares;
     }
 
     if (correctedPrimaryCount != secondaryCount) {
@@ -2450,6 +2500,15 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
     // that these should be consistent even though we're not getting them from a
     // snapshot
     auto vbstate = getPersistedVBucketState(vbid);
+    if (vbstate.status != ReadVBStateStatus::Success) {
+        auto msg = fmt::format(
+                "NexusKVStore::initBySeqnoScanContext: {}:"
+                "failed to get the primary vbstate. Check primary KVStore "
+                "logs for details",
+                vbid);
+        handleError(msg, vbid);
+    }
+
     auto [droppedStatus, droppedCollections] = getDroppedCollections(vbid);
 
     // Dummy callbacks won't get invoked
@@ -2466,7 +2525,7 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
             options,
             valOptions,
             primaryCtx->documentCount,
-            vbstate,
+            vbstate.state,
             droppedCollections);
 
     nexusScanContext->primaryCtx = std::move(primaryCtx);

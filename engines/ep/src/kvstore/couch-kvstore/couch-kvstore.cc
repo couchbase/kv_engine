@@ -4229,7 +4229,8 @@ const KVStoreConfig& CouchKVStore::getConfig() const {
     return configuration;
 }
 
-vbucket_state CouchKVStore::getPersistedVBucketState(Vbid vbid) const {
+KVStoreIface::ReadVBStateResult CouchKVStore::getPersistedVBucketState(
+        Vbid vbid) const {
     DbHolder db(*this);
     const auto options = COUCHSTORE_OPEN_FLAG_RDONLY;
     const auto errorCode = openDB(vbid, db, options);
@@ -4259,7 +4260,7 @@ vbucket_state CouchKVStore::getPersistedVBucketState(Vbid vbid) const {
                 ", file:" + getDBFileName(dbname, vbid, db.getFileRev()));
     }
 
-    return res.state;
+    return res;
 }
 
 couchstore_error_t CouchKVStore::updateLocalDocuments(

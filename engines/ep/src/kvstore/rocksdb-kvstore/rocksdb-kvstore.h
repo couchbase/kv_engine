@@ -209,7 +209,7 @@ public:
         return cachedVBStates[getCacheSlot(vbucketId)].get();
     }
 
-    vbucket_state getPersistedVBucketState(Vbid vbid) const override;
+    ReadVBStateResult getPersistedVBucketState(Vbid vbid) const override;
 
     size_t getNumPersistedDeletes(Vbid vbid) override {
         // TODO vmx 2016-10-29: implement

@@ -4614,7 +4614,8 @@ TEST_P(STParamPersistentBucketTest,
 
     // Check that the on disk state shows a change in failover table
     auto state = store->getRWUnderlying(vbid)->getPersistedVBucketState(vbid);
-    FailoverTable postFlushTable{state.transition.failovers, 5, 0};
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, state.status);
+    FailoverTable postFlushTable{state.state.transition.failovers, 5, 0};
     auto postFlushUuid = postFlushTable.getLatestUUID();
     EXPECT_NE(initialUuid, postFlushUuid);
 
@@ -5515,8 +5516,9 @@ TEST_P(STParamPersistentBucketTest, FlushVBStateUpdatesCommitStats) {
 
     auto* kvstore = store->getRWUnderlying(vbid);
     ASSERT_TRUE(kvstore);
-    EXPECT_EQ(vbucket_state_active,
-              kvstore->getPersistedVBucketState(vbid).transition.state);
+    auto diskState = kvstore->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, diskState.status);
+    EXPECT_EQ(vbucket_state_active, diskState.state.transition.state);
     EXPECT_EQ(vbucket_state_active,
               kvstore->getCachedVBucketState(vbid)->transition.state);
     EXPECT_EQ(0, stats.commitFailed);
@@ -5528,8 +5530,9 @@ TEST_P(STParamPersistentBucketTest, FlushVBStateUpdatesCommitStats) {
 
     // Set new vbstate in memory only
     setVBucketState(vbid, vbucket_state_replica);
-    EXPECT_EQ(vbucket_state_active,
-              kvstore->getPersistedVBucketState(vbid).transition.state);
+    diskState = kvstore->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, diskState.status);
+    EXPECT_EQ(vbucket_state_active, diskState.state.transition.state);
     EXPECT_EQ(vbucket_state_active,
               kvstore->getCachedVBucketState(vbid)->transition.state);
 
@@ -5539,8 +5542,9 @@ TEST_P(STParamPersistentBucketTest, FlushVBStateUpdatesCommitStats) {
     EXPECT_EQ(MoreAvailable::Yes, res.moreAvailable);
     EXPECT_EQ(1, stats.commitFailed);
     EXPECT_EQ(1, stats.flusherCommits);
-    EXPECT_EQ(vbucket_state_active,
-              kvstore->getPersistedVBucketState(vbid).transition.state);
+    diskState = kvstore->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, diskState.status);
+    EXPECT_EQ(vbucket_state_active, diskState.state.transition.state);
     EXPECT_EQ(vbucket_state_active,
               kvstore->getCachedVBucketState(vbid)->transition.state);
 
@@ -5549,8 +5553,10 @@ TEST_P(STParamPersistentBucketTest, FlushVBStateUpdatesCommitStats) {
     EXPECT_EQ(MoreAvailable::No, res.moreAvailable);
     EXPECT_EQ(1, stats.commitFailed);
     EXPECT_EQ(2, stats.flusherCommits);
-    EXPECT_EQ(vbucket_state_replica,
-              kvstore->getPersistedVBucketState(vbid).transition.state);
+
+    diskState = kvstore->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, diskState.status);
+    EXPECT_EQ(vbucket_state_replica, diskState.state.transition.state);
     EXPECT_EQ(vbucket_state_replica,
               kvstore->getCachedVBucketState(vbid)->transition.state);
 }

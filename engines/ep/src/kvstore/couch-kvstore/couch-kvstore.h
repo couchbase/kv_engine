@@ -376,13 +376,7 @@ public:
     std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
     getDroppedCollections(Vbid vbid) const override;
 
-    /**
-     * Read vbstate from disk. Does not update the cached vbstate.
-     *
-     * @param vbid
-     * @return the persisted vbstate
-     */
-    vbucket_state getPersistedVBucketState(Vbid vbid) const override;
+    ReadVBStateResult getPersistedVBucketState(Vbid vbid) const override;
 
     /// Get the logger used by this bucket
     BucketLogger& getLogger() const {

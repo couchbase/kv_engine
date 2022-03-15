@@ -337,7 +337,8 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistNonMetaItems) {
                                                      uint64_t maxDelRevSeqno) {
         const auto& cached = *kvStore.getCachedVBucketState(vbid);
         const auto& onDisk = kvStore.getPersistedVBucketState(vbid);
-        for (const auto& vbs : {cached, onDisk}) {
+        ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, onDisk.status);
+        for (const auto& vbs : {cached, onDisk.state}) {
             EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
             EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
             EXPECT_EQ(highSeqno, vbs.highSeqno);
@@ -440,8 +441,9 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistVBStateOnly_ErrorWrite) {
             [this, &kvStore](vbucket_state_t expectedState) -> void {
         EXPECT_EQ(expectedState,
                   kvStore.getCachedVBucketState(vbid)->transition.state);
-        EXPECT_EQ(expectedState,
-                  kvStore.getPersistedVBucketState(vbid).transition.state);
+        auto diskState = kvStore.getPersistedVBucketState(vbid);
+        ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, diskState.status);
+        EXPECT_EQ(expectedState, diskState.state.transition.state);
     };
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -770,7 +772,8 @@ TEST_P(KVStoreErrorInjectionTest, ResetPCursorAtPersistNonMetaItems) {
                                                      uint64_t maxDelRevSeqno) {
         const auto& cached = *kvStore.getCachedVBucketState(vbid);
         const auto& onDisk = kvStore.getPersistedVBucketState(vbid);
-        for (const auto& vbs : {cached, onDisk}) {
+        ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, onDisk.status);
+        for (const auto& vbs : {cached, onDisk.state}) {
             EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
             EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
             EXPECT_EQ(highSeqno, vbs.highSeqno);
