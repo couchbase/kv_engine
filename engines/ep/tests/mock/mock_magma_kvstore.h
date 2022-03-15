@@ -19,7 +19,7 @@ class MockMagmaKVStore : public MagmaKVStore {
 public:
     explicit MockMagmaKVStore(MagmaKVStoreConfig& config);
 
-    MagmaKVStore::DiskState readVBStateFromDisk(Vbid vbid);
+    ReadVBStateResult readVBStateFromDisk(Vbid vbid);
 
     MagmaKVStore::DiskState readVBStateFromDisk(
             Vbid vbid, magma::Magma::Snapshot& snapshot) const override;

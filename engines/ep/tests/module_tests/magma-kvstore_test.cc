@@ -348,7 +348,7 @@ TEST_F(MagmaKVStoreTest, initializeWithHeaderButNoVBState) {
     EXPECT_NE(defaultState, *vbstate);
 
     auto res = kvstore->readVBStateFromDisk(vbid);
-    EXPECT_FALSE(res.status.IsOK());
+    EXPECT_EQ(res.status, KVStoreIface::ReadVBStateStatus::NotFound);
 
     // Recreate the kvstore and the state should equal the default constructed
     // state (and not throw an exception)
@@ -359,8 +359,8 @@ TEST_F(MagmaKVStoreTest, initializeWithHeaderButNoVBState) {
     EXPECT_EQ(defaultState, *vbstate);
 
     res = kvstore->readVBStateFromDisk(vbid);
-    EXPECT_FALSE(res.status.IsOK());
-    EXPECT_EQ(defaultState, res.vbstate);
+    EXPECT_EQ(res.status, KVStoreIface::ReadVBStateStatus::NotFound);
+    EXPECT_EQ(defaultState, res.state);
 }
 
 // Check that if Magma performs an internal (implicit) compaction before
