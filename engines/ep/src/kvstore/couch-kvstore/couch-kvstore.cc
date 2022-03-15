@@ -203,6 +203,8 @@ std::string to_string(CouchKVStore::ReadVBStateStatus status) {
     switch (status) {
     case CouchKVStore::ReadVBStateStatus::Success:
         return "Success";
+    case CouchKVStore::ReadVBStateStatus::NotFound:
+        return "NotFound";
     case CouchKVStore::ReadVBStateStatus::JsonInvalid:
         return "JsonInvalid";
     case CouchKVStore::ReadVBStateStatus::CorruptSnapshot:
@@ -1464,7 +1466,11 @@ CompactDBStatus CouchKVStore::compactDBInternal(
                 delta.count(),
                 [this, &vbid, hook_ctx](Db& db) {
                     auto [status, state] = readVBState(&db, vbid);
-                    if (status != ReadVBStateStatus::Success) {
+                    // @TODO MB-51037: We probably shouldn't fail compactions
+                    // externally if a vBucket state does not exist in the
+                    // header we have picked up....
+                    if (status != ReadVBStateStatus::Success &&
+                        status != ReadVBStateStatus::NotFound) {
                         return COUCHSTORE_ERROR_CANCEL;
                     }
                     hook_ctx->highCompletedSeqno =
@@ -1482,7 +1488,11 @@ CompactDBStatus CouchKVStore::compactDBInternal(
                 },
                 [this, &vbid, &prepareStats, &purge_seqno](Db& db) {
                     auto [status, state] = readVBState(&db, vbid);
-                    if (status != ReadVBStateStatus::Success) {
+                    // @TODO MB-51037: We probably shouldn't fail compactions
+                    // externally if a vBucket state does not exist in the
+                    // header we have picked up....
+                    if (status != ReadVBStateStatus::Success &&
+                        status != ReadVBStateStatus::NotFound) {
                         return COUCHSTORE_ERROR_CANCEL;
                     }
                     prepareStats.onDiskPrepares = state.onDiskPrepares;
@@ -3298,10 +3308,7 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db,
                 "CouchKVStore::readVBState: '_local/vbstate' not found "
                 "for {}",
                 vbId);
-
-        // Read was successful, the state just didn't exist. Return success
-        // and a default constructed vbucket_state
-        return {ReadVBStateStatus::Success, {}};
+        return {ReadVBStateStatus::NotFound, {}};
     }
 
     if (couchStoreStatus != COUCHSTORE_SUCCESS) {
@@ -3400,6 +3407,12 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBStateAndUpdateCache(
                     ". Max shards is:" +
                     std::to_string(configuration.getMaxShards()));
         }
+    }
+
+    // @TODO MB-51413: NotFound should probably not load a state, but for now
+    // we'd segfault higher up the stack during initialize if we don't allow it.
+    if (res.status == ReadVBStateStatus::NotFound) {
+        res.status = ReadVBStateStatus::Success;
     }
 
     if (res.status == ReadVBStateStatus::Success) {
@@ -4251,7 +4264,11 @@ vbucket_state CouchKVStore::getPersistedVBucketState(Vbid vbid) const {
     }
 
     const auto res = readVBState(db, vbid);
-    if (res.status != ReadVBStateStatus::Success) {
+    // @TODO MB-51413 Expand the status returned by this. NotFound is valid
+    // in certain circumstances and we should neither throw nor return the
+    // default constructed vbucket_state.
+    if (res.status != ReadVBStateStatus::Success &&
+        res.status != ReadVBStateStatus::NotFound) {
         throw std::logic_error(
                 "CouchKVStore::getPersistedVBucketState: readVBState error:" +
                 to_string(res.status) +

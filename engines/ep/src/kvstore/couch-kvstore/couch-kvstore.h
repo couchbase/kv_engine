@@ -152,6 +152,7 @@ public:
 
     enum class ReadVBStateStatus : uint8_t {
         Success = 0,
+        NotFound,
         JsonInvalid,
         CorruptSnapshot,
         CouchstoreError

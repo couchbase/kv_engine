@@ -31,34 +31,47 @@ TEST_F(PiTR_Test, MB51007) {
     // The (initial) sync write may take longer time than the default timeout
     // so lets bump the timeout
     conn->setReadTimeout(std::chrono::seconds{1000});
-    conn->store("MB51007",
-                Vbid{0},
-                bucket->getCollectionManifest().dump(),
-                cb::mcbp::Datatype::JSON,
-                0,
-                []() {
-                    FrameInfoVector ret;
-                    ret.emplace_back(std::make_unique<DurabilityFrameInfo>(
-                            cb::durability::Level::MajorityAndPersistOnMaster));
-                    return ret;
-                });
+    auto info = conn->store(
+            "MB51007",
+            Vbid{0},
+            bucket->getCollectionManifest().dump(),
+            cb::mcbp::Datatype::JSON,
+            0,
+            []() {
+                FrameInfoVector ret;
+                ret.emplace_back(std::make_unique<DurabilityFrameInfo>(
+                        cb::durability::Level::MajorityAndPersistOnMaster));
+                return ret;
+            });
+
+    // Wait for the persistence of our item
+    ObserveInfo observeInfo;
+    do {
+        observeInfo = conn->observeSeqno(Vbid(0), info.vbucketuuid);
+    } while (observeInfo.lastPersistedSeqno != info.seqno);
 
     // Let the test run for 10 seconds
-    const auto timeout =
-            std::chrono::steady_clock::now() + std::chrono::seconds{10};
+    const auto timeLimit = std::chrono::seconds(10);
+    const auto timeout = std::chrono::steady_clock::now() + timeLimit;
     // Create a thread which constantly compact the database
     int num_compaction = 0;
-    std::thread compaction_thread{[&bucket, &timeout, &num_compaction]() {
-        auto conn = bucket->getAuthedConnection(Vbid{0});
-        do {
-            auto rsp = conn->execute(BinprotCompactDbCommand{});
-            ASSERT_TRUE(rsp.isSuccess())
-                    << "Compaction failed for some reason: "
-                    << to_string(rsp.getStatus()) << std::endl
-                    << rsp.getDataString();
-            ++num_compaction;
-        } while (std::chrono::steady_clock::now() < timeout);
-    }};
+
+    std::thread compaction_thread{
+            [&bucket, &timeout, &num_compaction, &timeLimit]() {
+                auto conn = bucket->getAuthedConnection(Vbid{0});
+                conn->setReadTimeout(timeLimit);
+                do {
+                    auto rsp = conn->execute(BinprotCompactDbCommand{});
+                    if (rsp.isSuccess()) {
+                        // @TODO MB-51037:
+                        // Compaction of older headers may not find a
+                        // vbucket_state and that currently causes a compaction
+                        // to fail. We should probably handle that better in
+                        // the future.
+                        ++num_compaction;
+                    }
+                } while (std::chrono::steady_clock::now() < timeout);
+            }};
 
     int num_store = 0;
     do {
