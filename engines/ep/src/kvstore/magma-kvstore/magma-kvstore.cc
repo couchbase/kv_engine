@@ -2003,7 +2003,16 @@ KVStoreIface::ReadVBStateResult MagmaKVStore::readVBStateFromDisk(
     }
     vbstate.purgeSeqno = magmaUserStats->purgeSeqno;
 
-    return {ReadVBStateStatus::Success, vbstate};
+    bool snapshotValid;
+    std::tie(snapshotValid, vbstate.lastSnapStart, vbstate.lastSnapEnd) =
+            processVbstateSnapshot(vbid, vbstate);
+
+    ReadVBStateStatus status = ReadVBStateStatus::Success;
+    if (!snapshotValid) {
+        status = ReadVBStateStatus::CorruptSnapshot;
+    }
+
+    return {status, vbstate};
 }
 
 KVStoreIface::ReadVBStateStatus MagmaKVStore::loadVBStateCache(
