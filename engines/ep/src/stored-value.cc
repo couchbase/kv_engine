@@ -309,7 +309,8 @@ std::unique_ptr<Item> StoredValue::toItemBase(Vbid vbid,
             getFlags(),
             getExptime(),
             includeValue == IncludeValue::Yes ? value : value_t{},
-            datatype,
+            includeValue == IncludeValue::Yes ? datatype
+                                              : PROTOCOL_BINARY_RAW_BYTES,
             hideLockedCas == HideLockedCas::Yes ? static_cast<uint64_t>(-1)
                                                 : getCas(),
             bySeqno,
