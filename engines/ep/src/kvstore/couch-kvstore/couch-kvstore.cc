@@ -129,16 +129,22 @@ static std::pair<couchstore_error_t, nlohmann::json> getLocalVbState(Db& db) {
 
 /**
  * Helper function to create an Item from couchstore DocInfo & related types.
+ * @param vbid The vbucket the Item belongs to
+ * @param docinfo The id, db_seq and rev_seq are used in the Item construction
+ * @param metadata The metadata to use to create the Item
+ * @param value an optional value, this allows "key-only" paths to be
+ *        distinguishable from a value of 0 length.
+ * @param fetchedCompressed The value is compressed
  */
 static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
                                                  const DocInfo& docinfo,
                                                  const MetaData& metadata,
-                                                 sized_buf value,
+                                                 std::optional<sized_buf> value,
                                                  bool fetchedCompressed) {
     auto datatype = metadata.getDataType();
     // If document was fetched compressed, then set SNAPPY flag for non-zero
     // length documents.
-    if (fetchedCompressed && (value.size > 0)) {
+    if (fetchedCompressed && (value.value_or(sized_buf{}).size > 0)) {
         datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 
@@ -147,13 +153,18 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
     auto item = std::make_unique<Item>(makeDiskDocKey(docinfo.id).getDocKey(),
                                        metadata.getFlags(),
                                        metadata.getExptime(),
-                                       value.buf,
-                                       value.size,
+                                       value.value_or(sized_buf{}).buf,
+                                       value.value_or(sized_buf{}).size,
                                        datatype,
                                        metadata.getCas(),
                                        docinfo.db_seq,
                                        vbid,
                                        docinfo.rev_seq);
+
+    if (value) {
+        KVStore::checkAndFixKVStoreCreatedItem(*item);
+    }
+
     if (docinfo.deleted) {
         item->setDeleted(metadata.getDeleteSource());
     }
@@ -745,6 +756,7 @@ void CouchKVStore::getRange(Vbid vb,
         const bool fetchCompressed =
                 (state.filter == ValueFilter::VALUES_COMPRESSED);
         Doc* doc = nullptr;
+        std::optional<sized_buf> value;
         if (state.filter != ValueFilter::KEYS_ONLY) {
             const couchstore_open_options openOptions =
                     fetchCompressed ? 0 : DECOMPRESS_DOC_BODIES;
@@ -755,9 +767,9 @@ void CouchKVStore::getRange(Vbid vb,
                 // scan.
                 return errCode;
             }
+            value = doc->data;
         }
 
-        auto value = doc ? doc->data : sized_buf{nullptr, 0};
         state.userFunc(GetValue{makeItemFromDocInfo(
                 state.vb, *docinfo, *metadata, value, fetchCompressed)});
         if (doc) {
@@ -816,7 +828,7 @@ static int notify_expired_item(DocInfo& info,
                                sized_buf item,
                                CompactionContext& ctx,
                                time_t currtime) {
-    sized_buf data{nullptr, 0};
+    std::optional<sized_buf> data;
     cb::compression::Buffer inflated;
 
     if (mcbp::datatype::is_xattr(metadata.getDataType())) {
@@ -2704,7 +2716,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
 
     if (filter == ValueFilter::KEYS_ONLY) {
         auto it = makeItemFromDocInfo(
-                vbId, *docinfo, *metadata, {nullptr, 0}, fetchCompressed);
+                vbId, *docinfo, *metadata, std::nullopt, fetchCompressed);
 
         docValue = GetValue(std::move(it));
         // update ep-engine IO stats
@@ -2769,7 +2781,6 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     auto& cl = sctx->getCacheCallback();
 
     Doc *doc = nullptr;
-    sized_buf value{nullptr, 0};
     uint64_t byseqno = docinfo->db_seq;
     Vbid vbucketId = sctx->vbid;
 
@@ -2833,6 +2844,7 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     const bool keysOnly = sctx->valFilter == ValueFilter::KEYS_ONLY;
     const bool isSystemEvent =
             makeDiskDocKey(docinfo->id).getDocKey().isInSystemCollection();
+    std::optional<sized_buf> value;
     if (!keysOnly || isSystemEvent) {
         const couchstore_open_options openOptions =
                 fetchCompressed ? 0 : DECOMPRESS_DOC_BODIES;

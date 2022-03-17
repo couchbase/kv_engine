@@ -44,6 +44,7 @@
 #include <statistics/cbstat_collector.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <utilities/logtags.h>
 
 ScanContext::ScanContext(
         Vbid vbid,
@@ -636,6 +637,25 @@ std::tuple<bool, uint64_t, uint64_t> KVStore::processVbstateSnapshot(
     }
 
     return {status, snapStart, snapEnd};
+}
+
+// MB-51373: Fix the datatype of invalid documents. Currently checks for
+// datatype ! raw but no value, this invalid document has been seen in
+// production deployments and reading them can lead to a restart
+bool KVStore::checkAndFixKVStoreCreatedItem(Item& item) {
+    if (item.getNBytes() == 0 &&
+        item.getDataType() != PROTOCOL_BINARY_RAW_BYTES) {
+        std::stringstream ss;
+        ss << item;
+        EP_LOG_WARN(
+                "KVStore::checkAndFixKVStoreCreatedItem: {} correcting invalid "
+                "datatype {}",
+                item.getVBucketId(),
+                cb::UserDataView(ss.str()).getSanitizedValue());
+        item.setDataType(PROTOCOL_BINARY_RAW_BYTES);
+        return true;
+    }
+    return false;
 }
 
 std::ostream& operator<<(std::ostream& os, const ValueFilter& vf) {

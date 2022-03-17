@@ -922,6 +922,16 @@ public:
      */
     void checkIfInTransaction(Vbid vbid, std::string_view caller);
 
+    /**
+     * Function inspects the Item for some known issues that may exist in
+     * persisted data (possibly from older releases and now present due to
+     * upgrade). If an inconsistency is found it will log a fix the Item.
+     *
+     * @param item [in/out] the Item to check and if needed, fix.
+     * @return true if the Item was changed by the function because of an issue
+     */
+    static bool checkAndFixKVStoreCreatedItem(Item& item);
+
 protected:
     /**
      * Process the vbstate snapshot strings which are store in the vbstate
