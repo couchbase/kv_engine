@@ -81,9 +81,6 @@ struct ConnCounter {
 
 class ConnHandler : public DcpConnHandlerIface {
 public:
-    /// The maximum length of a DCP stat name
-    static constexpr size_t MaxDcpStatNameLength = 47;
-
     enum class PausedReason : uint8_t {
         BufferLogFull,
         Initializing,
