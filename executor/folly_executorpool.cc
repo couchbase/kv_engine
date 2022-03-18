@@ -574,8 +574,16 @@ struct FollyExecutorPool::State {
 
                 // Next, to perform refcount drop, we reset the
                 // shared_ptr<GlobalTask> from TaskProxy to perform refcount
-                // decrement (and potential GlobalTask deletion).
-                it->second->resetTaskPtr(tasks.pendingTaskResets, force);
+                // decrement (and potential GlobalTask deletion). If we are
+                // running this during shutdown then we want to run the
+                // resetTaskPtr work on the scheduler thread to avoid it having
+                // to wait in the cpuPool. If it has to wait then the slowness
+                // may cause a rebalance failure due to bucket deletion timeout.
+                // owner->isShutdown() should be set before we start calling
+                // unregisterTaskable so the owner->isShutdown() check also
+                // covers when force (unregisterTaskable path) is true.
+                it->second->resetTaskPtr(tasks.pendingTaskResets,
+                                         owner->isShutdown());
 
                 // We can now erase the TaxkProxy from taskOwners.
                 tasks.locator.erase(it);

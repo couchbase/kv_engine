@@ -23,6 +23,9 @@ namespace VB {
 class Commit;
 }
 enum class ValueFilter;
+namespace cb {
+class AwaitableSemaphore;
+}
 class BucketStatCollector;
 class CompactTask;
 struct CompactionContext;
@@ -400,6 +403,15 @@ protected:
             std::chrono::milliseconds delay);
 
     /**
+     * Recalculate the number of compaction tasks that are allowed to run
+     * concurrently.
+     *
+     * If the number goes down, currently running tasks will not be stopped, but
+     * new/waiting tasks will respect the new limit.
+     */
+    void updateCompactionConcurrency();
+
+    /**
      * Max number of backill items in a single flusher batch before we split
      * into multiple batches. Actual batch size may be larger as we will not
      * split Memory Checkpoints, a hard limit is only imposed for Disk
@@ -430,6 +442,8 @@ protected:
 
     folly::Synchronized<std::unordered_map<Vbid, std::shared_ptr<CompactTask>>>
             compactionTasks;
+    // Semaphore limiting how many compaction tasks may run concurrently
+    std::unique_ptr<cb::AwaitableSemaphore> compactionSemaphore;
 
     /**
      * Bool referenced during compaction that is checked to determine if we

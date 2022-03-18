@@ -880,13 +880,14 @@ void MagmaKVStore::setMaxDataSize(size_t size) {
 // can not make changes to the vbstate or it would cause race conditions.
 std::vector<vbucket_state*> MagmaKVStore::listPersistedVbuckets() {
     std::vector<vbucket_state*> result;
-    Vbid vbid(0);
-    for (const auto& vb : cachedVBStates) {
+    for (size_t slot = 0; slot < cachedVBStates.size(); slot++) {
+        const auto& vb = cachedVBStates[slot];
         if (vb) {
-            mergeMagmaDbStatsIntoVBState(*vb, vbid);
+            uint16_t id = (configuration.getMaxShards() * slot) +
+                          configuration.getShardId();
+            mergeMagmaDbStatsIntoVBState(*vb, Vbid{id});
         }
         result.emplace_back(vb.get());
-        vbid++;
     }
     return result;
 }

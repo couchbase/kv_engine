@@ -236,10 +236,12 @@ void mc_time_clock_tick() {
             if (cb::logger::get() != nullptr) {
                 /* log all variables used in time calculations */
                 LOG_WARNING(
-                        "system clock changed? difference = {}, "
+                        "system clock changed? Expected delta of {}s ±1 since "
+                        "last check, actual difference = {}s, "
                         "memcached_epoch = {}, "
                         "memcached_uptime = {}, new memcached_epoch = {}, "
                         "next check {}",
+                        memcached_check_system_time,
                         difference,
                         memcached_epoch.load(),
                         memcached_uptime.load(),

@@ -25,6 +25,7 @@
 #include <folly/portability/GMock.h>
 #include <folly/synchronization/Baton.h>
 #include <nlohmann/json.hpp>
+#include <utility>
 #include <phosphor/phosphor.h>
 #include <programs/engine_testapp/mock_cookie.h>
 
@@ -1320,6 +1321,145 @@ TYPED_TEST(ExecutorPoolTest,
         GTEST_SKIP();
     }
     this->testUnregisterClearsUpTasks(true, true);
+}
+
+class DestructionLambdaTask : public LambdaTask {
+public:
+    DestructionLambdaTask(Taskable& taskable,
+                          std::function<bool(LambdaTask&)> lambdaFunc,
+                          std::function<void()> dtorFunc)
+        : LambdaTask(taskable, TaskId::ItemPager, 0, true, lambdaFunc),
+          dtorFunc(std::move(dtorFunc)) {
+    }
+
+    ~DestructionLambdaTask() override {
+        dtorFunc();
+    }
+
+    std::function<void()> dtorFunc;
+};
+
+/**
+ * The aim of this test is to ensure that the reset of a task pointer is done
+ * on the scheduler thread of the FollyExecutorPool rather than the cpuPool
+ * during an engine shutdown (unregisterTaskable). Before the fix for this issue
+ * it was observed that a task being run whilst we call unregisterTaskable on
+ * another thread would schedule the reset of the task pointer on the cpuPool
+ * rather than the scheduler thread which caused long shutdowns as we had to
+ * wait for the cpuPool to finish running long running tasks. The fix for this
+ * is to have any reset tasks pointer work be done on the scheduler thread if
+ * the taskable (engine) is being shut down so we test this here by doing the
+ * following:
+ *
+ * 1) Schedule task for taskable being destroyed
+ * 2) Start running task at step 1
+ * 3) Schedule another task that waits for the task at step 1 to be destroyed
+ * 4) Call unregister taskable and reach the point at which we are waiting for
+ *    numTasksForOwner to reach 0
+ * 5) Finish running task from step 1
+ *
+ * Before the fix we would deadlock after step 5 as the ExecutorPool would run
+ * the task at step 3 (waiting for the destruction of the task at step 1).
+ */
+template <typename T>
+void ExecutorPoolTest<
+        T>::testTaskRunningDuringShutdownResetsOnSchedulerThread() {
+    this->makePool(1);
+
+    // One NonIO so that we can test via our tasks
+    this->pool->setNumNonIO(1);
+
+    NiceMock<MockTaskable> taskable;
+    ON_CALL(taskable, isShutdown()).WillByDefault(Return(true));
+
+    this->pool->registerTaskable(taskable);
+
+    ThreadGate tg1{2};
+    ThreadGate tg2{2};
+    std::thread th1;
+    std::mutex m;
+    std::condition_variable condVar;
+    bool destroyed = false;
+
+    {
+        // Scoped to ensure that the ExecutorPool can be the sole owner of task
+        ExTask task = std::make_shared<DestructionLambdaTask>(
+                taskable,
+                [&](LambdaTask&) {
+                    // LambdaTask run() function
+                    ExTask waitForDestructionTask =
+                            std::make_shared<LambdaTask>(
+                                    taskable,
+                                    TaskId::ItemPager,
+                                    0,
+                                    true,
+                                    [&](LambdaTask&) {
+                                        // This task is set to complete before
+                                        // shutdown so we must execute it. We
+                                        // will wait here until the original
+                                        // task has been destroyed, ensuring
+                                        // that it can be destroyed while we
+                                        // have a "long running" task blocking
+                                        // the cpuPool.
+                                        std::unique_lock<std::mutex> a(m);
+                                        if (!destroyed) {
+                                            condVar.wait(a, [&] {
+                                                return destroyed;
+                                            });
+                                        }
+
+                                        // Don't run again
+                                        return false;
+                                    });
+                    this->pool->schedule(waitForDestructionTask);
+
+                    // Whilst executing this task we want to run
+                    // unregisterTaskable on another thread. We're going to
+                    // ensure via tg2 that unregisterTaskable has cancelled all
+                    // tasks and removed tasks from the CancellableCpuExecutor
+                    // before we let this (cpuPool) thread run on and eventually
+                    // call resetTaskPtr.
+                    th1 = std::thread{[&]() {
+                        this->pool->unregisterTaskablePostCancelHook = [&]() {
+                            tg2.threadUp();
+                        };
+
+                        this->pool->unregisterTaskable(taskable, false);
+                        tg1.threadUp();
+                    }};
+
+                    tg2.threadUp();
+
+                    // Don't run again
+                    return false;
+                },
+                [&]() {
+                    // DestructionLambdaTask dtor function.
+                    // Taking the lock on m prevent racing updates on destroyed
+                    std::unique_lock<std::mutex> lh(m);
+                    destroyed = true;
+                    condVar.notify_one();
+                });
+
+        this->pool->schedule(task);
+
+        // Doesn't really matter at this point which thread is destroying task,
+        // we just care that the ExecutorPool has destroyed it's shared_ptr.
+    }
+
+    // Waiting on tg1 required to ensure that we wait for the task to be run
+    // which spawns th1 which notifies tg1 when it's done.
+    tg1.threadUp();
+    th1.join();
+}
+
+TYPED_TEST(ExecutorPoolTest, TaskRunningDuringShutdownResetsOnSchedulerThread) {
+    if (typeid(TypeParam) != typeid(FollyExecutorPool)) {
+        // Not yet implemented for CB3ExecutorPool.
+        GTEST_SKIP();
+    }
+
+    this->testTaskRunningDuringShutdownResetsOnSchedulerThread();
 }
 
 TYPED_TEST_SUITE(ExecutorPoolDynamicWorkerTest, ExecutorPoolTypes);

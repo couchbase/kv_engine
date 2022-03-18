@@ -183,6 +183,10 @@ CheckpointMemRecoveryTask::attemptCursorDropping() {
             case CheckpointRemoval::Eager: {
 #if CB_DEVELOPMENT_ASSERTS
                 Expects(manager.removeClosedUnrefCheckpoints().count == 0);
+#else
+                // MB-51408: We need to make the call for keeping executing the
+                // inner checkpoint creation logic - minimal fix for Neo.
+                manager.removeClosedUnrefCheckpoints();
 #endif
                 break;
             }
@@ -244,6 +248,10 @@ bool CheckpointMemRecoveryTask::runInner() {
         // This is not cheap to verify, as it requires scanning every
         // vbucket, so is only checked if dev asserts are on.
         Expects(attemptCheckpointRemoval().second == 0);
+#else
+        // MB-51408: We need to make the call for keeping executing the inner
+        // checkpoint creation logic - minimal fix for Neo.
+        attemptCheckpointRemoval();
 #endif
         break;
     }

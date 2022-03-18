@@ -55,6 +55,11 @@ public:
         return checkpointRemovalMode;
     }
 
+    // @todo: Test only. Remove as soon as param made dynamic in EPConfig.
+    void setCheckpointRemovalMode(CheckpointRemoval mode) {
+        checkpointRemovalMode = mode;
+    }
+
 protected:
     friend class EventuallyPersistentEngine;
     friend class SynchronousEPEngine;

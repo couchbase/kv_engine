@@ -1269,8 +1269,6 @@ TEST_F(SingleThreadedCheckpointTest, CheckpointMaxSize_AutoSetup) {
     config.setCheckpointMemoryRatio(ckptMemRatio);
     const auto maxCheckpoints = 20;
     config.setMaxCheckpoints(maxCheckpoints);
-    const auto multiplier = 5;
-    config.setMaxCheckpointsHardLimitMultiplier(multiplier);
     config.setCheckpointMaxSize(0); // 0 triggers auto-setup
 
     setVBucketState(vbid, vbucket_state_active);
@@ -1279,16 +1277,12 @@ TEST_F(SingleThreadedCheckpointTest, CheckpointMaxSize_AutoSetup) {
 
     ASSERT_EQ(_1GB, config.getMaxSize());
     ASSERT_EQ(ckptMemRatio, store->getCheckpointMemoryRatio());
-    ASSERT_EQ(maxCheckpoints, config.getMaxCheckpoints());
-    ASSERT_EQ(multiplier, config.getMaxCheckpointsHardLimitMultiplier());
-    ASSERT_EQ(maxCheckpoints * multiplier,
+    ASSERT_EQ(maxCheckpoints,
               manager.getCheckpointConfig().getMaxCheckpoints());
 
     const auto cmQuota = _1GB * ckptMemRatio;
     const auto numVBuckets = store->getVBuckets().getNumAliveVBuckets();
     ASSERT_GT(numVBuckets, 0);
-    // Note: max_checkpoints_hard_limit_multiplier doesn't affect
-    //  checkpoint_max_size
     const auto expected = cmQuota / numVBuckets / maxCheckpoints;
     EXPECT_EQ(expected, store->getCheckpointMaxSize());
 }
@@ -1312,8 +1306,7 @@ TEST_F(SingleThreadedCheckpointTest, MemUsageCheckpointCreation) {
     const auto& ckptConfig = manager.getCheckpointConfig();
     ASSERT_FALSE(ckptConfig.isItemNumBasedNewCheckpoint());
     ASSERT_EQ(3600, ckptConfig.getCheckpointPeriod());
-    ASSERT_EQ(20 * config.getMaxCheckpointsHardLimitMultiplier(),
-              ckptConfig.getMaxCheckpoints());
+    ASSERT_EQ(20, ckptConfig.getMaxCheckpoints());
     ASSERT_EQ(_10MB, store->getCheckpointMaxSize()); // (*)
 
     ASSERT_EQ(1, manager.getNumCheckpoints());
@@ -1352,8 +1345,7 @@ TEST_F(SingleThreadedCheckpointTest,
     const auto& ckptConfig = manager.getCheckpointConfig();
     ASSERT_FALSE(ckptConfig.isItemNumBasedNewCheckpoint());
     ASSERT_EQ(3600, ckptConfig.getCheckpointPeriod());
-    ASSERT_EQ(20 * config.getMaxCheckpointsHardLimitMultiplier(),
-              ckptConfig.getMaxCheckpoints());
+    ASSERT_EQ(20, ckptConfig.getMaxCheckpoints());
     ASSERT_EQ(1, store->getCheckpointMaxSize());
 
     // 1 empty checkpoint
@@ -3843,36 +3835,12 @@ TEST_F(CheckpointConfigTest, MaxCheckpoints_LowerThanMin) {
 
 TEST_F(CheckpointConfigTest, MaxCheckpoints) {
     auto& config = engine->getConfiguration();
-    auto maxCheckpoints = config.getMaxCheckpoints();
-    auto multiplier = config.getMaxCheckpointsHardLimitMultiplier();
+    config.setMaxCheckpoints(1000);
 
-    // Test default config
     setVBucketState(vbid, vbucket_state_active);
     auto& manager = *store->getVBuckets().getBucket(vbid)->checkpointManager;
-    EXPECT_EQ(maxCheckpoints * multiplier,
-              manager.getCheckpointConfig().getMaxCheckpoints());
 
-    // Set dynamic params change
-    maxCheckpoints = 1234;
-    config.setMaxCheckpoints(maxCheckpoints);
-    multiplier = 5678;
-    config.setMaxCheckpointsHardLimitMultiplier(5678);
-    EXPECT_EQ(maxCheckpoints * multiplier,
-              manager.getCheckpointConfig().getMaxCheckpoints());
-}
-
-TEST_F(CheckpointConfigTest, MaxCheckpointsHardLimitMultiplier_LowerThanMin) {
-    auto& config = engine->getConfiguration();
-    try {
-        config.setMaxCheckpointsHardLimitMultiplier(0);
-    } catch (const std::range_error& e) {
-        EXPECT_THAT(e.what(),
-                    testing::HasSubstr("Validation Error, "
-                                       "max_checkpoints_hard_limit_multiplier "
-                                       "takes values between 1"));
-        return;
-    }
-    FAIL();
+    EXPECT_EQ(1000, manager.getCheckpointConfig().getMaxCheckpoints());
 }
 
 TEST_F(CheckpointConfigTest, CheckpointMaxItems_LowerThanMin) {

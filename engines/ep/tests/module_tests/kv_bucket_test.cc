@@ -44,6 +44,7 @@
 #include "tests/mock/mock_global_task.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
+#include "thread_gate.h"
 #include "vbucketdeletiontask.h"
 #include "warmup.h"
 #include <executor/fake_executorpool.h>
@@ -2027,6 +2028,52 @@ TEST_P(KVBucketParamTest, SeqnoPersistenceTimeout_HigherThanMax) {
         return;
     }
     FAIL();
+}
+
+// Regression test for MB-51391: If we end up with multiple concurrent attempts
+// to delete a vBucket, don't crash attempting to dereference a null
+// VBucketPtr.
+TEST_P(KVBucketParamTest, DeleteVBucket_ConcurrentDelete) {
+    // Setup: Acquire exclusive lock on VBucket, so other threads will be
+    // blocked waiting on ot.
+    auto lockedVB = store->getLockedVBucket(vbid);
+    ASSERT_TRUE(lockedVB);
+
+    folly::Synchronized<std::multiset<cb::engine_errc>> results;
+    // ThreadGate to increase the liklihood of hitting the race - ensure
+    // both background threads are up and running before unlocking the lockedVB.
+    ThreadGate gate{3};
+
+    // Spin up a background thread which attempts to delete the vbucket. This
+    // will be blocked waiting to acquire the locked vbucket.
+    auto delThread1 = std::thread{[this, &gate, &results]() {
+        gate.threadUp();
+        auto result = store->deleteVBucket(vbid);
+        results.wlock()->insert(result);
+    }};
+
+    // Spin up a second background thread which also attempts to delete the
+    // vBucket - also blocked.
+    auto delThread2 = std::thread{[this, &gate, &results]() {
+        gate.threadUp();
+        auto result = store->deleteVBucket(vbid);
+        results.wlock()->insert(result);
+    }};
+
+    // Release the hounds^wlock - allowing the first background thread to
+    // delete the vbucket, and once it has finishes, allowing the second
+    // background thread to attempt to delete - which should cleanly fail.
+    // (Note: technically there's no guarantee which of the two background
+    // threads will be the first to run after the lock is released - but one
+    // should delete it, one should fail and neither should crash.
+    gate.threadUp();
+    lockedVB.getLock().unlock();
+
+    delThread1.join();
+    delThread2.join();
+
+    EXPECT_EQ(1, results.rlock()->count(cb::engine_errc::success));
+    EXPECT_EQ(1, results.rlock()->count(cb::engine_errc::not_my_vbucket));
 }
 
 class StoreIfTest : public KVBucketTest {

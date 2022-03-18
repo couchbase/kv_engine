@@ -15,6 +15,8 @@
 #include "storeddockey.h"
 #include <executor/globaltask.h>
 
+#include "limited_concurrency_task.h"
+
 #include <array>
 #include <chrono>
 #include <optional>
@@ -65,16 +67,17 @@ private:
 /**
  * A task for compacting a vbucket db file
  */
-class CompactTask : public GlobalTask {
+class CompactTask : public LimitedConcurrencyTask {
 public:
     CompactTask(EPBucket& bucket,
                 Vbid vbid,
                 CompactionConfig config,
                 std::chrono::steady_clock::time_point requestedStartTime,
                 const CookieIface* ck,
+                cb::AwaitableSemaphore& semaphore,
                 bool completeBeforeShutdown = false);
 
-    bool run() override;
+    bool runInner() override;
 
     std::string getDescription() const override;
 
@@ -181,7 +184,7 @@ private:
     };
 
     folly::Synchronized<Compaction> compaction;
-    std::function<void()> runningCallback;
+    TestingHook<> runningCallback;
 };
 
 /**
