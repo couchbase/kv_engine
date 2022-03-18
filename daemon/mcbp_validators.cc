@@ -546,14 +546,6 @@ static Status dcp_open_validator(Cookie& cookie) {
                                 "consumer_name must be a string");
                         return Status::Einval;
                     }
-                    auto nm = kv.value().get<std::string>();
-                    if (nm.size() > cb::limits::MaxDcpName) {
-                        cookie.setErrorContext(
-                                "consumer_name limit is " +
-                                std::to_string(cb::limits::MaxDcpName) +
-                                " characters");
-                        return Status::Einval;
-                    }
                 } else {
                     cookie.setErrorContext("Unsupported JSON property " +
                                            kv.key());
@@ -565,14 +557,6 @@ static Status dcp_open_validator(Cookie& cookie) {
             return Status::Einval;
         }
     }
-
-    if (size_t(cookie.getHeader().getKeylen()) > cb::limits::MaxDcpName) {
-        cookie.setErrorContext("Dcp name limit is " +
-                               std::to_string(cb::limits::MaxDcpName) +
-                               " characters");
-        return Status::Einval;
-    }
-
     return verify_common_dcp_restrictions(cookie);
 }
 

@@ -72,13 +72,6 @@ TEST_P(DcpOpenValidatorTest, Value) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-TEST_P(DcpOpenValidatorTest, MB34280_NameTooLongKeylen) {
-    auto blen = request.getBodylen() - request.getKeylen();
-    request.setKeylen(201);
-    request.setBodylen(blen + 201);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(DcpOpenValidatorTest, Pitr) {
     cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
     using cb::mcbp::request::DcpOpenPayload;
