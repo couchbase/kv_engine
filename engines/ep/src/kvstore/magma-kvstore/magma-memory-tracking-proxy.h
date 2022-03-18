@@ -176,6 +176,7 @@ public:
     magma::Status Rollback(const magma::Magma::KVStoreID kvID,
                            magma::Magma::SeqNo rollbackSeqno,
                            magma::Magma::RollbackCallback callback);
+    void SetMaxOpenFiles(size_t n, bool blocking = false);
     void SetFragmentationRatio(double fragRatio);
     void EnableBlockCache(bool enable);
     void SetMemoryQuota(const size_t quota);

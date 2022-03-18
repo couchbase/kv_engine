@@ -597,10 +597,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaMemoryQuotaLowWaterMarkRatio();
 
     configuration.setStore(this);
-    {
-        cb::UseArenaMallocSecondaryDomain domainGuard;
-        magma::SetMaxOpenFiles(configuration.getMaxFileDescriptors());
-    }
 
     // To save memory only allocate counters for the number of vBuckets that
     // this shard will have to deal with
@@ -665,6 +661,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
 
     magma = std::make_unique<MagmaMemoryTrackingProxy>(configuration.magmaCfg);
 
+    magma->SetMaxOpenFiles(configuration.getMaxFileDescriptors());
     setMaxDataSize(configuration.getBucketQuota());
     setMagmaFragmentationPercentage(
             configuration.getMagmaFragmentationPercentage());
