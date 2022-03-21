@@ -2044,7 +2044,7 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
     };
 
     // get the conn aggregated stats
-    engine->doConnAggStatsInner(
+    engine->doConnAggStats(
             CBStatCollector(addStat, statsCookie).forBucket("default"), ":");
 
     // expect output for each of the connection "types" and

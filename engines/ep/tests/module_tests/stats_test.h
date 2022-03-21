@@ -27,15 +27,4 @@ protected:
      * @return Map of stat name to value
      */
     std::map<std::string, std::string> get_stat(const char* statkey = nullptr);
-
-    /**
-     * Test that calling get_stats with the provided key creates a background
-     * task, but does not write any responses until called again from the
-     * frontend (after blocking, and notifying IO complete).
-     *
-     * @param key stats group to request
-     * @param expectedTask expected name of task which will be created
-     */
-    void test_BackgroundTasksDoNotWriteResponses(std::string_view key,
-                                                 std::string_view expectedTask);
 };

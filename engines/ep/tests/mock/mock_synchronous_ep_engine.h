@@ -86,7 +86,7 @@ public:
     }
 
     using EventuallyPersistentEngine::doCollectionStats;
-    using EventuallyPersistentEngine::doConnAggStatsInner;
+    using EventuallyPersistentEngine::doConnAggStats;
     using EventuallyPersistentEngine::doEngineStats;
     MockReplicationThrottle& getMockReplicationThrottle();
 };

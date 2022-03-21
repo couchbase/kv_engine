@@ -401,10 +401,7 @@ cb::engine_errc EventuallyPersistentEngine::get_prometheus_stats(
             }
             // do dcp aggregated stats, using ":" as the separator to split
             // connection names to find the connection type.
-            if (status = doConnAggStatsInner(collector, ":");
-                status != cb::engine_errc::success) {
-                return status;
-            }
+            return doConnAggStats(collector, ":");
         }
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;
@@ -1838,31 +1835,6 @@ void EventuallyPersistentEngine::storeEngineSpecific(const CookieIface* cookie,
 
 void* EventuallyPersistentEngine::getEngineSpecific(const CookieIface* cookie) {
     return cookie->getEngineStorage();
-}
-
-void EventuallyPersistentEngine::storeStatTask(
-        const CookieIface* cookie, std::shared_ptr<BackgroundStatTask> task) {
-    // store a ptr to a shared_ptr to the task (must ensure the task is not
-    // destroyed before the connection retrieves the result).
-    // Once the frontend thread is notified, it must call retrieveStatTask,
-    // which will free the heap-allocated shared_ptr.
-    auto wrapper = std::make_unique<std::shared_ptr<BackgroundStatTask>>(task);
-    storeEngineSpecific(cookie, wrapper.release());
-}
-
-std::shared_ptr<BackgroundStatTask>
-EventuallyPersistentEngine::retrieveStatTask(const CookieIface* cookie) {
-    void* data = getEngineSpecific(cookie);
-    if (data) {
-        // take back ownership of the task ptr
-        auto ptr = std::unique_ptr<std::shared_ptr<BackgroundStatTask>>(
-                reinterpret_cast<std::shared_ptr<BackgroundStatTask>*>(data));
-        // clear the engine specific - it's not valid to retrieve the
-        // task twice (would lead to a double free)
-        storeEngineSpecific(cookie, nullptr);
-        return *ptr;
-    }
-    return nullptr;
 }
 
 bool EventuallyPersistentEngine::isDatatypeSupported(
@@ -3769,32 +3741,6 @@ public:
     const CookieIface* cookie;
     AddStatFn add_stat;
 };
-
-class StatCheckpointTask : public BackgroundStatTask {
-public:
-    StatCheckpointTask(EventuallyPersistentEngine* e, const CookieIface* c)
-        : BackgroundStatTask(e, c, TaskId::StatCheckpointTask) {
-    }
-
-    cb::engine_errc collectStats() override {
-        TRACE_EVENT0("ep-engine/task", "StatsCheckpointTask");
-        StatCheckpointVisitor scv(
-                e->getKVBucket(), cookie, getDeferredAddStat());
-        e->getKVBucket()->visit(scv);
-        return cb::engine_errc::success;
-    }
-
-    std::string getDescription() const override {
-        return "checkpoint stats for all vbuckets";
-    }
-
-    std::chrono::microseconds maxExpectedDuration() const override {
-        // Task needed to lookup "checkpoint" stats; so the runtime should only
-        // affects the particular stat request. However we don't want this to
-        // take /too/ long, so set limit of 100ms.
-        return std::chrono::milliseconds(100);
-    }
-};
 /// @endcond
 
 cb::engine_errc EventuallyPersistentEngine::doCheckpointStats(
@@ -3803,15 +3749,11 @@ cb::engine_errc EventuallyPersistentEngine::doCheckpointStats(
         const char* stat_key,
         int nkey) {
     if (nkey == 10) {
-        auto task = retrieveStatTask(cookie);
-        if (!task) {
-            task = std::make_shared<StatCheckpointTask>(this, cookie);
-            ExecutorPool::get()->schedule(task);
-            storeStatTask(cookie, task);
-            return cb::engine_errc::would_block;
-        } else {
-            return task->maybeWriteResponse(add_stat);
-        }
+        TRACE_EVENT0("ep-engine/task", "StatsCheckpoint");
+        auto* kvbucket = getKVBucket();
+        StatCheckpointVisitor scv(kvbucket, cookie, add_stat);
+        kvbucket->visit(scv);
+        return cb::engine_errc::success;
     } else if (nkey > 11) {
         std::string vbid(&stat_key[11], nkey - 11);
         uint16_t vbucket_id(0);
@@ -4039,83 +3981,7 @@ static void showConnAggStat(const std::string& connType,
     }
 }
 
-class StatDCPTask : public BackgroundStatTask {
-public:
-    using Callback =
-            std::function<cb::engine_errc(EventuallyPersistentEngine* e,
-                                          const CookieIface* cookie,
-                                          const AddStatFn& deferredAddStat)>;
-    StatDCPTask(EventuallyPersistentEngine* e,
-                const CookieIface* cookie,
-                std::string_view description,
-                Callback callback)
-        : BackgroundStatTask(e, cookie, TaskId::StatDCPTask),
-          description(description),
-          callback(std::move(callback)) {
-    }
-    cb::engine_errc collectStats() override {
-        TRACE_EVENT0("ep-engine/task", "StatDCPTask");
-        cb::engine_errc result = cb::engine_errc::failed;
-        try {
-            result = callback(e, cookie, getDeferredAddStat());
-        } catch (const std::exception& e) {
-            EP_LOG_WARN(
-                    "StatDCPTask: callback threw exception: \"{}\" task "
-                    "desc:\"{}\"",
-                    e.what(),
-                    getDescription());
-        }
-        return result;
-    }
-
-    std::string getDescription() const override {
-        return description;
-    }
-
-    std::chrono::microseconds maxExpectedDuration() const override {
-        // Task aggregates all dcp connections, of which there can be many, so
-        // set limit of 100ms.
-        return std::chrono::milliseconds(100);
-    }
-
-private:
-    const std::string description;
-    Callback callback;
-};
-
 cb::engine_errc EventuallyPersistentEngine::doConnAggStats(
-        const CookieIface* cookie,
-        const AddStatFn& add_stat,
-        std::string_view sep) {
-    auto task = retrieveStatTask(cookie);
-    if (!task) {
-        // the background task _must not_ capture add_stat, it is not
-        // safe to use from a background thread.
-        task = std::make_shared<StatDCPTask>(
-                this,
-                cookie,
-                "Aggregated DCP stats",
-                [separator = std::string(sep)](
-                        EventuallyPersistentEngine* ep,
-                        const CookieIface* cookie,
-                        const AddStatFn& deferredAddStat) {
-                    // deferred add stat collects up stats, but does not
-                    // write them as responses (which would be racy).
-                    // a later call to maybeWriteResponse will do that.
-                    CBStatCollector col(deferredAddStat, cookie);
-                    ep->doConnAggStatsInner(col.forBucket(ep->getName()),
-                                            separator);
-                    return cb::engine_errc::success;
-                });
-        ExecutorPool::get()->schedule(task);
-        storeStatTask(cookie, task);
-        return cb::engine_errc::would_block;
-    } else {
-        return task->maybeWriteResponse(add_stat);
-    }
-}
-
-cb::engine_errc EventuallyPersistentEngine::doConnAggStatsInner(
         const BucketStatCollector& collector, std::string_view sep) {
     // The separator is, in all current usage, ":" so the length will
     // normally be 1
@@ -4143,32 +4009,6 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
         const CookieIface* cookie,
         const AddStatFn& add_stat,
         std::string_view value) {
-    auto task = retrieveStatTask(cookie);
-    if (!task) {
-        // the background task _must not_ capture add_stat, it is not
-        // safe to use from a background thread.
-        task = std::make_shared<StatDCPTask>(
-                this,
-                cookie,
-                "Summarised bucket-wide DCP stats",
-                [filter = std::string(value)](
-                        EventuallyPersistentEngine* ep,
-                        const CookieIface* cookie,
-                        const AddStatFn& deferredAddStat) {
-                    ep->doDcpStatsInner(cookie, deferredAddStat, filter);
-                    return cb::engine_errc::success;
-                });
-        ExecutorPool::get()->schedule(task);
-        storeStatTask(cookie, task);
-        return cb::engine_errc::would_block;
-    } else {
-        return task->maybeWriteResponse(add_stat);
-    }
-}
-
-void EventuallyPersistentEngine::doDcpStatsInner(const CookieIface* cookie,
-                                                 const AddStatFn& add_stat,
-                                                 std::string_view value) {
     ConnStatBuilder dcpVisitor(cookie, add_stat, DcpStatsFilter{value});
     // ConnStatBuilder also adds per-stream stats while aggregating.
     dcpConnMap_->each(dcpVisitor);
@@ -4179,6 +4019,7 @@ void EventuallyPersistentEngine::doDcpStatsInner(const CookieIface* cookie,
     addAggregatedProducerStats(collector.forBucket(getName()), aggregator);
 
     dcpConnMap_->addStats(add_stat, cookie);
+    return cb::engine_errc::success;
 }
 
 void EventuallyPersistentEngine::addAggregatedProducerStats(
@@ -4963,7 +4804,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
         return doEngineStats(bucketCollector);
     }
     if (key.size() > 7 && cb_isPrefix(key, "dcpagg ")) {
-        return doConnAggStats(c, add_stat, key.substr(7));
+        return doConnAggStats(bucketCollector, key.substr(7));
     }
     if (key == "dcp"sv) {
         return doDcpStats(c, add_stat, value);

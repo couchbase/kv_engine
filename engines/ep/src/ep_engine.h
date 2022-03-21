@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include "background_stat_task.h"
 #include "configuration.h"
 #include "ep_engine_public.h"
 #include "permitted_vb_states.h"
@@ -539,35 +538,6 @@ public:
 
     void* getEngineSpecific(const CookieIface* cookie);
 
-    /**
-     * Store a task pointer as the engine specific data.
-     *
-     * Allocates a wrapper holding a shared_ptr; storing the raw task ptr
-     * would be insufficient - the task needs to be owned to ensure it has not
-     * been destroyed when the frontend thread needs to retrieve it's result.
-     *
-     * Caller is responsible for scheduling the task, and later calling
-     * retrieveStatTask to destroy the wrapper and retrieve the task.
-     *
-     * @param cookie cookie from frontend
-     * @param task shared_ptr to background task
-     */
-    void storeStatTask(const CookieIface* cookie,
-                       std::shared_ptr<BackgroundStatTask> task);
-
-    /**
-     * Get and clear the engine specific data, then attempt to
-     * extract a BackgroundStatTask.
-     *
-     * Frees the wrapper allocated by storeStatTask, if one was found in the
-     * engine specific data.
-     *
-     * @param cookie cookie from frontend
-     * @return (possibly null) shared_ptr to background task
-     */
-    std::shared_ptr<BackgroundStatTask> retrieveStatTask(
-            const CookieIface* cookie);
-
     bool isDatatypeSupported(const CookieIface* cookie,
                              protocol_binary_datatype_t datatype);
 
@@ -1026,25 +996,19 @@ protected:
     cb::engine_errc doVBucketDump(const CookieIface* cookie,
                                   const AddStatFn& addStat,
                                   std::string_view keyArgs);
-    cb::engine_errc doDcpStats(const CookieIface* cookie,
-                               const AddStatFn& add_stat,
-                               std::string_view value);
     /**
      * Immediately collect DCP stats, without scheduling a background task.
      */
-    void doDcpStatsInner(const CookieIface* cookie,
-                         const AddStatFn& add_stat,
-                         std::string_view value);
+    cb::engine_errc doDcpStats(const CookieIface* cookie,
+                               const AddStatFn& add_stat,
+                               std::string_view value);
 
     void addAggregatedProducerStats(const BucketStatCollector& collector,
                                     const ConnCounter& aggregator);
     cb::engine_errc doEvictionStats(const CookieIface* cookie,
                                     const AddStatFn& add_stat);
-    cb::engine_errc doConnAggStats(const CookieIface* cookie,
-                                   const AddStatFn& add_stat,
+    cb::engine_errc doConnAggStats(const BucketStatCollector& collector,
                                    std::string_view sep);
-    cb::engine_errc doConnAggStatsInner(const BucketStatCollector& collector,
-                                        std::string_view sep);
     void doTimingStats(const BucketStatCollector& collector);
     cb::engine_errc doSchedulerStats(const CookieIface* cookie,
                                      const AddStatFn& add_stat);

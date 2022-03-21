@@ -614,58 +614,6 @@ TEST_F(StatTest, LegacyStatsAreNotFormatted) {
     destroy_mock_cookie(cookie);
 }
 
-void StatTest::test_BackgroundTasksDoNotWriteResponses(
-        std::string_view key, std::string_view expectedTask) {
-    using namespace testing;
-
-    // create a consumer, so the aggregated stats will contain something
-    auto& connmap = engine->getDcpConnMap();
-    MockCookie dcpcookie(engine.get());
-    connmap.newProducer(&dcpcookie,
-                        "test_producer",
-                        /*flags*/ 0);
-    auto cleanup = gsl::finally([&]() {
-        // disconnect and cleanup the producer
-        connmap.disconnect(&dcpcookie);
-        connmap.manageConnections();
-    });
-
-    MockCookie cookie(engine.get());
-
-    {
-        // initial call would block, and will not write any responses.
-        MockAddStat mockAddStat;
-        EXPECT_CALL(mockAddStat, callback(_, _, _)).Times(0);
-
-        ASSERT_EQ(cb::engine_errc::would_block,
-                  engine->get_stats(
-                          cookie, key, {}, mockAddStat.asStdFunction()));
-
-        // running the background task should not write any responses either.
-        auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
-        runNextTask(nonIO, std::string(expectedTask));
-    }
-
-    {
-        // call after IO complete should succeed, and write responses.
-        MockAddStat mockAddStat;
-        EXPECT_CALL(mockAddStat, callback(_, _, _)).Times(AtLeast(1));
-
-        ASSERT_EQ(cb::engine_errc::success,
-                  engine->get_stats(
-                          cookie, key, {}, mockAddStat.asStdFunction()));
-    }
-}
-
-TEST_F(StatTest, BackgroundTasksDoNotWriteResponses_dcp) {
-    test_BackgroundTasksDoNotWriteResponses("dcp",
-                                            "Summarised bucket-wide DCP stats");
-}
-
-TEST_F(StatTest, BackgroundTasksDoNotWriteResponses_dcpagg) {
-    test_BackgroundTasksDoNotWriteResponses("dcpagg :", "Aggregated DCP stats");
-}
-
 TEST_F(StatTest, WarmupStats) {
     resetEngineAndWarmup();
 
