@@ -706,9 +706,12 @@ TYPED_TEST(ExecutorPoolTest, ScheduleCancelx2) {
     // (Note: makePool assumes '0' means "auto-configure" for thread counts,
     // hence must make explicit call to setNonIO(0) after construction.)
     this->makePool(1, 1, 1, 1);
-    this->pool->setNumNonIO(0);
     NiceMock<MockTaskable> taskable;
     this->pool->registerTaskable(taskable);
+
+    // registerTaskable also starts workers for the CB3 pool so we must set our
+    // workers back to 0 after.
+    this->pool->setNumNonIO(0);
 
     // Setup - simple test task which does nothing.
     // 1 hour - i.e. we don't want it to run when initially scheduled.
