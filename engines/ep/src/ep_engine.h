@@ -22,6 +22,7 @@
 #include <executor/taskable.h>
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
+#include <memcached/rbac/privileges.h>
 #include <platform/cb_arena_malloc_client.h>
 #include <utilities/testing_hook.h>
 
