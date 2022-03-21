@@ -373,7 +373,8 @@ void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
         MockDcpProducer& producer,
         MockDcpMessageProducers& producers,
         cb::mcbp::ClientOpcode expectedOp,
-        bool fromMemory) {
+        bool fromMemory,
+        bool diskSnapshotFromMemory) {
     notifyAndRunToCheckpoint(producer, producers, fromMemory);
 
     // Next step which will process a snapshot marker and then the caller
@@ -383,7 +384,7 @@ void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
                   producer.stepWithBorderGuard(producers));
         EXPECT_EQ(expectedOp, producers.last_op);
         if (expectedOp == cb::mcbp::ClientOpcode::DcpSnapshotMarker) {
-            if (fromMemory) {
+            if (fromMemory && !diskSnapshotFromMemory) {
                 EXPECT_EQ(MARKER_FLAG_MEMORY,
                           producers.last_flags & MARKER_FLAG_MEMORY);
             } else {

@@ -56,8 +56,8 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
     // possible replicas given we want to still test against all replicas.
     std::string confString = "sync_writes_max_allowed_replicas=3;bucket_type=";
     confString += (vbType == VBType::Persistent ? "persistent" : "ephemeral");
-    // Also, a bunch of tests rely on some legacy checkpoint configuration.
-    confString += ";max_checkpoints=2;max_checkpoints_hard_limit_multiplier=1";
+    // Also, a bunch of tests rely on max_checkpoints=2.
+    confString += ";max_checkpoints=2";
     config.parseConfiguration(confString.c_str(), get_mock_server_api());
 
     auto manifest = std::make_unique<Collections::VB::Manifest>(

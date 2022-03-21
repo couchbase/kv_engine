@@ -72,13 +72,17 @@ public:
      * Notify and step the given producer
      * @param expectedOp once stepped we expect to see this DCP opcode produced
      * @param fromMemory if false then step a backfill
+     * @param diskSnapshotFromMemory in some edge cases we may sent a disk
+     * snapshot from memory, if this pram is true we will run the checkpoint
+     * task but check for the disk marker flag
      */
     void notifyAndStepToCheckpoint(
             MockDcpProducer& producer,
             MockDcpMessageProducers& producers,
             cb::mcbp::ClientOpcode expectedOp =
                     cb::mcbp::ClientOpcode::DcpSnapshotMarker,
-            bool fromMemory = true);
+            bool fromMemory = true,
+            bool diskSnapshotFromMemory = false);
 
     /*
      * DCP helper.

@@ -497,6 +497,13 @@ void RocksDBKVStore::openDB() {
 }
 
 std::shared_ptr<VBHandle> RocksDBKVStore::getVBHandle(Vbid vbid) const {
+    if (vbid.get() >= configuration.getMaxVBuckets()) {
+        throw std::invalid_argument(
+                fmt::format("RocksDBKVStore::getVBHandle: {} exceeds valid "
+                            "vBucket range (0..{})",
+                            vbid,
+                            configuration.getMaxVBuckets() - 1));
+    }
     std::lock_guard<std::mutex> lg(vbhMutex);
     if (vbHandles[vbid.get()]) {
         return vbHandles[vbid.get()];

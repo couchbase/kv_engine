@@ -3847,6 +3847,286 @@ TEST_P(CollectionsDcpParameterizedTest, MB_50543) {
     EXPECT_EQ(11, producers->last_byseqno);
 }
 
+TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
+    // Make sure there's no streams set, so we can freely create a new sync
+    // write stream
+    producer->closeAllStreams();
+    static_cast<MockDcpConnMap&>(engine->getDcpConnMap())
+            .removeConn(producer->getCookie());
+    producer.reset();
+
+    /*
+     * PHASE 1: Normal Sync Replication Stream
+     */
+
+    // 1.1. Setup second vbucket to stream the fruit collection to a vbucket
+    auto fruitVbid = replicaVB;
+    ++fruitVbid;
+    setVBucketState(fruitVbid, vbucket_state_replica);
+
+    // 1.2. Create the fruit collection and a doc, to our current active vbucket
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    store_item(vbid, makeStoredDocKey("setZero"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // 1.3. Create a new checkpoint, so we close the current one. Which will
+    // allow us to remove it from memory.
+    auto vb = store->getVBucket(vbid);
+    vb->checkpointManager->createNewCheckpoint();
+    vb->checkpointManager->removeClosedUnrefCheckpoints();
+    runCheckpointDestroyer(vbid);
+
+    // 1.4. Write a document to the fruit collection to be streamed later
+    store_item(
+            vbid, makeStoredDocKey("peach", CollectionEntry::fruit), "tasty");
+    flushVBucketToDiskIfPersistent(vbid);
+
+    // 1.5. Now Create a sync replication stream (0 -> +inf), after we've
+    // registered our cursor write a few more docs to memory
+    createDcpObjects("", OutOfOrderSnapshots::No, 0, true);
+    store_item(vbid, makeStoredDocKey("setOne"), "value");
+
+    // 1.6. Ensure we backfill receiving all the documents written before the
+    // stream started as a disk snapshot.
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    ASSERT_TRUE(MARKER_FLAG_CHK & producers->last_flags);
+    ASSERT_EQ(0, producers->last_snap_start_seqno);
+    ASSERT_EQ(3, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    ASSERT_EQ(1, producers->last_byseqno);
+    for (size_t seqno = 2; seqno <= 3; ++seqno) {
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+        ASSERT_EQ(seqno, producers->last_byseqno);
+    }
+
+    // 1.7. Then stream the document we wrote to memory after backfill.
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    ASSERT_TRUE(MARKER_FLAG_CHK & producers->last_flags);
+    ASSERT_EQ(4, producers->last_snap_start_seqno);
+    ASSERT_EQ(4, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    ASSERT_EQ(4, producers->last_byseqno);
+
+    // 1.8. Add one more item to the default collection, this should be added
+    // to the last checkpoint, thus replicated without a MARKER_FLAG_CHK
+    store_item(vbid, makeStoredDocKey("setTwo"), "value");
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    ASSERT_FALSE(MARKER_FLAG_CHK & producers->last_flags);
+    ASSERT_EQ(5, producers->last_snap_start_seqno);
+    ASSERT_EQ(5, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    ASSERT_EQ(5, producers->last_byseqno);
+
+    // 1.9. Add one more item to the fruit collection, this should be added
+    // to the last checkpoint, thus replicated without a MARKER_FLAG_CHK
+    store_item(
+            vbid, makeStoredDocKey("lemon", CollectionEntry::fruit), "value");
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    ASSERT_FALSE(MARKER_FLAG_CHK & producers->last_flags);
+    ASSERT_EQ(6, producers->last_snap_start_seqno);
+    ASSERT_EQ(6, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    ASSERT_EQ(6, producers->last_byseqno);
+
+    /*
+     * PHASE TWO: Perform takeover stream from active to replica
+     */
+    // 2.1. Close the replication stream, so we can create a takeover stream.
+    {
+        auto currentStream = producer->findStream(vbid);
+        currentStream->setDead(cb::mcbp::DcpStreamEndStatus::Closed);
+    }
+    // 2.2. Create the takeover stream from the current high seqno, also perform
+    // an enqueue of the current vb state so the failover lover log is in the
+    // checkpoint as observed in the MB.
+    const auto takoverStreamStart = vb->getHighSeqno();
+    auto vbR = store->getVBucket(replicaVB);
+    vbR->checkpointManager->queueSetVBState();
+    uint64_t rollbackSeqno;
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->streamRequest(
+                      DCP_ADD_STREAM_FLAG_TAKEOVER,
+                      1, // opaque
+                      vbid,
+                      takoverStreamStart, // start_seqno
+                      ~0ull, // end_seqno
+                      vb->failovers->getLatestUUID(), // vbucket_uuid,
+                      takoverStreamStart, // snap_start_seqno,
+                      takoverStreamStart, // snap_end_seqno,
+                      &rollbackSeqno,
+                      [](const std::vector<vbucket_failover_t>&) {
+                          return cb::engine_errc::success;
+                      },
+                      ""));
+    // 2.3. Perform set vb states due to topology changes as observed in
+    // MB-51105 as part of the setting up for the takeover. Also create a new
+    // checkpoint for the second set vbucket state, as this will ensure that we
+    // hit the bug of MB-51105.
+    setVBucketState(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    vb->checkpointManager->createNewCheckpoint();
+    setVBucketState(vbid,
+                    vbucket_state_active,
+                    {{"topology",
+                      nlohmann::json::array({{"active", "replica"},
+                                             {"replica", "fruitVbid"}})}});
+
+    // 2.4. Now get hold of the takeover stream, start moving it through the
+    // state machine so that it tells the replica to move to pending state (and
+    // perform this change on the replica).
+    auto activeTakeOverStream = producer->findStream(vbid);
+    ASSERT_TRUE(activeTakeOverStream->isTakeoverSend());
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSetVbucketState);
+    ASSERT_TRUE(activeTakeOverStream->isTakeoverWait());
+    setVBucketState(
+            replicaVB, producers->last_vbucket_state, {}, TransferVB::Yes);
+    // 2.5. Before acking the change to pending to the active, write to the
+    // active. The write will be added to the same checkpoint as the second
+    // active topology in step 2.3. above.
+    store_item(
+            vbid, makeStoredDocKey("apple", CollectionEntry::fruit), "value");
+    activeTakeOverStream->setVBucketStateAckRecieved(*producer);
+
+    // 2.6 After writing and acking to the active ensure the active sends us a
+    // snapshot with the items that where just written.
+    // ** CRITICAL ** This is the point at which the bug of MB-51105 is hit, the
+    // snapshot range we create with the bug for this snapshot received below
+    // is wrong. As on the active we pick up snapStartSeqno of the previous
+    // checkpoint as we start processing from it but find no items to send for
+    // it as at that seqno of that checkpoint all there is, is the first set
+    // vbucket state of 2.3.
+    ASSERT_TRUE(activeTakeOverStream->isTakeoverSend());
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    activeTakeOverStream->snapshotMarkerAckReceived();
+    EXPECT_EQ(takoverStreamStart, producers->last_snap_start_seqno);
+    EXPECT_EQ(7, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ(7, producers->last_byseqno);
+
+    // 2.7 Now process and ack the set vbucket state to active from pending.
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSetVbucketState);
+    ASSERT_TRUE(activeTakeOverStream->isTakeoverWait());
+    setVBucketState(
+            replicaVB, producers->last_vbucket_state, {}, TransferVB::Yes);
+    activeTakeOverStream->setVBucketStateAckRecieved(*producer);
+
+    // 2.8 Write an item to the active vbucket to stream later and update
+    // its topology
+    store_item(replicaVB, makeStoredDocKey("setThree"), "value");
+    setVBucketState(
+            replicaVB,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    store_item(replicaVB,
+               makeStoredDocKey("tasty", CollectionEntry::fruit),
+               "value");
+
+    /*
+     * PHASE THREE: Ensure we can stream all the items in the fruit collection
+     * to the fruit vbucket
+     */
+
+    // 3.1 Set up a stream from replicaVB to fruitVB for (0 -> +inf)
+    auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    auto* cookieP2 = create_mock_cookie(engine.get());
+    auto* cookieC2 = create_mock_cookie(engine.get());
+    auto consumerTwo = std::make_shared<MockDcpConsumer>(
+            *engine, cookieC2, "test_consumer2");
+    mockConnMap.addConn(cookieC2, consumerTwo);
+    ASSERT_EQ(cb::engine_errc::success,
+              consumerTwo->addStream(/*opaque*/ 0,
+                                     fruitVbid,
+                                     /*flags*/ 0));
+
+    auto replicProducer = createDcpProducer(cookieP2, IncludeDeleteTime::No);
+    mockConnMap.addConn(cookieP2, replicProducer);
+
+    auto producers2 = std::make_unique<CollectionsDcpTestProducers>();
+    producers2->consumer = consumerTwo.get();
+    producers2->replicaVB = fruitVbid;
+
+    ASSERT_EQ(cb::engine_errc::success,
+              replicProducer->streamRequest(
+                      0,
+                      1, // opaque
+                      replicaVB,
+                      0, // start_seqno
+                      ~0ull,
+                      0, // vbucket_uuid,
+                      0, // snap_start_seqno,
+                      0, // snap_end_seqno,
+                      &rollbackSeqno,
+                      [](const std::vector<vbucket_failover_t>&) {
+                          return cb::engine_errc::success;
+                      },
+                      {{R"({"collections":["9"]})"}}));
+
+    // 3.2 Ensure we can get the disk snapshot from the new active, from memory
+    // as it's not been flushed to disk
+    SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
+            *replicProducer,
+            *producers2,
+            cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+            true,
+            true);
+    EXPECT_EQ(0, producers2->last_snap_start_seqno);
+    EXPECT_EQ(3, producers2->last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              replicProducer->stepAndExpect(
+                      *producers2, cb::mcbp::ClientOpcode::DcpSystemEvent));
+    EXPECT_EQ(1, producers2->last_byseqno);
+    EXPECT_EQ(cb::engine_errc::success,
+              replicProducer->stepAndExpect(
+                      *producers2, cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(3, producers2->last_byseqno);
+
+    // 3.3 Process the rest of the in memory snapshots ensuring we receive them
+    // correctly. At this point with the bug of MB-51105 we would crash as
+    // nextSnapStart would go backwards due to the new active's vbucket state
+    // being corrupted at 2.6.
+    EXPECT_NO_THROW(SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
+            *replicProducer,
+            *producers2,
+            cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(4, producers2->last_snap_start_seqno);
+    EXPECT_EQ(6, producers2->last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              replicProducer->stepAndExpect(
+                      *producers2, cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(6, producers2->last_byseqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              replicProducer->stepAndExpect(
+                      *producers2, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(7, producers2->last_snap_start_seqno);
+    EXPECT_EQ(7, producers2->last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              replicProducer->stepAndExpect(
+                      *producers2, cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(7, producers2->last_byseqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              replicProducer->stepAndExpect(
+                      *producers2, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(8, producers2->last_snap_start_seqno);
+    EXPECT_EQ(9, producers2->last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              replicProducer->stepAndExpect(
+                      *producers2, cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(9, producers2->last_byseqno);
+    ASSERT_EQ(producers2->last_byseqno, vbR->getHighSeqno());
+
+    destroy_mock_cookie(cookieP2);
+    destroy_mock_cookie(cookieC2);
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,

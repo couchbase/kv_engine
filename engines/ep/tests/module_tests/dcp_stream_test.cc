@@ -1140,13 +1140,13 @@ TEST_P(StreamTest, ProcessItemsCheckpointStartIsLastItem) {
     // testing behaviour of subsequent checkpoints).
     ActiveStream::OutstandingItemsResult result;
     result.items.emplace_back(new Item(
-            makeStoredDocKey("start"), vbid, queue_op::checkpoint_start, 1, 9));
+            makeStoredDocKey("start"), vbid, queue_op::checkpoint_start, 1, 1));
     auto dummy = makeCommittedItem(makeStoredDocKey("ignore"), "value");
     dummy->setBySeqno(9);
     result.items.push_back(dummy);
     result.items.emplace_back(new Item(
-            makeStoredDocKey("end"), vbid, queue_op::checkpoint_end, 1, 9));
-    result.ranges.push_back({{0, 9}, {}, {}});
+            makeStoredDocKey("end"), vbid, queue_op::checkpoint_end, 1, 10));
+    result.ranges.push_back({{0, 9}, {}, {}, true});
 
     stream->public_processItems(result);
     result.items.clear();
@@ -1163,13 +1163,14 @@ TEST_P(StreamTest, ProcessItemsCheckpointStartIsLastItem) {
                                                 vbid,
                                                 queue_op::checkpoint_end,
                                                 1,
-                                                /*seqno*/ 10)));
+                                                /*seqno*/ 11)));
+    result.ranges.push_back({{10, 10}, {}, {}, true});
     result.items.push_back(queued_item(new Item(makeStoredDocKey("start"),
                                                 vbid,
                                                 queue_op::checkpoint_start,
                                                 2,
                                                 /*seqno*/ 11)));
-    result.ranges.push_back({{11, 11}, {}, {}});
+    result.ranges.push_back({{11, 11}, {}, {}, true});
 
     // Test - call processItems() twice: once with the items above, then with
     // a single mutation.

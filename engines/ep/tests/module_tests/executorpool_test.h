@@ -55,6 +55,7 @@ protected:
     std::unique_ptr<T> pool;
 
     void testUnregisterClearsUpTasks(bool force, bool completeBeforeShutdown);
+    void testTaskRunningDuringShutdownResetsOnSchedulerThread();
 };
 
 /**

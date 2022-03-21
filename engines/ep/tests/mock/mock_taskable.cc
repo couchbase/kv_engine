@@ -15,6 +15,8 @@
 
 MockTaskable::MockTaskable(std::string name, bucket_priority_t priority)
     : name(std::move(name)), policy(priority, 1) {
+    using namespace ::testing;
+    ON_CALL(*this, isShutdown()).WillByDefault(Return(false));
 }
 
 const std::string& MockTaskable::getName() const {
@@ -39,8 +41,4 @@ WorkLoadPolicy& MockTaskable::getWorkLoadPolicy() {
 void MockTaskable::logRunTime(const GlobalTask& task,
                               std::string_view threadName,
                               std::chrono::steady_clock::duration runTime) {
-}
-
-bool MockTaskable::isShutdown() const {
-    return false;
 }

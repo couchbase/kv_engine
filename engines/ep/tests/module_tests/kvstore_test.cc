@@ -287,8 +287,13 @@ void KVStoreBackend::setup(const std::string& dataDir,
     configStr += generateBackendConfig("persistent_" + backend) + ";";
 
     if (backend == "magma") {
-        configStr += magmaConfig;
+        configStr += magmaConfig + ';';
     }
+
+    // Run with a fixed (and lower than default) number of shards and vBuckets -
+    // we rarely need all 1024 vBuckets or shards, and running with smaller
+    // numbers makes tests faster / consume less memory etc.
+    configStr += "max_vbuckets=16;max_num_shards=2";
 
     config.parseConfiguration(configStr.c_str(), get_mock_server_api());
     WorkLoadPolicy workload(config.getMaxNumWorkers(),
@@ -751,6 +756,79 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
     checkGetValue(gv, cb::engine_errc::no_such_key);
 }
 
+// Test that listPersistedVbuckets() returns the correct purge seqno after
+// restart.
+// Regression test for MB-51328; where only the first vBucket was
+// reported correctly, due to incorrect mapping from vbucket id to cacheSlot.
+TEST_P(KVStoreParamTestSkipRocks, ListPersistedVBucketsPurgeSeqnoAfterRestart) {
+    ASSERT_GT(kvstore->getConfig().getMaxShards(), 1)
+            << "Require at least 2 shards to verify multi-shard "
+               "listPersistentVBuckets behaviour.";
+    ASSERT_GT(kvstore->getConfig().getMaxVBuckets(), 1)
+            << "Require at least 2 vBuckets to verify multi-shard "
+               "listPersistentVBuckets behaviour.";
+
+    // Setup - activate all vBuckets owned by this shard; give each one a unique
+    // purge seqno and then verify that each one gets its own purge_seqno after
+    // restart.
+    // To set a unique purge seqno, perform two deletes (cannot purge the high
+    // seqno, so need at least two docs to purge anything).
+    // Seqnos of first delete is '1,000,000+vbucketId` (cannot have a zero seqno
+    // so must apply some offset). This ensures we can check each vBucket has a
+    // it's own unique purgeSeqno after compaction.
+    const auto seqnoOffset = 1'000'000;
+    for (auto v = kvstoreConfig->getShardId();
+         v < kvstoreConfig->getMaxVBuckets();
+         v += kvstoreConfig->getMaxShards()) {
+        Vbid vbucketId{v};
+        auto ctx = kvstore->begin(vbucketId,
+                                  std::make_unique<PersistenceCallback>());
+
+        for (int doc = 0; doc < 2; doc++) {
+            std::string key("key" + std::to_string(doc));
+            auto qi = makeDeletedItem(makeStoredDocKey(key));
+            qi->setVBucketId(vbucketId);
+            qi->setBySeqno(seqnoOffset + v + doc);
+            kvstore->del(*ctx, qi);
+        }
+        flush.proposedVBState.lastSnapEnd = seqnoOffset + v + 2;
+        ASSERT_TRUE(kvstore->commit(std::move(ctx), flush));
+
+        // Compact, to advance purgeSeqno.
+        auto vb = TestEPVBucketFactory::makeVBucket(vbucketId);
+        CompactionConfig compCfg;
+        // Purge all deletes in each vBucket.
+        compCfg.purge_before_seq = std::numeric_limits<uint64_t>::max();
+        compCfg.drop_deletes = true;
+        auto cctx = std::make_shared<CompactionContext>(vb, compCfg, 0);
+        {
+            auto lock = getVbLock();
+            ASSERT_EQ(CompactDBStatus::Success, kvstore->compactDB(lock, cctx));
+        }
+
+        // Sanity check that purge seqno has correctly advanced.
+        auto preWarmupState = *kvstore->getCachedVBucketState(vbucketId);
+        ASSERT_EQ(v + seqnoOffset, preWarmupState.purgeSeqno);
+    }
+
+    // Recreate kvstore, so cached vbState is reloaded from disk.
+    kvstore->deinitialize();
+    kvstore = KVStoreFactory::create(*kvstoreConfig);
+
+    // Test: Verify that purgeSeqno is the same as previous.
+    auto postWarmupState = kvstore->listPersistedVbuckets();
+    for (auto v = kvstoreConfig->getShardId();
+         v < kvstoreConfig->getMaxVBuckets();
+         v += kvstoreConfig->getMaxShards()) {
+        Vbid vbucketId{v};
+        const auto slot = v / kvstoreConfig->getMaxShards();
+        ASSERT_TRUE(postWarmupState[slot]);
+        EXPECT_EQ(seqnoOffset + v, postWarmupState[slot]->purgeSeqno)
+                << "After reload from disk, purgeSeqno should be identical for "
+                << vbucketId;
+    }
+}
+
 /// Verify that deleting a vBucket while a Scan is open is handled correctly.
 TEST_P(KVStoreParamTest, DelVBucketWhileScanning) {
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
@@ -1189,7 +1267,7 @@ TEST_P(KVStoreParamTest, GetItemCount) {
 // Verify the negative behavour of getItemCount - if the given vbucket doens't
 // exist then getItemCount should throw std::system_error.
 TEST_P(KVStoreParamTest, GetItemCountInvalidVBucket) {
-    EXPECT_THROW(kvstore->getItemCount(Vbid{123}), std::system_error);
+    EXPECT_THROW(kvstore->getItemCount(Vbid{12}), std::system_error);
 }
 
 TEST_P(KVStoreParamTest, DeletedItemsForNoDeletesScanMovesLastReadSeqno) {

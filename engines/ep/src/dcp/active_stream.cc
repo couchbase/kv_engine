@@ -1177,6 +1177,32 @@ void ActiveStream::processItems(
          */
         std::optional<uint64_t> highNonVisibleSeqno;
         for (auto& qi : outstandingItemsResult.items) {
+            if (qi->getOperation() == queue_op::checkpoint_end) {
+                // At the end of each checkpoint remove its snapshot range, so
+                // we don't use it to set nextSnapStart for the next checkpoint.
+                // If statement ensures that we have indeed completed the
+                // snapshot range by checking that checkpoint_end seqno is
+                // greater than the end of the range. Also account for an edge
+                // case where we have closed checkpoint who's checkpoint_end is
+                // equal to snapshot end seqno. This can happen when snapshots
+                // partially received by a replica which is then promoted to
+                // active
+                auto rangeItr = outstandingItemsResult.ranges.begin();
+                auto snapEnd = static_cast<int64_t>(rangeItr->getEnd());
+                if (snapEnd < qi->getBySeqno() ||
+                    (rangeItr->isClosed && snapEnd == qi->getBySeqno())) {
+                    outstandingItemsResult.ranges.erase(rangeItr);
+                } else {
+                    log(spdlog::level::level_enum::err,
+                        "ActiveStream::processItems checkpoint_end:{} "
+                        "should not be in the current snapshot range "
+                        "s:{}->e:{}",
+                        qi->getBySeqno(),
+                        rangeItr->getStart(),
+                        rangeItr->getEnd());
+                }
+            }
+
             if (qi->getOperation() == queue_op::checkpoint_start) {
                 /* if there are already other mutations, then they belong to the
                    previous checkpoint and hence we must create a snapshot and
@@ -1205,8 +1231,6 @@ void ActiveStream::processItems(
 
                 nextSnapStart =
                         outstandingItemsResult.ranges.begin()->getStart();
-                outstandingItemsResult.ranges.erase(
-                        outstandingItemsResult.ranges.begin());
 
                 continue;
             }

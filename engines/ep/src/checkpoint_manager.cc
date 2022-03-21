@@ -971,10 +971,13 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
         if (enteredNewCp) {
             const auto& checkpoint = **cursor.getCheckpoint();
             result.checkpointType = checkpoint.getCheckpointType();
-            result.ranges.push_back({{checkpoint.getSnapshotStartSeqno(),
-                                      checkpoint.getSnapshotEndSeqno()},
-                                     checkpoint.getHighCompletedSeqno(),
-                                     checkpoint.getHighPreparedSeqno()});
+            result.ranges.push_back(
+                    {{checkpoint.getSnapshotStartSeqno(),
+                      checkpoint.getSnapshotEndSeqno()},
+                     checkpoint.getHighCompletedSeqno(),
+                     checkpoint.getHighPreparedSeqno(),
+                     checkpoint.getState() ==
+                             checkpoint_state::CHECKPOINT_CLOSED});
             enteredNewCp = false;
 
             // As we cross into new checkpoints, update the maxDeletedRevSeqno

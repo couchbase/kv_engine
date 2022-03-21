@@ -281,6 +281,10 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
             "retain_erroneous_tombstones",
             std::make_unique<ValueChangedListener>(*this));
 
+    // create the semaphore with a default capacity of 1. This will be
+    // updated when a compaction is scheduled.
+    compactionSemaphore = std::make_unique<cb::AwaitableSemaphore>();
+
     initializeWarmupTask();
 }
 
@@ -1050,6 +1054,10 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
 
     auto handle = compactionTasks.wlock();
 
+    // First, let's update compaction concurrency, in case the workload
+    // pattern has changed to/from READ_HEAVY.
+    updateCompactionConcurrency();
+
     // find the earliest time the compaction task should start, to obey
     // the requested delay
     auto requestedStartTime = std::chrono::steady_clock::now() + delay;
@@ -1066,68 +1074,17 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
         // it is currently running or run with the given config.
         tasksConfig = task->runCompactionWithConfig(
                 config, cookie, requestedStartTime);
-        if (execDelay.count() > 0.0) {
-            ExecutorPool::get()->snooze(task->getId(), execDelay.count());
-        } else {
-            ExecutorPool::get()->wake(task->getId());
-        }
+        // now wake the task - the config has changed and it may need to
+        // work out a new wake time.
+        ExecutorPool::get()->wake(task->getId());
     } else {
         // Nothing in the map for this vbid now construct the task
-        itr->second = std::make_shared<CompactTask>(
-                *this, vbid, config, requestedStartTime, cookie);
-        if (handle->size() > 1) {
-            // Avoid too many concurrent compaction tasks as they
-            // could impact flushing throughout (and latency) in a
-            // couple of related ways:
-            //
-            // 1. We can only concurrently execute as many Writer
-            //    tasks as we have Writer threads - if compaction
-            //    tasks consume most / all of the available threads
-            //    then no Flusher tasks can run.
-            //
-            // 2. When compacting a given vBucket, flushing the same
-            //    vBucket is potentially impacted. For Couchstore we
-            //    must interlock the final phase of compaction and
-            //    flushing; pausing flushing while compaction "catches
-            //    up" with any updates made since the last compaction
-            //    iteration.
-            //    (Note Magma handles its own compaction and hence
-            //    isn't directly subject to this case).
-            //
-            // We therefore limit the number of concurrent compactors
-            // in the following (somewhat non-scientific way).
-
-            const int maxConcurrentWriterTasks = std::min(
-                    ExecutorPool::get()->getNumWriters(), vbMap.getNumShards());
-            const int maxConcurrentAuxIOTasks =
-                    ExecutorPool::get()->getNumAuxIO();
-            const int compactionConcurrentTaskLimit =
-                    std::min(maxConcurrentWriterTasks, maxConcurrentAuxIOTasks);
-
-            // Calculate how many compaction tasks we will permit. We always
-            // allow at least one (see `if (handle->size() > 1)` above,
-            // then we limit to a fraction of the available AuxIO/WriterTasks
-            // (whichever is lower) imposing an upper bound so there is at least
-            // 1 AuxIO task slot available for other tasks (i.e.
-            // BackfillManagerTask). We want to take the lower of AuxIO and
-            // Writer threads when calculating this number as whilst we run
-            // compaction tasks on the AuxIO pool we don't want to saturate disk
-            // if we have few writers, and we don't want to saturate the AuxIO
-            // pool if we have more writers.
-            const int maxConcurrentCompactTasks =
-                    std::min(int(compactionConcurrentTaskLimit *
-                                 compactionMaxConcurrency),
-                             maxConcurrentAuxIOTasks - 1);
-
-            if (int(handle->size()) > maxConcurrentCompactTasks ||
-                engine.getWorkLoadPolicy().getWorkLoadPattern() == READ_HEAVY) {
-                // Snooze a new compaction task.
-                // We will wake it up when one of the existing compaction tasks
-                // is done.
-                execDelay = std::chrono::seconds(INT_MAX);
-            }
-        }
-
+        task = std::make_shared<CompactTask>(*this,
+                                             vbid,
+                                             config,
+                                             requestedStartTime,
+                                             cookie,
+                                             *compactionSemaphore);
         if (execDelay.count() > 0.0) {
             task->snooze(execDelay.count());
         }
@@ -1151,6 +1108,57 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
             execDelay.count());
 
     return cb::engine_errc::would_block;
+}
+
+void EPBucket::updateCompactionConcurrency() {
+    // Avoid too many concurrent compaction tasks as they
+    // could impact flushing throughout (and latency) in a
+    // couple of related ways:
+    //
+    // 1. We can only concurrently execute as many Writer
+    //    tasks as we have Writer threads - if compaction
+    //    tasks consume most / all of the available threads
+    //    then no Flusher tasks can run.
+    //
+    // 2. When compacting a given vBucket, flushing the same
+    //    vBucket is potentially impacted. For Couchstore we
+    //    must interlock the final phase of compaction and
+    //    flushing; pausing flushing while compaction "catches
+    //    up" with any updates made since the last compaction
+    //    iteration.
+    //    (Note Magma handles its own compaction and hence
+    //    isn't directly subject to this case).
+    //
+    // We therefore limit the number of concurrent compactors
+    // in the following (somewhat non-scientific way).
+
+    if (engine.getWorkLoadPolicy().getWorkLoadPattern() == READ_HEAVY) {
+        // only allow one compaction task if the workload is read heavy
+        compactionSemaphore->setCapacity(1);
+        return;
+    }
+
+    const int maxConcurrentWriterTasks = std::min(
+            ExecutorPool::get()->getNumWriters(), vbMap.getNumShards());
+    const int maxConcurrentAuxIOTasks = ExecutorPool::get()->getNumAuxIO();
+    const int compactionConcurrentTaskLimit =
+            std::min(maxConcurrentWriterTasks, maxConcurrentAuxIOTasks);
+
+    // Calculate how many compaction tasks we will permit. We always
+    // allow at least one, then we limit to a fraction of the available
+    // AuxIO/WriterTasks (whichever is lower) imposing an upper bound so there
+    // is at least 1 AuxIO task slot available for other tasks (i.e.
+    // BackfillManagerTask). We want to take the lower of AuxIO and
+    // Writer threads when calculating this number as whilst we run
+    // compaction tasks on the AuxIO pool we don't want to saturate disk
+    // if we have few writers, and we don't want to saturate the AuxIO
+    // pool if we have more writers.
+    const int maxConcurrentCompactTasks = std::clamp(
+            int(compactionConcurrentTaskLimit * compactionMaxConcurrency),
+            1, // min of one task must be allowed to run
+            maxConcurrentAuxIOTasks - 1 /* max */);
+
+    compactionSemaphore->setCapacity(maxConcurrentCompactTasks);
 }
 
 cb::engine_errc EPBucket::scheduleCompaction(Vbid vbid,
@@ -1476,10 +1484,8 @@ bool EPBucket::doCompact(Vbid vbid,
 
 bool EPBucket::updateCompactionTasks(Vbid vbid) {
     auto handle = compactionTasks.wlock();
-    // Copy the size before we may erase a task
-    auto size = handle->size();
 
-    // process the caller and then find a second task to wake
+    // remove the calling task if it does not need to run again.
     if (auto itr = handle->find(vbid); itr != handle->end()) {
         const auto& task = (*itr).second;
         if (task->isRescheduleRequired()) {
@@ -1495,41 +1501,6 @@ bool EPBucket::updateCompactionTasks(Vbid vbid) {
                 vbid.to_string());
     }
 
-    // If another task does exist, find it and wake it
-    if (size > 1) {
-        for (const auto& [key, task] : *handle) {
-            if (key != vbid) {
-                // Check if the task is not yet running (i.e. originally snoozed
-                // when added to compactionTasks), and if so wake it up.
-
-                // Note this approach (non-atomically reading task state;
-                // then calling wake) is racy in the general case, as we are
-                // reading the tasks' state while it is potentially being
-                // run on a different thread. However, in this particular case
-                // it is safe (not racy), as:
-                //   a) we never re-snooze a CompactionTask once woken,
-                //   b) All functions waking CompactionTasks take an exclusive
-                //      lock on compactionTasks,
-                //   c) We use wakeAndWait() instead of wake(), which ensures
-                //      that when wakeAndWait returns (and compactionTasks
-                //      is unlocked), the task state has definitely been
-                //      changed from SNOOZED to RUNNING.
-                // If the above conditions werre not the case, then we could
-                // potentially have two different threads calling
-                // updateCompactionTasks; finding the same task in TASK_SNOOZED
-                // state and both waking the same one - essentially "loosing"
-                // one tasks worth of concurrency - two tasks finish, only one
-                // new one starts...
-                // Note (2): This kind of task-type limiting would probably
-                // be better managed at the ExecutorPool level, as it has
-                // direct control of what is run when.
-                if (task->getState() == TASK_SNOOZED) {
-                    ExecutorPool::get()->wakeAndWait(task->getId());
-                    break;
-                }
-            }
-        }
-    }
     return false;
 }
 
