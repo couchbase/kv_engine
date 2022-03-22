@@ -363,6 +363,11 @@ void MagmaMemoryTrackingProxy::EnableBlockCache(bool enable) {
     magma->EnableBlockCache(enable);
 }
 
+void MagmaMemoryTrackingProxy::SetMaxOpenFiles(size_t n, bool blocking) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->SetMaxOpenFiles(n, blocking);
+}
+
 void MagmaMemoryTrackingProxy::SetMemoryQuota(const size_t quota) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     magma->SetMemoryQuota(quota);

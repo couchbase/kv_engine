@@ -131,17 +131,6 @@ public:
     }
 
     void setupOneOperation(InputType type, ForStream fs) {
-        switch (fs) {
-        case ForStream::Yes: {
-            queueOperation(currentSeqno, type, myCollection);
-            break;
-        }
-        case ForStream::No: {
-            queueOperation(currentSeqno, type, CollectionEntry::vegetable);
-            break;
-        }
-        }
-
         switch (type) {
         case InputType::Mutation:
         case InputType::Prepare:
@@ -152,71 +141,89 @@ public:
         case InputType::CPEnd:
             break;
         }
+
+        switch (fs) {
+        case ForStream::Yes: {
+            queueOperation(type, myCollection);
+            break;
+        }
+        case ForStream::No: {
+            queueOperation(type, CollectionEntry::vegetable);
+            break;
+        }
+        }
     }
 
-    void queueOperation(uint64_t seqno, InputType type, CollectionID cid) {
+    void queueOperation(InputType type, CollectionID cid) {
         switch (type) {
         case InputType::Mutation: {
-            queueMutation(seqno, cid);
+            queueMutation(cid);
             break;
         }
         case InputType::Prepare: {
-            queuePrepare(seqno, cid);
+            queuePrepare(cid);
             break;
         }
         case InputType::CPEndStart: {
-            queueCPEnd(seqno);
-            queueCPStart(seqno);
+            queueCPEnd();
+            queueCPStart();
             break;
         }
         case InputType::CPStart: {
-            queueCPStart(seqno);
+            queueCPStart();
             break;
         }
         case InputType::CPEnd: {
-            queueCPEnd(seqno);
+            queueCPEnd();
             break;
         }
         }
     }
 
-    void queueMutation(uint64_t seqno, CollectionID cid) {
+    void queueMutation(CollectionID cid) {
         auto item = makeCommittedItem(
-                makeStoredDocKey(std::to_string(seqno), cid), "value");
-        item->setBySeqno(seqno);
+                makeStoredDocKey(std::to_string(currentSeqno), cid), "value");
+        item->setBySeqno(currentSeqno);
         input.items.emplace_back(item);
     }
 
-    void queuePrepare(uint64_t seqno, CollectionID cid) {
+    void queuePrepare(CollectionID cid) {
         auto item = makePendingItem(
-                makeStoredDocKey(std::to_string(seqno), cid), "value");
-        item->setBySeqno(seqno);
+                makeStoredDocKey(std::to_string(currentSeqno), cid), "value");
+        item->setBySeqno(currentSeqno);
         input.items.emplace_back(item);
     }
 
-    void queueCPStart(uint64_t seqno) {
+    void queueCPStart() {
         queue_op checkpoint_op = queue_op::checkpoint_start;
         StoredDocKey key(to_string(checkpoint_op), CollectionID::System);
-        queued_item qi(new Item(key, vbid, checkpoint_op, 1, seqno));
-
-        input.ranges.push_back(
-                {{static_cast<uint64_t>(input.items.back()->getBySeqno()),
-                  seqno},
-                 {},
-                 {}});
-
+        queued_item qi(new Item(key, vbid, checkpoint_op, 1, currentSeqno + 1));
         input.items.emplace_back(qi);
+        checkStart = currentSeqno + 1;
+        input.ranges.push_back({{currentSeqno + 1, currentSeqno + 1}, {}, {}});
     }
 
-    void queueCPEnd(uint64_t seqno) {
+    void queueCPEnd() {
+        auto endSeqno = currentSeqno;
+        if (!input.items.empty()) {
+            endSeqno = static_cast<uint64_t>(input.items.back()->getBySeqno());
+        }
+        if (input.ranges.empty()) {
+            input.ranges.push_back({{1, endSeqno}, {}, {}});
+        } else {
+            input.ranges.back().range.setEnd(endSeqno);
+        }
+
         queue_op checkpoint_op = queue_op::checkpoint_end;
         StoredDocKey key(to_string(checkpoint_op), CollectionID::System);
-        queued_item qi(new Item(key, vbid, checkpoint_op, 1, seqno));
+        queued_item qi(new Item(key, vbid, checkpoint_op, 1, currentSeqno + 1));
         input.items.emplace_back(qi);
     }
 
     // Starting seqno, each operation will increment this
     uint64_t currentSeqno{1};
+    uint64_t checkStart{1};
+    uint64_t checkEnd{1};
 
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockActiveStream> stream;
