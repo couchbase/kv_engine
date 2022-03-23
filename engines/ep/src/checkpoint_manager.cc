@@ -153,7 +153,7 @@ void CheckpointManager::addNewCheckpoint(
             oldOpenCkpt.getId(), vb.getId(), queue_op::checkpoint_end);
     oldOpenCkpt.queueDirty(qi);
     ++numItems;
-    oldOpenCkpt.setState(CHECKPOINT_CLOSED);
+    oldOpenCkpt.close();
 
     addOpenCheckpoint(snapStartSeqno,
                       snapEndSeqno,

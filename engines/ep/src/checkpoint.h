@@ -335,11 +335,16 @@ public:
     }
 
     /**
-     * Set the current state of this checkpoint.
-     * @param state the checkpoint's new state
+     * Set the current state of this checkpoint to closed.
      */
-    void setState(checkpoint_state state) {
-        *checkpointState.wlock() = state;
+    void close() {
+        auto& state = *checkpointState.wlock();
+        if (state == checkpoint_state::CHECKPOINT_CLOSED) {
+            throw std::logic_error(
+                    "Checkpoint::close() can't close a closed "
+                    "checkpoint!");
+        }
+        state = checkpoint_state::CHECKPOINT_CLOSED;
     }
 
     void incNumOfCursorsInCheckpoint() {
