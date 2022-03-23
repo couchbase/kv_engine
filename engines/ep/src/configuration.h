@@ -17,6 +17,12 @@
 #include <mutex>
 #include <string>
 
+// forward decl
+
+namespace cb::stats {
+enum class Key;
+}
+
 /**
  * The value changed listeners runs _without_ the global mutex for
  * the configuration class, so you may access other configuration
@@ -284,12 +290,20 @@ protected:
     template <class T>
     T getParameter(const std::string& key) const;
 
+    /**
+     * Add a single config param to the provided stat collector, if the
+     * config requirements are met.
+     */
+    void maybeAddStat(const BucketStatCollector& collector,
+                      cb::stats::Key key,
+                      std::string_view keyStr) const;
+
 private:
     void initialize();
 
     // Access to the configuration variables is protected by the mutex
     mutable std::mutex mutex;
-    std::map<std::string, std::shared_ptr<value_t>> attributes;
+    std::map<std::string, std::shared_ptr<value_t>, std::less<>> attributes;
 
     friend std::ostream& operator<< (std::ostream& out,
                                      const Configuration &config);

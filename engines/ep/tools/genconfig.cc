@@ -24,6 +24,7 @@ std::stringstream prototypes;
 std::stringstream initialization;
 std::stringstream implementation;
 std::stringstream stat_definitions;
+std::stringstream addStatImplementation;
 
 typedef std::string (*getValidatorCode)(const std::string&,
                                         const nlohmann::json&);
@@ -189,6 +190,7 @@ static void initialize() {
 #include "configuration.h"
 #include "configuration_impl.h"
 #include <platform/sysinfo.h>
+#include <statistics/labelled_collector.h>
 #include <limits>
 
 using namespace std::string_literals;
@@ -457,6 +459,20 @@ static void generate(const nlohmann::json& params, const std::string& key) {
                              << std::endl;
         }
     }
+
+    // collect all the aliases
+    std::vector<std::string> names;
+    if (hasAliases(json)) {
+        names = getAliases(json);
+    }
+    // and the main config param name
+    names.push_back(key);
+    // add to the definition of Configuration::addStat
+    for (std::string name : names) {
+        addStatImplementation << "    "
+                              << "maybeAddStat(collector, Key::ep_" << name
+                              << ", \"" << name << "\"sv);" << std::endl;
+    }
 }
 
 /**
@@ -512,7 +528,15 @@ int main(int argc, char **argv) {
     }
     implfile << implementation.str() << std::endl
              << "void Configuration::initialize() {" << std::endl
-             << initialization.str() << "}" << std::endl;
+             << initialization.str() << "}" << std::endl
+             << std::endl
+             << "void Configuration::addStats(const BucketStatCollector& "
+                "collector) const {"
+             << std::endl
+             << "    using namespace cb::stats;" << std::endl
+             << "    using namespace std::string_view_literals;" << std::endl
+             << "    std::lock_guard<std::mutex> lh(mutex);" << std::endl
+             << addStatImplementation.str() << "}" << std::endl;
     implfile.close();
 
     std::ofstream statsfile(stats);

@@ -215,6 +215,22 @@ template float Configuration::getParameter<float>(const std::string& key) const;
 template std::string Configuration::getParameter<std::string>(
         const std::string& key) const;
 
+void Configuration::maybeAddStat(const BucketStatCollector& collector,
+                                 cb::stats::Key key,
+                                 std::string_view keyStr) const {
+    auto itr = attributes.find(keyStr);
+    if (itr == attributes.end()) {
+        return;
+    }
+    const auto& attribute = itr->second;
+    if (!requirementsMet(*attribute)) {
+        return;
+    }
+    std::visit(
+            [&collector, &key](auto&& elem) { collector.addStat(key, elem); },
+            attribute->value);
+}
+
 std::ostream& operator<<(std::ostream& out, const Configuration& config) {
     std::lock_guard<std::mutex> lh(config.mutex);
     for (const auto& attribute : config.attributes) {
@@ -291,29 +307,6 @@ void Configuration::requirementsMetOrThrow(const std::string& key) const {
                                            " : requirements not met");
         }
     }
-}
-
-void Configuration::addStats(const BucketStatCollector& collector) const {
-    std::lock_guard<std::mutex> lh(mutex);
-
-    const auto lookupAttr = [this](const std::string& keyStr) {
-        // remove the "ep_" prefix from the stat key
-        return attributes.at(keyStr.substr(3));
-    };
-
-    using namespace cb::stats;
-    const auto addStat = [this, &collector](Key key, const auto& attribute) {
-        if (!requirementsMet(*attribute)) {
-            return;
-        }
-        std::visit([&collector,
-                    &key](auto&& elem) { collector.addStat(key, elem); },
-                   attribute->value);
-    };
-
-#define STAT(name, unit, family, ...) addStat(Key::name, lookupAttr(#name));
-#include <stats_config.def.h>
-#undef STAT
 }
 
 /**
