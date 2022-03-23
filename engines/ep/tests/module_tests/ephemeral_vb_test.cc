@@ -824,6 +824,7 @@ TEST_F(EphTombstoneTest, ConcurrentPurge) {
 
     fe1.join();
     fe2.join();
+    ASSERT_GT(purged, 0);
 }
 
 // Test that on a double-delete (delete with a different value) the deleted time

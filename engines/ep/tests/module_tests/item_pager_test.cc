@@ -2389,6 +2389,7 @@ TEST_P(MultiPagingVisitorTest, ItemPagerCreatesMultiplePagers) {
             flushAndRemoveCheckpoints(vb);
         }
     }
+    ASSERT_GT(itemCount, 0);
 
     // make sure the item pager has been notified while we're above the HWM
     store->attemptToFreeMemory();

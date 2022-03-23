@@ -125,7 +125,6 @@ std::string to_string(Timeout);
 class Requirements {
 public:
     Requirements() = default;
-    Requirements(const Requirements&) = default;
 
     constexpr Requirements(Level level_, Timeout timeout_)
         : level(level_), timeout(timeout_) {

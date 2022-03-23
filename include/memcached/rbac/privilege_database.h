@@ -191,8 +191,6 @@ protected:
  */
 class UserEntry {
 public:
-    UserEntry(const UserEntry&) = default;
-
     bool operator==(const UserEntry& other) const;
 
     /**

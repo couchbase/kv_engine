@@ -759,11 +759,6 @@ public:
         }
     }
 
-    /**
-     * Create a copy constructor to allow us to use std::move of the item
-     */
-    ItemDeleter(const ItemDeleter& other) = default;
-
     void operator()(ItemIface* item) {
         if (handle) {
             handle->release(*item);
