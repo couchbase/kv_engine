@@ -5,6 +5,7 @@ add_library(statistics STATIC
             labelled_collector.cc
             prometheus.cc
             prometheus_collector.cc
+            statdef.cc
             )
 kv_enable_pch(statistics)
 add_sanitizers(statistics)

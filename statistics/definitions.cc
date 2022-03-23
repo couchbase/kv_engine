@@ -138,30 +138,4 @@ const std::array<StatDef, size_t(Key::enum_max)> statDefinitions{{
 #undef STAT
 #undef LABEL
 
-StatDef::StatDef(CBStatsKey cbstatsKey,
-                 cb::stats::Unit unit,
-                 std::string_view metricFamilyKey,
-                 Labels&& labels)
-    : cbstatsKey(std::move(cbstatsKey)),
-      unit(unit),
-      metricFamily(metricFamilyKey),
-      labels(std::move(labels)) {
-    if (metricFamily.empty()) {
-        metricFamily = std::string(cbstatsKey);
-    }
-    metricFamily += unit.getSuffix();
-}
-
-StatDef::StatDef(CBStatsKey cbstatsKey, CBStatsOnlyTag)
-    : cbstatsKey(std::move(cbstatsKey)) {
-}
-
-StatDef::StatDef(std::string_view metricFamilyKey,
-                 cb::stats::Unit unit,
-                 Labels&& labels,
-                 PrometheusOnlyTag)
-    : unit(unit), metricFamily(metricFamilyKey), labels(std::move(labels)) {
-    metricFamily += unit.getSuffix();
-}
-
 } // end namespace cb::stats
