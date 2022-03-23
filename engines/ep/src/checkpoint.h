@@ -295,14 +295,6 @@ public:
     }
 
     /**
-     * Set the checkpoint Id
-     * @param id the checkpoint Id to be set.
-     */
-    void setId(uint64_t id) {
-        checkpointId = id;
-    }
-
-    /**
      * Return the creation timestamp of this checkpoint in sec.
      */
     rel_time_t getCreationTime() const {
@@ -643,7 +635,7 @@ private:
     CheckpointManager* manager = nullptr;
 
     EPStats& stats;
-    uint64_t                       checkpointId;
+    const uint64_t checkpointId;
     uint64_t                       snapStartSeqno;
     uint64_t                       snapEndSeqno;
 
