@@ -649,7 +649,7 @@ private:
     uint64_t visibleSnapEndSeqno = 0;
     /// The seqno of the highest expelled item.
     Monotonic<int64_t> highestExpelledSeqno{0};
-    Vbid vbucketId;
+    const Vbid vbucketId;
     rel_time_t                     creationTime;
     folly::Synchronized<checkpoint_state> checkpointState;
     /// Number of non-meta items (see Item::isCheckPointMetaItem).
