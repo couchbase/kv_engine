@@ -905,7 +905,12 @@ int memcached_main(int argc, char** argv) {
 
     if (Settings::instance().isStdinListenerEnabled()) {
         LOG_INFO_RAW("Enable standard input listener");
-        start_stdin_listener(shutdown_server);
+        start_stdin_listener([]() {
+            LOG_INFO_RAW(
+                    "Gracefully shutting down due to shutdown message or "
+                    "stdin closure");
+            shutdown_server();
+        });
     }
 
 #ifdef HAVE_LIBNUMA
