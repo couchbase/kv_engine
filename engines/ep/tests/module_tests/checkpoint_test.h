@@ -85,6 +85,10 @@ protected:
     // Tests that the extract-items step at ItemExpel registers the expel-cursor
     CheckpointManager::ExtractItemsResult testExpelCursorRegistered();
 
+    // Calls getNextItemsForCursor() to advance the cursor to the end of the
+    // checkpoints
+    void advanceCursorToEndOfCheckpoints();
+
     // Owned by VBucket
     MockCheckpointManager* manager;
     // Owned by CheckpointManager
@@ -142,5 +146,14 @@ public:
 };
 
 class EphemeralCheckpointTest : public CheckpointTest {
+    void SetUp() override;
+};
+
+/**
+ * Test fixture for tests that want to treat the checkpoint manager as if it
+ * where for a replica vbucket.
+ */
+class ReplicaCheckpointTest : public CheckpointTest {
+public:
     void SetUp() override;
 };

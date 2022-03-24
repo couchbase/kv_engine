@@ -67,7 +67,6 @@ void VBucketDurabilityTest::storeSyncWrites(
                             {} /*HCS*/,
                             CheckpointType::Memory,
                             0);
-    EXPECT_EQ(1, ckptMgr->getNumCheckpoints());
 
     const auto preHTCount = ht->getNumItems();
     const auto preCMCount = ckptMgr->getNumItems();
@@ -128,8 +127,8 @@ void VBucketDurabilityTest::testAddPrepare(
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     *ckptMgr);
-    ASSERT_EQ(1, ckptList.size());
-    EXPECT_EQ(writes.size(), ckptList.front()->getNumItems());
+
+    EXPECT_EQ(writes.size(), ckptList.back()->getNumItems());
     for (const auto& qi : *ckptList.front()) {
         if (!qi->isCheckPointMetaItem()) {
             EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
@@ -560,9 +559,9 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
         const auto sv = ht->findForWrite(key).storedValue;
         ASSERT_NE(nullptr, sv);
         EXPECT_EQ(CommittedState::Pending, sv->getCommitted());
-        EXPECT_EQ(1, ckptList.size());
-        ASSERT_EQ(1, ckptList.front()->getNumItems());
-        for (const auto& qi : *ckptList.front()) {
+
+        ASSERT_EQ(1, ckptList.back()->getNumItems());
+        for (const auto& qi : *ckptList.back()) {
             if (!qi->isCheckPointMetaItem()) {
                 EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
                 EXPECT_EQ(preparedSeqno, qi->getBySeqno());
@@ -576,9 +575,9 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
         ASSERT_NE(nullptr, sv);
         EXPECT_NE(nullptr, ht->findForWrite(key).storedValue);
         EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
-        EXPECT_EQ(1, ckptList.size());
-        EXPECT_EQ(1, ckptList.front()->getNumItems());
-        for (const auto& qi : *ckptList.front()) {
+
+        EXPECT_EQ(1, ckptList.back()->getNumItems());
+        for (const auto& qi : *ckptList.back()) {
             if (!qi->isCheckPointMetaItem()) {
                 EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
                 EXPECT_GT(qi->getBySeqno() /*commitSeqno*/, preparedSeqno);
@@ -644,10 +643,8 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
         EXPECT_EQ("value", storedItem.storedValue->getValue()->to_s());
 
         // CheckpointManager state:
-        // 1 checkpoint
-        ASSERT_EQ(1, ckptList.size());
         // empty-item
-        const auto& ckpt = *ckptList.front();
+        const auto& ckpt = *ckptList.back();
         auto it = ckpt.begin();
         ASSERT_EQ(queue_op::empty, (*it)->getOperation());
         // 1 metaitem (checkpoint-start)
@@ -921,10 +918,8 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
                     *ckptMgr);
 
     // CheckpointManager state:
-    // 1 checkpoint
-    ASSERT_EQ(1, ckptList.size());
     // empty-item
-    const auto* ckpt = ckptList.front().get();
+    const auto* ckpt = ckptList.back().get();
     auto it = ckpt->begin();
     ASSERT_EQ(queue_op::empty, (*it)->getOperation());
     // 1 metaitem (checkpoint-start)
@@ -2818,10 +2813,9 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     *ckptMgr);
-    // 1 checkpoint
-    ASSERT_EQ(1, ckptList.size());
+
     // empty-item
-    const auto& ckpt = *ckptList.front();
+    const auto& ckpt = *ckptList.back();
     auto it = ckpt.begin();
     ASSERT_EQ(queue_op::empty, (*it)->getOperation());
     // 1 metaitem (checkpoint-start)

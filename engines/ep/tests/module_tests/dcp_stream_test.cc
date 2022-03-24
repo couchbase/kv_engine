@@ -2263,12 +2263,15 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
     ASSERT_TRUE(ckptMgr);
     std::vector<queued_item> items;
     ckptMgr->getNextItemsForPersistence(items);
-    // Note: I expect only items (no metaitems) because we have  only 1
-    // checkpoint and the cursor was at checkpoint-start before moving
+    // Expect two checkpoints one empty initial checkpoint which was closed due
+    // to the snapshot being received and the open checkpoint
     EXPECT_EQ(1, ckptMgr->getNumCheckpoints());
-    EXPECT_EQ(nextFrontEndSeqno, items.size());
+    EXPECT_EQ(nextFrontEndSeqno, items.back()->getBySeqno());
     uint64_t prevSeqno = 0;
     for (auto& item : items) {
+        if (item->isCheckPointMetaItem()) {
+            continue;
+        }
         ASSERT_EQ(queue_op::mutation, item->getOperation());
         EXPECT_GT(item->getBySeqno(), prevSeqno);
         prevSeqno = item->getBySeqno();
@@ -2596,13 +2599,13 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
         EXPECT_EQ(expectedNumCheckpoint, ckptMgr.getNumCheckpoints());
         EXPECT_EQ(expectedOpenCkptType, ckptMgr.getOpenCheckpointType());
     };
-
+    auto initalNumberOfCheckpoints = vb->checkpointManager->getNumCheckpoints();
     {
         SCOPED_TRACE("");
         receiveSnapshot(1 /*snapStart*/,
                         1 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-                        1 /*expectedNumCheckpoint*/,
+                        initalNumberOfCheckpoints + 1 /*expectedNumCheckpoint*/,
                         CheckpointType::Memory /*expectedOpenCkptType*/);
     }
 
@@ -2612,7 +2615,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
         receiveSnapshot(2 /*snapStart*/,
                         2 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_MEMORY,
-                        1 /*expectedNumCheckpoint*/,
+                        initalNumberOfCheckpoints + 1 /*expectedNumCheckpoint*/,
                         CheckpointType::Memory /*expectedOpenCkptType*/);
     }
 
@@ -2622,7 +2625,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
         receiveSnapshot(3 /*snapStart*/,
                         3 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_DISK,
-                        2 /*expectedNumCheckpoint*/,
+                        initalNumberOfCheckpoints + 2 /*expectedNumCheckpoint*/,
                         CheckpointType::Disk /*expectedOpenCkptType*/);
     }
 
@@ -2631,7 +2634,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
         receiveSnapshot(4 /*snapStart*/,
                         4 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                        3 /*expectedNumCheckpoint*/,
+                        initalNumberOfCheckpoints + 3 /*expectedNumCheckpoint*/,
                         CheckpointType::Disk /*expectedOpenCkptType*/);
     }
 
@@ -2641,7 +2644,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
         receiveSnapshot(5 /*snapStart*/,
                         5 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_DISK,
-                        4 /*expectedNumCheckpoint*/,
+                        initalNumberOfCheckpoints + 4 /*expectedNumCheckpoint*/,
                         CheckpointType::Disk /*expectedOpenCkptType*/);
     }
 
@@ -2651,7 +2654,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
         receiveSnapshot(6 /*snapStart*/,
                         6 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_MEMORY,
-                        5 /*expectedNumCheckpoint*/,
+                        initalNumberOfCheckpoints + 5 /*expectedNumCheckpoint*/,
                         CheckpointType::Memory /*expectedOpenCkptType*/);
     }
 
@@ -2660,7 +2663,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
         receiveSnapshot(7 /*snapStart*/,
                         7 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-                        6 /*expectedNumCheckpoint*/,
+                        initalNumberOfCheckpoints + 6 /*expectedNumCheckpoint*/,
                         CheckpointType::Memory /*expectedOpenCkptType*/);
     }
 }
@@ -4739,7 +4742,7 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
     // the flusher wrongly uses the state on disk (state=active) for computing
     // the new snapshot range to be persisted.
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::Yes),
               epBucket.flushVBucket(vbid));
 
     // Before the fix this fails because we have persisted snapEnd=2

@@ -16,6 +16,7 @@
 
 #include "../../src/dcp/backfill-manager.h"
 #include "checkpoint.h"
+#include "checkpoint_test_impl.h"
 #include "checkpoint_utils.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
@@ -2082,9 +2083,8 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     ckptMgr);
-    // 1 checkpoint
-    ASSERT_EQ(1, ckptList.size());
-    const auto* ckpt = ckptList.front().get();
+
+    const auto* ckpt = ckptList.back().get();
     ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
     // empty-item
     auto it = ckpt->begin();
@@ -4594,13 +4594,20 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
 
     // 5) Test the checkpoint and stream output.
 
+    auto outItems = stream->public_getOutstandingItems(*vb);
+    if (isPersistent()) {
+        ASSERT_THAT(
+                outItems.items,
+                testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
+                                     HasOperation(queue_op::checkpoint_end)));
+        outItems = stream->public_getOutstandingItems(*vb);
+    }
     // Simulate running the checkpoint processor task
     // We must have ckpt-start + Prepare + Mutation + ckpt-end
     // Note: Here we are testing also that CheckpointManager::getItemsForCursor
     //   returns only items from contiguous checkpoints of the same type.
     //   Given that in CM we have checkpoints 1_Disk + 2_Memory, then the next
     //   returns only the entire 1_Disk.
-    auto outItems = stream->public_getOutstandingItems(*vb);
     ASSERT_EQ(4, outItems.items.size());
     ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
     ASSERT_EQ(queue_op::pending_sync_write,
@@ -4735,6 +4742,7 @@ void DurabilityPromotionStreamTest::
     // Note: We need to plant a DCP cursor on ephemeral for preventing
     // checkpoint removal at replica promotion
     registerCursorAtCMStartIfEphemeral();
+    auto baseNumberOfCheckpoints = vb->checkpointManager->getNumCheckpoints();
 
     // 1) Replica receives a first MemoryCheckpoint - snap{1, 1} + M:1
     uint32_t opaque = 1;
@@ -4769,7 +4777,7 @@ void DurabilityPromotionStreamTest::
                               nullptr /*ext-metadata*/,
                               cb::mcbp::DcpStreamId{})));
 
-    ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
+    ASSERT_EQ(baseNumberOfCheckpoints + 1, ckptMgr.getNumCheckpoints());
     auto currSnap = ckptMgr.getSnapshotInfo();
     ASSERT_EQ(CheckpointType::Memory, ckptMgr.getOpenCheckpointType());
     ASSERT_EQ(seqno, currSnap.range.getStart());
@@ -4785,7 +4793,7 @@ void DurabilityPromotionStreamTest::
                     DocumentState::Alive,
                     false /*clearCM*/);
 
-    ASSERT_EQ(2, ckptMgr.getNumCheckpoints());
+    ASSERT_EQ(baseNumberOfCheckpoints + 2, ckptMgr.getNumCheckpoints());
     currSnap = ckptMgr.getSnapshotInfo();
     ASSERT_EQ(CheckpointType::Disk, ckptMgr.getOpenCheckpointType());
     ASSERT_EQ(diskSnapStart, currSnap.range.getStart());
@@ -4807,7 +4815,7 @@ void DurabilityPromotionStreamTest::
     // The vbstate-change must have:
     // - closed the checkpoint snap{Disk, 2, 3}
     // - created a new checkpoint snap{Memory, 3, 3}
-    ASSERT_EQ(3, ckptMgr.getNumCheckpoints());
+    ASSERT_EQ(baseNumberOfCheckpoints + 3, ckptMgr.getNumCheckpoints());
     currSnap = ckptMgr.getSnapshotInfo();
     ASSERT_EQ(CheckpointType::Memory, ckptMgr.getOpenCheckpointType());
     ASSERT_EQ(3, currSnap.range.getStart());
@@ -4823,7 +4831,7 @@ void DurabilityPromotionStreamTest::
     }
 
     // We are Active, currSnapEnd will be set to 5 in the open checkpoint.
-    ASSERT_EQ(3, ckptMgr.getNumCheckpoints());
+    ASSERT_EQ(baseNumberOfCheckpoints + 3, ckptMgr.getNumCheckpoints());
     currSnap = ckptMgr.getSnapshotInfo();
     ASSERT_EQ(CheckpointType::Memory, ckptMgr.getOpenCheckpointType());
     ASSERT_EQ(4, currSnap.range.getStart());
@@ -4846,13 +4854,16 @@ void DurabilityPromotionStreamTest::
 
     // First CheckpointProcessorTask run
     // Get items from CM, expect Memory{M:1}:
-    //   ckpt-start + M:1 + ckpt-end
+    //   ckpt-start + ckpt-end + ckpt-start + M:1 + ckpt-end
     auto outItems = activeStream->public_getOutstandingItems(*vb);
-    ASSERT_EQ(3, outItems.items.size());
-    ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
-    ASSERT_EQ(queue_op::mutation, outItems.items.at(1)->getOperation());
-    ASSERT_EQ(1, outItems.items.at(1)->getBySeqno());
-    ASSERT_EQ(queue_op::checkpoint_end, outItems.items.at(2)->getOperation());
+    ASSERT_THAT(outItems.items,
+                testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
+                                     HasOperation(queue_op::checkpoint_end),
+                                     HasOperation(queue_op::checkpoint_start),
+                                     HasOperation(queue_op::mutation),
+                                     HasOperation(queue_op::checkpoint_end)));
+    // Check the seqno of the mutation
+    ASSERT_EQ(1, outItems.items.at(3)->getBySeqno());
 
     // Push items into the Stream::readyQ
     activeStream->public_processItems(outItems);
@@ -5008,6 +5019,7 @@ void DurabilityPromotionStreamTest::
     // Note: We need to plant a DCP cursor on ephemeral for preventing
     // checkpoint removal
     registerCursorAtCMStartIfEphemeral();
+    auto baseNumberOfCheckpoints = vb->checkpointManager->getNumCheckpoints();
 
     // 1) Replica receives PRE:1 and M:2 (logic CMT:2) in a disk checkpoint
     {
@@ -5018,7 +5030,7 @@ void DurabilityPromotionStreamTest::
                         2 /*diskSnapEnd*/,
                         DocumentState::Alive);
 
-        ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
+        ASSERT_EQ(baseNumberOfCheckpoints + 1, ckptMgr.getNumCheckpoints());
         checkOpenCheckpoint(CheckpointType::Disk, 1, 2);
     }
 
@@ -5033,7 +5045,7 @@ void DurabilityPromotionStreamTest::
                         DocumentState::Alive,
                         false /*clearCM*/);
 
-        ASSERT_EQ(2, ckptMgr.getNumCheckpoints());
+        ASSERT_EQ(baseNumberOfCheckpoints + 2, ckptMgr.getNumCheckpoints());
         checkOpenCheckpoint(CheckpointType::Disk, 3, 4);
     }
 
@@ -5054,7 +5066,7 @@ void DurabilityPromotionStreamTest::
     // new Memory one.
     // Note: checking that jus for ensuring that we have closed the last Disk
     // Checkpoint, but the new Memory checkpoint is no used in the following)
-    ASSERT_EQ(3, ckptMgr.getNumCheckpoints());
+    ASSERT_EQ(baseNumberOfCheckpoints + 3, ckptMgr.getNumCheckpoints());
     {
         SCOPED_TRACE("");
         checkOpenCheckpoint(CheckpointType::Memory, 4, 4);
@@ -5074,9 +5086,14 @@ void DurabilityPromotionStreamTest::
     ASSERT_EQ(0, activeStream->public_readyQSize());
 
     // CheckpointProcessorTask runs
+    auto outItems = activeStream->public_getOutstandingItems(*vb);
+    ASSERT_EQ(2, outItems.items.size());
+    ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
+    ASSERT_EQ(queue_op::checkpoint_end, outItems.items.at(1)->getOperation());
+
     // Get items from CM, expect Disk{PRE:1, M:2}:
     //   {CS, PRE:1, M:2, CE}
-    auto outItems = activeStream->public_getOutstandingItems(*vb);
+    outItems = activeStream->public_getOutstandingItems(*vb);
     ASSERT_EQ(4, outItems.items.size());
 
     ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
@@ -5258,6 +5275,14 @@ TEST_P(DurabilityPromotionStreamTest,
 
     // Push items into the Stream::readyQ
     activeStream->public_processItems(outItems);
+
+    if (!isPersistent()) {
+        // Call public_getOutstandingItems() again as the last call will have
+        // only looked at the empty checkpoint which has been kept around due to
+        // the cursor placed by registerCursorAtCMStartIfEphemeral().
+        outItems = activeStream->public_getOutstandingItems(*vb);
+        activeStream->public_processItems(outItems);
+    }
 
     // readyQ also contain SnapshotMarker
     ASSERT_EQ(2, activeStream->public_readyQSize());

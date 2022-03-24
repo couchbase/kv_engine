@@ -116,6 +116,18 @@ bool CheckpointTest::queueReplicatedItem(const std::string& key,
                                /*preLinkDocCtx*/ nullptr);
 }
 
+void CheckpointTest::advanceCursorToEndOfCheckpoints() {
+    // Move the cursor past the empty checkpoint
+    std::vector<queued_item> items;
+    manager->getNextItemsForCursor(cursor, items);
+}
+
+void ReplicaCheckpointTest::SetUp() {
+    CheckpointTest::SetUp();
+    // Move the cursor past the empty checkpoint
+    advanceCursorToEndOfCheckpoints();
+}
+
 // Sanity check test fixture
 TEST_P(CheckpointTest, CheckFixture) {
     // Initially have a single cursor (persistence).
@@ -299,7 +311,7 @@ TEST_P(CheckpointTest, OneOpenOneClosed) {
 // The CheckpointManager methods that return a CursorResult can return multiple
 // snapshot ranges if the set of items returns spans multiple snapshots.
 // The test also demonstrates a partial snapshot
-TEST_P(CheckpointTest, getItems_MultipleSnapshots) {
+TEST_P(ReplicaCheckpointTest, getItems_MultipleSnapshots) {
     // 1st Snapshot covers 1001, 1003, but item 1002 de-duped
     this->manager->createSnapshot(1001, 1003, {}, CheckpointType::Memory, 1003);
     EXPECT_TRUE(this->queueReplicatedItem("k1", 1001));
@@ -345,7 +357,7 @@ TEST_P(CheckpointTest, getItems_MultipleSnapshots) {
 }
 
 // However different types of snapshot don't get combined
-TEST_P(CheckpointTest, getItems_MemoryDiskSnapshots) {
+TEST_P(ReplicaCheckpointTest, getItems_MemoryDiskSnapshots) {
     // 1st Snapshot covers 1001, 1003, but item 1002 de-duped
     this->manager->createSnapshot(1001, 1003, {}, CheckpointType::Memory, 1003);
     EXPECT_TRUE(this->queueReplicatedItem("k1", 1001));
@@ -650,12 +662,13 @@ TEST_P(CheckpointTest, DiskCheckpointStrictItemLimit) {
     ASSERT_EQ(2, checkpoint_config->getMaxCheckpoints());
     createManager();
 
-    // Force the first checkpoint to be a disk one
-    this->manager->createSnapshot(this->manager->getOpenSnapshotStartSeqno(),
-                                  0,
-                                  0 /*highCompletedSeqno*/,
-                                  CheckpointType::Disk,
-                                  0);
+    // Need to be an active vbucket to make sure we create a new checkpoint due
+    // to the "max checkpoint items" limit being hit. As replica vbuckets aren't
+    // responsible to checkpoint creation.
+    vbucket->setState(vbucket_state_active);
+    // Force the checkpoint to be a disk one
+    CheckpointManagerTestIntrospector::setOpenCheckpointType(
+            *manager, CheckpointType::Disk);
 
     /* Add items such that we have 2 checkpoints */
     queued_item qi;
@@ -1038,18 +1051,18 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                                   {});
     passiveStream->processMarker(&snapshotMarker);
 
-    // We must have 1 open checkpoint with id=1
+    // We must have 1 open checkpoint with id=2
     EXPECT_EQ(ckptList.size(), 1);
     EXPECT_EQ(ckptList.back()->getState(), checkpoint_state::CHECKPOINT_OPEN);
-    EXPECT_EQ(ckptList.back()->getId(), 1);
+    EXPECT_EQ(ckptList.back()->getId(), 2);
 
     // 2) the consumer receives the mutations until (snapshotEnd -1)
     processMutations(*passiveStream, snapshotStart, snapshotEnd - 1);
 
-    // We must have again 1 open checkpoint with id=1
+    // We must have again 1 open checkpoint with id=2
     EXPECT_EQ(ckptList.size(), 1);
     EXPECT_EQ(ckptList.back()->getState(), checkpoint_state::CHECKPOINT_OPEN);
-    EXPECT_EQ(ckptList.back()->getId(), 1);
+    EXPECT_EQ(ckptList.back()->getId(), 2);
     EXPECT_EQ(snapshotEnd - 1, ckptMgr->getNumOpenChkItems());
 
     // 3) the consumer receives the snapshotEnd mutation
@@ -1058,7 +1071,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
     // We must have again 1 open checkpoint with id=1
     EXPECT_EQ(ckptList.size(), 1);
     EXPECT_EQ(ckptList.back()->getState(), checkpoint_state::CHECKPOINT_OPEN);
-    EXPECT_EQ(ckptList.back()->getId(), 1);
+    EXPECT_EQ(ckptList.back()->getId(), 2);
     EXPECT_EQ(snapshotEnd, ckptMgr->getNumOpenChkItems());
 
     // 4) the consumer receives a second snapshot-marker
@@ -1074,7 +1087,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
     passiveStream->processMarker(&snapshotMarker2);
     EXPECT_EQ(ckptList.size(), 2);
     EXPECT_EQ(ckptList.back()->getState(), checkpoint_state::CHECKPOINT_OPEN);
-    EXPECT_EQ(ckptList.back()->getId(), 2);
+    EXPECT_EQ(ckptList.back()->getId(), 3);
     EXPECT_EQ(0, ckptMgr->getNumOpenChkItems());
 
     store->deleteVBucket(vb->getId(), cookie);
@@ -1711,7 +1724,7 @@ TEST_P(CheckpointTest, DuplicateCheckpointCursorDifferentCheckpoints) {
  * as we would use a lot of memory for key indexes.
  */
 TEST_P(CheckpointTest, NoKeyIndexInDiskCheckpoint) {
-    manager->createSnapshot(0, 1000, 1000, CheckpointType::Disk, 1001);
+    manager->createSnapshot(0, 1000, 1000, CheckpointType::Disk, 1000);
 
     const auto& checkpoint =
             CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
@@ -1739,7 +1752,6 @@ void CheckpointTest::testExpelCheckpointItems() {
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
     }
 
-    ASSERT_EQ(1, this->manager->getNumCheckpoints()); // Single open checkpoint.
     ASSERT_EQ(itemCount, this->manager->getNumOpenChkItems());
     ASSERT_EQ(itemCount, manager->getNumItemsForCursor(cursor));
     ASSERT_EQ(1000 + itemCount, this->manager->getHighSeqno());
@@ -1808,8 +1820,8 @@ TEST_P(CheckpointTest, testExpelCheckpointItemsMemory) {
     testExpelCheckpointItems();
 }
 
-TEST_P(CheckpointTest, testExpelCheckpointItemsDisk) {
-    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1001);
+TEST_P(ReplicaCheckpointTest, testExpelCheckpointItemsDisk) {
+    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
     testExpelCheckpointItems();
 }
 
@@ -1921,8 +1933,8 @@ TEST_P(CheckpointTest, testExpelCursorPointingToLastItemMemory) {
     testExpelCursorPointingToLastItem();
 }
 
-TEST_P(CheckpointTest, testExpelCursorPointingToLastItemDisk) {
-    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1001);
+TEST_P(ReplicaCheckpointTest, testExpelCursorPointingToLastItemDisk) {
+    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
     testExpelCursorPointingToLastItem();
 }
 
@@ -1952,8 +1964,8 @@ TEST_P(CheckpointTest, testExpelCursorPointingToChkptStartMemory) {
     testExpelCursorPointingToChkptStart();
 }
 
-TEST_P(CheckpointTest, testExpelCursorPointingToChkptStartDisk) {
-    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1001);
+TEST_P(ReplicaCheckpointTest, testExpelCursorPointingToChkptStartDisk) {
+    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
     testExpelCursorPointingToChkptStart();
 }
 
@@ -2013,7 +2025,7 @@ TEST_P(CheckpointTest, testDontExpelIfCursorAtMetadataItemWithSameSeqnoMemory) {
 }
 
 TEST_P(CheckpointTest, testDontExpelIfCursorAtMetadataItemWithSameSeqnoDisk) {
-    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1001);
+    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
     testDontExpelIfCursorAtMetadataItemWithSameSeqno();
 }
 
@@ -2090,7 +2102,7 @@ TEST_P(CheckpointTest, testDoNotExpelIfHaveSameSeqnoAfterMutationMemory) {
 }
 
 TEST_P(CheckpointTest, testDoNotExpelIfHaveSameSeqnoAfterMutationDisk) {
-    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1001);
+    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
     testDoNotExpelIfHaveSameSeqnoAfterMutation();
 }
 
@@ -2120,7 +2132,6 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
                             /*preLinkDocCtx*/ nullptr);
     }
 
-    ASSERT_EQ(1, this->manager->getNumCheckpoints()); // Single open checkpoint.
     ASSERT_EQ(itemCount, this->manager->getNumOpenChkItems());
     ASSERT_EQ(itemCount, manager->getNumItemsForCursor(cursor));
     ASSERT_EQ(1000 + itemCount, this->manager->getHighSeqno());
@@ -2177,8 +2188,8 @@ TEST_P(CheckpointTest, testExpelCheckpointItemsMemoryRecoveredMemory) {
     testExpelCheckpointItemsMemoryRecovered();
 }
 
-TEST_P(CheckpointTest, testExpelCheckpointItemsMemoryRecoveredDisk) {
-    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1001);
+TEST_P(ReplicaCheckpointTest, testExpelCheckpointItemsMemoryRecoveredDisk) {
+    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
     testExpelCheckpointItemsMemoryRecovered();
 }
 
@@ -2200,7 +2211,7 @@ TEST_P(CheckpointTest, InitialSnapshotDoesDoubleRefCheckpoint) {
 
     // first snapshot received
     cm.createSnapshot(1, 10, {/* hcs */}, CheckpointType::Memory, 10);
-    EXPECT_EQ(1, checkpointList.size());
+    EXPECT_EQ(2, checkpointList.size());
     // Ensure the number of cursors is still correct
     EXPECT_EQ(2, checkpointList.front()->getNumCursorsInCheckpoint());
 }
@@ -2990,7 +3001,7 @@ TEST_P(CheckpointRemovalTest, RemoveCursorTriggersCB) {
 // the open/disk checkpoint. Next as the takeover stream runs
 // "KVBucket::setVbucketState" expel triggers in between two checkpoint manager
 // calls leaving the closed checkpoint in a bad state.
-TEST_P(CheckpointTest, MB_47516) {
+TEST_P(ReplicaCheckpointTest, MB_47516) {
     // running for persistence only is a simplification of the test so we can
     // just use the persistence cursor to drive the issue
     if (!persistent()) {
@@ -3045,7 +3056,7 @@ TEST_P(CheckpointTest, MB_47516) {
 
 // In the case of open/closed checkpoints cursors placed at the high-seqno
 // should not reference the closed checkpoint.
-TEST_P(CheckpointTest, MB_47551) {
+TEST_P(ReplicaCheckpointTest, MB_47551) {
     // 1) Receive a snapshot, two items is plenty for the test
     this->manager->createSnapshot(1001, 1002, 1002, CheckpointType::Disk, 1002);
     ASSERT_TRUE(this->queueNewItem("k1001")); // 1001
@@ -3068,7 +3079,7 @@ TEST_P(CheckpointTest, MB_47551) {
         }
 
         // Cursor should be in the closed checkpoint, it has the items we need
-        EXPECT_EQ(1, (*cursor.cursor.lock()->getCheckpoint())->getId());
+        EXPECT_EQ(2, (*cursor.cursor.lock()->getCheckpoint())->getId());
     }
 
     // But high-seqno should use the open CP
@@ -3079,7 +3090,7 @@ TEST_P(CheckpointTest, MB_47551) {
     // one. Possibly don't need backfill=true, but DCP streams handle this case
     EXPECT_TRUE(cursor2.tryBackfill);
     EXPECT_EQ(1003, cursor2.seqno);
-    EXPECT_EQ(2, (*cursor2.cursor.lock()->getCheckpoint())->getId());
+    EXPECT_EQ(3, (*cursor2.cursor.lock()->getCheckpoint())->getId());
 }
 
 CheckpointManager::ExtractItemsResult CheckpointTest::extractItemsToExpel() {
@@ -3323,6 +3334,15 @@ INSTANTIATE_TEST_SUITE_P(
         EphemeralCheckpointTest,
         ::testing::Combine(
                 ::testing::Values(VBucketTestBase::VBType::Ephemeral),
+                ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
+        VBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(
+        AllVBTypesAllEvictionModes,
+        ReplicaCheckpointTest,
+        ::testing::Combine(
+                ::testing::Values(VBucketTestBase::VBType::Persistent,
+                                  VBucketTestBase::VBType::Ephemeral),
                 ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
         VBucketTest::PrintToStringParamName);
 

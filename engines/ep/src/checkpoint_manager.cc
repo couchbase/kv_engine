@@ -1280,16 +1280,6 @@ void CheckpointManager::createSnapshot(
 
     std::lock_guard<std::mutex> lh(queueLock);
 
-    auto& openCkpt = getOpenCheckpoint(lh);
-
-    if (openCkpt.getNumItems() == 0) {
-        openCkpt.setSnapshotStartSeqno(snapStartSeqno);
-        openCkpt.setSnapshotEndSeqno(snapEndSeqno, visibleSnapEnd);
-        openCkpt.setCheckpointType(checkpointType);
-        openCkpt.setHighCompletedSeqno(highCompletedSeqno);
-        return;
-    }
-
     addNewCheckpoint(lh,
                      snapStartSeqno,
                      snapEndSeqno,

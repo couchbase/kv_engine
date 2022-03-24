@@ -2552,9 +2552,15 @@ void MB48010CollectionsDCPParamTest::SetUp() {
         // Step the stream for the first two items, this is going to ensure that
         // expel can run by having a cursor in the checkpoint (if we had none
         // then we'd skip expel in favour of dropping the checkpoint).
+        // Process first checkpoint with vbucket states (nothing to send) memory
+        // snapshot
+        runCheckpointProcessor();
+        // Process second checkpoint process disk checkpoint with two system
+        // events
         runCheckpointProcessor();
         stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                       cb::engine_errc::success);
+        ASSERT_TRUE(MARKER_FLAG_DISK & producers->last_flags);
         stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
                       cb::engine_errc::success);
         stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
@@ -2562,6 +2568,9 @@ void MB48010CollectionsDCPParamTest::SetUp() {
 
         // IMPORTANT: Run expel so that some flushed items are removed from
         // memory The DCP stream has to run a backfill for the snapshot
+        // Need to call moveHelperCursorToCMEnd() twice so that we move to the
+        // cursor to the end of the second checkpoint
+        moveHelperCursorToCMEnd();
         moveHelperCursorToCMEnd();
         auto expel = vb->checkpointManager->expelUnreferencedCheckpointItems();
         EXPECT_NE(0, expel.count);
@@ -4065,6 +4074,9 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
                           return cb::engine_errc::success;
                       },
                       {{R"({"collections":["9"]})"}}));
+    // Process checkpoint with nothing to send from
+    SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
+            *replicProducer, *producers2, cb::mcbp::ClientOpcode::Invalid);
 
     // 3.2 Ensure we can get the disk snapshot from the new active, from memory
     // as it's not been flushed to disk

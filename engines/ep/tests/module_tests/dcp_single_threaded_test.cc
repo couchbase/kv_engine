@@ -136,7 +136,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
                              {} /*maxVisibleSeqno*/);
 
     // Even without a checkpoint flag the first disk checkpoint will bump the ID
-    EXPECT_EQ(1, manager.getOpenCheckpointId());
+    EXPECT_EQ(2, manager.getOpenCheckpointId());
 
     EXPECT_TRUE(engine->getKVBucket()
                         ->getVBucket(vbid)
@@ -168,7 +168,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
     EXPECT_EQ(cb::engine_errc::temporary_failure, err);
 
     // Open checkpoint Id should not be effected.
-    EXPECT_EQ(1, manager.getOpenCheckpointId());
+    EXPECT_EQ(2, manager.getOpenCheckpointId());
 
     /* Send a mutation */
     const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
@@ -192,7 +192,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
     EXPECT_FALSE(engine->getKVBucket()
                          ->getVBucket(vbid)
                          ->isReceivingInitialDiskSnapshot());
-    EXPECT_EQ(1, manager.getOpenCheckpointId());
+    EXPECT_EQ(2, manager.getOpenCheckpointId());
 
     consumer->snapshotMarker(1 /*opaque*/,
                              vbid,
@@ -203,7 +203,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
                              {} /*maxVisibleSeqno*/);
 
     // A new opencheckpoint should no be opened
-    EXPECT_EQ(1, manager.getOpenCheckpointId());
+    EXPECT_EQ(2, manager.getOpenCheckpointId());
 
     // Close stream
     ASSERT_EQ(cb::engine_errc::success,
@@ -252,7 +252,7 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
                              {} /*maxVisibleSeqno*/);
 
     // Even without a checkpoint flag the first disk checkpoint will bump the ID
-    EXPECT_EQ(1, manager.getOpenCheckpointId());
+    EXPECT_EQ(2, manager.getOpenCheckpointId());
 
     consumer->snapshotMarker(1 /*opaque*/,
                              vbid,
@@ -262,7 +262,7 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
                              {} /*HCS*/,
                              {} /*maxVisibleSeqno*/);
 
-    EXPECT_EQ(1, manager.getOpenCheckpointId());
+    EXPECT_EQ(3, manager.getOpenCheckpointId());
     // Still cp:2 as checkpoint was empty so we have just re-used it.
     // Snap start/end have been updated to [1, 2], but for an empty checkpoint
     // we return [0, 0]
