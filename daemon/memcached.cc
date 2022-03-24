@@ -71,6 +71,8 @@
 #endif
 
 std::atomic<bool> memcached_shutdown;
+std::atomic<bool> sigint;
+std::atomic<bool> sigterm;
 
 bool is_memcached_shutting_down() {
     return memcached_shutdown;
@@ -588,6 +590,7 @@ bool is_bucket_dying(Connection& c) {
 }
 
 static void sigint_handler() {
+    sigint = true;
     memcached_shutdown = true;
 }
 
@@ -602,6 +605,7 @@ static void release_signal_handlers() {
 #else
 
 static void sigterm_handler(evutil_socket_t, short, void *) {
+    sigterm = true;
     memcached_shutdown = true;
 }
 
@@ -1038,7 +1042,9 @@ int memcached_main(int argc, char** argv) {
         main_base->loopForever();
     }
 
-    LOG_INFO_RAW("Initiating graceful shutdown.");
+    LOG_INFO("Initiating graceful shutdown. sigint:{} sigterm:{}",
+             sigint,
+             sigterm);
     BucketManager::instance().destroyAll();
 
     if (parent_monitor) {
