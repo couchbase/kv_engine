@@ -120,7 +120,8 @@
         "cbstat": "curr_items",
         "prometheus": {
             "family": "memcache_curr_items"
-        }
+        },
+        "description": "Number of active items in memory"
     },
     {
         "key": "default_total_items",
@@ -136,7 +137,8 @@
         "cbstat": "bytes",
         "prometheus": {
             "family": "memcache_mem_size"
-        }
+        },
+        "description": "Engine's total memory usage"
     },
     {
         "key": "default_reclaimed",
@@ -160,104 +162,129 @@
  */
     {
         "key": "ep_num_workers",
-        "unit": "count"
+        "unit": "count",
+        "description": "Global number of shared worker threads"
     },
     {
         "key": "ep_bucket_priority",
-        "unit": "none"
+        "unit": "none",
+        "description": "Priority assigned to the bucket"
     },
 /* TODO: make 0/1 rather than text for Prometheus? */
     {
         "key": "ep_total_enqueued",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total number of items queued for persistence"
     },
     {
         "key": "ep_total_deduplicated",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total number of items de-duplicated when queued to CheckpointManager"
     },
     {
         "key": "ep_expired_access",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times an item was expired on application access."
     },
     {
         "key": "ep_expired_compactor",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times an item was expired by the ep engine compactor"
     },
     {
         "key": "ep_expired_pager",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times an item was expired by ep engine item pager"
     },
     {
         "key": "ep_queue_size",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of items queued for storage"
     },
     {
         "key": "ep_diskqueue_items",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total items in disk queue"
     },
     {
         "key": "ep_commit_num",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total number of write commits"
     },
     {
         "key": "ep_commit_time",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "Number of milliseconds of most recent commit"
     },
     {
         "key": "ep_commit_time_total",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "Cumulative milliseconds spent committing"
     },
     {
         "key": "ep_item_begin_failed",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times a transaction failed to start due to storage errors"
     },
     {
         "key": "ep_item_commit_failed",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times a transaction failed to commit due to storage errors"
     },
     {
         "key": "ep_item_flush_expired",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times an item is not flushed due to the expiry of the item"
     },
     {
         "key": "ep_item_flush_failed",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times an item failed to flush due to storage errors"
     },
     {
         "key": "ep_flusher_state",
-        "unit": "none"
+        "unit": "none",
+        "description": "Current state of the flusher thread"
     },
     {
         "key": "ep_flusher_todo",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of items currently being written"
     },
     {
         "key": "ep_total_persisted",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total number of items persisted"
     },
     {
         "key": "ep_uncommitted_items",
-        "unit": "count"
+        "unit": "count",
+        "description": "The amount of items that have not been written to disk"
     },
     {
         "key": "ep_vbucket_del",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of vbucket deletion events"
     },
     {
         "key": "ep_vbucket_del_fail",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of failed vbucket deletion events"
     },
     {
         "key": "ep_flush_duration_total",
-        "unit": "milliseconds"
+        "unit": "milliseconds",
+        "description": "Cumulative milliseconds spent flushing"
     },
     {
         "key": "ep_persist_vbstate_total",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total VB persist state to disk"
     },
     {
         "key": "mem_used",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Engine's total memory usage"
     },
     {
         "key": "mem_used_primary",
@@ -281,15 +308,18 @@
     },
     {
         "key": "mem_used_estimate",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Engine's total estimated memory usage This is a faster stat to read, but lags mem_used as it's only updated when a threshold is crossed see mem_used_merge_threshold"
     },
     {
         "key": "ep_mem_low_wat_percent",
-        "unit": "percent"
+        "unit": "percent",
+        "description": "Low water mark (as a percentage)"
     },
     {
         "key": "ep_mem_high_wat_percent",
-        "unit": "percent"
+        "unit": "percent",
+        "description": "High water mark (as a percentage)"
     },
 /* TODO: it's not advised to have metric like:
  *   my_metric{label=a} 1
@@ -306,7 +336,8 @@
         "unit": "bytes",
         "prometheus": {
             "family": "total_memory_used"
-        }
+        },
+        "description": "Engine's total memory usage"
     },
     {
         "key": "ep_kv_size",
@@ -316,11 +347,13 @@
             "labels": {
                 "for": "hashtable"
             }
-        }
+        },
+        "description": "Memory used to store item metadata, keys and values, no matter the vbucket's state. If an item's value is ejected, this stat will be decremented by the size of the item's value."
     },
     {
         "key": "ep_blob_num",
-        "unit": "count"
+        "unit": "count",
+        "description": "The number of blob objects in the cache"
     },
     {
         "key": "ep_blob_overhead",
@@ -330,7 +363,8 @@
             "labels": {
                 "for": "blobs"
             }
-        }
+        },
+        "description": "The \"unused\" memory caused by the allocator returning bigger chunks than requested"
     },
 /* TODO: Assess what labels would actually be _useful_ for querying */
     {
@@ -341,7 +375,8 @@
             "labels": {
                 "for": "blobs"
             }
-        }
+        },
+        "description": "Memory used to store values for resident keys"
     },
     {
         "key": "ep_storedval_size",
@@ -351,7 +386,8 @@
             "labels": {
                 "for": "storedvalues"
             }
-        }
+        },
+        "description": "Memory used by storedval objects"
     },
     {
         "key": "ep_storedval_overhead",
@@ -361,106 +397,130 @@
             "labels": {
                 "for": "storedvalues"
             }
-        }
+        },
+        "description": "The \"unused\" memory caused by the allocator returning bigger chunks than requested"
     },
     {
         "key": "ep_storedval_num",
-        "unit": "count"
+        "unit": "count",
+        "description": "The number of storedval objects allocated"
     },
     {
         "key": "ep_overhead",
         "unit": "bytes",
         "prometheus": {
             "family": "total_memory_overhead"
-        }
+        },
+        "description": "Extra memory used by transient data like persistence queue, replication queues, checkpoints, etc"
     },
     {
         "key": "ep_item_num",
-        "unit": "count"
+        "unit": "count",
+        "description": "The number of item objects allocated"
     },
     {
         "key": "ep_oom_errors",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times unrecoverable OOMs happened while processing operations"
     },
     {
         "key": "ep_tmp_oom_errors",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times temporary OOMs happened while processing operations"
     },
     {
         "key": "ep_mem_tracker_enabled",
-        "unit": "none"
+        "unit": "none",
+        "description": "True if memory usage tracker is enabled"
     },
     {
         "key": "ep_bg_fetched",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of items fetched from disk"
     },
     {
         "key": "ep_bg_meta_fetched",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of meta items fetched from disk"
     },
     {
         "key": "ep_bg_remaining_items",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of remaining bg fetch items"
     },
     {
         "key": "ep_bg_remaining_jobs",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of remaining bg fetch jobs"
     },
     {
         "key": "ep_num_pager_runs",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times we ran pager loops to seek additional memory"
     },
     {
         "key": "ep_num_expiry_pager_runs",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times we ran expiry pager loops to purge expired items from memory/disk"
     },
     {
         "key": "ep_num_freq_decayer_runs",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times we ran the freq decayer task because a frequency counter has become saturated"
     },
     {
         "key": "ep_items_expelled_from_checkpoints",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of items expelled from checkpoints. Expelled refers to items that have been ejected from memory but are still considered to be part of the checkpoint."
     },
     {
         "key": "ep_items_rm_from_checkpoints",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of items removed from closed unreferenced checkpoints"
     },
     {
         "key": "ep_num_value_ejects",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times item values got ejected from memory to disk"
     },
     {
         "key": "ep_num_eject_failures",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of items that could not be ejected"
     },
     {
         "key": "ep_num_not_my_vbuckets",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times Not My VBucket exception happened during runtime"
     },
     {
         "key": "ep_pending_ops",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of ops awaiting pending vbuckets"
     },
     {
         "key": "ep_pending_ops_total",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total blocked pending ops since reset"
     },
 /* TODO: are total-over-uptime stats relevant for prometheus
  *  given the ability to sum over a time period?
  */
     {
         "key": "ep_pending_ops_max",
-        "unit": "count"
+        "unit": "count",
+        "description": "Max ops seen awaiting 1 pending vbucket"
     },
 /* TODO: standardise labelling for "high watermark" style stats */
     {
         "key": "ep_pending_ops_max_duration",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "Max time (\u00b5s) used waiting on pending vbuckets"
     },
     {
         "key": "ep_pending_compactions",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of pending vbucket compactions"
     },
     {
         "key": "ep_compaction_failed",
@@ -472,120 +532,147 @@
     },
     {
         "key": "ep_rollback_count",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of rollbacks on consumer"
     },
     {
         "key": "ep_vbucket_del_max_walltime",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "Max wall time (\u00b5s) spent by deleting a vbucket"
     },
     {
         "key": "ep_vbucket_del_avg_walltime",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "Avg wall time (\u00b5s) spent by deleting a vbucket"
     },
     {
         "key": "ep_bg_num_samples",
-        "unit": "count"
+        "unit": "count",
+        "description": "The number of samples included in the average"
     },
     {
         "key": "ep_bg_min_wait",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "The shortest time (\u00b5s) in the wait queue"
     },
     {
         "key": "ep_bg_max_wait",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "The longest time (\u00b5s) in the wait queue"
     },
     {
         "key": "ep_bg_wait_avg",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "The average wait time (\u00b5s) for an item before it's serviced by the dispatcher"
     },
 /* TODO: derived from two stats. Decide
  *  whether to expose for prometheus
  */
     {
         "key": "ep_bg_min_load",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "The shortest load time (\u00b5s)"
     },
     {
         "key": "ep_bg_max_load",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "The longest load time (\u00b5s)"
     },
     {
         "key": "ep_bg_load_avg",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "The average time (\u00b5s) for an item to be loaded from the persistence layer"
     },
 /* TODO: derived from two stats. Decide
  *  whether to expose for prometheus
  */
     {
         "key": "ep_bg_wait",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "The total elapse time for the wait queue"
     },
     {
         "key": "ep_bg_load",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "The total elapse time for items to be loaded from the persistence layer"
     },
     {
         "key": "ep_degraded_mode",
-        "unit": "none"
+        "unit": "none",
+        "description": "True if the engine is either warming up or data traffic is disabled"
     },
     {
         "key": "ep_num_access_scanner_runs",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times we ran accesss scanner to snapshot working set"
     },
     {
         "key": "ep_num_access_scanner_skips",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of times accesss scanner task decided not to generate access log"
     },
     {
         "key": "ep_access_scanner_last_runtime",
-        "unit": "seconds"
+        "unit": "seconds",
+        "description": "Number of seconds that last access scanner task took to complete."
     },
 /* TODO: relative to server start. Convert to absolute time? */
     {
         "key": "ep_access_scanner_num_items",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of items that last access scanner task swept to access log."
     },
     {
         "key": "ep_access_scanner_task_time",
-        "unit": "none"
+        "unit": "none",
+        "description": "Time of the next access scanner task (GMT), NOT_SCHEDULED if access scanner has been disabled"
     },
 /* TODO: this is a string, expose numeric time for Prometheus */
     {
         "key": "ep_expiry_pager_task_time",
-        "unit": "none"
+        "unit": "none",
+        "description": "Time of the next expiry pager task (GMT), NOT_SCHEDULED if expiry pager has been disabled"
     },
 /* TODO: this is a string, expose numeric time for Prometheus */
     {
         "key": "ep_startup_time",
-        "unit": "seconds"
+        "unit": "seconds",
+        "description": "System-generated engine startup time"
     },
     {
         "key": "ep_warmup_thread",
-        "unit": "none"
+        "unit": "none",
+        "description": "Warmup thread status"
     },
     {
         "key": "ep_warmup_time",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "Time (\u00b5s) spent by warming data"
     },
     {
         "key": "ep_warmup_oom",
-        "unit": "count"
+        "unit": "count",
+        "description": "OOMs encountered during warmup"
     },
     {
         "key": "ep_warmup_dups",
-        "unit": "count"
+        "unit": "count",
+        "description": "Duplicates encountered during warmup"
     },
     {
         "key": "ep_warmup_state",
-        "unit": "none"
+        "unit": "none",
+        "description": "The current state of the warmup thread"
     },
     {
         "key": "ep_warmup_key_count",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of keys warmed up"
     },
     {
         "key": "ep_warmup_value_count",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of values warmed up"
     },
     {
         "key": "ep_warmup_min_item_threshold",
@@ -593,11 +680,13 @@
     },
     {
         "key": "ep_warmup_keys_time",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "Time (\u00b5s) spent by warming keys"
     },
     {
         "key": "ep_warmup_estimated_key_count",
-        "unit": "none"
+        "unit": "none",
+        "description": "Estimated number of keys in database"
     },
     {
         "key": "ep_warmup_estimate_time",
@@ -605,11 +694,13 @@
     },
     {
         "key": "ep_warmup_access_log",
-        "unit": "none"
+        "unit": "none",
+        "description": "Number of keys present in access log"
     },
     {
         "key": "ep_warmup_estimated_value_count",
-        "unit": "none"
+        "unit": "none",
+        "description": "Estimated number of values in database"
     },
     {
         "key": "ep_num_ops_get_meta",
@@ -619,7 +710,8 @@
             "labels": {
                 "op": "get_meta"
             }
-        }
+        },
+        "description": "Number of getMeta operations"
     },
     {
         "key": "ep_num_ops_set_meta",
@@ -629,7 +721,8 @@
             "labels": {
                 "op": "set_meta"
             }
-        }
+        },
+        "description": "Number of setWithMeta operations"
     },
     {
         "key": "ep_num_ops_del_meta",
@@ -639,7 +732,8 @@
             "labels": {
                 "op": "del_meta"
             }
-        }
+        },
+        "description": "Number of delWithMeta operations"
     },
     {
         "key": "ep_num_ops_set_meta_res_fail",
@@ -669,7 +763,8 @@
             "labels": {
                 "op": "set_ret_meta"
             }
-        }
+        },
+        "description": "Number of setRetMeta operations"
     },
     {
         "key": "ep_num_ops_del_ret_meta",
@@ -679,7 +774,8 @@
             "labels": {
                 "op": "del_ret_meta"
             }
-        }
+        },
+        "description": "Number of delRetMeta operations"
     },
     {
         "key": "ep_num_ops_get_meta_on_set_meta",
@@ -689,31 +785,38 @@
             "labels": {
                 "op": "get_meta_for_set_meta"
             }
-        }
+        },
+        "description": "Num of background getMeta operations spawn due to setWithMeta operations"
     },
     {
         "key": "ep_workload_pattern",
-        "unit": "none"
+        "unit": "none",
+        "description": "Workload pattern (mixed, read_heavy, write_heavy) monitored at runtime"
     },
     {
         "key": "ep_defragmenter_num_visited",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of items visited (considered for defragmentation) by the defragmenter task."
     },
     {
         "key": "ep_defragmenter_num_moved",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of items moved by the defragmentater task."
     },
     {
         "key": "ep_defragmenter_sv_num_moved",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of StoredValues moved by the defragmentater task."
     },
     {
         "key": "ep_item_compressor_num_visited",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of items visited (considered for compression) by the item compressor task."
     },
     {
         "key": "ep_item_compressor_num_compressed",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of items compressed by the item compressor task."
     },
     {
         "key": "ep_checkpoint_computed_max_size",
@@ -721,11 +824,13 @@
     },
     {
         "key": "ep_cursors_dropped",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of cursors dropped by the checkpoint remover"
     },
     {
         "key": "ep_mem_freed_by_checkpoint_removal",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Amount of memory freed through ckpt removal"
     },
     {
         "key": "ep_mem_freed_by_checkpoint_item_expel",
@@ -737,11 +842,13 @@
     },
     {
         "key": "ep_data_write_failed",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total compaction and commit failures"
     },
     {
         "key": "ep_data_read_failed",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total number of get failures"
     },
     {
         "key": "ep_io_document_write_bytes",
@@ -749,19 +856,23 @@
     },
     {
         "key": "ep_io_total_read_bytes",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total number of bytes read"
     },
     {
         "key": "ep_io_total_write_bytes",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total number of bytes written"
     },
     {
         "key": "ep_io_compaction_read_bytes",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total number of bytes read during compaction"
     },
     {
         "key": "ep_io_compaction_write_bytes",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total number of bytes written during compaction"
     },
     {
         "key": "ep_io_bg_fetch_read_count",
@@ -769,7 +880,8 @@
     },
     {
         "key": "ep_bg_fetch_avg_read_amplification",
-        "unit": "ratio"
+        "unit": "ratio",
+        "description": "Average read amplification for all background fetch operations - ratio of read()s to documents fetched."
     },
 /* Magma stats */
     {
@@ -964,47 +1076,58 @@
     },
     {
         "key": "ep_rocksdb_kMemTableTotal",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total size of all Memtables"
     },
     {
         "key": "ep_rocksdb_kMemTableUnFlushed",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total size of immutable Memtables"
     },
     {
         "key": "ep_rocksdb_kTableReadersTotal",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Memory used by Index/Filter blocks"
     },
     {
         "key": "ep_rocksdb_kCacheTotal",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Size of the Block Cache"
     },
     {
         "key": "ep_rocksdb_default_kSizeAllMemTables",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total MT size for default CFs"
     },
     {
         "key": "ep_rocksdb_seqno_kSizeAllMemTables",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total MT size for seqno CFs"
     },
     {
         "key": "ep_rocksdb_block_cache_data_hit_ratio",
-        "unit": "ratio"
+        "unit": "ratio",
+        "description": "Cache hit ratio for Data blocks"
     },
     {
         "key": "ep_rocksdb_block_cache_index_hit_ratio",
-        "unit": "ratio"
+        "unit": "ratio",
+        "description": "Cache hit ratio for Index blocks"
     },
     {
         "key": "ep_rocksdb_block_cache_filter_hit_ratio",
-        "unit": "ratio"
+        "unit": "ratio",
+        "description": "Cache hit ratio for Filter blocks"
     },
     {
         "key": "ep_rocksdb_default_kTotalSstFilesSize",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total SST size for default CFs"
     },
     {
         "key": "ep_rocksdb_seqno_kTotalSstFilesSize",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total SST size for seqno CFs"
     },
     {
         "key": "ep_rocksdb_scan_totalSeqnoHits",
@@ -1017,15 +1140,18 @@
 /* EPBucket::getFileStats */
     {
         "key": "ep_db_data_size",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total size of valid data in db files"
     },
     {
         "key": "ep_db_file_size",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total size of the db files"
     },
     {
         "key": "ep_db_prepare_size",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total size of SyncWrite prepares in db files"
     },
 /* Timing stats */
     {
@@ -1035,51 +1161,61 @@
     },
     {
         "key": "bg_wait",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "bg fetches waiting in the dispatcher queue"
     },
     {
         "key": "bg_load",
-        "unit": "microseconds"
+        "unit": "microseconds",
+        "description": "bg fetches waiting for disk"
     },
     {
         "key": "pending_ops",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "client connections blocked for operations in pending vbuckets"
     },
     {
         "key": "access_scanner",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "access scanner run times"
     },
     {
         "key": "checkpoint_remover",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "checkpoint remover run times"
     },
     {
         "key": "item_pager",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "item pager run times"
     },
     {
         "key": "expiry_pager",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "expiry pager run times"
     },
     {
         "key": "storage_age",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "Analogous to ep_storage_age in main stats"
     },
     {
         "key": "set_with_meta",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "set_with_meta latencies"
     },
     {
         "key": "get_cmd",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "servicing get requests"
     },
     {
         "key": "store_cmd",
@@ -1089,37 +1225,44 @@
     {
         "key": "arith_cmd",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "servicing incr/decr requests"
     },
     {
         "key": "get_stats_cmd",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "servicing get_stats requests"
     },
     {
         "key": "get_vb_cmd",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "servicing vbucket status requests"
     },
     {
         "key": "set_vb_cmd",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "servicing vbucket set state commands"
     },
     {
         "key": "del_vb_cmd",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "servicing vbucket deletion commands"
     },
     {
         "key": "chk_persistence_cmd",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "waiting for checkpoint persistence"
     },
     {
         "key": "notify_io",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "waking blocked connections"
     },
     {
         "key": "disk_insert",
@@ -1129,7 +1272,8 @@
             "labels": {
                 "op": "insert"
             }
-        }
+        },
+        "description": "waiting for disk to store a new item"
     },
     {
         "key": "disk_update",
@@ -1139,7 +1283,8 @@
             "labels": {
                 "op": "update"
             }
-        }
+        },
+        "description": "waiting for disk to modify an existing item"
     },
     {
         "key": "disk_del",
@@ -1149,7 +1294,8 @@
             "labels": {
                 "op": "del"
             }
-        }
+        },
+        "description": "waiting for disk to delete an item"
     },
     {
         "key": "disk_vb_del",
@@ -1159,7 +1305,8 @@
             "labels": {
                 "op": "vb_del"
             }
-        }
+        },
+        "description": "waiting for disk to delete a vbucket"
     },
     {
         "key": "disk_commit",
@@ -1169,27 +1316,32 @@
             "labels": {
                 "op": "commit"
             }
-        }
+        },
+        "description": "waiting for a commit after a batch of updates"
     },
     {
         "key": "item_alloc_sizes",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Item allocation size counters (in bytes)"
     },
 /* TODO: this is not timing related but is in doTimingStats */
     {
         "key": "bg_batch_size",
-        "unit": "count"
+        "unit": "count",
+        "description": "Batch size for background fetches"
     },
 /* TODO: this is not timing related but is in doTimingStats */
     {
         "key": "persistence_cursor_get_all_items",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "Time spent in fetching all items by persistence cursor from checkpoint queues"
     },
     {
         "key": "dcp_cursors_get_all_items",
         "unit": "microseconds",
-        "prometheus": false
+        "prometheus": false,
+        "description": "Time spent in fetching all items by all dcp cursors from checkpoint queues"
     },
     {
         "key": "sync_write_commit_majority",
@@ -1199,7 +1351,8 @@
             "labels": {
                 "level": "majority"
             }
-        }
+        },
+        "description": "Commit duration for level=majority SyncWrites"
     },
     {
         "key": "sync_write_commit_majority_and_persist_on_master",
@@ -1209,7 +1362,8 @@
             "labels": {
                 "level": "majority_and_persist_on_master"
             }
-        }
+        },
+        "description": "Commit duration for level=majorityPersistActive SyncWrites"
     },
     {
         "key": "sync_write_commit_persist_to_majority",
@@ -1219,7 +1373,8 @@
             "labels": {
                 "level": "persist_to_majority"
             }
-        }
+        },
+        "description": "Commit duration for level=persistMajority SyncWrites"
     },
 /* server_stats */
     {
@@ -1909,15 +2064,18 @@
     },
     {
         "key": "curr_items",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of active items in memory"
     },
     {
         "key": "curr_temp_items",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of temporary items in memory"
     },
     {
         "key": "curr_items_tot",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total number of items"
     },
     {
         "key": "vb_sync_write_accepted_count",
@@ -1945,31 +2103,38 @@
     },
     {
         "key": "ep_vb_total",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total vBuckets (count)"
     },
     {
         "key": "ep_total_new_items",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total number of persisted new items"
     },
     {
         "key": "ep_total_del_items",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total number of persisted deletions"
     },
     {
         "key": "ep_diskqueue_memory",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total memory used in disk queue"
     },
     {
         "key": "ep_diskqueue_fill",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total enqueued items on disk queue"
     },
     {
         "key": "ep_diskqueue_drain",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total drained items on disk queue"
     },
     {
         "key": "ep_diskqueue_pending",
-        "unit": "count"
+        "unit": "count",
+        "description": "Total bytes of pending writes"
     },
     {
         "key": "ep_ht_item_memory",
@@ -1977,31 +2142,38 @@
     },
     {
         "key": "ep_meta_data_memory",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total memory used by meta data"
     },
     {
         "key": "ep_meta_data_disk",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Total disk used by meta data"
     },
     {
         "key": "ep_checkpoint_memory",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Memory of items in all checkpoints"
     },
     {
         "key": "ep_checkpoint_memory_unreferenced",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Memory of items in unref checkpoints"
     },
     {
         "key": "ep_checkpoint_memory_overhead_allocator",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Mem of all checkpoints struct - from allocator"
     },
     {
         "key": "ep_checkpoint_memory_pending_destruction",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Memory of checkpoint structures awaiting destruction by a background task"
     },
     {
         "key": "ep_checkpoint_memory_quota",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "Max allocation allowed in all checkpoints"
     },
     {
         "key": "ep_checkpoint_memory_recovery_upper_mark_bytes",
@@ -2013,19 +2185,23 @@
     },
     {
         "key": "ep_total_cache_size",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "The total byte size of all items, no matter the vbucket's state, no matter if an item's value is ejected"
     },
     {
         "key": "rollback_item_count",
-        "unit": "count"
+        "unit": "count",
+        "description": "Num of items rolled back"
     },
     {
         "key": "ep_num_non_resident",
-        "unit": "count"
+        "unit": "count",
+        "description": "The number of non-resident items"
     },
     {
         "key": "ep_chk_persistence_remains",
-        "unit": "count"
+        "unit": "count",
+        "description": "Number of remaining vbuckets for checkpoint persistence"
     },
     {
         "key": "ep_hlc_drift",
@@ -2049,7 +2225,8 @@
     },
     {
         "key": "ep_clock_cas_drift_threshold_exceeded",
-        "unit": "count"
+        "unit": "count",
+        "description": "ep_active_ahead_exceptions + ep_replica_ahead_exceptions"
     },
     {
         "key": "datatype_count",
@@ -2259,16 +2436,19 @@
     {
         "key": "dcp_num_running_backfills",
         "unit": "count",
-        "cbstat": "ep_dcp_num_running_backfills"
+        "cbstat": "ep_dcp_num_running_backfills",
+        "description": "Total number of running backfills across all dcp connections"
     },
     {
         "key": "dcp_max_running_backfills",
         "unit": "count",
-        "cbstat": "ep_dcp_max_running_backfills"
+        "cbstat": "ep_dcp_max_running_backfills",
+        "description": "Max running backfills we can have across all dcp connections"
     },
     {
         "key": "manifest_uid",
-        "unit": "none"
+        "unit": "none",
+        "description": "The uid of the last manifest accepted from the cluster, only returned when all scopes are requested (no name or id provided)"
     },
     {
         "key": "manifest_force",
@@ -2340,7 +2520,8 @@
             "labels": {
                 "op": "delete"
             }
-        }
+        },
+        "description": "Number of delete operations"
     },
     {
         "key": "collection_ops_get",
