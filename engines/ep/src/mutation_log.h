@@ -306,9 +306,13 @@ public:
      *
      * A ReadException may be thrown at any point along iteration.
      */
-    class iterator  : public std::iterator<std::input_iterator_tag,
-                                           const MutationLogEntry> {
+    class iterator {
     public:
+        using iterator_category = std::input_iterator_tag;
+        using value_type = const MutationLogEntry;
+        using difference_type = const MutationLogEntry;
+        using pointer = const MutationLogEntry*;
+        using reference = const MutationLogEntry&;
 
         iterator(const iterator& mit);
 
