@@ -37,7 +37,6 @@
 #include "utility.h"
 #include <memcached/vbucket.h>
 #include <hdrhistogram/hdrhistogram.h>
-
 #include <array>
 #include <atomic>
 #include <cstring>
@@ -48,10 +47,10 @@
 #include <vector>
 
 #ifdef WIN32
-typedef HANDLE file_handle_t;
+using file_handle_t = HANDLE;
 #define INVALID_FILE_VALUE INVALID_HANDLE_VALUE
 #else
-typedef int file_handle_t;
+using file_handle_t = int;
 #define INVALID_FILE_VALUE -1
 #endif
 
@@ -148,6 +147,8 @@ public:
                          const size_t bs = MIN_LOG_HEADER_SIZE);
 
     ~MutationLog();
+    MutationLog(const MutationLog&) = delete;
+    const MutationLog& operator=(const MutationLog&) = delete;
 
     void newItem(Vbid vbucket, const StoredDocKey& key);
 
@@ -372,7 +373,8 @@ public:
     }
 
     //! Items logged by type.
-    std::atomic<size_t> itemsLogged[int(MutationLogType::NumberOfTypes)];
+    std::array<std::atomic<size_t>, size_t(MutationLogType::NumberOfTypes)>
+            itemsLogged;
     //! Flush time histogram.
     Hdr1sfMicroSecHistogram flushTimeHisto;
     //! Sync time histogram.
@@ -407,14 +409,13 @@ protected:
     file_handle_t      file;
     bool               disabled;
     uint16_t           entries;
-    std::unique_ptr<uint8_t[]> entryBuffer;
-    std::unique_ptr<uint8_t[]> blockBuffer;
+    std::vector<uint8_t> entryBuffer;
+    std::vector<uint8_t> blockBuffer;
     uint8_t            syncConfig;
     bool               readOnly;
 
     friend std::ostream& operator<<(std::ostream& os, const MutationLog& mlog);
 
-    DISALLOW_COPY_AND_ASSIGN(MutationLog);
 };
 
 std::ostream& operator<<(std::ostream& os, const MutationLog& mlog);
@@ -422,10 +423,10 @@ std::ostream& operator<<(std::ostream& os, const MutationLog& mlog);
 /**
  * MutationLogHarvester::apply callback type.
  */
-typedef bool (*mlCallback)(void*, Vbid, const DocKey&);
-typedef bool (*mlCallbackWithQueue)(Vbid,
-                                    const std::set<StoredDocKey>&,
-                                    void* arg);
+using mlCallback = bool (*)(void*, Vbid, const DocKey&);
+using mlCallbackWithQueue = bool (*)(Vbid,
+                                     const std::set<StoredDocKey>&,
+                                     void*);
 
 class EventuallyPersistentEngine;
 
@@ -436,8 +437,7 @@ class MutationLogHarvester {
 public:
     explicit MutationLogHarvester(MutationLog& ml,
                                   EventuallyPersistentEngine* e = nullptr)
-        : mlog(ml), engine(e) {
-        memset(itemsSeen, 0, sizeof(itemsSeen));
+        : mlog(ml), engine(e), itemsSeen() {
     }
 
     /**
@@ -483,7 +483,7 @@ public:
      * Get all of the counts of log entries by type.
      */
     size_t *getItemsSeen() {
-        return itemsSeen;
+        return itemsSeen.data();
     }
 
 private:
@@ -494,5 +494,5 @@ private:
 
     std::unordered_map<Vbid, std::set<StoredDocKey>> committed;
     std::unordered_map<Vbid, std::set<StoredDocKey>> loading;
-    size_t itemsSeen[int(MutationLogType::NumberOfTypes)];
+    std::array<size_t, int(MutationLogType::NumberOfTypes)> itemsSeen;
 };

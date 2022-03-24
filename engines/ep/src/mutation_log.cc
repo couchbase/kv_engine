@@ -256,8 +256,8 @@ MutationLog::MutationLog(std::string path, const size_t bs)
       file(INVALID_FILE_VALUE),
       disabled(false),
       entries(0),
-      entryBuffer(new uint8_t[MutationLogEntry::len(256)]()),
-      blockBuffer(new uint8_t[bs]()),
+      entryBuffer(MutationLogEntry::len(256)),
+      blockBuffer(bs),
       syncConfig(DEFAULT_SYNC_CONF),
       readOnly(false) {
     for (auto& ii : itemsLogged) {
@@ -296,7 +296,7 @@ void MutationLog::disable() {
 void MutationLog::newItem(Vbid vbucket, const StoredDocKey& key) {
     if (isEnabled()) {
         MutationLogEntry* mle = MutationLogEntry::newEntry(
-                entryBuffer.get(), MutationLogType::New, vbucket, key);
+                entryBuffer.data(), MutationLogType::New, vbucket, key);
         writeEntry(mle);
     }
 }
@@ -317,7 +317,7 @@ void MutationLog::sync() {
 void MutationLog::commit1() {
     if (isEnabled()) {
         MutationLogEntry* mle = MutationLogEntry::newEntry(
-                entryBuffer.get(), MutationLogType::Commit1, Vbid(0));
+                entryBuffer.data(), MutationLogType::Commit1, Vbid(0));
         writeEntry(mle);
 
         if ((getSyncConfig() & FLUSH_COMMIT_1) != 0) {
@@ -332,7 +332,7 @@ void MutationLog::commit1() {
 void MutationLog::commit2() {
     if (isEnabled()) {
         MutationLogEntry* mle = MutationLogEntry::newEntry(
-                entryBuffer.get(), MutationLogType::Commit2, Vbid(0));
+                entryBuffer.data(), MutationLogType::Commit2, Vbid(0));
         writeEntry(mle);
 
         if ((getSyncConfig() & FLUSH_COMMIT_2) != 0) {
@@ -623,17 +623,17 @@ bool MutationLog::flush() {
 
         if (blockPos < blockSize) {
             size_t padding(blockSize - blockPos);
-            memset(blockBuffer.get() + blockPos, 0x00, padding);
+            memset(blockBuffer.data() + blockPos, 0x00, padding);
         }
 
         entries = htons(entries);
-        memcpy(blockBuffer.get() + 2, &entries, sizeof(entries));
+        memcpy(blockBuffer.data() + 2, &entries, sizeof(entries));
 
         uint16_t crc16(
-                htons(calculateCrc({blockBuffer.get() + 2, blockSize - 2})));
-        memcpy(blockBuffer.get(), &crc16, sizeof(crc16));
+                htons(calculateCrc({blockBuffer.data() + 2, blockSize - 2})));
+        memcpy(blockBuffer.data(), &crc16, sizeof(crc16));
 
-        if (writeFully(file, blockBuffer.get(), blockSize)) {
+        if (writeFully(file, blockBuffer.data(), blockSize)) {
             logSize.fetch_add(blockSize);
             blockPos = HEADER_RESERVED;
             entries = 0;
@@ -670,7 +670,7 @@ void MutationLog::writeEntry(MutationLogEntry *mle) {
         flush();
     }
 
-    memcpy(blockBuffer.get() + blockPos, mle, len);
+    memcpy(blockBuffer.data() + blockPos, mle, len);
     blockPos += len;
     ++entries;
 
@@ -701,6 +701,9 @@ MutationLog::iterator::iterator(const MutationLog::iterator& mit)
 
 MutationLog::iterator& MutationLog::iterator::operator=(const MutationLog::iterator& other)
 {
+    if (this == &other) {
+        return *this;
+    }
     log = other.log;
     entryBuf = other.entryBuf;
     buf = other.buf;
@@ -1106,10 +1109,10 @@ std::ostream& operator<<(std::ostream& out, const MutationLog& mlog) {
         << "file:" << mlog.file << ", "
         << "disabled:" << mlog.disabled << ", "
         << "entries:" << mlog.entries << ", "
-        << "entryBuffer:" << reinterpret_cast<void*>(mlog.entryBuffer.get())
-        << ", "
-        << "blockBuffer:" << reinterpret_cast<void*>(mlog.blockBuffer.get())
-        << ", "
+        << "entryBuffer:"
+        << reinterpret_cast<const void*>(mlog.entryBuffer.data()) << ", "
+        << "blockBuffer:"
+        << reinterpret_cast<const void*>(mlog.blockBuffer.data()) << ", "
         << "syncConfig:" << int(mlog.syncConfig) << ", "
         << "readOnly:" << mlog.readOnly << "}";
     return out;
