@@ -3730,9 +3730,8 @@ void ShardedCheckpointDestructionTest::SetUp() {
     if (!config_string.empty()) {
         config_string += ";";
     }
-    config_string += "checkpoint_removal_mode=eager";
     config_string +=
-            ";checkpoint_destruction_tasks=" + std::to_string(GetParam());
+            "checkpoint_destruction_tasks=" + std::to_string(GetParam());
     SingleThreadedKVBucketTest::SetUp();
 }
 
