@@ -3355,15 +3355,6 @@ INSTANTIATE_TEST_SUITE_P(
                 ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
         VBucketTest::PrintToStringParamName);
 
-void CheckpointMemoryTrackingTest::SetUp() {
-    if (!config_string.empty()) {
-        config_string += ";";
-    }
-    config_string += "checkpoint_removal_mode=";
-    config_string += to_string(GetParam());
-    SingleThreadedCheckpointTest::SetUp();
-}
-
 void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     setVBucketState(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -3427,11 +3418,11 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     EXPECT_EQ(queued + index + queueOverhead, manager.getMemUsage());
 }
 
-TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsage) {
+TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsage) {
     testCheckpointManagerMemUsage();
 }
 
-TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
+TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
     testCheckpointManagerMemUsage();
 
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -3519,7 +3510,7 @@ TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
               stats.memFreedByCheckpointItemExpel);
 }
 
-TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
+TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
     testCheckpointManagerMemUsage();
 
     // confirm that no items have been removed from the checkpoint manager
@@ -3607,7 +3598,7 @@ TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
               stats.memFreedByCheckpointRemoval);
 }
 
-TEST_P(CheckpointMemoryTrackingTest, Deduplication) {
+TEST_F(CheckpointMemoryTrackingTest, Deduplication) {
     // Queue 10 mutations into the checkpoint
     testCheckpointManagerMemUsage();
 
@@ -3654,13 +3645,9 @@ TEST_P(CheckpointMemoryTrackingTest, Deduplication) {
     EXPECT_EQ(initialIndexOverhead, checkpoint.getMemOverheadIndex());
 }
 
-TEST_P(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
+TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     // Verify that eager checkpoint removal notifies the CheckpointDestroyerTask
     // to run ASAP.
-
-    if (GetParam() != CheckpointRemoval::Eager) {
-        GTEST_SKIP();
-    }
 
     setVBucketState(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -3823,11 +3810,6 @@ TEST_P(ShardedCheckpointDestructionTest, ShardedBackgroundTaskIsNotified) {
         }
     }
 }
-
-INSTANTIATE_TEST_SUITE_P(EagerAndLazyCheckpointMemoryTrackingTests,
-                         CheckpointMemoryTrackingTest,
-                         ::testing::Values(CheckpointRemoval::Eager,
-                                           CheckpointRemoval::Lazy));
 
 INSTANTIATE_TEST_SUITE_P(MultipleCheckpointDestroyerTests,
                          ShardedCheckpointDestructionTest,

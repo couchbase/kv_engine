@@ -116,11 +116,8 @@ public:
  * Test fixture dedicated to the memory tracking of internal structures in
  * checkpoint.
  */
-class CheckpointMemoryTrackingTest
-    : public SingleThreadedCheckpointTest,
-      public ::testing::WithParamInterface<CheckpointRemoval> {
+class CheckpointMemoryTrackingTest : public SingleThreadedCheckpointTest {
 public:
-    void SetUp() override;
     /**
      * Verify that the checkpoints mem-usage is tracked correctly
      * at queueing items into the checkpoints.
