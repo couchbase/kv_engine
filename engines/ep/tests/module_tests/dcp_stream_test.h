@@ -28,6 +28,11 @@ protected:
     void TearDown() override;
 
     void setupProducerCompression();
+
+    /**
+     * Used in some tests for preventing checkpoint removal
+     */
+    void registerCursorAtCMStart();
 };
 
 /*

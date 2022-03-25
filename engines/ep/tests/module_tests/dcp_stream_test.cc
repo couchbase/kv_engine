@@ -119,6 +119,17 @@ void StreamTest::setupProducerCompression() {
     store_item(vbid, "key2", regularValue.c_str());
 }
 
+void StreamTest::registerCursorAtCMStart() {
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    auto& manager = static_cast<CheckpointManager&>(*vb->checkpointManager);
+    const auto dcpCursor =
+            manager.registerCursorBySeqno(
+                           "a cursor", 0, CheckpointCursor::Droppable::Yes)
+                    .cursor.lock();
+    ASSERT_TRUE(dcpCursor);
+}
+
 /*
  * Test to verify the number of items, total bytes sent and total data size
  * by the producer when DCP compression is enabled
@@ -231,10 +242,13 @@ TEST_P(StreamTest, test_verifyProducerCompressionDisabledStats) {
 }
 
 /*
- * Test to verify the number of items and the total bytes sent
- * by the producer under normal and error conditions
+ * Test to verify the number of items and the total bytes sent by the producer
+ * under normal and error conditions
  */
-TEST_P(StreamTest, test_verifyProducerStats) {
+TEST_P(StreamTest, VerifyProducerStats) {
+    // Prevent checkpoint removal for verifying a number of in-memory snapshots
+    registerCursorAtCMStart();
+
     VBucketPtr vb = engine->getKVBucket()->getVBucket(vbid);
     nlohmann::json meta = {
             {"topology", nlohmann::json::array({{"active", "replica"}})}};

@@ -293,6 +293,9 @@ TEST_P(DcpStreamSyncReplTest, PendingDeleteAndMutationWithoutSyncReplica) {
 
 void DcpStreamSyncReplTest::testMutationAndPendingWithoutSyncReplica(
         DocumentState docState) {
+    // Prevent checkpoint removal for verifying a number of in-memory snapshots
+    registerCursorAtCMStart();
+
     // Setup: add a mutation and a pending SyncWrite, store them and setup a
     // DCP stream.
     auto item = store_item(vbid, "key", "XXX");
@@ -459,6 +462,9 @@ TEST_P(DcpStreamSyncReplTest, PendingDeleteAndMutationWithSyncReplica) {
 
 void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
         DocumentState docState) {
+    // Prevent checkpoint removal for verifying a number of in-memory snapshots
+    registerCursorAtCMStart();
+
     // Setup: add a mutation and a pending SyncWrite, store them and setup a
     // DCP stream.
     auto mutation = store_item(vbid, "key", "XXX");

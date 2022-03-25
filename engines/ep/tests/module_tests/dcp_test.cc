@@ -169,15 +169,6 @@ protected:
 };
 
 void DCPTest::SetUp() {
-    // Lots of stream tests make assertions about checkpoint manager state.
-    // Ideally these should be made independent of checkpoint removal mode,
-    // but for now configure lazy checkpoint removal for these tests
-    if (config_string.find("checkpoint_removal_mode") == std::string::npos) {
-        if (!config_string.empty()) {
-            config_string += ";";
-        }
-        config_string += "checkpoint_removal_mode=lazy";
-    }
     EventuallyPersistentEngineTest::SetUp();
 
     // Set AuxIO threads to zero, so that the producer's
