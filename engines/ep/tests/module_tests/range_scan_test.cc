@@ -18,6 +18,7 @@
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
 
+#include <programs/engine_testapp/mock_server.h>
 #include <utilities/test_manifest.h>
 
 #include <unordered_set>
@@ -186,22 +187,26 @@ std::pair<cb::rangescan::Id, std::shared_ptr<RangeScan>>
 RangeScanTest::createScan(CollectionID cid,
                           cb::rangescan::KeyView start,
                           cb::rangescan::KeyView end) {
-    // Create a new RangeScan object, this would be done on an I/O task as it
-    // opens the file and generates a UUID
-    auto scan = std::make_shared<RangeScan>(dynamic_cast<EPBucket&>(*store),
-                                            *store->getVBucket(vbid),
-                                            cid,
-                                            start,
-                                            end,
-                                            *handler,
-                                            cookie,
-                                            getScanType());
+    auto vb = store->getVBucket(vbid);
+    // Create a new RangeScan object and give it a handler we can inspect.
+    EXPECT_EQ(cb::engine_errc::would_block,
+              vb->createRangeScan(
+                      cid, start, end, *handler, *cookie, getScanType()));
+
+    // Now run via auxio task
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanCreateTask");
+
+    EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookie));
 
     // Next frontend will add the uuid/scan, client can be informed of the uuid
-    auto& epVb = dynamic_cast<EPVBucket&>(*store->getVBucket(vbid));
-    EXPECT_EQ(cb::engine_errc::success, epVb.addNewRangeScan(scan));
+    auto& epVb = dynamic_cast<EPVBucket&>(*vb);
+    auto status = epVb.createRangeScanComplete(*cookie);
+    EXPECT_EQ(cb::engine_errc::success, status.first);
 
-    return {scan->getUuid(), scan};
+    auto scan = epVb.getRangeScan(status.second);
+    EXPECT_TRUE(scan);
+    return {status.second, scan};
 }
 
 // This method drives a range scan through create/continue/cancel for the given

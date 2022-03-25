@@ -51,7 +51,6 @@ public:
      * @param bucket The EPBucket to use to obtain the KVStore and pass to the
      *               RangeScanCacheCallback
      * @param vbucket vbucket to scan
-     * @param cid Collection to scan
      * @param start The range start
      * @param end The range end
      * @param handler key/item handler to process key/items of the scan
@@ -60,9 +59,8 @@ public:
      */
     RangeScan(EPBucket& bucket,
               const VBucket& vbucket,
-              CollectionID cid,
-              cb::rangescan::KeyView start,
-              cb::rangescan::KeyView end,
+              DiskDocKey start,
+              DiskDocKey end,
               RangeScanDataHandlerIFace& handler,
               const CookieIface* cookie,
               cb::rangescan::KeyOnly keyOnly);
@@ -106,11 +104,6 @@ public:
         return vbid;
     }
 
-    /// @return cookie associated with the current stage of the scan
-    const CookieIface* getCookie() const {
-        return cookie;
-    }
-
     /// @return true if the scan is configured for keys only
     bool isKeyOnly() const {
         return keyOnly == cb::rangescan::KeyOnly::Yes;
@@ -145,6 +138,7 @@ protected:
     uint64_t vbUuid;
     std::unique_ptr<ByIdScanContext> scanCtx;
     RangeScanDataHandlerIFace& handler;
+    // pointer as it updates when continued
     const CookieIface* cookie;
     Vbid vbid;
 

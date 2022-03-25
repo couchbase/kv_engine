@@ -278,8 +278,21 @@ public:
     cb::engine_errc cancelRangeScan(cb::rangescan::Id id) override;
 
     /**
-     * Add a new range scan - this is currently a public method primarily to
-     * support testing
+     * Function to be called after a RangeScanCreateTask notifies success.
+     * This will perform the final steps of creation (completing the command)
+     */
+    std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScanComplete(
+            const CookieIface& cookie);
+
+    /**
+     * Get the scan associated with the given id
+     *
+     * @return if found a scan, else a nullptr
+     */
+    std::shared_ptr<RangeScan> getRangeScan(cb::rangescan::Id id) const;
+
+    /**
+     * Add a new range scan
      *
      * @param scan add this scan to the internal set of available scans
      * @return success if the scan was successfully added

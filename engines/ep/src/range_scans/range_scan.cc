@@ -24,21 +24,15 @@
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
 
-// Create a collection prefixed DiskDocKey suitable for use in KVStore id scan
-static DiskDocKey makeDiskDocKey(CollectionID cid, cb::rangescan::KeyView key) {
-    return DiskDocKey{StoredDocKey{key.getKeyView(), cid}};
-}
-
 RangeScan::RangeScan(EPBucket& bucket,
                      const VBucket& vbucket,
-                     CollectionID cid,
-                     cb::rangescan::KeyView start,
-                     cb::rangescan::KeyView end,
+                     DiskDocKey start,
+                     DiskDocKey end,
                      RangeScanDataHandlerIFace& handler,
                      const CookieIface* cookie,
                      cb::rangescan::KeyOnly keyOnly)
-    : start(makeDiskDocKey(cid, start)),
-      end(makeDiskDocKey(cid, end)),
+    : start(std::move(start)),
+      end(std::move(end)),
       vbUuid(vbucket.failovers->getLatestUUID()),
       handler(handler),
       cookie(cookie),
