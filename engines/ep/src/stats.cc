@@ -78,11 +78,7 @@ EPStats::EPStats()
       numRemainingBgJobs(0),
       bgNumOperations(0),
       bgWait(0),
-      bgMinWait(0),
-      bgMaxWait(0),
       bgLoad(0),
-      bgMinLoad(0),
-      bgMaxLoad(0),
       vbucketDelMaxWalltime(0),
       vbucketDelTotWalltime(0),
       replicationThrottleThreshold(0),
@@ -290,10 +286,6 @@ void EPStats::reset() {
     bgNumOperations.store(0);
     bgWait.store(0);
     bgLoad.store(0);
-    bgMinWait.store(999999999);
-    bgMaxWait.store(0);
-    bgMinLoad.store(999999999);
-    bgMaxLoad.store(0);
     oom_errors.store(0);
     tmp_oom_errors.store(0);
     pendingOps.store(0);

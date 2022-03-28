@@ -869,8 +869,6 @@ void EPVBucket::updateBGStats(
     stats.bgWaitHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(waitNs));
     stats.bgWait.fetch_add(w);
-    atomic_setIfLess(stats.bgMinWait, w);
-    atomic_setIfBigger(stats.bgMaxWait, w);
 
     auto lNs =
             std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
@@ -880,8 +878,6 @@ void EPVBucket::updateBGStats(
     stats.bgLoadHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(lNs));
     stats.bgLoad.fetch_add(l);
-    atomic_setIfLess(stats.bgMinLoad, l);
-    atomic_setIfBigger(stats.bgMaxLoad, l);
 }
 
 GetValue EPVBucket::getInternalNonResident(HashTable::HashBucketLock&& hbl,

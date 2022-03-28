@@ -378,10 +378,6 @@ public:
      *  the dispatcher started the work for this item
      */
     std::atomic<hrtime_t> bgWait;
-    //! The shortest wait time
-    std::atomic<hrtime_t> bgMinWait;
-    //! The longest wait time
-    std::atomic<hrtime_t> bgMaxWait;
 
     //! Histogram of background wait times.
     Hdr1sfMicroSecHistogram bgWaitHisto;
@@ -390,10 +386,6 @@ public:
      *  item until was done
      */
     std::atomic<hrtime_t> bgLoad;
-    //! The shortest load time
-    std::atomic<hrtime_t> bgMinLoad;
-    //! The longest load time
-    std::atomic<hrtime_t> bgMaxLoad;
 
     //! Histogram of background wait loads.
     Hdr1sfMicroSecHistogram bgLoadHisto;

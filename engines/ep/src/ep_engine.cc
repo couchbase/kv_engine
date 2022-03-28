@@ -3262,11 +3262,15 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
     size_t numBgOps = epstats.bgNumOperations.load();
     if (numBgOps > 0) {
         collector.addStat(Key::ep_bg_num_samples, epstats.bgNumOperations);
-        collector.addStat(Key::ep_bg_min_wait, epstats.bgMinWait);
-        collector.addStat(Key::ep_bg_max_wait, epstats.bgMaxWait);
+        collector.addStat(Key::ep_bg_min_wait,
+                          epstats.bgWaitHisto.getMinValue());
+        collector.addStat(Key::ep_bg_max_wait,
+                          epstats.bgWaitHisto.getMaxValue());
         collector.addStat(Key::ep_bg_wait_avg, epstats.bgWait / numBgOps);
-        collector.addStat(Key::ep_bg_min_load, epstats.bgMinLoad);
-        collector.addStat(Key::ep_bg_max_load, epstats.bgMaxLoad);
+        collector.addStat(Key::ep_bg_min_load,
+                          epstats.bgLoadHisto.getMinValue());
+        collector.addStat(Key::ep_bg_max_load,
+                          epstats.bgLoadHisto.getMaxValue());
         collector.addStat(Key::ep_bg_load_avg, epstats.bgLoad / numBgOps);
         collector.addStat(Key::ep_bg_wait, epstats.bgWait);
         collector.addStat(Key::ep_bg_load, epstats.bgLoad);
