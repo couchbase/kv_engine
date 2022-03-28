@@ -4077,12 +4077,13 @@ cb::engine_errc VBucket::seqnoAcknowledged(
 }
 
 void VBucket::notifyPersistenceToDurabilityMonitor() {
-    folly::SharedMutex::ReadHolder wlh(stateLock);
-
-    if (state == vbucket_state_dead) {
-        return;
-    }
-
+    // Allowed in any state (but we hold the lock to prevent transitions from
+    // changing the DM) because we could end up in some situation in which we
+    // temporarily have a dead vBucket which is turned into an active or replica
+    // before being deleted. Were we to not update the DM then we could
+    // potentially have an out of date DM state at that point if persisting
+    // some seqno were enough to move the HPS.
+    folly::SharedMutex::ReadHolder rlh(stateLock);
     durabilityMonitor->notifyLocalPersistence();
 }
 

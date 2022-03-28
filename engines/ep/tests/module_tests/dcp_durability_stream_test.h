@@ -320,3 +320,14 @@ protected:
      */
     void testActiveSendsHCSAtDiskSnapshotSentFromMemory();
 };
+
+/**
+ * Similar to DurabilityPromotionStreamTest, this test suite tests a "demotion"
+ * case in which the vBucket starts as active and ends up as a replica
+ */
+class DurabilityDemotionStreamTest : public DurabilityPassiveStreamTest,
+                                     public DurabilityActiveStreamTest {
+public:
+    void SetUp() override;
+    void TearDown() override;
+};
