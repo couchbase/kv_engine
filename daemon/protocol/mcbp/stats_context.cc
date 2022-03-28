@@ -762,7 +762,7 @@ cb::engine_errc StatsCommandContext::commandComplete() {
         // stats for these.
         break;
     default:
-        ++connection.getBucket().responseCounters[int(
+        ++bucket.responseCounters[int(
                 cb::mcbp::to_status(cb::engine_errc(command_exit_code)))];
         break;
     }
