@@ -1064,8 +1064,28 @@ void VBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd) {
 }
 
 void VBucket::sendSeqnoAck(folly::SharedMutex::ReadHolder& rlh, int64_t seqno) {
-    Expects(state == vbucket_state_replica || state == vbucket_state_pending);
-    seqnoAckCb(getId(), seqno);
+    switch (state) {
+    case vbucket_state_replica:
+    case vbucket_state_pending:
+        seqnoAckCb(getId(), seqno);
+        break;
+    case vbucket_state_dead:
+        // Dead vBuckets have a DM that is semi-active (it will be notified of
+        // persistence) and if we're hitting this path then it must be a PDM.
+        // Dead vBuckets shouldn't be acking (the connection should hopefully
+        // have gone away at this point) as they shouldn't be considered part
+        // of the replication topology but that's ns_server's domain so it's
+        // better to be defensive here and just make sure that we don't attempt
+        // to send any seqno ack.
+        break;
+    case vbucket_state_active:
+        throw std::logic_error(
+                fmt::format("VBucket::sendSeqnoAck: {} "
+                            "attempting to send a seqno ack with value {} "
+                            "for an active vBucket",
+                            getId(),
+                            seqno));
+    }
 }
 
 bool VBucket::addPendingOp(const CookieIface* cookie) {

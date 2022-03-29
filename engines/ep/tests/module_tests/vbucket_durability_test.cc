@@ -3245,3 +3245,30 @@ TEST_P(VBucketDurabilityTest, SyncAddUsesCommittedValueRevSeqno) {
     // values.
     EXPECT_EQ(3, sv->getRevSeqno());
 }
+
+TEST_P(EPVBucketDurabilityTest, DeadVBucketSeqnoAck) {
+    vbucket->setState(vbucket_state_replica);
+
+    auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+    ASSERT_EQ(0, pdm.getNumTracked());
+
+    std::vector<SyncWriteSpec> writes;
+    using namespace cb::durability;
+    writes.emplace_back(1, false /*deletion*/, Level::PersistToMajority);
+    testAddPrepare(writes);
+    ASSERT_EQ(1, pdm.getNumTracked());
+    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
+
+    vbucket->notifyPassiveDMOfSnapEndReceived(1 /*snapEnd*/);
+    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
+
+    vbucket->setState(vbucket_state_dead);
+    vbucket->setPersistenceSeqno(1);
+
+    // Before the change we would hit a GSL assertion if we called sendSeqnoAck
+    // on a dead vBucket
+    vbucket->notifyPersistenceToDurabilityMonitor();
+
+    // HPS has moved
+    EXPECT_EQ(1, pdm.getHighPreparedSeqno());
+}
