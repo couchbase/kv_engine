@@ -112,6 +112,35 @@ TEST_P(ClusterConfigTest, GetClusterConfig) {
                                    {value.data(), value.size()}));
 }
 
+TEST_P(ClusterConfigTest, GetClusterConfig_ClusterCompat) {
+    // MB-51612: Test that GetClusterConfig works in a mixed version cluster
+
+    // set a config with an epoch of -1 - used by ns_server when in a mixed
+    // version cluster.
+    int64_t epoch = -1;
+    const std::string config{R"({"rev":100})"};
+    {
+        auto& conn = getAdminConnection();
+        ASSERT_TRUE(
+                conn.execute(BinprotSetClusterConfigCommand{token,
+                                                            config,
+                                                            epoch,
+                                                            100 /*revision */,
+                                                            "default"})
+                        .isSuccess());
+    }
+
+    BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetClusterConfig, "", ""};
+    auto& conn = getConnection();
+    const auto response = conn.execute(cmd);
+    EXPECT_TRUE(response.isSuccess()) << to_string(response.getStatus());
+    const auto value = response.getDataString();
+    EXPECT_EQ(config, value);
+    EXPECT_TRUE(hasCorrectDatatype(expectedJSONDatatype(),
+                                   cb::mcbp::Datatype(response.getDatatype()),
+                                   {value.data(), value.size()}));
+}
+
 TEST_P(ClusterConfigTest, test_MB_17506_no_dedupe) {
     test_MB_17506(false);
 }
