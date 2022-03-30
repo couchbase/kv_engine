@@ -3722,28 +3722,29 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     // Count how many updates we need to discard to rollback to the Rollback
     // Header. If this is too many; then prefer to discard everything (than
     // have to patch up a large amount of in-memory data).
-    uint64_t rollbackSeqCount = 0;
-    errCode = couchstore_changes_count(
-            db, info.updateSeqNum, latestSeqno, &rollbackSeqCount);
-    if (errCode != COUCHSTORE_SUCCESS) {
-        logger.warn(
-                "CouchKVStore::rollback: "
-                "couchstore_changes_count#2({}, {}) "
-                "error:{} [{}], {}, rev:{}",
-                info.updateSeqNum,
-                latestSeqno,
-                couchstore_strerror(errCode),
-                cb_strerror(),
-                vbid,
-                db.getFileRev());
-        return RollbackResult(false);
-    }
+    if (configuration.isMidpointRollbackOptimisationEnabled()) {
+        uint64_t rollbackSeqCount = 0;
+        errCode = couchstore_changes_count(
+                db, info.updateSeqNum, latestSeqno, &rollbackSeqCount);
+        if (errCode != COUCHSTORE_SUCCESS) {
+            logger.warn(
+                    "CouchKVStore::rollback: "
+                    "couchstore_changes_count#2({}, {}) "
+                    "error:{} [{}], {}, rev:{}",
+                    info.updateSeqNum,
+                    latestSeqno,
+                    couchstore_strerror(errCode),
+                    cb_strerror(),
+                    vbid,
+                    db.getFileRev());
+            return RollbackResult(false);
+        }
 
-    if (configuration.isMidpointRollbackOptimisationEnabled() &&
-        (totSeqCount / 2) <= rollbackSeqCount) {
-        //doresetVbucket flag set or rollback is greater than 50%,
-        //reset the vbucket and send the entire snapshot
-        return RollbackResult(false);
+        if ((totSeqCount / 2) <= rollbackSeqCount) {
+            // doresetVbucket flag set or rollback is greater than 50%,
+            // reset the vbucket and send the entire snapshot
+            return RollbackResult(false);
+        }
     }
 
     // We have decided to perform a rollback to the Rollback Header.
