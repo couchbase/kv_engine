@@ -3119,7 +3119,6 @@ void CheckpointTest::expelCursorSetup() {
     manager->getItemsForCursor(
             *cursor, out, std::numeric_limits<size_t>::max());
     EXPECT_EQ(3, out.size()); // checkpoint_start + mutations
-    EXPECT_FALSE(manager->hasClosedCheckpointWhichCanBeRemoved());
 
     // [e:1001 cs:1001 m:1001 m:1002)
     //                        ^

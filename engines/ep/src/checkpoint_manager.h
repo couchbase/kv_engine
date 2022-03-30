@@ -469,12 +469,6 @@ public:
      */
     std::vector<Cursor> getListOfCursorsToDrop();
 
-    /**
-     * @return True if at least one checkpoint is unreferenced and can
-     * be removed.
-     */
-    bool hasClosedCheckpointWhichCanBeRemoved() const;
-
     void createSnapshot(uint64_t snapStartSeqno,
                         uint64_t snapEndSeqno,
                         std::optional<uint64_t> highCompletedSeqno,

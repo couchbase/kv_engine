@@ -711,16 +711,6 @@ std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
     return cursorsToDrop;
 }
 
-bool CheckpointManager::hasClosedCheckpointWhichCanBeRemoved() const {
-    std::lock_guard<std::mutex> lh(queueLock);
-    // Check oldest checkpoint; if closed and contains no cursors then
-    // we can remove it (and possibly additional old-but-not-oldest
-    // checkpoints).
-    const auto& oldestCkpt = checkpointList.front();
-    return (oldestCkpt->getState() == CHECKPOINT_CLOSED) &&
-           (oldestCkpt->isNoCursorsInCheckpoint());
-}
-
 void CheckpointManager::updateStatsForNewQueuedItem(
         const std::lock_guard<std::mutex>& lh, const queued_item& qi) {
     ++stats.totalEnqueued;
