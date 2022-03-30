@@ -105,5 +105,5 @@ private:
     /* enbale mprotect of couchstore internal io buffer */
     std::atomic_bool couchstoreMprotectEnabled;
 
-    bool midpointRollbackOptimisationEnabled{false};
+    bool midpointRollbackOptimisationEnabled{true};
 };
