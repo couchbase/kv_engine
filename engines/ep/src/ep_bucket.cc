@@ -368,11 +368,11 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     auto vb = getLockedVBucket(vbid, std::try_to_lock);
     if (!vb.owns_lock()) {
         // Try another bucket if this one is locked to avoid blocking flusher.
-        return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
+        return {MoreAvailable::Yes, 0};
     }
 
     if (!vb) {
-        return {MoreAvailable::No, 0, WakeCkptRemover::No};
+        return {MoreAvailable::No, 0};
     }
 
     return flushVBucket_UNLOCKED(std::move(vb));
@@ -401,15 +401,8 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     const auto moreAvailable =
             toFlush.moreAvailable ? MoreAvailable::Yes : MoreAvailable::No;
 
-    // The Flusher will wake up the CheckpointRemover if necessary.
-    const auto wakeupCheckpointRemover =
-            vb->checkpointManager
-                            ->isEligibleForCheckpointRemovalAfterPersistence()
-                    ? WakeCkptRemover::Yes
-                    : WakeCkptRemover::No;
-
     if (toFlush.items.empty()) {
-        return {moreAvailable, 0, wakeupCheckpointRemover};
+        return {moreAvailable, 0};
     }
 
     // The range becomes initialised only when an item is flushed
@@ -707,7 +700,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
 
     // Just return if nothing to flush
     if (!mustPersistVBState && flushBatchSize == 0) {
-        return {moreAvailable, 0, wakeupCheckpointRemover};
+        return {moreAvailable, 0};
     }
 
     if (proposedVBState.transition.state == vbucket_state_active) {
@@ -788,7 +781,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
         if (!rwUnderlying->snapshotVBucket(vbid, commitData.proposedVBState)) {
             flushFailureEpilogue(*vb, toFlush);
 
-            return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
+            return {MoreAvailable::Yes, 0};
         }
 
         // The new vbstate was the only thing to flush. All done.
@@ -798,7 +791,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
                              aggStats,
                              commitData.collections);
 
-        return {moreAvailable, 0, wakeupCheckpointRemover};
+        return {moreAvailable, 0};
     }
 
     // The flush-batch must be non-empty by logic at this point.
@@ -824,7 +817,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     if (!commit(*rwUnderlying, std::move(ctx), commitData)) {
         flushFailureEpilogue(*vb, toFlush);
 
-        return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
+        return {MoreAvailable::Yes, 0};
     }
 
     // Note: We want to update the snap-range only if we have flushed at least
@@ -880,7 +873,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     // Handle Seqno Persistence requests
     vb->notifyHighPriorityRequests(engine, vb->getPersistenceSeqno());
 
-    return {moreAvailable, flushBatchSize, wakeupCheckpointRemover};
+    return {moreAvailable, flushBatchSize};
 }
 
 void EPBucket::flushSuccessEpilogue(
@@ -2342,9 +2335,7 @@ bool EPBucket::maybeScheduleManifestPersistence(
 std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res) {
     os << std::boolalpha << "moreAvailable:{"
        << (res.moreAvailable == EPBucket::MoreAvailable::Yes) << "} "
-       << "numFlushed:{" << res.numFlushed << "} "
-       << "wakeupCkptRemover:{"
-       << (res.wakeupCkptRemover == EPBucket::WakeCkptRemover::Yes) << "}";
+       << "numFlushed:{" << res.numFlushed << "}";
     return os;
 }
 

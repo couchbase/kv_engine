@@ -72,7 +72,6 @@
 
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
-using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 std::chrono::steady_clock::time_point SingleThreadedKVBucketTest::runNextTask(
         TaskQueue& taskQ, const std::string& expectedTaskName) {
@@ -1225,7 +1224,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
         //    flushed checkpoint to force ActiveStream into backfilling state.
         EXPECT_TRUE(queueNewItem(*vb, "key1"));
         vb->checkpointManager->createNewCheckpoint();
-        EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+        EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
                   getEPBucket().flushVBucket(vbid));
 
         // And then request another item, to add the VBID to
@@ -1381,7 +1380,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
 
     // Write an item
     EXPECT_TRUE(queueNewItem(*vb, "key1"));
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
 
     // Request an item from the stream, so it advances from to in-memory
@@ -1409,7 +1408,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     EXPECT_EQ(1, stats.itemsRemovedFromCheckpoints);
     // Force persistence into new CP
     queueNewItem(*vb, "key2");
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
 
     // Now store another item, without MB-29369 fix we would lose this item
@@ -1589,7 +1588,7 @@ void MB22960callbackBeforeRegisterCursor(
                                           GenerateCas::Yes,
                                           /*preLinkDocCtx*/ nullptr);
 
-        EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+        EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
                   store->flushVBucket(vb->getId()));
         // The next step removes the current open checkpoint
         auto openId = ckpt_mgr.getOpenCheckpointId();
@@ -1615,7 +1614,7 @@ void MB22960callbackBeforeRegisterCursor(
                                           GenerateCas::Yes,
                                           /*preLinkDocCtx*/ nullptr);
 
-        EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+        EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
                   store->flushVBucket(vb->getId()));
         // The next step removes the current open checkpoint
         openId = ckpt_mgr.getOpenCheckpointId();
@@ -1698,14 +1697,14 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
         << "stream state should have transitioned to StreamInMemory";
 
     store_item(vbid, makeStoredDocKey("key1"), "value");
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
     EXPECT_FALSE(ckpt_mgr.hasClosedCheckpointWhichCanBeRemoved());
     ckpt_mgr.createNewCheckpoint();
     EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
 
     store_item(vbid, makeStoredDocKey("key2"), "value");
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
     EXPECT_FALSE(ckpt_mgr.hasClosedCheckpointWhichCanBeRemoved());
     ckpt_mgr.createNewCheckpoint();
@@ -2103,7 +2102,7 @@ TEST_P(STParamPersistentBucketTest, MB19815_doDcpVbTakeoverStats) {
             vbid));
 
     // Cleanup - run flusher.
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 0),
               getEPBucket().flushVBucket(vbid));
 }
 
@@ -2118,7 +2117,7 @@ TEST_P(STParamPersistentBucketTest, MB19428_no_streams_against_dead_vbucket) {
     store_item(vbid, makeStoredDocKey("key"), "value");
 
     // Directly flush the vbucket
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_dead);
@@ -2184,7 +2183,7 @@ TEST_P(STParamPersistentBucketTest, MB19892_BackfillNotDeleted) {
     // That also removes the closed checkpoint
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
     ASSERT_EQ(1, stats.itemsRemovedFromCheckpoints);
 
@@ -2258,7 +2257,7 @@ TEST_P(STParamPersistentBucketTest, MB_29861) {
                        /*revSeqno*/ 0,
                        /*meta*/ {});
 
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
 
     // Drop the stream
@@ -2552,7 +2551,7 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
     // Cursor move also allows to remove the closed checkpoint.
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
     ASSERT_EQ(1, stats.itemsRemovedFromCheckpoints);
     vb.reset();
@@ -2798,7 +2797,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
                                  0, // locktime
                                  {}, // meta
                                  0)); // nru
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
     bySeqno++;
 
@@ -2828,7 +2827,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
                                  bySeqno,
                                  /*revSeqno*/ 0,
                                  /*meta*/ {}));
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
     /* Close stream before deleting the connection */
     ASSERT_EQ(cb::engine_errc::success, consumer->closeStream(opaque, vbid));
@@ -2971,12 +2970,12 @@ TEST_P(XattrSystemUserTest, MB_29040) {
 
                PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_JSON);
 
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
     TimeTraveller ted(64000);
     runCompaction(vbid);
     // An expired item should of been pushed to the checkpoint
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
     auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
@@ -3279,7 +3278,7 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
                     /*revSeqno*/ 0,
                     /*meta*/ {}));
 
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
 
     ASSERT_EQ(cb::engine_errc::success, consumer->closeStream(opaque, vbid));
@@ -3353,7 +3352,7 @@ TEST_P(STParamPersistentBucketTest, MB_31141_sanitise_input) {
                                  /*revSeqno*/ 0,
                                  /*meta*/ {}));
 
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
 
     ASSERT_EQ(cb::engine_errc::success, consumer->closeStream(opaque, vbid));
@@ -5421,8 +5420,7 @@ TEST_P(STParamPersistentBucketTest, MB_47134) {
 
     // Store A:1, B:2
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2), epBucket.flushVBucket(vbid));
 
     // Create C:3
     store_item(vbid, makeStoredDocKey("C"), "value");
@@ -5441,15 +5439,13 @@ TEST_P(STParamPersistentBucketTest, MB_47134) {
             .WillRepeatedly(DoDefault());
 
     // This flush fails, we have not written anything to disk
-    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0), epBucket.flushVBucket(vbid));
 
     // 2 items are dirty - C:3 and B:4
     EXPECT_EQ(2, vb.dirtyQueueSize);
 
     // C:3 B:4 flushed - MB_47134 underflow occurs here
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2), epBucket.flushVBucket(vbid));
 
     // Flush stats updated
     EXPECT_EQ(0, vb.dirtyQueueSize);
@@ -5496,8 +5492,7 @@ TEST_P(STParamPersistentBucketTest,
 
     // This flush fails, we have not written anything to disk
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
-    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0), epBucket.flushVBucket(vbid));
     // Flush stats not updated
     EXPECT_EQ(1, vb.dirtyQueueSize);
     EXPECT_EQ(0, vb.getPersistenceSeqno());
@@ -5506,8 +5501,7 @@ TEST_P(STParamPersistentBucketTest,
     // This flush succeeds, we must write all the expected items and new vbstate
     // on disk
     // Flusher deduplication, just 1 item flushed
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1), epBucket.flushVBucket(vbid));
     EXPECT_EQ(2, vb.getPersistenceSeqno());
     EXPECT_EQ(2, vb.getHighSeqno());
 
@@ -5642,14 +5636,12 @@ TEST_P(STParamPersistentBucketTest,
     // This flush fails, the bucket creation flag must be still set
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
     ASSERT_EQ(1, vb->dirtyQueueSize);
-    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0), epBucket.flushVBucket(vbid));
     EXPECT_EQ(1, vb->dirtyQueueSize);
     EXPECT_TRUE(vb->isBucketCreation());
 
     // This flush succeeds
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 0), epBucket.flushVBucket(vbid));
     EXPECT_EQ(0, vb->dirtyQueueSize);
     EXPECT_FALSE(vb->isBucketCreation());
 }
@@ -5685,15 +5677,13 @@ TEST_P(STParamPersistentBucketTest,
     // This flush fails, the bucket creation flag must be still set
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
     ASSERT_EQ(2, vb->dirtyQueueSize);
-    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0), epBucket.flushVBucket(vbid));
     EXPECT_EQ(2, vb->dirtyQueueSize);
     EXPECT_TRUE(vb->isBucketCreation());
 
     // This flush succeeds
     // Note: the returned num-flushed does not account meta-items
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1), epBucket.flushVBucket(vbid));
     EXPECT_EQ(0, vb->dirtyQueueSize);
     EXPECT_FALSE(vb->isBucketCreation());
 }

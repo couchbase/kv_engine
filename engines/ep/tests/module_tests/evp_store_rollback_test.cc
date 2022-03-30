@@ -43,7 +43,6 @@
 
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
-using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 /**
  * Test fixture for rollback tests. Parameterized on:
@@ -77,10 +76,8 @@ class RollbackTest
         const auto dummy_elements = size_t{1};
         auto res = store_item(vbid, makeStoredDocKey("dummy1"), "dummy");
         ASSERT_EQ(1, res.getBySeqno());
-        ASSERT_EQ(
-                FlushResult(
-                        MoreAvailable::No, dummy_elements, WakeCkptRemover::No),
-                getEPBucket().flushVBucket(vbid));
+        ASSERT_EQ(FlushResult(MoreAvailable::No, dummy_elements),
+                  getEPBucket().flushVBucket(vbid));
         initial_seqno = dummy_elements;
     }
 
@@ -139,7 +136,7 @@ public:
         StoredDocKey a = makeStoredDocKey("key");
         auto item_v1 = store_item(vbid, a, "1");
         ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
-        ASSERT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+        ASSERT_EQ(FlushResult(MoreAvailable::No, 1),
                   getEPBucket().flushVBucket(vbid));
         auto expectedItems = store->getVBucket(vbid)->getNumTotalItems();
         // Save the pre-rollback HashTable state for later comparison
@@ -155,14 +152,7 @@ public:
                                     /*itemMeta*/ nullptr,
                                     mutation_descr));
         if (flush_before_rollback) {
-            const auto& vb = *store->getVBucket(vbid);
-            const auto& ckptList =
-                    CheckpointManagerTestIntrospector::public_getCheckpointList(
-                            *vb.checkpointManager);
-            const auto expectedWakeCktpRem =
-                    (ckptList.size() > 1 ? WakeCkptRemover::Yes
-                                         : WakeCkptRemover::No);
-            ASSERT_EQ(FlushResult(MoreAvailable::No, 1, expectedWakeCktpRem),
+            ASSERT_EQ(FlushResult(MoreAvailable::No, 1),
                       getEPBucket().flushVBucket(vbid));
         }
 
@@ -199,7 +189,7 @@ public:
                 << "Fetched item after rollback should match item_v1";
 
         if (!flush_before_rollback) {
-            EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
+            EXPECT_EQ(FlushResult(MoreAvailable::No, 0),
                       getEPBucket().flushVBucket(vbid));
         }
 
@@ -214,7 +204,7 @@ public:
         StoredDocKey a = makeStoredDocKey("a");
         auto item_v1 = store_item(vbid, a, "old");
         ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
-        ASSERT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+        ASSERT_EQ(FlushResult(MoreAvailable::No, 1),
                   getEPBucket().flushVBucket(vbid));
 
         // Save the pre-rollback HashTable state for later comparison
@@ -228,7 +218,7 @@ public:
         store_item(vbid, key, "meh");
 
         if (flush_before_rollback) {
-            EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
+            EXPECT_EQ(FlushResult(MoreAvailable::No, 2),
                       getEPBucket().flushVBucket(vbid));
         }
 
@@ -263,7 +253,7 @@ public:
 
         if (!flush_before_rollback) {
             // The rollback should of wiped out any keys waiting for persistence
-            EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
+            EXPECT_EQ(FlushResult(MoreAvailable::No, 0),
                       getEPBucket().flushVBucket(vbid));
         }
         EXPECT_EQ(expectedItems, store->getVBucket(vbid)->getNumItems());
@@ -289,8 +279,7 @@ protected:
 
         // Setup
         StoredDocKey a = makeStoredDocKey("a");
-        EPBucket::FlushResult res =
-                FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No);
+        EPBucket::FlushResult res = FlushResult(MoreAvailable::No, 1);
         if (deleteLast) {
             store_item(vbid, a, "new");
             if (!flushOnce) {
@@ -449,7 +438,7 @@ protected:
             htState = getHtState();
         }
 
-        ASSERT_EQ(FlushResult(MoreAvailable::No, 3, WakeCkptRemover::Yes),
+        ASSERT_EQ(FlushResult(MoreAvailable::No, 3),
                   getEPBucket().flushVBucket(vbid));
 
         // every key past this point will be lost from disk in a mid-point.
@@ -461,7 +450,7 @@ protected:
         auto rollback = rollbackCollectionCreate
                                 ? rollback_item.getBySeqno() - 1
                                 : item_v2.getBySeqno();
-        ASSERT_EQ(FlushResult(MoreAvailable::No, 3, WakeCkptRemover::No),
+        ASSERT_EQ(FlushResult(MoreAvailable::No, 3),
                   getEPBucket().flushVBucket(vbid));
 
         cm.remove(CollectionEntry::dairy);
@@ -481,7 +470,7 @@ protected:
         }
 
         if (flush_before_rollback) {
-            ASSERT_EQ(FlushResult(MoreAvailable::No, 3, WakeCkptRemover::No),
+            ASSERT_EQ(FlushResult(MoreAvailable::No, 3),
                       getEPBucket().flushVBucket(vbid));
         }
 
@@ -563,8 +552,7 @@ protected:
             ASSERT_EQ(ii, res.getBySeqno());
         }
         ASSERT_EQ(FlushResult(MoreAvailable::No,
-                              minItemsToRollbackTo - vbHighSeqno,
-                              WakeCkptRemover::No),
+                              minItemsToRollbackTo - vbHighSeqno),
                   getEPBucket().flushVBucket(vbid));
 
         // Trigger a rollback to zero by rolling back to a seqno just before the
@@ -720,7 +708,7 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
     // Save the pre-rollback HashTable state for later comparison
     auto htState = getHtState();
 
-    ASSERT_EQ(FlushResult(MoreAvailable::No, numItems + 1, WakeCkptRemover::No),
+    ASSERT_EQ(FlushResult(MoreAvailable::No, numItems + 1),
               getEPBucket().flushVBucket(vbid));
 
     /* Keys to be lost in rollback */
@@ -2432,7 +2420,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
      * */
     store_item(vbid, makeStoredDocKey("key"), "value");
 
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
 
     // Now remove the earlier checkpoint

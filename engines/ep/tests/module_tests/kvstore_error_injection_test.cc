@@ -29,7 +29,6 @@
 
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
-using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 /**
  * Error injector interface with implementations for each KVStore that we care
@@ -168,7 +167,6 @@ TEST_P(KVStoreErrorInjectionTest, ItemCountsAndCommitFailure_MB_41321) {
         auto flushResult = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
         EXPECT_EQ(EPBucket::MoreAvailable::Yes, flushResult.moreAvailable);
         EXPECT_EQ(0, flushResult.numFlushed);
-        EXPECT_EQ(EPBucket::WakeCkptRemover::No, flushResult.wakeupCkptRemover);
         EXPECT_EQ(expectedCommitFailed, engine->getEpStats().commitFailed);
         auto vb = engine->getKVBucket()->getVBucket(vbid);
 
@@ -191,7 +189,6 @@ TEST_P(KVStoreErrorInjectionTest, ItemCountsAndCommitFailure_MB_41321) {
     auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
     EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
     EXPECT_EQ(1, res.numFlushed);
-    EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
     EXPECT_EQ(2, engine->getEpStats().commitFailed);
     stats = vb->getManifest().lock(CollectionID::Default).getPersistedStats();
     EXPECT_EQ(0, stats.itemCount);
@@ -225,7 +222,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistingCollectionChange) {
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
     {
         errorInjector->failNextCommit();
-        EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+        EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0),
                   epBucket.flushVBucket(vbid));
         // Flush stats not updated
         EXPECT_EQ(1, vb->dirtyQueueSize);
@@ -239,8 +236,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistingCollectionChange) {
     EXPECT_EQ(0, m2.collections[0].startSeqno);
 
     // This flush succeeds
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1), epBucket.flushVBucket(vbid));
     // Flush stats updated
     EXPECT_EQ(0, vb->dirtyQueueSize);
 
@@ -351,8 +347,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistNonMetaItems) {
     // This flush fails, we have not written anything to disk
     errorInjector->failNextCommit();
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
-    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0), epBucket.flushVBucket(vbid));
     // Flush stats not updated
     EXPECT_EQ(2, vb.dirtyQueueSize);
     {
@@ -380,8 +375,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistNonMetaItems) {
 
     // This flush succeeds, we must write all the expected items and new vbstate
     // on disk
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2), epBucket.flushVBucket(vbid));
     // Flush stats updated
     EXPECT_EQ(0, vb.dirtyQueueSize);
     {
@@ -472,8 +466,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistVBStateOnly_ErrorWrite) {
     // This flush fails, we have not written anything to disk
     errorInjector->failNextSnapshotVBucket();
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
-    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0), epBucket.flushVBucket(vbid));
     EXPECT_EQ(1, vb.dirtyQueueSize);
     {
         SCOPED_TRACE("");
@@ -483,8 +476,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistVBStateOnly_ErrorWrite) {
 
     // This flush succeeds, we must write the new vbstate on disk
     // Note: set-vbstate items are not accounted in numFlushed
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 0), epBucket.flushVBucket(vbid));
     EXPECT_EQ(0, vb.dirtyQueueSize);
     {
         SCOPED_TRACE("");
@@ -558,8 +550,7 @@ void KVStoreErrorInjectionTest::testFlushFailureStatsAtDedupedNonMetaItems(
     // This flush fails, we have not written anything to disk
     errorInjector->failNextCommit();
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
-    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0), epBucket.flushVBucket(vbid));
     // Flush stats not updated
     EXPECT_EQ(2, vb.dirtyQueueSize);
     // HT state
@@ -574,8 +565,7 @@ void KVStoreErrorInjectionTest::testFlushFailureStatsAtDedupedNonMetaItems(
     // This flush succeeds, we must write all the expected items and new vbstate
     // on disk
     // Flusher deduplication, just 1 item flushed
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1), epBucket.flushVBucket(vbid));
     // Flush stats updated
     EXPECT_EQ(0, vb.dirtyQueueSize);
     // HT state
@@ -654,8 +644,7 @@ void KVStoreErrorInjectionTest::testFlushFailureAtPersistDelete(
     // Test: flush fails, we have not written anything to disk
     errorInjector->failNextCommit();
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
-    ASSERT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    ASSERT_EQ(FlushResult(MoreAvailable::Yes, 0), epBucket.flushVBucket(vbid));
 
     // Post-conditions:
     //  - no doc on disk
@@ -672,8 +661,7 @@ void KVStoreErrorInjectionTest::testFlushFailureAtPersistDelete(
     // Check out that all goes well when we re-attemp the flush
 
     // This flush succeeds, we must write all the expected items on disk.
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1), epBucket.flushVBucket(vbid));
     // Doc on disk, flush stats updated and deletion removed from the HT
     doc = kvstore->get(diskKey, vbid);
     EXPECT_EQ(cb::engine_errc::success, doc.getStatus());
@@ -688,8 +676,7 @@ void KVStoreErrorInjectionTest::testFlushFailureAtPersistDelete(
 
     // All done, nothing to flush
     ASSERT_EQ(0, manager.getNumItemsForPersistence());
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 0), epBucket.flushVBucket(vbid));
 
     vb.setDeferredDeletion(false);
 }
@@ -783,8 +770,7 @@ TEST_P(KVStoreErrorInjectionTest, ResetPCursorAtPersistNonMetaItems) {
     // This flush fails, we have not written anything to disk
     errorInjector->failNextCommit();
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
-    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0), epBucket.flushVBucket(vbid));
     // Flush stats not updated
     EXPECT_EQ(2, vb->dirtyQueueSize);
     {
@@ -800,8 +786,7 @@ TEST_P(KVStoreErrorInjectionTest, ResetPCursorAtPersistNonMetaItems) {
 
     // This flush succeeds, we must write all the expected items and new vbstate
     // on disk
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2), epBucket.flushVBucket(vbid));
     // Flush stats updated
     EXPECT_EQ(0, vb->dirtyQueueSize);
     {

@@ -52,7 +52,6 @@
 
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
-using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 using namespace std::string_view_literals;
 
@@ -2979,8 +2978,7 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
     }
 
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1), epBucket.flushVBucket(vbid));
 
     // Check item persisted
 
@@ -4656,8 +4654,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
 
     // This flush fails, we have not written HCS to disk
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
-    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0), epBucket.flushVBucket(vbid));
     EXPECT_EQ(3, vb.dirtyQueueSize);
     {
         SCOPED_TRACE("");
@@ -4671,8 +4668,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
 
     // This flush succeeds, we must write all the expected SnapRange info in
     // vbstate on disk
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 3, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 3), epBucket.flushVBucket(vbid));
     EXPECT_EQ(0, vb.dirtyQueueSize);
     {
         SCOPED_TRACE("");
@@ -4756,8 +4752,7 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
     // the flusher wrongly uses the state on disk (state=active) for computing
     // the new snapshot range to be persisted.
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::Yes),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2), epBucket.flushVBucket(vbid));
 
     // Before the fix this fails because we have persisted snapEnd=2
     // Note: We have persisted a partial snapshot at replica, snapStart must
@@ -4772,8 +4767,7 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
               stream->messageReceived(makeMutationConsumerMessage(
                       3 /*seqno*/, vbid, value, opaque)));
 
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
-              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1), epBucket.flushVBucket(vbid));
 
     checkPersistedSnapshot(3, 3);
 }

@@ -50,21 +50,18 @@ public:
     void deinitialize() override;
 
     enum class MoreAvailable : uint8_t { No = 0, Yes };
-    enum class WakeCkptRemover : uint8_t { No = 0, Yes };
 
     struct FlushResult {
-        FlushResult(MoreAvailable m, size_t n, WakeCkptRemover w)
-            : moreAvailable(m), wakeupCkptRemover(w), numFlushed(n) {
+        FlushResult(MoreAvailable m, size_t n)
+            : moreAvailable(m), numFlushed(n) {
         }
 
         bool operator==(const FlushResult& other) const {
             return (moreAvailable == other.moreAvailable &&
-                    numFlushed == other.numFlushed &&
-                    wakeupCkptRemover == other.wakeupCkptRemover);
+                    numFlushed == other.numFlushed);
         }
 
         MoreAvailable moreAvailable = MoreAvailable::No;
-        WakeCkptRemover wakeupCkptRemover = WakeCkptRemover::No;
         size_t numFlushed = 0;
     };
 

@@ -30,7 +30,6 @@
 
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
-using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 class STParamCouchstoreBucketTest : public STParamPersistentBucketTest {};
 
@@ -147,7 +146,7 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
     const auto flush = [this]() -> void {
         auto& epBucket = dynamic_cast<EPBucket&>(*store);
         const auto res = epBucket.flushVBucket(vbid);
-        EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No), res);
+        EXPECT_EQ(FlushResult(MoreAvailable::No, 1), res);
     };
     auto flusher = std::thread(flush);
 

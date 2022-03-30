@@ -3285,7 +3285,6 @@ TEST_P(DurabilityEPBucketTest, MB_36739) {
     auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
     EXPECT_EQ(EPBucket::MoreAvailable::Yes, res.moreAvailable);
     EXPECT_EQ(0, res.numFlushed);
-    EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
     EXPECT_EQ(1, stats.commitFailed);
     EXPECT_EQ(1, stats.flusherCommits);
     EXPECT_EQ(vbs, *store->getRWUnderlying(vbid)->getCachedVBucketState(vbid));
@@ -3294,7 +3293,6 @@ TEST_P(DurabilityEPBucketTest, MB_36739) {
     res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
     EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
     EXPECT_EQ(1, res.numFlushed);
-    EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
     EXPECT_EQ(1, engine->getEpStats().commitFailed);
     EXPECT_EQ(2, engine->getEpStats().flusherCommits);
 
@@ -3326,7 +3324,6 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_43964) {
     auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
     EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
     EXPECT_EQ(1, res.numFlushed);
-    EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
     EXPECT_EQ(2, stats.flusherCommits);
 
     // Still 0
@@ -3341,7 +3338,6 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_43964) {
     res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
     EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
     EXPECT_EQ(1, res.numFlushed);
-    EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
     EXPECT_EQ(3, stats.flusherCommits);
 
     // Still 0

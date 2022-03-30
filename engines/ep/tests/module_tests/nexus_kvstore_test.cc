@@ -233,7 +233,7 @@ TEST_P(NexusKVStoreTest, MagmaImplicitCompactionExpires) {
                     auto flushed = 0;
 
                     do {
-                        const auto [moreAvailable, wake, numFlushed] =
+                        const auto [moreAvailable, numFlushed] =
                                 dynamic_cast<EPBucket&>(*store).flushVBucket(
                                         vbid);
                         flushed += numFlushed;

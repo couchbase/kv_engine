@@ -721,43 +721,6 @@ bool CheckpointManager::hasClosedCheckpointWhichCanBeRemoved() const {
            (oldestCkpt->isNoCursorsInCheckpoint());
 }
 
-bool CheckpointManager::isEligibleForCheckpointRemovalAfterPersistence() const {
-    std::lock_guard<std::mutex> lh(queueLock);
-
-    const auto& oldestCkpt = checkpointList.front();
-
-    // Just 1 (open) checkpoint in CM
-    if (oldestCkpt->getState() == CHECKPOINT_OPEN) {
-        Expects(checkpointList.size() == 1);
-        return false;
-    }
-    Expects(checkpointList.size() > 1);
-
-    // Is the oldest checkpoint closed and unreferenced?
-    const auto numCursors = oldestCkpt->getNumCursorsInCheckpoint();
-    if (numCursors == 0) {
-        return true;
-    }
-
-    // Some cursors in oldest checkpoint
-
-    // If more than 1 cursor, then no checkpoint is eligible for removal
-    if (numCursors > 1) {
-        return false;
-    }
-
-    // Just 1 cursor in oldest checkpoint, is it the backup pcursor?
-    const auto backupIt = cursors.find(backupPCursorName);
-    if (backupIt != cursors.end() &&
-        backupIt->second->getCheckpoint()->get() == oldestCkpt.get()) {
-        // Backup cursor in oldest checkpoint, checkpoint(s) will be eligible
-        // for removal after backup cursor has gone
-        return true;
-    }
-    // No backup cursor in CM, some other cursor is in oldest checkpoint
-    return false;
-}
-
 void CheckpointManager::updateStatsForNewQueuedItem(
         const std::lock_guard<std::mutex>& lh, const queued_item& qi) {
     ++stats.totalEnqueued;

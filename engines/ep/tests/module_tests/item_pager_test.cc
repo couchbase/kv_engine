@@ -45,7 +45,6 @@ using namespace std::string_literals;
 
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
-using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 /**
  * Test fixture for bucket quota tests.
@@ -1680,8 +1679,7 @@ void STExpiryPagerTest::expiredItemsDeleted() {
         ASSERT_EQ(cb::engine_errc::success, storeItem(item));
     }
 
-    flushDirectlyIfPersistent(vbid,
-                              {MoreAvailable::No, 3, WakeCkptRemover::No});
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 3});
 
     // Sanity check - should have not hit high watermark (otherwise the
     // item pager will run automatically and aggressively delete items).
@@ -1696,8 +1694,7 @@ void STExpiryPagerTest::expiredItemsDeleted() {
     ASSERT_EQ(3, engine->getVBucket(vbid)->getNumItems());
 
     wakeUpExpiryPager();
-    flushDirectlyIfPersistent(vbid,
-                              {MoreAvailable::No, 1, WakeCkptRemover::No});
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
 
     EXPECT_EQ(2, engine->getVBucket(vbid)->getNumItems())
         << "Should only have 2 items after running expiry pager";
@@ -1732,8 +1729,7 @@ void STExpiryPagerTest::expiredItemsDeleted() {
         << "Should still have 2 items after time-travelling";
 
     wakeUpExpiryPager();
-    flushDirectlyIfPersistent(vbid,
-                              {MoreAvailable::No, 1, WakeCkptRemover::No});
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
 
     // Should only be 1 item remaining.
     EXPECT_EQ(1, engine->getVBucket(vbid)->getNumItems());
@@ -2128,8 +2124,7 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25931) {
             PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
     ASSERT_EQ(cb::engine_errc::success, storeItem(item));
 
-    flushDirectlyIfPersistent(vbid,
-                              {MoreAvailable::No, 1, WakeCkptRemover::No});
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
 
     const char* msg;
     EXPECT_EQ(cb::mcbp::Status::Success, store->evictKey(key, vbid, &msg));
@@ -2140,8 +2135,7 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25931) {
     TimeTraveller docBrown(15);
 
     wakeUpExpiryPager();
-    flushDirectlyIfPersistent(vbid,
-                              {MoreAvailable::No, 1, WakeCkptRemover::No});
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
 }
 
 // Test that expiring a non-resident item works (and item counts are correct).
@@ -2156,8 +2150,7 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25991_ExpiryNonResident) {
     auto item = make_item(vbid, key, "value", expiry);
     ASSERT_EQ(cb::engine_errc::success, storeItem(item));
 
-    flushDirectlyIfPersistent(vbid,
-                              {MoreAvailable::No, 1, WakeCkptRemover::No});
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
 
     // Sanity check - should have not hit high watermark (otherwise the
     // item pager will run automatically and aggressively delete items).
@@ -2177,8 +2170,7 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25991_ExpiryNonResident) {
     ASSERT_EQ(1, engine->getVBucket(vbid)->getNumNonResidentItems());
 
     wakeUpExpiryPager();
-    flushDirectlyIfPersistent(vbid,
-                              {MoreAvailable::No, 1, WakeCkptRemover::No});
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
 
     EXPECT_EQ(0, engine->getVBucket(vbid)->getNumItems())
             << "Should have 0 items after running expiry pager";
@@ -2219,8 +2211,7 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
             make_item(vbid, key, value, expiry, PROTOCOL_BINARY_DATATYPE_XATTR);
     ASSERT_EQ(cb::engine_errc::success, storeItem(item));
 
-    flushDirectlyIfPersistent(vbid,
-                              {MoreAvailable::No, 1, WakeCkptRemover::No});
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
 
     // Sanity check - should have not hit high watermark (otherwise the
     // item pager will run automatically and aggressively delete items).
@@ -2255,8 +2246,7 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
 
     wakeUpExpiryPager();
 
-    flushDirectlyIfPersistent(vbid,
-                              {MoreAvailable::No, 1, WakeCkptRemover::No});
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
 
     EXPECT_EQ(0, engine->getVBucket(vbid)->getNumItems())
             << "Should have 0 items after running expiry pager";

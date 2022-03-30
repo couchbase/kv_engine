@@ -28,7 +28,6 @@
 
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
-using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 class STParamMagmaBucketTest : public STParamPersistentBucketTest {
 private:

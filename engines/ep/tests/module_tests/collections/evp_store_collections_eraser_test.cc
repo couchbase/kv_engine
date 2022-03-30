@@ -2040,7 +2040,6 @@ TEST_P(CollectionsEraserPersistentOnly, DropDuringFlush) {
     res = epBucket.flushVBucket(vbid);
     EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
     EXPECT_EQ(1, res.numFlushed);
-    EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
 
     std::tie(status, persistedStats) =
             kvstore->getCollectionStats(vbid, CollectionEntry::dairy);

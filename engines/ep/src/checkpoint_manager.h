@@ -475,13 +475,6 @@ public:
      */
     bool hasClosedCheckpointWhichCanBeRemoved() const;
 
-    /**
-     * @return true if only the backup pcursor is blocking checkpoint removal.
-     *  Ie, some checkpoints will be eligible for removal as soon as the backup
-     *  pcursor is removed.
-     */
-    bool isEligibleForCheckpointRemovalAfterPersistence() const;
-
     void createSnapshot(uint64_t snapStartSeqno,
                         uint64_t snapEndSeqno,
                         std::optional<uint64_t> highCompletedSeqno,
