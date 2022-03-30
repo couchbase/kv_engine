@@ -670,7 +670,7 @@ void Checkpoint::applyQueuedItemsMemUsageDecrement(size_t size) {
     queuedItemsMemUsage -= size;
 }
 
-std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
+std::ostream& operator<<(std::ostream& os, const Checkpoint& c) {
     os << "Checkpoint[" << &c << "] with"
        << " id:" << c.checkpointId << " seqno:{" << c.getMinimumCursorSeqno()
        << "," << c.getHighSeqno() << "}"
@@ -686,9 +686,12 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
     for (const auto& e : c.toWrite) {
         os << "\t{" << e->getBySeqno() << "," << to_string(e->getOperation());
         e->isDeleted() ? os << "[d]," : os << ",";
-        os << e->getKey() << "," << e->size() << ",";
-        e->isCheckPointMetaItem() ? os << "[m]}" : os << "}";
-        os << std::endl;
+        os << e->getKey() << "," << e->size();
+        e->isCheckPointMetaItem() ? os << ",[m]" : os << "";
+        if (e->getOperation() == queue_op::set_vbucket_state) {
+            os << ",value:" << e->getValueView();
+        }
+        os << "}" << std::endl;
     }
     os << "]";
     return os;
