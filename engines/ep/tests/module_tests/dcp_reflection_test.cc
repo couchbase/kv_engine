@@ -987,10 +987,10 @@ TEST_P(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
     // setup Node2 so we have two replicas
     createNode(Node2, vbucket_state_replica);
 
-    // MB-51295: This test was written under CheckpointRemoval::Lazy, so it
-    // assumes that checkpoints stay in memory on Node1 and that they are
-    // streamed to replicas, unless differently driven. Here register a cursor
-    // for ensuring that pre-condition.
+    // MB-51295: This test was written under CheckpointRemoval::Lazy (now
+    // removed), so it assumes that checkpoints stay in memory on Node1 and that
+    // they are streamed to replicas, unless differently driven. Here register a
+    // cursor for ensuring that pre-condition.
     const auto dcpCursor =
             engines[Node1]
                     ->getKVBucket()

@@ -407,12 +407,6 @@ TEST_P(CheckpointRemoverTest, MemRecoveryByCheckpointCreation) {
     config.setChkExpelEnabled(true);
     config.setMaxSize(1024 * 1024 * 100);
 
-    // @todo: Convert to config.setCheckpointRemovalMode("eager") once the
-    //  param has been made dynamic
-    auto& ckptConfig = engine->getCheckpointConfig();
-    ckptConfig.setCheckpointRemovalMode(CheckpointRemoval::Eager);
-    ASSERT_TRUE(engine->getCheckpointConfig().isEagerCheckpointRemoval());
-
     ASSERT_EQ(0, store->getRequiredCheckpointMemoryReduction());
 
     // Compute paylaod size such that we enter a TempOOM phase when we store

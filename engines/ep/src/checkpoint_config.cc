@@ -15,30 +15,6 @@
 #include "configuration.h"
 #include "ep_engine.h"
 
-std::string to_string(CheckpointRemoval mode) {
-    switch (mode) {
-    case CheckpointRemoval::Eager:
-        return "eager";
-    case CheckpointRemoval::Lazy:
-        return "lazy";
-    }
-    return "<unknown>";
-}
-
-CheckpointRemoval mode_from_string(std::string_view strMode) {
-    if (strMode == "eager") {
-        return CheckpointRemoval::Eager;
-    } else if (strMode == "lazy") {
-        return CheckpointRemoval::Lazy;
-    }
-    throw std::invalid_argument("Invalid CheckpointRemoval mode: " +
-                                std::string(strMode));
-}
-
-std::ostream& operator<<(std::ostream& os, const CheckpointRemoval& mode) {
-    return os << to_string(mode);
-}
-
 /**
  * A listener class to update checkpoint related configs at runtime.
  */
@@ -72,9 +48,7 @@ CheckpointConfig::CheckpointConfig(Configuration& config)
       checkpointMaxItems(config.getChkMaxItems()),
       maxCheckpoints(config.getMaxCheckpoints()),
       itemNumBasedNewCheckpoint(config.isItemNumBasedNewChk()),
-      persistenceEnabled(config.getBucketType() == "persistent"),
-      checkpointRemovalMode(
-              mode_from_string(config.getCheckpointRemovalMode())) {
+      persistenceEnabled(config.getBucketType() == "persistent") {
 }
 
 void CheckpointConfig::addConfigChangeListener(

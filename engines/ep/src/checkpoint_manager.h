@@ -589,18 +589,17 @@ public:
 
 protected:
     /**
-     * Checks if eager checkpoint removal is enabled, then checks if the
-     * provided checkpoint is:
+     * Checks if the given checkpoint is:
      *  * the oldest checkpoint
      *  * closed
      *  * unreferenced
      */
-    bool isEligibleForEagerRemoval(const Checkpoint& checkpoint) const;
+    bool isEligibleForRemoval(const Checkpoint& checkpoint) const;
 
     /**
-     * Checks if the provided checkpoint is eligible for eager removal
-     * (see isEligibleForEagerRemoval(...)) and if so, removes it and schedules
-     * it for destruction on a background task.
+     * Checks if the provided checkpoint is eligible for removal (see
+     * isEligibleForRemoval(...)) and if so, removes it and schedules it for
+     * destruction on a background task.
      */
     void maybeScheduleDestruction(const Checkpoint& checkpoint);
 

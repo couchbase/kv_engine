@@ -79,7 +79,6 @@ CheckpointMemRecoveryTask::CheckpointMemRecoveryTask(
       engine(e),
       stats(st),
       sleepTime(interval),
-      removalMode(e->getCheckpointConfig().getCheckpointRemoval()),
       removerId(removerId) {
 }
 
@@ -160,37 +159,19 @@ CheckpointMemRecoveryTask::attemptCursorDropping() {
             }
             ++stats.cursorsDropped;
 
+            // @todo CheckpointRemoval::Eager
             // Note: In eager-mode, the previous call has dropped a cursor and
             // it has also already removed from CM and moved to the Destroyer
             // any checkpoint made unreferenced by the drop.
             // So the next call to CM::removeClosedUnrefCheckpoints() is just
             // expected to be a NOP in eager-mode.
-
-            switch (removalMode) {
-            case CheckpointRemoval::Lazy: {
-                // Note: The call remove checkpoints from the CheckpointList and
-                // moves them to the Destroyer for deallocation. Thus, here
-                // 'memReleased' is an estimation of what is being released, not
-                // what has been already released.
-                const auto res = manager.removeClosedUnrefCheckpoints();
-                EP_LOG_DEBUG(
-                        "{} Dropping cursor made {} bytes eligible for "
-                        "deallocation",
-                        vb->getId(),
-                        res.memory);
-                break;
-            };
-            case CheckpointRemoval::Eager: {
 #if CB_DEVELOPMENT_ASSERTS
-                Expects(manager.removeClosedUnrefCheckpoints().count == 0);
+            Expects(manager.removeClosedUnrefCheckpoints().count == 0);
 #else
-                // MB-51408: We need to make the call for keeping executing the
-                // inner checkpoint creation logic - minimal fix for Neo.
-                manager.removeClosedUnrefCheckpoints();
+            // MB-51408: We need to make the call for keeping executing the
+            // inner checkpoint creation logic - minimal fix for Neo.
+            manager.removeClosedUnrefCheckpoints();
 #endif
-                break;
-            }
-            }
 
             if (bucket.getRequiredCheckpointMemoryReduction() == 0) {
                 // All done
@@ -230,32 +211,20 @@ bool CheckpointMemRecoveryTask::runInner() {
             getDescription(),
             bytesToFree / (1024 * 1024));
 
-    switch (removalMode) {
-    case CheckpointRemoval::Lazy: {
-        // Try full CheckpointRemoval first, across all vbuckets.
-        if (attemptCheckpointRemoval().first == ReductionRequired::No) {
-            // Recovered enough by CheckpointRemoval, done
-            return true;
-        }
-        break;
-    };
-    case CheckpointRemoval::Eager: {
+    // @todo CheckpointRemoval::Eager
 #if CB_DEVELOPMENT_ASSERTS
-        // if eager checkpoint removal has been configured, calling
-        // attemptCheckpointRemoval here should never, ever, find any
-        // checkpoints to remove; they should always be removed as soon
-        // as they are made eligible, before the lock is released.
-        // This is not cheap to verify, as it requires scanning every
-        // vbucket, so is only checked if dev asserts are on.
-        Expects(attemptCheckpointRemoval().second == 0);
+    // if eager checkpoint removal has been configured, calling
+    // attemptCheckpointRemoval here should never, ever, find any
+    // checkpoints to remove; they should always be removed as soon
+    // as they are made eligible, before the lock is released.
+    // This is not cheap to verify, as it requires scanning every
+    // vbucket, so is only checked if dev asserts are on.
+    Expects(attemptCheckpointRemoval().second == 0);
 #else
-        // MB-51408: We need to make the call for keeping executing the inner
-        // checkpoint creation logic - minimal fix for Neo.
-        attemptCheckpointRemoval();
+    // MB-51408: We need to make the call for keeping executing the inner
+    // checkpoint creation logic - minimal fix for Neo.
+    attemptCheckpointRemoval();
 #endif
-        break;
-    }
-    }
 
     // Try expelling, if enabled.
     // Note: The next call tries to expel from all vbuckets before returning.

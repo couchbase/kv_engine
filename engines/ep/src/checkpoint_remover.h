@@ -134,11 +134,6 @@ protected:
     EPStats                   &stats;
     size_t                     sleepTime;
 
-    // Checkpoint removal mode set in EP config.
-    // If eager checkpoint removal is enabled, checkpoints are removed as soon
-    // as they become unreferenced and thus there's no reason to scan for them.
-    const CheckpointRemoval removalMode;
-
     // This task is "sharded" by (vbid % numRemovers == removerId), ie each task
     // instance determines what vbuckets to process by picking only vbuckets
     // that verify that equation. Note that removerId is in {0, numRemovers - 1}

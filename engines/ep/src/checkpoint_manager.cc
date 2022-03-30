@@ -451,7 +451,7 @@ bool CheckpointManager::removeCursor(const std::lock_guard<std::mutex>& lh,
                 " Failed to remove cursor: " + cursor.getName());
     }
 
-    if (isEligibleForEagerRemoval(*checkpoint)) {
+    if (isEligibleForRemoval(*checkpoint)) {
         // after removing `cursor`, perhaps the oldest checkpoint is now
         // unreferenced, and can be removed. BUT - this cursor has been
         // removed, not just moved to the next checkpoint. Therefore,
@@ -474,32 +474,31 @@ bool CheckpointManager::removeCursor(const std::lock_guard<std::mutex>& lh,
     return true;
 }
 
-bool CheckpointManager::isEligibleForEagerRemoval(
+bool CheckpointManager::isEligibleForRemoval(
         const Checkpoint& checkpoint) const {
-    return checkpointConfig.isEagerCheckpointRemoval() &&
-           &checkpoint == checkpointList.front().get() &&
+    return &checkpoint == checkpointList.front().get() &&
            checkpoint.isNoCursorsInCheckpoint() &&
            checkpoint.getState() == checkpoint_state::CHECKPOINT_CLOSED;
 }
 
 void CheckpointManager::maybeScheduleDestruction(const Checkpoint& checkpoint) {
-    if (isEligibleForEagerRemoval(checkpoint)) {
-        CheckpointList forDestruction;
-
-        // checkpoints must be removed in order, only the oldest is eligible
-        // when removing checkpoints one at a time.
-        // When cursors are removed, multiple checkpoints may unreffed and
-        // can be removed together, but that is handled in removeCursor()
-
-        // using O(1) overload of splice which takes a distance.
-        forDestruction.splice(forDestruction.begin(),
-                              checkpointList,
-                              checkpointList.begin(),
-                              std::next(checkpointList.begin()),
-                              1 /* distance */);
-
-        scheduleDestruction(std::move(forDestruction));
+    if (!isEligibleForRemoval(checkpoint)) {
+        return;
     }
+
+    // Checkpoints must be removed in order, only the oldest is eligible
+    // when removing checkpoints one at a time.
+    // When cursors are removed, multiple checkpoints may unreffed and
+    // can be removed together, but that is handled in removeCursor()
+    // Note: Using O(1) overload of splice which takes a distance.
+    CheckpointList forDestruction;
+    forDestruction.splice(forDestruction.begin(),
+                          checkpointList,
+                          checkpointList.begin(),
+                          std::next(checkpointList.begin()),
+                          1 /* distance */);
+
+    scheduleDestruction(std::move(forDestruction));
 }
 
 void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {

@@ -338,29 +338,16 @@ void DCPTest::removeCheckpoint(int numItems) {
        the items are persisted (in case of persistent buckets) */
     std::chrono::microseconds uSleepTime(128);
 
-    if (engine->getConfiguration().getCheckpointRemovalMode() ==
-        to_string(CheckpointRemoval::Eager)) {
-        // When checkpoints become unreferenced, they will be immediately
-        // removed. This will be driven by the persistence cursor moving
-        // out of the checkpoint.
-        // Making expectations about the number of items removed is likely
-        // to be racy - all the checkpoints may have been removed by persistence
-        // before this method was called. Instead, just wait while the only
-        // checkpoint left is the checkpoint just created.
-        while (ckpt_mgr.getNumCheckpoints() > 1) {
-            uSleepTime = decayingSleep(uSleepTime);
-        };
-    } else {
-        int itemsRemoved = 0;
-        while (true) {
-            itemsRemoved += ckpt_mgr.removeClosedUnrefCheckpoints().count;
-            if (itemsRemoved >= numItems) {
-                break;
-            }
-            uSleepTime = decayingSleep(uSleepTime);
-        };
-        EXPECT_EQ(numItems, itemsRemoved);
-    }
+    // When checkpoints become unreferenced, they will be immediately
+    // removed. This will be driven by the persistence cursor moving
+    // out of the checkpoint.
+    // Making expectations about the number of items removed is likely
+    // to be racy - all the checkpoints may have been removed by persistence
+    // before this method was called. Instead, just wait while the only
+    // checkpoint left is the checkpoint just created.
+    while (ckpt_mgr.getNumCheckpoints() > 1) {
+        uSleepTime = decayingSleep(uSleepTime);
+    };
 }
 int DCPTest::callbackCount = 0;
 

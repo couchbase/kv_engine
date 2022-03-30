@@ -17,8 +17,6 @@
 class Configuration;
 class EventuallyPersistentEngine;
 
-std::string to_string(CheckpointRemoval mode);
-
 /**
  * A class containing the config parameters for checkpoint.
  */
@@ -45,19 +43,6 @@ public:
 
     bool isPersistenceEnabled() const {
         return persistenceEnabled;
-    }
-
-    bool isEagerCheckpointRemoval() const {
-        return checkpointRemovalMode == CheckpointRemoval::Eager;
-    }
-
-    CheckpointRemoval getCheckpointRemoval() const {
-        return checkpointRemovalMode;
-    }
-
-    // @todo: Test only. Remove as soon as param made dynamic in EPConfig.
-    void setCheckpointRemovalMode(CheckpointRemoval mode) {
-        checkpointRemovalMode = mode;
     }
 
 protected:
@@ -96,6 +81,4 @@ private:
 
     // Flag indicating if persistence is enabled.
     bool persistenceEnabled;
-
-    CheckpointRemoval checkpointRemovalMode;
 };
