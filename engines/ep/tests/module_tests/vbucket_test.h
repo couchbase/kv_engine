@@ -152,7 +152,7 @@ protected:
     Configuration config;
     CookieIface* cookie = nullptr;
     const uint64_t lastSeqno{1000};
-    snapshot_range_t range{5, lastSeqno};
+    snapshot_range_t range{lastSeqno, lastSeqno};
 };
 
 /**

@@ -48,7 +48,8 @@ void CheckpointTest::TearDown() {
 void CheckpointTest::createManager(int64_t lastSeqno) {
     ASSERT_TRUE(vbucket);
     ASSERT_TRUE(checkpoint_config);
-    range = {0, 0};
+    range = {static_cast<uint64_t>(lastSeqno),
+             static_cast<uint64_t>(lastSeqno)};
     vbucket->checkpointManager = std::make_unique<MockCheckpointManager>(
             global_stats,
             *vbucket,
@@ -127,8 +128,8 @@ TEST_P(CheckpointTest, CheckFixture) {
     std::vector<queued_item> items;
     auto result = this->manager->getNextItemsForCursor(cursor, items);
     ASSERT_EQ(1, result.ranges.size());
-    EXPECT_EQ(0, result.ranges.front().getStart());
-    EXPECT_EQ(0, result.ranges.front().getEnd());
+    EXPECT_EQ(1000, result.ranges.front().getStart());
+    EXPECT_EQ(1000, result.ranges.front().getEnd());
     EXPECT_EQ(1, items.size());
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
 }
@@ -197,7 +198,7 @@ TEST_P(CheckpointTest, OneOpenCkpt) {
     std::vector<queued_item> items;
     auto result = this->manager->getNextItemsForCursor(cursor, items);
     EXPECT_EQ(1, result.ranges.size());
-    EXPECT_EQ(0, result.ranges.front().getStart());
+    EXPECT_EQ(1000, result.ranges.front().getStart());
     EXPECT_EQ(1003, result.ranges.front().getEnd());
     EXPECT_EQ(3, items.size());
     EXPECT_EQ(1003, result.visibleSeqno);
@@ -233,7 +234,7 @@ TEST_P(CheckpointTest, Delete) {
     std::vector<queued_item> items;
     auto result = manager->getNextItemsForCursor(cursor, items);
 
-    EXPECT_EQ(0, result.ranges.front().getStart());
+    EXPECT_EQ(1000, result.ranges.front().getStart());
     EXPECT_EQ(1001, result.ranges.back().getEnd());
     ASSERT_EQ(2, items.size());
     EXPECT_EQ(1001, result.visibleSeqno);
@@ -277,7 +278,7 @@ TEST_P(CheckpointTest, OneOpenOneClosed) {
     std::vector<queued_item> items;
     auto result = manager->getNextItemsForCursor(cursor, items);
     EXPECT_EQ(2, result.ranges.size()); // 2 checkpoints returned items
-    EXPECT_EQ(0, result.ranges.front().getStart());
+    EXPECT_EQ(1000, result.ranges.front().getStart());
     EXPECT_EQ(1002, result.ranges.front().getEnd());
     EXPECT_EQ(1003, result.ranges.back().getStart());
     EXPECT_EQ(1004, result.ranges.back().getEnd());
@@ -428,7 +429,7 @@ TEST_P(CheckpointTest, ItemBasedCheckpointCreation) {
     result.flushHandle.reset();
 
     EXPECT_EQ(2, result.ranges.size());
-    EXPECT_EQ(0, result.ranges.at(0).getStart());
+    EXPECT_EQ(1000, result.ranges.at(0).getStart());
     EXPECT_EQ(1010, result.ranges.at(0).getEnd());
     EXPECT_EQ(1011, result.ranges.at(1).getStart());
     EXPECT_EQ(1021, result.ranges.at(1).getEnd());
@@ -575,7 +576,7 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursor) {
        op_ckpt_start, op_ckpt_end and op_ckpt_start */
     EXPECT_EQ(2 * maxItems + 3, items.size());
     EXPECT_EQ(2, result.ranges.size());
-    EXPECT_EQ(0, result.ranges.at(0).getStart());
+    EXPECT_EQ(1000, result.ranges.at(0).getStart());
     EXPECT_EQ(1000 + maxItems, result.ranges.at(0).getEnd());
     EXPECT_EQ(1000 + maxItems + 1, result.ranges.at(1).getStart());
     EXPECT_EQ(1000 + 2 * maxItems, result.ranges.at(1).getEnd());
@@ -588,7 +589,7 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursor) {
                                                   items);
     EXPECT_EQ(2 * maxItems + 3, items.size());
     EXPECT_EQ(2, result.ranges.size());
-    EXPECT_EQ(0, result.ranges.at(0).getStart());
+    EXPECT_EQ(1000, result.ranges.at(0).getStart());
     EXPECT_EQ(1000 + maxItems, result.ranges.at(0).getEnd());
     EXPECT_EQ(1000 + maxItems + 1, result.ranges.at(1).getStart());
     EXPECT_EQ(1000 + 2 * maxItems, result.ranges.at(1).getEnd());
@@ -625,7 +626,7 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursorLimited) {
     std::vector<queued_item> items;
     auto result = manager->getItemsForCursor(cursor, items, 1);
     EXPECT_EQ(1, result.ranges.size());
-    EXPECT_EQ(0, result.ranges.front().getStart());
+    EXPECT_EQ(1000, result.ranges.front().getStart());
     EXPECT_EQ(1000 + maxItems, result.ranges.front().getEnd());
     EXPECT_EQ(maxItems + 2, items.size())
             << "Should have maxItems + 2 (ckpt start & end) items";
@@ -673,7 +674,7 @@ TEST_P(CheckpointTest, DiskCheckpointStrictItemLimit) {
     std::vector<queued_item> items;
     auto result = manager->getItemsForCursor(cursor, items, 1);
     EXPECT_EQ(1, result.ranges.size());
-    EXPECT_EQ(0, result.ranges.front().getStart());
+    EXPECT_EQ(1000, result.ranges.front().getStart());
     EXPECT_EQ(1000 + maxItems, result.ranges.front().getEnd());
     EXPECT_EQ(1, items.size()) << "Should have 1 item";
     EXPECT_EQ(1, (*cursor->getCheckpoint())->getId())
@@ -716,7 +717,7 @@ TEST_P(CheckpointTest, CursorMovement) {
     /* We should have got (maxItems + op_ckpt_start) items. */
     EXPECT_EQ(maxItems + 1, items.size());
     EXPECT_EQ(1, result.ranges.size());
-    EXPECT_EQ(0, result.ranges.front().getStart());
+    EXPECT_EQ(1000, result.ranges.front().getStart());
     EXPECT_EQ(1000 + maxItems, result.ranges.front().getEnd());
 
     /* Get items for DCP replication cursor */
@@ -725,7 +726,7 @@ TEST_P(CheckpointTest, CursorMovement) {
                                                   items);
     EXPECT_EQ(maxItems + 1, items.size());
     EXPECT_EQ(1, result.ranges.size());
-    EXPECT_EQ(0, result.ranges.front().getStart());
+    EXPECT_EQ(1000, result.ranges.front().getStart());
     EXPECT_EQ(1000 + maxItems, result.ranges.front().getEnd());
 
     uint64_t curr_open_chkpt_id = this->manager->getOpenCheckpointId();
@@ -2363,7 +2364,7 @@ CheckpointTest::testGetItemsForPersistenceCursor() {
     EXPECT_TRUE(res.flushHandle);
     EXPECT_FALSE(res.moreAvailable);
     EXPECT_EQ(1, res.ranges.size());
-    EXPECT_EQ(0, res.ranges[0].getStart());
+    EXPECT_EQ(1000, res.ranges[0].getStart());
     EXPECT_EQ(1001, res.ranges[0].getEnd());
     EXPECT_EQ(2, items.size()); // checkpoint_start + 1 item
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
@@ -2459,7 +2460,7 @@ TEST_P(CheckpointTest, GetItemsForPersistenceCursor_FlushFailureScenario) {
     ASSERT_TRUE(res.flushHandle);
     EXPECT_FALSE(res.moreAvailable);
     ASSERT_EQ(1, res.ranges.size());
-    EXPECT_EQ(0, res.ranges[0].getStart());
+    EXPECT_EQ(1000, res.ranges[0].getStart());
     EXPECT_EQ(1001, res.ranges[0].getEnd());
     ASSERT_EQ(2, items.size()); // checkpoint_start + 1 item
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());

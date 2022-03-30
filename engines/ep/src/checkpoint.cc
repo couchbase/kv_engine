@@ -76,6 +76,9 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
       queueMemOverhead(st, &manager.memUsage),
       checkpointType(checkpointType),
       highCompletedSeqno(std::move(highCompletedSeqno)) {
+    Expects(snapStart <= snapEnd);
+    Expects(visibleSnapEnd <= snapEnd);
+
     auto& core = stats.coreLocal.get();
     core->memOverhead.fetch_add(sizeof(Checkpoint));
     core->numCheckpoints++;

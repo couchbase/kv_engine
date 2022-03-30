@@ -50,6 +50,9 @@ CheckpointManager::CheckpointManager(EPStats& st,
       memFreedByExpel(stats.memFreedByCheckpointItemExpel),
       memFreedByCheckpointRemoval(stats.memFreedByCheckpointRemoval) {
     std::lock_guard<std::mutex> lh(queueLock);
+    Expects(static_cast<uint64_t>(lastSeqno) >= lastSnapStart);
+    Expects(static_cast<uint64_t>(lastSeqno) <= lastSnapEnd);
+    Expects(static_cast<uint64_t>(maxVisibleSeqno) <= lastSnapEnd);
 
     lastBySeqno.setLabel("CheckpointManager(" + vb.getId().to_string() +
                          ")::lastBySeqno");
