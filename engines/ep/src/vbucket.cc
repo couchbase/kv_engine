@@ -157,7 +157,6 @@ VBucket::VBucket(Vbid i,
                  SyncWriteCompleteCallback syncWriteCb,
                  SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory,
                  SeqnoAckCallback seqnoAckCb,
-                 CheckpointDisposer ckptDisposer,
                  Configuration& config,
                  EvictionPolicy evictionPolicy,
                  std::unique_ptr<Collections::VB::Manifest> manifest,
@@ -200,8 +199,7 @@ VBucket::VBucket(Vbid i,
                                                             lastSnapStart,
                                                             lastSnapEnd,
                                                             maxVisibleSeqno,
-                                                            flusherCb,
-                                                            ckptDisposer)),
+                                                            flusherCb)),
       bucket(bucket),
       syncWriteTimeoutFactory(std::move(syncWriteTimeoutFactory)),
       replicationTopology(std::make_unique<nlohmann::json>()),
@@ -4182,4 +4180,10 @@ void VBucket::dropPendingKey(const DocKey& key, int64_t seqno) {
 size_t VBucket::getCheckpointMaxSize() const {
     return bucket ? bucket->getCheckpointMaxSize()
                   : std::numeric_limits<size_t>::max();
+}
+
+void VBucket::scheduleDestruction(CheckpointList&& checkpoints) const {
+    if (bucket) {
+        bucket->scheduleDestruction(std::move(checkpoints), id);
+    }
 }

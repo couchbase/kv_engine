@@ -1626,7 +1626,6 @@ VBucketPtr EPBucket::makeVBucket(
                           makeSyncWriteCompleteCB(),
                           syncWriteTimeoutFactory,
                           makeSeqnoAckCB(),
-                          makeCheckpointDisposer(),
                           engine.getConfiguration(),
                           eviction_policy,
                           std::move(manifest),

@@ -2709,9 +2709,6 @@ TEST_P(CheckpointTest, CheckpointItemToString) {
 // Test class for closed/unref checkpoint removal
 class CheckpointRemovalTest : public CheckpointTest {};
 
-using MockCheckpointDisposer =
-        testing::MockFunction<void(CheckpointList&&, const Vbid&)>;
-
 MATCHER(CheckpointMatcher, "") {
     // arg expected to be a Checkpoint
     const auto& [ckpt, expected] = arg;
@@ -2736,21 +2733,6 @@ MATCHER_P(CheckpointMatcher, expected, "") {
     return expected == actualKeys;
 }
 
-/**
- * GTest match a CheckpointList against a vector of vectors of keys
- * E.g.,
- *  MatchCheckpoint({
- *                      {"key1", "key2"},
- *                      {"key3"}
- *                  });
- * creates a matcher which expects to find two checkpoints, where the non-meta
- * items in the first have keys "key1", "key2", and in the second "key3"
- */
-auto MatchCheckpointList(
-        const std::vector<std::vector<std::string>>& expected) {
-    return ::testing::Pointwise(CheckpointMatcher(), expected);
-}
-
 TEST_P(CheckpointRemovalTest, CursorMovement) {
     // Add two items to the initial (open) checkpoint.
     for (auto i : {1, 2}) {
@@ -2762,37 +2744,30 @@ TEST_P(CheckpointRemovalTest, CursorMovement) {
 
     using namespace testing;
 
+    const auto openId = manager->getOpenCheckpointId();
+
     {
         // Create a new checkpoint, closing the current open one. The cursor
-        // remains in the old checkpoint, so it is still reffed - callback
-        // should not be triggered
-        StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(callback, Call(_, _)).Times(0);
-        manager->setCheckpointDisposer(callback.AsStdFunction());
-
+        // remains in the old checkpoint, so it is still reffed - no checkpoint
+        // removed
         this->manager->createNewCheckpoint();
         EXPECT_EQ(0, this->manager->getNumOpenChkItems());
         EXPECT_EQ(2, this->manager->getNumCheckpoints());
+        EXPECT_EQ(openId + 1, manager->getOpenCheckpointId());
         EXPECT_EQ(2, manager->getNumItemsForCursor(cursor));
     }
 
     {
         // Advance cursor, moving it out of the closed ckpt.
-        // callback should be triggered, as it is now unreffed.
-        StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(
-                callback,
-                Call(MatchCheckpointList({{"cid:0x0:key1", "cid:0x0:key2"}}),
-                     _))
-                .Times(1);
-        manager->setCheckpointDisposer(callback.AsStdFunction());
-
+        // checkpoint should be removed, as it is now unreffed.
         {
             std::vector<queued_item> items;
             manager->getItemsForCursor(
                     *cursor, items, std::numeric_limits<size_t>::max());
         }
         EXPECT_EQ(0, manager->getNumItemsForCursor(cursor));
+        EXPECT_EQ(1, this->manager->getNumCheckpoints());
+        EXPECT_EQ(openId + 1, manager->getOpenCheckpointId());
     }
 }
 
@@ -2805,15 +2780,9 @@ TEST_P(CheckpointRemovalTest, NewClosedCheckpointMovesCursor) {
     EXPECT_EQ(2, this->manager->getNumOpenChkItems());
     EXPECT_EQ(2, manager->getNumItemsForCursor(cursor));
 
-    using namespace testing;
+    const auto openId = manager->getOpenCheckpointId();
 
     {
-        // Advance cursor, moving it to the end of the checkpoint.
-        // checkpoint still reffed, for now
-        StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(callback, Call(_, _)).Times(0);
-        manager->setCheckpointDisposer(callback.AsStdFunction());
-
         {
             std::vector<queued_item> items;
             manager->getItemsForCursor(
@@ -2821,24 +2790,18 @@ TEST_P(CheckpointRemovalTest, NewClosedCheckpointMovesCursor) {
         }
         EXPECT_EQ(2, this->manager->getNumOpenChkItems());
         EXPECT_EQ(1, this->manager->getNumCheckpoints());
+        EXPECT_EQ(openId, manager->getOpenCheckpointId());
         EXPECT_EQ(0, manager->getNumItemsForCursor(cursor));
     }
 
     {
         // Create a new checkpoint, closing the current open one. The cursor
-        // is advanced implicitly to the new checkpoint - callback should
-        // be triggered, closed checkpoint should be removed
-        StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(
-                callback,
-                Call(MatchCheckpointList({{"cid:0x0:key1", "cid:0x0:key2"}}),
-                     _))
-                .Times(1);
-        manager->setCheckpointDisposer(callback.AsStdFunction());
-
+        // is advanced implicitly to the new checkpoint - closed checkpoint
+        // should be removed
         this->manager->createNewCheckpoint();
         EXPECT_EQ(0, this->manager->getNumOpenChkItems());
         EXPECT_EQ(1, this->manager->getNumCheckpoints());
+        EXPECT_GT(manager->getOpenCheckpointId(), openId);
         EXPECT_EQ(0, manager->getNumItemsForCursor(cursor));
     }
 }
@@ -2855,27 +2818,20 @@ TEST_P(CheckpointRemovalTest, NewUnreffedClosedCheckpoint) {
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
     EXPECT_EQ(2, this->manager->getNumOpenChkItems());
 
-    using namespace testing;
+    const auto openId = manager->getOpenCheckpointId();
 
     {
-        // Create a new checkpoint, closing the current open one. Callback
-        // should be triggered as there are no cursors in the closed checkpoint
-        StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(
-                callback,
-                Call(MatchCheckpointList({{"cid:0x0:key1", "cid:0x0:key2"}}),
-                     _))
-                .Times(1);
-        manager->setCheckpointDisposer(callback.AsStdFunction());
-
+        // Create a new checkpoint, closing the current open one and removing
+        // the old checkpoint as there are no cursors in the closed checkpoint
         this->manager->createNewCheckpoint();
         EXPECT_EQ(0, this->manager->getNumOpenChkItems());
         // just the open checkpoint left, closed was removed immediately
         EXPECT_EQ(1, this->manager->getNumCheckpoints());
+        EXPECT_EQ(openId + 1, manager->getOpenCheckpointId());
     }
 }
 
-TEST_P(CheckpointRemovalTest, OnlyOldestCkptTriggersCB) {
+TEST_P(CheckpointRemovalTest, OnlyOldestCkptIsRemoved) {
     // Add two items to the initial (open) checkpoint.
     for (auto i : {1, 2}) {
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(i)));
@@ -2883,18 +2839,15 @@ TEST_P(CheckpointRemovalTest, OnlyOldestCkptTriggersCB) {
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
     EXPECT_EQ(2, this->manager->getNumOpenChkItems());
 
-    using namespace testing;
+    const auto openId = manager->getOpenCheckpointId();
 
     {
         // Create a new checkpoint, closing the current open one.
-        // No callback triggered, cursor is present.
-        StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(callback, Call(_, _)).Times(0);
-        manager->setCheckpointDisposer(callback.AsStdFunction());
-
+        // Closed checkpoint not removed, cursor is present.
         this->manager->createNewCheckpoint();
         EXPECT_EQ(0, this->manager->getNumOpenChkItems());
         EXPECT_EQ(2, this->manager->getNumCheckpoints());
+        EXPECT_EQ(openId + 1, manager->getOpenCheckpointId());
     }
 
     // queue another item
@@ -2906,36 +2859,26 @@ TEST_P(CheckpointRemovalTest, OnlyOldestCkptTriggersCB) {
         // Create a new checkpoint, closing the current open one.
         // The "middle" checkpoint has no cursors, but is not the oldest
         // checkpoint, so cannot trigger checkpoint removal
-        StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(callback, Call(_, _)).Times(0);
-        manager->setCheckpointDisposer(callback.AsStdFunction());
-
         this->manager->createNewCheckpoint();
         EXPECT_EQ(0, this->manager->getNumOpenChkItems());
         EXPECT_EQ(3, this->manager->getNumCheckpoints());
+        EXPECT_EQ(openId + 2, manager->getOpenCheckpointId());
     }
 
     {
         // Advance cursor into "middle" checkpoint. Oldest checkpoint can now
         // be removed, should trigger callback.
-        StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(
-                callback,
-                Call(MatchCheckpointList({{"cid:0x0:key1", "cid:0x0:key2"}}),
-                     _))
-                .Times(1);
-        manager->setCheckpointDisposer(callback.AsStdFunction());
-
         {
             std::vector<queued_item> items;
             manager->getItemsForCursor(*cursor, items, 2);
         }
         EXPECT_EQ(2, this->manager->getNumCheckpoints());
+        EXPECT_EQ(openId + 2, manager->getOpenCheckpointId());
         EXPECT_EQ(1, manager->getNumItemsForCursor(cursor));
     }
 }
 
-TEST_P(CheckpointRemovalTest, RemoveCursorTriggersCB) {
+TEST_P(CheckpointRemovalTest, RemoveCursorTriggersCkptRemoval) {
     // Add two items to the initial (open) checkpoint.
     for (auto i : {1, 2}) {
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(i)));
@@ -2944,52 +2887,39 @@ TEST_P(CheckpointRemovalTest, RemoveCursorTriggersCB) {
     EXPECT_EQ(2, this->manager->getNumOpenChkItems());
     EXPECT_EQ(2, manager->getNumItemsForCursor(cursor));
 
-    using namespace testing;
+    const auto openId = manager->getOpenCheckpointId();
 
     {
         // Create a new checkpoint, closing the current open one. The cursor
-        // remains in the old checkpoint, so it is still reffed - callback
-        // should not be triggered
-        StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(callback, Call(_, _)).Times(0);
-        manager->setCheckpointDisposer(callback.AsStdFunction());
-
+        // remains in the old checkpoint, so it is still reffed - closed ckpt
+        // not removed
         this->manager->createNewCheckpoint();
         EXPECT_EQ(0, this->manager->getNumOpenChkItems());
         EXPECT_EQ(2, this->manager->getNumCheckpoints());
+        EXPECT_EQ(openId + 1, manager->getOpenCheckpointId());
         EXPECT_EQ(2, manager->getNumItemsForCursor(cursor));
     }
 
     {
         // Queue an item and create one more checkpoint. Still can't be removed,
         // as the cursor still exists.
-        StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(callback, Call(_, _)).Times(0);
-        manager->setCheckpointDisposer(callback.AsStdFunction());
-
         EXPECT_TRUE(this->queueNewItem("key3"));
         this->manager->createNewCheckpoint();
         EXPECT_EQ(0, this->manager->getNumOpenChkItems());
         EXPECT_EQ(3, this->manager->getNumCheckpoints());
+        EXPECT_EQ(openId + 2, manager->getOpenCheckpointId());
         EXPECT_EQ(3, manager->getNumItemsForCursor(cursor));
     }
 
     {
-        // Drop the cursor. Callback should be triggered, as _both_ checkpoints
+        // Drop the cursor. 2 closed checkpoints have to be removed, as _both_
         // are now eligible for removal - the cursor was removed from the oldest
         // leaving it unreffed, and the "middle" checkpoint doesn't have any
         // cursors either.
-        StrictMock<MockCheckpointDisposer> callback;
-        EXPECT_CALL(callback,
-                    Call(MatchCheckpointList({{"cid:0x0:key1", "cid:0x0:key2"},
-                                              {"cid:0x0:key3"}}),
-                         _))
-                .Times(1);
-        manager->setCheckpointDisposer(callback.AsStdFunction());
-
         manager->removeCursor(*cursor);
         EXPECT_EQ(0, this->manager->getNumOpenChkItems());
         EXPECT_EQ(1, this->manager->getNumCheckpoints());
+        EXPECT_EQ(openId + 2, manager->getOpenCheckpointId());
     }
 }
 
@@ -3522,9 +3452,6 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
     auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
     ASSERT_EQ(0, manager.getMemFreedByCheckpointRemoval());
 
-    // set the eager checkpoint disposer to allow checkpoints to be destroyed
-    // "inline" when removed. This avoids needing to drive background tasks.
-    manager.setCheckpointDisposer(ImmediateCkptDisposer);
     EXPECT_EQ(1, manager.getNumCheckpoints());
     const auto initialNumItems = manager.getNumOpenChkItems();
     ASSERT_GT(initialNumItems, 0);

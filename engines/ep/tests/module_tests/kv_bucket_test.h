@@ -229,11 +229,6 @@ public:
      *
      * Tests which verify the CheckpointDestroyerTask notification/waking
      * require the task to be scheduled before use.
-     *
-     * For tests which are not testing checkpoint removal directly,
-     * MockCheckpointManager can have an ImmediateCheckpointDisposer set,
-     * which will destroy checkpoints as soon as they are removed, without
-     * queuing them for a background task.
      */
     void scheduleCheckpointDestroyerTasks();
 

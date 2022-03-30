@@ -73,8 +73,7 @@ VBucketPtr MockEphemeralBucket::makeVBucket(
             lastSnapStart,
             lastSnapEnd,
             maxVisibleSeqno,
-            /*flusher callback*/ nullptr,
-            makeCheckpointDisposer());
+            /*flusher callback*/ nullptr);
 
     vptr->checkpointManager->setOverheadChangedCallback(overheadChangedCB);
 

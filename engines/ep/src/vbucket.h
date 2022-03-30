@@ -144,7 +144,6 @@ public:
             SyncWriteCompleteCallback syncWriteCb,
             SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory,
             SeqnoAckCallback seqnoAckCb,
-            CheckpointDisposer ckptDisposer,
             Configuration& config,
             EvictionPolicy evictionPolicy,
             std::unique_ptr<Collections::VB::Manifest> manifest,
@@ -2393,6 +2392,13 @@ private:
     vbucket_state_t                 initialState;
 
 public:
+    /**
+     * Schedule destruction of the given checkpoints.
+     *
+     * @param checkpoints
+     */
+    void scheduleDestruction(CheckpointList&& checkpoints) const;
+
     /**
      * Manager of this vBucket's checkpoints. unique_ptr for pimpl.
      * Declared after state as Checkpoint destruction may update stats

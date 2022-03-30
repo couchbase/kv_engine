@@ -42,7 +42,6 @@ public:
               SyncWriteCompleteCallback syncWriteCb,
               SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory,
               SeqnoAckCallback seqnoAckCb,
-              CheckpointDisposer ckptDisposer,
               Configuration& config,
               EvictionPolicy evictionPolicy,
               std::unique_ptr<Collections::VB::Manifest> manifest,

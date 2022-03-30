@@ -66,7 +66,6 @@ public:
                 NoopSyncWriteCompleteCb,
                 NoopSyncWriteTimeoutFactory,
                 NoopSeqnoAckCb,
-                ImmediateCkptDisposer,
                 config,
                 EvictionPolicy::Value,
                 std::make_unique<Collections::VB::Manifest>(

@@ -37,8 +37,7 @@ CheckpointManager::CheckpointManager(EPStats& st,
                                      uint64_t lastSnapStart,
                                      uint64_t lastSnapEnd,
                                      uint64_t maxVisibleSeqno,
-                                     FlusherCallback cb,
-                                     CheckpointDisposer checkpointDisposer)
+                                     FlusherCallback cb)
     : stats(st),
       checkpointConfig(config),
       vb(vb),
@@ -46,7 +45,6 @@ CheckpointManager::CheckpointManager(EPStats& st,
       lastBySeqno(lastSeqno, {vb.getId()}),
       maxVisibleSeqno(maxVisibleSeqno, {vb.getId()}),
       flusherCB(std::move(cb)),
-      checkpointDisposer(std::move(checkpointDisposer)),
       memFreedByExpel(stats.memFreedByCheckpointItemExpel),
       memFreedByCheckpointRemoval(stats.memFreedByCheckpointRemoval) {
     std::lock_guard<std::mutex> lh(queueLock);
@@ -508,9 +506,8 @@ void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {
     if (toRemove.empty()) {
         return;
     }
-
     updateStatsForCheckpointRemoval(toRemove);
-    checkpointDisposer(std::move(toRemove), vb.getId());
+    vb.scheduleDestruction(std::move(toRemove));
 }
 
 CheckpointManager::ReleaseResult
@@ -535,14 +532,7 @@ CheckpointManager::removeClosedUnrefCheckpoints() {
 
     auto released = updateStatsForCheckpointRemoval(toRelease);
 
-    // the provided disposer may queue checkpoints for destruction in a
-    // background task, or may do nothing - in that case toRelease will be
-    // destroyed when it goes out of scope.
-    //
-    // Note: The current behaviour in production is that checkpoints are queued
-    // for destruction into the DestroyerTask. The in-place deallocation happens
-    // only in some test code currently.
-    checkpointDisposer(std::move(toRelease), vb.getId());
+    scheduleDestruction(std::move(toRelease));
 
     return released;
 }

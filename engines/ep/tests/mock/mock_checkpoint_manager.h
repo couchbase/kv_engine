@@ -21,16 +21,14 @@
  */
 class MockCheckpointManager : public CheckpointManager {
 public:
-    MockCheckpointManager(
-            EPStats& st,
-            VBucket& vbucket,
-            CheckpointConfig& config,
-            int64_t lastSeqno,
-            uint64_t lastSnapStart,
-            uint64_t lastSnapEnd,
-            uint64_t maxVisibleSeqno,
-            FlusherCallback cb,
-            CheckpointDisposer ckptDisposer = ImmediateCkptDisposer)
+    MockCheckpointManager(EPStats& st,
+                          VBucket& vbucket,
+                          CheckpointConfig& config,
+                          int64_t lastSeqno,
+                          uint64_t lastSnapStart,
+                          uint64_t lastSnapEnd,
+                          uint64_t maxVisibleSeqno,
+                          FlusherCallback cb)
         : CheckpointManager(st,
                             vbucket,
                             config,
@@ -38,17 +36,7 @@ public:
                             lastSnapStart,
                             lastSnapEnd,
                             maxVisibleSeqno,
-                            cb,
-                            [this](CheckpointList&& list, const Vbid& vbid) {
-                                testCkptDisposer(std::move(list), vbid);
-                            }) {
-        // The checkpoint disposer is const in CheckpointManager and should
-        // never change in normal operation.
-        // To allow it to be overriden in tests, rather than directly passing
-        // the checkpoint disposer to CheckpointManager(), instead dispatch to
-        // a test function here in MockCheckpointManager, which can be replaced
-        // as necessary in tests.
-        setCheckpointDisposer(ckptDisposer);
+                            cb) {
     }
 
     /**
@@ -122,15 +110,4 @@ public:
         std::lock_guard<std::mutex> lh(queueLock);
         return getPersistenceCursor()->currentPos;
     }
-
-    /**
-     * Set the checkpoint disposer that will be used if eager checkpoint removal
-     * is configured.
-     */
-    void setCheckpointDisposer(CheckpointDisposer disposer) {
-        testCkptDisposer = std::move(disposer);
-    }
-
-protected:
-    CheckpointDisposer testCkptDisposer;
 };

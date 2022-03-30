@@ -156,8 +156,6 @@ public:
      *                        of construction
      * @param cb flusher callback, used to trigger the flusher after items have
      *           been queued
-     * @param checkpointDisposer callback which may be used to queue checkpoints
-     *                           for destruction in a background task
      */
     CheckpointManager(EPStats& st,
                       VBucket& vb,
@@ -166,8 +164,7 @@ public:
                       uint64_t lastSnapStart,
                       uint64_t lastSnapEnd,
                       uint64_t maxVisibleSeqno,
-                      FlusherCallback cb,
-                      CheckpointDisposer checkpointDisposer);
+                      FlusherCallback cb);
 
     virtual ~CheckpointManager();
 
@@ -940,13 +937,6 @@ protected:
     cursor_index cursors;
 
     const FlusherCallback flusherCB;
-    /**
-     * Callback responsible for destroying checkpoints after they have been
-     * removed from the checkpointList.
-     *
-     * The callback may queue checkpoints for destruction by a background task.
-     */
-    const CheckpointDisposer checkpointDisposer;
 
     static constexpr const char* pCursorName = "persistence";
     Cursor pCursor;

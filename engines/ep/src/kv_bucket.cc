@@ -2802,10 +2802,8 @@ SeqnoAckCallback KVBucket::makeSeqnoAckCB() const {
     };
 }
 
-CheckpointDisposer KVBucket::makeCheckpointDisposer() const {
-    return [this](CheckpointList&& toDestroy, const Vbid& vbid) mutable {
-        getCkptDestroyerTask(vbid).queueForDestruction(std::move(toDestroy));
-    };
+void KVBucket::scheduleDestruction(CheckpointList&& checkpoints, Vbid vbid) {
+    getCkptDestroyerTask(vbid).queueForDestruction(std::move(checkpoints));
 }
 
 std::unique_ptr<KVStoreIface> KVBucket::takeRW(size_t shardId) {

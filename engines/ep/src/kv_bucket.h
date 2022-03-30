@@ -891,10 +891,12 @@ public:
     bool isCheckpointMemoryReductionRequired() const;
 
     /**
-     * Returns the callback function to be invoked once a vbucket has
-     * unreferenced checkpoints which should be destroyed by a background task.
+     * Schedule destructoin of the given checkpoints for vbid.
+     *
+     * @param checkpoints
+     * @param vbid
      */
-    CheckpointDisposer makeCheckpointDisposer() const;
+    void scheduleDestruction(CheckpointList&& checkpoints, Vbid vbid);
 
     size_t getCheckpointRemoverTaskCount() const {
         return chkRemovers.size();

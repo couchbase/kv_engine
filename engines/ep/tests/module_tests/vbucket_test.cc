@@ -83,7 +83,6 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
                 TracedSyncWriteCompleteCb,
                 NoopSyncWriteTimeoutFactory,
                 NoopSeqnoAckCb,
-                ImmediateCkptDisposer,
                 config,
                 eviction_policy,
                 std::move(manifest));
@@ -104,7 +103,6 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
                 TracedSyncWriteCompleteCb,
                 NoopSyncWriteTimeoutFactory,
                 NoopSeqnoAckCb,
-                ImmediateCkptDisposer,
                 config,
                 eviction_policy,
                 std::move(manifest));
@@ -120,8 +118,7 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
             range.getStart(),
             range.getEnd(),
             lastSeqno, // setting maxVisibleSeqno to equal lastSeqno
-            /*flusher callback*/ nullptr,
-            ImmediateCkptDisposer);
+            /*flusher callback*/ nullptr);
 
     cookie = create_mock_cookie(nullptr);
 }
