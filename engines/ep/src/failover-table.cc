@@ -194,27 +194,27 @@ std::pair<bool, std::string> FailoverTable::needsRollback(
                 true,
                 std::string("vBucket UUID not found in failover table, "
                             "consumer and producer have no common history"));
-    } else {
-        if (snap_end_seqno <= upper) {
-            /* No rollback needed as producer and consumer histories are same */
-            return {false, ""};
-        } else {
-            /* We need a rollback as producer upper is lower than the end in
-               consumer snapshot */
-            if (upper < snap_start_seqno) {
-                *rollback_seqno = upper;
-            } else {
-                /* We have to rollback till snap_start_seqno to handle
-                   deduplication case */
-                *rollback_seqno = snap_start_seqno;
-            }
-            return std::make_pair(
-                    true,
-                    std::string(
-                            "consumer ahead of producer - producer upper at ") +
-                            std::to_string(upper));
-        }
     }
+
+    if (snap_end_seqno <= upper) {
+        /* No rollback needed as producer and consumer histories are same */
+        return {false, ""};
+    }
+
+    /* We need a rollback as producer upper is lower than the end in
+       consumer snapshot */
+    if (upper < snap_start_seqno) {
+        *rollback_seqno = upper;
+    } else {
+        /* We have to rollback till snap_start_seqno to handle
+           deduplication case */
+        *rollback_seqno = snap_start_seqno;
+    }
+
+    return std::make_pair(
+            true,
+            std::string("consumer ahead of producer - producer upper at ") +
+                    std::to_string(upper));
 }
 
 void FailoverTable::pruneEntries(uint64_t seqno) {
