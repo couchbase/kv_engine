@@ -176,12 +176,12 @@ std::pair<bool, std::string> FailoverTable::needsRollback(
     table_t::const_reverse_iterator itr;
     for (itr = table.rbegin(); itr != table.rend(); ++itr) {
         if (itr->vb_uuid == vb_uuid) {
-            if (++itr != table.rend()) {
+            auto next = std::next(itr);
+            if (next != table.rend()) {
                 /* Since producer has more history we need to consider the
                    next seqno in failover table as upper */
-                upper = itr->by_seqno;
+                upper = next->by_seqno;
             }
-            --itr; /* Get back the iterator to current entry */
             break;
         }
     }
