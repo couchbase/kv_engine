@@ -3493,12 +3493,7 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
     manager.getItemsForCursor(*manager.getPersistenceCursor(),
                               items,
                               std::numeric_limits<size_t>::max());
-    // Remove closed checkpoint (if eager checkpoint removal, this is
-    // a no-op; the checkpoints have already been removed)
-    manager.removeClosedUnrefCheckpoints();
-    // rather than checking the result of removeClosedUnrefCheckpoints,
-    // check the number of items removed according to the stats.
-    // This avoids being dependent on eager vs lazy checkpoint removal
+    // Verify cursor move did remove some checkpoints
     EXPECT_EQ(initialNumItems,
               engine->getEpStats().itemsRemovedFromCheckpoints);
 

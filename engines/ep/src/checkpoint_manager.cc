@@ -191,9 +191,8 @@ void CheckpointManager::addNewCheckpoint(
         }
     }
 
-    // if the old open checkpoint had no cursors, it is now both closed and
-    // unreferenced. If eager checkpoint removal is enabled, it may be possible
-    // to remove it immediately, if it is now the oldest checkpoint.
+    // If the old open checkpoint had no cursors, it is now both closed and
+    // unreferenced so it can be removed immediately.
     maybeScheduleDestruction(*oldOpenCkptPtr);
 }
 

@@ -22,14 +22,6 @@ class EventuallyPersistentEngine;
 
 /**
  * Task which destroys and frees checkpoints.
- *
- * This task is not responsible for identifying the checkpoints to destroy,
- * instead the CheckpointMemRecoveryTask splices out checkpoints,
- * handing them to this task.
- *
- * In the future, "eager" checkpoint removal may be implemented, directly
- * handing unreferenced checkpoints to this task at the time they become
- * unreferenced.
  */
 class CheckpointDestroyerTask : public GlobalTask {
 public:
