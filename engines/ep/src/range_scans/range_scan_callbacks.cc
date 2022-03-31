@@ -59,9 +59,13 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
     // Key only scan ends here
     if (scan.isKeyOnly()) {
         scan.handleKey(lookup.getKey().getDocKey());
-        // call setStatus so the scan doesn't try the value lookup. This status
-        // is not visible to the client
-        setStatus(cb::engine_errc::key_already_exists);
+        if (scan.areLimitsExceeded()) {
+            yield();
+        } else {
+            // call setStatus so the scan doesn't try the value lookup. This
+            // status is not visible to the client
+            setStatus(cb::engine_errc::key_already_exists);
+        }
         return;
     }
 
@@ -70,10 +74,14 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
         gv.item->getBySeqno() == lookup.getBySeqno()) {
         // RangeScans do not transmit xattrs
         gv.item->removeXattrs();
-        scan.handleItem(std::move(gv.item));
-        // call setStatus so the scan doesn't try the value lookup. This status
-        // is not visible to the client
-        setStatus(cb::engine_errc::key_already_exists);
+        scan.handleItem(std::move(gv.item), RangeScan::Source::Memory);
+        if (scan.areLimitsExceeded()) {
+            yield();
+        } else {
+            // call setStatus so the scan doesn't try the value lookup. This
+            // status is not visible to the client
+            setStatus(cb::engine_errc::key_already_exists);
+        }
     } else if (gv.getStatus() == cb::engine_errc::unknown_collection) {
         setScanErrorStatus(cb::engine_errc::unknown_collection);
     } else {
@@ -100,8 +108,12 @@ void RangeScanDiskCallback::callback(GetValue& val) {
 
     // RangeScans do not transmit xattrs
     val.item->removeXattrs();
-    scan.handleItem(std::move(val.item));
-    setStatus(cb::engine_errc::success);
+    scan.handleItem(std::move(val.item), RangeScan::Source::Disk);
+    if (scan.areLimitsExceeded()) {
+        yield();
+    } else {
+        setStatus(cb::engine_errc::success);
+    }
 }
 
 void RangeScanDiskCallback::setScanErrorStatus(cb::engine_errc status) {

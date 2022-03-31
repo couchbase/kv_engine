@@ -167,7 +167,9 @@ public:
     void testRangeScan(const std::unordered_set<StoredDocKey>& expectedKeys,
                        CollectionID cid,
                        cb::rangescan::KeyView start,
-                       cb::rangescan::KeyView end);
+                       cb::rangescan::KeyView end,
+                       size_t itemLimit = 0,
+                       size_t extraContinues = 0);
 
     void testLessThan(std::string key);
 
@@ -237,7 +239,9 @@ void RangeScanTest::testRangeScan(
         const std::unordered_set<StoredDocKey>& expectedKeys,
         CollectionID cid,
         cb::rangescan::KeyView start,
-        cb::rangescan::KeyView end) {
+        cb::rangescan::KeyView end,
+        size_t itemLimit,
+        size_t extraContinues) {
     // 1) create a RangeScan to scan the user prefixed keys.
     auto uuid = createScan(cid, start, end);
 
@@ -246,13 +250,24 @@ void RangeScanTest::testRangeScan(
     // 2) Continue a RangeScan
     // 2.1) Frontend thread would call this method using clients uuid
     EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(uuid, *cookie));
+              vb->continueRangeScan(uuid, *cookie, itemLimit));
 
     // 2.2) An I/O task now reads data from disk
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
 
-    // 2.3) All expected keys must have been read from disk (no limits yet)
+    // Tests will need more continues if a limit is in-play
+    for (size_t count = 0; count < extraContinues; count++) {
+        EXPECT_EQ(cb::engine_errc::would_block,
+                  vb->continueRangeScan(uuid, *cookie, itemLimit));
+        runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                    "RangeScanContinueTask");
+        if (count < extraContinues - 1) {
+            EXPECT_EQ(cb::engine_errc::range_scan_more, handler->status);
+        }
+    }
+
+    // 2.3) All expected keys must have been read from disk
     if (isKeyOnly()) {
         handler->validateKeyScan(expectedKeys);
     } else {
@@ -268,12 +283,32 @@ void RangeScanTest::testRangeScan(
 
     // Or continued, uuid is unknown
     EXPECT_EQ(cb::engine_errc::no_such_key,
-              vb->continueRangeScan(uuid, *cookie));
+              vb->continueRangeScan(uuid, *cookie, 0));
 }
 
 // Scan for the user prefixed keys
 TEST_P(RangeScanTest, user_prefix) {
     testRangeScan(getUserKeys(), scanCollection, {"user"}, {"user\xFF"});
+}
+
+TEST_P(RangeScanTest, user_prefix_with_item_limit_1) {
+    auto expectedKeys = getUserKeys();
+    testRangeScan(expectedKeys,
+                  scanCollection,
+                  {"user"},
+                  {"user\xFF"},
+                  1,
+                  expectedKeys.size());
+}
+
+TEST_P(RangeScanTest, user_prefix_with_item_limit_2) {
+    auto expectedKeys = getUserKeys();
+    testRangeScan(expectedKeys,
+                  scanCollection,
+                  {"user"},
+                  {"user\xFF"},
+                  2,
+                  expectedKeys.size() / 2);
 }
 
 // Test ensures callbacks cover disk read case
@@ -401,12 +436,13 @@ TEST_P(RangeScanTest, continue_must_be_serialised) {
     auto vb = store->getVBucket(vbid);
 
     EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(uuid, *cookie));
+              vb->continueRangeScan(uuid, *cookie, 0));
     auto& epVb = dynamic_cast<EPVBucket&>(*vb);
     EXPECT_TRUE(epVb.getRangeScan(uuid)->isContinuing());
 
     // Cannot continue again
-    EXPECT_EQ(cb::engine_errc::too_busy, vb->continueRangeScan(uuid, *cookie));
+    EXPECT_EQ(cb::engine_errc::too_busy,
+              vb->continueRangeScan(uuid, *cookie, 0));
 
     // But can cancel
     EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, true));
@@ -446,7 +482,7 @@ TEST_P(RangeScanTest, create_continue_is_cancelled) {
     auto vb = store->getVBucket(vbid);
 
     EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(uuid, *cookie));
+              vb->continueRangeScan(uuid, *cookie, 0));
 
     // Cancel
     EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, true));
@@ -479,7 +515,7 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
     auto vb = store->getVBucket(vbid);
 
     EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(uuid, *cookie));
+              vb->continueRangeScan(uuid, *cookie, 0));
 
     // Set a hook which will cancel when the 2nd key is read
     handler->testHook = [&vb, uuid](size_t count) {
@@ -500,7 +536,7 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
 
     // Or continued, uuid is unknown
     EXPECT_EQ(cb::engine_errc::no_such_key,
-              vb->continueRangeScan(uuid, *cookie));
+              vb->continueRangeScan(uuid, *cookie, 0));
 
     // Scan only read 2 of the possible keys
     if (isKeyOnly()) {

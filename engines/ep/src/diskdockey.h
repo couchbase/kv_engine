@@ -100,6 +100,13 @@ public:
      */
     std::string to_string() const;
 
+    /**
+     * Intended for RangeScan key manipulation, append character to key
+     */
+    void append(char c) {
+        keydata.push_back(c);
+    }
+
 protected:
     std::string keydata;
 };

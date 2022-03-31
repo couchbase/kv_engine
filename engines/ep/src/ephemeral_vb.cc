@@ -1110,7 +1110,8 @@ cb::engine_errc EphemeralVBucket::createRangeScan(CollectionID,
 }
 
 cb::engine_errc EphemeralVBucket::continueRangeScan(cb::rangescan::Id,
-                                                    const CookieIface&) {
+                                                    const CookieIface&,
+                                                    size_t) {
     return cb::engine_errc::not_supported;
 }
 

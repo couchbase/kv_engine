@@ -83,15 +83,25 @@ cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
         return cb::engine_errc::success;
     }
 
+    // continue works on a copy of the state
+    continueRunState = *continueState.rlock();
+
     auto status = kvstore.scan(*scanCtx);
 
     switch (status) {
-    case ScanStatus::Yield:
+    case ScanStatus::Yield: {
         // Scan reached a limit and has yielded.
         // Set to idle, which will send success to the handler
         setStateIdle(cb::engine_errc::range_scan_more);
+
+        // For RangeScan we have already consumed the last key, which is
+        // different to DCP scans where the last key is read and 'rejected', so
+        // must be read again. We adjust the startKey so we continue from next
+        scanCtx->ranges[0].startKey.append(0);
+
         // return too_busy status so scan is eligible for further continue
         return cb::engine_errc::too_busy;
+    }
     case ScanStatus::Success:
         // Scan has reached the end
         setStateIdle(cb::engine_errc::success);
@@ -134,6 +144,7 @@ void RangeScan::setStateIdle(cb::engine_errc status) {
         case State::Continuing:
             cs.state = State::Idle;
             cs.cookie = nullptr;
+            cs.limits.itemLimit = 0;
             break;
         }
     });
@@ -150,8 +161,8 @@ void RangeScan::setStateIdle(cb::engine_errc status) {
     handler.handleStatus(status);
 }
 
-void RangeScan::setStateContinuing(const CookieIface& client) {
-    continueState.withWLock([&client](auto& cs) {
+void RangeScan::setStateContinuing(const CookieIface& client, size_t limit) {
+    continueState.withWLock([&client, limit](auto& cs) {
         switch (cs.state) {
         case State::Continuing:
         case State::Cancelled:
@@ -161,6 +172,7 @@ void RangeScan::setStateContinuing(const CookieIface& client) {
         case State::Idle:
             cs.state = State::Continuing;
             cs.cookie = &client;
+            cs.limits.itemLimit = limit;
             break;
         }
     });
@@ -181,15 +193,43 @@ void RangeScan::setStateCancelled() {
 }
 
 void RangeScan::handleKey(DocKey key) {
+    incrementItemCount();
     handler.handleKey(key);
 }
 
-void RangeScan::handleItem(std::unique_ptr<Item> item) {
+void RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
+    if (source == Source::Memory) {
+        incrementValueFromMemory();
+    } else {
+        incrementValueFromDisk();
+    }
+    incrementItemCount();
     handler.handleItem(std::move(item));
 }
 
 void RangeScan::handleStatus(cb::engine_errc status) {
     handler.handleStatus(status);
+}
+
+void RangeScan::incrementItemCount() {
+    ++continueRunState.itemCount;
+    ++totalKeys;
+}
+
+void RangeScan::incrementValueFromMemory() {
+    ++totalValuesFromMemory;
+}
+
+void RangeScan::incrementValueFromDisk() {
+    ++totalValuesFromDisk;
+}
+
+bool RangeScan::areLimitsExceeded() {
+    if (continueRunState.cState.limits.itemLimit) {
+        return continueRunState.itemCount >=
+               continueRunState.cState.limits.itemLimit;
+    }
+    return false;
 }
 
 void RangeScan::addStats(const StatCollector& collector) const {
@@ -211,19 +251,29 @@ void RangeScan::addStats(const StatCollector& collector) const {
     addStat("key_value",
             keyOnly == cb::rangescan::KeyOnly::Yes ? "key" : "value");
     addStat("queued", queued);
+    addStat("total_keys", totalKeys);
+    addStat("total_items_from_memory", totalValuesFromMemory);
+    addStat("total_items_from_disk", totalValuesFromDisk);
+
+    addStat("crs_item_count", continueRunState.itemCount);
+    addStat("crs_cookie", continueRunState.cState.cookie);
+    addStat("crs_item_limit", continueRunState.cState.limits.itemLimit);
 
     // copy state and then addStat the copy
     auto cs = *continueState.rlock();
     addStat("state", fmt::format("{}", cs.state));
     addStat("cookie", cs.cookie);
+    addStat("item_limit", cs.limits.itemLimit);
 }
 
 void RangeScan::dump(std::ostream& os) const {
     // copy state then print, avoiding invoking ostream whilst locked
     auto cs = *continueState.rlock();
     fmt::print(os,
-               "RangeScan: uuid:{}, {}, vbuuid:{}, range:({},{}), kv:{},"
-               "queued:{}, state:{}, cookie:{}\n",
+               "RangeScan: uuid:{}, {}, vbuuid:{}, range:({},{}), mode:{}, "
+               "queued:{}, totalKeys:{} values m:{}, d:{}, crs_itemCount:{}, "
+               "crs_cookie:{}, crs_item_limit:{}, cs.state:{}, cs.cookie:{}, "
+               "cs.itemLimit:{}\n",
                uuid,
                vbid,
                vbUuid,
@@ -231,8 +281,20 @@ void RangeScan::dump(std::ostream& os) const {
                cb::UserDataView(end.to_string()),
                (keyOnly == cb::rangescan::KeyOnly::Yes ? "key" : "value"),
                queued,
+               totalKeys,
+               totalValuesFromMemory,
+               totalValuesFromDisk,
+               continueRunState.itemCount,
+               reinterpret_cast<const void*>(continueRunState.cState.cookie),
+               continueRunState.cState.limits.itemLimit,
                cs.state,
-               reinterpret_cast<const void*>(cs.cookie));
+               reinterpret_cast<const void*>(cs.cookie),
+               cs.limits.itemLimit);
+}
+
+RangeScan::ContinueRunState::ContinueRunState() = default;
+RangeScan::ContinueRunState::ContinueRunState(const ContinueState& cs)
+    : cState(cs), itemCount(0) {
 }
 
 std::ostream& operator<<(std::ostream& os, const RangeScan::State& state) {

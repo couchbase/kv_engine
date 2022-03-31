@@ -82,10 +82,12 @@ public:
      *
      * @param id of the scan to continue
      * @param cookie client cookie requesting the continue
+     * @param itemLimit limit for the items that can be read in this continue
      * @return success or other status (see above)
      */
     cb::engine_errc continueScan(cb::rangescan::Id id,
-                                 const CookieIface& cookie);
+                                 const CookieIface& cookie,
+                                 size_t itemLimit);
 
     /**
      * Handler for a range-scan-cancel operation. Method will locate the

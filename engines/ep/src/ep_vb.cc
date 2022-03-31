@@ -1269,8 +1269,9 @@ cb::engine_errc EPVBucket::addNewRangeScan(std::shared_ptr<RangeScan> scan) {
 }
 
 cb::engine_errc EPVBucket::continueRangeScan(cb::rangescan::Id id,
-                                             const CookieIface& cookie) {
-    auto status = rangeScans.continueScan(id, cookie);
+                                             const CookieIface& cookie,
+                                             size_t itemLimit) {
+    auto status = rangeScans.continueScan(id, cookie, itemLimit);
 
     if (status != cb::engine_errc::success) {
         return status;

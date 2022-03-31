@@ -274,7 +274,8 @@ public:
                                     const CookieIface& cookie,
                                     cb::rangescan::KeyOnly keyOnly) override;
     cb::engine_errc continueRangeScan(cb::rangescan::Id id,
-                                      const CookieIface& cookie) override;
+                                      const CookieIface& cookie,
+                                      size_t itemLimit) override;
     cb::engine_errc cancelRangeScan(cb::rangescan::Id id,
                                     bool schedule) override;
 

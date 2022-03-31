@@ -93,8 +93,9 @@ public:
     /**
      * Change the state of the scan to Continuing
      * @param client cookie of the client which continued the scan
+     * @param itemLimit how many items the scan can return
      */
-    void setStateContinuing(const CookieIface& client);
+    void setStateContinuing(const CookieIface& client, size_t itemLimit);
 
     /// change the state of the scan to Cancelled
     void setStateCancelled();
@@ -122,17 +123,20 @@ public:
      * Callback method invoked for each key that is read from the snapshot. This
      * is only invoked for a KeyOnly::Yes scan.
      *
-     *  @param key A key read from a Key only scan
+     * @param key A key read from a Key only scan
      */
     void handleKey(DocKey key);
+
+    enum Source { Memory, Disk };
 
     /**
      * Callback method invoked for each Item that is read from the snapshot.
      * This is only invoked for a KeyOnly::No scan.
      *
-     *  @param item An Item read from a Key/Value scan
+     * @param item An Item read from a Key/Value scan
+     * @param source Item was found in memory or on disk
      */
-    void handleItem(std::unique_ptr<Item> item);
+    void handleItem(std::unique_ptr<Item> item, Source source);
 
     /**
      * Callback method for when a scan has finished a "continue" and is used to
@@ -143,6 +147,18 @@ public:
      * @param status The status of the just completed continue
      */
     void handleStatus(cb::engine_errc status);
+
+    /// Increment the scan's itemCount for an item read by the scan
+    void incrementItemCount();
+
+    /// Increment the scan's itemCount for an item read by the scan
+    void incrementValueFromMemory();
+
+    /// Increment the scan's itemCount for an item read by the scan
+    void incrementValueFromDisk();
+
+    /// @return true if limits have been reached
+    bool areLimitsExceeded();
 
     /// Generate stats for this scan
     void addStats(const StatCollector& collector) const;
@@ -174,7 +190,24 @@ protected:
     uint64_t vbUuid;
     std::unique_ptr<ByIdScanContext> scanCtx;
     RangeScanDataHandlerIFace& handler;
+    /// keys read for the life of this scan (counted for key and value scans)
+    size_t totalKeys{0};
+    /// items read from memory for the life of this scan (only for value scans)
+    size_t totalValuesFromMemory{0};
+    /// items read from disk for the life of this scan (only for value scans)
+    size_t totalValuesFromDisk{0};
+
     Vbid vbid;
+
+    // RangeScan can be continued with client defined limits
+    // These are written from the worker (continue) into the locked 'runState'
+    // As the scan runs on the I/O task all limit checks occur against this copy
+    // from the runState - this removes the need for many lock/unlock
+    struct ContinueLimits {
+        /// current limit for the continuation of this scan
+        size_t itemLimit{0};
+        // @todo: add time limit
+    } continueLimits;
 
     /**
      * RangeScan has a state with the following legal transitions. Also
@@ -197,8 +230,22 @@ protected:
         // cookie will transition from null -> cookie -> null ...
         const CookieIface* cookie{nullptr};
         State state{State::Idle};
+        ContinueLimits limits;
     };
     folly::Synchronized<ContinueState> continueState;
+
+    /**
+     * The ContinueRunState is the state used by I/O task run() loop for a
+     * RangeScan. It contains a copy of the ContinueState that defines how the
+     * continue operates (client and limits)
+     */
+    struct ContinueRunState {
+        ContinueRunState();
+        ContinueRunState(const ContinueState& cs);
+        ContinueState cState;
+        /// item count for the continuation of this scan
+        size_t itemCount{0};
+    } continueRunState;
 
     cb::rangescan::KeyOnly keyOnly{cb::rangescan::KeyOnly::No};
     /// is this scan in the run queue? This bool is read/written only by

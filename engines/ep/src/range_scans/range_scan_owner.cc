@@ -40,6 +40,7 @@ std::shared_ptr<RangeScan> ReadyRangeScans::takeNextScan() {
     if (locked->size()) {
         scan = locked->front();
         locked->pop();
+        scan->setQueued(false);
     }
     return scan;
 }
@@ -63,10 +64,10 @@ cb::engine_errc VB::RangeScanOwner::addNewScan(
 }
 
 cb::engine_errc VB::RangeScanOwner::continueScan(cb::rangescan::Id id,
-                                                 const CookieIface& cookie) {
+                                                 const CookieIface& cookie,
+                                                 size_t itemLimit) {
     Expects(readyScans);
-    EP_LOG_DEBUG("VB::RangeScanOwner::continueScan {}", id);
-
+    EP_LOG_DEBUG("VB::RangeScanOwner::continueScan {} limit:{}", id, itemLimit);
     auto locked = rangeScans.wlock();
     auto itr = locked->find(id);
     if (itr == locked->end()) {
@@ -79,7 +80,7 @@ cb::engine_errc VB::RangeScanOwner::continueScan(cb::rangescan::Id id,
     }
 
     // set scan to 'continuing'
-    itr->second->setStateContinuing(cookie);
+    itr->second->setStateContinuing(cookie, itemLimit);
 
     // Make the scan available to I/O task(s)
     readyScans->addScan(itr->second);

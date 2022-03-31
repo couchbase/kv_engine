@@ -1710,10 +1710,13 @@ public:
      * be scheduled to run on an I/O task
      * @param id The identifier of the scan to continue
      * @param cookie The client cookie executing range-scan-continue
+     * @param itemLimit The maximum number of items the continue can return
+     *                  0 means no limit enforced
      * @return would_block if the scan was found and successfully scheduled
      */
     virtual cb::engine_errc continueRangeScan(cb::rangescan::Id id,
-                                              const CookieIface& cookie) = 0;
+                                              const CookieIface& cookie,
+                                              size_t itemLimit) = 0;
 
     /**
      * Cancel the range scan with the given identifier. The cancel itself will
