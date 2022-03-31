@@ -5276,7 +5276,7 @@ void SingleThreadedKVBucketTest::testExpiryObservesCMQuota(
     // Release all the releasable from checkpoints
     if (!isPersistent()) {
         std::vector<queued_item> items;
-        vb->checkpointManager->getNextItemsForCursor(cursor.get(), items);
+        vb->checkpointManager->getNextItemsForCursor(*cursor, items);
     }
     flushAndRemoveCheckpoints(vbid);
     flushAndExpelFromCheckpoints(vbid);
@@ -5382,7 +5382,7 @@ TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_Del) {
     // Release all the releasable from checkpoints
     if (!isPersistent()) {
         std::vector<queued_item> items;
-        vb->checkpointManager->getNextItemsForCursor(cursor.get(), items);
+        vb->checkpointManager->getNextItemsForCursor(*cursor, items);
     }
     flushAndRemoveCheckpoints(vbid);
     flushAndExpelFromCheckpoints(vbid);

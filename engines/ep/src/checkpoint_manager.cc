@@ -924,16 +924,8 @@ void CheckpointManager::queueSetVBState() {
 }
 
 CheckpointManager::ItemsForCursor CheckpointManager::getNextItemsForCursor(
-        CheckpointCursor* cursor, std::vector<queued_item>& items) {
-    if (!cursor) {
-        EP_LOG_WARN(
-                "CheckpointManager::getNextItemsForCursor(): Caller had a null "
-                "cursor {}",
-                vb.getId());
-        return {};
-    }
-    return getItemsForCursor(
-            *cursor, items, std::numeric_limits<size_t>::max());
+        CheckpointCursor& cursor, std::vector<queued_item>& items) {
+    return getItemsForCursor(cursor, items, std::numeric_limits<size_t>::max());
 }
 
 CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(

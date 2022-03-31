@@ -62,7 +62,7 @@ void CollectionsDcpTest::internalSetUp() {
 void CollectionsDcpTest::moveHelperCursorToCMEnd() {
     std::vector<queued_item> items;
     store->getVBucket(vbid)->checkpointManager->getNextItemsForCursor(
-            helperCursor.get(), items);
+            *helperCursor, items);
 }
 
 Collections::KVStore::Manifest CollectionsDcpTest::getPersistedManifest(

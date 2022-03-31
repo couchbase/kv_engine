@@ -1983,7 +1983,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB36146) {
         ASSERT_EQ(2, ckptMgr.getNumCheckpoints());
         std::vector<queued_item> items;
         store->getVBucket(vbid)->checkpointManager->getNextItemsForCursor(
-                extraCursor.get(), items);
+                *extraCursor, items);
         ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
 
         size_t numberOfItemsInCursor = 0;

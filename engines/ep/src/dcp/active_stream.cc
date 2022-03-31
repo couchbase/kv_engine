@@ -924,8 +924,12 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
     chkptItemsExtractionInProgress.store(true);
 
     auto _begin_ = std::chrono::steady_clock::now();
-    const auto itemsForCursor = vb.checkpointManager->getNextItemsForCursor(
-            cursor.lock().get(), result.items);
+    CheckpointManager::ItemsForCursor itemsForCursor{};
+    auto cursorPtr = cursor.lock();
+    if (cursorPtr) {
+        itemsForCursor = vb.checkpointManager->getNextItemsForCursor(
+                *cursorPtr, result.items);
+    }
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::steady_clock::now() - _begin_));

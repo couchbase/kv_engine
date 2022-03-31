@@ -272,7 +272,7 @@ public:
      *         or (0,0) if no items were added.
      */
     CheckpointManager::ItemsForCursor getNextItemsForCursor(
-            CheckpointCursor* cursor, std::vector<queued_item>& items);
+            CheckpointCursor& cursor, std::vector<queued_item>& items);
 
     /**
      * Add all outstanding items for persistence to the vector. Only fetches
@@ -284,7 +284,8 @@ public:
      */
     CheckpointManager::ItemsForCursor getNextItemsForPersistence(
             std::vector<queued_item>& items) {
-        return getNextItemsForCursor(persistenceCursor, items);
+        Expects(persistenceCursor != nullptr);
+        return getNextItemsForCursor(*persistenceCursor, items);
     }
 
     /**
