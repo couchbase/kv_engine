@@ -2384,7 +2384,7 @@ INSTANTIATE_TEST_SUITE_P(ConcurrentCompactPurgeTests,
                          ::testing::PrintToStringParamName());
 
 // Test the pager doesn't generate expired items for a dropped collection
-TEST_P(CollectionsParameterizedTest,
+TEST_P(CollectionsPersistentParameterizedTest,
        collections_expiry_after_drop_collection_pager) {
     VBucketPtr vb = store->getVBucket(vbid);
 

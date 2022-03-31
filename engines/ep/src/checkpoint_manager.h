@@ -312,7 +312,7 @@ public:
      *                 for the ActiveStream use-case who just needs a single
      *                 value to seed it's snapshot loop.
      */
-    ItemsForCursor getItemsForCursor(CheckpointCursor* cursor,
+    ItemsForCursor getItemsForCursor(CheckpointCursor& cursor,
                                      std::vector<queued_item>& items,
                                      size_t approxLimit);
 
@@ -335,7 +335,8 @@ public:
      */
     ItemsForCursor getItemsForPersistence(std::vector<queued_item>& items,
                                           size_t approxLimit) {
-        return getItemsForCursor(persistenceCursor, items, approxLimit);
+        Expects(persistenceCursor);
+        return getItemsForCursor(*persistenceCursor, items, approxLimit);
     }
 
     /**

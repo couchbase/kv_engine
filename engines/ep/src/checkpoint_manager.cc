@@ -926,23 +926,24 @@ void CheckpointManager::queueSetVBState() {
 
 CheckpointManager::ItemsForCursor CheckpointManager::getNextItemsForCursor(
         CheckpointCursor* cursor, std::vector<queued_item>& items) {
-    return getItemsForCursor(cursor, items, std::numeric_limits<size_t>::max());
+    if (!cursor) {
+        EP_LOG_WARN(
+                "CheckpointManager::getNextItemsForCursor(): Caller had a null "
+                "cursor {}",
+                vb.getId());
+        return {};
+    }
+    return getItemsForCursor(
+            *cursor, items, std::numeric_limits<size_t>::max());
 }
 
 CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
-        CheckpointCursor* cursorPtr,
+        CheckpointCursor& cursor,
         std::vector<queued_item>& items,
         size_t approxLimit) {
     Expects(approxLimit > 0);
 
     std::lock_guard<std::mutex> lh(queueLock);
-    if (!cursorPtr) {
-        EP_LOG_WARN("getItemsForCursor(): Caller had a null cursor {}",
-                    vb.getId());
-        return {};
-    }
-
-    auto& cursor = *cursorPtr;
 
     // Fetch whole checkpoints; as long as we don't exceed the approx item
     // limit.
@@ -962,7 +963,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
 
     // For persistence, we register a backup pcursor for resetting the pcursor
     // to the backup position if persistence fails.
-    if (cursorPtr == persistenceCursor) {
+    if (&cursor == persistenceCursor) {
         registerBackupPersistenceCursor(lh);
         result.flushHandle = std::make_unique<FlushHandle>(*this);
     }

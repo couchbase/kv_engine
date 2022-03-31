@@ -1271,12 +1271,12 @@ TEST_P(StreamTest, MB38356_DuplicateStreamRequest) {
     auto stream = producer->findStream(vbid);
     ASSERT_TRUE(stream);
     const auto cursor = stream->getCursor();
-    EXPECT_TRUE(cursor.lock());
+    auto cursorPtr = cursor.lock();
+    EXPECT_TRUE(cursorPtr);
     auto& vb = *engine->getVBucket(vbid);
     auto& cm = *vb.checkpointManager;
     std::vector<queued_item> qis;
-    cm.getItemsForCursor(
-            cursor.lock().get(), qis, std::numeric_limits<uint64_t>::max());
+    cm.getItemsForCursor(*cursorPtr, qis, std::numeric_limits<uint64_t>::max());
     // Copy to plain Item vector to aid in checking expected value.
     std::vector<Item> items;
     std::transform(qis.begin(),

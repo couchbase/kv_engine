@@ -316,7 +316,7 @@ TEST_P(CheckpointTest, getItems_MultipleSnapshots) {
     EXPECT_EQ(2, this->manager->getNumCheckpoints());
     EXPECT_EQ(3, this->manager->getNumOpenChkItems());
     std::vector<queued_item> items;
-    auto cursorResult = manager->getItemsForCursor(cursor, items, 1000);
+    auto cursorResult = manager->getItemsForCursor(*cursor, items, 1000);
     EXPECT_FALSE(cursorResult.moreAvailable);
 
     // Expect to see all of the items and two snapshot ranges
@@ -361,7 +361,7 @@ TEST_P(CheckpointTest, getItems_MemoryDiskSnapshots) {
     EXPECT_EQ(2, this->manager->getNumCheckpoints());
     EXPECT_EQ(3, this->manager->getNumOpenChkItems());
     std::vector<queued_item> items;
-    auto cursorResult = manager->getItemsForCursor(cursor, items, 1000);
+    auto cursorResult = manager->getItemsForCursor(*cursor, items, 1000);
     EXPECT_TRUE(cursorResult.moreAvailable);
 
     // Expect only the first snapshot
@@ -624,7 +624,7 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursorLimited) {
      * fetch the first checkpoints' worth.
      */
     std::vector<queued_item> items;
-    auto result = manager->getItemsForCursor(cursor, items, 1);
+    auto result = manager->getItemsForCursor(*cursor, items, 1);
     EXPECT_EQ(1, result.ranges.size());
     EXPECT_EQ(1000, result.ranges.front().getStart());
     EXPECT_EQ(1000 + maxItems, result.ranges.front().getEnd());
@@ -672,7 +672,7 @@ TEST_P(CheckpointTest, DiskCheckpointStrictItemLimit) {
      * fetch the first item
      */
     std::vector<queued_item> items;
-    auto result = manager->getItemsForCursor(cursor, items, 1);
+    auto result = manager->getItemsForCursor(*cursor, items, 1);
     EXPECT_EQ(1, result.ranges.size());
     EXPECT_EQ(1000, result.ranges.front().getStart());
     EXPECT_EQ(1000 + maxItems, result.ranges.front().getEnd());
@@ -1424,8 +1424,7 @@ TEST_F(SingleThreadedCheckpointTest, CursorDistance_MoveToNewCheckpoint) {
     auto& manager = *store->getVBuckets().getBucket(vbid)->checkpointManager;
     manager.createNewCheckpoint(true);
     std::vector<queued_item> out;
-    manager.getItemsForCursor(
-            cursor.get(), out, std::numeric_limits<size_t>::max());
+    manager.getItemsForCursor(*cursor, out, std::numeric_limits<size_t>::max());
 
     // [e:0 cs:0 vbs:1 m:1 m:2] [e:3 cs:3)
     //                               ^
@@ -2233,7 +2232,7 @@ TEST_P(CheckpointTest, MetaItemsSeqnoWeaklyMonotonicSetVbStateBeforeEnd) {
             "Cursor", 0, CheckpointCursor::Droppable::Yes);
     auto cursor = regRes.cursor.lock();
     std::vector<queued_item> items;
-    cm.getItemsForCursor(cursor.get(), items, 10 /*approxLimit*/);
+    cm.getItemsForCursor(*cursor, items, 10 /*approxLimit*/);
 
     WeaklyMonotonic<uint64_t, ThrowExceptionPolicy> seqno(0);
     for (const auto& item : items) {
@@ -2268,7 +2267,7 @@ TEST_P(CheckpointTest, MetaItemsSeqnoWeaklyMonotonicSetVbStateAfterStart) {
             "Cursor", 0, CheckpointCursor::Droppable::Yes);
     auto cursor = regRes.cursor.lock();
     std::vector<queued_item> items;
-    cm.getItemsForCursor(cursor.get(), items, 10 /*approxLimit*/);
+    cm.getItemsForCursor(*cursor, items, 10 /*approxLimit*/);
 
     WeaklyMonotonic<uint64_t, ThrowExceptionPolicy> seqno{0};
     for (const auto& item : items) {
@@ -2320,10 +2319,10 @@ TEST_P(CheckpointTest,
     }
 
     std::vector<queued_item> items;
-    auto res = manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+    auto res = manager->getItemsForCursor(*cursor, items, 123 /*limit*/);
 
     try {
-        manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+        manager->getItemsForCursor(*cursor, items, 123 /*limit*/);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(
                 std::string(e.what()).find("Backup cursor already exists") !=
@@ -2358,7 +2357,7 @@ CheckpointTest::testGetItemsForPersistenceCursor() {
 
     // Pull it out from the CM without moving the cursor
     std::vector<queued_item> items;
-    auto res = manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+    auto res = manager->getItemsForCursor(*cursor, items, 123 /*limit*/);
 
     // Check that we get all the expected
     EXPECT_TRUE(res.flushHandle);
@@ -2417,7 +2416,7 @@ TEST_P(CheckpointTest, GetItemsForPersistenceCursor_FlushSuccessScenario) {
     // Now try to pull items out again and expect no items for pcursor as
     // the flush has succeded
     std::vector<queued_item> items;
-    const auto res = manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+    const auto res = manager->getItemsForCursor(*cursor, items, 123 /*limit*/);
     EXPECT_FALSE(res.moreAvailable);
     ASSERT_EQ(0, res.ranges.size());
     ASSERT_EQ(0, items.size());
@@ -2455,7 +2454,7 @@ TEST_P(CheckpointTest, GetItemsForPersistenceCursor_FlushFailureScenario) {
     // Now try to pull items out again and expect to retrieve all the items
     // + snap-range info.
     std::vector<queued_item> items;
-    res = manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+    res = manager->getItemsForCursor(*cursor, items, 123 /*limit*/);
 
     ASSERT_TRUE(res.flushHandle);
     EXPECT_FALSE(res.moreAvailable);
@@ -2500,7 +2499,7 @@ TEST_P(CheckpointTest, NeverDropBackupPCursor) {
 
     // Create backup-pcursor (and move pcursor)
     std::vector<queued_item> items;
-    const auto res = manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+    const auto res = manager->getItemsForCursor(*cursor, items, 123 /*limit*/);
 
     ASSERT_EQ(3, items.size());
     ASSERT_EQ(queue_op::mutation, items.at(0)->getOperation());
@@ -2565,7 +2564,7 @@ TEST_P(CheckpointTest,
     //             ^            ^
     //             B            P
     std::vector<queued_item> items;
-    auto res = manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+    auto res = manager->getItemsForCursor(*cursor, items, 123 /*limit*/);
     ASSERT_EQ(1, items.size());
     EXPECT_EQ(queue_op::mutation, items.at(0)->getOperation());
     EXPECT_EQ(1002, items.at(0)->getBySeqno());
@@ -2623,7 +2622,7 @@ TEST_P(CheckpointTest,
     //                               ^
     //                               P
     items.clear();
-    manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+    manager->getItemsForCursor(*cursor, items, 123 /*limit*/);
     ASSERT_EQ(2, items.size());
     EXPECT_EQ(queue_op::mutation, items.at(0)->getOperation());
     EXPECT_EQ(1002, items.at(0)->getBySeqno());
@@ -2779,7 +2778,7 @@ TEST_P(CheckpointRemovalTest, CursorMovement) {
         {
             std::vector<queued_item> items;
             manager->getItemsForCursor(
-                    cursor, items, std::numeric_limits<size_t>::max());
+                    *cursor, items, std::numeric_limits<size_t>::max());
         }
         EXPECT_EQ(0, manager->getNumItemsForCursor(cursor));
     }
@@ -2806,7 +2805,7 @@ TEST_P(CheckpointRemovalTest, NewClosedCheckpointMovesCursor) {
         {
             std::vector<queued_item> items;
             manager->getItemsForCursor(
-                    cursor, items, std::numeric_limits<size_t>::max());
+                    *cursor, items, std::numeric_limits<size_t>::max());
         }
         EXPECT_EQ(2, this->manager->getNumOpenChkItems());
         EXPECT_EQ(1, this->manager->getNumCheckpoints());
@@ -2917,7 +2916,7 @@ TEST_P(CheckpointRemovalTest, OnlyOldestCkptTriggersCB) {
 
         {
             std::vector<queued_item> items;
-            manager->getItemsForCursor(cursor, items, 2);
+            manager->getItemsForCursor(*cursor, items, 2);
         }
         EXPECT_EQ(2, this->manager->getNumCheckpoints());
         EXPECT_EQ(1, manager->getNumItemsForCursor(cursor));
@@ -3105,7 +3104,8 @@ void CheckpointTest::expelCursorSetup() {
     EXPECT_EQ(1, manager->getNumOfCursors());
     EXPECT_TRUE(cursor);
     std::vector<queued_item> out;
-    manager->getItemsForCursor(cursor, out, std::numeric_limits<size_t>::max());
+    manager->getItemsForCursor(
+            *cursor, out, std::numeric_limits<size_t>::max());
     EXPECT_EQ(3, out.size()); // checkpoint_start + mutations
     EXPECT_FALSE(manager->hasClosedCheckpointWhichCanBeRemoved());
 
@@ -3552,7 +3552,7 @@ TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
     EXPECT_EQ(2, manager.getNumCheckpoints());
     // Move cursor to new checkpoint
     std::vector<queued_item> items;
-    manager.getItemsForCursor(manager.getPersistenceCursor(),
+    manager.getItemsForCursor(*manager.getPersistenceCursor(),
                               items,
                               std::numeric_limits<size_t>::max());
     // Remove closed checkpoint (if eager checkpoint removal, this is
@@ -3691,7 +3691,7 @@ TEST_P(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     {
         std::vector<queued_item> items;
         manager.getItemsForCursor(
-                cursor, items, std::numeric_limits<size_t>::max());
+                *cursor, items, std::numeric_limits<size_t>::max());
     }
     // as soon as checkpoints are removed, the manager's memory usage should
     // decrease...
@@ -3768,7 +3768,7 @@ TEST_P(ShardedCheckpointDestructionTest, ShardedBackgroundTaskIsNotified) {
         // notified.
         {
             std::vector<queued_item> items;
-            manager.getItemsForCursor(manager.getPersistenceCursor(),
+            manager.getItemsForCursor(*manager.getPersistenceCursor(),
                                       items,
                                       std::numeric_limits<size_t>::max());
         }

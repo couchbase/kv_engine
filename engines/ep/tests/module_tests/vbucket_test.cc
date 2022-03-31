@@ -748,9 +748,10 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
     // (1.2) before performing any other operations.
     auto cursorResult = vbucket->checkpointManager->registerCursorBySeqno(
             "persistence", 0, CheckpointCursor::Droppable::No);
+    auto cursorPtr = cursorResult.cursor.lock();
+    ASSERT_TRUE(cursorPtr);
     std::vector<queued_item> out;
-    vbucket->checkpointManager->getItemsForCursor(
-            cursorResult.cursor.lock().get(), out, 1);
+    vbucket->checkpointManager->getItemsForCursor(*cursorPtr, out, 1);
     ASSERT_EQ(2, out.size());
 
     // (1.2) Mimic flusher by running the PCB for the store at (1)
@@ -768,8 +769,7 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
     // checkpoint manager sets the vBucket stats correctly (in particular the
     // dirtyQueueSize and the diskQueueSize).
     out.clear();
-    vbucket->checkpointManager->getItemsForCursor(
-            cursorResult.cursor.lock().get(), out, 1);
+    vbucket->checkpointManager->getItemsForCursor(*cursorPtr, out, 1);
     ASSERT_EQ(1, out.size());
 
     // (3) Now set k again
