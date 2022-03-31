@@ -283,7 +283,8 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
     // remove it.
     for (const auto& cursor : cursors) {
         if (cursor.first == name) {
-            removeCursor(lh, cursor.second.get());
+            Expects(cursor.second);
+            removeCursor(lh, *cursor.second);
             break;
         }
     }
@@ -377,16 +378,16 @@ void CheckpointManager::registerBackupPersistenceCursor(
     cursors[backupPCursorName] = std::move(pCursorCopy);
 }
 
-bool CheckpointManager::removeCursor(CheckpointCursor* cursor) {
-    removeCursorPreLockHook();
-
+bool CheckpointManager::removeCursor(CheckpointCursor& cursor) {
     std::lock_guard<std::mutex> lh(queueLock);
     return removeCursor(lh, cursor);
 }
 
 void CheckpointManager::removeBackupPersistenceCursor() {
     std::lock_guard<std::mutex> lh(queueLock);
-    const auto res = removeCursor(lh, cursors.at(backupPCursorName).get());
+    auto* backupCursor = cursors.at(backupPCursorName).get();
+    Expects(backupCursor);
+    const auto res = removeCursor(lh, *backupCursor);
     Expects(res);
 
     // Reset (recreate) the potential stats overcounts as our flush was
@@ -402,7 +403,8 @@ AggregatedFlushStats CheckpointManager::resetPersistenceCursor() {
     //  computation right
 
     // 1) Remove the existing pcursor
-    auto remResult = removeCursor(lh, persistenceCursor);
+    Expects(persistenceCursor);
+    auto remResult = removeCursor(lh, *persistenceCursor);
     Expects(remResult);
     pCursor = Cursor();
     persistenceCursor = nullptr;
@@ -417,7 +419,8 @@ AggregatedFlushStats CheckpointManager::resetPersistenceCursor() {
     persistenceCursor = pCursor.lock().get();
 
     // 3) Remove old backup
-    remResult = removeCursor(lh, backup);
+    Expects(backup);
+    remResult = removeCursor(lh, *backup);
     Expects(remResult);
 
     // Swap the stat counts to reset them for the next flush - return the
@@ -429,32 +432,28 @@ AggregatedFlushStats CheckpointManager::resetPersistenceCursor() {
 }
 
 bool CheckpointManager::removeCursor(const std::lock_guard<std::mutex>& lh,
-                                     CheckpointCursor* cursor) {
-    if (!cursor) {
-        return false;
-    }
-
+                                     CheckpointCursor& cursor) {
     // We have logic "race conditions" that may lead to legally executing here
     // when the cursor has already been marked invalid, so we just return if
     // that is the case. See MB-45757 for details.
-    if (!cursor->valid()) {
+    if (!cursor.valid()) {
         return false;
     }
 
     EP_LOG_DEBUG("Remove the checkpoint cursor with the name \"{}\" from {}",
-                 cursor->getName(),
+                 cursor.getName(),
                  vb.getId());
 
-    cursor->invalidate();
+    cursor.invalidate();
 
     // find the current checkpoint before erasing the cursor, if there
     // are no other owners of the cursor it may be destroyed.
-    auto* checkpoint = cursor->getCheckpoint()->get();
+    auto* checkpoint = cursor.getCheckpoint()->get();
 
-    if (cursors.erase(cursor->getName()) == 0) {
+    if (cursors.erase(cursor.getName()) == 0) {
         throw std::logic_error(
                 "CheckpointManager::removeCursor: " + to_string(vb.getId()) +
-                " Failed to remove cursor: " + cursor->getName());
+                " Failed to remove cursor: " + cursor.getName());
     }
 
     if (isEligibleForEagerRemoval(*checkpoint)) {
@@ -1872,8 +1871,8 @@ CheckpointManager::ExtractItemsResult::ExtractItemsResult(
 }
 
 CheckpointManager::ExtractItemsResult::~ExtractItemsResult() {
-    if (manager) {
-        manager->removeCursor(expelCursor.get());
+    if (manager && expelCursor) {
+        manager->removeCursor(*expelCursor);
     }
 }
 

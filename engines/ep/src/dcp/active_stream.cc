@@ -2158,7 +2158,10 @@ void ActiveStream::notifyStreamReady(bool force, DcpProducer* producer) {
 bool ActiveStream::removeCheckpointCursor() {
     VBucketPtr vb = engine->getVBucket(vb_);
     if (vb) {
-        if (vb->checkpointManager->removeCursor(cursor.lock().get())) {
+        removeCursorPreLockHook();
+        auto lockedCursor = cursor.lock();
+        if (lockedCursor &&
+            vb->checkpointManager->removeCursor(*lockedCursor)) {
             /*
              * Although the cursor has been removed from the cursor map
              * the underlying shared_ptr can still be valid due to other

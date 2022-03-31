@@ -1734,7 +1734,7 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
     // backfill, without a cursor. The test can then check that the cursor is
     // registered again at the correct seqno, defending the original change as
     // intended.
-    ckpt_mgr.removeCursor(mock_stream->getCursor().lock().get());
+    ckpt_mgr.removeCursor(*mock_stream->getCursor().lock());
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());

@@ -1485,7 +1485,7 @@ TEST_F(SingleThreadedCheckpointTest, CursorDistance_ResetCursor) {
     // Just need to run with 1 cursor, let's keep the test simple
     auto& vb = *store->getVBuckets().getBucket(vbid);
     auto& manager = *vb.checkpointManager;
-    manager.removeCursor(manager.getPersistenceCursor());
+    manager.removeCursor(*manager.getPersistenceCursor());
     ASSERT_EQ(1, manager.getNumCursors());
 
     // State here:
@@ -1502,7 +1502,7 @@ TEST_F(SingleThreadedCheckpointTest, CursorDistance_ResetCursor) {
             0 /*lastSnapEnd*/,
             0 /*maxVisible*/,
             nullptr /*persistence callback*/);
-    newManager->removeCursor(newManager->getPersistenceCursor());
+    newManager->removeCursor(*newManager->getPersistenceCursor());
 
     ASSERT_EQ(1, manager.getNumCursors());
     ASSERT_EQ(0, newManager->getNumOfCursors());
@@ -2834,7 +2834,7 @@ TEST_P(CheckpointRemovalTest, NewClosedCheckpointMovesCursor) {
 TEST_P(CheckpointRemovalTest, NewUnreffedClosedCheckpoint) {
     // remove the cursor now, so the newly closed checkpoint will be immediately
     // unreffed
-    manager->removeCursor(cursor);
+    manager->removeCursor(*cursor);
 
     // Add two items to the initial (open) checkpoint.
     for (auto i : {1, 2}) {
@@ -2975,7 +2975,7 @@ TEST_P(CheckpointRemovalTest, RemoveCursorTriggersCB) {
                 .Times(1);
         manager->setCheckpointDisposer(callback.AsStdFunction());
 
-        manager->removeCursor(cursor);
+        manager->removeCursor(*cursor);
         EXPECT_EQ(0, this->manager->getNumOpenChkItems());
         EXPECT_EQ(1, this->manager->getNumCheckpoints());
     }
@@ -3920,7 +3920,7 @@ void EphemeralCheckpointTest::SetUp() {
     CheckpointTest::SetUp();
     // Remove test-cursor - we want these tests to run in the same
     // configuration as an Ephemeral bucket normally does.
-    ASSERT_TRUE(manager->removeCursor(cursor));
+    ASSERT_TRUE(manager->removeCursor(*cursor));
 
     ASSERT_EQ(1000, manager->getHighSeqno());
     ASSERT_EQ(1, manager->getNumCheckpoints());

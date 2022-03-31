@@ -213,12 +213,13 @@ public:
 
     /**
      * Remove the cursor for a given connection.
-     * @param pointer to the clients cursor, can be null and is non constant
-     * so currentCheckpoint member can be set to checkpointList.end() to prevent
-     * further use of currentCheckpoint iterator.
+     * @param cursor, ref to the clients cursor to be removed from the
+     * CheckpointManager and so currentCheckpoint member can be set to
+     * checkpointList.end() to prevent further use of currentCheckpoint
+     * iterator.
      * @return true if the cursor is removed successfully.
      */
-    bool removeCursor(CheckpointCursor* cursor);
+    bool removeCursor(CheckpointCursor& cursor);
 
     /**
      * Removes the backup persistence cursor created at getItemsForCursor().
@@ -598,11 +599,8 @@ public:
      * Member std::function variable, to allow us to inject code into
      * removeCursor() for unit MB36146
      */
-    std::function<void(const CheckpointCursor* cursor, Vbid vbid)>
+    std::function<void(const CheckpointCursor& cursor, Vbid vbid)>
             runGetItemsHook;
-
-    // Introduced in MB-45757 for testing a race condition on invalidate-cursor
-    TestingHook<> removeCursorPreLockHook;
 
 protected:
     /**
@@ -690,7 +688,7 @@ protected:
      * @return true is the cursor was removed, false otherwise
      */
     bool removeCursor(const std::lock_guard<std::mutex>& lh,
-                      CheckpointCursor* cursor);
+                      CheckpointCursor& cursor);
 
     /**
      * Register a cursor within the checkpoint.

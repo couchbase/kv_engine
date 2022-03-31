@@ -539,7 +539,7 @@ std::vector<queued_item> CheckpointRemoverEPTest::getItemsWithCursor(
     std::vector<queued_item> items;
     cm->getNextItemsForCursor(cursor.get(), items);
 
-    cm->removeCursor(cursor.get());
+    cm->removeCursor(*cursor);
 
     return items;
 }

@@ -435,6 +435,9 @@ public:
      */
     void setEndSeqno(uint64_t seqno);
 
+    // Introduced in MB-45757 for testing a race condition on invalidate-cursor
+    TestingHook<> removeCursorPreLockHook;
+
 protected:
     void clear_UNLOCKED();
 

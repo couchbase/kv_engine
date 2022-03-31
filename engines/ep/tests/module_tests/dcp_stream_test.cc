@@ -1978,7 +1978,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB36146) {
     }
 
     ckptMgr.runGetItemsHook = [this, &ckptMgr, &extraCursor](
-                                      const CheckpointCursor* cursor,
+                                      const CheckpointCursor& cursor,
                                       Vbid vbid) {
         ASSERT_EQ(2, ckptMgr.getNumCheckpoints());
         std::vector<queued_item> items;
@@ -1988,7 +1988,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB36146) {
 
         size_t numberOfItemsInCursor = 0;
         EXPECT_NO_THROW(numberOfItemsInCursor =
-                                ckptMgr.getNumItemsForCursor(cursor));
+                                ckptMgr.getNumItemsForCursor(&cursor));
         EXPECT_EQ(0, numberOfItemsInCursor);
     };
 
@@ -4390,9 +4390,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB_45757) {
     // Initiate disconnection of the old producer, but block it in
     // CM::removeCursor() just before it acquires the CM::lock.
     ThreadGate gate(2);
-    vb.checkpointManager->removeCursorPreLockHook = [&gate]() {
-        gate.threadUp();
-    };
+    stream->removeCursorPreLockHook = [&gate]() { gate.threadUp(); };
     auto threadCrash = std::thread(
             [stream = this->stream]() { stream->transitionStateToDead(); });
 
