@@ -21,61 +21,27 @@
 #endif
 
 EPStats::EPStats()
-    : warmedUpKeys(0),
-      warmedUpValues(0),
-      warmedUpPrepares(0),
-      warmupItemsVisitedWhilstLoadingPrepares(0),
-      warmDups(0),
-      warmOOM(0),
-      warmupMemUsedCap(0),
+    // All variables initialized here are cached / calculated config values or
+    // timestamps, that should not be included in a reset() call, and so cannot
+    // be initialized in that function.
+    : warmupMemUsedCap(0),
       warmupNumReadCap(0),
       diskQueueSize(0),
-      flusher_todo(0),
-      flusherCommits(0),
-      cumulativeFlushTime(0),
-      cumulativeCommitTime(0),
-      totalPersisted(0),
-      totalEnqueued(0),
-      flushFailed(0),
-      flushExpired(0),
-      expired_access(0),
-      expired_compactor(0),
-      expired_pager(0),
-      beginFailed(0),
-      commitFailed(0),
-      vbucketDeletions(0),
-      vbucketDeletionFail(0),
       mem_low_wat(0),
       mem_low_wat_percent(0),
       mem_high_wat(0),
       mem_high_wat_percent(0),
-      memFreedByCheckpointItemExpel(0),
+      replicaHTMemory(0),
+      replicaCheckpointOverhead(0),
       forceShutdown(false),
+      pendingOps(0),
       pendingCompactions(0),
-      bg_meta_fetched(0),
       numRemainingBgItems(0),
       numRemainingBgJobs(0),
       replicationThrottleThreshold(0),
-      numOpsStore(0),
-      numOpsDelete(0),
-      numOpsGet(0),
-      numOpsGetMeta(0),
-      numOpsSetMeta(0),
-      numOpsDelMeta(0),
-      numOpsSetMetaResolutionFailed(0),
-      numOpsDelMetaResolutionFailed(0),
-      numOpsSetRetMeta(0),
-      numOpsDelRetMeta(0),
-      numOpsGetMetaOnSetWithMeta(0),
-      alogNumItems(0),
       alogTime(0),
-      alogRuntime(0),
       expPagerTime(0),
       isShutdown(false),
-      rollbackCount(0),
-      defragStoredValueNumMoved(0),
-      dirtyAgeHisto(),
-      diskCommitHisto(),
       timingLog(nullptr),
       maxDataSize(DEFAULT_MAX_DATA_SIZE) {
     EPStats::reset(); // Initialize all remaining stats to their default values
@@ -258,7 +224,6 @@ void EPStats::reset() {
     bgLoad.store(0);
     oom_errors.reset();
     tmp_oom_errors.reset();
-    pendingOps.reset();
     pendingOpsTotal.reset();
     pendingOpsMax.store(0);
     pendingOpsMaxDuration.store(0);
@@ -298,6 +263,45 @@ void EPStats::reset() {
     dirtyAgeHisto.reset();
     persistenceCursorGetItemsHisto.reset();
     dcpCursorsGetItemsHisto.reset();
+
+    warmedUpKeys.reset();
+    warmedUpValues.reset();
+    warmedUpPrepares.reset();
+    warmupItemsVisitedWhilstLoadingPrepares.reset();
+    warmDups.reset();
+    warmOOM.reset();
+    flusher_todo.reset();
+    flusherCommits.reset();
+    cumulativeFlushTime.reset();
+    cumulativeCommitTime.reset();
+    totalPersisted.reset();
+    totalEnqueued.reset();
+    flushFailed.reset();
+    flushExpired.reset();
+    expired_access.reset();
+    expired_compactor.reset();
+    expired_pager.reset();
+    beginFailed.reset();
+    commitFailed.reset();
+    vbucketDeletions.reset();
+    vbucketDeletionFail.reset();
+    memFreedByCheckpointItemExpel.reset();
+    bg_meta_fetched.reset();
+    numOpsStore.reset();
+    numOpsDelete.reset();
+    numOpsGet.reset();
+    numOpsGetMeta.reset();
+    numOpsSetMeta.reset();
+    numOpsDelMeta.reset();
+    numOpsSetMetaResolutionFailed.reset();
+    numOpsDelMetaResolutionFailed.reset();
+    numOpsSetRetMeta.reset();
+    numOpsDelRetMeta.reset();
+    numOpsGetMetaOnSetWithMeta.reset();
+    alogNumItems.reset();
+    alogRuntime.store(0);
+    rollbackCount.reset();
+    defragStoredValueNumMoved.reset();
 
     activeOrPendingFrequencyValuesEvictedHisto.reset();
     replicaFrequencyValuesEvictedHisto.reset();

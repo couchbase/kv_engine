@@ -118,6 +118,7 @@ enum test_result rmdb(const char* path) {
 
 bool test_setup(EngineIface* h) {
     wait_for_warmup_complete(h);
+    wait_for_flusher_to_settle(h);
 
     check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
           "Failed to set VB0 state.");
