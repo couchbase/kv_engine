@@ -13,6 +13,7 @@
 #include "callbacks.h"
 #include "storeddockey.h"
 
+#include <folly/Synchronized.h>
 #include <memcached/range_scan.h>
 #include <memcached/range_scan_id.h>
 
@@ -61,14 +62,14 @@ public:
               DiskDocKey start,
               DiskDocKey end,
               RangeScanDataHandlerIFace& handler,
-              const CookieIface* cookie,
+              const CookieIface& cookie,
               cb::rangescan::KeyOnly keyOnly);
 
     /**
      * Continue the range scan by calling kvstore.scan()
      *
      * @param kvstore A KVStoreIface on which to call scan
-     * @return success or failed
+     * @return success or too_busy
      */
     cb::engine_errc continueScan(KVStoreIface& kvstore);
 
@@ -78,22 +79,22 @@ public:
     }
 
     /// @return true if the scan is currently idle
-    bool isIdle() const {
-        return state.load() == State::Idle;
-    }
+    bool isIdle() const;
 
     /// @return true if the scan is currently continuing
-    bool isContinuing() const {
-        return state.load() == State::Continuing;
-    }
+    bool isContinuing() const;
 
     /// @return true if the scan is cancelled
-    bool isCancelled() const {
-        return state.load() == State::Cancelled;
-    }
+    bool isCancelled() const;
 
-    /// change the state of the scan to Continuing
-    void setStateContinuing();
+    /// change the state of the scan to Idle
+    void setStateIdle(cb::engine_errc status);
+
+    /**
+     * Change the state of the scan to Continuing
+     * @param client cookie of the client which continued the scan
+     */
+    void setStateContinuing(const CookieIface& client);
 
     /// change the state of the scan to Cancelled
     void setStateCancelled();
@@ -107,6 +108,41 @@ public:
     bool isKeyOnly() const {
         return keyOnly == cb::rangescan::KeyOnly::Yes;
     }
+
+    /// method for use by RangeScans to ensure we only queue a scan once
+    bool isQueued() const {
+        return queued;
+    }
+    /// method for use by RangeScans to ensure we only queue a scan once
+    void setQueued(bool q) {
+        queued = q;
+    }
+
+    /**
+     * Callback method invoked for each key that is read from the snapshot. This
+     * is only invoked for a KeyOnly::Yes scan.
+     *
+     *  @param key A key read from a Key only scan
+     */
+    void handleKey(DocKey key);
+
+    /**
+     * Callback method invoked for each Item that is read from the snapshot.
+     * This is only invoked for a KeyOnly::No scan.
+     *
+     *  @param item An Item read from a Key/Value scan
+     */
+    void handleItem(std::unique_ptr<Item> item);
+
+    /**
+     * Callback method for when a scan has finished a "continue" and is used to
+     * set the status of the scan. A "continue" can finish prematurely due to
+     * an error or successfully because it has reached the end of the scan or
+     * a limit.
+     *
+     * @param status The status of the just completed continue
+     */
+    void handleStatus(cb::engine_errc status);
 
     /// Generate stats for this scan
     void addStats(const StatCollector& collector) const;
@@ -123,13 +159,14 @@ protected:
      *
      * On failure throws a std::runtime_error
      *
+     * @param cookie The client cookie creating the range-scan
      * @param bucket The EPBucket to use to obtain the KVStore and pass to the
      *               RangeScanCacheCallback
      * @return the cb::rangescan::Id to use for this scan
      */
-    cb::rangescan::Id createScan(EPBucket& bucket);
+    cb::rangescan::Id createScan(const CookieIface& cookie, EPBucket& bucket);
 
-    // member variables ordered by size large -> small
+    // member variables ideally ordered by size large -> small
     cb::rangescan::Id uuid;
     DiskDocKey start;
     DiskDocKey end;
@@ -137,8 +174,6 @@ protected:
     uint64_t vbUuid;
     std::unique_ptr<ByIdScanContext> scanCtx;
     RangeScanDataHandlerIFace& handler;
-    // pointer as it updates when continued
-    const CookieIface* cookie;
     Vbid vbid;
 
     /**
@@ -151,8 +186,24 @@ protected:
      * Continuing->Cancelled (via range-scan-cancel)
      */
     enum class State : char { Idle, Continuing, Cancelled };
-    std::atomic<State> state;
+
+    /**
+     * The 'continue' state of the scan is updated from different threads.
+     * E.g. worker thread moves from Idle to Continue, but I/O thread moves from
+     * Continue to Idle. The cookie also changes, so these are all managed as
+     * a single structure via folly::Synchronized
+     */
+    struct ContinueState {
+        // cookie will transition from null -> cookie -> null ...
+        const CookieIface* cookie{nullptr};
+        State state{State::Idle};
+    };
+    folly::Synchronized<ContinueState> continueState;
+
     cb::rangescan::KeyOnly keyOnly{cb::rangescan::KeyOnly::No};
+    /// is this scan in the run queue? This bool is read/written only by
+    /// RangeScans under the queue lock
+    bool queued{false};
 
     friend std::ostream& operator<<(std::ostream&, const RangeScan::State&);
     friend std::ostream& operator<<(std::ostream&, const RangeScan&);

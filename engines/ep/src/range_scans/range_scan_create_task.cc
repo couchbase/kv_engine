@@ -78,7 +78,7 @@ std::pair<cb::engine_errc, cb::rangescan::Id> RangeScanCreateTask::create()
                                             DiskDocKey{start},
                                             DiskDocKey{end},
                                             handler,
-                                            &cookie,
+                                            cookie,
                                             keyOnly);
     auto& epVb = dynamic_cast<EPVBucket&>(*vb);
     return {epVb.addNewRangeScan(scan), scan->getUuid()};

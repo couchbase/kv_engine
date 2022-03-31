@@ -15,11 +15,9 @@
 #include "range_scans/range_scan.h"
 #include "vbucket.h"
 
-RangeScanCacheCallback::RangeScanCacheCallback(
-        const RangeScan& scan,
-        EPBucket& bucket,
-        RangeScanDataHandlerIFace& handler)
-    : scan(scan), bucket(bucket), handler(handler) {
+RangeScanCacheCallback::RangeScanCacheCallback(RangeScan& scan,
+                                               EPBucket& bucket)
+    : scan(scan), bucket(bucket) {
 }
 
 // Do a get and restrict the collections lock scope to just these checks.
@@ -40,7 +38,7 @@ GetValue RangeScanCacheCallback::get(VBucket& vb, CacheLookup& lookup) {
 
 void RangeScanCacheCallback::callback(CacheLookup& lookup) {
     if (scan.isCancelled()) {
-        setStatus(cb::engine_errc::failed);
+        setScanErrorStatus(cb::engine_errc::range_scan_cancelled);
         return;
     }
 
@@ -48,19 +46,21 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
     // may as well check it for key only so we can cancel if state changes
     VBucketPtr vb = bucket.getVBucket(lookup.getVBucketId());
     if (!vb) {
-        setStatus(cb::engine_errc::not_my_vbucket);
+        setScanErrorStatus(cb::engine_errc::not_my_vbucket);
         return;
     }
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() != vbucket_state_active) {
-        setStatus(cb::engine_errc::not_my_vbucket);
+        setScanErrorStatus(cb::engine_errc::not_my_vbucket);
         return;
     }
 
     // Key only scan ends here
     if (scan.isKeyOnly()) {
-        handler.handleKey(lookup.getKey().getDocKey());
+        scan.handleKey(lookup.getKey().getDocKey());
+        // call setStatus so the scan doesn't try the value lookup. This status
+        // is not visible to the client
         setStatus(cb::engine_errc::key_already_exists);
         return;
     }
@@ -68,27 +68,41 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
     auto gv = get(*vb, lookup);
     if (gv.getStatus() == cb::engine_errc::success &&
         gv.item->getBySeqno() == lookup.getBySeqno()) {
-        handler.handleItem(std::move(gv.item));
+        scan.handleItem(std::move(gv.item));
+        // call setStatus so the scan doesn't try the value lookup. This status
+        // is not visible to the client
         setStatus(cb::engine_errc::key_already_exists);
     } else if (gv.getStatus() == cb::engine_errc::unknown_collection) {
-        setStatus(cb::engine_errc::unknown_collection);
+        setScanErrorStatus(cb::engine_errc::unknown_collection);
     } else {
         // Didn't find a matching value in-memory, continue to disk read
         setStatus(cb::engine_errc::success);
     }
 }
 
-RangeScanDiskCallback::RangeScanDiskCallback(const RangeScan& scan,
-                                             RangeScanDataHandlerIFace& handler)
-    : scan(scan), handler(handler) {
+void RangeScanCacheCallback::setScanErrorStatus(cb::engine_errc status) {
+    Expects(status != cb::engine_errc::success);
+    StatusCallback<CacheLookup>::setStatus(status);
+    // Calling handleStatus will make the status visible to the client
+    scan.handleStatus(status);
+}
+
+RangeScanDiskCallback::RangeScanDiskCallback(RangeScan& scan) : scan(scan) {
 }
 
 void RangeScanDiskCallback::callback(GetValue& val) {
     if (scan.isCancelled()) {
-        setStatus(cb::engine_errc::failed);
+        setScanErrorStatus(cb::engine_errc::range_scan_cancelled);
         return;
     }
 
-    handler.handleItem(std::move(val.item));
+    scan.handleItem(std::move(val.item));
     setStatus(cb::engine_errc::success);
+}
+
+void RangeScanDiskCallback::setScanErrorStatus(cb::engine_errc status) {
+    Expects(status != cb::engine_errc::success);
+    StatusCallback<GetValue>::setStatus(status);
+    // Calling handleStatus will make the status visible to the client
+    scan.handleStatus(status);
 }

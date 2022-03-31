@@ -28,35 +28,32 @@ RangeScan::RangeScan(EPBucket& bucket,
                      DiskDocKey start,
                      DiskDocKey end,
                      RangeScanDataHandlerIFace& handler,
-                     const CookieIface* cookie,
+                     const CookieIface& cookie,
                      cb::rangescan::KeyOnly keyOnly)
     : start(std::move(start)),
       end(std::move(end)),
       vbUuid(vbucket.failovers->getLatestUUID()),
       handler(handler),
-      cookie(cookie),
       vbid(vbucket.getId()),
-      state(State::Idle),
       keyOnly(keyOnly) {
     // Don't init the uuid in the initialisation list as we may read various
     // members which must be initialised first
-    uuid = createScan(bucket);
+    uuid = createScan(cookie, bucket);
 
     EP_LOG_DEBUG("RangeScan {} created for {}", uuid, getVBucketId());
 }
 
-cb::rangescan::Id RangeScan::createScan(EPBucket& bucket) {
-    auto valFilter =
-            cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)
-                    ? ValueFilter::VALUES_COMPRESSED
-                    : ValueFilter::VALUES_DECOMPRESSED;
+cb::rangescan::Id RangeScan::createScan(const CookieIface& cookie,
+                                        EPBucket& bucket) {
+    auto valFilter = cookie.isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)
+                             ? ValueFilter::VALUES_COMPRESSED
+                             : ValueFilter::VALUES_DECOMPRESSED;
 
     scanCtx = bucket.getRWUnderlying(getVBucketId())
                       ->initByIdScanContext(
-                              std::make_unique<RangeScanDiskCallback>(*this,
-                                                                      handler),
-                              std::make_unique<RangeScanCacheCallback>(
-                                      *this, bucket, handler),
+                              std::make_unique<RangeScanDiskCallback>(*this),
+                              std::make_unique<RangeScanCacheCallback>(*this,
+                                                                       bucket),
                               getVBucketId(),
                               {ByIdRange{start, end}},
                               DocumentFilter::NO_DELETES,
@@ -77,41 +74,113 @@ cb::rangescan::Id RangeScan::createScan(EPBucket& bucket) {
 
 cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
     EP_LOG_DEBUG("RangeScan {} continue for {}", uuid, getVBucketId());
-
     auto status = kvstore.scan(*scanCtx);
 
-    if (status == ScanStatus::Success) {
-        return cb::engine_errc::success;
-    }
-    // @todo: handle all statuses e.g. yield/cancelled
-    Expects(false);
-    return cb::engine_errc::failed;
-}
-
-void RangeScan::setStateContinuing() {
-    switch (state) {
-    case State::Continuing:
-    case State::Cancelled:
-        throw std::runtime_error(
-                fmt::format("RangeScan::setStateContinuing invalid state:",
-                            int(state.load())));
-    case State::Idle:
-        state = State::Continuing;
+    switch (status) {
+    case ScanStatus::Yield:
+        // Scan reached a limit and has yielded.
+        // Set to idle, which will send success to the handler
+        setStateIdle(cb::engine_errc::range_scan_more);
+        // return too_busy status so scan is eligible for further continue
+        return cb::engine_errc::too_busy;
+    case ScanStatus::Success:
+        // Scan has reached the end
+        setStateIdle(cb::engine_errc::success);
+        break;
+    case ScanStatus::Cancelled:
+        // Scan cannot continue and has been cancelled, e.g. vbucket has gone
+        // The engine_err has been passed to the handler already
+        break;
+    case ScanStatus::Failed:
+        // Scan cannot continue due to KVStore failure
+        handleStatus(cb::engine_errc::failed);
         break;
     }
+
+    // For Success/Cancelled/Failed return success. The actual client visible
+    // status has been push though handleStatus. The caller of this method only
+    // needs too_busy (for Yield) or success (please cancel and clean-up)
+    return cb::engine_errc::success;
+}
+
+bool RangeScan::isIdle() const {
+    return continueState.rlock()->state == State::Idle;
+}
+
+bool RangeScan::isContinuing() const {
+    return continueState.rlock()->state == State::Continuing;
+}
+
+bool RangeScan::isCancelled() const {
+    return continueState.rlock()->state == State::Cancelled;
+}
+
+void RangeScan::setStateIdle(cb::engine_errc status) {
+    continueState.withWLock([](auto& cs) {
+        switch (cs.state) {
+        case State::Idle:
+        case State::Cancelled:
+            throw std::runtime_error(fmt::format(
+                    "RangeScan::setStateIdle invalid state:{}", cs.state));
+        case State::Continuing:
+            cs.state = State::Idle;
+            cs.cookie = nullptr;
+            break;
+        }
+    });
+
+    // Changing to Idle implies a successful Continue.
+    // success is the end of the scan
+    // range_scan_more is a 'pause' due to limits/yield of the task
+    Expects(status == cb::engine_errc::success ||
+            status == cb::engine_errc::range_scan_more);
+
+    // The ordering here is deliberate, set the status after the cs.state update
+    // so there's no chance a client sees 'success' then fails to continue again
+    // (cannot continue an already continued scan)
+    handler.handleStatus(status);
+}
+
+void RangeScan::setStateContinuing(const CookieIface& client) {
+    continueState.withWLock([&client](auto& cs) {
+        switch (cs.state) {
+        case State::Continuing:
+        case State::Cancelled:
+            throw std::runtime_error(fmt::format(
+                    "RangeScan::setStateContinuing invalid state:{}",
+                    cs.state));
+        case State::Idle:
+            cs.state = State::Continuing;
+            cs.cookie = &client;
+            break;
+        }
+    });
 }
 
 void RangeScan::setStateCancelled() {
-    switch (state) {
-    case State::Cancelled:
-        throw std::runtime_error(
-                fmt::format("RangeScan::setStateCancelled invalid state:",
-                            int(state.load())));
-    case State::Idle:
-    case State::Continuing:
-        state = State::Cancelled;
-        break;
-    }
+    continueState.withWLock([](auto& cs) {
+        switch (cs.state) {
+        case State::Cancelled:
+            throw std::runtime_error(fmt::format(
+                    "RangeScan::setStateCancelled invalid state:{}", cs.state));
+        case State::Idle:
+        case State::Continuing:
+            cs.state = State::Cancelled;
+            break;
+        }
+    });
+}
+
+void RangeScan::handleKey(DocKey key) {
+    handler.handleKey(key);
+}
+
+void RangeScan::handleItem(std::unique_ptr<Item> item) {
+    handler.handleItem(std::move(item));
+}
+
+void RangeScan::handleStatus(cb::engine_errc status) {
+    handler.handleStatus(status);
 }
 
 void RangeScan::addStats(const StatCollector& collector) const {
@@ -132,19 +201,29 @@ void RangeScan::addStats(const StatCollector& collector) const {
     addStat("end", cb::UserDataView(end.to_string()).getRawValue());
     addStat("key_value",
             keyOnly == cb::rangescan::KeyOnly::Yes ? "key" : "value");
-    addStat("state", fmt::format("{}", state.load()));
+    addStat("queued", queued);
+
+    // copy state and then addStat the copy
+    auto cs = *continueState.rlock();
+    addStat("state", fmt::format("{}", cs.state));
+    addStat("cookie", cs.cookie);
 }
 
 void RangeScan::dump(std::ostream& os) const {
+    // copy state then print, avoiding invoking ostream whilst locked
+    auto cs = *continueState.rlock();
     fmt::print(os,
-               "RangeScan: uuid:{}, {}, vbuuid:{}, range:({},{}), kv:{}, {}\n",
+               "RangeScan: uuid:{}, {}, vbuuid:{}, range:({},{}), kv:{},"
+               "queued:{}, state:{}, cookie:{}\n",
                uuid,
                vbid,
                vbUuid,
                cb::UserDataView(start.to_string()),
                cb::UserDataView(end.to_string()),
                (keyOnly == cb::rangescan::KeyOnly::Yes ? "key" : "value"),
-               state.load());
+               queued,
+               cs.state,
+               reinterpret_cast<const void*>(cs.cookie));
 }
 
 std::ostream& operator<<(std::ostream& os, const RangeScan::State& state) {

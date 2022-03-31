@@ -13,6 +13,7 @@
 
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
+#include "range_scans/range_scan_owner.h"
 #include "utilities/testing_hook.h"
 
 class BgFetcher;
@@ -303,6 +304,20 @@ public:
     /// during an implicit compaction
     TestingHook<> postPurgeSeqnoImplicitCompactionHook;
 
+    ReadyRangeScans* getReadyRangeScans() {
+        return &rangeScans;
+    }
+
+    /**
+     * Take the next available scan out of the 'ready' scans container
+     */
+    std::shared_ptr<RangeScan> takeNextRangeScan();
+
+    /**
+     * Add scan to the 'ready' scans container
+     */
+    void addRangeScan(std::shared_ptr<RangeScan> scan);
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
@@ -454,6 +469,13 @@ protected:
      * before we update the stats.
      */
     TestingHook<> postCompactionCompletionStatsUpdateHook;
+
+    /**
+     * A 'container' of RangeScan objects that have been "continued". These are
+     * all eligible for execution on an I/O task to return data to a waiting
+     * client
+     */
+    ReadyRangeScans rangeScans;
 };
 
 std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res);

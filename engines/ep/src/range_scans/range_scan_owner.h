@@ -19,9 +19,31 @@
 #include <memcached/range_scan_id.h>
 #include <memcached/vbucket.h>
 
+#include <queue>
 #include <unordered_map>
 
 class KVStoreIface;
+
+/**
+ * ReadyRangeScans keeps a reference (shared_ptr) to all scans that are ready
+ * for execution on a I/O task. These are scans that the client has continued or
+ * cancelled.
+ */
+class ReadyRangeScans {
+public:
+    /**
+     * Take the next available scan out of the 'ready' scans container
+     */
+    std::shared_ptr<RangeScan> takeNextScan();
+
+    /**
+     * Add scan to the 'ready' scans container
+     */
+    void addScan(std::shared_ptr<RangeScan> scan);
+
+protected:
+    folly::Synchronized<std::queue<std::shared_ptr<RangeScan>>> rangeScans;
+};
 
 namespace VB {
 
@@ -36,6 +58,13 @@ namespace VB {
  */
 class RangeScanOwner {
 public:
+    /**
+     * Construct the owner with a pointer to the ReadyRangeScans (bucket
+     * container). This is a pointer as some unit tests create vbuckets with
+     * no bucket.
+     */
+    RangeScanOwner(ReadyRangeScans* scans);
+
     /**
      * Add a new scan to the set of available scans.
      *
@@ -52,9 +81,11 @@ public:
      * Scan already continued -> cb::engine_errc::too_busy
      *
      * @param id of the scan to continue
+     * @param cookie client cookie requesting the continue
      * @return success or other status (see above)
      */
-    cb::engine_errc continueScan(cb::rangescan::Id id);
+    cb::engine_errc continueScan(cb::rangescan::Id id,
+                                 const CookieIface& cookie);
 
     /**
      * Handler for a range-scan-cancel operation. Method will locate the
@@ -62,9 +93,10 @@ public:
      *
      * Failure to locate the scan -> cb::engine_errc::no_such_key
      * @param id of the scan to cancel
+     * @param addScan should the cancelled scan be added to ::RangeScans
      * @return success or other status (see above)
      */
-    cb::engine_errc cancelScan(cb::rangescan::Id id);
+    cb::engine_errc cancelScan(cb::rangescan::Id id, bool addScan);
 
     /**
      * Find the scan for the given id
@@ -72,6 +104,8 @@ public:
     std::shared_ptr<RangeScan> getScan(cb::rangescan::Id id) const;
 
 protected:
+    ReadyRangeScans* readyScans;
+
     /**
      * All scans that are available for continue/cancel
      */

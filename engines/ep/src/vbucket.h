@@ -1709,18 +1709,22 @@ public:
      * Continue the range scan with the given identifier. The scan itself will
      * be scheduled to run on an I/O task
      * @param id The identifier of the scan to continue
+     * @param cookie The client cookie executing range-scan-continue
      * @return would_block if the scan was found and successfully scheduled
      */
-    virtual cb::engine_errc continueRangeScan(cb::rangescan::Id id) = 0;
+    virtual cb::engine_errc continueRangeScan(cb::rangescan::Id id,
+                                              const CookieIface& cookie) = 0;
 
     /**
      * Cancel the range scan with the given identifier. The cancel itself will
      * be scheduled to run on an I/O task
      * @param id The identifier of the scan to continue
+     * @param schedule true if a task should be scheduled for the cancellation
      * @return would_block if the scan was found and successfully scheduled for
      *         cancellation
      */
-    virtual cb::engine_errc cancelRangeScan(cb::rangescan::Id id) = 0;
+    virtual cb::engine_errc cancelRangeScan(cb::rangescan::Id id,
+                                            bool schedule) = 0;
 
     std::unique_ptr<FailoverTable> failovers;
 

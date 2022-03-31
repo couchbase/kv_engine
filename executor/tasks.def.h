@@ -62,6 +62,7 @@ TASK(BackfillManagerTask, AUXIO_TASK_IDX, 4)
 TASK(Core_SettingsReloadTask, AUXIO_TASK_IDX, 0)
 TASK(CompactVBucketTask, AUXIO_TASK_IDX, 5)
 TASK(RangeScanCreateTask, AUXIO_TASK_IDX, 6)
+TASK(RangeScanContinueTask, AUXIO_TASK_IDX, 6)
 
 // Read/Write IO tasks
 TASK(RollbackTask, WRITER_TASK_IDX, 1)

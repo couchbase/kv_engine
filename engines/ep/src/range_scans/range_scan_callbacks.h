@@ -33,11 +33,31 @@ class RangeScanDataHandlerIFace {
 public:
     virtual ~RangeScanDataHandlerIFace() = default;
 
-    /// @param key A key read from a Key only scan
+    /**
+     * Callback method invoked for each key that is read from the snapshot. This
+     * is only invoked for a KeyOnly::Yes scan.
+     *
+     *  @param key A key read from a Key only scan
+     */
     virtual void handleKey(DocKey key) = 0;
 
-    /// @param item An Item read from a Key/Value scan
+    /**
+     * Callback method invoked for each Item that is read from the snapshot.
+     * This is only invoked for a KeyOnly::No scan.
+     *
+     *  @param item An Item read from a Key/Value scan
+     */
     virtual void handleItem(std::unique_ptr<Item> item) = 0;
+
+    /**
+     * Callback method for when a scan has finished a "continue" and is used to
+     * set the status of the scan. A "continue" can finish prematurely due to
+     * an error or successfully because it has reached the end of the scan or
+     * a limit.
+     *
+     * @param status The status of the just completed continue
+     */
+    virtual void handleStatus(cb::engine_errc status) = 0;
 };
 
 /**
@@ -47,17 +67,21 @@ public:
  */
 class RangeScanCacheCallback : public StatusCallback<CacheLookup> {
 public:
-    RangeScanCacheCallback(const RangeScan& scan,
-                           EPBucket& bucket,
-                           RangeScanDataHandlerIFace& handler);
+    RangeScanCacheCallback(RangeScan& scan, EPBucket& bucket);
 
     void callback(CacheLookup& lookup) override;
 
+    /**
+     * setScanErrorStatus is used for any !success status that the callback
+     * concludes. The status will bring the scan to a halt and channel the
+     * status code to the client via RangeScan::handleStatus
+     */
+    void setScanErrorStatus(cb::engine_errc status);
+
 protected:
     GetValue get(VBucket& vb, CacheLookup& lookup);
-    const RangeScan& scan;
+    RangeScan& scan;
     EPBucket& bucket;
-    RangeScanDataHandlerIFace& handler;
 };
 
 /**
@@ -66,12 +90,17 @@ protected:
  */
 class RangeScanDiskCallback : public StatusCallback<GetValue> {
 public:
-    RangeScanDiskCallback(const RangeScan& scan,
-                          RangeScanDataHandlerIFace& handler);
+    RangeScanDiskCallback(RangeScan& scan);
 
     void callback(GetValue& val) override;
 
+    /**
+     * setScanErrorStatus is used for any !success status that the callback
+     * concludes. The status will bring the scan to a halt and channel the
+     * status code to the client via RangeScan::handleStatus
+     */
+    void setScanErrorStatus(cb::engine_errc status);
+
 protected:
-    const RangeScan& scan;
-    RangeScanDataHandlerIFace& handler;
+    RangeScan& scan;
 };
