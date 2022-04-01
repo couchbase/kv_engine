@@ -394,78 +394,6 @@ TEST_P(ReplicaCheckpointTest, getItems_MemoryDiskSnapshots) {
     EXPECT_FALSE(cursorResult.highCompletedSeqno);
 }
 
-// Test the automatic creation of checkpoints based on the number of items.
-TEST_P(CheckpointTest, ItemBasedCheckpointCreation) {
-    // Size down the default number of items to create a new checkpoint and
-    // recreate the manager
-    const auto maxItems = 10;
-    config.setChkMaxItems(maxItems);
-    checkpoint_config = std::make_unique<CheckpointConfig>(config);
-    createManager();
-
-    // Create one less than the number required to create a new checkpoint.
-    queued_item qi;
-    for (unsigned int ii = 0; ii < maxItems; ii++) {
-        EXPECT_EQ(ii, this->manager->getNumOpenChkItems());
-
-        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
-        EXPECT_EQ(1, this->manager->getNumCheckpoints());
-    }
-
-    // Add one more - should create a new checkpoint.
-    EXPECT_TRUE(this->queueNewItem("key_epoch"));
-    EXPECT_EQ(2, this->manager->getNumCheckpoints());
-    EXPECT_EQ(1, this->manager->getNumOpenChkItems()); // 1x op_set
-
-    // Fill up this checkpoint also - note loop for maxItems - 1
-    for (unsigned int ii = 0; ii < maxItems - 1; ii++) {
-        EXPECT_EQ(ii + 1,
-                  this->manager->getNumOpenChkItems()); /* +1 initial set */
-
-        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
-
-        EXPECT_EQ(2, this->manager->getNumCheckpoints());
-    }
-
-    // Add one more - as we have hit maximum checkpoints should *not* create a
-    // new one.
-    EXPECT_TRUE(this->queueNewItem("key_epoch2"));
-    EXPECT_EQ(2, this->manager->getNumCheckpoints());
-    EXPECT_EQ(11, // 1x key_epoch, 9x key_X, 1x key_epoch2
-              this->manager->getNumOpenChkItems());
-
-    // Fetch the items associated with the persistence cursor. This
-    // moves the single cursor registered outside of the initial checkpoint,
-    // allowing a new open checkpoint to be created.
-    EXPECT_EQ(1, this->manager->getNumOfCursors());
-    std::vector<queued_item> items;
-    auto result = manager->getNextItemsForCursor(*cursor, items);
-    result.flushHandle.reset();
-
-    EXPECT_EQ(2, result.ranges.size());
-    EXPECT_EQ(1000, result.ranges.at(0).getStart());
-    EXPECT_EQ(1010, result.ranges.at(0).getEnd());
-    EXPECT_EQ(1011, result.ranges.at(1).getStart());
-    EXPECT_EQ(1021, result.ranges.at(1).getEnd());
-    EXPECT_EQ(1010, result.visibleSeqno);
-    EXPECT_FALSE(result.highCompletedSeqno);
-    EXPECT_EQ(24, items.size());
-
-    // Cursor-move has allowed closed/unref checkpoint removal.
-    EXPECT_EQ(1, manager->getNumCheckpoints());
-    // Open checkpoint items unchanged
-    EXPECT_EQ(11, manager->getNumOpenChkItems());
-
-    // Adding a new item will create a new checkpoint -> +1
-    // But the same operation moves the cursor into the new open checkpoint, as
-    // cursor was is at the end of the old one. That allows to remove the old
-    // checkpoint that is now closed/unref -> -1
-    // So in the end the number of checkpoints stays unchanged
-    EXPECT_TRUE(queueNewItem("key_epoch3"));
-    EXPECT_EQ(1, manager->getNumCheckpoints());
-    EXPECT_EQ(1, manager->getNumOpenChkItems()); // 1x op_set
-}
-
 // Test checkpoint and cursor accounting - when checkpoints are closed the
 // offset of cursors is updated as appropriate.
 TEST_P(CheckpointTest, CursorOffsetOnCheckpointClose) {
@@ -557,82 +485,66 @@ TEST_P(CheckpointTest, CursorOffsetOnCheckpointClose) {
 
 // Test the getNextItemsForCursor()
 TEST_P(CheckpointTest, ItemsForCheckpointCursor) {
-    // Size down the default number of items to create a new checkpoint and
-    // recreate the manager.
-    const auto maxItems = 10;
-    config.setChkMaxItems(maxItems);
-    checkpoint_config = std::make_unique<CheckpointConfig>(config);
-    // Also, we want to have items across 2 checkpoints.
-    ASSERT_EQ(2, checkpoint_config->getMaxCheckpoints());
-    createManager();
+    // We want to have items across 2 checkpoints.
+    checkpoint_config->setCheckpointMaxSize(1);
+    ASSERT_EQ(1, manager->getCheckpointConfig().getCheckpointMaxSize());
+    ASSERT_EQ(2, manager->getCheckpointConfig().getMaxCheckpoints());
 
-    /* Add items such that we have 2 checkpoints */
-    queued_item qi;
-    for (unsigned int ii = 0; ii < 2 * maxItems; ii++) {
-        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
+    // Add items such that we have 2 checkpoints
+    for (size_t i = 0; manager->getNumCheckpoints() < 2; ++i) {
+        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(i)));
     }
 
-    /* Check if we have desired number of checkpoints and desired number of
-       items */
-    EXPECT_EQ(2, this->manager->getNumCheckpoints());
-    EXPECT_EQ(maxItems, this->manager->getNumOpenChkItems());
+    const auto& ckptList = manager->getCheckpointList();
+    const auto numItemsCkpt1 = ckptList.front()->getNumItems();
+    const auto numItemsCkpt2 = ckptList.back()->getNumItems();
 
     /* Register DCP replication cursor */
     std::string dcp_cursor(DCP_CURSOR_PREFIX + std::to_string(1));
     auto dcpCursor = manager->registerCursorBySeqno(
             dcp_cursor.c_str(), 0, CheckpointCursor::Droppable::Yes);
 
-    /* Get items for persistence*/
-    std::vector<queued_item> items;
-    auto result = this->manager->getNextItemsForCursor(*cursor, items);
+    const auto test = [this, numItemsCkpt1, numItemsCkpt2](
+                              CheckpointCursor* cursor) -> void {
+        std::vector<queued_item> items;
+        auto result = this->manager->getNextItemsForCursor(*cursor, items);
 
-    /* We should have got (2 * maxItems + 3) items. 3 additional are
-       op_ckpt_start, op_ckpt_end and op_ckpt_start */
-    EXPECT_EQ(2 * maxItems + 3, items.size());
-    EXPECT_EQ(2, result.ranges.size());
-    EXPECT_EQ(1000, result.ranges.at(0).getStart());
-    EXPECT_EQ(1000 + maxItems, result.ranges.at(0).getEnd());
-    EXPECT_EQ(1000 + maxItems + 1, result.ranges.at(1).getStart());
-    EXPECT_EQ(1000 + 2 * maxItems, result.ranges.at(1).getEnd());
-    EXPECT_EQ(1000 + maxItems, result.visibleSeqno);
-    EXPECT_FALSE(result.highCompletedSeqno);
+        // We should have got (numItemsCkpt1 + numItemsCkpt2 + 3) items.
+        // 3 additional are op_ckpt_start, op_ckpt_end and op_ckpt_start
+        EXPECT_EQ(numItemsCkpt1 + numItemsCkpt2 + 3, items.size());
+        EXPECT_EQ(2, result.ranges.size());
+        EXPECT_EQ(1000, result.ranges.at(0).getStart());
+        EXPECT_EQ(1000 + numItemsCkpt1, result.ranges.at(0).getEnd());
+        EXPECT_EQ(1000 + numItemsCkpt1 + 1, result.ranges.at(1).getStart());
+        EXPECT_EQ(1000 + numItemsCkpt1 + numItemsCkpt2,
+                  result.ranges.at(1).getEnd());
+        // Max visible seqno for the first checkpoint returned.. see definitions
+        // in ItemsForCursor for details
+        EXPECT_EQ(1000 + numItemsCkpt1, result.visibleSeqno);
+        EXPECT_FALSE(result.highCompletedSeqno);
+    };
 
-    /* Get items for DCP replication cursor */
-    items.clear();
-    result = this->manager->getNextItemsForCursor(*dcpCursor.cursor.lock(),
-                                                  items);
-    EXPECT_EQ(2 * maxItems + 3, items.size());
-    EXPECT_EQ(2, result.ranges.size());
-    EXPECT_EQ(1000, result.ranges.at(0).getStart());
-    EXPECT_EQ(1000 + maxItems, result.ranges.at(0).getEnd());
-    EXPECT_EQ(1000 + maxItems + 1, result.ranges.at(1).getStart());
-    EXPECT_EQ(1000 + 2 * maxItems, result.ranges.at(1).getEnd());
-    EXPECT_EQ(1000 + maxItems, result.visibleSeqno);
-    EXPECT_FALSE(result.highCompletedSeqno);
+    // Get items for persistence (EP test only)
+    test(cursor);
+    // Get items for DCP cursor (EP/Ephe)
+    test(dcpCursor.cursor.lock().get());
 }
 
 // Test getNextItemsForCursor() when it is limited to fewer items than exist
 // in total. Cursor should only advanced to the start of the 2nd checkpoint.
 TEST_P(CheckpointTest, ItemsForCheckpointCursorLimited) {
-    // Size down the default number of items to create a new checkpoint and
-    // recreate the manager.
-    const auto maxItems = 10;
-    config.setChkMaxItems(maxItems);
-    checkpoint_config = std::make_unique<CheckpointConfig>(config);
-    // Also, we want to have items across 2 checkpoints.
-    ASSERT_EQ(2, checkpoint_config->getMaxCheckpoints());
-    createManager();
+    // We want to have items across 2 checkpoints.
+    checkpoint_config->setCheckpointMaxSize(1);
+    ASSERT_EQ(1, manager->getCheckpointConfig().getCheckpointMaxSize());
+    ASSERT_EQ(2, manager->getCheckpointConfig().getMaxCheckpoints());
 
-    /* Add items such that we have 2 checkpoints */
-    queued_item qi;
-    for (unsigned int ii = 0; ii < 2 * maxItems; ii++) {
-        ASSERT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
+    // Add items such that we have 2 checkpoints
+    for (size_t i = 0; manager->getNumCheckpoints() < 2; ++i) {
+        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(i)));
     }
 
-    /* Verify we have desired number of checkpoints and desired number of
-       items */
-    ASSERT_EQ(2, this->manager->getNumCheckpoints());
-    ASSERT_EQ(maxItems, this->manager->getNumOpenChkItems());
+    const auto& ckptList = manager->getCheckpointList();
+    const auto numItemsCkpt1 = ckptList.front()->getNumItems();
 
     /* Get items for persistence. Specify a limit of 1 so we should only
      * fetch the first checkpoints' worth.
@@ -641,8 +553,8 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursorLimited) {
     auto result = manager->getItemsForCursor(*cursor, items, 1);
     EXPECT_EQ(1, result.ranges.size());
     EXPECT_EQ(1000, result.ranges.front().getStart());
-    EXPECT_EQ(1000 + maxItems, result.ranges.front().getEnd());
-    EXPECT_EQ(maxItems + 2, items.size())
+    EXPECT_EQ(1000 + numItemsCkpt1, result.ranges.front().getEnd());
+    EXPECT_EQ(numItemsCkpt1 + 2, items.size())
             << "Should have maxItems + 2 (ckpt start & end) items";
     EXPECT_EQ(2, (*cursor->getCheckpoint())->getId())
             << "Cursor should have moved into second checkpoint.";
@@ -655,14 +567,10 @@ TEST_P(CheckpointTest, DiskCheckpointStrictItemLimit) {
     if (!persistent()) {
         return;
     }
-    // Size down the default number of items to create a new checkpoint and
-    // recreate the manager.
-    const auto maxItems = 10;
-    config.setChkMaxItems(maxItems);
-    checkpoint_config = std::make_unique<CheckpointConfig>(config);
-    // Also, we want to have items across 2 checkpoints.
-    ASSERT_EQ(2, checkpoint_config->getMaxCheckpoints());
-    createManager();
+
+    checkpoint_config->setCheckpointMaxSize(1);
+    ASSERT_EQ(1, manager->getCheckpointConfig().getCheckpointMaxSize());
+    ASSERT_EQ(2, manager->getCheckpointConfig().getMaxCheckpoints());
 
     // Need to be an active vbucket to make sure we create a new checkpoint due
     // to the "max checkpoint items" limit being hit. As replica vbuckets aren't
@@ -672,16 +580,13 @@ TEST_P(CheckpointTest, DiskCheckpointStrictItemLimit) {
     CheckpointManagerTestIntrospector::setOpenCheckpointType(
             *manager, CheckpointType::Disk);
 
-    /* Add items such that we have 2 checkpoints */
-    queued_item qi;
-    for (unsigned int ii = 0; ii < 2 * maxItems; ii++) {
-        ASSERT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
+    // Add items such that we have 2 checkpoints
+    for (size_t i = 0; manager->getNumCheckpoints() < 2; ++i) {
+        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(i)));
     }
 
-    /* Verify we have desired number of checkpoints and desired number of
-       items */
-    ASSERT_EQ(2, this->manager->getNumCheckpoints());
-    ASSERT_EQ(maxItems, this->manager->getNumOpenChkItems());
+    const auto& ckptList = manager->getCheckpointList();
+    const auto numItemsCkpt1 = ckptList.front()->getNumItems();
 
     /* Get items for persistence. Specify a limit of 1 so we should only
      * fetch the first item
@@ -690,7 +595,7 @@ TEST_P(CheckpointTest, DiskCheckpointStrictItemLimit) {
     auto result = manager->getItemsForCursor(*cursor, items, 1);
     EXPECT_EQ(1, result.ranges.size());
     EXPECT_EQ(1000, result.ranges.front().getStart());
-    EXPECT_EQ(1000 + maxItems, result.ranges.front().getEnd());
+    EXPECT_EQ(1000 + numItemsCkpt1, result.ranges.front().getEnd());
     EXPECT_EQ(1, items.size()) << "Should have 1 item";
     EXPECT_EQ(1, (*cursor->getCheckpoint())->getId())
             << "Cursor should not have moved into second checkpoint.";
@@ -698,26 +603,19 @@ TEST_P(CheckpointTest, DiskCheckpointStrictItemLimit) {
 
 // Test the checkpoint cursor movement
 TEST_P(CheckpointTest, CursorMovement) {
-    // Size down the default number of items to create a new checkpoint and
-    // recreate the manager.
-    const auto maxItems = 10;
-    config.setChkMaxItems(maxItems);
-    checkpoint_config = std::make_unique<CheckpointConfig>(config);
-    // Also, we want to have items across 2 checkpoints.
-    ASSERT_EQ(2, checkpoint_config->getMaxCheckpoints());
-    createManager();
+    checkpoint_config->setCheckpointMaxSize(1);
+    ASSERT_EQ(1, manager->getCheckpointConfig().getCheckpointMaxSize());
+    ASSERT_EQ(2, manager->getCheckpointConfig().getMaxCheckpoints());
 
-    /* Add items such that we have 1 full (max items as per config) checkpoint.
-       Adding another would open new checkpoint */
-    queued_item qi;
-    for (unsigned int ii = 0; ii < maxItems; ii++) {
-        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
-    }
+    // 1 item / 1 checkpoint
+    EXPECT_TRUE(queueNewItem("key"));
 
-    /* Check if we have desired number of checkpoints and desired number of
-       items */
-    EXPECT_EQ(1, this->manager->getNumCheckpoints());
-    EXPECT_EQ(maxItems, this->manager->getNumOpenChkItems());
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *manager);
+    const auto numItems = ckptList.front()->getNumItems();
+    EXPECT_EQ(1, numItems);
 
     /* Register DCP replication cursor */
     std::string dcp_cursor(DCP_CURSOR_PREFIX + std::to_string(1));
@@ -730,19 +628,19 @@ TEST_P(CheckpointTest, CursorMovement) {
     result.flushHandle.reset();
 
     /* We should have got (maxItems + op_ckpt_start) items. */
-    EXPECT_EQ(maxItems + 1, items.size());
+    EXPECT_EQ(numItems + 1, items.size());
     EXPECT_EQ(1, result.ranges.size());
     EXPECT_EQ(1000, result.ranges.front().getStart());
-    EXPECT_EQ(1000 + maxItems, result.ranges.front().getEnd());
+    EXPECT_EQ(1000 + numItems, result.ranges.front().getEnd());
 
     /* Get items for DCP replication cursor */
     items.clear();
     result = this->manager->getNextItemsForCursor(*dcpCursor.cursor.lock(),
                                                   items);
-    EXPECT_EQ(maxItems + 1, items.size());
+    EXPECT_EQ(numItems + 1, items.size());
     EXPECT_EQ(1, result.ranges.size());
     EXPECT_EQ(1000, result.ranges.front().getStart());
-    EXPECT_EQ(1000 + maxItems, result.ranges.front().getEnd());
+    EXPECT_EQ(1000 + numItems, result.ranges.front().getEnd());
 
     uint64_t curr_open_chkpt_id = this->manager->getOpenCheckpointId();
 
@@ -759,9 +657,9 @@ TEST_P(CheckpointTest, CursorMovement) {
     /* We should have got op_ckpt_start item */
     EXPECT_EQ(1, items.size());
     EXPECT_EQ(1, result.ranges.size());
-    EXPECT_EQ(1000 + maxItems + 1, items.front()->getBySeqno());
-    EXPECT_EQ(1000 + maxItems + 1, result.ranges.front().getStart());
-    EXPECT_EQ(1000 + maxItems + 1, result.ranges.front().getEnd());
+    EXPECT_EQ(1000 + numItems + 1, items.front()->getBySeqno());
+    EXPECT_EQ(1000 + numItems + 1, result.ranges.front().getStart());
+    EXPECT_EQ(1000 + numItems + 1, result.ranges.front().getEnd());
 
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
 
@@ -810,17 +708,6 @@ TEST_P(CheckpointTest, SeqnoAndHLCOrdering) {
     const int n_threads = 8;
     const int n_items = 1000;
 
-    // configure so we can store a large number of items
-    // configure with 1 checkpoint to ensure the time-based closing
-    // does not split the items over many checkpoints and muddy the final
-    // data checks.
-    config.setChkMaxItems(n_threads * n_items);
-    checkpoint_config = std::make_unique<CheckpointConfig>(config);
-    // Also, we want to have items across 2 checkpoints.
-    ASSERT_EQ(2, checkpoint_config->getMaxCheckpoints());
-
-    createManager();
-
     std::vector<std::thread> threads;
 
     // vector of pairs, first is seqno, second is CAS
@@ -853,6 +740,9 @@ TEST_P(CheckpointTest, SeqnoAndHLCOrdering) {
         thread.join();
     }
 
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+    ASSERT_EQ(n_threads * n_items, manager->getNumOpenChkItems());
+
     // Now combine the data and check HLC is increasing with seqno
     std::map<uint64_t, uint64_t> finalData;
     for (auto t : threadData) {
@@ -876,8 +766,8 @@ TEST_P(CheckpointTest, SeqnoAndHLCOrdering) {
     std::vector<queued_item> items;
     manager->getNextItemsForCursor(*cursor, items);
 
-    /* We should have got (n_threads*n_items + op_ckpt_start) items. */
-    EXPECT_EQ(n_threads * n_items + 1, items.size());
+    // We should have got (op_ckpt_start + n_threads*n_items) items
+    EXPECT_EQ(1 + n_threads * n_items, items.size());
 
     previousCas = items[1]->getCas();
     for (size_t ii = 2; ii < items.size(); ii++) {
@@ -1307,8 +1197,6 @@ TEST_F(SingleThreadedCheckpointTest, MemUsageCheckpointCreation) {
     auto& config = engine->getConfiguration();
     config.setMaxSize(1024 * 1024 * 100);
 
-    // Disable item/time based checkpoint creation
-    config.setItemNumBasedNewChk(false);
     config.setChkPeriod(3600);
     config.setMaxCheckpoints(20);
     // Note: This test also verifies that a value > 0 is just set (*)
@@ -1320,7 +1208,6 @@ TEST_F(SingleThreadedCheckpointTest, MemUsageCheckpointCreation) {
     auto& manager = *vb->checkpointManager;
 
     const auto& ckptConfig = manager.getCheckpointConfig();
-    ASSERT_FALSE(ckptConfig.isItemNumBasedNewCheckpoint());
     ASSERT_EQ(3600, ckptConfig.getCheckpointPeriod());
     ASSERT_EQ(20, ckptConfig.getMaxCheckpoints());
     ASSERT_EQ(_10MB, ckptConfig.getCheckpointMaxSize()); // (*)
@@ -1347,8 +1234,6 @@ TEST_F(SingleThreadedCheckpointTest,
     auto& config = engine->getConfiguration();
     config.setMaxSize(1024 * 1024 * 100);
 
-    // Disable item/time based checkpoint creation
-    config.setItemNumBasedNewChk(false);
     config.setChkPeriod(3600);
     config.setMaxCheckpoints(20);
     // Set checkpoint max size to something very low
@@ -1359,7 +1244,6 @@ TEST_F(SingleThreadedCheckpointTest,
     auto& manager = *vb->checkpointManager;
 
     const auto& ckptConfig = manager.getCheckpointConfig();
-    ASSERT_FALSE(ckptConfig.isItemNumBasedNewCheckpoint());
     ASSERT_EQ(3600, ckptConfig.getCheckpointPeriod());
     ASSERT_EQ(20, ckptConfig.getMaxCheckpoints());
     ASSERT_EQ(1, ckptConfig.getCheckpointMaxSize());
@@ -1674,10 +1558,7 @@ TEST_P(CheckpointTest, DuplicateCheckpointCursor) {
 // Test that if we add 2 cursors with the same name the first one is removed.
 // even if the 2 cursors are in different checkpoints.
 TEST_P(CheckpointTest, DuplicateCheckpointCursorDifferentCheckpoints) {
-    // Size down the default number of items to create a new checkpoint and
-    // recreate the manager
-    const auto maxItems = 10;
-    config.setChkMaxItems(maxItems);
+    config.setCheckpointMaxSize(1);
     checkpoint_config = std::make_unique<CheckpointConfig>(config);
     createManager();
 
@@ -1694,8 +1575,9 @@ TEST_P(CheckpointTest, DuplicateCheckpointCursorDifferentCheckpoints) {
 
     // Adding the following items will result in 2 checkpoints, with
     // both cursors in the first checkpoint.
-    for (int ii = 0; ii < 2 * maxItems; ++ii) {
-        this->queueNewItem("key" + std::to_string(ii));
+    const size_t numItems = 2;
+    for (size_t i = 0; i < numItems; ++i) {
+        queueNewItem("key" + std::to_string(i));
     }
     EXPECT_EQ(2, ckptList.size());
     EXPECT_EQ(2, ckptList.front()->getNumCursorsInCheckpoint());
@@ -1704,7 +1586,7 @@ TEST_P(CheckpointTest, DuplicateCheckpointCursorDifferentCheckpoints) {
     // 2nd checkpoint
     auto dcpCursor2 =
             manager->registerCursorBySeqno(dcp_cursor.c_str(),
-                                           1000 + maxItems + 2,
+                                           1000 + numItems,
                                            CheckpointCursor::Droppable::Yes);
 
     // Adding the 2nd DCP cursor should not have increased the number of
@@ -2035,18 +1917,19 @@ TEST_P(CheckpointTest, testDontExpelIfCursorAtMetadataItemWithSameSeqnoDisk) {
 // then we will move the expel point backwards to the mutation
 // (and possibly further).
 void CheckpointTest::testDoNotExpelIfHaveSameSeqnoAfterMutation() {
-    config.setChkMaxItems(1);
-    checkpoint_config = std::make_unique<CheckpointConfig>(config);
     createManager();
+    ASSERT_EQ(1, manager->getNumCheckpoints());
 
     // Add a meta data operation
     manager->queueSetVBState();
+    // mutation
+    queueNewItem("keyA");
+    // 2nd checkpoint
+    manager->createNewCheckpoint();
+    // mutation
+    queueNewItem("keyB");
 
-    const int itemCount{2};
-    for (auto ii = 0; ii < itemCount; ++ii) {
-        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
-    }
-
+    ASSERT_EQ(2, manager->getNumCheckpoints());
     /*
      * First checkpoint (closed) is as follows:
      * 1000 - dummy item   <<<<<<< Cursor
@@ -3872,42 +3755,6 @@ TEST_F(CheckpointConfigTest, MaxCheckpoints) {
     auto& manager = *store->getVBuckets().getBucket(vbid)->checkpointManager;
 
     EXPECT_EQ(1000, manager.getCheckpointConfig().getMaxCheckpoints());
-}
-
-TEST_F(CheckpointConfigTest, CheckpointMaxItems_LowerThanMin) {
-    auto& config = engine->getConfiguration();
-    try {
-        config.setChkMaxItems(0);
-    } catch (const std::range_error& e) {
-        EXPECT_THAT(e.what(),
-                    testing::HasSubstr("Validation Error, chk_max_items "
-                                       "takes values between 1"));
-        return;
-    }
-    FAIL();
-}
-
-TEST_F(CheckpointConfigTest, CheckpointMaxItems_HigherThanMax) {
-    auto& config = engine->getConfiguration();
-    try {
-        config.setChkMaxItems(100001);
-    } catch (const std::range_error& e) {
-        EXPECT_THAT(e.what(),
-                    testing::HasSubstr("Validation Error, chk_max_items "
-                                       "takes values between 1 and 100000"));
-        return;
-    }
-    FAIL();
-}
-
-TEST_F(CheckpointConfigTest, CheckpointMaxItems) {
-    auto& config = engine->getConfiguration();
-    config.setChkMaxItems(4321);
-
-    setVBucketState(vbid, vbucket_state_active);
-    auto& manager = *store->getVBuckets().getBucket(vbid)->checkpointManager;
-
-    EXPECT_EQ(4321, manager.getCheckpointConfig().getCheckpointMaxItems());
 }
 
 TEST_F(CheckpointConfigTest, CheckpointPeriod_LowerThanMin) {

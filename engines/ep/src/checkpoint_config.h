@@ -29,16 +29,8 @@ public:
         return checkpointPeriod;
     }
 
-    size_t getCheckpointMaxItems() const {
-        return checkpointMaxItems;
-    }
-
     size_t getMaxCheckpoints() const {
         return maxCheckpoints;
-    }
-
-    bool isItemNumBasedNewCheckpoint() const {
-        return itemNumBasedNewCheckpoint;
     }
 
     bool isPersistenceEnabled() const {
@@ -56,12 +48,7 @@ protected:
     friend class SynchronousEPEngine;
 
     void setCheckpointPeriod(size_t value);
-    void setCheckpointMaxItems(size_t value);
     void setMaxCheckpoints(size_t value);
-
-    void allowItemNumBasedNewCheckpoint(bool value) {
-        itemNumBasedNewCheckpoint = value;
-    }
 
     static void addConfigChangeListener(EventuallyPersistentEngine& engine);
 
@@ -72,18 +59,9 @@ private:
     // Dynamic in EPConfig
     std::atomic<rel_time_t> checkpointPeriod;
 
-    // Number of max items allowed in each checkpoint.
-    // Dynamic in EPConfig
-    std::atomic<size_t> checkpointMaxItems;
-
     // Number of max checkpoints allowed.
     // Dynamic in EPConfig
     std::atomic<size_t> maxCheckpoints;
-
-    // Flag indicating if a new checkpoint is created once the number of items
-    // in the current checkpoint is greater than the max number allowed.
-    // Dynamic in EPConfig
-    std::atomic<bool> itemNumBasedNewCheckpoint;
 
     // Flag indicating if persistence is enabled.
     const bool persistenceEnabled;

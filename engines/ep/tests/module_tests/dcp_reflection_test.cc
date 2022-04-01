@@ -25,6 +25,7 @@
 #include <utility>
 
 #include "checkpoint_manager.h"
+#include "checkpoint_utils.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
 #include "ep_bucket.h"
@@ -1139,41 +1140,48 @@ TEST_P(DCPLoopbackStreamTest, MB_36948_SnapshotEndsOnPrepare) {
  */
 TEST_P(DCPLoopbackStreamTest, MB50874_DeDuplicatedMutationsReplicaToActive) {
     // We need a new checkpoint (MARKER_FLAG_CHK set) when the active node
-    // generates markers - reduce chkMaxItems to the minimum to simplify this.
-    engines[Node0]->getConfiguration().setChkMaxItems(10);
+    // generates markers - reduce checkpoint_max_size to simplify this.
+    engines[Node0]->getCheckpointConfig().setCheckpointMaxSize(2048);
 
     // Setup - fill up the initial checkpoint, with items, so when we
     // queue the next mutations a new checkpoints is created.
-    for (int i = 0; i < 10; i++) {
+    auto srcVB = engines[Node0]->getVBucket(vbid);
+    auto& manager = *srcVB->checkpointManager;
+    for (size_t i = 0; manager.getNumCheckpoints() < 2; ++i) {
         auto key = makeStoredDocKey("key_" + std::to_string(i));
         ASSERT_EQ(cb::engine_errc::success, storeSet(key));
     }
-    auto srcVB = engines[Node0]->getVBucket(vbid);
-    ASSERT_EQ(1, srcVB->checkpointManager->getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     // Now modify one more key, which should create a new Checkpoint.
     auto key = makeStoredDocKey("deduplicated_key");
     ASSERT_EQ(cb::engine_errc::success, storeSet(key));
     // ... and modify again so we de-duplicate and have a seqno gap.
     ASSERT_EQ(cb::engine_errc::success, storeSet(key));
+    // Sanity check our state - still 2 checkpoints
+    ASSERT_EQ(2, manager.getNumCheckpoints());
 
-    // Sanity check our state - should have a 2nd checkpoint now.
-    ASSERT_EQ(2, srcVB->checkpointManager->getNumCheckpoints());
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    manager);
+    const auto numItemsClosed = ckptList.front()->getNumItems();
 
     // Create a DCP connection between node0 and 1, and stream the initial
-    // marker and the 10 mutations.
+    // marker and the numItemsClosed mutations.
     auto route0_1 = createDcpRoute(Node0, Node1);
     ASSERT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
     route0_1.transferSnapshotMarker(
-            0, 10, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
-    for (int i = 0; i < 10; i++) {
+            0, numItemsClosed, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    for (size_t i = 0; i < numItemsClosed; i++) {
         route0_1.transferMessage(DcpResponse::Event::Mutation);
     }
 
     // Test - transfer the snapshot marker (but no mutations), then close stream
     // and promote to active; and try to accept a new mutation.
-    route0_1.transferSnapshotMarker(
-            11, 12, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route0_1.transferSnapshotMarker(numItemsClosed + 1,
+                                    numItemsClosed + 3,
+                                    MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
 
     route0_1.closeStreamAtConsumer();
     engines[Node1]->getKVBucket()->setVBucketState(vbid, vbucket_state_active);

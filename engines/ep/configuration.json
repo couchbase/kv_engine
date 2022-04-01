@@ -177,18 +177,6 @@
             "dynamic" : true,
             "type": "bool"
         },
-        "chk_max_items": {
-            "default": "10000",
-            "descr": "Max number of (non-meta) items in each checkpoint.",
-            "dynamic": true,
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "min": 1,
-                    "max": 100000
-                }
-            }
-        },
         "chk_period": {
             "default": "5",
             "descr": "Age of the open checkpoint (in seconds) that may trigger checkpoint creation.",
@@ -734,12 +722,6 @@
                     "max": 100
                 }
             }
-        },
-        "item_num_based_new_chk": {
-            "default": "true",
-            "descr": "True if the number of items in the current checkpoint plays a role in a new checkpoint creation",
-            "dynamic": true,
-            "type": "bool"
         },
         "connection_manager_interval": {
             "default": "1",

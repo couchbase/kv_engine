@@ -20,19 +20,19 @@
 // Testcases //////////////////////////////////////////////////////////////////
 
 static enum test_result test_create_new_checkpoint(EngineIface* h) {
-    // Inserting more than 5 items (see testcase config) will cause a new open
+    // Inserting more than 1 items (see testcase config) will cause a new open
     // checkpoint to be created.
 
-    write_items(h, 5);
+    write_items(h, 1);
     wait_for_flusher_to_settle(h);
 
     checkeq(0,
             get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
             "Last closed checkpoint Id for VB 0 should still be 0 after "
-            "storing 5 items");
+            "storing 1 items");
 
     // Store 1 more - should push it over to the next checkpoint.
-    write_items(h, 1, 5);
+    write_items(h, 1, 1);
     wait_for_flusher_to_settle(h);
 
     checkeq(1,
@@ -53,26 +53,12 @@ static enum test_result test_create_new_checkpoint(EngineIface* h) {
 
 static enum test_result test_validate_checkpoint_params(EngineIface* h) {
     checkeq(cb::engine_errc::success,
-            set_param(h,
-                      EngineParamCategory::Checkpoint,
-                      "chk_max_items",
-                      "1000"),
-            "Failed to set checkpoint_max_item param");
-    checkeq(cb::engine_errc::success,
             set_param(h, EngineParamCategory::Checkpoint, "chk_period", "100"),
             "Failed to set checkpoint_period param");
     checkeq(cb::engine_errc::success,
             set_param(
                     h, EngineParamCategory::Checkpoint, "max_checkpoints", "2"),
             "Failed to set max_checkpoints param");
-
-    checkeq(cb::engine_errc::invalid_arguments,
-            set_param(h, EngineParamCategory::Checkpoint, "chk_max_items", "0"),
-            "Expected to have an invalid value error for checkpoint_max_items "
-            "param");
-    checkeq(cb::engine_errc::success,
-            set_param(h, EngineParamCategory::Checkpoint, "chk_max_items", "1"),
-            "Failed to set chk_max_items param");
 
     checkeq(cb::engine_errc::invalid_arguments,
             set_param(h, EngineParamCategory::Checkpoint, "chk_period", "0"),
@@ -84,23 +70,6 @@ static enum test_result test_validate_checkpoint_params(EngineIface* h) {
             "Expected to have an invalid value error for max_checkpoints "
             "param");
 
-    return SUCCESS;
-}
-
-static enum test_result test_checkpoint_create(EngineIface* h) {
-    for (int i = 0; i < 5001; i++) {
-        char key[8];
-        sprintf(key, "key%d", i);
-        checkeq(cb::engine_errc::success,
-                store(h, nullptr, StoreSemantics::Set, key, "value"),
-                "Failed to store an item.");
-    }
-    checkeq(2,
-            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
-            "New checkpoint wasn't create after 5001 item creates");
-    checkeq(1,
-            get_int_stat(h, "vb_0:num_open_checkpoint_items", "checkpoint"),
-            "New open checkpoint should has only one dirty item");
     return SUCCESS;
 }
 
@@ -133,50 +102,45 @@ static enum test_result test_checkpoint_deduplication(EngineIface* h) {
 const char* default_dbname = "./ep_testsuite_checkpoint.db";
 
 BaseTestCase testsuite_testcases[] = {
-        TestCase("checkpoint: create a new checkpoint",
+        TestCase("create a new checkpoint",
                  test_create_new_checkpoint,
                  test_setup,
                  teardown,
-                 "chk_max_items=5;item_num_based_new_chk=true;chk_period=600",
+                 "checkpoint_max_size=1;chk_period=600",
                  prepare,
                  cleanup),
-        TestCase("checkpoint: validate checkpoint config params",
+        TestCase("validate checkpoint config params",
                  test_validate_checkpoint_params,
                  test_setup,
                  teardown,
                  nullptr,
                  prepare,
                  cleanup),
-        TestCase("test checkpoint create",
-                 test_checkpoint_create,
-                 test_setup,
-                 teardown,
-                 "chk_max_items=5000;chk_period=600",
-                 prepare,
-                 cleanup),
         TestCase("test checkpoint timeout",
                  test_checkpoint_timeout,
                  test_setup,
                  teardown,
-                 "chk_max_items=5000;chk_period=600;checkpoint_memory_recovery_"
-                 "upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
+                 "chk_period=600;checkpoint_memory_recovery_upper_mark=0;"
+                 "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
                  cleanup),
         TestCase("test checkpoint deduplication",
                  test_checkpoint_deduplication,
                  test_setup,
                  teardown,
-                 "chk_max_items=5000;"
-                 "chk_period=600;"
-                 "chk_expel_enabled=false",
-                 /* Checkpoint expelling needs to be disabled for this test
-                  * because the test checks that 4500 items created 5 times are
-                  * correctly de-duplicated (i.e. 4 * 4500 items are duplicated
-                  * away). If expelling is enabled it is possible that some
-                  * items will be expelled and hence will not get duplicated
-                  * away.  Therefore the expected number of items in the
-                  * checkpoint will not match.
-                  */
+                 // Notes on config:
+                 // - Testing deduplication, so we need to ensure that all items
+                 //   are queued into a single checkpoint. So we set
+                 //   checkpoint_max_size reasonably high.
+                 // - For the same reason, we prevent checkpoint creation by
+                 //   time trigger.
+                 // - ItemExpel needs to be disabled for this test because the
+                 //   test checks that 4500 items created 5 times are correctly
+                 //   de-duplicated (i.e. 4 * 4500 items are duplicated away).
+                 //   If expelling is enabled it is possible that some item will
+                 //   be expelled and hence will not get duplicated away.
+                 "checkpoint_max_size=10485760;chk_period=600;chk_expel_"
+                 "enabled=false",
                  prepare,
                  cleanup),
 

@@ -193,11 +193,7 @@ Persistence:
 Available params for "set":
 
   Available params for set checkpoint_param:
-    chk_max_items                - Max number of items allowed in a checkpoint.
     chk_period                   - Time bound (in sec.) on a checkpoint.
-    item_num_based_new_chk       - true if a new checkpoint can be created based
-                                   on.
-                                   the number of items in the open checkpoint.
     max_checkpoints              - Max number of checkpoints allowed per vbucket.
     checkpoint_memory_ratio      - Max ratio of the bucket quota that can be allocated in checkpoints.
     checkpoint_memory_recovery_upper_mark - Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that triggers attempt of memory releasing from checkpoint.

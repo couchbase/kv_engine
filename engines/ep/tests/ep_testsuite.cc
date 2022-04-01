@@ -6946,7 +6946,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_bucket_type",
               "ep_cache_size",
               "ep_chk_expel_enabled",
-              "ep_chk_max_items",
               "ep_chk_period",
               "ep_chk_remover_stime",
               "ep_checkpoint_destruction_tasks",
@@ -7027,7 +7026,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_item_eviction_freq_counter_age_threshold",
               "ep_item_freq_decayer_chunk_duration",
               "ep_item_freq_decayer_percent",
-              "ep_item_num_based_new_chk",
               "ep_magma_sync_every_batch",
               "ep_magma_checkpoint_interval",
               "ep_magma_min_checkpoint_interval",
@@ -7174,7 +7172,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_bucket_type",
               "ep_cache_size",
               "ep_chk_expel_enabled",
-              "ep_chk_max_items",
               "ep_chk_period",
               "ep_chk_persistence_remains",
               "ep_chk_remover_stime",
@@ -7293,7 +7290,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_item_freq_decayer_chunk_duration",
               "ep_item_freq_decayer_percent",
               "ep_item_num",
-              "ep_item_num_based_new_chk",
               "ep_items_expelled_from_checkpoints",
               "ep_items_rm_from_checkpoints",
               "ep_kv_size",
@@ -8698,11 +8694,11 @@ BaseTestCase testsuite_testcases[] = {
                  test_access_scanner,
                  test_setup,
                  teardown,
-                 // Need to cap at <number of items written, so we create
-                 // >1 checkpoint. Also given bucket quota is being
-                 // constrained, also limit shards to 4 so amount of memory
-                 // overhead is more or less constant.
-                 "chk_max_items=500;"
+                 // Need to cap the single checkpint size, so we create >1
+                 // checkpoints. Also given bucket quota is being constrained,
+                 // also limit shards to 4 so amount of memory overhead is more
+                 // or less constant.
+                 "checkpoint_max_size=1024;"
                  "chk_remover_stime=1;"
                  "max_num_shards=4;"
                  "max_size=10000000;checkpoint_memory_recovery_upper_mark=0;"
@@ -9004,7 +9000,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_shutdown_snapshot_range,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_max_items=100",
+                 "chk_remover_stime=1;checkpoint_max_size=1024",
                  prepare,
                  cleanup),
 

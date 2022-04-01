@@ -1126,27 +1126,22 @@ void CheckpointManager::checkOpenCheckpoint(
     // satisfied:
     // (1) force creation due to online update, high memory usage, or enqueueing
     //     an op we cannot de-dupe (i.e. an abort, commit, or prepare)
-    // (2) current open checkpoint has reached the max number of items allowed
-    // (3) the age of the current open checkpoint is greater than the threshold
+    // (2) the age of the current open checkpoint is greater than the threshold
     //     @todo MB-48038: allow disabling the time-based trigger via config
-    // (4) current open checkpoint has reached its max size (in bytes)
-    const auto numItems = openCkpt.getNumItems();
-    const auto numItemsTrigger =
-            checkpointConfig.isItemNumBasedNewCheckpoint() &&
-            numItems >= checkpointConfig.getCheckpointMaxItems();
+    // (3) current open checkpoint has reached its max size (in bytes)
 
     const auto openCkptAge = ep_real_time() - openCkpt.getCreationTime();
     const auto timeTrigger =
-            (numItems > 0) &&
+            (openCkpt.getNumItems() > 0) &&
             (openCkptAge >= checkpointConfig.getCheckpointPeriod());
 
     // Note: The condition ensures that we always allow at least 1 non-meta item
     //  in the open checkpoint, regardless of any setting.
     const auto memTrigger = (openCkpt.getMemUsage() >=
                              checkpointConfig.getCheckpointMaxSize()) &&
-                            (numItems > 0);
+                            (openCkpt.getNumItems() > 0);
 
-    if (forceCreation || numItemsTrigger || timeTrigger || memTrigger) {
+    if (forceCreation || timeTrigger || memTrigger) {
         addNewCheckpoint(lh);
     }
 }

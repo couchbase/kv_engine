@@ -60,12 +60,6 @@ public:
      * test should be moved forward.
      */
     void testExpellingOccursBeforeCursorDropping(MemRecoveryMode mode);
-
-    /**
-     * Get the maximum number of items allowed in a checkpoint for the given
-     * vBucket
-     */
-    size_t getMaxCheckpointItems(VBucket& vb);
 };
 
 /**

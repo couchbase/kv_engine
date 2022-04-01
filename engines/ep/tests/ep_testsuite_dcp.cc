@@ -1997,39 +1997,85 @@ static enum test_result test_dcp_producer_stream_req_open(EngineIface* h) {
 }
 
 static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h) {
-    // Should start at checkpoint_id 2
+    // Should start at checkpoint_id 1
     const auto initial_ckpt_id =
             get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint");
     checkeq(1, initial_ckpt_id, "Expected to start at checkpoint ID 1");
 
-    // Create two 'full' checkpoints by storing exactly 2 x 'chk_max_items'
-    // into the VBucket.
-    const auto max_ckpt_items = get_int_stat(h, "ep_chk_max_items");
+    // Temporarily disable mem recovery for easier control over checkpoint
+    // creation - In the test we want checkpoint creation happen only in the
+    // front end thread (queueDirty())
+    set_param(h,
+              EngineParamCategory::Checkpoint,
+              "checkpoint_memory_recovery_upper_mark",
+              "1");
 
-    write_items(h, max_ckpt_items);
-    wait_for_flusher_to_settle(h);
-    wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", max_ckpt_items);
+    // Create two 'full' checkpoints
+    const auto ckptMaxSize = get_int_stat(h, "ep_checkpoint_max_size");
+    const auto value = std::string(ckptMaxSize / 10, 'x');
+
+    uint64_t firstCkptNumItems = 0;
+    for (uint64_t seqno = 1;
+         get_ull_stat(h, "vb_0:open_checkpoint_id", "checkpoint") < 2;
+         ++seqno) {
+        write_items(h, 1, seqno, "key", value.c_str());
+        ++firstCkptNumItems;
+    }
+    // 2nd checkpoint already created containing 1 (non meta) item
+    --firstCkptNumItems;
+
     checkeq(initial_ckpt_id + 1,
             get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
             "Expected #checkpoints to increase by 1 after storing items");
 
-    write_items(h, max_ckpt_items, max_ckpt_items);
     wait_for_flusher_to_settle(h);
-    wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", max_ckpt_items * 2);
+    set_param(h,
+              EngineParamCategory::Checkpoint,
+              "checkpoint_memory_recovery_upper_mark",
+              "0");
+    wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", firstCkptNumItems);
+    set_param(h,
+              EngineParamCategory::Checkpoint,
+              "checkpoint_memory_recovery_upper_mark",
+              "1");
+
+    uint64_t secondCkptNumItems = 1;
+    for (uint64_t seqno = firstCkptNumItems + secondCkptNumItems + 1;
+         get_ull_stat(h, "vb_0:open_checkpoint_id", "checkpoint") < 3;
+         ++seqno) {
+        write_items(h, 1, seqno, "key", value.c_str());
+        ++secondCkptNumItems;
+    }
+    // 3nd checkpoint created with 1 item
+    --secondCkptNumItems;
+
     checkeq(initial_ckpt_id + 2,
             get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
             "Expected #checkpoints to increase by 2 after storing 2x "
             "max_ckpt_items");
+
+    checkeq(secondCkptNumItems,
+            firstCkptNumItems,
+            "Expected same number of mutations in the 1st/2nd checkpoint");
+
+    wait_for_flusher_to_settle(h);
+    set_param(h,
+              EngineParamCategory::Checkpoint,
+              "checkpoint_memory_recovery_upper_mark",
+              "0");
+    wait_for_stat_to_be(h,
+                        "ep_items_rm_from_checkpoints",
+                        firstCkptNumItems + secondCkptNumItems);
 
     // Stop persistece (so the persistence cursor cannot advance into the
     // deletions below, and hence de-dupe them with respect to the
     // additions we just did).
     stop_persistence(h);
 
-    // Now delete half of the keys. Given that we have reached the
-    // maximum checkpoint size above, all the deletes should be in a
-    // subsequent checkpoint.
-    for (int j = 0; j < max_ckpt_items; ++j) {
+    // Now delete half of the keys (all the ones in first checkpoint). Given
+    // that we have reached the maximum checkpoint size above, all the deletes
+    // should be in a subsequent checkpoint.
+    for (size_t j = 1; j <= firstCkptNumItems; ++j) {
         std::stringstream ss;
         ss << "key" << j;
         checkeq(cb::engine_errc::success,
@@ -2037,25 +2083,41 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h) {
                 "Expected delete to succeed");
     }
 
+    // 3rd checkpoint is expected to store 1 mutation + all the deletes for keys
+    // queued into the 1st checkpoint
+    const auto thirdCkptNumItems =
+            get_ull_stat(h, "vb_0:num_open_checkpoint_items", "checkpoint");
+    checkeq(firstCkptNumItems + 1, thirdCkptNumItems, "");
+
     auto* cookie = testHarness->create_cookie(h);
 
-    // Verify that we recieve full checkpoints when we only ask for
+    // Verify that we receive full checkpoints when we only ask for
     // sequence numbers which lie within partial checkpoints.  We
     // should have the following Checkpoints in existence:
     //
-    //   {  1,100} - MUTATE(key0..key99), from disk.
-    //   {101,200} - MUTATE(key100.key199), from disk.
-    //   {201,300} - DELETE(key0..key99), in memory (as persistence has been stopped).
+    //   MUTATE {1, firstCkptNumItems}, from disk.
+    //   MUTATE {firstCkptNumItems + 1, secondCkptNumItems}, from disk.
+    //   DELETE {secondCkptNumItems + 1, del_of_all_firstCkptNumItems}, in
+    //     memory (as persistence has been stopped).
     //
     // We request a start and end which lie in the middle of checkpoints -
-    // start at 105 and end at 209. We should recieve to the end of
-    // complete checkpoints, i.e. from 105 all the way to 300.
+    // startSeqno in the middle of the 2nd checkpoint, endSeqno in the middle of
+    // the 3rd checkpoint. We should receive to the end of complete checkpoints,
+    // i.e. from startSeqno all the way to highSeqno.
+    checkgt(firstCkptNumItems, uint64_t(5), "");
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
-    ctx.seqno = {105, 209};
-    ctx.snapshot = {105, 105};
-    ctx.exp_mutations = 95; // 105 to 200
-    ctx.exp_deletions = 100; // 201 to 300
+    //
+    ctx.seqno = {firstCkptNumItems + 1,
+                 firstCkptNumItems + secondCkptNumItems + 5};
+    ctx.snapshot = {firstCkptNumItems + 1, firstCkptNumItems + 1};
+    // Expected:
+    // - all the mutations from the 2nd checkpoint but 1 (as we are setting the
+    //   start seqno of the StreamReq to the first seqno in 2ns checkpoint),
+    //   plus 1 mutation from the 3rd one
+    // - all the deletions from the 3rd checkpoint
+    ctx.exp_mutations = secondCkptNumItems;
+    ctx.exp_deletions = firstCkptNumItems;
 
     if (isPersistentBucket(h)) {
         ctx.exp_markers = 2;
@@ -2838,20 +2900,9 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
         EngineIface* h) {
     const std::string conn_name("unittest");
     const int num_items = 30;
-    uint64_t curr_chkpt_id = 0;
     for (int j = 0; j < num_items; ++j) {
         if (j % 10 == 0) {
             wait_for_flusher_to_settle(h);
-        }
-        if (j == (num_items - 1)) {
-            /* Since checkpoint max items is set to 10 and we are going to
-               write 30th item, a new checkpoint could be added after
-               writing and persisting the 30th item. I mean, if the checkpoint
-               id is got outside the while loop, there could be an error due to
-               race (flusher and checkpoint remover could run before getting
-               this stat) */
-            curr_chkpt_id =
-                    get_ull_stat(h, "vb_0:open_checkpoint_id", "checkpoint");
         }
         std::string key("key" + std::to_string(j));
         checkeq(cb::engine_errc::success,
@@ -2890,10 +2941,6 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
     wait_for_val_to_be("last_sent_seqno",
                        cdc.dcpConsumer->producers.last_byseqno,
                        exp_items);
-
-    /* Wait for new open (empty) checkpoint to be added */
-    wait_for_stat_to_be(
-            h, "vb_0:open_checkpoint_id", curr_chkpt_id + 1, "checkpoint");
 
     /* We want to make sure that no cursors are lingering on any of the previous
        checkpoints. For that we wait for checkpoint remover to remove all but
@@ -8213,21 +8260,29 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_req_partial,
                  test_setup,
                  teardown,
-                 /* set chk_period to essentially infinity so it won't run
-                    during this test and create extra checkpoints we don't
-                    want.*/
-                 "chk_remover_stime=1;chk_max_items=100;"
+                 // Configuration:
+                 // - chk_period to essentially infinity so it won't run
+                 //   during this test and create extra checkpoints we don't
+                 //   want
+                 // - bucket quota big enough compared to the single checkpoint
+                 //   max size, so that in the test we can play with
+                 //   checkpoint_memory_recovery_upper_mark to enable/disable
+                 //   the CheckpointMemRecoveryTask for easier control over
+                 //   memory creation
+                 "chk_remover_stime=1;max_size=10240000;checkpoint_max_size="
+                 "10240;"
                  "chk_period=86400;checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0;chk_expel_enabled="
                  "false",
-                 prepare,
+                 // Under rocks that new configuration makes the test break at
+                 // 'write_items_upto_mem_perc'
+                 prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
         TestCase("test producer stream request (full merged snapshots)",
                  test_dcp_producer_stream_req_full_merged_snapshots,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_max_items=100;checkpoint_memory_"
-                 "recovery_upper_mark=0;"
+                 "chk_remover_stime=1;checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0;chk_expel_enabled="
                  "false",
                  prepare_ep_bucket,
@@ -8236,7 +8291,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_req_full,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;max_checkpoints=2;chk_max_items=100;"
+                 "chk_remover_stime=1;max_checkpoints=2;"
                  "checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
                  prepare_ephemeral_bucket,
@@ -8245,7 +8300,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_req_backfill,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_max_items=100;dcp_scan_item_limit=50;"
+                 "chk_remover_stime=1;dcp_scan_item_limit=50;"
                  "checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0;chk_expel_enabled="
                  "false",
@@ -8255,8 +8310,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_req_diskonly,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_max_items=100;checkpoint_memory_"
-                 "recovery_upper_mark=0;"
+                 "chk_remover_stime=1;checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
                  cleanup),
@@ -8267,7 +8321,9 @@ BaseTestCase testsuite_testcases[] = {
                  /* Set buffer size to a very low value (less than the size
                     of a mutation) */
                  "dcp_backfill_byte_limit=1;chk_remover_stime=1;"
-                 "chk_max_items=3;checkpoint_memory_recovery_upper_mark=0;"
+                 // Allow all checkpoints removed by the periodic recoevery task
+                 "checkpoint_max_size=1;"
+                 "checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
                  cleanup),
@@ -8275,7 +8331,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_req_mem,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_max_items=100",
+                 "chk_remover_stime=1",
                  prepare,
                  cleanup),
         TestCase("test producer stream request (DGM)",
@@ -8284,7 +8340,11 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  // Need fewer than the number of items we write (at least 1000)
                  // in each checkpoint.
-                 "chk_max_items=500;"
+                 // Note: Test already disabled, see test function.
+                 //  Setting checkpoint_max_size small=1 is a placeholder but is
+                 //  a value that is expected to make the test happy when
+                 //  re-enabled.
+                 "checkpoint_max_size=1;"
                  "chk_remover_stime=1;max_size=6291456",
                  /* not needed in ephemeral as it is DGM case */
                  /* TODO RDB: Relies on resident ratio - not valid yet */
@@ -8294,7 +8354,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_req_coldness,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_max_items=2",
+                 "chk_remover_stime=1;checkpoint_max_size=1",
                  prepare_skip_broken_under_ephemeral,
                  cleanup),
         TestCase("test dcp consumer hotness data",
@@ -8316,15 +8376,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_keep_stream_open,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_max_items=100",
+                 "chk_remover_stime=1",
                  prepare,
                  cleanup),
         TestCase("test producer keep stream open replica",
                  test_dcp_producer_keep_stream_open_replica,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_max_items=100;checkpoint_memory_"
-                 "recovery_upper_mark=0;"
+                 "chk_remover_stime=1;checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
                  cleanup),
@@ -8332,7 +8391,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_cursor_movement,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;chk_max_items=10;checkpoint_memory_"
+                 "chk_remover_stime=1;checkpoint_max_size=1;checkpoint_memory_"
                  "recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
@@ -8349,7 +8408,7 @@ BaseTestCase testsuite_testcases[] = {
                 test_dcp_agg_stats,
                 test_setup,
                 teardown,
-                "chk_max_items=100;chk_expel_enabled=false",
+                "chk_expel_enabled=false",
                 /*
                  * Checkpoint expelling needs to be disabled for this test
                  * because the test expects each of the five streams to contain

@@ -218,8 +218,6 @@ For introductory information on stats within Couchbase, start with the
 |                                       | non resident items and deletes to       |
 |                                       | accounting all items                    |
 | ep_bucket_type                        | The bucket type                         |
-| ep_chk_max_items                      | The number of items allowed in a        |
-|                                       | checkpoint before a new one is created  |
 | ep_chk_period                         | The maximum lifetime of a checkpoint    |
 |                                       | before a new one is created             |
 | ep_chk_persistence_remains            | Number of remaining vbuckets for        |
@@ -251,9 +249,6 @@ For introductory information on stats within Couchbase, start with the
 | ep_getl_max_timeout                   | The maximum getl lock duration          |
 | ep_ht_locks                           | The amount of locks per vb hashtable    |
 | ep_ht_size                            | The initial size of each vb hashtable   |
-| ep_item_num_based_new_chk             | True if the number of items in the      |
-|                                       | current checkpoint plays a role in a    |
-|                                       | new checkpoint creation                 |
 | ep_max_checkpoints                    | The maximum amount of checkpoints that  |
 |                                       | can be in memory per vbucket            |
 | ep_max_item_size                      | The maximum value size                  |

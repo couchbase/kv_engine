@@ -26,16 +26,8 @@ public:
     void sizeValueChanged(const std::string& key, size_t value) override {
         if (key.compare("chk_period") == 0) {
             config.setCheckpointPeriod(value);
-        } else if (key.compare("chk_max_items") == 0) {
-            config.setCheckpointMaxItems(value);
         } else if (key.compare("max_checkpoints") == 0) {
             config.setMaxCheckpoints(value);
-        }
-    }
-
-    void booleanValueChanged(const std::string& key, bool value) override {
-        if (key.compare("item_num_based_new_chk") == 0) {
-            config.allowItemNumBasedNewCheckpoint(value);
         }
     }
 
@@ -45,9 +37,7 @@ private:
 
 CheckpointConfig::CheckpointConfig(Configuration& config)
     : checkpointPeriod(config.getChkPeriod()),
-      checkpointMaxItems(config.getChkMaxItems()),
       maxCheckpoints(config.getMaxCheckpoints()),
-      itemNumBasedNewCheckpoint(config.isItemNumBasedNewChk()),
       persistenceEnabled(config.getBucketType() == "persistent"),
       checkpointMaxSize(config.getCheckpointMaxSize()) {
 }
@@ -59,24 +49,13 @@ void CheckpointConfig::addConfigChangeListener(
             "chk_period",
             std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
     configuration.addValueChangedListener(
-            "chk_max_items",
-            std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
-    configuration.addValueChangedListener(
             "max_checkpoints",
-            std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
-    configuration.addValueChangedListener(
-            "item_num_based_new_chk",
             std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
 }
 
 void CheckpointConfig::setCheckpointPeriod(size_t value) {
     Expects(value > 0);
     checkpointPeriod = static_cast<rel_time_t>(value);
-}
-
-void CheckpointConfig::setCheckpointMaxItems(size_t value) {
-    Expects(value > 0);
-    checkpointMaxItems = value;
 }
 
 void CheckpointConfig::setMaxCheckpoints(size_t value) {

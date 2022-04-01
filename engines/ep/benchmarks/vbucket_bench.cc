@@ -122,7 +122,8 @@ protected:
     void SetUp(const benchmark::State& state) override {
         // Allow many checkpoints
         varConfig =
-                "max_size=1000000000;max_checkpoints=100000000;chk_max_items=1";
+                "max_size=1000000000;max_checkpoints=100000000;checkpoint_max_"
+                "size=1";
 
         EngineFixture::SetUp(state);
         if (state.thread_index() == 0) {
@@ -353,9 +354,9 @@ BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
     // Same queued_item used for both checkpointList pre-filling and
     // front-end queueDirty().
     // Note that we will generate many 1-item checkpoints even if we enqueue
-    // always the same identical item. That is because we have 'chk_max_items=1'
-    // in configuration, which leads to the following order of steps at every
-    // call to CM::queueDirty:
+    // always the same identical item. That is because we have
+    // checkpoint_max_size=1 in configuration, which leads to the following
+    // order of steps at every call to CM::queueDirty:
     // 1) close the open checkpoint
     // 2) create a new open checkpoint
     // 3) enqueue the new mutation (note that de-duplication happens here).
@@ -511,7 +512,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractClosedUnrefCheckpoints)
     const size_t numCheckpoints = state.range(0);
     auto& manager = *engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
 
-    ASSERT_EQ(1, manager.getCheckpointConfig().getCheckpointMaxItems());
+    ASSERT_EQ(1, manager.getCheckpointConfig().getCheckpointMaxSize());
 
     while (state.KeepRunning()) {
         state.PauseTiming();
@@ -548,7 +549,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, GetCursorsToDrop)
     const size_t numCheckpoints = state.range(0);
     auto& manager = *engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
 
-    ASSERT_EQ(1, manager.getCheckpointConfig().getCheckpointMaxItems());
+    ASSERT_EQ(1, manager.getCheckpointConfig().getCheckpointMaxSize());
 
     while (state.KeepRunning()) {
         state.PauseTiming();
@@ -581,14 +582,12 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
     auto& config = engine->getConfiguration();
     const size_t _1B = 1000 * 1000 * 1000;
     config.setCheckpointMaxSize(_1B);
-    config.setChkMaxItems(100000);
     config.setChkPeriod(3600);
 
     auto& bucket = *engine->getKVBucket();
     auto& manager = *bucket.getVBucket(vbid)->checkpointManager;
     const auto& ckptConfig = manager.getCheckpointConfig();
     ASSERT_EQ(_1B, ckptConfig.getCheckpointMaxSize());
-    ASSERT_EQ(100000, ckptConfig.getCheckpointMaxItems());
     ASSERT_EQ(3600, ckptConfig.getCheckpointPeriod());
 
     while (state.KeepRunning()) {

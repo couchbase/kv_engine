@@ -521,14 +521,10 @@ cb::engine_errc EventuallyPersistentEngine::setCheckpointParam(
     try {
         auto& config = getConfiguration();
 
-        if (key == "chk_max_items") {
-            config.setChkMaxItems(std::stoull(val));
-        } else if (key == "chk_period") {
+        if (key == "chk_period") {
             config.setChkPeriod(std::stoull(val));
         } else if (key == "max_checkpoints") {
             config.setMaxCheckpoints(std::stoull(val));
-        } else if (key == "item_num_based_new_chk") {
-            config.setItemNumBasedNewChk(cb_stob(val));
         } else if (key == "checkpoint_memory_ratio") {
             config.setCheckpointMemoryRatio(std::stof(val));
         } else if (key == "checkpoint_memory_recovery_upper_mark") {

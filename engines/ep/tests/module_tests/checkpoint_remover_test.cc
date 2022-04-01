@@ -39,10 +39,6 @@ void CheckpointRemoverTest::SetUp() {
     STParameterizedBucketTest::SetUp();
 }
 
-size_t CheckpointRemoverTest::getMaxCheckpointItems(VBucket& vb) {
-    return vb.checkpointManager->getCheckpointConfig().getCheckpointMaxItems();
-}
-
 /**
  * Checks that CheckpointRemoverTask orders vbuckets to visit by "highest
  * checkpoint mem-usage" order. Also verifies that vbuckets are sharded across
@@ -123,11 +119,12 @@ TEST_P(CheckpointRemoverEPTest, CursorsEligibleToDrop) {
     createDcpStream(*producer);
     ASSERT_EQ(2, checkpointManager->getNumOfCursors());
 
-    // Insert items to the vBucket so we create a new checkpoint by going over
-    // the max items limit by 10
-    for (size_t i = 0; i < getMaxCheckpointItems(*vb) + 10; i++) {
-        std::string doc_key = "key_" + std::to_string(i);
-        store_item(vbid, makeStoredDocKey(doc_key), "value");
+    // Insert a few items to the vBucket so we create a new checkpoint
+    const auto value = std::string(
+            checkpointManager->getCheckpointConfig().getCheckpointMaxSize() / 4,
+            'x');
+    for (size_t i = 0; checkpointManager->getNumCheckpoints() < 2; ++i) {
+        store_item(vbid, makeStoredDocKey("key_" + std::to_string(i)), value);
     }
 
     // We should now have 2 checkpoints for this vBucket
@@ -135,7 +132,7 @@ TEST_P(CheckpointRemoverEPTest, CursorsEligibleToDrop) {
 
     // Run the persistence task for this vBucket, this should advance the
     // persistence cursor out of the first checkpoint
-    flush_vbucket_to_disk(vbid, getMaxCheckpointItems(*vb) + 10);
+    flushVBucket(vbid);
 
     // We should now be eligible to drop the user created DCP stream from the
     // checkpoint
@@ -319,6 +316,12 @@ void CheckpointRemoverTest::testExpellingOccursBeforeCursorDropping(
     }
     flushVBucketToDiskIfPersistent(vbid, ii);
 
+    if (mode == MemRecoveryMode::CursorDrop) {
+        // Force checkpoint closing/creation - CursorDrop wouldn't kick in
+        // otherwise
+        manager->createNewCheckpoint();
+    }
+
     const auto inititalNumCheckpoints = stats.getNumCheckpoints();
     EXPECT_GT(inititalNumCheckpoints, 0);
 
@@ -369,10 +372,6 @@ TEST_P(CheckpointRemoverTest, expelButNoCursorDrop) {
 // Test that we correctly trigger cursor dropping when have checkpoint
 // with cursor at the start and so cannot use expelling.
 TEST_P(CheckpointRemoverTest, notExpelButCursorDrop) {
-    auto& config = engine->getConfiguration();
-    config.setChkMaxItems(10);
-    config.setMaxCheckpoints(20);
-
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(0, stats.memFreedByCheckpointItemExpel);
     ASSERT_EQ(0, stats.memFreedByCheckpointRemoval);
