@@ -1108,7 +1108,8 @@ cb::engine_errc EphemeralVBucket::createRangeScan(
         RangeScanDataHandlerIFace&,
         const CookieIface&,
         cb::rangescan::KeyOnly,
-        std::optional<cb::rangescan::SnapshotRequirements>) {
+        std::optional<cb::rangescan::SnapshotRequirements>,
+        std::optional<cb::rangescan::SamplingConfiguration>) {
     return cb::engine_errc::not_supported;
 }
 

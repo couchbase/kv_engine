@@ -78,6 +78,7 @@ class WriteHandle;
 } // namespace Collections::VB
 
 namespace cb::rangescan {
+struct SamplingConfiguration;
 struct SnapshotRequirements;
 }
 
@@ -1700,6 +1701,7 @@ public:
      * @param cookie connection cookie to notify when done
      * @param keyOnly key/value configuration of the scan
      * @param snapshotReqs optional requirements that the snapshot must satisfy
+     * @param samplingConfig the parameters for the optional random sampling
      *
      * @return would_block if the scan was found and successfully scheduled
      */
@@ -1710,8 +1712,9 @@ public:
             RangeScanDataHandlerIFace& handler,
             const CookieIface& cookie,
             cb::rangescan::KeyOnly keyOnly,
-            std::optional<cb::rangescan::SnapshotRequirements>
-                    snapshotReqs) = 0;
+            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+            std::optional<cb::rangescan::SamplingConfiguration>
+                    samplingConfig) = 0;
 
     /**
      * Continue the range scan with the given identifier. The scan itself will

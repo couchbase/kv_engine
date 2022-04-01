@@ -23,6 +23,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <random>
 
 class ByIdScanContext;
 class CookieIface;
@@ -33,6 +34,7 @@ class StatCollector;
 class VBucket;
 
 namespace cb::rangescan {
+struct SamplingConfiguration;
 struct SnapshotRequirements;
 }
 
@@ -62,15 +64,18 @@ public:
      * @param cookie connection cookie creating the RangeScan
      * @param keyOnly configure key or value scan
      * @param snapshotReqs optional requirements for the snapshot
+     * @param samplingConfig optional configuration for random sampling mode
      */
-    RangeScan(EPBucket& bucket,
-              const VBucket& vbucket,
-              DiskDocKey start,
-              DiskDocKey end,
-              RangeScanDataHandlerIFace& handler,
-              const CookieIface& cookie,
-              cb::rangescan::KeyOnly keyOnly,
-              std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs);
+    RangeScan(
+            EPBucket& bucket,
+            const VBucket& vbucket,
+            DiskDocKey start,
+            DiskDocKey end,
+            RangeScanDataHandlerIFace& handler,
+            const CookieIface& cookie,
+            cb::rangescan::KeyOnly keyOnly,
+            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+            std::optional<cb::rangescan::SamplingConfiguration> samplingConfig);
 
     /**
      * Continue the range scan by calling kvstore.scan()
@@ -168,7 +173,13 @@ public:
     void incrementValueFromDisk();
 
     /// @return true if limits have been reached
-    bool areLimitsExceeded();
+    bool areLimitsExceeded() const;
+
+    /// @return true if the current item should be skipped
+    bool skipItem();
+
+    /// @return true if the scan's total limit has now been reached
+    bool isTotalLimitReached() const;
 
     /// Generate stats for this scan
     void addStats(const StatCollector& collector) const;
@@ -197,12 +208,17 @@ protected:
      * @param bucket The EPBucket to use to obtain the KVStore and pass to the
      *               RangeScanCacheCallback
      * @param snapshotReqs optional requirements for the snapshot
+     * @param samplingConfig optional configuration for random sampling mode
      * @return the Id to use for this scan
      */
     cb::rangescan::Id createScan(
             const CookieIface& cookie,
             EPBucket& bucket,
-            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs);
+            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+            std::optional<cb::rangescan::SamplingConfiguration> samplingConfig);
+
+    /// @return true if this scan is a random sample scan
+    bool isSampling() const;
 
     // member variables ideally ordered by size large -> small
     cb::rangescan::Id uuid;
@@ -218,6 +234,16 @@ protected:
     size_t totalValuesFromMemory{0};
     /// items read from disk for the life of this scan (only for value scans)
     size_t totalValuesFromDisk{0};
+
+    /**
+     * Following 3 member variables are used only when a
+     * cb::rangescan::SamplingConfiguration is provided to the constructor.
+     * The prng is allocated on demand as it's quite large (~2500bytes) and only
+     * needed by sampling scans.
+     */
+    std::unique_ptr<std::mt19937> prng;
+    std::bernoulli_distribution distribution{0.0};
+    size_t totalLimit{0};
 
     Vbid vbid;
 

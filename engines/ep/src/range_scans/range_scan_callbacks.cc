@@ -56,6 +56,19 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
         return;
     }
 
+    if (scan.skipItem()) {
+        setStatus(cb::engine_errc::key_already_exists);
+        return;
+    } else if (scan.isTotalLimitReached()) {
+        // end the scan
+        // @todo: Change this over to use range_scan_complete, which is added in
+        // a later patch. It's also not really an error, but brings the scan
+        // to a halt and indicates the status to the client. MB-35297 tracks
+        // this todo
+        setScanErrorStatus(cb::engine_errc::out_of_range);
+        return;
+    }
+
     // Key only scan ends here
     if (scan.isKeyOnly()) {
         scan.handleKey(lookup.getKey().getDocKey());

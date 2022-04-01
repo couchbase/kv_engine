@@ -28,6 +28,7 @@ RangeScanCreateTask::RangeScanCreateTask(
         const CookieIface& cookie,
         cb::rangescan::KeyOnly keyOnly,
         std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig,
         std::unique_ptr<RangeScanCreateData> scanData)
     : GlobalTask(&bucket.getEPEngine(), TaskId::RangeScanCreateTask, 0, false),
       bucket(bucket),
@@ -38,6 +39,7 @@ RangeScanCreateTask::RangeScanCreateTask(
       cookie(cookie),
       keyOnly(keyOnly),
       snapshotReqs(snapshotReqs),
+      samplingConfig(samplingConfig),
       scanData(std::move(scanData)) {
     // They must be the same collection
     Expects(this->start.getCollectionID() == this->end.getCollectionID());
@@ -82,7 +84,8 @@ std::pair<cb::engine_errc, cb::rangescan::Id> RangeScanCreateTask::create()
                                             handler,
                                             cookie,
                                             keyOnly,
-                                            snapshotReqs);
+                                            snapshotReqs,
+                                            samplingConfig);
     auto& epVb = dynamic_cast<EPVBucket&>(*vb);
     return {epVb.addNewRangeScan(scan), scan->getUuid()};
 }

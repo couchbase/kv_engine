@@ -11,6 +11,7 @@
 #include "range_scans/range_scan.h"
 
 #include "bucket_logger.h"
+#include "collections/collection_persisted_stats.h"
 #include "ep_bucket.h"
 #include "failover-table.h"
 #include "kvstore/kvstore.h"
@@ -33,16 +34,20 @@ RangeScan::RangeScan(
         RangeScanDataHandlerIFace& handler,
         const CookieIface& cookie,
         cb::rangescan::KeyOnly keyOnly,
-        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs)
+        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig)
     : start(std::move(start)),
       end(std::move(end)),
       vbUuid(vbucket.failovers->getLatestUUID()),
       handler(handler),
+      prng(samplingConfig ? std::make_unique<std::mt19937>(samplingConfig->seed)
+                          : nullptr),
+      totalLimit(samplingConfig ? samplingConfig->samples : 0),
       vbid(vbucket.getId()),
       keyOnly(keyOnly) {
     // Don't init the uuid in the initialisation list as we may read various
     // members which must be initialised first
-    uuid = createScan(cookie, bucket, snapshotReqs);
+    uuid = createScan(cookie, bucket, snapshotReqs, samplingConfig);
 
     EP_LOG_DEBUG("RangeScan {} created for {}", uuid, getVBucketId());
 }
@@ -50,7 +55,8 @@ RangeScan::RangeScan(
 cb::rangescan::Id RangeScan::createScan(
         const CookieIface& cookie,
         EPBucket& bucket,
-        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs) {
+        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig) {
     auto valFilter = cookie.isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)
                              ? ValueFilter::VALUES_COMPRESSED
                              : ValueFilter::VALUES_DECOMPRESSED;
@@ -101,6 +107,39 @@ cb::rangescan::Id RangeScan::createScan(
         }
     }
 
+    if (samplingConfig) {
+        const auto& handle = *scanCtx->handle.get();
+        auto stats =
+                bucket.getRWUnderlying(getVBucketId())
+                        ->getCollectionStats(
+                                handle, start.getDocKey().getCollectionID());
+        if (stats.first == KVStore::GetCollectionStatsStatus::Success) {
+            if (stats.second.itemCount == 0 ||
+                stats.second.itemCount < samplingConfig->samples) {
+                throw cb::engine_error(
+                        cb::engine_errc::out_of_range,
+                        fmt::format("RangeScan::createScan {} sampling cannot "
+                                    "be met items:{} samples:{}",
+                                    getVBucketId(),
+                                    stats.second.itemCount,
+                                    samplingConfig->samples));
+            }
+
+            // Now we can compute the distribution and assign the first sample
+            // index. Example, if asked for 999 samples and 1,000 keys exist
+            // then we set 0.999 as the probability.
+            distribution = std::bernoulli_distribution{
+                    double(samplingConfig->samples) /
+                    double(stats.second.itemCount)};
+        } else {
+            throw cb::engine_error(cb::engine_errc::failed,
+                                   fmt::format("RangeScan::createScan {} no "
+                                               "collection stats for sampling",
+                                               getVBucketId(),
+                                               snapshotReqs->seqno));
+        }
+    }
+
     // Generate the scan ID (which may also incur i/o)
     return boost::uuids::random_generator()();
 }
@@ -113,6 +152,9 @@ cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
         // ensure the client/cookie sees cancelled
         handleStatus(cb::engine_errc::range_scan_cancelled);
         // but return success so the scan now gets cleaned-up
+        return cb::engine_errc::success;
+    } else if (isTotalLimitReached()) {
+        // No point scanning if the total has been hit
         return cb::engine_errc::success;
     }
 
@@ -261,7 +303,7 @@ void RangeScan::incrementValueFromDisk() {
     ++totalValuesFromDisk;
 }
 
-bool RangeScan::areLimitsExceeded() {
+bool RangeScan::areLimitsExceeded() const {
     if (continueRunState.cState.limits.itemLimit) {
         return continueRunState.itemCount >=
                continueRunState.cState.limits.itemLimit;
@@ -269,6 +311,18 @@ bool RangeScan::areLimitsExceeded() {
         return now() >= continueRunState.scanContinueDeadline;
     }
     return false;
+}
+
+bool RangeScan::skipItem() {
+    return isSampling() && !distribution(*prng);
+}
+
+bool RangeScan::isTotalLimitReached() const {
+    return totalLimit && (totalKeys >= totalLimit);
+}
+
+bool RangeScan::isSampling() const {
+    return prng != nullptr;
 }
 
 std::function<std::chrono::steady_clock::time_point()> RangeScan::now = []() {
@@ -297,6 +351,7 @@ void RangeScan::addStats(const StatCollector& collector) const {
     addStat("total_keys", totalKeys);
     addStat("total_items_from_memory", totalValuesFromMemory);
     addStat("total_items_from_disk", totalValuesFromDisk);
+    addStat("total_limit", totalLimit);
 
     addStat("crs_item_count", continueRunState.itemCount);
     addStat("crs_cookie", continueRunState.cState.cookie);
@@ -309,6 +364,10 @@ void RangeScan::addStats(const StatCollector& collector) const {
     addStat("cookie", cs.cookie);
     addStat("item_limit", cs.limits.itemLimit);
     addStat("time_limit", cs.limits.timeLimit.count());
+
+    if (isSampling()) {
+        addStat("dist_p", distribution.p());
+    }
 }
 
 void RangeScan::dump(std::ostream& os) const {
@@ -316,10 +375,10 @@ void RangeScan::dump(std::ostream& os) const {
     auto cs = *continueState.rlock();
     fmt::print(os,
                "RangeScan: uuid:{}, {}, vbuuid:{}, range:({},{}), mode:{}, "
-               "queued:{}, totalKeys:{} values m:{}, d:{}, crs_itemCount:{}, "
-               "crs_cookie:{}, crs_item_limit:{}, crs_time_limit:{}, "
-               "crs_deadline:{}, cs.state:{}, cs.cookie:{}, cs.itemLimit:{}, "
-               "cs.timeLimit:{}\n",
+               "queued:{}, totalKeys:{} values m:{}, d:{}, totalLimit:{}, "
+               "crs_itemCount:{}, crs_cookie:{}, crs_item_limit:{}, "
+               "crs_time_limit:{}, crs_deadline:{}, cs.state:{}, cs.cookie:{}, "
+               "cs.itemLimit:{}, cs.timeLimit:{}",
                uuid,
                vbid,
                vbUuid,
@@ -330,6 +389,7 @@ void RangeScan::dump(std::ostream& os) const {
                totalKeys,
                totalValuesFromMemory,
                totalValuesFromDisk,
+               totalLimit,
                continueRunState.itemCount,
                reinterpret_cast<const void*>(continueRunState.cState.cookie),
                continueRunState.cState.limits.itemLimit,
@@ -339,6 +399,11 @@ void RangeScan::dump(std::ostream& os) const {
                reinterpret_cast<const void*>(cs.cookie),
                cs.limits.itemLimit,
                cs.limits.timeLimit.count());
+
+    if (isSampling()) {
+        fmt::print(os, ", distribution(p:{})", distribution.p());
+    }
+    fmt::print(os, "\n");
 }
 
 RangeScan::ContinueRunState::ContinueRunState() = default;

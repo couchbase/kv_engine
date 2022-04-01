@@ -274,7 +274,8 @@ public:
             RangeScanDataHandlerIFace& handler,
             const CookieIface& cookie,
             cb::rangescan::KeyOnly keyOnly,
-            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs)
+            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+            std::optional<cb::rangescan::SamplingConfiguration> samplingConfig)
             override;
     cb::engine_errc continueRangeScan(
             cb::rangescan::Id id,
