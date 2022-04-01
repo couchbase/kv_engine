@@ -76,7 +76,7 @@ def get_build_info(build):
     return (key, info)
 
 
-def fetch_failed_builds(server_url, username, password, build_limit):
+def fetch_failed_builds(server_url, username, password, build_limit, branch):
     """For the given Jenkins server URL & credentials, fetch details of all
     failed builds.
     Returns a dictionary of job+build_number to build details dictionary."""
@@ -87,9 +87,9 @@ def fetch_failed_builds(server_url, username, password, build_limit):
 
     details = dict()
 
-    jobs = ('kv_engine.linux/master', 'kv_engine.linux-CE/master',
-            'kv_engine.macos/master', 'kv_engine.ASan-UBSan/master',
-            'kv_engine.threadsanitizer/master', 'kv_engine-windows-master')
+    jobs = ('kv_engine.linux/', 'kv_engine.linux-CE/',
+            'kv_engine.macos/', 'kv_engine.ASan-UBSan/',
+            'kv_engine.threadsanitizer/', 'kv_engine-windows-')
 
     with multiprocessing.Pool(os.cpu_count() * 4,
                               initializer=init_worker,
@@ -98,12 +98,12 @@ def fetch_failed_builds(server_url, username, password, build_limit):
                                         username,
                                         password)) as pool:
         for job in jobs:
-            builds = server.get_job_info(job, depth=1, fetch_all_builds=True)[
+            builds = server.get_job_info(job + branch, depth=1, fetch_all_builds=True)[
                 'builds']
             for b in builds:
-                b['job'] = job
+                b['job'] = job + branch
             logging.debug(
-                "get_job_info({}) returned {} builds".format(job, len(builds)))
+                "get_job_info({}) returned {} builds".format(job + branch, len(builds)))
 
             # Constrain to last N builds of each job.
             builds = builds[:build_limit]
@@ -246,6 +246,8 @@ if __name__ == '__main__':
                               'download: Download build details, writing to stdout as JSON.\n'
                               'parse: Parse previously-downloaded build details read from stdin.\n'
                               'download_and_parse: Download and parse build details.\n'))
+    parser.add_argument('--branch', type=str, default='master',
+                        help='Branch to scan for')
     parser.add_argument('--build-limit',
                         type=int,
                         default=200,
@@ -255,7 +257,7 @@ if __name__ == '__main__':
 
     if args.mode != 'parse':
         raw_builds = fetch_failed_builds('http://cv.jenkins.couchbase.com',
-                                         args.username, args.password, args.build_limit)
+                                         args.username, args.password, args.build_limit, args.branch)
     if args.mode == 'download':
         print(json.dumps(raw_builds))
         sys.exit(0)
