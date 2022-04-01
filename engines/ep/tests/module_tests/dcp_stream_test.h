@@ -193,6 +193,13 @@ protected:
 class STPassiveStreamPersistentTest : public SingleThreadedPassiveStreamTest {
 public:
     void SetUp() override;
+
+    void checkVBState(uint64_t lastSnapStart,
+                      uint64_t lastSnapEnd,
+                      CheckpointType type,
+                      uint64_t hps,
+                      uint64_t hcs,
+                      uint64_t maxDelRevSeqno);
 };
 
 class STPassiveStreamMagmaTest : public STPassiveStreamPersistentTest {};

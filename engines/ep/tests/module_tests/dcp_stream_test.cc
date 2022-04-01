@@ -4801,6 +4801,147 @@ TEST_P(STPassiveStreamPersistentTest, enusre_extended_dcp_status_work) {
                       opaque, key, {}, 0, 0, 0, vbid, 0, 1, 0, 0, 0, {}, 0));
 }
 
+void STPassiveStreamPersistentTest::checkVBState(uint64_t lastSnapStart,
+                                                 uint64_t lastSnapEnd,
+                                                 CheckpointType type,
+                                                 uint64_t hps,
+                                                 uint64_t hcs,
+                                                 uint64_t maxDelRevSeqno) {
+    auto& kvStore = *store->getRWUnderlying(vbid);
+    auto& vbs = *kvStore.getCachedVBucketState(vbid);
+    EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
+    EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
+    EXPECT_EQ(type, getSuperCheckpointType(vbs.checkpointType));
+    EXPECT_EQ(hps, vbs.highPreparedSeqno);
+    EXPECT_EQ(hcs, vbs.persistedCompletedSeqno);
+    EXPECT_EQ(maxDelRevSeqno, vbs.maxDeletedSeqno);
+}
+
+/**
+ * Test that the HPS value on disk is set appropriately when we receive a Disk
+ * snapshot that does not contain a prepare.
+ *
+ * This tests the scenario as described in MB-51639, an active sending a disk
+ * snapshot for the following items: [1:Pre, 2:Pre, 3:Commit, 4:Commit] which
+ * is received as [3:Mutation, 4:Mutation] as completed prepares are not sent
+ * and commits are stored as mutations on disk. Whilst the in-memory HPS value
+ * is set to an appropriate value (4 - the snapshot end) the on disk HPS value
+ * was left at 0 before the change for MB-51639 was made. This meant that after
+ * a restart the HPS value was loaded from disk as 0, rather than 4, and it was
+ * possible for ns_server to select a replica having only received [1:Pre as the
+ * new active (resulting in a loss of committed prepare 2:Pre).
+ */
+TEST_P(STPassiveStreamPersistentTest, DiskSnapWithoutPrepareSetsDiskHPS) {
+    uint32_t opaque = 0;
+    SnapshotMarker snapshotMarker(opaque,
+                                  vbid,
+                                  1 /*snapStart*/,
+                                  4 /*snapEnd*/,
+                                  dcp_marker_flag_t::MARKER_FLAG_DISK,
+                                  std::optional<uint64_t>(2) /*HCS*/,
+                                  {} /*maxVisibleSeqno*/,
+                                  {}, // timestamp
+                                  {} /*streamId*/);
+    stream->processMarker(&snapshotMarker);
+
+    const std::string value("value");
+
+    // M:3 - Logic Commit for PRE:1
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      3 /*seqno*/, vbid, value, opaque)));
+
+    // M:4 - Logic Commit for PRE:2
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      4 /*seqno*/, vbid, value, opaque)));
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Notes: HPS would ideally equal the highest logically completed prepare
+    // (2) in this case, but that is not possible without a protocol change to
+    // send it from the active. We instead move the HPS to the snapshot end
+    // (both on disk and in memory) which is 4 in this case due to changes made
+    // as part of MB-34873.
+    checkVBState(4 /*lastSnapStart*/,
+                 4 /*lastSnapEnd*/,
+                 CheckpointType::Disk,
+                 4 /*HPS*/,
+                 2 /*HCS*/,
+                 0 /*maxDelRevSeqno*/);
+
+    EXPECT_EQ(4, store->getVBucket(vbid)->getHighPreparedSeqno());
+
+    ASSERT_NE(cb::engine_errc::disconnect,
+              consumer->closeStream(0 /*opaque*/, vbid));
+    consumer.reset();
+
+    resetEngineAndWarmup();
+    setupConsumerAndPassiveStream();
+
+    EXPECT_EQ(4, store->getVBucket(vbid)->getHighPreparedSeqno());
+}
+
+/**
+ * Test that the HPS value on disk is set appropriately when we receive a Disk
+ * snapshot that does contain a prepare.
+ *
+ * This tests the scenario:
+ * [1:Pre, 2:Pre, 3:Commit, 4:Commit, 5:Pre, 6:Mutation]
+ *
+ * Whilst one might expect that that HPS value is set to 5, it is in fact set to
+ * the snapshot end (6) due to the changes made for MB-34873.
+ */
+TEST_P(STPassiveStreamPersistentTest, DiskSnapWithPrepareSetsHPSToSnapEnd) {
+    uint32_t opaque = 0;
+    SnapshotMarker snapshotMarker(opaque,
+                                  vbid,
+                                  1 /*snapStart*/,
+                                  6 /*snapEnd*/,
+                                  dcp_marker_flag_t::MARKER_FLAG_DISK,
+                                  std::optional<uint64_t>(2) /*HCS*/,
+                                  {} /*maxVisibleSeqno*/,
+                                  {}, // timestamp
+                                  {} /*streamId*/);
+    stream->processMarker(&snapshotMarker);
+
+    const std::string value("value");
+
+    // M:3 - Logic Commit for PRE:1
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      3 /*seqno*/, vbid, value, opaque)));
+
+    // M:4 - Logic Commit for PRE:2
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      4 /*seqno*/, vbid, value, opaque)));
+
+    // PRE:5
+    using namespace cb::durability;
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      5 /*seqno*/,
+                      vbid,
+                      value,
+                      opaque,
+                      Requirements(Level::Majority, Timeout::Infinity()))));
+
+    // M:6
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      6 /*seqno*/, vbid, value, opaque)));
+
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    checkVBState(6 /*lastSnapStart*/,
+                 6 /*lastSnapEnd*/,
+                 CheckpointType::Disk,
+                 6 /*HPS*/,
+                 2 /*HCS*/,
+                 0 /*maxDelRevSeqno*/);
+}
+
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          STPassiveStreamPersistentTest,
                          STParameterizedBucketTest::persistentConfigValues(),
