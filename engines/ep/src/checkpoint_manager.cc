@@ -1355,20 +1355,6 @@ size_t CheckpointManager::getQueuedItemsMemUsage() const {
     return usage;
 }
 
-size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() const {
-    std::lock_guard<std::mutex> lh(queueLock);
-
-    size_t memUsage = 0;
-    for (const auto& checkpoint : checkpointList) {
-        if (checkpoint->isNoCursorsInCheckpoint()) {
-            memUsage += checkpoint->getMemUsage();
-        } else {
-            break;
-        }
-    }
-    return memUsage;
-}
-
 // @todo MB-48587: Suboptimal O(N) implementation for all mem-overhead functions
 //  below, optimized in a dedicated patch.
 

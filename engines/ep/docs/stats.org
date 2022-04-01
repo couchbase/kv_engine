@@ -416,7 +416,6 @@ The following ratios are encoded as 4-digit integers, e.g.:
 | ep_meta_data_disk                                       | Total disk used by meta data                   |
 | ep_checkpoint_memory                                    | Memory of items in all checkpoints             |
 | ep_checkpoint_memory_queue                              | Memory of all queued items in all checkpoints  |
-| ep_checkpoint_memory_unreferenced                       | Memory of items in unref checkpoints           |
 | ep_checkpoint_memory_overhead_allocator                 | Mem of all checkpoints struct - from allocator |
 | ep_checkpoint_memory_overhead_allocator_queue           | Mem of all checkpoints queues - from allocator |
 | ep_checkpoint_memory_overhead_allocator_index           | Mem of all checkpoints index - from allocator  |
@@ -447,7 +446,6 @@ The following ratios are encoded as 4-digit integers, e.g.:
 |                                          | vBuckets (StoredValue + key)               |
 | vb_active_meta_data_disk                 | Total metadata disk                        |
 | vb_active_checkpoint_memory              | Memory of active items in all checkpoints  |
-| vb_active_checkpoint_memory_unreferenced | Memory of active items in unref checkpoints|
 | vb_active_checkpoint_memory_overhead     | Memory of all active checkpoints structures|
 | vb_active_ops_create                     | Number of create operations                |
 | vb_active_ops_update                     | Number of update operations                |
@@ -483,7 +481,6 @@ The following ratios are encoded as 4-digit integers, e.g.:
 |                                           | vBuckets (StoredValue + key)                |
 | vb_replica_meta_data_disk                 | Total metadata disk                         |
 | vb_replica_checkpoint_memory              | Memory of replica items in all checkpoints  |
-| vb_replica_checkpoint_memory_unreferenced | Memory of replica items in unref checkpoints|
 | vb_replica_checkpoint_memory_overhead     | Memory of all replica checkpoints structures|
 | vb_replica_ops_create                     | Number of create operations                 |
 | vb_replica_ops_update                     | Number of update operations                 |
@@ -519,7 +516,6 @@ The following ratios are encoded as 4-digit integers, e.g.:
 |                                           | vBuckets (StoredValue + key)                |
 | vb_pending_meta_data_disk                 | Total metadata disk                         |
 | vb_pending_checkpoint_memory              | Memory of pending items in all checkpoints  |
-| vb_pending_checkpoint_memory_unreferenced | Memory of pending items in unref checkpoints|
 | vb_pending_checkpoint_memory_overhead     | Memory of all pending checkpoints structures|
 | vb_pending_ops_create                     | Number of create operations                 |
 | vb_pending_ops_update                     | Number of update operations                 |

@@ -1873,14 +1873,6 @@
         }
     },
     {
-        "key": "vb_checkpoint_memory_unreferenced",
-        "unit": "bytes",
-        "cbstat": "vb_{state}_checkpoint_memory_unreferenced",
-        "prometheus": {
-            "family": "vb_checkpoint_memory_unreferenced"
-        }
-    },
-    {
         "key": "vb_checkpoint_memory_overhead_allocator",
         "unit": "bytes",
         "cbstat": "vb_{state}_checkpoint_memory_overhead_allocator"
@@ -2154,11 +2146,6 @@
         "key": "ep_checkpoint_memory",
         "unit": "bytes",
         "description": "Memory of items in all checkpoints"
-    },
-    {
-        "key": "ep_checkpoint_memory_unreferenced",
-        "unit": "bytes",
-        "description": "Memory of items in unref checkpoints"
     },
     {
         "key": "ep_checkpoint_memory_overhead_allocator",

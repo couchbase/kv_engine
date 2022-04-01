@@ -455,11 +455,6 @@ public:
     size_t getMemOverheadIndex() const;
 
     /**
-     * Return memory consumption of unreferenced checkpoints
-     */
-    size_t getMemoryUsageOfUnrefCheckpoints() const;
-
-    /**
      * Function returns a list of cursors to drop so as to unreference
      * certain checkpoints within the manager, invoked by the cursor-dropper.
      * @return a container of weak_ptr to cursors

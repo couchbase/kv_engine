@@ -94,10 +94,6 @@ public:
         return checkpointMemoryQueue;
     }
 
-    size_t getCheckpointMemoryUnreferenced() const {
-        return checkpointMemoryUnreferenced;
-    }
-
     size_t getCheckpointMemOverheadAllocatorBytes() const {
         return checkpointMemOverheadAllocatorBytes;
     }
@@ -233,7 +229,6 @@ private:
 
     size_t checkpointMemory{0};
     size_t checkpointMemoryQueue{0};
-    size_t checkpointMemoryUnreferenced{0};
 
     size_t checkpointMemOverheadAllocatorBytes{0};
     size_t checkpointMemOverheadAllocatorBytesQueue{0};

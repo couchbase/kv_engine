@@ -194,8 +194,6 @@ public:
 
     size_t getCMQueuedItemsMemUsage() const;
 
-    size_t getChkMgrMemUsageOfUnrefCheckpoints() const;
-
     size_t getCMMemOverheadAllocatorBytes() const;
     size_t getCMMemOverheadAllocatorBytesQueue() const;
     size_t getCMMemOverheadAllocatorBytesIndex() const;

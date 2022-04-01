@@ -294,10 +294,6 @@ size_t VBucket::getCMQueuedItemsMemUsage() const {
     return checkpointManager->getQueuedItemsMemUsage();
 }
 
-size_t VBucket::getChkMgrMemUsageOfUnrefCheckpoints() const {
-    return checkpointManager->getMemoryUsageOfUnrefCheckpoints();
-}
-
 size_t VBucket::getCMMemOverheadAllocatorBytes() const {
     return checkpointManager->getMemOverheadAllocatorBytes();
 }
