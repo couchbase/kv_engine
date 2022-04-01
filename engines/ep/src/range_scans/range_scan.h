@@ -18,6 +18,7 @@
 #include <memcached/range_scan_id.h>
 
 #include <atomic>
+#include <chrono>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -94,8 +95,11 @@ public:
      * Change the state of the scan to Continuing
      * @param client cookie of the client which continued the scan
      * @param itemLimit how many items the scan can return
+     * @param timeLimit how long the scan can run for (0 no limit)
      */
-    void setStateContinuing(const CookieIface& client, size_t itemLimit);
+    void setStateContinuing(const CookieIface& client,
+                            size_t itemLimit,
+                            std::chrono::milliseconds timeLimit);
 
     /// change the state of the scan to Cancelled
     void setStateCancelled();
@@ -165,6 +169,14 @@ public:
 
     /// dump the object to the ostream (default of cerr)
     void dump(std::ostream& os = std::cerr) const;
+    /**
+     * To facilitate testing, the now function, which returns a time point can
+     * be replaced
+     */
+    static void setClockFunction(
+            std::function<std::chrono::steady_clock::time_point()> func) {
+        now = func;
+    }
 
 protected:
     /**
@@ -206,7 +218,9 @@ protected:
     struct ContinueLimits {
         /// current limit for the continuation of this scan
         size_t itemLimit{0};
-        // @todo: add time limit
+
+        /// current time limit for the continuation of this scan
+        std::chrono::milliseconds timeLimit{0};
     } continueLimits;
 
     /**
@@ -245,12 +259,18 @@ protected:
         ContinueState cState;
         /// item count for the continuation of this scan
         size_t itemCount{0};
+        /// deadline for the continue (only enforced if a time limit is set)
+        std::chrono::steady_clock::time_point scanContinueDeadline;
     } continueRunState;
 
     cb::rangescan::KeyOnly keyOnly{cb::rangescan::KeyOnly::No};
     /// is this scan in the run queue? This bool is read/written only by
     /// RangeScans under the queue lock
     bool queued{false};
+
+    // To facilitate testing, the clock can be replaced with something else
+    // this is static as there's no need for replacement on a scan by scan basis
+    static std::function<std::chrono::steady_clock::time_point()> now;
 
     friend std::ostream& operator<<(std::ostream&, const RangeScan::State&);
     friend std::ostream& operator<<(std::ostream&, const RangeScan&);

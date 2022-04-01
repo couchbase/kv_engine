@@ -19,6 +19,7 @@
 
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <fmt/chrono.h>
 #include <memcached/cookie_iface.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
@@ -145,6 +146,7 @@ void RangeScan::setStateIdle(cb::engine_errc status) {
             cs.state = State::Idle;
             cs.cookie = nullptr;
             cs.limits.itemLimit = 0;
+            cs.limits.timeLimit = std::chrono::milliseconds(0);
             break;
         }
     });
@@ -161,8 +163,10 @@ void RangeScan::setStateIdle(cb::engine_errc status) {
     handler.handleStatus(status);
 }
 
-void RangeScan::setStateContinuing(const CookieIface& client, size_t limit) {
-    continueState.withWLock([&client, limit](auto& cs) {
+void RangeScan::setStateContinuing(const CookieIface& client,
+                                   size_t limit,
+                                   std::chrono::milliseconds timeLimit) {
+    continueState.withWLock([&client, limit, timeLimit](auto& cs) {
         switch (cs.state) {
         case State::Continuing:
         case State::Cancelled:
@@ -173,6 +177,7 @@ void RangeScan::setStateContinuing(const CookieIface& client, size_t limit) {
             cs.state = State::Continuing;
             cs.cookie = &client;
             cs.limits.itemLimit = limit;
+            cs.limits.timeLimit = timeLimit;
             break;
         }
     });
@@ -228,9 +233,15 @@ bool RangeScan::areLimitsExceeded() {
     if (continueRunState.cState.limits.itemLimit) {
         return continueRunState.itemCount >=
                continueRunState.cState.limits.itemLimit;
+    } else if (continueRunState.cState.limits.timeLimit.count()) {
+        return now() >= continueRunState.scanContinueDeadline;
     }
     return false;
 }
+
+std::function<std::chrono::steady_clock::time_point()> RangeScan::now = []() {
+    return std::chrono::steady_clock::now();
+};
 
 void RangeScan::addStats(const StatCollector& collector) const {
     fmt::memory_buffer prefix;
@@ -258,12 +269,14 @@ void RangeScan::addStats(const StatCollector& collector) const {
     addStat("crs_item_count", continueRunState.itemCount);
     addStat("crs_cookie", continueRunState.cState.cookie);
     addStat("crs_item_limit", continueRunState.cState.limits.itemLimit);
+    addStat("crs_time_limit", continueRunState.cState.limits.timeLimit.count());
 
     // copy state and then addStat the copy
     auto cs = *continueState.rlock();
     addStat("state", fmt::format("{}", cs.state));
     addStat("cookie", cs.cookie);
     addStat("item_limit", cs.limits.itemLimit);
+    addStat("time_limit", cs.limits.timeLimit.count());
 }
 
 void RangeScan::dump(std::ostream& os) const {
@@ -272,8 +285,9 @@ void RangeScan::dump(std::ostream& os) const {
     fmt::print(os,
                "RangeScan: uuid:{}, {}, vbuuid:{}, range:({},{}), mode:{}, "
                "queued:{}, totalKeys:{} values m:{}, d:{}, crs_itemCount:{}, "
-               "crs_cookie:{}, crs_item_limit:{}, cs.state:{}, cs.cookie:{}, "
-               "cs.itemLimit:{}\n",
+               "crs_cookie:{}, crs_item_limit:{}, crs_time_limit:{}, "
+               "crs_deadline:{}, cs.state:{}, cs.cookie:{}, cs.itemLimit:{}, "
+               "cs.timeLimit:{}\n",
                uuid,
                vbid,
                vbUuid,
@@ -287,14 +301,19 @@ void RangeScan::dump(std::ostream& os) const {
                continueRunState.itemCount,
                reinterpret_cast<const void*>(continueRunState.cState.cookie),
                continueRunState.cState.limits.itemLimit,
+               continueRunState.cState.limits.timeLimit.count(),
+               continueRunState.scanContinueDeadline.time_since_epoch(),
                cs.state,
                reinterpret_cast<const void*>(cs.cookie),
-               cs.limits.itemLimit);
+               cs.limits.itemLimit,
+               cs.limits.timeLimit.count());
 }
 
 RangeScan::ContinueRunState::ContinueRunState() = default;
 RangeScan::ContinueRunState::ContinueRunState(const ContinueState& cs)
-    : cState(cs), itemCount(0) {
+    : cState(cs),
+      itemCount(0),
+      scanContinueDeadline(now() + cs.limits.timeLimit) {
 }
 
 std::ostream& operator<<(std::ostream& os, const RangeScan::State& state) {

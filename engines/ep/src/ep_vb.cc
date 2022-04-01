@@ -1268,10 +1268,12 @@ cb::engine_errc EPVBucket::addNewRangeScan(std::shared_ptr<RangeScan> scan) {
     return rangeScans.addNewScan(std::move(scan));
 }
 
-cb::engine_errc EPVBucket::continueRangeScan(cb::rangescan::Id id,
-                                             const CookieIface& cookie,
-                                             size_t itemLimit) {
-    auto status = rangeScans.continueScan(id, cookie, itemLimit);
+cb::engine_errc EPVBucket::continueRangeScan(
+        cb::rangescan::Id id,
+        const CookieIface& cookie,
+        size_t itemLimit,
+        std::chrono::milliseconds timeLimit) {
+    auto status = rangeScans.continueScan(id, cookie, itemLimit, timeLimit);
 
     if (status != cb::engine_errc::success) {
         return status;
