@@ -16,6 +16,7 @@
 #include <memcached/engine_error.h>
 #include <memcached/range_scan.h>
 #include <memcached/range_scan_id.h>
+#include <memcached/range_scan_optional_configuration.h>
 #include <memcached/vbucket.h>
 
 class CookieIface;
@@ -29,15 +30,17 @@ class RangeScanDataHandlerIFace;
  */
 class RangeScanCreateTask : public GlobalTask {
 public:
-    RangeScanCreateTask(EPBucket& bucket,
-                        Vbid vbid,
-                        CollectionID cid,
-                        cb::rangescan::KeyView start,
-                        cb::rangescan::KeyView end,
-                        RangeScanDataHandlerIFace& handler,
-                        const CookieIface& cookie,
-                        cb::rangescan::KeyOnly keyOnly,
-                        std::unique_ptr<RangeScanCreateData> scanData);
+    RangeScanCreateTask(
+            EPBucket& bucket,
+            Vbid vbid,
+            CollectionID cid,
+            cb::rangescan::KeyView start,
+            cb::rangescan::KeyView end,
+            RangeScanDataHandlerIFace& handler,
+            const CookieIface& cookie,
+            cb::rangescan::KeyOnly keyOnly,
+            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+            std::unique_ptr<RangeScanCreateData> scanData);
 
     bool run() override;
 
@@ -64,5 +67,6 @@ protected:
     RangeScanDataHandlerIFace& handler;
     const CookieIface& cookie;
     cb::rangescan::KeyOnly keyOnly;
+    std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs;
     std::unique_ptr<RangeScanCreateData> scanData;
 };

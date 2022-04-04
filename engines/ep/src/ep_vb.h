@@ -267,12 +267,15 @@ public:
 
     void notifyFlusher() override;
 
-    cb::engine_errc createRangeScan(CollectionID cid,
-                                    cb::rangescan::KeyView start,
-                                    cb::rangescan::KeyView end,
-                                    RangeScanDataHandlerIFace& handler,
-                                    const CookieIface& cookie,
-                                    cb::rangescan::KeyOnly keyOnly) override;
+    cb::engine_errc createRangeScan(
+            CollectionID cid,
+            cb::rangescan::KeyView start,
+            cb::rangescan::KeyView end,
+            RangeScanDataHandlerIFace& handler,
+            const CookieIface& cookie,
+            cb::rangescan::KeyOnly keyOnly,
+            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs)
+            override;
     cb::engine_errc continueRangeScan(
             cb::rangescan::Id id,
             const CookieIface& cookie,

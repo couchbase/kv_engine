@@ -32,6 +32,10 @@ class RangeScanDataHandlerIFace;
 class StatCollector;
 class VBucket;
 
+namespace cb::rangescan {
+struct SnapshotRequirements;
+}
+
 /**
  * RangeScan class is the object created by each successful range-scan-create
  * command.
@@ -57,6 +61,7 @@ public:
      * @param handler key/item handler to process key/items of the scan
      * @param cookie connection cookie creating the RangeScan
      * @param keyOnly configure key or value scan
+     * @param snapshotReqs optional requirements for the snapshot
      */
     RangeScan(EPBucket& bucket,
               const VBucket& vbucket,
@@ -64,7 +69,8 @@ public:
               DiskDocKey end,
               RangeScanDataHandlerIFace& handler,
               const CookieIface& cookie,
-              cb::rangescan::KeyOnly keyOnly);
+              cb::rangescan::KeyOnly keyOnly,
+              std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs);
 
     /**
      * Continue the range scan by calling kvstore.scan()
@@ -190,9 +196,13 @@ protected:
      * @param cookie The client cookie creating the range-scan
      * @param bucket The EPBucket to use to obtain the KVStore and pass to the
      *               RangeScanCacheCallback
-     * @return the cb::rangescan::Id to use for this scan
+     * @param snapshotReqs optional requirements for the snapshot
+     * @return the Id to use for this scan
      */
-    cb::rangescan::Id createScan(const CookieIface& cookie, EPBucket& bucket);
+    cb::rangescan::Id createScan(
+            const CookieIface& cookie,
+            EPBucket& bucket,
+            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs);
 
     // member variables ideally ordered by size large -> small
     cb::rangescan::Id uuid;

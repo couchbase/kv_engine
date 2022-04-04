@@ -21,16 +21,19 @@
 #include <boost/uuid/uuid_io.hpp>
 #include <fmt/chrono.h>
 #include <memcached/cookie_iface.h>
+#include <memcached/range_scan_optional_configuration.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
 
-RangeScan::RangeScan(EPBucket& bucket,
-                     const VBucket& vbucket,
-                     DiskDocKey start,
-                     DiskDocKey end,
-                     RangeScanDataHandlerIFace& handler,
-                     const CookieIface& cookie,
-                     cb::rangescan::KeyOnly keyOnly)
+RangeScan::RangeScan(
+        EPBucket& bucket,
+        const VBucket& vbucket,
+        DiskDocKey start,
+        DiskDocKey end,
+        RangeScanDataHandlerIFace& handler,
+        const CookieIface& cookie,
+        cb::rangescan::KeyOnly keyOnly,
+        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs)
     : start(std::move(start)),
       end(std::move(end)),
       vbUuid(vbucket.failovers->getLatestUUID()),
@@ -39,13 +42,15 @@ RangeScan::RangeScan(EPBucket& bucket,
       keyOnly(keyOnly) {
     // Don't init the uuid in the initialisation list as we may read various
     // members which must be initialised first
-    uuid = createScan(cookie, bucket);
+    uuid = createScan(cookie, bucket, snapshotReqs);
 
     EP_LOG_DEBUG("RangeScan {} created for {}", uuid, getVBucketId());
 }
 
-cb::rangescan::Id RangeScan::createScan(const CookieIface& cookie,
-                                        EPBucket& bucket) {
+cb::rangescan::Id RangeScan::createScan(
+        const CookieIface& cookie,
+        EPBucket& bucket,
+        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs) {
     auto valFilter = cookie.isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)
                              ? ValueFilter::VALUES_COMPRESSED
                              : ValueFilter::VALUES_DECOMPRESSED;
@@ -67,6 +72,33 @@ cb::rangescan::Id RangeScan::createScan(const CookieIface& cookie,
                 fmt::format("RangeScan::createScan {} initByIdScanContext "
                             "returned nullptr",
                             getVBucketId()));
+    }
+
+    if (snapshotReqs) {
+        // @todo: check the uuid of the opened snapshot. The snapshot could now
+        // be from a different vbucket. Do do this it requires a few hoops as
+        // the uuid is only available via raw json (failovers).
+        // Alternative idea rejected was to lock the vb and check the in memory
+        // uuid, but don't want the vb locked whilst doing I/O
+
+        // This could fail, but when we have uuid checking it should not
+        Expects(uint64_t(scanCtx->maxSeqno) >= snapshotReqs->seqno);
+        if (snapshotReqs->seqnoMustBeInSnapshot) {
+            auto& handle = *scanCtx->handle.get();
+            auto gv = bucket.getRWUnderlying(getVBucketId())
+                              ->getBySeqno(handle,
+                                           getVBucketId(),
+                                           snapshotReqs->seqno,
+                                           ValueFilter::KEYS_ONLY);
+            if (gv.getStatus() != cb::engine_errc::success) {
+                throw cb::engine_error(
+                        cb::engine_errc::not_stored,
+                        fmt::format("RangeScan::createScan {} snapshotReqs not "
+                                    "met seqno:{} not stored",
+                                    getVBucketId(),
+                                    snapshotReqs->seqno));
+            }
+        }
     }
 
     // Generate the scan ID (which may also incur i/o)
