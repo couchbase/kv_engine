@@ -21,7 +21,7 @@ protected:
 };
 
 /// See https://issues.couchbase.com/browse/MB-51007 for details
-TEST_F(PiTR_Test, MB51007) {
+TEST_F(PiTR_Test, DISABLED_MB51007) {
     auto bucket = cluster->createBucket("MB51007",
                                         {{"pitr_enabled", "true"},
                                          {"pitr_granularity", 1},
