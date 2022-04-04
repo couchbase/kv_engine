@@ -164,7 +164,10 @@ def filter_failed_builds(details):
     """
 
     def include(elem):
-        for ignored in (r'Unexpected stat:', r'Compile error at',
+        for ignored in (r'Unexpected stat:',
+                        r'Compile error at',
+                        r'^One of more core files found at the end of the build',
+                        r'^Test exceeded the timeout:',
                         r'^The warnings threshold for this job was exceeded'):
             if re.search(ignored, elem[0]):
                 return False
