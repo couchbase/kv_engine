@@ -670,13 +670,24 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
 
                 // Now that the end of a snapshot has been reached,
                 // store the hps tracked by the checkpoint to disk
-                if (itr->highPreparedSeqno) {
-                    auto newHps =
-                            toFlush.checkpointType == CheckpointType::Memory
-                                    ? *(itr->highPreparedSeqno)
-                                    : itr->getEnd();
-                    proposedVBState.highPreparedSeqno =
-                            std::max(proposedVBState.highPreparedSeqno, newHps);
+                switch (toFlush.checkpointType) {
+                case CheckpointType::Memory:
+                    if (itr->highPreparedSeqno) {
+                        proposedVBState.highPreparedSeqno =
+                                std::max(proposedVBState.highPreparedSeqno,
+                                         *(itr->highPreparedSeqno));
+                    }
+                    break;
+                case CheckpointType::InitialDisk:
+                case CheckpointType::Disk:
+                    // MB-51639: We need to set the HPS value to the snapshot
+                    // end regardless of whether we have a prepare or not
+                    // because whilst the active does not complete prepares we
+                    // are about to persist their logical completions and so
+                    // we can move the HPS.
+                    proposedVBState.highPreparedSeqno = std::max(
+                            proposedVBState.highPreparedSeqno, itr->getEnd());
+                    break;
                 }
             }
         } else {
