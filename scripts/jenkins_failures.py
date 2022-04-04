@@ -205,9 +205,26 @@ def filter_failed_builds(details):
                      r"Expected `XXX' to be greater than or equal to `\1'", key)
         # Normalise file paths across Windows & *ix.
         key = key.replace('\\', '/')
+        # Normalise GTest failure messages across Windows & *ix
+        # (don't know why GTest TestPartResultTypeToString() prints differently:
+        """
+            case TestPartResult::kNonFatalFailure:
+            case TestPartResult::kFatalFailure:
+        #ifdef _MSC_VER
+                 return "error: ";
+        #else
+                 return "Failure\n";
+        #endif
+        """
+        key = re.sub(r"\berror: ", r"Failure\n", key)
+        # Normalise source file/line number printing across Windows & *ix.
+        key = re.sub(r'(\w+\.cc)\((\d+)\)', r'\1:\2', key)
         # Merge value-only and full-eviction failures
         key = key.replace('value_only', '<EVICTION_MODE>')
         key = key.replace('full_eviction', '<EVICTION_MODE>')
+        # Merge passive and active compression modes.
+        key = key.replace('comp_active', '<COMPRESSION_MODE>')
+        key = key.replace('comp_passive', '<COMPRESSION_MODE>')
         # Merge couchstore filenames
         key = re.sub(r'\d+\.couch\.\d+', 'VBID.couch.REV', key)
         # Filter local ephemeral port numbers
