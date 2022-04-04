@@ -267,11 +267,11 @@ public:
 
     void notifyFlusher() override;
 
-    cb::engine_errc createRangeScan(
+    std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
             CollectionID cid,
             cb::rangescan::KeyView start,
             cb::rangescan::KeyView end,
-            RangeScanDataHandlerIFace& handler,
+            std::unique_ptr<RangeScanDataHandlerIFace> handler,
             const CookieIface& cookie,
             cb::rangescan::KeyOnly keyOnly,
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
@@ -291,6 +291,14 @@ public:
      */
     std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScanComplete(
             const CookieIface& cookie);
+
+    /**
+     * A range-scan-create may need to be cancelled after the I/O task has
+     * completed.
+     *
+     * @return
+     */
+    cb::engine_errc checkAndCancelRangeScanCreate(const CookieIface& cookie);
 
     /**
      * Get the scan associated with the given id

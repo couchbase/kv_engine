@@ -23,6 +23,7 @@
 #include "item.h"
 #include "kv_bucket.h"
 #include "linked_list.h"
+#include "range_scans/range_scan_callbacks.h"
 #include "stored_value_factories.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_queue_item_ctx.h"
@@ -1101,16 +1102,16 @@ void EphemeralVBucket::doCollectionsStats(
     }
 }
 
-cb::engine_errc EphemeralVBucket::createRangeScan(
+std::pair<cb::engine_errc, cb::rangescan::Id> EphemeralVBucket::createRangeScan(
         CollectionID,
         cb::rangescan::KeyView,
         cb::rangescan::KeyView,
-        RangeScanDataHandlerIFace&,
+        std::unique_ptr<RangeScanDataHandlerIFace>,
         const CookieIface&,
         cb::rangescan::KeyOnly,
         std::optional<cb::rangescan::SnapshotRequirements>,
         std::optional<cb::rangescan::SamplingConfiguration>) {
-    return cb::engine_errc::not_supported;
+    return {cb::engine_errc::not_supported, {}};
 }
 
 cb::engine_errc EphemeralVBucket::continueRangeScan(cb::rangescan::Id,

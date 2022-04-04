@@ -19,6 +19,8 @@
 #include <executor/globaltask.h>
 #include <folly/SharedMutex.h>
 #include <memcached/engine.h>
+#include <memcached/range_scan.h>
+#include <memcached/range_scan_id.h>
 #include <nlohmann/json_fwd.hpp>
 #include <statistics/cardinality.h>
 #include <list>
@@ -46,6 +48,7 @@ class VBucketMap;
 class VBucketVisitor;
 class InterruptableVBucketVisitor;
 class BucketStatCollector;
+class RangeScanDataHandlerIFace;
 class StatCollector;
 class StorageProperties;
 class Warmup;
@@ -58,6 +61,11 @@ namespace Collections::VB {
 class Manifest;
 }
 struct key_stats;
+
+namespace cb::rangescan {
+struct SamplingConfiguration;
+struct SnapshotRequirements;
+} // namespace cb::rangescan
 
 class BGFetchItem;
 using bgfetched_item_t = std::pair<DiskDocKey, const BGFetchItem*>;
@@ -844,6 +852,61 @@ public:
     virtual bool maybeScheduleManifestPersistence(
             const CookieIface* cookie,
             std::unique_ptr<Collections::Manifest>& newManifest) = 0;
+
+    /**
+     * Create a new range scan on a vbucket
+     *
+     * @param vbid vbucket to create on
+     * @param start key for the start of the range
+     * @param end key for the end of the range
+     * @param handler object that will receive callbacks when the scan continues
+     * @param cookie connection cookie to notify when done
+     * @param keyOnly key/value configuration of the scan
+     * @param snapshotReqs optional requirements that the snapshot must satisfy
+     * @param samplingConfig the parameters for the optional random sampling
+     *
+     * @return pair of status/cb::rangescan::Id - ID is valid on success
+     */
+    virtual std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
+            Vbid vbid,
+            CollectionID cid,
+            cb::rangescan::KeyView start,
+            cb::rangescan::KeyView end,
+            std::unique_ptr<RangeScanDataHandlerIFace> handler,
+            const CookieIface& cookie,
+            cb::rangescan::KeyOnly keyOnly,
+            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+            std::optional<cb::rangescan::SamplingConfiguration>
+                    samplingConfig) = 0;
+    /**
+     * Continue the range scan with the given identifier.
+     *
+     * @param vbid vbucket to find the scan on
+     * @param uuid The identifier of the scan to continue
+     * @param cookie The client cookie requesting the continue
+     * @param itemLimit The maximum number of items the continue can return
+     *                  0 means no limit enforced
+     * @param timeLimit The maximum duration the continue can return
+     *                  0 means no limit enforced
+     * @return would_block if the scan was found and successfully scheduled
+     */
+    virtual cb::engine_errc continueRangeScan(
+            Vbid vbid,
+            cb::rangescan::Id uuid,
+            const CookieIface& cookie,
+            size_t itemLimit,
+            std::chrono::milliseconds timeLimit) = 0;
+    /**
+     * Cancel the range scan with the given identifier.
+     *
+     * @param vbid vbucket to find the scan on
+     * @param uuid The identifier of the scan to continue
+     * @param schedule true if a task should be scheduled for the cancellation
+     * @return would_block if the scan was found and successfully scheduled for
+     *         cancellation
+     */
+    virtual cb::engine_errc cancelRangeScan(Vbid vbid,
+                                            cb::rangescan::Id uuid) = 0;
 
     /**
      * Result of the loadPreparedSyncWrites function

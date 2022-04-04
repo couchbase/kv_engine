@@ -21,6 +21,7 @@
 #include "vbucket.h"
 
 #include <memcached/range_scan_optional_configuration.h>
+#include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <utilities/test_manifest.h>
 
@@ -30,6 +31,18 @@
 // A handler implementation that just stores the scan key/items in vectors
 class TestRangeScanHandler : public RangeScanDataHandlerIFace {
 public:
+    // As the handler gets moved into the RangeScan, keep references to the
+    // containers/status needed for validation
+    TestRangeScanHandler(std::vector<std::unique_ptr<Item>>& items,
+                         std::vector<StoredDocKey>& keys,
+                         cb::engine_errc& status,
+                         std::function<void(size_t)>& hook)
+        : scannedItems(items),
+          scannedKeys(keys),
+          status(status),
+          testHook(hook) {
+    }
+
     void handleKey(DocKey key) override {
         scannedKeys.emplace_back(key);
         testHook(scannedKeys.size());
@@ -51,11 +64,10 @@ public:
     // check for allowed/expected status code
     static bool validateStatus(cb::engine_errc code);
 
-    std::function<void(size_t)> testHook = [](size_t) {};
-    std::vector<std::unique_ptr<Item>> scannedItems;
-    std::vector<StoredDocKey> scannedKeys;
-    // default to some status RangeScan won't use
-    cb::engine_errc status{cb::engine_errc::sync_write_ambiguous};
+    std::vector<std::unique_ptr<Item>>& scannedItems;
+    std::vector<StoredDocKey>& scannedKeys;
+    cb::engine_errc& status;
+    std::function<void(size_t)>& testHook;
 };
 
 class RangeScanTest
@@ -74,7 +86,6 @@ public:
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
         // Setup collections and store keys
-        CollectionsManifest cm;
         cm.add(CollectionEntry::vegetable);
         cm.add(CollectionEntry::fruit);
         cm.add(CollectionEntry::dairy);
@@ -184,6 +195,9 @@ public:
 
     void testLessThan(std::string key);
 
+    void validateKeyScan(const std::unordered_set<StoredDocKey>& expectedKeys);
+    void validateItemScan(const std::unordered_set<StoredDocKey>& expectedKeys);
+
     // Tests all scan against the following collection
     const CollectionID scanCollection = CollectionEntry::vegetable.getId();
     // Tests also have data in these collections, and these deliberately enclose
@@ -191,11 +205,18 @@ public:
     const CollectionID collection2 = CollectionEntry::fruit.getId();
     const CollectionID collection3 = CollectionEntry::dairy.getId();
 
+    std::vector<std::unique_ptr<Item>> scannedItems;
+    std::vector<StoredDocKey> scannedKeys;
+    // default to some status RangeScan won't use
+    cb::engine_errc status{cb::engine_errc::sync_write_ambiguous};
+    std::function<void(size_t)> testHook = [](size_t) {};
     std::unique_ptr<TestRangeScanHandler> handler{
-            std::make_unique<TestRangeScanHandler>()};
+            std::make_unique<TestRangeScanHandler>(
+                    scannedItems, scannedKeys, status, testHook)};
+    CollectionsManifest cm;
 };
 
-void TestRangeScanHandler::validateKeyScan(
+void RangeScanTest::validateKeyScan(
         const std::unordered_set<StoredDocKey>& expectedKeys) {
     EXPECT_TRUE(scannedItems.empty());
     EXPECT_EQ(expectedKeys.size(), scannedKeys.size());
@@ -205,7 +226,7 @@ void TestRangeScanHandler::validateKeyScan(
     }
 }
 
-void TestRangeScanHandler::validateItemScan(
+void RangeScanTest::validateItemScan(
         const std::unordered_set<StoredDocKey>& expectedKeys) {
     EXPECT_TRUE(scannedKeys.empty());
     EXPECT_EQ(expectedKeys.size(), scannedItems.size());
@@ -225,18 +246,18 @@ cb::rangescan::Id RangeScanTest::createScan(
         std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
         std::optional<cb::rangescan::SamplingConfiguration> samplingConfig,
         cb::engine_errc expectedStatus) {
-    auto vb = store->getVBucket(vbid);
     // Create a new RangeScan object and give it a handler we can inspect.
     EXPECT_EQ(cb::engine_errc::would_block,
-              vb->createRangeScan(cid,
-                                  start,
-                                  end,
-                                  *handler,
-                                  *cookie,
-                                  getScanType(),
-                                  snapshotReqs,
-                                  samplingConfig));
-
+              store->createRangeScan(vbid,
+                                     cid,
+                                     start,
+                                     end,
+                                     std::move(handler),
+                                     *cookie,
+                                     getScanType(),
+                                     snapshotReqs,
+                                     samplingConfig)
+                      .first);
     // Now run via auxio task
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanCreateTask");
@@ -248,10 +269,20 @@ cb::rangescan::Id RangeScanTest::createScan(
     }
 
     // Next frontend will add the uuid/scan, client can be informed of the uuid
-    auto& epVb = dynamic_cast<EPVBucket&>(*vb);
-    auto status = epVb.createRangeScanComplete(*cookie);
+    auto status = store->createRangeScan(vbid,
+                                         cid,
+                                         start,
+                                         end,
+                                         nullptr,
+                                         *cookie,
+                                         getScanType(),
+                                         snapshotReqs,
+                                         samplingConfig);
     EXPECT_EQ(cb::engine_errc::success, status.first);
 
+    auto vb = store->getVBucket(vbid);
+    EXPECT_TRUE(vb);
+    auto& epVb = dynamic_cast<EPVBucket&>(*vb);
     auto scan = epVb.getRangeScan(status.second);
     EXPECT_TRUE(scan);
     return scan->getUuid();
@@ -274,12 +305,11 @@ void RangeScanTest::testRangeScan(
     // 1) create a RangeScan to scan the user prefixed keys.
     auto uuid = createScan(cid, start, end);
 
-    auto vb = store->getVBucket(vbid);
-
     // 2) Continue a RangeScan
     // 2.1) Frontend thread would call this method using clients uuid
     EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(uuid, *cookie, itemLimit, timeLimit));
+              store->continueRangeScan(
+                      vbid, uuid, *cookie, itemLimit, timeLimit));
 
     // 2.2) An I/O task now reads data from disk
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
@@ -288,32 +318,33 @@ void RangeScanTest::testRangeScan(
     // Tests will need more continues if a limit is in-play
     for (size_t count = 0; count < extraContinues; count++) {
         EXPECT_EQ(cb::engine_errc::would_block,
-                  vb->continueRangeScan(uuid, *cookie, itemLimit, timeLimit));
+                  store->continueRangeScan(
+                          vbid, uuid, *cookie, itemLimit, timeLimit));
         runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                     "RangeScanContinueTask");
         if (count < extraContinues - 1) {
-            EXPECT_EQ(cb::engine_errc::range_scan_more, handler->status);
+            EXPECT_EQ(cb::engine_errc::range_scan_more, status);
         }
     }
 
     // 2.3) All expected keys must have been read from disk
     if (isKeyOnly()) {
-        handler->validateKeyScan(expectedKeys);
+        validateKeyScan(expectedKeys);
     } else {
-        handler->validateItemScan(expectedKeys);
+        validateItemScan(expectedKeys);
     }
     // status was set to success
-    EXPECT_EQ(cb::engine_errc::success, handler->status);
+    EXPECT_EQ(cb::engine_errc::success, status);
 
     // In this case the scan finished and cleaned up
 
     // Check scan is gone, cannot be cancelled again
-    EXPECT_EQ(cb::engine_errc::no_such_key, vb->cancelRangeScan(uuid, true));
+    EXPECT_EQ(cb::engine_errc::no_such_key, store->cancelRangeScan(vbid, uuid));
 
     // Or continued, uuid is unknown
     EXPECT_EQ(cb::engine_errc::no_such_key,
-              vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0)));
+              store->continueRangeScan(
+                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0)));
 }
 
 // Scan for the user prefixed keys
@@ -516,8 +547,8 @@ TEST_P(RangeScanTest, create_cancel) {
                 "RangeScanContinueTask");
 
     // Nothing read
-    EXPECT_TRUE(handler->scannedKeys.empty());
-    EXPECT_TRUE(handler->scannedItems.empty());
+    EXPECT_TRUE(scannedKeys.empty());
+    EXPECT_TRUE(scannedItems.empty());
 }
 
 TEST_P(RangeScanTest, create_cancel_no_data) {
@@ -530,8 +561,8 @@ TEST_P(RangeScanTest, create_cancel_no_data) {
                 "RangeScanContinueTask");
 
     // Nothing read
-    EXPECT_TRUE(handler->scannedKeys.empty());
-    EXPECT_TRUE(handler->scannedItems.empty());
+    EXPECT_TRUE(scannedKeys.empty());
+    EXPECT_TRUE(scannedItems.empty());
 }
 
 // Check that if a scan has been continue (but is waiting to run), it can be
@@ -551,21 +582,22 @@ TEST_P(RangeScanTest, create_continue_is_cancelled) {
     // run them both and future changes will clean this up.
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
-    // First task cancels, nothing was read
-    EXPECT_TRUE(handler->scannedKeys.empty());
-    EXPECT_TRUE(handler->scannedItems.empty());
+
+    // First task cancels, nothing read
+    EXPECT_TRUE(scannedKeys.empty());
+    EXPECT_TRUE(scannedItems.empty());
     // and handler was notified of the cancel status
-    EXPECT_EQ(cb::engine_errc::range_scan_cancelled, handler->status);
+    EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
 
     // set to some status we don't use
-    handler->status = cb::engine_errc::sync_write_pending;
+    status = cb::engine_errc::sync_write_pending;
 
     // second task runs, but won't do anything
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
 
     // no change
-    EXPECT_EQ(cb::engine_errc::sync_write_pending, handler->status);
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, status);
 }
 
 // Test that a scan doesn't keep on reading if a cancel occurs during the I/O
@@ -579,7 +611,7 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
                       uuid, *cookie, 0, std::chrono::milliseconds(0)));
 
     // Set a hook which will cancel when the 2nd key is read
-    handler->testHook = [&vb, uuid](size_t count) {
+    testHook = [&vb, uuid](size_t count) {
         EXPECT_LT(count, 3); // never reach third key
         if (count == 2) {
             EXPECT_EQ(cb::engine_errc::success,
@@ -590,7 +622,7 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
 
-    EXPECT_EQ(cb::engine_errc::range_scan_cancelled, handler->status);
+    EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
 
     // Check scan is gone, cannot be cancelled again
     EXPECT_EQ(cb::engine_errc::no_such_key, vb->cancelRangeScan(uuid, true));
@@ -602,12 +634,12 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
 
     // Scan only read 2 of the possible keys
     if (isKeyOnly()) {
-        EXPECT_EQ(2, handler->scannedKeys.size());
+        EXPECT_EQ(2, scannedKeys.size());
     } else {
-        EXPECT_EQ(2, handler->scannedItems.size());
+        EXPECT_EQ(2, scannedItems.size());
     }
     // And set our status to cancelled
-    EXPECT_EQ(cb::engine_errc::range_scan_cancelled, handler->status);
+    EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
 }
 
 TEST_P(RangeScanTest, snapshot_does_not_contain_seqno_0) {
@@ -675,15 +707,18 @@ TEST_P(RangeScanTest, future_seqno_fails) {
                                              uint64_t(vb->getHighSeqno() + 1),
                                              false};
     // This error is detected on first invocation, no need for ewouldblock
+    // this seqno check occurs in EPBucket, so don't test via VBucket
     EXPECT_EQ(cb::engine_errc::temporary_failure,
-              vb->createRangeScan(scanCollection,
-                                  {"user"},
-                                  {"user\xFF"},
-                                  *handler,
-                                  *cookie,
-                                  getScanType(),
-                                  reqs,
-                                  {/* no sampling config*/}));
+              store->createRangeScan(vbid,
+                                     scanCollection,
+                                     {"user"},
+                                     {"user\xFF"},
+                                     std::move(handler),
+                                     *cookie,
+                                     getScanType(),
+                                     reqs,
+                                     {/* no sampling config*/})
+                      .first);
 }
 
 TEST_P(RangeScanTest, vb_uuid_check) {
@@ -691,15 +726,18 @@ TEST_P(RangeScanTest, vb_uuid_check) {
     cb::rangescan::SnapshotRequirements reqs{
             1, uint64_t(vb->getHighSeqno()), false};
     // This error is detected on first invocation, no need for ewouldblock
+    // uuid check occurs in EPBucket, so don't test via VBucket
     EXPECT_EQ(cb::engine_errc::not_my_vbucket,
-              vb->createRangeScan(scanCollection,
-                                  {"user"},
-                                  {"user\xFF"},
-                                  *handler,
-                                  *cookie,
-                                  getScanType(),
-                                  reqs,
-                                  {/* no sampling config*/}));
+              store->createRangeScan(vbid,
+                                     scanCollection,
+                                     {"user"},
+                                     {"user\xFF"},
+                                     std::move(handler),
+                                     *cookie,
+                                     getScanType(),
+                                     reqs,
+                                     {/* no sampling config*/})
+                      .first);
 }
 
 TEST_P(RangeScanTest, random_sample_not_enough_items) {
@@ -741,9 +779,9 @@ TEST_P(RangeScanTest, random_sample) {
 
     // the chosen seed, results in 1 less key than desired
     if (isKeyOnly()) {
-        EXPECT_EQ(sampleSize - 1, handler->scannedKeys.size());
+        EXPECT_EQ(sampleSize - 1, scannedKeys.size());
     } else {
-        EXPECT_EQ(sampleSize - 1, handler->scannedItems.size());
+        EXPECT_EQ(sampleSize - 1, scannedItems.size());
     }
 }
 
@@ -775,10 +813,83 @@ TEST_P(RangeScanTest, random_sample_with_limit_1) {
 
     // See comments RangeScanTest::random_sample regarding sampleSize adjustment
     if (isKeyOnly()) {
-        EXPECT_EQ(sampleSize - 1, handler->scannedKeys.size());
+        EXPECT_EQ(sampleSize - 1, scannedKeys.size());
     } else {
-        EXPECT_EQ(sampleSize - 1, handler->scannedItems.size());
+        EXPECT_EQ(sampleSize - 1, scannedItems.size());
     }
+}
+
+TEST_P(RangeScanTest, not_my_vbucket) {
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket,
+              store->createRangeScan(Vbid(4),
+                                     scanCollection,
+                                     {"\0", 1},
+                                     {"\xFF"},
+                                     std::move(handler),
+                                     *cookie,
+                                     getScanType(),
+                                     {},
+                                     {})
+                      .first);
+}
+
+TEST_P(RangeScanTest, unknown_collection) {
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
+              store->createRangeScan(vbid,
+                                     CollectionEntry::meat.getId(),
+                                     {"\0", 1},
+                                     {"\xFF"},
+                                     std::move(handler),
+                                     *cookie,
+                                     getScanType(),
+                                     {},
+                                     {})
+                      .first);
+}
+
+// Test that the collection going away after part 1 of create, cleans up
+TEST_P(RangeScanTest, scan_cancels_after_create) {
+    EXPECT_EQ(cb::engine_errc::would_block,
+              store->createRangeScan(vbid,
+                                     scanCollection,
+                                     {"user"},
+                                     {"user\xFF"},
+                                     std::move(handler),
+                                     *cookie,
+                                     getScanType(),
+                                     {},
+                                     {})
+                      .first);
+    // Now run via auxio task
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanCreateTask");
+
+    EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookie));
+
+    // Drop scanCollection
+    EXPECT_EQ(scanCollection, CollectionEntry::vegetable.getId());
+    auto* cookie2 = create_mock_cookie();
+    setCollections(cookie2, cm.remove(CollectionEntry::vegetable));
+
+    // Second part of create runs and fails
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
+              store->createRangeScan(vbid,
+                                     scanCollection,
+                                     {"user"},
+                                     {"user\xFF"},
+                                     std::move(handler),
+                                     *cookie,
+                                     getScanType(),
+                                     {},
+                                     {})
+                      .first);
+    destroy_mock_cookie(cookie2);
+
+    // Task was scheduled to cancel (close the snapshot)
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+
+    // Can't get hold of the scan object as we never got the uuid
 }
 
 bool TestRangeScanHandler::validateStatus(cb::engine_errc code) {

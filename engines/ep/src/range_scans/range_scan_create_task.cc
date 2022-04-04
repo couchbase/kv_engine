@@ -14,6 +14,7 @@
 #include "ep_bucket.h"
 #include "ep_engine.h"
 #include "ep_vb.h"
+#include "range_scans/range_scan_callbacks.h"
 #include "range_scans/range_scan_types.h"
 
 #include <phosphor/phosphor.h>
@@ -24,7 +25,7 @@ RangeScanCreateTask::RangeScanCreateTask(
         CollectionID cid,
         cb::rangescan::KeyView start,
         cb::rangescan::KeyView end,
-        RangeScanDataHandlerIFace& handler,
+        std::unique_ptr<RangeScanDataHandlerIFace> handler,
         const CookieIface& cookie,
         cb::rangescan::KeyOnly keyOnly,
         std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
@@ -35,7 +36,7 @@ RangeScanCreateTask::RangeScanCreateTask(
       vbid(vbid),
       start(makeStoredDocKey(cid, start)),
       end(makeStoredDocKey(cid, end)),
-      handler(handler),
+      handler(std::move(handler)),
       cookie(cookie),
       keyOnly(keyOnly),
       snapshotReqs(snapshotReqs),
@@ -69,8 +70,7 @@ bool RangeScanCreateTask::run() {
     return false; // done, no reschedule required
 }
 
-std::pair<cb::engine_errc, cb::rangescan::Id> RangeScanCreateTask::create()
-        const {
+std::pair<cb::engine_errc, cb::rangescan::Id> RangeScanCreateTask::create() {
     auto vb = bucket.getVBucket(vbid);
     if (!vb) {
         return {cb::engine_errc::not_my_vbucket, {}};
@@ -81,7 +81,7 @@ std::pair<cb::engine_errc, cb::rangescan::Id> RangeScanCreateTask::create()
                                             *vb,
                                             DiskDocKey{start},
                                             DiskDocKey{end},
-                                            handler,
+                                            std::move(handler),
                                             cookie,
                                             keyOnly,
                                             snapshotReqs,

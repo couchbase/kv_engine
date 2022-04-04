@@ -36,7 +36,7 @@ public:
             CollectionID cid,
             cb::rangescan::KeyView start,
             cb::rangescan::KeyView end,
-            RangeScanDataHandlerIFace& handler,
+            std::unique_ptr<RangeScanDataHandlerIFace> handler,
             const CookieIface& cookie,
             cb::rangescan::KeyOnly keyOnly,
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
@@ -59,13 +59,13 @@ public:
 
 protected:
     /// @return status and uuid. The uuid is only valid is status is success
-    std::pair<cb::engine_errc, cb::rangescan::Id> create() const;
+    std::pair<cb::engine_errc, cb::rangescan::Id> create();
 
     EPBucket& bucket;
     Vbid vbid;
     StoredDocKey start;
     StoredDocKey end;
-    RangeScanDataHandlerIFace& handler;
+    std::unique_ptr<RangeScanDataHandlerIFace> handler;
     const CookieIface& cookie;
     cb::rangescan::KeyOnly keyOnly;
     std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs;

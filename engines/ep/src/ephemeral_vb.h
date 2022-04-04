@@ -270,11 +270,11 @@ public:
         return seqList->getNumStaleItems();
     }
 
-    cb::engine_errc createRangeScan(
+    std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
             CollectionID,
             cb::rangescan::KeyView,
             cb::rangescan::KeyView,
-            RangeScanDataHandlerIFace&,
+            std::unique_ptr<RangeScanDataHandlerIFace>,
             const CookieIface&,
             cb::rangescan::KeyOnly,
             std::optional<cb::rangescan::SnapshotRequirements>,

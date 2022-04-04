@@ -27,6 +27,7 @@
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"
 #include "kvstore/persistence_callback.h"
+#include "range_scans/range_scan_callbacks.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"
 #include "tasks.h"
@@ -37,6 +38,7 @@
 #include <executor/executorpool.h>
 
 #include <hdrhistogram/hdrhistogram.h>
+#include <memcached/range_scan_optional_configuration.h>
 #include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
@@ -2386,4 +2388,90 @@ std::shared_ptr<RangeScan> EPBucket::takeNextRangeScan() {
 
 void EPBucket::addRangeScan(std::shared_ptr<RangeScan> scan) {
     rangeScans.addScan(std::move(scan));
+}
+
+std::pair<cb::engine_errc, cb::rangescan::Id> EPBucket::createRangeScan(
+        Vbid vbid,
+        CollectionID cid,
+        cb::rangescan::KeyView start,
+        cb::rangescan::KeyView end,
+        std::unique_ptr<RangeScanDataHandlerIFace> handler,
+        const CookieIface& cookie,
+        cb::rangescan::KeyOnly keyOnly,
+        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig) {
+    auto vb = getVBucket(vbid);
+    if (!vb) {
+        ++stats.numNotMyVBuckets;
+        return {cb::engine_errc::not_my_vbucket, {}};
+    }
+
+    auto handle = vb->getManifest().lock(cid);
+    cb::engine_errc status = cb::engine_errc::success;
+    if (!handle.valid()) {
+        engine.setUnknownCollectionErrorContext(&cookie,
+                                                handle.getManifestUid());
+
+        status = cb::engine_errc::unknown_collection;
+    } else if (snapshotReqs) {
+        if (vb->failovers->getLatestUUID() != snapshotReqs->vbUuid) {
+            status = cb::engine_errc::not_my_vbucket;
+        } else if (vb->getPersistenceSeqno() < snapshotReqs->seqno) {
+            status = cb::engine_errc::temporary_failure;
+        }
+    }
+
+    if (status != cb::engine_errc::success) {
+        // This maybe the continuation of a create - the create task may of
+        // succeeded, yet the vb/collection has now gone - require a clean-up
+        auto& epVb = dynamic_cast<EPVBucket&>(*vb);
+        auto checkStatus = epVb.checkAndCancelRangeScanCreate(cookie);
+
+        // A task (to cancel) must of been scheduled (would_block)
+        // This is the first part of the request (success)
+        if (checkStatus != cb::engine_errc::would_block &&
+            checkStatus != cb::engine_errc::success) {
+            EP_LOG_WARN(
+                    "{} createRangeScan failed to cancel for {} status:{} "
+                    "checkStatus:{}",
+                    vb,
+                    cid,
+                    status,
+                    checkStatus);
+        }
+        return {status, {}};
+    }
+
+    return vb->createRangeScan(cid,
+                               start,
+                               end,
+                               std::move(handler),
+                               cookie,
+                               keyOnly,
+                               snapshotReqs,
+                               samplingConfig);
+}
+
+cb::engine_errc EPBucket::continueRangeScan(
+        Vbid vbid,
+        cb::rangescan::Id uuid,
+        const CookieIface& cookie,
+        size_t itemLimit,
+        std::chrono::milliseconds timeLimit) {
+    auto vb = getVBucket(vbid);
+    if (!vb) {
+        ++stats.numNotMyVBuckets;
+        return cb::engine_errc::not_my_vbucket;
+    }
+
+    return vb->continueRangeScan(uuid, cookie, itemLimit, timeLimit);
+}
+
+cb::engine_errc EPBucket::cancelRangeScan(Vbid vbid, cb::rangescan::Id uuid) {
+    auto vb = getVBucket(vbid);
+    if (!vb) {
+        ++stats.numNotMyVBuckets;
+        return cb::engine_errc::not_my_vbucket;
+    }
+    return vb->cancelRangeScan(uuid, true /* schedule for background cancel */);
 }

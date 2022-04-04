@@ -27,6 +27,7 @@
 #include "flusher.h"
 #include "item.h"
 #include "kvshard.h"
+#include "range_scans/range_scan_callbacks.h"
 #include "range_scans/range_scan_continue_task.h"
 #include "range_scans/range_scan_create_task.h"
 #include "range_scans/range_scan_types.h"
@@ -40,6 +41,7 @@
 #include <folly/lang/Assume.h>
 #include <gsl/gsl-lite.hpp>
 #include <memcached/cookie_iface.h>
+#include <memcached/range_scan_optional_configuration.h>
 #include <platform/histogram.h>
 
 EPVBucket::EPVBucket(Vbid i,
@@ -1223,21 +1225,17 @@ std::unique_ptr<KVStoreRevision> EPVBucket::takeDeferredDeletionFileRevision() {
     return std::move(deferredDeletionFileRevision);
 }
 
-cb::engine_errc EPVBucket::createRangeScan(
+std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
         CollectionID cid,
         cb::rangescan::KeyView start,
         cb::rangescan::KeyView end,
-        RangeScanDataHandlerIFace& handler,
+        std::unique_ptr<RangeScanDataHandlerIFace> handler,
         const CookieIface& cookie,
         cb::rangescan::KeyOnly keyOnly,
         std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
         std::optional<cb::rangescan::SamplingConfiguration> samplingConfig) {
-    if (snapshotReqs) {
-        if (failovers->getLatestUUID() != snapshotReqs->vbUuid) {
-            return cb::engine_errc::not_my_vbucket;
-        } else if (getPersistenceSeqno() < snapshotReqs->seqno) {
-            return cb::engine_errc::temporary_failure;
-        }
+    if (cookie.getEngineStorage()) {
+        return createRangeScanComplete(cookie);
     }
 
     auto rangeScanCreateData = std::make_unique<RangeScanCreateData>();
@@ -1245,6 +1243,13 @@ cb::engine_errc EPVBucket::createRangeScan(
     // Place pointer in the cookie so we can get this object back on success
     bucket->getEPEngine().storeEngineSpecific(&cookie,
                                               rangeScanCreateData.get());
+
+    // If no handler has been given, create one.
+    if (!handler) {
+        // @todo: this code will be implemented upstream when glueing the
+        // I/O tasks to 'network'. All test code at this point sets a handler
+        Expects(false);
+    }
 
     // Create a task and give it the RangeScanCreateData, on failure the task
     // will destruct the data
@@ -1254,13 +1259,13 @@ cb::engine_errc EPVBucket::createRangeScan(
             cid,
             start,
             end,
-            handler,
+            std::move(handler),
             cookie,
             keyOnly,
             snapshotReqs,
             samplingConfig,
             std::move(rangeScanCreateData)));
-    return cb::engine_errc::would_block;
+    return {cb::engine_errc::would_block, {}};
 }
 
 std::pair<cb::engine_errc, cb::rangescan::Id>
@@ -1271,6 +1276,24 @@ EPVBucket::createRangeScanComplete(const CookieIface& cookie) {
     Expects(rangeScanCreateData);
     bucket->getEPEngine().storeEngineSpecific(&cookie, nullptr);
     return {cb::engine_errc::success, rangeScanCreateData->uuid};
+}
+
+cb::engine_errc EPVBucket::checkAndCancelRangeScanCreate(
+        const CookieIface& cookie) {
+    // Nothing to cancel
+    if (!cookie.getEngineStorage()) {
+        return cb::engine_errc::success;
+    }
+
+    // Obtain the data (so it now frees)
+    std::unique_ptr<RangeScanCreateData> rangeScanCreateData(
+            reinterpret_cast<RangeScanCreateData*>(cookie.getEngineStorage()));
+    Expects(rangeScanCreateData);
+
+    // Clear engine specific
+    bucket->getEPEngine().storeEngineSpecific(&cookie, nullptr);
+
+    return cancelRangeScan(rangeScanCreateData->uuid, true);
 }
 
 std::shared_ptr<RangeScan> EPVBucket::getRangeScan(cb::rangescan::Id id) const {

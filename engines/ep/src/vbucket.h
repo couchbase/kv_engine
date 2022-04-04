@@ -1703,13 +1703,13 @@ public:
      * @param snapshotReqs optional requirements that the snapshot must satisfy
      * @param samplingConfig the parameters for the optional random sampling
      *
-     * @return would_block if the scan was found and successfully scheduled
+     * @return pair of status/cb::rangescan::Id - ID is valid on success
      */
-    virtual cb::engine_errc createRangeScan(
+    virtual std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
             CollectionID cid,
             cb::rangescan::KeyView start,
             cb::rangescan::KeyView end,
-            RangeScanDataHandlerIFace& handler,
+            std::unique_ptr<RangeScanDataHandlerIFace> handler,
             const CookieIface& cookie,
             cb::rangescan::KeyOnly keyOnly,
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
@@ -1737,7 +1737,9 @@ public:
      * Cancel the range scan with the given identifier. The cancel itself will
      * be scheduled to run on an I/O task
      * @param id The identifier of the scan to continue
-     * @param schedule true if a task should be scheduled for the cancellation
+     * @param schedule request if a task should be scheduled to perform the
+     *        cancellation. If false, the RangeScan object may destruct (and
+     *        close any snapshot) within this function call.
      * @return would_block if the scan was found and successfully scheduled for
      *         cancellation
      */

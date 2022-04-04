@@ -71,7 +71,7 @@ public:
             const VBucket& vbucket,
             DiskDocKey start,
             DiskDocKey end,
-            RangeScanDataHandlerIFace& handler,
+            std::unique_ptr<RangeScanDataHandlerIFace> handler,
             const CookieIface& cookie,
             cb::rangescan::KeyOnly keyOnly,
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
@@ -227,7 +227,7 @@ protected:
     // uuid of the vbucket to assist detection of a vbucket state change
     uint64_t vbUuid;
     std::unique_ptr<ByIdScanContext> scanCtx;
-    RangeScanDataHandlerIFace& handler;
+    std::unique_ptr<RangeScanDataHandlerIFace> handler;
     /// keys read for the life of this scan (counted for key and value scans)
     size_t totalKeys{0};
     /// items read from memory for the life of this scan (only for value scans)

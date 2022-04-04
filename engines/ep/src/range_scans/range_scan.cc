@@ -31,7 +31,7 @@ RangeScan::RangeScan(
         const VBucket& vbucket,
         DiskDocKey start,
         DiskDocKey end,
-        RangeScanDataHandlerIFace& handler,
+        std::unique_ptr<RangeScanDataHandlerIFace> handler,
         const CookieIface& cookie,
         cb::rangescan::KeyOnly keyOnly,
         std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
@@ -39,7 +39,7 @@ RangeScan::RangeScan(
     : start(std::move(start)),
       end(std::move(end)),
       vbUuid(vbucket.failovers->getLatestUUID()),
-      handler(handler),
+      handler(std::move(handler)),
       prng(samplingConfig ? std::make_unique<std::mt19937>(samplingConfig->seed)
                           : nullptr),
       totalLimit(samplingConfig ? samplingConfig->samples : 0),
@@ -234,7 +234,7 @@ void RangeScan::setStateIdle(cb::engine_errc status) {
     // The ordering here is deliberate, set the status after the cs.state update
     // so there's no chance a client sees 'success' then fails to continue again
     // (cannot continue an already continued scan)
-    handler.handleStatus(status);
+    handleStatus(status);
 }
 
 void RangeScan::setStateContinuing(const CookieIface& client,
@@ -273,7 +273,7 @@ void RangeScan::setStateCancelled() {
 
 void RangeScan::handleKey(DocKey key) {
     incrementItemCount();
-    handler.handleKey(key);
+    handler->handleKey(key);
 }
 
 void RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
@@ -283,11 +283,11 @@ void RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
         incrementValueFromDisk();
     }
     incrementItemCount();
-    handler.handleItem(std::move(item));
+    handler->handleItem(std::move(item));
 }
 
 void RangeScan::handleStatus(cb::engine_errc status) {
-    handler.handleStatus(status);
+    handler->handleStatus(status);
 }
 
 void RangeScan::incrementItemCount() {
