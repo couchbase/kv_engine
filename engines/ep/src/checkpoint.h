@@ -408,10 +408,6 @@ public:
         return snapStartSeqno;
     }
 
-    void setSnapshotStartSeqno(uint64_t seqno) {
-        snapStartSeqno = seqno;
-    }
-
     uint64_t getSnapshotEndSeqno() const {
         return snapEndSeqno;
     }
@@ -641,7 +637,7 @@ private:
 
     EPStats& stats;
     const uint64_t checkpointId;
-    uint64_t                       snapStartSeqno;
+    const uint64_t snapStartSeqno;
     uint64_t                       snapEndSeqno;
 
     /// The maximum visible snapshot end (hides prepare/abort), this could be
