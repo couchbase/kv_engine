@@ -5492,7 +5492,8 @@ cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
     if (getEngineSpecific(cookie) == nullptr) {
         auto persisted_seqno = vb->getPersistenceSeqno();
         if (seqno > persisted_seqno) {
-            const auto res = vb->checkAddHighPriorityVBEntry(seqno, cookie);
+            const auto res = vb->checkAddHighPriorityVBEntry(
+                    seqno, cookie, kvBucket->getSeqnoPersistenceTimeout());
 
             switch (res) {
             case HighPriorityVBReqStatus::RequestScheduled:

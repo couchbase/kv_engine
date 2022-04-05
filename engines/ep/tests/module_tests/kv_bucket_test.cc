@@ -40,6 +40,7 @@
 #include "kvstore/couch-kvstore/couch-kvstore.h"
 #include "lambda_task.h"
 #include "replicationthrottle.h"
+#include "seqno_persistence_notify_task.h"
 #include "tasks.h"
 #include "tests/mock/mock_couch_kvstore.h"
 #include "tests/mock/mock_global_task.h"
@@ -1998,7 +1999,7 @@ TEST_P(KVBucketParamTest, SeqnoPersistenceTimeout) {
 TEST_P(KVBucketParamTest, SeqnoPersistenceTimeout_LowerThanMin) {
     auto& config = engine->getConfiguration();
     const auto initialVal = store->getSeqnoPersistenceTimeout().count();
-    const auto newVal = 0;
+    const auto newVal = -1;
     ASSERT_NE(initialVal, newVal);
     try {
         config.setSeqnoPersistenceTimeout(newVal);
@@ -2006,7 +2007,7 @@ TEST_P(KVBucketParamTest, SeqnoPersistenceTimeout_LowerThanMin) {
         EXPECT_THAT(e.what(),
                     testing::HasSubstr(
                             "Validation Error, seqno_persistence_timeout takes "
-                            "values between 10 and 30"));
+                            "values between 0 and 30"));
         EXPECT_EQ(initialVal, store->getSeqnoPersistenceTimeout().count());
         return;
     }
@@ -2024,7 +2025,7 @@ TEST_P(KVBucketParamTest, SeqnoPersistenceTimeout_HigherThanMax) {
         EXPECT_THAT(e.what(),
                     testing::HasSubstr(
                             "Validation Error, seqno_persistence_timeout takes "
-                            "values between 10 and 30"));
+                            "values between 0 and 30"));
         EXPECT_EQ(initialVal, store->getSeqnoPersistenceTimeout().count());
         return;
     }
@@ -2087,7 +2088,8 @@ TEST_P(KVBucketParamTest, SeqnoPersistenceCancelledIfBucketDeleted) {
 
     // Simulate a SEQNO_PERSISTENCE request, which won't be satisfied
     ASSERT_EQ(0, vb->getHighPriorityChkSize());
-    vb->checkAddHighPriorityVBEntry(1 /*seqno*/, cookie);
+    vb->checkAddHighPriorityVBEntry(
+            1 /*seqno*/, cookie, std::chrono::milliseconds(1));
     ASSERT_EQ(1, vb->getHighPriorityChkSize());
 
     engine->cancel_all_operations_in_ewb_state();
@@ -2208,6 +2210,78 @@ TEST_F(AbsoluteExpiryLimitTest, MB_37643) {
 
     // We expect that the expiry is at least now+uptime+max_ttl
     EXPECT_GT(item.getExptime(), ep_abs_time(ep_current_time()));
+}
+
+TEST_P(KVBucketParamTest, addVbucketWithSeqnoPersistenceRequest) {
+    store->createAndScheduleSeqnoPersistenceNotifier();
+
+    auto ts1 = std::chrono::steady_clock::now();
+    auto ts2 = ts1 + std::chrono::hours(24);
+    // snoozing forever, definitely greater than ts2
+    EXPECT_GT(store->getSeqnoPersistenceNotifyTaskWakeTime(), ts2);
+    store->addVbucketWithSeqnoPersistenceRequest(vbid, ts1);
+    store->addVbucketWithSeqnoPersistenceRequest(vbid, ts2);
+    // Must be lower of ts1/ts2
+    EXPECT_LT(ts1, ts2);
+    // Can't compare exactly as the snooze time is calculated from
+    // std::chrono::steady_clock::now
+    EXPECT_LT(store->getSeqnoPersistenceNotifyTaskWakeTime(), ts2);
+}
+
+TEST_P(KVBucketParamTest, SeqnoPersistenceRequestNotify) {
+    auto task = store->createAndScheduleSeqnoPersistenceNotifier();
+    auto wake1 = task->getWaketime(); // should be sleep forever
+    auto vb = store->getVBucket(vbid);
+
+    auto item = store_item(vbid, makeStoredDocKey("key"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Already persisted, no need for a wait request
+    EXPECT_EQ(HighPriorityVBReqStatus::RequestNotScheduled,
+              vb->checkAddHighPriorityVBEntry(
+                      item.getBySeqno(), cookie, std::chrono::seconds(0)));
+
+    // Now a request that will schedule
+    EXPECT_EQ(HighPriorityVBReqStatus::RequestScheduled,
+              vb->checkAddHighPriorityVBEntry(
+                      item.getBySeqno() + 1, cookie, std::chrono::hours(24)));
+
+    // Task now changed and has a smaller wakeup
+    EXPECT_LT(task->getWaketime(), wake1);
+
+    // if the task runs, the waketime will recalculate
+    task->run();
+    auto wake2 = task->getWaketime();
+    EXPECT_LT(wake2, wake1);
+
+    // Now a request that will schedule with a smaller deadline
+    auto cookie2 = create_mock_cookie(engine.get());
+    EXPECT_EQ(HighPriorityVBReqStatus::RequestScheduled,
+              vb->checkAddHighPriorityVBEntry(
+                      item.getBySeqno() + 1, cookie2, std::chrono::hours(22)));
+    // Task wake time reduces
+    auto wake3 = task->getWaketime();
+    EXPECT_LT(wake3, wake2);
+
+    // Next task with 0 deadline (which will expire on run)
+    auto cookie3 = create_mock_cookie(engine.get());
+
+    EXPECT_EQ(HighPriorityVBReqStatus::RequestScheduled,
+              vb->checkAddHighPriorityVBEntry(
+                      item.getBySeqno() + 1, cookie3, std::chrono::hours(0)));
+    auto wake4 = task->getWaketime();
+    EXPECT_LT(wake4, wake2);
+
+    // Now we run, the 0 deadline request will expire and wake time will change
+    // to be the next deadline (~22 hours)
+    task->run();
+    EXPECT_GT(task->getWaketime(), wake4);
+
+    // Expired and notified
+    EXPECT_EQ(cb::engine_errc::temporary_failure, mock_waitfor_cookie(cookie3));
+
+    destroy_mock_cookie(cookie2);
+    destroy_mock_cookie(cookie3);
 }
 
 // Test cases which run for EP (Full and Value eviction) and Ephemeral
