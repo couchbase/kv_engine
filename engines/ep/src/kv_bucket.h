@@ -32,6 +32,7 @@ class CheckpointDestroyerTask;
 class DurabilityCompletionTask;
 class NotifiableTask;
 class ReplicationThrottle;
+class SeqnoPersistenceNotifyTask;
 class VBucketCountVisitor;
 class DatatypeStatVisitor;
 namespace Collections {
@@ -912,6 +913,24 @@ public:
 
     std::chrono::seconds getSeqnoPersistenceTimeout() const;
 
+    std::shared_ptr<SeqnoPersistenceNotifyTask>
+    createAndScheduleSeqnoPersistenceNotifier();
+
+    /**
+     * Add a vbucket that has a SeqnoPersistentRequest (so it can be notified
+     * of expiry).
+     *
+     * @param vbid ID of vbucket with new SeqnoPersistenceRequest
+     * @param deadline the absolute time at which a request should result in the
+     *        client being notified and the request removed.
+     */
+    void addVbucketWithSeqnoPersistenceRequest(
+            Vbid vbid, std::chrono::steady_clock::time_point deadline);
+
+    /// @return the waketime of the SeqnoPersistenceNotifyTask
+    std::chrono::steady_clock::time_point
+    getSeqnoPersistenceNotifyTaskWakeTime() const;
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the
@@ -1158,6 +1177,11 @@ protected:
     /// Timeout in seconds after which a pending SeqnoPersistence operation is
     /// temp-failed
     std::atomic<std::chrono::seconds> seqnoPersistenceTimeout;
+
+    /**
+     * A task that will notify (success or timeout) of SeqnoPersistenceRequests.
+     */
+    std::shared_ptr<SeqnoPersistenceNotifyTask> seqnoPersistenceNotifyTask;
 
     friend class KVBucketTest;
 

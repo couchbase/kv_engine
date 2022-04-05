@@ -1536,7 +1536,7 @@
             "type": "size_t",
             "validator": {
                 "range": {
-                    "min": 10,
+                    "min": 0,
                     "max": 30
                 }
             }

@@ -21,6 +21,7 @@
 #include "ephemeral_tombstone_purger.h"
 #include "failover-table.h"
 #include "item.h"
+#include "kv_bucket.h"
 #include "linked_list.h"
 #include "stored_value_factories.h"
 #include "vbucket_bgfetch_item.h"
@@ -259,7 +260,9 @@ bool EphemeralVBucket::hasPendingBGFetchItems() {
 }
 
 HighPriorityVBReqStatus EphemeralVBucket::checkAddHighPriorityVBEntry(
-        uint64_t seqno, const CookieIface* cookie) {
+        uint64_t seqno,
+        const CookieIface* cookie,
+        std::chrono::milliseconds timeout) {
     {
         /* Serialize the request with sequence lock */
         std::lock_guard<std::mutex> lh(sequenceLock);
@@ -269,19 +272,11 @@ HighPriorityVBReqStatus EphemeralVBucket::checkAddHighPriorityVBEntry(
                requested seqno */
             return HighPriorityVBReqStatus::RequestNotScheduled;
         }
-
-        addHighPriorityVBEntry(seqno, cookie);
     }
 
+    bucket->addVbucketWithSeqnoPersistenceRequest(
+            getId(), addHighPriorityVBEntry(seqno, cookie, timeout));
     return HighPriorityVBReqStatus::RequestScheduled;
-}
-
-void EphemeralVBucket::notifyHighPriorityRequests(
-        EventuallyPersistentEngine& engine, uint64_t seqno) {
-    throw std::logic_error(
-            "EphemeralVBucket::notifyHighPriorityRequests() is not valid. "
-            "Called on " +
-            getId().to_string());
 }
 
 void EphemeralVBucket::notifyAllPendingConnsFailed(

@@ -3936,40 +3936,43 @@ void VBucket::updateRevSeqNoOfNewStoredValue(StoredValue& v) {
     v.setRevSeqno(seqno);
 }
 
-void VBucket::addHighPriorityVBEntry(uint64_t seqno,
-                                     const CookieIface* cookie) {
+std::chrono::steady_clock::time_point VBucket::addHighPriorityVBEntry(
+        uint64_t seqno,
+        const CookieIface* cookie,
+        std::chrono::milliseconds timeout) {
     std::unique_lock<std::mutex> lh(hpVBReqsMutex);
-    hpVBReqs.emplace_back(cookie, seqno);
+    hpVBReqs.emplace_back(cookie, seqno, timeout);
     numHpVBReqs.store(hpVBReqs.size());
 
     EP_LOG_INFO(
             "Added SeqnoPersistence request for {}, requested-seqno:{}, "
-            "high-seqno: {}, persisted-seqno:{}, cookie:{}",
+            "high-seqno: {}, persisted-seqno:{}, cookie:{}, timeout:{}",
             getId(),
             seqno,
             getHighSeqno(),
             getPersistenceSeqno(),
-            static_cast<const void*>(cookie));
+            static_cast<const void*>(cookie),
+            timeout.count());
+
+    return hpVBReqs.back().getDeadline();
 }
 
-std::map<const CookieIface*, cb::engine_errc>
-VBucket::getHighPriorityNotifications(EventuallyPersistentEngine& engine,
-                                      uint64_t seqno) {
+SeqnoPersistenceRequestNotifications
+VBucket::getSeqnoPersistenceRequestsToNotify(EventuallyPersistentEngine& engine,
+                                             uint64_t seqno) {
     std::unique_lock<std::mutex> lh(hpVBReqsMutex);
-    std::map<const CookieIface*, cb::engine_errc> toNotify;
+    std::unordered_map<const CookieIface*, cb::engine_errc> toNotify;
 
     auto req = hpVBReqs.begin();
+    std::optional<std::chrono::steady_clock::time_point> nextDeadline;
 
     while (req != hpVBReqs.end()) {
-        const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-                std::chrono::steady_clock::now() - req->start);
-        const auto timeout = bucket->getSeqnoPersistenceTimeout();
-
+        const auto now = std::chrono::steady_clock::now();
         if (req->seqno <= seqno) {
             toNotify[req->cookie] = cb::engine_errc::success;
             stats.seqnoPersistenceHisto.add(
                     std::chrono::duration_cast<std::chrono::microseconds>(
-                            elapsed));
+                            req->getDuration(now)));
             EP_LOG_INFO(
                     "Notified SeqnoPersistence completion for {} Check for: "
                     "{}, "
@@ -3979,7 +3982,7 @@ VBucket::getHighPriorityNotifications(EventuallyPersistentEngine& engine,
                     seqno,
                     static_cast<const void*>(req->cookie));
             req = hpVBReqs.erase(req);
-        } else if (elapsed > timeout) {
+        } else if (now >= req->getDeadline()) { // >= permits a 0 wait for tests
             engine.storeEngineSpecific(req->cookie, nullptr);
             toNotify[req->cookie] = cb::engine_errc::temporary_failure;
             EP_LOG_WARN(
@@ -3991,12 +3994,39 @@ VBucket::getHighPriorityNotifications(EventuallyPersistentEngine& engine,
                     static_cast<const void*>(req->cookie));
             req = hpVBReqs.erase(req);
         } else {
+            if (!nextDeadline) {
+                nextDeadline = req->getDeadline();
+            } else {
+                nextDeadline =
+                        std::min(req->getDeadline(), nextDeadline.value());
+            }
             ++req;
-            notifyFlusher();
         }
     }
     numHpVBReqs.store(hpVBReqs.size());
-    return toNotify;
+    return {toNotify, nextDeadline};
+}
+
+bool VBucket::doesSeqnoSatisfyAnySeqnoPersistenceRequest(uint64_t seqno) {
+    std::unique_lock<std::mutex> lh(hpVBReqsMutex);
+    for (const auto& req : hpVBReqs) {
+        if (req.seqno <= seqno) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::optional<std::chrono::steady_clock::time_point>
+VBucket::notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
+                                    uint64_t seqno) {
+    auto toNotify = getSeqnoPersistenceRequestsToNotify(engine, seqno);
+
+    for (auto& notify : toNotify.notifications) {
+        engine.notifyIOComplete(notify.first, notify.second);
+    }
+
+    return toNotify.nextDeadline;
 }
 
 std::map<const CookieIface*, cb::engine_errc>

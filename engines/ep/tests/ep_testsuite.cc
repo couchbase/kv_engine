@@ -8413,6 +8413,21 @@ static enum test_result test_sync_write_timeout(EngineIface* h) {
     return SUCCESS;
 }
 
+// Test that seqnoPersistence times out whilst idle
+static enum test_result test_seqno_persistence_timeout(EngineIface* h) {
+    auto* cookie1 = testHarness->create_cookie(h);
+    const int num_items = 2;
+    write_items(h, num_items, 0, "key", "somevalue");
+    wait_for_flusher_to_settle(h);
+
+    // Should timeout
+    checkeq(cb::engine_errc::temporary_failure,
+            seqnoPersistence(h, nullptr, Vbid(0), /*seqno*/ num_items * 2),
+            "Expected success for seqno persistence request");
+    testHarness->destroy_cookie(cookie1);
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char* default_dbname = "./ep_testsuite.db";
@@ -9677,6 +9692,13 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
+                 prepare,
+                 cleanup),
+        TestCase("test seqno persistence timeout",
+                 test_seqno_persistence_timeout,
+                 test_setup,
+                 teardown,
+                 "seqno_persistence_timeout=0;",
                  prepare,
                  cleanup),
 

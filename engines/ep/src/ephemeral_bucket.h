@@ -186,38 +186,4 @@ protected:
 
     /// Task responsible for purging in-memory tombstones.
     ExTask tombstonePurgerTask;
-
-private:
-    /**
-     * Task responsible for notifying high priority requests (usually during
-     * rebalance)
-     */
-    class NotifyHighPriorityReqTask : public GlobalTask {
-    public:
-        explicit NotifyHighPriorityReqTask(EventuallyPersistentEngine& e);
-
-        bool run() override;
-
-        std::string getDescription() const override;
-
-        std::chrono::microseconds maxExpectedDuration() const override;
-
-        /**
-         * Adds the connections to be notified by the task and then wakes up
-         * the task.
-         *
-         * @param notifies Map of connections to be notified
-         */
-        void wakeup(std::map<const CookieIface*, cb::engine_errc> notifies);
-
-    private:
-        /* All the notifications to be called by the task */
-        std::map<const CookieIface*, cb::engine_errc> toNotify;
-
-        /* Serialize access to write/read of toNotify */
-        std::mutex toNotifyLock;
-    };
-
-    // Private member variables ///////////////////////////////////////////////
-    std::shared_ptr<NotifyHighPriorityReqTask> notifyHpReqTask;
 };

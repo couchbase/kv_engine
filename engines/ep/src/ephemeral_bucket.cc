@@ -22,6 +22,7 @@
 #include "failover-table.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"
+#include "seqno_persistence_notify_task.h"
 #include <executor/executorpool.h>
 
 #include <statistics/collector.h>
@@ -92,8 +93,7 @@ private:
 };
 
 EphemeralBucket::EphemeralBucket(EventuallyPersistentEngine& theEngine)
-    : KVBucket(theEngine),
-      notifyHpReqTask(std::make_shared<NotifyHighPriorityReqTask>(theEngine)) {
+    : KVBucket(theEngine) {
     /* We always have EvictionPolicy::Value eviction policy because a key not
        present in HashTable implies key not present at all.
        Note: This should not be confused with the eviction algorithm
@@ -109,9 +109,7 @@ EphemeralBucket::EphemeralBucket(EventuallyPersistentEngine& theEngine)
             engine.getConfiguration(), stats);
 }
 
-EphemeralBucket::~EphemeralBucket() {
-    ExecutorPool::get()->cancel(notifyHpReqTask->getId());
-}
+EphemeralBucket::~EphemeralBucket() = default;
 
 bool EphemeralBucket::initialize() {
     KVBucket::initialize();
@@ -139,9 +137,6 @@ bool EphemeralBucket::initialize() {
     config.addValueChangedListener(
             "ephemeral_metadata_purge_interval",
             std::make_unique<EphemeralValueChangedListener>(*this));
-
-    // High priority vbucket request notification task
-    ExecutorPool::get()->schedule(notifyHpReqTask);
 
     return true;
 }
@@ -362,11 +357,10 @@ void EphemeralBucket::notifyNewSeqno(const Vbid vbid,
        We do not wait for persistence to notify high priority requests */
     VBucketPtr vb = getVBucket(vbid);
     if (vb) {
-        auto toNotify =
-                vb->getHighPriorityNotifications(engine, notifyCtx.bySeqno);
-
-        if (!toNotify.empty() && notifyHpReqTask) {
-            notifyHpReqTask->wakeup(std::move(toNotify));
+        // If at least one request is met, wake the task who will notify
+        if (vb->doesSeqnoSatisfyAnySeqnoPersistenceRequest(notifyCtx.bySeqno)) {
+            Expects(uint64_t(notifyCtx.bySeqno) <= vb->getPersistenceSeqno());
+            ExecutorPool::get()->wake(seqnoPersistenceNotifyTask->getId());
         }
     }
 }
@@ -435,77 +429,6 @@ bool EphemeralBucket::isValidBucketDurabilityLevel(
         return false;
     }
     folly::assume_unreachable();
-}
-
-EphemeralBucket::NotifyHighPriorityReqTask::NotifyHighPriorityReqTask(
-        EventuallyPersistentEngine& e)
-    : GlobalTask(&e,
-                 TaskId::NotifyHighPriorityReqTask,
-                 std::numeric_limits<int>::max(),
-                 false) {
-}
-
-bool EphemeralBucket::NotifyHighPriorityReqTask::run() {
-    std::map<const CookieIface*, cb::engine_errc> notifyQ;
-    {
-        /* It is necessary that the toNotifyLock is not held while
-           actually notifying. */
-        std::lock_guard<std::mutex> lg(toNotifyLock);
-        std::swap(notifyQ, toNotify);
-    }
-
-    for (auto& notify : notifyQ) {
-        EP_LOG_INFO("{} for cookie :{} and status {}",
-                    getDescription(),
-                    static_cast<const void*>(notify.first),
-                    notify.second);
-        engine->notifyIOComplete(notify.first, notify.second);
-    }
-
-    /* Lets assume that the task will be explicitly woken */
-    snooze(std::numeric_limits<int>::max());
-
-    /* But, also check if another thread already tried to wake up the task */
-    bool scheduleSoon = false;
-    {
-        std::lock_guard<std::mutex> lg(toNotifyLock);
-        if (!toNotify.empty()) {
-            scheduleSoon = true;
-        }
-    }
-
-    if (scheduleSoon) {
-        /* Good to call snooze without holding toNotifyLock */
-        snooze(0);
-    }
-
-    /* Run the task again after snoozing */
-    return true;
-}
-
-std::string EphemeralBucket::NotifyHighPriorityReqTask::getDescription() const {
-    return "Ephemeral: Notify HighPriority Request";
-}
-
-std::chrono::microseconds
-EphemeralBucket::NotifyHighPriorityReqTask::maxExpectedDuration() const {
-    // Typical (p50) duration is under 50us; however a long tail has been
-    // observed (p99.9 of 1s). Set initially to 1s; consider reducing
-    // when source of slowness has been identified.
-    return std::chrono::seconds(1);
-}
-
-void EphemeralBucket::NotifyHighPriorityReqTask::wakeup(
-        std::map<const CookieIface*, cb::engine_errc> notifies) {
-    {
-        /* Add the connections to be notified */
-        std::lock_guard<std::mutex> lg(toNotifyLock);
-        toNotify.insert(make_move_iterator(begin(notifies)),
-                        make_move_iterator(end(notifies)));
-    }
-
-    /* wake up the task */
-    ExecutorPool::get()->wake(getId());
 }
 
 bool EphemeralBucket::maybeScheduleManifestPersistence(

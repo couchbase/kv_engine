@@ -79,18 +79,53 @@ class WriteHandle;
 
 /**
  * SeqnoPersistence request to a vbucket.
+ *
+ * This is used in the "wait-for" persistence command where a client can request
+ * to be notified of when a sequence number is persisted to disk, or be notified
+ * that it has not been stored by the given timeout.
  */
 struct SeqnoPersistenceRequest {
-    SeqnoPersistenceRequest(const CookieIface* cookie, uint64_t seqno)
+    SeqnoPersistenceRequest(const CookieIface* cookie,
+                            uint64_t seqno,
+                            std::chrono::milliseconds timeout)
         : cookie(cookie),
           seqno(seqno),
-          start(std::chrono::steady_clock::now()) {
+          start(std::chrono::steady_clock::now()),
+          timeout(timeout) {
     }
 
-    const CookieIface* cookie;
-    uint64_t seqno;
-    // for stats (histogram)
-    std::chrono::steady_clock::time_point start;
+    /**
+     * @param now the current time
+     * @return duration for how long this object has existed relative to the
+     *         input (now)
+     */
+    std::chrono::steady_clock::duration getDuration(
+            std::chrono::steady_clock::time_point now) const {
+        return start - now;
+    }
+
+    /**
+     * @return the deadline for this SeqnoPersistenceRequest object
+     */
+    std::chrono::steady_clock::time_point getDeadline() const {
+        return start + timeout;
+    }
+
+    // The cookie to notify of the status of this request
+    const CookieIface* cookie{nullptr};
+    // The sequence number this request is waiting for
+    const uint64_t seqno{0};
+    // The time that this request was created (started)
+    const std::chrono::steady_clock::time_point start;
+    // How long until this request notified with temporary_failure
+    const std::chrono::milliseconds timeout{0};
+};
+
+struct SeqnoPersistenceRequestNotifications {
+    /// map of cookies that have requests completed
+    std::unordered_map<const CookieIface*, cb::engine_errc> notifications;
+    /// when requests are still waiting completion, this is the next deadline
+    std::optional<std::chrono::steady_clock::time_point> nextDeadline;
 };
 
 /// Instance of SeqnoAckCallback which does nothing.
@@ -576,14 +611,17 @@ public:
      * Checks and decides whether to add high priority request on the vbucket.
      * This is an async request made by modules like ns-server during
      * rebalance. The request is for a response from the vbucket when it
-     * 'sees' beyond a certain sequence number or when a certain checkpoint
-     * is persisted.
+     * 'sees' beyond a certain sequence number.
+     *
      * Depending on the vbucket type, the meaning 'seeing' a sequence number
      * changes. That is, it could mean persisted in case of EPVBucket and
      * added to the sequenced data structure in case of EphemeralVBucket.
      *
      * @param seqno to be persisted
-     * @param cookie cookie of conn to be notified
+     * @param cookie cookie of command/connection to be notified
+     * @param timeout how long the client is can wait for the request to be met.
+     *        Exceeding this timeout and the request is cancelled and the client
+     *        notified with temporary_failure.
      *
      * @return RequestScheduled if a high priority request is added and
      *                          notification will be done asynchronously
@@ -593,32 +631,43 @@ public:
      *                             be a subsequent notification
      */
     virtual HighPriorityVBReqStatus checkAddHighPriorityVBEntry(
-            uint64_t seqno, const CookieIface* cookie) = 0;
+            uint64_t seqno,
+            const CookieIface* cookie,
+            std::chrono::milliseconds timeout) = 0;
 
     /**
      * Notify the high priority requests on the vbucket.
-     * This is the response to async requests made by modules like ns-server
-     * during rebalance.
      *
      * @param engine Ref to ep-engine
      * @param seqno causing the notification(s).
+     * @return the next deadline to check, or std::nullopt for no deadline
      */
-    virtual void notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
-                                            uint64_t seqno) = 0;
+    std::optional<std::chrono::steady_clock::time_point>
+    notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
+                               uint64_t seqno);
 
     virtual void notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) = 0;
 
     /**
-     * Get high priority notifications for a seqno persisted
+     * Get all cookies that need notifying about a completed
+     * SeqnoPersistenceRequest
      *
      * @param engine Ref to ep-engine
      * @param id seqno or checkpoint id for which notifies are to be found
      *
-     * @return map of notifications with conn cookie as the key and notify
-     *         status as the value
+     * @return SeqnoPersistenceRequestNotifications (see struct for
+     *         documentation)
      */
-    std::map<const CookieIface*, cb::engine_errc> getHighPriorityNotifications(
+    SeqnoPersistenceRequestNotifications getSeqnoPersistenceRequestsToNotify(
             EventuallyPersistentEngine& engine, uint64_t seqno);
+
+    /**
+     * Function checks with all SeqnoPersistenceRequest to see if the seqno
+     * satisfies at least one
+     * @return true if at least one SeqnoPersistenceRequest is now satisfied by
+     *         the input seqno
+     */
+    bool doesSeqnoSatisfyAnySeqnoPersistenceRequest(uint64_t seqno);
 
     size_t getHighPriorityChkSize() {
         return numHpVBReqs.load();
@@ -1993,8 +2042,13 @@ protected:
      *
      * @param seqno to be seen to be persisted
      * @param cookie to be notified
+     * @param timeout how long before timing out the request
+     * @return the deadline (time at which the request should expire)
      */
-    void addHighPriorityVBEntry(uint64_t seqno, const CookieIface* cookie);
+    std::chrono::steady_clock::time_point addHighPriorityVBEntry(
+            uint64_t seqno,
+            const CookieIface* cookie,
+            std::chrono::milliseconds timeout);
 
     /**
      * Get all high priority notifications as temporary failures because they

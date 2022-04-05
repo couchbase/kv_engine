@@ -60,10 +60,9 @@ public:
     bool hasPendingBGFetchItems() override;
 
     HighPriorityVBReqStatus checkAddHighPriorityVBEntry(
-            uint64_t seqno, const CookieIface* cookie) override;
-
-    void notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
-                                    uint64_t seqno) override;
+            uint64_t seqno,
+            const CookieIface* cookie,
+            std::chrono::milliseconds timeout) override;
 
     void notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) override;
 

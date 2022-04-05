@@ -37,6 +37,7 @@
 #include "kvstore/kvstore.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"
+#include "seqno_persistence_notify_task.h"
 #include "tasks.h"
 #include "trace_helpers.h"
 #include "vb_count_visitor.h"
@@ -524,6 +525,8 @@ bool KVBucket::initialize() {
     itemFreqDecayerTask = std::make_shared<ItemFreqDecayerTask>(
             &engine, config.getItemFreqDecayerPercent());
     ExecutorPool::get()->schedule(itemFreqDecayerTask);
+
+    createAndScheduleSeqnoPersistenceNotifier();
 
     return true;
 }
@@ -3029,4 +3032,27 @@ void KVBucket::setSeqnoPersistenceTimeout(std::chrono::seconds timeout) {
 
 std::chrono::seconds KVBucket::getSeqnoPersistenceTimeout() const {
     return seqnoPersistenceTimeout;
+}
+
+std::shared_ptr<SeqnoPersistenceNotifyTask>
+KVBucket::createAndScheduleSeqnoPersistenceNotifier() {
+    Expects(!seqnoPersistenceNotifyTask);
+    seqnoPersistenceNotifyTask =
+            std::make_shared<SeqnoPersistenceNotifyTask>(*this);
+    ExecutorPool::get()->schedule(seqnoPersistenceNotifyTask);
+    return seqnoPersistenceNotifyTask;
+}
+
+void KVBucket::addVbucketWithSeqnoPersistenceRequest(
+        Vbid vbid, std::chrono::steady_clock::time_point deadline) {
+    if (seqnoPersistenceNotifyTask) {
+        seqnoPersistenceNotifyTask->addVbucket(vbid, deadline);
+    }
+}
+
+std::chrono::steady_clock::time_point
+KVBucket::getSeqnoPersistenceNotifyTaskWakeTime() const {
+    // Added for unit-testing, so expect the task to exist
+    Expects(seqnoPersistenceNotifyTask);
+    return seqnoPersistenceNotifyTask->getWaketime();
 }
