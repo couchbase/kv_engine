@@ -253,7 +253,7 @@ TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
 
     // remove the checkpoint containing the set vbstate to get a clean
     // baseline memory usage
-    cpm.createNewCheckpoint(true /*force*/);
+    cpm.createNewCheckpoint();
     cpm.removeClosedUnrefCheckpoints();
 
     auto& stats = engine->getEpStats();

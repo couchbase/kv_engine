@@ -1436,7 +1436,7 @@ TEST_F(SingleThreadedCheckpointTest, CursorDistance_MoveToNewCheckpoint) {
     //                     ^
 
     auto& manager = *store->getVBuckets().getBucket(vbid)->checkpointManager;
-    manager.createNewCheckpoint(true);
+    manager.createNewCheckpoint();
     std::vector<queued_item> out;
     manager.getItemsForCursor(*cursor, out, std::numeric_limits<size_t>::max());
 
@@ -3099,7 +3099,7 @@ TEST_P(CheckpointTest, ExpelCursor_NeverDrop) {
     // Note: cursors that are at the end of the checkpoint being closed are
     //  bumped to the new checkpoint. By logic that can never happen for the
     //  expel-cursor as it always points to the empty item.
-    manager->createNewCheckpoint(true);
+    manager->createNewCheckpoint();
     // [e:1001 cs:1001 x m:1002] [e:1003 cs:1003)
     //  ^                         ^
     ASSERT_EQ(2, manager->getNumCheckpoints());
@@ -3486,7 +3486,7 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
     EXPECT_EQ(queued + index + queueOverhead,
               engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
 
-    manager.createNewCheckpoint(true /*force*/);
+    manager.createNewCheckpoint();
     EXPECT_EQ(2, manager.getNumCheckpoints());
     // Move cursor to new checkpoint
     std::vector<queued_item> items;

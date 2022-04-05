@@ -2543,7 +2543,8 @@ void SingleThreadedPassiveStreamTest::
     EXPECT_TRUE(vb->isReceivingInitialDiskSnapshot());
 
     // change state
-    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    setVBucketState(vbid, vbucket_state_active);
+    flushVBucketToDiskIfPersistent(vbid, 0);
 
     // check that the initial disk snapshot flag was cleared
     EXPECT_FALSE(vb->isReceivingInitialDiskSnapshot());
@@ -4757,7 +4758,7 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
     // Before the fix this fails because we have persisted snapEnd=2
     // Note: We have persisted a partial snapshot at replica, snapStart must
     //  still be 0
-    checkPersistedSnapshot(0, 3);
+    checkPersistedSnapshot(1, 3);
 
     // The core of the test has been already executed, just check that
     // everything behaves as expected when the full snapshot is persisted.

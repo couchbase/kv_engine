@@ -621,7 +621,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
             //    item for the cursor to process in that closed checkpoint.
             // All the items eligible for expel will be in the closed checkpoint
             queueItem("extra", "");
-            manager.createNewCheckpoint(true);
+            manager.createNewCheckpoint();
             ASSERT_EQ(2, manager.getNumCheckpoints());
             ASSERT_EQ(0, manager.getNumOpenChkItems());
             // numItems + 1

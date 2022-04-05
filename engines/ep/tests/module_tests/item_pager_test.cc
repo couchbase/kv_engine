@@ -2062,7 +2062,7 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
         // Note: Doing this step within the loop for avoiding deletions being
         // failed by high CM mem-usage
         auto vb = store->getVBucket(vbid);
-        vb->checkpointManager->createNewCheckpoint(true);
+        vb->checkpointManager->createNewCheckpoint();
         flushVBucketToDiskIfPersistent(vbid, 1);
         vb->checkpointManager->removeClosedUnrefCheckpoints();
         runCheckpointDestroyer(vbid);

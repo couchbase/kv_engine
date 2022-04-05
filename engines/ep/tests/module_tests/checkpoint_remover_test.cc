@@ -943,7 +943,7 @@ TEST_P(CheckpointRemoverEPTest, DISABLED_CheckpointRemovalWithoutCursorDrop) {
     }
 
     // Create a new checkpoint to move all cursors into it
-    manager.createNewCheckpoint(true);
+    manager.createNewCheckpoint();
 
     flushVBucket(vbid);
     const auto initialNumItems = vb->getNumItems();

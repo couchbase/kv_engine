@@ -1319,15 +1319,8 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id,
     return qi;
 }
 
-uint64_t CheckpointManager::createNewCheckpoint(bool force) {
+uint64_t CheckpointManager::createNewCheckpoint() {
     std::lock_guard<std::mutex> lh(queueLock);
-
-    const auto& openCkpt = getOpenCheckpoint(lh);
-
-    if (openCkpt.getNumItems() == 0 && !force) {
-        return openCkpt.getId();
-    }
-
     addNewCheckpoint(lh);
     return getOpenCheckpointId(lh);
 }

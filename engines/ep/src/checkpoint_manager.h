@@ -396,11 +396,9 @@ public:
     /**
      * Create a new open checkpoint by force.
      *
-     * @param force create a new checkpoint even if the existing one
-     *        contains no non-meta items
      * @return the new open checkpoint id
      */
-    uint64_t createNewCheckpoint(bool force = false);
+    uint64_t createNewCheckpoint();
 
     /**
      * @return the memory usage of all the checkpoints managed
