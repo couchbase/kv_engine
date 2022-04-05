@@ -119,7 +119,8 @@ bool CheckpointTest::queueReplicatedItem(const std::string& key,
 void CheckpointTest::advanceCursorToEndOfCheckpoints() {
     // Move the cursor past the empty checkpoint
     std::vector<queued_item> items;
-    manager->getNextItemsForCursor(cursor, items);
+    Expects(cursor);
+    manager->getNextItemsForCursor(*cursor, items);
 }
 
 void ReplicaCheckpointTest::SetUp() {
