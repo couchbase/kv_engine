@@ -1068,7 +1068,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
     // 3) the consumer receives the snapshotEnd mutation
     processMutations(*passiveStream, snapshotEnd, snapshotEnd);
 
-    // We must have again 1 open checkpoint with id=1
+    // We must have again 1 open checkpoint with id=2
     EXPECT_EQ(ckptList.size(), 1);
     EXPECT_EQ(ckptList.back()->getState(), checkpoint_state::CHECKPOINT_OPEN);
     EXPECT_EQ(ckptList.back()->getId(), 2);
