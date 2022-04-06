@@ -19,10 +19,9 @@
 #include "active_durability_monitor.h"
 #include "durability_monitor.h"
 #include "item.h"
-#include "monotonic_queue.h"
 #include "passive_durability_monitor.h"
 #include <platform/monotonic.h>
-
+#include <platform/monotonic_queue.h>
 #include <chrono>
 #include <queue>
 #include <unordered_map>
