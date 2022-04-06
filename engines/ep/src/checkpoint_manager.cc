@@ -43,8 +43,8 @@ CheckpointManager::CheckpointManager(EPStats& st,
       checkpointConfig(config),
       vb(vb),
       numItems(0),
-      lastBySeqno(lastSeqno),
-      maxVisibleSeqno(maxVisibleSeqno),
+      lastBySeqno(lastSeqno, {vb.getId()}),
+      maxVisibleSeqno(maxVisibleSeqno, {vb.getId()}),
       flusherCB(std::move(cb)),
       checkpointDisposer(std::move(checkpointDisposer)),
       memFreedByExpel(stats.memFreedByCheckpointItemExpel),
@@ -2042,4 +2042,8 @@ size_t CheckpointManager::getMemFreedByItemExpel() const {
 
 size_t CheckpointManager::getMemFreedByCheckpointRemoval() const {
     return memFreedByCheckpointRemoval;
+}
+
+std::string CheckpointManager::Labeller::getLabel(const char* name) const {
+    return fmt::format("CheckpointManager({})::{}", vbid.to_string(), name);
 }

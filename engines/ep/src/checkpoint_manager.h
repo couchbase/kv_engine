@@ -927,7 +927,12 @@ protected:
     // Total number of items (including meta items) in /all/ checkpoints managed
     // by this object.
     std::atomic<size_t>      numItems;
-    Monotonic<int64_t>       lastBySeqno;
+
+    struct Labeller {
+        std::string getLabel(const char* name) const;
+        const Vbid vbid;
+    };
+    ATOMIC_MONOTONIC3(int64_t, lastBySeqno, Labeller);
     /**
      * The highest seqno of all items that are visible, i.e. normal mutations or
      * mutations which have been prepared->committed. The main use of this value
@@ -935,7 +940,7 @@ protected:
      * vbucket which they can receive (via dcp), i.e this value would not change
      * to the seqno of a prepare.
      */
-    Monotonic<int64_t> maxVisibleSeqno;
+    MONOTONIC3(int64_t, maxVisibleSeqno, Labeller);
 
     /**
      * cursors: stores all known CheckpointCursor objects which are held via
