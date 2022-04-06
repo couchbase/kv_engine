@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -9,11 +8,10 @@
  *   the file licenses/APL2.txt.
  */
 
-#include <protocol/connection/client_mcbp_commands.h>
 #include "testapp.h"
 #include "testapp_client_test.h"
 
-#include <utilities/string_utilities.h>
+#include <protocol/connection/client_mcbp_commands.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
@@ -149,15 +147,10 @@ TEST_P(WithMetaTest, MB36304_DocumetTooBig) {
         return;
     }
 
-    std::vector<char> blob(21 * 1024 * 1024);
-    cb::compression::Buffer deflated;
-    ASSERT_TRUE(cb::compression::deflate(cb::compression::Algorithm::Snappy,
-                                         {blob.data(), blob.size()},
-                                         deflated));
-    std::string_view doc = deflated;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.clear();
-    std::copy(doc.begin(), doc.end(), std::back_inserter(document.value));
-    document.info.datatype = cb::mcbp::Datatype::Snappy;
+    document.value.resize(21 * 1024 * 1024);
+    document.compress();
     try {
         userConnection->mutateWithMeta(
                 document, Vbid(0), mcbp::cas::Wildcard, 1, 0, {});
@@ -288,15 +281,7 @@ void WithMetaTest::testDeleteWithMetaAcceptsUserXattrs(bool allowValuePruning,
     document.info.datatype = Datatype::Xattr;
 
     if (compressed) {
-        cb::compression::Buffer deflated;
-        ASSERT_TRUE(cb::compression::deflate(
-                cb::compression::Algorithm::Snappy,
-                {document.value.c_str(), document.value.size()},
-                deflated));
-        document.value = {deflated.data(), deflated.size()};
-        document.info.datatype =
-                Datatype(static_cast<uint8_t>(cb::mcbp::Datatype::Xattr) |
-                         static_cast<uint8_t>(cb::mcbp::Datatype::Snappy));
+        document.compress();
     }
 
     BinprotDelWithMetaCommand delWithMeta(
