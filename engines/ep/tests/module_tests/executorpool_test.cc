@@ -528,10 +528,13 @@ TYPED_TEST(ExecutorPoolTest, WakeSetsTaskRunning) {
     // us to examine Task state without having to worry about it changing
     // under us.
     this->makePool(1);
-    this->pool->setNumNonIO(0);
 
     NiceMock<MockTaskable> taskable;
     this->pool->registerTaskable(taskable);
+
+    // registerTaskable also starts workers for the CB3 pool so we must set our
+    // workers back to 0 after.
+    this->pool->setNumNonIO(0);
 
     // Setup - simple test task which does nothing.
     // 1 hour - i.e. we don't want it to run when initially scheduled.
