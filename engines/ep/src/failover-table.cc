@@ -137,13 +137,6 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
        return {};
     }
 
-    /* One of the reasons for rollback is client being in middle of a snapshot.
-       We compare snapshot_start and snapshot_end with remoteHighSeqno to see if
-       the client is really in the middle of a snapshot. To prevent unnecessary
-       rollback, we update snap_start_seqno/snap_end_seqno accordingly and then
-       use those values for rollback calculations below */
-    adjustSnapshotRange(remoteHighSeqno, snap_start_seqno, snap_end_seqno);
-
     /*
      * If this request is for a collection stream then check if we can really
      * need to roll the client back if the remoteHighSeqno < purge_seqno.
@@ -191,9 +184,29 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
                 "consumer and producer have no common history", 0};
     }
 
+    // Optimization for avoiding unnecessary rollback when the client has
+    // received a SnapshotMarker but no item for that snapshot.
+    // Essentially here the client is only "virtually" in the snapshot it
+    // declares, actually it is still at the end of the previous snapshot.
+    // What is the "end of the previous snapshot"? The client's high-seqno by
+    // logic.
+    // By "moving backward" the snap_end_seqno we actually increase the
+    // probability of hitting the following "no-rollback" condition.
+    if (remoteHighSeqno == snap_start_seqno) {
+        /* Client has no elements in the snapshot */
+        snap_end_seqno = remoteHighSeqno;
+    }
+
     if (snap_end_seqno <= upper) {
         /* No rollback needed as producer and consumer histories are same */
         return {};
+    }
+
+    // Optimization for avoiding unnecessary rollback when the client is in a
+    // complete snapshot.
+    if (remoteHighSeqno == snap_end_seqno) {
+        /* Client already has all elements in the snapshot */
+        snap_start_seqno = remoteHighSeqno;
     }
 
     /* We need a rollback as producer upper is lower than the end in
@@ -398,19 +411,6 @@ void FailoverTable::replaceFailoverLog(const uint8_t* bytes, uint32_t length) {
 size_t FailoverTable::getNumEntries() const
 {
     return table.size();
-}
-
-void FailoverTable::adjustSnapshotRange(uint64_t start_seqno,
-                                        uint64_t &snap_start_seqno,
-                                        uint64_t &snap_end_seqno)
-{
-    if (start_seqno == snap_end_seqno) {
-        /* Client already has all elements in the snapshot */
-        snap_start_seqno = start_seqno;
-    } else if (start_seqno == snap_start_seqno) {
-        /* Client has no elements in the snapshot */
-        snap_end_seqno = start_seqno;
-    }
 }
 
 void FailoverTable::sanitizeFailoverTable(int64_t highSeqno) {
