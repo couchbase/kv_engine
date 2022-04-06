@@ -12,7 +12,6 @@
 #include "testapp_client_test.h"
 
 #include <include/memcached/protocol_binary.h>
-#include <platform/compress.h>
 #include <protocol/connection/frameinfo.h>
 #include <algorithm>
 

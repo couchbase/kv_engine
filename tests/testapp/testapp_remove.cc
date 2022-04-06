@@ -13,7 +13,6 @@
 #include "testapp_client_test.h"
 
 #include <algorithm>
-#include <platform/compress.h>
 
 class RemoveTest : public TestappXattrClientTest {
 protected:

@@ -12,7 +12,6 @@
 #include "testapp_client_test.h"
 
 #include <evutil.h>
-#include <platform/compress.h>
 #include <protocol/connection/frameinfo.h>
 #include <protocol/mcbp/ewb_encode.h>
 #include <algorithm>

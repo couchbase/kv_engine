@@ -12,7 +12,6 @@
 #include "testapp_client_test.h"
 
 #include <nlohmann/json.hpp>
-#include <platform/compress.h>
 #include <protocol/connection/client_connection.h>
 #include <algorithm>
 

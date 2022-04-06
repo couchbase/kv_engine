@@ -12,7 +12,6 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
-#include <platform/compress.h>
 #include <algorithm>
 
 /**

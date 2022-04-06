@@ -24,7 +24,6 @@
 #include <platform/backtrace.h>
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
-#include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <platform/process_monitor.h>
 #include <platform/socket.h>

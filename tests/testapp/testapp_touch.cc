@@ -13,7 +13,6 @@
 #include "testapp_client_test.h"
 
 #include <algorithm>
-#include <platform/compress.h>
 #include <include/memcached/protocol_binary.h>
 
 class TouchTest : public TestappClientTest {

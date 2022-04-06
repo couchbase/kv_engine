@@ -16,7 +16,6 @@
 #include "testapp_client_test.h"
 
 #include <algorithm>
-#include <platform/compress.h>
 
 class RbacTest : public TestappClientTest {
 public:
