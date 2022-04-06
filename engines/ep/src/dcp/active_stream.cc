@@ -111,8 +111,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         name_ += sid.to_string();
         logPrefix += " (" + sid.to_string() + ")";
     }
-    lastReadSeqno.setLabel("ActiveStream(" + vbucket.getId().to_string() +
-                           ")::lastReadSeqno");
 
     log(spdlog::level::info,
         "{} Creating {}stream with start seqno {} and end seqno {}; "
@@ -147,8 +145,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         itemsReady.store(true);
         // lock is released on leaving the scope
     }
-    auto streamInfo = "ActiveStream " + name_ + " " + logPrefix;
-    nextSnapStart.setLabel(streamInfo + " nextSnapStart");
 }
 
 ActiveStream::~ActiveStream() {

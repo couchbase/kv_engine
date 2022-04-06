@@ -54,9 +54,6 @@ CheckpointManager::CheckpointManager(EPStats& st,
     Expects(static_cast<uint64_t>(lastSeqno) <= lastSnapEnd);
     Expects(static_cast<uint64_t>(maxVisibleSeqno) <= lastSnapEnd);
 
-    lastBySeqno.setLabel("CheckpointManager(" + vb.getId().to_string() +
-                         ")::lastBySeqno");
-
     // Note: this is the last moment in the CheckpointManager lifetime
     //     when the checkpointList is empty.
     //     Only in CheckpointManager::clear_UNLOCKED, the checkpointList

@@ -65,8 +65,6 @@ public:
     using ConsumerLock = std::mutex;
 
     explicit ResolvedQueue(Vbid vbid) {
-        highEnqueuedSeqno.setLabel("ActiveDM::ResolvedQueue[" +
-                                   vbid.to_string() + "]");
     }
 
     /**
@@ -659,12 +657,6 @@ ActiveDurabilityMonitor::State::State(
         ActiveDurabilityMonitor& adm,
         std::unique_ptr<EventDrivenDurabilityTimeoutIface> nextExpiryChanged)
     : adm(adm), nextExpiryChanged(std::move(nextExpiryChanged)) {
-    const auto prefix = "ActiveDM(" + adm.vb.getId().to_string() + ")::State::";
-    lastTrackedSeqno.setLabel(prefix + "lastTrackedSeqno");
-    lastCommittedSeqno.setLabel(prefix + "lastCommittedSeqno");
-    lastAbortedSeqno.setLabel(prefix + "lastAbortedSeqno");
-    highPreparedSeqno.setLabel(prefix + "highPreparedSeqno");
-    highCompletedSeqno.setLabel(prefix + "highCompletedSeqno");
 }
 
 ActiveDurabilityMonitor::Container::iterator
@@ -1511,7 +1503,6 @@ void ActiveDurabilityMonitor::State::performQueuedAckForChain(
 void ActiveDurabilityMonitor::State::queueSeqnoAck(const std::string& node,
                                                    int64_t seqno) {
     queuedSeqnoAcks[node] = seqno;
-    queuedSeqnoAcks[node].setLabel("queuedSeqnoAck: " + node);
 }
 
 void ActiveDurabilityMonitor::State::cleanUpTrackedWritesPostTopologyChange(

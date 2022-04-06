@@ -544,16 +544,6 @@ void PassiveDurabilityMonitor::toOStream(std::ostream& os) const {
 
 PassiveDurabilityMonitor::State::State(const PassiveDurabilityMonitor& pdm)
     : pdm(pdm) {
-    const auto prefix =
-            "PassiveDM(" + pdm.vb.getId().to_string() + ")::State::";
-
-    const auto hpsPrefix = prefix + "highPreparedSeqno";
-    highPreparedSeqno.lastWriteSeqno.setLabel(hpsPrefix + ".lastWriteSeqno");
-    highPreparedSeqno.lastAckSeqno.setLabel(hpsPrefix + ".lastAckSeqno");
-
-    const auto hcsPrefix = prefix + "highCompletedSeqno";
-    highCompletedSeqno.lastWriteSeqno.setLabel(hcsPrefix + ".lastWriteSeqno");
-    highCompletedSeqno.lastAckSeqno.setLabel(hcsPrefix + ".lastAckSeqno");
 }
 
 PassiveDurabilityMonitor::Container::iterator

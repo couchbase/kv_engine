@@ -321,8 +321,6 @@ ActiveDurabilityMonitor::ReplicationChain::ReplicationChain(
                     "ReplicationChain::ReplicationChain: Duplicate node: " +
                     node);
         }
-        result.first->second.lastAckSeqno.setLabel(node + "::lastAckSeqno");
-        result.first->second.lastWriteSeqno.setLabel(node + "::lastWriteSeqno");
     }
 }
 
