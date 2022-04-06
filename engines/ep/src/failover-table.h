@@ -91,6 +91,16 @@ public:
     bool getLastSeqnoForUUID(uint64_t uuid, uint64_t *seqno) const;
 
     /**
+     * Result of needsRollback.
+     */
+    struct RollbackDetails {
+        /**
+         * Why is rollback required?
+         */
+        std::string rollbackReason;
+    };
+
+    /**
      * Finds a rollback point based on the failover log of a remote client
      *
      * If this failover table contains an entry that matches the vbucket
@@ -118,9 +128,10 @@ public:
      *                               used.
      * @param rollback_seqno the sequence number to rollback to if necessary
      *
-     * @return true and reason if a rollback is needed, false otherwise
+     * @return optional RollbackDetails which if non-null means a rollback is
+     *         required
      */
-    std::pair<bool, std::string> needsRollback(
+    std::optional<RollbackDetails> needsRollback(
             uint64_t start_seqno,
             uint64_t cur_seqno,
             uint64_t vb_uuid,

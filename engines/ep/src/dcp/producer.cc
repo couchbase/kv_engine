@@ -422,7 +422,7 @@ cb::engine_errc DcpProducer::streamRequest(
         }
     }
 
-    std::pair<bool, std::string> need_rollback =
+    auto needsRollback =
             vb->failovers->needsRollback(start_seqno,
                                          vb->getHighSeqno(),
                                          vbucket_uuid,
@@ -433,14 +433,14 @@ cb::engine_errc DcpProducer::streamRequest(
                                          getHighSeqnoOfCollections(filter, *vb),
                                          rollback_seqno);
 
-    if (need_rollback.first) {
+    if (needsRollback) {
         logger->warn(
                 "({}) Stream request requires rollback to seqno:{} "
                 "because {}. Client requested seqnos:{{{},{}}} "
                 "snapshot:{{{},{}}} uuid:{}",
                 vbucket,
                 *rollback_seqno,
-                need_rollback.second,
+                needsRollback->rollbackReason,
                 start_seqno,
                 end_seqno,
                 snap_start_seqno,

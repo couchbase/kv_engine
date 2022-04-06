@@ -116,7 +116,7 @@ bool FailoverTable::getLastSeqnoForUUID(uint64_t uuid,
     return false;
 }
 
-std::pair<bool, std::string> FailoverTable::needsRollback(
+std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
         uint64_t start_seqno,
         uint64_t cur_seqno,
         uint64_t vb_uuid,
@@ -135,7 +135,7 @@ std::pair<bool, std::string> FailoverTable::needsRollback(
        So we should NOT rollback when a client has a vb_uuid == 0 or
        if does not expect a rollback at start_seqno == 0 */
     if (start_seqno == 0 && (!strictVbUuidMatch || vb_uuid == 0)) {
-        return std::make_pair(false, std::string());
+        return {};
     }
 
     *rollback_seqno = 0;
@@ -166,11 +166,10 @@ std::pair<bool, std::string> FailoverTable::needsRollback(
        start_seqno and if start_seqno is not 0 */
     if (start_seqno < purge_seqno && start_seqno != 0 &&
         !allowNonRollBackCollectionStream) {
-        return std::make_pair(true,
-                              std::string("purge seqno (") +
-                                      std::to_string(purge_seqno) +
-                                      ") is greater than start seqno - "
-                                      "could miss purged deletions");
+        return RollbackDetails{
+                fmt::format("purge seqno ({}) is greater than start seqno - "
+                            "could miss purged deletions",
+                            purge_seqno)};
     }
 
     table_t::const_reverse_iterator itr;
@@ -190,15 +189,14 @@ std::pair<bool, std::string> FailoverTable::needsRollback(
     if (itr == table.rend()) {
         /* No vb_uuid match found in failover table, so producer and consumer
          have no common history. Rollback to zero */
-        return std::make_pair(
-                true,
-                std::string("vBucket UUID not found in failover table, "
-                            "consumer and producer have no common history"));
+        return RollbackDetails{
+                "vBucket UUID not found in failover table, "
+                "consumer and producer have no common history"};
     }
 
     if (snap_end_seqno <= upper) {
         /* No rollback needed as producer and consumer histories are same */
-        return {false, ""};
+        return {};
     }
 
     /* We need a rollback as producer upper is lower than the end in
@@ -211,10 +209,8 @@ std::pair<bool, std::string> FailoverTable::needsRollback(
         *rollback_seqno = snap_start_seqno;
     }
 
-    return std::make_pair(
-            true,
-            std::string("consumer ahead of producer - producer upper at ") +
-                    std::to_string(upper));
+    return RollbackDetails{fmt::format(
+            "consumer ahead of producer - producer upper at {}", upper)};
 }
 
 void FailoverTable::pruneEntries(uint64_t seqno) {
