@@ -92,12 +92,9 @@ struct SnapshotRequirements;
 struct SeqnoPersistenceRequest {
     SeqnoPersistenceRequest(const CookieIface* cookie,
                             uint64_t seqno,
-                            std::chrono::milliseconds timeout)
-        : cookie(cookie),
-          seqno(seqno),
-          start(std::chrono::steady_clock::now()),
-          timeout(timeout) {
-    }
+                            std::chrono::milliseconds timeout);
+
+    virtual ~SeqnoPersistenceRequest();
 
     /**
      * @param now the current time
@@ -105,16 +102,15 @@ struct SeqnoPersistenceRequest {
      *         input (now)
      */
     std::chrono::steady_clock::duration getDuration(
-            std::chrono::steady_clock::time_point now) const {
-        return start - now;
-    }
+            std::chrono::steady_clock::time_point now) const;
 
     /**
      * @return the deadline for this SeqnoPersistenceRequest object
      */
-    std::chrono::steady_clock::time_point getDeadline() const {
-        return start + timeout;
-    }
+    std::chrono::steady_clock::time_point getDeadline() const;
+
+    // Method invoked once the request has expired (not persisted)
+    virtual void expired() const;
 
     // The cookie to notify of the status of this request
     const CookieIface* cookie{nullptr};

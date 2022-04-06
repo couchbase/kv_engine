@@ -11,8 +11,10 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 namespace cb::rangescan {
 
@@ -23,6 +25,14 @@ struct SnapshotRequirements {
     uint64_t vbUuid{0};
     // This seqno must of been persisted to snapshot
     uint64_t seqno{0};
+    /**
+     * This is the timeout to use when the seqno is not yet persisted.
+     * When std::nullopt, no timeout applies. unit tests can use this to set
+     * a timeout of 0, which allows for instant "expiry", yet the external
+     * mcbp protocol will reserve 0 to mean no timeout (and std::nullopt will
+     * be used for that).
+     */
+    std::optional<std::chrono::milliseconds> timeout;
     // true: The seqno must still exist in snapshot
     bool seqnoMustBeInSnapshot{false};
 };

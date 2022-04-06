@@ -12,7 +12,19 @@
 
 #include <memcached/range_scan_id.h>
 
+// RangeScanCreateState describes which stage of creation a RangeScan is in
+// Creation always starts in Pending and then:
+// 1) Pending->Creating for a scan with no seqno persistence requirements
+// 2) Pending->WaitForPersistence->Creating for a scan that has seqno
+//    persistence requirements
+enum class RangeScanCreateState : char {
+    Pending, // RangeScan creation begins
+    WaitForPersistence, // RangeScan create is waiting for a seqno to be stored
+    Creating // RangeScan has scheduled a task to create the scan
+};
+
 // Data stored in engine-specific during a RangeScan create request
 struct RangeScanCreateData {
     cb::rangescan::Id uuid;
+    RangeScanCreateState state{RangeScanCreateState::Pending};
 };

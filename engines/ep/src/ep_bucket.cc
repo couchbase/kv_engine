@@ -2416,7 +2416,8 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPBucket::createRangeScan(
     } else if (snapshotReqs) {
         if (vb->failovers->getLatestUUID() != snapshotReqs->vbUuid) {
             status = cb::engine_errc::not_my_vbucket;
-        } else if (vb->getPersistenceSeqno() < snapshotReqs->seqno) {
+        } else if (vb->getPersistenceSeqno() < snapshotReqs->seqno &&
+                   !snapshotReqs->timeout) {
             status = cb::engine_errc::temporary_failure;
         }
     }

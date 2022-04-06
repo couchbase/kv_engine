@@ -136,6 +136,32 @@ std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
     return out;
 }
 
+SeqnoPersistenceRequest::SeqnoPersistenceRequest(
+        const CookieIface* cookie,
+        uint64_t seqno,
+        std::chrono::milliseconds timeout)
+    : cookie(cookie),
+      seqno(seqno),
+      start(std::chrono::steady_clock::now()),
+      timeout(timeout) {
+}
+
+SeqnoPersistenceRequest::~SeqnoPersistenceRequest() = default;
+
+std::chrono::steady_clock::duration SeqnoPersistenceRequest::getDuration(
+        std::chrono::steady_clock::time_point now) const {
+    return start - now;
+}
+
+std::chrono::steady_clock::time_point SeqnoPersistenceRequest::getDeadline()
+        const {
+    return start + timeout;
+}
+
+void SeqnoPersistenceRequest::expired() const {
+    // do nothing
+}
+
 #if defined(linux) || defined(__linux__) || defined(__linux)
 // One of the CV build fails due to htonl is defined as a macro:
 // error: statement expression not allowed at file scope
@@ -3983,7 +4009,6 @@ VBucket::getSeqnoPersistenceRequestsToNotify(EventuallyPersistentEngine& engine,
                     static_cast<const void*>(req->cookie));
             itr = hpVBReqs.erase(itr);
         } else if (now >= req->getDeadline()) { // >= permits a 0 wait for tests
-            engine.storeEngineSpecific(req->cookie, nullptr);
             toNotify[req->cookie] = cb::engine_errc::temporary_failure;
             EP_LOG_WARN(
                     "Notified SeqnoPersistence timeout for {} Check for: {}, "
@@ -3992,6 +4017,8 @@ VBucket::getSeqnoPersistenceRequestsToNotify(EventuallyPersistentEngine& engine,
                     req->seqno,
                     seqno,
                     static_cast<const void*>(req->cookie));
+
+            req->expired();
 
             itr = hpVBReqs.erase(itr);
         } else {
