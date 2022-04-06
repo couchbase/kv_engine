@@ -117,8 +117,8 @@ bool FailoverTable::getLastSeqnoForUUID(uint64_t uuid,
 }
 
 std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
-        uint64_t start_seqno,
-        uint64_t cur_seqno,
+        uint64_t remoteHighSeqno,
+        uint64_t localHighSeqno,
         uint64_t vb_uuid,
         uint64_t snap_start_seqno,
         uint64_t snap_end_seqno,
@@ -126,42 +126,42 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
         bool strictVbUuidMatch,
         std::optional<uint64_t> maxCollectionHighSeqno) const {
     /* Start with upper as vb highSeqno */
-    uint64_t upper = cur_seqno;
+    uint64_t upper = localHighSeqno;
     std::lock_guard<std::mutex> lh(lock);
 
     /* Clients can have a diverging (w.r.t producer) branch at seqno 0 and in
        such a case, some of them strictly need a rollback and others don't.
        So we should NOT rollback when a client has a vb_uuid == 0 or
-       if does not expect a rollback at start_seqno == 0 */
-    if (start_seqno == 0 && (!strictVbUuidMatch || vb_uuid == 0)) {
-        return {};
+       if does not expect a rollback at remoteHighSeqno == 0 */
+    if (remoteHighSeqno == 0 && (!strictVbUuidMatch || vb_uuid == 0)) {
+       return {};
     }
 
     /* One of the reasons for rollback is client being in middle of a snapshot.
-       We compare snapshot_start and snapshot_end with start_seqno to see if
+       We compare snapshot_start and snapshot_end with remoteHighSeqno to see if
        the client is really in the middle of a snapshot. To prevent unnecessary
        rollback, we update snap_start_seqno/snap_end_seqno accordingly and then
        use those values for rollback calculations below */
-    adjustSnapshotRange(start_seqno, snap_start_seqno, snap_end_seqno);
+    adjustSnapshotRange(remoteHighSeqno, snap_start_seqno, snap_end_seqno);
 
     /*
      * If this request is for a collection stream then check if we can really
-     * need to roll the client back if the start_seqno < purge_seqno.
-     * We should allow the request if the start_seqno indicates that the client
-     * has all mutations/events for the collections the stream is for.
+     * need to roll the client back if the remoteHighSeqno < purge_seqno.
+     * We should allow the request if the remoteHighSeqno indicates that the
+     * client has all mutations/events for the collections the stream is for.
      */
     bool allowNonRollBackCollectionStream = false;
     if (maxCollectionHighSeqno.has_value()) {
         allowNonRollBackCollectionStream =
-                start_seqno < purge_seqno &&
-                start_seqno >= maxCollectionHighSeqno.value() &&
+                remoteHighSeqno < purge_seqno &&
+                remoteHighSeqno >= maxCollectionHighSeqno.value() &&
                 maxCollectionHighSeqno.value() <= purge_seqno;
     }
 
     /* There may be items that are purged during compaction. We need
        to rollback to seq no 0 in that case, only if we have purged beyond
-       start_seqno and if start_seqno is not 0 */
-    if (start_seqno < purge_seqno && start_seqno != 0 &&
+       remoteHighSeqno and if remoteHighSeqno is not 0 */
+    if (remoteHighSeqno < purge_seqno && remoteHighSeqno != 0 &&
         !allowNonRollBackCollectionStream) {
         return RollbackDetails{
                 fmt::format("purge seqno ({}) is greater than start seqno - "
