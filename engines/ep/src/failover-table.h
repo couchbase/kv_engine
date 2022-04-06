@@ -94,10 +94,11 @@ public:
      * Result of needsRollback.
      */
     struct RollbackDetails {
-        /**
-         * Why is rollback required?
-         */
+        /// Why is rollback required?
         std::string rollbackReason;
+
+        /// To what seqno should the consumer roll back?
+        uint64_t rollbackSeqno;
     };
 
     /**
@@ -126,7 +127,6 @@ public:
      *                               the streams collection filter. std::nullopt
      *                               if collection based rollback is not to be
      *                               used.
-     * @param rollback_seqno the sequence number to rollback to if necessary
      *
      * @return optional RollbackDetails which if non-null means a rollback is
      *         required
@@ -139,8 +139,7 @@ public:
             uint64_t snap_end_seqno,
             uint64_t purge_seqno,
             bool strictVbUuidMatch,
-            std::optional<uint64_t> maxCollectionHighSeqno,
-            uint64_t* rollback_seqno) const;
+            std::optional<uint64_t> maxCollectionHighSeqno) const;
 
     /**
      * Delete all entries in failover table uptil the specified sequence

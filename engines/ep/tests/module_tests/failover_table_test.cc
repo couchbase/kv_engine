@@ -34,7 +34,6 @@ static table_t generate_entries(FailoverTable& table,
 
 //TESTS BELOW
 TEST(FailoverTableTest, test_initial_failover_log) {
-    uint64_t rollback_seqno;
     FailoverTable table(25);
 
     // rollback not needed
@@ -45,24 +44,16 @@ TEST(FailoverTableTest, test_initial_failover_log) {
                                      0,
                                      0,
                                      false /*strictVbUuidMatch*/,
-                                     std::nullopt,
-                                     &rollback_seqno));
+                                     std::nullopt));
 
     // rollback needed
-    EXPECT_TRUE(table.needsRollback(10,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno));
-    EXPECT_EQ(0, rollback_seqno);
+    auto result = table.needsRollback(
+            10, 0, 0, 0, 0, 0, false /*strictVbUuidMatch*/, std::nullopt);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(0, result->rollbackSeqno);
 }
 
 TEST(FailoverTableTest, test_5_failover_log) {
-    uint64_t rollback_seqno;
     uint64_t curr_seqno;
 
     FailoverTable table(25);
@@ -76,8 +67,7 @@ TEST(FailoverTableTest, test_5_failover_log) {
                                      0,
                                      0,
                                      false /*strictVbUuidMatch*/,
-                                     std::nullopt,
-                                     &rollback_seqno));
+                                     std::nullopt));
 
     curr_seqno = table.getLatestEntry().by_seqno + 100;
     EXPECT_FALSE(table.needsRollback(10,
@@ -87,40 +77,31 @@ TEST(FailoverTableTest, test_5_failover_log) {
                                      20,
                                      0,
                                      false /*strictVbUuidMatch*/,
-                                     std::nullopt,
-                                     &rollback_seqno));
+                                     std::nullopt));
 
     // rollback needed
-    EXPECT_TRUE(table.needsRollback(10,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno));
-    EXPECT_EQ(0, rollback_seqno);
+    auto result = table.needsRollback(
+            10, 0, 0, 0, 0, 0, false /*strictVbUuidMatch*/, std::nullopt);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(0, result->rollbackSeqno);
 
     curr_seqno = table.getLatestEntry().by_seqno + 100;
-    EXPECT_TRUE(table.needsRollback(curr_seqno - 80,
-                                    curr_seqno,
-                                    table.getLatestEntry().vb_uuid,
-                                    0,
-                                    curr_seqno + 20,
-                                    0,
-                                    false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno));
-    EXPECT_EQ(0, rollback_seqno);
+    result = table.needsRollback(curr_seqno - 80,
+                                 curr_seqno,
+                                 table.getLatestEntry().vb_uuid,
+                                 0,
+                                 curr_seqno + 20,
+                                 0,
+                                 false /*strictVbUuidMatch*/,
+                                 std::nullopt);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(0, result->rollbackSeqno);
 }
 
 /* A DCP client can have a diverging (w.r.t producer) branch at seqno 0.
    Even though the client makes a request with start_seqno == 0, it expects a
    rollback if its vb_uuid @ 0 does not match the failover table vb_uuid @ 0 */
 TEST(FailoverTableTest, test_diverging_branch_at_seqno_0) {
-    uint64_t rollback_seqno;
-
     FailoverTable table(5);
     table_t failover_entries = generate_entries(table, 2, 1);
 
@@ -132,8 +113,7 @@ TEST(FailoverTableTest, test_diverging_branch_at_seqno_0) {
                                      0,
                                      0,
                                      true /*strictVbUuidMatch*/,
-                                     std::nullopt,
-                                     &rollback_seqno));
+                                     std::nullopt));
 
     /* rollback not needed when vb_uuid matches the failover table vb_uuid */
     EXPECT_FALSE(table.needsRollback(/*start_seqno*/ 0,
@@ -143,8 +123,7 @@ TEST(FailoverTableTest, test_diverging_branch_at_seqno_0) {
                                      0,
                                      0,
                                      true /*strictVbUuidMatch*/,
-                                     std::nullopt,
-                                     &rollback_seqno));
+                                     std::nullopt));
 
     /* rollback needed as vb_uuid does not match and 'strictVbUuidMatch' is
        demanded */
@@ -155,8 +134,7 @@ TEST(FailoverTableTest, test_diverging_branch_at_seqno_0) {
                                     0,
                                     0,
                                     true /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno));
+                                    std::nullopt));
 
     /* rollback not needed as vb_uuid does not match and 'strictVbUuidMatch' is
        not demanded */
@@ -167,16 +145,13 @@ TEST(FailoverTableTest, test_diverging_branch_at_seqno_0) {
                                      0,
                                      0,
                                      false /*strictVbUuidMatch*/,
-                                     std::nullopt,
-                                     &rollback_seqno));
-    EXPECT_EQ(0, rollback_seqno);
+                                     std::nullopt));
 }
 
 TEST(FailoverTableTest, test_edgetests_failover_log) {
     uint64_t start_seqno;
     uint64_t snap_start_seqno;
     uint64_t snap_end_seqno;
-    uint64_t rollback_seqno;
     uint64_t curr_seqno;
 
     FailoverTable table(25);
@@ -193,8 +168,7 @@ TEST(FailoverTableTest, test_edgetests_failover_log) {
                                      0,
                                      0,
                                      false /*strictVbUuidMatch*/,
-                                     std::nullopt,
-                                     &rollback_seqno));
+                                     std::nullopt));
 
     //start_seqno == snap_start_seqno == snap_end_seqno and start_seqno < upper
     curr_seqno = 300;
@@ -209,8 +183,7 @@ TEST(FailoverTableTest, test_edgetests_failover_log) {
                                      snap_end_seqno,
                                      0,
                                      false /*strictVbUuidMatch*/,
-                                     std::nullopt,
-                                     &rollback_seqno));
+                                     std::nullopt));
 
     //start_seqno == snap_start_seqno and snap_end_seqno > upper
     curr_seqno = 300;
@@ -225,8 +198,7 @@ TEST(FailoverTableTest, test_edgetests_failover_log) {
                                      snap_end_seqno,
                                      0,
                                      false /*strictVbUuidMatch*/,
-                                     std::nullopt,
-                                     &rollback_seqno));
+                                     std::nullopt));
 
     //start_seqno == snap_start_seqno == upper and snap_end_seqno > upper
     curr_seqno = 300;
@@ -241,8 +213,7 @@ TEST(FailoverTableTest, test_edgetests_failover_log) {
                                      snap_end_seqno,
                                      0,
                                      false /*strictVbUuidMatch*/,
-                                     std::nullopt,
-                                     &rollback_seqno));
+                                     std::nullopt));
 
     //TEST for rollback needed
 
@@ -252,16 +223,16 @@ TEST(FailoverTableTest, test_edgetests_failover_log) {
     snap_start_seqno = 400;
     snap_end_seqno = 400;
 
-    EXPECT_TRUE(table.needsRollback(start_seqno,
-                                    curr_seqno,
-                                    table.getLatestEntry().vb_uuid,
-                                    snap_start_seqno,
-                                    snap_end_seqno,
-                                    0,
-                                    false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno));
-    EXPECT_EQ(curr_seqno, rollback_seqno);
+    auto result = table.needsRollback(start_seqno,
+                                      curr_seqno,
+                                      table.getLatestEntry().vb_uuid,
+                                      snap_start_seqno,
+                                      snap_end_seqno,
+                                      0,
+                                      false /*strictVbUuidMatch*/,
+                                      std::nullopt);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(curr_seqno, result->rollbackSeqno);
 
     //start_seqno > snap_start_seqno and snap_end_seqno > upper
     curr_seqno = 300;
@@ -269,17 +240,16 @@ TEST(FailoverTableTest, test_edgetests_failover_log) {
     snap_start_seqno = 210;
     snap_end_seqno = 301;
 
-    EXPECT_TRUE(table.needsRollback(start_seqno,
-                                    curr_seqno,
-                                    table.getLatestEntry().vb_uuid,
-                                    snap_start_seqno,
-                                    snap_end_seqno,
-                                    0,
-                                    false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno));
-    EXPECT_EQ(snap_start_seqno, rollback_seqno);
-
+    result = table.needsRollback(start_seqno,
+                                 curr_seqno,
+                                 table.getLatestEntry().vb_uuid,
+                                 snap_start_seqno,
+                                 snap_end_seqno,
+                                 0,
+                                 false /*strictVbUuidMatch*/,
+                                 std::nullopt);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(snap_start_seqno, result->rollbackSeqno);
 
     //start_seqno > upper and snap_end_seqno > upper
     curr_seqno = 300;
@@ -287,21 +257,20 @@ TEST(FailoverTableTest, test_edgetests_failover_log) {
     snap_start_seqno = 210;
     snap_end_seqno = 320;
 
-    EXPECT_TRUE(table.needsRollback(start_seqno,
-                                    curr_seqno,
-                                    table.getLatestEntry().vb_uuid,
-                                    snap_start_seqno,
-                                    snap_end_seqno,
-                                    0,
-                                    false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno));
-    EXPECT_EQ(snap_start_seqno, rollback_seqno);
+    result = table.needsRollback(start_seqno,
+                                 curr_seqno,
+                                 table.getLatestEntry().vb_uuid,
+                                 snap_start_seqno,
+                                 snap_end_seqno,
+                                 0,
+                                 false /*strictVbUuidMatch*/,
+                                 std::nullopt);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(snap_start_seqno, result->rollbackSeqno);
 }
 
 TEST(FailoverTableTest, test_5_failover_largeseqno_log) {
     uint64_t start_seqno;
-    uint64_t rollback_seqno;
     uint64_t curr_seqno;
     uint64_t vb_uuid;
 
@@ -317,8 +286,7 @@ TEST(FailoverTableTest, test_5_failover_largeseqno_log) {
                                      0,
                                      0,
                                      false /*strictVbUuidMatch*/,
-                                     std::nullopt,
-                                     &rollback_seqno));
+                                     std::nullopt));
 
     vb_uuid = table.getLatestEntry().vb_uuid;
     curr_seqno = table.getLatestEntry().by_seqno + 100;
@@ -331,92 +299,83 @@ TEST(FailoverTableTest, test_5_failover_largeseqno_log) {
                                      20,
                                      0,
                                      false /*strictVbUuidMatch*/,
-                                     std::nullopt,
-                                     &rollback_seqno));
+                                     std::nullopt));
 
     //TESTS for rollback needed
-    EXPECT_TRUE(table.needsRollback(10,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno));
-    EXPECT_EQ(0, rollback_seqno);
+    auto result = table.needsRollback(
+            10, 0, 0, 0, 0, 0, false /*strictVbUuidMatch*/, std::nullopt);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(0, result->rollbackSeqno);
 
     //vbucket uuid sent by client not present in failover table
-    EXPECT_TRUE(table.needsRollback(start_seqno,
-                                    curr_seqno,
-                                    0,
-                                    0,
-                                    20,
-                                    0,
-                                    false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno));
-    EXPECT_EQ(0, rollback_seqno);
+    result = table.needsRollback(start_seqno,
+                                 curr_seqno,
+                                 0,
+                                 0,
+                                 20,
+                                 0,
+                                 false /*strictVbUuidMatch*/,
+                                 std::nullopt);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(0, result->rollbackSeqno);
 
     vb_uuid = table.getLatestEntry().vb_uuid;
     curr_seqno = table.getLatestEntry().by_seqno + 100;
     start_seqno = curr_seqno-80;
     //snapshot sequence no is greater than upper && snapshot start sequence no
     // less than upper
-    EXPECT_TRUE(table.needsRollback(start_seqno,
-                                    curr_seqno,
-                                    vb_uuid,
-                                    curr_seqno - 20,
-                                    curr_seqno + 20,
-                                    0,
-                                    false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno));
-    EXPECT_EQ((curr_seqno-20), rollback_seqno);
+    result = table.needsRollback(start_seqno,
+                                 curr_seqno,
+                                 vb_uuid,
+                                 curr_seqno - 20,
+                                 curr_seqno + 20,
+                                 0,
+                                 false /*strictVbUuidMatch*/,
+                                 std::nullopt);
+    ASSERT_TRUE(result);
+    EXPECT_EQ((curr_seqno - 20), result->rollbackSeqno);
     //snapshot start seqno greate than  upper
-    EXPECT_TRUE(table.needsRollback(curr_seqno + 20,
-                                    curr_seqno,
-                                    vb_uuid,
-                                    curr_seqno + 10,
-                                    curr_seqno + 40,
-                                    0,
-                                    false /*strictVbUuidMatch*/,
-                                    0,
-                                    &rollback_seqno));
-    EXPECT_EQ(curr_seqno, rollback_seqno);
+    result = table.needsRollback(curr_seqno + 20,
+                                 curr_seqno,
+                                 vb_uuid,
+                                 curr_seqno + 10,
+                                 curr_seqno + 40,
+                                 0,
+                                 false /*strictVbUuidMatch*/,
+                                 0);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(curr_seqno, result->rollbackSeqno);
     //client vb uuiud is not the latest vbuuid in failover table and
     //snap_end_seqno > upper && snap_start_seqno > upper
     auto itr = failover_entries.begin();
     ++itr;
     vb_uuid = itr->vb_uuid;
     --itr;
-    EXPECT_TRUE(table.needsRollback(itr->by_seqno - 5,
-                                    curr_seqno,
-                                    vb_uuid,
-                                    itr->by_seqno - 10,
-                                    itr->by_seqno + 40,
-                                    0,
-                                    false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno));
-    EXPECT_EQ(((itr->by_seqno)-10), rollback_seqno);
+    result = table.needsRollback(itr->by_seqno - 5,
+                                 curr_seqno,
+                                 vb_uuid,
+                                 itr->by_seqno - 10,
+                                 itr->by_seqno + 40,
+                                 0,
+                                 false /*strictVbUuidMatch*/,
+                                 std::nullopt);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(((itr->by_seqno) - 10), result->rollbackSeqno);
     //client vb uuiud is not the latest vbuuid in failover table and
     //snapshot start seqno greate than  upper
-    EXPECT_TRUE(table.needsRollback(itr->by_seqno + 20,
-                                    curr_seqno,
-                                    vb_uuid,
-                                    itr->by_seqno + 10,
-                                    itr->by_seqno + 40,
-                                    0,
-                                    false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno));
-    EXPECT_EQ(itr->by_seqno, rollback_seqno);
+    result = table.needsRollback(itr->by_seqno + 20,
+                                 curr_seqno,
+                                 vb_uuid,
+                                 itr->by_seqno + 10,
+                                 itr->by_seqno + 40,
+                                 0,
+                                 false /*strictVbUuidMatch*/,
+                                 std::nullopt);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(itr->by_seqno, result->rollbackSeqno);
 }
 
 TEST(FailoverTableTest, test_pop_5_failover_log) {
-    uint64_t rollback_seqno;
-
     FailoverTable table(25);
     table_t failover_entries = generate_entries(table, 30,1);
 
@@ -433,20 +392,13 @@ TEST(FailoverTableTest, test_pop_5_failover_log) {
                                      0,
                                      0,
                                      false /*strictVbUuidMatch*/,
-                                     std::nullopt,
-                                     &rollback_seqno));
+                                     std::nullopt));
 
     // rollback needed
-    EXPECT_TRUE(table.needsRollback(10,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno));
-    EXPECT_EQ(0, rollback_seqno);
+    auto result = table.needsRollback(
+            10, 0, 0, 0, 0, 0, false /*strictVbUuidMatch*/, std::nullopt);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(0, result->rollbackSeqno);
 }
 
 TEST(FailoverTableTest, test_add_entry) {
@@ -473,9 +425,6 @@ TEST(FailoverTableTest, test_add_entry) {
 TEST(FailoverTableTest, rollback_log_messages) {
     /* Doesn't actually test functionality, just allows manual confirmation of
      * the logged messages */
-
-    uint64_t rollback_seqno;
-
     FailoverTable table(25);
 
     table_t failover_entries = generate_entries(table, 1, 50);
@@ -490,8 +439,7 @@ TEST(FailoverTableTest, rollback_log_messages) {
                                     0,
                                     20,
                                     false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno)
+                                    std::nullopt)
                         ->rollbackReason);
     EP_LOG_WARN("{}",
                 table.needsRollback(10,
@@ -501,8 +449,7 @@ TEST(FailoverTableTest, rollback_log_messages) {
                                     0,
                                     0,
                                     false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno)
+                                    std::nullopt)
                         ->rollbackReason);
     EP_LOG_WARN("{}",
                 table.needsRollback(10,
@@ -512,8 +459,7 @@ TEST(FailoverTableTest, rollback_log_messages) {
                                     100,
                                     0,
                                     false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno)
+                                    std::nullopt)
                         ->rollbackReason);
     EP_LOG_WARN("{}",
                 table.needsRollback(10,
@@ -523,8 +469,7 @@ TEST(FailoverTableTest, rollback_log_messages) {
                                     100,
                                     0,
                                     false /*strictVbUuidMatch*/,
-                                    std::nullopt,
-                                    &rollback_seqno)
+                                    std::nullopt)
                         ->rollbackReason);
 }
 

@@ -430,10 +430,10 @@ cb::engine_errc DcpProducer::streamRequest(
                                          snap_end_seqno,
                                          vb->getPurgeSeqno(),
                                          flags & DCP_ADD_STREAM_STRICT_VBUUID,
-                                         getHighSeqnoOfCollections(filter, *vb),
-                                         rollback_seqno);
+                                         getHighSeqnoOfCollections(filter, *vb));
 
     if (needsRollback) {
+        *rollback_seqno = needsRollback->rollbackSeqno;
         logger->warn(
                 "({}) Stream request requires rollback to seqno:{} "
                 "because {}. Client requested seqnos:{{{},{}}} "

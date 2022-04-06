@@ -124,8 +124,7 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
         uint64_t snap_end_seqno,
         uint64_t purge_seqno,
         bool strictVbUuidMatch,
-        std::optional<uint64_t> maxCollectionHighSeqno,
-        uint64_t* rollback_seqno) const {
+        std::optional<uint64_t> maxCollectionHighSeqno) const {
     /* Start with upper as vb highSeqno */
     uint64_t upper = cur_seqno;
     std::lock_guard<std::mutex> lh(lock);
@@ -137,8 +136,6 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
     if (start_seqno == 0 && (!strictVbUuidMatch || vb_uuid == 0)) {
         return {};
     }
-
-    *rollback_seqno = 0;
 
     /* One of the reasons for rollback is client being in middle of a snapshot.
        We compare snapshot_start and snapshot_end with start_seqno to see if
@@ -169,7 +166,7 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
         return RollbackDetails{
                 fmt::format("purge seqno ({}) is greater than start seqno - "
                             "could miss purged deletions",
-                            purge_seqno)};
+                            purge_seqno), 0};
     }
 
     table_t::const_reverse_iterator itr;
@@ -191,7 +188,7 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
          have no common history. Rollback to zero */
         return RollbackDetails{
                 "vBucket UUID not found in failover table, "
-                "consumer and producer have no common history"};
+                "consumer and producer have no common history", 0};
     }
 
     if (snap_end_seqno <= upper) {
@@ -201,16 +198,18 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
 
     /* We need a rollback as producer upper is lower than the end in
        consumer snapshot */
+    uint64_t rollbackSeqno;
     if (upper < snap_start_seqno) {
-        *rollback_seqno = upper;
+        rollbackSeqno = upper;
     } else {
         /* We have to rollback till snap_start_seqno to handle
            deduplication case */
-        *rollback_seqno = snap_start_seqno;
+        rollbackSeqno = snap_start_seqno;
     }
 
     return RollbackDetails{fmt::format(
-            "consumer ahead of producer - producer upper at {}", upper)};
+            "consumer ahead of producer - producer upper at {}",
+            upper), rollbackSeqno};
 }
 
 void FailoverTable::pruneEntries(uint64_t seqno) {
