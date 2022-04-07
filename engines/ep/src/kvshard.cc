@@ -26,8 +26,7 @@ KVShard::KVShard(Configuration& config,
       // vBuckets each shard is responsible for. To ensure correct behaviour
       // when vbuckets isn't a multiple of num_shards, apply ceil() to the
       // division so we round up where necessary.
-      vbuckets(std::ceil(float(config.getMaxVbuckets()) / numShards)),
-      highPriorityCount(0) {
+      vbuckets(std::ceil(float(config.getMaxVbuckets()) / numShards)) {
     const std::string backend = config.getBackend();
 
 #ifdef EP_USE_MAGMA

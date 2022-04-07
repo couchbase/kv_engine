@@ -359,9 +359,6 @@ bool EPVBucket::hasPendingBGFetchItems() {
 
 HighPriorityVBReqStatus EPVBucket::checkAddHighPriorityVBEntry(
         uint64_t seqno, const CookieIface* cookie) {
-    if (shard) {
-        ++shard->highPriorityCount;
-    }
     addHighPriorityVBEntry(seqno, cookie);
     return HighPriorityVBReqStatus::RequestScheduled;
 }
@@ -370,10 +367,6 @@ void EPVBucket::notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
                                            uint64_t seqno) {
     auto toNotify = getHighPriorityNotifications(engine, seqno);
 
-    if (shard) {
-        shard->highPriorityCount.fetch_sub(toNotify.size());
-    }
-
     for (auto& notify : toNotify) {
         engine.notifyIOComplete(notify.first, notify.second);
     }
@@ -381,10 +374,6 @@ void EPVBucket::notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
 
 void EPVBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) {
     auto toNotify = tmpFailAndGetAllHpNotifies(e);
-
-    if (shard) {
-        shard->highPriorityCount.fetch_sub(toNotify.size());
-    }
 
     // Add all the pendingBGFetches to the toNotify map
     {

@@ -222,7 +222,5 @@ private:
     std::unique_ptr<KVStoreIface> rwStore;
 
 public:
-    std::atomic<size_t> highPriorityCount;
-
     DISALLOW_COPY_AND_ASSIGN(KVShard);
 };
