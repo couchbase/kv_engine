@@ -2357,11 +2357,11 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getInner(
     cb::engine_errc ret = gv.getStatus();
 
     if (ret == cb::engine_errc::success) {
-        return cb::makeEngineErrorItemPair(
-                cb::engine_errc::success, gv.item.release(), this);
         if (options & TRACK_STATISTICS) {
             ++stats.numOpsGet;
         }
+        return cb::makeEngineErrorItemPair(
+                cb::engine_errc::success, gv.item.release(), this);
     } else if (ret == cb::engine_errc::no_such_key ||
                ret == cb::engine_errc::not_my_vbucket) {
         if (isDegradedMode()) {

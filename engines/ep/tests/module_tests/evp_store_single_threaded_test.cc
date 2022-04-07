@@ -2852,6 +2852,21 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
     EXPECT_EQ(value.size(), gv.item->getValue()->valueSize());
 }
 
+TEST_P(STParameterizedBucketTest, GetUpdatesGetOpsStat) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    ASSERT_EQ(0, engine->getEpStats().numOpsGet);
+
+    auto key = makeStoredDocKey("key");
+    engine->get(*cookie, key, vbid, DocStateFilter::Alive);
+    EXPECT_EQ(0, engine->getEpStats().numOpsGet);
+
+    auto item = makeCommittedItem(key, "value");
+    ASSERT_EQ(cb::engine_errc::success, store->set(*item, cookie));
+
+    engine->get(*cookie, key, vbid, DocStateFilter::Alive);
+    EXPECT_EQ(1, engine->getEpStats().numOpsGet);
+}
 
 TEST_P(STParameterizedBucketTest, DeleteExpiredItem) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
