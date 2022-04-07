@@ -10,6 +10,7 @@
  */
 
 #include "durability_monitor_impl.h"
+#include <fmt/core.h>
 #include <folly/lang/Assume.h>
 #include <utilities/logtags.h>
 #include <utility>
@@ -383,4 +384,9 @@ std::string to_string(SyncWriteStatus status) {
         return "Completed";
     }
     folly::assume_unreachable();
+}
+
+std::string ActiveDurabilityMonitor::State::Labeller::getLabel(
+        const char* name) const {
+    return fmt::format("ActiveDM({})::State::{}", vbid.to_string(), name);
 }

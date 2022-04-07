@@ -662,7 +662,13 @@ void ActiveDurabilityMonitor::removedQueuedAck(const std::string& node) {
 ActiveDurabilityMonitor::State::State(
         ActiveDurabilityMonitor& adm,
         std::unique_ptr<EventDrivenDurabilityTimeoutIface> nextExpiryChanged)
-    : adm(adm), nextExpiryChanged(std::move(nextExpiryChanged)) {
+    : lastTrackedSeqno(0, {adm.vb.getId()}),
+      lastCommittedSeqno(0, {adm.vb.getId()}),
+      lastAbortedSeqno(0, {adm.vb.getId()}),
+      highPreparedSeqno(0, {adm.vb.getId()}),
+      highCompletedSeqno(0, {adm.vb.getId()}),
+      adm(adm),
+      nextExpiryChanged(std::move(nextExpiryChanged)) {
 }
 
 ActiveDurabilityMonitor::Container::iterator
@@ -1686,7 +1692,8 @@ void ActiveDurabilityMonitor::State::updateHighPreparedSeqno(
 
 void ActiveDurabilityMonitor::State::updateHighCompletedSeqno() {
     try {
-        highCompletedSeqno = std::max(lastCommittedSeqno, lastAbortedSeqno);
+        highCompletedSeqno =
+                std::max(lastCommittedSeqno.load(), lastAbortedSeqno.load());
     } catch (const std::exception& e) {
         EP_LOG_ERR(
                 "ActiveDurabilityMonitor::State::updateHighCompletedSeqno(): "

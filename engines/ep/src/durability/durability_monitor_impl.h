@@ -708,26 +708,32 @@ public:
     std::unique_ptr<ReplicationChain> firstChain;
     std::unique_ptr<ReplicationChain> secondChain;
 
+    struct Labeller {
+        std::string getLabel(const char* name) const;
+        const Vbid vbid;
+    };
     // Always stores the seqno of the last SyncWrite added for tracking.
     // Useful for sanity checks, necessary because the tracked container
     // can by emptied by Commit/Abort.
-    Monotonic<int64_t, ThrowExceptionPolicy> lastTrackedSeqno{0};
+    MONOTONIC4(int64_t, lastTrackedSeqno, Labeller, ThrowExceptionPolicy);
 
     // Stores the last committed seqno. Throws as this could be the result of an
     // out of order completion that would break durability.
-    Monotonic<int64_t, ThrowExceptionPolicy> lastCommittedSeqno{0};
+    MONOTONIC4(int64_t, lastCommittedSeqno, Labeller, ThrowExceptionPolicy);
 
     // Stores the last aborted seqno. Throws as this could be the result of an
     // out of order completion that would break durability.
-    Monotonic<int64_t, ThrowExceptionPolicy> lastAbortedSeqno{0};
+    MONOTONIC4(int64_t, lastAbortedSeqno, Labeller, ThrowExceptionPolicy);
 
     // Stores the highPreparedSeqno. Throws as an incorrect value may mean we
     // are doing durability wrong.
-    WeaklyMonotonic<int64_t, ThrowExceptionPolicy> highPreparedSeqno{0};
-
+    WEAKLY_MONOTONIC4(int64_t,
+                      highPreparedSeqno,
+                      Labeller,
+                      ThrowExceptionPolicy);
     // Stores the highCompletedSeqno. Does not throw as this is a stat used for
     // debugging.
-    Monotonic<int64_t> highCompletedSeqno{0};
+    MONOTONIC3(int64_t, highCompletedSeqno, Labeller);
 
     // Cumulative count of accepted (tracked) SyncWrites.
     size_t totalAccepted = 0;
