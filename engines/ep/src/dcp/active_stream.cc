@@ -57,7 +57,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
              snap_end_seqno),
       isBackfillTaskRunning(false),
       pendingBackfill(false),
-      lastReadSeqno(st_seqno),
+      lastReadSeqno(st_seqno, {*this}),
       backfillRemaining(),
       includeValue(includeVal),
       includeXattributes(includeXattrs),
@@ -66,6 +66,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       lastSentSeqno(st_seqno),
       lastSentSeqnoAdvance(0),
       curChkSeqno(st_seqno),
+      nextSnapStart(0, {*this}),
       takeoverState(vbucket_state_pending),
       itemsFromMemoryPhase(0),
       firstMarkerSent(false),
@@ -2360,4 +2361,11 @@ ValueFilter ActiveStream::getValueFilter() const {
 
 void ActiveStream::setEndSeqno(uint64_t seqno) {
     end_seqno_ = seqno;
+}
+
+std::string ActiveStream::Labeller::getLabel(const char* name) const {
+    return fmt::format("ActiveStream({} {})::{}",
+                       stream.getName(),
+                       stream.getLogPrefix(),
+                       name);
 }

@@ -435,6 +435,10 @@ public:
      */
     void setEndSeqno(uint64_t seqno);
 
+    const std::string& getLogPrefix() const {
+        return logPrefix;
+    }
+
     // Introduced in MB-45757 for testing a race condition on invalidate-cursor
     TestingHook<> removeCursorPreLockHook;
 
@@ -581,9 +585,13 @@ protected:
         std::atomic<size_t> sent = 0;
     } backfillItems;
 
+    struct Labeller {
+        std::string getLabel(const char* name) const;
+        const ActiveStream& stream;
+    };
     /* The last sequence number queued from disk or memory and is
        snapshotted and put onto readyQ */
-    AtomicMonotonic<uint64_t, ThrowExceptionPolicy> lastReadSeqno;
+    ATOMIC_MONOTONIC4(uint64_t, lastReadSeqno, Labeller, ThrowExceptionPolicy);
 
     /* backfill ById or BySeqno updates this member during the scan, then
        this value is copied into the lastReadSeqno member when completed */
@@ -792,7 +800,7 @@ private:
      * which also set nextSnapshotIsCheckpoint to true but do not need an
      * override snap start.
      */
-    WeaklyMonotonic<uint64_t> nextSnapStart;
+    WEAKLY_MONOTONIC3(uint64_t, nextSnapStart, Labeller);
 
     //! The current vbucket state to send in the takeover stream
     vbucket_state_t takeoverState;
