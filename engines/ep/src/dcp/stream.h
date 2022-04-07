@@ -57,29 +57,43 @@ public:
 
     virtual ~Stream();
 
-    uint32_t getFlags() { return flags_; }
+    uint32_t getFlags() const {
+        return flags_;
+    }
 
-    Vbid getVBucket() {
+    Vbid getVBucket() const {
         return vb_;
     }
 
-    uint32_t getOpaque() { return opaque_; }
+    uint32_t getOpaque() const {
+        return opaque_;
+    }
 
-    uint64_t getStartSeqno() { return start_seqno_; }
+    uint64_t getStartSeqno() const {
+        return start_seqno_;
+    }
 
-    uint64_t getEndSeqno() { return end_seqno_; }
+    uint64_t getEndSeqno() const {
+        return end_seqno_;
+    }
 
-    uint64_t getVBucketUUID() { return vb_uuid_; }
+    uint64_t getVBucketUUID() const {
+        return vb_uuid_;
+    }
 
-    uint64_t getSnapStartSeqno() { return snap_start_seqno_; }
+    uint64_t getSnapStartSeqno() const {
+        return snap_start_seqno_;
+    }
 
-    uint64_t getSnapEndSeqno() { return snap_end_seqno_; }
+    uint64_t getSnapEndSeqno() const {
+        return snap_end_seqno_;
+    }
 
     virtual void addStats(const AddStatFn& add_stat, const CookieIface* c);
 
     virtual uint32_t setDead(cb::mcbp::DcpStreamEndStatus status) = 0;
 
-    const std::string& getName() {
+    const std::string& getName() const {
         return name_;
     }
 
