@@ -119,7 +119,7 @@ bool FailoverTable::getLastSeqnoForUUID(uint64_t uuid,
 std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
         uint64_t remoteHighSeqno,
         uint64_t localHighSeqno,
-        uint64_t vb_uuid,
+        uint64_t remoteVBUuid,
         uint64_t snap_start_seqno,
         uint64_t snap_end_seqno,
         uint64_t purge_seqno,
@@ -131,10 +131,10 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
 
     /* Clients can have a diverging (w.r.t producer) branch at seqno 0 and in
        such a case, some of them strictly need a rollback and others don't.
-       So we should NOT rollback when a client has a vb_uuid == 0 or
+       So we should NOT rollback when a client has a remoteVBUuid == 0 or
        if does not expect a rollback at remoteHighSeqno == 0 */
-    if (remoteHighSeqno == 0 && (!strictVbUuidMatch || vb_uuid == 0)) {
-       return {};
+    if (remoteHighSeqno == 0 && (!strictVbUuidMatch || remoteVBUuid == 0)) {
+        return {};
     }
 
     /*
@@ -164,7 +164,7 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
 
     table_t::const_reverse_iterator itr;
     for (itr = table.rbegin(); itr != table.rend(); ++itr) {
-        if (itr->vb_uuid == vb_uuid) {
+        if (itr->vb_uuid == remoteVBUuid) {
             auto next = std::next(itr);
             if (next != table.rend()) {
                 /* Since producer has more history we need to consider the
@@ -177,8 +177,8 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
 
     /* Find the rollback point */
     if (itr == table.rend()) {
-        /* No vb_uuid match found in failover table, so producer and consumer
-         have no common history. Rollback to zero */
+        /* No remoteVBUuid match found in failover table, so producer and
+         consumer have no common history. Rollback to zero */
         return RollbackDetails{
                 "vBucket UUID not found in failover table, "
                 "consumer and producer have no common history", 0};

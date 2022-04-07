@@ -118,11 +118,11 @@ public:
      * @param remoteHighSeqno the seq number the remote client wants to start
      *                        from
      * @param localHighSeqno the current source sequence number for this vbucket
-     * @param vb_uuid the latest vbucket uuid of the remote client
+     * @param remoteVBUuid the latest vbucket uuid of the remote client
      * @param snap_start_seqno the start seq number of the sanpshot
      * @param snap_end_seqno the end seq number of the sanpshot
      * @param purge_seqno last seq no purged during compaction
-     * @param strictVbUuidMatch indicates if vb_uuid should match even at
+     * @param strictVbUuidMatch indicates if remoteVBUuid should match even at
      *                          remoteHighSeqno 0
      * @param maxCollectionHighSeqno maximum high seqno of the collections in
      *                               the streams collection filter. std::nullopt
@@ -135,7 +135,7 @@ public:
     std::optional<RollbackDetails> needsRollback(
             uint64_t remoteHighSeqno,
             uint64_t localHighSeqno,
-            uint64_t vb_uuid,
+            uint64_t remoteVBUuid,
             uint64_t snap_start_seqno,
             uint64_t snap_end_seqno,
             uint64_t purge_seqno,
