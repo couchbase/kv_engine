@@ -1272,7 +1272,8 @@ ActiveDurabilityMonitor::State::makeChain(
             name,
             nodes,
             trackedWrites.end(),
-            adm.vb.maxAllowedReplicasForSyncWrites);
+            adm.vb.maxAllowedReplicasForSyncWrites,
+            adm.vb.getId());
 
     // MB-34318
     // The HighPreparedSeqno is the lastWriteSeqno of the active node in the

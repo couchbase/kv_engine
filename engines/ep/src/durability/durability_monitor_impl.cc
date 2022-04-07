@@ -299,7 +299,8 @@ ActiveDurabilityMonitor::ReplicationChain::ReplicationChain(
         const DurabilityMonitor::ReplicationChainName name,
         const std::vector<std::string>& nodes,
         const Container::iterator& it,
-        size_t maxAllowedReplicas)
+        size_t maxAllowedReplicas,
+        Vbid vbid)
     : majority(nodes.size() / 2 + 1),
       active(nodes.at(0)),
       maxAllowedReplicas(maxAllowedReplicas),
@@ -316,12 +317,14 @@ ActiveDurabilityMonitor::ReplicationChain::ReplicationChain(
             continue;
         }
         // This check ensures that there is no duplicate in the given chain
-        auto result = positions.emplace(node, Position<Container>(it));
-        if (!result.second) {
+        auto [itr, success] = positions.emplace(node, Position<Container>(it));
+        if (!success) {
             throw std::invalid_argument(
                     "ReplicationChain::ReplicationChain: Duplicate node: " +
                     node);
         }
+        itr->second.lastAckSeqno.setLabeler({admRepChainLabel, vbid});
+        itr->second.lastWriteSeqno.setLabeler({admRepChainLabel, vbid});
     }
 }
 
@@ -409,4 +412,9 @@ std::string ActiveDurabilityMonitor::State::SeqnoAckQueueLabeller::getLabel(
     return fmt::format("ActiveDM({})::State::queuedSeqnoAck{}",
                        vbid.to_string(),
                        nodeInfo);
+}
+
+std::string PositionLabeller::getLabel(const char* name) const {
+    std::string prefixStr = prefix ? prefix : "";
+    return fmt::format("{}.{} ({})", prefixStr, name, vbid.to_string());
 }

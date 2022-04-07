@@ -544,6 +544,14 @@ void PassiveDurabilityMonitor::toOStream(std::ostream& os) const {
 
 PassiveDurabilityMonitor::State::State(const PassiveDurabilityMonitor& pdm)
     : pdm(pdm) {
+    highPreparedSeqno.lastWriteSeqno.setLabeler(
+            {highPreparedSeqnoPrefix, pdm.vb.getId()});
+    highPreparedSeqno.lastAckSeqno.setLabeler(
+            {highPreparedSeqnoPrefix, pdm.vb.getId()});
+    highCompletedSeqno.lastWriteSeqno.setLabeler(
+            {highCompletedSeqnoPrefix, pdm.vb.getId()});
+    highCompletedSeqno.lastAckSeqno.setLabeler(
+            {highCompletedSeqnoPrefix, pdm.vb.getId()});
 }
 
 PassiveDurabilityMonitor::Container::iterator

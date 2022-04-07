@@ -286,6 +286,20 @@ private:
     friend std::ostream& operator<<(std::ostream&, const ActiveSyncWrite&);
 };
 
+class PositionLabeller {
+public:
+    PositionLabeller(
+            const char* prefix = nullptr,
+            Vbid vbid = Vbid(std::numeric_limits<Vbid::id_type>::max()))
+        : prefix(prefix), vbid(vbid){};
+
+    std::string getLabel(const char* name) const;
+
+private:
+    const char* prefix = nullptr;
+    Vbid vbid;
+};
+
 /**
  * Represents the tracked state of a node in topology.
  * Note that the lifetime of a Position is determined by the logic in
@@ -314,8 +328,14 @@ struct DurabilityMonitor::Position {
     // @todo: Consider using (strictly) Monotonic here. Weakly monotonic was
     // necessary when we tracked both memory and disk seqnos.
     // Now a Replica is not supposed to ack the same seqno twice.
-    WeaklyMonotonic<int64_t, ThrowExceptionPolicy> lastWriteSeqno{0};
-    WeaklyMonotonic<int64_t, ThrowExceptionPolicy> lastAckSeqno{0};
+    WEAKLY_MONOTONIC4(int64_t,
+                      lastWriteSeqno,
+                      PositionLabeller,
+                      ThrowExceptionPolicy){0};
+    WEAKLY_MONOTONIC4(int64_t,
+                      lastAckSeqno,
+                      PositionLabeller,
+                      ThrowExceptionPolicy){0};
 };
 
 /**
@@ -336,17 +356,19 @@ struct ActiveDurabilityMonitor::ReplicationChain {
      *
      * @param name Name of chain (used for stats and exception logging)
      * @param nodes The names of the nodes in this chain
-     * @param initPos The initial position for tracking iterators in chain
+     * @param it The initial position for tracking iterators in chain
      * @param maxAllowedReplicas Should SyncWrites be blocked
      *        (isDurabilityPossible() return false) if there are more than N
      *        replicas configured?
      *        Workaround for known issue with failover / rollback - see
      *        MB-34453 / MB-34150.
+     * @param vbid vbucket ID that the Chain is for.
      */
     ReplicationChain(const DurabilityMonitor::ReplicationChainName name,
                      const std::vector<std::string>& nodes,
-                     const Container::iterator& initPos,
-                     size_t maxAllowedReplicas);
+                     const Container::iterator& it,
+                     size_t maxAllowedReplicas,
+                     Vbid vbid);
 
     size_t size() const;
 
@@ -374,6 +396,9 @@ struct ActiveDurabilityMonitor::ReplicationChain {
 
     // Name of the chain
     const DurabilityMonitor::ReplicationChainName name;
+
+    constexpr static const char* admRepChainLabel =
+            "ActiveDurabilityMonitor::ReplicationChain";
 };
 
 // Used to track information necessary for the PassiveDM to correctly ACK
@@ -891,6 +916,8 @@ struct PassiveDurabilityMonitor::State {
     /// The container of pending Prepares.
     Container trackedWrites;
 
+    constexpr static const char* highPreparedSeqnoPrefix =
+            "PassiveDM::State::highPreparedSeqno";
     // The seqno of the last Prepare satisfied locally. I.e.:
     //     - the Prepare has been queued into the PDM, if Level Majority
     //         or MajorityAndPersistToMaster
@@ -911,6 +938,8 @@ struct PassiveDurabilityMonitor::State {
     // Cumulative count of Aborted SyncWrites.
     size_t totalAborted = 0;
 
+    constexpr static const char* highCompletedSeqnoPrefix =
+            "PassiveDM::State::highCompletedSeqno";
     // Points to the last Prepare that has been completed (Committed or
     // Aborted). Together with the HPS Position, it is used for implementing
     // the correct Prepare remove-logic in PassiveDM.
