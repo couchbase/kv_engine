@@ -854,7 +854,7 @@ void EPVBucket::updateBGStats(
     auto w = static_cast<hrtime_t>(
             std::chrono::duration_cast<std::chrono::microseconds>(waitNs)
                     .count());
-    BlockTimer::log(waitNs, "bgwait", stats.timingLog);
+    BlockTimer::log(waitNs, "bgwait", stats.timingLog.get());
     stats.bgWaitHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(waitNs));
     stats.bgWait.fetch_add(w);
@@ -863,7 +863,7 @@ void EPVBucket::updateBGStats(
             std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
     auto l = static_cast<hrtime_t>(
             std::chrono::duration_cast<std::chrono::microseconds>(lNs).count());
-    BlockTimer::log(lNs, "bgload", stats.timingLog);
+    BlockTimer::log(lNs, "bgload", stats.timingLog.get());
     stats.bgLoadHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(lNs));
     stats.bgLoad.fetch_add(l);

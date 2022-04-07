@@ -101,7 +101,8 @@ bool VBucketMemoryAndDiskDeletionTask::run() {
             std::chrono::duration_cast<std::chrono::microseconds>(elapsed);
 
     engine->getEpStats().vbucketDeletions++;
-    BlockTimer::log(elapsed, "disk_vb_del", engine->getEpStats().timingLog);
+    BlockTimer::log(
+            elapsed, "disk_vb_del", engine->getEpStats().timingLog.get());
     engine->getEpStats().diskVBDelHisto.add(wallTime);
     atomic_setIfBigger(engine->getEpStats().vbucketDelMaxWalltime,
                        hrtime_t(wallTime.count()));

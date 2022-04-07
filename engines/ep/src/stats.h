@@ -589,7 +589,7 @@ public:
     size_t getMemFootPrint() const;
 
     // Used by stats logging infrastructure.
-    std::ostream *timingLog;
+    std::unique_ptr<std::ostream> timingLog;
 
 protected:
 

@@ -113,9 +113,7 @@ EPStats::EPStats()
     trackCollectionStats(CollectionID::Default);
 }
 
-EPStats::~EPStats() {
-    delete timingLog;
-}
+EPStats::~EPStats() = default;
 
 void EPStats::setMaxDataSize(size_t size) {
     if (size > 0) {

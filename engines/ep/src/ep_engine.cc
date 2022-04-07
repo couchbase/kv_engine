@@ -594,22 +594,19 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setMutationMemThreshold(std::stoull(val));
         } else if (key == "timing_log") {
             EPStats& epStats = getEpStats();
-            std::ostream* old = epStats.timingLog;
             epStats.timingLog = nullptr;
-            delete old;
             if (val == "off") {
                 EP_LOG_DEBUG_RAW("Disabled timing log.");
             } else {
-                auto* tmp(new std::ofstream(val));
+                auto tmp = std::make_unique<std::ofstream>(val);
                 if (tmp->good()) {
                     EP_LOG_DEBUG("Logging detailed timings to ``{}''.", val);
-                    epStats.timingLog = tmp;
+                    epStats.timingLog = std::move(tmp);
                 } else {
                     EP_LOG_WARN(
                             "Error setting detailed timing log to ``{}'':  {}",
                             val,
                             strerror(errno));
-                    delete tmp;
                 }
             }
         } else if (key == "exp_pager_enabled") {

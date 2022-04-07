@@ -944,7 +944,7 @@ bool EPBucket::commit(KVStoreIface& kvstore,
                       std::unique_ptr<TransactionContext> txnCtx,
                       VB::Commit& commitData) {
     HdrMicroSecBlockTimer timer(
-            &stats.diskCommitHisto, "disk_commit", stats.timingLog);
+            &stats.diskCommitHisto, "disk_commit", stats.timingLog.get());
     const auto commit_start = std::chrono::steady_clock::now();
 
     auto vbid = txnCtx->vbid;
@@ -1217,7 +1217,7 @@ void EPBucket::flushOneDelOrSet(TransactionContext& txnCtx,
         HdrMicroSecBlockTimer timer(
                 bySeqno == -1 ? &stats.diskInsertHisto : &stats.diskUpdateHisto,
                 bySeqno == -1 ? "disk_insert" : "disk_update",
-                stats.timingLog);
+                stats.timingLog.get());
         if (qi->isSystemEvent()) {
             rwUnderlying->setSystemEvent(txnCtx, qi);
         } else {
@@ -1225,7 +1225,7 @@ void EPBucket::flushOneDelOrSet(TransactionContext& txnCtx,
         }
     } else {
         HdrMicroSecBlockTimer timer(
-                &stats.diskDelHisto, "disk_delete", stats.timingLog);
+                &stats.diskDelHisto, "disk_delete", stats.timingLog.get());
         if (qi->isSystemEvent()) {
             rwUnderlying->delSystemEvent(txnCtx, qi);
         } else {
