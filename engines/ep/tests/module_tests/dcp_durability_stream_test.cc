@@ -4651,18 +4651,23 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     // Simulate running the checkpoint processor task again, now we process
     // the second and the third checkpoints (both type:memory)
     outItems = stream->public_getOutstandingItems(*vb);
-    ASSERT_EQ(7, outItems.items.size());
+    ASSERT_EQ(8, outItems.items.size());
     ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
-    // set_vbucket_state is from changing to active in the middle of this test
+    // this set_vbucket_state is from creating a new failover table entry as
+    // part of changing to active in the middle of this test
     ASSERT_EQ(queue_op::set_vbucket_state,
               outItems.items.at(1)->getOperation());
-    ASSERT_EQ(queue_op::mutation, outItems.items.at(2)->getOperation());
+    // this set_vbucket_state is from changing to active in the middle of this
+    // test
+    ASSERT_EQ(queue_op::set_vbucket_state,
+              outItems.items.at(2)->getOperation());
+    ASSERT_EQ(queue_op::mutation, outItems.items.at(3)->getOperation());
     ASSERT_EQ(queue_op::pending_sync_write,
-              outItems.items.at(3)->getOperation());
-    ASSERT_EQ(queue_op::checkpoint_end, outItems.items.at(4)->getOperation());
-    ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(5)->getOperation());
+              outItems.items.at(4)->getOperation());
+    ASSERT_EQ(queue_op::checkpoint_end, outItems.items.at(5)->getOperation());
+    ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(6)->getOperation());
     ASSERT_EQ(queue_op::commit_sync_write,
-              outItems.items.at(6)->getOperation());
+              outItems.items.at(7)->getOperation());
 
     // Stream::readyQ still empty
     ASSERT_EQ(0, stream->public_readyQSize());
@@ -4940,12 +4945,18 @@ void DurabilityPromotionStreamTest::
     // Get items from CM, expect Memory{set-vbs:4, M:4}:
     //   ckpt-start + set-vbs:4 + M:4 + ckpt-end
     outItems = activeStream->public_getOutstandingItems(*vb);
-    ASSERT_EQ(3, outItems.items.size());
+    ASSERT_EQ(4, outItems.items.size());
     ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
+    // this set_vbucket_state is from creating a new failover table entry as
+    // part of changing to active in the middle of this test
     ASSERT_EQ(queue_op::set_vbucket_state,
               outItems.items.at(1)->getOperation());
-    ASSERT_EQ(queue_op::mutation, outItems.items.at(2)->getOperation());
-    ASSERT_EQ(4, outItems.items.at(2)->getBySeqno());
+    // this set_vbucket_state is from changing to active in the middle of this
+    // test
+    ASSERT_EQ(queue_op::set_vbucket_state,
+              outItems.items.at(2)->getOperation());
+    ASSERT_EQ(queue_op::mutation, outItems.items.at(3)->getOperation());
+    ASSERT_EQ(4, outItems.items.at(3)->getBySeqno());
 
     // Stream::readyQ still empty
     ASSERT_EQ(0, activeStream->public_readyQSize());

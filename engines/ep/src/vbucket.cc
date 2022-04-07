@@ -4183,3 +4183,8 @@ void VBucket::scheduleDestruction(CheckpointList&& checkpoints) const {
         bucket->scheduleDestruction(std::move(checkpoints), id);
     }
 }
+
+void VBucket::createFailoverEntry(uint64_t seqno) {
+    failovers->createEntry(seqno);
+    checkpointManager->queueSetVBState();
+}

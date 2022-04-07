@@ -1044,7 +1044,7 @@ void KVBucket::setVBucketState_UNLOCKED(
         auto highSeqno = range.getEnd() == vb->getPersistenceSeqno()
                                  ? range.getEnd()
                                  : range.getStart();
-        vb->failovers->createEntry(highSeqno);
+        vb->createFailoverEntry(highSeqno);
 
         auto entry = vb->failovers->getLatestEntry();
         EP_LOG_INFO(

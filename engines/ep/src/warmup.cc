@@ -1385,9 +1385,9 @@ void Warmup::createVBuckets(uint16_t shardId) {
                 (!cleanShutdown ||
                  store.getCollectionsManager().needsUpdating(*vb))) {
                 if (static_cast<uint64_t>(vbs.highSeqno) == vbs.lastSnapEnd) {
-                    vb->failovers->createEntry(vbs.lastSnapEnd);
+                    vb->createFailoverEntry(vbs.lastSnapEnd);
                 } else {
-                    vb->failovers->createEntry(vbs.lastSnapStart);
+                    vb->createFailoverEntry(vbs.lastSnapStart);
                 }
 
                 auto entry = vb->failovers->getLatestEntry();

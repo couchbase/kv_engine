@@ -1632,6 +1632,13 @@ public:
      */
     size_t getCheckpointMaxSize() const;
 
+    /**
+     * Create a failover table entry at the given seqno (and queue a
+     * setVBucketState for later persistence).
+     * @param seqno at which to place the failover table entry
+     */
+    void createFailoverEntry(uint64_t seqno);
+
     std::unique_ptr<FailoverTable> failovers;
 
     std::atomic<size_t>  opsCreate;
