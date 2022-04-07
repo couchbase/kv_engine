@@ -64,7 +64,7 @@ public:
     /// Lock which must be acquired to consume (dequeue) items from the queue.
     using ConsumerLock = std::mutex;
 
-    explicit ResolvedQueue(Vbid vbid) {
+    explicit ResolvedQueue(Vbid vbid) : highEnqueuedSeqno(0, {vbid}) {
     }
 
     /**
@@ -126,9 +126,15 @@ private:
             folly::USPSCQueue<DurabilityMonitor::ActiveSyncWrite, false, 5>;
     Queue queue;
 
+    struct Labeller {
+        std::string getLabel(const char* name) const {
+            return fmt::format("ActiveDM::ResolvedQueue[{}]::{}", vbid, name);
+        };
+        const Vbid vbid;
+    };
     // Track the highest Enqueued Seqno to enforce enqueue ordering. Throws as
     // this could otherwise allow out of order commit on active.
-    Monotonic<int64_t, ThrowExceptionPolicy> highEnqueuedSeqno{0};
+    MONOTONIC4(int64_t, highEnqueuedSeqno, Labeller, ThrowExceptionPolicy);
 
     /// The lock guarding consumption of items.
     ConsumerLock consumerLock;
