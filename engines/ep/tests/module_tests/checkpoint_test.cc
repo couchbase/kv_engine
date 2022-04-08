@@ -3334,7 +3334,7 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     }
 
     // Load post-conditions
-    EXPECT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumCheckpoints());
     EXPECT_EQ(numItems, manager.getNumOpenChkItems());
     EXPECT_EQ(initialQueueSize + numItems, openQueue.size());
 
@@ -3347,10 +3347,49 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     EXPECT_EQ(queued + index + queueOverhead,
               stats.getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(queued + index + queueOverhead, manager.getMemUsage());
+
+    // Since we only have one checkpoint, the CheckpointManager's sum should be
+    // equal to the single Checkpoint's memory values
+    EXPECT_EQ(queueOverhead, manager.getMemOverheadQueue());
+    EXPECT_EQ(index, manager.getMemOverheadIndex());
+    // Add the size of one Checkpoint to the queue and index overhead to
+    // calculate the CM's memory overhead
+    EXPECT_EQ(queueOverhead + index + sizeof(Checkpoint),
+              manager.getMemOverhead());
 }
 
 TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsage) {
     testCheckpointManagerMemUsage();
+}
+
+TEST_F(CheckpointMemoryTrackingTest,
+       CheckpointManagerMemUsageMultipleCheckpoints) {
+    int numCheckpoints = 2;
+    setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+
+    // Force each item to be in a new checkpoint
+    engine->getCheckpointConfig().setCheckpointMaxSize(1);
+
+    for (int key = 0; key < numCheckpoints; ++key) {
+        store_item(vbid, makeStoredDocKey(std::to_string(key)), "");
+    }
+
+    ASSERT_GT(manager.getNumCheckpoints(), 1);
+
+    size_t queueOverheadTotal = 0;
+    size_t keyIndexOverheadTotal = 0;
+    size_t memOverheadTotal = 0;
+    for (auto& checkpoint : manager.getCheckpointList()) {
+        queueOverheadTotal += checkpoint->getMemOverheadQueue();
+        keyIndexOverheadTotal += checkpoint->getMemOverheadIndex();
+        memOverheadTotal += checkpoint->getMemOverhead();
+    }
+
+    EXPECT_EQ(queueOverheadTotal, manager.getMemOverheadQueue());
+    EXPECT_EQ(keyIndexOverheadTotal, manager.getMemOverheadIndex());
+    EXPECT_EQ(memOverheadTotal, manager.getMemOverhead());
 }
 
 TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
