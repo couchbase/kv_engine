@@ -1514,7 +1514,8 @@ void ActiveDurabilityMonitor::State::performQueuedAckForChain(
 
 void ActiveDurabilityMonitor::State::queueSeqnoAck(const std::string& node,
                                                    int64_t seqno) {
-    queuedSeqnoAcks[node] = seqno;
+    queuedSeqnoAcks.insert(
+            {node, QSeqnoAckMonotonic{seqno, {node, adm.vb.getId()}}});
 }
 
 void ActiveDurabilityMonitor::State::cleanUpTrackedWritesPostTopologyChange(

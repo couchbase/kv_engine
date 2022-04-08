@@ -750,13 +750,27 @@ public:
 
     const ActiveDurabilityMonitor& adm;
 
+    struct SeqnoAckQueueLabeller {
+        SeqnoAckQueueLabeller(std::string nodeName, Vbid vbid);
+        std::string getLabel(const char* l) const;
+
+#if CB_DEVELOPMENT_ASSERTS
+        // Only store the node name as a string if dev asserts are on as an
+        // empty std::string is 32Bytes
+        std::string node;
+#endif
+        Vbid vbid;
+    };
+    using QSeqnoAckMonotonic = Monotonic<int64_t,
+                                         ThrowExceptionPolicy,
+                                         nullptr,
+                                         SeqnoAckQueueLabeller>;
     // Map of node to seqno value for seqno acks that we have seen but
     // do not exist in the current replication topology. They may be
     // required to manually ack for a new node if we receive an ack before
     // ns_server sends us a new replication topology. Throws because a replica
     // should never ack backwards.
-    std::unordered_map<std::string, Monotonic<int64_t, ThrowExceptionPolicy>>
-            queuedSeqnoAcks;
+    std::unordered_map<std::string, QSeqnoAckMonotonic> queuedSeqnoAcks;
 
     /// Interface to the VBucket's SyncWriteExpiry task, used to schedule when
     /// the task should run to cancel (abort) any SyncWrites which have

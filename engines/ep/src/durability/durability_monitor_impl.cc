@@ -390,3 +390,23 @@ std::string ActiveDurabilityMonitor::State::Labeller::getLabel(
         const char* name) const {
     return fmt::format("ActiveDM({})::State::{}", vbid.to_string(), name);
 }
+
+ActiveDurabilityMonitor::State::SeqnoAckQueueLabeller::SeqnoAckQueueLabeller(
+        std::string nodeName, Vbid vbid)
+    :
+#if CB_DEVELOPMENT_ASSERTS
+      node(std::move(nodeName)),
+#endif
+      vbid(vbid) {
+}
+
+std::string ActiveDurabilityMonitor::State::SeqnoAckQueueLabeller::getLabel(
+        const char* l) const {
+    std::string nodeInfo;
+#if CB_DEVELOPMENT_ASSERTS
+    nodeInfo = " node:" + node;
+#endif
+    return fmt::format("ActiveDM({})::State::queuedSeqnoAck{}",
+                       vbid.to_string(),
+                       nodeInfo);
+}
