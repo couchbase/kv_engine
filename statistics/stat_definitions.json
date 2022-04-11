@@ -1040,6 +1040,10 @@
         "unit": "bytes"
     },
     {
+        "key": "ep_magma_tree_snapshot_mem_used",
+        "unit": "bytes"
+    },
+    {
         "key": "ep_magma_index_resident_ratio",
         "unit": "ratio"
     },
