@@ -928,11 +928,11 @@ bool Connection::executeCommandsCallback() {
     return true;
 }
 
-static std::string getOpenSSLErrors(Connection& c, bufferevent* bev) {
+std::string Connection::getOpenSSLErrors() {
     unsigned long err;
-    auto buffer = c.getThread().getScratchBuffer();
+    auto buffer = thread.getScratchBuffer();
     std::vector<std::string> messages;
-    while ((err = bufferevent_get_openssl_error(bev)) != 0) {
+    while ((err = bufferevent_get_openssl_error(bev.get())) != 0) {
         std::stringstream ss;
         ERR_error_string_n(err, buffer.data(), buffer.size());
         ss << "{" << buffer.data() << "},";
@@ -958,27 +958,50 @@ static std::string getOpenSSLErrors(Connection& c, bufferevent* bev) {
     return ret;
 }
 
-void Connection::rw_callback(bufferevent* bev, void* ctx) {
-    auto& instance = *reinterpret_cast<Connection*>(ctx);
-    if (instance.isSslEnabled()) {
-        const auto ssl_errors = getOpenSSLErrors(instance, bev);
+void Connection::read_callback() {
+    if (isSslEnabled()) {
+        const auto ssl_errors = getOpenSSLErrors();
         if (!ssl_errors.empty()) {
             LOG_INFO("{} - OpenSSL errors reported: {}",
-                     instance.getId(),
+                     this->getId(),
                      ssl_errors);
         }
     }
 
-    auto& thread = instance.getThread();
+    TRACE_LOCKGUARD_TIMED(thread.mutex,
+                          "mutex",
+                          "Connection::read_callback::threadLock",
+                          SlowMutexThreshold);
+
+    if (!executeCommandsCallback()) {
+        conn_destroy(this);
+    }
+}
+
+void Connection::read_callback(bufferevent*, void* ctx) {
+    reinterpret_cast<Connection*>(ctx)->read_callback();
+}
+
+void Connection::write_callback() {
+    if (isSslEnabled()) {
+        const auto ssl_errors = getOpenSSLErrors();
+        if (!ssl_errors.empty()) {
+            LOG_INFO("{} - OpenSSL errors reported: {}", getId(), ssl_errors);
+        }
+    }
 
     TRACE_LOCKGUARD_TIMED(thread.mutex,
                           "mutex",
                           "Connection::rw_callback::threadLock",
                           SlowMutexThreshold);
 
-    if (!instance.executeCommandsCallback()) {
-        conn_destroy(&instance);
+    if (!executeCommandsCallback()) {
+        conn_destroy(this);
     }
+}
+
+void Connection::write_callback(bufferevent*, void* ctx) {
+    reinterpret_cast<Connection*>(ctx)->write_callback();
 }
 
 static nlohmann::json BevEvent2Json(short event) {
@@ -1023,7 +1046,7 @@ void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
 
     std::string ssl_errors;
     if (instance.isSslEnabled()) {
-        ssl_errors = getOpenSSLErrors(instance, bev);
+        ssl_errors = instance.getOpenSSLErrors();
     }
 
     if ((event & BEV_EVENT_EOF) == BEV_EVENT_EOF) {
@@ -1107,7 +1130,7 @@ void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
 void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
     auto& instance = *reinterpret_cast<Connection*>(ctx);
 
-    const auto ssl_errors = getOpenSSLErrors(instance, bev);
+    const auto ssl_errors = instance.getOpenSSLErrors();
     if (!ssl_errors.empty()) {
         LOG_INFO("{} - OpenSSL errors reported: {}",
                  instance.getId(),
@@ -1205,13 +1228,13 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
 
     // update the callback to call the normal read callback
     bufferevent_setcb(bev,
-                      Connection::rw_callback,
-                      Connection::rw_callback,
+                      Connection::read_callback,
+                      Connection::write_callback,
                       Connection::event_callback,
                       ctx);
 
     // and let's call it to make sure we step through the state machinery
-    Connection::rw_callback(bev, ctx);
+    Connection::read_callback(bev, ctx);
 }
 
 void Connection::setAuthenticated(bool authenticated_,
@@ -1390,15 +1413,15 @@ Connection::Connection(SOCKET sfd,
                                                options));
         bufferevent_setcb(bev.get(),
                           Connection::ssl_read_callback,
-                          Connection::rw_callback,
+                          Connection::write_callback,
                           Connection::event_callback,
                           static_cast<void*>(this));
     } else {
         bev.reset(bufferevent_socket_new(
                 thr.eventBase.getLibeventBase(), sfd, options));
         bufferevent_setcb(bev.get(),
-                          Connection::rw_callback,
-                          Connection::rw_callback,
+                          Connection::read_callback,
+                          Connection::write_callback,
                           Connection::event_callback,
                           static_cast<void*>(this));
     }

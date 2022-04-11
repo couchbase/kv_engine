@@ -1173,14 +1173,29 @@ protected:
     void logExecutionException(const std::string_view where,
                                const std::exception& e);
 
+    std::string getOpenSSLErrors();
+
     /**
-     * The callback method called from bufferevent for read/write callbacks
+     * The callback method called from bufferevent when there is new data
+     * available on the socket
      *
      * @param bev the bufferevent structure the event belongs to
      * @param ctx the context registered with the bufferevent (pointer to
      *            the connection object)
      */
-    static void rw_callback(bufferevent* bev, void* ctx);
+    static void read_callback(bufferevent* bev, void* ctx);
+    void read_callback();
+
+    /**
+     * The callback method called from bufferevent when we're below the write
+     * threshold (or all data is sent)
+     *
+     * @param bev the bufferevent structure the event belongs to
+     * @param ctx the context registered with the bufferevent (pointer to
+     *            the connection object)
+     */
+    static void write_callback(bufferevent* bev, void* ctx);
+    void write_callback();
 
     /**
      * The callback method called from bufferevent for "other" callbacks
