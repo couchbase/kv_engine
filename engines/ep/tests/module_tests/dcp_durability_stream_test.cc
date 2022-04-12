@@ -2337,10 +2337,6 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDuplicateDcpPrepareRemoveFromPDM) {
     auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vb);
     if (persistent()) {
         EXPECT_EQ(1, pdm.getNumTracked());
-
-        // As we have a disk checkpoint we need to receive snap end and persist
-        // the snap
-        pdm.notifySnapshotEndReceived(4);
         flushVBucketToDiskIfPersistent(vbid, 3);
     }
 
