@@ -661,7 +661,8 @@ public:
                            int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
                            bool mightContainXattrs = false,
                            const nlohmann::json* replicationTopology = {},
-                           uint64_t maxVisibleSeqno = 0) override = 0;
+                           uint64_t maxVisibleSeqno = 0,
+                           uint64_t maxPrepareSeqno = 0) override = 0;
 
     /**
      * Method to handle set_collections commands

@@ -43,7 +43,8 @@ VBucketPtr MockEphemeralBucket::makeVBucket(
         int64_t hlcEpochSeqno,
         bool mightContainXattrs,
         const nlohmann::json* replicationTopology,
-        uint64_t maxVisibleSeqno) {
+        uint64_t maxVisibleSeqno,
+        uint64_t maxPrepareSeqno) {
     auto vptr = EphemeralBucket::makeVBucket(id,
                                              state,
                                              shard,
@@ -59,7 +60,8 @@ VBucketPtr MockEphemeralBucket::makeVBucket(
                                              hlcEpochSeqno,
                                              mightContainXattrs,
                                              replicationTopology,
-                                             maxVisibleSeqno);
+                                             maxVisibleSeqno,
+                                             maxPrepareSeqno);
 
     // need to preserve the overhead callback after replacing the checkpoint
     // manager

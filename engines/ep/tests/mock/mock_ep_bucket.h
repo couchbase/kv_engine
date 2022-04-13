@@ -57,7 +57,8 @@ public:
                            int64_t hlcEpochSeqno,
                            bool mightContainXattrs,
                            const nlohmann::json* replicationTopology,
-                           uint64_t maxVisibleSeqno) override;
+                           uint64_t maxVisibleSeqno,
+                           uint64_t maxPrepareSeqno) override;
 
     void setDurabilityCompletionTask(
             std::shared_ptr<DurabilityCompletionTask> task);
