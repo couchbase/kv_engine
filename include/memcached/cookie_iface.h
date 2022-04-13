@@ -11,6 +11,7 @@
 #pragma once
 
 #include <memcached/tracer.h>
+#include <atomic>
 #include <memory>
 #include <optional>
 
@@ -97,4 +98,23 @@ public:
 
     /// Get the payload from the command.
     virtual std::string_view getInflatedInputPayload() const = 0;
+
+    /// Add the number of document bytes read
+    void addDocumentReadBytes(size_t nread) {
+        document_bytes_read += nread;
+    }
+
+    /// Add the number of document bytes written
+    void addDocumentWriteBytes(size_t nwrite) {
+        document_bytes_written += nwrite;
+    }
+
+    std::pair<size_t, size_t> getDocumentRWBytes() const {
+        return {document_bytes_read.load(std::memory_order_acquire),
+                document_bytes_written.load(std::memory_order_acquire)};
+    }
+
+protected:
+    std::atomic<size_t> document_bytes_read = 0;
+    std::atomic<size_t> document_bytes_written = 0;
 };

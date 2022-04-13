@@ -118,6 +118,7 @@ cb::engine_errc bucket_store(
         add(cookie,
             document_state == DocumentState::Alive ? Operation::Modify
                                                    : Operation::Delete);
+        cookie.addDocumentWriteBytes(item_->getValueView().size());
     } else if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_store return cb::engine_errc::disconnect",
                     c.getId(),
@@ -151,6 +152,7 @@ cb::EngineErrorCasPair bucket_store_if(
         add(cookie,
             document_state == DocumentState::Alive ? Operation::Modify
                                                    : Operation::Delete);
+        cookie.addDocumentWriteBytes(item_->getValueView().size());
     } else if (ret.status == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} store_if return cb::engine_errc::disconnect",
                     c.getId(),
@@ -174,6 +176,8 @@ cb::engine_errc bucket_remove(
     if (ret == cb::engine_errc::success) {
         cb::audit::document::add(cookie,
                                  cb::audit::document::Operation::Delete);
+        // @todo it should be 1 WCU for the tombstone?
+        cookie.addDocumentWriteBytes(1);
     } else if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_remove return cb::engine_errc::disconnect",
                     c.getId(),

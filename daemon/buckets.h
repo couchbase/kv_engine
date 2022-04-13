@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -171,6 +170,10 @@ public:
      */
     void reset();
 
+    /// Notify the bucket that the provided command completed execution in
+    /// the bucket
+    void commandExecuted(const Cookie& cookie);
+
 protected:
     unique_engine_ptr engine;
 
@@ -179,6 +182,12 @@ protected:
      * connected bucket doesn't support DCP.
      */
     DcpIface* bucketDcp{nullptr};
+
+    /// The number of RCUs being used in this bucket
+    std::atomic<std::size_t> read_compute_units_used{0};
+
+    /// The number of WCUs being used in this bucket
+    std::atomic<std::size_t> write_compute_units_used{0};
 };
 
 std::string to_string(Bucket::State state);

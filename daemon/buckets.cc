@@ -23,6 +23,9 @@
 #include <platform/timeutils.h>
 #include <utilities/engine_errc_2_mcbp.h>
 
+static std::atomic<size_t> read_compute_unit_size;
+static std::atomic<size_t> write_compute_unit_size;
+
 Bucket::Bucket() = default;
 
 void Bucket::reset() {
@@ -34,6 +37,8 @@ void Bucket::reset() {
     clusterConfiguration.reset();
     max_document_size = default_max_item_size;
     supportedFeatures = {};
+    read_compute_units_used = 0;
+    write_compute_units_used = 0;
     for (auto& c : responseCounters) {
         c.reset();
     }
@@ -58,6 +63,8 @@ nlohmann::json Bucket::to_json() const {
             json["clients"] = clients.load();
             json["name"] = name;
             json["type"] = to_string(type);
+            json["rcu"] = read_compute_units_used.load();
+            json["wcu"] = write_compute_units_used.load();
         } catch (const std::exception& e) {
             LOG_ERROR("Failed to generate bucket details: {}", e.what());
         }
@@ -81,6 +88,16 @@ void Bucket::destroyEngine(bool force) {
 void Bucket::setEngine(unique_engine_ptr engine_) {
     engine = std::move(engine_);
     bucketDcp = dynamic_cast<DcpIface*>(engine.get());
+}
+
+void Bucket::commandExecuted(const Cookie& cookie) {
+    const auto [read, write] = cookie.getDocumentRWBytes();
+    const auto rcu =
+            (read + read_compute_unit_size - 1) / read_compute_unit_size;
+    const auto wcu =
+            (write + write_compute_unit_size - 1) / write_compute_unit_size;
+    read_compute_units_used += rcu;
+    write_compute_units_used += wcu;
 }
 
 namespace BucketValidator {
@@ -516,7 +533,22 @@ void BucketManager::destroyAll() {
 }
 
 BucketManager::BucketManager() {
-    size_t numthread = Settings::instance().getNumWorkerThreads() + 1;
+    auto& settings = Settings::instance();
+    read_compute_unit_size = settings.getReadComputeUnitSize();
+    write_compute_unit_size = settings.getWriteComputeUnitSize();
+
+    settings.addChangeListener("read_compute_unit_size",
+                               [](const std::string&, Settings& s) -> void {
+                                   read_compute_unit_size =
+                                           s.getReadComputeUnitSize();
+                               });
+    settings.addChangeListener("write_compute_unit_size",
+                               [](const std::string&, Settings& s) -> void {
+                                   write_compute_unit_size =
+                                           s.getWriteComputeUnitSize();
+                               });
+
+    size_t numthread = settings.getNumWorkerThreads() + 1;
     for (auto& b : all_buckets) {
         b.stats.resize(numthread);
     }

@@ -348,12 +348,14 @@ TEST_P(StatsTest, TestBucketDetails) {
     // Validate each bucket entry (I should probably extend it with checking
     // of the actual values
     for (const auto& bucket : array) {
-        EXPECT_EQ(5, bucket.size());
+        EXPECT_EQ(7, bucket.size());
         EXPECT_NE(bucket.end(), bucket.find("index"));
         EXPECT_NE(bucket.end(), bucket.find("state"));
         EXPECT_NE(bucket.end(), bucket.find("clients"));
         EXPECT_NE(bucket.end(), bucket.find("name"));
         EXPECT_NE(bucket.end(), bucket.find("type"));
+        EXPECT_NE(bucket.end(), bucket.find("rcu"));
+        EXPECT_NE(bucket.end(), bucket.find("wcu"));
     }
 }
 

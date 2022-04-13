@@ -1304,6 +1304,9 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
     // bucket_store.
     if (!context.traits.is_mutator) {
         cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
+        if (context.overall_status == cb::mcbp::Status::Success) {
+            cookie.addDocumentReadBytes(value.size());
+        }
     }
 
     // Add mutation descr to response buffer if requested.
@@ -1494,6 +1497,10 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
                 h.setLength((mloc.length));
                 connection.copyToOutputStream(h.getBuffer(),
                                               {mloc.at, mloc.length});
+
+                if (context.overall_status == cb::mcbp::Status::Success) {
+                    cookie.addDocumentReadBytes(mloc.length);
+                }
             } else {
                 connection.copyToOutputStream(h.getBuffer());
             }

@@ -985,12 +985,12 @@ int memcached_main(int argc, char** argv) {
 
     startExecutorPool();
 
+    LOG_INFO_RAW("Starting Tenant stats collecting");
+    TenantManager::startup();
+
     // Schedule the StaleTraceRemover
     startStaleTraceDumpRemover(std::chrono::minutes(1),
                                std::chrono::minutes(5));
-
-    LOG_INFO_RAW("Starting Tenant stats collecting");
-    TenantManager::startup();
 
     /* Initialise memcached time keeping */
     mc_time_init(main_base->getLibeventBase());

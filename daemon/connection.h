@@ -816,7 +816,7 @@ public:
     void processNotifiedCookie(Cookie& cookie, cb::engine_errc status);
 
     /// Notify that a command was executed (needed for command rate limiting)
-    void commandExecuted();
+    void commandExecuted(Cookie& cookie);
 
 protected:
     /**

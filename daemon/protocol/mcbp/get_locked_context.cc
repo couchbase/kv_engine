@@ -99,6 +99,7 @@ cb::engine_errc GetLockedCommandContext::sendResponse() {
         }
     }
 
+    cookie.addDocumentReadBytes(payload.size());
     connection.sendResponse(
             cookie,
             cb::mcbp::Status::Success,

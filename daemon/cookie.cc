@@ -171,8 +171,8 @@ bool Cookie::execute(bool useStartTime) {
     tracer.record(cb::tracing::Code::Execute, ts, te);
 
     if (done) {
-        connection.commandExecuted();
         collectTimings(te);
+        connection.commandExecuted(*this);
         return true;
     }
     return false;
@@ -552,6 +552,8 @@ cb::mcbp::Status Cookie::validate() {
 }
 
 void Cookie::reset() {
+    document_bytes_read = 0;
+    document_bytes_written = 0;
     event_id.clear();
     error_context.clear();
     json_message.clear();
