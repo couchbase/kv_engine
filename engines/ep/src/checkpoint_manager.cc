@@ -37,6 +37,7 @@ CheckpointManager::CheckpointManager(EPStats& st,
                                      uint64_t lastSnapStart,
                                      uint64_t lastSnapEnd,
                                      uint64_t maxVisibleSeqno,
+                                     uint64_t maxPrepareSeqno,
                                      FlusherCallback cb,
                                      CheckpointDisposer checkpointDisposer)
     : stats(st),

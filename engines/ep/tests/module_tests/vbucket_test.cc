@@ -120,6 +120,7 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
             range.getStart(),
             range.getEnd(),
             lastSeqno, // setting maxVisibleSeqno to equal lastSeqno
+            0, // maxPrepareSeqno
             /*flusher callback*/ nullptr,
             ImmediateCkptDisposer);
 

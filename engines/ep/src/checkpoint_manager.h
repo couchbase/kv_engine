@@ -154,6 +154,8 @@ public:
      * @param lastSnapEnd most recent snapshot end seqnp
      * @param maxVisibleSeqno highest seqno of a committed item at the time
      *                        of construction
+     * @param maxPrepareSeqno highest seqno of a prepare at time of
+     *                        construction, set from PPS at warmup.
      * @param cb flusher callback, used to trigger the flusher after items have
      *           been queued
      * @param checkpointDisposer callback which may be used to queue checkpoints
@@ -166,6 +168,7 @@ public:
                       uint64_t lastSnapStart,
                       uint64_t lastSnapEnd,
                       uint64_t maxVisibleSeqno,
+                      uint64_t maxPrepareSeqno,
                       FlusherCallback cb,
                       CheckpointDisposer checkpointDisposer);
 
