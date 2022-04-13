@@ -16,6 +16,7 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/consumer.h"
 #include "dcp/response.h"
+#include "durability/durability_monitor.h"
 #include "ep_engine.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
@@ -188,6 +189,26 @@ void PassiveStream::acceptStream(cb::mcbp::Status status, uint32_t add_opaque) {
             status);
         return;
     }
+
+    // We use the cur_snapshot_prepare member to determine if we should
+    // notify the PDM of any Memory snapshots. It is set when we see a
+    // prepare in any snapshot. Consider the following snapshot:
+    //
+    // [1:Prepare(A), 2:Mutation(B)] Type = Memory
+    //
+    // If we have only received and persisted the following sequence of events
+    // but then restart, we would fail to notify the PDM of the complete
+    // snapshot:
+    //
+    // 1) SnapshotMarker (1-2) Type = Memory
+    // 2) Prepare (1)                        <- Persisted to disk
+    //
+    // To solve this, we can fix the cur_snapshot_prepare state on
+    // PassiveStream acceptance. The PDM already avoids acking back the same
+    // seqno, so notifying an extra snapshot shouldn't matter, and even if we
+    // did ack back the same seqno, the ADM should already deal with weakly
+    // monotonic acks as we ack back the HPS on stream connection.
+    cur_snapshot_prepare = true;
 
     // SyncReplication: About to commence accepting data on this stream. Check
     // if the associated consumer supports SyncReplication, so we can later
