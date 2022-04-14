@@ -415,7 +415,7 @@ public:
 
     cb::EngineErrorGetScopeIDResult get_scope_id(
             const CookieIface& cookie,
-            const DocKey& key,
+            CollectionID cid,
             std::optional<Vbid> vbid) const override {
         return cb::EngineErrorGetScopeIDResult(cb::engine_errc::no_bucket);
     }

@@ -1048,9 +1048,9 @@ cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
 // permit lookup of the default scope only
 cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
         const CookieIface& cookie,
-        const DocKey& key,
+        CollectionID cid,
         std::optional<Vbid> vbid) const {
-    if (key.getCollectionID().isDefaultCollection()) {
+    if (cid.isDefaultCollection()) {
         return cb::EngineErrorGetScopeIDResult(0, ScopeID{ScopeID::Default});
     }
     return cb::EngineErrorGetScopeIDResult(cb::engine_errc::unknown_collection);

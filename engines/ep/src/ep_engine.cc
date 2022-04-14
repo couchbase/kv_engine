@@ -1754,22 +1754,21 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
 }
 
 cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
-        const CookieIface&, const DocKey& key, std::optional<Vbid> vbid) const {
+        const CookieIface&, CollectionID cid, std::optional<Vbid> vbid) const {
     auto engine = acquireEngine(this);
     if (vbid) {
         auto vbucket = engine->getVBucket(*vbid);
         if (vbucket) {
-            auto cHandle = vbucket->lockCollections(key);
-            if (cHandle.valid()) {
-                return {cHandle.getManifestUid(), cHandle.getScopeID()};
+            auto handle = vbucket->getManifest().lock(cid);
+            if (handle.valid()) {
+                return {handle.getManifestUid(), handle.getScopeID()};
             }
         } else {
             return cb::EngineErrorGetScopeIDResult(
                     cb::engine_errc::not_my_vbucket);
         }
     } else {
-        auto scopeIdInfo =
-                engine->getKVBucket()->getScopeID(key.getCollectionID());
+        auto scopeIdInfo = engine->getKVBucket()->getScopeID(cid);
         if (scopeIdInfo.second.has_value()) {
             return {scopeIdInfo.first, ScopeID(scopeIdInfo.second.value())};
         }

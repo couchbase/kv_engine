@@ -895,17 +895,17 @@ TEST_F(CollectionsTest, ScopeIDLookup) {
 
 // Can only ever get to the default scope (DocKey lookup)
 TEST_F(CollectionsTest, ScopeIDLookup2) {
-    auto rv = engine->get_scope_id(*cookie, key1);
+    auto rv = engine->get_scope_id(*cookie, key1.getCollectionID());
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
     EXPECT_EQ(ScopeID(ScopeID::Default), rv.getScopeId());
 
-    rv = engine->get_scope_id(*cookie, key2);
+    rv = engine->get_scope_id(*cookie, key2.getCollectionID());
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
     EXPECT_EQ(ScopeID(ScopeID::Default), rv.getScopeId());
 
-    rv = engine->get_scope_id(*cookie, key3);
+    rv = engine->get_scope_id(*cookie, key3.getCollectionID());
     EXPECT_EQ(cb::engine_errc::unknown_collection, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
 }

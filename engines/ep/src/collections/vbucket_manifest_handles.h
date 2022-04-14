@@ -593,6 +593,16 @@ public:
     /// @return the reads from the collection
     size_t getOpsGet() const;
 
+    // @return the manifest UID that last updated this vb::manifest
+    ManifestUid getManifestUid() const {
+        return manifest->getManifestUid();
+    }
+
+    /// @return the scope of the collection that locked this (must be valid())
+    ScopeID getScopeID() const {
+        return itr->second.getScopeID();
+    }
+
     void dump();
 
 protected:

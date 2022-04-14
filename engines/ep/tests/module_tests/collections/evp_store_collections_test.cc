@@ -3039,12 +3039,12 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
     StoredDocKey keyDairy{"dairy:milk", CollectionEntry::dairy};
     StoredDocKey keyMeat{"meat:beef", CollectionEntry::meat};
 
-    auto result = engine->get_scope_id(*cookie, keyDairy, vbid);
+    auto result = engine->get_scope_id(*cookie, CollectionEntry::dairy, vbid);
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(cmDairyVb.getUid(), result.getManifestId());
     EXPECT_EQ(ScopeID(ScopeEntry::shop1), result.getScopeId());
 
-    result = engine->get_scope_id(*cookie, keyMeat, vbid);
+    result = engine->get_scope_id(*cookie, CollectionEntry::meat, vbid);
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
     EXPECT_EQ(0, result.getManifestId());
 
@@ -3056,7 +3056,7 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
               store->setVBucketState(meatVbid, vbucket_state_replica));
     auto replicaVb = store->getVBucket(meatVbid);
 
-    result = engine->get_scope_id(*cookie, keyDairy, meatVbid);
+    result = engine->get_scope_id(*cookie, CollectionEntry::dairy, meatVbid);
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
     EXPECT_EQ(0, result.getManifestId());
 
@@ -3073,17 +3073,17 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
     // Trigger a flush to disk. Flushes the dairy create event.
     flushVBucketToDiskIfPersistent(meatVbid, 2);
 
-    result = engine->get_scope_id(*cookie, keyMeat, meatVbid);
+    result = engine->get_scope_id(*cookie, CollectionEntry::meat, meatVbid);
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(2, result.getManifestId());
     EXPECT_EQ(ScopeUid::shop1, result.getScopeId());
 
-    result = engine->get_scope_id(*cookie, keyFruit, meatVbid);
+    result = engine->get_scope_id(*cookie, CollectionEntry::fruit, meatVbid);
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
     EXPECT_EQ(0, result.getManifestId());
 
     // check vbucket that doesnt exist
-    result = engine->get_scope_id(*cookie, keyDairy, Vbid(10));
+    result = engine->get_scope_id(*cookie, CollectionEntry::dairy, Vbid(10));
     EXPECT_EQ(cb::engine_errc::not_my_vbucket, result.result);
 }
 
@@ -3101,17 +3101,17 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyNoVbid) {
     StoredDocKey keyDairy{"dairy:milk", CollectionEntry::dairy};
     StoredDocKey keyMeat{"meat:beef", CollectionEntry::meat};
 
-    auto result = engine->get_scope_id(*cookie, keyDefault, {});
+    auto result = engine->get_scope_id(*cookie, CollectionEntry::defaultC, {});
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(0, result.getManifestId());
     EXPECT_EQ(ScopeUid::defaultS, result.getScopeId());
 
-    result = engine->get_scope_id(*cookie, keyDairy, {});
+    result = engine->get_scope_id(*cookie, CollectionEntry::dairy, {});
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(2, result.getManifestId());
     EXPECT_EQ(ScopeUid::shop1, result.getScopeId());
 
-    result = engine->get_scope_id(*cookie, keyMeat, {});
+    result = engine->get_scope_id(*cookie, CollectionEntry::meat, {});
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
     EXPECT_EQ(0, result.getManifestId());
 }

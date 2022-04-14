@@ -603,16 +603,16 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             const CookieIface& cookie, std::string_view path);
 
     /**
-     * Get the scope for the provided key
+     * Get the scope for the given collection
      *
      * @param cookie cookie object used to identify the request
-     * @param key the key to look up
+     * @param cid The collection to lookup
      * @return pair with the manifest UID and if found the scope where the key
      *              belongs.
      */
     virtual cb::EngineErrorGetScopeIDResult get_scope_id(
             const CookieIface& cookie,
-            const DocKey& key,
+            CollectionID cid,
             std::optional<Vbid> vbid = std::nullopt) const;
 
     /**

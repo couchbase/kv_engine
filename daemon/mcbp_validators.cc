@@ -403,7 +403,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
         } else {
             auto vbid = request.getVBucket();
             auto res = connection.getBucket().getEngine().get_scope_id(
-                    cookie, key, vbid);
+                    cookie, key.getCollectionID(), vbid);
             if (res.result == cb::engine_errc::success) {
                 manifestUid = res.getManifestId();
                 sid = res.getScopeId();

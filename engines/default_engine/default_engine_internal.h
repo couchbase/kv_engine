@@ -224,7 +224,7 @@ struct default_engine : public EngineIface {
 
     cb::EngineErrorGetScopeIDResult get_scope_id(
             const CookieIface& cookie,
-            const DocKey& key,
+            CollectionID cid,
             std::optional<Vbid> vbid) const override;
 
     cb::engine_errc setParameter(const CookieIface& cookie,

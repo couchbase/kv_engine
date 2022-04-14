@@ -23,7 +23,7 @@ cb::EngineErrorGetScopeIDResult EngineIface::get_scope_id(
 
 cb::EngineErrorGetScopeIDResult EngineIface::get_scope_id(
         const CookieIface& cookie,
-        const DocKey& key,
+        CollectionID cid,
         std::optional<Vbid> vbid) const {
     return cb::EngineErrorGetScopeIDResult(cb::engine_errc::not_supported);
 }

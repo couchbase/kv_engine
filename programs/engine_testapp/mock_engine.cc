@@ -405,9 +405,9 @@ cb::EngineErrorGetScopeIDResult MockEngine::get_scope_id(
 
 cb::EngineErrorGetScopeIDResult MockEngine::get_scope_id(
         const CookieIface& cookie,
-        const DocKey& key,
+        CollectionID cid,
         std::optional<Vbid> vbid) const {
-    return the_engine->get_scope_id(cookie, key, vbid);
+    return the_engine->get_scope_id(cookie, cid, vbid);
 }
 
 cb::engine_errc MockEngine::step(const CookieIface& cookie,
