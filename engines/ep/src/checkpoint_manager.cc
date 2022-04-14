@@ -1142,9 +1142,9 @@ void CheckpointManager::checkOpenCheckpoint(
 
     // Note: The condition ensures that we always allow at least 1 non-meta item
     //  in the open checkpoint, regardless of any setting.
-    const auto memTrigger =
-            (openCkpt.getMemUsage() >= vb.getCheckpointMaxSize()) &&
-            (numItems > 0);
+    const auto memTrigger = (openCkpt.getMemUsage() >=
+                             checkpointConfig.getCheckpointMaxSize()) &&
+                            (numItems > 0);
 
     if (forceCreation || numItemsTrigger || timeTrigger || memTrigger) {
         addNewCheckpoint(lh);

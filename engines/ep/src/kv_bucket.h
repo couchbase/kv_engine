@@ -810,8 +810,6 @@ public:
 
     bool isCheckpointMaxSizeAutoConfig() const;
 
-    size_t getCheckpointMaxSize() const;
-
     /**
      * @return The size of the vb-map, ie how many checkpoint this bucket can
      *  manage.
@@ -1156,13 +1154,6 @@ protected:
      * Requires synchronization as it stores a dynamic configuration param.
      */
     std::atomic<float> checkpointMemoryRecoveryLowerMark;
-
-    /**
-     * Maximum size (in bytes) for a single checkpoint.
-     *
-     * @todo MB-48529: Move to CheckpointConfig
-     */
-    std::atomic<size_t> checkpointMaxSize{0};
 
     /// Timeout in seconds after which a pending SeqnoPersistence operation is
     /// temp-failed

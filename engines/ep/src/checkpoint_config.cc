@@ -48,7 +48,8 @@ CheckpointConfig::CheckpointConfig(Configuration& config)
       checkpointMaxItems(config.getChkMaxItems()),
       maxCheckpoints(config.getMaxCheckpoints()),
       itemNumBasedNewCheckpoint(config.isItemNumBasedNewChk()),
-      persistenceEnabled(config.getBucketType() == "persistent") {
+      persistenceEnabled(config.getBucketType() == "persistent"),
+      checkpointMaxSize(config.getCheckpointMaxSize()) {
 }
 
 void CheckpointConfig::addConfigChangeListener(
@@ -81,4 +82,9 @@ void CheckpointConfig::setCheckpointMaxItems(size_t value) {
 void CheckpointConfig::setMaxCheckpoints(size_t value) {
     Expects(value >= 2);
     maxCheckpoints = value;
+}
+
+void CheckpointConfig::setCheckpointMaxSize(size_t value) {
+    Expects(value >= 1);
+    checkpointMaxSize = value;
 }

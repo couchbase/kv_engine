@@ -1627,12 +1627,6 @@ public:
             const Collections::VB::ManifestEntry& droppedEntry) const = 0;
 
     /**
-     * @return The max size (in bytes) for a single checkpoint as defined by
-     *  the bucket configuration.
-     */
-    size_t getCheckpointMaxSize() const;
-
-    /**
      * Create a failover table entry at the given seqno (and queue a
      * setVBucketState for later persistence).
      * @param seqno at which to place the failover table entry

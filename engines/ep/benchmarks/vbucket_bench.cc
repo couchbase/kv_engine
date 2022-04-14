@@ -587,7 +587,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
     auto& bucket = *engine->getKVBucket();
     auto& manager = *bucket.getVBucket(vbid)->checkpointManager;
     const auto& ckptConfig = manager.getCheckpointConfig();
-    ASSERT_EQ(_1B, bucket.getCheckpointMaxSize());
+    ASSERT_EQ(_1B, ckptConfig.getCheckpointMaxSize());
     ASSERT_EQ(100000, ckptConfig.getCheckpointMaxItems());
     ASSERT_EQ(3600, ckptConfig.getCheckpointPeriod());
 

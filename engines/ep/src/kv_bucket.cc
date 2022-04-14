@@ -2895,7 +2895,7 @@ cb::engine_errc KVBucket::setCheckpointMaxSize(size_t size) {
         return autoConfigCheckpointMaxSize();
     }
 
-    checkpointMaxSize = size;
+    engine.getCheckpointConfig().setCheckpointMaxSize(size);
     return cb::engine_errc::success;
 }
 
@@ -2914,17 +2914,14 @@ cb::engine_errc KVBucket::autoConfigCheckpointMaxSize() {
     const auto checkpointQuota = config.getMaxSize() * checkpointMemoryRatio;
     const auto numCheckpointsPerVB = config.getMaxCheckpoints();
     Expects(numCheckpointsPerVB > 0);
-    checkpointMaxSize = (checkpointQuota / numVBuckets) / numCheckpointsPerVB;
+    engine.getCheckpointConfig().setCheckpointMaxSize(
+            checkpointQuota / numVBuckets / numCheckpointsPerVB);
 
     return cb::engine_errc::success;
 }
 
 bool KVBucket::isCheckpointMaxSizeAutoConfig() const {
     return engine.getConfiguration().getCheckpointMaxSize() == 0;
-}
-
-size_t KVBucket::getCheckpointMaxSize() const {
-    return checkpointMaxSize;
 }
 
 size_t KVBucket::getVBMapSize() const {

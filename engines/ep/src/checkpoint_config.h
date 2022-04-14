@@ -45,6 +45,12 @@ public:
         return persistenceEnabled;
     }
 
+    size_t getCheckpointMaxSize() const {
+        return checkpointMaxSize;
+    }
+
+    void setCheckpointMaxSize(size_t value);
+
 protected:
     friend class EventuallyPersistentEngine;
     friend class SynchronousEPEngine;
@@ -81,4 +87,9 @@ private:
 
     // Flag indicating if persistence is enabled.
     const bool persistenceEnabled;
+
+    /**
+     * Maximum size (in bytes) for a single checkpoint.
+     */
+    std::atomic<size_t> checkpointMaxSize;
 };

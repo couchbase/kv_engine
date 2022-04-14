@@ -63,6 +63,7 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
     auto manifest = std::make_unique<Collections::VB::Manifest>(
             std::make_shared<Collections::Manager>());
 
+    config.setCheckpointMaxSize(std::numeric_limits<size_t>::max());
     checkpoint_config = std::make_unique<CheckpointConfig>(config);
 
     switch (vbType) {

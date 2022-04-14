@@ -36,6 +36,7 @@
 #define DCP_CURSOR_PREFIX "dcp-client-"
 
 void CheckpointTest::SetUp() {
+    config.setCheckpointMaxSize(std::numeric_limits<size_t>::max());
     checkpoint_config = std::make_unique<CheckpointConfig>(config);
     VBucketTest::SetUp();
     createManager();
@@ -1299,7 +1300,7 @@ TEST_F(SingleThreadedCheckpointTest, CheckpointMaxSize_AutoSetup) {
     const auto numVBuckets = store->getVBuckets().getNumAliveVBuckets();
     ASSERT_GT(numVBuckets, 0);
     const auto expected = cmQuota / numVBuckets / maxCheckpoints;
-    EXPECT_EQ(expected, store->getCheckpointMaxSize());
+    EXPECT_EQ(expected, manager.getCheckpointConfig().getCheckpointMaxSize());
 }
 
 TEST_F(SingleThreadedCheckpointTest, MemUsageCheckpointCreation) {
@@ -1322,7 +1323,7 @@ TEST_F(SingleThreadedCheckpointTest, MemUsageCheckpointCreation) {
     ASSERT_FALSE(ckptConfig.isItemNumBasedNewCheckpoint());
     ASSERT_EQ(3600, ckptConfig.getCheckpointPeriod());
     ASSERT_EQ(20, ckptConfig.getMaxCheckpoints());
-    ASSERT_EQ(_10MB, store->getCheckpointMaxSize()); // (*)
+    ASSERT_EQ(_10MB, ckptConfig.getCheckpointMaxSize()); // (*)
 
     ASSERT_EQ(1, manager.getNumCheckpoints());
 
@@ -1361,7 +1362,7 @@ TEST_F(SingleThreadedCheckpointTest,
     ASSERT_FALSE(ckptConfig.isItemNumBasedNewCheckpoint());
     ASSERT_EQ(3600, ckptConfig.getCheckpointPeriod());
     ASSERT_EQ(20, ckptConfig.getMaxCheckpoints());
-    ASSERT_EQ(1, store->getCheckpointMaxSize());
+    ASSERT_EQ(1, ckptConfig.getCheckpointMaxSize());
 
     // 1 empty checkpoint
     ASSERT_EQ(1, manager.getNumCheckpoints());

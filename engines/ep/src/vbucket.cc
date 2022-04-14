@@ -4173,11 +4173,6 @@ void VBucket::dropPendingKey(const DocKey& key, int64_t seqno) {
     folly::assume_unreachable();
 }
 
-size_t VBucket::getCheckpointMaxSize() const {
-    return bucket ? bucket->getCheckpointMaxSize()
-                  : std::numeric_limits<size_t>::max();
-}
-
 void VBucket::scheduleDestruction(CheckpointList&& checkpoints) const {
     if (bucket) {
         bucket->scheduleDestruction(std::move(checkpoints), id);
