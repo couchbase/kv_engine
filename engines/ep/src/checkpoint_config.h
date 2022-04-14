@@ -80,5 +80,5 @@ private:
     std::atomic<bool> itemNumBasedNewCheckpoint;
 
     // Flag indicating if persistence is enabled.
-    bool persistenceEnabled;
+    const bool persistenceEnabled;
 };
