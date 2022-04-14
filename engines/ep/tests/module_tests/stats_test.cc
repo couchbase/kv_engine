@@ -864,6 +864,336 @@ TEST_P(DatatypeStatTest, datatypeEviction) {
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_json,xattr"]));
 }
 
+class EPStatsIntrospector {
+public:
+    static void public_setMaxDataSize(EPStats& stats, int value) {
+       stats.maxDataSize.store(value);
+    }
+
+    static int public_getMaxDataSize(EPStats& stats) {
+        return stats.maxDataSize;
+    }
+};
+class EPStatsTest : public ::testing::Test {
+protected:
+    EPStats stats;
+
+    // Non-default positive counter value to set before checking if reset
+    static constexpr int nonDefaultCounterValue = 10;
+    // Value to add to histograms before we check if they're reset
+    static constexpr int datapoint = 20;
+    // Non-default boolean value
+    static constexpr bool nonDefaultBool = true;
+
+    // Default/reset value to compare all counters to (inc. those not explicitly
+    // of type Counter), except for histograms
+    static constexpr int initializedValue = 0;
+    static constexpr bool initializedBool = false;
+
+    // Variables that hold the appropriate value depending on whether we are
+    // testing equality after initialization or testing that they were not reset
+    // (the current value below)
+    int nonStatValue = nonDefaultCounterValue;
+    bool nonStatBool = nonDefaultBool;
+
+    void setStatsToNonDefaultValues() {
+        stats.warmedUpKeys.store(nonDefaultCounterValue);
+        stats.warmedUpValues.store(nonDefaultCounterValue);
+        stats.warmedUpPrepares.store(nonDefaultCounterValue);
+        stats.warmupItemsVisitedWhilstLoadingPrepares.store(
+                nonDefaultCounterValue);
+        stats.warmDups.store(nonDefaultCounterValue);
+        stats.warmOOM.store(nonDefaultCounterValue);
+        stats.warmupMemUsedCap.store(nonDefaultCounterValue);
+        stats.warmupNumReadCap.store(nonDefaultCounterValue);
+        stats.diskQueueSize.store(nonDefaultCounterValue);
+        stats.flusher_todo.store(nonDefaultCounterValue);
+        stats.flusherCommits.store(nonDefaultCounterValue);
+        stats.cumulativeFlushTime.store(nonDefaultCounterValue);
+        stats.cumulativeCommitTime.store(nonDefaultCounterValue);
+        stats.totalPersisted.store(nonDefaultCounterValue);
+        stats.totalEnqueued.store(nonDefaultCounterValue);
+        stats.flushFailed.store(nonDefaultCounterValue);
+        stats.flushExpired.store(nonDefaultCounterValue);
+        stats.expired_access.store(nonDefaultCounterValue);
+        stats.expired_compactor.store(nonDefaultCounterValue);
+        stats.expired_pager.store(nonDefaultCounterValue);
+        stats.beginFailed.store(nonDefaultCounterValue);
+        stats.commitFailed.store(nonDefaultCounterValue);
+        stats.vbucketDeletions.store(nonDefaultCounterValue);
+        stats.vbucketDeletionFail.store(nonDefaultCounterValue);
+        stats.mem_low_wat.store(nonDefaultCounterValue);
+        stats.mem_low_wat_percent.store(nonDefaultCounterValue);
+        stats.mem_high_wat.store(nonDefaultCounterValue);
+        stats.mem_high_wat_percent.store(nonDefaultCounterValue);
+        stats.memFreedByCheckpointItemExpel.store(nonDefaultCounterValue);
+        stats.forceShutdown.store(nonDefaultBool);
+        stats.pendingOps.store(nonDefaultCounterValue);
+        stats.pendingOpsTotal.store(nonDefaultCounterValue);
+        stats.pendingCompactions.store(nonDefaultCounterValue);
+        stats.bg_meta_fetched.store(nonDefaultCounterValue);
+        stats.numRemainingBgItems.store(nonDefaultCounterValue);
+        stats.numRemainingBgJobs.store(nonDefaultCounterValue);
+        stats.replicationThrottleThreshold.store(nonDefaultCounterValue);
+        stats.numOpsStore.store(nonDefaultCounterValue);
+        stats.numOpsDelete.store(nonDefaultCounterValue);
+        stats.numOpsGet.store(nonDefaultCounterValue);
+        stats.numOpsGetMeta.store(nonDefaultCounterValue);
+        stats.numOpsSetMeta.store(nonDefaultCounterValue);
+        stats.numOpsDelMeta.store(nonDefaultCounterValue);
+        stats.numOpsSetMetaResolutionFailed.store(nonDefaultCounterValue);
+        stats.numOpsDelMetaResolutionFailed.store(nonDefaultCounterValue);
+        stats.numOpsSetRetMeta.store(nonDefaultCounterValue);
+        stats.numOpsDelRetMeta.store(nonDefaultCounterValue);
+        stats.numOpsGetMetaOnSetWithMeta.store(nonDefaultCounterValue);
+        stats.accessScannerSkips.store(nonDefaultCounterValue);
+        stats.alogNumItems.store(nonDefaultCounterValue);
+        stats.alogTime.store(nonDefaultCounterValue);
+        stats.alogRuntime.store(nonDefaultCounterValue);
+        stats.expPagerTime.store(nonDefaultCounterValue);
+        stats.isShutdown.store(nonDefaultBool);
+        stats.rollbackCount.store(nonDefaultCounterValue);
+        stats.defragStoredValueNumMoved.store(nonDefaultCounterValue);
+
+        stats.dirtyAgeHisto.addValue(datapoint);
+        stats.diskCommitHisto.addValue(datapoint);
+
+        stats.timingLog = std::make_unique<std::stringstream>();
+        EPStatsIntrospector::public_setMaxDataSize(stats,
+                                                   nonDefaultCounterValue);
+
+        stats.tooYoung.store(nonDefaultCounterValue);
+        stats.tooOld.store(nonDefaultCounterValue);
+        stats.totalPersistVBState.store(nonDefaultCounterValue);
+        stats.commit_time.store(nonDefaultCounterValue);
+        stats.cursorsDropped.store(nonDefaultCounterValue);
+        stats.memFreedByCheckpointRemoval.store(nonDefaultCounterValue);
+        stats.pagerRuns.store(nonDefaultCounterValue);
+        stats.expiryPagerRuns.store(nonDefaultCounterValue);
+        stats.freqDecayerRuns.store(nonDefaultCounterValue);
+        stats.itemsExpelledFromCheckpoints.store(nonDefaultCounterValue);
+        stats.itemsRemovedFromCheckpoints.store(nonDefaultCounterValue);
+        stats.numValueEjects.store(nonDefaultCounterValue);
+        stats.numFailedEjects.store(nonDefaultCounterValue);
+        stats.numNotMyVBuckets.store(nonDefaultCounterValue);
+        stats.bg_fetched.store(nonDefaultCounterValue);
+        stats.bgNumOperations.store(nonDefaultCounterValue);
+        stats.bgWait.store(nonDefaultCounterValue);
+        stats.bgLoad.store(nonDefaultCounterValue);
+        stats.oom_errors.store(nonDefaultCounterValue);
+        stats.tmp_oom_errors.store(nonDefaultCounterValue);
+        stats.pendingOps.store(nonDefaultCounterValue);
+        stats.pendingOpsTotal.store(nonDefaultCounterValue);
+        stats.pendingOpsMax.store(nonDefaultCounterValue);
+        stats.pendingOpsMaxDuration.store(nonDefaultCounterValue);
+        stats.vbucketDelMaxWalltime.store(nonDefaultCounterValue);
+        stats.vbucketDelTotWalltime.store(nonDefaultCounterValue);
+        stats.alogRuns.store(nonDefaultCounterValue);
+        stats.accessScannerSkips.store(nonDefaultCounterValue);
+        stats.defragNumVisited.store(nonDefaultCounterValue);
+        stats.defragNumMoved.store(nonDefaultCounterValue);
+        stats.compressorNumVisited.store(nonDefaultCounterValue);
+        stats.compressorNumCompressed.store(nonDefaultCounterValue);
+
+        stats.pendingOpsHisto.addValue(datapoint);
+        stats.bgWaitHisto.addValue(datapoint);
+        stats.bgLoadHisto.addValue(datapoint);
+        stats.setWithMetaHisto.addValue(datapoint);
+        stats.accessScannerHisto.addValue(datapoint);
+        stats.checkpointRemoverHisto.addValue(datapoint);
+        stats.itemPagerHisto.addValue(datapoint);
+        stats.expiryPagerHisto.addValue(datapoint);
+        stats.getVbucketCmdHisto.addValue(datapoint);
+        stats.setVbucketCmdHisto.addValue(datapoint);
+        stats.delVbucketCmdHisto.addValue(datapoint);
+        stats.getCmdHisto.addValue(datapoint);
+        stats.storeCmdHisto.addValue(datapoint);
+        stats.arithCmdHisto.addValue(datapoint);
+        stats.notifyIOHisto.addValue(datapoint);
+        stats.getStatsCmdHisto.addValue(datapoint);
+        stats.seqnoPersistenceHisto.addValue(datapoint);
+        stats.diskInsertHisto.addValue(datapoint);
+        stats.diskUpdateHisto.addValue(datapoint);
+        stats.diskDelHisto.addValue(datapoint);
+        stats.diskVBDelHisto.addValue(datapoint);
+        stats.diskCommitHisto.addValue(datapoint);
+        stats.itemAllocSizeHisto.addValue(datapoint);
+        stats.getMultiBatchSizeHisto.addValue(datapoint);
+        stats.dirtyAgeHisto.addValue(datapoint);
+        stats.persistenceCursorGetItemsHisto.addValue(datapoint);
+        stats.dcpCursorsGetItemsHisto.addValue(datapoint);
+
+        stats.activeOrPendingFrequencyValuesEvictedHisto.addValue(datapoint);
+        stats.replicaFrequencyValuesEvictedHisto.addValue(datapoint);
+        stats.activeOrPendingFrequencyValuesSnapshotHisto.addValue(datapoint);
+        stats.replicaFrequencyValuesSnapshotHisto.addValue(datapoint);
+        for (auto& hist : stats.syncWriteCommitTimes) {
+            hist.addValue(datapoint);
+        }
+    }
+
+    void checkStatsAreDefaultValues(bool initialization) {
+        // All non-stats should be equal to the default value ONLY when this is
+        // initialization (e.g., non-stats should be initialized to
+        // initializedValue/Bool, but *not* reset from nonDefaultValue/Bool)
+        if (initialization) {
+            nonStatValue = initializedValue;
+            nonStatBool = initializedBool;
+
+            EXPECT_EQ(nullptr, stats.timingLog);
+            EXPECT_EQ(std::numeric_limits<size_t>::max(),
+                      EPStatsIntrospector::public_getMaxDataSize(stats));
+        } else {
+            EXPECT_NE(nullptr, stats.timingLog);
+            EXPECT_EQ(nonStatValue,
+                      EPStatsIntrospector::public_getMaxDataSize(stats));
+        }
+
+        EXPECT_EQ(nonStatValue, stats.warmupMemUsedCap);
+        EXPECT_EQ(nonStatValue, stats.warmupNumReadCap);
+        EXPECT_EQ(nonStatValue, stats.diskQueueSize);
+        EXPECT_EQ(nonStatValue, stats.mem_low_wat);
+        EXPECT_EQ(nonStatValue, stats.mem_low_wat_percent);
+        EXPECT_EQ(nonStatValue, stats.mem_high_wat);
+        EXPECT_EQ(nonStatValue, stats.mem_high_wat_percent);
+        EXPECT_EQ(nonStatBool, stats.forceShutdown);
+        EXPECT_EQ(nonStatValue, stats.replicationThrottleThreshold);
+        EXPECT_EQ(nonStatValue, stats.alogTime);
+        EXPECT_EQ(nonStatValue, stats.expPagerTime);
+        EXPECT_EQ(nonStatBool, stats.isShutdown);
+
+        // START - Currently not reset, but will be in a future patch
+        EXPECT_EQ(nonStatValue, stats.warmedUpKeys);
+        EXPECT_EQ(nonStatValue, stats.warmedUpValues);
+        EXPECT_EQ(nonStatValue, stats.warmedUpPrepares);
+        EXPECT_EQ(nonStatValue, stats.warmupItemsVisitedWhilstLoadingPrepares);
+        EXPECT_EQ(nonStatValue, stats.warmDups);
+        EXPECT_EQ(nonStatValue, stats.warmOOM);
+        EXPECT_EQ(nonStatValue, stats.diskQueueSize);
+        EXPECT_EQ(nonStatValue, stats.flusher_todo);
+        EXPECT_EQ(nonStatValue, stats.flusherCommits);
+        EXPECT_EQ(nonStatValue, stats.cumulativeFlushTime);
+        EXPECT_EQ(nonStatValue, stats.cumulativeCommitTime);
+        EXPECT_EQ(nonStatValue, stats.totalPersisted);
+        EXPECT_EQ(nonStatValue, stats.totalEnqueued);
+        EXPECT_EQ(nonStatValue, stats.flushFailed);
+        EXPECT_EQ(nonStatValue, stats.flushExpired);
+        EXPECT_EQ(nonStatValue, stats.expired_access);
+        EXPECT_EQ(nonStatValue, stats.expired_compactor);
+        EXPECT_EQ(nonStatValue, stats.expired_pager);
+        EXPECT_EQ(nonStatValue, stats.beginFailed);
+        EXPECT_EQ(nonStatValue, stats.commitFailed);
+        EXPECT_EQ(nonStatValue, stats.vbucketDeletions);
+        EXPECT_EQ(nonStatValue, stats.vbucketDeletionFail);
+        EXPECT_EQ(nonStatValue, stats.memFreedByCheckpointItemExpel);
+        EXPECT_EQ(nonStatValue, stats.pendingCompactions);
+        EXPECT_EQ(nonStatValue, stats.bg_meta_fetched);
+        EXPECT_EQ(nonStatValue, stats.numRemainingBgItems);
+        EXPECT_EQ(nonStatValue, stats.numRemainingBgJobs);
+        EXPECT_EQ(nonStatValue, stats.numOpsStore);
+        EXPECT_EQ(nonStatValue, stats.numOpsDelete);
+        EXPECT_EQ(nonStatValue, stats.numOpsGet);
+        EXPECT_EQ(nonStatValue, stats.numOpsGetMeta);
+        EXPECT_EQ(nonStatValue, stats.numOpsSetMeta);
+        EXPECT_EQ(nonStatValue, stats.numOpsDelMeta);
+        EXPECT_EQ(nonStatValue, stats.numOpsSetMetaResolutionFailed);
+        EXPECT_EQ(nonStatValue, stats.numOpsDelMetaResolutionFailed);
+        EXPECT_EQ(nonStatValue, stats.numOpsSetRetMeta);
+        EXPECT_EQ(nonStatValue, stats.numOpsDelRetMeta);
+        EXPECT_EQ(nonStatValue, stats.numOpsGetMetaOnSetWithMeta);
+        EXPECT_EQ(nonStatValue, stats.alogNumItems);
+        EXPECT_EQ(nonStatValue, stats.alogRuntime);
+        EXPECT_EQ(nonStatValue, stats.rollbackCount);
+        EXPECT_EQ(nonStatValue, stats.defragStoredValueNumMoved);
+        // END - Currently not reset, but will be in a future patch
+
+        EXPECT_TRUE(stats.dirtyAgeHisto.isEmpty());
+        EXPECT_TRUE(stats.diskCommitHisto.isEmpty());
+
+        EXPECT_EQ(initializedValue, stats.tooYoung);
+        EXPECT_EQ(initializedValue, stats.tooOld);
+        EXPECT_EQ(initializedValue, stats.totalPersistVBState);
+        EXPECT_EQ(initializedValue, stats.commit_time);
+        EXPECT_EQ(initializedValue, stats.cursorsDropped);
+        EXPECT_EQ(initializedValue, stats.memFreedByCheckpointRemoval);
+        EXPECT_EQ(initializedValue, stats.pagerRuns);
+        EXPECT_EQ(initializedValue, stats.expiryPagerRuns);
+        EXPECT_EQ(initializedValue, stats.freqDecayerRuns);
+        EXPECT_EQ(initializedValue, stats.itemsExpelledFromCheckpoints);
+        EXPECT_EQ(initializedValue, stats.itemsRemovedFromCheckpoints);
+        EXPECT_EQ(initializedValue, stats.numValueEjects);
+        EXPECT_EQ(initializedValue, stats.numFailedEjects);
+        EXPECT_EQ(initializedValue, stats.numNotMyVBuckets);
+        EXPECT_EQ(initializedValue, stats.bg_fetched);
+        EXPECT_EQ(initializedValue, stats.bgNumOperations);
+        EXPECT_EQ(initializedValue, stats.bgWait);
+        EXPECT_EQ(initializedValue, stats.bgLoad);
+        EXPECT_EQ(initializedValue, stats.oom_errors);
+        EXPECT_EQ(initializedValue, stats.tmp_oom_errors);
+        EXPECT_EQ(initializedValue, stats.pendingOps);
+        EXPECT_EQ(initializedValue, stats.pendingOpsTotal);
+        EXPECT_EQ(initializedValue, stats.pendingOpsMax);
+        EXPECT_EQ(initializedValue, stats.pendingOpsMaxDuration);
+        EXPECT_EQ(initializedValue, stats.vbucketDelMaxWalltime);
+        EXPECT_EQ(initializedValue, stats.vbucketDelTotWalltime);
+        EXPECT_EQ(initializedValue, stats.alogRuns);
+        EXPECT_EQ(initializedValue, stats.accessScannerSkips);
+        EXPECT_EQ(initializedValue, stats.defragNumVisited);
+        EXPECT_EQ(initializedValue, stats.defragNumMoved);
+        EXPECT_EQ(initializedValue, stats.compressorNumVisited);
+        EXPECT_EQ(initializedValue, stats.compressorNumCompressed);
+
+        // Histograms
+        EXPECT_TRUE(stats.pendingOpsHisto.isEmpty());
+        EXPECT_TRUE(stats.bgWaitHisto.isEmpty());
+        EXPECT_TRUE(stats.bgLoadHisto.isEmpty());
+        EXPECT_TRUE(stats.setWithMetaHisto.isEmpty());
+        EXPECT_TRUE(stats.accessScannerHisto.isEmpty());
+        EXPECT_TRUE(stats.checkpointRemoverHisto.isEmpty());
+        EXPECT_TRUE(stats.itemPagerHisto.isEmpty());
+        EXPECT_TRUE(stats.expiryPagerHisto.isEmpty());
+        EXPECT_TRUE(stats.getVbucketCmdHisto.isEmpty());
+        EXPECT_TRUE(stats.setVbucketCmdHisto.isEmpty());
+        EXPECT_TRUE(stats.delVbucketCmdHisto.isEmpty());
+        EXPECT_TRUE(stats.getCmdHisto.isEmpty());
+        EXPECT_TRUE(stats.storeCmdHisto.isEmpty());
+        EXPECT_TRUE(stats.arithCmdHisto.isEmpty());
+        EXPECT_TRUE(stats.notifyIOHisto.isEmpty());
+        EXPECT_TRUE(stats.getStatsCmdHisto.isEmpty());
+        EXPECT_TRUE(stats.seqnoPersistenceHisto.isEmpty());
+        EXPECT_TRUE(stats.diskInsertHisto.isEmpty());
+        EXPECT_TRUE(stats.diskUpdateHisto.isEmpty());
+        EXPECT_TRUE(stats.diskDelHisto.isEmpty());
+        EXPECT_TRUE(stats.diskVBDelHisto.isEmpty());
+        EXPECT_TRUE(stats.diskCommitHisto.isEmpty());
+        EXPECT_TRUE(stats.itemAllocSizeHisto.isEmpty());
+        EXPECT_TRUE(stats.getMultiBatchSizeHisto.isEmpty());
+        EXPECT_TRUE(stats.dirtyAgeHisto.isEmpty());
+        EXPECT_TRUE(stats.persistenceCursorGetItemsHisto.isEmpty());
+        EXPECT_TRUE(stats.dcpCursorsGetItemsHisto.isEmpty());
+
+        EXPECT_TRUE(stats.activeOrPendingFrequencyValuesEvictedHisto.isEmpty());
+        EXPECT_TRUE(stats.replicaFrequencyValuesEvictedHisto.isEmpty());
+        EXPECT_TRUE(
+                stats.activeOrPendingFrequencyValuesSnapshotHisto.isEmpty());
+        EXPECT_TRUE(stats.replicaFrequencyValuesSnapshotHisto.isEmpty());
+
+        for (auto& hist : stats.syncWriteCommitTimes) {
+            EXPECT_TRUE(hist.isEmpty());
+        }
+    }
+};
+
+TEST_F(EPStatsTest, testEPStatsInitialized) {
+    checkStatsAreDefaultValues(true);
+}
+
+TEST_F(EPStatsTest, testEPStatsReset) {
+    setStatsToNonDefaultValues();
+    stats.reset();
+    checkStatsAreDefaultValues(false);
+}
+
 TEST_P(DatatypeStatTest, MB23892) {
     // This test checks that updating a document with a different datatype is
     // safe to do after an eviction (where the blob is now null)

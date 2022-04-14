@@ -592,9 +592,10 @@ public:
     std::unique_ptr<std::ostream> timingLog;
 
 protected:
-
     //! Max allowable memory size.
     std::atomic<size_t> maxDataSize;
+
+    friend class EPStatsIntrospector;
 };
 
 /**
