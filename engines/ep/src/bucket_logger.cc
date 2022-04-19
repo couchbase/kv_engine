@@ -63,19 +63,21 @@ void BucketLogger::logInner(spdlog::level::level_enum lvl,
 
         // Append the id (if set)
         if (connectionId != 0) {
-            fmt::format_to(msg, "{}: ", connectionId);
+            fmt::format_to(std::back_inserter(msg), "{}: ", connectionId);
         }
 
         // Append the engine name (if applicable)
-        fmt::format_to(msg, "({}) ", engine ? engine->getName() : "No Engine");
+        fmt::format_to(std::back_inserter(msg),
+                       "({}) ",
+                       engine ? engine->getName() : "No Engine");
 
         // Append the given prefix (if set)
         if (!prefix.empty()) {
-            fmt::format_to(msg, "{} ", prefix);
+            fmt::format_to(std::back_inserter(msg), "{} ", prefix);
         }
 
         // Finally format the actual user-specified format string & args.
-        fmt::vformat_to(msg, fmt, args);
+        fmt::vformat_to(std::back_inserter(msg), fmt, args);
         spdlog::logger::log(lvl, {msg.data(), msg.size()});
     } catch (std::exception& e) {
         // Log a fixed message about this failing - we can't really be sure

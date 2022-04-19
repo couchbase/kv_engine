@@ -54,7 +54,7 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               int64_t v,
                               const Labels& labels) const {
     fmt::memory_buffer buf;
-    format_to(buf, "{}", v);
+    format_to(std::back_inserter(buf), "{}", v);
     addStat(k, {buf.data(), buf.size()}, labels);
 }
 
@@ -62,7 +62,7 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               uint64_t v,
                               const Labels& labels) const {
     fmt::memory_buffer buf;
-    format_to(buf, "{}", v);
+    format_to(std::back_inserter(buf), "{}", v);
     addStat(k, {buf.data(), buf.size()}, labels);
 }
 
@@ -70,7 +70,7 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               float v,
                               const Labels& labels) const {
     fmt::memory_buffer buf;
-    format_to(buf, "{}", v);
+    format_to(std::back_inserter(buf), "{}", v);
     addStat(k, {buf.data(), buf.size()}, labels);
 }
 
@@ -78,7 +78,7 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               double v,
                               const Labels& labels) const {
     fmt::memory_buffer buf;
-    format_to(buf, "{}", v);
+    format_to(std::back_inserter(buf), "{}", v);
     addStat(k, {buf.data(), buf.size()}, labels);
 }
 
@@ -88,12 +88,16 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
     auto key = k.needsFormatting() ? formatKey(k.cbstatsKey, labels)
                                    : std::string(k.cbstatsKey);
     fmt::memory_buffer buf;
-    format_to(buf, "{}_mean", key);
+    format_to(std::back_inserter(buf), "{}_mean", key);
     addStat(cb::stats::StatDef({buf.data(), buf.size()}), hist.mean, labels);
 
     for (const auto& bucket : hist.buckets) {
         buf.resize(0);
-        format_to(buf, "{}_{},{}", key, bucket.lowerBound, bucket.upperBound);
+        format_to(std::back_inserter(buf),
+                  "{}_{},{}",
+                  key,
+                  bucket.lowerBound,
+                  bucket.upperBound);
         addStat(cb::stats::StatDef({buf.data(), buf.size()}),
                 bucket.count,
                 labels);
@@ -188,18 +192,27 @@ auto formatFromMap(fmt::memory_buffer& buf,
 
     switch (labels.size()) {
     case 0:
-        return fmt::format_to(buf, formatStr);
+        return fmt::format_to(std::back_inserter(buf), formatStr);
     case 1:
-        return fmt::format_to(buf, formatStr, getArg());
+        return fmt::format_to(std::back_inserter(buf), formatStr, getArg());
     case 2:
-        return fmt::format_to(buf, formatStr, getArg(), getArg());
-    case 3:
-        return fmt::format_to(buf, formatStr, getArg(), getArg(), getArg());
-    case 4:
         return fmt::format_to(
-                buf, formatStr, getArg(), getArg(), getArg(), getArg());
+                std::back_inserter(buf), formatStr, getArg(), getArg());
+    case 3:
+        return fmt::format_to(std::back_inserter(buf),
+                              formatStr,
+                              getArg(),
+                              getArg(),
+                              getArg());
+    case 4:
+        return fmt::format_to(std::back_inserter(buf),
+                              formatStr,
+                              getArg(),
+                              getArg(),
+                              getArg(),
+                              getArg());
     case 5:
-        return fmt::format_to(buf,
+        return fmt::format_to(std::back_inserter(buf),
                               formatStr,
                               getArg(),
                               getArg(),
@@ -207,7 +220,7 @@ auto formatFromMap(fmt::memory_buffer& buf,
                               getArg(),
                               getArg());
     case 6:
-        return fmt::format_to(buf,
+        return fmt::format_to(std::back_inserter(buf),
                               formatStr,
                               getArg(),
                               getArg(),
@@ -216,7 +229,7 @@ auto formatFromMap(fmt::memory_buffer& buf,
                               getArg(),
                               getArg());
     case 7:
-        return fmt::format_to(buf,
+        return fmt::format_to(std::back_inserter(buf),
                               formatStr,
                               getArg(),
                               getArg(),
@@ -226,7 +239,7 @@ auto formatFromMap(fmt::memory_buffer& buf,
                               getArg(),
                               getArg());
     case 8:
-        return fmt::format_to(buf,
+        return fmt::format_to(std::back_inserter(buf),
                               formatStr,
                               getArg(),
                               getArg(),
@@ -249,16 +262,19 @@ std::string CBStatCollector::formatKey(std::string_view key,
         // if this stat was added through a scope or collection collector,
         // prepend the appropriate prefix
         if (labels.count("scope_id")) {
-            fmt::format_to(buf, "{}:", labels.at("scope_id"));
+            fmt::format_to(
+                    std::back_inserter(buf), "{}:", labels.at("scope_id"));
             if (labels.count("collection_id")) {
-                fmt::format_to(buf, "{}:", labels.at("collection_id"));
+                fmt::format_to(std::back_inserter(buf),
+                               "{}:",
+                               labels.at("collection_id"));
             }
         }
         // now format the key itself, it may contain replacement specifiers
         // that can only be replaced with the appropriate value at runtime
         formatFromMap(buf, key, labels);
 
-        return {buf.data(), buf.size()};
+        return fmt::to_string(buf);
 
     } catch (const fmt::format_error& e) {
         throw std::runtime_error(

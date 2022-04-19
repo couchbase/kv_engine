@@ -72,11 +72,11 @@ ConnHandler::~ConnHandler() {
         const auto count = details.reasonCounts[reason];
         if (count) {
             if (addComma) {
-                format_to(buf, ",");
+                format_to(std::back_inserter(buf), ",");
             }
             addComma = true;
             const auto duration = details.reasonDurations[reason];
-            format_to(buf,
+            format_to(std::back_inserter(buf),
                       R"("{}": {{"count":{}, "duration":"{}"}})",
                       to_string(PausedReason{reason}),
                       count,

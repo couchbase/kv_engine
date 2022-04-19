@@ -730,12 +730,13 @@ void ActiveStream::addStats(const AddStatFn& add_stat, const CookieIface* c) {
 
     try {
         fmt::memory_buffer keyBuff;
-        fmt::format_to(keyBuff, "{}:stream_{}_", name_, vb_.get());
+        fmt::format_to(
+                std::back_inserter(keyBuff), "{}:stream_{}_", name_, vb_.get());
         const auto prefixLen = keyBuff.size();
         const auto addStat = [&keyBuff, prefixLen, add_stat, c](
                                      const auto& statKey, auto statValue) {
             keyBuff.resize(prefixLen);
-            fmt::format_to(keyBuff, "{}", statKey);
+            fmt::format_to(std::back_inserter(keyBuff), "{}", statKey);
             add_casted_stat(
                     {keyBuff.data(), keyBuff.size()}, statValue, add_stat, c);
         };

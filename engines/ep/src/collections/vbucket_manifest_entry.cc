@@ -39,7 +39,7 @@ bool Collections::VB::ManifestEntry::addStats(
         Vbid vbid,
         const StatCollector& collector) const {
     fmt::memory_buffer key;
-    format_to(key, "vb_{}:{}:", vbid.get(), cid);
+    format_to(std::back_inserter(key), "vb_{}:{}:", vbid.get(), cid);
     const auto prefixLen = key.size();
 
     const auto addStat = [&key, prefixLen, &collector](std::string_view statKey,

@@ -178,10 +178,10 @@ std::string formatLabels(
     fmt::memory_buffer buf;
     buf.append("{"sv);
     for (const auto& [k, v] : labels) {
-        fmt::format_to(buf, R"({{"{}","{}"}},)", k, v);
+        fmt::format_to(std::back_inserter(buf), R"({{"{}","{}"}},)", k, v);
     }
     buf.append("}"sv);
-    return {buf.data(), buf.size()};
+    return fmt::to_string(buf);
 }
 
 /**
@@ -288,9 +288,9 @@ int main(int argc, char** argv) {
         // check basic requirements are met
         spec.validate();
         // format the enum key for the .h
-        fmt::format_to(enumKeysBuf, "{},\n", spec.enumKey);
+        fmt::format_to(std::back_inserter(enumKeysBuf), "{},\n", spec.enumKey);
         // format the whole stat def for the .cc
-        fmt::format_to(statDefsBuf, "{},\n", spec);
+        fmt::format_to(std::back_inserter(statDefsBuf), "{},\n", spec);
     }
 
     for (const auto& configParam : config.at("params").items()) {
@@ -310,9 +310,10 @@ int main(int argc, char** argv) {
             spec.enumKey = "ep_" + key;
             spec.unit = "none";
             // format the enum key for the .h
-            fmt::format_to(enumKeysBuf, "{},\n", spec.enumKey);
+            fmt::format_to(
+                    std::back_inserter(enumKeysBuf), "{},\n", spec.enumKey);
             // format the whole stat def for the .cc
-            fmt::format_to(statDefsBuf, "{},\n", spec);
+            fmt::format_to(std::back_inserter(statDefsBuf), "{},\n", spec);
         }
     }
 

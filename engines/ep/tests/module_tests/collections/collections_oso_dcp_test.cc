@@ -623,9 +623,7 @@ void CollectionsOSODcpTest::MB_43700(CollectionID cid) {
     resetEngineAndWarmup();
 
     nlohmann::json filter;
-    fmt::memory_buffer key;
-    format_to(key, "{:x}", uint32_t(cid));
-    filter["collections"] = {std::string_view{key.data(), key.size()}};
+    filter["collections"] = {fmt::format("{:x}", uint32_t(cid))};
     createDcpObjects(filter.dump(), OutOfOrderSnapshots::Yes);
 
     // We have a single filter, expect the backfill to be OSO

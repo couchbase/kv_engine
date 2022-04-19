@@ -93,7 +93,7 @@ MetaData makeMetaData(const Item& it) {
 std::string MetaData::to_string() const {
     fmt::memory_buffer memoryBuffer;
     fmt::format_to(
-            memoryBuffer,
+            std::back_inserter(memoryBuffer),
             "bySeqno:{} cas:{} exptime:{} revSeqno:{} flags:{} valueSize:{} "
             "deleted:{} deleteSource:{} version:{} datatype:{}",
             allMeta.v0.bySeqno,
@@ -112,12 +112,12 @@ std::string MetaData::to_string() const {
     if (getVersion() == Version::V1) {
         if (allMeta.v0.bits.deleted) {
             // abort
-            fmt::format_to(memoryBuffer,
+            fmt::format_to(std::back_inserter(memoryBuffer),
                            " prepareSeqno:{}",
                            allMeta.v1.durabilityDetails.completed.prepareSeqno);
         } else {
             // prepare
-            fmt::format_to(memoryBuffer,
+            fmt::format_to(std::back_inserter(memoryBuffer),
                            " durabilityLevel:{} syncDelete:{}",
                            allMeta.v1.durabilityDetails.pending.level,
                            allMeta.v1.durabilityDetails.pending.isDelete);

@@ -1189,12 +1189,12 @@ bool Manifest::addCollectionStats(Vbid vbid,
                                   const StatCollector& collector) const {
     fmt::memory_buffer key;
 
-    format_to(key, "vb_{}:collections", vbid.get());
+    format_to(std::back_inserter(key), "vb_{}:collections", vbid.get());
     collector.addStat(std::string_view(key.data(), key.size()), map.size());
 
     key.resize(0);
 
-    format_to(key, "vb_{}:manifest:uid", vbid.get());
+    format_to(std::back_inserter(key), "vb_{}:manifest:uid", vbid.get());
     collector.addStat(std::string_view(key.data(), key.size()), manifestUid);
 
     for (const auto& entry : map) {
@@ -1209,31 +1209,32 @@ bool Manifest::addCollectionStats(Vbid vbid,
 bool Manifest::addScopeStats(Vbid vbid, const StatCollector& collector) const {
     fmt::memory_buffer key;
 
-    format_to(key, "vb_{}:scopes", vbid.get());
+    format_to(std::back_inserter(key), "vb_{}:scopes", vbid.get());
     collector.addStat(std::string_view(key.data(), key.size()), scopes.size());
 
     key.resize(0);
 
-    format_to(key, "vb_{}:manifest:uid", vbid.get());
+    format_to(std::back_inserter(key), "vb_{}:manifest:uid", vbid.get());
     collector.addStat(std::string_view(key.data(), key.size()), manifestUid);
 
-    format_to(key, "vb_{}:scope_data_limit", vbid.get());
+    format_to(std::back_inserter(key), "vb_{}:scope_data_limit", vbid.get());
     collector.addStat(std::string_view(key.data(), key.size()),
                       scopeWithDataLimitExists);
 
     for (const auto& [sid, value] : scopes) {
         key.resize(0);
-        format_to(key, "vb_{}:{}:name:", vbid.get(), sid);
+        format_to(std::back_inserter(key), "vb_{}:{}:name:", vbid.get(), sid);
         collector.addStat(std::string_view(key.data(), key.size()),
                           value.getName());
         key.resize(0);
-        format_to(key, "vb_{}:{}:data_size", vbid.get(), sid);
+        format_to(std::back_inserter(key), "vb_{}:{}:data_size", vbid.get(), sid);
         collector.addStat(std::string_view(key.data(), key.size()),
                           value.getDataSize());
 
         if (value.getDataLimit()) {
             key.resize(0);
-            format_to(key, "vb_{}:{}:data_limit", vbid.get(), sid);
+            format_to(
+                    std::back_inserter(key), "vb_{}:{}:data_limit", vbid.get(), sid);
             collector.addStat(std::string_view(key.data(), key.size()),
                               value.getDataLimit().value());
         }
@@ -1245,8 +1246,11 @@ bool Manifest::addScopeStats(Vbid vbid, const StatCollector& collector) const {
     for (const auto& [cid, entry] : map) {
         key.resize(0);
 
-        format_to(
-                key, "vb_{}:{}:{}:items", vbid.get(), entry.getScopeID(), cid);
+        format_to(std::back_inserter(key),
+                  "vb_{}:{}:{}:items",
+                  vbid.get(),
+                  entry.getScopeID(),
+                  cid);
         collector.addStat(std::string_view(key.data(), key.size()),
                           entry.getItemCount());
     }
@@ -1515,11 +1519,11 @@ bool Manifest::DroppedCollections::addStats(
 bool Manifest::DroppedCollectionInfo::addStats(
         Vbid vbid, CollectionID cid, const StatCollector& collector) const {
     fmt::memory_buffer prefix;
-    format_to(prefix, "vb_{}:{}", vbid.get(), cid);
+    format_to(std::back_inserter(prefix), "vb_{}:{}", vbid.get(), cid);
     const auto addStat = [&prefix, &collector](const auto& statKey,
                                                auto statValue) {
         fmt::memory_buffer key;
-        format_to(key,
+        format_to(std::back_inserter(key),
                   "{}:{}",
                   std::string_view{prefix.data(), prefix.size()},
                   statKey);
