@@ -854,7 +854,7 @@ void MagmaKVStore::commitCallback(MagmaKVStoreTransactionContext& txnCtx,
                         txnCtx.vbid,
                         cb::UserData(req.getKey().to_string()),
                         errCode,
-                        to_string(state));
+                        state);
             }
 
             txnCtx.deleteCallback(req.getItem(), state);
@@ -888,7 +888,7 @@ void MagmaKVStore::commitCallback(MagmaKVStoreTransactionContext& txnCtx,
                         txnCtx.vbid,
                         cb::UserData(req.getKey().to_string()),
                         errCode,
-                        to_string(state));
+                        state);
             }
 
             txnCtx.setCallback(req.getItem(), state);
