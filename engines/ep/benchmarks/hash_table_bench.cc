@@ -49,7 +49,7 @@ public:
         // Use fmtlib to format key with stack-local (non-heap) buffer to
         // minimise the cost of constructing keys for Items.
         fmt::memory_buffer keyBuf;
-        format_to(keyBuf, "{}{}", keyPrefix, i);
+        format_to(std::back_inserter(keyBuf), "{}{}", keyPrefix, i);
         // Note: fmt::memory_buffer is not null-terminated, cannot use the
         // cstring-ctor
         return StoredDocKey(to_string(keyBuf), collection);

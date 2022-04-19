@@ -116,11 +116,11 @@ void RangeScan::setStateCancelled() {
 
 void RangeScan::addStats(const StatCollector& collector) const {
     fmt::memory_buffer prefix;
-    fmt::format_to(prefix, "vb_{}:{}", vbid.get(), uuid);
+    fmt::format_to(std::back_inserter(prefix), "vb_{}:{}", vbid.get(), uuid);
     const auto addStat = [&prefix, &collector](const auto& statKey,
                                                auto statValue) {
         fmt::memory_buffer key;
-        format_to(key,
+        format_to(std::back_inserter(key),
                   "{}:{}",
                   std::string_view{prefix.data(), prefix.size()},
                   statKey);
