@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -38,7 +37,10 @@ protected:
     }
 
     static void TearDownTestCase() {
-        cb::io::rmrf(testdir);
+        try {
+            cb::io::rmrf(testdir);
+        } catch (const std::exception&) {
+        }
     }
 
     nlohmann::json json;
@@ -281,27 +283,8 @@ TEST_F(AuditConfigTest, TestGetSetSanitizeLogPathMixedSeparators) {
     std::string path = testdir + std::string("/mydir\\baddir");
     EXPECT_NO_THROW(config.set_log_directory(path));
     EXPECT_EQ(testdir + "\\mydir\\baddir", config.get_log_directory());
-    EXPECT_NO_THROW(cb::io::rmrf(config.get_log_directory()))
-        << "Failed to remove: " << config.get_log_directory()
-        << ": " << strerror(errno) << std::endl;
 }
 #endif
-
-#ifndef WIN32
-TEST_F(AuditConfigTest, TestFailToCreateDirLogPath) {
-    json["log_path"] = "/itwouldsuckifthisexists";
-    EXPECT_THROW(config.initialize_config(json), std::string);
-}
-#endif
-
-TEST_F(AuditConfigTest, TestCreateDirLogPath) {
-    std::string path = testdir + std::string("/mybar");
-    json["log_path"] = path;
-    EXPECT_NO_THROW(config.initialize_config(json));
-    EXPECT_NO_THROW(cb::io::rmrf(config.get_log_directory()))
-        << "Failed to remove: " << config.get_log_directory()
-        << ": " << strerror(errno) << std::endl;
-}
 
 // descriptors_path
 
