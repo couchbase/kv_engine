@@ -20,7 +20,7 @@ namespace cb::breakpad {
 /**
  * What information should breakpad minidumps contain?
  */
-enum class Content {
+enum class Content : bool {
     /**
      * Default content (threads+stack+env+arguments)
      */
@@ -51,9 +51,9 @@ struct Settings {
      */
     explicit Settings(const nlohmann::json& json);
 
-    bool enabled{false};
     std::string minidump_dir;
     Content content{Content::Default};
+    bool enabled{false};
 };
 
 } // namespace cb::breakpad

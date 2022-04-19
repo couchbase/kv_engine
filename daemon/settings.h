@@ -765,84 +765,27 @@ public:
     }
 
 protected:
-    /// Should the server always collect trace information for commands
-    std::atomic_bool always_collect_trace_info{false};
-
-    /**
-     * The file containing the RBAC user data
-     */
-    std::string rbac_file;
-
-    /**
-     * Is privilege debug enabled or not
-     */
-    std::atomic_bool privilege_debug{false};
-
-    /**
-     * Number of worker (without dispatcher) libevent threads to run
-     * */
-    size_t num_threads = 0;
-
-    /// Array of interface settings we are listening on
-    folly::Synchronized<std::vector<NetworkInterface>> interfaces;
-
-    /**
-     * Configuration of the logger
-     */
-    cb::logger::Config logger_settings;
-
-    /**
-     * The file containing audit configuration
-     */
+    /// The file containing audit configuration
     std::string audit_file;
 
-    /**
-     * Location of error maps sent to the client
-     */
+    /// Location of error maps sent to the client
     std::string error_maps_dir;
 
-    /**
-     * level of versosity to log at.
-     */
-    std::atomic_int verbose{0};
+    /// The file containing the RBAC user data
+    std::string rbac_file;
 
-    /**
-     * The number of seconds a client may be idle before it is disconnected
-     */
-    cb::RelaxedAtomic<size_t> connection_idle_time{0};
-
-    /**
-     * The root directory of the installation
-     */
+    /// The root directory of the installation
     std::string root;
 
-    /**
-     * is datatype json/snappy enabled?
-     */
-    bool datatype_json = true;
-    std::atomic_bool datatype_snappy{true};
+    /// Number of worker (without dispatcher) libevent threads to run
+    size_t num_threads = 0;
 
-    /**
-     * Maximum number of io events to process based on the priority of the
-     * connection
-     */
-    int reqs_per_event_high_priority = 50;
-    int reqs_per_event_med_priority = 5;
-    int reqs_per_event_low_priority = 1;
-    int default_reqs_per_event = 20;
+    /// The name of the file to store portnumber information
+    /// May also be set in environment (cannot change)
+    std::string portnumber_file;
 
-    /**
-     * Breakpad crash catcher settings
-     */
-    cb::breakpad::Settings breakpad;
-
-    /// To prevent us from reading (and allocating) an insane amount of
-    /// data off the network we'll ignore (and disconnect clients) that
-    /// tries to send packets bigger than this max_packet_size. The current
-    /// Max document size is 20MB so by using 30MB we'll get the correct
-    /// E2BIG error message for connections going a bit bigger (and not
-    /// a quiet disconnect)
-    uint32_t max_packet_size{30 * 1024 * 1024};
+    /// The number of seconds a client may be idle before it is disconnected
+    cb::RelaxedAtomic<size_t> connection_idle_time{0};
 
     /// The maximum amount of data we want to keep in the send buffer for
     /// for a client until we pause execution of new commands until the
@@ -854,44 +797,31 @@ protected:
     /// ssl client authentication
     cb::x509::ClientCertMapper client_cert_mapper;
 
+    /// Configuration of the logger
+    cb::logger::Config logger_settings;
+
+    /// Breakpad crash catcher settings
+    cb::breakpad::Settings breakpad;
+
+    /// Array of interface settings we are listening on
+    folly::Synchronized<std::vector<NetworkInterface>> interfaces;
+
     /// The available sasl mechanism list
     folly::Synchronized<std::string> sasl_mechanisms;
 
     /// The available sasl mechanism list to use over SSL
     folly::Synchronized<std::string> ssl_sasl_mechanisms;
 
-    /**
-     * Should we deduplicate the cluster maps from the Not My VBucket messages
-     */
-    std::atomic_bool dedupe_nmvb_maps{false};
-
-    /**
-     * May xattrs be used or not
-     */
-    std::atomic_bool xattr_enabled{false};
-
-    /**
-     * Should collections be enabled
-     */
-    std::atomic_bool collections_enabled{true};
-
     /// Any settings to override opcode attributes
     folly::Synchronized<std::string> opcode_attributes_override;
 
-    /**
-     * Is tracing enabled or not
-     */
-    std::atomic_bool tracing_enabled{true};
+    /// The salt to return to users we don't know about
+    folly::Synchronized<std::string> scramsha_fallback_salt;
 
-    /**
-     * Use standard input listener
-     */
-    std::atomic_bool stdin_listener{true};
+    folly::Synchronized<std::pair<in_port_t, sa_family_t>> prometheus_config;
 
-    /**
-     * Should we allow for using the external authentication service or not
-     */
-    std::atomic_bool external_auth_service{false};
+    folly::Synchronized<std::string> phosphor_config{
+            "buffer-mode:ring;buffer-size:20971520;enabled-categories:*"};
 
     std::atomic<std::chrono::microseconds> active_external_users_push_interval{
             std::chrono::minutes(5)};
@@ -906,14 +836,6 @@ protected:
     /// blocking execution
     std::atomic<std::size_t> max_concurrent_commands_per_connection{32};
 
-    /// The name of the file to store portnumber information
-    /// May also be set in environment (cannot change)
-    std::string portnumber_file;
-    /// The identifier to use for the parent monitor
-    int parent_identifier = -1;
-    /// The salt to return to users we don't know about
-    folly::Synchronized<std::string> scramsha_fallback_salt;
-
     /**
      * Note that it is not safe to add new listeners after we've spun up
      * new threads as we don't try to lock the object.
@@ -925,20 +847,66 @@ protected:
              std::deque<std::function<void(const std::string&, Settings&)>>>
             change_listeners;
 
-    void notify_changed(const std::string& key);
+    /// The identifier to use for the parent monitor
+    int parent_identifier = -1;
+
+    /// level of versosity to log at.
+    std::atomic_int verbose{0};
+
+    /**
+     * Maximum number of io events to process based on the priority of the
+     * connection
+     */
+    int reqs_per_event_high_priority = 50;
+    int reqs_per_event_med_priority = 5;
+    int reqs_per_event_low_priority = 1;
+    int default_reqs_per_event = 20;
+
+    /// To prevent us from reading (and allocating) an insane amount of
+    /// data off the network we'll ignore (and disconnect clients) that
+    /// tries to send packets bigger than this max_packet_size. The current
+    /// Max document size is 20MB so by using 30MB we'll get the correct
+    /// E2BIG error message for connections going a bit bigger (and not
+    /// a quiet disconnect)
+    uint32_t max_packet_size{30 * 1024 * 1024};
 
     std::atomic<int> num_reader_threads{0};
     std::atomic<int> num_writer_threads{0};
     std::atomic<int> num_auxio_threads{0};
     std::atomic<int> num_nonio_threads{0};
 
-    folly::Synchronized<std::pair<in_port_t, sa_family_t>> prometheus_config;
-
     /// Number of storage backend threads
     std::atomic<int> num_storage_threads{0};
 
-    folly::Synchronized<std::string> phosphor_config{
-            "buffer-mode:ring;buffer-size:20971520;enabled-categories:*"};
+    /// Should the server always collect trace information for commands
+    std::atomic_bool always_collect_trace_info{false};
+
+    /// Is privilege debug enabled or not
+    std::atomic_bool privilege_debug{false};
+
+    /// is datatype json enabled?
+    bool datatype_json = true;
+
+    /// is datatype snappy enabled?
+    std::atomic_bool datatype_snappy{true};
+
+    /// Should we deduplicate the cluster maps from the Not My VBucket messages
+    std::atomic_bool dedupe_nmvb_maps{false};
+
+    /// May xattrs be used or not
+    std::atomic_bool xattr_enabled{false};
+
+    /// Should collections be enabled
+    std::atomic_bool collections_enabled{true};
+
+    /// Is tracing enabled or not
+    std::atomic_bool tracing_enabled{true};
+
+    /// Use standard input listener
+    std::atomic_bool stdin_listener{true};
+
+    /// Should we allow for using the external authentication service or not
+    std::atomic_bool external_auth_service{false};
 
     std::atomic_bool enforce_tenant_limits_enabled{false};
 
@@ -946,6 +914,8 @@ protected:
     /// of server cleanup. This setting should only be used for unit
     /// tests
     std::atomic_bool whitelist_localhost_interface{true};
+
+    void notify_changed(const std::string& key);
 
 public:
     /**
