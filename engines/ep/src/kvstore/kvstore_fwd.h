@@ -39,6 +39,8 @@ enum class FlushStateDeletion {
     Failed
 };
 
+std::ostream& operator<<(std::ostream& os, const FlushStateDeletion&);
+
 /// Result of flushing a Mutation, passed to the PersistenceCallback.
 enum class FlushStateMutation {
     // An item was inserted (item did not exist before or was previously
@@ -56,3 +58,5 @@ enum class FlushStateMutation {
     // The persistence of the mutation failed
     Failed
 };
+
+std::ostream& operator<<(std::ostream& os, const FlushStateMutation&);

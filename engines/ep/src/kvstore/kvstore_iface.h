@@ -113,6 +113,8 @@ protected:
  */
 enum class CompactDBStatus { Success, Aborted, Failed };
 
+std::ostream& operator<<(std::ostream&, const CompactDBStatus&);
+
 /**
  * Functional interface of a KVStore. Each KVStore implementation must implement
  * each of these functions.
@@ -759,3 +761,6 @@ public:
 };
 
 std::string to_string(KVStoreIface::ReadVBStateStatus status);
+
+std::ostream& operator<<(std::ostream&,
+                         const KVStoreIface::GetCollectionStatsStatus&);

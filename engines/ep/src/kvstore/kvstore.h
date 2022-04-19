@@ -1025,9 +1025,6 @@ protected:
     TestingHook<> saveDocsPostWriteDocsHook;
 };
 
-std::string to_string(FlushStateDeletion status);
-std::string to_string(FlushStateMutation state);
-
 /**
  * The KVStoreFactory creates the correct KVStore instance(s) when
  * needed by EPStore.
