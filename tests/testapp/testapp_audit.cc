@@ -682,3 +682,38 @@ TEST_P(AuditTest, MB41183_UnifiedConnectionDescription) {
         return true;
     });
 }
+
+/// Verify that the audit of the document key don't include the collection
+/// identifiers
+TEST_P(AuditTest, MB51863) {
+    auto& conn = getConnection();
+
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.selectBucket(bucketName);
+    std::vector<cb::mcbp::Feature> features = {
+            {cb::mcbp::Feature::MUTATION_SEQNO,
+             cb::mcbp::Feature::XATTR,
+             cb::mcbp::Feature::XERROR,
+             cb::mcbp::Feature::SELECT_BUCKET,
+             cb::mcbp::Feature::Collections,
+             cb::mcbp::Feature::SubdocReplaceBodyWithXattr}};
+    conn.setFeatures(features);
+    std::string key;
+    key.push_back('\0');
+    key.append("MB51863");
+    conn.store(key, Vbid(0), "foo");
+
+    nlohmann::json document;
+    iterate([&document](const nlohmann::json& entry) -> bool {
+        if (entry["id"].get<int>() == MEMCACHED_AUDIT_DOCUMENT_MODIFY &&
+            entry["key"].get<std::string>().find("MB51863") !=
+                    std::string::npos) {
+            document = entry;
+            return true;
+        }
+        return false;
+    });
+
+    ASSERT_EQ("MB51863", document["key"].get<std::string>());
+    ASSERT_EQ("0x0", document["collection_id"].get<std::string>());
+}

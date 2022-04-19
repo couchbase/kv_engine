@@ -262,7 +262,8 @@ public:
      * @param addUserDataTags when set to true the returned data contains
      *                        the userdata tags which allows for redaction
      */
-    std::string getPrintableRequestKey(bool addUserDataTags = true) const;
+    std::string getPrintableRequestKey(bool addUserDataTags = true,
+                                       bool stripCollection = false) const;
 
     /**
      * Get a printable representation of the key's collection ID

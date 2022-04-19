@@ -368,7 +368,7 @@ void add(Cookie& cookie, Operation operation) {
             connection, connection.getUser(), cookie.getEffectiveUser());
     root["bucket"] = connection.getBucket().name;
     root["collection_id"] = cookie.getPrintableRequestCollectionID();
-    root["key"] = cookie.getPrintableRequestKey(false);
+    root["key"] = cookie.getPrintableRequestKey(false, true);
 
     switch (operation) {
     case Operation::Read:

@@ -332,10 +332,17 @@ const DocKey Cookie::getRequestKey() const {
     return connection.makeDocKey(getRequest().getKey());
 }
 
-std::string Cookie::getPrintableRequestKey(bool addUserDataTags) const {
+std::string Cookie::getPrintableRequestKey(bool addUserDataTags,
+                                           bool stripCollection) const {
     const auto key = getRequest().getKey();
 
-    std::string buffer{reinterpret_cast<const char*>(key.data()), key.size()};
+    std::string buffer;
+    if (stripCollection) {
+        buffer = getRequestKey().makeDocKeyWithoutCollectionID().getBuffer();
+    } else {
+        buffer = {reinterpret_cast<const char*>(key.data()), key.size()};
+    }
+
     for (auto& ii : buffer) {
         if (!std::isgraph(ii)) {
             ii = '.';
