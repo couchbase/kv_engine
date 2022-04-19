@@ -11,6 +11,7 @@
 
 #include <statistics/cbstat_collector.h>
 
+#include <fmt/args.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <logger/logger.h>
 #include <memcached/cookie_iface.h>
@@ -152,108 +153,6 @@ cb::engine_errc CBStatCollector::testPrivilegeForStat(
     return cb::engine_errc::failed;
 }
 
-/**
- * Format a string containing `fmt` replacement specifiers using key-value pairs
- * from a map as named arguments
- *
- * e.g.,
- *
- * formatFromMap(buf, "{connection_type}:items_remaining", {{"connection_type",
- * "replica}});
- * ->
- * "replica:items_remaining"
- *
- * Note - this is only required as the currently used version of fmt does not
- * support dynamic args. Once a version of fmt with
- *     fmt::dynamic_format_arg_store
- * support is available, this can be simplified.
- * Additionally, fmt::format_args is _not_ safe to construct with
- * fmt::make_format_args in a similar manner, due to lifetime issues as each
- * fmt::arg(...) needs to outlive any usages of the format_args object
- * (again, resolved by dynamic_format_arg_store)
- *
- */
-
-auto formatFromMap(fmt::memory_buffer& buf,
-                   std::string_view formatStr,
-                   const StatCollector::Labels& labels) {
-    auto itr = labels.cbegin();
-
-    // lambda to create a fmt named arg from the next key-value pair
-    // from the iterator.
-    auto getArg = [&itr]() {
-        const auto& [key, value] = *itr++;
-        return fmt::arg(key, value);
-    };
-
-    // note, the order of evaluation of the args is unspecified, but isn't
-    // important anyway. This can be made more succinct, but this is
-    // straightforward to read and understand.
-
-    switch (labels.size()) {
-    case 0:
-        return fmt::format_to(std::back_inserter(buf), formatStr);
-    case 1:
-        return fmt::format_to(std::back_inserter(buf), formatStr, getArg());
-    case 2:
-        return fmt::format_to(
-                std::back_inserter(buf), formatStr, getArg(), getArg());
-    case 3:
-        return fmt::format_to(std::back_inserter(buf),
-                              formatStr,
-                              getArg(),
-                              getArg(),
-                              getArg());
-    case 4:
-        return fmt::format_to(std::back_inserter(buf),
-                              formatStr,
-                              getArg(),
-                              getArg(),
-                              getArg(),
-                              getArg());
-    case 5:
-        return fmt::format_to(std::back_inserter(buf),
-                              formatStr,
-                              getArg(),
-                              getArg(),
-                              getArg(),
-                              getArg(),
-                              getArg());
-    case 6:
-        return fmt::format_to(std::back_inserter(buf),
-                              formatStr,
-                              getArg(),
-                              getArg(),
-                              getArg(),
-                              getArg(),
-                              getArg(),
-                              getArg());
-    case 7:
-        return fmt::format_to(std::back_inserter(buf),
-                              formatStr,
-                              getArg(),
-                              getArg(),
-                              getArg(),
-                              getArg(),
-                              getArg(),
-                              getArg(),
-                              getArg());
-    case 8:
-        return fmt::format_to(std::back_inserter(buf),
-                              formatStr,
-                              getArg(),
-                              getArg(),
-                              getArg(),
-                              getArg(),
-                              getArg(),
-                              getArg(),
-                              getArg(),
-                              getArg());
-    }
-
-    throw std::runtime_error("makeFormatArgs too many labels provided");
-}
-
 std::string CBStatCollector::formatKey(std::string_view key,
                                        const Labels& labels) const {
     fmt::memory_buffer buf;
@@ -272,7 +171,11 @@ std::string CBStatCollector::formatKey(std::string_view key,
         }
         // now format the key itself, it may contain replacement specifiers
         // that can only be replaced with the appropriate value at runtime
-        formatFromMap(buf, key, labels);
+        fmt::dynamic_format_arg_store<fmt::format_context> store;
+        for (const auto& label : labels) {
+            store.push_back(fmt::arg(label.first, label.second));
+        }
+        fmt::vformat_to(std::back_inserter(buf), key, store);
 
         return fmt::to_string(buf);
 
