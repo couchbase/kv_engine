@@ -402,15 +402,15 @@ std::string ConnHandler::getPausedDetails() const {
         const auto count = details.reasonCounts[reason];
         if (count) {
             if (addComma) {
-                format_to(buf, ",");
+                fmt::format_to(std::back_inserter(buf), ",");
             }
             addComma = true;
             const auto duration = details.reasonDurations[reason];
-            format_to(buf,
-                      R"("{}": {{"count":{}, "duration":"{}"}})",
-                      to_string(ConnHandler::PausedReason{reason}),
-                      count,
-                      cb::time2text(duration));
+            fmt::format_to(std::back_inserter(buf),
+                           R"("{}": {{"count":{}, "duration":"{}"}})",
+                           to_string(ConnHandler::PausedReason{reason}),
+                           count,
+                           cb::time2text(duration));
             totalCount += count;
             totalDuration += duration;
         }
