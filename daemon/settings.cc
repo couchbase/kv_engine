@@ -530,6 +530,24 @@ static void handle_num_storage_threads(Settings& s, const nlohmann::json& obj) {
     }
 }
 
+static void handle_read_compute_unit_size(Settings& s,
+                                          const nlohmann::json& obj) {
+    if (!obj.is_number()) {
+        cb::throwJsonTypeError(
+                R"("read_compute_unit_size" must be an unsigned number)");
+    }
+    s.setReadComputeUnitSize(obj.get<std::size_t>());
+}
+
+static void handle_write_compute_unit_size(Settings& s,
+                                           const nlohmann::json& obj) {
+    if (!obj.is_number()) {
+        cb::throwJsonTypeError(
+                R"("write_compute_unit_size" must be an unsigned number)");
+    }
+    s.setWriteComputeUnitSize(obj.get<std::size_t>());
+}
+
 static void handle_logger(Settings& s, const nlohmann::json& obj) {
     if (!obj.is_object()) {
         cb::throwJsonTypeError(R"("opcode_attributes_override" must be an
@@ -685,6 +703,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"prometheus", handle_prometheus},
             {"portnumber_file", handle_portnumber_file},
             {"parent_identifier", handle_parent_identifier},
+            {"read_compute_unit_size", handle_read_compute_unit_size},
+            {"write_compute_unit_size", handle_write_compute_unit_size},
             {"whitelist_localhost_interface",
              handle_whitelist_localhost_interface}};
 
@@ -877,6 +897,24 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      max_send_queue_size / (1024 * 1024),
                      other.max_send_queue_size / (1024 * 1024));
             setMaxSendQueueSize(other.max_send_queue_size);
+        }
+    }
+
+    if (other.has.read_compute_unit_size) {
+        if (other.read_compute_unit_size != read_compute_unit_size) {
+            LOG_INFO("Change RCU size from {} to {}",
+                     read_compute_unit_size,
+                     other.read_compute_unit_size);
+            setReadComputeUnitSize(other.read_compute_unit_size);
+        }
+    }
+
+    if (other.has.write_compute_unit_size) {
+        if (other.write_compute_unit_size != write_compute_unit_size) {
+            LOG_INFO("Change WCU size from {} to {}",
+                     write_compute_unit_size,
+                     other.write_compute_unit_size);
+            setWriteComputeUnitSize(other.write_compute_unit_size);
         }
     }
 
