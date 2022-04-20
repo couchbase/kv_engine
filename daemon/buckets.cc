@@ -49,6 +49,22 @@ bool Bucket::supports(cb::engine::Feature feature) {
     return supportedFeatures.find(feature) != supportedFeatures.end();
 }
 
+nlohmann::json Bucket::to_json() const {
+    std::lock_guard<std::mutex> guard(mutex);
+    nlohmann::json json;
+    if (state != State::None) {
+        try {
+            json["state"] = to_string(state.load());
+            json["clients"] = clients.load();
+            json["name"] = name;
+            json["type"] = to_string(type);
+        } catch (const std::exception& e) {
+            LOG_ERROR("Failed to generate bucket details: {}", e.what());
+        }
+    }
+    return json;
+}
+
 DcpIface* Bucket::getDcpIface() const {
     return bucketDcp;
 }

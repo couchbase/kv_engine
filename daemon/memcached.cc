@@ -538,30 +538,6 @@ void safe_close(SOCKET sfd) {
     }
 }
 
-static nlohmann::json get_bucket_details_UNLOCKED(const Bucket& bucket,
-                                                  size_t idx) {
-    nlohmann::json json;
-    if (bucket.state != Bucket::State::None) {
-        try {
-            json["index"] = idx;
-            json["state"] = to_string(bucket.state.load());
-            json["clients"] = bucket.clients.load();
-            json["name"] = bucket.name;
-            json["type"] = to_string(bucket.type);
-        } catch (const std::exception& e) {
-            LOG_ERROR("Failed to generate bucket details: {}", e.what());
-        }
-    }
-    return json;
-}
-
-nlohmann::json get_bucket_details(size_t idx) {
-    Bucket& bucket = BucketManager::instance().at(idx);
-    std::lock_guard<std::mutex> guard(bucket.mutex);
-
-    return get_bucket_details_UNLOCKED(bucket, idx);
-}
-
 /**
  * Check if the associated bucket is dying or not. There is two reasons
  * for why a bucket could be dying: It is currently being deleted, or

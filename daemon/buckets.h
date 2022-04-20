@@ -163,6 +163,9 @@ public:
      */
     bool supports(cb::engine::Feature feature);
 
+    /// Get a JSON representation of the bucket
+    nlohmann::json to_json() const;
+
     /**
      * Reset the bucket back to NoBucket state
      */
@@ -187,8 +190,6 @@ std::string to_string(Bucket::State state);
  * with an empty password.).
  */
 extern std::array<Bucket, cb::limits::TotalBuckets + 1> all_buckets;
-
-nlohmann::json get_bucket_details(size_t idx);
 
 /**
  * Is the connected bucket currently dying?

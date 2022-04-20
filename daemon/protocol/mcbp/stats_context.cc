@@ -116,17 +116,19 @@ static AddStatFn appendStatsFn = append_stats;
  * @param cookie the command context
  */
 static void process_bucket_details(Cookie& cookie) {
-    nlohmann::json json;
     nlohmann::json array = nlohmann::json::array();
 
     for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
-        auto o = get_bucket_details(ii);
-        if (!o.empty()) {
-            array.push_back(o);
+        Bucket& bucket = BucketManager::instance().at(ii);
+        auto json = bucket.to_json();
+        if (!json.empty()) {
+            json["index"] = ii;
+            array.emplace_back(std::move(json));
         }
     }
-    json["buckets"] = array;
 
+    nlohmann::json json;
+    json["buckets"] = array;
     const auto stats_str = json.dump();
     append_stats("bucket details"sv, stats_str, static_cast<void*>(&cookie));
 }
