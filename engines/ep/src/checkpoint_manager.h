@@ -792,6 +792,7 @@ protected:
                            uint64_t snapEnd,
                            uint64_t visibleSnapEnd,
                            std::optional<uint64_t> highCompletedSeqno,
+                           uint64_t highPreparedSeqno,
                            CheckpointType checkpointType);
 
     /**

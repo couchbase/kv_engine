@@ -55,6 +55,7 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
                        uint64_t snapEnd,
                        uint64_t visibleSnapEnd,
                        std::optional<uint64_t> highCompletedSeqno,
+                       uint64_t highPreparedSeqno,
                        Vbid vbid,
                        CheckpointType checkpointType)
     : manager(&manager),
@@ -79,6 +80,7 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
     auto& core = stats.coreLocal.get();
     core->memOverhead.fetch_add(sizeof(Checkpoint));
     core->numCheckpoints++;
+    this->highPreparedSeqno.reset(highPreparedSeqno);
 
     // the overheadChangedCallback uses the accurately tracked overhead
     // from queueAllocator. The above memOverhead stat is "manually"
