@@ -79,7 +79,7 @@ Blob& Blob::assign(std::string_view buffer, bool compressed) {
     return *this;
 }
 
-cb::char_buffer Blob::get(std::string_view key) const {
+cb::char_buffer Blob::get(std::string_view key) {
     try {
         size_t current = 4;
         while (current < blob.size()) {
@@ -93,7 +93,7 @@ cb::char_buffer Blob::get(std::string_view key) const {
                                 key.data(),
                                 key.size()) == 0) {
                     // Yay this is the key!!!
-                    auto* value = blob.buf + current + key.size() + 1;
+                    auto* value = blob.data() + current + key.size() + 1;
                     return {value, strlen(value)};
                 } else {
                     // jump to the next key!!
@@ -149,10 +149,10 @@ void Blob::set(std::string_view key, std::string_view value) {
     }
 
     // Locate the old value
-    const auto old = get(key);
+    auto old = get(key);
     if (old.size() == value.size()) {
         // lets do an in-place replacement
-        std::copy(value.begin(), value.end(), old.buf);
+        std::copy(value.begin(), value.end(), old.data());
         return;
     } else if (old.size() == 0) {
         // The old one didn't exist
@@ -234,17 +234,17 @@ void Blob::remove_segment(const size_t offset, const size_t size) {
     if (offset + size == blob.size()) {
         // No need to do anyting as this was the last thing in our blob..
         // just change the length
-        blob.len = offset;
+        blob = {blob.data(), offset};
 
         if (blob.size() == 4) {
             // the last xattr removed... we could just nuke it..
-            blob.len = 0;
+            blob = {};
         }
     } else {
         std::memmove(blob.data() + offset,
                      blob.data() + offset + size,
                      blob.size() - offset - size);
-        blob.len -= size;
+        blob = {blob.data(), blob.size() - size};
     }
 
     if (blob.size() > 0) {
@@ -293,12 +293,12 @@ size_t Blob::get_xattrs_size(Type type) const {
 
             switch (type) {
             case Type::System:
-                if (blob.buf[current + 4] == '_') {
+                if (blob[current + 4] == '_') {
                     ret += size + 4;
                 }
                 break;
             case Type::User:
-                if (blob.buf[current + 4] != '_') {
+                if (blob[current + 4] != '_') {
                     ret += size + 4;
                 }
                 break;

@@ -94,7 +94,7 @@ public:
      * @return a buffer containing it's value. If not found the buffer length
      *         is 0
      */
-    cb::char_buffer get(std::string_view key) const;
+    cb::char_buffer get(std::string_view key);
 
     /**
      * Remove a given key (and its value) from the blob.

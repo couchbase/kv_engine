@@ -822,8 +822,8 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     cb::char_buffer blob_buffer{(char*)context.in_doc.view.data(),
                                 (size_t)bodyoffset};
 
-    const cb::xattr::Blob xattr_blob(
-            blob_buffer, mcbp::datatype::is_snappy(context.in_datatype));
+    cb::xattr::Blob xattr_blob(blob_buffer,
+                               mcbp::datatype::is_snappy(context.in_datatype));
     auto key = context.get_xattr_key();
     auto value_buf = xattr_blob.get(key);
 
