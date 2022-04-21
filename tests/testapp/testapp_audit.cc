@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -681,4 +680,42 @@ TEST_P(AuditTest, MB41183_UnifiedConnectionDescription) {
         entry["local"]["port"].get<int>();
         return true;
     });
+}
+
+#ifdef WIN32
+#define AuditDroppedTest DISABLED_AuditDroppedTest
+#endif
+TEST_P(AuditTest, AuditDroppedTest) {
+    auto orgLogDir = mcd_env->getAuditLogDir();
+    setEnabled(true);
+
+    auto stats = getAdminConnection().stats("audit");
+    // Get the current count for dropped events:
+    const auto org_dropped = stats["dropped_events"].get<size_t>();
+
+    auto& json = mcd_env->getAuditConfig();
+    // Set the audit log to a path which cannot be created
+    // due to access permissions (not just the file but
+    // missing path elements in the path which needs to be
+    // created which we won't have access to create).
+    json["log_path"] = "/AuditTest/auditlog/myaudit";
+    try {
+        mcd_env->rewriteAuditConfig();
+    } catch (std::exception& e) {
+        FAIL() << "Failed to toggle audit state: " << e.what();
+    }
+
+    getAdminConnection().reloadAuditConfiguration();
+
+    stats = getAdminConnection().stats("audit");
+    while (!stats["enabled"].get<bool>()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        stats = getAdminConnection().stats("audit");
+    }
+
+    EXPECT_LT(org_dropped, stats["dropped_events"].get<size_t>());
+
+    // Rewrite the config back to the original one
+    json["log_path"] = orgLogDir;
+    setEnabled(true);
 }
