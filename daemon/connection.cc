@@ -696,6 +696,11 @@ void Connection::executeCommandPipeline() {
 }
 
 void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
+    using std::chrono::duration_cast;
+    using std::chrono::microseconds;
+    using std::chrono::nanoseconds;
+
+    const auto start = std::chrono::steady_clock::now();
     try {
         cookie.setAiostat(status);
         cookie.setEwouldblock(false);
@@ -719,6 +724,11 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
         LOG_CRITICAL("Connection::processNotifiedCookie got exception: {}",
                      e.what());
     }
+
+    const auto stop = std::chrono::steady_clock::now();
+    const auto ns = duration_cast<nanoseconds>(stop - start);
+    scheduler_info[getThread().index].add(duration_cast<microseconds>(ns));
+    addCpuTime(ns);
 }
 
 void Connection::commandExecuted(Cookie& cookie) {
