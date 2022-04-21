@@ -161,6 +161,9 @@ enum class Status : uint16_t {
     /// The SyncWrite is being re-committed after a change in active node.
     SyncWriteReCommitInProgress = 0xa4,
 
+    /// A RangeScan was cancelled whilst executing a continue
+    RangeScanCancelled = 0xa5,
+
     /*
      * Sub-document specific responses.
      */

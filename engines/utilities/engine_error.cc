@@ -113,6 +113,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "opaque no match";
     case engine_errc::scope_size_limit_exceeded:
         return "scope size limit exceeded";
+    case engine_errc::range_scan_cancelled:
+        return "range scan cancelled";
     };
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "

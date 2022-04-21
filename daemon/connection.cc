@@ -375,6 +375,7 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
     case cb::engine_errc::sync_write_pending:
     case cb::engine_errc::sync_write_ambiguous:
     case cb::engine_errc::dcp_streamid_invalid:
+    case cb::engine_errc::range_scan_cancelled:
 
         break;
     }

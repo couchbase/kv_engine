@@ -127,6 +127,9 @@ enum class engine_errc {
     /// Too much data in the scope
     scope_size_limit_exceeded = 0x25,
 
+    /// RangeScan was cancelled
+    range_scan_cancelled = 0x26,
+
     /** Generic failue. */
     failed = 0xff
 };
