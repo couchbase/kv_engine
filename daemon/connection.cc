@@ -666,7 +666,7 @@ void Connection::executeCommandPipeline() {
 
             if (evbuffer_drain(input, drainSize) == -1) {
                 throw std::runtime_error(
-                        "Connection::executeCommandsCallback(): Failed to "
+                        "Connection::executeCommandPipeline(): Failed to "
                         "drain buffer");
             }
         }
