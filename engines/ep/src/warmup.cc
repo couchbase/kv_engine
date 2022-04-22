@@ -1293,11 +1293,6 @@ void Warmup::initialize() {
 
     populateShardVbStates();
 
-    for (uint16_t i = 0; i < store.vbMap.getNumShards(); i++) {
-        accessLog.emplace_back(config.getAlogPath() + "." + std::to_string(i),
-                               config.getAlogBlockSize());
-    }
-
     transition(WarmupState::State::CreateVBuckets);
 }
 
@@ -1697,6 +1692,11 @@ void Warmup::checkForAccessLog()
         return;
     }
 
+    for (uint16_t i = 0; i < store.vbMap.getNumShards(); i++) {
+        accessLog.emplace_back(config.getAlogPath() + "." + std::to_string(i),
+                               config.getAlogBlockSize());
+    }
+
     size_t accesslogs = 0;
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
         std::string curr = accessLog[i].getLogFile();
@@ -1709,6 +1709,9 @@ void Warmup::checkForAccessLog()
     if (accesslogs == store.vbMap.shards.size()) {
         transition(WarmupState::State::LoadingAccessLog);
     } else {
+        // We aren't loading anything from the accessLog, nuke it
+        accessLog.clear();
+
         if (store.getItemEvictionPolicy() == EvictionPolicy::Value) {
             transition(WarmupState::State::LoadingData);
         } else {
@@ -1775,6 +1778,10 @@ void Warmup::loadingAccessLog(uint16_t shardId)
     }
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
+        // We don't need the accessLog anymore, and it uses a bunch of memory.
+        // Nuke it now to get the memory back.
+        accessLog.clear();
+
         if (!store.maybeEnableTraffic()) {
             transition(WarmupState::State::LoadingData);
         } else {
