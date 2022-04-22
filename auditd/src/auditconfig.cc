@@ -132,16 +132,6 @@ bool AuditConfig::is_buffered() const {
 
 void AuditConfig::set_log_directory(std::string directory) {
     sanitize_path(directory);
-    try {
-        cb::io::mkdirp(directory);
-    } catch (const std::runtime_error& error) {
-        std::stringstream ss;
-        ss << "AuditConfig::set_log_directory(): Failed to create log "
-              "directory \""
-           << directory << "\": " << error.what();
-        throw std::runtime_error(ss.str());
-    }
-
     log_path.swap(directory);
 }
 

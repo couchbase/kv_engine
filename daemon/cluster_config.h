@@ -21,7 +21,7 @@ class Connection;
 
 class ClustermapVersion {
 public:
-    ClustermapVersion() : epoch(0), revno(0) {
+    ClustermapVersion() : epoch(-1), revno(0) {
     }
     ClustermapVersion(int64_t epoch, int64_t revno)
         : epoch(epoch), revno(revno){};
