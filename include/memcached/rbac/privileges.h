@@ -118,6 +118,12 @@ enum class Privilege {
     SecurityManagement,
 
     /**
+     * The `BucketThrottleManagement` privilege allows the connection
+     * to update the throttle limits for a bucket
+     */
+    BucketThrottleManagement,
+
+    /**
      * The `Impersonate` privilege allows the connection to execute commands
      * by using a different authentication context. The intented use is
      * for other components in the system which is part of the TCB so that
