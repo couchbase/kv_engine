@@ -86,4 +86,24 @@ TEST_P(ElixirTest, TestAddGet) {
             "GET");
 }
 
+TEST_P(ElixirTest, TestSetBucketComputeUnitThrottleLimitsPayload) {
+    // set to 10000
+    auto rsp = adminConnection->execute(
+            SetBucketComputeUnitThrottleLimitCommand{bucketName, 10000});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+    // Disable
+    rsp = adminConnection->execute(
+            SetBucketComputeUnitThrottleLimitCommand{bucketName});
+    ASSERT_TRUE(rsp.isSuccess());
+    // Try a bucket which don't exist
+    rsp = adminConnection->execute(SetBucketComputeUnitThrottleLimitCommand{
+            "TestSetBucketComputeUnitThrottleLimitsPayload"});
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+
+    // And anormal user don't have the privilege
+    rsp = userConnection->execute(
+            SetBucketComputeUnitThrottleLimitCommand{bucketName, 100});
+    ASSERT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
+}
+
 // @todo add more tests

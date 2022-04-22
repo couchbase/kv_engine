@@ -62,6 +62,8 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::AuditPut, "AUDIT_PUT"},
          {ClientOpcode::AuditConfigReload, "AUDIT_CONFIG_RELOAD"},
          {ClientOpcode::Shutdown, "SHUTDOWN"},
+         {ClientOpcode::SetBucketComputeUnitThrottleLimits,
+          "SET_BUCKET_COMPUTE_UNIT_THROTTLE_LIMITS"},
          {ClientOpcode::Rget_Unsupported, "RGET"},
          {ClientOpcode::Rset_Unsupported, "RSET"},
          {ClientOpcode::Rsetq_Unsupported, "RSETQ"},
@@ -327,7 +329,8 @@ TEST(ClientOpcode, is_reorder_supported) {
                      ClientOpcode::SubdocMultiLookup,
                      ClientOpcode::SubdocMultiMutation,
                      ClientOpcode::SubdocGetCount,
-                     ClientOpcode::SubdocReplaceBodyWithXattr}},
+                     ClientOpcode::SubdocReplaceBodyWithXattr,
+                     ClientOpcode::SetBucketComputeUnitThrottleLimits}},
                    "reorder");
 }
 

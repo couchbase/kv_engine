@@ -1,0 +1,5 @@
+add_executable(mcthrottlectl mcthrottlectl.cc $<TARGET_OBJECTS:mc_program_utils>)
+kv_enable_pch(mcthrottlectl)
+target_link_libraries(mcthrottlectl PRIVATE mc_client_connection mcd_util platform)
+add_sanitizers(mcthrottlectl)
+install(TARGETS mcthrottlectl RUNTIME DESTINATION bin)

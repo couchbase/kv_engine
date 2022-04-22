@@ -2160,3 +2160,20 @@ BinprotGetAllVbucketSequenceNumbersResponse::getVbucketSeqnos() const {
     }
     return vbMap;
 }
+
+SetBucketComputeUnitThrottleLimitCommand::
+        SetBucketComputeUnitThrottleLimitCommand(const std::string& key_,
+                                                 std::size_t limit)
+    : BinprotGenericCommand(
+              cb::mcbp::ClientOpcode::SetBucketComputeUnitThrottleLimits,
+              key_) {
+    extras.setLimit(limit);
+}
+
+void SetBucketComputeUnitThrottleLimitCommand::encode(
+        std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 0, sizeof(extras));
+    auto extraBuf = extras.getBuffer();
+    buf.insert(buf.end(), extraBuf.begin(), extraBuf.end());
+    buf.insert(buf.end(), key.begin(), key.end());
+}

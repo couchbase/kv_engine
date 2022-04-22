@@ -178,6 +178,13 @@ public:
     /// move the clock forwards in all buckets
     void tick();
 
+    /**
+     * Set the throttle limit for the bucket
+     *
+     * @param limit Number of compute units to use before throttle commands
+     */
+    void setThrottleLimit(std::size_t limit);
+
 protected:
     unique_engine_ptr engine;
 
@@ -195,6 +202,9 @@ protected:
 
     /// The gauge to use for throttling of commands.
     SloppyComputeUnitGauge throttle_gauge;
+
+    /// The number of CUs consumed before we should start throttle
+    std::atomic<std::size_t> throttle_limit{0};
 
     /// The number of times we've throttled due to running out of CUs
     std::atomic<std::size_t> num_throttled{0};

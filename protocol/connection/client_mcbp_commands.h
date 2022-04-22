@@ -1269,3 +1269,14 @@ public:
     }
     std::unordered_map<Vbid, uint64_t> getVbucketSeqnos() const;
 };
+
+class SetBucketComputeUnitThrottleLimitCommand : public BinprotGenericCommand {
+public:
+    SetBucketComputeUnitThrottleLimitCommand(const std::string& key_,
+                                             std::size_t limit = 0);
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    cb::mcbp::request::SetBucketComputeUnitThrottleLimitPayload extras;
+};

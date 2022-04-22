@@ -61,6 +61,7 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
+    case ClientOpcode::SetBucketComputeUnitThrottleLimits:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -245,6 +246,7 @@ bool is_supported_opcode(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
+    case ClientOpcode::SetBucketComputeUnitThrottleLimits:
     case ClientOpcode::SetVbucket:
     case ClientOpcode::GetVbucket:
     case ClientOpcode::DelVbucket:
@@ -433,6 +435,7 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
+    case ClientOpcode::SetBucketComputeUnitThrottleLimits:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -588,6 +591,7 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::SubdocMultiMutation:
     case ClientOpcode::SubdocGetCount:
     case ClientOpcode::SubdocReplaceBodyWithXattr:
+    case ClientOpcode::SetBucketComputeUnitThrottleLimits:
         return true;
 
     case ClientOpcode::Getq:
@@ -809,6 +813,7 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
+    case ClientOpcode::SetBucketComputeUnitThrottleLimits:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -970,6 +975,7 @@ bool is_deprecated(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
+    case ClientOpcode::SetBucketComputeUnitThrottleLimits:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -1151,6 +1157,7 @@ bool is_preserve_ttl_supported(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
+    case ClientOpcode::SetBucketComputeUnitThrottleLimits:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -1375,6 +1382,8 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "AUDIT_CONFIG_RELOAD";
     case ClientOpcode::Shutdown:
         return "SHUTDOWN";
+    case ClientOpcode::SetBucketComputeUnitThrottleLimits:
+        return "SET_BUCKET_COMPUTE_UNIT_THROTTLE_LIMITS";
     case ClientOpcode::Rget_Unsupported:
         return "RGET";
     case ClientOpcode::Rset_Unsupported:

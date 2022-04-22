@@ -72,6 +72,9 @@ enum class ClientOpcode : uint8_t {
     /* Shutdown the server */
     Shutdown = 0x29,
 
+    /// Set the bucket CU counts
+    SetBucketComputeUnitThrottleLimits = 0x2a,
+
     /* These commands are used for range operations and exist within
      * this header for use in other projects.  Range operations are
      * not expected to be implemented in the memcached server itself.

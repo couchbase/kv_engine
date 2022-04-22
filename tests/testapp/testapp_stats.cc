@@ -348,7 +348,7 @@ TEST_P(StatsTest, TestBucketDetails) {
     // Validate each bucket entry (I should probably extend it with checking
     // of the actual values
     for (const auto& bucket : array) {
-        EXPECT_EQ(9, bucket.size());
+        EXPECT_EQ(10, bucket.size());
         EXPECT_NE(bucket.end(), bucket.find("index"));
         EXPECT_NE(bucket.end(), bucket.find("state"));
         EXPECT_NE(bucket.end(), bucket.find("clients"));
@@ -357,6 +357,7 @@ TEST_P(StatsTest, TestBucketDetails) {
         EXPECT_NE(bucket.end(), bucket.find("rcu"));
         EXPECT_NE(bucket.end(), bucket.find("wcu"));
         EXPECT_NE(bucket.end(), bucket.find("num_throttled"));
+        EXPECT_NE(bucket.end(), bucket.find("throttle_limit"));
         EXPECT_NE(bucket.end(), bucket.find("sloppy_cu"));
     }
 }
@@ -385,6 +386,7 @@ TEST_P(StatsTest, TestBucketDetailsSingleBucket) {
     // we can't really check the RCU and WCUs used as it depends on which
     // tests have been executed before this test
     EXPECT_EQ(0, json["num_throttled"].get<int>());
+    EXPECT_EQ(0, json["throttle_limit"].get<int>());
 
     auto rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Stat,

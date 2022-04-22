@@ -1608,6 +1608,18 @@ static Status shutdown_validator(Cookie& cookie) {
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
+static Status set_bucket_compute_unit_throttle_limits_validator(
+        Cookie& cookie) {
+    using cb::mcbp::request::SetBucketComputeUnitThrottleLimitPayload;
+    return McbpValidator::verify_header(
+            cookie,
+            sizeof(SetBucketComputeUnitThrottleLimitPayload),
+            ExpectedKeyLen::NonZero,
+            ExpectedValueLen::Zero,
+            ExpectedCas::NotSet,
+            PROTOCOL_BINARY_RAW_BYTES);
+}
+
 static Status get_meta_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
 
@@ -2302,6 +2314,8 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::ConfigReload, config_reload_validator);
     setup(cb::mcbp::ClientOpcode::ConfigValidate, config_validate_validator);
     setup(cb::mcbp::ClientOpcode::Shutdown, shutdown_validator);
+    setup(cb::mcbp::ClientOpcode::SetBucketComputeUnitThrottleLimits,
+          set_bucket_compute_unit_throttle_limits_validator);
     setup(cb::mcbp::ClientOpcode::ObserveSeqno, observe_seqno_validator);
     setup(cb::mcbp::ClientOpcode::GetAdjustedTime_Unsupported,
           not_supported_validator);

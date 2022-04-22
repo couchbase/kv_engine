@@ -468,6 +468,32 @@ static void shutdown_executor(Cookie& cookie) {
     }
 }
 
+static void set_bucket_compute_unit_throttle_limits_executor(Cookie& cookie) {
+    std::string name(cookie.getRequestKey().getBuffer());
+    using cb::mcbp::request::SetBucketComputeUnitThrottleLimitPayload;
+    auto& req = cookie.getRequest();
+    auto extras = req.getExtdata();
+    auto* payload =
+            reinterpret_cast<const SetBucketComputeUnitThrottleLimitPayload*>(
+                    extras.data());
+    bool found = false;
+    BucketManager::instance().forEach(
+            [&name, &found, payload](auto& bucket) -> bool {
+                if (strcmp(bucket.name, name.c_str()) == 0) {
+                    bucket.setThrottleLimit(payload->getLimit());
+                    found = true;
+                    return false;
+                }
+                return true;
+            });
+
+    if (found) {
+        cookie.sendResponse(cb::mcbp::Status::Success);
+    } else {
+        cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
+    }
+}
+
 static void update_user_permissions_executor(Cookie& cookie) {
     auto& request = cookie.getRequest();
     auto value = request.getValue();
@@ -730,6 +756,8 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::AuditConfigReload,
                   audit_config_reload_executor);
     setup_handler(cb::mcbp::ClientOpcode::Shutdown, shutdown_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SetBucketComputeUnitThrottleLimits,
+                  set_bucket_compute_unit_throttle_limits_executor);
     setup_handler(cb::mcbp::ClientOpcode::CreateBucket,
                   create_remove_bucket_executor);
     setup_handler(cb::mcbp::ClientOpcode::ListBuckets, list_bucket_executor);

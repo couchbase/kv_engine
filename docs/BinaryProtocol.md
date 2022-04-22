@@ -466,6 +466,7 @@ information about a given command.
 | 0x27 | Audit put |
 | 0x28 | Audit config reload |
 | 0x29 | Shutdown |
+| 0x2a | [SetBucketComputeUnitThrottleLimits](#0x2a-set-bucket-compute-unit-throttle-limits) |
 | 0x30 | RGet (not supported) |
 | 0x31 | RSet (not supported) |
 | 0x32 | RSetQ (not supported) |
@@ -2033,6 +2034,41 @@ The following example shows that the server agreed to enable 0x0003 and
                   (24-25): TCP NODELAY
                   (26-27): Mutation seqno
 
+### 0x2a Set Bucket Compute Unit Throttle Limits
+
+The `Set Bucket Compute Unit Throttle Limits` command is used to set
+the number of compute units per second the server should allow in a bucket
+before throttling requests to the bucket.
+
+The command should be used from the throttle manager to push new throttle
+limits to the various nodes in the cluster. The entire mechanism is not
+fully defined (which means that the command may disappear before release).
+The motivation for keeping the bucket name in the key is that the throttle
+manager will operate on all buckets on the server, and this removes the
+need for selecting each bucket before performing the operation.
+
+Request:
+
+* MUST have extra
+* MUST have key (the name of the bucket)
+* MUST NOT have value
+* MUST NOT set CAS
+* Datatype MUST be set to RAW
+* Require the BucketThrottleManagement privilege
+
+The extra section is encoded in the following way:
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0|                                                               |
+        +        Number of compute units in network byte order          +
+       4|                                                               |
+        +---------------+---------------+---------------+---------------+
+        Total 8 bytes
+
+The successful return message carries no extra userdata.
 
 ### 0x3d Set VBucket
 

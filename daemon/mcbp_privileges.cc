@@ -135,6 +135,9 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /* Shutdown the server */
     setup(cb::mcbp::ClientOpcode::Shutdown, require<Privilege::NodeManagement>);
 
+    setup(cb::mcbp::ClientOpcode::SetBucketComputeUnitThrottleLimits,
+          require<Privilege::BucketThrottleManagement>);
+
     /* VBucket commands */
     setup(cb::mcbp::ClientOpcode::SetVbucket,
           require<Privilege::BucketManagement>);

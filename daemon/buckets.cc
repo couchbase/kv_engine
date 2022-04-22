@@ -68,6 +68,7 @@ nlohmann::json Bucket::to_json() const {
                 json["rcu"] = read_compute_units_used.load();
                 json["wcu"] = write_compute_units_used.load();
                 json["num_throttled"] = num_throttled.load();
+                json["throttle_limit"] = throttle_limit.load();
             } catch (const std::exception& e) {
                 LOG_ERROR("Failed to generate bucket details: {}", e.what());
             }
@@ -81,6 +82,17 @@ nlohmann::json Bucket::to_json() const {
     }
 
     return json;
+}
+
+void Bucket::setThrottleLimit(std::size_t limit) {
+    if (limit == throttle_limit) {
+        return;
+    }
+    LOG_INFO("Update throttle limits for bucket [{}] from {} to {}",
+             name,
+             throttle_limit.load(),
+             limit);
+    throttle_limit.store(limit);
 }
 
 DcpIface* Bucket::getDcpIface() const {

@@ -184,6 +184,7 @@ bool Request::isQuiet() const {
         case ClientOpcode::AuditPut:
         case ClientOpcode::AuditConfigReload:
         case ClientOpcode::Shutdown:
+        case ClientOpcode::SetBucketComputeUnitThrottleLimits:
         case ClientOpcode::Rget_Unsupported:
         case ClientOpcode::Rset_Unsupported:
         case ClientOpcode::Rappend_Unsupported:
