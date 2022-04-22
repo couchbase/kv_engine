@@ -260,6 +260,8 @@ void mc_time_clock_tick() {
         previous_time_valid = true;
         previous_time = timeofday;
     }
+
+    BucketManager::instance().tick();
 }
 
 static void mc_gather_timing_samples() {

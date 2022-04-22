@@ -11,15 +11,16 @@
 
 #include "cluster_config.h"
 #include "mcbp_validators.h"
+#include "sloppy_compute_unit_gauge.h"
 #include "stat_timings.h"
 #include "timings.h"
 
+#include <hdrhistogram/hdrhistogram.h>
 #include <memcached/bucket_type.h>
 #include <memcached/engine.h>
 #include <memcached/limits.h>
 #include <memcached/types.h>
 #include <nlohmann/json_fwd.hpp>
-#include <hdrhistogram/hdrhistogram.h>
 
 #include <condition_variable>
 #include <memory>
@@ -174,6 +175,9 @@ public:
     /// the bucket
     void commandExecuted(const Cookie& cookie);
 
+    /// move the clock forwards in all buckets
+    void tick();
+
 protected:
     unique_engine_ptr engine;
 
@@ -188,6 +192,12 @@ protected:
 
     /// The number of WCUs being used in this bucket
     std::atomic<std::size_t> write_compute_units_used{0};
+
+    /// The gauge to use for throttling of commands.
+    SloppyComputeUnitGauge throttle_gauge;
+
+    /// The number of times we've throttled due to running out of CUs
+    std::atomic<std::size_t> num_throttled{0};
 };
 
 std::string to_string(Bucket::State state);
@@ -273,6 +283,9 @@ public:
      *
      */
     void forEach(std::function<bool(Bucket&)> fn);
+
+    /// move the clock forwards in all buckets
+    void tick();
 
 protected:
     BucketManager();

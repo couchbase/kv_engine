@@ -55,20 +55,31 @@ bool Bucket::supports(cb::engine::Feature feature) {
 }
 
 nlohmann::json Bucket::to_json() const {
-    std::lock_guard<std::mutex> guard(mutex);
     nlohmann::json json;
-    if (state != State::None) {
-        try {
-            json["state"] = to_string(state.load());
-            json["clients"] = clients.load();
-            json["name"] = name;
-            json["type"] = to_string(type);
-            json["rcu"] = read_compute_units_used.load();
-            json["wcu"] = write_compute_units_used.load();
-        } catch (const std::exception& e) {
-            LOG_ERROR("Failed to generate bucket details: {}", e.what());
+    {
+        std::lock_guard<std::mutex> guard(mutex);
+
+        if (state != State::None) {
+            try {
+                json["state"] = to_string(state.load());
+                json["clients"] = clients.load();
+                json["name"] = name;
+                json["type"] = to_string(type);
+                json["rcu"] = read_compute_units_used.load();
+                json["wcu"] = write_compute_units_used.load();
+                json["num_throttled"] = num_throttled.load();
+            } catch (const std::exception& e) {
+                LOG_ERROR("Failed to generate bucket details: {}", e.what());
+            }
         }
     }
+    if (!json.empty()) {
+        nlohmann::json array = nlohmann::json::array();
+        throttle_gauge.iterate(
+                [&array](auto count) { array.push_back(count); });
+        json["sloppy_cu"] = std::move(array);
+    }
+
     return json;
 }
 
@@ -96,8 +107,13 @@ void Bucket::commandExecuted(const Cookie& cookie) {
             (read + read_compute_unit_size - 1) / read_compute_unit_size;
     const auto wcu =
             (write + write_compute_unit_size - 1) / write_compute_unit_size;
+    throttle_gauge.increment(rcu + wcu);
     read_compute_units_used += rcu;
     write_compute_units_used += wcu;
+}
+
+void Bucket::tick() {
+    throttle_gauge.tick();
 }
 
 namespace BucketValidator {
@@ -476,6 +492,16 @@ cb::engine_errc BucketManager::destroy(Cookie* cookie,
     LOG_INFO("{}: Delete bucket [{}] complete", connection_id, name);
     return cb::engine_errc::success;
 }
+
+void BucketManager::tick() {
+    forEach([](auto& b) {
+        if (b.type != BucketType::NoBucket) {
+            b.tick();
+        }
+        return true;
+    });
+}
+
 void BucketManager::forEach(std::function<bool(Bucket&)> fn) {
     std::lock_guard<std::mutex> all_bucket_lock(buckets_lock);
     for (Bucket& bucket : all_buckets) {

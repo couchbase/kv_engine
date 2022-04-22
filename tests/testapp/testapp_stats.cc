@@ -348,7 +348,7 @@ TEST_P(StatsTest, TestBucketDetails) {
     // Validate each bucket entry (I should probably extend it with checking
     // of the actual values
     for (const auto& bucket : array) {
-        EXPECT_EQ(7, bucket.size());
+        EXPECT_EQ(9, bucket.size());
         EXPECT_NE(bucket.end(), bucket.find("index"));
         EXPECT_NE(bucket.end(), bucket.find("state"));
         EXPECT_NE(bucket.end(), bucket.find("clients"));
@@ -356,6 +356,8 @@ TEST_P(StatsTest, TestBucketDetails) {
         EXPECT_NE(bucket.end(), bucket.find("type"));
         EXPECT_NE(bucket.end(), bucket.find("rcu"));
         EXPECT_NE(bucket.end(), bucket.find("wcu"));
+        EXPECT_NE(bucket.end(), bucket.find("num_throttled"));
+        EXPECT_NE(bucket.end(), bucket.find("sloppy_cu"));
     }
 }
 
