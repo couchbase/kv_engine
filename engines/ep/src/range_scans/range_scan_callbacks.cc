@@ -15,6 +15,18 @@
 #include "range_scans/range_scan.h"
 #include "vbucket.h"
 
+void RangeScanDataHandler::handleKey(DocKey key) {
+    // @todo:
+}
+
+void RangeScanDataHandler::handleItem(std::unique_ptr<Item> item) {
+    // @todo:
+}
+
+void RangeScanDataHandler::handleStatus(cb::engine_errc status) {
+    // @todo:
+}
+
 RangeScanCacheCallback::RangeScanCacheCallback(RangeScan& scan,
                                                EPBucket& bucket)
     : scan(scan), bucket(bucket) {

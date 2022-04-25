@@ -12,6 +12,8 @@
 
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
+#include <memcached/range_scan.h>
+#include <memcached/range_scan_id.h>
 #include <memcached/thread_pool_config.h>
 #include <memcached/types.h>
 #include <memcached/vbucket.h>
@@ -40,6 +42,11 @@ class Request;
 namespace cb::prometheus {
 enum class Cardinality;
 } // namespace cb::prometheus
+
+namespace cb::rangescan {
+struct SnapshotRequirements;
+struct SamplingConfiguration;
+} // namespace cb::rangescan
 
 class CookieIface;
 class BucketStatCollector;
@@ -740,6 +747,64 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
                                           bool sync) {
         return cb::engine_errc::not_supported;
     }
+
+    /**
+     * Create a new range scan on a vbucket
+     *
+     * @param cookie The cookie identifying the request
+     * @param vbid vbucket to create on
+     * @param start key for the start of the range
+     * @param end key for the end of the range
+     * @param handler object that will receive callbacks when the scan continues
+     * @param cookie connection cookie to notify when done
+     * @param keyOnly key/value configuration of the scan
+     * @param snapshotReqs optional requirements that the snapshot must satisfy
+     * @param samplingConfig the parameters for the optional random sampling
+     *
+     * @return pair of status/cb::rangescan::Id - ID is valid on success
+     */
+    virtual std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
+            const CookieIface& cookie,
+            Vbid vbid,
+            CollectionID cid,
+            cb::rangescan::KeyView start,
+            cb::rangescan::KeyView end,
+            cb::rangescan::KeyOnly keyOnly,
+            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+            std::optional<cb::rangescan::SamplingConfiguration> samplingConfig);
+
+    /**
+     * Continue the range scan with the given identifier.
+     *
+     * @param cookie The cookie identifying the request
+     * @param vbid vbucket to find the scan on
+     * @param uuid The identifier of the scan to continue
+     * @param itemLimit The maximum number of items the continue can return
+     *                  0 means no limit enforced
+     * @param timeLimit The maximum duration the continue can return
+     *                  0 means no limit enforced
+     * @return would_block if the scan was found and successfully scheduled
+     */
+    virtual cb::engine_errc continueRangeScan(
+            const CookieIface& cookie,
+            Vbid vbid,
+            cb::rangescan::Id uuid,
+            size_t itemLimit,
+            std::chrono::milliseconds timeLimit);
+
+    /**
+     * Cancel the range scan with the given identifier.
+     *
+     * @param cookie The cookie identifying the request
+     * @param vbid vbucket to find the scan on
+     * @param uuid The identifier of the scan to continue
+     * @param schedule true if a task should be scheduled for the cancellation
+     * @return would_block if the scan was found and successfully scheduled for
+     *         cancellation
+     */
+    virtual cb::engine_errc cancelRangeScan(const CookieIface& cookie,
+                                            Vbid vbid,
+                                            cb::rangescan::Id uuid);
 };
 
 namespace cb {

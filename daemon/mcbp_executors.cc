@@ -851,6 +851,10 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::DelVbucket, delete_vbucket_executor);
     setup_handler(cb::mcbp::ClientOpcode::CompactDb, compact_db_executor);
     setup_handler(cb::mcbp::ClientOpcode::Ifconfig, ifconfig_executor);
+    setup_handler(cb::mcbp::ClientOpcode::RangeScanCreate,
+                  range_scan_create_executor);
+    setup_handler(cb::mcbp::ClientOpcode::RangeScanCancel,
+                  range_scan_cancel_executor);
 }
 
 static cb::engine_errc getEngineErrorCode(

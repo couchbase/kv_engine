@@ -18,6 +18,7 @@
 #include <memcached/collections.h>
 #include <memcached/durability_spec.h>
 #include <memcached/limits.h>
+#include <memcached/range_scan_optional_configuration.h>
 #include <utilities/logtags.h>
 
 using namespace std::string_literals;
@@ -864,6 +865,68 @@ cb::engine_errc dcpAbort(Cookie& cookie,
                     connection.getId(),
                     connection.getDescription());
         connection.setTerminationReason("Engine forced disconnect");
+    }
+    return ret;
+}
+
+std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
+        Cookie& cookie,
+        Vbid vbid,
+        CollectionID cid,
+        cb::rangescan::KeyView start,
+        cb::rangescan::KeyView end,
+        cb::rangescan::KeyOnly keyOnly,
+        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig) {
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine().createRangeScan(cookie,
+                                                   vbid,
+                                                   cid,
+                                                   start,
+                                                   end,
+                                                   keyOnly,
+                                                   snapshotReqs,
+                                                   samplingConfig);
+
+    if (ret.first == cb::engine_errc::disconnect) {
+        LOG_WARNING("{}: {} createRangeScan return cb::engine_errc::disconnect",
+                    c.getId(),
+                    c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
+    }
+    return ret;
+}
+
+cb::engine_errc continueRangeScan(Cookie& cookie,
+                                  Vbid vbid,
+                                  cb::rangescan::Id uuid,
+                                  size_t itemLimit,
+                                  std::chrono::milliseconds timeLimit) {
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine().continueRangeScan(
+            cookie, vbid, uuid, itemLimit, timeLimit);
+
+    if (ret == cb::engine_errc::disconnect) {
+        LOG_WARNING(
+                "{}: {} continueRangeScan return cb::engine_errc::disconnect",
+                c.getId(),
+                c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
+    }
+    return ret;
+}
+
+cb::engine_errc cancelRangeScan(Cookie& cookie,
+                                Vbid vbid,
+                                cb::rangescan::Id uuid) {
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine().cancelRangeScan(cookie, vbid, uuid);
+
+    if (ret == cb::engine_errc::disconnect) {
+        LOG_WARNING("{}: {} cancelRangeScan return cb::engine_errc::disconnect",
+                    c.getId(),
+                    c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }

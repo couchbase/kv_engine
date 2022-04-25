@@ -56,6 +56,10 @@ void set_cluster_config_executor(Cookie&);
 
 void adjust_timeofday_executor(Cookie&);
 
+// RangeScan
+void range_scan_create_executor(Cookie&);
+void range_scan_cancel_executor(Cookie&);
+
 /**
  * Handle the status for an executor (update ewouldblock state / disconnect
  * send responses etc)

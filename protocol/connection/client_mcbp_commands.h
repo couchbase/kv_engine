@@ -12,7 +12,9 @@
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/response.h>
 #include <memcached/durability_spec.h>
+#include <memcached/range_scan_id.h>
 #include <nlohmann/json.hpp>
+
 #include <optional>
 #include <unordered_set>
 
@@ -44,6 +46,10 @@ public:
     void setVBucket(Vbid vbid);
 
     void setOpaque(uint32_t opaq);
+
+    void setDatatype(uint8_t datatype_);
+
+    void setDatatype(cb::mcbp::Datatype datatype_);
 
     /// Add a frame info object to the stream
     void addFrameInfo(const FrameInfo& fi);
@@ -128,6 +134,7 @@ protected:
     uint64_t cas = 0;
     Vbid vbucket = Vbid(0);
     uint32_t opaque{0xdeadbeef};
+    uint8_t datatype{PROTOCOL_BINARY_RAW_BYTES};
 
     /// The frame info sections to inject into the packet
     std::vector<uint8_t> frame_info;
@@ -653,8 +660,6 @@ public:
     BinprotMutationCommand& addValueBuffer(cb::const_byte_buffer buf);
     BinprotMutationCommand& addValueBuffer(std::string_view buf);
 
-    BinprotMutationCommand& setDatatype(uint8_t datatype_);
-    BinprotMutationCommand& setDatatype(cb::mcbp::Datatype datatype_);
     BinprotMutationCommand& setDocumentFlags(uint32_t flags_);
     BinprotMutationCommand& setExpiry(uint32_t expiry_);
 
@@ -671,7 +676,6 @@ protected:
 
     BinprotCommand::ExpiryValue expiry;
     uint32_t flags = 0;
-    uint8_t datatype = 0;
 };
 
 class BinprotMutationResponse : public BinprotResponse {
@@ -1201,4 +1205,14 @@ public:
 
 protected:
     cb::mcbp::request::SetBucketDataLimitExceededPayload extras;
+};
+
+class BinprotRangeScanCreate : public BinprotGenericCommand {
+public:
+    BinprotRangeScanCreate(Vbid vbid, const nlohmann::json& config);
+};
+
+class BinprotRangeScanCancel : public BinprotGenericCommand {
+public:
+    BinprotRangeScanCancel(Vbid vbid, cb::rangescan::Id id);
 };

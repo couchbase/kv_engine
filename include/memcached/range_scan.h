@@ -31,10 +31,15 @@ public:
     }
 
     /**
-     * Construct a KeyView onto a const char* (this is to support test code
-     * where string literals are in use)
+     * Construct a key onto a view
      */
     KeyView(std::string_view key) : key{key} {
+    }
+
+    /**
+     * Construct a key onto a view and set the type
+     */
+    KeyView(std::string_view key, KeyType type) : key{key}, type{type} {
     }
 
     std::string_view getKeyView() const {

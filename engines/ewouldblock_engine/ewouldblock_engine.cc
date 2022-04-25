@@ -79,6 +79,7 @@
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
 #include <memcached/engine.h>
+#include <memcached/range_scan_optional_configuration.h>
 #include <memcached/server_bucket_iface.h>
 #include <memcached/server_cookie_iface.h>
 #include <platform/cb_malloc.h>
@@ -772,6 +773,42 @@ public:
                                   Vbid vbid,
                                   bool sync) override {
         return real_engine->deleteVBucket(cookie, vbid, sync);
+    }
+
+    std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
+            const CookieIface& cookie,
+            Vbid vbid,
+            CollectionID cid,
+            cb::rangescan::KeyView start,
+            cb::rangescan::KeyView end,
+            cb::rangescan::KeyOnly keyOnly,
+            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+            std::optional<cb::rangescan::SamplingConfiguration> samplingConfig)
+            override {
+        return real_engine->createRangeScan(cookie,
+                                            vbid,
+                                            cid,
+                                            start,
+                                            end,
+                                            keyOnly,
+                                            snapshotReqs,
+                                            samplingConfig);
+    }
+
+    cb::engine_errc continueRangeScan(
+            const CookieIface& cookie,
+            Vbid vbid,
+            cb::rangescan::Id uuid,
+            size_t itemLimit,
+            std::chrono::milliseconds timeLimit) override {
+        return real_engine->continueRangeScan(
+                cookie, vbid, uuid, itemLimit, timeLimit);
+    }
+
+    cb::engine_errc cancelRangeScan(const CookieIface& cookie,
+                                    Vbid vbid,
+                                    cb::rangescan::Id uuid) override {
+        return real_engine->cancelRangeScan(cookie, vbid, uuid);
     }
 
     ///////////////////////////////////////////////////////////////////////////

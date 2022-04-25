@@ -29,6 +29,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
 #include <utilities/engine_errc_2_mcbp.h>
+#include <utilities/json_utilities.h>
 #include <string_view>
 
 using cb::mcbp::Status;
@@ -2254,6 +2255,87 @@ static Status not_supported_validator(Cookie& cookie) {
     return Status::NotSupported;
 }
 
+static Status create_range_scan_validator(Cookie& cookie) {
+    auto& header = cookie.getHeader();
+    auto status = McbpValidator::verify_header(cookie,
+                                               header.getExtlen(),
+                                               ExpectedKeyLen::Zero,
+                                               ExpectedValueLen::Any,
+                                               ExpectedCas::NotSet,
+                                               PROTOCOL_BINARY_DATATYPE_JSON);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    // create value really must be JSON!
+    if (header.getDatatype() != PROTOCOL_BINARY_DATATYPE_JSON) {
+        cookie.setErrorContext("Datatype must be JSON");
+        return Status::Einval;
+    }
+
+    // Only checking we can parse the input, no field/value checks here, except
+    // for the collection read below
+    nlohmann::json parsed;
+    try {
+        parsed = nlohmann::json::parse(header.getRequest().getValueString());
+    } catch (const nlohmann::json::exception& e) {
+        cookie.setErrorContext(
+                fmt::format("Failed nlohmann::json::parse {}", e.what()));
+        return Status::Einval;
+    }
+
+    // The following code is required to setup the cookie's collection info so
+    // that auth checks can be applied. This command is against a collection
+    // and the client must have appropriate access for the collection/scope
+    auto collection = cb::getOptionalJsonObject(
+            parsed, "collection", nlohmann::json::value_t::string);
+
+    CollectionID cid = CollectionID::Default;
+    if (collection) {
+        try {
+            cid = CollectionID(collection.value().get<std::string>());
+        } catch (const std::exception&) {
+            cookie.setErrorContext(
+                    "Invalid formatting of the collection field");
+            return Status::Einval;
+        }
+    }
+
+    ScopeID sid;
+    uint64_t manifestUid = 0;
+
+    if (cid.isDefaultCollection()) {
+        sid = ScopeID{ScopeID::Default};
+    } else {
+        auto vbid = cookie.getRequest().getVBucket();
+        auto res = cookie.getConnection().getBucket().getEngine().get_scope_id(
+                cookie, cid, vbid);
+        if (res.result == cb::engine_errc::success) {
+            manifestUid = res.getManifestId();
+            sid = res.getScopeId();
+        } else if (res.result == cb::engine_errc::unknown_collection) {
+            // Could not get the collection's scope - an unknown collection
+            // against the manifest with id stored in res.first.
+            cookie.setUnknownCollectionErrorContext(res.getManifestId());
+            return Status::UnknownCollection;
+        } else {
+            return cb::mcbp::to_status(res.result);
+        }
+    }
+    cookie.setCurrentCollectionInfo(sid, cid, manifestUid);
+    return Status::Success;
+}
+
+static Status cancel_range_scan_validator(Cookie& cookie) {
+    auto status = McbpValidator::verify_header(cookie,
+                                               sizeof(cb::rangescan::Id),
+                                               ExpectedKeyLen::Zero,
+                                               ExpectedValueLen::Zero,
+                                               ExpectedCas::NotSet,
+                                               PROTOCOL_BINARY_RAW_BYTES);
+    return status;
+}
+
 Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
     const auto idx = std::underlying_type<ClientOpcode>::type(command);
     if (validators[idx]) {
@@ -2497,4 +2579,7 @@ McbpValidator::McbpValidator() {
           not_supported_validator);
     setup(cb::mcbp::ClientOpcode::CheckpointPersistence_Unsupported,
           not_supported_validator);
+
+    setup(cb::mcbp::ClientOpcode::RangeScanCreate, create_range_scan_validator);
+    setup(cb::mcbp::ClientOpcode::RangeScanCancel, cancel_range_scan_validator);
 }

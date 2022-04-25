@@ -60,7 +60,7 @@ void BinprotCommand::fillHeader(cb::mcbp::Request& header,
     // that at a later time
     header.setKeylen(gsl::narrow<uint8_t>(key.size()));
     header.setExtlen(gsl::narrow<uint8_t>(extlen));
-    header.setDatatype(cb::mcbp::Datatype::Raw);
+    header.setDatatype(cb::mcbp::Datatype(datatype));
     header.setVBucket(vbucket);
     header.setBodylen(gsl::narrow<uint32_t>(key.size() + extlen + payload_len +
                                             frame_info.size()));
@@ -124,6 +124,14 @@ void BinprotCommand::setVBucket(Vbid vbid) {
 
 void BinprotCommand::setOpaque(uint32_t opaq) {
     opaque = opaq;
+}
+
+void BinprotCommand::setDatatype(uint8_t datatype_) {
+    datatype = datatype_;
+}
+
+void BinprotCommand::setDatatype(cb::mcbp::Datatype datatype_) {
+    setDatatype(uint8_t(datatype_));
 }
 
 void BinprotCommand::addFrameInfo(const FrameInfo& fi) {
@@ -690,8 +698,6 @@ void BinprotMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
     }
 
     writeHeader(buf, value_size, extlen);
-    auto* header = reinterpret_cast<cb::mcbp::Request*>(buf.data());
-    header->setDatatype(cb::mcbp::Datatype(datatype));
 
     if (extlen != 0) {
         // Write the extras:
@@ -744,14 +750,6 @@ BinprotMutationCommand& BinprotMutationCommand::addValueBuffer(
             reinterpret_cast<const uint8_t*>(buf.data()), buf.size()});
 }
 
-BinprotMutationCommand& BinprotMutationCommand::setDatatype(uint8_t datatype_) {
-    datatype = datatype_;
-    return *this;
-}
-BinprotMutationCommand& BinprotMutationCommand::setDatatype(
-        cb::mcbp::Datatype datatype_) {
-    return setDatatype(uint8_t(datatype_));
-}
 BinprotMutationCommand& BinprotMutationCommand::setDocumentFlags(
         uint32_t flags_) {
     flags = flags_;
@@ -2141,4 +2139,18 @@ void SetBucketDataLimitExceededCommand::encode(
     auto extraBuf = extras.getBuffer();
     buf.insert(buf.end(), extraBuf.begin(), extraBuf.end());
     buf.insert(buf.end(), key.begin(), key.end());
+}
+
+BinprotRangeScanCreate::BinprotRangeScanCreate(Vbid vbid,
+                                               const nlohmann::json& config)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::RangeScanCreate,
+                            {/*no key*/},
+                            config.dump()) {
+    setDatatype(cb::mcbp::Datatype::JSON);
+}
+
+BinprotRangeScanCancel::BinprotRangeScanCancel(Vbid vbid, cb::rangescan::Id id)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::RangeScanCancel) {
+    setExtras(std::string_view{reinterpret_cast<const char*>(id.data),
+                               sizeof(id)});
 }

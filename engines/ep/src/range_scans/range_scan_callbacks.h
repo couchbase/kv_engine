@@ -61,6 +61,19 @@ public:
 };
 
 /**
+ * RangeScanDataHandler is the handler used to join the I/O task to a real
+ * client/cookie (i.e. not unit-test code)
+ */
+class RangeScanDataHandler : public RangeScanDataHandlerIFace {
+public:
+    void handleKey(DocKey key) override;
+
+    void handleItem(std::unique_ptr<Item> item) override;
+
+    void handleStatus(cb::engine_errc status) override;
+};
+
+/**
  * callback class which is invoked first by the scan and given each key (and
  * metadata). This class will check with the hash-table to see if the value is
  * available, allowing the scan to skip reading a value from disk

@@ -194,6 +194,10 @@ public:
     bool supportsCollections() const override {
         return true;
     }
+
+    bool supportsRangeScans() const override {
+        return false;
+    }
 };
 
 class EpBucketImpl : public TestBucketImpl {
@@ -323,6 +327,10 @@ public:
     }
 
     bool supportsCollections() const override {
+        return true;
+    }
+
+    bool supportsRangeScans() const override {
         return true;
     }
 
