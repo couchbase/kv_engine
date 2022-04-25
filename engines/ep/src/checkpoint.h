@@ -693,6 +693,14 @@ private:
             : local(0), stats(stats), parentUsage(parentUsage) {
         }
         ~MemoryCounter();
+
+        // Explicitly delete copy/move constructors and assignment to prevent
+        // any error in the update of the MemoryCounter's parent
+        MemoryCounter(const MemoryCounter&) = delete;
+        MemoryCounter& operator=(const MemoryCounter&) = delete;
+        MemoryCounter(MemoryCounter&&) = delete;
+        MemoryCounter& operator=(MemoryCounter&&) = delete;
+
         MemoryCounter& operator+=(size_t size);
         MemoryCounter& operator-=(size_t size);
 
