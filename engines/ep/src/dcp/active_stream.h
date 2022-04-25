@@ -778,13 +778,13 @@ private:
     std::atomic<uint64_t> lastReadSeqnoUnSnapshotted;
 
     //! The last sequence number sent to the network layer
-    AtomicMonotonic<uint64_t, ThrowExceptionPolicy> lastSentSeqno;
+    ATOMIC_MONOTONIC4(uint64_t, lastSentSeqno, Labeller, ThrowExceptionPolicy);
 
     //! The seqno of the last SeqnoAdvance sent
-    std::atomic<uint64_t> lastSentSeqnoAdvance;
+    ATOMIC_MONOTONIC3(uint64_t, lastSentSeqnoAdvance, Labeller);
 
     //! The last known seqno pointed to by the checkpoint cursor
-    std::atomic<uint64_t> curChkSeqno;
+    ATOMIC_WEAKLY_MONOTONIC3(uint64_t, curChkSeqno, Labeller);
 
     /**
      * Should the next snapshot marker have the 'checkpoint' flag
@@ -837,9 +837,12 @@ private:
      * paused.
      */
     const size_t takeoverSendMaxTime;
-
+    //! Last snapshot start seqno sent to the DCP client, this value isn't used
+    //! directly (apart from logging) but helps us to ensure that our
+    //! snapshot start seqno we send are monotonic.
+    ATOMIC_MONOTONIC3(uint64_t, lastSentSnapStartSeqno, Labeller);
     //! Last snapshot end seqno sent to the DCP client
-    std::atomic<uint64_t> lastSentSnapEndSeqno;
+    ATOMIC_MONOTONIC3(uint64_t, lastSentSnapEndSeqno, Labeller);
 
     /*
      * This is the highest seqno seen by KVStore when performing a scan

@@ -63,9 +63,9 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       includeXattributes(includeXattrs),
       includeDeletedUserXattrs(includeDeletedUserXattrs),
       lastReadSeqnoUnSnapshotted(st_seqno),
-      lastSentSeqno(st_seqno),
-      lastSentSeqnoAdvance(0),
-      curChkSeqno(st_seqno),
+      lastSentSeqno(st_seqno, {*this}),
+      lastSentSeqnoAdvance(0, {*this}),
+      curChkSeqno(st_seqno, {*this}),
       nextSnapStart(0, {*this}),
       takeoverState(vbucket_state_pending),
       itemsFromMemoryPhase(0),
@@ -74,7 +74,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       engine(e),
       producerPtr(p),
       takeoverSendMaxTime(e->getConfiguration().getDcpTakeoverMaxTime()),
-      lastSentSnapEndSeqno(0),
+      lastSentSnapStartSeqno(0, {*this}),
+      lastSentSnapEndSeqno(0, {*this}),
       chkptItemsExtractionInProgress(false),
       includeDeleteTime(includeDeleteTime),
       pitrEnabled(p->isPointInTimeEnabled()),
@@ -360,6 +361,11 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                 mvsToSend,
                 timestamp,
                 sid));
+        // Update the last start seqno seen but handle base case as
+        // lastSentSnapStartSeqno is initial zero
+        if (startSeqno > 0) {
+            lastSentSnapStartSeqno = startSeqno;
+        }
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 
         if (!isDiskOnly()) {
@@ -1441,6 +1447,11 @@ void ActiveStream::snapshot(
                 mvsToSend,
                 std::optional<uint64_t>{}, // @todo MB-37319
                 sid));
+        // Update the last start seqno seen but handle base case as
+        // lastSentSnapStartSeqno is initial zero
+        if (snapStart > 0) {
+            lastSentSnapStartSeqno = snapStart;
+        }
         lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
 
         // Here we can just clear this flag as it is set every time we process
@@ -1799,8 +1810,9 @@ void ActiveStream::completeBackfillInner(
             log(spdlog::level::level_enum::info,
                 "{} {}Backfill complete. {} items consisting of {} bytes read "
                 "from disk, "
-                "{} items from memory, lastReadSeqno:{} "
-                "lastSentSeqnoAdvance:{}, pendingBackfill:{}. Total runtime {} "
+                "{} items from memory, lastReadSeqno:{}, "
+                "lastSentSeqnoAdvance:{}, lastSentSnapStartSeqno:{}, "
+                "lastSentSnapEndSeqno:{} pendingBackfill:{}. Total runtime {} "
                 "({} item/s, {} MB/s)",
                 logPrefix,
                 backfillType == BackfillType::OutOfSequenceOrder ? "OSO " : "",
@@ -1809,6 +1821,8 @@ void ActiveStream::completeBackfillInner(
                 backfillItems.memory.load(),
                 lastReadSeqno.load(),
                 lastSentSeqnoAdvance.load(),
+                lastSentSnapStartSeqno.load(),
+                lastSentSnapEndSeqno.load(),
                 pendingBackfill ? "True" : "False",
                 cb::time2text(runtime),
                 diskItemsRead ? int(diskItemsRead / runtimeSecs) : 0,
@@ -2333,7 +2347,11 @@ void ActiveStream::sendSnapshotAndSeqnoAdvanced(CheckpointType checkpointType,
                                                   std::nullopt,
                                                   std::nullopt,
                                                   sid));
-
+    // Update the last start seqno seen but handle base case as
+    // lastSentSnapStartSeqno is initial zero
+    if (start > 0) {
+        lastSentSnapStartSeqno = start;
+    }
     lastSentSnapEndSeqno.store(end, std::memory_order_relaxed);
     nextSnapshotIsCheckpoint = false;
 
