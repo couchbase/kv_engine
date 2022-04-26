@@ -35,6 +35,14 @@ enum class EventPriority {
     Default
 };
 
+/// The various deployment models the server may be in
+enum class DeploymentModel {
+    /// The good old Couchbase server as we know and love
+    Normal,
+    /// The serverless mode
+    Serverless
+};
+
 /**
  * Globally accessible settings as derived from the commandline / JSON config
  * file.
@@ -784,6 +792,15 @@ public:
         notify_changed("write_compute_unit_size");
     }
 
+    DeploymentModel getDeploymentModel() const {
+        return deployment_model;
+    }
+
+    void setDeploymentModel(DeploymentModel val) {
+        deployment_model.store(val, std::memory_order_release);
+        has.deployment_model = true;
+    }
+
 protected:
     /// The file containing audit configuration
     std::string audit_file;
@@ -943,6 +960,8 @@ protected:
     /// tests
     std::atomic_bool whitelist_localhost_interface{true};
 
+    std::atomic<DeploymentModel> deployment_model{DeploymentModel::Normal};
+
     void notify_changed(const std::string& key);
 
 public:
@@ -964,6 +983,7 @@ public:
         bool reqs_per_event_med_priority = false;
         bool reqs_per_event_low_priority = false;
         bool default_reqs_per_event = false;
+        bool deployment_model = false;
         bool verbose = false;
         bool connection_idle_time = false;
         bool datatype_json = false;

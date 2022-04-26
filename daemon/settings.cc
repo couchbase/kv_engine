@@ -90,6 +90,12 @@ static void handle_audit_file(Settings& s, const nlohmann::json& obj) {
     s.setAuditFile(obj.get<std::string>());
 }
 
+static void handle_deployment_model(Settings& s, const nlohmann::json& obj) {
+    if (obj.get<std::string>() == "serverless") {
+        s.setDeploymentModel(DeploymentModel::Serverless);
+    }
+}
+
 static void handle_error_maps_dir(Settings& s, const nlohmann::json& obj) {
     s.setErrorMapsDir(obj.get<std::string>());
 }
@@ -659,6 +665,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"rbac_file", handle_rbac_file},
             {"privilege_debug", handle_privilege_debug},
             {"audit_file", handle_audit_file},
+            {"deployment_model", handle_deployment_model},
             {"error_maps_dir", handle_error_maps_dir},
             {"threads", handle_threads},
             {"interfaces", handle_interfaces},
@@ -736,6 +743,12 @@ void Settings::setOpcodeAttributesOverride(const std::string& value) {
 }
 
 void Settings::updateSettings(const Settings& other, bool apply) {
+    if (other.has.deployment_model &&
+        other.deployment_model != deployment_model) {
+        throw std::invalid_argument(
+                "deployment_model can't be changed dynamically");
+    }
+
     if (other.has.rbac_file) {
         if (other.rbac_file != rbac_file) {
             throw std::invalid_argument("rbac_file can't be changed dynamically");
