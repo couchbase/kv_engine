@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2022-Present Couchbase, Inc.
  *
@@ -8,8 +7,6 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-
-#pragma once
 
 #include "range_scans/range_scan_create_task.h"
 
