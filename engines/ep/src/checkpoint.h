@@ -710,7 +710,7 @@ private:
         cb::AtomicNonNegativeCounter<size_t>* parentUsage;
     };
 
-    // Record the memory overhead of maintaining the keyIndex and metaKeyIndex.
+    // Record the memory overhead of maintaining the keyIndex.
     // This includes each item's key size and sizeof(index_entry).
     MemoryCounter keyIndexMemUsage;
 

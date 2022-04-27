@@ -1335,17 +1335,16 @@ size_t CheckpointManager::getMemOverheadAllocatorBytes(
 }
 
 size_t CheckpointManager::getMemUsage() const {
-    // Atomic, don't need to acquire the CM lock
-    return memUsage;
+    std::lock_guard<std::mutex> lh(queueLock);
+    return getMemUsage(lh);
+}
+
+size_t CheckpointManager::getMemUsage(std::lock_guard<std::mutex>& lh) const {
+    return queuedItemsMemUsage + getMemOverhead(lh);
 }
 
 size_t CheckpointManager::getQueuedItemsMemUsage() const {
-    std::lock_guard<std::mutex> lh(queueLock);
-    size_t usage = 0;
-    for (const auto& checkpoint : checkpointList) {
-        usage += checkpoint->getQueuedItemsMemUsage();
-    }
-    return usage;
+    return queuedItemsMemUsage;
 }
 
 // @todo MB-48587: Suboptimal O(N) implementation for all mem-overhead functions
@@ -1385,29 +1384,21 @@ size_t CheckpointManager::getMemOverheadAllocatorBytesIndexKey() const {
 
 size_t CheckpointManager::getMemOverhead() const {
     std::lock_guard<std::mutex> lh(queueLock);
-    size_t usage = 0;
-    for (const auto& checkpoint : checkpointList) {
-        usage += checkpoint->getMemOverhead();
-    }
-    return usage;
+    return getMemOverhead(lh);
+}
+
+size_t CheckpointManager::getMemOverhead(
+        std::lock_guard<std::mutex>& lh) const {
+    return memOverheadQueue + memOverheadIndex +
+           (getNumCheckpoints(lh) * sizeof(Checkpoint));
 }
 
 size_t CheckpointManager::getMemOverheadQueue() const {
-    std::lock_guard<std::mutex> lh(queueLock);
-    size_t usage = 0;
-    for (const auto& checkpoint : checkpointList) {
-        usage += checkpoint->getMemOverheadQueue();
-    }
-    return usage;
+    return memOverheadQueue;
 }
 
 size_t CheckpointManager::getMemOverheadIndex() const {
-    std::lock_guard<std::mutex> lh(queueLock);
-    size_t usage = 0;
-    for (const auto& checkpoint : checkpointList) {
-        usage += checkpoint->getMemOverheadIndex();
-    }
-    return usage;
+    return memOverheadIndex;
 }
 
 void CheckpointManager::addStats(const AddStatFn& add_stat,
@@ -1464,7 +1455,7 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
         }
         checked_snprintf(
                 buf.data(), buf.size(), "vb_%d:mem_usage", vbucketId.get());
-        add_casted_stat(buf.data(), memUsage, add_stat, cookie);
+        add_casted_stat(buf.data(), getMemUsage(lh), add_stat, cookie);
 
         for (const auto& cursor : cursors) {
             checked_snprintf(buf.data(),
@@ -1568,6 +1559,11 @@ CheckpointManager::getOverheadChangedCallback() const {
 
 size_t CheckpointManager::getNumCheckpoints() const {
     std::lock_guard<std::mutex> lh(queueLock);
+    return getNumCheckpoints(lh);
+}
+
+size_t CheckpointManager::getNumCheckpoints(
+        std::lock_guard<std::mutex>& lh) const {
     return checkpointList.size();
 }
 

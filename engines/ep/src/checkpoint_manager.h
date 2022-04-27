@@ -582,6 +582,25 @@ public:
 
 protected:
     /**
+     * @param lh, the queueLock held
+     * @return The number of checkpoints currently managed by this CM.
+     */
+    size_t getNumCheckpoints(std::lock_guard<std::mutex>& lh) const;
+
+    /**
+     * @param lh, the queueLock held
+     * @return memory overhead of all the checkpoints managed, computed by
+     * internal counters
+     */
+    size_t getMemOverhead(std::lock_guard<std::mutex>& lh) const;
+
+    /**
+     * @param lh, the queueLock currently held
+     * @return the memory usage of all the checkpoints managed
+     */
+    size_t getMemUsage(std::lock_guard<std::mutex>& lh) const;
+
+    /**
      * Checks if the given checkpoint is:
      *  * the oldest checkpoint
      *  * closed
@@ -951,13 +970,21 @@ protected:
     AggregatedFlushStats persistenceFailureStatOvercounts;
 
     /**
-     *  Memory usage of all checkpoints in this CM.
-     *  This accounts for queued items mem-usage and key-index mem-usage.
-     *  Updated in-place by all checkpoint operations that affect it.
-     *  Used as an optimization for avoiding to scan the full checkpoint-list
-     *  for computing the value.
+     * The memory overhead of the Checkpoint::toWrite structures.
      */
-    cb::AtomicNonNegativeCounter<size_t> memUsage{0};
+    cb::AtomicNonNegativeCounter<size_t> memOverheadQueue{0};
+
+    /**
+     * The memory overhead of maintaining the keyIndex, including each item's
+     * key size and sizeof(index_entry), for all checkpoints in this CM.
+     */
+    cb::AtomicNonNegativeCounter<size_t> memOverheadIndex{0};
+
+    /**
+     * The memory consumption of all items in all checkpoint queues managed by
+     * this CM. For every item we include key, metadata and blob sizes.
+     */
+    cb::AtomicNonNegativeCounter<size_t> queuedItemsMemUsage{0};
 
     /**
      * Helper class for local counters that need to reflect their updates on

@@ -71,9 +71,9 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
       toWrite(queueAllocator),
       committedKeyIndex(keyIndexAllocator),
       preparedKeyIndex(keyIndexAllocator),
-      keyIndexMemUsage(st, &manager.memUsage),
-      queuedItemsMemUsage(st, &manager.memUsage),
-      queueMemOverhead(st, &manager.memUsage),
+      keyIndexMemUsage(st, &manager.memOverheadIndex),
+      queuedItemsMemUsage(st, &manager.queuedItemsMemUsage),
+      queueMemOverhead(st, &manager.memOverheadQueue),
       checkpointType(checkpointType),
       highCompletedSeqno(std::move(highCompletedSeqno)) {
     Expects(snapStart <= snapEnd);
@@ -83,7 +83,6 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
     core->memOverhead.fetch_add(sizeof(Checkpoint));
     core->numCheckpoints++;
     core->checkpointManagerEstimatedMemUsage.fetch_add(sizeof(Checkpoint));
-    manager.memUsage.fetch_add(sizeof(Checkpoint));
 
     // the overheadChangedCallback uses the accurately tracked overhead
     // from queueAllocator. The above memOverhead stat is "manually"
@@ -643,8 +642,6 @@ void Checkpoint::addStats(const AddStatFn& add_stat,
 
 void Checkpoint::detachFromManager() {
     Expects(manager);
-
-    manager->memUsage.fetch_sub(sizeof(Checkpoint));
 
     // decrease the manager memory overhead by the total amount of this
     // checkpoint

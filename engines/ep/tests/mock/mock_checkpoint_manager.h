@@ -76,11 +76,6 @@ public:
         return cursors.size();
     }
 
-    size_t getNumCheckpoints() const {
-        std::lock_guard<std::mutex> lh(queueLock);
-        return checkpointList.size();
-    }
-
     const CheckpointList& getCheckpointList() const {
         return checkpointList;
     }
