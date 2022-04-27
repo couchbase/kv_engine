@@ -3286,6 +3286,61 @@ INSTANTIATE_TEST_SUITE_P(
                 ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
         VBucketTest::PrintToStringParamName);
 
+// Test that the CheckpointManager's getMemUsage and EPStats' estimated mem
+// usage both increase and decrease by the size of Checkpoint when a new empty
+// checkpoint is created / destroyed
+TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerAccountsEmptyCheckpoint) {
+    setVBucketState(vbid, vbucket_state_active);
+    auto& stats = engine->getEpStats();
+    auto vb = store->getVBuckets().getBucket(vbid);
+    std::vector<queued_item> items;
+
+    auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+    auto* cursor = manager.getPersistenceCursor();
+
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    // C1 [empty, > checkpoint_start, setVBState]
+
+    manager.getItemsForCursor(*manager.getPersistenceCursor(),
+                              items,
+                              std::numeric_limits<size_t>::max());
+    // C1 [empty, checkpoint_start, > setVBState]
+
+    // Force new checkpoint to get rid of the checkpoint that contains the
+    // setVBState item. We don't need to move the cursor forward because the
+    // cursor was already at the end of the previous checkpoint, and so is
+    // automatically moved forward as an optimization
+
+    manager.forceNewCheckpoint();
+    // C2 [> empty, checkpoint_start]
+
+    const auto startMemUsage = manager.getMemUsage();
+    const auto startEstimatedMemUsage =
+            stats.getCheckpointManagerEstimatedMemUsage();
+
+    manager.forceNewCheckpoint();
+    // C2 [> empty, checkpoint_start], C3 [empty, checkpoint_start]
+
+    auto newCheckpoint = manager.getCheckpointList().front().get();
+    auto newCheckpointOverhead = newCheckpoint->getQueuedItemsMemUsage() +
+                                 newCheckpoint->getMemOverheadQueue();
+
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+    EXPECT_EQ(startMemUsage + sizeof(Checkpoint) + newCheckpointOverhead,
+              manager.getMemUsage());
+    EXPECT_EQ(
+            startEstimatedMemUsage + sizeof(Checkpoint) + newCheckpointOverhead,
+            stats.getCheckpointManagerEstimatedMemUsage());
+
+    manager.getItemsForCursor(
+            *cursor, items, std::numeric_limits<size_t>::max());
+
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(startMemUsage, manager.getMemUsage());
+    EXPECT_EQ(startEstimatedMemUsage,
+              stats.getCheckpointManagerEstimatedMemUsage());
+}
+
 void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     setVBucketState(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -3308,14 +3363,16 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     const auto initialQueued = checkpoint->getQueuedItemsMemUsage();
     const auto initialQueueOverhead = checkpoint->getMemOverheadQueue();
     const auto initialIndex = checkpoint->getMemOverheadIndex();
+    auto checkpointOverhead = manager.getNumCheckpoints() * sizeof(Checkpoint);
     // Some metaitems are already in the queue
     EXPECT_GT(initialQueued, 0);
     EXPECT_EQ(initialQueueSize * Checkpoint::per_item_queue_overhead,
               initialQueueOverhead);
     EXPECT_EQ(0, initialIndex);
-    EXPECT_EQ(initialQueued + initialQueueOverhead,
+    EXPECT_EQ(initialQueued + initialQueueOverhead + checkpointOverhead,
               stats.getCheckpointManagerEstimatedMemUsage());
-    EXPECT_EQ(initialQueued + initialQueueOverhead, manager.getMemUsage());
+    EXPECT_EQ(initialQueued + initialQueueOverhead + checkpointOverhead,
+              manager.getMemUsage());
 
     size_t itemsAlloc = 0;
     size_t queueAlloc = 0;
@@ -3341,12 +3398,14 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     const auto queued = checkpoint->getQueuedItemsMemUsage();
     const auto queueOverhead = checkpoint->getMemOverheadQueue();
     const auto index = checkpoint->getMemOverheadIndex();
+    checkpointOverhead = manager.getNumCheckpoints() * sizeof(Checkpoint);
     EXPECT_EQ(initialQueued + itemsAlloc, queued);
     EXPECT_EQ(initialQueueOverhead + queueAlloc, queueOverhead);
     EXPECT_EQ(initialIndex + keyIndexAlloc, index);
-    EXPECT_EQ(queued + index + queueOverhead,
+    EXPECT_EQ(queued + index + queueOverhead + checkpointOverhead,
               stats.getCheckpointManagerEstimatedMemUsage());
-    EXPECT_EQ(queued + index + queueOverhead, manager.getMemUsage());
+    EXPECT_EQ(queued + index + queueOverhead + checkpointOverhead,
+              manager.getMemUsage());
 
     // Since we only have one checkpoint, the CheckpointManager's sum should be
     // equal to the single Checkpoint's memory values
@@ -3464,6 +3523,8 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
     const auto queued = checkpoint.getQueuedItemsMemUsage();
     const auto queueOverhead = checkpoint.getMemOverheadQueue();
     const auto index = checkpoint.getMemOverheadIndex();
+    const auto checkpointOverhead =
+            manager.getNumCheckpoints() * sizeof(Checkpoint);
     // Initial - what we expelled
     EXPECT_EQ(initialQueued - setVBStateSize - m1Size, queued);
     EXPECT_EQ(initialQueueOverhead -
@@ -3471,9 +3532,10 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
               queueOverhead);
     // Expel doesn't touch the key index
     EXPECT_EQ(initialIndex, index);
-    EXPECT_EQ(queued + index + queueOverhead,
+    EXPECT_EQ(queued + index + queueOverhead + checkpointOverhead,
               engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
-    EXPECT_EQ(queued + index + queueOverhead, manager.getMemUsage());
+    EXPECT_EQ(queued + index + queueOverhead + checkpointOverhead,
+              manager.getMemUsage());
 
     EXPECT_GT(manager.getMemFreedByItemExpel(), 0);
     EXPECT_EQ(manager.getMemFreedByItemExpel(),
@@ -3521,10 +3583,13 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
     auto queued = checkpoint->getQueuedItemsMemUsage();
     auto queueOverhead = checkpoint->getMemOverheadQueue();
     auto index = checkpoint->getMemOverheadIndex();
+    auto checkpointOverhead = manager.getNumCheckpoints() * sizeof(Checkpoint);
     ASSERT_GT(queued, expectedFinalQueueAllocation);
     ASSERT_GT(index, expectedFinalIndexAllocation);
-    EXPECT_EQ(queued + index + queueOverhead,
+    EXPECT_EQ(queued + index + queueOverhead + checkpointOverhead,
               engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
+    EXPECT_EQ(queued + index + queueOverhead + checkpointOverhead,
+              manager.getMemUsage());
 
     manager.createNewCheckpoint();
     EXPECT_EQ(2, manager.getNumCheckpoints());
@@ -3548,12 +3613,14 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
     queued = checkpoint->getQueuedItemsMemUsage();
     queueOverhead = checkpoint->getMemOverheadQueue();
     index = checkpoint->getMemOverheadIndex();
+    checkpointOverhead = manager.getNumCheckpoints() * sizeof(Checkpoint);
     EXPECT_EQ(expectedFinalQueueAllocation, queued);
     EXPECT_EQ(expectedFinalQueueOverheadAllocation, queueOverhead);
     EXPECT_EQ(expectedFinalIndexAllocation, index);
-    EXPECT_EQ(queued + index + queueOverhead,
+    EXPECT_EQ(queued + index + queueOverhead + checkpointOverhead,
               engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
-    EXPECT_EQ(queued + index + queueOverhead, manager.getMemUsage());
+    EXPECT_EQ(queued + index + queueOverhead + checkpointOverhead,
+              manager.getMemUsage());
 
     EXPECT_GT(manager.getMemFreedByCheckpointRemoval(), 0);
     EXPECT_EQ(manager.getMemFreedByCheckpointRemoval(),

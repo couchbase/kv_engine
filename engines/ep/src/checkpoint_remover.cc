@@ -46,6 +46,9 @@ bool CheckpointDestroyerTask::run() {
         auto handle = toDestroy.lock();
         handle->swap(temporary);
     }
+
+    pendingDestructionMemoryUsage.fetch_sub(temporary.size() *
+                                            sizeof(Checkpoint));
     return true;
 }
 
@@ -55,6 +58,7 @@ void CheckpointDestroyerTask::queueForDestruction(CheckpointList&& list) {
     // memory usage is useful.
     for (auto& checkpoint : list) {
         checkpoint->setMemoryTracker(&pendingDestructionMemoryUsage);
+        pendingDestructionMemoryUsage.fetch_add(sizeof(Checkpoint));
     }
     {
         auto handle = toDestroy.lock();

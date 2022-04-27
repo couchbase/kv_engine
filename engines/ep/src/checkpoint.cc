@@ -82,6 +82,8 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
     auto& core = stats.coreLocal.get();
     core->memOverhead.fetch_add(sizeof(Checkpoint));
     core->numCheckpoints++;
+    core->checkpointManagerEstimatedMemUsage.fetch_add(sizeof(Checkpoint));
+    manager.memUsage.fetch_add(sizeof(Checkpoint));
 
     // the overheadChangedCallback uses the accurately tracked overhead
     // from queueAllocator. The above memOverhead stat is "manually"
@@ -641,6 +643,9 @@ void Checkpoint::addStats(const AddStatFn& add_stat,
 
 void Checkpoint::detachFromManager() {
     Expects(manager);
+
+    manager->memUsage.fetch_sub(sizeof(Checkpoint));
+
     // decrease the manager memory overhead by the total amount of this
     // checkpoint
     manager->overheadChangedCallback(-getMemOverheadAllocatorBytes());
@@ -653,6 +658,7 @@ void Checkpoint::detachFromManager() {
     cmMemUsage.fetch_sub(queuedItemsMemUsage);
     cmMemUsage.fetch_sub(keyIndexMemUsage);
     cmMemUsage.fetch_sub(queueMemOverhead);
+    cmMemUsage.fetch_sub(sizeof(Checkpoint));
 
     // stop tracking MemoryCounters against the CM, this also decreases the
     // "parent" value by the values for this Checkpoint.
