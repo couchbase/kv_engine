@@ -218,14 +218,11 @@ void DefragmenterTask::updateStats(DefragmentVisitor& visitor) {
 }
 
 size_t DefragmenterTask::getMaxValueSize() {
-    size_t nbins{0};
+    unsigned nbins{0};
     cb::ArenaMalloc::getProperty("arenas.nbins", nbins);
 
     char buff[20];
-    snprintf(buff,
-             sizeof(buff),
-             "arenas.bin.%" PRIu64 ".size",
-             static_cast<uint64_t>(nbins) - 1);
+    snprintf(buff, sizeof(buff), "arenas.bin.%u.size", nbins - 1);
 
     size_t largest_bin_size;
     cb::ArenaMalloc::getProperty(buff, largest_bin_size);
