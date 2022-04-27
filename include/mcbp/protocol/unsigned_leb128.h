@@ -74,6 +74,10 @@ public:
         return encodedSize;
     }
 
+    explicit operator std::string_view() const {
+        return std::string_view(reinterpret_cast<const char*>(data()), size());
+    }
+
     constexpr static size_t getMaxSize() {
         return maxSize;
     }

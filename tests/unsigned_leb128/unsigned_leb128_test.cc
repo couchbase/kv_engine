@@ -99,6 +99,10 @@ TYPED_TEST(UnsignedLeb128, EncodeDecodeValues) {
             EXPECT_EQ(
                     leb.get().size() - 1,
                     *cb::mcbp::unsigned_leb128_get_stop_byte_index(leb.get()));
+            auto view = std::string_view{leb};
+            EXPECT_EQ(reinterpret_cast<const uint8_t*>(view.data()),
+                      leb.data());
+            EXPECT_EQ(view.size(), leb.size());
         }
     }
 }
