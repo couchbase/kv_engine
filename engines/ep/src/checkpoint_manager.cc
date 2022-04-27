@@ -1118,32 +1118,6 @@ size_t CheckpointManager::getNumOpenChkItems() const {
     return getOpenCheckpoint(lh).getNumItems();
 }
 
-void CheckpointManager::checkOpenCheckpoint(
-        const std::lock_guard<std::mutex>& lh) {
-    const auto& openCkpt = getOpenCheckpoint(lh);
-
-    // Create the new open checkpoint if any of the following conditions is
-    // satisfied:
-    // (1) the age of the current open checkpoint is greater than the threshold
-    //     @todo MB-48038: allow disabling the time-based trigger via config
-    // (2) current open checkpoint has reached its max size (in bytes)
-
-    const auto openCkptAge = ep_real_time() - openCkpt.getCreationTime();
-    const auto timeTrigger =
-            (openCkpt.getNumItems() > 0) &&
-            (openCkptAge >= checkpointConfig.getCheckpointPeriod());
-
-    // Note: The condition ensures that we always allow at least 1 non-meta item
-    //  in the open checkpoint, regardless of any setting.
-    const auto memTrigger = (openCkpt.getMemUsage() >=
-                             checkpointConfig.getCheckpointMaxSize()) &&
-                            (openCkpt.getNumItems() > 0);
-
-    if (timeTrigger || memTrigger) {
-        addNewCheckpoint(lh);
-    }
-}
-
 size_t CheckpointManager::getNumItemsForCursor(
         const CheckpointCursor* cursor) const {
     std::lock_guard<std::mutex> lh(queueLock);
@@ -1670,13 +1644,32 @@ void CheckpointManager::maybeCreateNewCheckpoint(
         return;
     }
 
-    if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
+    if (checkpointList.size() > checkpointConfig.getMaxCheckpoints() ||
         (checkpointList.size() == checkpointConfig.getMaxCheckpoints() &&
-         checkpointList.front()->isNoCursorsInCheckpoint())) {
-        // CM state pre-conditions allow creating a new checkpoint.
+         !checkpointList.front()->isNoCursorsInCheckpoint())) {
+        return;
+    }
 
-        // Create a new checkpoint if required.
-        checkOpenCheckpoint(lh);
+    // Create the new open checkpoint if any of the following conditions is
+    // satisfied:
+    // (1) the age of the current open checkpoint is greater than the threshold
+    //     @todo MB-48038: allow disabling the time-based trigger via config
+    // (2) current open checkpoint has reached its max size (in bytes)
+
+    const auto& openCkpt = getOpenCheckpoint(lh);
+    const auto openCkptAge = ep_real_time() - openCkpt.getCreationTime();
+    const auto timeTrigger =
+            (openCkpt.getNumItems() > 0) &&
+            (openCkptAge >= checkpointConfig.getCheckpointPeriod());
+
+    // Note: The condition ensures that we always allow at least 1 non-meta item
+    //  in the open checkpoint, regardless of any setting.
+    const auto memTrigger = (openCkpt.getMemUsage() >=
+                             checkpointConfig.getCheckpointMaxSize()) &&
+                            (openCkpt.getNumItems() > 0);
+
+    if (timeTrigger || memTrigger) {
+        addNewCheckpoint(lh);
     }
 }
 

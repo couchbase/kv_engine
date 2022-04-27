@@ -794,12 +794,6 @@ protected:
      */
     bool moveCursorToNextCheckpoint(CheckpointCursor &cursor);
 
-    /**
-     * Check out the current open checkpoint state and create a new open
-     * checkpoint if necessary.
-     */
-    void checkOpenCheckpoint(const std::lock_guard<std::mutex>& lh);
-
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
 
     void resetCursors();
