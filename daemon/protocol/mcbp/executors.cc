@@ -68,6 +68,7 @@ void handle_executor_status(Cookie& cookie, cb::engine_errc status) {
     case engine_errc::opaque_no_match:
     case engine_errc::scope_size_limit_exceeded:
     case engine_errc::range_scan_cancelled:
+    case engine_errc::range_scan_more:
         cookie.sendResponse(mapped);
         break;
     }

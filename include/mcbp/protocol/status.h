@@ -164,6 +164,9 @@ enum class Status : uint16_t {
     /// A RangeScan was cancelled whilst executing a continue
     RangeScanCancelled = 0xa5,
 
+    /// A RangeScan has more data available
+    RangeScanMore = 0xa6,
+
     /*
      * Sub-document specific responses.
      */

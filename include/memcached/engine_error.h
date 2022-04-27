@@ -130,6 +130,9 @@ enum class engine_errc {
     /// RangeScan was cancelled
     range_scan_cancelled = 0x26,
 
+    /// RangeScan has more data available
+    range_scan_more = 0x27,
+
     /** Generic failue. */
     failed = 0xff
 };

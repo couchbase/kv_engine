@@ -58,6 +58,7 @@ bool is_known(Status status) {
     case Status::SyncWriteAmbiguous:
     case Status::SyncWriteReCommitInProgress:
     case Status::RangeScanCancelled:
+    case Status::RangeScanMore:
     case Status::SubdocPathEnoent:
     case Status::SubdocPathMismatch:
     case Status::SubdocPathEinval:
@@ -99,6 +100,7 @@ bool isStatusSuccess(Status status) {
     case Status::SubdocMultiPathFailure:
     case Status::SubdocMultiPathFailureDeleted:
     case Status::Rollback:
+    case Status::RangeScanMore:
         return true;
 
     case Status::KeyEnoent:
@@ -284,6 +286,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "SyncWriteReCommitInProgress";
         case Status::RangeScanCancelled:
             return "RangeScanCancelled";
+        case Status::RangeScanMore:
+            return "RangeScanMore";
         case Status::SubdocPathEnoent:
             return "SubdocPathEnoent";
         case Status::SubdocPathMismatch:
@@ -423,6 +427,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "Synchronous write re-commit in progress";
         case Status::RangeScanCancelled:
             return "RangeScan was cancelled";
+        case Status::RangeScanMore:
+            return "RangeScan has more data available";
         case Status::SubdocPathEnoent:
             return "Subdoc: Path not does not exist";
         case Status::SubdocPathMismatch:

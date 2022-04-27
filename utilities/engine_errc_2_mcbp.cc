@@ -80,6 +80,8 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
         return Status::ScopeSizeLimitExceeded;
     case engine_errc::range_scan_cancelled:
         return Status::RangeScanCancelled;
+    case engine_errc::range_scan_more:
+        return Status::RangeScanMore;
     case engine_errc::would_block:
     case engine_errc::disconnect:
     case engine_errc::predicate_failed:

@@ -320,75 +320,10 @@ not recognized.
 
 ### Response Status
 
-Possible values of this two-byte field:
+Possible values of this two-byte are defined in the following source code file
+[status.h](../include/mcbp/protocol/status.h).
 
-| Raw    | Description                           |
-| -------|---------------------------------------|
-| 0x0000 | No error                              |
-| 0x0001 | Key not found                         |
-| 0x0002 | Key exists                            |
-| 0x0003 | Value too large                       |
-| 0x0004 | Invalid arguments                     |
-| 0x0005 | Item not stored                       |
-| 0x0006 | Incr/Decr on a non-numeric value      |
-| 0x0007 | The vbucket belongs to another server |
-| 0x0008 | The connection is not connected to a bucket |
-| 0x0009 | The requested resource is locked      |
-| 0x000a | Stream not found for DCP message      |
-| 0x000b | The DCP message's opaque does not match the DCP stream's |
-| 0x001f | The authentication context is stale, please re-authenticate |
-| 0x0020 | Authentication error                  |
-| 0x0021 | Authentication continue               |
-| 0x0022 | The requested value is outside the legal ranges |
-| 0x0023 | Rollback required                     |
-| 0x0024 | No access                             |
-| 0x0025 | The node is being initialized         |
-| 0x0030 | The user exceeded network ingress limit |
-| 0x0031 | The user exceeded network egress limit |
-| 0x0032 | The user exceeded max connections limit |
-| 0x0033 | The user exceeded max commands limit  |
-| 0x0081 | Unknown command                       |
-| 0x0082 | Out of memory                         |
-| 0x0083 | Not supported                         |
-| 0x0084 | Internal error                        |
-| 0x0085 | Busy                                  |
-| 0x0086 | Temporary failure                     |
-| 0x0087 | XATTR invalid syntax                  |
-| 0x0088 | Unknown collection                    |
-| 0x008a | Collections manifest not applied      |
-| 0x008c | Unknown scope                         |
-| 0x008d | DCP stream ID is invalid              |
-| 0x00a0 | Durability level invalid |
-| 0x00a1 | Durability impossible |
-| 0x00a2 | Synchronous write in progress |
-| 0x00a3 | Synchronous write ambiguous |
-| 0x00a4 | The SyncWrite is being re-committed after a change in active node |
-| 0x00c0 | (Subdoc) The provided path does not exist in the document |
-| 0x00c1 | (Subdoc) One of path components treats a non-dictionary as a dictionary, or a non-array as an array|
-| 0x00c2 | (Subdoc) The path’s syntax was incorrect |
-| 0x00c3 | (Subdoc) The path provided is too large; either the string is too long, or it contains too many components |
-| 0x00c4 | (Subdoc) The document has too many levels to parse |
-| 0x00c5 | (Subdoc) The value provided will invalidate the JSON if inserted |
-| 0x00c6 | (Subdoc) The existing document is not valid JSON |
-| 0x00c7 | (Subdoc) The existing number is out of the valid range for arithmetic ops |
-| 0x00c8 | (Subdoc) The operation would result in a number outside the valid range |
-| 0x00c9 | (Subdoc) The requested operation requires the path to not already exist, but it exists |
-| 0x00ca | (Subdoc) Inserting the value would cause the document to be too deep |
-| 0x00cb | (Subdoc) An invalid combination of commands was specified |
-| 0x00cc | (Subdoc) Specified key was successfully found, but one or more path operations failed. Examine the individual lookup_result (MULTI_LOOKUP) / mutation_result (MULTI_MUTATION) structures for details. |
-| 0x00cd | (Subdoc) Operation completed successfully on a deleted document |
-| 0x00ce | (Subdoc) The flag combination doesn't make any sense |
-| 0x00cf | (Subdoc) The key combination of the xattrs is not allowed |
-| 0x00d0 | (Subdoc) The server don't know about the specified macro |
-| 0x00d1 | (Subdoc) The server don't know about the specified virtual attribute |
-| 0x00d2 | (Subdoc) Can't modify virtual attributes |
-| 0x00d3 | (Subdoc) One or more paths in a multi-path command failed on a deleted document |
-| 0x00d4 | (Subdoc) Invalid XATTR order (xattrs should come first) |
-| 0x00d5 | (Subdoc) The server don't know this virtual macro |
-| 0x00d6 | (Subdoc) Only deleted documents can be revived |
-| 0x00d7 | (Subdoc) A deleted document can't have a value |
-
-In addition to the above defined status codes, the range 0xff00 - 0xffff
+In addition to the defined status codes, the range 0xff00 - 0xffff
 is reserved for end-user applications (e.g. proxies). Couchbase itself will
 not return them.
 

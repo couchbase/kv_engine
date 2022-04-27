@@ -115,6 +115,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "scope size limit exceeded";
     case engine_errc::range_scan_cancelled:
         return "range scan cancelled";
+    case engine_errc::range_scan_more:
+        return "range scan more";
     };
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "

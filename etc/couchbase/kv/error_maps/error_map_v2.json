@@ -328,6 +328,13 @@
                 "success"
             ]
         },
+        "a6": {
+            "name": "RangeScanMore",
+            "desc": "The range scan has more data available.",
+            "attrs": [
+                "success"
+            ]
+        },
         "c0": {
             "name": "SUBDOC_PATH_ENOENT",
             "desc": "Subdoc: Path not found in document",
