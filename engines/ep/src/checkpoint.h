@@ -593,25 +593,6 @@ public:
      * items queued.
      */
     void detachFromManager();
-
-    /**
-     * Change where the memory usage of the keyIndex and queued items is
-     * accounted against.
-     *
-     * The locally tracked values are unchanged, but the counters for the
-     * previous owner (the CheckpointManager) are decreased by this Checkpoint's
-     * usage, and the new counter is increased by the same value.
-     *
-     * Upon Checkpoint destruction, the new counter will be decreased, rather
-     * than the old one.
-     *
-     * A null argument sets "no parent"; local stat updates will not be
-     * reflected in a parent counter, until a subsequent non-null parent is
-     * set.
-     */
-    void setMemoryTracker(
-            cb::AtomicNonNegativeCounter<size_t>* newMemoryUsageTracker);
-
     /**
      * Decrease this checkpoint queuedItemsMemUsage stat by the given size.
      * Used at expel for updating that stat once memory is released.
@@ -705,19 +686,20 @@ private:
         MemoryCounter& operator-=(size_t size);
 
         /**
-         * Change where the local counter is aggregated.
+         * Used to stop accounting statistics against the MemoryCounter's
+         * parent.
          *
-         * A checkpoint is initially owned by the CM, and then it can be removed
-         * from the CM and moved under CheckpointDestroyer ownership.
-         * This function is used in the ownership-change logic to stop
-         * accounting mem-alloc/dealloc against the old owner and start
-         * accounting against the new owner.
+         * For example, this is called when a Checkpoint is queued for
+         * destruction and so any operation on its MemoryCounters should no
+         * longer update its (previous) manager's totals.
          */
-        void changeParent(cb::AtomicNonNegativeCounter<size_t>* newParent);
+
+        void removeParent();
 
         operator size_t() const {
             return local;
         }
+
     private:
         // Stores this checkpoint mem-usage
         cb::NonNegativeCounter<size_t> local;

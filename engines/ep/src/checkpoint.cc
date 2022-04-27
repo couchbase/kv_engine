@@ -660,19 +660,10 @@ void Checkpoint::detachFromManager() {
     cmMemUsage.fetch_sub(queueMemOverhead);
     cmMemUsage.fetch_sub(sizeof(Checkpoint));
 
-    // stop tracking MemoryCounters against the CM, this also decreases the
-    // "parent" value by the values for this Checkpoint.
-    setMemoryTracker(nullptr);
-}
-
-void Checkpoint::setMemoryTracker(
-        cb::AtomicNonNegativeCounter<size_t>* newMemoryUsageTracker) {
-    // This checkpoint is being removed from the Manager, decrease the memory
-    // usage accounted against the Manager, and instead track it against the
-    // new owner (destroyer task).
-    queuedItemsMemUsage.changeParent(newMemoryUsageTracker);
-    keyIndexMemUsage.changeParent(newMemoryUsageTracker);
-    queueMemOverhead.changeParent(newMemoryUsageTracker);
+    // stop tracking MemoryCounters against the CM
+    queuedItemsMemUsage.removeParent();
+    queueMemOverhead.removeParent();
+    keyIndexMemUsage.removeParent();
 }
 
 void Checkpoint::applyQueuedItemsMemUsageDecrement(size_t size) {
@@ -741,13 +732,9 @@ Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator-=(size_t size) {
     return *this;
 }
 
-void Checkpoint::MemoryCounter::changeParent(
-        cb::AtomicNonNegativeCounter<size_t>* newParent) {
+void Checkpoint::MemoryCounter::removeParent() {
     if (parentUsage) {
         *parentUsage -= local;
     }
-    parentUsage = newParent;
-    if (parentUsage) {
-        *parentUsage += local;
-    }
+    parentUsage = nullptr;
 }
