@@ -218,8 +218,6 @@ For introductory information on stats within Couchbase, start with the
 |                                       | non resident items and deletes to       |
 |                                       | accounting all items                    |
 | ep_bucket_type                        | The bucket type                         |
-| ep_chk_period                         | The maximum lifetime of a checkpoint    |
-|                                       | before a new one is created             |
 | ep_chk_persistence_remains            | Number of remaining vbuckets for        |
 |                                       | checkpoint persistence                  |
 | ep_chk_remover_stime                  | The time interval for purging closed    |

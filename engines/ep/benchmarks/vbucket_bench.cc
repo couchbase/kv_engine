@@ -582,13 +582,11 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
     auto& config = engine->getConfiguration();
     const size_t _1B = 1000 * 1000 * 1000;
     config.setCheckpointMaxSize(_1B);
-    config.setChkPeriod(3600);
 
     auto& bucket = *engine->getKVBucket();
     auto& manager = *bucket.getVBucket(vbid)->checkpointManager;
     const auto& ckptConfig = manager.getCheckpointConfig();
     ASSERT_EQ(_1B, ckptConfig.getCheckpointMaxSize());
-    ASSERT_EQ(3600, ckptConfig.getCheckpointPeriod());
 
     while (state.KeepRunning()) {
         state.PauseTiming();

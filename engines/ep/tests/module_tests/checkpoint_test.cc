@@ -1197,7 +1197,6 @@ TEST_F(SingleThreadedCheckpointTest, MemUsageCheckpointCreation) {
     auto& config = engine->getConfiguration();
     config.setMaxSize(1024 * 1024 * 100);
 
-    config.setChkPeriod(3600);
     config.setMaxCheckpoints(20);
     // Note: This test also verifies that a value > 0 is just set (*)
     const uint32_t _10MB = 1024 * 1024 * 10;
@@ -1208,7 +1207,6 @@ TEST_F(SingleThreadedCheckpointTest, MemUsageCheckpointCreation) {
     auto& manager = *vb->checkpointManager;
 
     const auto& ckptConfig = manager.getCheckpointConfig();
-    ASSERT_EQ(3600, ckptConfig.getCheckpointPeriod());
     ASSERT_EQ(20, ckptConfig.getMaxCheckpoints());
     ASSERT_EQ(_10MB, ckptConfig.getCheckpointMaxSize()); // (*)
 
@@ -1234,7 +1232,6 @@ TEST_F(SingleThreadedCheckpointTest,
     auto& config = engine->getConfiguration();
     config.setMaxSize(1024 * 1024 * 100);
 
-    config.setChkPeriod(3600);
     config.setMaxCheckpoints(20);
     // Set checkpoint max size to something very low
     config.setCheckpointMaxSize(1);
@@ -1244,7 +1241,6 @@ TEST_F(SingleThreadedCheckpointTest,
     auto& manager = *vb->checkpointManager;
 
     const auto& ckptConfig = manager.getCheckpointConfig();
-    ASSERT_EQ(3600, ckptConfig.getCheckpointPeriod());
     ASSERT_EQ(20, ckptConfig.getMaxCheckpoints());
     ASSERT_EQ(1, ckptConfig.getCheckpointMaxSize());
 
@@ -3755,42 +3751,6 @@ TEST_F(CheckpointConfigTest, MaxCheckpoints) {
     auto& manager = *store->getVBuckets().getBucket(vbid)->checkpointManager;
 
     EXPECT_EQ(1000, manager.getCheckpointConfig().getMaxCheckpoints());
-}
-
-TEST_F(CheckpointConfigTest, CheckpointPeriod_LowerThanMin) {
-    auto& config = engine->getConfiguration();
-    try {
-        config.setChkPeriod(0);
-    } catch (const std::range_error& e) {
-        EXPECT_THAT(e.what(),
-                    testing::HasSubstr("Validation Error, chk_period "
-                                       "takes values between 1"));
-        return;
-    }
-    FAIL();
-}
-
-TEST_F(CheckpointConfigTest, CheckpointPeriod_HigherThanMax) {
-    auto& config = engine->getConfiguration();
-    try {
-        config.setChkPeriod(86401);
-    } catch (const std::range_error& e) {
-        EXPECT_THAT(e.what(),
-                    testing::HasSubstr("Validation Error, chk_period "
-                                       "takes values between 1 and 86400"));
-        return;
-    }
-    FAIL();
-}
-
-TEST_F(CheckpointConfigTest, CheckpointPeriod) {
-    auto& config = engine->getConfiguration();
-    config.setChkPeriod(1234);
-
-    setVBucketState(vbid, vbucket_state_active);
-    auto& manager = *store->getVBuckets().getBucket(vbid)->checkpointManager;
-
-    EXPECT_EQ(1234, manager.getCheckpointConfig().getCheckpointPeriod());
 }
 
 void EphemeralCheckpointTest::SetUp() {

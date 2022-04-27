@@ -105,11 +105,6 @@ void SingleThreadedKVBucketTest::SetUp() {
     config_string += "warmup=false";
     config_string += ";couchstore_midpoint_rollback_optimisation=false";
 
-    // Set the chk_period to be a large value so that a slow test doesn't create
-    // checkpoints (and may fail if checkpoint state is tested). This parameter
-    // is 'seconds' and 86400 is 1 day.
-    config_string += ";chk_period=86400";
-
     KVBucketTest::SetUp();
 
     task_executor = reinterpret_cast<SingleThreadedExecutorPool*>

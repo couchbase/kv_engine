@@ -24,9 +24,7 @@ public:
     }
 
     void sizeValueChanged(const std::string& key, size_t value) override {
-        if (key.compare("chk_period") == 0) {
-            config.setCheckpointPeriod(value);
-        } else if (key.compare("max_checkpoints") == 0) {
+        if (key.compare("max_checkpoints") == 0) {
             config.setMaxCheckpoints(value);
         }
     }
@@ -36,8 +34,7 @@ private:
 };
 
 CheckpointConfig::CheckpointConfig(Configuration& config)
-    : checkpointPeriod(config.getChkPeriod()),
-      maxCheckpoints(config.getMaxCheckpoints()),
+    : maxCheckpoints(config.getMaxCheckpoints()),
       persistenceEnabled(config.getBucketType() == "persistent"),
       checkpointMaxSize(config.getCheckpointMaxSize()) {
 }
@@ -46,16 +43,8 @@ void CheckpointConfig::addConfigChangeListener(
         EventuallyPersistentEngine& engine) {
     Configuration& configuration = engine.getConfiguration();
     configuration.addValueChangedListener(
-            "chk_period",
-            std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
-    configuration.addValueChangedListener(
             "max_checkpoints",
             std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
-}
-
-void CheckpointConfig::setCheckpointPeriod(size_t value) {
-    Expects(value > 0);
-    checkpointPeriod = static_cast<rel_time_t>(value);
 }
 
 void CheckpointConfig::setMaxCheckpoints(size_t value) {

@@ -51,7 +51,6 @@ memcached like this:
 |                                |        | permitted where possible.                  |
 | chk_remover_stime              | int    | Interval for the checkpoint remover that   |
 |                                |        | purges closed unreferenced checkpoints.    |
-| chk_period                     | int    | Time bound (in sec.) on a checkpoint       |
 | max_checkpoints                | int    | Number of max checkpoints allowed per      |
 |                                |        | vbucket                                    |
 | bf_resident_threshold          | float  | Resident item threshold for only memory    |

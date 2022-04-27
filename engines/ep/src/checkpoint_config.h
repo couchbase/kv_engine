@@ -25,10 +25,6 @@ class CheckpointConfig {
 public:
     explicit CheckpointConfig(Configuration& config);
 
-    rel_time_t getCheckpointPeriod() const {
-        return checkpointPeriod;
-    }
-
     size_t getMaxCheckpoints() const {
         return maxCheckpoints;
     }
@@ -47,17 +43,12 @@ protected:
     friend class EventuallyPersistentEngine;
     friend class SynchronousEPEngine;
 
-    void setCheckpointPeriod(size_t value);
     void setMaxCheckpoints(size_t value);
 
     static void addConfigChangeListener(EventuallyPersistentEngine& engine);
 
 private:
     class ChangeListener;
-
-    // Period of a checkpoint in terms of time in seconds.
-    // Dynamic in EPConfig
-    std::atomic<rel_time_t> checkpointPeriod;
 
     // Number of max checkpoints allowed.
     // Dynamic in EPConfig

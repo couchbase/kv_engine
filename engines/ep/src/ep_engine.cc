@@ -521,9 +521,7 @@ cb::engine_errc EventuallyPersistentEngine::setCheckpointParam(
     try {
         auto& config = getConfiguration();
 
-        if (key == "chk_period") {
-            config.setChkPeriod(std::stoull(val));
-        } else if (key == "max_checkpoints") {
+        if (key == "max_checkpoints") {
             config.setMaxCheckpoints(std::stoull(val));
         } else if (key == "checkpoint_memory_ratio") {
             config.setCheckpointMemoryRatio(std::stof(val));

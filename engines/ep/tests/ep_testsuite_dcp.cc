@@ -2324,7 +2324,7 @@ static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h) {
          start_seqno += batch_items) {
         if (200 == start_seqno) {
             wait_for_flusher_to_settle(h);
-            wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", 200);
+            wait_for_stat_to_be(h, "ep_items_expelled_from_checkpoints", 200);
             stop_persistence(h);
         }
         write_items(h, batch_items, start_seqno);
@@ -3813,19 +3813,16 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
     }
 
     // Simulate failover
+    int openCkptId = get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint");
     check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
           "Failed to set vbucket state.");
     wait_for_flusher_to_settle(h);
-
-    int openCheckpointId =
-            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint");
+    checkeq(openCkptId + 1,
+            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
+            "Expected new checkpoint created at replica promotion");
 
     // Front-end operations (sets)
     write_items(h, 2, 1, "key_");
-
-    // Wait for a new open checkpoint
-    wait_for_stat_to_be(
-            h, "vb_0:open_checkpoint_id", openCheckpointId + 1, "checkpoint");
 
     // Consumer processes 5th mutation
     const std::string key("key" + std::to_string(i));
@@ -6200,8 +6197,7 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h) {
             get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value");
 
-    wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 2, "checkpoint");
-    wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
+    wait_for_stat_to_be_gte(h, "ep_items_expelled_from_checkpoints", 2);
 
     /* Create a DCP stream */
     DcpStreamCtx ctx;
@@ -6280,8 +6276,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h) {
             get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value");
 
-    wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 2, "checkpoint");
-    wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
+    wait_for_stat_to_be_gte(h, "ep_items_expelled_from_checkpoints", 2);
 
     /* DCP stream, expect a rollback to seq 0 */
     DcpStreamCtx ctx1;
@@ -8261,17 +8256,13 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  // Configuration:
-                 // - chk_period to essentially infinity so it won't run
-                 //   during this test and create extra checkpoints we don't
-                 //   want
                  // - bucket quota big enough compared to the single checkpoint
                  //   max size, so that in the test we can play with
                  //   checkpoint_memory_recovery_upper_mark to enable/disable
                  //   the CheckpointMemRecoveryTask for easier control over
                  //   memory creation
                  "chk_remover_stime=1;max_size=10240000;checkpoint_max_size="
-                 "10240;"
-                 "chk_period=86400;checkpoint_memory_recovery_upper_mark=0;"
+                 "10240;checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0;chk_expel_enabled="
                  "false",
                  // Under rocks that new configuration makes the test break at
@@ -8303,7 +8294,7 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_remover_stime=1;dcp_scan_item_limit=50;"
                  "checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0;chk_expel_enabled="
-                 "false",
+                 "true",
                  prepare,
                  cleanup),
         TestCase("test producer stream request (disk only)",

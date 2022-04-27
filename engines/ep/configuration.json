@@ -177,18 +177,6 @@
             "dynamic" : true,
             "type": "bool"
         },
-        "chk_period": {
-            "default": "5",
-            "descr": "Age of the open checkpoint (in seconds) that may trigger checkpoint creation.",
-            "dynamic": true,
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "min": 1,
-                    "max": 86400
-                }
-            }
-        },
         "chk_remover_stime": {
             "default": "5",
             "dynamic": false,
