@@ -18,6 +18,55 @@
 #include <sstream>
 #include <string_view>
 
+namespace Collections {
+size_t makeUid(std::string_view uid, size_t limit) {
+    // input is a hex number (no prefix)
+    if (uid.empty() || uid.size() > limit) {
+        throw std::invalid_argument(
+                fmt::format("makeUid: input uid must have size > 0 and <= "
+                            "limit:{}, input size:{}",
+                            limit,
+                            uid.size()));
+    }
+
+    // verify that the input characters satisfy isxdigit
+    for (auto c : uid) {
+        if (!std::isxdigit(c)) {
+            throw std::invalid_argument(
+                    fmt::format("makeUid: uid:{} contains invalid character {} "
+                                "fails isxdigit",
+                                uid,
+                                c));
+        }
+    }
+
+    return std::strtoul(uid.data(), nullptr, 16);
+}
+} // namespace Collections
+
+CollectionID::CollectionID(std::string_view id) {
+    try {
+        // Assign via CollectionID ctor which validates the value is legal
+        *this = CollectionID(
+                gsl::narrow<CollectionIDType>(Collections::makeUid(id, 8)));
+    } catch (const gsl::narrowing_error& e) {
+        throw std::invalid_argument(
+                fmt::format("CollectionID::CollectionID:: Cannot narrow id:{} "
+                            "to a CollectionID",
+                            id));
+    }
+}
+
+ScopeID::ScopeID(std::string_view id) {
+    try {
+        *this = ScopeID(
+                gsl::narrow<CollectionIDType>(Collections::makeUid(id, 8)));
+    } catch (const gsl::narrowing_error& e) {
+        throw std::invalid_argument(fmt::format(
+                "ScopeID::ScopeID:: Cannot narrow id:{} to a ScopeID", id));
+    }
+}
+
 bool CollectionID::isReserved(CollectionIDType value) {
     return value >= System && value <= Reserved7;
 }

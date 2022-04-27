@@ -124,10 +124,8 @@ public:
                 if (ttl != collection.end()) {
                     maxTtl = std::chrono::seconds(ttl->get<int32_t>());
                 }
-                ScopeID sid = Collections::makeScopeID(
-                        scope["uid"].get<std::string>());
-                CollectionID cid = Collections::makeCollectionID(
-                        collection["uid"].get<std::string>());
+                ScopeID sid{scope["uid"].get<std::string>()};
+                CollectionID cid{collection["uid"].get<std::string>()};
                 auto name = collection["name"].get<std::string>();
 
                 rv.push_back({sid, cid, name, maxTtl});
@@ -141,9 +139,8 @@ public:
         std::vector<Collections::ScopeMetaData> rv;
         auto& json = cm.getJson();
         for (const auto& scope : json["scopes"]) {
-            rv.push_back(
-                    {Collections::makeScopeID(scope["uid"].get<std::string>()),
-                     scope["name"].get<std::string>()});
+            rv.push_back({ScopeID{scope["uid"].get<std::string>()},
+                          scope["name"].get<std::string>()});
         }
         return rv;
     }

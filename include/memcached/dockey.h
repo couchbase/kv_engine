@@ -86,6 +86,12 @@ public:
         : value(value) {
     }
 
+    /**
+     * A number of interfaces pass Collection-ID as text using a hex format.
+     * Construct CollectionID from a string_view (throws for invalid input)
+     */
+    CollectionID(std::string_view id);
+
     explicit operator uint32_t() const {
         return value;
     }
@@ -123,6 +129,14 @@ public:
     CollectionIDNetworkOrder to_network() const;
 
     std::string to_string() const;
+
+    /**
+     * A number of interfaces pass collection-ID as a string, e.g. the Manifest
+     * and RangeScan.
+     *
+     * @return CollectionID created from a 'string' representation
+     */
+    static CollectionID make(std::string_view view);
 
     /**
      * @return if the value is a value reserved by KV
@@ -163,6 +177,12 @@ public:
                                         std::to_string(value));
         }
     }
+
+    /**
+     * A number of interfaces pass Scope-ID as text using a hex format.
+     * Construct ScopeID from a string_view (throws for invalid input)
+     */
+    ScopeID(std::string_view id);
 
     explicit operator uint32_t() const {
         return value;
@@ -464,3 +484,18 @@ const size_t MaxCollectionsKeyLen = 251;
  * length is 250, the pre-collections maximum.
  */
 const size_t MaxCollectionsLogicalKeyLen = 246;
+
+namespace Collections {
+/**
+ * Convert the id string into a value, the format of an ID is common between
+ * Scope/Collection and Collection Manifest and used in a number of interfaces.
+ *
+ * A valid id is a string with a size > 0 <= len and each character satisfies
+ * std::isxdigit, it finally must be convertable by std::strtoull
+ *
+ * @param id view of the string to convert
+ * @param the maximum length of the input id
+ * @throws std::invalid_argument if id is invalid
+ */
+size_t makeUid(std::string_view id, size_t len);
+} // namespace Collections

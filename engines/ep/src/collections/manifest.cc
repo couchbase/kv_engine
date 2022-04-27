@@ -101,7 +101,7 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
 
     // Read the Manifest UID e.g. "uid" : "5fa1"
     auto jsonUid = getJsonObject(parsed, UidKey, UidType);
-    uid = makeUid(jsonUid.get<std::string>());
+    uid = makeManifestUid(jsonUid.get<std::string>());
 
     // Read the scopes within the Manifest
     auto scopes = getJsonObject(parsed, ScopesKey, ScopesType);
@@ -119,7 +119,7 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
         }
 
         // Construction of ScopeID checks for invalid values
-        ScopeID sidValue = makeScopeID(uid.get<std::string>());
+        ScopeID sidValue{uid.get<std::string>()};
 
         // 1) Default scope has an expected name.
         // 2) Scope identifiers must be unique.
@@ -161,7 +161,7 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
                 throwInvalid("collection name:" + cnameValue + " is not valid");
             }
 
-            CollectionID cidValue = makeCollectionID(cuid.get<std::string>());
+            CollectionID cidValue{cuid.get<std::string>()};
 
             // 1) The default collection must be within the default scope and
             // have the expected name.

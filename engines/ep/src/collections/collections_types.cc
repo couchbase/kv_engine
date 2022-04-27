@@ -13,6 +13,7 @@
 #include "systemevent_factory.h"
 
 #include <mcbp/protocol/unsigned_leb128.h>
+#include <memcached/dockey.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/fmt/fmt.h>
 
@@ -24,28 +25,10 @@
 
 namespace Collections {
 
-ManifestUid makeUid(const char* uid, size_t len) {
-    if (std::strlen(uid) == 0 || std::strlen(uid) > len) {
-        throw std::invalid_argument(
-                "Collections::makeUid uid must be > 0 and <=" +
-                std::to_string(len) +
-                " characters: "
-                "strlen(uid):" +
-                std::to_string(std::strlen(uid)));
-    }
-
-    // verify that the input characters satisfy isxdigit
-    for (size_t ii = 0; ii < std::strlen(uid); ii++) {
-        if (uid[ii] == 0) {
-            break;
-        } else if (!std::isxdigit(uid[ii])) {
-            throw std::invalid_argument("Collections::makeUid: uid:" +
-                                        std::string(uid) + ", index:" +
-                                        std::to_string(ii) + " fails isxdigit");
-        }
-    }
-
-    return ManifestUid(std::strtoul(uid, nullptr, 16));
+ManifestUid makeManifestUid(std::string_view uid) {
+    // note makeUid comes from the DocKey code as ManifestUid and CollectionUid
+    // are very similar
+    return ManifestUid(makeUid(uid, 16));
 }
 
 std::string makeCollectionIdIntoString(CollectionID collection) {

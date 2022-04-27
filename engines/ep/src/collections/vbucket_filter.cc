@@ -175,7 +175,7 @@ bool Filter::addCollection(const nlohmann::json& object,
                            const Collections::VB::ReadHandle& rh) {
     // Require that the requested collection exists in the manifest.
     // DCP cannot filter an unknown collection.
-    auto cid = makeCollectionID(object.get<std::string>());
+    CollectionID cid{object.get<std::string>()};
     ScopeID sid;
     auto scope = rh.getScopeID(cid);
     if (!scope) {
@@ -192,7 +192,7 @@ bool Filter::addScope(const nlohmann::json& object,
                       const Collections::VB::ReadHandle& rh) {
     // Require that the requested scope exists in the manifest.
     // DCP cannot filter an unknown scope.
-    auto sid = makeScopeID(object.get<std::string>());
+    ScopeID sid{object.get<std::string>()};
 
     auto collectionVector = rh.getCollectionsForScope(sid);
 
