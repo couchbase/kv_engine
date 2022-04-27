@@ -580,6 +580,12 @@ public:
     std::function<void(const CheckpointCursor& cursor, Vbid vbid)>
             runGetItemsHook;
 
+    /**
+     * Checks if the CM state pre-conditions for creating a new checkpoint are
+     * met and proceeds trying creating a new checkpoint.
+     */
+    void maybeCreateNewCheckpoint();
+
 protected:
     /**
      * @param lh, the queueLock held

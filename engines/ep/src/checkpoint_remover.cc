@@ -87,9 +87,8 @@ CheckpointMemRecoveryTask::CheckpointMemRecoveryTask(
       removerId(removerId) {
 }
 
-std::pair<CheckpointMemRecoveryTask::ReductionRequired, size_t>
-CheckpointMemRecoveryTask::attemptCheckpointRemoval() {
-    size_t memReleased = 0;
+CheckpointMemRecoveryTask::ReductionRequired
+CheckpointMemRecoveryTask::attemptNewCheckpointCreation() {
     auto& bucket = *engine->getKVBucket();
     const auto vbuckets = getVbucketsSortedByChkMem();
     for (const auto& it : vbuckets) {
@@ -99,18 +98,18 @@ CheckpointMemRecoveryTask::attemptCheckpointRemoval() {
             continue;
         }
 
-        // Note: The call removes checkpoints from the CheckpointList and the
-        // disposer provided here allows to deallocate them in-place.
-        memReleased +=
-                vb->checkpointManager->removeClosedUnrefCheckpoints().memory;
+        // The call might possibly create a new checkpoint and make the old one
+        // closed/unref. If that happens, the old checkpoint is detached from
+        // the CM and given to the Destroyer for deallocation.
+        vb->checkpointManager->maybeCreateNewCheckpoint();
 
         if (bucket.getRequiredCheckpointMemoryReduction() == 0) {
             // All done
-            return {ReductionRequired::No, memReleased};
+            return ReductionRequired::No;
         }
     }
 
-    return {ReductionRequired::Yes, memReleased};
+    return ReductionRequired::Yes;
 }
 
 CheckpointMemRecoveryTask::ReductionRequired
@@ -158,25 +157,14 @@ CheckpointMemRecoveryTask::attemptCursorDropping() {
         auto& manager = *vb->checkpointManager;
         const auto cursors = manager.getListOfCursorsToDrop();
         for (const auto& cursor : cursors) {
+            // The call drops the cursor and also removes from CM any checkpoint
+            // made unreferenced by the drop. Removed checkpoints are passed to
+            // the Destroyer for deallocation.
             if (!engine->getDcpConnMap().handleSlowStream(
                         vbid, cursor.lock().get())) {
                 continue;
             }
             ++stats.cursorsDropped;
-
-            // @todo CheckpointRemoval::Eager
-            // Note: In eager-mode, the previous call has dropped a cursor and
-            // it has also already removed from CM and moved to the Destroyer
-            // any checkpoint made unreferenced by the drop.
-            // So the next call to CM::removeClosedUnrefCheckpoints() is just
-            // expected to be a NOP in eager-mode.
-#if CB_DEVELOPMENT_ASSERTS
-            Expects(manager.removeClosedUnrefCheckpoints().count == 0);
-#else
-            // MB-51408: We need to make the call for keeping executing the
-            // inner checkpoint creation logic - minimal fix for Neo.
-            manager.removeClosedUnrefCheckpoints();
-#endif
 
             if (bucket.getRequiredCheckpointMemoryReduction() == 0) {
                 // All done
@@ -216,20 +204,10 @@ bool CheckpointMemRecoveryTask::runInner() {
             getDescription(),
             bytesToFree / (1024 * 1024));
 
-    // @todo CheckpointRemoval::Eager
-#if CB_DEVELOPMENT_ASSERTS
-    // if eager checkpoint removal has been configured, calling
-    // attemptCheckpointRemoval here should never, ever, find any
-    // checkpoints to remove; they should always be removed as soon
-    // as they are made eligible, before the lock is released.
-    // This is not cheap to verify, as it requires scanning every
-    // vbucket, so is only checked if dev asserts are on.
-    Expects(attemptCheckpointRemoval().second == 0);
-#else
-    // MB-51408: We need to make the call for keeping executing the inner
-    // checkpoint creation logic - minimal fix for Neo.
-    attemptCheckpointRemoval();
-#endif
+    if (attemptNewCheckpointCreation() == ReductionRequired::No) {
+        // Recovered enough, done
+        return true;
+    }
 
     // Try expelling, if enabled.
     // Note: The next call tries to expel from all vbuckets before returning.

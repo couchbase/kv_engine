@@ -99,12 +99,14 @@ protected:
     enum class ReductionRequired : uint8_t { No, Yes };
 
     /**
-     * Attempts to release memory by removing closed/unref checkpoints from all
-     * vbuckets in decreasing checkpoint-mem-usage order.
+     * Attempts to release memory by creating a new checkpoint. That might make
+     * the previous/open checkpoint closed/unref and thus eligible for in-place
+     * removal. The procedure operates on all vbuckets in decreasing
+     * checkpoint-mem-usage order.
      *
-     * @return Whether further memory reduction is required and bytes released
+     * @return Whether further memory reduction is required
      */
-    std::pair<ReductionRequired, size_t> attemptCheckpointRemoval();
+    ReductionRequired attemptNewCheckpointCreation();
 
     /**
      * Attempts to free memory by using item expelling from checkpoints from all

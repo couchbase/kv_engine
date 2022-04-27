@@ -1637,6 +1637,11 @@ FlushHandle::~FlushHandle() {
     manager.removeBackupPersistenceCursor();
 }
 
+void CheckpointManager::maybeCreateNewCheckpoint() {
+    std::lock_guard<std::mutex> lh(queueLock);
+    maybeCreateNewCheckpoint(lh);
+}
+
 void CheckpointManager::maybeCreateNewCheckpoint(
         const std::lock_guard<std::mutex>& lh) {
     // Only the active can shape the CheckpointList
