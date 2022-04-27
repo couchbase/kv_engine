@@ -759,7 +759,7 @@ bool CheckpointManager::queueDirty(
         // To process this item, create a new (empty) checkpoint which we can
         // then re-attempt the enqueuing.
         // Note this uses the lastBySeqno for snapStart / End.
-        checkOpenCheckpoint(lh, /*force*/ true);
+        addNewCheckpoint(lh);
         openCkpt = &getOpenCheckpoint(lh);
         result = openCkpt->queueDirty(qi);
         if (result.status != QueueDirtyStatus::SuccessNewItem) {
@@ -1119,16 +1119,14 @@ size_t CheckpointManager::getNumOpenChkItems() const {
 }
 
 void CheckpointManager::checkOpenCheckpoint(
-        const std::lock_guard<std::mutex>& lh, bool forceCreation) {
+        const std::lock_guard<std::mutex>& lh) {
     const auto& openCkpt = getOpenCheckpoint(lh);
 
     // Create the new open checkpoint if any of the following conditions is
     // satisfied:
-    // (1) force creation due to online update, high memory usage, or enqueueing
-    //     an op we cannot de-dupe (i.e. an abort, commit, or prepare)
-    // (2) the age of the current open checkpoint is greater than the threshold
+    // (1) the age of the current open checkpoint is greater than the threshold
     //     @todo MB-48038: allow disabling the time-based trigger via config
-    // (3) current open checkpoint has reached its max size (in bytes)
+    // (2) current open checkpoint has reached its max size (in bytes)
 
     const auto openCkptAge = ep_real_time() - openCkpt.getCreationTime();
     const auto timeTrigger =
@@ -1141,7 +1139,7 @@ void CheckpointManager::checkOpenCheckpoint(
                              checkpointConfig.getCheckpointMaxSize()) &&
                             (openCkpt.getNumItems() > 0);
 
-    if (forceCreation || timeTrigger || memTrigger) {
+    if (timeTrigger || memTrigger) {
         addNewCheckpoint(lh);
     }
 }
@@ -1678,7 +1676,7 @@ void CheckpointManager::maybeCreateNewCheckpoint(
         // CM state pre-conditions allow creating a new checkpoint.
 
         // Create a new checkpoint if required.
-        checkOpenCheckpoint(lh, false);
+        checkOpenCheckpoint(lh);
     }
 }
 
