@@ -1702,13 +1702,9 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
               getEPBucket().flushVBucket(vbid));
     ckpt_mgr.createNewCheckpoint();
     EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
-
-    // can't remove checkpoint because of DCP stream.
-    EXPECT_EQ(0, ckpt_mgr.removeClosedUnrefCheckpoints().count);
     EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
 
     // Dropping cursor removes 2 closed checkpoints
-    EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
     mock_stream->handleSlowStream();
     EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
@@ -1846,11 +1842,10 @@ TEST_P(STParamPersistentBucketTest,
                        /*allowExisting*/ true);
     getEPBucket().flushVBucket(vbid);
 
-    // Close the first checkpoint and create a second one
+    // Close the first checkpoint and create a second one - That will also
+    // remove the first
     ckpt_mgr.createNewCheckpoint();
-
-    // Remove the first checkpoint
-    ckpt_mgr.removeClosedUnrefCheckpoints();
+    ASSERT_EQ(1, ckpt_mgr.getNumCheckpoints());
 
     // Add a second item and flush to bucket
     auto item2 = make_item(vbid, makeStoredDocKey("key2"), "value");

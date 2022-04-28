@@ -254,7 +254,6 @@ TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
     // remove the checkpoint containing the set vbstate to get a clean
     // baseline memory usage
     cpm.createNewCheckpoint();
-    cpm.removeClosedUnrefCheckpoints();
 
     auto& stats = engine->getEpStats();
     const auto initialMem = stats.replicaCheckpointOverhead;
@@ -319,7 +318,6 @@ TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
     // now remove the checkpoint and confirm the replicaCheckpointOverhead is
     // now back to the initial value.
     cpm.createNewCheckpoint();
-    cpm.removeClosedUnrefCheckpoints();
 
     EXPECT_EQ(initialMem, stats.replicaCheckpointOverhead);
 

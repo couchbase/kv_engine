@@ -175,15 +175,6 @@ public:
     CheckpointType getOpenCheckpointType() const;
 
     /**
-     * Removes closed unreferenced checkpoints from the checkpoint-list and
-     * frees up their used memory.
-     *
-     * @return ReleaseResult, with the number of items removed and an estimate
-     *  of released memory
-     */
-    ReleaseResult removeClosedUnrefCheckpoints();
-
-    /**
      * Attempt to expel (i.e. eject from memory) items in the oldest checkpoint
      * that still has cursor registered in it.  This is to help avoid very large
      * checkpoints which consume a large amount of memory.

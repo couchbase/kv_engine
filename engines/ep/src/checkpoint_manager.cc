@@ -509,33 +509,6 @@ void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {
 }
 
 CheckpointManager::ReleaseResult
-CheckpointManager::removeClosedUnrefCheckpoints() {
-    // This function is executed periodically by the non-IO dispatcher.
-
-    // We need to acquire the CM lock for extracting checkpoints from the
-    // CheckpointList. But the actual deallocation must be lock-free, as it is
-    // an expensive operation that has been already proven to degrade frontend
-    // throughput if performed under lock.
-    CheckpointList toRelease;
-    {
-        std::lock_guard<std::mutex> lh(queueLock);
-        maybeCreateNewCheckpoint(lh);
-        toRelease = extractClosedUnrefCheckpoints(lh);
-    }
-    // CM lock released here
-
-    if (toRelease.empty()) {
-        return {0, 0};
-    }
-
-    auto released = updateStatsForCheckpointRemoval(toRelease);
-
-    scheduleDestruction(std::move(toRelease));
-
-    return released;
-}
-
-CheckpointManager::ReleaseResult
 CheckpointManager::updateStatsForCheckpointRemoval(
         const CheckpointList& toRemove) {
     // Update stats and compute return value

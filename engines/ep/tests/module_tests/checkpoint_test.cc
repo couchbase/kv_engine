@@ -468,7 +468,7 @@ TEST_P(CheckpointTest, CursorOffsetOnCheckpointClose) {
     // deallocation. This will cause the cursor offset to be recalculated.
     // Note: Closed/unref checkpoints already removed, attempting to remove them
     // manually is a NOP here
-    EXPECT_EQ(0, manager->removeClosedUnrefCheckpoints().count);
+    EXPECT_GT(manager->getMemFreedByCheckpointRemoval(), 0);
     EXPECT_EQ(1, manager->getNumCheckpoints());
     EXPECT_EQ(2, manager->getNumItemsForCursor(cursor));
 
@@ -645,7 +645,7 @@ TEST_P(CheckpointTest, CursorMovement) {
     uint64_t curr_open_chkpt_id = this->manager->getOpenCheckpointId();
 
     /* Run the checkpoint remover so that new open checkpoint is created */
-    manager->removeClosedUnrefCheckpoints();
+    manager->maybeCreateNewCheckpoint();
     EXPECT_EQ(curr_open_chkpt_id + 1, this->manager->getOpenCheckpointId());
 
     /* Get items for persistence cursor */
@@ -2117,7 +2117,7 @@ TEST_P(CheckpointTest, MetaItemsSeqnoWeaklyMonotonicSetVbStateBeforeEnd) {
 
     // Close our checkpoint to create a checkpoint_end, another dummy item, and
     // a checkpoint_start
-    cm.forceNewCheckpoint();
+    cm.createNewCheckpoint();
 
     // Test: Iterate on all items and check that the seqnos are weakly monotonic
     auto regRes = cm.registerCursorBySeqno(
@@ -2152,7 +2152,7 @@ TEST_P(CheckpointTest, MetaItemsSeqnoWeaklyMonotonicSetVbStateAfterStart) {
 
     // Close our checkpoint to create a checkpoint_end, another dummy item, and
     // a checkpoint_start
-    cm.forceNewCheckpoint();
+    cm.createNewCheckpoint();
 
     // Test: Iterate on all items and check that the seqnos are weakly monotonic
     auto regRes = cm.registerCursorBySeqno(
@@ -2184,7 +2184,7 @@ TEST_P(CheckpointTest, CursorPlacedAtCkptStartSeqnoCorrectly) {
 
     // Close our checkpoint to create a checkpoint_end, another dummy item, and
     // a checkpoint_start
-    cm.forceNewCheckpoint();
+    cm.createNewCheckpoint();
 
     // Queue a normal set
     qi = queued_item(new Item(makeStoredDocKey("key1"),
@@ -3190,14 +3190,14 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerAccountsEmptyCheckpoint) {
     // cursor was already at the end of the previous checkpoint, and so is
     // automatically moved forward as an optimization
 
-    manager.forceNewCheckpoint();
+    manager.createNewCheckpoint();
     // C2 [> empty, checkpoint_start]
 
     const auto startMemUsage = manager.getMemUsage();
     const auto startEstimatedMemUsage =
             stats.getCheckpointManagerEstimatedMemUsage();
 
-    manager.forceNewCheckpoint();
+    manager.createNewCheckpoint();
     // C2 [> empty, checkpoint_start], C3 [empty, checkpoint_start]
 
     auto newCheckpoint = manager.getCheckpointList().front().get();

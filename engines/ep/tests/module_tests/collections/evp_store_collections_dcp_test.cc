@@ -3881,11 +3881,10 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     // 1.3. Create a new checkpoint, so we close the current one. Which will
-    // allow us to remove it from memory.
+    // also remove it from memory.
     moveHelperCursorToCMEnd();
     auto vb = store->getVBucket(vbid);
     vb->checkpointManager->createNewCheckpoint();
-    vb->checkpointManager->removeClosedUnrefCheckpoints();
     runCheckpointDestroyer(vbid);
 
     // 1.4. Write a document to the fruit collection to be streamed later

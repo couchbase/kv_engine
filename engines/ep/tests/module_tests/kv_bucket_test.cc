@@ -290,7 +290,6 @@ void KVBucketTest::flushAndRemoveCheckpoints(Vbid vbid) {
     if (persistent()) {
         dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
     }
-    manager.removeClosedUnrefCheckpoints();
 }
 
 size_t KVBucketTest::flushAndExpelFromCheckpoints(Vbid vbid) {

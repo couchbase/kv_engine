@@ -80,4 +80,12 @@ protected:
     std::vector<queued_item> getItemsWithCursor(const std::string& name,
                                                 uint64_t startBySeqno,
                                                 bool expectBackfill = false);
+
+    /**
+     * Creates a new open checkpoint and moves the persistence cursors into it.
+     * That removes the old checkpoints.
+     *
+     * @param manager The CM to operate on
+     */
+    void createCheckpointAndEnsureOldRemoved(CheckpointManager& manager);
 };

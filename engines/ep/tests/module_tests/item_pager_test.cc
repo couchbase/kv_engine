@@ -153,18 +153,17 @@ protected:
         EXPECT_GT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat.load())
                 << "Expected to exceed low watermark after hitting TMPFAIL";
 
-        // To ensure the Blobs can actually be removed from memory, they must have
-        // a ref-count of 1. This will not be the case if there's any open
+        // To ensure the Blobs can actually be removed from memory, they must
+        // have a ref-count of 1. This will not be the case if there's any open
         // checkpoints hanging onto Items. Therefore force the creation of a new
-        // checkpoint.
+        // checkpoint that will also remove the closed ones.
         auto& cm = *store->getVBucket(vbid)->checkpointManager;
         cm.createNewCheckpoint();
 
         // Ensure items are flushed to disk (so we can evict them).
         flushDirectlyIfPersistent(vbid);
 
-        // manually drive checkpoint removal and destruction to recover memory.
-        cm.removeClosedUnrefCheckpoints();
+        // manually drive checkpoint destruction to recover memory.
         runCheckpointDestroyer(vbid);
 
 #ifdef EP_USE_MAGMA
@@ -819,8 +818,7 @@ TEST_P(STItemPagerTest, test_memory_limit) {
         vb->checkpointManager->createNewCheckpoint();
         // Reflush
         flush_vbucket_to_disk(vbid);
-        EXPECT_EQ(1,
-                  vb->checkpointManager->removeClosedUnrefCheckpoints().count);
+        // Closed checkpoints removed at this point
     }
 
     // Now set max_size to be mem_used + 10% (we need some headroom)
@@ -2065,7 +2063,6 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
         auto vb = store->getVBucket(vbid);
         vb->checkpointManager->createNewCheckpoint();
         flushVBucketToDiskIfPersistent(vbid, 1);
-        vb->checkpointManager->removeClosedUnrefCheckpoints();
         runCheckpointDestroyer(vbid);
     }
 

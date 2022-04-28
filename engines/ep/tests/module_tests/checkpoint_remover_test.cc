@@ -537,6 +537,15 @@ std::vector<queued_item> CheckpointRemoverEPTest::getItemsWithCursor(
     return items;
 }
 
+void CheckpointRemoverEPTest::createCheckpointAndEnsureOldRemoved(
+        CheckpointManager& manager) {
+    const auto openId = manager.getOpenCheckpointId();
+    manager.createNewCheckpoint();
+    flush_vbucket_to_disk(vbid, 0);
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_GT(manager.getOpenCheckpointId(), openId);
+}
+
 /**
  * @todo MB-51295: Remove this test and the related code path in ItemExpel.
  * The test verifies that ItemExpel defers mem-recovery to checkpoint removal
@@ -577,7 +586,7 @@ TEST_P(CheckpointRemoverEPTest,
         store_item(vbid, makeStoredDocKey("key_" + std::to_string(i)), "value");
     }
 
-    cm->forceNewCheckpoint();
+    cm->createNewCheckpoint();
 
     for (int i = 3; i < 6; i++) {
         store_item(vbid, makeStoredDocKey("key_" + std::to_string(i)), "value");
@@ -648,19 +657,14 @@ TEST_P(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
     auto vb = engine->getVBucket(vbid);
     auto* cm = static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
 
-    {
-        // clear out the first checkpoint containing a set vbstate
-        cm->forceNewCheckpoint();
-        flush_vbucket_to_disk(vbid, 0);
-        cm->removeClosedUnrefCheckpoints();
-    }
+    createCheckpointAndEnsureOldRemoved(*cm);
 
     // queue a single item into checkpoint
     store_item(vbid, makeStoredDocKey("key_1"), "value");
     // queue a set vbstate meta item into checkpoint
     cm->queueSetVBState();
 
-    cm->forceNewCheckpoint();
+    cm->createNewCheckpoint();
 
     // persist, moves the persistence cursor to the new checkpoint start
     // to move it "out of the way" for this test
@@ -714,12 +718,7 @@ TEST_P(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
     auto vb = engine->getVBucket(vbid);
     auto* cm = static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
 
-    {
-        // clear out the first checkpoint containing a set vbstate
-        cm->forceNewCheckpoint();
-        flush_vbucket_to_disk(vbid, 0);
-        cm->removeClosedUnrefCheckpoints();
-    }
+    createCheckpointAndEnsureOldRemoved(*cm);
 
     store_item(vbid, makeStoredDocKey("key_1"), "value");
     store_item(vbid, makeStoredDocKey("key_2"), "value");
@@ -763,12 +762,7 @@ TEST_P(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
     auto vb = engine->getVBucket(vbid);
     auto* cm = static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
 
-    {
-        // clear out the first checkpoint containing a set vbstate
-        cm->forceNewCheckpoint();
-        flush_vbucket_to_disk(vbid, 0);
-        cm->removeClosedUnrefCheckpoints();
-    }
+    createCheckpointAndEnsureOldRemoved(*cm);
 
     store_item(vbid, makeStoredDocKey("key_1"), "value");
     store_item(vbid, makeStoredDocKey("key_2"), "value");
@@ -809,12 +803,7 @@ TEST_P(CheckpointRemoverEPTest,
     auto vb = engine->getVBucket(vbid);
     auto* cm = static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
 
-    {
-        // clear out the first checkpoint containing a set vbstate
-        cm->forceNewCheckpoint();
-        flush_vbucket_to_disk(vbid, 0);
-        cm->removeClosedUnrefCheckpoints();
-    }
+    createCheckpointAndEnsureOldRemoved(*cm);
 
     // expelling will not remove items preceded by an item with the same seqno
     // (in the case, the checkpoint start meta item)
