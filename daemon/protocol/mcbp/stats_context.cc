@@ -110,30 +110,6 @@ static void append_stats(std::string_view key,
 static AddStatFn appendStatsFn = append_stats;
 
 /**
- * Get the detailed description for each bucket defined in the all_buckets
- * array.
- *
- * @param cookie the command context
- */
-static void process_bucket_details(Cookie& cookie) {
-    nlohmann::json array = nlohmann::json::array();
-
-    for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
-        Bucket& bucket = BucketManager::instance().at(ii);
-        auto json = bucket.to_json();
-        if (!json.empty()) {
-            json["index"] = ii;
-            array.emplace_back(std::move(json));
-        }
-    }
-
-    nlohmann::json json;
-    json["buckets"] = array;
-    const auto stats_str = json.dump();
-    append_stats("bucket details"sv, stats_str, static_cast<void*>(&cookie));
-}
-
-/**
  * Handler for the <code>stats reset</code> command.
  *
  * Clear the global and the connected buckets stats.
@@ -223,17 +199,49 @@ static cb::engine_errc stat_audit_executor(const std::string& arg,
  * Handler for the <code>stats bucket details</code> used to get information
  * of the buckets (type, state, #clients etc)
  *
- * @param arg - should be empty
+ * @param arg - empty (all buckets) or the name of a bucket
  * @param cookie the command context
  */
 static cb::engine_errc stat_bucket_details_executor(const std::string& arg,
                                                     Cookie& cookie) {
     if (arg.empty()) {
-        process_bucket_details(cookie);
+        // Return all buckets
+        nlohmann::json array = nlohmann::json::array();
+
+        for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
+            Bucket& bucket = BucketManager::instance().at(ii);
+            auto json = bucket.to_json();
+            if (!json.empty()) {
+                json["index"] = ii;
+                array.emplace_back(std::move(json));
+            }
+        }
+
+        nlohmann::json json;
+        json["buckets"] = array;
+        const auto stats_str = json.dump();
+        append_stats(
+                "bucket details"sv, stats_str, static_cast<void*>(&cookie));
         return cb::engine_errc::success;
-    } else {
-        return cb::engine_errc::invalid_arguments;
     }
+
+    // Return the bucket details for the bucket with the requested name
+    nlohmann::json bucket;
+    BucketManager::instance().forEach([&bucket, &arg](const auto& b) {
+        if (arg == b.name) {
+            bucket = b.to_json();
+            return false;
+        }
+        return true;
+    });
+
+    if (bucket.empty()) {
+        return cb::engine_errc::no_such_key;
+    }
+
+    const auto stats_str = bucket.dump();
+    append_stats(arg, stats_str, static_cast<void*>(&cookie));
+    return cb::engine_errc::success;
 }
 
 /**

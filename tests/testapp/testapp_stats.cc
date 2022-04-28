@@ -361,6 +361,38 @@ TEST_P(StatsTest, TestBucketDetails) {
     }
 }
 
+TEST_P(StatsTest, TestBucketDetailsSingleBucket) {
+    nlohmann::json json;
+    size_t ncallback = 0;
+
+    adminConnection->stats(
+            [this, &json, &ncallback](const auto& k, const auto& v) {
+                ++ncallback;
+                if (!k.empty()) {
+                    ASSERT_EQ(bucketName, k);
+                    ASSERT_FALSE(v.empty());
+                    json = nlohmann::json::parse(v);
+                } else {
+                    ASSERT_TRUE(v.empty());
+                }
+            },
+            "bucket_details " + bucketName);
+
+    EXPECT_EQ("ready", json["state"].get<std::string>());
+    EXPECT_LE(1, json["clients"].get<int>());
+    EXPECT_EQ(bucketName, json["name"].get<std::string>());
+    EXPECT_EQ("EWouldBlock", json["type"].get<std::string>());
+    // we can't really check the RCU and WCUs used as it depends on which
+    // tests have been executed before this test
+    EXPECT_EQ(0, json["num_throttled"].get<int>());
+
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Stat,
+            "bucket_details this-bucket-does-not-not-exists"});
+    ASSERT_FALSE(rsp.isSuccess());
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+}
+
 TEST_P(StatsTest, TestSchedulerInfo) {
     auto stats = adminConnection->stats("worker_thread_info");
     // We should at least have an entry for the first thread
