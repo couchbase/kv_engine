@@ -147,8 +147,18 @@ public:
 
     void storeTestKeys() {
         for (const auto& key : generateTestKeys()) {
-            // Store key with StoredDocKey::to_string as the value
-            store_item(vbid, key, key.to_string());
+            // store one key with xattrs to check it gets stripped
+            if (key == makeStoredDocKey("users", scanCollection)) {
+                store_item(vbid,
+                           key,
+                           createXattrValue(key.to_string()),
+                           0,
+                           {cb::engine_errc::success},
+                           PROTOCOL_BINARY_DATATYPE_XATTR);
+            } else {
+                // Store key with StoredDocKey::to_string as the value
+                store_item(vbid, key, key.to_string());
+            }
         }
         flushVBucket(vbid);
     }

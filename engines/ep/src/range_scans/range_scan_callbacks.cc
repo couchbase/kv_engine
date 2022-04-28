@@ -68,6 +68,8 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
     auto gv = get(*vb, lookup);
     if (gv.getStatus() == cb::engine_errc::success &&
         gv.item->getBySeqno() == lookup.getBySeqno()) {
+        // RangeScans do not transmit xattrs
+        gv.item->removeXattrs();
         scan.handleItem(std::move(gv.item));
         // call setStatus so the scan doesn't try the value lookup. This status
         // is not visible to the client
@@ -96,6 +98,8 @@ void RangeScanDiskCallback::callback(GetValue& val) {
         return;
     }
 
+    // RangeScans do not transmit xattrs
+    val.item->removeXattrs();
     scan.handleItem(std::move(val.item));
     setStatus(cb::engine_errc::success);
 }
