@@ -9,8 +9,6 @@
  *   the file licenses/APL2.txt.
  */
 
-#pragma once
-
 #include "seqno_persistence_notify_task.h"
 
 #include "ep_bucket.h"
