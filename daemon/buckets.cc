@@ -125,7 +125,7 @@ void Bucket::commandExecuted(const Cookie& cookie) {
 }
 
 void Bucket::tick() {
-    throttle_gauge.tick();
+    throttle_gauge.tick(throttle_limit);
 }
 
 namespace BucketValidator {

@@ -24,13 +24,17 @@ bool SloppyComputeUnitGauge::isBelow(std::size_t value) const {
     return slots.at(current.load()) < value;
 }
 
-void SloppyComputeUnitGauge::tick() {
+void SloppyComputeUnitGauge::tick(size_t max) {
     size_t next = current + 1;
     if (next == slots.size()) {
         next = 0;
     }
     slots[next].store(0);
+    auto prev = current.load();
     current = next;
+    if (slots[prev] > max) {
+        slots[next] += slots[prev] - max;
+    }
 }
 
 void SloppyComputeUnitGauge::iterate(

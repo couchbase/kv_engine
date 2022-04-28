@@ -9,6 +9,7 @@
  */
 
 #include <folly/portability/GTest.h>
+#include <thread>
 
 #include "sloppy_compute_unit_gauge.h"
 
@@ -55,10 +56,21 @@ TEST(SloppyComputeUnitGaugeTest, tick) {
         auto& pre = slots.at(gauge.getCurrent().load());
         EXPECT_EQ(1000, pre);
 
-        gauge.tick();
+        gauge.tick(100000);
         EXPECT_EQ((ii + 1) % slots.size(), gauge.getCurrent().load());
         auto& post = slots.at(gauge.getCurrent().load());
         EXPECT_EQ(0, post);
+    }
+}
+
+TEST(SloppyComputeUnitGaugeTest, tickDataRollover) {
+    MockSloppyComputeUnitGauge gauge;
+    auto& slots = gauge.getSlots();
+
+    gauge.increment(1000);
+    for (std::size_t ii = 0; ii < slots.size() - 1; ++ii) {
+        EXPECT_EQ(1000 - ii * 10, slots.at(gauge.getCurrent()));
+        gauge.tick(10);
     }
 }
 
@@ -69,7 +81,7 @@ TEST(SloppyComputeUnitGaugeTest, iterate) {
     // start at the beginning of the slots so that we can verify that
     // it wraps correctly
     for (std::size_t ii = 0; ii < 100; ++ii) {
-        gauge.tick();
+        gauge.tick(10000);
         gauge.increment(ii);
     }
 
@@ -79,4 +91,26 @@ TEST(SloppyComputeUnitGaugeTest, iterate) {
         ASSERT_EQ(ii, count);
         ++ii;
     });
+}
+
+TEST(SloppyComputeUnitGaugeTest, Multithread) {
+    MockSloppyComputeUnitGauge gauge;
+    std::atomic_bool stop{false};
+
+    std::thread other{[&gauge, &stop]() {
+        while (!stop) {
+            gauge.increment(1);
+        }
+    }};
+
+    auto& slots = gauge.getSlots();
+    for (std::size_t size = 0; size < slots.size(); ++size) {
+        while (slots[gauge.getCurrent()] == 0) {
+            std::this_thread::yield();
+        }
+        gauge.tick(slots[gauge.getCurrent()]);
+    }
+
+    stop.store(true);
+    other.join();
 }

@@ -38,8 +38,13 @@ public:
     /// is below the provided limits
     bool isBelow(std::size_t value) const;
 
-    /// move the clock forward
-    void tick();
+    /// move the clock forward, and carry everything above max forward
+    /// into the next slot. The motivation is that we don't want someone
+    /// to exceed the quota a lot right before the limit and then
+    /// have a full quota at the next slot (given that we execute in an
+    /// optimistic way by checking if there is _some room_ before performing
+    /// an operation and do the proper accounting when we're done executing.
+    void tick(size_t max);
 
     /// Iterate through the entries in the log (oldest to newest)
     void iterate(std::function<void(std::size_t)>) const;
