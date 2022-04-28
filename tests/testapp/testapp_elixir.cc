@@ -23,25 +23,15 @@ public:
 
 protected:
     std::pair<std::size_t, std::size_t> getComputeUnits() {
-        std::size_t rcu = 0, wcu = 0;
-        bool found = false;
-
+        nlohmann::json json;
         adminConnection->stats(
-                [this, &rcu, &wcu, &found](const auto& k, const auto& v) {
-                    if (!v.empty()) {
-                        auto json = nlohmann::json::parse(v);
-                        for (nlohmann::json& bucket : json["buckets"]) {
-                            if (bucket["name"] == bucketName) {
-                                rcu = bucket["rcu"].get<std::size_t>();
-                                wcu = bucket["wcu"].get<std::size_t>();
-                                found = true;
-                            }
-                        }
-                    }
+                [&json](const auto& k, const auto& v) {
+                    json = nlohmann::json::parse(v);
                 },
-                "bucket_details");
-        if (found) {
-            return {rcu, wcu};
+                std::string{"bucket_details "} + bucketName);
+        if (!json.empty()) {
+            return {json["rcu"].get<std::size_t>(),
+                    json["wcu"].get<std::size_t>()};
         }
         throw std::runtime_error("getComputeUnits(): Bucket not found");
     }

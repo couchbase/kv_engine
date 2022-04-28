@@ -11,12 +11,15 @@
 #include "connection.h"
 #include "cookie.h"
 #include "enginemap.h"
+#include "front_end_thread.h"
 #include "log_macros.h"
 #include "memcached.h"
 #include "stats.h"
 #include <daemon/server_core_api.h>
 #include <daemon/settings.h>
 #include <logger/logger.h>
+#include <mcbp/protocol/header.h>
+#include <mcbp/protocol/opcode.h>
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
 #include <platform/scope_timer.h>
@@ -126,6 +129,51 @@ void Bucket::commandExecuted(const Cookie& cookie) {
 
 void Bucket::tick() {
     throttle_gauge.tick(throttle_limit);
+    // iterate over connections
+    FrontEndThread::forEach([this](auto& thr) {
+        std::deque<Connection*> connections;
+        throttledConnectionMap.withLock([&connections, &thr](auto& map) {
+            map[&thr].swap(connections);
+        });
+
+        for (auto& c : connections) {
+            if (c->reEvaluateThrottledCookies()) {
+                throttledConnectionMap.withLock(
+                        [connection = c, &thr](auto& map) {
+                            map[&thr].push_back(connection);
+                        });
+            }
+        }
+    });
+}
+
+bool Bucket::shouldThrottle(const Cookie& cookie,
+                            bool addConnectionToThrottleList) {
+    if (throttle_limit == 0) {
+        // No limit specified, so we don't need to do any further inspection
+        return false;
+    }
+
+    const auto& header = cookie.getHeader();
+    if (header.isResponse()) {
+        // Never throttle response messages
+        return false;
+    }
+
+    if (is_subject_for_throttling(header.getRequest().getClientOpcode()) &&
+        !throttle_gauge.isBelow(throttle_limit)) {
+        num_throttled++;
+        if (addConnectionToThrottleList) {
+            auto* connection = &cookie.getConnection();
+            auto* thread = &connection->getThread();
+            throttledConnectionMap.withLock([connection, thread](auto& map) {
+                map[thread].push_back(connection);
+            });
+        }
+        return true;
+    }
+
+    return false;
 }
 
 namespace BucketValidator {

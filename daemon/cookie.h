@@ -85,6 +85,18 @@ public:
      */
     void reset();
 
+    /// Is the cookie throttled or not
+    bool isThrottled() const {
+        return throttled.load(std::memory_order_acquire);
+    }
+
+    /// Update the throttled-state of the cookie
+    void setThrottled(bool val);
+
+    uint64_t getTotalThrottleTime() const {
+        return total_throttle_time.count();
+    }
+
     /**
      * Get a representation of the object in JSON
      */
@@ -645,6 +657,9 @@ protected:
 
     bool reorder = false;
 
+    /// Is the cookie currently throttled
+    std::atomic_bool throttled{false};
+
     /// The tracing context provided by the client to use as the
     /// parent span
     std::string openTracingContext;
@@ -683,6 +698,10 @@ protected:
      * current command.
      */
     std::chrono::steady_clock::time_point start;
+
+    /// The high resolution timer value for when we started throttling
+    std::chrono::steady_clock::time_point throttle_start;
+    std::chrono::duration<int32_t, std::micro> total_throttle_time;
 
     /**
      *  command-specific context - for use by command executors to maintain

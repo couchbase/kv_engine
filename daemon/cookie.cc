@@ -67,6 +67,7 @@ nlohmann::json Cookie::toJSON() const {
     ret["connection"] = connection.getDescription();
     ret["ewouldblock"] = ewouldblock;
     ret["aiostat"] = to_string(cb::engine_errc(aiostat));
+    ret["throttled"] = throttled.load();
     ret["refcount"] = uint32_t(refcount);
     ret["engine_storage"] = cb::to_hex(uint64_t(engine_storage.load()));
     return ret;
@@ -402,9 +403,14 @@ void Cookie::setCommandContext(CommandContext* ctx) {
 
 void Cookie::maybeLogSlowCommand(
         std::chrono::steady_clock::duration elapsed) const {
+    if (total_throttle_time.count()) {
+        // @todo we don't want to flood the logs, but we should only
+        // mute if we've reported it back to the clients
+        return;
+    }
+
     const auto opcode = getRequest().getClientOpcode();
     const auto limit = cb::mcbp::sla::getSlowOpThreshold(opcode);
-
     if (elapsed > limit) {
         std::chrono::nanoseconds timings(elapsed);
         auto& c = getConnection();
@@ -552,6 +558,7 @@ cb::mcbp::Status Cookie::validate() {
 void Cookie::reset() {
     document_bytes_read = 0;
     document_bytes_written = 0;
+    total_throttle_time = total_throttle_time.zero();
     event_id.clear();
     error_context.clear();
     json_message.clear();
@@ -574,6 +581,21 @@ void Cookie::reset() {
     frame_copy.reset();
     responseStatus = cb::mcbp::Status::COUNT;
     euidExtraPrivileges.clear();
+}
+
+void Cookie::setThrottled(bool val) {
+    throttled.store(val, std::memory_order_release);
+    if (tracingEnabled) {
+        const auto now = std::chrono::steady_clock::now();
+        if (val) {
+            throttle_start = now;
+        } else {
+            total_throttle_time +=
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                            now - start);
+            tracer.record(cb::tracing::Code::Throttled, throttle_start, now);
+        }
+    }
 }
 
 void Cookie::setOpenTracingContext(cb::const_byte_buffer context) {

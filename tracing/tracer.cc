@@ -124,6 +124,8 @@ MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Code tracecode) {
     switch (tracecode) {
     case Code::Request:
         return "request";
+    case Code::Throttled:
+        return "throttled";
     case Code::Execute:
         return "execute";
     case Code::AssociateBucket:

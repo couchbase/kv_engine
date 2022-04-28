@@ -86,6 +86,9 @@ public:
         return manifest;
     }
 
+    /// Set the number of CU's to use before starting to throttle
+    void setThrottleLimit(size_t cu);
+
     /**
      * Get a connection to the node which is responsible for the specified
      * vbucket (and type). Note that the connection needs authentication

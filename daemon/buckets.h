@@ -15,19 +15,23 @@
 #include "stat_timings.h"
 #include "timings.h"
 
+#include <folly/Synchronized.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <memcached/bucket_type.h>
 #include <memcached/engine.h>
 #include <memcached/limits.h>
 #include <memcached/types.h>
 #include <nlohmann/json_fwd.hpp>
-
 #include <condition_variable>
+#include <deque>
 #include <memory>
+#include <mutex>
+#include <unordered_map>
 
 struct thread_stats;
 struct DcpIface;
 class Connection;
+struct FrontEndThread;
 
 #define MAX_BUCKET_NAME_LENGTH 100
 
@@ -172,6 +176,18 @@ public:
     /// the bucket
     void commandExecuted(const Cookie& cookie);
 
+    /**
+     * Check to see if execution of the provided cookie should be throttled
+     * or not
+     *
+     * @param cookie The cookie to throttle
+     * @param addConnectionToThrottleList  If set to true the connection should
+     *         be added to the list of connections containing a throttled
+     *         command
+     * @return True if the cookie should be throttled
+     */
+    bool shouldThrottle(const Cookie& cookie, bool addConnectionToThrottleList);
+
     /// move the clock forwards in all buckets
     void tick();
 
@@ -205,6 +221,15 @@ protected:
 
     /// The number of times we've throttled due to running out of CUs
     std::atomic<std::size_t> num_throttled{0};
+
+    /// A deque per front end thread containing all of the connections
+    /// which have one or more cookies throttled
+    /// @todo we might just use a std::vector with the deque and use
+    ///       the index member to avoid the locking.
+    folly::Synchronized<
+            std::unordered_map<FrontEndThread*, std::deque<Connection*>>,
+            std::mutex>
+            throttledConnectionMap;
 };
 
 std::string to_string(Bucket::State state);

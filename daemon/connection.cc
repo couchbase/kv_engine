@@ -505,6 +505,22 @@ void Connection::shutdownIfSendQueueStuck(
     }
 }
 
+bool Connection::reEvaluateThrottledCookies() {
+    bool throttled = false;
+    for (auto& c : cookies) {
+        if (c->isThrottled()) {
+            if (getBucket().shouldThrottle(*c, false)) {
+                throttled = true;
+            } else {
+                c->setThrottled(false);
+                notifyIoComplete(*c, cb::engine_errc::success);
+            }
+        }
+    }
+
+    return throttled;
+}
+
 bool Connection::processAllReadyCookies() {
     // Look at the existing commands and check possibly execute them
     bool active = false;
@@ -600,12 +616,31 @@ void Connection::executeCommandPipeline() {
                 }
                 // @todo should we honor reorder?
                 if (limit == Tenant::RateLimit::None) {
+                    // Internal users and DCP is not subject for Throttling
+                    // (at least not for now)
+                    bool throttle = false;
+                    if (!internal && !isDCP()) {
+                        throttle = getBucket().shouldThrottle(cookie, true);
+                    }
+
                     // We may only start execute the packet if:
+                    //  * We shouldn't be throttled
                     //  * We don't have any ongoing commands
                     //  * We have an ongoing command and this command allows
                     //    for reorder
-                    if ((!active || cookie.mayReorder()) &&
-                        cookie.execute(true)) {
+                    if (throttle) {
+                        cookie.setThrottled(true);
+                        // Set the cookie to true to block the destruction
+                        // of the command (and the connection)
+                        cookie.setEwouldblock(true);
+                        cookie.preserveRequest();
+                        if (!cookie.mayReorder()) {
+                            // Don't add commands as we need the last one to
+                            // complete
+                            stop = true;
+                        }
+                    } else if ((!active || cookie.mayReorder()) &&
+                               cookie.execute(true)) {
                         // Command executed successfully, reset the cookie to
                         // allow it to be reused
                         cookie.reset();

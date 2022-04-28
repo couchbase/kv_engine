@@ -21,6 +21,8 @@ namespace cb::tracing {
 enum class Code : uint8_t {
     /// Time spent in the entire request
     Request,
+    /// Time spent throttled
+    Throttled,
     /// The time spent during execution on front end thread
     Execute,
     /// The time spent associating a bucket

@@ -285,6 +285,10 @@ public:
     /// we should shut down the connection or not).
     void reEvaluateParentPort();
 
+    /// Iterate over all cookies and try to reevaluate the throttled
+    /// commands
+    bool reEvaluateThrottledCookies();
+
     /**
      * Add the specified number of ns to the amount of CPU time this
      * connection have used on the CPU (We could alternatively have

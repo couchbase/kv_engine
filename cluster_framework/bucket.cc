@@ -165,4 +165,19 @@ void Bucket::setCollectionManifest(nlohmann::json next) {
     collectionManifest = std::move(next);
 }
 
+void Bucket::setThrottleLimit(size_t cu) {
+    cluster.iterateNodes([this, limit = cu](const auto& node) {
+        auto conn = node.getConnection();
+        conn->authenticate("@admin", "password");
+        auto rsp = conn->execute(
+                SetBucketComputeUnitThrottleLimitCommand(name, limit));
+        if (!rsp.isSuccess()) {
+            throw ConnectionError(
+                    "Bucket::setThrottleLimit: Failed to set throttle limit "
+                    "on " + node.directory.filename().generic_string(),
+                    rsp);
+        }
+    });
+}
+
 } // namespace cb::test

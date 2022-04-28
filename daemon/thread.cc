@@ -89,6 +89,29 @@ static void create_worker(void (*func)(void*),
     }
 }
 
+void FrontEndThread::forEach(std::function<void(FrontEndThread&)> callback,
+                             bool wait) {
+    for (auto& thr : threads) {
+        if (wait) {
+            thr.eventBase.runInEventBaseThreadAndWait([&callback, &thr]() {
+                TRACE_LOCKGUARD_TIMED(thr.mutex,
+                                      "mutex",
+                                      "forEach::threadLock",
+                                      SlowMutexThreshold);
+                callback(thr);
+            });
+        } else {
+            thr.eventBase.runInEventBaseThread([callback, &thr]() {
+                TRACE_LOCKGUARD_TIMED(thr.mutex,
+                                      "mutex",
+                                      "forEach::threadLock",
+                                      SlowMutexThreshold);
+                callback(thr);
+            });
+        }
+    }
+}
+
 /****************************** LIBEVENT THREADS *****************************/
 
 void iterate_all_connections(std::function<void(Connection&)> callback) {

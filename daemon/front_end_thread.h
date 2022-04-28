@@ -100,12 +100,15 @@ struct FrontEndThread {
                                scratch_buffer.size()};
     }
 
-    /// We have a bug where we can end up in a hang situation during shutdown
-    /// and stuck in a tight loop logging (and flooding) the log files.
-    /// While trying to solve that bug let's reduce the amount being logged
-    /// so that we only log every 5 second (so that we can find the root cause
-    /// of the problem)
-    time_t shutdown_next_log = 0;
+    /**
+     * Iterate over all of the front end threads and run the callback
+     *
+     * @param callback The callback method to call in the thread context
+     * @param wait set to true if the calling method should block and wait
+     *             for the execution to complete
+     */
+    static void forEach(std::function<void(FrontEndThread&)> callback,
+                        bool wait = false);
 
 protected:
     void dispatch_new_connections();
