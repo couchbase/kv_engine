@@ -23,3 +23,4 @@ add_library(mcd_executor STATIC
 target_link_libraries(mcd_executor PUBLIC Folly::folly hdrhistogram platform spdlog::spdlog statistics)
 cb_enable_unity_build(mcd_executor)
 kv_enable_pch(mcd_executor)
+add_dependencies(mcd_executor ep_generated_source_files)
