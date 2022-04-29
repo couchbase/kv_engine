@@ -711,7 +711,7 @@
         },
         "max_checkpoints": {
             "default": "10",
-            "descr": "Max number of checkpoints in each VBucket.",
+            "descr": "The expected max number of checkpoints in each VBucket on a balanced system. Note: That is not a hard limit on the single vbucket. That is used (together with checkpoint_memory_ratio) for computing checkpoint_max_size, which triggers checkpoint creation.",
             "dynamic": true,
             "type": "size_t",
             "validator": {

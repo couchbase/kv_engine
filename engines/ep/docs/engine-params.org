@@ -47,8 +47,13 @@ memcached like this:
 |                                |        | permitted where possible.                  |
 | chk_remover_stime              | int    | Interval for the checkpoint remover that   |
 |                                |        | purges closed unreferenced checkpoints.    |
-| max_checkpoints                | int    | Number of max checkpoints allowed per      |
-|                                |        | vbucket                                    |
+| max_checkpoints                | size_t | The expected max number of checkpoints in  |
+|                                |        | each VBucket on a balanced system. Note:   |
+|                                |        | That is not a hard limit on the single     |
+|                                |        | vbucket. That is used (together with       |
+|                                |        | checkpoint_memory_ratio) for computing     |
+|                                |        | checkpoint_max_size, which triggers        |
+|                                |        | checkpoint creation.                       |
 | bf_resident_threshold          | float  | Resident item threshold for only memory    |
 |                                |        | backfill to be kicked off                  |
 | bfilter_enabled                | bool   | Bloom filter enabled or disabled           |

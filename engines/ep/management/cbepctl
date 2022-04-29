@@ -193,7 +193,10 @@ Persistence:
 Available params for "set":
 
   Available params for set checkpoint_param:
-    max_checkpoints              - Max number of checkpoints allowed per vbucket.
+    max_checkpoints              - The expected max number of checkpoints in each VBucket on a balanced system.
+                                   Note: That is not a hard limit on the single vbucket. That is used (together
+                                   with checkpoint_memory_ratio) for computing checkpoint_max_size, which
+                                   triggers checkpoint creation.
     checkpoint_memory_ratio      - Max ratio of the bucket quota that can be allocated in checkpoints.
     checkpoint_memory_recovery_upper_mark - Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that triggers attempt of memory releasing from checkpoint.
     checkpoint_memory_recovery_lower_mark - Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that represents the target of checkpoint memory recovery. Memory recovery yields when reached.

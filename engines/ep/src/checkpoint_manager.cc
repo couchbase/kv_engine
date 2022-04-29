@@ -1655,12 +1655,6 @@ void CheckpointManager::maybeCreateNewCheckpoint(
         return;
     }
 
-    if (checkpointList.size() > checkpointConfig.getMaxCheckpoints() ||
-        (checkpointList.size() == checkpointConfig.getMaxCheckpoints() &&
-         !checkpointList.front()->isNoCursorsInCheckpoint())) {
-        return;
-    }
-
     // Create the new open checkpoint if the current open checkpoint has reached
     // its max size (in bytes)
 

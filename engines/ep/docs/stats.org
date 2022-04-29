@@ -247,8 +247,13 @@ For introductory information on stats within Couchbase, start with the
 | ep_getl_max_timeout                   | The maximum getl lock duration          |
 | ep_ht_locks                           | The amount of locks per vb hashtable    |
 | ep_ht_size                            | The initial size of each vb hashtable   |
-| ep_max_checkpoints                    | The maximum amount of checkpoints that  |
-|                                       | can be in memory per vbucket            |
+| ep_max_checkpoints                    | The expected max number of checkpoints  |
+|                                       | in each VBucket on a balanced system.   |
+|                                       | Note: That is not a hard limit on the   |
+|                                       | single vbucket. That is used (together  |
+|                                       | with checkpoint_memory_ratio) for       |
+|                                       | computing checkpoint_max_size, which    |
+|                                       | triggers checkpoint creation.           |
 | ep_max_item_size                      | The maximum value size                  |
 | ep_max_size                           | The maximum amount of memory this       |
 |                                       | bucket can use                          |
