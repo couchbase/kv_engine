@@ -10,6 +10,7 @@
 #include "connection.h"
 
 #include "buckets.h"
+#include "client_cert_config.h"
 #include "connections.h"
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
@@ -1200,7 +1201,44 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
                  SSL_VERIFY_FAIL_IF_NO_PEER_CERT);
         // Check certificate
         if (cert) {
-            auto [status, name] = Settings::instance().lookupUser(cert.get());
+            class ServerAuthMapper {
+            public:
+                static std::pair<cb::x509::Status, std::string> lookup(
+                        X509* cert) {
+                    static ServerAuthMapper inst;
+                    return inst.mapper->lookupUser(cert);
+                }
+
+            protected:
+                ServerAuthMapper() {
+                    mapper = cb::x509::ClientCertConfig::create(R"({
+"prefixes": [
+    {
+        "path": "san.uri",
+        "prefix": "email:",
+        "delimiter": "",
+        "suffix":"@internal.couchbase.com"
+    }
+]
+})"_json);
+                }
+
+                std::unique_ptr<cb::x509::ClientCertConfig> mapper;
+            };
+
+            auto [status, name] = ServerAuthMapper::lookup(cert.get());
+            if (status == cb::x509::Status::Success) {
+                if (name == "internal") {
+                    name = "@internal";
+                } else {
+                    status = cb::x509::Status::NoMatch;
+                }
+            } else {
+                auto pair = Settings::instance().lookupUser(cert.get());
+                status = pair.first;
+                name = std::move(pair.second);
+            }
+
             switch (status) {
             case cb::x509::Status::NoMatch:
                 audit_auth_failure(instance,
@@ -1324,9 +1362,9 @@ bool Connection::tryAuthFromSslCert(const std::string& userName,
                 getPeername(),
                 cipherName,
                 cb::UserDataView(user.name));
-        // Connections authenticated by using X.509 certificates should not
+        // External users authenticated by using X.509 certificates should not
         // be able to use SASL to change it's identity.
-        saslAuthEnabled = false;
+        saslAuthEnabled = internal;
     } catch (const cb::rbac::NoSuchUserException& e) {
         setAuthenticated(false);
         LOG_WARNING("{}: User [{}] is not defined as a user in Couchbase",

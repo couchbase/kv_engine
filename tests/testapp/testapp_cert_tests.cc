@@ -357,3 +357,41 @@ TEST_F(SslCertTest, MB50564_intermediate_cert_in_trusted_store) {
     connection->connect();
     connection->setXerrorSupport(true);
 }
+
+TEST_F(SslCertTest, RecognizeInternalUserFromCert) {
+    reconfigure_client_cert_auth("mandatory", "san.uri", "couchbase://", "@");
+
+    auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
+    setClientCertData(*connection, "internal");
+    connection->connect();
+    connection->setXerrorSupport(true);
+    nlohmann::json json;
+    connection->stats(
+            [&json](const auto&, const auto& value) {
+                json = nlohmann::json::parse(value);
+            },
+            "connections self");
+    EXPECT_FALSE(json.empty());
+    EXPECT_TRUE(json["internal"]);
+    EXPECT_EQ("@internal", json["user"]["name"]) << json["user"].dump(2);
+
+    // the internal user should not be allowed to select any buckets
+    auto rsp = connection->execute(BinprotGenericCommand(
+            cb::mcbp::ClientOpcode::SelectBucket, "default"));
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
+
+    // We should be allowed to change user
+    connection->authenticate("@fts", mcd_env->getPassword("@fts"));
+    connection->stats(
+            [&json](const auto&, const auto& value) {
+                json = nlohmann::json::parse(value);
+            },
+            "connections self");
+    EXPECT_FALSE(json.empty());
+    EXPECT_TRUE(json["internal"]);
+    EXPECT_EQ("@fts", json["user"]["name"]) << json["user"].dump(2);
+    rsp = connection->execute(BinprotGenericCommand(
+            cb::mcbp::ClientOpcode::SelectBucket, "default"));
+    EXPECT_TRUE(rsp.isSuccess());
+}

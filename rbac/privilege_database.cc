@@ -391,10 +391,33 @@ PrivilegeDatabase::PrivilegeDatabase(const nlohmann::json& json, Domain domain)
         const std::string username = it.key();
         userdb.emplace(username, UserEntry(username, it.value(), domain));
     }
+
+    // The internal user should _not_ have access to buckets or any privileges
+    // it is only being used to connect to the server when mandatory mode
+    // is enabled. Each component should then perform SASL AUTH to connect
+    // to the actual user. By explicitly removing all access we won't allow
+    // anyone to sneak in a configuration change and suddenly stop
+    // performing the authentication.
+    auto iter = userdb.find("@internal");
+    if (iter != userdb.end()) {
+        userdb.erase(iter);
+    }
+
+    if (domain == Domain::Local) {
+        static const nlohmann::json internal =
+                R"({"buckets":{},"privileges":[],"domain":"local"})"_json;
+        userdb.emplace("@internal",
+                       UserEntry("@internal", internal, Domain::Local));
+    }
 }
 
 std::unique_ptr<PrivilegeDatabase> PrivilegeDatabase::updateUser(
         const std::string& user, Domain domain, UserEntry& entry) const {
+    if (user == "@internal") {
+        throw std::invalid_argument(
+                "PrivilegeDatabase::updateUser: The @internal user cannot be "
+                "changed");
+    }
     // Check if they differ
     auto iter = userdb.find(user);
     if (iter != userdb.end() && entry == iter->second) {

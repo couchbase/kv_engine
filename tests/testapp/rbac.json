@@ -99,6 +99,21 @@
     ],
     "domain": "local"
   },
+  "@fts": {
+    "buckets": {
+      "default" : [
+        "Read",
+        "Insert",
+        "Delete",
+        "Upsert",
+        "SystemXattrRead",
+        "SystemXattrWrite"
+      ]
+    },
+    "privileges": [
+    ],
+    "domain": "local"
+  },
   "bucket-1": {
     "buckets": {
       "bucket-1": [

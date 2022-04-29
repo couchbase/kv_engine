@@ -15,6 +15,12 @@ Generate_kv_engine_X509_Certificate(NAME jane
                                     EXTFILE ca.ext
                                     CA_TARGET Generate_kv_engine_X509_Test_Intermediate_Certificate)
 
+Generate_kv_engine_X509_Certificate(NAME internal
+                                    CONFIG internal.config
+                                    ROOT ../root/ca_root
+                                    EXTFILE internal-ca.ext
+                                    CA_TARGET Generate_kv_engine_X509_Test_Root_Certificate)
+
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/jane_chain.pem
                    COMMAND
                    ${CMAKE_COMMAND}
@@ -41,6 +47,8 @@ add_custom_target(Generate_kv_engine_X509_Test_Client_Certificate
                   ${CMAKE_CURRENT_BINARY_DIR}/john.cert
                   ${CMAKE_CURRENT_BINARY_DIR}/trond.cert
                   ${CMAKE_CURRENT_BINARY_DIR}/trond.key
+                  ${CMAKE_CURRENT_BINARY_DIR}/internal.cert
+                  ${CMAKE_CURRENT_BINARY_DIR}/internal.key
                   ${CMAKE_CURRENT_BINARY_DIR}/jane_chain.pem)
 
 add_custom_target(Dump_kv_engine_X509_Test_Client_Certificate
@@ -58,6 +66,11 @@ add_custom_target(Dump_kv_engine_X509_Test_Client_Certificate
                   ${OPENSSL_BINARY}
                   x509
                   -in ${CMAKE_CURRENT_BINARY_DIR}/trond.cert
+                  -text
+                  COMMAND
+                  ${OPENSSL_BINARY}
+                  x509
+                  -in ${CMAKE_CURRENT_BINARY_DIR}/internal.cert
                   -text
                   DEPENDS
                   Generate_kv_engine_X509_Test_Client_Certificate
