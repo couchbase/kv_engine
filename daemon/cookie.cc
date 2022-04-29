@@ -129,8 +129,6 @@ bool Cookie::doExecute() {
     if (euid && !euidPrivilegeContext) {
         // We're supposed to run as a different user, but we don't
         // have the privilege set configured yet...
-        // @todo we should audit and return an error here if the user
-        //       don't have access!!!
         if (!fetchEuidPrivilegeSet()) {
             // we failed  to fetch the access privileges for the requested user
             audit_command_access_failed(*this);
