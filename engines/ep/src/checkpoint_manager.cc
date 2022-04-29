@@ -187,12 +187,15 @@ void CheckpointManager::addNewCheckpoint(
         if (pos == checkpoint.end() ||
             (*pos)->getOperation() == queue_op::checkpoint_end ||
             (*std::next(pos))->getOperation() == queue_op::checkpoint_end) {
+            // Note: The call also removes the old checkpoint if cursor-move
+            // made it unreferenced
             moveCursorToNextCheckpoint(cursor);
         }
     }
 
     // If the old open checkpoint had no cursors, it is now both closed and
     // unreferenced so it can be removed immediately.
+    // Note: We need this call to handle the case where there's no cursor in CM
     maybeScheduleDestruction(*oldOpenCkptPtr);
 }
 
