@@ -15,6 +15,8 @@
 #include <cluster_framework/cluster.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <serverless/config.h>
+#include <deque>
 
 namespace cb::test {
 
@@ -45,7 +47,10 @@ void ServerlessTest::SetUpTestCase() {
   "bucket-@": {
     "privileges": [
       "Read",
-      "Write"
+      "SimpleStats",
+      "Insert",
+      "Delete",
+      "Upsert"
     ]
   }
 },
@@ -84,5 +89,54 @@ void ServerlessTest::SetUp() {
 
 void ServerlessTest::TearDown() {
     Test::TearDown();
+}
+
+TEST_F(ServerlessTest, MaxConnectionPerBucket) {
+    using namespace cb::serverless::test;
+    auto admin = cluster->getConnection(0);
+    admin->authenticate("@admin", "password");
+    auto getNumClients = [&admin]() -> std::size_t {
+        size_t num_clients = 0;
+        admin->stats(
+                [&num_clients](const auto& k, const auto& v) {
+                    nlohmann::json json = nlohmann::json::parse(v);
+                    num_clients = json["clients"].get<size_t>();
+                },
+                "bucket_details bucket-0");
+        return num_clients;
+    };
+
+    std::deque<std::unique_ptr<MemcachedConnection>> connections;
+    bool done = false;
+    BinprotResponse rsp;
+    do {
+        auto conn = cluster->getConnection(0);
+        conn->authenticate("bucket-0", "bucket-0");
+        rsp = conn->execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::SelectBucket, "bucket-0"});
+        if (rsp.isSuccess()) {
+            connections.emplace_back(std::move(conn));
+            ASSERT_LE(getNumClients(), MaxConnectionsPerBucket);
+        } else {
+            ASSERT_EQ(cb::mcbp::Status::RateLimitedMaxConnections,
+                      rsp.getStatus());
+            // Without XERROR E2BIG should be returned
+            conn->setXerrorSupport(false);
+            rsp = conn->execute(BinprotGenericCommand{
+                    cb::mcbp::ClientOpcode::SelectBucket, "bucket-0"});
+            ASSERT_FALSE(rsp.isSuccess());
+            ASSERT_EQ(cb::mcbp::Status::E2big, rsp.getStatus());
+            done = true;
+        }
+    } while (!done);
+
+    // But we should be allowed to connect internal users
+    for (int ii = 0; ii < 5; ++ii) {
+        auto conn = cluster->getConnection(0);
+        conn->authenticate("@admin", "password");
+        conn->selectBucket("bucket-0");
+        connections.emplace_back(std::move(conn));
+    }
+    EXPECT_EQ(MaxConnectionsPerBucket + 5, getNumClients());
 }
 } // namespace cb::test

@@ -133,6 +133,9 @@ enum class engine_errc {
     /// RangeScan has more data available
     range_scan_more = 0x27,
 
+    /// Too many connections
+    too_many_connections = 0x28,
+
     /** Generic failue. */
     failed = 0xff
 };

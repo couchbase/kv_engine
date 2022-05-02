@@ -14,9 +14,11 @@
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/memcached.h>
+#include <daemon/settings.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/request.h>
 #include <platform/scope_timer.h>
+#include <serverless/config.h>
 #include <utilities/engine_errc_2_mcbp.h>
 
 cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
@@ -49,6 +51,18 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
             cookie.setErrorContext(
                     "Destination bucket does not support collections");
             return cb::engine_errc::not_supported;
+        }
+
+        if (isServerlessDeployment() && !connection.isInternal()) {
+            using cb::serverless::Config;
+            if (connection.getBucket().clients >=
+                Config::instance().maxConnectionsPerBucket) {
+                if (oldIndex != connection.getBucketIndex()) {
+                    associate_bucket(cookie, all_buckets[oldIndex].name);
+                }
+                cookie.setErrorContext("Too many bucket connections");
+                return cb::engine_errc::too_many_connections;
+            }
         }
 
         connection.setPushedClustermapRevno({});

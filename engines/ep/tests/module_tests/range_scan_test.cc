@@ -515,6 +515,7 @@ bool TestRangeScanHandler::validateStatus(cb::engine_errc code) {
     case cb::engine_errc::not_supported:
     case cb::engine_errc::would_block:
     case cb::engine_errc::too_big:
+    case cb::engine_errc::too_many_connections:
     case cb::engine_errc::disconnect:
     case cb::engine_errc::no_access:
     case cb::engine_errc::temporary_failure:

@@ -1024,3 +1024,8 @@ public:
         bool write_compute_unit_size = false;
     } has;
 };
+
+static inline bool isServerlessDeployment() {
+    return Settings::instance().getDeploymentModel() ==
+           DeploymentModel::Serverless;
+}

@@ -347,6 +347,7 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
     case cb::engine_errc::opaque_no_match:
         return code;
 
+    case cb::engine_errc::too_many_connections:
     case cb::engine_errc::scope_size_limit_exceeded:
         return cb::engine_errc::too_big;
 

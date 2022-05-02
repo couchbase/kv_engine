@@ -55,6 +55,7 @@
 #include <platform/strerror.h>
 #include <platform/sysinfo.h>
 #include <platform/timeutils.h>
+#include <serverless/config.h>
 #include <statistics/prometheus.h>
 #include <utilities/breakpad.h>
 #include <utilities/openssl_utils.h>
@@ -69,6 +70,13 @@
 #if HAVE_LIBNUMA
 #include <numa.h>
 #endif
+
+namespace cb::serverless {
+Config& Config::instance() {
+    static Config instance;
+    return instance;
+}
+} // namespace cb::serverless
 
 std::atomic<bool> memcached_shutdown;
 std::atomic<bool> sigint;
@@ -444,6 +452,13 @@ static std::string configure_numa_policy() {
 #endif  // HAVE_LIBNUMA
 
 static void settings_init() {
+    if (getenv("MEMCACHED_UNIT_TESTS")) {
+        auto& config = cb::serverless::Config::instance();
+        // Reduce the max number so we don't have to create so many connections
+        config.maxConnectionsPerBucket =
+                cb::serverless::test::MaxConnectionsPerBucket;
+    }
+
     auto& settings = Settings::instance();
 
     // Set up the listener functions
