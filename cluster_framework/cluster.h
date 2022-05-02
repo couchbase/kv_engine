@@ -112,10 +112,16 @@ public:
      * @param directory an optional directory of where to create the nodes
      *                  (by default `pwd/cluster_XXXXX` where XXXXX is a
      *                  unique number)
+     * @param configCallback config used to populate configuration on
+     *                       a per node basis. The method is called with the
+     *                       node ID and the current configuration.
      * @return a handle to the newly created cluster
      */
     static std::unique_ptr<Cluster> create(
-            size_t nodes, std::optional<std::string> directory = {});
+            size_t nodes,
+            std::optional<std::string> directory = {},
+            std::function<void(std::string_view, nlohmann::json&)>
+                    configCallback = {});
 
     /// Get a JSON representation for the cluster before the
     /// cluster is initialized

@@ -366,8 +366,10 @@ static boost::filesystem::path createTemporaryDirectory() {
     }
 }
 
-std::unique_ptr<Cluster> Cluster::create(size_t num_nodes,
-                                         std::optional<std::string> directory) {
+std::unique_ptr<Cluster> Cluster::create(
+        size_t num_nodes,
+        std::optional<std::string> directory,
+        std::function<void(std::string_view, nlohmann::json&)> configCallback) {
     const boost::filesystem::path root =
             directory.has_value() ? *directory : createTemporaryDirectory();
     std::vector<std::unique_ptr<Node>> nodes;
@@ -375,7 +377,7 @@ std::unique_ptr<Cluster> Cluster::create(size_t num_nodes,
         const std::string id = "n_" + std::to_string(n);
         auto nodedir = root / id;
         create_directories(nodedir);
-        nodes.emplace_back(Node::create(nodedir, id));
+        nodes.emplace_back(Node::create(nodedir, id, configCallback));
     }
 
     return std::make_unique<ClusterImpl>(nodes, root);

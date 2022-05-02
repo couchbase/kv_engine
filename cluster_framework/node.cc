@@ -40,6 +40,16 @@ public:
         return connectionMap;
     }
 
+    nlohmann::json& getConfig() override {
+        return config;
+    }
+
+    void writeConfig() const override {
+        std::ofstream out(configfile.generic_string());
+        out << config.dump(2);
+        out.close();
+    }
+
 protected:
     void parsePortnumberFile();
 
@@ -210,9 +220,16 @@ std::unique_ptr<MemcachedConnection> NodeImpl::getConnection() const {
     return ret;
 }
 
-std::unique_ptr<Node> Node::create(boost::filesystem::path directory,
-                                   const std::string& id) {
+std::unique_ptr<Node> Node::create(
+        boost::filesystem::path directory,
+        const std::string& id,
+        std::function<void(std::string_view, nlohmann::json&)> configCallback) {
     auto ret = std::make_unique<NodeImpl>(std::move(directory), id);
+    if (configCallback) {
+        configCallback(id, ret->getConfig());
+        ret->writeConfig();
+    }
+
     ret->startMemcachedServer();
     return ret;
 }

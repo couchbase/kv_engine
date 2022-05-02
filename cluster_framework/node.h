@@ -13,6 +13,7 @@
 #include <boost/filesystem/path.hpp>
 #include <folly/portability/Unistd.h>
 #include <folly/portability/Windows.h>
+#include <nlohmann/json_fwd.hpp>
 #include <protocol/connection/client_connection_map.h>
 #include <sys/types.h>
 #include <memory>
@@ -43,15 +44,26 @@ public:
      */
     virtual const ConnectionMap& getConnectionMap() const = 0;
 
+    /// get the current configuration stored in "memcached.json"
+    virtual nlohmann::json& getConfig() = 0;
+
+    /// write the current configuration to "memcached.json"
+    virtual void writeConfig() const = 0;
+
     /**
      * Create a new instance
      *
      * @param directory The base directory for the node (and where all
      *                  databases should live)
      * @param id a textual identifier to use for the node
+     * @param configCallback callback to update the configuration before
+     *                       starting the node
      */
-    static std::unique_ptr<Node> create(boost::filesystem::path directory,
-                                        const std::string& id);
+    static std::unique_ptr<Node> create(
+            boost::filesystem::path directory,
+            const std::string& id,
+            std::function<void(std::string_view, nlohmann::json&)>
+                    configCallback);
 
 protected:
     explicit Node(boost::filesystem::path dir);
