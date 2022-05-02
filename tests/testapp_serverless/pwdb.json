@@ -1,0 +1,23 @@
+{
+  "users": [
+    {
+      "n": "@admin",
+      "plain": "fNhbZS6b0S3o4PTAy6A2D5assQemE/GtWetim2hnrDsm86p3",
+      "sha1": {
+        "h": "u1o4HJNdN+N1gkevmiIQY1EFS7U=",
+        "s": "49XyyJ3u/tvNklPqTWvWpC0sAXI=",
+        "i": 10
+      },
+      "sha256": {
+        "h": "b8fktnoN00YnLMhm5BvqNEKaaB68cczVN2IrKPxH7Vs=",
+        "s": "NAyT+pNHCg5iBotL/z+7i4cKxgTl6EEPL90kivJGfUM=",
+        "i": 10
+      },
+      "sha512": {
+        "h": "T+hZMHyPSCYA7n1ZbaGKl9BHPAgmZC+1tJzMd1OZucC/31/PnbF2EfAlEcBh31Ou/V4NJfrRcv8vcSLCUnTRdw==",
+        "s": "T4lakeA6K34lWBwRSAqJNsrOPiUCBH3NQDEwtzdOYar/+zjbaZIgB1j8hf7E2vk/cyldYzYZemiVeRaNvJSA1w==",
+        "i": 10
+      }
+    }
+  ]
+}
