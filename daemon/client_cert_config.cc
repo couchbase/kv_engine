@@ -199,17 +199,17 @@ std::pair<Status, std::string> ClientCertConfig::lookupUser(X509* cert) const {
 std::string ClientCertConfig::to_string() const {
     nlohmann::json root;
     if (mappings.size() == 1) {
-        root["path"] = mappings[0]->path.c_str();
-        root["prefix"] = mappings[0]->prefix.c_str();
-        root["delimiter"] = mappings[0]->delimiter.c_str();
+        root = {{"path", mappings[0]->path},
+                {"prefix", mappings[0]->prefix},
+                {"suffix", mappings[0]->suffix},
+                {"delimiter", mappings[0]->delimiter}};
     } else {
         nlohmann::json array;
         for (const auto& m : mappings) {
-            nlohmann::json mapping;
-            mapping["path"] = m->path.c_str();
-            mapping["prefix"] = m->prefix.c_str();
-            mapping["delimiter"] = m->delimiter.c_str();
-            array.push_back(mapping);
+            array.emplace_back(nlohmann::json{{"path", m->path},
+                                              {"prefix", m->prefix},
+                                              {"suffix", m->suffix},
+                                              {"delimiter", m->delimiter}});
         }
         root["prefixes"] = array;
     }
@@ -221,6 +221,7 @@ ClientCertConfig::Mapping::Mapping(std::string& path_,
                                    const nlohmann::json& obj)
     : path(std::move(path_)),
       prefix(obj.value("prefix", "")),
+      suffix(obj.value("suffix", "")),
       delimiter(obj.value("delimiter", "")) {
 }
 
@@ -234,6 +235,16 @@ std::string ClientCertConfig::Mapping::matchPattern(
         }
         ret = input.substr(prefix.size());
     }
+
+    if (!suffix.empty()) {
+        auto suffixLocation = ret.find(suffix);
+        if (suffixLocation == std::string::npos ||
+            suffixLocation + suffix.size() != ret.size()) {
+            return "";
+        }
+        ret.resize(suffixLocation);
+    }
+
     if (!delimiter.empty()) {
         auto delimiterPos = ret.find_first_of(delimiter);
         return ret.substr(0, delimiterPos);

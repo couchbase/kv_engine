@@ -109,6 +109,7 @@ public:
 
         std::string path;
         std::string prefix;
+        std::string suffix;
         std::string delimiter;
     };
 

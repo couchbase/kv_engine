@@ -300,6 +300,68 @@ TEST_F(SslParseCertTest, TestSAN_URI_Email) {
     ASSERT_EQ(statusPair.second, "testapp");
 }
 
+TEST_F(SslParseCertTest, TestSAN_URI_Email_With_Domain) {
+    // The entry in the cert looks like:
+    // URI.2 = email:testapp@example.com
+    auto config = ClientCertConfig::create(R"({
+    "prefixes": [
+        {
+            "path": "san.uri",
+            "prefix": "email:",
+            "delimiter": "",
+            "suffix" : "@example.com"
+        }
+    ]
+})"_json);
+    EXPECT_TRUE(config);
+
+    auto [status, name] = config->lookupUser(cert.get());
+
+    ASSERT_EQ(cb::x509::Status::Success, status);
+    ASSERT_EQ("testapp", name);
+}
+
+TEST_F(SslParseCertTest, TestSAN_URI_Email_With_Domain_which_is_shorter) {
+    // The entry in the cert looks like:
+    // URI.2 = email:testapp@example.com
+    // suffix "@example.co" should not match
+    auto config = ClientCertConfig::create(R"({
+    "prefixes": [
+        {
+            "path": "san.uri",
+            "prefix": "email:",
+            "delimiter": "",
+            "suffix" : "@example.co"
+        }
+    ]
+})"_json);
+    EXPECT_TRUE(config);
+
+    auto [status, name] = config->lookupUser(cert.get());
+
+    ASSERT_EQ(cb::x509::Status::NoMatch, status);
+}
+
+TEST_F(SslParseCertTest, TestSAN_URI_Email_With_Incorrect_Domain) {
+    // The entry in the cert looks like:
+    // URI.2 = email:testapp@example.com
+    // suffix "@couchbase.com" should not match
+    auto config = ClientCertConfig::create(R"({
+    "prefixes": [
+        {
+            "path": "san.uri",
+            "prefix": "email:",
+            "delimiter": "",
+            "suffix" : "@couchbase.com"
+        }
+    ]
+})"_json);
+    EXPECT_TRUE(config);
+
+    auto [status, name] = config->lookupUser(cert.get());
+    ASSERT_EQ(cb::x509::Status::NoMatch, status);
+}
+
 TEST_F(SslParseCertTest, TestSAN_DNS_EntireField) {
     auto config = ClientCertConfig::create(R"({
     "prefixes": [
