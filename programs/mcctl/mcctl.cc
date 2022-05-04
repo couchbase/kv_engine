@@ -13,6 +13,7 @@
  */
 #include <folly/portability/Unistd.h>
 #include <getopt.h>
+#include <memcached/io_control.h>
 #include <memcached/protocol_binary.h>
 #include <platform/dirutils.h>
 #include <programs/getpass.h>
@@ -21,6 +22,7 @@
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/string_utilities.h>
 #include <utilities/terminal_color.h>
+#include <utilities/terminal_size.h>
 #include <utilities/terminate_handler.h>
 #include <cstdio>
 #include <cstdlib>
@@ -120,6 +122,67 @@ static int set_verbosity(MemcachedConnection& connection,
     }
 }
 
+void printPropertyHelp() {
+    size_t dw;
+    try {
+        auto [width, height] = getTerminalSize();
+        (void)height;
+        if (width < 60) {
+            // if you've got a small terminal we'll just print it in the normal
+            // way.
+            width = std::numeric_limits<size_t>::max();
+        };
+
+        dw = width - 34;
+    } catch (std::exception&) {
+        dw = std::numeric_limits<size_t>::max();
+    }
+
+    std::cerr << "property may be one of: " << std::endl;
+    cb::ioctl::Manager::getInstance().iterate([dw](const auto& e) {
+        std::array<char, 45> kbuf;
+        snprintf(kbuf.data(), kbuf.size(), "  %-37s  ", e.key.data());
+        std::cerr << kbuf.data();
+
+        switch (e.mode) {
+        case cb::ioctl::Mode::RDONLY:
+            std::cerr << TerminalColor::Yellow << "R " << TerminalColor::Reset;
+            break;
+        case cb::ioctl::Mode::WRONLY:
+            std::cerr << TerminalColor::Yellow << " W" << TerminalColor::Reset;
+            break;
+        case cb::ioctl::Mode::RW:
+            std::cerr << TerminalColor::Yellow << "RW" << TerminalColor::Reset;
+            break;
+        }
+
+        std::cerr << " ";
+        std::fill(kbuf.begin(), kbuf.end(), ' ');
+
+        auto descr = e.description;
+        while (true) {
+            if (descr.size() < dw) {
+                std::cerr << descr.data() << std::endl;
+                return;
+            }
+
+            auto idx = descr.rfind(' ', std::min(dw, descr.size()));
+            if (idx == std::string::npos) {
+                std::cerr << descr.data() << std::endl;
+                return;
+            }
+            std::cerr.write(descr.data(), idx);
+            std::cerr << std::endl;
+            descr.remove_prefix(idx + 1);
+            std::cerr.write(kbuf.data(), kbuf.size() - 1);
+        }
+    });
+
+    std::cerr << std::endl
+              << "  R - available with 'get property'" << std::endl
+              << "  W - available with 'set property'" << std::endl;
+}
+
 static void usage() {
     std::cerr << R"(Usage mcctl [options] <get|set|reload> property [value]
 
@@ -153,6 +216,7 @@ Commands:
 
 )";
 
+    printPropertyHelp();
     exit(EXIT_FAILURE);
 }
 
@@ -308,7 +372,8 @@ int main(int argc, char** argv) {
 
         // MEMCACHED_VERSION contains the git sha
         connection.setAgentName("mcctl " MEMCACHED_VERSION);
-        connection.setFeatures({cb::mcbp::Feature::XERROR});
+        connection.setFeatures(
+                {cb::mcbp::Feature::XERROR, cb::mcbp::Feature::JSON});
 
         if (!user.empty()) {
             connection.authenticate(user, password,

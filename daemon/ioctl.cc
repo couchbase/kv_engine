@@ -18,6 +18,7 @@
 #include "utilities/string_utilities.h"
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
+#include <memcached/io_control.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_arena_malloc.h>
 
@@ -139,15 +140,6 @@ cb::engine_errc ioctlRbacDbDump(Cookie& cookie,
     return cb::engine_errc::success;
 }
 
-static const std::unordered_map<std::string, GetCallbackFunc> ioctl_get_map{
-        {"trace.config", ioctlGetTracingConfig},
-        {"trace.status", ioctlGetTracingStatus},
-        {"trace.dump.list", ioctlGetTracingList},
-        {"trace.dump.begin", ioctlGetTracingBeginDump},
-        {"trace.dump.get", ioctlGetTraceDump},
-        {"sla", ioctlGetMcbpSla},
-        {"rbac.db.dump", ioctlRbacDbDump}};
-
 cb::engine_errc ioctl_get_property(Cookie& cookie,
                                    const std::string& key,
                                    std::string& value,
@@ -161,9 +153,37 @@ cb::engine_errc ioctl_get_property(Cookie& cookie,
         return cb::engine_errc::invalid_arguments;
     }
 
-    auto entry = ioctl_get_map.find(request.first);
-    if (entry != ioctl_get_map.end()) {
-        return entry->second(cookie, request.second, value, datatype);
+    auto& manager = cb::ioctl::Manager::getInstance();
+    auto* id = manager.lookup(request.first);
+    if (id) {
+        switch (id->id) {
+        case cb::ioctl::Id::RbacDbDump:
+            return ioctlRbacDbDump(cookie, request.second, value, datatype);
+        case cb::ioctl::Id::Sla:
+            return ioctlGetMcbpSla(cookie, request.second, value, datatype);
+        case cb::ioctl::Id::TraceConfig:
+            return ioctlGetTracingConfig(
+                    cookie, request.second, value, datatype);
+        case cb::ioctl::Id::TraceStatus:
+            return ioctlGetTracingStatus(
+                    cookie, request.second, value, datatype);
+        case cb::ioctl::Id::TraceDumpList:
+            return ioctlGetTracingList(cookie, request.second, value, datatype);
+        case cb::ioctl::Id::TraceDumpBegin:
+            return ioctlGetTracingBeginDump(
+                    cookie, request.second, value, datatype);
+        case cb::ioctl::Id::TraceDumpGet:
+            return ioctlGetTraceDump(cookie, request.second, value, datatype);
+
+        case cb::ioctl::Id::JemallocProfActive: // may only be used with Set
+        case cb::ioctl::Id::JemallocProfDump: // may only be used with Set
+        case cb::ioctl::Id::ReleaseFreeMemory: // may only be used with Set
+        case cb::ioctl::Id::TraceDumpClear: // may only be used with Set
+        case cb::ioctl::Id::TraceStart: // may only be used with Set
+        case cb::ioctl::Id::TraceStop: // may only be used with Set
+        case cb::ioctl::Id::enum_max:
+            break;
+        }
     }
     return cb::engine_errc::invalid_arguments;
 }
@@ -188,16 +208,6 @@ static cb::engine_errc ioctlSetMcbpSla(Cookie& cookie,
     return cb::engine_errc::success;
 }
 
-static const std::unordered_map<std::string, SetCallbackFunc> ioctl_set_map{
-        {"jemalloc.prof.active", setJemallocProfActive},
-        {"jemalloc.prof.dump", setJemallocProfDump},
-        {"release_free_memory", setReleaseFreeMemory},
-        {"trace.config", ioctlSetTracingConfig},
-        {"trace.start", ioctlSetTracingStart},
-        {"trace.stop", ioctlSetTracingStop},
-        {"trace.dump.clear", ioctlSetTracingClearDump},
-        {"sla", ioctlSetMcbpSla}};
-
 cb::engine_errc ioctl_set_property(Cookie& cookie,
                                    const std::string& key,
                                    const std::string& value) {
@@ -209,9 +219,36 @@ cb::engine_errc ioctl_set_property(Cookie& cookie,
         return cb::engine_errc::invalid_arguments;
     }
 
-    auto entry = ioctl_set_map.find(request.first);
-    if (entry != ioctl_set_map.end()) {
-        return entry->second(cookie, request.second, value);
+    auto& manager = cb::ioctl::Manager::getInstance();
+    auto* id = manager.lookup(request.first);
+    if (id) {
+        switch (id->id) {
+        case cb::ioctl::Id::JemallocProfActive:
+            return setJemallocProfActive(cookie, request.second, value);
+        case cb::ioctl::Id::JemallocProfDump:
+            return setJemallocProfDump(cookie, request.second, value);
+        case cb::ioctl::Id::ReleaseFreeMemory:
+            return setReleaseFreeMemory(cookie, request.second, value);
+        case cb::ioctl::Id::Sla:
+            return ioctlSetMcbpSla(cookie, request.second, value);
+        case cb::ioctl::Id::TraceConfig:
+            return ioctlSetTracingConfig(cookie, request.second, value);
+        case cb::ioctl::Id::TraceStart:
+            return ioctlSetTracingStart(cookie, request.second, value);
+        case cb::ioctl::Id::TraceStop:
+            return ioctlSetTracingStop(cookie, request.second, value);
+        case cb::ioctl::Id::TraceDumpClear:
+            return ioctlSetTracingClearDump(cookie, request.second, value);
+
+        case cb::ioctl::Id::TraceDumpBegin: // may only be used with Get
+        case cb::ioctl::Id::TraceDumpGet: // may only be used with Get
+        case cb::ioctl::Id::TraceDumpList: // may only be used with Get
+        case cb::ioctl::Id::TraceStatus: // may only be used with Get
+        case cb::ioctl::Id::RbacDbDump: // may only be used with Get
+        case cb::ioctl::Id::enum_max:
+            break;
+        }
     }
+
     return cb::engine_errc::invalid_arguments;
 }

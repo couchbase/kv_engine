@@ -27,6 +27,7 @@ add_library(mcd_util STATIC
             durability_spec.cc
             engine_errc_2_mcbp.cc
             engine_errc_2_mcbp.h
+            io_control.cc
             json_utilities.cc
             json_utilities.h
             logtags.cc
