@@ -236,7 +236,7 @@ cb::engine_errc RemoveCommandContext::rebuildXattr() {
                              false /* data is not compressed*/);
         blob.prune_user_keys();
         xattr = blob.finalize();
-        if (xattr.data() != xattr_buffer.get()) {
+        if (!xattr.empty() && (xattr.data() != xattr_buffer.get())) {
             throw std::logic_error(
                     "RemoveCommandContext::rebuildXattr: Internal error. No "
                     "reallocations should happend when pruning user "

@@ -1855,6 +1855,19 @@ TEST_P(XattrTest, TestXattrDeleteDatatypes) {
     EXPECT_EQ(1, meta.deleted);
 }
 
+// Verify that when a document with a user XATTR is deleted, then the
+// user XATTR is pruned leaving the body empty.
+TEST_P(XattrTest, UserXAttrPrunedOnDelete) {
+    setBodyAndXattr(value, {{"user_XATTR", "123"}});
+
+    userConnection->remove(name, Vbid(0));
+
+    // Should now be a deleted document with no body.
+    auto meta = get_meta();
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, meta.datatype);
+    EXPECT_EQ(1, meta.deleted);
+}
+
 /**
  * Users xattrs should be stored inside the user data, which means
  * that if one tries to add xattrs to a document which is at the
