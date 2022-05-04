@@ -46,6 +46,8 @@ public:
 
     size_t getMemoryUsage() const;
 
+    size_t getNumCheckpoints() const;
+
 private:
     folly::Synchronized<CheckpointList, std::mutex> toDestroy;
 

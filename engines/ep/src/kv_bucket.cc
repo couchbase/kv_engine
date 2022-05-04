@@ -3022,6 +3022,14 @@ size_t KVBucket::getCheckpointPendingDestructionMemoryUsage() const {
     return memoryUsage;
 }
 
+size_t KVBucket::getNumCheckpointsPendingDestruction() const {
+    size_t count = 0;
+    for (const auto& task : ckptDestroyerTasks) {
+        count += task->getNumCheckpoints();
+    }
+    return count;
+}
+
 void NotifyNewSeqnoCB::callback(const Vbid& vbid,
                                 const VBNotifyCtx& notifyCtx) {
     kvBucket.notifyNewSeqno(vbid, notifyCtx);

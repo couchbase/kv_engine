@@ -7193,6 +7193,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_mem_freed_by_checkpoint_removal",
               "ep_mem_freed_by_checkpoint_item_expel",
               "ep_num_checkpoints",
+              "ep_num_checkpoints_pending_destruction",
               "ep_data_read_failed",
               "ep_data_write_failed",
               "ep_data_traffic_enabled",

@@ -841,6 +841,11 @@
         "unit": "count"
     },
     {
+        "key": "ep_num_checkpoints_pending_destruction",
+        "unit": "count",
+        "description": "Number of checkpoints detached from CM and owned by Destroyers"
+    },
+    {
         "key": "ep_data_write_failed",
         "unit": "count",
         "description": "Total compaction and commit failures"

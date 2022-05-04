@@ -903,6 +903,8 @@ public:
 
     size_t getCheckpointPendingDestructionMemoryUsage() const;
 
+    size_t getNumCheckpointsPendingDestruction() const;
+
     /**
      * Sets the timeout in seconds after which a pending SeqnoPersistence
      * operation is temp-failed

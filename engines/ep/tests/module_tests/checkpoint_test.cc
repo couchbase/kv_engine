@@ -3599,6 +3599,7 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
 
     // the destroyer doesn't own anything yet, so should have no mem usage
     EXPECT_EQ(0, task.getMemoryUsage());
+    EXPECT_EQ(0, task.getNumCheckpoints());
 
     // advance the cursor, unreffing the checkpoint. CheckpointDestroyerTask
     // should be notified and ownership of the checkpoint transferred.
@@ -3612,6 +3613,7 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     EXPECT_LT(manager.getMemUsage(), initialCMMemUsage);
     // ... and the destroyer task's should increase by the same amount
     EXPECT_EQ(initialCMMemUsage - manager.getMemUsage(), task.getMemoryUsage());
+    EXPECT_EQ(1, task.getNumCheckpoints());
 
     // Also the counter in EPStats accounts only checkpoints owned by CM, so it
     // must be already updated now that checkpoints are owned by the destroyer
@@ -3631,6 +3633,7 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
               epstats.getCheckpointManagerEstimatedMemUsage());
     // and so should the destroyers memory tracking
     EXPECT_EQ(0, task.getMemoryUsage());
+    EXPECT_EQ(0, task.getNumCheckpoints());
 }
 
 void ShardedCheckpointDestructionTest::SetUp() {

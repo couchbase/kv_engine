@@ -987,27 +987,29 @@ Therefore, please do not poll them from the server frequently.
 Each stat is prefixed with =vb_= followed by a number, a colon, and then
 each stat name.
 
-| cursor_name:cursor_checkpoint_id | Checkpoint ID at which the cursor is      |
-|                                  | name 'cursor_name' is pointing now        |
-| cursor_name:cursor_seqno         | The seqno at which the cursor             |
-|                                  | 'cursor_name' is pointing now             |
-| cursor_name:num_visits           | Number of times a batch of items have been|
-|                                  | drained from a checkpoint of 'cursor_name'|
-| cursor_name:num_items_for_cursor | Number of items remaining for the cursor  |
-| open_checkpoint_id               | ID of the current open checkpoint         |
-| num_conn_cursors                 | Number of referencing dcp/tap cursors     |
-| num_checkpoint_items             | Number of total items in a checkpoint     |
-|                                  | datastructure                             |
-| num_open_checkpoint_items        | Number of items in the open checkpoint    |
-| num_checkpoints                  | Number of checkpoints in a checkpoint     |
-|                                  | datastructure                             |
-| num_items_for_persistence        | Number of items remaining for persistence |
-| state                            | The state of the vbucket this checkpoint  |
-|                                  | contains data for                         |
-| last_closed_checkpoint_id        | The last closed checkpoint number         |
-| persisted_checkpoint_id          | The last persisted checkpoint number      |
-| mem_usage                        | Total memory taken up by items in all     |
-|                                  | checkpoints under given manager           |
+| cursor_name:cursor_checkpoint_id    | Checkpoint ID at which the cursor is      |
+|                                     | name 'cursor_name' is pointing now        |
+| cursor_name:cursor_seqno            | The seqno at which the cursor             |
+|                                     | 'cursor_name' is pointing now             |
+| cursor_name:num_visits              | Number of times a batch of items have been|
+|                                     | drained from a checkpoint of 'cursor_name'|
+| cursor_name:num_items_for_cursor    | Number of items remaining for the cursor  |
+| open_checkpoint_id                  | ID of the current open checkpoint         |
+| num_conn_cursors                    | Number of referencing dcp/tap cursors     |
+| num_checkpoint_items                | Number of total items in a checkpoint     |
+|                                     | datastructure                             |
+| num_open_checkpoint_items           | Number of items in the open checkpoint    |
+| num_checkpoints                     | Number of all checkpoints in the bucket,  |
+|                                     | including all Vbuckets/CMs/Destroyers     |
+| num_checkpoints_pending_destruction | Number of checkpoints detached from CMs   |
+|                                     | and owned by Destroyers                   |
+| num_items_for_persistence           | Number of items remaining for persistence |
+| state                               | The state of the vbucket this checkpoint  |
+|                                     | contains data for                         |
+| last_closed_checkpoint_id           | The last closed checkpoint number         |
+| persisted_checkpoint_id             | The last persisted checkpoint number      |
+| mem_usage                           | Total memory taken up by items in all     |
+|                                     | checkpoints under given manager           |
 
 Additionally each Checkpoint will generate the following stats, these are
 prefixed with the vbucket and the id of the Checkpoint, e.g. "vb_0:id_52:state"

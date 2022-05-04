@@ -3288,6 +3288,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
     collector.addStat(Key::ep_mem_freed_by_checkpoint_item_expel,
                       epstats.memFreedByCheckpointItemExpel);
     collector.addStat(Key::ep_num_checkpoints, epstats.getNumCheckpoints());
+    collector.addStat(Key::ep_num_checkpoints_pending_destruction,
+                      kvBucket->getNumCheckpointsPendingDestruction());
 
     return cb::engine_errc::success;
 }

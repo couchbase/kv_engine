@@ -1002,6 +1002,7 @@ TEST_P(CheckpointRemoverTest, CursorMoveWakesDestroyer) {
     // The destroyer doesn't own anything yet, so should have no mem usage
     const auto& destroyer = getCkptDestroyerTask(vbid);
     EXPECT_EQ(0, destroyer.getMemoryUsage());
+    EXPECT_EQ(0, destroyer.getNumCheckpoints());
 
     // Move cursors out of the old checkpoint.
     // That makes the old checkpoint closed/unref and queues it for destruction.
@@ -1019,6 +1020,7 @@ TEST_P(CheckpointRemoverTest, CursorMoveWakesDestroyer) {
     EXPECT_LE(cm.getMemUsage(), initialMemUsedCM);
     // .. and now the checkpoint mem usage is accounted against the destroyer
     EXPECT_EQ(peakMemUsedCM - cm.getMemUsage(), destroyer.getMemoryUsage());
+    EXPECT_EQ(1, destroyer.getNumCheckpoints());
     // Also the counter in EPStats accounts only checkpoints owned by CM, so it
     // must be already updated now that checkpoints are owned by the destroyer
     const auto postDetachGlobalMemUsage =
@@ -1038,6 +1040,7 @@ TEST_P(CheckpointRemoverTest, CursorMoveWakesDestroyer) {
     EXPECT_EQ(cm.getMemUsage(),
               epstats.getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(0, destroyer.getMemoryUsage());
+    EXPECT_EQ(0, destroyer.getNumCheckpoints());
 }
 
 INSTANTIATE_TEST_SUITE_P(

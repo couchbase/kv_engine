@@ -75,6 +75,10 @@ size_t CheckpointDestroyerTask::getMemoryUsage() const {
     return pendingDestructionMemoryUsage.load();
 }
 
+size_t CheckpointDestroyerTask::getNumCheckpoints() const {
+    return toDestroy.lock()->size();
+}
+
 CheckpointMemRecoveryTask::CheckpointMemRecoveryTask(
         EventuallyPersistentEngine* e,
         EPStats& st,
