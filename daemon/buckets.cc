@@ -51,6 +51,7 @@ void Bucket::reset() {
         s.reset();
     }
     type = BucketType::Unknown;
+    throttledConnections.resize(Settings::instance().getNumWorkerThreads());
 }
 
 bool Bucket::supports(cb::engine::Feature feature) {
@@ -132,16 +133,11 @@ void Bucket::tick() {
     // iterate over connections
     FrontEndThread::forEach([this](auto& thr) {
         std::deque<Connection*> connections;
-        throttledConnectionMap.withLock([&connections, &thr](auto& map) {
-            map[&thr].swap(connections);
-        });
+        throttledConnections[thr.index].swap(connections);
 
         for (auto& c : connections) {
             if (c->reEvaluateThrottledCookies()) {
-                throttledConnectionMap.withLock(
-                        [connection = c, &thr](auto& map) {
-                            map[&thr].push_back(connection);
-                        });
+                throttledConnections[thr.index].push_back(c);
             }
         }
     });
@@ -155,8 +151,9 @@ bool Bucket::shouldThrottle(const Cookie& cookie,
     }
 
     const auto& header = cookie.getHeader();
-    if (header.isResponse()) {
-        // Never throttle response messages
+    if (header.isResponse() ||
+        cb::mcbp::is_server_magic(cb::mcbp::Magic(header.getMagic()))) {
+        // Never throttle response messages or server ops
         return false;
     }
 
@@ -164,11 +161,8 @@ bool Bucket::shouldThrottle(const Cookie& cookie,
         !throttle_gauge.isBelow(throttle_limit)) {
         num_throttled++;
         if (addConnectionToThrottleList) {
-            auto* connection = &cookie.getConnection();
-            auto* thread = &connection->getThread();
-            throttledConnectionMap.withLock([connection, thread](auto& map) {
-                map[thread].push_back(connection);
-            });
+            auto* c = &cookie.getConnection();
+            throttledConnections[c->getThread().index].push_back(c);
         }
         return true;
     }
@@ -636,6 +630,7 @@ BucketManager::BucketManager() {
 
     size_t numthread = settings.getNumWorkerThreads() + 1;
     for (auto& b : all_buckets) {
+        b.reset();
         b.stats.resize(numthread);
     }
 

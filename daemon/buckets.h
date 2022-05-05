@@ -15,7 +15,6 @@
 #include "stat_timings.h"
 #include "timings.h"
 
-#include <folly/Synchronized.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <memcached/bucket_type.h>
 #include <memcached/engine.h>
@@ -223,13 +222,11 @@ protected:
     std::atomic<std::size_t> num_throttled{0};
 
     /// A deque per front end thread containing all of the connections
-    /// which have one or more cookies throttled
-    /// @todo we might just use a std::vector with the deque and use
-    ///       the index member to avoid the locking.
-    folly::Synchronized<
-            std::unordered_map<FrontEndThread*, std::deque<Connection*>>,
-            std::mutex>
-            throttledConnectionMap;
+    /// which have one or more cookies throttled. It should _only_ be
+    /// accessed in the context of the front end worker threads, and each
+    /// front end thread should _ONLY_ operate at its own deque stored
+    /// at its thread-index. Doing so allows a lock free datastructure.
+    std::vector<std::deque<Connection*>> throttledConnections;
 };
 
 std::string to_string(Bucket::State state);
