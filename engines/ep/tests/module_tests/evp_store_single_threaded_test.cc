@@ -4222,7 +4222,8 @@ TEST_P(STParameterizedBucketTest, MB_34380) {
               store->setVBucketState(vbid, vbucket_state_replica, {}));
 
     // 1.1) force the failover to a specific value
-    std::string failover = R"([{"id":101,"seq":0}])";
+    nlohmann::json failover = {{{"id", 101}, {"seq", 0}}};
+
     {
         auto vb = engine->getKVBucket()->getVBucket(vbid);
         vb->failovers = std::make_unique<FailoverTable>(failover, 5, 0);

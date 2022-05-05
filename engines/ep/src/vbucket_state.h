@@ -34,7 +34,7 @@ struct vbucket_transition_state {
     bool operator==(const vbucket_transition_state& other) const;
     bool operator!=(const vbucket_transition_state& other) const;
 
-    std::string failovers = "";
+    nlohmann::json failovers;
 
     /**
      * The replication topology for the vBucket. Can be empty if not yet set,

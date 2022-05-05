@@ -14,13 +14,12 @@
 #include "utility.h"
 
 #include <memcached/engine.h>
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 #include <platform/random.h>
 
 #include <atomic>
 #include <list>
 #include <mutex>
-#include <string>
 
 struct failover_entry_t {
     uint64_t vb_uuid;
@@ -44,7 +43,9 @@ public:
 
     explicit FailoverTable(size_t capacity);
 
-    FailoverTable(const std::string& json, size_t capacity, int64_t highSeqno);
+    FailoverTable(const nlohmann::json& json,
+                  size_t capacity,
+                  int64_t highSeqno);
 
     ~FailoverTable();
 
@@ -149,11 +150,11 @@ public:
     void pruneEntries(uint64_t seqno);
 
     /**
-     * Converts the failover table to a json string
+     * Retrieve the failover table as a json object
      *
-     * @return a representation of the failover table in json format
+     * @return a JSON representation of the failover table as nlohmann::json
      */
-    std::string toJSON();
+    nlohmann::json getJSON();
 
     /**
      * Adds stats for this failover table
@@ -190,31 +191,30 @@ public:
     size_t getNumErroneousEntriesErased() const;
 
  private:
-     bool loadFromJSON(const nlohmann::json& json);
-    bool loadFromJSON(const std::string& json);
-    void cacheTableJSON();
+     bool constructFromJSON(const nlohmann::json& json);
+     void cacheTableJSON();
 
-    /**
-     * Remove any wrong entries in failover table
-     *
-     * called only in ctor, hence does not grab lock
-     * @param highSeqno the VB's current high-seqno, used in the case when this
-     *        function removes all entries and a new one must be generated.
-     */
-    void sanitizeFailoverTable(int64_t highSeqno);
+     /**
+      * Remove any wrong entries in failover table
+      *
+      * called only in ctor, hence does not grab lock
+      * @param highSeqno the VB's current high-seqno, used in the case when this
+      *        function removes all entries and a new one must be generated.
+      */
+     void sanitizeFailoverTable(int64_t highSeqno);
 
-    int64_t generateUuid();
+     int64_t generateUuid();
 
-    mutable std::mutex lock;
-    table_t table;
-    size_t max_entries;
-    size_t erroneousEntriesErased;
-    cb::RandomGenerator provider;
-    std::string cachedTableJSON;
-    std::atomic<uint64_t> latest_uuid;
+     mutable std::mutex lock;
+     table_t table;
+     size_t max_entries;
+     size_t erroneousEntriesErased;
+     cb::RandomGenerator provider;
+     nlohmann::json cachedTableJSON;
+     std::atomic<uint64_t> latest_uuid;
 
-    friend std::ostream& operator<<(std::ostream& os,
-                                    const FailoverTable& table);
+     friend std::ostream& operator<<(std::ostream& os,
+                                     const FailoverTable& table);
 };
 
 std::ostream& operator<<(std::ostream& os, const failover_entry_t& entry);

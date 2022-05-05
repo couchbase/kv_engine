@@ -23,13 +23,14 @@ FailoverTable::FailoverTable(size_t capacity)
     cacheTableJSON();
 }
 
-FailoverTable::FailoverTable(const std::string& json,
+FailoverTable::FailoverTable(const nlohmann::json& json,
                              size_t capacity,
                              int64_t highSeqno)
     : max_entries(capacity), erroneousEntriesErased(0) {
-    if (!loadFromJSON(json)) {
-        throw std::invalid_argument("FailoverTable(): unable to load from "
-                "JSON file '" + json + "'");
+    if (!constructFromJSON(json)) {
+        throw std::invalid_argument(
+                fmt::format("FailoverTable(): unable to construct from JSON {}",
+                            json.dump()));
     }
     sanitizeFailoverTable(highSeqno);
 }
@@ -254,12 +255,9 @@ void FailoverTable::pruneEntries(uint64_t seqno) {
     cacheTableJSON();
 }
 
-std::string FailoverTable::toJSON() {
+nlohmann::json FailoverTable::getJSON() {
     std::lock_guard<std::mutex> lh(lock);
-    // Here we are explictly forcing a copy of the object to
-    // work around std::string copy-on-write data-race issues
-    // seen on some versions of libstdc++ - see MB-18510
-    return std::string(cachedTableJSON.begin(), cachedTableJSON.end());
+    return cachedTableJSON;
 }
 
 void FailoverTable::cacheTableJSON() {
@@ -271,7 +269,7 @@ void FailoverTable::cacheTableJSON() {
         obj["seq"] = (*it).by_seqno;
         json.push_back(obj);
     }
-    cachedTableJSON = json.dump();
+    cachedTableJSON = json;
 }
 
 void FailoverTable::addStats(const CookieIface* cookie,
@@ -329,7 +327,7 @@ std::vector<vbucket_failover_t> FailoverTable::getFailoverLog() {
     return result;
 }
 
-bool FailoverTable::loadFromJSON(const nlohmann::json& json) {
+bool FailoverTable::constructFromJSON(const nlohmann::json& json) {
     if (!json.is_array()) {
         return false;
     }
@@ -365,24 +363,8 @@ bool FailoverTable::loadFromJSON(const nlohmann::json& json) {
     table = new_table;
     latest_uuid = table.front().vb_uuid;
 
-    return true;
-}
-
-bool FailoverTable::loadFromJSON(const std::string& json) {
-    nlohmann::json parsed;
-    try {
-        parsed = nlohmann::json::parse(json);
-    } catch (const nlohmann::json::exception& e) {
-        EP_LOG_WARN(
-                "FailoverTable::loadFromJSON: Failed to parse JSON string: {}",
-                e.what());
-        return false;
-    }
-
-    auto ret = loadFromJSON(parsed);
     cachedTableJSON = json;
-
-    return ret;
+    return true;
 }
 
 void FailoverTable::replaceFailoverLog(const uint8_t* bytes, uint32_t length) {
@@ -459,7 +441,7 @@ std::ostream& operator<<(std::ostream& os, const FailoverTable& table) {
     os << "FailoverTable: max_entries:" << table.max_entries
        << ", erroneousEntriesErased:" << table.erroneousEntriesErased
        << ", latest_uuid:" << table.latest_uuid << "\n";
-    os << "  cachedTableJSON:" << table.cachedTableJSON << "\n";
+    os << "  cachedTableJSON:" << table.cachedTableJSON.dump() << "\n";
     os << "  table: {\n";
     for (const auto& e : table.table) {
         os << "    " << e << "\n";

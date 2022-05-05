@@ -578,7 +578,7 @@ vbucket_transition_state VBucket::getTransitionState() const {
         topology = getReplicationTopology();
     }
 
-    return vbucket_transition_state{failovers->toJSON(), topology, getState()};
+    return vbucket_transition_state{failovers->getJSON(), topology, getState()};
 }
 
 nlohmann::json VBucket::getReplicationTopology() const {

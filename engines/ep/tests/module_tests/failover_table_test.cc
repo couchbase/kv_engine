@@ -493,33 +493,32 @@ TEST(FailoverTableTest, test_max_capacity) {
 
 TEST(FailoverTableTest, test_sanitize_failover_table) {
     const int numErroneousEntries = 4, numCorrectEntries = 2;
-    std::string failover_json(/* Erroneous entry */
-                              "[{\"id\":0,\"seq\":0},"
-                              "{\"id\":1356861809263,\"seq\":100},"
-                              /* Erroneous entry */
-                              "{\"id\":227813077095126,\"seq\":200},"
-                              /* Erroneous entry */
-                              "{\"id\":227813077095128,\"seq\":300},"
-                              /* Erroneous entry */
-                              "{\"id\":0,\"seq\":50},"
-                              "{\"id\":160260368866392,\"seq\":0}]");
+
+    nlohmann::json failover_json = {
+            {{"id", 0}, {"seq", 0}},
+            {{"id", 1356861809263}, {"seq", 100}},
+            {{"id", 227813077095126}, {"seq", 200}},
+            {{"id", 227813077095128}, {"seq", 300}},
+            {{"id", 0}, {"seq", 50}},
+            {{"id", 160260368866392}, {"seq", 0}},
+    };
+
     FailoverTable table(failover_json, 10 /* max_entries */, 0);
 
     EXPECT_EQ(numCorrectEntries, table.getNumEntries());
     EXPECT_EQ(numErroneousEntries, table.getNumErroneousEntriesErased());
-    EXPECT_NE(failover_json, table.toJSON());
+    EXPECT_NE(failover_json, table.getJSON());
 }
 
 // Test that after removing everything, the table is still sane
 TEST(FailoverTableTest, test_sanitize_failover_table_all) {
     const int numErroneousEntries = 2, numCorrectEntries = 1;
-    std::string failover_json(/* Erroneous entry */
-                              "[{\"id\":0,\"seq\":0},"
-                              /* Erroneous entry */
-                              "{\"id\":0,\"seq\":50}]");
+    nlohmann::json failover_json = {{{"id", 0}, {"seq", 0}},
+                                    {{"id", 0}, {"seq", 50}}};
+
     FailoverTable table(failover_json, 10 /* max_entries */, 0);
 
     EXPECT_EQ(numCorrectEntries, table.getNumEntries());
     EXPECT_EQ(numErroneousEntries, table.getNumErroneousEntriesErased());
-    EXPECT_NE(failover_json, table.toJSON());
+    EXPECT_NE(failover_json, table.getJSON());
 }

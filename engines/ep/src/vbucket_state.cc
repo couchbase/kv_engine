@@ -257,7 +257,7 @@ void to_json(nlohmann::json& json, const vbucket_transition_state& state) {
 
     // Insert optional fields.
     if (!state.failovers.empty()) {
-        json["failover_table"] = nlohmann::json::parse(state.failovers);
+        json["failover_table"] = state.failovers;
     }
     if (!state.replicationTopology.empty()) {
         json["replication_topology"] = state.replicationTopology;
@@ -270,7 +270,7 @@ void from_json(const nlohmann::json& j, vbucket_transition_state& state) {
     // Now check for optional fields.
     auto failoverIt = j.find("failover_table");
     if (failoverIt != j.end()) {
-        state.failovers = failoverIt->dump();
+        state.failovers = *failoverIt;
     }
 
     auto topologyIt = j.find("replication_topology");
