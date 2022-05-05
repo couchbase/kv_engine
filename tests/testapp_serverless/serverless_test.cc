@@ -10,6 +10,7 @@
 
 #include "serverless_test.h"
 
+#include <boost/filesystem.hpp>
 #include <cluster_framework/auth_provider_service.h>
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
@@ -20,6 +21,7 @@
 #include <vector>
 
 namespace cb::test {
+constexpr size_t MaxConnectionsPerBucket = 16;
 
 std::unique_ptr<Cluster> ServerlessTest::cluster;
 
@@ -27,6 +29,17 @@ void ServerlessTest::StartCluster() {
     cluster = Cluster::create(
             3, {}, [](std::string_view, nlohmann::json& config) {
                 config["deployment_model"] = "serverless";
+                auto file =
+                        boost::filesystem::path{
+                                config["root"].get<std::string>()} /
+                        "etc" / "couchbase" / "kv" / "serverless" /
+                        "configuration.json";
+                create_directories(file.parent_path());
+                nlohmann::json json;
+                json["max_connections_per_bucket"] = MaxConnectionsPerBucket;
+                FILE* fp = fopen(file.generic_string().c_str(), "w");
+                fprintf(fp, "%s\n", json.dump(2).c_str());
+                fclose(fp);
             });
     if (!cluster) {
         std::cerr << "Failed to create the cluster" << std::endl;
@@ -98,7 +111,6 @@ void ServerlessTest::TearDown() {
 }
 
 TEST_F(ServerlessTest, MaxConnectionPerBucket) {
-    using namespace cb::serverless::test;
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
     auto getNumClients = [&admin]() -> std::size_t {

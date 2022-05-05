@@ -86,6 +86,7 @@ NodeImpl::NodeImpl(boost::filesystem::path directory, std::string id)
               {"always_collect_trace_info", true},
               {"error_maps_dir", errmaps.generic_string()},
               {"external_auth_service", true},
+              {"root", NodeImpl::directory.generic_string()},
               {"rbac_file", rbac.generic_string()},
               {"opcode_attributes_override",
                {{"version", 1},

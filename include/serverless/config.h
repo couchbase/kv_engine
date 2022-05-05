@@ -13,14 +13,12 @@
 #include <cstddef>
 
 namespace cb::serverless {
+constexpr size_t MaxConnectionsPerBucket = 600;
+
 struct Config {
     static Config& instance();
     /// The maximum number of (external) connections for a bucket
-    size_t maxConnectionsPerBucket = {600};
+    size_t maxConnectionsPerBucket = MaxConnectionsPerBucket;
 };
-
-namespace test {
-constexpr size_t MaxConnectionsPerBucket = 16;
-}
 
 } // namespace cb::serverless

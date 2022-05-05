@@ -33,7 +33,7 @@
 #include "tenant_manager.h"
 #include "tracing.h"
 #include "utilities/terminate_handler.h"
-#include <boost/filesystem/path.hpp>
+#include <boost/filesystem.hpp>
 #include <cbsasl/logging.h>
 #include <cbsasl/mechanism.h>
 #include <executor/executorpool.h>
@@ -452,13 +452,6 @@ static std::string configure_numa_policy() {
 #endif  // HAVE_LIBNUMA
 
 static void settings_init() {
-    if (getenv("MEMCACHED_UNIT_TESTS")) {
-        auto& config = cb::serverless::Config::instance();
-        // Reduce the max number so we don't have to create so many connections
-        config.maxConnectionsPerBucket =
-                cb::serverless::test::MaxConnectionsPerBucket;
-    }
-
     auto& settings = Settings::instance();
 
     // Set up the listener functions
@@ -765,6 +758,30 @@ static void startExecutorPool() {
             });
 }
 
+static void initialize_serverless_config() {
+    const auto serverless = boost::filesystem::path{Settings::instance().getRoot()} /
+                            "etc" / "couchbase" / "kv" / "serverless" /
+                            "configuration.json";
+    auto& config = cb::serverless::Config::instance();
+    if (exists(serverless)) {
+        LOG_INFO("Using serverless static configuration from: {}",
+                 serverless.generic_string());
+        try {
+            auto json = nlohmann::json::parse(
+                    cb::io::loadFile(serverless.generic_string()));
+            config.maxConnectionsPerBucket =
+                    json.value("max_connections_per_bucket",
+                               config.maxConnectionsPerBucket);
+        } catch (const std::exception& e) {
+            LOG_WARNING("Failed to read serverless configuration: {}",
+                        e.what());
+        }
+    }
+    nlohmann::json json;
+    json["max_connections_per_bucket"] = config.maxConnectionsPerBucket;
+    LOG_INFO("Serverless static configuration: {}", json.dump());
+}
+
 int memcached_main(int argc, char** argv) {
     // MB-14649 log() crash on windows on some CPU's
 #ifdef _WIN64
@@ -897,6 +914,10 @@ int memcached_main(int argc, char** argv) {
     LOG_INFO("(Clock measurement period: {})", coarseClock.measurementPeriod);
 
     LOG_INFO("Using SLA configuration: {}", cb::mcbp::sla::to_json().dump());
+
+    if (isServerlessDeployment()) {
+        initialize_serverless_config();
+    }
 
     if (Settings::instance().isStdinListenerEnabled()) {
         LOG_INFO_RAW("Enable standard input listener");
