@@ -1459,8 +1459,12 @@ void RollbackDcpTest::doCommit(StoredDocKey key) {
 
     // To set the HPS we need to receive the snapshot end - just hit the PDM
     // function to simulate this
-    const_cast<PassiveDurabilityMonitor&>(passiveDm).notifySnapshotEndReceived(
-            commitSeqno);
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        const_cast<PassiveDurabilityMonitor&>(passiveDm)
+                .notifySnapshotEndReceived(rlh, commitSeqno);
+    }
+
     ASSERT_EQ(0, passiveDm.getNumTracked());
     ASSERT_EQ(prepareSeqno, passiveDm.getHighPreparedSeqno());
     ASSERT_EQ(prepareSeqno, passiveDm.getHighCompletedSeqno());
@@ -1504,8 +1508,12 @@ void RollbackDcpTest::doAbort(StoredDocKey key, bool flush) {
 
     // To set teh HPS we need to receive the snapshot end - just hit the PDM
     // function to simulate this
-    const_cast<PassiveDurabilityMonitor&>(passiveDm).notifySnapshotEndReceived(
-            abortSeqno);
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        const_cast<PassiveDurabilityMonitor&>(passiveDm)
+                .notifySnapshotEndReceived(rlh, abortSeqno);
+    }
+
     ASSERT_EQ(0, passiveDm.getNumTracked());
     ASSERT_EQ(prepareSeqno, passiveDm.getHighPreparedSeqno());
     ASSERT_EQ(prepareSeqno, passiveDm.getHighCompletedSeqno());

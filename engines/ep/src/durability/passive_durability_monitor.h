@@ -166,9 +166,11 @@ public:
      * The snapshot-end seqno is used for the correct implementation of the HPS
      * move-logic.
      *
+     * @param vbStateLock the lock holder for the vBucket state lock
      * @param snapEnd The snapshot-end seqno
      */
-    void notifySnapshotEndReceived(uint64_t snapEnd);
+    void notifySnapshotEndReceived(folly::SharedMutex::ReadHolder& vbStateLock,
+                                   uint64_t snapEnd);
 
     /**
      * Notify this PDM that some persistence has happened. Attempts to update

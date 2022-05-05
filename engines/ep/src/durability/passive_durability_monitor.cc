@@ -231,7 +231,8 @@ size_t PassiveDurabilityMonitor::getNumAborted() const {
     return state.rlock()->totalAborted;
 }
 
-void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd) {
+void PassiveDurabilityMonitor::notifySnapshotEndReceived(
+        folly::SharedMutex::ReadHolder& rlh, uint64_t snapEnd) {
     { // state locking scope
         auto s = state.wlock();
         s->receivedSnapshotEnds.push({int64_t(snapEnd),

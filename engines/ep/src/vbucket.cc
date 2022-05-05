@@ -1056,7 +1056,11 @@ void VBucket::notifyClientOfSyncWriteComplete(const CookieIface* cookie,
 }
 
 void VBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd) {
-    getPassiveDM().notifySnapshotEndReceived(snapEnd);
+    // Allowed for any PassiveDM state (but we hold the lock to prevent
+    // transitions from changing the DM).
+    folly::SharedMutex::ReadHolder rlh(stateLock);
+    Expects(state != vbucket_state_active);
+    getPassiveDM().notifySnapshotEndReceived(rlh, snapEnd);
 }
 
 void VBucket::sendSeqnoAck(int64_t seqno) {
