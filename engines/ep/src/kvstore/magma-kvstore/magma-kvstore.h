@@ -515,6 +515,9 @@ public:
 
     vbucket_state getPersistedVBucketState(Vbid vbid) const override;
 
+    vbucket_state getPersistedVBucketState(KVFileHandle& handle,
+                                           Vbid vbid) const override;
+
     /**
      * Populate kvstore stats with magma specific stats
      */

@@ -1936,6 +1936,13 @@ vbucket_state RocksDBKVStore::getPersistedVBucketState(Vbid vbid) const {
     return state.vbstate;
 }
 
+vbucket_state RocksDBKVStore::getPersistedVBucketState(KVFileHandle& handle,
+                                                       Vbid vbid) const {
+    throw std::runtime_error(
+            "RocksDBKVStore::getPersistedVBucketState(handle, vbid) not "
+            "implemented");
+}
+
 GetValue RocksDBKVStore::getBySeqno(KVFileHandle& handle,
                                     Vbid vbid,
                                     uint64_t seq,

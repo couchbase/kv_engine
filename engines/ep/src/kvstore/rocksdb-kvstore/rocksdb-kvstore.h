@@ -211,6 +211,9 @@ public:
 
     vbucket_state getPersistedVBucketState(Vbid vbid) const override;
 
+    vbucket_state getPersistedVBucketState(KVFileHandle& handle,
+                                           Vbid vbid) const override;
+
     size_t getNumPersistedDeletes(Vbid vbid) override {
         // TODO vmx 2016-10-29: implement
         return 0;

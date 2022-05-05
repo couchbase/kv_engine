@@ -1502,6 +1502,27 @@ vbucket_state NexusKVStore::getPersistedVBucketState(Vbid vbid) const {
     return primaryVbState;
 }
 
+vbucket_state NexusKVStore::getPersistedVBucketState(KVFileHandle& handle,
+                                                     Vbid vbid) const {
+    auto& nexusFileHandle = dynamic_cast<const NexusKVFileHandle&>(handle);
+    auto primaryVbState = primary->getPersistedVBucketState(
+            *nexusFileHandle.primaryFileHandle, vbid);
+    auto secondaryVbState = secondary->getPersistedVBucketState(
+            *nexusFileHandle.secondaryFileHandle, vbid);
+
+    if (!compareVBucketState(vbid, primaryVbState, secondaryVbState)) {
+        auto msg = fmt::format(
+                "NexusKVStore::getPersistedVBucketState(handle): {}: "
+                "difference in vBucket state primary:{} "
+                "secondary:{}",
+                vbid,
+                primaryVbState,
+                secondaryVbState);
+        handleError(msg, vbid);
+    }
+    return primaryVbState;
+}
+
 size_t NexusKVStore::getNumPersistedDeletes(Vbid vbid) {
     return primary->getNumPersistedDeletes(vbid);
 }

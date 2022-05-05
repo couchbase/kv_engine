@@ -1368,6 +1368,12 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStats) {
     EXPECT_LT(0, stats.diskSize);
 }
 
+TEST_P(KVStoreParamTestSkipRocks, GetPersistedVBucketState) {
+    auto kvHandle = kvstore->makeFileHandle(vbid);
+    EXPECT_TRUE(kvHandle);
+    EXPECT_NO_THROW(kvstore->getPersistedVBucketState(*kvHandle, vbid));
+}
+
 void KVStoreParamTestSkipRocks::corruptCouchKVStoreDataFile() {
     ASSERT_EQ("couchdb", GetParam())
             << "This method should only be used for couchdb";

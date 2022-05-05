@@ -196,6 +196,7 @@ public:
     MagmaKVFileHandle(Vbid vbid,
                       DomainAwareUniquePtr<magma::Magma::Snapshot> snapshot)
         : vbid(vbid), snapshot(std::move(snapshot)) {
+        Expects(this->snapshot);
     }
     Vbid vbid;
     DomainAwareUniquePtr<magma::Magma::Snapshot> snapshot;
@@ -1934,12 +1935,27 @@ vbucket_state MagmaKVStore::getPersistedVBucketState(Vbid vbid) const {
     auto state = readVBStateFromDisk(vbid);
     if (state.status != ReadVBStateStatus::Success) {
         throw std::runtime_error(
-                "MagmaKVStore::getPersistedVBucketState "
-                "failed with status " +
-                to_string(state.status));
+                fmt::format("MagmaKVStore::getPersistedVBucketState() {} "
+                            "failed with status {}",
+                            vbid,
+                            to_string(state.status)));
     }
 
     return state.state;
+}
+
+vbucket_state MagmaKVStore::getPersistedVBucketState(KVFileHandle& handle,
+                                                     Vbid vbid) const {
+    auto& magmaHandle = static_cast<MagmaKVFileHandle&>(handle);
+    auto state = readVBStateFromDisk(magmaHandle.vbid, *magmaHandle.snapshot);
+    if (!state.status.IsOK()) {
+        throw std::runtime_error(
+                fmt::format("MagmaKVStore::getPersistedVBucketState(handle) {} "
+                            "failed with status {}",
+                            vbid,
+                            state.status));
+    }
+    return state.vbstate;
 }
 
 uint64_t MagmaKVStore::getKVStoreRevision(Vbid vbid) const {

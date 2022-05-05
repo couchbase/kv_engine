@@ -4250,7 +4250,19 @@ vbucket_state CouchKVStore::getPersistedVBucketState(Vbid vbid) const {
                 ", file:" + getDBFileName(dbname, vbid, db.getFileRev()));
     }
 
-    const auto res = readVBState(db, vbid);
+    return getVBucketState(db, vbid);
+}
+
+vbucket_state CouchKVStore::getPersistedVBucketState(KVFileHandle& handle,
+                                                     Vbid vbid) const {
+    auto& couchKvHandle = static_cast<CouchKVFileHandle&>(handle);
+    auto& db = couchKvHandle.getDbHolder();
+    return getVBucketState(db, vbid);
+}
+
+vbucket_state CouchKVStore::getVBucketState(const DbHolder& db,
+                                            Vbid vbid) const {
+    const auto res = readVBState(db.getDb(), vbid);
     // @TODO MB-51413 Expand the status returned by this. NotFound is valid
     // in certain circumstances and we should neither throw nor return the
     // default constructed vbucket_state.

@@ -360,6 +360,16 @@ public:
     virtual vbucket_state getPersistedVBucketState(Vbid vbid) const = 0;
 
     /**
+     * Return the vbucket_state stored on disk for the given handle
+     *
+     * @param handle A KVFileHandle for a snapshot
+     * @param vbid the vbucket ID for the snapshot (used in logging only)
+     * @throws exceptions if there was a problem returning the state.
+     */
+    virtual vbucket_state getPersistedVBucketState(KVFileHandle& handle,
+                                                   Vbid vbid) const = 0;
+
+    /**
      * Get the number of deleted items that are persisted to a vbucket file
      *
      * @param vbid The vbucket if of the file to get the number of deletes for.

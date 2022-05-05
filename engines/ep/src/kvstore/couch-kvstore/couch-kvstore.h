@@ -384,6 +384,9 @@ public:
      */
     vbucket_state getPersistedVBucketState(Vbid vbid) const override;
 
+    vbucket_state getPersistedVBucketState(KVFileHandle& handle,
+                                           Vbid vbid) const override;
+
     /// Get the logger used by this bucket
     BucketLogger& getLogger() const {
         return logger;
@@ -914,6 +917,11 @@ protected:
      * @returns The DbHolder for file or {} if the operation fails
      */
     std::optional<DbHolder> openOrCreate(Vbid vbid) noexcept;
+
+    /**
+     * Read the vbstate from given db
+     */
+    vbucket_state getVBucketState(const DbHolder& db, Vbid vbid) const;
 
     const CouchKVStoreConfig& configuration;
 

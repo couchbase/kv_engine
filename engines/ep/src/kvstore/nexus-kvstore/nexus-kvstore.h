@@ -71,6 +71,8 @@ public:
                                   Vbid vbid) override;
     vbucket_state* getCachedVBucketState(Vbid vbid) override;
     vbucket_state getPersistedVBucketState(Vbid vbid) const override;
+    vbucket_state getPersistedVBucketState(KVFileHandle& handle,
+                                           Vbid vbid) const override;
     size_t getNumPersistedDeletes(Vbid vbid) override;
     DBFileInfo getDbFileInfo(Vbid dbFileId) override;
     DBFileInfo getAggrDbFileInfo() override;
