@@ -191,20 +191,12 @@ public:
 
 protected:
     /**
-     * Store the seqno ack that we should now send to the consumer. Overwrites
-     * any outstanding ack not yet sent if the new value is greater.
-     *
-     * @param prevHps determines if we should send an ack or not
-     * @param newHps new hps to ack
-     */
-    void storeSeqnoAck(int64_t prevHps, int64_t newHps);
-
-    /**
      * Send, if we need to, a seqno ack to the active node.
      *
      * @param vbStateLock the VB state lock
+     * @newHps the seqno to ack
      */
-    void sendSeqnoAck(folly::SharedMutex::ReadHolder& vbStateLock);
+    void sendSeqnoAck(folly::SharedMutex::ReadHolder& vbStateLock, int64_t newHps);
 
     void toOStream(std::ostream& os) const override;
     /**

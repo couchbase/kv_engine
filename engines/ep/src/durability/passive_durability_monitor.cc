@@ -233,6 +233,8 @@ size_t PassiveDurabilityMonitor::getNumAborted() const {
 
 void PassiveDurabilityMonitor::notifySnapshotEndReceived(
         folly::SharedMutex::ReadHolder& rlh, uint64_t snapEnd) {
+    int64_t newHps;
+
     { // state locking scope
         auto s = state.wlock();
         s->receivedSnapshotEnds.push({int64_t(snapEnd),
@@ -241,51 +243,42 @@ void PassiveDurabilityMonitor::notifySnapshotEndReceived(
                                               : CheckpointType::Memory});
         // Maybe the new tracked Prepare is already satisfied and could be
         // ack'ed back to the Active.
-        auto prevHps = s->highPreparedSeqno.lastWriteSeqno;
         s->updateHighPreparedSeqno();
         s->checkForAndRemoveDroppedCollections();
 
         // Store the seqno ack to send after we drop the state lock
-        storeSeqnoAck(prevHps, s->highPreparedSeqno.lastWriteSeqno);
+        newHps = s->highPreparedSeqno.lastWriteSeqno;
     }
 
     notifySnapEndSeqnoAckPreProcessHook();
 
-    sendSeqnoAck(rlh);
+    sendSeqnoAck(rlh, newHps);
 }
 
 void PassiveDurabilityMonitor::notifyLocalPersistence(
         folly::SharedMutex::ReadHolder& vbStateLock) {
+    int64_t newHps;
+
     { // state locking scope
         auto s = state.wlock();
-        auto prevHps = s->highPreparedSeqno.lastWriteSeqno;
         s->updateHighPreparedSeqno();
         s->checkForAndRemoveDroppedCollections();
 
         // Store the seqno ack to send after we drop the state lock
-        storeSeqnoAck(prevHps, s->highPreparedSeqno.lastWriteSeqno);
+        newHps = s->highPreparedSeqno.lastWriteSeqno;
     }
 
-    sendSeqnoAck(vbStateLock);
-}
-
-void PassiveDurabilityMonitor::storeSeqnoAck(int64_t prevHps, int64_t newHps) {
-    if (prevHps != newHps) {
-        auto seqno = seqnoToAck.wlock();
-        if (*seqno < newHps) {
-            *seqno = newHps;
-        }
-    }
+    sendSeqnoAck(vbStateLock, newHps);
 }
 
 void PassiveDurabilityMonitor::sendSeqnoAck(
-        folly::SharedMutex::ReadHolder& vbStateLock) {
+        folly::SharedMutex::ReadHolder& vbStateLock, int64_t newHps) {
     // Hold the lock throughout to ensure that we do not race with another ack
     auto seqno = seqnoToAck.wlock();
-    if (*seqno != 0) {
+    if (*seqno < newHps) {
+        *seqno = newHps;
         vb.sendSeqnoAck(vbStateLock, *seqno);
     }
-    *seqno = 0;
 }
 
 std::string PassiveDurabilityMonitor::to_string(Resolution res) {
