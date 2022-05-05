@@ -1063,7 +1063,7 @@ void VBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd) {
     getPassiveDM().notifySnapshotEndReceived(rlh, snapEnd);
 }
 
-void VBucket::sendSeqnoAck(int64_t seqno) {
+void VBucket::sendSeqnoAck(folly::SharedMutex::ReadHolder& rlh, int64_t seqno) {
     Expects(state == vbucket_state_replica || state == vbucket_state_pending);
     seqnoAckCb(getId(), seqno);
 }

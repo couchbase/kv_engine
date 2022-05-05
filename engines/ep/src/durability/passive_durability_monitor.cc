@@ -251,7 +251,7 @@ void PassiveDurabilityMonitor::notifySnapshotEndReceived(
 
     notifySnapEndSeqnoAckPreProcessHook();
 
-    sendSeqnoAck();
+    sendSeqnoAck(rlh);
 }
 
 void PassiveDurabilityMonitor::notifyLocalPersistence(
@@ -266,7 +266,7 @@ void PassiveDurabilityMonitor::notifyLocalPersistence(
         storeSeqnoAck(prevHps, s->highPreparedSeqno.lastWriteSeqno);
     }
 
-    sendSeqnoAck();
+    sendSeqnoAck(vbStateLock);
 }
 
 void PassiveDurabilityMonitor::storeSeqnoAck(int64_t prevHps, int64_t newHps) {
@@ -278,11 +278,12 @@ void PassiveDurabilityMonitor::storeSeqnoAck(int64_t prevHps, int64_t newHps) {
     }
 }
 
-void PassiveDurabilityMonitor::sendSeqnoAck() {
+void PassiveDurabilityMonitor::sendSeqnoAck(
+        folly::SharedMutex::ReadHolder& vbStateLock) {
     // Hold the lock throughout to ensure that we do not race with another ack
     auto seqno = seqnoToAck.wlock();
     if (*seqno != 0) {
-        vb.sendSeqnoAck(*seqno);
+        vb.sendSeqnoAck(vbStateLock, *seqno);
     }
     *seqno = 0;
 }

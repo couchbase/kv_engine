@@ -201,8 +201,10 @@ protected:
 
     /**
      * Send, if we need to, a seqno ack to the active node.
+     *
+     * @param vbStateLock the VB state lock
      */
-    void sendSeqnoAck();
+    void sendSeqnoAck(folly::SharedMutex::ReadHolder& vbStateLock);
 
     void toOStream(std::ostream& os) const override;
     /**
