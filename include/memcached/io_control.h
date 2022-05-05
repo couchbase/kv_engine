@@ -22,6 +22,7 @@ enum class Id {
     JemallocProfDump,
     RbacDbDump,
     ReleaseFreeMemory,
+    ServerlessMaxConnectionsPerBucket,
     Sla,
     TraceConfig,
     TraceDumpBegin,

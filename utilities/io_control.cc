@@ -30,6 +30,10 @@ Manager::Manager()
                 "Request the process to return unused memory to the operating "
                 "system",
                 Mode::WRONLY},
+               {Id::ServerlessMaxConnectionsPerBucket,
+                "serverless.max_connections_per_bucket",
+                "Set the maximum number of external connections for a bucket",
+                Mode::WRONLY},
                {Id::Sla,
                 "sla",
                 "Get/Set the current SLA configuration",

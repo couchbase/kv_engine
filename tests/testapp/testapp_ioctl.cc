@@ -75,3 +75,12 @@ TEST_P(IoctlTest, IOCTL_Tracing) {
     auto json = nlohmann::json::parse(dump);
     EXPECT_TRUE(json["traceEvents"].is_array());
 }
+
+TEST_P(IoctlTest, IOCTL_ServerlessMaxConnectionsPerBucket) {
+    // The command may only be used in serverless deployments
+    auto rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::IoctlSet,
+                                  "serverless.max_connections_per_bucket",
+                                  "1000"});
+    ASSERT_FALSE(rsp.isSuccess());
+}

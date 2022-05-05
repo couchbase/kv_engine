@@ -14,6 +14,7 @@
 #include "connection.h"
 #include "connections.h"
 #include "cookie.h"
+#include "settings.h"
 #include "tracing.h"
 #include "utilities/string_utilities.h"
 #include <logger/logger.h>
@@ -21,6 +22,7 @@
 #include <memcached/io_control.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_arena_malloc.h>
+#include <serverless/config.h>
 
 /*
  * Implement ioctl-style memcached commands (ioctl_get / ioctl_set).
@@ -178,6 +180,7 @@ cb::engine_errc ioctl_get_property(Cookie& cookie,
         case cb::ioctl::Id::JemallocProfActive: // may only be used with Set
         case cb::ioctl::Id::JemallocProfDump: // may only be used with Set
         case cb::ioctl::Id::ReleaseFreeMemory: // may only be used with Set
+        case cb::ioctl::Id::ServerlessMaxConnectionsPerBucket: // set only
         case cb::ioctl::Id::TraceDumpClear: // may only be used with Set
         case cb::ioctl::Id::TraceStart: // may only be used with Set
         case cb::ioctl::Id::TraceStop: // may only be used with Set
@@ -198,14 +201,46 @@ static cb::engine_errc ioctlSetMcbpSla(Cookie& cookie,
     } catch (const std::exception& e) {
         cookie.getEventId();
         auto& c = cookie.getConnection();
-        LOG_INFO("{}: Failed to set MCBP SLA. UUID:[{}]: {}",
-                 c.getId(),
-                 cookie.getEventId(),
-                 e.what());
+        LOG_WARNING("{}: Failed to set MCBP SLA. UUID:[{}]: {}",
+                    c.getId(),
+                    cookie.getEventId(),
+                    e.what());
         return cb::engine_errc::invalid_arguments;
     }
 
     return cb::engine_errc::success;
+}
+
+static cb::engine_errc ioctlSetServerlessMaxConnectionsPerBucket(
+        Cookie& cookie, const StrToStrMap&, const std::string& value) {
+    if (isServerlessDeployment()) {
+        try {
+            auto& config = cb::serverless::Config::instance();
+            auto val = std::stoul(value);
+            if (val < 100) {
+                cookie.setErrorContext(
+                        "Maximum number of connections cannot be below 100");
+                return cb::engine_errc::invalid_arguments;
+            }
+            config.maxConnectionsPerBucket = std::stoul(value);
+            LOG_INFO("Set maximum connections to a bucket to {}", val);
+        } catch (const std::exception& e) {
+            cookie.setErrorContext(
+                    "Failed to convert the provided value to an integer");
+            return cb::engine_errc::invalid_arguments;
+        }
+
+        return cb::engine_errc::success;
+    }
+
+    LOG_CRITICAL_RAW("TROND it may only be used in serverless");
+    std::string reason{
+            cb::ioctl::Manager::getInstance()
+                    .lookup(cb::ioctl::Id::ServerlessMaxConnectionsPerBucket)
+                    .key};
+    reason.append(" may only be used on serverless deployments");
+    cookie.setErrorContext(std::move(reason));
+    return cb::engine_errc::invalid_arguments;
 }
 
 cb::engine_errc ioctl_set_property(Cookie& cookie,
@@ -231,6 +266,9 @@ cb::engine_errc ioctl_set_property(Cookie& cookie,
             return setReleaseFreeMemory(cookie, request.second, value);
         case cb::ioctl::Id::Sla:
             return ioctlSetMcbpSla(cookie, request.second, value);
+        case cb::ioctl::Id::ServerlessMaxConnectionsPerBucket:
+            return ioctlSetServerlessMaxConnectionsPerBucket(
+                    cookie, request.second, value);
         case cb::ioctl::Id::TraceConfig:
             return ioctlSetTracingConfig(cookie, request.second, value);
         case cb::ioctl::Id::TraceStart:
