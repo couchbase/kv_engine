@@ -678,9 +678,9 @@ void Checkpoint::detachFromManager() {
     cmMemUsage.fetch_sub(sizeof(Checkpoint));
 
     // stop tracking MemoryCounters against the CM
-    queuedItemsMemUsage.removeParent();
-    queueMemOverhead.removeParent();
-    keyIndexMemUsage.removeParent();
+    queuedItemsMemUsage.detachFromManager();
+    queueMemOverhead.detachFromManager();
+    keyIndexMemUsage.detachFromManager();
 }
 
 void Checkpoint::applyQueuedItemsMemUsageDecrement(size_t size) {
@@ -748,44 +748,28 @@ std::ostream& operator<<(std::ostream& os, const Checkpoint& c) {
     return os;
 }
 
-Checkpoint::MemoryCounter::~MemoryCounter() {
-    if (parentUsage) {
-        *parentUsage -= local;
-    }
-    // When the MemoryCounter was originally introduced we used to decrease the
-    // EPStats::checkpointManagerEstimatedMemUsage global stat by 'local' here,
-    // as this was the natural place to do so.
-    // Now after the Destroyer has been introduced, the CM is just one possible
-    // owner of Checkpoint and we need to ensure that the global stat is updated
-    // only once when Checkpoint is detached from the CM, so the global stats
-    // update has been moved to Checkpoint::detachFromManager().
-    //
-    // Note: The same global stat is still updated in MemoryCounter operator+=
-    // and operator-= as by logic that code can only be executed when Checkpoint
-    // is owned by CM.
-}
-
 Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator+=(size_t size) {
     local += size;
-    if (parentUsage) {
-        *parentUsage += size;
-    }
+
+    Expects(managerUsage);
+    *managerUsage += size;
+
     stats.coreLocal.get()->checkpointManagerEstimatedMemUsage.fetch_add(size);
     return *this;
 }
 
 Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator-=(size_t size) {
     local -= size;
-    if (parentUsage) {
-        *parentUsage -= size;
-    }
+
+    Expects(managerUsage);
+    *managerUsage -= size;
+
     stats.coreLocal.get()->checkpointManagerEstimatedMemUsage.fetch_sub(size);
     return *this;
 }
 
-void Checkpoint::MemoryCounter::removeParent() {
-    if (parentUsage) {
-        *parentUsage -= local;
-    }
-    parentUsage = nullptr;
+void Checkpoint::MemoryCounter::detachFromManager() {
+    Expects(managerUsage);
+    *managerUsage -= local;
+    managerUsage = nullptr;
 }

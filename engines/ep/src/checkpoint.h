@@ -666,10 +666,9 @@ private:
     class MemoryCounter {
     public:
         MemoryCounter(EPStats& stats,
-                      cb::AtomicNonNegativeCounter<size_t>* parentUsage)
-            : local(0), stats(stats), parentUsage(parentUsage) {
+                      cb::AtomicNonNegativeCounter<size_t>* managerUsage)
+            : local(0), stats(stats), managerUsage(managerUsage) {
         }
-        ~MemoryCounter();
 
         // Explicitly delete copy/move constructors and assignment to prevent
         // any error in the update of the MemoryCounter's parent
@@ -682,15 +681,12 @@ private:
         MemoryCounter& operator-=(size_t size);
 
         /**
-         * Used to stop accounting statistics against the MemoryCounter's
-         * parent.
-         *
-         * For example, this is called when a Checkpoint is queued for
-         * destruction and so any operation on its MemoryCounters should no
-         * longer update its (previous) manager's totals.
+         * Used to stop accounting statistics against the MemoryCounter's parent
+         * CM. Called when a Checkpoint is queued for destruction and so any
+         * operation on its MemoryCounters should no longer update its previous
+         * CM's totals.
          */
-
-        void removeParent();
+        void detachFromManager();
 
         operator size_t() const {
             return local;
@@ -701,9 +697,10 @@ private:
         cb::NonNegativeCounter<size_t> local;
         // Used to update the "global" bucket counter in EPStats
         EPStats& stats;
-        // Pointer to a parent counter which needs updating when the
-        // local value changes. Null indicates "no parent"
-        cb::AtomicNonNegativeCounter<size_t>* parentUsage;
+        // Pointer to the parent CM counter which needs updating when the
+        // local value changes. Null indicates that the Checkpoint isn't owned
+        // by a CM anymore (detached to Destroyer)
+        cb::AtomicNonNegativeCounter<size_t>* managerUsage;
     };
 
     // Record the memory overhead of maintaining the keyIndex.
