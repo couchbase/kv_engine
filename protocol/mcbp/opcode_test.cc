@@ -192,7 +192,10 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::DropPrivilege, "DROP_PRIVILEGES"},
          {ClientOpcode::AdjustTimeofday, "ADJUST_TIMEOFDAY"},
          {ClientOpcode::EwouldblockCtl, "EWB_CTL"},
-         {ClientOpcode::GetErrorMap, "GET_ERROR_MAP"}}};
+         {ClientOpcode::GetErrorMap, "GET_ERROR_MAP"},
+         {ClientOpcode::RangeScanCreate, "RANGE_SCAN_CREATE"},
+         {ClientOpcode::RangeScanContinue, "RANGE_SCAN_CONTINUE"},
+         {ClientOpcode::RangeScanCancel, "RANGE_SCAN_CANCEL"}}};
 
 TEST(ClientOpcode_to_string, LegalValues) {
     for (auto& entry : client_blueprint) {
@@ -330,7 +333,8 @@ TEST(ClientOpcode, is_reorder_supported) {
                      ClientOpcode::SubdocMultiMutation,
                      ClientOpcode::SubdocGetCount,
                      ClientOpcode::SubdocReplaceBodyWithXattr,
-                     ClientOpcode::SetBucketComputeUnitThrottleLimits}},
+                     ClientOpcode::SetBucketComputeUnitThrottleLimits,
+                     ClientOpcode::RangeScanCreate}},
                    "reorder");
 }
 

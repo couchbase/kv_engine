@@ -306,6 +306,13 @@ enum class ClientOpcode : uint8_t {
     // Subdoc additions for Cheshire-Cat
     SubdocReplaceBodyWithXattr = 0xd3,
 
+    /* Create a "key-index" RangeScan */
+    RangeScanCreate = 0xda,
+    /* Continue a "key-index" RangeScan */
+    RangeScanContinue = 0xdb,
+    /* Cancel a "key-index" RangeScan */
+    RangeScanCancel = 0xdc,
+
     /* Scrub the data */
     Scrub = 0xf0,
     /* Refresh the ISASL data */

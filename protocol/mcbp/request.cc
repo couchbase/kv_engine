@@ -297,6 +297,9 @@ bool Request::isQuiet() const {
         case ClientOpcode::AdjustTimeofday:
         case ClientOpcode::EwouldblockCtl:
         case ClientOpcode::GetErrorMap:
+        case ClientOpcode::RangeScanCreate:
+        case ClientOpcode::RangeScanContinue:
+        case ClientOpcode::RangeScanCancel:
         case ClientOpcode::Invalid:
             return false;
 
