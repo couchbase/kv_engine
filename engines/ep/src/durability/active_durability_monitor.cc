@@ -425,7 +425,8 @@ void ActiveDurabilityMonitor::processTimeout(
     checkForResolvedSyncWrites();
 }
 
-void ActiveDurabilityMonitor::notifyLocalPersistence() {
+void ActiveDurabilityMonitor::notifyLocalPersistence(
+        folly::SharedMutex::ReadHolder& vbStateLock) {
     checkForCommit();
 }
 

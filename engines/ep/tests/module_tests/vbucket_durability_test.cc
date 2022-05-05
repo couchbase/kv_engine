@@ -1827,7 +1827,8 @@ void VBucketDurabilityTest::
     EXPECT_EQ(1, adm.getNumTracked());
 
     vbucket->setPersistenceSeqno(3);
-    adm.notifyLocalPersistence();
+    folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+    adm.notifyLocalPersistence(rlh);
     adm.processCompletedSyncWriteQueue();
     EXPECT_EQ(3, adm.getHighPreparedSeqno());
     EXPECT_EQ(3, adm.getHighCompletedSeqno());
@@ -1857,7 +1858,10 @@ void VBucketDurabilityTest::
 
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
     vbucket->setPersistenceSeqno(3);
-    adm.notifyLocalPersistence();
+    {
+        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        adm.notifyLocalPersistence(rlh);
+    }
 
     // ns_server then sets the topology
     simulateSetVBState(vbucket_state_active,
@@ -1902,7 +1906,10 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
     // "Persist" them too and notify the PDM.
     pdm.notifySnapshotEndReceived(3);
     vbucket->setPersistenceSeqno(3);
-    pdm.notifyLocalPersistence();
+    {
+        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        pdm.notifyLocalPersistence(rlh);
+    }
     EXPECT_EQ(2, pdm.getNumTracked());
     EXPECT_EQ(2, pdm.getHighPreparedSeqno());
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
@@ -1984,7 +1991,8 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDMUnpersistedPrepare(
 
     // Fake persistence and check again
     vbucket->setPersistenceSeqno(1);
-    adm.notifyLocalPersistence();
+    folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+    adm.notifyLocalPersistence(rlh);
     EXPECT_EQ(0, adm.getNumTracked());
     EXPECT_EQ(1, adm.getHighPreparedSeqno());
 }
@@ -2559,7 +2567,10 @@ TEST_P(EPVBucketDurabilityTest,
 
     // Notify persistence and commit our prepares
     vbucket->setPersistenceSeqno(2);
-    adm.notifyLocalPersistence();
+    {
+        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        adm.notifyLocalPersistence(rlh);
+    }
     EXPECT_EQ(0, adm.getNumTracked());
 
     // Client should be notified once processed.

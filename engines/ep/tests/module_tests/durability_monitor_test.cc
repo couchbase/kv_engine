@@ -220,7 +220,8 @@ void ActiveDurabilityMonitorTest::testLocalAck(int64_t ackSeqno,
                                                int64_t expectedLastWriteSeqno,
                                                int64_t expectedLastAckSeqno) {
     vb->setPersistenceSeqno(ackSeqno);
-    monitor->notifyLocalPersistence();
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    monitor->notifyLocalPersistence(rlh);
     EXPECT_EQ(expectedNumTracked, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
@@ -2011,7 +2012,8 @@ void DurabilityMonitorTest::notifyPersistence(const int64_t persistedSeqno,
                                               const int64_t expectedHPS,
                                               const int64_t expectedHCS) {
     vb->setPersistenceSeqno(persistedSeqno);
-    monitor->notifyLocalPersistence();
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    monitor->notifyLocalPersistence(rlh);
     ASSERT_EQ(expectedHPS, monitor->getHighPreparedSeqno());
     ASSERT_EQ(expectedHCS, monitor->getHighCompletedSeqno());
 }
@@ -3460,7 +3462,8 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
 
     // Active finally persists, but it is too late
     vb->setPersistenceSeqno(2);
-    monitor->notifyLocalPersistence();
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    monitor->notifyLocalPersistence(rlh);
 
     {
         SCOPED_TRACE("");
@@ -3481,7 +3484,8 @@ TEST_P(PassiveDurabilityMonitorTest, SendSeqnoAckRace) {
         // vb->sendSeqnoAck. Simulate this race by notifying persistence which
         // should attempt to ack 2.
         vb->setPersistenceSeqno(2);
-        pdm.notifyLocalPersistence();
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        pdm.notifyLocalPersistence(rlh);
     };
 
     // Test: Assert the monotonicity of the ack that we attempt to send

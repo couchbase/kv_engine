@@ -253,7 +253,8 @@ void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd) {
     sendSeqnoAck();
 }
 
-void PassiveDurabilityMonitor::notifyLocalPersistence() {
+void PassiveDurabilityMonitor::notifyLocalPersistence(
+        folly::SharedMutex::ReadHolder& vbStateLock) {
     { // state locking scope
         auto s = state.wlock();
         auto prevHps = s->highPreparedSeqno.lastWriteSeqno;

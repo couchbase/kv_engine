@@ -174,7 +174,8 @@ public:
      * Notify this PDM that some persistence has happened. Attempts to update
      * the HPS and ack back to the active.
      */
-    void notifyLocalPersistence() override;
+    void notifyLocalPersistence(
+            folly::SharedMutex::ReadHolder& vbStateLock) override;
 
     int64_t getHighestTrackedSeqno() const override;
 

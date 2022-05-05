@@ -228,7 +228,8 @@ public:
      */
     std::vector<const CookieIface*> prepareTransitionAwayFromActive();
 
-    void notifyLocalPersistence() override;
+    void notifyLocalPersistence(
+            folly::SharedMutex::ReadHolder& vbStateLock) override;
 
     /**
      * Output DurabiltyMonitor stats.

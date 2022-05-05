@@ -4084,7 +4084,7 @@ void VBucket::notifyPersistenceToDurabilityMonitor() {
     // potentially have an out of date DM state at that point if persisting
     // some seqno were enough to move the HPS.
     folly::SharedMutex::ReadHolder rlh(stateLock);
-    durabilityMonitor->notifyLocalPersistence();
+    durabilityMonitor->notifyLocalPersistence(rlh);
 }
 
 const DurabilityMonitor& VBucket::getDurabilityMonitor() const {
