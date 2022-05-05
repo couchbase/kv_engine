@@ -42,16 +42,13 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
         return;
     }
 
-    // Check vbucket is valid and active, vb only needed for value scan, but
-    // may as well check it for key only so we can cancel if state changes
     VBucketPtr vb = bucket.getVBucket(lookup.getVBucketId());
     if (!vb) {
         setScanErrorStatus(cb::engine_errc::not_my_vbucket);
         return;
     }
-
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    if (vb->getState() != vbucket_state_active) {
+    if (!scan.isVbucketScannable(*vb)) {
         setScanErrorStatus(cb::engine_errc::not_my_vbucket);
         return;
     }

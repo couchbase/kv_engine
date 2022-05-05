@@ -181,6 +181,9 @@ public:
     /// @return true if the scan's total limit has now been reached
     bool isTotalLimitReached() const;
 
+    /// @return true if the vbucket can be scanned (correct state/uuid)
+    bool isVbucketScannable(const VBucket& vb) const;
+
     /// Generate stats for this scan
     void addStats(const StatCollector& collector) const;
 

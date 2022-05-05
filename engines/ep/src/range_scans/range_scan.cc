@@ -13,6 +13,7 @@
 #include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
 #include "ep_bucket.h"
+#include "ep_engine.h"
 #include "failover-table.h"
 #include "kvstore/kvstore.h"
 #include "range_scans/range_scan_callbacks.h"
@@ -81,16 +82,30 @@ cb::rangescan::Id RangeScan::createScan(
     }
 
     if (snapshotReqs) {
-        // @todo: check the uuid of the opened snapshot. The snapshot could now
-        // be from a different vbucket. Do do this it requires a few hoops as
-        // the uuid is only available via raw json (failovers).
-        // Alternative idea rejected was to lock the vb and check the in memory
-        // uuid, but don't want the vb locked whilst doing I/O
+        auto& handle = *scanCtx->handle.get();
+
+        // Must check that vb-uuid of the snapshot matches, it could of changed
+        // since the create was scheduled. We could just do failovers[0]["id"]
+        // but instead choose to construct a FailoverTable for some reuse of
+        // the parsing to cover against a bad JSON structure.
+        auto state = bucket.getRWUnderlying(getVBucketId())
+                             ->getPersistedVBucketState(handle, getVBucketId());
+        FailoverTable ft(state.transition.failovers,
+                         bucket.getEPEngine().getMaxFailoverEntries(),
+                         state.highSeqno);
+        if (ft.getLatestUUID() != snapshotReqs->vbUuid) {
+            throw cb::engine_error(cb::engine_errc::not_my_vbucket,
+                                   fmt::format("RangeScan::createScan {} "
+                                               "snapshotReqs vbUuid mismatch "
+                                               "res:{} vs vbstate:{}",
+                                               getVBucketId(),
+                                               snapshotReqs->vbUuid,
+                                               ft.getLatestUUID()));
+        }
 
         // This could fail, but when we have uuid checking it should not
         Expects(uint64_t(scanCtx->maxSeqno) >= snapshotReqs->seqno);
         if (snapshotReqs->seqnoMustBeInSnapshot) {
-            auto& handle = *scanCtx->handle.get();
             auto gv = bucket.getRWUnderlying(getVBucketId())
                               ->getBySeqno(handle,
                                            getVBucketId(),
@@ -323,6 +338,11 @@ bool RangeScan::isTotalLimitReached() const {
 
 bool RangeScan::isSampling() const {
     return prng != nullptr;
+}
+
+bool RangeScan::isVbucketScannable(const VBucket& vb) const {
+    return vb.getState() == vbucket_state_active &&
+           vb.failovers->getLatestUUID() == vbUuid;
 }
 
 std::function<std::chrono::steady_clock::time_point()> RangeScan::now = []() {

@@ -892,6 +892,94 @@ TEST_P(RangeScanTest, scan_cancels_after_create) {
     // Can't get hold of the scan object as we never got the uuid
 }
 
+// Test that if the vbucket changes after create, but before we run the create
+// task, it is detected when snapshot_requirements are in use
+TEST_P(RangeScanTest, scan_detects_vbucket_change) {
+    auto vb = store->getVBucket(vbid);
+    cb::rangescan::SnapshotRequirements reqs{vb->failovers->getLatestUUID(),
+                                             uint64_t(vb->getHighSeqno()),
+                                             false};
+    vb.reset();
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              store->createRangeScan(vbid,
+                                     scanCollection,
+                                     {"user"},
+                                     {"user\xFF"},
+                                     std::move(handler),
+                                     *cookie,
+                                     getScanType(),
+                                     reqs,
+                                     {})
+                      .first);
+
+    // destroy and create the vbucket - a new uuid will be created
+    EXPECT_TRUE(store->resetVBucket(vbid));
+
+    // Need to poke a few functions to get the create ready to run.
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "Removing (dead) vb:0 from memory and disk");
+
+    // Force a state change to active, generating a new UUID. As the collection
+    // state is not "epoch", this new vbucket will pick up 3 mutations, so we
+    // use flushVBucket directly and not setVBucketStateAndRunPersistTask as
+    // the latter expects 0 items flushed.
+    setVBucketState(vbid, vbucket_state_active);
+    flushVBucket(vbid); // ensures vb on disk has the new uuid
+
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanCreateTask");
+
+    // task detected the vbucket has changed and aborted
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket, mock_waitfor_cookie(cookie));
+}
+
+// Test that if the vbucket changes after during the continue phase, the scan
+// stops. In theory we could still keep scanning as we have the correct
+// snapshot open, but some event has occurred that the scan client should be
+// aware of, the scan would also need to ignore any in-memory values, simpler
+// to just end the scan and report the vbucket change to the client.
+// Note for this test, no snapshot requirements are needed.
+TEST_P(RangeScanTest, scan_detects_vbucket_change_during_continue) {
+    // Create the scan
+    auto uuid = createScan(scanCollection,
+                           {"user"},
+                           {"user\xFF"},
+                           {/* no snapshot requirements */},
+                           {/* no sampling*/});
+
+    // Continue
+    EXPECT_EQ(cb::engine_errc::would_block,
+              store->continueRangeScan(
+                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0)));
+
+    // destroy and create the vbucket - a new uuid will be created
+    EXPECT_TRUE(store->resetVBucket(vbid));
+
+    // Need to poke a few functions to get the create ready to run.
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "Removing (dead) vb:0 from memory and disk");
+
+    // Force a state change to active, generating a new UUID. As the collection
+    // state is not "epoch", this new vbucket will pick up 3 mutations, so we
+    // use flushVBucket directly and not setVBucketStateAndRunPersistTask as
+    // the latter expects 0 items flushed.
+    setVBucketState(vbid, vbucket_state_active);
+    // No need to flush in this test as only in memory VB can be inspected for
+    // the uuid change
+
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+
+    // The scan task detected the change and set the status to not_my_vbucket
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket, status);
+
+    // scan has gone now
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->continueRangeScan(
+                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0)));
+}
+
 bool TestRangeScanHandler::validateStatus(cb::engine_errc code) {
     switch (code) {
     case cb::engine_errc::success:
