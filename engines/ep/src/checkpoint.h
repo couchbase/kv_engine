@@ -572,6 +572,7 @@ public:
      * items queued.
      */
     void detachFromManager();
+
     /**
      * Decrease this checkpoint queuedItemsMemUsage stat by the given size.
      * Used at expel for updating that stat once memory is released.

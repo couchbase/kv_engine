@@ -98,13 +98,6 @@ Checkpoint::~Checkpoint() {
     auto& core = stats.coreLocal.get();
     core->memOverhead.fetch_sub(getMemOverhead());
     core->numCheckpoints--;
-
-    if (manager) {
-        // If this checkpoint is still associated with a manger, detach it
-        // now to ensure all manager stats are updated before the checkpoint
-        // goes away.
-        detachFromManager();
-    }
 }
 
 QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {

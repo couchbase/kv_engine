@@ -75,7 +75,12 @@ CheckpointManager::CheckpointManager(EPStats& st,
     }
 }
 
-CheckpointManager::~CheckpointManager() = default;
+CheckpointManager::~CheckpointManager() {
+    std::lock_guard<std::mutex> lh(queueLock);
+    for (auto& checkpoint : checkpointList) {
+        checkpoint->detachFromManager();
+    }
+}
 
 uint64_t CheckpointManager::getOpenCheckpointId(
         const std::lock_guard<std::mutex>& lh) const {
