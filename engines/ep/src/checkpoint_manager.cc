@@ -524,17 +524,6 @@ bool CheckpointManager::removeCursor(const std::lock_guard<std::mutex>& lh,
         scheduleDestruction(extractClosedUnrefCheckpoints(lh));
     }
 
-    /**
-     * The code bellow is for unit test purposes only and is designed to inject
-     * code to simulate a race condition with the destruction of a cursor. See
-     * for more information MB-36146
-     */
-    if (runGetItemsHook) {
-        queueLock.unlock();
-        runGetItemsHook(cursor, vb.getId());
-        queueLock.lock();
-    }
-
     return true;
 }
 

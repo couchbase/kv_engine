@@ -568,13 +568,6 @@ public:
     size_t getMemFreedByCheckpointRemoval() const;
 
     /**
-     * Member std::function variable, to allow us to inject code into
-     * removeCursor() for unit MB36146
-     */
-    std::function<void(const CheckpointCursor& cursor, Vbid vbid)>
-            runGetItemsHook;
-
-    /**
      * Checks if the CM state pre-conditions for creating a new checkpoint are
      * met and proceeds trying creating a new checkpoint.
      */

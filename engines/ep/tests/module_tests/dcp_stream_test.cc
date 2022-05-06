@@ -1967,69 +1967,6 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
     ASSERT_EQ(backfill_finished, bfm.backfill());
 }
 
-/**
- * Unit test for MB-36146 to ensure that CheckpointCursor do not try to
- * use the currentCheckpoint member variable if its not point to a valid
- * object.
- *
- * 1. Create an item
- * 2. Create a new open checkpoint
- * 3. For persistent vbuckets flush data to disk to move all cursors to the
- * next checkpoint.
- * 4. Create a lamda function that will allow use to mimic the race condition
- * 5. Transition stream state to dead which will call removeCheckpointCursor()
- * 6. Once the CheckpointManager has removed all cursors to the checkpoint
- * call removeClosedUnrefCheckpoints() to delete the checkpoint in memory
- * 7. call getNumItemsForCursor() using the cursor we removed and make sure
- * we don't access the deleted memory
- */
-TEST_P(SingleThreadedActiveStreamTest, MB36146) {
-    auto vb = engine->getVBucket(vbid);
-    auto& ckptMgr = *vb->checkpointManager;
-
-    const auto key = makeStoredDocKey("key");
-    const std::string value = "value";
-    auto item = make_item(vbid, key, value);
-
-    {
-        auto cHandle = vb->lockCollections(item.getKey());
-        EXPECT_EQ(cb::engine_errc::success,
-                  vb->set(item, cookie, *engine, {}, cHandle));
-    }
-
-    // Need to ensure that checkpoints are removed only at some specific point
-    // in the test - see lambda below
-    const auto extraCursor =
-            vb->checkpointManager
-                    ->registerCursorBySeqno(
-                            "cursor", 0, CheckpointCursor::Droppable::Yes)
-                    .cursor.lock();
-    ASSERT_TRUE(extraCursor);
-
-    EXPECT_EQ(2, ckptMgr.createNewCheckpoint());
-
-    if (persistent()) {
-        flush_vbucket_to_disk(vbid);
-    }
-
-    ckptMgr.runGetItemsHook = [this, &ckptMgr, &extraCursor](
-                                      const CheckpointCursor& cursor,
-                                      Vbid vbid) {
-        ASSERT_EQ(2, ckptMgr.getNumCheckpoints());
-        std::vector<queued_item> items;
-        store->getVBucket(vbid)->checkpointManager->getNextItemsForCursor(
-                *extraCursor, items);
-        ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
-
-        size_t numberOfItemsInCursor = 0;
-        EXPECT_NO_THROW(numberOfItemsInCursor =
-                                ckptMgr.getNumItemsForCursor(&cursor));
-        EXPECT_EQ(0, numberOfItemsInCursor);
-    };
-
-    stream->transitionStateToDead();
-}
-
 TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
     auto vb = engine->getVBucket(vbid);
     auto& ckptMgr = *vb->checkpointManager;
