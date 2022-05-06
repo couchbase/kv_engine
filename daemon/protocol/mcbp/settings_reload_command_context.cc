@@ -263,7 +263,7 @@ cb::engine_errc SettingsReloadCommandContext::doSettingsReload() {
                 cookie.getConnectionId(),
                 cookie.getEventId(),
                 cookie.getErrorContext(),
-                extras);
+                extras.dump());
         return cb::engine_errc::failed;
     } catch (const std::exception& exception) {
         cookie.setErrorContext(exception.what());
