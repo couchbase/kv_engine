@@ -553,3 +553,27 @@ TEST_P(InterfacesTest, MB_47707_LocalhostWhitelisted) {
 TEST_P(InterfacesTest, MB_47707_LocalhostNotWhitelisted) {
     test_mb47707(false);
 }
+
+/// memcached hangs when no password is passed for encrypted private key
+TEST_P(InterfacesTest, MB_52058_NoPasswordForEncryptedCert) {
+    nlohmann::json tls_properties = {
+            {"private key",
+             OBJECT_ROOT "/tests/cert/root/ca_root_encrypted.key"},
+            {"certificate chain", OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
+            {"CA file", OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
+            {"minimum version", "TLS 1"},
+            {"cipher list",
+             {{"TLS 1.2", "HIGH"},
+              {"TLS 1.3",
+               "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_"
+               "AES_"
+               "128_GCM_SHA256:TLS_AES_128_CCM_8_SHA256:TLS_AES_128_CCM_"
+               "SHA256"}}},
+            {"cipher order", true},
+            {"client cert auth", "disabled"}};
+
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Ifconfig, "tls", tls_properties.dump()});
+    ASSERT_FALSE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+                                  << rsp.getDataString();
+}

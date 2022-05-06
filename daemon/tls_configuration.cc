@@ -136,22 +136,18 @@ TlsConfiguration::TlsConfiguration(const nlohmann::json& spec)
 
 static int my_pem_password_cb(char* buf, int size, int, void* userdata) {
     if (!userdata) {
-        throw std::runtime_error("my_pem_password_cb called without userdata");
+        throw std::logic_error("my_pem_password_cb called without userdata");
     }
-    auto* json = static_cast<nlohmann::json*>(userdata);
-    auto iter = json->find("password");
-    if (iter == json->end()) {
-        // The password _SHOULD_ be there
-        throw std::invalid_argument(
-                "TlsConfiguration: Failed to locate password");
+    auto& password = *static_cast<std::string*>(userdata);
+    if (password.size() > std::size_t(size)) {
+        LOG_WARNING("The provided password is too long for OpenSSL: ({} > {})",
+                    password.size(),
+                    size);
+        return 0;
     }
-    auto base64 = iter->get<std::string>();
-    auto decoded = cb::base64::decode(base64);
-    if (decoded.size() > std::size_t(size)) {
-        throw std::runtime_error("TlsConfiguration: Password is too long");
-    }
-    std::copy(decoded.begin(), decoded.end(), buf);
-    return decoded.size();
+
+    std::copy(password.begin(), password.end(), buf);
+    return password.size();
 }
 
 nlohmann::json getOpenSslError() {
@@ -185,15 +181,23 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
                                         getOpenSslError());
     }
 
-    if (password) {
-        // The validator should have already checked that the password must
-        // legal. We _must_ have validated that _before_ doing the callback
-        // as we cannot throw an exception from the callback handler as
-        // that would cause OpenSSL to leak memory
-        SSL_CTX_set_default_passwd_cb(server_ctx, my_pem_password_cb);
-        SSL_CTX_set_default_passwd_cb_userdata(
-                server_ctx, const_cast<void*>(static_cast<const void*>(&spec)));
+    auto iter = spec.find("password");
+    std::string userpassword;
+    if (iter != spec.end()) {
+        auto base64 = iter->get<std::string>();
+        auto decoded = cb::base64::decode(base64);
+        std::copy(decoded.begin(),
+                  decoded.end(),
+                  std::back_inserter(userpassword));
     }
+
+    // The validator should have already checked that the password must be
+    // valid base64 encoded data. We _must_ have validated that _before_ doing
+    // the callback as we cannot throw an exception from the callback handler as
+    // that would cause OpenSSL to leak memory
+    SSL_CTX_set_default_passwd_cb(server_ctx, my_pem_password_cb);
+    SSL_CTX_set_default_passwd_cb_userdata(server_ctx,
+                                           static_cast<void*>(&userpassword));
 
     if (!SSL_CTX_use_certificate_chain_file(server_ctx,
                                             certificate_chain.c_str())) {
@@ -211,14 +215,11 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
                 getOpenSslError());
     }
 
-    if (password) {
-        // This might not be necessary, just to make sure that we don't
-        // try to use the userdata we set previously in the SSL instance
-        // created from this ssl context (because we don't want to keep
-        // the password stored in memory)
-        SSL_CTX_set_default_passwd_cb_userdata(server_ctx, nullptr);
-    }
-
+    // This might not be necessary, just to make sure that we don't
+    // try to use the userdata we set previously in the SSL instance
+    // created from this ssl context (because we don't want to keep
+    // the password stored in memory)
+    SSL_CTX_set_default_passwd_cb_userdata(server_ctx, nullptr);
     set_ssl_ctx_ciphers(server_ctx, cipher_list.c_str(), cipher_suites.c_str());
     int ssl_flags = 0;
     switch (clientCertMode) {
