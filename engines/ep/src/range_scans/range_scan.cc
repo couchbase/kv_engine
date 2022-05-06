@@ -74,6 +74,15 @@ cb::rangescan::Id RangeScan::createScan(const CookieIface& cookie,
 
 cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
     EP_LOG_DEBUG("RangeScan {} continue for {}", uuid, getVBucketId());
+
+    // Only attempt scan when !cancelled
+    if (isCancelled()) {
+        // ensure the client/cookie sees cancelled
+        handleStatus(cb::engine_errc::range_scan_cancelled);
+        // but return success so the scan now gets cleaned-up
+        return cb::engine_errc::success;
+    }
+
     auto status = kvstore.scan(*scanCtx);
 
     switch (status) {

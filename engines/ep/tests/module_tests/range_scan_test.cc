@@ -425,6 +425,20 @@ TEST_P(RangeScanTest, create_cancel) {
     EXPECT_TRUE(handler->scannedItems.empty());
 }
 
+TEST_P(RangeScanTest, create_cancel_no_data) {
+    // this scan will generate no callbacks internally, but must still safely
+    // cancel
+    auto uuid = createScan(scanCollection, {"0"}, {"0\xFF"});
+    auto vb = store->getVBucket(vbid);
+    EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, true));
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+
+    // Nothing read
+    EXPECT_TRUE(handler->scannedKeys.empty());
+    EXPECT_TRUE(handler->scannedItems.empty());
+}
+
 // Check that if a scan has been continue (but is waiting to run), it can be
 // cancelled. When the task runs the scan cancels.
 TEST_P(RangeScanTest, create_continue_is_cancelled) {
