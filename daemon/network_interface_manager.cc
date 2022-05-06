@@ -500,16 +500,21 @@ NetworkInterfaceManager::doTlsReconfigure(const nlohmann::json& spec) {
         LOG_INFO("TLS configuration changed to: {}", desc);
         return {cb::mcbp::Status::Success, std::move(desc)};
     } catch (const std::exception& e) {
+        LOG_WARNING("TLS configuration failed: {}", e.what());
         return {cb::mcbp::Status::Einternal, e.what()};
     }
 }
 
 uniqueSslPtr NetworkInterfaceManager::createClientSslHandle() {
     uniqueSslPtr ret;
-    tlsConfiguration.withRLock([&ret](auto& config) {
-        if (config) {
-            ret = config->createClientSslHandle();
-        }
-    });
+    try {
+        tlsConfiguration.withRLock([&ret](auto& config) {
+            if (config) {
+                ret = config->createClientSslHandle();
+            }
+        });
+    } catch (const std::exception& e) {
+        LOG_WARNING("Create TLS handle failed: {}", e.what());
+    }
     return ret;
 }

@@ -181,18 +181,6 @@ TEST_F(TlsConfigurationTest, Basic) {
     }
 }
 
-TEST_F(TlsConfigurationTest, PasswordNotUsedIfFileNotEncrypted) {
-    try {
-        // We don't try to decode the password until it is actually used
-        // Lets use something which isn't base64 encoded so that it would
-        // fail to decode that if it ever was used
-        legalSpec["password"] = ".";
-        TlsConfiguration configuration(legalSpec);
-    } catch (const std::exception& e) {
-        FAIL() << e.what() << std::endl << legalSpec.dump();
-    }
-}
-
 TEST_F(TlsConfigurationTest, PasswordProtectedKey) {
     try {
         legalSpec["password"] =
