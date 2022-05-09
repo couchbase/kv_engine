@@ -72,8 +72,8 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
              connection.getPeername(),
              cb::UserDataView(connection.getUser().name));
 
-    /* associate the connection with the appropriate bucket */
-    {
+    if (Settings::instance().isDeprecatedBucketAutoselectEnabled()) {
+        // associate the connection with the appropriate bucket
         const auto username = connection.getUser().name;
         if (mayAccessBucket(cookie, username)) {
             associate_bucket(cookie, username.c_str());
@@ -90,6 +90,9 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
             // connection to the "no bucket"
             associate_bucket(cookie, "");
         }
+    } else if (connection.getBucket().type == BucketType::NoBucket ||
+               !mayAccessBucket(cookie, connection.getBucket().name)) {
+        associate_bucket(cookie, "");
     }
 
     cookie.sendResponse(cb::mcbp::Status::Success,

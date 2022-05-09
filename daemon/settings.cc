@@ -282,6 +282,11 @@ static void handle_datatype_json(Settings& s, const nlohmann::json& obj) {
     s.setDatatypeJsonEnabled(obj.get<bool>());
 }
 
+static void handle_enable_deprecated_bucket_autoselect(
+        Settings& s, const nlohmann::json& obj) {
+    s.setDeprecatedBucketAutoselectEnabled(obj.get<bool>());
+}
+
 /**
  * Handle the "datatype_snappy" tag in the settings
  *
@@ -667,6 +672,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"audit_file", handle_audit_file},
             {"deployment_model", handle_deployment_model},
             {"error_maps_dir", handle_error_maps_dir},
+            {"enable_deprecated_bucket_autoselect",
+             handle_enable_deprecated_bucket_autoselect},
             {"threads", handle_threads},
             {"interfaces", handle_interfaces},
             {"logger", handle_logger},
@@ -839,6 +846,15 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      other_val_str);
             setDatatypeSnappyEnabled(other.datatype_snappy);
         }
+    }
+
+    if (other.has.enable_deprecated_bucket_autoselect &&
+        other.enable_deprecated_bucket_autoselect !=
+                enable_deprecated_bucket_autoselect) {
+        LOG_INFO("{}able deprecated bucket autoselect",
+                 other.enable_deprecated_bucket_autoselect ? "En" : "Dis");
+        setDeprecatedBucketAutoselectEnabled(
+                other.enable_deprecated_bucket_autoselect);
     }
 
     if (other.has.verbose) {

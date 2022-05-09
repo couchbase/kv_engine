@@ -65,6 +65,11 @@
   },
   "jones": {
     "buckets": {
+      "jones": [
+        "Insert",
+        "Delete",
+        "Upsert"
+      ],
       "rbac_test": [
         "Insert",
         "Delete",

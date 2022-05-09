@@ -448,20 +448,43 @@ TEST_P(RbacRoleTest, NoAccessToSystemXattrs) {
     ASSERT_TRUE(resp.isSuccess());
 }
 
-TEST_P(RbacRoleTest, DontAutoselectBucket) {
-    adminConnection->createBucket("larry", "", BucketType::Memcached);
+// Authenticate as jones; he has access to the bucket named jones and
+// make sure we don't automatically select that buket. Then select the
+// bucket jones and reauthenticate as Larry. Larry on the other hand
+// doesn't have access to the bucket named jones and should be
+// moved out of the bucket
+TEST_P(RbacRoleTest, DontAutoselectBucketNoAccess) {
+    adminConnection->createBucket("jones", "", BucketType::Memcached);
 
-    // Authenticate as larry
     auto& conn = getConnection();
-    conn.authenticate("larry", "larrypassword", "PLAIN");
+    conn.authenticate("jones", mcd_env->getPassword("jones"));
 
-    // If we try to run a get request it should return no bucket
-    BinprotSubdocCommand cmd;
-    cmd.setOp(cb::mcbp::ClientOpcode::SubdocGet);
-    cmd.setKey("foo");
-    cmd.setPath("doc.meta");
-    const auto resp = conn.execute(cmd);
-    EXPECT_EQ(cb::mcbp::Status::NoBucket, resp.getStatus());
+    nlohmann::json json;
+    conn.stats([&json](const auto& k,
+                       const auto& v) { json = nlohmann::json::parse(v); },
+               "connections self");
 
-    adminConnection->deleteBucket("larry");
+    ASSERT_FALSE(json.empty()) << "connections self did not return JSON";
+    ASSERT_EQ(0, json["bucket_index"]) << "Should not be put in another bucket";
+    conn.selectBucket("jones");
+    json = {};
+    conn.stats([&json](const auto& k,
+                       const auto& v) { json = nlohmann::json::parse(v); },
+               "connections self");
+
+    ASSERT_FALSE(json.empty()) << "connections self did not return JSON";
+    ASSERT_NE(0, json["bucket_index"]) << "Should not be in no-bucket";
+
+    conn.authenticate("larry", mcd_env->getPassword("larry"));
+    json = {};
+    conn.stats([&json](const auto& k,
+                       const auto& v) { json = nlohmann::json::parse(v); },
+               "connections self");
+
+    ASSERT_FALSE(json.empty()) << "connections self did not return JSON";
+    ASSERT_EQ(0, json["bucket_index"])
+            << "larry does not have access to the bucket named jones and "
+               "should be in no-bucket";
+
+    adminConnection->deleteBucket("jones");
 }

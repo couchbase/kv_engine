@@ -801,6 +801,18 @@ public:
         has.deployment_model = true;
     }
 
+    bool isDeprecatedBucketAutoselectEnabled() {
+        return enable_deprecated_bucket_autoselect.load(
+                std::memory_order_acquire);
+    }
+
+    void setDeprecatedBucketAutoselectEnabled(bool val) {
+        enable_deprecated_bucket_autoselect.store(val,
+                                                  std::memory_order_release);
+        has.enable_deprecated_bucket_autoselect = true;
+        notify_changed("enable_deprecated_bucket_autoselect");
+    }
+
 protected:
     /// The file containing audit configuration
     std::string audit_file;
@@ -962,6 +974,8 @@ protected:
 
     std::atomic<DeploymentModel> deployment_model{DeploymentModel::Normal};
 
+    std::atomic_bool enable_deprecated_bucket_autoselect{false};
+
     void notify_changed(const std::string& key);
 
 public:
@@ -984,6 +998,7 @@ public:
         bool reqs_per_event_low_priority = false;
         bool default_reqs_per_event = false;
         bool deployment_model = false;
+        bool enable_deprecated_bucket_autoselect = false;
         bool verbose = false;
         bool connection_idle_time = false;
         bool datatype_json = false;
