@@ -438,65 +438,84 @@ void CheckpointManager::registerBackupPersistenceCursor(
 }
 
 bool CheckpointManager::removeCursor(CheckpointCursor& cursor) {
-    std::lock_guard<std::mutex> lh(queueLock);
-    return removeCursor(lh, cursor);
+    RemoveCursorResult res;
+    {
+        std::lock_guard<std::mutex> lh(queueLock);
+        res = removeCursor(lh, cursor);
+    }
+
+    scheduleDestruction(std::move(res.removed));
+
+    return true;
 }
 
 void CheckpointManager::removeBackupPersistenceCursor() {
-    std::lock_guard<std::mutex> lh(queueLock);
-    auto* backupCursor = cursors.at(backupPCursorName).get();
-    Expects(backupCursor);
-    const auto res = removeCursor(lh, *backupCursor);
-    Expects(res);
+    RemoveCursorResult res;
+    {
+        std::lock_guard<std::mutex> lh(queueLock);
+        auto* backupCursor = cursors.at(backupPCursorName).get();
+        Expects(backupCursor);
+        res = removeCursor(lh, *backupCursor);
+        Expects(res.success);
 
-    // Reset (recreate) the potential stats overcounts as our flush was
-    // successful
-    persistenceFailureStatOvercounts = AggregatedFlushStats();
+        // Reset (recreate) the potential stats overcounts as our flush was
+        // successful
+        persistenceFailureStatOvercounts = AggregatedFlushStats();
+    }
+
+    scheduleDestruction(std::move(res.removed));
 }
 
 AggregatedFlushStats CheckpointManager::resetPersistenceCursor() {
-    std::lock_guard<std::mutex> lh(queueLock);
-
-    // Note: the logic here relies on the existing cursor copy-ctor and
-    //  CM::removeCursor function for getting the checkpoint num-cursors
-    //  computation right
-
-    // 1) Remove the existing pcursor
-    Expects(persistenceCursor);
-    auto remResult = removeCursor(lh, *persistenceCursor);
-    Expects(remResult);
-    pCursor = Cursor();
-    persistenceCursor = nullptr;
-
-    // 2) Make the new pcursor from the backup copy, assign the correct name
-    // and register it
-    auto* backup = cursors.at(backupPCursorName).get();
-    const auto newPCursor =
-            std::make_shared<CheckpointCursor>(*backup, pCursorName);
-    cursors[pCursorName] = newPCursor;
-    pCursor.setCursor(newPCursor);
-    persistenceCursor = pCursor.lock().get();
-
-    // 3) Remove old backup
-    Expects(backup);
-    remResult = removeCursor(lh, *backup);
-    Expects(remResult);
-
-    // Swap the stat counts to reset them for the next flush - return the
-    // one we accumulated for the caller to adjust the VBucket stats
     AggregatedFlushStats ret;
-    std::swap(ret, persistenceFailureStatOvercounts);
+    RemoveCursorResult resRemPCursor;
+    RemoveCursorResult resRemBackupCursor;
+    {
+        std::lock_guard<std::mutex> lh(queueLock);
+
+        // Note: the logic here relies on the existing cursor copy-ctor and
+        //  CM::removeCursor function for getting the checkpoint num-cursors
+        //  computation right
+
+        // 1) Remove the existing pcursor
+        Expects(persistenceCursor);
+        resRemPCursor = removeCursor(lh, *persistenceCursor);
+        Expects(resRemPCursor.success);
+        pCursor = Cursor();
+        persistenceCursor = nullptr;
+
+        // 2) Make the new pcursor from the backup copy, assign the correct name
+        // and register it
+        auto* backup = cursors.at(backupPCursorName).get();
+        const auto newPCursor =
+                std::make_shared<CheckpointCursor>(*backup, pCursorName);
+        cursors[pCursorName] = newPCursor;
+        pCursor.setCursor(newPCursor);
+        persistenceCursor = pCursor.lock().get();
+
+        // 3) Remove old backup
+        Expects(backup);
+        resRemBackupCursor = removeCursor(lh, *backup);
+        Expects(resRemBackupCursor.success);
+
+        // Swap the stat counts to reset them for the next flush - return the
+        // one we accumulated for the caller to adjust the VBucket stats
+        std::swap(ret, persistenceFailureStatOvercounts);
+    }
+
+    scheduleDestruction(std::move(resRemPCursor.removed));
+    scheduleDestruction(std::move(resRemBackupCursor.removed));
 
     return ret;
 }
 
-bool CheckpointManager::removeCursor(const std::lock_guard<std::mutex>& lh,
-                                     CheckpointCursor& cursor) {
+CheckpointManager::RemoveCursorResult CheckpointManager::removeCursor(
+        const std::lock_guard<std::mutex>& lh, CheckpointCursor& cursor) {
     // We have logic "race conditions" that may lead to legally executing here
     // when the cursor has already been marked invalid, so we just return if
     // that is the case. See MB-45757 for details.
     if (!cursor.valid()) {
-        return false;
+        return {false, {}};
     }
 
     EP_LOG_DEBUG("Remove the checkpoint cursor with the name \"{}\" from {}",
@@ -515,16 +534,17 @@ bool CheckpointManager::removeCursor(const std::lock_guard<std::mutex>& lh,
                 " Failed to remove cursor: " + cursor.getName());
     }
 
-    if (isEligibleForRemoval(*checkpoint)) {
-        // after removing `cursor`, perhaps the oldest checkpoint is now
-        // unreferenced, and can be removed. BUT - this cursor has been
-        // removed, not just moved to the next checkpoint. Therefore,
-        // multiple checkpoints may be eligible for removal. Check for multiple,
-        // not just the oldest.
-        scheduleDestruction(extractClosedUnrefCheckpoints(lh));
+    // after removing `cursor`, perhaps the oldest checkpoint is now
+    // unreferenced, and can be removed. BUT - this cursor has been
+    // removed, not just moved to the next checkpoint. Therefore,
+    // multiple checkpoints may be eligible for removal. Check for multiple,
+    // not just the oldest.
+
+    if (!isEligibleForRemoval(*checkpoint)) {
+        return {true, {}};
     }
 
-    return true;
+    return {true, extractClosedUnrefCheckpoints(lh)};
 }
 
 bool CheckpointManager::isEligibleForRemoval(
@@ -534,10 +554,22 @@ bool CheckpointManager::isEligibleForRemoval(
            checkpoint.getState() == checkpoint_state::CHECKPOINT_CLOSED;
 }
 
-void CheckpointManager::maybeScheduleDestruction(const Checkpoint& checkpoint) {
-    if (!isEligibleForRemoval(checkpoint)) {
+void CheckpointManager::maybeScheduleDestruction(Checkpoint& c) {
+    if (!isEligibleForRemoval(c)) {
         return;
     }
+
+    // We are removing the checkpoint from CM, we need to update some stats.
+
+    auto& checkpoint = **checkpointList.begin();
+    Expects(&c == &checkpoint);
+
+    checkpoint.detachFromManager();
+    const auto removedItems = checkpoint.getNumItems();
+    numItems.fetch_sub(removedItems);
+    stats.itemsRemovedFromCheckpoints.fetch_add(removedItems);
+    memFreedByCheckpointRemoval += checkpoint.getMemUsage();
+    overheadChangedCallback(-checkpoint.getMemOverheadAllocatorBytes());
 
     // Checkpoints must be removed in order, only the oldest is eligible
     // when removing checkpoints one at a time.
@@ -550,39 +582,47 @@ void CheckpointManager::maybeScheduleDestruction(const Checkpoint& checkpoint) {
                           checkpointList.begin(),
                           std::next(checkpointList.begin()),
                           1 /* distance */);
-
-    scheduleDestruction(std::move(forDestruction));
+    vb.scheduleDestruction(std::move(forDestruction));
 }
 
 void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {
     if (toRemove.empty()) {
         return;
     }
-    updateStatsForCheckpointRemoval(toRemove);
-    vb.scheduleDestruction(std::move(toRemove));
-}
 
-void CheckpointManager::updateStatsForCheckpointRemoval(
-        const CheckpointList& toRemove) {
-    // Update stats and compute return value
+    // We need to update some stats. The operation requires a full scan of the
+    // toRemove list, that can be large when this function executes in the
+    // CursorDrop path. So scan is lock-free and we acquire the lock just for
+    // applying the stats update.
     size_t numItemsRemoved = 0;
     size_t memoryReleased = 0;
+    size_t memOverheadAllocator = 0;
     for (const auto& checkpoint : toRemove) {
         numItemsRemoved += checkpoint->getNumItems();
         memoryReleased += checkpoint->getMemUsage();
+        memOverheadAllocator += checkpoint->getMemOverheadAllocatorBytes();
+
         checkpoint->detachFromManager();
     }
-    numItems.fetch_sub(numItemsRemoved);
-    stats.itemsRemovedFromCheckpoints.fetch_add(numItemsRemoved);
-    memFreedByCheckpointRemoval += memoryReleased;
 
     EP_LOG_DEBUG(
-            "CheckpointManager::updateStatsForCheckpointRemoval: Removed {} "
-            "checkpoints, {} items, {} bytes from {}",
+            "CheckpointManager::scheduleDestruction: Removed {} checkpoints, "
+            "{} items, {} bytes from {}",
             toRemove.size(),
             numItemsRemoved,
             memoryReleased,
             vb.getId());
+
+    {
+        std::lock_guard<std::mutex> lh(queueLock);
+        numItems.fetch_sub(numItemsRemoved);
+        stats.itemsRemovedFromCheckpoints.fetch_add(numItemsRemoved);
+        memFreedByCheckpointRemoval += memoryReleased;
+        overheadChangedCallback(-memOverheadAllocator);
+    }
+
+    // All done, pass checkpoints to the Destroyer
+    vb.scheduleDestruction(std::move(toRemove));
 }
 
 CheckpointManager::ReleaseResult

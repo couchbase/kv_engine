@@ -655,10 +655,6 @@ void Checkpoint::addStats(const AddStatFn& add_stat,
 
 void Checkpoint::detachFromManager() {
     Expects(manager);
-
-    // decrease the manager memory overhead by the total amount of this
-    // checkpoint
-    manager->overheadChangedCallback(-getMemOverheadAllocatorBytes());
     manager = nullptr;
 
     // In EPStats we track the mem used by checkpoints owned by CM, so we need

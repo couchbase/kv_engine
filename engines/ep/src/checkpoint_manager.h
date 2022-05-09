@@ -606,19 +606,12 @@ protected:
      * isEligibleForRemoval(...)) and if so, removes it and schedules it for
      * destruction on a background task.
      */
-    void maybeScheduleDestruction(const Checkpoint& checkpoint);
+    void maybeScheduleDestruction(Checkpoint& checkpoint);
 
     /**
      * Schedules the provided checkpoints for destruction on a background task.
      */
     void scheduleDestruction(CheckpointList&& toRemove);
-
-    /**
-     * Update stats regarding checkpoints which have been removed from the
-     * manager.
-     * @param toRemove the checkpoints which are about to be removed
-     */
-    void updateStatsForCheckpointRemoval(const CheckpointList& toRemove);
 
     /**
      * Advance the given cursor. Protected as it's valid to call this from
@@ -667,15 +660,25 @@ protected:
     std::function<void(int64_t delta)> overheadChangedCallback{[](int64_t) {}};
 
     /**
+     * Return type of removeCursor().
+     *  - bool: true is the cursor was removed, false otherwise
+     *  - CheckpointList: checkpoints possibly made unreferenced and removed
+     */
+    struct RemoveCursorResult {
+        bool success;
+        CheckpointList removed;
+    };
+
+    /**
      * Marks the given cursor invalid and removes it from the internal
      * cursor-map.
      *
      * @param lh lock guard holding the queueLock
      * @param cursor
-     * @return true is the cursor was removed, false otherwise
+     * @return RemoveCursorResult, see struct definition
      */
-    bool removeCursor(const std::lock_guard<std::mutex>& lh,
-                      CheckpointCursor& cursor);
+    RemoveCursorResult removeCursor(const std::lock_guard<std::mutex>& lh,
+                                    CheckpointCursor& cursor);
 
     /**
      * Register a cursor within the checkpoint.
