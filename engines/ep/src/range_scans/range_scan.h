@@ -220,6 +220,13 @@ protected:
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
             std::optional<cb::rangescan::SamplingConfiguration> samplingConfig);
 
+    /**
+     * method used in construction - a range scan can only be created if 1 or
+     * more keys exist in the range. Detecting an empty range allows KV to fail
+     * the create
+     */
+    void tryAndScanOneKey(KVStoreIface& kvstore);
+
     /// @return true if this scan is a random sample scan
     bool isSampling() const;
 

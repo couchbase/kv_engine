@@ -562,19 +562,14 @@ TEST_P(RangeScanTest, create_cancel) {
     EXPECT_EQ(cb::engine_errc::sync_write_ambiguous, status);
 }
 
-TEST_P(RangeScanTest, create_cancel_no_data) {
-    // this scan will generate no callbacks internally, but must still safely
-    // cancel
-    auto uuid = createScan(scanCollection, {"0"}, {"0\xFF"});
-    auto vb = store->getVBucket(vbid);
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->cancelRangeScan(uuid, cookie, true));
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                "RangeScanContinueTask");
-
-    // Nothing read
-    EXPECT_TRUE(scannedKeys.empty());
-    EXPECT_TRUE(scannedItems.empty());
+TEST_P(RangeScanTest, create_no_data) {
+    // create will fail if no data is in range
+    createScan(scanCollection,
+               {"0"},
+               {"0\xFF"},
+               {},
+               {/* no sampling config*/},
+               cb::engine_errc::no_such_key);
 }
 
 // Check that if a scan has been continue (but is waiting to run), it can be

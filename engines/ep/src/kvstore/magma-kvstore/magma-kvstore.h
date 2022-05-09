@@ -223,14 +223,14 @@ public:
             SnapshotSource source,
             std::unique_ptr<KVFileHandle> fileHandle = nullptr) const override;
 
-
     std::unique_ptr<ByIdScanContext> initByIdScanContext(
             std::unique_ptr<StatusCallback<GetValue>> cb,
             std::unique_ptr<StatusCallback<CacheLookup>> cl,
             Vbid vbid,
             const std::vector<ByIdRange>& ranges,
             DocumentFilter options,
-            ValueFilter valOptions) const override;
+            ValueFilter valOptions,
+            std::unique_ptr<KVFileHandle> handle = nullptr) const override;
 
     ScanStatus scan(BySeqnoScanContext& sctx) const override;
     ScanStatus scan(ByIdScanContext& ctx) const override;

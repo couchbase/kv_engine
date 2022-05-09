@@ -159,6 +159,19 @@ TEST_P(RangeScanTest, CreateCancel) {
     ASSERT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
 }
 
+// Empty range fails at the create point
+TEST_P(RangeScanTest, CreateEmpty) {
+    auto start = cb::base64::encode("L", false);
+    auto end = cb::base64::encode("M\xFF", false);
+    nlohmann::json emptyRange = {{"range", {{"start", start}, {"end", end}}}};
+    BinprotRangeScanCreate create(Vbid(0), emptyRange);
+    userConnection->sendCommand(create);
+
+    BinprotResponse resp;
+    userConnection->recvResponse(resp);
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
+}
+
 void RangeScanTest::drainKeyResponse(const BinprotResponse& response) {
     if (response.getDataView().empty()) {
         return;

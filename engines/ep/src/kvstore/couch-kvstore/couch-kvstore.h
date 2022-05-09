@@ -330,7 +330,8 @@ public:
             Vbid vbid,
             const std::vector<ByIdRange>& ranges,
             DocumentFilter options,
-            ValueFilter valOptions) const override;
+            ValueFilter valOptions,
+            std::unique_ptr<KVFileHandle> handle = nullptr) const override;
 
     ScanStatus scan(BySeqnoScanContext& sctx) const override;
     ScanStatus scan(ByIdScanContext& sctx) const override;

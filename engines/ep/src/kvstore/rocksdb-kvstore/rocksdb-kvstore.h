@@ -273,7 +273,8 @@ public:
             Vbid vbid,
             const std::vector<ByIdRange>& ranges,
             DocumentFilter options,
-            ValueFilter valOptions) const override {
+            ValueFilter valOptions,
+            std::unique_ptr<KVFileHandle> fileHandle = nullptr) const override {
         throw std::runtime_error(
                 "RocksDB no support for byID initByIdScanContext");
     }

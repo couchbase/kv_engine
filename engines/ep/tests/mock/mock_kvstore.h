@@ -156,7 +156,8 @@ public:
                  Vbid vbid,
                  const std::vector<ByIdRange>& ranges,
                  DocumentFilter options,
-                 ValueFilter valOptions),
+                 ValueFilter valOptions,
+                 std::unique_ptr<KVFileHandle> handle),
                 (const, override));
     MOCK_METHOD(ScanStatus,
                 scan,

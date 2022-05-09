@@ -523,7 +523,12 @@ public:
      * @param cl Cache lookup callback - ownership passes to the returned object
      * @param vbid vbucket to scan
      * @param ranges Multiple ranges can be scanned, this param specifies them
-     * If the ScanContext cannot be created, returns null.
+     * @param options DocumentFilter for the scan - e.g. return deleted items
+     * @param valOptions ValueFilter - e.g. return the document body
+     * @param handle optional KVFileHandle to use in the scan. If handle is a
+     *        nullptr then the method will create a new KVFileHandle for the
+     *        scan context.
+     * @returns nullptr for failure or a ByIdScanContext for use with ::scan
      */
     virtual std::unique_ptr<ByIdScanContext> initByIdScanContext(
             std::unique_ptr<StatusCallback<GetValue>> cb,
@@ -531,7 +536,8 @@ public:
             Vbid vbid,
             const std::vector<ByIdRange>& ranges,
             DocumentFilter options,
-            ValueFilter valOptions) const = 0;
+            ValueFilter valOptions,
+            std::unique_ptr<KVFileHandle> handle = nullptr) const = 0;
 
     /**
      * Run a BySeqno scan

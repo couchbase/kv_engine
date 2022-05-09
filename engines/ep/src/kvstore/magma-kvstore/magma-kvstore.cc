@@ -1745,8 +1745,11 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
         Vbid vbid,
         const std::vector<ByIdRange>& ranges,
         DocumentFilter options,
-        ValueFilter valOptions) const {
-    auto handle = makeFileHandle(vbid);
+        ValueFilter valOptions,
+        std::unique_ptr<KVFileHandle> handle) const {
+    if (!handle) {
+        handle = makeFileHandle(vbid);
+    }
 
     if (!handle) {
         logger->warn(

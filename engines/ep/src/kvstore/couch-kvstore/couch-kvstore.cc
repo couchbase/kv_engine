@@ -2251,8 +2251,11 @@ std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
         Vbid vbid,
         const std::vector<ByIdRange>& ranges,
         DocumentFilter options,
-        ValueFilter valOptions) const {
-    auto handle = makeFileHandle(vbid);
+        ValueFilter valOptions,
+        std::unique_ptr<KVFileHandle> handle) const {
+    if (!handle) {
+        handle = makeFileHandle(vbid);
+    }
 
     if (!handle) {
         // makeFileHandle/openDb will have logged details of failure.

@@ -155,8 +155,64 @@ cb::rangescan::Id RangeScan::createScan(
         }
     }
 
+    if (!samplingConfig) {
+        // When not sampling, check for a key in the range (sampling works on
+        // the entire collection, and we've checked the collection stats)
+        tryAndScanOneKey(*bucket.getRWUnderlying(getVBucketId()));
+    }
+
     // Generate the scan ID (which may also incur i/o)
     return boost::uuids::random_generator()();
+}
+
+void RangeScan::tryAndScanOneKey(KVStoreIface& kvstore) {
+    struct FindMaxCommittedItem : public StatusCallback<CacheLookup> {
+        void callback(CacheLookup&) override {
+            // Immediately yield and the caller to scan will see the Yield
+            // status and know at least one key exists
+            yield();
+        }
+    };
+
+    struct FailingGetValueCallback : public StatusCallback<GetValue> {
+        void callback(GetValue&) override {
+            // should never get here as the CacheLookup stops the scan if any
+            // keys exist
+            Expects(false);
+        }
+    };
+
+    auto checkOneKey = kvstore.initByIdScanContext(
+            std::make_unique<FailingGetValueCallback>(),
+            std::make_unique<FindMaxCommittedItem>(),
+            getVBucketId(),
+            {ByIdRange{start, end}},
+            DocumentFilter::NO_DELETES,
+            ValueFilter::VALUES_COMPRESSED,
+            std::move(scanCtx->handle));
+
+    auto status = kvstore.scan(*checkOneKey);
+
+    switch (status) {
+    case ScanStatus::Success:
+        throw cb::engine_error(cb::engine_errc::no_such_key,
+                               fmt::format("RangeScan::createScan {} no "
+                                           "keys in range",
+                                           getVBucketId()));
+    case ScanStatus::Cancelled:
+    case ScanStatus::Failed:
+        throw cb::engine_error(
+                cb::engine_errc::failed,
+                fmt::format("RangeScan::createScan {} scan failed "
+                            "{}",
+                            status,
+                            getVBucketId()));
+    case ScanStatus::Yield: {
+        // At least 1 key, return the handle and the scan can run from the user
+        // initiated range-scan-continue
+        scanCtx->handle = std::move(checkOneKey->handle);
+    }
+    }
 }
 
 cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {

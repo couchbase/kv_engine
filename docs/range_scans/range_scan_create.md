@@ -213,6 +213,10 @@ response shows UUID 00112233-4455-6677-8899-aabbccddeeff.
 
 ### Errors
 
+**Status::KeyEnoent (0x01)**
+
+The requested range is empty.
+
 **Status::NotStored (0x05)**
 
 When snapshot requirements are defined, this status indicates that the sequence

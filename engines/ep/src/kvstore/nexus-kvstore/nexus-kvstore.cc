@@ -2686,7 +2686,8 @@ std::unique_ptr<ByIdScanContext> NexusKVStore::initByIdScanContext(
         Vbid vbid,
         const std::vector<ByIdRange>& ranges,
         DocumentFilter docFilter,
-        ValueFilter valFilter) const {
+        ValueFilter valFilter,
+        std::unique_ptr<KVFileHandle> fileHandle) const {
     // Need to take the Nexus lock for the vBucket to stop racing flushes (or
     // compactions) from modifying one of the KVStores and not the other
     auto lh = getLock(vbid);
