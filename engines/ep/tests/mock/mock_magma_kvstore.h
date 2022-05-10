@@ -21,7 +21,7 @@ public:
 
     ReadVBStateResult readVBStateFromDisk(Vbid vbid);
 
-    MagmaKVStore::DiskState readVBStateFromDisk(
+    ReadVBStateResult readVBStateFromDisk(
             Vbid vbid, magma::Magma::Snapshot& snapshot) const override;
 
     int saveDocs(MagmaKVStoreTransactionContext& txnCtx,
