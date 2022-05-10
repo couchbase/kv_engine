@@ -3414,6 +3414,7 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     const auto initialQueued = checkpoint->getQueuedItemsMemUsage();
     const auto initialQueueOverhead = checkpoint->getMemOverheadQueue();
     const auto initialIndex = checkpoint->getMemOverheadIndex();
+    const auto initialMemOverhead = stats.getMemOverhead();
     auto checkpointOverhead = manager.getNumCheckpoints() * sizeof(Checkpoint);
     // Some metaitems are already in the queue
     EXPECT_GT(initialQueued, 0);
@@ -3426,6 +3427,7 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
               manager.getMemUsage());
 
     size_t itemsAlloc = 0;
+    size_t itemOverheadAlloc = 0;
     size_t queueAlloc = 0;
     size_t keyIndexAlloc = 0;
     const size_t numItems = 10;
@@ -3437,6 +3439,7 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
         // Our estimated mem-usage must account for the queued item + the
         // allocation for the key-index
         itemsAlloc += item->size();
+        itemOverheadAlloc += (item->size() - item->getValMemSize());
         queueAlloc += Checkpoint::per_item_queue_overhead;
         keyIndexAlloc += item->getKey().size() + sizeof(IndexEntry);
     }
@@ -3453,6 +3456,9 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     EXPECT_EQ(initialQueued + itemsAlloc, queued);
     EXPECT_EQ(initialQueueOverhead + queueAlloc, queueOverhead);
     EXPECT_EQ(initialIndex + keyIndexAlloc, index);
+    EXPECT_EQ(
+            initialMemOverhead + queueAlloc + keyIndexAlloc + itemOverheadAlloc,
+            stats.getMemOverhead());
     EXPECT_EQ(queued + index + queueOverhead + checkpointOverhead,
               stats.getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(queued + index + queueOverhead + checkpointOverhead,
@@ -3506,6 +3512,7 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
     testCheckpointManagerMemUsage();
 
     auto vb = store->getVBuckets().getBucket(vbid);
+    const auto& stats = engine->getEpStats();
     auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
     EXPECT_EQ(1, manager.getNumCheckpoints());
     const auto initialNumItems = manager.getNumOpenChkItems();
@@ -3520,6 +3527,7 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
     const auto initialQueued = checkpoint.getQueuedItemsMemUsage();
     const auto initialQueueOverhead = checkpoint.getMemOverheadQueue();
     const auto initialIndex = checkpoint.getMemOverheadIndex();
+    const auto initialMemOverhead = stats.getMemOverhead();
 
     auto& cursor = *manager.getPersistenceCursor();
     auto pos = (*CheckpointCursorIntrospector::getCurrentPos(cursor));
@@ -3530,7 +3538,9 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
     // As a collateral thing, I need to keep track of sizes of items that we are
     // going to expel, that's to make our final verification on memory counters.
     size_t setVBStateSize = 0;
+    size_t setVBStateOverhead = 0;
     size_t m1Size = 0;
+    size_t m1Overhead = 0;
     // While these are helpers for other checks later in the test.
     size_t emptySize = pos->size();
     size_t ckptStartSize = 0;
@@ -3542,9 +3552,11 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
             ckptStartSize = pos->size();
         } else if (pos->getOperation() == queue_op::set_vbucket_state) {
             setVBStateSize = pos->size();
+            setVBStateOverhead = (setVBStateSize - pos->getValMemSize());
         } else if (pos->getOperation() == queue_op::mutation &&
                    pos->getBySeqno() == 1) {
             m1Size = pos->size();
+            m1Overhead = (m1Size - pos->getValMemSize());
         }
     }
 
@@ -3557,7 +3569,6 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
     ASSERT_EQ(2, pos->getBySeqno());
 
     ASSERT_EQ(0, manager.getMemFreedByItemExpel());
-    const auto& stats = engine->getEpStats();
     ASSERT_EQ(0, stats.memFreedByCheckpointItemExpel);
 
     // Expelling set-vbstate + m:1
@@ -3584,9 +3595,11 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
     // Expel doesn't touch the key index
     EXPECT_EQ(initialIndex, index);
     EXPECT_EQ(queued + index + queueOverhead + checkpointOverhead,
-              engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
+              stats.getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(queued + index + queueOverhead + checkpointOverhead,
               manager.getMemUsage());
+    EXPECT_EQ(initialMemOverhead - setVBStateOverhead - m1Overhead,
+              stats.getMemOverhead());
 
     EXPECT_GT(manager.getMemFreedByItemExpel(), 0);
     EXPECT_EQ(manager.getMemFreedByItemExpel(),

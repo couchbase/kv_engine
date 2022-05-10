@@ -94,15 +94,8 @@ Checkpoint::~Checkpoint() {
     EP_LOG_DEBUG("Checkpoint {} for {} is purged from memory",
                  checkpointId,
                  vbucketId);
-    /**
-     * Calculate as best we can the overhead associated with the queue
-     * (toWrite). This is approximated to sizeof(queued_item) * number
-     * of queued_items in the checkpoint.
-     */
-    auto queueMemOverhead = sizeof(queued_item) * toWrite.size();
     auto& core = stats.coreLocal.get();
-    core->memOverhead.fetch_sub(sizeof(Checkpoint) + keyIndexMemUsage +
-                                queueMemOverhead);
+    core->memOverhead.fetch_sub(getMemOverhead());
     core->numCheckpoints--;
 
     if (manager) {
@@ -392,7 +385,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
     }
 
     if (rv.status == QueueDirtyStatus::SuccessNewItem) {
-        stats.coreLocal.get()->memOverhead.fetch_add(sizeof(queued_item));
+        stats.coreLocal.get()->memOverhead.fetch_add(per_item_queue_overhead);
     }
 
     /**
