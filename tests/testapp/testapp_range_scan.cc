@@ -85,15 +85,23 @@ public:
         return userConnection->mutate(doc, Vbid(0), MutationType::Set);
     }
 
-    void drainKeyResponse(const BinprotResponse& response);
+    size_t drainKeyResponse(
+            const BinprotResponse& response,
+            const std::unordered_set<std::string> expectedKeySet);
 
-    void drainItemResponse(const BinprotResponse& response);
+    size_t drainItemResponse(
+            const BinprotResponse& response,
+            const std::unordered_set<std::string> expectedKeySet);
 
-    void drainScan(cb::rangescan::Id id, bool keyScan, size_t itemLimit);
+    size_t drainScan(cb::rangescan::Id id,
+                     bool keyScan,
+                     size_t itemLimit,
+                     const std::unordered_set<std::string> expectedKeySet);
 
     std::string start;
     std::string end;
     nlohmann::json config;
+    std::unordered_set<std::string> allKeys;
 };
 
 INSTANTIATE_TEST_SUITE_P(
@@ -172,50 +180,70 @@ TEST_P(RangeScanTest, CreateEmpty) {
     ASSERT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
 }
 
-void RangeScanTest::drainKeyResponse(const BinprotResponse& response) {
+size_t RangeScanTest::drainKeyResponse(
+        const BinprotResponse& response,
+        const std::unordered_set<std::string> expectedKeySet) {
     if (response.getDataView().empty()) {
-        return;
+        return 0;
     }
+
+    size_t count = 0;
     cb::mcbp::response::RangeScanContinueKeyPayload payload(
             response.getDataView());
 
     auto key = payload.next();
     while (key.data()) {
-        EXPECT_EQ(1, userKeys.count(std::string{key})) << key;
+        EXPECT_EQ(1, expectedKeySet.count(std::string{key})) << key;
+        auto [itr, emplaced] = allKeys.emplace(key);
+        EXPECT_TRUE(emplaced) << "Duplicate key returned " << key;
         key = payload.next();
+
+        ++count;
     }
+    return count;
 }
 
-void RangeScanTest::drainItemResponse(const BinprotResponse& response) {
+size_t RangeScanTest::drainItemResponse(
+        const BinprotResponse& response,
+        const std::unordered_set<std::string> expectedKeySet) {
     if (response.getDataView().empty()) {
-        return;
+        return 0;
     }
+
+    size_t count = 0;
     cb::mcbp::response::RangeScanContinueValuePayload payload(
             response.getDataView());
 
     auto record = payload.next();
     while (record.key.data()) {
-        EXPECT_EQ(1, userKeys.count(std::string{record.key}));
-
+        EXPECT_EQ(1, expectedKeySet.count(std::string{record.key}));
+        auto [itr, emplaced] = allKeys.emplace(record.key);
+        EXPECT_TRUE(emplaced) << "Duplicate key returned " << record.key;
         if (mcbp::datatype::is_snappy(record.meta.getDatatype())) {
             cb::compression::Buffer buffer;
             EXPECT_TRUE(cb::compression::inflate(
                     cb::compression::Algorithm::Snappy, record.value, buffer));
-            EXPECT_EQ(1, userKeys.count(std::string{std::string_view{buffer}}))
+            EXPECT_EQ(
+                    1,
+                    expectedKeySet.count(std::string{std::string_view{buffer}}))
                     << record.key;
         } else {
-            EXPECT_EQ(1, userKeys.count(std::string{record.value}));
+            EXPECT_EQ(1, expectedKeySet.count(std::string{record.value}));
         }
 
         record = payload.next();
+        ++count;
     }
+    return count;
 }
 
-void RangeScanTest::drainScan(cb::rangescan::Id id,
-                              bool keyScan,
-                              size_t itemLimit) {
+size_t RangeScanTest::drainScan(
+        cb::rangescan::Id id,
+        bool keyScan,
+        size_t itemLimit,
+        const std::unordered_set<std::string> expectedKeySet) {
     BinprotResponse resp;
-
+    size_t recordsReturned = 0;
     do {
         // Keep sending continue until we get the response with complete
         BinprotRangeScanContinue scanContinue(
@@ -229,9 +257,9 @@ void RangeScanTest::drainScan(cb::rangescan::Id id,
             // An error or more/complete status may carry keys/values, so try
             // and drain the payload
             if (keyScan) {
-                drainKeyResponse(resp);
+                recordsReturned += drainKeyResponse(resp, expectedKeySet);
             } else {
-                drainItemResponse(resp);
+                recordsReturned += drainItemResponse(resp, expectedKeySet);
             }
 
             if (resp.getStatus() != cb::mcbp::Status::Success) {
@@ -242,11 +270,12 @@ void RangeScanTest::drainScan(cb::rangescan::Id id,
 
         // Don't expect any errors in this scan. It should return only the
         // following status codes for each response.
-        ASSERT_TRUE(resp.getStatus() == cb::mcbp::Status::Success ||
+        EXPECT_TRUE(resp.getStatus() == cb::mcbp::Status::Success ||
                     resp.getStatus() == cb::mcbp::Status::RangeScanMore ||
                     resp.getStatus() == cb::mcbp::Status::RangeScanComplete)
                 << resp.getStatus();
     } while (resp.getStatus() != cb::mcbp::Status::RangeScanComplete);
+    return recordsReturned;
 }
 
 TEST_P(RangeScanTest, KeyOnly) {
@@ -261,7 +290,8 @@ TEST_P(RangeScanTest, KeyOnly) {
     cb::rangescan::Id id;
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
 
-    drainScan(id, true, 2); // 2 items per continue
+    EXPECT_EQ(userKeys.size(),
+              drainScan(id, true, 2, userKeys)); // 2 items per continue
 }
 
 TEST_P(RangeScanTest, ValueScan) {
@@ -274,5 +304,45 @@ TEST_P(RangeScanTest, ValueScan) {
     cb::rangescan::Id id;
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
 
-    drainScan(id, false, 2); // 2 items per continue
+    EXPECT_EQ(userKeys.size(),
+              drainScan(id, false, 2, userKeys)); // 2 items per continue
+}
+
+TEST_P(RangeScanTest, ExclusiveRangeStart) {
+    config["key_only"] = true;
+    // 1, 2, 3
+    auto start = cb::base64::encode("0", false);
+    auto end = cb::base64::encode("3", false);
+    config["range"] = {{"excl_start", start}, {"end", end}};
+
+    BinprotRangeScanCreate create(Vbid(0), config);
+    userConnection->sendCommand(create);
+
+    BinprotResponse resp;
+    userConnection->recvResponse(resp);
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    cb::rangescan::Id id;
+    std::memcpy(id.data, resp.getData().data(), resp.getData().size());
+    EXPECT_EQ(3, sequential.size() - 1);
+    EXPECT_EQ(3, drainScan(id, true, 2, sequential)); // 2 items per continue
+}
+
+TEST_P(RangeScanTest, ExclusiveRangeEnd) {
+    config["key_only"] = true;
+
+    // 0, 1, 2
+    auto start = cb::base64::encode("0", false);
+    auto end = cb::base64::encode("3", false);
+    config["range"] = {{"start", start}, {"excl_end", end}};
+
+    BinprotRangeScanCreate create(Vbid(0), config);
+    userConnection->sendCommand(create);
+
+    BinprotResponse resp;
+    userConnection->recvResponse(resp);
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    cb::rangescan::Id id;
+    std::memcpy(id.data, resp.getData().data(), resp.getData().size());
+    EXPECT_EQ(3, sequential.size() - 1);
+    EXPECT_EQ(3, drainScan(id, true, 2, sequential)); // 2 items per continue
 }

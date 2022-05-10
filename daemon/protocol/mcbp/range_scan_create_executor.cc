@@ -19,6 +19,7 @@
 #include <memcached/range_scan_optional_configuration.h>
 #include <nlohmann/json.hpp>
 #include <platform/base64.h>
+#include <spdlog/fmt/fmt.h>
 #include <utilities/json_utilities.h>
 
 static cb::rangescan::KeyOnly getKeyOnly(const nlohmann::json& jsonObject) {
@@ -88,6 +89,41 @@ static cb::rangescan::SnapshotRequirements getSnapshotRequirements(
     return rv;
 }
 
+/**
+ * Return a std::string and the KeyType from the "range" object, this can be
+ * re-used to find start/e_start end/e_end.
+ *
+ * @param range The range JSON object
+ * @param key first key to lookup (start/end)
+ * @param eKey second key to lookup (e_start/e_end)
+ */
+static std::pair<std::string, cb::rangescan::KeyType> getRange(
+        const nlohmann::json& range,
+        const std::string& key,
+        const std::string& eKey) {
+    auto value1 = cb::getOptionalJsonObject(
+            range, key, nlohmann::json::value_t::string);
+    auto value2 = cb::getOptionalJsonObject(
+            range, eKey, nlohmann::json::value_t::string);
+
+    // both defined is failure, none defined is failure
+    if (value1 && value2) {
+        throw std::invalid_argument(
+                fmt::format("range included both {} and {}", key, eKey));
+    }
+    if (!value1 && !value2) {
+        throw std::invalid_argument(
+                fmt::format("range did not include {} or {}", key, eKey));
+    }
+
+    if (value1) {
+        return {value1.value().get<std::string>(),
+                cb::rangescan::KeyType::Inclusive};
+    }
+    return {value2.value().get<std::string>(),
+            cb::rangescan::KeyType::Exclusive};
+}
+
 static std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
         Cookie& cookie) {
     const auto& req = cookie.getRequest();
@@ -111,24 +147,19 @@ static std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
     std::string end{"\xFF"};
     cb::rangescan::KeyType startType = cb::rangescan::KeyType::Inclusive;
     cb::rangescan::KeyType endType = cb::rangescan::KeyType::Inclusive;
-
     if (range) {
-        start = cb::getJsonObject(range.value(),
-                                  "start",
-                                  nlohmann::json::value_t::string,
-                                  "range_scan_create_executor start")
-                        .get<std::string>();
-        end = cb::getJsonObject(range.value(),
-                                "end",
-                                nlohmann::json::value_t::string,
-                                "range_scan_create_executor end")
-                      .get<std::string>();
+        try {
+            std::tie(start, startType) =
+                    getRange(range.value(), "start", "excl_start");
+            std::tie(end, endType) = getRange(range.value(), "end", "excl_end");
+        } catch (const std::exception& e) {
+            cookie.setErrorContext(e.what());
+            return {cb::engine_errc::invalid_arguments, {}};
+        }
 
         // And now get the 'raw' key encoding from the base64 encoding
         start = Couchbase::Base64::decode(start);
         end = Couchbase::Base64::decode(end);
-
-        // @todo: KeyType
     }
 
     std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs;

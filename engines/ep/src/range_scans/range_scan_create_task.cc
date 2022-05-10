@@ -34,8 +34,8 @@ RangeScanCreateTask::RangeScanCreateTask(
     : GlobalTask(&bucket.getEPEngine(), TaskId::RangeScanCreateTask, 0, false),
       bucket(bucket),
       vbid(vbid),
-      start(makeStoredDocKey(cid, start)),
-      end(makeStoredDocKey(cid, end)),
+      start(makeStartStoredDocKey(cid, start)),
+      end(makeEndStoredDocKey(cid, end)),
       handler(std::move(handler)),
       cookie(cookie),
       keyOnly(keyOnly),
@@ -92,7 +92,25 @@ std::pair<cb::engine_errc, cb::rangescan::Id> RangeScanCreateTask::create() {
     return {epVb.addNewRangeScan(scan), scan->getUuid()};
 }
 
-StoredDocKey RangeScanCreateTask::makeStoredDocKey(CollectionID cid,
-                                                   cb::rangescan::KeyView key) {
-    return StoredDocKey{key.getKeyView(), cid};
+StoredDocKey RangeScanCreateTask::makeStartStoredDocKey(
+        CollectionID cid, cb::rangescan::KeyView key) {
+    auto sKey = StoredDocKey{key.getKeyView(), cid};
+    if (!key.isInclusive()) {
+        sKey.append(0);
+    }
+    return sKey;
+}
+
+StoredDocKey RangeScanCreateTask::makeEndStoredDocKey(
+        CollectionID cid, cb::rangescan::KeyView key) {
+    auto sKey = StoredDocKey{key.getKeyView(), cid};
+    if (!key.isInclusive()) {
+        // If back 'byte' is > 0 subtract 1 else pop it
+        if (sKey.back()) {
+            --sKey.back();
+        } else {
+            sKey.pop_back();
+        }
+    }
+    return sKey;
 }

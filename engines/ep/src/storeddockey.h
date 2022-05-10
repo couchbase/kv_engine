@@ -154,6 +154,30 @@ public:
         return !(*this == rhs);
     }
 
+    /**
+     * Intended for RangeScan key manipulation
+     * @param c a char to append to the key
+     */
+    void append(char c) {
+        keydata.push_back(c);
+    }
+
+    /**
+     * Intended for RangeScan key manipulation, pop the back character from key
+     */
+    void pop_back() {
+        keydata.pop_back();
+    }
+
+    /**
+     * non-const accessor intended for RangeScan key manipulation
+     *
+     * @return reference to the back byte (as unsigned) to allow modification
+     */
+    uint8_t& back() {
+        return reinterpret_cast<uint8_t&>(keydata.back());
+    }
+
     // Add no lint to allow implicit casting to class DocKey as we use this to
     // implicitly cast to other forms of DocKeys thought out code.
     // NOLINTNEXTLINE(google-explicit-constructor)

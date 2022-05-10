@@ -62,25 +62,32 @@ The following keys will be checked for at the root of the JSON object
 The range-scan configuration is defined in the `"ranges"` object, the object has
 the following keys.
 
-Key values are base64 encodings of the desired strings, allowing for much
-simpler encoding of all keys.
+Key values for each key are base64 encodings of the desired strings.
 
 * The start key of the scan
   * `"start"`
   * value is a string
   * value must be base64 encoded
-  * The start key must be defined
   * The scan will be inclusive of the start key
 * The end key of the scan
   * `"end"`
   * value is a string
   * value must be base64 encoded
-  * The end key must be defined
   * The scan will be inclusive of the end key
+* The exclusive start key of the scan
+  * `"excl_start"`
+  * value is a string
+  * value must be base64 encoded
+  * The scan will be exclusive of the start key
+* The exclusive end key of the scan
+  * `"excl_end"`
+  * value is a string
+  * value must be base64 encoded
+  * The scan will be exclusive of the end key
 
-Currently the range-scan feature does not support a way to request a scan is
-exclusive of the start/end, such a feature is planned for simpler 'failover'
-scenario.
+* A start and an end must be defined.
+* The create will fail if `"start"` and `"excl_start"` are defined.
+* The create will fail if `"end"` and `"excl_end"` are defined.
 
 ### For a random-sample
 

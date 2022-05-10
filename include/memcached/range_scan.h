@@ -18,7 +18,7 @@ namespace cb::rangescan {
 enum class KeyOnly : char { No, Yes };
 
 // How the key is to be interpreted in a range start/end
-enum class KeyType : char { Inclusive };
+enum class KeyType : char { Inclusive, Exclusive };
 
 // KeyView wraps a std::string_view and is the type passed through from
 // executor to engine.
@@ -52,7 +52,7 @@ public:
 
 private:
     std::string_view key;
-    KeyType type;
+    KeyType type{KeyType::Inclusive};
 };
 
 } // namespace cb::rangescan

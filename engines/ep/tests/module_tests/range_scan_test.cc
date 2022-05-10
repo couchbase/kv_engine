@@ -44,11 +44,13 @@ public:
     }
 
     void handleKey(const CookieIface&, DocKey key) override {
+        checkKeyIsUnique(key);
         scannedKeys.emplace_back(key);
         testHook(scannedKeys.size());
     }
 
     void handleItem(const CookieIface&, std::unique_ptr<Item> item) override {
+        checkKeyIsUnique(item->getKey());
         scannedItems.emplace_back(std::move(item));
         testHook(scannedItems.size());
     }
@@ -61,12 +63,17 @@ public:
 
     void validateKeyScan(const std::unordered_set<StoredDocKey>& expectedKeys);
     void validateItemScan(const std::unordered_set<StoredDocKey>& expectedKeys);
+    void checkKeyIsUnique(DocKey key) {
+        auto [itr, emplaced] = allKeys.emplace(key);
+        EXPECT_TRUE(emplaced) << "Duplicate key returned " << key.to_string();
+    }
 
     // check for allowed/expected status code
     static bool validateStatus(cb::engine_errc code);
 
     std::vector<std::unique_ptr<Item>>& scannedItems;
     std::vector<StoredDocKey>& scannedKeys;
+    std::unordered_set<StoredDocKey> allKeys;
     cb::engine_errc& status;
     std::function<void(size_t)>& testHook;
 };
@@ -354,6 +361,49 @@ TEST_P(RangeScanTest, user_prefix) {
     testRangeScan(getUserKeys(), scanCollection, {"user"}, {"user\xFF"});
 }
 
+TEST_P(RangeScanTest, exclusive_start) {
+    auto expectedKeys = getUserKeys();
+    expectedKeys.erase(makeStoredDocKey("user-alan", scanCollection));
+    testRangeScan(expectedKeys,
+                  scanCollection,
+                  {"user-alan", cb::rangescan::KeyType::Exclusive},
+                  {"user\xFF"});
+}
+
+TEST_P(RangeScanTest, exclusive_end) {
+    auto expectedKeys = getUserKeys();
+    expectedKeys.erase(makeStoredDocKey("users", scanCollection));
+    testRangeScan(expectedKeys,
+                  scanCollection,
+                  {"user"},
+                  {"users", cb::rangescan::KeyType::Exclusive});
+}
+
+TEST_P(RangeScanTest, exclusive_end_2) {
+    // Check this zero suffixed key isn't included if it's set as the end
+    // of an exclusive range
+    store_item(vbid, makeStoredDocKey("users\0", scanCollection), "value");
+    flushVBucket(vbid);
+
+    auto expectedKeys = getUserKeys();
+    expectedKeys.erase(makeStoredDocKey("users", scanCollection));
+    testRangeScan(expectedKeys,
+                  scanCollection,
+                  {"user"},
+                  {"users\0", cb::rangescan::KeyType::Exclusive});
+}
+
+TEST_P(RangeScanTest, exclusive_range) {
+    auto expectedKeys = getUserKeys();
+    expectedKeys.erase(makeStoredDocKey("users", scanCollection));
+    expectedKeys.erase(makeStoredDocKey("user-alan", scanCollection));
+
+    testRangeScan(expectedKeys,
+                  scanCollection,
+                  {"user-alan", cb::rangescan::KeyType::Exclusive},
+                  {"users", cb::rangescan::KeyType::Exclusive});
+}
+
 TEST_P(RangeScanTest, user_prefix_with_item_limit_1) {
     auto expectedKeys = getUserKeys();
     testRangeScan(expectedKeys,
@@ -477,6 +527,26 @@ TEST_P(RangeScanTest, greater_than) {
     testRangeScan(expectedKeys, scanCollection, {key}, {"\xFF"});
 }
 
+// Run a > "user" scan using the KeyType
+TEST_P(RangeScanTest, greater_than_using_KeyType) {
+    auto expectedKeys = getUserKeys();
+    auto rangeStart = makeStoredDocKey("user", scanCollection);
+    expectedKeys.erase(rangeStart);
+    for (const auto& key : generateTestKeys()) {
+        // to_string returns a debug "cid:key", but > will select the
+        // correct keys for this text
+        if (key.getCollectionID() == scanCollection &&
+            key.to_string() > rangeStart.to_string()) {
+            expectedKeys.emplace(key);
+        }
+    }
+
+    testRangeScan(expectedKeys,
+                  scanCollection,
+                  {"user", cb::rangescan::KeyType::Exclusive},
+                  {"\xFF"});
+}
+
 // scan for less than key
 void RangeScanTest::testLessThan(std::string key) {
     // In this case the client requests an exclusive end and we manipulate the
@@ -518,6 +588,26 @@ TEST_P(RangeScanTest, less_than_with_zero_suffix) {
     std::string key = "uuu";
     key += char(0);
     testLessThan(key);
+}
+
+// Run a < "users" scan using the KeyType
+TEST_P(RangeScanTest, less_than_using_KeyType) {
+    auto expectedKeys = getUserKeys();
+    auto rangeEnd = makeStoredDocKey("users", scanCollection);
+    expectedKeys.erase(rangeEnd);
+    for (const auto& key : generateTestKeys()) {
+        // to_string returns a debug "cid:key", but >= will select the
+        // correct keys for this text
+        if (key.getCollectionID() == scanCollection &&
+            key.to_string() < rangeEnd.to_string()) {
+            expectedKeys.emplace(key);
+        }
+    }
+
+    testRangeScan(expectedKeys,
+                  scanCollection,
+                  {"\0"},
+                  {"users", cb::rangescan::KeyType::Exclusive});
 }
 
 // Test that we reject continue whilst a scan is already being continued

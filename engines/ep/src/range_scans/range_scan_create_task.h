@@ -54,8 +54,10 @@ public:
         return std::chrono::seconds(1);
     }
 
-    static StoredDocKey makeStoredDocKey(CollectionID cid,
-                                         cb::rangescan::KeyView key);
+    static StoredDocKey makeStartStoredDocKey(CollectionID cid,
+                                              cb::rangescan::KeyView key);
+    static StoredDocKey makeEndStoredDocKey(CollectionID cid,
+                                            cb::rangescan::KeyView key);
 
 protected:
     /// @return status and uuid. The uuid is only valid is status is success
