@@ -361,7 +361,14 @@ TEST_P(RangeScanTest, user_prefix_evicted) {
     for (const auto& key : generateTestKeys()) {
         evict_key(vbid, key);
     }
-    testRangeScan(getUserKeys(), scanCollection, {"user"}, {"user\xFF"});
+    auto expectedKeys = getUserKeys();
+    testRangeScan(expectedKeys,
+                  scanCollection,
+                  {"user"},
+                  {"user\xFF"},
+                  2,
+                  std::chrono::milliseconds(0),
+                  expectedKeys.size() / 2);
 }
 
 // Run a >= user scan by setting the keys to user and the end (255)
