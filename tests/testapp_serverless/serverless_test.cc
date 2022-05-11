@@ -190,6 +190,9 @@ TEST_F(ServerlessTest, OpsAreThrottled) {
                 std::string{"bucket_details "} + name);
         ASSERT_FALSE(stats.empty());
         ASSERT_LE(3, stats["num_throttled"]);
+        // it's hard to compare this with a "real value"; but it should at
+        // least be non-zero
+        ASSERT_NE(0, stats["throttle_wait_time"]);
     };
 
     std::vector<std::thread> threads;

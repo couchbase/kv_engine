@@ -221,6 +221,9 @@ protected:
     /// The number of times we've throttled due to running out of CUs
     std::atomic<std::size_t> num_throttled{0};
 
+    /// The total time (in usec) spent in a throttled state
+    std::atomic<uint64_t> throttle_wait_time{0};
+
     /// A deque per front end thread containing all of the connections
     /// which have one or more cookies throttled. It should _only_ be
     /// accessed in the context of the front end worker threads, and each

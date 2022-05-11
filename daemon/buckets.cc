@@ -71,6 +71,7 @@ nlohmann::json Bucket::to_json() const {
                 json["wcu"] = write_compute_units_used.load();
                 json["num_throttled"] = num_throttled.load();
                 json["throttle_limit"] = throttle_limit.load();
+                json["throttle_wait_time"] = throttle_wait_time.load();
             } catch (const std::exception& e) {
                 LOG_ERROR("Failed to generate bucket details: {}", e.what());
             }
@@ -121,6 +122,7 @@ void Bucket::commandExecuted(const Cookie& cookie) {
     const auto rcu = inst.to_rcu(read);
     const auto wcu = inst.to_wcu(write);
     throttle_gauge.increment(rcu + wcu);
+    throttle_wait_time += cookie.getTotalThrottleTime();
     read_compute_units_used += rcu;
     write_compute_units_used += wcu;
 }
