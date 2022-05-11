@@ -758,6 +758,30 @@ static void startExecutorPool() {
             });
 }
 
+nlohmann::json cb::serverless::Config::to_json() const {
+    nlohmann::json json;
+    json["max_connections_per_bucket"] =
+            maxConnectionsPerBucket.load(std::memory_order_acquire);
+    json["read_compute_unit_size"] =
+            readComputeUnitSize.load(std::memory_order_acquire);
+    json["write_compute_unit_size"] =
+            writeComputeUnitSize.load(std::memory_order_acquire);
+    return json;
+}
+
+void cb::serverless::Config::update_from_json(const nlohmann::json& json) {
+    maxConnectionsPerBucket.store(
+            json.value("max_connections_per_bucket",
+                       cb::serverless::MaxConnectionsPerBucket),
+            std::memory_order_release);
+    readComputeUnitSize.store(json.value("read_compute_unit_size",
+                                         cb::serverless::ReadComputeUnitSize),
+                              std::memory_order_release);
+    writeComputeUnitSize.store(json.value("write_compute_unit_size",
+                                          cb::serverless::WriteComputeUnitSize),
+                               std::memory_order_release);
+}
+
 static void initialize_serverless_config() {
     const auto serverless = boost::filesystem::path{Settings::instance().getRoot()} /
                             "etc" / "couchbase" / "kv" / "serverless" /
@@ -767,19 +791,14 @@ static void initialize_serverless_config() {
         LOG_INFO("Using serverless static configuration from: {}",
                  serverless.generic_string());
         try {
-            auto json = nlohmann::json::parse(
-                    cb::io::loadFile(serverless.generic_string()));
-            config.maxConnectionsPerBucket =
-                    json.value("max_connections_per_bucket",
-                               config.maxConnectionsPerBucket);
+            config.update_from_json(nlohmann::json::parse(
+                    cb::io::loadFile(serverless.generic_string())));
         } catch (const std::exception& e) {
             LOG_WARNING("Failed to read serverless configuration: {}",
                         e.what());
         }
     }
-    nlohmann::json json;
-    json["max_connections_per_bucket"] = config.maxConnectionsPerBucket;
-    LOG_INFO("Serverless static configuration: {}", json.dump());
+    LOG_INFO("Serverless static configuration: {}", config.to_json().dump());
 }
 
 int memcached_main(int argc, char** argv) {

@@ -24,10 +24,8 @@
 #include <memcached/engine.h>
 #include <platform/scope_timer.h>
 #include <platform/timeutils.h>
+#include <serverless/config.h>
 #include <utilities/engine_errc_2_mcbp.h>
-
-static std::atomic<size_t> read_compute_unit_size;
-static std::atomic<size_t> write_compute_unit_size;
 
 Bucket::Bucket() = default;
 
@@ -118,11 +116,10 @@ void Bucket::setEngine(unique_engine_ptr engine_) {
 }
 
 void Bucket::commandExecuted(const Cookie& cookie) {
+    auto& inst = cb::serverless::Config::instance();
     const auto [read, write] = cookie.getDocumentRWBytes();
-    const auto rcu =
-            (read + read_compute_unit_size - 1) / read_compute_unit_size;
-    const auto wcu =
-            (write + write_compute_unit_size - 1) / write_compute_unit_size;
+    const auto rcu = inst.to_rcu(read);
+    const auto wcu = inst.to_wcu(write);
     throttle_gauge.increment(rcu + wcu);
     read_compute_units_used += rcu;
     write_compute_units_used += wcu;
@@ -614,19 +611,6 @@ void BucketManager::destroyAll() {
 
 BucketManager::BucketManager() {
     auto& settings = Settings::instance();
-    read_compute_unit_size = settings.getReadComputeUnitSize();
-    write_compute_unit_size = settings.getWriteComputeUnitSize();
-
-    settings.addChangeListener("read_compute_unit_size",
-                               [](const std::string&, Settings& s) -> void {
-                                   read_compute_unit_size =
-                                           s.getReadComputeUnitSize();
-                               });
-    settings.addChangeListener("write_compute_unit_size",
-                               [](const std::string&, Settings& s) -> void {
-                                   write_compute_unit_size =
-                                           s.getWriteComputeUnitSize();
-                               });
 
     size_t numthread = settings.getNumWorkerThreads() + 1;
     for (auto& b : all_buckets) {

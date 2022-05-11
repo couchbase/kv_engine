@@ -181,6 +181,8 @@ cb::engine_errc ioctl_get_property(Cookie& cookie,
         case cb::ioctl::Id::JemallocProfDump: // may only be used with Set
         case cb::ioctl::Id::ReleaseFreeMemory: // may only be used with Set
         case cb::ioctl::Id::ServerlessMaxConnectionsPerBucket: // set only
+        case cb::ioctl::Id::ServerlessReadComputeUnitSize: // set only
+        case cb::ioctl::Id::ServerlessWriteComputeUnitSize: // set only
         case cb::ioctl::Id::TraceDumpClear: // may only be used with Set
         case cb::ioctl::Id::TraceStart: // may only be used with Set
         case cb::ioctl::Id::TraceStop: // may only be used with Set
@@ -222,7 +224,8 @@ static cb::engine_errc ioctlSetServerlessMaxConnectionsPerBucket(
                         "Maximum number of connections cannot be below 100");
                 return cb::engine_errc::invalid_arguments;
             }
-            config.maxConnectionsPerBucket = std::stoul(value);
+            config.maxConnectionsPerBucket.store(val,
+                                                 std::memory_order_release);
             LOG_INFO("Set maximum connections to a bucket to {}", val);
         } catch (const std::exception& e) {
             cookie.setErrorContext(
@@ -233,11 +236,52 @@ static cb::engine_errc ioctlSetServerlessMaxConnectionsPerBucket(
         return cb::engine_errc::success;
     }
 
-    LOG_CRITICAL_RAW("TROND it may only be used in serverless");
     std::string reason{
             cb::ioctl::Manager::getInstance()
                     .lookup(cb::ioctl::Id::ServerlessMaxConnectionsPerBucket)
                     .key};
+    reason.append(" may only be used on serverless deployments");
+    cookie.setErrorContext(std::move(reason));
+    return cb::engine_errc::invalid_arguments;
+}
+
+static cb::engine_errc ioctlSetServerlessComputeUnitSize(
+        Cookie& cookie, cb::ioctl::Id id, const std::string& value) {
+    if (isServerlessDeployment()) {
+        try {
+            auto& config = cb::serverless::Config::instance();
+            auto val = std::stoul(value);
+            if (id == cb::ioctl::Id::ServerlessReadComputeUnitSize) {
+                LOG_INFO("Change RCU size from {} to {}",
+                         config.readComputeUnitSize.load(
+                                 std::memory_order_acquire),
+                         val);
+                config.readComputeUnitSize.store(val,
+                                                 std::memory_order_release);
+            } else if (id == cb::ioctl::Id::ServerlessWriteComputeUnitSize) {
+                LOG_INFO("Change WCU size from {} to {}",
+                         config.writeComputeUnitSize.load(
+                                 std::memory_order_acquire),
+                         val);
+                config.writeComputeUnitSize.store(val,
+                                                  std::memory_order_release);
+            } else {
+                LOG_WARNING_RAW(
+                        "ioctlSetServerlessComputeUnitSize: Internal error, "
+                        "called for unknown id. request ignored");
+                cookie.setErrorContext("Internal error");
+                return cb::engine_errc::invalid_arguments;
+            }
+        } catch (const std::exception& e) {
+            cookie.setErrorContext(
+                    "Failed to convert the provided value to an integer");
+            return cb::engine_errc::invalid_arguments;
+        }
+
+        return cb::engine_errc::success;
+    }
+
+    std::string reason{cb::ioctl::Manager::getInstance().lookup(id).key};
     reason.append(" may only be used on serverless deployments");
     cookie.setErrorContext(std::move(reason));
     return cb::engine_errc::invalid_arguments;
@@ -269,6 +313,9 @@ cb::engine_errc ioctl_set_property(Cookie& cookie,
         case cb::ioctl::Id::ServerlessMaxConnectionsPerBucket:
             return ioctlSetServerlessMaxConnectionsPerBucket(
                     cookie, request.second, value);
+        case cb::ioctl::Id::ServerlessReadComputeUnitSize:
+        case cb::ioctl::Id::ServerlessWriteComputeUnitSize:
+            return ioctlSetServerlessComputeUnitSize(cookie, id->id, value);
         case cb::ioctl::Id::TraceConfig:
             return ioctlSetTracingConfig(cookie, request.second, value);
         case cb::ioctl::Id::TraceStart:

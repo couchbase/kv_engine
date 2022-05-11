@@ -772,26 +772,6 @@ public:
         notify_changed("whitelist_localhost_interface");
     }
 
-    std::size_t getReadComputeUnitSize() const {
-        return read_compute_unit_size.load(std::memory_order_acquire);
-    }
-
-    void setReadComputeUnitSize(std::size_t val) {
-        read_compute_unit_size.store(val, std::memory_order_release);
-        has.read_compute_unit_size = true;
-        notify_changed("read_compute_unit_size");
-    }
-
-    std::size_t getWriteComputeUnitSize() const {
-        return write_compute_unit_size.load(std::memory_order_acquire);
-    }
-
-    void setWriteComputeUnitSize(std::size_t val) {
-        write_compute_unit_size.store(val, std::memory_order_release);
-        has.write_compute_unit_size = true;
-        notify_changed("write_compute_unit_size");
-    }
-
     DeploymentModel getDeploymentModel() const {
         return deployment_model;
     }
@@ -884,14 +864,6 @@ protected:
     /// The maximum number of commands each connection may have before
     /// blocking execution
     std::atomic<std::size_t> max_concurrent_commands_per_connection{32};
-
-    /// The size of the Read Compute Unit (RCU) in bytes. All accounting
-    /// for read requests will be counted in whole RCU units
-    std::atomic<std::size_t> read_compute_unit_size{1024};
-
-    /// The size of the Write Compute Unit (WCU) in bytes. All accounting
-    /// for write requests will be counted in whole WCU units
-    std::atomic<std::size_t> write_compute_unit_size{1024};
 
     /**
      * Note that it is not safe to add new listeners after we've spun up

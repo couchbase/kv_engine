@@ -23,6 +23,8 @@ enum class Id {
     RbacDbDump,
     ReleaseFreeMemory,
     ServerlessMaxConnectionsPerBucket,
+    ServerlessReadComputeUnitSize,
+    ServerlessWriteComputeUnitSize,
     Sla,
     TraceConfig,
     TraceDumpBegin,

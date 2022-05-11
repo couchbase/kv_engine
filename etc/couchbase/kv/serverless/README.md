@@ -8,3 +8,9 @@ The following parameters may be used:
 
 `max_connections_per_bucket` This is an integer value containing the maximum
 number of (external) connections to be permitted to select a given bucket.
+
+`read_compute_unit_size` This is an integer value containing the size
+(in bytes) of a compute unit used for reading.
+
+`write_compute_unit_size` This is an integer value containing the size
+(in bytes) of a compute unit used for writing.

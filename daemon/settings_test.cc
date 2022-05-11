@@ -691,34 +691,6 @@ TEST_F(SettingsTest, Breakpad) {
     cb::io::rmrf(minidump_dir);
 }
 
-TEST_F(SettingsTest, read_compute_unit_size) {
-    nonNumericValuesShouldFail("read_compute_unit_size");
-
-    nlohmann::json obj;
-    obj["read_compute_unit_size"] = 4096;
-    try {
-        Settings settings(obj);
-        EXPECT_EQ(4096, settings.getReadComputeUnitSize());
-        EXPECT_TRUE(settings.has.read_compute_unit_size);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-}
-
-TEST_F(SettingsTest, write_compute_unit_size) {
-    nonNumericValuesShouldFail("write_compute_unit_size");
-
-    nlohmann::json obj;
-    obj["write_compute_unit_size"] = 4096;
-    try {
-        Settings settings(obj);
-        EXPECT_EQ(4096, settings.getWriteComputeUnitSize());
-        EXPECT_TRUE(settings.has.write_compute_unit_size);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-}
-
 TEST_F(SettingsTest, max_packet_size) {
     nonNumericValuesShouldFail("max_packet_size");
 
@@ -1071,30 +1043,6 @@ TEST(SettingsUpdateTest, UpdatingLoggerSettingsShouldFail) {
     updated.setLoggerConfig(config);
     EXPECT_THROW(settings.updateSettings(updated, false),
                  std::invalid_argument);
-}
-
-TEST(SettingsUpdateTest, ReadComputeUnitSizeIsDynamic) {
-    Settings settings;
-    EXPECT_EQ(1024, settings.getReadComputeUnitSize());
-    settings.setReadComputeUnitSize(4096);
-    EXPECT_EQ(4096, settings.getReadComputeUnitSize());
-
-    Settings updated;
-    updated.setReadComputeUnitSize(8192);
-    settings.updateSettings(updated, true);
-    EXPECT_EQ(8192, settings.getReadComputeUnitSize());
-}
-
-TEST(SettingsUpdateTest, WriteComputeUnitSizeIsDynamic) {
-    Settings settings;
-    EXPECT_EQ(1024, settings.getWriteComputeUnitSize());
-    settings.setWriteComputeUnitSize(4096);
-    EXPECT_EQ(4096, settings.getWriteComputeUnitSize());
-
-    Settings updated;
-    updated.setWriteComputeUnitSize(8192);
-    settings.updateSettings(updated, true);
-    EXPECT_EQ(8192, settings.getWriteComputeUnitSize());
 }
 
 TEST(SettingsUpdateTest, MaxConnectionsIsDynamic) {

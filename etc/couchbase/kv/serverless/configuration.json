@@ -1,3 +1,5 @@
 {
-  "max_connections_per_bucket" : 600
+  "max_connections_per_bucket" : 600,
+  "read_compute_unit_size" : 1024,
+  "write_compute_unit_size" : 1024
 }

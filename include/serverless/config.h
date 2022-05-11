@@ -10,15 +10,54 @@
 
 #pragma once
 
+#include <nlohmann/json_fwd.hpp>
+#include <atomic>
 #include <cstddef>
 
 namespace cb::serverless {
 constexpr size_t MaxConnectionsPerBucket = 600;
+constexpr size_t ReadComputeUnitSize = 1024;
+constexpr size_t WriteComputeUnitSize = 1024;
 
 struct Config {
     static Config& instance();
     /// The maximum number of (external) connections for a bucket
-    size_t maxConnectionsPerBucket = MaxConnectionsPerBucket;
+    std::atomic<size_t> maxConnectionsPerBucket = MaxConnectionsPerBucket;
+
+    /// Size in bytes for the Read Compute Unit
+    std::atomic<size_t> readComputeUnitSize{ReadComputeUnitSize};
+
+    /// Size in bytes for the Write Compute Unit
+    std::atomic<size_t> writeComputeUnitSize{WriteComputeUnitSize};
+
+    /// Generate a JSON representation of the object
+    nlohmann::json to_json() const;
+
+    /// update the members from the values in the provided JSON (ignore unknown
+    /// keys)
+    void update_from_json(const nlohmann::json& json);
+
+    /// Calculate the number of Read Compute Units from a byte value
+    size_t to_rcu(size_t nbytes) {
+        return calc_cu(nbytes,
+                       readComputeUnitSize.load(std::memory_order_acquire));
+    }
+
+    /// Calculate the number of Write Compute Units from a byte value
+    size_t to_wcu(size_t nbytes) {
+        return calc_cu(nbytes,
+                       writeComputeUnitSize.load(std::memory_order_acquire));
+    }
+
+    /// Calculate the number of compute units with the provided size a value
+    /// represents
+    static inline size_t calc_cu(size_t value, size_t size) {
+        if (size == 0) {
+            // Disabled
+            return 0;
+        }
+        return (value + size - 1) / size;
+    }
 };
 
 } // namespace cb::serverless
