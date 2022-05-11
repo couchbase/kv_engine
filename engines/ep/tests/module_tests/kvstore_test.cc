@@ -902,6 +902,28 @@ TEST_P(KVStoreParamTest, InvalidSnapshotDetected) {
     EXPECT_THROW(kvstore->getPersistedVBucketState(vbid), std::exception);
 }
 
+// @TODO RocksDB we should add invalid snapshot detection here
+TEST_P(KVStoreParamTestSkipRocks, InvalidSnapshotDetectedAtScan) {
+    // Store item without setting the snapshot constraints
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+    auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");
+    qi->setBySeqno(1);
+    kvstore->set(*ctx, qi);
+    EXPECT_TRUE(kvstore->commit(std::move(ctx), flush));
+
+    auto cb = std::make_unique<StrictMock<MockGetValueCallback>>();
+    auto cl = std::make_unique<KVStoreTestCacheCallback>(0, 0, Vbid(0));
+    auto scanCtx =
+            kvstore->initBySeqnoScanContext(std::move(cb),
+                                            std::move(cl),
+                                            vbid,
+                                            1,
+                                            DocumentFilter::NO_DELETES,
+                                            ValueFilter::VALUES_COMPRESSED,
+                                            SnapshotSource::Head);
+    EXPECT_EQ(nullptr, scanCtx);
+}
+
 // Verify thread-safeness for 'delVBucket' concurrent operations.
 // Expect ThreadSanitizer to pick this.
 // Rocks has race condition issues
