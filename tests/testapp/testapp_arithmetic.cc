@@ -290,6 +290,42 @@ TEST_P(ArithmeticTest, MB33813) {
     EXPECT_EQ("1", doc.value);
 }
 
+/**
+ * Test that a no_such_key during an arithmetic counter operation during the
+ * set of the new value is handled by re-running the operation (and potentially
+ * creating the document if it does not already exist)
+ */
+TEST_P(ArithmeticTest, MB52067) {
+    std::string key(name + "_inc");
+
+    // Create with initial value 0, delta 1
+    ASSERT_EQ(0, userConnection->increment(key, 1, 0));
+
+    // Make the 3rd request send to the engine return
+    // cb::engine_errc::no_such_key In this case this will be the store that
+    // happens as a result of a call to ArithmeticCommandContext::storeItem()
+    auto sequence = ewb::encodeSequence({ewb::Passthrough,
+                                         ewb::Passthrough,
+                                         cb::engine_errc::no_such_key,
+                                         ewb::Passthrough,
+                                         ewb::Passthrough,
+                                         ewb::Passthrough});
+    userConnection->configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                               /*unused*/ {},
+                                               /*unused*/ {},
+                                               sequence);
+
+    uint64_t counterVal = 0;
+    EXPECT_NO_THROW(counterVal = userConnection->increment(key, 1, 0));
+
+    // Although we've pretended that the document was not found, it actually
+    // still exists so we just increment the value from 0 to 1 (rather than
+    // create a new one with initial value
+    EXPECT_EQ(1, counterVal);
+
+    userConnection->disableEwouldBlockEngine();
+}
+
 static void test_stored_doc(MemcachedConnection& conn,
                             const std::string& key,
                             const std::string& content,
