@@ -149,6 +149,20 @@ TEST_P(TenantTest, TenantStats) {
 
     // Verify that the stats recorded the rate limiting
     json = getTenantStats();
+
+    // Like earlier (at line 100) its hard to check for the current connection
+    // counts.. The "noop" above would cause that connection to be disconnected
+    // but we don't know exactly when it is done..
+    if (json["connections"]["current"].get<int>() > 10) {
+        auto timeout =
+                std::chrono::steady_clock::now() + std::chrono::seconds(30);
+        do {
+            std::this_thread::sleep_for(std::chrono::milliseconds{20});
+            json = getTenantStats();
+        } while ((json["connections"]["current"].get<int>() > 10) &&
+                 (std::chrono::steady_clock::now() < timeout));
+    }
+
     const auto& limited = json["rate_limited"];
     EXPECT_EQ(1, limited["num_connections"].get<int>());
     if (!folly::kIsSanitize) { // NOLINT
