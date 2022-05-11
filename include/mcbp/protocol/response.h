@@ -22,6 +22,17 @@
 
 namespace cb::mcbp {
 
+namespace response {
+/// See BinaryProtocol.md for a description of the available
+/// frame identifiers and their encoding
+enum class FrameInfoId : uint8_t { ServerRecvSendDuration = 0 };
+
+/// ServerRecvSendDuration use 1 byte header and 2 byte value
+static constexpr size_t ServerRecvSendDurationFrameInfoSize = 3;
+/// The magic (id and size) for a ServerRecvSendDuration
+static constexpr uint8_t ServerRecvSendDurationFrameInfoMagic = 0x02;
+} // namespace response
+
 /**
  * Definition of the header structure for a response packet.
  * See section 2

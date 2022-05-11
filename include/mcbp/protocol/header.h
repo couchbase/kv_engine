@@ -23,8 +23,6 @@
 
 namespace cb::mcbp {
 
-#define MCBP_TRACING_RESPONSE_SIZE 0x03
-
 class Request;
 class Response;
 

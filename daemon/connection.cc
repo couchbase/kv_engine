@@ -1792,6 +1792,9 @@ void Connection::setDcpFlowControlBufferSize(std::size_t size) {
     }
 }
 
+static constexpr size_t MaxFrameInfoSize =
+        cb::mcbp::response::ServerRecvSendDurationFrameInfoSize;
+
 std::string_view Connection::formatResponseHeaders(Cookie& cookie,
                                                    cb::char_buffer dest,
                                                    cb::mcbp::Status status,
@@ -1799,10 +1802,11 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
                                                    std::size_t key_len,
                                                    std::size_t value_len,
                                                    uint8_t datatype) {
-    if (dest.size() < sizeof(cb::mcbp::Response) + MCBP_TRACING_RESPONSE_SIZE) {
+    if (dest.size() < sizeof(cb::mcbp::Response) + MaxFrameInfoSize) {
         throw std::runtime_error(
                 "Connection::formatResponseHeaders: The provided buffer must "
-                "be big enough to hold header and tracing frame info");
+                "be big enough to hold header and ALL possible response "
+                "frame infos");
     }
 
     const auto& request = cookie.getRequest();
@@ -1810,46 +1814,54 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
     auto& response = *reinterpret_cast<cb::mcbp::Response*>(wbuf.data());
 
     response.setOpcode(request.getClientOpcode());
+    response.setKeylen(gsl::narrow_cast<uint16_t>(key_len));
     response.setExtlen(gsl::narrow_cast<uint8_t>(extras_len));
     response.setDatatype(cb::mcbp::Datatype(datatype));
     response.setStatus(status);
     response.setOpaque(request.getOpaque());
     response.setCas(cookie.getCas());
 
-    if (cookie.getConnection().isTracingEnabled() &&
-        cookie.isTracingEnabled()) {
-        // When tracing is enabled we'll be using the alternative
-        // response header where we inject the framing header.
-        // For now we'll just hard-code the adding of the bytes
-        // for the tracing info.
-        //
-        // Moving forward we should get a builder for encoding the
-        // framing header (but do that the next time we need to add
-        // something so that we have a better understanding on how
-        // we need to do that (it could be that we need to modify
-        // an already existing section etc).
-        response.setMagic(cb::mcbp::Magic::AltClientResponse);
-        // The framing extras when we just include the tracing information
-        // is 3 bytes. 1 byte with id and length, then the 2 bytes
-        // containing the actual data.
-        const uint8_t framing_extras_size = MCBP_TRACING_RESPONSE_SIZE;
-        const uint8_t tracing_framing_id = 0x02;
+    auto& connection = cookie.getConnection();
+    const auto tracing =
+            connection.isTracingEnabled() && cookie.isTracingEnabled();
 
-        wbuf.data()[2] = framing_extras_size; // framing header extras 3 bytes
-        wbuf.data()[3] = gsl::narrow_cast<uint8_t>(key_len);
+    if (tracing) {
+        using namespace cb::mcbp::response;
+        response.setMagic(cb::mcbp::Magic::AltClientResponse);
+        // We can't use a 16 bits key length when using the alternative
+        // response header.. Verify that the key fits in a single byte.
+        if (key_len > 255) {
+            throw std::runtime_error(
+                    "formatResponseHeaders: The provided key can't be put in "
+                    "an AltClientResponse (" +
+                    std::to_string(key_len) + " > 255)");
+        }
+        uint8_t framing_extras_size = 0;
+        if (tracing) {
+            framing_extras_size += ServerRecvSendDurationFrameInfoSize;
+        }
+        response.setFramingExtraslen(framing_extras_size);
         response.setBodylen(value_len + extras_len + key_len +
                             framing_extras_size);
-
-        auto& tracer = cookie.getTracer();
-        const auto val = htons(tracer.getEncodedMicros());
         auto* ptr = wbuf.data() + sizeof(cb::mcbp::Response);
-        *ptr = tracing_framing_id;
-        ptr++;
-        memcpy(ptr, &val, sizeof(val));
+
+        auto add_frame_info = [&ptr](auto id, uint16_t val) {
+            *ptr = id;
+            ++ptr;
+            val = htons(val);
+            memcpy(ptr, &val, sizeof(val));
+            ptr += val;
+        };
+
+        if (tracing) {
+            auto& tracer = cookie.getTracer();
+            add_frame_info(ServerRecvSendDurationFrameInfoMagic,
+                           tracer.getEncodedMicros());
+        }
+
         wbuf = {wbuf.data(), sizeof(cb::mcbp::Response) + framing_extras_size};
     } else {
         response.setMagic(cb::mcbp::Magic::ClientResponse);
-        response.setKeylen(gsl::narrow_cast<uint16_t>(key_len));
         response.setFramingExtraslen(0);
         response.setBodylen(value_len + extras_len + key_len);
         wbuf = {wbuf.data(), sizeof(cb::mcbp::Response)};
@@ -1878,8 +1890,7 @@ void Connection::sendResponseHeaders(Cookie& cookie,
                                      std::string_view key,
                                      std::size_t value_len,
                                      uint8_t datatype) {
-    std::array<char, sizeof(cb::mcbp::Response) + MCBP_TRACING_RESPONSE_SIZE>
-            buffer;
+    std::array<char, sizeof(cb::mcbp::Response) + MaxFrameInfoSize> buffer;
 
     auto wbuf = formatResponseHeaders(cookie,
                                       {buffer.data(), buffer.size()},
@@ -1909,9 +1920,7 @@ void Connection::sendResponse(Cookie& cookie,
                 cookie, status, extras, key, value.size(), datatype);
         chainDataToOutputStream(std::move(sendbuffer));
     } else {
-        std::array<char,
-                   sizeof(cb::mcbp::Response) + MCBP_TRACING_RESPONSE_SIZE>
-                buffer;
+        std::array<char, sizeof(cb::mcbp::Response) + MaxFrameInfoSize> buffer;
         auto wbuf = formatResponseHeaders(cookie,
                                           {buffer.data(), buffer.size()},
                                           status,
