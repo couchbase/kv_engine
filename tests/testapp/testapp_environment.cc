@@ -457,7 +457,7 @@ public:
         Limits limits;
         limits.egress_mib_per_min = 1;
         limits.ingress_mib_per_min = 1;
-        limits.num_ops_per_min = 6000;
+        limits.num_ops_per_min = 100;
         limits.num_connections = 10;
         jones.setLimits(limits);
         passwordDatabase.upsert(std::move(jones));

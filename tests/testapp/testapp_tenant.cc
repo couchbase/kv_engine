@@ -57,6 +57,11 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::PrintToStringParamName());
 
 TEST_P(TenantTest, TenantStats) {
+    // the entire test shouldn't take 30 seconds so just use a common
+    // timeout..
+    const auto timeout =
+            std::chrono::steady_clock::now() + std::chrono::seconds(30);
+
     // We should not have any tenants yet
     adminConnection->stats(
             [](const std::string& key, const std::string& value) -> void {
@@ -106,9 +111,9 @@ TEST_P(TenantTest, TenantStats) {
     EXPECT_EQ(2, json["connections"]["total"].get<int>());
 
     if (!folly::kIsSanitize) { // NOLINT
-        // make sure we can rate limit. Hopefully the CV allows for 6000 noop/s
+        // make sure we can rate limit. Hopefully the CV allows for 100 noop/s
         bool error = false;
-        while (!error) {
+        do {
             auto rsp = clone->execute(
                     BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
             if (!rsp.isSuccess()) {
@@ -117,7 +122,12 @@ TEST_P(TenantTest, TenantStats) {
                         << rsp.getDataString();
                 error = true;
             }
+        } while (!error && std::chrono::steady_clock::now() < timeout);
+        if (std::chrono::steady_clock::now() > timeout) {
+            FAIL() << "Timed out trying to get to 100 noops/s";
         }
+
+        // wait a second so that we get a new quota of credits
         std::this_thread::sleep_for(std::chrono::seconds{1});
         auto rsp = clone->execute(
                 BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
@@ -154,13 +164,14 @@ TEST_P(TenantTest, TenantStats) {
     // counts.. The "noop" above would cause that connection to be disconnected
     // but we don't know exactly when it is done..
     if (json["connections"]["current"].get<int>() > 10) {
-        auto timeout =
-                std::chrono::steady_clock::now() + std::chrono::seconds(30);
         do {
             std::this_thread::sleep_for(std::chrono::milliseconds{20});
             json = getTenantStats();
         } while ((json["connections"]["current"].get<int>() > 10) &&
                  (std::chrono::steady_clock::now() < timeout));
+        if (std::chrono::steady_clock::now() > timeout) {
+            FAIL() << "Timed out waiting for connection to close";
+        }
     }
 
     const auto& limited = json["rate_limited"];
@@ -175,7 +186,6 @@ TEST_P(TenantTest, TenantStats) {
     // counter should drop. Multiple threads are involved so we need to
     // run a loop and wait..
     connections.clear();
-    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(30);
     int current = 0;
     do {
         json = getTenantStats();
