@@ -1214,8 +1214,8 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
                     mapper = cb::x509::ClientCertConfig::create(R"({
 "prefixes": [
     {
-        "path": "san.uri",
-        "prefix": "email:",
+        "path": "san.email",
+        "prefix": "",
         "delimiter": "",
         "suffix":"@internal.couchbase.com"
     }

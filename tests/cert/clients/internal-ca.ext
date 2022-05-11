@@ -3,7 +3,4 @@ authorityKeyIdentifier = keyid:always,issuer:always
 basicConstraints = CA:false
 extendedKeyUsage = clientAuth
 keyUsage = digitalSignature
-subjectAltName = @alt_names
-
-[ alt_names ]
-URI.1 = email:internal@internal.couchbase.com
+subjectAltName = email:internal@internal.couchbase.com
