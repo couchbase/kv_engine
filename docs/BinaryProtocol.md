@@ -275,6 +275,36 @@ The duration in micros is encoded as:
     encoded =  (micros * 2) ^ (1.0 / 1.74)
     decoded =  (encoded ^ 1.74) / 2
 
+##### ID:1 - Read Compute Units Used
+
+The amount of read compute units used by the command (only
+added if the value is non-zero)
+
+Size: 2 bytes
+
+FrameInfo encoded as:
+
+    Byte/     0       |       1       |       2       |
+       /              |               |               |
+      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+      +---------------+---------------+---------------+
+     0|  ID:1 | Len:2 | Number of read compute units  |
+
+##### ID:2 - Write Compute Units Used
+
+The amount of write compute units used by the command (only
+added if the value is non-zero)
+
+Size: 2 bytes
+
+FrameInfo encoded as:
+
+    Byte/     0       |       1       |       2       |
+       /              |               |               |
+      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+      +---------------+---------------+---------------+
+     0|  ID:2 | Len:2 | Number of write compute units |
+
 ### Header fields description
 
 * Magic: Magic number identifying the package (See [Magic_Byte](#magic-byte))
@@ -1780,6 +1810,7 @@ The following features is defined:
 | 0x0017 | SubdocCreateAsDeleted support |
 | 0x0018 | SubdocDocumentMacroSupport |
 | 0x0019 | SubdocReplaceBodyWithXattr |
+| 0x001a | ReportComputeUnitUsage |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1866,6 +1897,9 @@ The following features is defined:
 * `SubdocReplaceBodyWithXattr` This is purely information (it does not enable /
   disable anything on the server). It may be used from the client to
   determine if the server supports the command SubdocReplaceBodyWithXattr.
+* `ReportComputeUnitUsage` When enabled the server will insert frame info field(s)
+  in the response containing the amount of read and write compute units the
+  command used on the server.
 
 Response:
 

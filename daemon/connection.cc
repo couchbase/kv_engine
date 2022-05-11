@@ -46,6 +46,7 @@
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
 #include <platform/timeutils.h>
+#include <serverless/config.h>
 #include <utilities/logtags.h>
 
 #include <exception>
@@ -1793,7 +1794,9 @@ void Connection::setDcpFlowControlBufferSize(std::size_t size) {
 }
 
 static constexpr size_t MaxFrameInfoSize =
-        cb::mcbp::response::ServerRecvSendDurationFrameInfoSize;
+        cb::mcbp::response::ServerRecvSendDurationFrameInfoSize +
+        cb::mcbp::response::ReadComputeUnitsFrameInfoSize +
+        cb::mcbp::response::WriteComputeUnitsFrameInfoSize;
 
 std::string_view Connection::formatResponseHeaders(Cookie& cookie,
                                                    cb::char_buffer dest,
@@ -1824,8 +1827,24 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
     auto& connection = cookie.getConnection();
     const auto tracing =
             connection.isTracingEnabled() && cookie.isTracingEnabled();
+    auto cutracing = connection.isReportComputeUnitUsage();
+    size_t rcu = 0;
+    size_t wcu = 0;
+    if (cutracing) {
+        auto [read, write] = cookie.getDocumentRWBytes();
+        if (!read && !write) {
+            cutracing = false;
+        } else {
+            auto& inst = cb::serverless::Config::instance();
+            rcu = inst.to_rcu(read);
+            wcu = inst.to_wcu(write);
+            if (!rcu && !wcu) {
+                cutracing = false;
+            }
+        }
+    }
 
-    if (tracing) {
+    if (tracing || cutracing) {
         using namespace cb::mcbp::response;
         response.setMagic(cb::mcbp::Magic::AltClientResponse);
         // We can't use a 16 bits key length when using the alternative
@@ -1839,6 +1858,12 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
         uint8_t framing_extras_size = 0;
         if (tracing) {
             framing_extras_size += ServerRecvSendDurationFrameInfoSize;
+        }
+        if (rcu) {
+            framing_extras_size += ReadComputeUnitsFrameInfoSize;
+        }
+        if (wcu) {
+            framing_extras_size += WriteComputeUnitsFrameInfoSize;
         }
         response.setFramingExtraslen(framing_extras_size);
         response.setBodylen(value_len + extras_len + key_len +
@@ -1857,6 +1882,16 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
             auto& tracer = cookie.getTracer();
             add_frame_info(ServerRecvSendDurationFrameInfoMagic,
                            tracer.getEncodedMicros());
+        }
+
+        if (rcu) {
+            add_frame_info(ReadComputeUnitsFrameInfoMagic,
+                           gsl::narrow_cast<uint16_t>(rcu));
+        }
+
+        if (wcu) {
+            add_frame_info(WriteComputeUnitsFrameInfoMagic,
+                           gsl::narrow_cast<uint16_t>(wcu));
         }
 
         wbuf = {wbuf.data(), sizeof(cb::mcbp::Response) + framing_extras_size};

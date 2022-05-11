@@ -25,12 +25,24 @@ namespace cb::mcbp {
 namespace response {
 /// See BinaryProtocol.md for a description of the available
 /// frame identifiers and their encoding
-enum class FrameInfoId : uint8_t { ServerRecvSendDuration = 0 };
+enum class FrameInfoId : uint8_t {
+    ServerRecvSendDuration = 0,
+    ReadComputeUnits = 1,
+    WriteComputeUnits = 2
+};
 
 /// ServerRecvSendDuration use 1 byte header and 2 byte value
 static constexpr size_t ServerRecvSendDurationFrameInfoSize = 3;
 /// The magic (id and size) for a ServerRecvSendDuration
 static constexpr uint8_t ServerRecvSendDurationFrameInfoMagic = 0x02;
+
+/// ReadComputeUnits use 1 byte header and 2 byte value
+static constexpr size_t ReadComputeUnitsFrameInfoSize = 3;
+static constexpr uint8_t ReadComputeUnitsFrameInfoMagic = 0x12;
+
+/// WriteComputeUnits use 1 byte header and 2 byte value
+static constexpr size_t WriteComputeUnitsFrameInfoSize = 3;
+static constexpr uint8_t WriteComputeUnitsFrameInfoMagic = 0x22;
 } // namespace response
 
 /**
@@ -189,6 +201,28 @@ public:
      * doesn't exceed the body size)
      */
     bool isValid() const;
+
+    /**
+     * Callback function to use while parsing the FrameExtras section
+     *
+     * The first parameter is the identifier for the frame info, the
+     * second parameter is the content of the frame info.
+     *
+     * If the callback function should return false if it wants to stop
+     * further parsing of the FrameExtras
+     */
+    using FrameInfoCallback = std::function<bool(
+            cb::mcbp::response::FrameInfoId, cb::const_byte_buffer)>;
+    /**
+     * Iterate over the provided frame extras
+     *
+     * @param callback The callback function to call for each frame info found.
+     *                 if the callback returns false we stop parsing the
+     *                 frame extras. Provided to the callback is the
+     *                 Frame Info identifier and the content
+     * @throws std::overflow_error if we overflow the encoded buffer.
+     */
+    void parseFrameExtras(FrameInfoCallback callback) const;
 
 protected:
     uint8_t magic;

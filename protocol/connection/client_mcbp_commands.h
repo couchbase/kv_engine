@@ -278,6 +278,16 @@ public:
      */
     std::optional<std::chrono::microseconds> getTracingData() const;
 
+    /// Get the RCU count in the response (if present). We could of course
+    /// return 0 if not set, but by using std::optional we can write more
+    /// unit tests to verify if it is sent or not
+    std::optional<size_t> getReadComputeUnits() const;
+
+    /// Get the WCU count in the response (if present). We could of course
+    // return 0 if not set, but by using std::optional we can write more
+    // unit tests to verify if it is sent or not
+    std::optional<size_t> getWriteComputeUnits() const;
+
     /**
      * Populate this response from a response
      * @param srcbuf The buffer containing the response.
@@ -705,6 +715,7 @@ public:
     BinprotMutationCommand& setValue(const T& value_);
 
     BinprotMutationCommand& addValueBuffer(cb::const_byte_buffer buf);
+    BinprotMutationCommand& addValueBuffer(std::string_view buf);
 
     BinprotMutationCommand& setDatatype(uint8_t datatype_);
     BinprotMutationCommand& setDatatype(cb::mcbp::Datatype datatype_);

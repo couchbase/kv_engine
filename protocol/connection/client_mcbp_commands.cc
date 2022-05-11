@@ -394,6 +394,50 @@ std::optional<std::chrono::microseconds> BinprotResponse::getTracingData()
     return std::optional<std::chrono::microseconds>{};
 }
 
+static uint16_t to_uint16(cb::const_byte_buffer val) {
+    uint16_t ret;
+    if (val.size() != sizeof(ret)) {
+        throw std::invalid_argument("to_uint16: Invalid size provided");
+    }
+    // copy the data over to avoid potential alignment problems ;)
+    memcpy(&ret, val.data(), sizeof(ret));
+    return ret;
+}
+
+std::optional<size_t> BinprotResponse::getReadComputeUnits() const {
+    std::optional<size_t> ret;
+    try {
+        getResponse().parseFrameExtras([&ret](auto id, auto val) -> bool {
+            if (id == cb::mcbp::response::FrameInfoId::ReadComputeUnits) {
+                ret = ntohs(to_uint16(val));
+                return false;
+            }
+            return true;
+        });
+    } catch (const std::invalid_argument& e) {
+        throw std::runtime_error(
+                "Invalid size for ReadComputeUnits frame info");
+    }
+    return ret;
+}
+
+std::optional<size_t> BinprotResponse::getWriteComputeUnits() const {
+    std::optional<size_t> ret;
+    try {
+        getResponse().parseFrameExtras([&ret](auto id, auto val) -> bool {
+            if (id == cb::mcbp::response::FrameInfoId::WriteComputeUnits) {
+                ret = ntohs(to_uint16(val));
+                return false;
+            }
+            return true;
+        });
+    } catch (const std::invalid_argument& e) {
+        throw std::runtime_error(
+                "Invalid size for WriteComputeUnits frame info");
+    }
+    return ret;
+}
+
 cb::mcbp::ClientOpcode BinprotResponse::getOp() const {
     return cb::mcbp::ClientOpcode(getResponse().getClientOpcode());
 }
@@ -751,6 +795,13 @@ BinprotMutationCommand& BinprotMutationCommand::addValueBuffer(
     value_refs.emplace_back(buf);
     return *this;
 }
+
+BinprotMutationCommand& BinprotMutationCommand::addValueBuffer(
+        std::string_view buf) {
+    return addValueBuffer(cb::const_byte_buffer{
+            reinterpret_cast<const uint8_t*>(buf.data()), buf.size()});
+}
+
 BinprotMutationCommand& BinprotMutationCommand::setDatatype(uint8_t datatype_) {
     datatype = datatype_;
     return *this;

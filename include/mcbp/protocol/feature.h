@@ -86,6 +86,9 @@ enum class Feature : uint16_t {
     /// Does the server support SubdocReplaceBodyWithXattr introduced in
     /// Cheshire-Cat
     SubdocReplaceBodyWithXattr = 0x19,
+
+    /// Include [RW]CU units as part of the response (if non-zero)
+    ReportComputeUnitUsage = 0x1a,
 };
 
 } // namespace cb::mcbp

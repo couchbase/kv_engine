@@ -59,4 +59,49 @@ bool Response::isValid() const {
             size_t(getBodylen()));
 }
 
+void Response::parseFrameExtras(FrameInfoCallback callback) const {
+    auto fe = getFramingExtras();
+    if (fe.empty()) {
+        return;
+    }
+    size_t offset = 0;
+    while (offset < fe.size()) {
+        using cb::mcbp::response::FrameInfoId;
+
+        auto idbits = size_t(fe[offset] >> 4);
+        auto size = size_t(fe[offset] & 0x0f);
+        ++offset;
+
+        if (idbits == 0x0f) {
+            // This is the escape byte
+            if ((offset + 1) > fe.size()) {
+                throw std::overflow_error(
+                        "parseFrameExtras: outside frame extras");
+            }
+            idbits += fe[offset++];
+        }
+
+        if (size == 0x0f) {
+            // This is the escape value
+            if ((offset + 1) > fe.size()) {
+                throw std::overflow_error(
+                        "parseFrameExtras: outside frame extras");
+            }
+            size += fe[offset++];
+        }
+
+        const auto id = FrameInfoId(idbits);
+        if ((offset + size) > fe.size()) {
+            throw std::overflow_error("parseFrameExtras: outside frame extras");
+        }
+
+        cb::const_byte_buffer content{fe.data() + offset, size};
+        offset += size;
+
+        if (!callback(id, content)) {
+            return;
+        }
+    }
+}
+
 } // namespace cb::mcbp

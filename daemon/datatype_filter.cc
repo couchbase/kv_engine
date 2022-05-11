@@ -46,6 +46,7 @@ void DatatypeFilter::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::SubdocCreateAsDeleted:
     case cb::mcbp::Feature::SubdocDocumentMacroSupport:
     case cb::mcbp::Feature::SubdocReplaceBodyWithXattr:
+    case cb::mcbp::Feature::ReportComputeUnitUsage:
         throw std::invalid_argument("Datatype::enable invalid feature:" +
                                     std::to_string(int(feature)));
     }

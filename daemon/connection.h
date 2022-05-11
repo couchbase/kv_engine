@@ -265,6 +265,14 @@ public:
         allow_unordered_execution = enable;
     }
 
+    void setReportComputeUnitUsage(bool enable) {
+        report_compute_unit_usage = enable;
+    }
+
+    bool isReportComputeUnitUsage() const {
+        return report_compute_unit_usage;
+    }
+
     /**
      * Remap the current error code
      *
@@ -1040,6 +1048,8 @@ protected:
     std::atomic_bool cccp{false};
 
     bool allow_unordered_execution{false};
+
+    bool report_compute_unit_usage{false};
 
     /// The name of the client provided to us by hello
     std::array<char, MaxSavedAgentName> agentName{};

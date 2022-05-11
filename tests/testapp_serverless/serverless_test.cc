@@ -205,4 +205,40 @@ TEST_F(ServerlessTest, OpsAreThrottled) {
     }
 }
 
+TEST_F(ServerlessTest, ComputeUnitsReported) {
+    auto conn = cluster->getConnection(0);
+    conn->authenticate("bucket-0", "bucket-0");
+    conn->selectBucket("bucket-0");
+    conn->setFeature(cb::mcbp::Feature::ReportComputeUnitUsage, true);
+    conn->setReadTimeout(std::chrono::seconds{3});
+
+    DocumentInfo info;
+    info.id = "ComputeUnitsReported";
+
+    BinprotMutationCommand command;
+    command.setDocumentInfo(info);
+    command.addValueBuffer("This is a document");
+    command.setMutationType(MutationType::Set);
+    auto rsp = conn->execute(command);
+    ASSERT_TRUE(rsp.isSuccess());
+
+    auto rcu = rsp.getReadComputeUnits();
+    auto wcu = rsp.getWriteComputeUnits();
+
+    ASSERT_FALSE(rcu.has_value()) << "mutate should not use RCU";
+    ASSERT_TRUE(wcu.has_value()) << "mutate should use WCU";
+    ASSERT_EQ(1, *wcu) << "The value should be 1 WCU";
+    wcu.reset();
+
+    rsp = conn->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, info.id});
+
+    rcu = rsp.getReadComputeUnits();
+    wcu = rsp.getWriteComputeUnits();
+
+    ASSERT_TRUE(rcu.has_value()) << "get should use RCU";
+    ASSERT_FALSE(wcu.has_value()) << "get should not use WCU";
+    ASSERT_EQ(1, *rcu) << "The value should be 1 RCU";
+}
+
 } // namespace cb::test
