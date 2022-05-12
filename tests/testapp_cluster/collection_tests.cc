@@ -379,12 +379,11 @@ TEST_F(CollectionsTests, getId_MB_44807_using_keylen) {
         throw ConnectionError("Failed getCollectionId", response1);
     }
 
-    if (response1.getExtlen() !=
-        sizeof(cb::mcbp::request::GetCollectionIDPayload)) {
+    auto extras1 = response1.getResponse().getExtdata();
+    if (extras1.size() != sizeof(cb::mcbp::request::GetCollectionIDPayload)) {
         throw std::logic_error("getCollectionId invalid extra length");
     }
     cb::mcbp::request::GetCollectionIDPayload payload1;
-    auto extras1 = response1.getResponse().getExtdata();
     std::copy_n(extras1.data(),
                 extras1.size(),
                 reinterpret_cast<uint8_t*>(&payload1));
@@ -398,11 +397,11 @@ TEST_F(CollectionsTests, getId_MB_44807_using_keylen) {
         throw ConnectionError("Failed getScopeId", response2);
     }
 
-    if (response2.getExtlen() != sizeof(cb::mcbp::request::GetScopeIDPayload)) {
+    auto extras2 = response2.getResponse().getExtdata();
+    if (extras2.size() != sizeof(cb::mcbp::request::GetScopeIDPayload)) {
         throw std::logic_error("getScopeId invalid extra length");
     }
     cb::mcbp::request::GetScopeIDPayload payload2;
-    auto extras2 = response2.getResponse().getExtdata();
     std::copy_n(extras2.data(),
                 extras2.size(),
                 reinterpret_cast<uint8_t*>(&payload2));

@@ -432,23 +432,11 @@ std::optional<size_t> BinprotResponse::getWriteComputeUnits() const {
 }
 
 cb::mcbp::ClientOpcode BinprotResponse::getOp() const {
-    return cb::mcbp::ClientOpcode(getResponse().getClientOpcode());
+    return getResponse().getClientOpcode();
 }
 
 cb::mcbp::Status BinprotResponse::getStatus() const {
     return getResponse().getStatus();
-}
-
-size_t BinprotResponse::getExtlen() const {
-    return getResponse().getExtlen();
-}
-
-size_t BinprotResponse::getBodylen() const {
-    return getResponse().getBodylen();
-}
-
-size_t BinprotResponse::getFramingExtraslen() const {
-    return getResponse().getFramingExtraslen();
 }
 
 uint64_t BinprotResponse::getCas() const {
@@ -489,16 +477,20 @@ void BinprotResponse::clear() {
 }
 
 const cb::mcbp::Header& BinprotResponse::getHeader() const {
-    return *reinterpret_cast<const cb::mcbp::Header*>(payload.data());
+    if (payload.size() < sizeof(cb::mcbp::Header)) {
+        throw std::logic_error("BinprotResponse::getHeader: not enough bytes");
+    }
+    auto& ret = *reinterpret_cast<const cb::mcbp::Header*>(payload.data());
+    if (!ret.isValid()) {
+        throw std::logic_error(
+                "BinprotResponse::getHeader: Not a valid header");
+    }
+    return ret;
 }
 
 void BinprotSubdocResponse::assign(std::vector<uint8_t>&& srcbuf) {
     BinprotResponse::assign(std::move(srcbuf));
-    if (getBodylen() - getExtlen() - getFramingExtraslen() > 0) {
-        value.assign(payload.data() + sizeof(cb::mcbp::Response) + getExtlen() +
-                             getFramingExtraslen(),
-                     payload.data() + payload.size());
-    }
+    value = std::string{getResponse().getValueString()};
 }
 const std::string& BinprotSubdocResponse::getValue() const {
     return value;

@@ -236,13 +236,6 @@ public:
     /** Get the status code for the response */
     cb::mcbp::Status getStatus() const;
 
-    size_t getExtlen() const;
-
-    /** Get the length of packet (minus the header) */
-    size_t getBodylen() const;
-
-    size_t getFramingExtraslen() const;
-
     uint64_t getCas() const;
     protocol_binary_datatype_t getDatatype() const;
 
@@ -261,11 +254,10 @@ public:
     /// @throws exception if a parse error occurs (not json for instance)
     nlohmann::json getDataJson() const;
 
+    /// @throws std::logic_exception if the object is invalid
     const cb::mcbp::Response& getResponse() const;
 
-    /**
-     * Retrieve the approximate time spent on the server
-     */
+    /// Retrieve the approximate time spent on the server
     std::optional<std::chrono::microseconds> getTracingData() const;
 
     /// Get the RCU count in the response (if present). We could of course

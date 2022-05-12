@@ -1263,7 +1263,7 @@ void MemcachedConnection::stats(
             throw ConnectionError("Stats failed", response);
         }
 
-        if (!response.getBodylen()) {
+        if (response.getKey().empty() && response.getData().empty()) {
             break;
         }
 
@@ -1849,12 +1849,11 @@ cb::mcbp::request::GetCollectionIDPayload MemcachedConnection::getCollectionId(
         throw ConnectionError("Failed getCollectionId", response);
     }
 
-    if (response.getExtlen() !=
-        sizeof(cb::mcbp::request::GetCollectionIDPayload)) {
+    auto extras = response.getResponse().getExtdata();
+    if (extras.size() != sizeof(cb::mcbp::request::GetCollectionIDPayload)) {
         throw std::logic_error("getCollectionId invalid extra length");
     }
     cb::mcbp::request::GetCollectionIDPayload payload;
-    auto extras = response.getResponse().getExtdata();
     std::copy_n(
             extras.data(), extras.size(), reinterpret_cast<uint8_t*>(&payload));
     return payload;
@@ -1870,11 +1869,11 @@ cb::mcbp::request::GetScopeIDPayload MemcachedConnection::getScopeId(
         throw ConnectionError("Failed getScopeId", response);
     }
 
-    if (response.getExtlen() != sizeof(cb::mcbp::request::GetScopeIDPayload)) {
+    auto extras = response.getResponse().getExtdata();
+    if (extras.size() != sizeof(cb::mcbp::request::GetScopeIDPayload)) {
         throw std::logic_error("getScopeId invalid extra length");
     }
     cb::mcbp::request::GetScopeIDPayload payload;
-    auto extras = response.getResponse().getExtdata();
     std::copy_n(
             extras.data(), extras.size(), reinterpret_cast<uint8_t*>(&payload));
     return payload;
