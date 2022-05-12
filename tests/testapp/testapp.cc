@@ -1182,11 +1182,12 @@ stats_response_t request_stats() {
                 cb::mcbp::ClientOpcode::Stat,
                 cb::mcbp::Status::Success);
         // key length zero indicates end of the stats.
-        if (rsp.getKeyString().empty()) {
+        if (rsp.getKey().empty()) {
             break;
         }
 
-        result.insert(std::make_pair(rsp.getKeyString(), rsp.getDataString()));
+        result.insert(
+                std::make_pair(std::string{rsp.getKey()}, rsp.getDataString()));
     }
 
     return result;

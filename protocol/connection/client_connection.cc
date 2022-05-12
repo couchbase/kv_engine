@@ -1267,11 +1267,11 @@ void MemcachedConnection::stats(
             break;
         }
 
-        std::string key = response.getKeyString();
-
+        std::string key{response.getKey()};
         if (key.empty()) {
             key = std::to_string(counter++);
         }
+
         callback(key, response.getDataString());
     }
 }
@@ -1664,7 +1664,7 @@ Document MemcachedConnection::getRandomKey(Vbid vbucket) {
     Document ret;
     ret.info.flags = response.getDocumentFlags();
     ret.info.cas = response.getCas();
-    ret.info.id = response.getKeyString();
+    ret.info.id = response.getKey();
     ret.info.datatype = response.getResponse().getDatatype();
     ret.value = response.getDataString();
     return ret;

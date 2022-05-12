@@ -468,11 +468,6 @@ std::string_view BinprotResponse::getKey() const {
     return {reinterpret_cast<const char*>(buf.data()), buf.size()};
 }
 
-std::string BinprotResponse::getKeyString() const {
-    const auto buf = getKey();
-    return {buf.data(), buf.size()};
-}
-
 cb::const_byte_buffer BinprotResponse::getData() const {
     return getResponse().getValue();
 }

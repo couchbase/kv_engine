@@ -251,13 +251,8 @@ public:
     uint64_t getCas() const;
     protocol_binary_datatype_t getDatatype() const;
 
-    /**
-     * Get a pointer to the key returned in the packet, if a key is present.
-     * Use #getKeyLen() to determine this.
-     */
+    /// Get a view containing the key in the packet.
     std::string_view getKey() const;
-
-    std::string getKeyString() const;
 
     /**
      * Get a pointer to the "data" or "value" part of the response. This is
