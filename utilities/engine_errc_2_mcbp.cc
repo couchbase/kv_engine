@@ -82,6 +82,8 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
         return Status::RangeScanCancelled;
     case engine_errc::range_scan_more:
         return Status::RangeScanMore;
+    case engine_errc::range_scan_complete:
+        return Status::RangeScanComplete;
     case engine_errc::too_many_connections:
         return Status::RateLimitedMaxConnections;
 

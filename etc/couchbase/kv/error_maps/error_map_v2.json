@@ -335,6 +335,13 @@
                 "success"
             ]
         },
+       "a7": {
+            "name": "RangeScanComplete",
+            "desc": "The range scan has completed",
+            "attrs": [
+                "success"
+            ]
+        },
         "c0": {
             "name": "SUBDOC_PATH_ENOENT",
             "desc": "Subdoc: Path not found in document",

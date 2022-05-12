@@ -59,6 +59,7 @@ bool is_known(Status status) {
     case Status::SyncWriteReCommitInProgress:
     case Status::RangeScanCancelled:
     case Status::RangeScanMore:
+    case Status::RangeScanComplete:
     case Status::SubdocPathEnoent:
     case Status::SubdocPathMismatch:
     case Status::SubdocPathEinval:
@@ -101,6 +102,7 @@ bool isStatusSuccess(Status status) {
     case Status::SubdocMultiPathFailureDeleted:
     case Status::Rollback:
     case Status::RangeScanMore:
+    case Status::RangeScanComplete:
         return true;
 
     case Status::KeyEnoent:
@@ -288,6 +290,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "RangeScanCancelled";
         case Status::RangeScanMore:
             return "RangeScanMore";
+        case Status::RangeScanComplete:
+            return "RangeScanComplete";
         case Status::SubdocPathEnoent:
             return "SubdocPathEnoent";
         case Status::SubdocPathMismatch:
@@ -429,6 +433,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "RangeScan was cancelled";
         case Status::RangeScanMore:
             return "RangeScan has more data available";
+        case Status::RangeScanComplete:
+            return "RangeScan has completed";
         case Status::SubdocPathEnoent:
             return "Subdoc: Path not does not exist";
         case Status::SubdocPathMismatch:

@@ -698,6 +698,7 @@ bool TestRangeScanHandler::validateStatus(cb::engine_errc code) {
     case cb::engine_errc::unknown_collection:
     case cb::engine_errc::range_scan_cancelled:
     case cb::engine_errc::range_scan_more:
+    case cb::engine_errc::range_scan_complete:
     case cb::engine_errc::failed:
         return true;
     case cb::engine_errc::no_such_key:

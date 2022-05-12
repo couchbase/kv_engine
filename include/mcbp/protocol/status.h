@@ -167,6 +167,9 @@ enum class Status : uint16_t {
     /// A RangeScan has more data available
     RangeScanMore = 0xa6,
 
+    /// A RangeScan has completed successfully
+    RangeScanComplete = 0xa7,
+
     /*
      * Sub-document specific responses.
      */
