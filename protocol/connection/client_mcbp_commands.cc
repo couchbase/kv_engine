@@ -451,10 +451,6 @@ size_t BinprotResponse::getFramingExtraslen() const {
     return getResponse().getFramingExtraslen();
 }
 
-size_t BinprotResponse::getHeaderLen() {
-    return sizeof(cb::mcbp::Response);
-}
-
 uint64_t BinprotResponse::getCas() const {
     return getResponse().getCas();
 }
@@ -1393,9 +1389,9 @@ static Vbid netToHost(Vbid x) {
  * to the next element after the type extracted.
  */
 template <typename T>
-static std::vector<uint8_t>::iterator extract(
-        std::vector<uint8_t>::iterator pos, T& value) {
-    auto* p = reinterpret_cast<T*>(&*pos);
+static cb::const_byte_buffer::iterator extract(
+        cb::const_byte_buffer::iterator pos, T& value) {
+    auto* p = reinterpret_cast<const T*>(&*pos);
     value = netToHost(*p);
     return pos + sizeof(T);
 }
@@ -1744,14 +1740,15 @@ void BinprotObserveSeqnoResponse::decode() {
         return;
     }
 
-    if ((getBodylen() != 43) && (getBodylen() != 27)) {
+    const auto value = getHeader().getValue();
+    if ((value.size() != 43) && (value.size() != 27)) {
         throw std::runtime_error(
                 "BinprotObserveSeqnoResponse::decode: Invalid payload size - "
                 "expected:43 or 27, actual:" +
-                std::to_string(getBodylen()));
+                std::to_string(value.size()));
     }
 
-    auto it = payload.begin() + getHeaderLen();
+    auto it = value.begin();
     it = extract(it, info.formatType);
     it = extract(it, info.vbId);
     it = extract(it, info.uuid);
@@ -1766,7 +1763,7 @@ void BinprotObserveSeqnoResponse::decode() {
     case 1:
         // Add in hard failover information
         it = extract(it, info.failoverUUID);
-        it = extract(it, info.failoverSeqno);
+        extract(it, info.failoverSeqno);
         break;
 
     default:

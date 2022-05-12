@@ -243,11 +243,6 @@ public:
 
     size_t getFramingExtraslen() const;
 
-    /**
-     * Get the length of the header. This is a static function as it is
-     * always 24
-     */
-    static size_t getHeaderLen();
     uint64_t getCas() const;
     protocol_binary_datatype_t getDatatype() const;
 
