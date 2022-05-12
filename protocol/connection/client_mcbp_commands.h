@@ -329,16 +329,11 @@ private:
 
 class BinprotSubdocResponse : public BinprotResponse {
 public:
-    const std::string& getValue() const;
-
-    void clear() override;
-
-    void assign(std::vector<uint8_t>&& srcbuf) override;
+    std::string_view getValue() const {
+        return getResponse().getValueString();
+    }
 
     bool operator==(const BinprotSubdocResponse& other) const;
-
-private:
-    std::string value;
 };
 
 class BinprotSubdocMultiMutationCommand

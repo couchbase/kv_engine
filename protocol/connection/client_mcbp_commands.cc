@@ -488,17 +488,6 @@ const cb::mcbp::Header& BinprotResponse::getHeader() const {
     return ret;
 }
 
-void BinprotSubdocResponse::assign(std::vector<uint8_t>&& srcbuf) {
-    BinprotResponse::assign(std::move(srcbuf));
-    value = std::string{getResponse().getValueString()};
-}
-const std::string& BinprotSubdocResponse::getValue() const {
-    return value;
-}
-void BinprotSubdocResponse::clear() {
-    BinprotResponse::clear();
-    value.clear();
-}
 bool BinprotSubdocResponse::operator==(
         const BinprotSubdocResponse& other) const {
     bool rv = getStatus() == other.getStatus();
