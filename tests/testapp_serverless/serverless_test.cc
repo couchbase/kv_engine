@@ -244,4 +244,52 @@ TEST_F(ServerlessTest, ComputeUnitsReported) {
     ASSERT_EQ(1, *rcu) << "The value should be 1 RCU";
 }
 
+TEST_F(ServerlessTest, AllConnectionsAreMetered) {
+    auto admin = cluster->getConnection(0);
+    auto conn = admin->clone();
+    admin->authenticate("@admin", "password");
+    conn->authenticate("bucket-0", "bucket-0");
+    admin->selectBucket("bucket-0");
+    conn->selectBucket("bucket-0");
+
+    auto getStats = [&admin]() -> nlohmann::json {
+        nlohmann::json ret;
+        admin->stats([&ret](const auto& k,
+                            const auto& v) { ret = nlohmann::json::parse(v); },
+                     "bucket_details bucket-0");
+        return ret;
+    };
+
+    auto readDoc = [stat = getStats](MemcachedConnection& conn) {
+        auto initial = stat();
+        conn.get("mydoc", Vbid{0});
+        auto after = stat();
+        EXPECT_EQ(initial["rcu"].get<std::size_t>() + 1,
+                  after["rcu"].get<std::size_t>());
+        // Read should not update wcu
+        EXPECT_EQ(initial["wcu"].get<std::size_t>(),
+                  after["wcu"].get<std::size_t>());
+    };
+
+    auto writeDoc = [stat = getStats](MemcachedConnection& conn) {
+        auto initial = stat();
+        Document doc;
+        doc.info.id = "mydoc";
+        doc.value = "This is the value";
+        conn.mutate(doc, Vbid{0}, MutationType::Set);
+        auto after = stat();
+        EXPECT_EQ(initial["wcu"].get<std::size_t>() + 1,
+                  after["wcu"].get<std::size_t>());
+
+        // write should not update rcu
+        EXPECT_EQ(initial["rcu"].get<std::size_t>(),
+                  after["rcu"].get<std::size_t>());
+    };
+
+    writeDoc(*admin);
+    writeDoc(*conn);
+    readDoc(*admin);
+    readDoc(*conn);
+}
+
 } // namespace cb::test

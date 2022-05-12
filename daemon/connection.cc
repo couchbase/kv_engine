@@ -772,9 +772,7 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
 }
 
 void Connection::commandExecuted(Cookie& cookie) {
-    if (!internal) {
-        getBucket().commandExecuted(cookie);
-    }
+    getBucket().commandExecuted(cookie);
     if (tenant) {
         tenant->executed();
     }

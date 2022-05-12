@@ -224,6 +224,9 @@ protected:
     /// The total time (in usec) spent in a throttled state
     std::atomic<uint64_t> throttle_wait_time{0};
 
+    /// The total number of commands executed within the bucket
+    std::atomic<uint64_t> num_commands{0};
+
     /// A deque per front end thread containing all of the connections
     /// which have one or more cookies throttled. It should _only_ be
     /// accessed in the context of the front end worker threads, and each

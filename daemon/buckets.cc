@@ -72,6 +72,11 @@ nlohmann::json Bucket::to_json() const {
                 json["num_throttled"] = num_throttled.load();
                 json["throttle_limit"] = throttle_limit.load();
                 json["throttle_wait_time"] = throttle_wait_time.load();
+                json["num_commands"] = num_commands.load();
+                // We don't reject commands at this time, but just add the
+                // empty stat to allow other parties to implement their logic
+                // and work out of the box if we this
+                json["num_rejected"] = 0;
             } catch (const std::exception& e) {
                 LOG_ERROR("Failed to generate bucket details: {}", e.what());
             }
@@ -125,6 +130,7 @@ void Bucket::commandExecuted(const Cookie& cookie) {
     throttle_wait_time += cookie.getTotalThrottleTime();
     read_compute_units_used += rcu;
     write_compute_units_used += wcu;
+    ++num_commands;
 }
 
 void Bucket::tick() {
