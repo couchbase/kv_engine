@@ -189,27 +189,12 @@ void BinprotGenericCommand::encode(std::vector<uint8_t>& buf) const {
 }
 
 BinprotGenericCommand::BinprotGenericCommand(cb::mcbp::ClientOpcode opcode,
-                                             const std::string& key_,
-                                             const std::string& value_)
+                                             std::string key_,
+                                             std::string value_)
     : BinprotCommandT() {
     setOp(opcode);
-    setKey(key_);
-    setValue(value_);
-}
-
-BinprotGenericCommand::BinprotGenericCommand(cb::mcbp::ClientOpcode opcode,
-                                             const std::string& key_)
-    : BinprotCommandT() {
-    setOp(opcode);
-    setKey(key_);
-}
-
-BinprotGenericCommand::BinprotGenericCommand(cb::mcbp::ClientOpcode opcode)
-    : BinprotCommandT() {
-    setOp(opcode);
-}
-
-BinprotGenericCommand::BinprotGenericCommand() : BinprotCommandT() {
+    setKey(std::move(key_));
+    setValue(std::move(value_));
 }
 
 BinprotGenericCommand& BinprotGenericCommand::setValue(std::string value_) {

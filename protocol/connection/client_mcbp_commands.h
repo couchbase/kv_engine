@@ -181,23 +181,28 @@ public:
  */
 class BinprotGenericCommand : public BinprotCommandT<BinprotGenericCommand> {
 public:
+    BinprotGenericCommand() : BinprotCommandT() {
+    }
+    explicit BinprotGenericCommand(cb::mcbp::ClientOpcode opcode)
+        : BinprotGenericCommand(opcode, {}) {
+    }
+    BinprotGenericCommand(cb::mcbp::ClientOpcode opcode, std::string key_)
+        : BinprotGenericCommand(opcode, std::move(key_), {}) {
+    }
     BinprotGenericCommand(cb::mcbp::ClientOpcode opcode,
-                          const std::string& key_,
-                          const std::string& value_);
-    BinprotGenericCommand(cb::mcbp::ClientOpcode opcode,
-                          const std::string& key_);
-    explicit BinprotGenericCommand(cb::mcbp::ClientOpcode opcode);
-    BinprotGenericCommand();
+                          std::string key_,
+                          std::string value_);
+
     BinprotGenericCommand& setValue(std::string value_);
     BinprotGenericCommand& setExtras(const std::vector<uint8_t>& buf);
     BinprotGenericCommand& setExtras(std::string_view buf);
 
     // Use for setting a simple value as an extras
     template <typename T>
-    BinprotGenericCommand& setExtrasValue(T value) {
+    BinprotGenericCommand& setExtrasValue(T ext) {
         std::vector<uint8_t> buf;
         buf.resize(sizeof(T));
-        memcpy(buf.data(), &value, sizeof(T));
+        memcpy(buf.data(), &ext, sizeof(T));
         return setExtras(buf);
     }
 
