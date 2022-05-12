@@ -69,16 +69,11 @@ void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
                                      bool value) {
     conn.executeInBucket(bucketName, [&](auto& connection) {
         // Encode a set_flush_param (like cbepctl)
-        BinprotGenericCommand cmd;
-        cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
-        cmd.setKey("xattr_enabled");
+        BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::SetParam,
+                                  "xattr_enabled",
+                                  value ? "true" : "false"};
         cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
                 cb::mcbp::request::SetParamPayload::Type::Flush)));
-        if (value) {
-            cmd.setValue("true");
-        } else {
-            cmd.setValue("false");
-        }
 
         const auto resp = connection.execute(cmd);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
@@ -90,12 +85,10 @@ void TestBucketImpl::setCompressionMode(MemcachedConnection& conn,
                                         const std::string& value) {
     conn.executeInBucket(bucketName, [&](auto& connection) {
         // Encode a set_flush_param (like cbepctl)
-        BinprotGenericCommand cmd;
-        cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
-        cmd.setKey("compression_mode");
+        BinprotGenericCommand cmd{
+                cb::mcbp::ClientOpcode::SetParam, "compression_mode", value};
         cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
                 cb::mcbp::request::SetParamPayload::Type::Flush)));
-        cmd.setValue(value);
 
         const auto resp = connection.execute(cmd);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
@@ -107,12 +100,11 @@ void TestBucketImpl::setMinCompressionRatio(MemcachedConnection& conn,
                                             const std::string& value) {
     conn.executeInBucket(bucketName, [&](auto& connection) {
         // Encode a set_flush_param (like cbepctl)
-        BinprotGenericCommand cmd;
-        cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
-        cmd.setKey("min_compression_ratio");
+        BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::SetParam,
+                                  "min_compression_ratio",
+                                  value};
         cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
                 cb::mcbp::request::SetParamPayload::Type::Flush)));
-        cmd.setValue(value);
 
         const auto resp = connection.execute(cmd);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());

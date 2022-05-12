@@ -181,8 +181,9 @@ public:
  */
 class BinprotGenericCommand : public BinprotCommandT<BinprotGenericCommand> {
 public:
-    BinprotGenericCommand() : BinprotCommandT() {
-    }
+    /// It shouldn't be possible to create a command without an opcode
+    BinprotGenericCommand() = delete;
+
     explicit BinprotGenericCommand(cb::mcbp::ClientOpcode opcode)
         : BinprotGenericCommand(opcode, {}) {
     }

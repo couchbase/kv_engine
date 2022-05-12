@@ -160,8 +160,8 @@ uint32_t BinprotCommand::ExpiryValue::getValue() const {
 
 BinprotCommandResponse::BinprotCommandResponse(cb::mcbp::ClientOpcode opcode,
                                                uint32_t opaque,
-                                               cb::mcbp::Status status) {
-    setOp(opcode);
+                                               cb::mcbp::Status status)
+    : BinprotGenericCommand(opcode) {
     setOpaque(opaque);
     setStatus(status);
 }
