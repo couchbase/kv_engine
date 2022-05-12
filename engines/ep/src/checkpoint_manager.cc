@@ -147,7 +147,7 @@ void CheckpointManager::addNewCheckpoint(
             oldOpenCkpt.getId(),
             oldOpenCkpt.getMinimumCursorSeqno(),
             oldOpenCkpt.getHighSeqno());
-    queued_item qi = createCheckpointItem(
+    queued_item qi = createCheckpointMetaItem(
             oldOpenCkpt.getId(), vb.getId(), queue_op::checkpoint_end);
     oldOpenCkpt.queueDirty(qi);
     ++numItems;
@@ -237,12 +237,12 @@ void CheckpointManager::addOpenCheckpoint(
     // We need this because every CheckpointCursor will point to this empty-item
     // at creation. So, the cursor will point at the first actual non-meta item
     // after the first cursor-increment.
-    queued_item qi = createCheckpointItem(0, Vbid(0xffff), queue_op::empty);
+    queued_item qi = createCheckpointMetaItem(0, Vbid(0xffff), queue_op::empty);
     ckpt->queueDirty(qi);
     // Note: We don't include the empty-item in 'numItems'
 
     // This item represents the start of the new checkpoint
-    qi = createCheckpointItem(id, vb.getId(), queue_op::checkpoint_start);
+    qi = createCheckpointMetaItem(id, vb.getId(), queue_op::checkpoint_start);
     ckpt->queueDirty(qi);
     ++numItems;
 
@@ -803,7 +803,7 @@ void CheckpointManager::queueSetVBState() {
     std::lock_guard<std::mutex> lh(queueLock);
 
     // Create the setVBState operation, and enqueue it.
-    queued_item item = createCheckpointItem(
+    queued_item item = createCheckpointMetaItem(
             /*id*/ 0, vb.getId(), queue_op::set_vbucket_state);
 
     // We need to set the cas of the item as two subsequent set_vbucket_state
@@ -1222,9 +1222,15 @@ uint64_t CheckpointManager::getVisibleSnapshotEndSeqno() const {
     return openCkpt.getVisibleSnapshotEndSeqno();
 }
 
-queued_item CheckpointManager::createCheckpointItem(uint64_t id,
-                                                    Vbid vbid,
-                                                    queue_op checkpoint_op) {
+queued_item CheckpointManager::createCheckpointMetaItem(uint64_t checkpointId,
+                                                        Vbid vbid,
+                                                        queue_op op) {
+    if (!isMetaQueueOp(op)) {
+        throw std::invalid_argument(
+                "CheckpointManager::createCheckpointMetaItem: op " +
+                to_string(op) + " is non-meta");
+    }
+
     // It's not valid to actually increment lastBySeqno for any meta op as this
     // may be called independently on the replica to the active (i.e. for a
     // failover table change as part of set_vbucket_state) so the seqnos would
@@ -1238,28 +1244,10 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id,
     // seqnos are exclusive of any seqno of a normal mutation in the checkpoint,
     // whilst checkpoint starts should be inclusive. Checkpoint ends may share a
     // seqno with a preceding setVBucketState though.
-    uint64_t bySeqno = lastBySeqno + 1;
-    StoredDocKey key(to_string(checkpoint_op), CollectionID::System);
+    uint64_t seqno = lastBySeqno + 1;
+    StoredDocKey key(to_string(op), CollectionID::System);
 
-    switch (checkpoint_op) {
-    case queue_op::checkpoint_start:
-    case queue_op::checkpoint_end:
-    case queue_op::empty:
-    case queue_op::set_vbucket_state:
-        break;
-
-    default:
-        throw std::invalid_argument(
-                "CheckpointManager::createCheckpointItem:"
-                "checkpoint_op (which is " +
-                std::to_string(
-                        static_cast<std::underlying_type<queue_op>::type>(
-                                checkpoint_op)) +
-                ") is not a valid item to create");
-    }
-
-    queued_item qi(new Item(key, vbid, checkpoint_op, id, bySeqno));
-    return qi;
+    return queued_item(new Item(key, vbid, op, checkpointId, seqno));
 }
 
 uint64_t CheckpointManager::createNewCheckpoint() {

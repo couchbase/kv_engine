@@ -88,5 +88,7 @@ enum class queue_op : uint8_t {
 /// Return a string representation of queue_op.
 std::string to_string(queue_op op);
 
+bool isMetaQueueOp(queue_op op);
+
 /// Print a queue_op to an ostream (for GoogleTest).
 std::ostream& operator<<(std::ostream& os, const queue_op& op);

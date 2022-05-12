@@ -354,21 +354,7 @@ public:
     }
 
     bool isCheckPointMetaItem() const {
-        switch (op) {
-        case queue_op::mutation:
-        case queue_op::pending_sync_write:
-        case queue_op::commit_sync_write:
-        case queue_op::abort_sync_write:
-        case queue_op::system_event:
-            return false;
-        case queue_op::empty:
-        case queue_op::checkpoint_start:
-        case queue_op::checkpoint_end:
-        case queue_op::set_vbucket_state:
-            return true;
-        }
-        // Silence GCC warning
-        return false;
+        return isMetaQueueOp(op);
     }
 
     /**

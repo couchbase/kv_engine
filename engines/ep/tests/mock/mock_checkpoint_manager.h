@@ -80,11 +80,11 @@ public:
         return checkpointList;
     }
 
-    queued_item public_createCheckpointItem(uint64_t id,
-                                            Vbid vbid,
-                                            queue_op checkpoint_op) {
+    queued_item public_createCheckpointMetaItem(uint64_t checkpointId,
+                                                Vbid vbid,
+                                                queue_op op) {
         std::lock_guard<std::mutex> lh(queueLock);
-        return createCheckpointItem(id, vbid, checkpoint_op);
+        return createCheckpointMetaItem(checkpointId, vbid, op);
     }
 
     bool incrCursor(CheckpointCursor& cursor) {
