@@ -123,12 +123,8 @@ bool operator<(const CheckpointCursor& a, const CheckpointCursor& b) {
         return false;
     }
 
-    // Same checkpoint and seqno, measure distance from start of checkpoint.
-    const auto a_distance =
-            std::distance((*a.currentCheckpoint)->begin(), a.currentPos);
-    const auto b_distance =
-            std::distance((*b.currentCheckpoint)->begin(), b.currentPos);
-    return a_distance < b_distance;
+    // Same checkpoint and seqno, use distance from start of checkpoint.
+    return a.distance < b.distance;
 }
 
 std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c) {
@@ -136,7 +132,7 @@ std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c) {
        << " name:" << c.name
        << " currentCkpt:{id:" << (*c.currentCheckpoint)->getId()
        << " state:" << to_string((*c.currentCheckpoint)->getState())
-       << "} currentSeq:" << (*c.currentPos)->getBySeqno() << " distance:"
-       << std::distance((*c.currentCheckpoint)->begin(), c.currentPos);
+       << "} currentSeq:" << (*c.currentPos)->getBySeqno()
+       << " distance:" << c.distance;
     return os;
 }
