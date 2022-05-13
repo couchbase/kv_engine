@@ -1508,6 +1508,118 @@ TEST_F(SingleThreadedCheckpointTest, CheckpointHighSeqno) {
     EXPECT_EQ(0, cursor->getDistance());
 }
 
+void SingleThreadedCheckpointTest::testMinimumCursorSeqno(
+        ItemRemovalPath itemRemoval) {
+    setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = *vb->checkpointManager;
+    EXPECT_EQ(1, manager.getOpenCheckpointId());
+    manager.createNewCheckpoint();
+    flushVBucket(vbid);
+
+    // [e:1 cs:1)
+    ASSERT_EQ(2, manager.getOpenCheckpointId());
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(0, manager.getHighSeqno());
+
+    // [e:1 cs:1 m:1)
+    const std::string value("value");
+    store_item(vbid, makeStoredDocKey("key"), value);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, manager.getHighSeqno());
+    const auto& checkpoint =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
+                    manager);
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, checkpoint.getMinimumCursorSeqno());
+    ASSERT_EQ(1, checkpoint.getHighSeqno());
+
+    switch (itemRemoval) {
+    case ItemRemovalPath::None: {
+        // [e:1 cs:1 m:1 m:2)
+        store_item(vbid, makeStoredDocKey("different-key"), value);
+        flushVBucket(vbid);
+
+        EXPECT_EQ(1, checkpoint.getMinimumCursorSeqno());
+        EXPECT_EQ(2, checkpoint.getHighSeqno());
+
+        const auto res = manager.registerCursorBySeqno(
+                "cursor", 1, CheckpointCursor::Droppable::Yes);
+        EXPECT_FALSE(res.tryBackfill);
+        const auto cursor = res.cursor.lock();
+        EXPECT_EQ(queue_op::mutation, (*cursor->getPos())->getOperation());
+        EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
+        EXPECT_EQ(2, cursor->getDistance());
+
+        break;
+    }
+    // Following path both lead to
+    // [e:1 cs:1 x m:2)
+    case ItemRemovalPath::Dedup: {
+        EXPECT_EQ(1, checkpoint.getNumItems());
+        store_item(vbid, makeStoredDocKey("key"), value);
+        flushVBucket(vbid);
+        EXPECT_EQ(1, checkpoint.getNumItems());
+
+        EXPECT_EQ(1, checkpoint.getMinimumCursorSeqno());
+        EXPECT_EQ(2, checkpoint.getHighSeqno());
+
+        const auto res = manager.registerCursorBySeqno(
+                "cursor", 1, CheckpointCursor::Droppable::Yes);
+        EXPECT_FALSE(res.tryBackfill);
+
+        // @todo MB-39344: This check fails because the cursor is wrongly
+        // placed at cs:1. That is an issue as that means that when sending
+        // the snapshot DCP will miss to set the CHK_FLAG in the marker.
+        // Fixed in a dedicated patch.
+        //        const auto cursor = res.cursor.lock();
+        //        EXPECT_EQ(queue_op::empty,
+        //        (*cursor->getPos())->getOperation()); EXPECT_EQ(1,
+        //        (*cursor->getPos())->getBySeqno()); EXPECT_EQ(0,
+        //        cursor->getDistance());
+
+        break;
+    }
+    case ItemRemovalPath::Expel: {
+        EXPECT_EQ(1, checkpoint.getNumItems());
+        store_item(vbid, makeStoredDocKey("different-key"), value);
+        flushVBucket(vbid);
+        EXPECT_EQ(2, checkpoint.getNumItems());
+        EXPECT_EQ(1, manager.expelUnreferencedCheckpointItems().count);
+
+        EXPECT_EQ(2, checkpoint.getMinimumCursorSeqno());
+        EXPECT_EQ(2, checkpoint.getHighSeqno());
+
+        // Note: This is a very important point - Cursor registered at the same
+        // position as in the Dedup case, but the Expel case requires a backfill
+
+        const auto res = manager.registerCursorBySeqno(
+                "cursor", 1, CheckpointCursor::Droppable::Yes);
+        EXPECT_TRUE(res.tryBackfill);
+        const auto cursor = res.cursor.lock();
+        EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
+        EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
+        EXPECT_EQ(0, cursor->getDistance());
+
+        break;
+    }
+    }
+}
+
+TEST_F(SingleThreadedCheckpointTest, CheckpointMinimumCursorSeqno) {
+    testMinimumCursorSeqno(ItemRemovalPath::None);
+}
+
+TEST_F(SingleThreadedCheckpointTest, CheckpointMinimumCursorSeqno_Dedup) {
+    testMinimumCursorSeqno(ItemRemovalPath::Dedup);
+}
+
+TEST_F(SingleThreadedCheckpointTest, CheckpointMinimumCursorSeqno_Expel) {
+    testMinimumCursorSeqno(ItemRemovalPath::Expel);
+}
+
 // Test that when the same client registers twice, the first cursor 'dies'
 TEST_P(CheckpointTest, reRegister) {
     auto dcpCursor1 = manager->registerCursorBySeqno(

@@ -110,6 +110,17 @@ public:
      * @return the new cursor
      */
     std::shared_ptr<CheckpointCursor> testCursorDistance_Register();
+
+    enum class ItemRemovalPath { None, Dedup, Expel };
+
+    /**
+     * Verifies that the checkpoint tracks correctly the lower seqno that a
+     * cursor would pick if registered at checkpoint's begin.
+     *
+     * @param itemRemoval Defines the scenario under test in the different cases
+     *  of item removal
+     */
+    void testMinimumCursorSeqno(ItemRemovalPath itemRemoval);
 };
 
 /**
