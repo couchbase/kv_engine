@@ -902,8 +902,7 @@ TEST_P(KVStoreParamTest, InvalidSnapshotDetected) {
     EXPECT_THROW(kvstore->getPersistedVBucketState(vbid), std::exception);
 }
 
-// @TODO RocksDB we should add invalid snapshot detection here
-TEST_P(KVStoreParamTestSkipRocks, InvalidSnapshotDetectedAtScan) {
+TEST_P(KVStoreParamTest, InvalidSnapshotDetectedAtScan) {
     // Store item without setting the snapshot constraints
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");

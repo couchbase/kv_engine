@@ -446,15 +446,7 @@ private:
      */
     void loadVBStateCache(const VBHandle& vbh);
 
-    /**
-     * Return value of readVBStateFromDisk.
-     */
-    struct DiskState {
-        rocksdb::Status status;
-        vbucket_state vbstate;
-    };
-
-    DiskState readVBStateFromDisk(const VBHandle& vbh) const;
+    ReadVBStateResult readVBStateFromDisk(const VBHandle& vbh) const;
 
     // Serialize the vbucket state and add it to the local CF in the specified
     // batch of writes.

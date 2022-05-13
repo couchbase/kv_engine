@@ -1068,76 +1068,75 @@ GetValue RocksDBKVStore::makeGetValue(Vbid vb,
                     false);
 }
 
-RocksDBKVStore::DiskState RocksDBKVStore::readVBStateFromDisk(
+KVStoreIface::ReadVBStateResult RocksDBKVStore::readVBStateFromDisk(
         const VBHandle& vbh) const {
     auto key = getVbstateKey();
     std::string jsonStr;
     vbucket_state vbState;
     auto vbid = vbh.vbid;
-    auto status = rdb->Get(rocksdb::ReadOptions(),
-                           vbh.seqnoCFH.get(),
-                           getSeqnoSlice(&key),
-                           &jsonStr);
-    if (!status.ok()) {
-        if (status.IsNotFound()) {
+    auto rocksStatus = rdb->Get(rocksdb::ReadOptions(),
+                                vbh.seqnoCFH.get(),
+                                getSeqnoSlice(&key),
+                                &jsonStr);
+    if (!rocksStatus.ok()) {
+        if (rocksStatus.IsNotFound()) {
             logger.info(
                     "RocksDBKVStore::readVBStateFromDisk: '_local/vbstate.{}' "
-                    "not "
-                    "found",
+                    "not found",
                     vbid.get());
-        } else {
-            logger.warn(
-                    "RocksDBKVStore::readVBStateFromDisk: error getting "
-                    "vbstate "
-                    "error:{}, {}",
-                    status.getState(),
-                    vbid);
-        }
-    } else {
-        nlohmann::json json;
-        try {
-            json = nlohmann::json::parse(jsonStr);
-        } catch (const nlohmann::json::exception& e) {
-            logger.warn(
-                    "RocksKVStore::readVBStateFromDisk: Failed to parse the "
-                    "vbstat "
-                    "json doc for {}, json:{} with reason:{}",
-                    vbid,
-                    jsonStr,
-                    e.what());
-            return {};
+            return {ReadVBStateStatus::NotFound, {}};
         }
 
-        // Merge in the high_seqno (which is implicitly stored as the highest
-        // seqno item).
-        json["high_seqno"] = std::to_string(readHighSeqnoFromDisk(vbh));
-
-        try {
-            vbState = json;
-        } catch (const nlohmann::json::exception& e) {
-            logger.warn(
-                    "RocksKVStore::readVBStateFromDisk: Failed to "
-                    "convert the vbstat json doc for {} to vbState, json:{}, "
-                    "with "
-                    "reason:{}",
-                    vbid,
-                    jsonStr,
-                    e.what());
-            return {};
-        }
-
-        bool snapshotValid;
-        std::tie(snapshotValid, vbState.lastSnapStart, vbState.lastSnapEnd) =
-                processVbstateSnapshot(vbid, vbState);
-
-        if (!snapshotValid) {
-            status = rocksdb::Status::Corruption(
-                    "RocksDBKVStore::readVBStateFromDisk: " + vbid.to_string() +
-                    " detected corrupt snapshot.");
-        }
+        logger.warn(
+                "RocksDBKVStore::readVBStateFromDisk: error getting "
+                "vbstate "
+                "error:{}, {}",
+                rocksStatus.getState(),
+                vbid);
+        return {ReadVBStateStatus::Error, {}};
     }
 
-    return {status, vbState};
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(jsonStr);
+    } catch (const nlohmann::json::exception& e) {
+        logger.warn(
+                "RocksKVStore::readVBStateFromDisk: Failed to parse the "
+                "vbstat "
+                "json doc for {}, json:{} with reason:{}",
+                vbid,
+                jsonStr,
+                e.what());
+        return {ReadVBStateStatus::JsonInvalid, {}};
+    }
+
+    // Merge in the high_seqno (which is implicitly stored as the highest
+    // seqno item).
+    json["high_seqno"] = std::to_string(readHighSeqnoFromDisk(vbh));
+
+    try {
+        vbState = json;
+    } catch (const nlohmann::json::exception& e) {
+        logger.warn(
+                "RocksKVStore::readVBStateFromDisk: Failed to "
+                "convert the vbstat json doc for {} to vbState, json:{}, "
+                "with "
+                "reason:{}",
+                vbid,
+                jsonStr,
+                e.what());
+        return {ReadVBStateStatus::JsonInvalid, {}};
+    }
+
+    bool snapshotValid;
+    std::tie(snapshotValid, vbState.lastSnapStart, vbState.lastSnapEnd) =
+            processVbstateSnapshot(vbid, vbState);
+
+    if (!snapshotValid) {
+        return {ReadVBStateStatus::CorruptSnapshot, vbState};
+    }
+
+    return {ReadVBStateStatus::Success, vbState};
 }
 
 void RocksDBKVStore::loadVBStateCache(const VBHandle& vbh) {
@@ -1147,7 +1146,7 @@ void RocksDBKVStore::loadVBStateCache(const VBHandle& vbh) {
     // until C++20.
     auto vbid = vbh.vbid;
     cachedVBStates[getCacheSlot(vbid)] =
-            std::make_unique<vbucket_state>(diskState.vbstate);
+            std::make_unique<vbucket_state>(diskState.state);
 }
 
 rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const VBHandle& vbh,
@@ -1470,18 +1469,28 @@ std::unique_ptr<BySeqnoScanContext> RocksDBKVStore::initBySeqnoScanContext(
 
     auto vbHandle = getVBHandle(vbid);
     auto diskState = readVBStateFromDisk(*vbHandle);
+
+    if (diskState.status != ReadVBStateStatus::Success) {
+        logger.warn(
+                "RocksDBKVStore::initBySeqnoScanContext: Failed to get "
+                "vBucket statue for {} with status {}",
+                vbid,
+                to_string(diskState.status));
+        return {};
+    }
+
     return std::make_unique<BySeqnoScanContext>(
             std::move(cb),
             std::move(cl),
             vbid,
             std::move(handle),
             startSeqno,
-            diskState.vbstate.highSeqno,
+            diskState.state.highSeqno,
             0, /*TODO RDB: pass the real purge-seqno*/
             options,
             valOptions,
-            /* documentCount */ diskState.vbstate.highSeqno - startSeqno + 1,
-            diskState.vbstate,
+            /* documentCount */ diskState.state.highSeqno - startSeqno + 1,
+            diskState.state,
             std::vector<Collections::KVStore::DroppedCollection>{
                     /*no collections in rocksdb*/});
 }
@@ -1926,14 +1935,14 @@ const KVStoreConfig& RocksDBKVStore::getConfig() const {
 vbucket_state RocksDBKVStore::getPersistedVBucketState(Vbid vbid) const {
     auto handle = getVBHandle(vbid);
     auto state = readVBStateFromDisk(*handle);
-    if (!state.status.ok()) {
+    if (state.status != ReadVBStateStatus::Success) {
         throw std::runtime_error(
                 "RocksDBKVStore::getPersistedVBucketState "
                 "failed with status " +
-                state.status.ToString());
+                to_string(state.status));
     }
 
-    return state.vbstate;
+    return state.state;
 }
 
 vbucket_state RocksDBKVStore::getPersistedVBucketState(KVFileHandle& handle,
