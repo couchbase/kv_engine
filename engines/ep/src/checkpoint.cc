@@ -453,10 +453,15 @@ uint64_t Checkpoint::getHighSeqno() const {
     auto pos = end();
     --pos;
 
-    if ((*pos)->getOperation() == queue_op::checkpoint_end) {
-        // We bump the seqno for checkpoint_end items so return the high
-        // seqno of the last non-meta item (i.e. one less)
-        return (*pos)->getBySeqno() - 1;
+    // We bump the seqno for meta items, so we need to locate the high-seqno of
+    // the last non-meta item.
+    //
+    // Note: Theoretically this code is O(N) in toWrite.size(). In practice the
+    // only way for showing a O(N) behaviour is having a long sequence of
+    // set_vbucket_state items queued at the end of the checkpoint, which never
+    // happens.
+    while ((*pos)->isCheckPointMetaItem() && !(*pos)->isCheckpointStart()) {
+        --pos;
     }
 
     return (*pos)->getBySeqno();

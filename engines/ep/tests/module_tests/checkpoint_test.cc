@@ -1447,6 +1447,67 @@ TEST_F(SingleThreadedCheckpointTest, CursorDistance_ResetCursor) {
     cursor.reset();
 }
 
+TEST_F(SingleThreadedCheckpointTest, CheckpointHighSeqno) {
+    setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = *vb->checkpointManager;
+    EXPECT_EQ(1, manager.getOpenCheckpointId());
+    manager.createNewCheckpoint();
+    flushVBucket(vbid);
+
+    // [e:1 cs:1)
+    EXPECT_EQ(2, manager.getOpenCheckpointId());
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(0, manager.getNumOpenChkItems());
+    EXPECT_EQ(0, manager.getHighSeqno());
+
+    // [e:1 cs:1 m:1)
+    const std::string value("value");
+    store_item(vbid, makeStoredDocKey("key1"), value);
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(1, manager.getNumOpenChkItems());
+    EXPECT_EQ(1, manager.getHighSeqno());
+
+    // [e:1 cs:1 m:1 vbs:2)
+    setVBucketState(vbid,
+                    vbucket_state_active,
+                    {{"topology", nlohmann::json::array({{"n0", "n1"}})}});
+    const auto& checkpoint =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
+                    manager);
+    const auto queue =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpointQueue(
+                    manager);
+    const auto it = queue.back();
+    EXPECT_EQ(queue_op::set_vbucket_state, it->getOperation());
+    EXPECT_EQ(2, it->getBySeqno());
+    // Before the fix, this returns 2
+    EXPECT_EQ(1, checkpoint.getHighSeqno());
+
+    // The following is just to show the behaviour at registerCursor(startSeqno)
+    // in the case where some meta-items (and a set_vbtate) exists at
+    // startSeqno+1.
+    // The behaviour doesn't change before/after the patch that introduces the
+    // test, but this is good to highlight that we actually skip the set_vbstate
+    // item. Not a problem given that DCP doesn't stream set_vbstate.
+
+    // [e:1 cs:1 m:1 vbs:2 ce:2] [e:2 cs:2)
+    manager.createNewCheckpoint();
+    EXPECT_EQ(3, manager.getOpenCheckpointId());
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+    EXPECT_EQ(0, manager.getNumOpenChkItems());
+    EXPECT_EQ(1, manager.getHighSeqno());
+
+    // [e:1 cs:1 m:1 vbs:2 ce:2] [e:2 cs:2)
+    //                            ^
+    auto cursor = manager.registerCursorBySeqno(
+                                 "cursor", 1, CheckpointCursor::Droppable::Yes)
+                          .cursor.lock();
+    EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
+    EXPECT_EQ(2, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(0, cursor->getDistance());
+}
+
 // Test that when the same client registers twice, the first cursor 'dies'
 TEST_P(CheckpointTest, reRegister) {
     auto dcpCursor1 = manager->registerCursorBySeqno(
