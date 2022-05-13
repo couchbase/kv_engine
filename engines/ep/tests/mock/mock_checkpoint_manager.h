@@ -100,10 +100,9 @@ public:
     }
 
     queued_item public_createCheckpointMetaItem(uint64_t checkpointId,
-                                                Vbid vbid,
                                                 queue_op op) {
         std::lock_guard<std::mutex> lh(queueLock);
-        return createCheckpointMetaItem(checkpointId, vbid, op);
+        return createCheckpointMetaItem(checkpointId, op);
     }
 
     void forceNewCheckpoint() {
