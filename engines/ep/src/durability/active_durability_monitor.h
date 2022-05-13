@@ -240,6 +240,13 @@ public:
     void addStats(const AddStatFn& addStat,
                   const CookieIface* cookie) const override;
 
+    /**
+     * Test function returning if the resolvedQ is empty or not. This function
+     * shouldn't be used for production concerns, the value could change between
+     * calling the function and acting on the result.
+     */
+    bool isResolvedQueueEmpty() const;
+
     size_t getNumTracked() const override;
 
     size_t getNumAccepted() const override;

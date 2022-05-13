@@ -987,7 +987,7 @@ void KVBucket::setVBucketState_UNLOCKED(
         // result of a SyncWrite as they will timeout anyway.
 
         // Get a list of cookies that we should respond to
-        auto connectionsToRespondTo = vb->prepareTransitionAwayFromActive();
+        auto connectionsToRespondTo = vb->getCookiesForInFlightSyncWrites();
         if (!connectionsToRespondTo.empty()) {
             ExTask notifyTask = std::make_shared<RespondAmbiguousNotification>(
                     engine, vb, std::move(connectionsToRespondTo));

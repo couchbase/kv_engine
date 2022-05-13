@@ -623,6 +623,18 @@ void VBucket::setupSyncReplication(const nlohmann::json* topology) {
     if (!currentPassiveDM && durabilityMonitor &&
         state != vbucket_state_active) {
         auto& adm = dynamic_cast<ActiveDurabilityMonitor&>(*durabilityMonitor);
+        // ADM tracks writes in both trackedWrites and the resolvedQueue at
+        // various stages of their progress. A dead vBucket may have an ADM if
+        // it was previously active and persistence notifications must be
+        // handled to avoid having a lagging HPS value. Those notifications can
+        // cause us to move writes from trackedWrites to the resolvedQueue. At
+        // this point, any notification is blocked on the vb state lock that we
+        // should be holding, so dump all of the writes in the resolvedQueue
+        // back into trackedWrites so that we can iterate more easily over the
+        // pending writes to set their states. This is also required for PDM
+        // construction later in this function.
+        adm.prepareTransitionAwayFromActive();
+
         trackedWrites = adm.getTrackedWrites();
         for (auto& write : trackedWrites) {
             auto htRes = ht.findOnlyPrepared(write->getKey());

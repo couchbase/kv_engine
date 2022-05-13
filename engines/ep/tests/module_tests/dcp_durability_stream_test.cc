@@ -6117,6 +6117,14 @@ TEST_P(DurabilityDemotionStreamTest,
     EXPECT_EQ(0, vb->getDurabilityMonitor().getHighPreparedSeqno());
     EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
 
+    vb->seqnoAcknowledged(
+            folly::SharedMutex::ReadHolder(vb->getStateLock()), "replica", 1);
+
+    // Remote ack does not attempt to commit, need local ack (persistence)
+    EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighPreparedSeqno());
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
+
     // Transition via "takeover"
     setVBucketState(vbid, vbucket_state_dead);
     DurabilityActiveStreamTest::stream.reset();
@@ -6125,20 +6133,22 @@ TEST_P(DurabilityDemotionStreamTest,
     // Flush of key "k" from before we were set to dead, allows the HPS to move
     // in the DM
     flushVBucketToDiskIfPersistent(vbid, 1);
-    EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
     EXPECT_EQ(1, vb->getDurabilityMonitor().getHighPreparedSeqno());
     EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
 
-    // (Sanity) Ack and process should not do anything while we are dead
-    vb->seqnoAcknowledged(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()), "replica", 2);
-    vb->processResolvedSyncWrites();
-    EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
-    EXPECT_EQ(1, vb->getDurabilityMonitor().getHighPreparedSeqno());
-    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
+    {
+        auto& adm = dynamic_cast<ActiveDurabilityMonitor&>(
+                const_cast<DurabilityMonitor&>(vb->getDurabilityMonitor()));
+        EXPECT_FALSE(adm.isResolvedQueueEmpty());
+    }
 
     // Now we are replica...
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
+    EXPECT_EQ(1, vb->getDurabilityMonitor().getHighPreparedSeqno());
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
 
     enableSyncReplication = true;
     setupConsumer();
