@@ -24,6 +24,7 @@
 #include "magma-kvstore_iorequest.h"
 #include "magma-kvstore_rollback_purge_seqno_ctx.h"
 #include "magma-memory-tracking-proxy.h"
+#include "magma-scan-result.h"
 #include "objectregistry.h"
 #include "vb_commit.h"
 #include "vbucket.h"
@@ -1730,168 +1731,22 @@ ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
         startSeqno = ctx.lastReadSeqno + 1;
     }
 
-    bool onlyKeys = ctx.valFilter == ValueFilter::KEYS_ONLY;
-
     auto& mctx = dynamic_cast<MagmaScanContext&>(ctx);
     for (mctx.itr->Seek(startSeqno, ctx.maxSeqno); mctx.itr->Valid();
          mctx.itr->Next()) {
         Slice keySlice, metaSlice, valSlice;
         uint64_t seqno;
         mctx.itr->GetRecord(keySlice, metaSlice, valSlice, seqno);
-
-        if (keySlice.Len() > std::numeric_limits<uint16_t>::max()) {
-            throw std::invalid_argument(
-                    "MagmaKVStore::scan: "
-                    "key length " +
-                    std::to_string(keySlice.Len()) + " > " +
-                    std::to_string(std::numeric_limits<uint16_t>::max()));
-        }
-
-        mctx.diskBytesRead += keySlice.Len() + metaSlice.Len() + valSlice.Len();
-
-        CacheLookup lookup(makeDiskDocKey(keySlice), seqno, ctx.vbid);
-
-        if (configuration.isSanityCheckingVBucketMapping()) {
-            validateKeyMapping(
-                    "MagmaKVStore::scan",
-                    configuration.getVBucketMappingErrorHandlingMethod(),
-                    lookup.getKey().getDocKey(),
-                    ctx.vbid,
-                    configuration.getMaxVBuckets());
-        }
-
-        if (magmakv::isDeleted(metaSlice) &&
-            ctx.docFilter == DocumentFilter::NO_DELETES) {
-            ctx.lastReadSeqno = seqno;
-            if (logger->should_log(spdlog::level::TRACE)) {
-                logger->TRACE(
-                        "MagmaKVStore::scan SKIPPED(Deleted) {} key:{} "
-                        "seqno:{}",
-                        ctx.vbid,
-                        cb::UserData{lookup.getKey().to_string()},
-                        seqno);
-            }
-            continue;
-        }
-
-        // Determine if the key is logically deleted, if it is we skip the key
-        // Note that system event keys (like create scope) are never skipped
-        // here
-        if (!lookup.getKey().getDocKey().isInSystemCollection()) {
-            if (ctx.docFilter !=
-                DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
-                if (ctx.collectionsContext.isLogicallyDeleted(
-                            lookup.getKey().getDocKey(), seqno)) {
-                    ctx.lastReadSeqno = seqno;
-                    if (logger->should_log(spdlog::level::TRACE)) {
-                        logger->TRACE(
-                                "MagmaKVStore::scan SKIPPED(Collection "
-                                "Deleted) {} "
-                                "key:{} "
-                                "seqno:{}",
-                                ctx.vbid,
-                                cb::UserData{lookup.getKey().to_string()},
-                                seqno);
-                    }
-                    continue;
-                }
-            }
-
-            ctx.getCacheCallback().callback(lookup);
-            if (ctx.getCacheCallback().getStatus() ==
-                cb::engine_errc::key_already_exists) {
-                ctx.lastReadSeqno = seqno;
-                if (logger->should_log(spdlog::level::TRACE)) {
-                    logger->TRACE(
-                            "MagmaKVStore::scan "
-                            "SKIPPED(cb::engine_errc::key_already_exists) {} "
-                            "key:{} seqno:{}",
-                            ctx.vbid,
-                            cb::UserData{lookup.getKey().to_string()},
-                            seqno);
-                }
-                continue;
-            } else if (ctx.getCacheCallback().shouldYield()) {
-                if (logger->should_log(spdlog::level::TRACE)) {
-                    logger->TRACE(
-                            "MagmaKVStore::scan lookup->callback {} "
-                            "key:{} requested yield",
-                            ctx.vbid,
-                            cb::UserData{lookup.getKey().to_string()});
-                }
-                return ScanStatus::Yield;
-            } else if (ctx.getCacheCallback().getStatus() !=
-                       cb::engine_errc::success) {
-                if (logger->should_log(spdlog::level::TRACE)) {
-                    logger->TRACE(
-                            "MagmaKVStore::scan lookup->callback {} "
-                            "key:{} returned {} -> ScanStatus::Cancelled",
-                            ctx.vbid,
-                            cb::UserData{lookup.getKey().to_string()},
-                            to_string(ctx.getCacheCallback().getStatus()));
-                }
-                return ScanStatus::Cancelled;
-            }
-        }
-
-        if (logger->should_log(spdlog::level::TRACE)) {
-            logger->TRACE(
-                    "MagmaKVStore::scan {} key:{} seqno:{} deleted:{} "
-                    "expiry:{} "
-                    "compressed:{}",
-                    ctx.vbid,
-                    cb::UserData{lookup.getKey().to_string()},
-                    seqno,
-                    magmakv::isDeleted(metaSlice),
-                    magmakv::getExpiryTime(metaSlice),
-                    magmakv::isCompressed(metaSlice));
-        }
-
-        auto itm = makeItem(
-                ctx.vbid, keySlice, metaSlice, valSlice, ctx.valFilter);
-
-        // When we are requested to return the values as compressed AND
-        // the value isn't compressed, attempt to compress the value.
-        if (ctx.valFilter == ValueFilter::VALUES_COMPRESSED &&
-            !magmakv::isCompressed(metaSlice)) {
-            if (!itm->compressValue()) {
-                logger->warn(
-                        "MagmaKVStore::scan failed to compress value - {} "
-                        "key:{} "
-                        "seqno:{}",
-                        ctx.vbid,
-                        cb::UserData{lookup.getKey().to_string()},
-                        seqno);
-                // return Failed to stop the scan and for DCP, end the stream
-                return ScanStatus::Failed;
-            }
-        }
-
-        GetValue rv(std::move(itm), cb::engine_errc::success, -1, onlyKeys);
-        ctx.getValueCallback().callback(rv);
-        auto callbackStatus = ctx.getValueCallback().getStatus();
-        if (callbackStatus == cb::engine_errc::success) {
+        const auto result = scanOne(ctx, keySlice, seqno, metaSlice, valSlice);
+        switch (result.code) {
+        case MagmaScanResult::Status::Success:
+        case MagmaScanResult::Status::Yield:
+        case MagmaScanResult::Status::Cancelled:
+        case MagmaScanResult::Status::Failed:
+            return ScanStatus(result.code);
+        case MagmaScanResult::Status::Next:
             ctx.lastReadSeqno = seqno;
             continue;
-        } else if (ctx.getValueCallback().shouldYield()) {
-            if (logger->should_log(spdlog::level::TRACE)) {
-                logger->TRACE(
-                        "MagmaKVStore::scan callback {} "
-                        "key:{} requested yield",
-                        ctx.vbid,
-                        cb::UserData{lookup.getKey().to_string()});
-            }
-            return ScanStatus::Yield;
-        } else {
-            if (logger->should_log(spdlog::level::TRACE)) {
-                logger->TRACE(
-                        "MagmaKVStore::scan callback {} "
-                        "key:{} returned {} -> Aborted ",
-                        ctx.vbid,
-                        cb::UserData{lookup.getKey().to_string()},
-                        to_string(callbackStatus));
-            }
-            return ScanStatus::Cancelled;
         }
     }
 
@@ -1901,6 +1756,167 @@ ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
 ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx) const {
     throw std::runtime_error("MagmaKVStore::scan (by id scan) unimplemented");
     return ScanStatus::Failed;
+}
+
+// Currently a BySeqno scan populates all key, meta and val
+MagmaScanResult MagmaKVStore::scanOne(ScanContext& ctx,
+                                      Slice& keySlice,
+                                      uint64_t seqno,
+                                      Slice& metaSlice,
+                                      Slice& valSlice) const {
+    if (keySlice.Len() > std::numeric_limits<uint16_t>::max()) {
+        throw std::invalid_argument(
+                "MagmaKVStore::scanOne: "
+                "key length " +
+                std::to_string(keySlice.Len()) + " > " +
+                std::to_string(std::numeric_limits<uint16_t>::max()));
+    }
+
+    ctx.diskBytesRead += keySlice.Len() + metaSlice.Len() + valSlice.Len();
+
+    CacheLookup lookup(makeDiskDocKey(keySlice), seqno, ctx.vbid);
+
+    if (configuration.isSanityCheckingVBucketMapping()) {
+        validateKeyMapping("MagmaKVStore::scanOne",
+                           configuration.getVBucketMappingErrorHandlingMethod(),
+                           lookup.getKey().getDocKey(),
+                           ctx.vbid,
+                           configuration.getMaxVBuckets());
+    }
+
+    if (magmakv::isDeleted(metaSlice) &&
+        ctx.docFilter == DocumentFilter::NO_DELETES) {
+        ctx.lastReadSeqno = seqno;
+        if (logger->should_log(spdlog::level::TRACE)) {
+            logger->TRACE(
+                    "MagmaKVStore::scanOne SKIPPED(Deleted) {} key:{} "
+                    "seqno:{}",
+                    ctx.vbid,
+                    cb::UserData{lookup.getKey().to_string()},
+                    seqno);
+        }
+        return MagmaScanResult::Next();
+    }
+
+    // Determine if the key is logically deleted, if it is we skip the key
+    // Note that system event keys (like create scope) are never skipped
+    // here
+    if (!lookup.getKey().getDocKey().isInSystemCollection()) {
+        if (ctx.docFilter !=
+            DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
+            if (ctx.collectionsContext.isLogicallyDeleted(
+                        lookup.getKey().getDocKey(), seqno)) {
+                ctx.lastReadSeqno = seqno;
+                if (logger->should_log(spdlog::level::TRACE)) {
+                    logger->TRACE(
+                            "MagmaKVStore::scanOne SKIPPED(Collection "
+                            "Deleted) {} "
+                            "key:{} "
+                            "seqno:{}",
+                            ctx.vbid,
+                            cb::UserData{lookup.getKey().to_string()},
+                            seqno);
+                }
+                return MagmaScanResult::Next();
+            }
+        }
+
+        ctx.getCacheCallback().callback(lookup);
+        if (ctx.getCacheCallback().getStatus() ==
+            cb::engine_errc::key_already_exists) {
+            if (logger->should_log(spdlog::level::TRACE)) {
+                logger->TRACE(
+                        "MagmaKVStore::scanOne "
+                        "SKIPPED(cb::engine_errc::key_already_exists) {} "
+                        "key:{} seqno:{}",
+                        ctx.vbid,
+                        cb::UserData{lookup.getKey().to_string()},
+                        seqno);
+            }
+            return MagmaScanResult::Next();
+        } else if (ctx.getCacheCallback().shouldYield()) {
+            if (logger->should_log(spdlog::level::TRACE)) {
+                logger->TRACE(
+                        "MagmaKVStore::scanOne lookup->callback {} "
+                        "key:{} requested yield",
+                        ctx.vbid,
+                        cb::UserData{lookup.getKey().to_string()});
+            }
+            return MagmaScanResult::Yield();
+        } else if (ctx.getCacheCallback().getStatus() !=
+                   cb::engine_errc::success) {
+            if (logger->should_log(spdlog::level::TRACE)) {
+                logger->TRACE(
+                        "MagmaKVStore::scanOne lookup->callback {} "
+                        "key:{} returned {} -> ScanStatus::Cancelled",
+                        ctx.vbid,
+                        cb::UserData{lookup.getKey().to_string()},
+                        to_string(ctx.getCacheCallback().getStatus()));
+            }
+            return MagmaScanResult::Cancelled();
+        }
+    }
+
+    if (logger->should_log(spdlog::level::TRACE)) {
+        logger->TRACE(
+                "MagmaKVStore::scanOne {} key:{} seqno:{} deleted:{} "
+                "expiry:{} "
+                "compressed:{}",
+                ctx.vbid,
+                cb::UserData{lookup.getKey().to_string()},
+                seqno,
+                magmakv::isDeleted(metaSlice),
+                magmakv::getExpiryTime(metaSlice),
+                magmakv::isCompressed(metaSlice));
+    }
+
+    auto itm = makeItem(ctx.vbid, keySlice, metaSlice, valSlice, ctx.valFilter);
+
+    // When we are requested to return the values as compressed AND
+    // the value isn't compressed, attempt to compress the value.
+    if (ctx.valFilter == ValueFilter::VALUES_COMPRESSED &&
+        !magmakv::isCompressed(metaSlice)) {
+        if (!itm->compressValue()) {
+            logger->warn(
+                    "MagmaKVStore::scanOne failed to compress value - {} "
+                    "key:{} "
+                    "seqno:{}",
+                    ctx.vbid,
+                    cb::UserData{lookup.getKey().to_string()},
+                    seqno);
+            // return Failed to stop the scan and for DCP, end the stream
+            return MagmaScanResult::Failed();
+        }
+    }
+
+    GetValue rv(std::move(itm),
+                cb::engine_errc::success,
+                -1,
+                ctx.valFilter == ValueFilter::KEYS_ONLY);
+    ctx.getValueCallback().callback(rv);
+    auto callbackStatus = ctx.getValueCallback().getStatus();
+    if (callbackStatus == cb::engine_errc::success) {
+        return MagmaScanResult::Next();
+    } else if (ctx.getValueCallback().shouldYield()) {
+        if (logger->should_log(spdlog::level::TRACE)) {
+            logger->TRACE(
+                    "MagmaKVStore::scanOne callback {} "
+                    "key:{} requested yield",
+                    ctx.vbid,
+                    cb::UserData{lookup.getKey().to_string()});
+        }
+        return MagmaScanResult::Yield();
+    }
+
+    if (logger->should_log(spdlog::level::TRACE)) {
+        logger->TRACE(
+                "MagmaKVStore::scanOne` callback {} "
+                "key:{} returned {} -> Aborted ",
+                ctx.vbid,
+                cb::UserData{lookup.getKey().to_string()},
+                to_string(callbackStatus));
+    }
+    return MagmaScanResult::Cancelled();
 }
 
 void MagmaKVStore::mergeMagmaDbStatsIntoVBState(vbucket_state& vbstate,
@@ -1945,6 +1961,7 @@ vbucket_state MagmaKVStore::getPersistedVBucketState(Vbid vbid) const {
 vbucket_state MagmaKVStore::getPersistedVBucketState(KVFileHandle& handle,
                                                      Vbid vbid) const {
     auto& magmaHandle = static_cast<MagmaKVFileHandle&>(handle);
+
     auto state = readVBStateFromDisk(magmaHandle.vbid, *magmaHandle.snapshot);
     if (state.status != ReadVBStateStatus::Success) {
         throw std::runtime_error(
