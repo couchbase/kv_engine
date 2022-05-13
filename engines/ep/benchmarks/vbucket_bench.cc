@@ -153,12 +153,15 @@ protected:
      * @param numItems
      * @param valueSize
      */
-    void loadItemsAndMoveCursor(size_t numItems, size_t valueSize);
+    void loadItemsAndMovePersistenceCursor(size_t numItems, size_t valueSize);
 
     CheckpointList extractClosedUnrefCheckpoints(CheckpointManager&);
 
     CheckpointManager::ExtractItemsResult extractItemsToExpel(
             CheckpointManager&);
+
+    std::shared_ptr<CheckpointCursor> getLowestCursor(
+            CheckpointManager& manager);
 };
 
 /**
@@ -457,6 +460,12 @@ CheckpointManager::ExtractItemsResult CheckpointBench::extractItemsToExpel(
     return manager.extractItemsToExpel(lh);
 }
 
+std::shared_ptr<CheckpointCursor> CheckpointBench::getLowestCursor(
+        CheckpointManager& manager) {
+    std::lock_guard<std::mutex> lh(manager.queueLock);
+    return manager.getLowestCursor(lh);
+}
+
 void CheckpointBench::queueItem(const std::string& key,
                                 const std::string& value) {
     queued_item item{new Item(StoredDocKey(key, CollectionID::Default),
@@ -472,8 +481,8 @@ void CheckpointBench::queueItem(const std::string& key,
             item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
 }
 
-void CheckpointBench::loadItemsAndMoveCursor(size_t numItems,
-                                             size_t valueSize) {
+void CheckpointBench::loadItemsAndMovePersistenceCursor(size_t numItems,
+                                                        size_t valueSize) {
     auto& vb = *engine->getKVBucket()->getVBucket(vbid);
     auto& manager = *vb.checkpointManager;
 
@@ -518,7 +527,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractClosedUnrefCheckpoints)
 
         // Open checkpoint never removed, so create numCheckpoints+1 for
         // removing numCheckpoints
-        loadItemsAndMoveCursor(numCheckpoints + 1, 0);
+        loadItemsAndMovePersistenceCursor(numCheckpoints + 1, 0);
         ASSERT_EQ(numCheckpoints + 1, manager.getNumCheckpoints());
 
         // Benchmark
@@ -553,7 +562,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, GetCursorsToDrop)
     while (state.KeepRunning()) {
         state.PauseTiming();
 
-        loadItemsAndMoveCursor(numCheckpoints, 0);
+        loadItemsAndMovePersistenceCursor(numCheckpoints, 0);
         ASSERT_EQ(numCheckpoints, manager.getNumCheckpoints());
 
         // Benchmark
@@ -568,6 +577,40 @@ BENCHMARK_DEFINE_F(CheckpointBench, GetCursorsToDrop)
         // Need to resume here, gbench will fail when it's time to exit the
         // loop otherwise.
         state.ResumeTiming();
+    }
+}
+
+/**
+ * Benchmark looking up the lowest cursor, when there are two cursors at the
+ * same position. The lowest cursor is needed during item expel (to know
+ * where to expel up to).
+ * Prior to MB-52131 this was an O(n) operation where N is the distance of the
+ * cursor from the beginning of the checkpoint; so for large checkpoints where
+ * two cursors were both "up to date" (e.g. replication cursors which are both
+ * pointing at high-seqno) then getLowestCursor was costly.
+ */
+BENCHMARK_DEFINE_F(CheckpointBench, GetLowestCursor)
+(benchmark::State& state) {
+    // We want a single checkpoint, but with a large number of items in it.
+    const size_t _1B = 1000 * 1000 * 1000;
+    engine->getConfiguration().setCheckpointMaxSize(_1B);
+    const size_t numItems = state.range(0);
+    auto& manager = *engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
+
+    // Register a second cursor (modelling replication), and then move both
+    // persistence and test cursor to end of Checkpoint.
+    auto resisterResult = manager.registerCursorBySeqno(
+            "test_cursor", 0, CheckpointCursor::Droppable::Yes);
+    loadItemsAndMovePersistenceCursor(numItems, 0);
+    std::vector<queued_item> items;
+    auto cursor = resisterResult.cursor.lock();
+    ASSERT_TRUE(cursor);
+    manager.getItemsForCursor(
+            cursor.get(), items, std::numeric_limits<size_t>::max());
+
+    // Benchmark: Request the lowest cursor. Before the fix this was O(numItems)
+    while (state.KeepRunning()) {
+        benchmark::DoNotOptimize(getLowestCursor(manager));
     }
 }
 
@@ -596,7 +639,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
 
         // Checkpoint high-seqno never expelled, so load numItems+1 for
         // expelling numItems
-        loadItemsAndMoveCursor(numItems + 1, 1024);
+        loadItemsAndMovePersistenceCursor(numItems + 1, 1024);
         ASSERT_EQ(1, manager.getNumCheckpoints());
         ASSERT_EQ(numItems + 1, manager.getNumOpenChkItems());
         // Note: Checkpoint type set after loading items, as the above call
@@ -754,3 +797,12 @@ static void ExtractItemsArgs(benchmark::internal::Benchmark* b) {
 BENCHMARK_REGISTER_F(CheckpointBench, ExtractItemsToExpel)
         ->Apply(ExtractItemsArgs)
         ->Iterations(1);
+
+// Arguments: numItems
+BENCHMARK_REGISTER_F(CheckpointBench, GetLowestCursor)
+        ->Args({1})
+        ->Args({10})
+        ->Args({100})
+        ->Args({1000})
+        ->Args({10000})
+        ->Args({100000});
