@@ -678,11 +678,6 @@ public:
     }
 
     UniquePtr& getNext() {
-        if (isStalePriv()) {
-            throw std::logic_error(
-                    "StoredValue::getNext: StoredValue is stale,"
-                    "cannot get chain next value");
-        }
         return chain_next_or_replacement;
     }
 
