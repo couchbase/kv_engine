@@ -2557,20 +2557,19 @@ TEST_P(CheckpointTest, CheckpointManagerForbidsMergingDiskSnapshot) {
 }
 
 TEST_P(CheckpointTest, CheckpointItemToString) {
-    auto item = this->manager->public_createCheckpointMetaItem(
-            0, Vbid(0), queue_op::empty);
+    auto item = manager->public_createCheckpointMetaItem(0, queue_op::empty);
     EXPECT_EQ("cid:0x1:empty", item->getKey().to_string());
 
-    item = this->manager->public_createCheckpointMetaItem(
-            0, Vbid(0), queue_op::checkpoint_start);
+    item = manager->public_createCheckpointMetaItem(0,
+                                                    queue_op::checkpoint_start);
     EXPECT_EQ("cid:0x1:checkpoint_start", item->getKey().to_string());
 
-    item = this->manager->public_createCheckpointMetaItem(
-            0, Vbid(0), queue_op::set_vbucket_state);
+    item = manager->public_createCheckpointMetaItem(
+            0, queue_op::set_vbucket_state);
     EXPECT_EQ("cid:0x1:set_vbucket_state", item->getKey().to_string());
 
-    item = this->manager->public_createCheckpointMetaItem(
-            0, Vbid(0), queue_op::checkpoint_end);
+    item = manager->public_createCheckpointMetaItem(0,
+                                                    queue_op::checkpoint_end);
     EXPECT_EQ("cid:0x1:checkpoint_end", item->getKey().to_string());
 
     auto disk = makeDiskDocKey("test_key");

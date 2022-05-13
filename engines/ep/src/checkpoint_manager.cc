@@ -147,8 +147,8 @@ void CheckpointManager::addNewCheckpoint(
             oldOpenCkpt.getId(),
             oldOpenCkpt.getMinimumCursorSeqno(),
             oldOpenCkpt.getHighSeqno());
-    queued_item qi = createCheckpointMetaItem(
-            oldOpenCkpt.getId(), vb.getId(), queue_op::checkpoint_end);
+    queued_item qi = createCheckpointMetaItem(oldOpenCkpt.getId(),
+                                              queue_op::checkpoint_end);
     oldOpenCkpt.queueDirty(qi);
     ++numItems;
     oldOpenCkpt.close();
@@ -237,12 +237,12 @@ void CheckpointManager::addOpenCheckpoint(
     // We need this because every CheckpointCursor will point to this empty-item
     // at creation. So, the cursor will point at the first actual non-meta item
     // after the first cursor-increment.
-    queued_item qi = createCheckpointMetaItem(0, Vbid(0xffff), queue_op::empty);
+    queued_item qi = createCheckpointMetaItem(0, queue_op::empty);
     ckpt->queueDirty(qi);
     // Note: We don't include the empty-item in 'numItems'
 
     // This item represents the start of the new checkpoint
-    qi = createCheckpointMetaItem(id, vb.getId(), queue_op::checkpoint_start);
+    qi = createCheckpointMetaItem(id, queue_op::checkpoint_start);
     ckpt->queueDirty(qi);
     ++numItems;
 
@@ -803,8 +803,7 @@ void CheckpointManager::queueSetVBState() {
     std::lock_guard<std::mutex> lh(queueLock);
 
     // Create the setVBState operation, and enqueue it.
-    queued_item item = createCheckpointMetaItem(
-            /*id*/ 0, vb.getId(), queue_op::set_vbucket_state);
+    queued_item item = createCheckpointMetaItem(0, queue_op::set_vbucket_state);
 
     // We need to set the cas of the item as two subsequent set_vbucket_state
     // items will have the same seqno and the flusher needs a way to determine
@@ -1223,7 +1222,6 @@ uint64_t CheckpointManager::getVisibleSnapshotEndSeqno() const {
 }
 
 queued_item CheckpointManager::createCheckpointMetaItem(uint64_t checkpointId,
-                                                        Vbid vbid,
                                                         queue_op op) {
     if (!isMetaQueueOp(op)) {
         throw std::invalid_argument(
@@ -1247,7 +1245,7 @@ queued_item CheckpointManager::createCheckpointMetaItem(uint64_t checkpointId,
     uint64_t seqno = lastBySeqno + 1;
     StoredDocKey key(to_string(op), CollectionID::System);
 
-    return queued_item(new Item(key, vbid, op, checkpointId, seqno));
+    return queued_item(new Item(key, vb.getId(), op, checkpointId, seqno));
 }
 
 uint64_t CheckpointManager::createNewCheckpoint() {

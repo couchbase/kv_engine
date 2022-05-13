@@ -799,14 +799,11 @@ protected:
      * Create a checkpoint meta-item.
      *
      * @param checkpointId
-     * @param vbid
      * @param op
      * @return The queued_item
      * @throw std::invalid_argument if a non-meta queue_op is requested
      */
-    queued_item createCheckpointMetaItem(uint64_t checkpointId,
-                                         Vbid vbid,
-                                         queue_op op);
+    queued_item createCheckpointMetaItem(uint64_t checkpointId, queue_op op);
 
     /**
      * Checks if the CM state pre-conditions for creating a new checkpoint are
