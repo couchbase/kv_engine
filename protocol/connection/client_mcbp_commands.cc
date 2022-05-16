@@ -87,19 +87,16 @@ void BinprotCommand::writeHeader(std::vector<uint8_t>& buf,
     }
 }
 
-BinprotCommand& BinprotCommand::setKey(std::string key_) {
+void BinprotCommand::setKey(std::string key_) {
     key = std::move(key_);
-    return *this;
 }
 
-BinprotCommand& BinprotCommand::setCas(uint64_t cas_) {
+void BinprotCommand::setCas(uint64_t cas_) {
     cas = cas_;
-    return *this;
 }
 
-BinprotCommand& BinprotCommand::setOp(cb::mcbp::ClientOpcode cmd_) {
+void BinprotCommand::setOp(cb::mcbp::ClientOpcode cmd_) {
     opcode = cmd_;
-    return *this;
 }
 
 void BinprotCommand::clear() {
@@ -121,24 +118,21 @@ cb::mcbp::ClientOpcode BinprotCommand::getOp() const {
     return opcode;
 }
 
-BinprotCommand& BinprotCommand::setVBucket(Vbid vbid) {
+void BinprotCommand::setVBucket(Vbid vbid) {
     vbucket = vbid;
-    return *this;
 }
 
-BinprotCommand& BinprotCommand::setOpaque(uint32_t opaq) {
+void BinprotCommand::setOpaque(uint32_t opaq) {
     opaque = opaq;
-    return *this;
 }
 
-BinprotCommand& BinprotCommand::addFrameInfo(const FrameInfo& fi) {
+void BinprotCommand::addFrameInfo(const FrameInfo& fi) {
     auto encoded = fi.encode();
-    return addFrameInfo({encoded.data(), encoded.size()});
+    addFrameInfo({encoded.data(), encoded.size()});
 }
 
-BinprotCommand& BinprotCommand::addFrameInfo(cb::const_byte_buffer section) {
+void BinprotCommand::addFrameInfo(cb::const_byte_buffer section) {
     std::copy(section.cbegin(), section.cend(), std::back_inserter(frame_info));
-    return *this;
 }
 
 void BinprotCommand::ExpiryValue::assign(uint32_t value_) {
@@ -1793,9 +1787,10 @@ void BinprotSetVbucketCommand::encode(std::vector<uint8_t>& buf) const {
     }
 }
 
-BinprotDcpAddStreamCommand::BinprotDcpAddStreamCommand(uint32_t flags)
+BinprotDcpAddStreamCommand::BinprotDcpAddStreamCommand(uint32_t flags, Vbid vb)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::DcpAddStream),
       flags(flags) {
+    setVBucket(vb);
 }
 
 void BinprotDcpAddStreamCommand::encode(std::vector<uint8_t>& buf) const {

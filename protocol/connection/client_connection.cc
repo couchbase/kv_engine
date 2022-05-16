@@ -1458,8 +1458,11 @@ uint64_t MemcachedConnection::incr_decr(cb::mcbp::ClientOpcode opcode,
             (opcode == cb::mcbp::ClientOpcode::Increment) ? "incr" : "decr";
 
     BinprotIncrDecrCommand command;
-    command.setOp(opcode).setKey(key);
-    command.setDelta(delta).setInitialValue(initial).setExpiry(exptime);
+    command.setOp(opcode);
+    command.setKey(key);
+    command.setDelta(delta);
+    command.setInitialValue(initial);
+    command.setExpiry(exptime);
     applyFrameInfos(command, getFrameInfo);
 
     const auto response = BinprotIncrDecrResponse(execute(command));
@@ -1487,7 +1490,7 @@ MutationInfo MemcachedConnection::remove(const std::string& key,
                                          uint64_t cas,
                                          GetFrameInfoFunction getFrameInfo) {
     BinprotRemoveCommand command;
-    command.setKey(key).setVBucket(vbucket);
+    command.setKey(key);
     command.setVBucket(vbucket);
     command.setCas(cas);
     applyFrameInfos(command, getFrameInfo);
@@ -1730,7 +1733,7 @@ void MemcachedConnection::dcpStreamRequest(Vbid vbid,
 }
 
 void MemcachedConnection::dcpAddStream(Vbid vbid, uint32_t flags) {
-    sendCommand(BinprotDcpAddStreamCommand{flags}.setVBucket(vbid));
+    sendCommand(BinprotDcpAddStreamCommand{flags, vbid});
 }
 
 void MemcachedConnection::dcpStreamRequestResponse(

@@ -26,8 +26,6 @@ class FrameInfo;
  */
 class BinprotCommand {
 public:
-    BinprotCommand() = default;
-
     virtual ~BinprotCommand() = default;
 
     cb::mcbp::ClientOpcode getOp() const;
@@ -38,23 +36,23 @@ public:
 
     virtual void clear();
 
-    BinprotCommand& setKey(std::string key_);
+    void setKey(std::string key_);
 
-    BinprotCommand& setCas(uint64_t cas_);
+    void setCas(uint64_t cas_);
 
-    BinprotCommand& setOp(cb::mcbp::ClientOpcode cmd_);
+    void setOp(cb::mcbp::ClientOpcode cmd_);
 
-    BinprotCommand& setVBucket(Vbid vbid);
+    void setVBucket(Vbid vbid);
 
-    BinprotCommand& setOpaque(uint32_t opaq);
+    void setOpaque(uint32_t opaq);
 
     /// Add a frame info object to the stream
-    BinprotCommand& addFrameInfo(const FrameInfo& fi);
+    void addFrameInfo(const FrameInfo& fi);
 
     /// Add something you want to put into the frame info section of the
     /// packet (in the case you want to create illegal frame encodings
     /// to make sure that the server handle them correctly)
-    BinprotCommand& addFrameInfo(cb::const_byte_buffer section);
+    void addFrameInfo(cb::const_byte_buffer section);
 
     /**
      * Encode the command to a buffer.
@@ -96,6 +94,9 @@ public:
      */
     virtual Encoded encode() const;
 protected:
+    // Private constructor to avoid using the class directly
+    BinprotCommand() = default;
+
     /**
      * This class exposes a tri-state expiry object, to allow for a 0-value
      * expiry. This is not used directly by this class, but is used a bit in
@@ -897,7 +898,7 @@ private:
 
 class BinprotDcpAddStreamCommand : public BinprotGenericCommand {
 public:
-    explicit BinprotDcpAddStreamCommand(uint32_t flags);
+    explicit BinprotDcpAddStreamCommand(uint32_t flags, Vbid vb = Vbid{0});
     void encode(std::vector<uint8_t>& buf) const override;
 
 protected:
