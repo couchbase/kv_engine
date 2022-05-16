@@ -1862,7 +1862,8 @@ ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
                         ctx.vbid,
                         cb::UserData{lookup.getKey().to_string()},
                         seqno);
-                continue;
+                // return Failed to stop the scan and for DCP, end the stream
+                return ScanStatus::Failed;
             }
         }
 
