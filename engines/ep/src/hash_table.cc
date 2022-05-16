@@ -16,21 +16,19 @@
 #include "multi_lock_holder.h"
 #include "stats.h"
 #include "stored_value_factories.h"
-
 #include <folly/lang/Assume.h>
-#include <phosphor/phosphor.h>
-#include <platform/compress.h>
-
 #include <logtags.h>
 #include <nlohmann/json.hpp>
+#include <phosphor/phosphor.h>
 #include <cstring>
 
-static const ssize_t prime_size_table[] = {
-    3, 7, 13, 23, 47, 97, 193, 383, 769, 1531, 3079, 6143, 12289, 24571, 49157,
-    98299, 196613, 393209, 786433, 1572869, 3145721, 6291449, 12582917,
-    25165813, 50331653, 100663291, 201326611, 402653189, 805306357,
-    1610612741, -1
-};
+static std::array<const ssize_t, 31> prime_size_table{
+        {3,        7,         13,        23,        47,        97,
+         193,      383,       769,       1531,      3079,      6143,
+         12289,    24571,     49157,     98299,     196613,    393209,
+         786433,   1572869,   3145721,   6291449,   12582917,  25165813,
+         50331653, 100663291, 201326611, 402653189, 805306357, 1610612741,
+         -1}};
 
 /**
  * Define the increment factor for the ProbabilisticCounter being used for
@@ -1033,8 +1031,7 @@ HashTable::StoredValueProxy HashTable::findForWrite(StoredValueProxy::RetSVPTag,
                                                     const DocKey& key,
                                                     WantsDeleted wantsDeleted) {
     auto result = findForWrite(key, wantsDeleted);
-    return StoredValueProxy(
-            std::move(result.lock), result.storedValue, valueStats);
+    return {std::move(result.lock), result.storedValue, valueStats};
 }
 
 HashTable::FindUpdateResult HashTable::findForUpdate(const DocKey& key) {
@@ -1331,11 +1328,11 @@ HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
     }
 
     // Return the *next* location that should be visited.
-    return HashTable::Position(size, lock, hash_bucket);
+    return {size, lock, hash_bucket};
 }
 
 HashTable::Position HashTable::endPosition() const  {
-    return HashTable::Position(size, mutexes.size(), size);
+    return {size, mutexes.size(), size};
 }
 
 bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock&,

@@ -191,10 +191,9 @@ public:
         }
 
     private:
-        Position(size_t ht_size_, int lock_, int hash_bucket_)
-          : ht_size(ht_size_),
-            lock(lock_),
-            hash_bucket(hash_bucket_) {}
+        Position(size_t ht_size_, size_t lock_, size_t hash_bucket_)
+            : ht_size(ht_size_), lock(lock_), hash_bucket(hash_bucket_) {
+        }
 
         // Size of the hashtable when the position was created.
         size_t ht_size;
@@ -401,6 +400,8 @@ public:
               size_t locks);
 
     ~HashTable();
+    HashTable(const HashTable&) = delete;
+    const HashTable& operator=(const HashTable&) = delete;
 
     size_t memorySize() {
         return sizeof(HashTable)
@@ -1311,7 +1312,7 @@ protected:
      * @return HashBucektLock which contains a lock and the hash bucket number
      */
     inline HashBucketLock getLockedBucket(int bucket) {
-        return HashBucketLock(bucket, mutexes[mutexForBucket(bucket)]);
+        return {bucket, mutexes[mutexForBucket(bucket)]};
     }
 
     /**
@@ -1533,7 +1534,6 @@ protected:
      */
     void updateFreqCounter(StoredValue& v);
 
-    DISALLOW_COPY_AND_ASSIGN(HashTable);
     friend class HashTableBench;
 };
 
@@ -1544,7 +1544,7 @@ std::ostream& operator<<(std::ostream& os, const HashTable& ht);
  */
 class HashTableVisitor {
 public:
-    virtual ~HashTableVisitor() {}
+    virtual ~HashTableVisitor() = default;
 
     /**
      * Visit an individual item within a hash table. Note that the item is
@@ -1580,7 +1580,7 @@ public:
  */
 class HashTableDepthVisitor {
 public:
-    virtual ~HashTableDepthVisitor() {}
+    virtual ~HashTableDepthVisitor() = default;
 
     /**
      * Called once for each hashtable bucket with its depth.
