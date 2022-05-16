@@ -233,6 +233,8 @@ public:
 
     std::string getDataString() const;
 
+    std::string_view getDataView() const;
+
     /// Parse the payload as JSON and return the parsed payload
     /// @throws exception if a parse error occurs (not json for instance)
     nlohmann::json getDataJson() const;
@@ -1210,6 +1212,18 @@ protected:
 class BinprotRangeScanCreate : public BinprotGenericCommand {
 public:
     BinprotRangeScanCreate(Vbid vbid, const nlohmann::json& config);
+};
+
+class BinprotRangeScanContinue : public BinprotGenericCommand {
+public:
+    BinprotRangeScanContinue(Vbid vbid,
+                             cb::rangescan::Id id,
+                             size_t itemLimit,
+                             std::chrono::milliseconds timeLimit);
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    cb::mcbp::request::RangeScanContinuePayload extras;
 };
 
 class BinprotRangeScanCancel : public BinprotGenericCommand {

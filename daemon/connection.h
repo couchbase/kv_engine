@@ -818,6 +818,14 @@ public:
      */
     void processNotifiedCookie(Cookie& cookie, cb::engine_errc status);
 
+    /**
+     * Process a blocked cookie but in this case the caller is indicating the
+     * execution is complete, there is no re-entry into the engine
+     *
+     * @param cookie The cookie that completed execution (must be blocked)
+     */
+    void processCompletedCookie(Cookie& cookie);
+
     /// Notify that a command was executed (needed for command rate limiting)
     void commandExecuted(Cookie& cookie);
 

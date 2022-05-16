@@ -722,6 +722,30 @@ void Connection::commandExecuted(Cookie& cookie) {
     getBucket().commandExecuted(cookie);
 }
 
+void Connection::processCompletedCookie(Cookie& cookie) {
+    try {
+        cookie.setAiostat(cb::engine_errc::success);
+        cookie.setEwouldblock(false);
+
+        // completed!!! time to clean up after it and process the
+        // command pipeline? / schedule more?
+        if (cookies.front().get() == &cookie) {
+            cookies.front()->reset();
+        } else {
+            cookies.erase(std::remove_if(cookies.begin(),
+                                         cookies.end(),
+                                         [ptr = &cookie](const auto& cookie) {
+                                             return ptr == cookie.get();
+                                         }),
+                          cookies.end());
+        }
+        triggerCallback();
+    } catch (const std::exception& e) {
+        LOG_CRITICAL("Connection::processCompletedCookie got exception: {}",
+                     e.what());
+    }
+}
+
 void Connection::logExecutionException(const std::string_view where,
                                        const std::exception& e) {
     setTerminationReason(std::string("Received exception: ") + e.what());

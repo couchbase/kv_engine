@@ -45,6 +45,7 @@ enum class Level : uint8_t;
 #include <mcbp/protocol/request.h>
 #include <mcbp/protocol/response.h>
 #include <mcbp/protocol/status.h>
+#include <memcached/range_scan_id.h>
 
 // For backward compatibility with old sources
 
@@ -2295,5 +2296,93 @@ public:
 protected:
     CollectionIDType collectionId{0};
 };
+
+// Payload for range_scan_continue opcode 0xdb, data in network byte order
+class RangeScanContinuePayload {
+public:
+    RangeScanContinuePayload() = default;
+    explicit RangeScanContinuePayload(cb::rangescan::Id id,
+                                      uint32_t itemLimit,
+                                      uint32_t timeLimit)
+        : id(id), itemLimit(htonl(itemLimit)), timeLimit(htonl(timeLimit)) {
+    }
+
+    cb::rangescan::Id getId() const {
+        return id;
+    }
+
+    uint32_t getItemLimit() const {
+        return ntohl(itemLimit);
+    }
+
+    uint32_t getTimeLimit() const {
+        return ntohl(timeLimit);
+    }
+
+    std::string_view getBuffer() const {
+        return {reinterpret_cast<const char*>(this), sizeof(*this)};
+    }
+
+protected:
+    cb::rangescan::Id id{};
+    uint32_t itemLimit{0};
+    uint32_t timeLimit{0};
+};
+
 #pragma pack()
 } // namespace cb::mcbp::request
+
+namespace cb::mcbp::response {
+
+#pragma pack(1)
+
+class RangeScanContinueMetaResponse {
+public:
+    RangeScanContinueMetaResponse() = default;
+
+    explicit RangeScanContinueMetaResponse(uint32_t flags,
+                                           uint32_t expiry,
+                                           uint64_t seqno,
+                                           uint64_t cas,
+                                           uint8_t datatype)
+        : flags(htonl(flags)),
+          expiry(htonl(expiry)),
+          seqno(htonll(seqno)),
+          cas(htonll(cas)),
+          datatype(datatype) {
+    }
+
+    uint32_t getFlags() const {
+        return htonl(flags);
+    }
+    uint32_t getExpiry() const {
+        return htonl(expiry);
+    }
+    uint64_t getSeqno() const {
+        return htonll(seqno);
+    }
+    uint64_t getCas() const {
+        return htonll(cas);
+    }
+    uint8_t getDatatype() const {
+        return datatype;
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint32_t flags{0};
+    uint32_t expiry{0};
+    uint64_t seqno{0};
+    uint64_t cas{0};
+    uint8_t datatype{0};
+};
+
+#pragma pack()
+
+static_assert(sizeof(RangeScanContinueMetaResponse) == 25,
+              "Incorrect compiler padding");
+
+} // namespace cb::mcbp::response

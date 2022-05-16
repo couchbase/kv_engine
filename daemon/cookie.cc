@@ -328,6 +328,16 @@ void Cookie::sendResponse(cb::mcbp::Status status,
                             {});
 }
 
+void Cookie::sendResponse(cb::engine_errc status,
+                          std::string_view extras,
+                          std::string_view key,
+                          std::string_view value,
+                          cb::mcbp::Datatype datatype,
+                          uint64_t cas) {
+    sendResponse(
+            cb::mcbp::to_status(status), extras, key, value, datatype, cas);
+}
+
 const DocKey Cookie::getRequestKey() const {
     return connection.makeDocKey(getRequest().getKey());
 }

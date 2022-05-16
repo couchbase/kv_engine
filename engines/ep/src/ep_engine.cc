@@ -7003,7 +7003,8 @@ cb::engine_errc EventuallyPersistentEngine::continueRangeScan(
         cb::rangescan::Id uuid,
         size_t itemLimit,
         std::chrono::milliseconds timeLimit) {
-    return cb::engine_errc::not_supported;
+    return acquireEngine(this)->getKVBucket()->continueRangeScan(
+            vbid, uuid, cookie, itemLimit, timeLimit);
 }
 
 cb::engine_errc EventuallyPersistentEngine::cancelRangeScan(

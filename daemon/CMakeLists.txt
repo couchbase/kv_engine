@@ -127,6 +127,7 @@ add_library(memcached_daemon STATIC
             protocol/mcbp/mutation_context.cc
             protocol/mcbp/mutation_context.h
             protocol/mcbp/range_scan_cancel_executor.cc
+            protocol/mcbp/range_scan_continue_executor.cc
             protocol/mcbp/range_scan_create_executor.cc
             protocol/mcbp/rbac_reload_command_context.cc
             protocol/mcbp/rbac_reload_command_context.h

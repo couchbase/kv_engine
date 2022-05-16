@@ -47,6 +47,7 @@ void threads_shutdown();
 void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats);
 
 void notifyIoComplete(Cookie& cookie, cb::engine_errc status);
+void executionComplete(Cookie& cookie);
 void scheduleDcpStep(Cookie& cookie);
 
 void safe_close(SOCKET sfd);

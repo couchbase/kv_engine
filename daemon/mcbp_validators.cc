@@ -2327,14 +2327,23 @@ static Status create_range_scan_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status continue_range_scan_validator(Cookie& cookie) {
+    return McbpValidator::verify_header(
+            cookie,
+            sizeof(cb::mcbp::request::RangeScanContinuePayload),
+            ExpectedKeyLen::Zero,
+            ExpectedValueLen::Zero,
+            ExpectedCas::NotSet,
+            PROTOCOL_BINARY_RAW_BYTES);
+}
+
 static Status cancel_range_scan_validator(Cookie& cookie) {
-    auto status = McbpValidator::verify_header(cookie,
-                                               sizeof(cb::rangescan::Id),
-                                               ExpectedKeyLen::Zero,
-                                               ExpectedValueLen::Zero,
-                                               ExpectedCas::NotSet,
-                                               PROTOCOL_BINARY_RAW_BYTES);
-    return status;
+    return McbpValidator::verify_header(cookie,
+                                        sizeof(cb::rangescan::Id),
+                                        ExpectedKeyLen::Zero,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::NotSet,
+                                        PROTOCOL_BINARY_RAW_BYTES);
 }
 
 Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
@@ -2607,5 +2616,7 @@ McbpValidator::McbpValidator() {
           not_supported_validator);
 
     setup(cb::mcbp::ClientOpcode::RangeScanCreate, create_range_scan_validator);
+    setup(cb::mcbp::ClientOpcode::RangeScanContinue,
+          continue_range_scan_validator);
     setup(cb::mcbp::ClientOpcode::RangeScanCancel, cancel_range_scan_validator);
 }

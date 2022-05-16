@@ -43,17 +43,18 @@ public:
           testHook(hook) {
     }
 
-    void handleKey(DocKey key) override {
+    void handleKey(const CookieIface&, DocKey key) override {
         scannedKeys.emplace_back(key);
         testHook(scannedKeys.size());
     }
 
-    void handleItem(std::unique_ptr<Item> item) override {
+    void handleItem(const CookieIface&, std::unique_ptr<Item> item) override {
         scannedItems.emplace_back(std::move(item));
         testHook(scannedItems.size());
     }
 
-    void handleStatus(cb::engine_errc status) override {
+    void handleStatus(const CookieIface& cookie,
+                      cb::engine_errc status) override {
         EXPECT_TRUE(validateStatus(status));
         this->status = status;
     }
@@ -333,8 +334,8 @@ void RangeScanTest::testRangeScan(
     } else {
         validateItemScan(expectedKeys);
     }
-    // status was set to success
-    EXPECT_EQ(cb::engine_errc::success, status);
+    // status was set to "success"
+    EXPECT_EQ(cb::engine_errc::range_scan_complete, status);
 
     // In this case the scan finished and cleaned up
 
@@ -556,6 +557,9 @@ TEST_P(RangeScanTest, create_cancel) {
     // Nothing read
     EXPECT_TRUE(scannedKeys.empty());
     EXPECT_TRUE(scannedItems.empty());
+    // No status pushed through, the handler->status only applies to continue
+    // expect status to still be our initialisation value
+    EXPECT_EQ(cb::engine_errc::sync_write_ambiguous, status);
 }
 
 TEST_P(RangeScanTest, create_cancel_no_data) {

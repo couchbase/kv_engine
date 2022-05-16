@@ -446,6 +446,11 @@ std::string BinprotResponse::getDataString() const {
     return {reinterpret_cast<const char*>(buf.data()), buf.size()};
 }
 
+std::string_view BinprotResponse::getDataView() const {
+    const auto buf = getData();
+    return {reinterpret_cast<const char*>(buf.data()), buf.size()};
+}
+
 nlohmann::json BinprotResponse::getDataJson() const {
     const auto buf = getData();
     const auto view = std::string_view{
@@ -2149,6 +2154,22 @@ BinprotRangeScanCreate::BinprotRangeScanCreate(Vbid vbid,
                             {/*no key*/},
                             config.dump()) {
     setDatatype(cb::mcbp::Datatype::JSON);
+}
+
+BinprotRangeScanContinue::BinprotRangeScanContinue(
+        Vbid vbid,
+        cb::rangescan::Id id,
+        size_t itemLimit,
+        std::chrono::milliseconds timeLimit)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::RangeScanContinue),
+      extras(id, itemLimit, timeLimit.count()) {
+}
+
+void BinprotRangeScanContinue::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 0, sizeof(extras));
+    auto extraBuf = extras.getBuffer();
+    buf.insert(buf.end(), extraBuf.begin(), extraBuf.end());
+    buf.insert(buf.end(), key.begin(), key.end());
 }
 
 BinprotRangeScanCancel::BinprotRangeScanCancel(Vbid vbid, cb::rangescan::Id id)

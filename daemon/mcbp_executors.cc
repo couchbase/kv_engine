@@ -861,6 +861,8 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::Ifconfig, ifconfig_executor);
     setup_handler(cb::mcbp::ClientOpcode::RangeScanCreate,
                   range_scan_create_executor);
+    setup_handler(cb::mcbp::ClientOpcode::RangeScanContinue,
+                  range_scan_continue_executor);
     setup_handler(cb::mcbp::ClientOpcode::RangeScanCancel,
                   range_scan_cancel_executor);
 }

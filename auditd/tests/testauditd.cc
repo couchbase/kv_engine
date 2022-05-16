@@ -124,6 +124,14 @@ public:
         throw std::runtime_error(
                 "set_unknown_collection_error_context not implemented");
     }
+    void send_response(const CookieIface&,
+                       cb::engine_errc,
+                       std::string_view) override {
+        throw std::runtime_error("send_response not implemented");
+    }
+    void execution_complete(const CookieIface&) override {
+        throw std::runtime_error("execution_complete not implemented");
+    }
 };
 
 class AuditDaemonTest

@@ -12,19 +12,59 @@
 
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_bucket.h"
+#include "ep_engine.h"
+#include "objectregistry.h"
 #include "range_scans/range_scan.h"
 #include "vbucket.h"
 
-void RangeScanDataHandler::handleKey(DocKey key) {
-    // @todo:
+#include <mcbp/codec/range_scan_continue_codec.h>
+#include <mcbp/protocol/unsigned_leb128.h>
+#include <memcached/server_cookie_iface.h>
+
+void RangeScanDataHandler::checkAndSend(const CookieIface& cookie) {
+    // @todo: set the "size" from configuration and also test various sizes
+    // For now a "page-size" multiple is probably fine. This value controls
+    // roughly how much a scan can read into memory, but we can be over this
+    // e.g. if we were to load a 20Mib value...
+    if (responseBuffer.size() >= 8192) {
+        send(cookie);
+    }
 }
 
-void RangeScanDataHandler::handleItem(std::unique_ptr<Item> item) {
-    // @todo:
+void RangeScanDataHandler::send(const CookieIface& cookie,
+                                cb::engine_errc status) {
+    {
+        NonBucketAllocationGuard guard;
+        engine.getServerApi()->cookie->send_response(
+                cookie,
+                status,
+                {reinterpret_cast<const char*>(responseBuffer.data()), responseBuffer.size()});
+    }
+    responseBuffer.clear();
 }
 
-void RangeScanDataHandler::handleStatus(cb::engine_errc status) {
-    // @todo:
+void RangeScanDataHandler::handleKey(const CookieIface& cookie, DocKey key) {
+    cb::mcbp::response::RangeScanContinueKeyPayload::encode(responseBuffer, key);
+    checkAndSend(cookie);
+}
+
+void RangeScanDataHandler::handleItem(const CookieIface& cookie,
+                                      std::unique_ptr<Item> item) {
+    cb::mcbp::response::RangeScanContinueValuePayload::encode(
+            responseBuffer, item->toItemInfo(0, false));
+    checkAndSend(cookie);
+}
+
+void RangeScanDataHandler::handleStatus(const CookieIface& cookie,
+                                        cb::engine_errc status) {
+    // send the 'final' status along with any outstanding data
+    // The status must be range_scan_{more/complete} or an error
+    Expects(status != cb::engine_errc::success);
+    send(cookie, status);
+
+    NonBucketAllocationGuard guard;
+    // And execution is complete
+    engine.getServerApi()->cookie->execution_complete(cookie);
 }
 
 RangeScanCacheCallback::RangeScanCacheCallback(RangeScan& scan,
@@ -69,12 +109,9 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
         setStatus(cb::engine_errc::key_already_exists);
         return;
     } else if (scan.isTotalLimitReached()) {
-        // end the scan
-        // @todo: Change this over to use range_scan_complete, which is added in
-        // a later patch. It's also not really an error, but brings the scan
-        // to a halt and indicates the status to the client. MB-35297 tracks
-        // this todo
-        setScanErrorStatus(cb::engine_errc::out_of_range);
+        // end the scan. Using setScanErrorStatus ensures this status is
+        // attached to any output from the scan.
+        setScanErrorStatus(cb::engine_errc::range_scan_complete);
         return;
     }
 

@@ -379,6 +379,14 @@ public:
                       cb::mcbp::Datatype datatype,
                       uint64_t cas);
 
+    /// see above, but map engine_errc to mcbp::Status
+    void sendResponse(cb::engine_errc status,
+                      std::string_view extras,
+                      std::string_view key,
+                      std::string_view value,
+                      cb::mcbp::Datatype datatype,
+                      uint64_t cas);
+
     /**
      * Get the command context stored for this command as
      * the given type or make it if it doesn't exist

@@ -12,6 +12,8 @@
 #pragma once
 #include "callbacks.h"
 
+class CookieIface;
+class EventuallyPersistentEngine;
 class EPBucket;
 class RangeScan;
 class VBucket;
@@ -39,7 +41,7 @@ public:
      *
      *  @param key A key read from a Key only scan
      */
-    virtual void handleKey(DocKey key) = 0;
+    virtual void handleKey(const CookieIface& cookie, DocKey key) = 0;
 
     /**
      * Callback method invoked for each Item that is read from the snapshot.
@@ -47,7 +49,8 @@ public:
      *
      *  @param item An Item read from a Key/Value scan
      */
-    virtual void handleItem(std::unique_ptr<Item> item) = 0;
+    virtual void handleItem(const CookieIface& cookie,
+                            std::unique_ptr<Item> item) = 0;
 
     /**
      * Callback method for when a scan has finished a "continue" and is used to
@@ -57,7 +60,8 @@ public:
      *
      * @param status The status of the just completed continue
      */
-    virtual void handleStatus(cb::engine_errc status) = 0;
+    virtual void handleStatus(const CookieIface& cookie,
+                              cb::engine_errc status) = 0;
 };
 
 /**
@@ -66,11 +70,29 @@ public:
  */
 class RangeScanDataHandler : public RangeScanDataHandlerIFace {
 public:
-    void handleKey(DocKey key) override;
+    RangeScanDataHandler(EventuallyPersistentEngine& engine) : engine(engine) {
+    }
 
-    void handleItem(std::unique_ptr<Item> item) override;
+    void handleKey(const CookieIface& cookie, DocKey key) override;
 
-    void handleStatus(cb::engine_errc status) override;
+    void handleItem(const CookieIface& cookie,
+                    std::unique_ptr<Item> item) override;
+
+    void handleStatus(const CookieIface& cookie,
+                      cb::engine_errc status) override;
+
+private:
+    void checkAndSend(const CookieIface& cookie);
+    void send(const CookieIface& cookie,
+              cb::engine_errc = cb::engine_errc::success);
+
+    EventuallyPersistentEngine& engine;
+    /**
+     * Data read from the scan is stored in this vector ready for sending. When
+     * a threshold is reached the content of this buffer makes up a single
+     * response (value) back to the client
+     */
+    std::vector<uint8_t> responseBuffer;
 };
 
 /**

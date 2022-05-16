@@ -199,6 +199,18 @@ struct ServerCookieApi : public ServerCookieIface {
         auto& cookie = getCookie(cookieIface);
         return cookie.getConnection().getThread().isValidJson(cookie, view);
     }
+
+    void send_response(const CookieIface& cookieIface,
+                       cb::engine_errc status,
+                       std::string_view view) override {
+        getCookie(cookieIface)
+                .sendResponse(status, {}, {}, view, cb::mcbp::Datatype::Raw, 0);
+    }
+
+    void execution_complete(const CookieIface& cookieIface) override {
+        auto& cookie = getCookie(cookieIface);
+        executionComplete(cookie);
+    }
 };
 
 class ServerApiImpl : public ServerApi {

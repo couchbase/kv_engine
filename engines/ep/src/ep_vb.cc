@@ -1280,7 +1280,7 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
 
     // If no handler has been given, create one.
     if (!handler) {
-        handler = std::make_unique<RangeScanDataHandler>();
+        handler = std::make_unique<RangeScanDataHandler>(bucket->getEPEngine());
     }
 
     // Create a task and give it the RangeScanCreateData, on failure the task

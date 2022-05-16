@@ -160,22 +160,25 @@ cb::rangescan::Id RangeScan::createScan(
 }
 
 cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
-    EP_LOG_DEBUG("RangeScan {} continue for {}", uuid, getVBucketId());
+    // continue works on a copy of the state
+    continueRunState = *continueState.rlock();
 
     // Only attempt scan when !cancelled
     if (isCancelled()) {
+        EP_LOG_DEBUG("RangeScan {} is cancelled for {}", uuid, getVBucketId());
         // ensure the client/cookie sees cancelled
         handleStatus(cb::engine_errc::range_scan_cancelled);
         // but return success so the scan now gets cleaned-up
         return cb::engine_errc::success;
     } else if (isTotalLimitReached()) {
-        // No point scanning if the total has been hit
+        // No point scanning if the total has been hit. Change to Idle and
+        // return success. Any waiting client will see the complete status and
+        // the scan now cleans-up
+        setStateIdle(cb::engine_errc::range_scan_complete);
         return cb::engine_errc::success;
     }
 
-    // continue works on a copy of the state
-    continueRunState = *continueState.rlock();
-
+    EP_LOG_DEBUG("RangeScan {} continue for {}", uuid, getVBucketId());
     auto status = kvstore.scan(*scanCtx);
 
     switch (status) {
@@ -194,7 +197,7 @@ cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
     }
     case ScanStatus::Success:
         // Scan has reached the end
-        setStateIdle(cb::engine_errc::success);
+        setStateIdle(cb::engine_errc::range_scan_complete);
         break;
     case ScanStatus::Cancelled:
         // Scan cannot continue and has been cancelled, e.g. vbucket has gone
@@ -205,6 +208,11 @@ cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
         handleStatus(cb::engine_errc::failed);
         break;
     }
+
+    EP_LOG_DEBUG("RangeScan {} complete with status:{} for {}",
+                 uuid,
+                 status,
+                 getVBucketId());
 
     // For Success/Cancelled/Failed return success. The actual client visible
     // status has been push though handleStatus. The caller of this method only
@@ -241,14 +249,14 @@ void RangeScan::setStateIdle(cb::engine_errc status) {
     });
 
     // Changing to Idle implies a successful Continue.
-    // success is the end of the scan
+    // range_scan_complete is the end of the scan
     // range_scan_more is a 'pause' due to limits/yield of the task
-    Expects(status == cb::engine_errc::success ||
-            status == cb::engine_errc::range_scan_more);
+    Expects(status == cb::engine_errc::range_scan_more ||
+            status == cb::engine_errc::range_scan_complete);
 
     // The ordering here is deliberate, set the status after the cs.state update
     // so there's no chance a client sees 'success' then fails to continue again
-    // (cannot continue an already continued scan)
+    // (because you cannot continue a Continuing scan)
     handleStatus(status);
 }
 
@@ -288,7 +296,8 @@ void RangeScan::setStateCancelled() {
 
 void RangeScan::handleKey(DocKey key) {
     incrementItemCount();
-    handler->handleKey(key);
+    Expects(continueRunState.cState.cookie);
+    handler->handleKey(*continueRunState.cState.cookie, key);
 }
 
 void RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
@@ -298,11 +307,21 @@ void RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
         incrementValueFromDisk();
     }
     incrementItemCount();
-    handler->handleItem(std::move(item));
+    Expects(continueRunState.cState.cookie);
+    handler->handleItem(*continueRunState.cState.cookie, std::move(item));
 }
 
 void RangeScan::handleStatus(cb::engine_errc status) {
-    handler->handleStatus(status);
+    if (continueRunState.cState.cookie) {
+        // Only handle a status if the cookie is set.
+        handler->handleStatus(*continueRunState.cState.cookie, status);
+    } else {
+        // No other error should be here. handleStatus maybe called when
+        // continue task detects the task is in state cancelled and it
+        // unconditionally calls handleStatus. If there is no waiting
+        // continue (no cookie) the status can be dropped
+        Expects(status == cb::engine_errc::range_scan_cancelled);
+    }
 }
 
 void RangeScan::incrementItemCount() {
