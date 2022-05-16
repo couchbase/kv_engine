@@ -22,9 +22,7 @@ TEST_P(LoggingTest, ChangeVerbosity) {
     auto& conn = getAdminConnection();
     conn.selectBucket(bucketName);
 
-    BinprotVerbosityCommand cmd;
-    cmd.setLevel(GetParam());
-    auto rsp = conn.execute(cmd);
+    auto rsp = conn.execute(BinprotVerbosityCommand{GetParam()});
     // Fail this test if the connection does not return a successful
     // response
     ASSERT_TRUE(rsp.isSuccess());

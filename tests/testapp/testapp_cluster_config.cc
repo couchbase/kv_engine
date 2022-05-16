@@ -40,9 +40,7 @@ void ClusterConfigTest::test_MB_17506(bool dedupe) {
     auto response = setClusterConfig(token, clustermap, 100);
     EXPECT_TRUE(response.isSuccess());
 
-    BinprotGetCommand command;
-    command.setKey("foo");
-    command.setVBucket(Vbid(1));
+    BinprotGetCommand command{"foo", Vbid{1}};
 
     // Execute the first get command. This one should _ALWAYS_ contain a map
     response = userConnection->execute(command);

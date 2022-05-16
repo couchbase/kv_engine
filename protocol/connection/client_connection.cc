@@ -1024,8 +1024,8 @@ static std::string bucketTypeToModule(BucketType type) {
 void MemcachedConnection::createBucket(const std::string& bucketName,
                                        const std::string& config,
                                        BucketType type) {
-    BinprotCreateBucketCommand command(bucketName.c_str());
-    command.setConfig(bucketTypeToModule(type), config);
+    BinprotCreateBucketCommand command(
+            bucketName, bucketTypeToModule(type), config);
 
     const auto response = execute(
             command, std::max(std::chrono::milliseconds{20000}, timeout));
@@ -1108,9 +1108,7 @@ Document MemcachedConnection::get(
         const std::string& id,
         Vbid vbucket,
         std::function<std::vector<std::unique_ptr<FrameInfo>>()> getFrameInfo) {
-    BinprotGetCommand command;
-    command.setKey(id);
-    command.setVBucket(vbucket);
+    BinprotGetCommand command{id, vbucket};
     applyFrameInfos(command, getFrameInfo);
 
     const auto response = BinprotGetResponse(execute(command));
@@ -1144,10 +1142,7 @@ void MemcachedConnection::mget(
 
     int ii = 0;
     for (const auto& doc : id) {
-        BinprotGetCommand command;
-        command.setOp(ClientOpcode::Get);
-        command.setKey(doc.first);
-        command.setVBucket(doc.second);
+        BinprotGetCommand command{doc.first, doc.second};
         command.setOpaque(ii++);
         applyFrameInfos(command, getFrameInfo);
 
@@ -1205,9 +1200,7 @@ void MemcachedConnection::mget(
 }
 
 Frame MemcachedConnection::encodeCmdGet(const std::string& id, Vbid vbucket) {
-    BinprotGetCommand command;
-    command.setKey(id);
-    command.setVBucket(vbucket);
+    BinprotGetCommand command{id, vbucket};
     return to_frame(command);
 }
 
@@ -1457,12 +1450,8 @@ uint64_t MemcachedConnection::incr_decr(cb::mcbp::ClientOpcode opcode,
     const char* opcode_name =
             (opcode == cb::mcbp::ClientOpcode::Increment) ? "incr" : "decr";
 
-    BinprotIncrDecrCommand command;
-    command.setOp(opcode);
-    command.setKey(key);
-    command.setDelta(delta);
-    command.setInitialValue(initial);
-    command.setExpiry(exptime);
+    BinprotIncrDecrCommand command(
+            opcode, key, Vbid{0}, delta, initial, exptime);
     applyFrameInfos(command, getFrameInfo);
 
     const auto response = BinprotIncrDecrResponse(execute(command));
@@ -1489,10 +1478,7 @@ MutationInfo MemcachedConnection::remove(const std::string& key,
                                          Vbid vbucket,
                                          uint64_t cas,
                                          GetFrameInfoFunction getFrameInfo) {
-    BinprotRemoveCommand command;
-    command.setKey(key);
-    command.setVBucket(vbucket);
-    command.setCas(cas);
+    BinprotRemoveCommand command{key, vbucket, cas};
     applyFrameInfos(command, getFrameInfo);
 
     const auto response = BinprotRemoveResponse(execute(command));
@@ -1508,10 +1494,7 @@ Document MemcachedConnection::get_and_lock(const std::string& id,
                                            Vbid vbucket,
                                            uint32_t lock_timeout,
                                            GetFrameInfoFunction getFrameInfo) {
-    BinprotGetAndLockCommand command;
-    command.setKey(id);
-    command.setVBucket(vbucket);
-    command.setLockTimeout(lock_timeout);
+    BinprotGetAndLockCommand command(id, vbucket, lock_timeout);
     applyFrameInfos(command, getFrameInfo);
 
     const auto response = BinprotGetAndLockResponse(execute(command));
@@ -1542,10 +1525,7 @@ void MemcachedConnection::unlock(const std::string& id,
                                  Vbid vbucket,
                                  uint64_t cas,
                                  GetFrameInfoFunction getFrameInfo) {
-    BinprotUnlockCommand command;
-    command.setKey(id);
-    command.setVBucket(vbucket);
-    command.setCas(cas);
+    BinprotUnlockCommand command(id, vbucket, cas);
     applyFrameInfos(command, getFrameInfo);
 
     const auto response = execute(command);

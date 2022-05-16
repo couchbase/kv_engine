@@ -255,11 +255,7 @@ TEST_P(SaslTest, CollectionsConnectionSetup) {
     EXPECT_NO_THROW(conn.selectBucket(bucket3));
 
     // Do a get
-    BinprotGetCommand getCmd;
-    getCmd.setOp(cb::mcbp::ClientOpcode::Get);
-    getCmd.setKey(std::string{"\0key", 4});
-    getCmd.setVBucket(Vbid(0));
-
+    BinprotGetCommand getCmd(std::string{"\0key", 4});
     auto auto_retry_tmpfail = conn.getAutoRetryTmpfail();
     conn.setAutoRetryTmpfail(true);
     const auto getRsp = BinprotGetResponse(conn.execute(getCmd));

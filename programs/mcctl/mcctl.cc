@@ -85,7 +85,7 @@ static int get_verbosity(MemcachedConnection& connection) {
  */
 static int set_verbosity(MemcachedConnection& connection,
                          const std::string& value) {
-    uint32_t level;
+    int level;
 
     try {
         level = std::stoi(value);
@@ -105,9 +105,7 @@ static int set_verbosity(MemcachedConnection& connection,
         }
     }
 
-    BinprotVerbosityCommand cmd;
-    cmd.setLevel(level);
-    connection.sendCommand(cmd);
+    connection.sendCommand(BinprotVerbosityCommand{level});
 
     BinprotVerbosityResponse resp;
     connection.recvResponse(resp);
@@ -416,12 +414,8 @@ int main(int argc, char** argv) {
             }
         } else if (command == "reload") {
             if (property == "config") {
-                using BinprotConfigReloadCommand =
-                        BinprotCommandT<BinprotGenericCommand,
-                                        cb::mcbp::ClientOpcode::ConfigReload>;
-
-                auto response =
-                        connection.execute(BinprotConfigReloadCommand{});
+                auto response = connection.execute(BinprotGenericCommand{
+                        cb::mcbp::ClientOpcode::ConfigReload});
                 if (!response.isSuccess()) {
                     std::cerr << TerminalColor::Red
                               << "Failed: " << to_string(response.getStatus());

@@ -32,9 +32,7 @@ protected:
     }
 
     cb::mcbp::Status getDocument() {
-        BinprotGetCommand cmd;
-        cmd.setKey(name);
-        return userConnection->execute(cmd).getStatus();
+        return userConnection->execute(BinprotGetCommand{name}).getStatus();
     }
 };
 

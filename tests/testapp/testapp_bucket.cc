@@ -227,8 +227,7 @@ TEST_P(BucketTest, DeleteWhileSendDataAndFullWriteBuffer) {
     const auto info = conn.mutate(document, Vbid(0), MutationType::Set);
     EXPECT_NE(0, info.cas);
 
-    BinprotGetCommand cmd;
-    cmd.setKey(name);
+    BinprotGetCommand cmd(name);
 
     std::atomic_bool blocked{false};
 

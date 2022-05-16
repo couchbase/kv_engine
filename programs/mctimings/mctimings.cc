@@ -194,12 +194,7 @@ static void request_cmd_timings(MemcachedConnection& connection,
                                 bool verbose,
                                 bool skip,
                                 std::optional<nlohmann::json>& jsonOutput) {
-    BinprotGetCmdTimerCommand cmd;
-    cmd.setBucket(bucket);
-    cmd.setOpcode(opcode);
-
-    connection.sendCommand(cmd);
-
+    connection.sendCommand(BinprotGetCmdTimerCommand{bucket, opcode});
     BinprotGetCmdTimerResponse resp;
     connection.recvResponse(resp);
 

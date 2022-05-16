@@ -57,10 +57,8 @@ void TouchTest::testHit(bool quiet) {
 
     // Verify that we can set the expiry time to the same value without
     // getting a new cas value generated
-    BinprotGetAndTouchCommand cmd;
+    BinprotGetAndTouchCommand cmd(name, Vbid{0}, 0);
     cmd.setQuiet(quiet);
-    cmd.setKey(name);
-    cmd.setExpirytime(0);
     userConnection->sendCommand(cmd);
 
     BinprotGetAndTouchResponse rsp;
@@ -88,10 +86,8 @@ void TouchTest::testHit(bool quiet) {
 
 void TouchTest::testMiss(bool quiet) {
     const auto before = get_cmd_counter("get_misses");
-    BinprotGetAndTouchCommand cmd;
+    BinprotGetAndTouchCommand cmd(name, Vbid{0}, 10);
     cmd.setQuiet(quiet);
-    cmd.setKey(name);
-    cmd.setExpirytime(10);
     userConnection->sendCommand(cmd);
 
     if (quiet) {
@@ -174,8 +170,8 @@ TEST_P(TouchTest, Touch_Miss) {
 void TouchTest::testGatAndTouch(const std::string& input_doc) {
     document.value = input_doc;
     userConnection->mutate(document, Vbid(0), MutationType::Add);
-    auto resp = BinprotGetAndTouchResponse{
-            userConnection->execute(BinprotGetAndTouchCommand{name})};
+    auto resp = BinprotGetAndTouchResponse{userConnection->execute(
+            BinprotGetAndTouchCommand{name, Vbid{0}, 0})};
     EXPECT_TRUE(resp.isSuccess());
     auto value = resp.getData();
     std::string val(reinterpret_cast<const char*>(value.data()), value.size());

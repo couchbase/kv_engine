@@ -274,19 +274,13 @@ protected:
     }
 
     void sendArithmetic(cb::mcbp::ClientOpcode next) {
-        BinprotIncrDecrCommand cmd;
-        cmd.setOp(next);
-        cmd.setKey(getKey());
-        cmd.setDelta(1);
-        cmd.setVBucket(getVbucket());
+        BinprotIncrDecrCommand cmd{next, getKey(), getVbucket(), 1, 0, 0};
         injectCommand(cmd);
     }
 
     void sendGat(cb::mcbp::ClientOpcode next) {
-        BinprotGetAndTouchCommand cmd;
+        BinprotGetAndTouchCommand cmd(getKey(), getVbucket(), 0);
         cmd.setOp(next);
-        cmd.setKey(getKey());
-        cmd.setVBucket(getVbucket());
         injectCommand(cmd);
     }
 

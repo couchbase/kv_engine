@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -22,7 +21,7 @@ class FrameInfo;
 /**
  * This is the base class used for binary protocol commands. You probably
  * want to use one of the subclasses. Do not subclass this class directly,
- * rather, instantiate/derive from BinprotCommandT or BinprotGenericCommand
+ * rather, instantiate/derive from BinprotGenericCommand
  */
 class BinprotCommand {
 public:
@@ -147,40 +146,10 @@ private:
 };
 
 /**
- * For use with subclasses of @class MemcachedCommand. This installs setter
- * methods which
- * return the actual class rather than TestCmd.
- *
- * @code{.c++}
- * class SomeCmd : public MemcachedCommandT<SomeCmd> {
- *   // ...
- * };
- * @endcode
- *
- * And therefore allows subclasses to be used like so:
- *
- * @code{.c++}
- * MyCommand cmd;
- * cmd.setKey("foo").
- *     setExpiry(300).
- *     setCas(0xdeadbeef);
- *
- * @endcode
- */
-template <typename T,
-          cb::mcbp::ClientOpcode OpCode = cb::mcbp::ClientOpcode::Invalid>
-class BinprotCommandT : public BinprotCommand {
-public:
-    BinprotCommandT() {
-        setOp(OpCode);
-    }
-};
-
-/**
  * Convenience class for constructing ad-hoc commands with no special semantics.
  * Ideally, you should use another class which provides nicer wrapper functions.
  */
-class BinprotGenericCommand : public BinprotCommandT<BinprotGenericCommand> {
+class BinprotGenericCommand : public BinprotCommand {
 public:
     /// It shouldn't be possible to create a command without an opcode
     BinprotGenericCommand() = delete;
@@ -195,17 +164,17 @@ public:
                           std::string key_,
                           std::string value_);
 
-    BinprotGenericCommand& setValue(std::string value_);
-    BinprotGenericCommand& setExtras(const std::vector<uint8_t>& buf);
-    BinprotGenericCommand& setExtras(std::string_view buf);
+    void setValue(std::string value_);
+    void setExtras(const std::vector<uint8_t>& buf);
+    void setExtras(std::string_view buf);
 
     // Use for setting a simple value as an extras
     template <typename T>
-    BinprotGenericCommand& setExtrasValue(T ext) {
+    void setExtrasValue(T ext) {
         std::vector<uint8_t> buf;
         buf.resize(sizeof(T));
         memcpy(buf.data(), &ext, sizeof(T));
-        return setExtras(buf);
+        setExtras(buf);
     }
 
     void clear() override;
@@ -295,7 +264,7 @@ protected:
     std::vector<uint8_t> payload;
 };
 
-class BinprotSubdocCommand : public BinprotCommandT<BinprotSubdocCommand> {
+class BinprotSubdocCommand : public BinprotCommand {
 public:
     BinprotSubdocCommand();
 
@@ -343,9 +312,7 @@ public:
     bool operator==(const BinprotSubdocResponse& other) const;
 };
 
-class BinprotSubdocMultiMutationCommand
-    : public BinprotCommandT<BinprotSubdocMultiMutationCommand,
-                             cb::mcbp::ClientOpcode::SubdocMultiMutation> {
+class BinprotSubdocMultiMutationCommand : public BinprotCommand {
 public:
     BinprotSubdocMultiMutationCommand();
 
@@ -417,9 +384,7 @@ protected:
     std::vector<MutationResult> results;
 };
 
-class BinprotSubdocMultiLookupCommand
-    : public BinprotCommandT<BinprotSubdocMultiLookupCommand,
-                             cb::mcbp::ClientOpcode::SubdocMultiLookup> {
+class BinprotSubdocMultiLookupCommand : public BinprotCommand {
 public:
     BinprotSubdocMultiLookupCommand();
 
@@ -465,11 +430,6 @@ public:
 
     void clearDocFlags();
 
-    /**
-     * This is used for testing only!
-     */
-    BinprotSubdocMultiLookupCommand& setExpiry_Unsupported(uint32_t expiry_);
-
 protected:
     std::vector<LookupSpecifier> specs;
     ExpiryValue expiry;
@@ -497,10 +457,11 @@ protected:
     std::vector<LookupResult> results;
 };
 
-class BinprotSaslAuthCommand
-    : public BinprotCommandT<BinprotSaslAuthCommand,
-                             cb::mcbp::ClientOpcode::SaslAuth> {
+class BinprotSaslAuthCommand : public BinprotGenericCommand {
 public:
+    BinprotSaslAuthCommand()
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::SaslAuth) {
+    }
     void setMechanism(const std::string& mech_);
 
     void setChallenge(std::string_view data);
@@ -511,10 +472,12 @@ private:
     std::string challenge;
 };
 
-class BinprotSaslStepCommand
-    : public BinprotCommandT<BinprotSaslStepCommand,
-                             cb::mcbp::ClientOpcode::SaslStep> {
+class BinprotSaslStepCommand : public BinprotGenericCommand {
 public:
+    BinprotSaslStepCommand()
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::SaslStep) {
+    }
+
     void setMechanism(const std::string& mech);
 
     void setChallenge(std::string_view data);
@@ -525,11 +488,9 @@ private:
     std::string challenge;
 };
 
-class BinprotHelloCommand
-    : public BinprotCommandT<BinprotHelloCommand,
-                             cb::mcbp::ClientOpcode::Hello> {
+class BinprotHelloCommand : public BinprotGenericCommand {
 public:
-    explicit BinprotHelloCommand(const std::string& client_id);
+    explicit BinprotHelloCommand(std::string client_id);
     BinprotHelloCommand& enableFeature(cb::mcbp::Feature feature,
                                        bool enabled = true);
 
@@ -552,52 +513,50 @@ protected:
     std::vector<cb::mcbp::Feature> features;
 };
 
-class BinprotCreateBucketCommand
-    : public BinprotCommandT<BinprotCreateBucketCommand,
-                             cb::mcbp::ClientOpcode::CreateBucket> {
+class BinprotCreateBucketCommand : public BinprotGenericCommand {
 public:
-    explicit BinprotCreateBucketCommand(const char* name);
-
-    void setConfig(const std::string& module, const std::string& config);
+    explicit BinprotCreateBucketCommand(std::string name,
+                                        const std::string& module,
+                                        const std::string& config);
     void encode(std::vector<uint8_t>& buf) const override;
 
 private:
     std::vector<uint8_t> module_config;
 };
 
-class BinprotGetCommand
-    : public BinprotCommandT<BinprotGetCommand, cb::mcbp::ClientOpcode::Get> {
+class BinprotGetCommand : public BinprotGenericCommand {
 public:
+    BinprotGetCommand(std::string key, Vbid vbid = Vbid{0})
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::Get, std::move(key)) {
+        setVBucket(vbid);
+    }
+
     void encode(std::vector<uint8_t>& buf) const override;
 };
 
-class BinprotGetAndLockCommand
-    : public BinprotCommandT<BinprotGetAndLockCommand,
-                             cb::mcbp::ClientOpcode::GetLocked> {
+class BinprotGetAndLockCommand : public BinprotGenericCommand {
 public:
-    BinprotGetAndLockCommand();
+    BinprotGetAndLockCommand(std::string key,
+                             Vbid vbid = Vbid{0},
+                             uint32_t timeout = 0);
 
     void encode(std::vector<uint8_t>& buf) const override;
-
-    BinprotGetAndLockCommand& setLockTimeout(uint32_t timeout);
 
 protected:
     uint32_t lock_timeout;
 };
 
-class BinprotGetAndTouchCommand
-    : public BinprotCommandT<BinprotGetAndTouchCommand,
-                             cb::mcbp::ClientOpcode::Gat> {
+class BinprotGetAndTouchCommand : public BinprotGenericCommand {
 public:
-    explicit BinprotGetAndTouchCommand(std::string key = {}, uint32_t exp = 0);
+    BinprotGetAndTouchCommand(std::string key, Vbid vb, uint32_t exp);
 
     void encode(std::vector<uint8_t>& buf) const override;
 
     bool isQuiet() const;
 
-    BinprotGetAndTouchCommand& setQuiet(bool quiet = true);
+    void setQuiet(bool quiet = true);
 
-    BinprotGetAndTouchCommand& setExpirytime(uint32_t timeout);
+    void setExpirytime(uint32_t timeout);
 
 protected:
     uint32_t expirytime;
@@ -615,18 +574,18 @@ public:
 using BinprotGetAndLockResponse = BinprotGetResponse;
 using BinprotGetAndTouchResponse = BinprotGetResponse;
 
-class BinprotUnlockCommand
-    : public BinprotCommandT<BinprotGetCommand,
-                             cb::mcbp::ClientOpcode::UnlockKey> {
+class BinprotUnlockCommand : public BinprotGenericCommand {
 public:
+    BinprotUnlockCommand(std::string key, Vbid vb, uint64_t cas)
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::UnlockKey,
+                                std::move(key)) {
+        setVBucket(vb);
+        setCas(cas);
+    }
     void encode(std::vector<uint8_t>& buf) const override;
 };
 
-using BinprotUnlockResponse = BinprotResponse;
-
-class BinprotTouchCommand
-    : public BinprotCommandT<BinprotGetAndTouchCommand,
-                             cb::mcbp::ClientOpcode::Touch> {
+class BinprotTouchCommand : public BinprotCommand {
 public:
     explicit BinprotTouchCommand(std::string key = {}, uint32_t exp = 0);
     void encode(std::vector<uint8_t>& buf) const override;
@@ -639,20 +598,12 @@ protected:
 
 using BinprotTouchResponse = BinprotResponse;
 
-class BinprotGetCmdTimerCommand
-    : public BinprotCommandT<BinprotGetCmdTimerCommand,
-                             cb::mcbp::ClientOpcode::GetCmdTimer> {
+class BinprotGetCmdTimerCommand : public BinprotGenericCommand {
 public:
-    BinprotGetCmdTimerCommand() = default;
-    explicit BinprotGetCmdTimerCommand(cb::mcbp::ClientOpcode opcode);
-    BinprotGetCmdTimerCommand(const std::string& bucket,
+    BinprotGetCmdTimerCommand(std::string bucket,
                               cb::mcbp::ClientOpcode opcode);
 
     void encode(std::vector<uint8_t>& buf) const override;
-
-    void setOpcode(cb::mcbp::ClientOpcode opcode);
-
-    void setBucket(const std::string& bucket);
 
 protected:
     cb::mcbp::ClientOpcode opcode = cb::mcbp::ClientOpcode::Invalid;
@@ -668,13 +619,13 @@ private:
     nlohmann::json timings;
 };
 
-class BinprotVerbosityCommand
-    : public BinprotCommandT<BinprotVerbosityCommand,
-                             cb::mcbp::ClientOpcode::Verbosity> {
+class BinprotVerbosityCommand : public BinprotGenericCommand {
 public:
+    BinprotVerbosityCommand(int level)
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::Verbosity),
+          level(level) {
+    }
     void encode(std::vector<uint8_t>& buf) const override;
-
-    void setLevel(int level);
 
 protected:
     int level;
@@ -682,13 +633,14 @@ protected:
 
 using BinprotVerbosityResponse = BinprotResponse;
 
-using BinprotIsaslRefreshCommand =
-        BinprotCommandT<BinprotGenericCommand,
-                        cb::mcbp::ClientOpcode::IsaslRefresh>;
+class BinprotIsaslRefreshCommand : public BinprotGenericCommand {
+public:
+    BinprotIsaslRefreshCommand()
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::IsaslRefresh) {
+    }
+};
 
-using BinprotIsaslRefreshResponse = BinprotResponse;
-
-class BinprotMutationCommand : public BinprotCommandT<BinprotMutationCommand> {
+class BinprotMutationCommand : public BinprotCommand {
 public:
     BinprotMutationCommand& setMutationType(MutationType);
     BinprotMutationCommand& setDocumentInfo(const DocumentInfo& info);
@@ -736,20 +688,24 @@ protected:
     MutationInfo mutation_info;
 };
 
-class BinprotIncrDecrCommand : public BinprotCommandT<BinprotIncrDecrCommand> {
+class BinprotIncrDecrCommand : public BinprotGenericCommand {
 public:
-    BinprotIncrDecrCommand& setDelta(uint64_t delta_);
-
-    BinprotIncrDecrCommand& setInitialValue(uint64_t initial_);
-
-    BinprotIncrDecrCommand& setExpiry(uint32_t expiry_);
+    BinprotIncrDecrCommand(cb::mcbp::ClientOpcode opcode,
+                           std::string key,
+                           Vbid vb,
+                           uint64_t delta,
+                           uint64_t initial,
+                           uint32_t expiry)
+        : BinprotGenericCommand(opcode, std::move(key)) {
+        payload.setDelta(delta);
+        payload.setInitial(initial);
+        payload.setExpiration(expiry);
+    }
 
     void encode(std::vector<uint8_t>& buf) const override;
 
 private:
-    uint64_t delta = 0;
-    uint64_t initial = 0;
-    BinprotCommand::ExpiryValue expiry;
+    cb::mcbp::request::ArithmeticPayload payload;
 };
 
 class BinprotIncrDecrResponse : public BinprotMutationResponse {
@@ -765,20 +721,26 @@ protected:
     uint64_t value = 0;
 };
 
-class BinprotRemoveCommand
-    : public BinprotCommandT<BinprotRemoveCommand,
-                             cb::mcbp::ClientOpcode::Delete> {
+class BinprotRemoveCommand : public BinprotGenericCommand {
 public:
+    explicit BinprotRemoveCommand(std::string key,
+                                  Vbid vb = Vbid{0},
+                                  uint64_t cas = mcbp::cas::Wildcard)
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::Delete,
+                                std::move(key)) {
+        setVBucket(vb);
+        setCas(cas);
+    }
     void encode(std::vector<uint8_t>& buf) const override;
 };
 
 using BinprotRemoveResponse = BinprotMutationResponse;
 
-class BinprotGetErrorMapCommand
-    : public BinprotCommandT<BinprotGetErrorMapCommand,
-                             cb::mcbp::ClientOpcode::GetErrorMap> {
+class BinprotGetErrorMapCommand : public BinprotGenericCommand {
 public:
-    BinprotGetErrorMapCommand(uint16_t ver = 2) : version(ver) {
+    explicit BinprotGetErrorMapCommand(uint16_t ver = 2)
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::GetErrorMap),
+          version(ver) {
     }
     void setVersion(uint16_t version_);
 
@@ -786,8 +748,6 @@ public:
 private:
     uint16_t version = 0;
 };
-
-using BinprotGetErrorMapResponse = BinprotResponse;
 
 class BinprotDcpOpenCommand : public BinprotGenericCommand {
 public:
@@ -1041,10 +1001,7 @@ public:
 
 protected:
     const Document doc;
-    const uint32_t flags;
-    const uint32_t delete_time;
-    const uint64_t seqno;
-    const uint64_t operationCas;
+    cb::mcbp::request::DelWithMetaPayload extras;
 };
 
 class BinprotSetControlTokenCommand : public BinprotGenericCommand {
@@ -1140,13 +1097,19 @@ protected:
     const std::string payload;
 };
 
-using BinprotAuthProviderCommand =
-        BinprotCommandT<BinprotGenericCommand,
-                        cb::mcbp::ClientOpcode::AuthProvider>;
+class BinprotAuthProviderCommand : public BinprotGenericCommand {
+public:
+    BinprotAuthProviderCommand()
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::AuthProvider) {
+    }
+};
 
-using BinprotRbacRefreshCommand =
-        BinprotCommandT<BinprotGenericCommand,
-                        cb::mcbp::ClientOpcode::RbacRefresh>;
+class BinprotRbacRefreshCommand : public BinprotGenericCommand {
+public:
+    BinprotRbacRefreshCommand()
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::RbacRefresh) {
+    }
+};
 
 class BinprotAuditPutCommand : public BinprotGenericCommand {
 public:
@@ -1181,25 +1144,6 @@ public:
 
     void encode(std::vector<uint8_t>& buf) const override;
 
-    uint32_t getMode() const {
-        return extras.getMode();
-    }
-    void setMode(uint32_t m) {
-        extras.setMode(m);
-    }
-    uint32_t getValue() const {
-        return extras.getValue();
-    }
-    void setValue(uint32_t v) {
-        extras.setValue(v);
-    }
-    uint32_t getInjectError() const {
-        return extras.getInjectError();
-    }
-    void setInjectError(uint32_t ie) {
-        extras.setInjectError(ie);
-    }
-
 protected:
     cb::mcbp::request::EWB_Payload extras;
 };
@@ -1210,41 +1154,14 @@ public:
 
     void encode(std::vector<uint8_t>& buf) const override;
 
-    uint64_t getPurgeBeforeTs() const {
-        return extras.getPurgeBeforeTs();
-    }
-    void setPurgeBeforeTs(uint64_t purge_before_ts) {
-        extras.setPurgeBeforeTs(purge_before_ts);
-    }
-    uint64_t getPurgeBeforeSeq() const {
-        return extras.getPurgeBeforeSeq();
-    }
-    void setPurgeBeforeSeq(uint64_t purge_before_seq) {
-        extras.setPurgeBeforeSeq(purge_before_seq);
-    }
-    uint8_t getDropDeletes() const {
-        return extras.getDropDeletes();
-    }
-    void setDropDeletes(uint8_t drop_deletes) {
-        extras.setDropDeletes(drop_deletes);
-    }
-    const Vbid getDbFileId() const {
-        return extras.getDbFileId();
-    }
-    void setDbFileId(Vbid db_file_id) {
-        extras.setDbFileId(db_file_id);
-    }
-
-protected:
     cb::mcbp::request::CompactDbPayload extras;
 };
 
-class BinprotGetAllVbucketSequenceNumbers
-    : public BinprotCommandT<BinprotGetAllVbucketSequenceNumbers,
-                             cb::mcbp::ClientOpcode::GetAllVbSeqnos> {
+class BinprotGetAllVbucketSequenceNumbers : public BinprotGenericCommand {
 public:
-    BinprotGetAllVbucketSequenceNumbers() = default;
-    BinprotGetAllVbucketSequenceNumbers(uint32_t state);
+    BinprotGetAllVbucketSequenceNumbers()
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::GetAllVbSeqnos) {
+    }
     BinprotGetAllVbucketSequenceNumbers(uint32_t state,
                                         CollectionID collection);
 
@@ -1267,7 +1184,7 @@ public:
 
 class SetBucketComputeUnitThrottleLimitCommand : public BinprotGenericCommand {
 public:
-    SetBucketComputeUnitThrottleLimitCommand(const std::string& key_,
+    SetBucketComputeUnitThrottleLimitCommand(std::string key_,
                                              std::size_t limit = 0);
 
     void encode(std::vector<uint8_t>& buf) const override;

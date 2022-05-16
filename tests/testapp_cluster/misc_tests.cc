@@ -184,7 +184,6 @@ TEST_F(BasicClusterTest, VerifyDcpSurviesResetOfEngineSpecific) {
 
     // Compact the database
     BinprotCompactDbCommand compactDbCommand;
-    compactDbCommand.setDbFileId(Vbid(0));
 
     Frame frame;
     compactDbCommand.encode(frame.payload);
