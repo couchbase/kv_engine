@@ -2153,6 +2153,7 @@ BinprotRangeScanCreate::BinprotRangeScanCreate(Vbid vbid,
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::RangeScanCreate,
                             {/*no key*/},
                             config.dump()) {
+    setVBucket(vbid);
     setDatatype(cb::mcbp::Datatype::JSON);
 }
 
@@ -2163,6 +2164,7 @@ BinprotRangeScanContinue::BinprotRangeScanContinue(
         std::chrono::milliseconds timeLimit)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::RangeScanContinue),
       extras(id, itemLimit, timeLimit.count()) {
+    setVBucket(vbid);
 }
 
 void BinprotRangeScanContinue::encode(std::vector<uint8_t>& buf) const {
@@ -2174,6 +2176,7 @@ void BinprotRangeScanContinue::encode(std::vector<uint8_t>& buf) const {
 
 BinprotRangeScanCancel::BinprotRangeScanCancel(Vbid vbid, cb::rangescan::Id id)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::RangeScanCancel) {
+    setVBucket(vbid);
     setExtras(std::string_view{reinterpret_cast<const char*>(id.data),
                                sizeof(id)});
 }
