@@ -538,6 +538,10 @@ TEST_P(RangeScanTest, continue_must_be_serialised) {
     // But can cancel
     EXPECT_EQ(cb::engine_errc::success,
               vb->cancelRangeScan(uuid, cookie, true));
+
+    // must run the cancel (so for magma we can shutdown)
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
 }
 
 // Create and then straight to cancel
@@ -646,6 +650,10 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
     }
     // And set our status to cancelled
     EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
+
+    // must run the cancel (so for magma we can shutdown)
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
 }
 
 TEST_P(RangeScanTest, snapshot_does_not_contain_seqno_0) {
@@ -1141,11 +1149,16 @@ bool TestRangeScanHandler::validateStatus(cb::engine_errc code) {
             std::to_string(int(code)));
 }
 
-auto scanConfigValues = ::testing::Combine(
-        // Run for couchstore only until MB-49816 is resolved
-        ::testing::Values("persistent_couchdb"),
-        ::testing::Values("value_only", "full_eviction"),
-        ::testing::Values("key_scan", "value_scan"));
+auto scanConfigValues =
+        ::testing::Combine(::testing::Values("persistent_couchdb"
+#ifdef EP_USE_MAGMA
+                                             ,
+                                             "persistent_magma",
+                                             "persistent_nexus_couchstore_magma"
+#endif
+                                             ),
+                           ::testing::Values("value_only", "full_eviction"),
+                           ::testing::Values("key_scan", "value_scan"));
 
 INSTANTIATE_TEST_SUITE_P(RangeScanFullAndValueEviction,
                          RangeScanTest,

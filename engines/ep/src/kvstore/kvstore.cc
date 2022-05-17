@@ -124,6 +124,15 @@ ByIdScanContext::ByIdScanContext(
       lastReadKey(nullptr, 0) {
 }
 
+bool ByIdRange::operator==(const ByIdRange& other) const {
+    return startKey == other.startKey && endKey == other.endKey &&
+           rangeScanSuccess == other.rangeScanSuccess;
+}
+
+bool ByIdRange::operator!=(const ByIdRange& other) const {
+    return !(*this == other);
+}
+
 void FileStats::reset() {
     readTimeHisto.reset();
     readSeekHisto.reset();

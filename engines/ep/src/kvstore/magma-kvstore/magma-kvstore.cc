@@ -860,7 +860,7 @@ void MagmaKVStore::commitCallback(MagmaKVStoreTransactionContext& txnCtx,
 }
 
 StorageProperties MagmaKVStore::getStorageProperties() const {
-    StorageProperties rv(StorageProperties::ByIdScan::No,
+    StorageProperties rv(StorageProperties::ByIdScan::Yes,
                          // @TODO MB-33784: Enable auto de-dupe if/when magma
                          // supports it
                          StorageProperties::AutomaticDeduplication::No,
@@ -1706,6 +1706,39 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
                                               std::move(itr));
 }
 
+/**
+ * MagmaScanContext is BySeqnoScanContext with the magma
+ * iterator added.
+ */
+class MagmaByIdScanContext : public ByIdScanContext {
+public:
+    MagmaByIdScanContext(
+            std::unique_ptr<StatusCallback<GetValue>> cb,
+            std::unique_ptr<StatusCallback<CacheLookup>> cl,
+            Vbid vb,
+            std::unique_ptr<KVFileHandle> handle,
+            std::vector<ByIdRange> ranges,
+            DocumentFilter _docFilter,
+            ValueFilter _valFilter,
+            const std::vector<Collections::KVStore::DroppedCollection>&
+                    droppedCollections,
+            int64_t maxSeqno,
+            DomainAwareUniquePtr<DomainAwareKeyIterator> itr)
+        : ByIdScanContext(std::move(cb),
+                          std::move(cl),
+                          vb,
+                          std::move(handle),
+                          ranges,
+                          _docFilter,
+                          _valFilter,
+                          droppedCollections,
+                          maxSeqno),
+          itr(std::move(itr)) {
+    }
+
+    DomainAwareUniquePtr<DomainAwareKeyIterator> itr{nullptr};
+};
+
 std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
         std::unique_ptr<StatusCallback<GetValue>> cb,
         std::unique_ptr<StatusCallback<CacheLookup>> cl,
@@ -1713,9 +1746,57 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
         const std::vector<ByIdRange>& ranges,
         DocumentFilter options,
         ValueFilter valOptions) const {
-    throw std::runtime_error(
-            "MagmaKVStore::initByIdScanContext (id scan) unimplemented");
-    return {};
+    auto handle = makeFileHandle(vbid);
+
+    if (!handle) {
+        logger->warn(
+                "MagmaKVStore::initByIdScanContext {} Failed makeFileHandle",
+                vbid);
+        return nullptr;
+    }
+
+    auto& snapshot = *dynamic_cast<MagmaKVFileHandle&>(*handle).snapshot;
+    auto itr = magma->NewKeyIterator(snapshot);
+    if (!itr) {
+        logger->warn(
+                "MagmaKVStore::initByIdScanContext {} Failed NewKeyIterator",
+                vbid);
+        return nullptr;
+    }
+
+    auto readState = readVBStateFromDisk(vbid, snapshot);
+    if (readState.status != ReadVBStateStatus::Success) {
+        logger->warn(
+                "MagmaKVStore::initByIdcanContext {} Failed readVBStateFromDisk"
+                " Status:{}",
+                vbid,
+                to_string(readState.status));
+        return nullptr;
+    }
+
+    auto [getDroppedStatus, dropped] = getDroppedCollections(vbid, snapshot);
+    if (!getDroppedStatus.OK()) {
+        logger->warn(
+                "MagmaKVStore::initByIdcanContext {} Failed "
+                "getDroppedCollections Status:{}",
+                vbid,
+                getDroppedStatus.String());
+        return nullptr;
+    }
+
+    auto sctx =
+            std::make_unique<MagmaByIdScanContext>(std::move(cb),
+                                                   std::move(cl),
+                                                   vbid,
+                                                   std::move(handle),
+                                                   ranges,
+                                                   options,
+                                                   valOptions,
+                                                   dropped,
+                                                   readState.state.highSeqno,
+                                                   std::move(itr));
+
+    return sctx;
 }
 
 ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
@@ -1738,14 +1819,26 @@ ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
         Slice keySlice, metaSlice, valSlice;
         uint64_t seqno;
         mctx.itr->GetRecord(keySlice, metaSlice, valSlice, seqno);
-        const auto result = scanOne(ctx, keySlice, seqno, metaSlice, valSlice);
+        const auto result =
+                scanOne(ctx,
+                        keySlice,
+                        seqno,
+                        metaSlice,
+                        valSlice,
+                        [](Slice&) -> Status {
+                            throw std::runtime_error(
+                                    "scan(BySeqno) tried to read the value");
+                        });
+
         switch (result.code) {
-        case MagmaScanResult::Status::Success:
         case MagmaScanResult::Status::Yield:
+
+        case MagmaScanResult::Status::Success:
         case MagmaScanResult::Status::Cancelled:
         case MagmaScanResult::Status::Failed:
             return ScanStatus(result.code);
         case MagmaScanResult::Status::Next:
+            // Update the lastReadSeqno as this is the 'resume' point
             ctx.lastReadSeqno = seqno;
             continue;
         }
@@ -1755,16 +1848,75 @@ ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
 }
 
 ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx) const {
-    throw std::runtime_error("MagmaKVStore::scan (by id scan) unimplemented");
-    return ScanStatus::Failed;
+    // Process each range until it's completed
+    for (auto& range : ctx.ranges) {
+        if (range.rangeScanSuccess) {
+            continue;
+        }
+        const auto status = scan(ctx, range);
+        switch (status) {
+        case ScanStatus::Success:
+            // This range has been completely visited and the next range can be
+            // scanned.
+            range.rangeScanSuccess = true;
+            continue;
+        case ScanStatus::Yield:
+            range.startKey = ctx.lastReadKey;
+            return status;
+        case ScanStatus::Failed:
+            // deeper calls log details
+            logger->warn("MagmaKVStore::scan(ById) scan failed {}", ctx.vbid);
+        case ScanStatus::Cancelled:
+            return status;
+        }
+    }
+    return ScanStatus::Success;
 }
 
-// Currently a BySeqno scan populates all key, meta and val
-MagmaScanResult MagmaKVStore::scanOne(ScanContext& ctx,
-                                      Slice& keySlice,
-                                      uint64_t seqno,
-                                      Slice& metaSlice,
-                                      Slice& valSlice) const {
+ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx,
+                              const ByIdRange& range) const {
+    auto& itr = dynamic_cast<MagmaByIdScanContext&>(ctx).itr;
+    Slice keySlice = {reinterpret_cast<const char*>(range.startKey.data()),
+                      range.startKey.size()};
+    for (itr->Seek(keySlice); itr->Valid(); itr->Next()) {
+        // Read the key and check we're not outside the range
+        keySlice = itr->GetKey();
+        if (std::string_view(keySlice) > std::string_view(range.endKey)) {
+            return ScanStatus::Success;
+        }
+
+        // ById will read the value only if the CacheLookup fails, so pass a
+        // callback to get the value and an empty Slice
+        uint64_t seqno = itr->GetSeqno();
+        auto metaSlice = itr->GetMeta();
+        const auto result = scanOne(
+                ctx, keySlice, seqno, metaSlice, {}, [&itr](Slice& value) {
+                    return itr->GetValue(value);
+                });
+        switch (result.code) {
+        case MagmaScanResult::Status::Yield:
+            // Only need to update lastReadKey for a Yield, this is the resume
+            // point for the scan. Doing this here to avoid unnecessary alloc +
+            // copy on every key scanned.
+            ctx.lastReadKey = makeDiskDocKey(keySlice);
+        case MagmaScanResult::Status::Success:
+        case MagmaScanResult::Status::Cancelled:
+        case MagmaScanResult::Status::Failed:
+            return ScanStatus(result.code);
+        case MagmaScanResult::Status::Next:
+            continue;
+        }
+    }
+    return ScanStatus::Success;
+}
+
+MagmaScanResult MagmaKVStore::scanOne(
+        ScanContext& ctx,
+        const Slice& keySlice,
+        uint64_t seqno,
+        const Slice& metaSlice,
+        const Slice& valSlice,
+        std::function<Status(Slice&)> valueRead) const {
     if (keySlice.Len() > std::numeric_limits<uint16_t>::max()) {
         throw std::invalid_argument(
                 "MagmaKVStore::scanOne: "
@@ -1858,6 +2010,22 @@ MagmaScanResult MagmaKVStore::scanOne(ScanContext& ctx,
         }
     }
 
+    Slice value = valSlice;
+    // May need to now read the value
+    if (!value.Data()) {
+        if (auto status = valueRead(value); !status.IsOK()) {
+            logger->warn(
+                    "MagmaKVStore::scan failed to read value - {} "
+                    "key:{}, seqno:{}, status:{}",
+                    ctx.vbid,
+                    cb::UserData{lookup.getKey().to_string()},
+                    seqno,
+                    status.String());
+            return MagmaScanResult::Failed();
+        }
+        ctx.diskBytesRead += value.Len();
+    }
+
     if (logger->should_log(spdlog::level::TRACE)) {
         logger->TRACE(
                 "MagmaKVStore::scanOne {} key:{} seqno:{} deleted:{} "
@@ -1871,7 +2039,7 @@ MagmaScanResult MagmaKVStore::scanOne(ScanContext& ctx,
                 magmakv::isCompressed(metaSlice));
     }
 
-    auto itm = makeItem(ctx.vbid, keySlice, metaSlice, valSlice, ctx.valFilter);
+    auto itm = makeItem(ctx.vbid, keySlice, metaSlice, value, ctx.valFilter);
 
     // When we are requested to return the values as compressed AND
     // the value isn't compressed, attempt to compress the value.

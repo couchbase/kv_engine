@@ -21,9 +21,9 @@
 
 #include <spdlog/fmt/fmt.h>
 
-class CollectionsOSODcpTest : public CollectionsDcpTest {
+class CollectionsOSODcpTest : public CollectionsDcpParameterizedTest {
 public:
-    CollectionsOSODcpTest() : CollectionsDcpTest() {
+    CollectionsOSODcpTest() : CollectionsDcpParameterizedTest() {
     }
 
     void SetUp() override {
@@ -79,7 +79,7 @@ CollectionsOSODcpTest::setupTwoCollections(bool endOnTarget) {
 
 // Run through how we expect OSO to work, this is a minimal test which will
 // use the default collection
-TEST_F(CollectionsOSODcpTest, basic) {
+TEST_P(CollectionsOSODcpTest, basic) {
     // Write to default collection and deliberately not in lexicographical order
     store_item(vbid, makeStoredDocKey("b"), "q");
     store_item(vbid, makeStoredDocKey("d"), "a");
@@ -195,16 +195,16 @@ void CollectionsOSODcpTest::emptyDiskSnapshot(OutOfOrderSnapshots osoMode) {
     }
 }
 
-TEST_F(CollectionsOSODcpTest, emptyDiskSnapshot_MB_49847) {
+TEST_P(CollectionsOSODcpTest, emptyDiskSnapshot_MB_49847) {
     emptyDiskSnapshot(OutOfOrderSnapshots::Yes);
 }
-TEST_F(CollectionsOSODcpTest, emptyDiskSnapshot_MB_49847_withSeqAdvanced) {
+TEST_P(CollectionsOSODcpTest, emptyDiskSnapshot_MB_49847_withSeqAdvanced) {
     emptyDiskSnapshot(OutOfOrderSnapshots::YesWithSeqnoAdvanced);
 }
 
 // MB-49542: Confirm that an oso backfill does not register a cursor if the
 // associated stream is dead.
-TEST_F(CollectionsOSODcpTest, NoCursorRegisteredForDeadStream) {
+TEST_P(CollectionsOSODcpTest, NoCursorRegisteredForDeadStream) {
     // Write a couple of items to disk, to attempt to backfill
     store_item(vbid, makeStoredDocKey("b"), "q");
     store_item(vbid, makeStoredDocKey("d"), "a");
@@ -325,23 +325,23 @@ void CollectionsOSODcpTest::testTwoCollections(bool backfillWillPause,
               producers->last_oso_snapshot_flags);
 }
 
-TEST_F(CollectionsOSODcpTest, two_collections) {
+TEST_P(CollectionsOSODcpTest, two_collections) {
     testTwoCollections(
             false, OutOfOrderSnapshots::Yes, setupTwoCollections().second);
 }
 
-TEST_F(CollectionsOSODcpTest, two_collections_backfill_pause) {
+TEST_P(CollectionsOSODcpTest, two_collections_backfill_pause) {
     testTwoCollections(
             true, OutOfOrderSnapshots::Yes, setupTwoCollections().second);
 }
 
-TEST_F(CollectionsOSODcpTest, two_collections_with_seqno_advanced) {
+TEST_P(CollectionsOSODcpTest, two_collections_with_seqno_advanced) {
     testTwoCollections(false,
                        OutOfOrderSnapshots::YesWithSeqnoAdvanced,
                        setupTwoCollections().second);
 }
 
-TEST_F(CollectionsOSODcpTest,
+TEST_P(CollectionsOSODcpTest,
        two_collections_backfill_pause_with_seqno_advanced) {
     testTwoCollections(true,
                        OutOfOrderSnapshots::YesWithSeqnoAdvanced,
@@ -350,20 +350,20 @@ TEST_F(CollectionsOSODcpTest,
 
 // The next two tests will run with OSO+SeqnoAdvanced but the target collection
 // is the highest seqno, so no SeqnoAdvanced is sent in the OSO snapshot
-TEST_F(CollectionsOSODcpTest, two_collections_with_seqno_advanced_skipped) {
+TEST_P(CollectionsOSODcpTest, two_collections_with_seqno_advanced_skipped) {
     testTwoCollections(false,
                        OutOfOrderSnapshots::YesWithSeqnoAdvanced,
                        setupTwoCollections(true).second);
 }
 
-TEST_F(CollectionsOSODcpTest,
+TEST_P(CollectionsOSODcpTest,
        two_collections_backfill_pause_with_seqno_advanced_skipped) {
     testTwoCollections(true,
                        OutOfOrderSnapshots::YesWithSeqnoAdvanced,
                        setupTwoCollections(true).second);
 }
 
-TEST_F(CollectionsOSODcpTest, dropped_collection) {
+TEST_P(CollectionsOSODcpTest, dropped_collection) {
     auto setup = setupTwoCollections();
 
     // Reset so we have to stream from backfill
@@ -411,7 +411,7 @@ TEST_F(CollectionsOSODcpTest, dropped_collection) {
 }
 
 // Test that we can transition to in memory and continue.
-TEST_F(CollectionsOSODcpTest, transition_to_memory) {
+TEST_P(CollectionsOSODcpTest, transition_to_memory) {
     // Write to default collection and deliberately not in lexicographical order
     store_item(vbid, makeStoredDocKey("b"), "b-value");
     store_item(vbid, makeStoredDocKey("a"), "a-value");
@@ -484,7 +484,7 @@ TEST_F(CollectionsOSODcpTest, transition_to_memory) {
 
 // Test that we can transition to in memory and continue (issue raised by
 // MB-38999)
-TEST_F(CollectionsOSODcpTest, transition_to_memory_MB_38999) {
+TEST_P(CollectionsOSODcpTest, transition_to_memory_MB_38999) {
     // Write to default collection and deliberately not in lexicographical order
     store_item(vbid, makeStoredDocKey("b"), "b-value");
     store_item(vbid, makeStoredDocKey("a"), "a-value");
@@ -546,7 +546,7 @@ TEST_F(CollectionsOSODcpTest, transition_to_memory_MB_38999) {
 }
 
 // OSO + StreamID enabled
-TEST_F(CollectionsOSODcpTest, basic_with_stream_id) {
+TEST_P(CollectionsOSODcpTest, basic_with_stream_id) {
     // Write to default collection and deliberately not in lexicographical order
     store_item(vbid, makeStoredDocKey("b"), "q");
     store_item(vbid, makeStoredDocKey("d"), "a");
@@ -669,7 +669,7 @@ void CollectionsOSODcpTest::MB_43700(CollectionID cid) {
               producers->last_oso_snapshot_flags);
 }
 
-TEST_F(CollectionsOSODcpTest, MB_43700) {
+TEST_P(CollectionsOSODcpTest, MB_43700) {
     // Bug was raised with ID 0xff, we shall test some other 'max' values
     std::array<CollectionID, 3> collections = {{0xff, 0xffff, 0xffffffff}};
     CollectionsManifest cm;
@@ -729,4 +729,9 @@ TEST_P(CollectionsOSOEphemeralTest, basic) {
 INSTANTIATE_TEST_SUITE_P(CollectionsOSOEphemeralTests,
                          CollectionsOSOEphemeralTest,
                          STParameterizedBucketTest::ephConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOSODcpTests,
+                         CollectionsOSODcpTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

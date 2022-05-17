@@ -29,13 +29,15 @@ public:
 
     ~CacheLookup() {}
 
-    const DiskDocKey& getKey() {
+    const DiskDocKey& getKey() const {
         return key;
     }
 
-    int64_t getBySeqno() { return bySeqno; }
+    int64_t getBySeqno() const {
+        return bySeqno;
+    }
 
-    Vbid getVBucketId() {
+    Vbid getVBucketId() const {
         return vbid;
     }
 

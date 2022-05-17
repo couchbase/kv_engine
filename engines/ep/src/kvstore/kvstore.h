@@ -499,6 +499,9 @@ struct ByIdRange {
     DiskDocKey startKey;
     DiskDocKey endKey;
     bool rangeScanSuccess{false};
+
+    bool operator==(const ByIdRange& other) const;
+    bool operator!=(const ByIdRange& other) const;
 };
 
 class ByIdScanContext : public ScanContext {
