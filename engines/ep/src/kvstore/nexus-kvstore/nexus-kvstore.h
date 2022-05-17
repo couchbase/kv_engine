@@ -292,6 +292,10 @@ protected:
                              vbucket_state primaryVbState,
                              vbucket_state secondaryVbState) const;
 
+    // common function uses by BySeqno/ByID scan
+    template <class T>
+    void checkScanCallbacks(Vbid vbid, const T& callbacks) const;
+
     // Friended to let us call handleError to error from associated classes
     friend NexusKVStoreSecondaryPersistenceCallback;
     friend NexusKVStoreSecondaryGetAllKeysCallback;

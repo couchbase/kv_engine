@@ -100,6 +100,10 @@ public:
      */
     std::string to_string() const;
 
+    explicit operator std::string_view() const {
+        return std::string_view{keydata};
+    }
+
 protected:
     std::string keydata;
 };

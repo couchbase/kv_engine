@@ -740,21 +740,32 @@ protected:
             Vbid vbid) const;
 
     /**
+     * Scan a single ById range (key iterator)
+     */
+    scan_error_t scan(ByIdScanContext& ctx, const ByIdRange& range) const;
+
+    /**
      * Run the ScanContext callbacks for a single key/value (when scanning)
      *
      * @param ctx The ScanContext owning the callbacks to use
      * @param keySlice Slice "pointing" at the scanned key
      * @param seqno The seqno of the scanned key
      * @param metaSlice Slice "pointing" at the key's metadata
-     * @oaram valSlice Slice "pointing" at the key's value.
+     * @oaram valSlice Slice "pointing" at the key's value. This Slice can be
+     *        can be empty in which case the valueRead function will be used
+     *        to obtain the value (when ctx.cacheCallback fails to find a value)
+     * @param valRead a function that can read the value (for the case when
+     *        valSlice is empty).
      * @return A MagmaScanResult, which is ScanResult with one bespoke extra
      *         status (Next)
      */
-    MagmaScanResult scanOne(ScanContext& ctx,
-                            magma::Slice& keySlice,
-                            uint64_t seqno,
-                            magma::Slice& metaSlice,
-                            magma::Slice& valSlice) const;
+    MagmaScanResult scanOne(
+            ScanContext& ctx,
+            const magma::Slice& keySlice,
+            uint64_t seqno,
+            const magma::Slice& metaSlice,
+            const magma::Slice& valSlice,
+            std::function<magma::Status(magma::Slice&)> valueRead) const;
 
     MagmaKVStoreConfig& configuration;
 

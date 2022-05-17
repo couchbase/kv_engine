@@ -8781,8 +8781,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // No OSO for rocks or magma
-                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 // No OSO for RocksDB
+                 prepare_skip_broken_under_rocks,
                  cleanup),
 
         TestCase(

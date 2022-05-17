@@ -1984,6 +1984,9 @@ bool NexusKVStore::supportsHistoricalSnapshots() const {
            secondary->supportsHistoricalSnapshots();
 }
 
+template <class Element>
+using NexusScanCallbackQueue = std::deque<std::pair<Element, cb::engine_errc>>;
+
 /**
  * Scan callback invocations.
  * Item is stored to compare the value returned from the secondary to the value
@@ -1994,7 +1997,7 @@ bool NexusKVStore::supportsHistoricalSnapshots() const {
  * secondary (i.e. if we stop scanning the primary after 5 items then the
  * secondary should stop too).
  */
-using NexusScanCallbacks = std::deque<std::pair<Item, cb::engine_errc>>;
+using NexusScanCallbacks = NexusScanCallbackQueue<Item>;
 
 /**
  * ScanCallback for use with the primary KVStore. This ScanCallback will pass
@@ -2126,7 +2129,7 @@ class NexusDummyScanCallback : public StatusCallback<GetValue> {
  * secondary (i.e. if we stop scanning the primary after 5 items then the
  * secondary should stop too).
  */
-using NexusCacheLookups = std::deque<std::pair<CacheLookup, cb::engine_errc>>;
+using NexusCacheLookups = NexusScanCallbackQueue<CacheLookup>;
 
 /**
  * CacheLookup for use with the primary KVStore. Usage is similar to the
@@ -2534,15 +2537,197 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
     return nexusScanContext;
 }
 
+class NexusKVStoreByIdScanContext : public ByIdScanContext {
+public:
+    NexusKVStoreByIdScanContext(
+            std::unique_ptr<StatusCallback<GetValue>> cb,
+            std::unique_ptr<StatusCallback<CacheLookup>> cl,
+            Vbid vb,
+            std::unique_ptr<KVFileHandle> handle,
+            std::vector<ByIdRange> ranges,
+            DocumentFilter _docFilter,
+            ValueFilter _valFilter,
+            const std::vector<Collections::KVStore::DroppedCollection>&
+                    droppedCollections,
+            int64_t maxSeqno)
+        : ByIdScanContext(std::move(cb),
+                          std::move(cl),
+                          vb,
+                          std::move(handle),
+                          ranges,
+                          _docFilter,
+                          _valFilter,
+                          droppedCollections,
+                          maxSeqno) {
+    }
+
+    /**
+     * @return the original callback that now lives in the
+     * NexusPrimaryScanCallback as the caller wants it's own callback
+     */
+    const StatusCallback<GetValue>& getValueCallback() const override {
+        auto& nexusCallback = dynamic_cast<NexusPrimaryScanCallback&>(
+                primaryCtx->getValueCallback());
+        return *nexusCallback.originalCb;
+    }
+
+    /**
+     * @return the original callback that now lives in the
+     * NexusPrimaryScanCallback as the caller wants it's own callback
+     */
+    StatusCallback<GetValue>& getValueCallback() override {
+        auto& nexusCallback = dynamic_cast<NexusPrimaryScanCallback&>(
+                primaryCtx->getValueCallback());
+        return *nexusCallback.originalCb;
+    }
+
+    /**
+     * @return the original callback that now lives in the
+     * NexusPrimaryCacheLookup as the caller wants it's own callback
+     */
+    const StatusCallback<CacheLookup>& getCacheCallback() const override {
+        auto& nexusCallback = dynamic_cast<NexusPrimaryCacheLookup&>(
+                primaryCtx->getCacheCallback());
+        return *nexusCallback.originalCb;
+    }
+
+    /**
+     * @return the original callback that now lives in the
+     * NexusPrimaryCacheLookup as the caller wants it's own callback
+     */
+    StatusCallback<CacheLookup>& getCacheCallback() override {
+        auto& nexusCallback = dynamic_cast<NexusPrimaryCacheLookup&>(
+                primaryCtx->getCacheCallback());
+        return *nexusCallback.originalCb;
+    }
+
+    std::unique_ptr<ByIdScanContext> primaryCtx;
+    std::unique_ptr<ByIdScanContext> secondaryCtx;
+};
+
+static std::string formatElement(const Item& item, cb::engine_errc status) {
+    return fmt::format("[key:'{}',seqno:{},deleted:{},status:{}],",
+                       cb::UserData(item.getKey().to_string()),
+                       item.getBySeqno(),
+                       item.isDeleted(),
+                       status);
+}
+
+static std::string formatElement(const CacheLookup& cl,
+                                 cb::engine_errc status) {
+    return fmt::format("[key:'{}',seqno:{},status:{}],",
+                       cb::UserData(cl.getKey().to_string()),
+                       cl.getBySeqno(),
+                       status);
+}
+
+template <class T>
+void NexusKVStore::checkScanCallbacks(Vbid vbid, const T& callbacks) const {
+    if (!callbacks.empty()) {
+        auto firstItem = callbacks.back().first;
+        if (static_cast<uint64_t>(firstItem.getBySeqno()) >
+            getPurgeSeqno(vbid)) {
+            auto msg = fmt::format(
+                    "NexusKVStore::checkScanCallbacks: {}: {} scan "
+                    "callbacks were not matched by secondary scan "
+                    "callbacks ",
+                    vbid,
+                    callbacks.size());
+            for (auto& [e, status] : callbacks) {
+                msg.append(formatElement(e, status));
+            }
+            msg.pop_back();
+            handleError(msg, vbid);
+        } else {
+            skippedChecksDueToPurging++;
+        }
+    }
+}
+
 std::unique_ptr<ByIdScanContext> NexusKVStore::initByIdScanContext(
         std::unique_ptr<StatusCallback<GetValue>> cb,
         std::unique_ptr<StatusCallback<CacheLookup>> cl,
         Vbid vbid,
         const std::vector<ByIdRange>& ranges,
-        DocumentFilter options,
-        ValueFilter valOptions) const {
-    return primary->initByIdScanContext(
-            std::move(cb), std::move(cl), vbid, ranges, options, valOptions);
+        DocumentFilter docFilter,
+        ValueFilter valFilter) const {
+    // Need to take the Nexus lock for the vBucket to stop racing flushes (or
+    // compactions) from modifying one of the KVStores and not the other
+    auto lh = getLock(vbid);
+
+    // The primary KVStore ScanContext will own and invoke the original
+    // callbacks as we need to invoke them to work out how many items the
+    // secondary KVStore has to scan
+    auto primaryCb = std::make_unique<NexusPrimaryScanCallback>(std::move(cb));
+    auto primaryCl = std::make_unique<NexusPrimaryCacheLookup>(std::move(cl));
+    auto primaryCtx = primary->initByIdScanContext(std::move(primaryCb),
+                                                   std::move(primaryCl),
+                                                   vbid,
+                                                   ranges,
+                                                   docFilter,
+                                                   valFilter);
+    if (!primaryCtx) {
+        return nullptr;
+    }
+
+    auto& primaryScanCallback = dynamic_cast<NexusPrimaryScanCallback&>(
+            primaryCtx->getValueCallback());
+    auto secondaryCb = std::make_unique<NexusSecondaryScanCallback>(
+            *this, vbid, primaryScanCallback.callbacks);
+
+    auto& primaryCacheCallback = dynamic_cast<NexusPrimaryCacheLookup&>(
+            primaryCtx->getCacheCallback());
+    auto secondaryCl = std::make_unique<NexusSecondaryCacheLookup>(
+            *this, vbid, primaryCacheCallback.callbacks);
+    auto secondaryCtx = secondary->initByIdScanContext(std::move(secondaryCb),
+                                                       std::move(secondaryCl),
+                                                       vbid,
+                                                       ranges,
+                                                       docFilter,
+                                                       valFilter);
+
+    if (!secondaryCtx) {
+        // If we could build the primaryCtx but not the secondary then something
+        // is wrong.
+        auto msg = fmt::format(
+                "NexusKVStore::initByIdScanContext: {}: "
+                "failed to create the secondary scan context. "
+                "Check secondary KVStore logs for details.",
+                vbid);
+        handleError(msg, vbid);
+    }
+
+    auto handle = makeFileHandle(vbid);
+    if (!handle) {
+        auto msg = fmt::format(
+                "NexusKVStore::initByIdScanContext: {}: "
+                "failed to get the primary file handle. Check "
+                "primary KVStore logs for details.",
+                vbid);
+        handleError(msg, vbid);
+    }
+
+    auto vbstate = getPersistedVBucketState(vbid);
+    auto [droppedStatus, droppedCollections] = getDroppedCollections(vbid);
+
+    // Dummy callbacks won't get invoked
+    auto dummyCb = std::make_unique<NexusDummyScanCallback>();
+    auto dummyCl = std::make_unique<NexusDummyCacheLookup>();
+    auto nexusScanContext =
+            std::make_unique<NexusKVStoreByIdScanContext>(std::move(dummyCb),
+                                                          std::move(dummyCl),
+                                                          vbid,
+                                                          std::move(handle),
+                                                          ranges,
+                                                          docFilter,
+                                                          valFilter,
+                                                          droppedCollections,
+                                                          primaryCtx->maxSeqno);
+
+    nexusScanContext->primaryCtx = std::move(primaryCtx);
+    nexusScanContext->secondaryCtx = std::move(secondaryCtx);
+
+    return nexusScanContext;
 }
 
 scan_error_t NexusKVStore::scan(BySeqnoScanContext& ctx) const {
@@ -2580,59 +2765,14 @@ scan_error_t NexusKVStore::scan(BySeqnoScanContext& ctx) const {
         }
     }
 
-    auto& primaryScanCallback = dynamic_cast<NexusPrimaryScanCallback&>(
-            primaryCtx.getValueCallback());
-    auto& primaryCacheLookup = dynamic_cast<NexusPrimaryCacheLookup&>(
-            primaryCtx.getCacheCallback());
-
-    if (!primaryScanCallback.callbacks.empty()) {
-        auto firstItem = primaryScanCallback.callbacks.back().first;
-        if (static_cast<uint64_t>(firstItem.getBySeqno()) >
-            getPurgeSeqno(ctx.vbid)) {
-            auto msg = fmt::format(
-                    "NexusKVStore::scan: {}: {} primary scan "
-                    "callbacks were not matched by secondary scan "
-                    "callbacks ",
-                    ctx.vbid,
-                    primaryScanCallback.callbacks.size());
-            for (auto& [item, status] : primaryScanCallback.callbacks) {
-                fmt::format_to(std::back_inserter(msg),
-                               "[key:'{}',seqno:{},deleted:{},status:{}],",
-                               cb::UserData(item.getKey().to_string()),
-                               item.getBySeqno(),
-                               item.isDeleted(),
-                               status);
-            }
-            msg.pop_back();
-            handleError(msg, ctx.vbid);
-        } else {
-            skippedChecksDueToPurging++;
-        }
-    }
-
-    if (!primaryCacheLookup.callbacks.empty()) {
-        auto firstItem = primaryCacheLookup.callbacks.back().first;
-        if (static_cast<uint64_t>(firstItem.getBySeqno()) >
-            getPurgeSeqno(ctx.vbid)) {
-            auto msg = fmt::format(
-                    "NexusKVStore::scan: {}: {} primary cache "
-                    "lookups were not matched by secondary cache "
-                    "lookups ",
-                    ctx.vbid,
-                    primaryCacheLookup.callbacks.size());
-            for (auto& [cl, status] : primaryCacheLookup.callbacks) {
-                fmt::format_to(std::back_inserter(msg),
-                               "[key:'{}',seqno:{},status:{}],",
-                               cb::UserData(cl.getKey().to_string()),
-                               cl.getBySeqno(),
-                               status);
-            }
-            msg.pop_back();
-            handleError(msg, ctx.vbid);
-        } else {
-            skippedChecksDueToPurging++;
-        }
-    }
+    checkScanCallbacks(ctx.vbid,
+                       dynamic_cast<NexusPrimaryScanCallback&>(
+                               primaryCtx.getValueCallback())
+                               .callbacks);
+    checkScanCallbacks(ctx.vbid,
+                       dynamic_cast<NexusPrimaryCacheLookup&>(
+                               primaryCtx.getCacheCallback())
+                               .callbacks);
 
     // lastReadSeqno gets checked by backfill so we need to set it in the
     // Nexus ctx.
@@ -2641,8 +2781,61 @@ scan_error_t NexusKVStore::scan(BySeqnoScanContext& ctx) const {
     return primaryScanResult;
 }
 
-scan_error_t NexusKVStore::scan(ByIdScanContext& sctx) const {
-    return primary->scan(sctx);
+scan_error_t NexusKVStore::scan(ByIdScanContext& ctx) const {
+    auto& nexusCtx = dynamic_cast<NexusKVStoreByIdScanContext&>(ctx);
+    auto& primaryCtx = *nexusCtx.primaryCtx;
+    auto& secondaryCtx = *nexusCtx.secondaryCtx;
+
+    // Set the primary/secondary ranges from the nexus context.
+    // The start/end do get adjusted since creation (if scans yield), so must be
+    // copied over.
+    primaryCtx.ranges = nexusCtx.ranges;
+    secondaryCtx.ranges = nexusCtx.ranges;
+
+    auto primaryScanResult = primary->scan(*nexusCtx.primaryCtx);
+    auto secondaryScanResult = secondary->scan(*nexusCtx.secondaryCtx);
+
+    if (primaryScanResult != secondaryScanResult) {
+        auto msg = fmt::format(
+                "NexusKVStore::scan: {}: scan result not equal "
+                "primary:{} secondary:{}",
+                ctx.vbid,
+                primaryScanResult,
+                secondaryScanResult);
+        handleError(msg, ctx.vbid);
+    }
+
+    if (primaryCtx.lastReadKey != secondaryCtx.lastReadKey) {
+        auto msg = fmt::format(
+                "NexusKVStore::scan: {}: lastReadKey not "
+                "equal primary:{} secondary:{}",
+                ctx.vbid,
+                primaryCtx.lastReadKey,
+                secondaryCtx.lastReadKey);
+        handleError(msg, ctx.vbid);
+    }
+
+    if (primaryCtx.ranges != secondaryCtx.ranges) {
+        auto msg = fmt::format("NexusKVStore::scan: {}: ranges not equal",
+                               ctx.vbid);
+        handleError(msg, ctx.vbid);
+    }
+
+    checkScanCallbacks(ctx.vbid,
+                       dynamic_cast<NexusPrimaryScanCallback&>(
+                               primaryCtx.getValueCallback())
+                               .callbacks);
+    checkScanCallbacks(ctx.vbid,
+                       dynamic_cast<NexusPrimaryCacheLookup&>(
+                               primaryCtx.getCacheCallback())
+                               .callbacks);
+
+    // Both ranges and lastReadKey are updated by the underlying scan, must copy
+    // over to the nexus context in-case of a scan being resumed.
+    nexusCtx.lastReadKey = primaryCtx.lastReadKey;
+    nexusCtx.ranges = primaryCtx.ranges;
+
+    return primaryScanResult;
 }
 
 std::unique_ptr<KVFileHandle> NexusKVStore::makeFileHandle(Vbid vbid) const {
