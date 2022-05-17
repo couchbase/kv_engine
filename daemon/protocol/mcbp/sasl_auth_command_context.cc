@@ -48,6 +48,17 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::initial() {
         task = std::make_shared<StartSaslAuthTask>(
                 cookie, connection, mechanism, challenge);
     } else if (request.getClientOpcode() == cb::mcbp::ClientOpcode::SaslStep) {
+        if (!connection.getSaslConn().isInitialized()) {
+            cookie.setErrorContext(
+                    "Logic error: The server expects the client to start with "
+                    "SASL START before sending SASL STEP");
+            LOG_WARNING(
+                    "{}: SaslStep attempted but backend not initialized by "
+                    "SaslAuth - disconnecting. mech:'{}' ",
+                    connection.getId(),
+                    mechanism);
+            return ENGINE_EINVAL;
+        }
         task = std::make_shared<StepSaslAuthTask>(
                 cookie, connection, mechanism, challenge);
     } else {
