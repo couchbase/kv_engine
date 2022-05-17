@@ -111,8 +111,7 @@ ByIdScanContext::ByIdScanContext(
         ValueFilter _valFilter,
         const std::vector<Collections::KVStore::DroppedCollection>&
                 droppedCollections,
-        int64_t maxSeqno,
-        uint64_t persistedCompletedSeqno)
+        int64_t maxSeqno)
     : ScanContext(vb,
                   std::move(handle),
                   _docFilter,
@@ -122,8 +121,7 @@ ByIdScanContext::ByIdScanContext(
                   droppedCollections,
                   maxSeqno),
       ranges(std::move(ranges)),
-      lastReadKey(nullptr, 0),
-      persistedCompletedSeqno(persistedCompletedSeqno) {
+      lastReadKey(nullptr, 0) {
 }
 
 void FileStats::reset() {

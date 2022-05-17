@@ -64,7 +64,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
     auto valFilter = stream->getValueFilter();
 
     auto scanCtx = kvstore->initBySeqnoScanContext(
-            std::make_unique<DiskCallback>(stream),
+            std::make_unique<BySeqnoDiskCallback>(stream),
             std::make_unique<CacheCallback>(bucket, stream),
             getVBucketId(),
             startSeqno,
@@ -87,7 +87,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
     // Set the persistedCompletedSeqno of DiskCallback taken from the
     // persistedCompletedSeqno of the scan context so it's consistent with
     // the file handle
-    dynamic_cast<DiskCallback&>(scanCtx->getValueCallback())
+    dynamic_cast<BySeqnoDiskCallback&>(scanCtx->getValueCallback())
             .persistedCompletedSeqno = scanCtx->persistedCompletedSeqno;
 
     auto [collHighSuccess, collHigh] =

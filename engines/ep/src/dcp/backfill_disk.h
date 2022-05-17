@@ -62,15 +62,30 @@ public:
 
     void callback(GetValue& val) override;
 
+protected:
+    virtual bool skipItem(const Item& item) const {
+        return false;
+    }
+
+    std::weak_ptr<ActiveStream> streamPtr;
+};
+
+// Callback to get the items that are found to be in the disk for a seqno scan
+class BySeqnoDiskCallback : public DiskCallback {
+public:
+    explicit BySeqnoDiskCallback(std::shared_ptr<ActiveStream> s)
+        : DiskCallback(std::move(s)) {
+    }
+
     /**
      * The on disk "High Completed Seqno", used in the callback method to decide
      * if we need to send a prepare we find on disk or not (prepare seqnos <= to
      * persistedCompletedSeqno do not need to be sent over a DCP stream).
      */
-    uint64_t persistedCompletedSeqno;
+    uint64_t persistedCompletedSeqno{0};
 
-private:
-    std::weak_ptr<ActiveStream> streamPtr;
+protected:
+    bool skipItem(const Item& item) const override;
 };
 
 class DCPBackfillDisk {
