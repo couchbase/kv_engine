@@ -91,13 +91,6 @@ backfill_status_t DCPBackfillByIdDisk::create() {
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         transitionState(backfill_state_done);
     } else {
-        auto& dc = dynamic_cast<DiskCallback&>(scanCtx->getValueCallback());
-        auto& idScanCtx = dynamic_cast<ByIdScanContext&>(*scanCtx);
-        // Set the persistedCompletedSeqno of DiskCallback taken from the
-        // persistedCompletedSeqno of the scan context so it's consistent with
-        // the file handle
-        dc.persistedCompletedSeqno = idScanCtx.persistedCompletedSeqno;
-
         bool markerSent = stream->markOSODiskSnapshot(scanCtx->maxSeqno);
         if (markerSent) {
             transitionState(backfill_state_scanning);

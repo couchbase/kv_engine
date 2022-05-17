@@ -2272,15 +2272,6 @@ std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
     auto& couchKvHandle = static_cast<CouchKVFileHandle&>(*handle);
     auto& db = couchKvHandle.getDbHolder();
 
-    auto readVbStateResult = readVBState(db, vbid);
-    if (readVbStateResult.status != ReadVBStateStatus::Success) {
-        EP_LOG_WARN_RAW(
-                "CouchKVStore::initByIdScanContext:Failed to obtain vbState "
-                "for "
-                "the highCompletedSeqno");
-        return {};
-    }
-
     const auto info = cb::couchstore::getHeader(*db.getDb());
 
     auto [getDroppedStatus, droppedCollections] = getDroppedCollections(*db);
@@ -2293,17 +2284,15 @@ std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
         return nullptr;
     }
 
-    auto sctx = std::make_unique<ByIdScanContext>(
-            std::move(cb),
-            std::move(cl),
-            vbid,
-            std::move(handle),
-            ranges,
-            options,
-            valOptions,
-            droppedCollections,
-            info.updateSeqNum,
-            readVbStateResult.state.persistedCompletedSeqno);
+    auto sctx = std::make_unique<ByIdScanContext>(std::move(cb),
+                                                  std::move(cl),
+                                                  vbid,
+                                                  std::move(handle),
+                                                  ranges,
+                                                  options,
+                                                  valOptions,
+                                                  droppedCollections,
+                                                  info.updateSeqNum);
     sctx->logger = &logger;
     return sctx;
 }

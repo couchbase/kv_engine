@@ -102,20 +102,9 @@ void DiskCallback::callback(GetValue& val) {
         throw std::invalid_argument("DiskCallback::callback: val is NULL");
     }
 
-    auto committedState = val.item->getCommitted();
-    switch (committedState) {
-    case CommittedState::CommittedViaMutation:
-    case CommittedState::CommittedViaPrepare:
-    case CommittedState::PrepareAborted:
-        break;
-    case CommittedState::Pending:
-    case CommittedState::PreparedMaybeVisible:
-    case CommittedState::PrepareCommitted:
-        if (val.item->getBySeqno() <=
-            static_cast<int64_t>(persistedCompletedSeqno)) {
-            setStatus(cb::engine_errc::success);
-            return;
-        }
+    if (skipItem(*val.item)) {
+        setStatus(cb::engine_errc::success);
+        return;
     }
 
     // MB-26705: Make the backfilled item cold so ideally the consumer would
@@ -127,6 +116,22 @@ void DiskCallback::callback(GetValue& val) {
     } else {
         setStatus(cb::engine_errc::success);
     }
+}
+
+bool BySeqnoDiskCallback::skipItem(const Item& item) const {
+    switch (item.getCommitted()) {
+    case CommittedState::CommittedViaMutation:
+    case CommittedState::CommittedViaPrepare:
+    case CommittedState::PrepareAborted:
+        break;
+    case CommittedState::Pending:
+    case CommittedState::PreparedMaybeVisible:
+    case CommittedState::PrepareCommitted:
+        if (item.getBySeqno() <= int64_t(persistedCompletedSeqno)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 DCPBackfillDisk::DCPBackfillDisk(KVBucket& bucket) : bucket(bucket) {
