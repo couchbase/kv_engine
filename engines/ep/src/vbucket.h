@@ -1743,6 +1743,12 @@ public:
                                             const CookieIface* cookie,
                                             bool schedule) = 0;
 
+    /**
+     * Handler for cmd_stat "range-scans"
+     */
+    virtual cb::engine_errc doRangeScanStats(
+            const StatCollector& collector) = 0;
+
     std::unique_ptr<FailoverTable> failovers;
 
     std::atomic<size_t>  opsCreate;

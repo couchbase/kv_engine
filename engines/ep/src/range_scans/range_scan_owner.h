@@ -111,6 +111,11 @@ public:
     cb::engine_errc cancelScan(cb::rangescan::Id id, bool addScan);
 
     /**
+     * Call RangeScan::addStats on all RangeScan objects in the rangeScans map
+     */
+    cb::engine_errc doStats(const StatCollector& collector);
+
+    /**
      * Find the scan for the given id
      */
     std::shared_ptr<RangeScan> getScan(cb::rangescan::Id id) const;

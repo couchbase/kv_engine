@@ -890,6 +890,8 @@ public:
     cb::engine_errc cancelRangeScan(const CookieIface& cookie,
                                     Vbid vbid,
                                     cb::rangescan::Id uuid) override;
+    cb::engine_errc doRangeScanStats(const BucketStatCollector& collector,
+                                     std::string_view statKey);
 
 protected:
     friend class EpEngineValueChangeListener;

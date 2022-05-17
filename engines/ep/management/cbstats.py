@@ -960,6 +960,18 @@ def stats_responses(mc, all=''):
     stats_formatter(d)
 
 @cmd
+def stats_range_scans(mc, vb=-1):
+    try:
+        vb = int(vb)
+        if vb == -1:
+            cmd = 'range-scans'
+        else:
+            cmd = "range-scans %s" % (str(vb))
+        stats_formatter(stats_perform(mc, cmd))
+    except ValueError:
+        print('Specified vbucket \"%s\" is not valid' % str(vb))
+
+@cmd
 def reset(mc):
     stats_perform(mc, 'reset')
 
@@ -1008,6 +1020,8 @@ def main():
     c.addCommand('scopes', stats_scopes, 'scopes [scope | id scopeID]')
     c.addCommand('scopes-details', stats_scopes_details,
                  'scopes-details [vbid]')
+    c.addCommand('range-scans', stats_range_scans,
+                 'range-scans [vbid]')
     c.addFlag('-j', 'json', 'output the results in json format')
     c.addFlag('-8', 'force_utf8', 'Force use of UTF8 symbols in output')
 

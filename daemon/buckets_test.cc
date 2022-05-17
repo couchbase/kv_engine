@@ -15,7 +15,7 @@
 
 TEST(BucketTest, Reset) {
 #if defined(__linux) && defined(__x86_64__)
-    ASSERT_EQ(6240, sizeof(Bucket))
+    ASSERT_EQ(6256, sizeof(Bucket))
             << "Bucket size changed, the reset test must be updated with "
                "the new members";
 #endif

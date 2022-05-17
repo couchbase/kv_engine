@@ -123,6 +123,14 @@ cb::engine_errc VB::RangeScanOwner::cancelScan(cb::rangescan::Id id,
     return cb::engine_errc::success;
 }
 
+cb::engine_errc VB::RangeScanOwner::doStats(const StatCollector& collector) {
+    auto locked = rangeScans.rlock();
+    for (const auto& scan : *locked) {
+        scan.second->addStats(collector);
+    }
+    return cb::engine_errc::success;
+}
+
 std::shared_ptr<RangeScan> VB::RangeScanOwner::getScan(
         cb::rangescan::Id id) const {
     auto locked = rangeScans.rlock();

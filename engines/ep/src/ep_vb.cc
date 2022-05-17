@@ -1416,3 +1416,7 @@ cb::engine_errc EPVBucket::cancelRangeScan(cb::rangescan::Id id,
 void EPVBucket::completeRangeScan(cb::rangescan::Id id) {
     rangeScans.completeScan(id);
 }
+
+cb::engine_errc EPVBucket::doRangeScanStats(const StatCollector& collector) {
+    return rangeScans.doStats(collector);
+}

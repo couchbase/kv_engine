@@ -292,6 +292,11 @@ StatsGroupManager::StatsGroupManager()
                 "Dump the vbucket",
                 true,
                 true},
+               {StatGroupId::RangeScans,
+                "range-scans",
+                "Get information about vbucket range-scans",
+                false,
+                true},
 
                // memcached specifics
                {StatGroupId::Slabs,

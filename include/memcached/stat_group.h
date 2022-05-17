@@ -74,6 +74,7 @@ enum class StatGroupId {
     _DurabilityDump,
     _VbucketDump,
     Uuid,
+    RangeScans,
 
     // memcached bucket internal stats
     Slabs,

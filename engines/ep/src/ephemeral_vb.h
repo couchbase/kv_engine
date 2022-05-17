@@ -284,6 +284,7 @@ public:
     cb::engine_errc cancelRangeScan(cb::rangescan::Id,
                                     const CookieIface*,
                                     bool) override;
+    cb::engine_errc doRangeScanStats(const StatCollector&) override;
 
 protected:
     /* Data structure for in-memory sequential storage */

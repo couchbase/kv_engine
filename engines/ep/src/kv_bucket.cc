@@ -2317,12 +2317,13 @@ void KVBucket::setAllBloomFilters(bool to) {
     }
 }
 
-void KVBucket::visit(VBucketVisitor &visitor)
-{
+void KVBucket::visit(VBucketVisitor& visitor) {
     for (auto vbid : vbMap.getBuckets()) {
-        VBucketPtr vb = vbMap.getBucket(vbid);
-        if (vb) {
-            visitor.visitBucket(*vb);
+        if (visitor.getVBucketFilter()(Vbid(vbid))) {
+            VBucketPtr vb = vbMap.getBucket(vbid);
+            if (vb) {
+                visitor.visitBucket(*vb);
+            }
         }
     }
 }

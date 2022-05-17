@@ -79,6 +79,8 @@
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/logtags.h>
 #include <xattr/utils.h>
+
+#include <charconv>
 #include <chrono>
 #include <cstring>
 #include <filesystem>
@@ -4931,6 +4933,9 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     if (key[0] == '_') {
         return doPrivilegedStats(c, add_stat, key);
     }
+    if (cb_isPrefix(key, "range-scans")) {
+        return doRangeScanStats(bucketCollector, key);
+    }
 
     // Unknown stat requested
     return cb::engine_errc::no_such_key;
@@ -7011,4 +7016,53 @@ cb::engine_errc EventuallyPersistentEngine::cancelRangeScan(
         const CookieIface& cookie, Vbid vbid, cb::rangescan::Id uuid) {
     return acquireEngine(this)->getKVBucket()->cancelRangeScan(
             vbid, uuid, cookie);
+}
+
+cb::engine_errc EventuallyPersistentEngine::doRangeScanStats(
+        const BucketStatCollector& collector, std::string_view statKey) {
+    class StatVBucketVisitor : public VBucketVisitor {
+    public:
+        StatVBucketVisitor(const VBucketFilter& filter,
+                           const BucketStatCollector& collector)
+            : VBucketVisitor(filter), collector(collector) {
+        }
+
+        void visitBucket(VBucket& vb) override {
+            if (vb.getState() == vbucket_state_active) {
+                vb.doRangeScanStats(collector);
+            }
+        }
+
+    private:
+        const BucketStatCollector& collector;
+    };
+
+    VBucketFilter filter;
+    if (statKey > "range-scans ") {
+        // A vbucket-ID must follow
+        auto id = statKey.substr(sizeof("range-scans ") - 1, statKey.size());
+
+        try {
+            checkNumeric(id.data());
+        } catch (std::runtime_error&) {
+            return cb::engine_errc::invalid_arguments;
+        }
+
+        uint16_t result{0};
+        auto [ptr,
+              ec]{std::from_chars(id.data(), id.data() + id.size(), result)};
+
+        if (ec != std::errc()) {
+            return cb::engine_errc::invalid_arguments;
+        }
+
+        // Stats only for one vbucket
+        filter.assign(std::set{Vbid(result)});
+    }
+
+    StatVBucketVisitor svbv(filter, collector);
+
+    kvBucket->visit(svbv);
+
+    return cb::engine_errc::success;
 }

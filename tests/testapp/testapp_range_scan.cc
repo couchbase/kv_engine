@@ -346,3 +346,25 @@ TEST_P(RangeScanTest, ExclusiveRangeEnd) {
     EXPECT_EQ(3, sequential.size() - 1);
     EXPECT_EQ(3, drainScan(id, true, 2, sequential)); // 2 items per continue
 }
+
+TEST_P(RangeScanTest, TestStats) {
+    BinprotGenericCommand cmd(
+            cb::mcbp::ClientOpcode::RangeScanCreate, {}, config.dump());
+    cmd.setDatatype(cb::mcbp::Datatype::JSON);
+    userConnection->sendCommand(cmd);
+    BinprotResponse resp;
+    userConnection->recvResponse(resp);
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+    // Nothing in vbid1
+    auto stats = userConnection->stats("range-scans 1");
+    EXPECT_TRUE(stats.empty());
+
+    // Scan in vbid0
+    stats = userConnection->stats("range-scans 0");
+    EXPECT_FALSE(stats.empty());
+
+    auto statsAll = userConnection->stats("range-scans");
+    // With only one vb in use, all == vbid0
+    EXPECT_EQ(stats, statsAll);
+}
