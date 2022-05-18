@@ -16,6 +16,7 @@
 #include <daemon/one_shot_task.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
+#include <platform/scope_timer.h>
 
 SaslStepCommandContext::SaslStepCommandContext(Cookie& cookie)
     : SaslAuthCommandContext(cookie) {
@@ -54,6 +55,10 @@ cb::engine_errc SaslStepCommandContext::handleSaslAuthTaskResult() {
 }
 
 void SaslStepCommandContext::doSaslStep() {
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer<SpanStopwatch> timer(
+            std::forward_as_tuple(cookie, cb::tracing::Code::Sasl));
+
     LOG_DEBUG("{}: SASL CONTINUE with mech: '{}' with {} bytes of data",
               connection.getId(),
               mechanism,

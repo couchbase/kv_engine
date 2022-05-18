@@ -19,6 +19,7 @@
 #include <daemon/start_sasl_auth_task.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
+#include <platform/scope_timer.h>
 
 SaslStartCommandContext::SaslStartCommandContext(Cookie& cookie)
     : SaslAuthCommandContext(cookie) {
@@ -92,6 +93,10 @@ cb::engine_errc SaslStartCommandContext::handleSaslAuthTaskResult() {
 }
 
 void SaslStartCommandContext::doSaslStart() {
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer<SpanStopwatch> timer(
+            std::forward_as_tuple(cookie, cb::tracing::Code::Sasl));
+
     LOG_DEBUG("{}: SASL START with mech: '{}' with {} bytes of data",
               connection.getId(),
               mechanism,

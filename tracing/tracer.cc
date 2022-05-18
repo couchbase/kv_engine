@@ -176,6 +176,8 @@ MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Code tracecode) {
         return "select_bucket";
     case Code::NotifyIoComplete:
         return "notify_io_complete";
+    case Code::Sasl:
+        return "sasl";
     }
     return "unknown tracecode";
 }

@@ -77,7 +77,10 @@ enum class Code : uint8_t {
     /// of _when_ the NotifyIoComplete happened. We've seen log entries
     /// where we've got a 20 minute slow operation with really short
     /// execution times, but we don't know _why_ it was slow.
-    NotifyIoComplete
+    NotifyIoComplete,
+    /// Time spent in running the SASL start/step call on the executor
+    /// thread
+    Sasl,
 };
 
 using SpanId = std::size_t;
