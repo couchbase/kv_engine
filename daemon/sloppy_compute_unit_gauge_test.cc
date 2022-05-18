@@ -74,6 +74,17 @@ TEST(SloppyComputeUnitGaugeTest, tickDataRollover) {
     }
 }
 
+TEST(SloppyComputeUnitGaugeTest, tickNoDataRollover) {
+    // Test that if we don't have any limits (when we're not running in
+    // serverless configuration) that we don't roll over _everything_
+    // into the next slot, but let each slot count whatever is used
+    // within that second.
+    MockSloppyComputeUnitGauge gauge;
+    gauge.increment(1000);
+    gauge.tick(0);
+    EXPECT_EQ(0, gauge.getSlots().at(gauge.getCurrent()));
+}
+
 TEST(SloppyComputeUnitGaugeTest, iterate) {
     SloppyComputeUnitGauge gauge;
 

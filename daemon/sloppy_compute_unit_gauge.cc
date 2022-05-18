@@ -32,7 +32,7 @@ void SloppyComputeUnitGauge::tick(size_t max) {
     slots[next].store(0);
     auto prev = current.load();
     current = next;
-    if (slots[prev] > max) {
+    if (max && slots[prev] > max) {
         slots[next] += slots[prev] - max;
     }
 }
