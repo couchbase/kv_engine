@@ -82,8 +82,7 @@ size_t ExecutorPool::calcNumReaders(
         // Default: configure Reader threads based on CPU count; constraining
         // to between 4 and 16 threads (relatively conservative number).
         auto readers = maxGlobalThreads;
-        readers = std::min(readers, size_t{16});
-        readers = std::max(readers, size_t{4});
+        readers = std::clamp(readers, size_t{4}, size_t{16});
         return readers;
     }
 
@@ -101,8 +100,7 @@ size_t ExecutorPool::calcNumReaders(
         // However given we don't have test environments larger than
         // ~128 cores, limit to 128.
         auto readers = maxGlobalThreads;
-        readers = std::min(readers, size_t{128});
-        readers = std::max(readers, size_t{4});
+        readers = std::clamp(readers, size_t{4}, size_t{128});
         return readers;
     }
 
@@ -131,8 +129,7 @@ size_t ExecutorPool::calcNumWriters(
         // machines. However given we don't have test environments larger than
         // ~128 cores, limit to 128.
         auto writers = maxGlobalThreads;
-        writers = std::min(writers, size_t{128});
-        writers = std::max(writers, size_t{4});
+        writers = std::clamp(writers, size_t{4}, size_t{128});
         return writers;
     }
 
@@ -160,8 +157,7 @@ size_t ExecutorPool::calcNumNonIO(size_t threadCount) const {
     size_t count = maxGlobalThreads * 0.3;
 
     // 2. adjust computed value to be within range
-    count = std::min(EP_MAX_NONIO_THREADS,
-                     std::max(EP_MIN_NONIO_THREADS, count));
+    count = std::clamp(count, EP_MIN_NONIO_THREADS, EP_MAX_NONIO_THREADS);
 
     // 3. pick user's value if specified
     if (threadCount) {
