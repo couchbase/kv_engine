@@ -376,16 +376,59 @@ static std::string getCppName(const std::string& str) {
     return out;
 }
 
+static std::string formatValue(const std::string value,
+                               const std::string& type) {
+    if (type == "std::string") {
+        return fmt::format("\"{}\"s", value);
+    } else {
+        return fmt::format("static_cast<{}>({})", type, value);
+    }
+}
+
 static void generate(const nlohmann::json& params, const std::string& key) {
     auto cppName = getCppName(key);
 
     auto json = params[key];
     auto type = getDatatype(key, json);
-    auto defaultVal = json["default"].get<std::string>();
 
-    if ((defaultVal == "max" || defaultVal == "min") && type != "std::string") {
-        defaultVal =
-                fmt::format("std::numeric_limits<{}>::{}()", type, defaultVal);
+    auto defaultVal = json["default"];
+
+    std::string defaultValStr;
+    std::string defaultValServerless;
+    if (defaultVal.is_object()) {
+        if (defaultVal.find("on-prem") == defaultVal.end()) {
+            fmt::print(stderr,
+                       "Default is an object but no \"on-prem\" key found for "
+                       "entry:'{}' raw_json:'{}'\n",
+                       key,
+                       json.dump());
+            exit(1);
+        }
+        if (defaultVal.find("serverless") == defaultVal.end()) {
+            fmt::print(stderr,
+                       "Default is an object but no \"serverless\" key found "
+                       "for entry:'{}' raw_json:'{}'\n",
+                       key,
+                       json.dump());
+            exit(1);
+        }
+
+        defaultValStr = defaultVal["on-prem"].get<std::string>();
+        defaultValServerless = defaultVal["serverless"].get<std::string>();
+    } else {
+        defaultValStr = defaultVal.get<std::string>();
+    }
+
+    if (type != "std::string") {
+        if (defaultValStr == "max" || defaultValStr == "min") {
+            defaultValStr = fmt::format(
+                    "std::numeric_limits<{}>::{}()", type, defaultValStr);
+        }
+        if (defaultValServerless == "max" || defaultValServerless == "min") {
+            defaultValServerless = fmt::format("std::numeric_limits<{}>::{}()",
+                                               type,
+                                               defaultValServerless);
+        }
     }
 
     auto validator = getValidator(key, json);
@@ -402,13 +445,18 @@ static void generate(const nlohmann::json& params, const std::string& key) {
     }
 
     // Generate initialization code
-    initialization += fmt::format(
-            "    addParameter(\"{}\", {}, {});\n",
-            key,
-            type == "std::string"
-                    ? fmt::format("\"{}\"s", defaultVal)
-                    : fmt::format("static_cast<{}>({})", type, defaultVal),
-            dynamic);
+    if (defaultVal.is_object()) {
+        initialization += fmt::format("    addParameter(\"{}\", {}, {}, {});\n",
+                                      key,
+                                      formatValue(defaultValStr, type),
+                                      formatValue(defaultValServerless, type),
+                                      dynamic);
+    } else {
+        initialization += fmt::format("    addParameter(\"{}\", {}, {});\n",
+                                      key,
+                                      formatValue(defaultValStr, type),
+                                      dynamic);
+    }
 
     if (!validator.empty()) {
         initialization += fmt::format(

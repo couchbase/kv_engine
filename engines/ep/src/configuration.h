@@ -178,7 +178,12 @@ class Configuration {
 public:
     struct value_t;
 
-    Configuration();
+    /**
+     * Ctor for Configuration
+     * @param isServerless if true serverless default parameters will be stored
+     * instead of on-prem default parameters
+     */
+    explicit Configuration(bool isServerless = false);
     ~Configuration();
 
     // Include the generated prototypes for the member functions
@@ -259,6 +264,8 @@ public:
 
     void requirementsMetOrThrow(const std::string& key) const;
 
+    const bool isServerless;
+
 protected:
     /**
      * Add a new configuration parameter (size_t, ssize_t, float, bool, string)
@@ -269,6 +276,22 @@ protected:
      */
     template <class T>
     void addParameter(std::string key, T value, bool dynamic);
+
+    /**
+     * Add a new configuration parameter that has different defaults values for
+     * on-prem and serverless (size_t, ssize_t, float, bool, string)
+     * @param key the key to specify
+     * @param defaultOnPrem default value if we're running in an on-prem context
+     * @param defaultServerless default value if we're running in an serverless
+     * context
+     * @param dynamic True if this parameter can be changed at runtime,
+     *        False if the value cannot be changed once object is constructed.
+     */
+    template <class T>
+    void addParameter(std::string key,
+                      T defaultOnPrem,
+                      T defaultServerless,
+                      bool dynamic);
 
     /**
      * Set the configuration parameter for a given key to

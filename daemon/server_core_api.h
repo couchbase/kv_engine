@@ -42,8 +42,7 @@ struct ServerCoreApi : public ServerCoreIface {
 
     ThreadPoolConfig getThreadPoolSizes() override {
         auto& instance = Settings::instance();
-        return ThreadPoolConfig(instance.getNumReaderThreads(),
-                                instance.getNumWriterThreads());
+        return {instance.getNumReaderThreads(), instance.getNumWriterThreads()};
     }
 
     size_t getMaxEngineFileDescriptors() override {
@@ -52,5 +51,11 @@ struct ServerCoreApi : public ServerCoreIface {
 
     bool isCollectionsEnabled() const override {
         return Settings::instance().isCollectionsEnabled();
+    }
+
+    bool isServerlessDeployment() const override {
+        // Call isServerlessDeployment() from settings.h to get hold of the
+        // state from memcached side of KV.
+        return ::isServerlessDeployment();
     }
 };

@@ -76,4 +76,6 @@ struct ServerCoreIface {
     virtual size_t getMaxEngineFileDescriptors() = 0;
 
     virtual bool isCollectionsEnabled() const = 0;
+
+    virtual bool isServerlessDeployment() const = 0;
 };

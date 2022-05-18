@@ -1792,7 +1792,8 @@ cb::HlcTime EventuallyPersistentEngine::getVBucketHlcNow(Vbid vbucket) {
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(
         GET_SERVER_API get_server_api, cb::ArenaMallocClient arena)
-    : kvBucket(nullptr),
+    : configuration(get_server_api()->core->isServerlessDeployment()),
+      kvBucket(nullptr),
       workload(nullptr),
       workloadPriority(NO_BUCKET_PRIORITY),
       getServerApiFunc(get_server_api),

@@ -159,6 +159,9 @@ struct MockServerCoreApi : public ServerCoreIface {
     bool isCollectionsEnabled() const override {
         return true;
     }
+    bool isServerlessDeployment() const override {
+        return false;
+    }
 };
 
 struct MockServerDocumentApi : public ServerDocumentIface {

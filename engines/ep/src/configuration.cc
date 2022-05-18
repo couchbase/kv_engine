@@ -111,7 +111,7 @@ void ValueChangedValidator::validateString(const std::string& key,
     throw std::runtime_error(error);
 }
 
-Configuration::Configuration() {
+Configuration::Configuration(bool isServerless) : isServerless(isServerless) {
     initialize();
 }
 
@@ -146,13 +146,21 @@ struct Configuration::value_t {
 
 template <class T>
 void Configuration::addParameter(std::string key, T value, bool dynamic) {
-    auto result = attributes.insert(
-            {std::move(key), std::make_shared<value_t>(dynamic)});
-    if (!result.second) {
+    addParameter<T>(key, value, value, dynamic);
+}
+
+template <class T>
+void Configuration::addParameter(std::string key,
+                                 T defaultOnPrem,
+                                 T defaultServerless,
+                                 bool dynamic) {
+    auto [itr, success] =
+            attributes.insert({key, std::make_shared<value_t>(dynamic)});
+    if (!success) {
         throw std::logic_error("Configuration::addParameter(" + key +
                                ") already exists.");
     }
-    result.first->second->value = value;
+    itr->second->value = isServerless ? defaultServerless : defaultOnPrem;
 }
 
 template <class T>

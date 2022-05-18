@@ -75,6 +75,10 @@ public:
     bool isCollectionsEnabled() const override {
         return true;
     }
+
+    bool isServerlessDeployment() const override {
+        return false;
+    }
 };
 
 int main(int argc, char **argv) {
