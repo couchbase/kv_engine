@@ -72,6 +72,12 @@ enum class Code : uint8_t {
     SyncWriteAckRemote,
     /// Time spent in Select Bucket
     SelectBucket,
+    /// Time spent in NotifyIoComplete. This should typically be very
+    /// short and not really interesting apart from keeping track
+    /// of _when_ the NotifyIoComplete happened. We've seen log entries
+    /// where we've got a 20 minute slow operation with really short
+    /// execution times, but we don't know _why_ it was slow.
+    NotifyIoComplete
 };
 
 using SpanId = std::size_t;
