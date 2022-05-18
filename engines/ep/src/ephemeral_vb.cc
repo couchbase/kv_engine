@@ -262,14 +262,13 @@ bool EphemeralVBucket::hasPendingBGFetchItems() {
 }
 
 HighPriorityVBReqStatus EphemeralVBucket::checkAddHighPriorityVBEntry(
-        uint64_t seqno,
-        const CookieIface* cookie,
-        std::chrono::milliseconds timeout) {
+        std::unique_ptr<SeqnoPersistenceRequest> request) {
+    Expects(request);
     {
         /* Serialize the request with sequence lock */
         std::lock_guard<std::mutex> lh(sequenceLock);
 
-        if (seqno <= getPersistenceSeqno()) {
+        if (request->seqno <= getPersistenceSeqno()) {
             /* Need not notify asynchronously as the vb already has the
                requested seqno */
             return HighPriorityVBReqStatus::RequestNotScheduled;
@@ -277,7 +276,7 @@ HighPriorityVBReqStatus EphemeralVBucket::checkAddHighPriorityVBEntry(
     }
 
     bucket->addVbucketWithSeqnoPersistenceRequest(
-            getId(), addHighPriorityVBEntry(seqno, cookie, timeout));
+            getId(), addHighPriorityVBEntry(std::move(request)));
     return HighPriorityVBReqStatus::RequestScheduled;
 }
 

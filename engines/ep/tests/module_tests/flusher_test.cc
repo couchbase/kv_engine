@@ -129,9 +129,8 @@ TEST_F(FlusherTest, GetToLowPrioWhenSomeHighPriIsPending) {
     ASSERT_EQ(0, hpVBucket->getHighSeqno());
     ASSERT_EQ(0, hpVBucket->getHighPriorityChkSize());
     hpVBucket->checkAddHighPriorityVBEntry(
-            1 /*seqno*/,
-            nullptr /*cookie*/,
-            kvBucket->getSeqnoPersistenceTimeout());
+            std::make_unique<SeqnoPersistenceRequest>(
+                    nullptr, 1, kvBucket->getSeqnoPersistenceTimeout()));
     ASSERT_EQ(1, hpVBucket->getHighPriorityChkSize());
 
     // Run the flusher

@@ -2207,12 +2207,18 @@ TEST_P(KVBucketParamTest, SeqnoPersistenceRequestNotify) {
     // Already persisted, no need for a wait request
     EXPECT_EQ(HighPriorityVBReqStatus::RequestNotScheduled,
               vb->checkAddHighPriorityVBEntry(
-                      item.getBySeqno(), cookie, std::chrono::seconds(0)));
+                      std::make_unique<SeqnoPersistenceRequest>(
+                              cookie,
+                              item.getBySeqno(),
+                              std::chrono::seconds(0))));
 
     // Now a request that will schedule
     EXPECT_EQ(HighPriorityVBReqStatus::RequestScheduled,
               vb->checkAddHighPriorityVBEntry(
-                      item.getBySeqno() + 1, cookie, std::chrono::hours(24)));
+                      std::make_unique<SeqnoPersistenceRequest>(
+                              cookie,
+                              item.getBySeqno() + 1,
+                              std::chrono::hours(24))));
 
     // Task now changed and has a smaller wakeup
     EXPECT_LT(task->getWaketime(), wake1);
@@ -2226,7 +2232,10 @@ TEST_P(KVBucketParamTest, SeqnoPersistenceRequestNotify) {
     auto cookie2 = create_mock_cookie(engine.get());
     EXPECT_EQ(HighPriorityVBReqStatus::RequestScheduled,
               vb->checkAddHighPriorityVBEntry(
-                      item.getBySeqno() + 1, cookie2, std::chrono::hours(22)));
+                      std::make_unique<SeqnoPersistenceRequest>(
+                              cookie2,
+                              item.getBySeqno() + 1,
+                              std::chrono::hours(22))));
     // Task wake time reduces
     auto wake3 = task->getWaketime();
     EXPECT_LT(wake3, wake2);
@@ -2236,7 +2245,10 @@ TEST_P(KVBucketParamTest, SeqnoPersistenceRequestNotify) {
 
     EXPECT_EQ(HighPriorityVBReqStatus::RequestScheduled,
               vb->checkAddHighPriorityVBEntry(
-                      item.getBySeqno() + 1, cookie3, std::chrono::hours(0)));
+                      std::make_unique<SeqnoPersistenceRequest>(
+                              cookie3,
+                              item.getBySeqno() + 1,
+                              std::chrono::hours(0))));
     auto wake4 = task->getWaketime();
     EXPECT_LT(wake4, wake2);
 

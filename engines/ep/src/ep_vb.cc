@@ -364,15 +364,14 @@ bool EPVBucket::hasPendingBGFetchItems() {
 }
 
 HighPriorityVBReqStatus EPVBucket::checkAddHighPriorityVBEntry(
-        uint64_t seqno,
-        const CookieIface* cookie,
-        std::chrono::milliseconds timeout) {
-    if (seqno <= getPersistenceSeqno()) {
+        std::unique_ptr<SeqnoPersistenceRequest> request) {
+    Expects(request);
+    if (request->seqno <= getPersistenceSeqno()) {
         return HighPriorityVBReqStatus::RequestNotScheduled;
     }
 
     bucket->addVbucketWithSeqnoPersistenceRequest(
-            getId(), addHighPriorityVBEntry(seqno, cookie, timeout));
+            getId(), addHighPriorityVBEntry(std::move(request)));
 
     return HighPriorityVBReqStatus::RequestScheduled;
 }

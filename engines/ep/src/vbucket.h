@@ -86,7 +86,7 @@ struct SnapshotRequirements;
  * SeqnoPersistence request to a vbucket.
  *
  * This is used in the "wait-for" persistence command where a client can request
- * to be notified of when a sequence number is persisted to disk, or be notified
+ * to be notified when a sequence number is persisted to disk, or be notified
  * that it has not been stored by the given timeout.
  */
 struct SeqnoPersistenceRequest {
@@ -622,11 +622,9 @@ public:
      * changes. That is, it could mean persisted in case of EPVBucket and
      * added to the sequenced data structure in case of EphemeralVBucket.
      *
-     * @param seqno to be persisted
-     * @param cookie cookie of command/connection to be notified
-     * @param timeout how long the client is can wait for the request to be met.
-     *        Exceeding this timeout and the request is cancelled and the client
-     *        notified with temporary_failure.
+     * If the request is already satisfied, nothing will be scheduled.
+     *
+     * @param request The SeqnoPersistenceRequest to add
      *
      * @return RequestScheduled if a high priority request is added and
      *                          notification will be done asynchronously
@@ -636,9 +634,7 @@ public:
      *                             be a subsequent notification
      */
     virtual HighPriorityVBReqStatus checkAddHighPriorityVBEntry(
-            uint64_t seqno,
-            const CookieIface* cookie,
-            std::chrono::milliseconds timeout) = 0;
+            std::unique_ptr<SeqnoPersistenceRequest> request) = 0;
 
     /**
      * Notify the high priority requests on the vbucket.
@@ -2064,15 +2060,11 @@ protected:
     /**
      * VBucket internal function to queue SeqnoPersistence requests.
      *
-     * @param seqno to be seen to be persisted
-     * @param cookie to be notified
-     * @param timeout how long before timing out the request
+     * @param request to be added
      * @return the deadline (time at which the request should expire)
      */
     std::chrono::steady_clock::time_point addHighPriorityVBEntry(
-            uint64_t seqno,
-            const CookieIface* cookie,
-            std::chrono::milliseconds timeout);
+            std::unique_ptr<SeqnoPersistenceRequest> request);
 
     /**
      * Get all high priority notifications as temporary failures because they
@@ -2123,7 +2115,7 @@ protected:
     std::atomic<uint64_t> persistenceSeqno;
 
     /* holds all high priority async requests to the vbucket */
-    std::list<SeqnoPersistenceRequest> hpVBReqs;
+    std::list<std::unique_ptr<SeqnoPersistenceRequest>> hpVBReqs;
 
     /* synchronizes access to hpVBReqs */
     std::mutex hpVBReqsMutex;
