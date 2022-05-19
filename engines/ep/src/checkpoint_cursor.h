@@ -102,12 +102,21 @@ public:
     }
 
     /**
-     * Repositions this cursor to the given checkpoint's begin.
+     * Repositions this cursor to the given checkpoint's begin (ie, the
+     * checkpoint empty element).
      *
      * @param checkpointIt Checkpoint identified by the iterator to the CM
      *  checkpoint-list
      */
-    void reposition(CheckpointList::iterator checkpointIt);
+    void repositionAtCheckpointBegin(CheckpointList::iterator checkpointIt);
+
+    /**
+     * Repositions this cursor to the given checkpoint's start element.
+     *
+     * @param checkpointIt Checkpoint identified by the iterator to the CM
+     *  checkpoint-list
+     */
+    void repositionAtCheckpointStart(CheckpointList::iterator checkpointIt);
 
     const CheckpointList::iterator& getCheckpoint() const {
         return currentCheckpoint;

@@ -2322,7 +2322,8 @@ static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h) {
          start_seqno += batch_items) {
         if (200 == start_seqno) {
             wait_for_flusher_to_settle(h);
-            wait_for_stat_to_be(h, "ep_items_expelled_from_checkpoints", 200);
+            wait_for_stat_to_be_gte(
+                    h, "ep_items_expelled_from_checkpoints", 200);
             stop_persistence(h);
         }
         write_items(h, batch_items, start_seqno);

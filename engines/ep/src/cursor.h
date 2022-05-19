@@ -88,7 +88,10 @@ private:
 
 // registering a cursor returns a CursorRegResult
 struct CursorRegResult {
-    bool tryBackfill; // The requested seqno couldn't be found
-    uint64_t seqno; // The seqno found
-    Cursor cursor; // The returned cursor
+    // True if the new cursor won't provide all mutations requested by the user
+    bool tryBackfill;
+    // The first seqno found in CM that the new cursor will pick at move
+    uint64_t seqno;
+    // The registered cursor
+    Cursor cursor;
 };

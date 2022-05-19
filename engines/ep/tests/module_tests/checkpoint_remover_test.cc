@@ -710,93 +710,15 @@ TEST_P(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
     EXPECT_NO_THROW(cm->expelUnreferencedCheckpointItems());
 }
 
-TEST_P(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
-    setVBucketStateAndRunPersistTask(
-            vbid,
-            vbucket_state_active,
-            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
-    auto vb = engine->getVBucket(vbid);
-    auto* cm = static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
-
-    createCheckpointAndEnsureOldRemoved(*cm);
-
-    store_item(vbid, makeStoredDocKey("key_1"), "value");
-    store_item(vbid, makeStoredDocKey("key_2"), "value");
-
-    // Queue a prepare
-    auto prepareKey = makeStoredDocKey("key_1");
-    auto prepare = makePendingItem(prepareKey, "value");
-    EXPECT_EQ(cb::engine_errc::sync_write_pending,
-              store->set(*prepare, cookie, nullptr /*StoreIfPredicate*/));
-
-    ASSERT_EQ(1, cm->getNumCheckpoints());
-    const auto prepareCkptId = cm->getOpenCheckpointId();
-
-    // Persist to move our cursor so that we can expel the prepare.
-    // Purpose is verifying that the commit is correctly queued into a new
-    // checkpoint also in the case where the related prepare has been expelled -
-    // ie we stress the KeyIndex in this test
-    flushVBucketToDiskIfPersistent(vbid, 3);
-
-    const auto result = cm->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(2, result.count);
-
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->commit(prepareKey,
-                         3,
-                         {},
-                         vb->lockCollections(prepareKey),
-                         cookie));
-
-    // Still 1 checkpoint as the old one has been removed, but new checkpoint
-    // for the commit
-    EXPECT_EQ(1, cm->getNumCheckpoints());
-    EXPECT_GT(cm->getOpenCheckpointId(), prepareCkptId);
-}
-
-TEST_P(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
-    setVBucketStateAndRunPersistTask(
-            vbid,
-            vbucket_state_active,
-            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
-    auto vb = engine->getVBucket(vbid);
-    auto* cm = static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
-
-    createCheckpointAndEnsureOldRemoved(*cm);
-    ASSERT_EQ(1, cm->getNumOpenChkItems());
-
-    store_item(vbid, makeStoredDocKey("key_1"), "value");
-    store_item(vbid, makeStoredDocKey("key_2"), "value");
-    EXPECT_EQ(3, cm->getNumOpenChkItems());
-
-    // Queue a prepare
-    auto prepareKey = makeStoredDocKey("key_1");
-    auto prepare = makePendingItem(prepareKey, "value");
-    EXPECT_EQ(cb::engine_errc::sync_write_pending,
-              store->set(*prepare, cookie, nullptr /*StoreIfPredicate*/));
-    EXPECT_EQ(4, cm->getNumOpenChkItems());
-
-    // Persist to move our cursor so that we can expel the prepare
-    flushVBucketToDiskIfPersistent(vbid, 3);
-
-    auto expelRes = cm->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(2, expelRes.count);
-    EXPECT_EQ(2, cm->getNumOpenChkItems());
-
-    store_item(vbid, makeStoredDocKey("key_2"), "value");
-    EXPECT_EQ(1, cm->getNumCheckpoints());
-    EXPECT_EQ(3, cm->getNumOpenChkItems());
-}
-
-TEST_P(CheckpointRemoverEPTest,
-       CheckpointExpellingInvalidatesKeyIndexCorrectly) {
-    /*
-     * Ensure that expelling correctly marks invalidated keyIndex entries as
-     * SyncWrite/non SyncWrite.
-     * MB-36338: expelling would incorrectly mark a keyIndex entry for a sync
-     * write as non-sync write if it was the last item to be expelled, as the
-     * value it checked was that of the dummy item rather than of the real item.
-     */
+/*
+ * Ensure that ItemExpel correctly marks keyIndex entries for SyncWrite when a
+ * prepare is expelled.
+ *
+ * MB-36338: expelling would incorrectly mark a keyIndex entry for a sync
+ * write as non-sync write if it was the last item to be expelled, as the
+ * value it checked was that of the dummy item rather than of the real item.
+ */
+TEST_P(CheckpointRemoverEPTest, ItemExpellingInvalidatesKeyIndexCorrectly) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -818,9 +740,8 @@ TEST_P(CheckpointRemoverEPTest,
     EXPECT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*prepare, cookie, nullptr /*StoreIfPredicate*/));
 
-    // expelling will not remove items with seqno equal to the ckpt highSeqno
-    // but the commit serves as padding, allowing the preceding prepare to be
-    // expelled
+    // Commit - we need this step as in the following we want to SyncWrite again
+    // for the same key
     EXPECT_EQ(cb::engine_errc::success,
               vb->commit(prepareKey,
                          2,
@@ -828,26 +749,28 @@ TEST_P(CheckpointRemoverEPTest,
                          vb->lockCollections(prepareKey),
                          cookie));
 
-    // Persist to move our cursor so that we can expel the prepare
+    EXPECT_EQ(1, cm->getNumCheckpoints());
+
+    // Persist to move our cursor so that we can expel the prepare.
+    // Note: ItemExpel can remove all items in a checkpoint, also high-seqno and
+    // items pointed by cursors
     flushVBucketToDiskIfPersistent(vbid, 3);
 
     // expel from the checkpoint. This will invalidate keyIndex entries
     // for all expelled items.
     auto result = cm->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(2, result.count);
-
-    EXPECT_EQ(1, cm->getNumCheckpoints());
+    EXPECT_EQ(3, result.count);
 
     const auto prepareCkptId = cm->getOpenCheckpointId();
     auto prepare2 = makePendingItem(prepareKey, "value");
     EXPECT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*prepare2, cookie, nullptr /*StoreIfPredicate*/));
 
-    // queueing second prepare should fail as it would dedupe the existing
-    // prepare (even though it has been expelled) leading to a new
-    // checkpoint being opened.
-    // Still 1 checkpoint as the old one jas been removed, but new checkpoint
-    // for the commit
+    // Queueing second prepare into the same checkpoint must fail as it would
+    // dedupe the existing prepare. The old prepare was expelled but we know it
+    // existed as the keyIndex still keeps track of that. So, the new prepare is
+    // queued into a new open checkpoint. In the end we still 1 checkpoint as
+    // the old one was removed.
     EXPECT_EQ(1, cm->getNumCheckpoints());
     EXPECT_GT(cm->getOpenCheckpointId(), prepareCkptId);
 }

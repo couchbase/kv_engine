@@ -403,6 +403,12 @@ bool Checkpoint::canDedup(const queued_item& existing,
 }
 
 uint64_t Checkpoint::getMinimumCursorSeqno() const {
+    if (isEmptyByExpel()) {
+        // No mutation in this checkpoint and we can't know exactly whether it
+        // will store any further mutation, nothing to pick for cursors.
+        return 0;
+    }
+
     auto pos = begin();
     Expects((*pos)->isEmptyItem());
     const auto seqno = (*pos)->getBySeqno();
@@ -445,6 +451,12 @@ uint64_t Checkpoint::getMinimumCursorSeqno() const {
 }
 
 uint64_t Checkpoint::getHighSeqno() const {
+    if (isEmptyByExpel()) {
+        // No mutation in this checkpoint and we can't know exactly whether it
+        // will store any further mutation.
+        return 0;
+    }
+
     auto pos = end();
     --pos;
 
@@ -686,6 +698,25 @@ bool Checkpoint::hasNonMetaItems() const {
         }
     }
     return false;
+}
+
+bool Checkpoint::isEmptyByExpel() const {
+    auto pos = begin();
+    Expects((*pos)->isEmptyItem());
+    const auto seqno = (*pos)->getBySeqno();
+    ++pos;
+    Expects((*pos)->isCheckpointStart());
+    Expects(seqno == (*pos)->getBySeqno());
+
+    return modifiedByExpel() && std::next(pos) == end();
+}
+
+bool Checkpoint::modifiedByExpel() const {
+    return highestExpelledSeqno > 0;
+}
+
+bool Checkpoint::isOpen() const {
+    return getState() == CHECKPOINT_OPEN;
 }
 
 std::ostream& operator<<(std::ostream& os, const Checkpoint& c) {

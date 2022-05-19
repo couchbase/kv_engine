@@ -1358,21 +1358,21 @@ TEST_F(SingleThreadedCheckpointTest, CursorDistance_Expel) {
     auto cursor = testCursorDistance_Register();
 
     // State here:
-    // [e:0 cs:0 vbs:1 m:1 m:2)
+    // [e:1 cs:1 vbs:1 m:1 m:2)
     //                     ^
     ASSERT_EQ(4, cursor->getDistance());
 
     // Expel
-    // [e:0 cs:0 x x m:2)
-    //               ^
-    ASSERT_EQ(2, flushAndExpelFromCheckpoints(vbid));
+    // [e:1 cs:1 x x x)
+    //      ^
+    ASSERT_EQ(3, flushAndExpelFromCheckpoints(vbid));
 
     const auto& manager =
             *store->getVBuckets().getBucket(vbid)->checkpointManager;
     ASSERT_EQ(2, manager.getHighSeqno());
-    ASSERT_EQ(queue_op::mutation, (*cursor->getPos())->getOperation());
-    ASSERT_EQ(2, (*cursor->getPos())->getBySeqno());
-    EXPECT_EQ(2, cursor->getDistance());
+    ASSERT_EQ(queue_op::checkpoint_start, (*cursor->getPos())->getOperation());
+    ASSERT_EQ(1, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(1, cursor->getDistance());
 }
 
 TEST_F(SingleThreadedCheckpointTest, CursorDistance_ResetCursor) {
@@ -1413,7 +1413,7 @@ TEST_F(SingleThreadedCheckpointTest, CursorDistance_ResetCursor) {
     EXPECT_EQ(0, cursor->getDistance());
 
     // [e:1 cs:1 m:1 m:2)
-    //               ^
+    //  ^
     for (const auto& key : {"key1", "key2"}) {
         auto item = makeCommittedItem(makeStoredDocKey(key), "value");
         ASSERT_TRUE(newManager->queueDirty(
@@ -1437,12 +1437,12 @@ TEST_F(SingleThreadedCheckpointTest, CursorDistance_ResetCursor) {
     // - assertion failure within boost::list::splice() on debug builds
     // - Checkpoint::queueMemOverhead underflow on rel builds
     // - KV assertion failure on dev builds
-    EXPECT_EQ(1, newManager->expelUnreferencedCheckpointItems().count);
+    EXPECT_EQ(2, newManager->expelUnreferencedCheckpointItems().count);
 
     EXPECT_EQ(2, newManager->getHighSeqno());
-    EXPECT_EQ(queue_op::mutation, (*cursor->getPos())->getOperation());
-    EXPECT_EQ(2, (*cursor->getPos())->getBySeqno());
-    EXPECT_EQ(2, cursor->getDistance());
+    EXPECT_EQ(queue_op::checkpoint_start, (*cursor->getPos())->getOperation());
+    EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(1, cursor->getDistance());
 
     // Need to manually reset before newManager goes out of scope, newManager'll
     // be already destroyed when we'll try to decrement its cursor count.
@@ -1515,7 +1515,7 @@ void SingleThreadedCheckpointTest::testMinimumCursorSeqno(
     setVBucketState(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
     auto& manager = *vb->checkpointManager;
-    EXPECT_EQ(1, manager.getOpenCheckpointId());
+    ASSERT_EQ(1, manager.getOpenCheckpointId());
     manager.createNewCheckpoint();
     flushVBucket(vbid);
 
@@ -1589,11 +1589,12 @@ void SingleThreadedCheckpointTest::testMinimumCursorSeqno(
         store_item(vbid, makeStoredDocKey("different-key"), value);
         flushVBucket(vbid);
         EXPECT_EQ(3, checkpoint.getNumItems());
-        EXPECT_EQ(1, manager.expelUnreferencedCheckpointItems().count);
-        EXPECT_EQ(2, checkpoint.getNumItems());
+        EXPECT_EQ(2, manager.expelUnreferencedCheckpointItems().count);
+        EXPECT_EQ(1, checkpoint.getNumItems());
 
-        EXPECT_EQ(2, checkpoint.getMinimumCursorSeqno());
-        EXPECT_EQ(2, checkpoint.getHighSeqno());
+        // We have expelled all the mutations
+        EXPECT_EQ(0, checkpoint.getMinimumCursorSeqno());
+        EXPECT_EQ(0, checkpoint.getHighSeqno());
 
         // Note: This is a very important point - Cursor registered at the same
         // position as in the Dedup case, but the Expel case requires a backfill
@@ -1621,6 +1622,57 @@ TEST_F(SingleThreadedCheckpointTest, CheckpointMinimumCursorSeqno_Dedup) {
 
 TEST_F(SingleThreadedCheckpointTest, CheckpointMinimumCursorSeqno_Expel) {
     testMinimumCursorSeqno(ItemRemovalPath::Expel);
+}
+
+TEST_F(SingleThreadedCheckpointTest, RefCheckpointIsRemovedWhenClosedIfEmpty) {
+    setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = *vb->checkpointManager;
+    EXPECT_EQ(1, manager.getOpenCheckpointId());
+    manager.createNewCheckpoint();
+    flushVBucket(vbid);
+
+    // [e:1 cs:1)
+    ASSERT_EQ(2, manager.getOpenCheckpointId());
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(0, manager.getHighSeqno());
+
+    // [e:1 cs:1 m:1)
+    const std::string value("value");
+    store_item(vbid, makeStoredDocKey("key"), value);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, manager.getHighSeqno());
+    const auto& checkpoint =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
+                    manager);
+    ASSERT_EQ(1, checkpoint.getMinimumCursorSeqno());
+    ASSERT_EQ(1, checkpoint.getHighSeqno());
+
+    // Expel and make the checkpoint "empty", ie no mutation in it
+    ASSERT_EQ(1, manager.getNumCursors());
+    flushVBucket(vbid);
+    EXPECT_EQ(1, manager.expelUnreferencedCheckpointItems().count);
+
+    // Checkpoint referenced
+    ASSERT_EQ(
+            1,
+            CheckpointManagerTestIntrospector::public_getOpenCheckpoint(manager)
+                    .getNumCursorsInCheckpoint());
+
+    // Verify that the closed/empty/referenced checkpoint is removed
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    const auto preId = manager.getOpenCheckpointId();
+    manager.createNewCheckpoint();
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_GT(manager.getOpenCheckpointId(), preId);
+
+    // The cursor is now in the new open checkpoint
+    EXPECT_EQ(
+            1,
+            CheckpointManagerTestIntrospector::public_getOpenCheckpoint(manager)
+                    .getNumCursorsInCheckpoint());
 }
 
 // Test that when the same client registers twice, the first cursor 'dies'
@@ -1823,7 +1875,7 @@ void CheckpointTest::testExpelCheckpointItems() {
 
     /*
      * Checkpoint now looks as follows:
-     * 1000 - dummy item
+     * 1001 - dummy item
      * 1001 - checkpoint start
      * 1001 - 1st item (key0)
      * 1002 - 2nd item (key1) <<<<<<< persistenceCursor
@@ -1832,22 +1884,24 @@ void CheckpointTest::testExpelCheckpointItems() {
     EXPECT_EQ(1 + itemCount, manager->getNumOpenChkItems());
 
     const auto expelResult = manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(1, expelResult.count);
+    EXPECT_EQ(2, expelResult.count);
     EXPECT_LT(0, expelResult.memory);
-    EXPECT_EQ(1, this->global_stats.itemsExpelledFromCheckpoints);
+    EXPECT_EQ(2, this->global_stats.itemsExpelledFromCheckpoints);
 
     /*
      * We have expelled:
-     * 1001 - 1st item (key 0)
+     * 1001 - 1st item (key0)
+     * 1002 - 2nd item (key1)
      *
      * Now the checkpoint looks as follows:
      * 1000 - dummy Item
-     * 1001 - checkpoint start
-     * 1002 - 2nd item (key1) <<<<<<< persistenceCursor
+     * 1001 - checkpoint start <<<<<<< persistenceCursor
      * 1003 - 3rd item (key 2)
      */
     if (persistent()) {
-        EXPECT_EQ(1002, (*manager->getPersistenceCursorPos())->getBySeqno());
+        const auto pos = manager->getPersistenceCursorPos();
+        EXPECT_EQ(queue_op::checkpoint_start, (*pos)->getOperation());
+        EXPECT_EQ(1001, (*pos)->getBySeqno());
     }
 
     // 1 mutation removed from checkpoint
@@ -1858,18 +1912,17 @@ void CheckpointTest::testExpelCheckpointItems() {
     std::string dcp_cursor1(DCP_CURSOR_PREFIX + std::to_string(1));
     CursorRegResult regResult = manager->registerCursorBySeqno(
             dcp_cursor1.c_str(), 1001, CheckpointCursor::Droppable::Yes);
-    EXPECT_EQ(1002, regResult.seqno);
+    EXPECT_EQ(1003, regResult.seqno);
     EXPECT_TRUE(regResult.tryBackfill);
 
-    // Try to register a DCP replication cursor from 1002 - the first valid
-    // in-checkpoint item.
+    // Try to register a DCP cursor from 1002 - another expelled item
     std::string dcp_cursor2(DCP_CURSOR_PREFIX + std::to_string(2));
     regResult = manager->registerCursorBySeqno(
             dcp_cursor2.c_str(), 1002, CheckpointCursor::Droppable::Yes);
     EXPECT_EQ(1003, regResult.seqno);
-    EXPECT_FALSE(regResult.tryBackfill);
+    EXPECT_TRUE(regResult.tryBackfill);
 
-    // Try to register a DCP replication cursor from 1003
+    // Try to register a DCP cursor from 1003 - the first item still in chk
     std::string dcp_cursor3(DCP_CURSOR_PREFIX + std::to_string(3));
     regResult = manager->registerCursorBySeqno(
             dcp_cursor3.c_str(), 1003, CheckpointCursor::Droppable::Yes);
@@ -1888,7 +1941,7 @@ TEST_P(ReplicaCheckpointTest, ExpelCheckpointItemsDisk) {
 
 // Test that we correctly handle duplicates, where the initial version of the
 // document has been expelled.
-TEST_P(CheckpointTest, ExpelCheckpointItemsWithDuplicateTest) {
+TEST_P(CheckpointTest, ExpelCheckpointItemsWithDuplicate) {
     const int itemCount{3};
 
     for (auto ii = 0; ii < itemCount; ++ii) {
@@ -1907,9 +1960,9 @@ TEST_P(CheckpointTest, ExpelCheckpointItemsWithDuplicateTest) {
     }
 
     const auto expelResult = manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(1, expelResult.count);
+    EXPECT_EQ(2, expelResult.count);
     EXPECT_LT(0, expelResult.memory);
-    EXPECT_EQ(1, this->global_stats.itemsExpelledFromCheckpoints);
+    EXPECT_EQ(2, global_stats.itemsExpelledFromCheckpoints);
 
     // 1 mutation removed
     EXPECT_EQ(1 + (itemCount - expelResult.count),
@@ -1917,14 +1970,13 @@ TEST_P(CheckpointTest, ExpelCheckpointItemsWithDuplicateTest) {
 
     /*
      * After expelling checkpoint now looks as follows:
-     * 1000 - dummy Item
-     * 1000 - checkpoint_start
-     * 1002 - 2nd item (key1) <<<<<<< persistenceCursor
+     * 1001 - dummy Item
+     * 1001 - checkpoint_start <<<<<<< cursor
      * 1003 - 3rd item (key 2)
      */
-    if (persistent()) {
-        EXPECT_EQ(1002, (*manager->getPersistenceCursorPos())->getBySeqno());
-    }
+    auto pos = *CheckpointCursorIntrospector::getCurrentPos(*cursor);
+    EXPECT_EQ(queue_op::checkpoint_start, pos->getOperation());
+    EXPECT_EQ(1001, pos->getBySeqno());
 
     // Add another item which has been expelled.
     // Should not find the duplicate and so will re-add.
@@ -1932,18 +1984,17 @@ TEST_P(CheckpointTest, ExpelCheckpointItemsWithDuplicateTest) {
 
     /*
      * Checkpoint now looks as follows:
-     * 1000 - dummy Item
-     * 1000 - checkpoint_start
-     * 1002 - 2nd item (key1) <<<<<<< persistenceCursor
+     * 1001 - dummy Item
+     * 1001 - checkpoint_start <<<<<<< cursor
      * 1003 - 3rd item (key2)
      * 1004 - 4th item (key0)  << The New item added >>
      */
 
-    // The full checkpoint still contains the cs + 3 unique items added. The
+    // The full checkpoint still contains the cs + 2 unique items added. The
     // second add for key0 de-dupes the first for key0 so we don't bump the
     // count. This mimics normal behaviour for an item de-duping an earlier
     // one in a checkpoint when there is no expelling going on.
-    EXPECT_EQ(4, this->manager->getNumOpenChkItems());
+    EXPECT_EQ(3, this->manager->getNumOpenChkItems());
 }
 
 // Test that when the first cursor we come across is pointing to the last
@@ -1976,8 +2027,8 @@ void CheckpointTest::testExpelCursorPointingToLastItem() {
 
     /*
      * Checkpoint now looks as follows:
-     * 1000 - dummy item
-     * 1000 - checkpoint start
+     * 1001 - dummy item
+     * 1001 - checkpoint start
      * 1001 - 1st item
      * 1002 - 2nd item  <<<<<<< persistenceCursor
      */
@@ -1987,9 +2038,20 @@ void CheckpointTest::testExpelCursorPointingToLastItem() {
     // one. That item isn't a metadata item nor is it's successor item
     // (1002) the same seqno as itself (1001) so can expel from there.
     const auto expelResult = manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(1, expelResult.count);
+
+    /*
+     * Checkpoint now looks as follows:
+     * 1001 - dummy item
+     * 1001 - checkpoint start <<<<<<< persistenceCursor
+     */
+
+    EXPECT_EQ(2, expelResult.count);
     EXPECT_GT(expelResult.memory, 0);
-    EXPECT_EQ(1, this->global_stats.itemsExpelledFromCheckpoints);
+    EXPECT_EQ(2, global_stats.itemsExpelledFromCheckpoints);
+
+    const auto pos = manager->getPersistenceCursorPos();
+    EXPECT_EQ(queue_op::checkpoint_start, (*pos)->getOperation());
+    EXPECT_EQ(1001, (*pos)->getBySeqno());
 }
 
 TEST_P(CheckpointTest, ExpelCursorPointingToLastItemMemory) {
@@ -2092,84 +2154,6 @@ TEST_P(CheckpointTest, testDontExpelIfCursorAtMetadataItemWithSameSeqnoDisk) {
     testDontExpelIfCursorAtMetadataItemWithSameSeqno();
 }
 
-// Test that if we have a item after a mutation with the same seqno
-// then we will move the expel point backwards to the mutation
-// (and possibly further).
-void CheckpointTest::testDoNotExpelIfHaveSameSeqnoAfterMutation() {
-    createManager();
-    ASSERT_EQ(1, manager->getNumCheckpoints());
-
-    // Add a meta data operation
-    manager->queueSetVBState();
-    // mutation
-    queueNewItem("keyA");
-    // 2nd checkpoint
-    manager->createNewCheckpoint();
-    // mutation
-    queueNewItem("keyB");
-
-    ASSERT_EQ(2, manager->getNumCheckpoints());
-    /*
-     * First checkpoint (closed) is as follows:
-     * 1000 - dummy item   <<<<<<< Cursor
-     * 1001 - checkpoint start
-     * 1001 - set VB state
-     * 1001 - mutation
-     * 1001 - checkpoint end
-     *
-     * Second checkpoint (open) is as follows:
-     * 1001 - dummy item
-     * 1002 - checkpoint start
-     * 1002 - mutation
-     */
-
-    // Move the cursor to the second mutation.
-    bool isLastMutationItem{false};
-    for (auto ii = 0; ii < 6; ++ii) {
-        auto item = manager->nextItem(cursor, isLastMutationItem);
-    }
-
-    std::string dcpCursor1(DCP_CURSOR_PREFIX + std::to_string(1));
-    CursorRegResult regResult = manager->registerCursorBySeqno(
-            dcpCursor1.c_str(), 1000, CheckpointCursor::Droppable::Yes);
-
-    // Move the dcp cursor to the checkpoint end.
-    for (auto ii = 0; ii < 4; ++ii) {
-        auto item = this->manager->nextItem(regResult.cursor.lock().get(),
-                                            isLastMutationItem);
-    }
-
-    /*
-     * First checkpoint (closed) is as follows:
-     * 1000 - dummy item
-     * 1001 - checkpoint start
-     * 1001 - set VB state
-     * 1001 - mutation
-     * 1001 - checkpoint end  <<<<<<< dcpCursor1
-     *
-     * Second checkpoint (open) is as follows:
-     * 1001 - dummy item
-     * 1002 - checkpoint start
-     * 1002 - mutation   <<<<<<< Cursor
-     */
-
-    // We should not expel any items due to dcpCursor1 as we end up
-    // moving the expel point back to the dummy item.
-    const auto expelResult = manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(0, expelResult.count);
-    EXPECT_EQ(0, expelResult.memory);
-    EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
-}
-
-TEST_P(CheckpointTest, testDoNotExpelIfHaveSameSeqnoAfterMutationMemory) {
-    testDoNotExpelIfHaveSameSeqnoAfterMutation();
-}
-
-TEST_P(CheckpointTest, testDoNotExpelIfHaveSameSeqnoAfterMutationDisk) {
-    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
-    testDoNotExpelIfHaveSameSeqnoAfterMutation();
-}
-
 // Test estimate for the amount of memory recovered by expelling is correct.
 void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
     const int itemCount{3};
@@ -2221,28 +2205,28 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
     const auto memUsageBeforeExpel = manager->getMemUsage();
 
     const auto expelResult = manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(1, expelResult.count);
-    EXPECT_EQ(1, global_stats.itemsExpelledFromCheckpoints);
+    EXPECT_EQ(2, expelResult.count);
+    EXPECT_EQ(2, global_stats.itemsExpelledFromCheckpoints);
 
     /*
      * We have expelled:
      * 1001 - 1st item (key 0)
+     * 1002 - 2nd item (key1)
      *
      * Checkpoint now looks as follows:
      * 1000 - dummy Item
-     * 1001 - checkpoint start
-     * 1002 - 2nd item (key 1) <<<<<<< Cursor
+     * 1001 - checkpoint start <<<<<<< Cursor
      * 1003 - 3rd item (key 2)
      */
     if (persistent()) {
-        EXPECT_EQ(1002, (*manager->getPersistenceCursorPos())->getBySeqno());
+        const auto pos = manager->getPersistenceCursorPos();
+        EXPECT_EQ(queue_op::checkpoint_start, (*pos)->getOperation());
+        EXPECT_EQ(1001, (*pos)->getBySeqno());
     }
 
-    // In our code the per-list-element memory overhead is computed as of 3
-    const size_t checkpointListSaving =
-            (3 * sizeof(uintptr_t)) * expelResult.count;
-    // List saving + 1 mutation
-    const size_t expectedMemoryRecovered = checkpointListSaving + sizeOfItem;
+    const size_t expectedMemoryRecovered =
+            expelResult.count *
+            (Checkpoint::per_item_queue_overhead + sizeOfItem);
 
     EXPECT_EQ(expectedMemoryRecovered, expelResult.memory);
     EXPECT_EQ(expectedMemoryRecovered,
@@ -3013,13 +2997,16 @@ TEST_P(ReplicaCheckpointTest, MB_47516) {
     this->manager->createSnapshot(
             1001, 1002, 1002, CheckpointType::Disk, 1002);
     ASSERT_TRUE(this->queueReplicatedItem("k1001", 1001)); // 1001
-    ASSERT_TRUE(this->queueReplicatedItem("k1002", 1002)); // 1002
 
-    // 1.1) persist these, cursor now past them and we can expel
+    // 1.1) persist these, cursor now past k1001 and we can expel up to that
+    // (included)
     std::vector<queued_item> items;
     manager->getNextItemsForPersistence(items);
-    // we get the cp start and our two items
-    EXPECT_EQ(3, items.size());
+    // we get the cp start and one mutation
+    EXPECT_EQ(2, items.size());
+
+    // 1.2) Add another mutation
+    ASSERT_TRUE(this->queueReplicatedItem("k1002", 1002)); // 1002
 
     // 2) A set-vbstate needs to occur - this happens when a takeover stream is
     //    accepted and queues the new vbstate.
@@ -3126,15 +3113,21 @@ void CheckpointTest::expelCursorSetup() {
 CheckpointManager::ExtractItemsResult
 CheckpointTest::testExpelCursorRegistered() {
     expelCursorSetup();
+    // [e:1001 cs:1001 m:1001 m:1002)
+    //                        ^
 
     auto res = extractItemsToExpel();
-    EXPECT_EQ(1, res.getNumItems());
+    EXPECT_EQ(2, res.getNumItems());
 
-    // [e:1001 cs:1001 x m:1002)
-    //  ^                ^
+    // [e:1001 cs:1001 x x)
+    //  ^      ^
     const auto& expelCursor = res.getExpelCursor();
-    const auto pos = *CheckpointCursorIntrospector::getCurrentPos(expelCursor);
+    auto pos = *CheckpointCursorIntrospector::getCurrentPos(expelCursor);
     EXPECT_EQ(queue_op::empty, pos->getOperation());
+    EXPECT_EQ(1001, pos->getBySeqno());
+
+    pos = *cursor->getPos();
+    EXPECT_EQ(queue_op::checkpoint_start, pos->getOperation());
     EXPECT_EQ(1001, pos->getBySeqno());
 
     return res;
@@ -3146,19 +3139,21 @@ TEST_P(CheckpointTest, ExpelCursor_Registered) {
 
 TEST_P(CheckpointTest, ExpelCursor_Removed) {
     expelCursorSetup();
+    // [e:1001 cs:1001 m:1001 m:1002)
+    //                        ^
     ASSERT_EQ(1, manager->getNumCursors());
 
     // The operation registers the expel-cursor and removes it once done, so the
     // final numCursors must not change
     const auto res = manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(1, res.count);
+    EXPECT_EQ(2, res.count);
     EXPECT_EQ(1, manager->getNumCursors());
 }
 
 TEST_P(CheckpointTest, ExpelCursor_NeverDrop) {
     const auto res = testExpelCursorRegistered();
-    // [e:1001 cs:1001 x m:1002)
-    //  ^                ^
+    // [e:1001 cs:1001 x x)
+    //  ^      ^
 
     // We never drop cursors in the open checkpoint, so close the existing one
     // and ensure that the expel cursor is still in the closed checkpoint.
@@ -3166,8 +3161,8 @@ TEST_P(CheckpointTest, ExpelCursor_NeverDrop) {
     //  bumped to the new checkpoint. By logic that can never happen for the
     //  expel-cursor as it always points to the empty item.
     manager->createNewCheckpoint();
-    // [e:1001 cs:1001 x m:1002] [e:1003 cs:1003)
-    //  ^                         ^
+    // [e:1001 cs:1001 x x] [e:1003 cs:1003)
+    //  ^                    ^
     ASSERT_EQ(2, manager->getNumCheckpoints());
     ASSERT_EQ(2, manager->getNumCursors());
     const auto& expelCursor = res.getExpelCursor();
@@ -3189,18 +3184,19 @@ TEST_P(CheckpointTest, ExpelCursor_NeverDrop) {
 // without any cursors (for example an Ephemeral bucket without a persistence
 // cursor).
 TEST_P(EphemeralCheckpointTest, Expel_OpenCheckpointNoCursor_OneItem) {
-    // Queue a single item - we should not be able to expel this (must keep
-    // the latest item).
+    // Queue a single item - we should  be able to expel this
     ASSERT_TRUE(queueNewItem("key1"));
     ASSERT_EQ(2, manager->getNumOpenChkItems());
     ASSERT_EQ(1001, manager->getHighSeqno());
 
-    auto res = extractItemsToExpel();
-    EXPECT_EQ(0, res.getNumItems());
+    {
+        auto res = extractItemsToExpel();
+        EXPECT_EQ(1, res.getNumItems());
+    }
 
     // Nothing should have changed in CheckpointManager.
     EXPECT_EQ(1, manager->getNumCheckpoints());
-    EXPECT_EQ(2, manager->getNumOpenChkItems());
+    EXPECT_EQ(1, manager->getNumOpenChkItems());
     EXPECT_EQ(0, manager->getNumOfCursors());
 }
 
@@ -3212,14 +3208,14 @@ TEST_P(EphemeralCheckpointTest, Expel_OpenCheckpointNoCursor_TwoItems) {
     ASSERT_EQ(3, manager->getNumOpenChkItems());
     ASSERT_EQ(1002, manager->getHighSeqno());
 
-    // One item should have been expelled, should be one less in CkptMgr.
+    // Two items should have been expelled, should be two less in CkptMgr.
     {
         auto res = extractItemsToExpel();
-        EXPECT_EQ(1, res.getNumItems());
+        EXPECT_EQ(2, res.getNumItems());
     }
 
     EXPECT_EQ(1, manager->getNumCheckpoints());
-    EXPECT_EQ(2, manager->getNumOpenChkItems());
+    EXPECT_EQ(1, manager->getNumOpenChkItems());
     EXPECT_EQ(0, manager->getNumOfCursors());
 }
 
@@ -3576,12 +3572,8 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
     const auto initialIndex = checkpoint.getMemOverheadIndex();
     const auto initialMemOverhead = stats.getMemOverhead();
 
-    auto& cursor = *manager.getPersistenceCursor();
-    auto pos = (*CheckpointCursorIntrospector::getCurrentPos(cursor));
-    ASSERT_TRUE(pos->isEmptyItem());
-
-    // Move the cursor to the second mutation, we want to expel up to the first
-    // one. Skip ckpt-start, set-vbstate, m:1 and place the cursor on m:2.
+    // Move the cursor to the first mutation, we want to expel up to that.
+    // Skip ckpt-start and set-vbstate, and place the cursor on m:1.
     // As a collateral thing, I need to keep track of sizes of items that we are
     // going to expel, that's to make our final verification on memory counters.
     size_t setVBStateSize = 0;
@@ -3589,12 +3581,19 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
     size_t m1Size = 0;
     size_t m1Overhead = 0;
     // While these are helpers for other checks later in the test.
-    size_t emptySize = pos->size();
+    size_t emptySize = 0;
     size_t ckptStartSize = 0;
 
-    for (auto i = 0; i < 4; ++i) {
+    auto& cursor = *manager.getPersistenceCursor();
+    {
+        const auto pos = (*CheckpointCursorIntrospector::getCurrentPos(cursor));
+        ASSERT_TRUE(pos->isEmptyItem());
+        emptySize = pos->size();
+    }
+
+    for (auto i = 0; i < 3; ++i) {
         CheckpointCursorIntrospector::incrPos(cursor);
-        pos = (*CheckpointCursorIntrospector::getCurrentPos(cursor));
+        const auto pos = (*CheckpointCursorIntrospector::getCurrentPos(cursor));
         if (pos->getOperation() == queue_op::checkpoint_start) {
             ckptStartSize = pos->size();
         } else if (pos->getOperation() == queue_op::set_vbucket_state) {
@@ -3613,9 +3612,11 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
     ASSERT_GT(m1Size, 0);
     ASSERT_GT(emptySize, 0);
     ASSERT_GT(ckptStartSize, 0);
-    pos = (*CheckpointCursorIntrospector::getCurrentPos(cursor));
-    ASSERT_FALSE(pos->isCheckPointMetaItem());
-    ASSERT_EQ(2, pos->getBySeqno());
+    {
+        const auto pos = (*CheckpointCursorIntrospector::getCurrentPos(cursor));
+        ASSERT_FALSE(pos->isCheckPointMetaItem());
+        ASSERT_EQ(1, pos->getBySeqno());
+    }
 
     ASSERT_EQ(0, manager.getMemFreedByItemExpel());
     ASSERT_EQ(0, stats.memFreedByCheckpointItemExpel);
