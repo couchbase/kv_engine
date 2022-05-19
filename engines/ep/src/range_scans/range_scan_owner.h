@@ -24,7 +24,10 @@
 #include <unordered_set>
 
 class Configuration;
+class EpEngineTaskable;
 class EPBucket;
+class EPVBucket;
+class EventDrivenTimeoutTask;
 class KVStoreIface;
 class RangeScanContinueTask;
 
@@ -110,7 +113,7 @@ public:
      * container). This is a pointer as some unit tests create vbuckets with
      * no bucket.
      */
-    RangeScanOwner(ReadyRangeScans* scans);
+    RangeScanOwner(EPBucket* bucket, EPVBucket& vb);
 
     /**
      * Destructor will mark all scans as cancelled, thus if any scans happen
@@ -122,9 +125,15 @@ public:
      * Add a new scan to the set of available scans.
      *
      * @param scan to add
+     * @param vb timeout task is created on demand, this is required to
+     *                 create that task.
+     * @param taskable timeout task is created on demand, this is required to
+     *                 create that task.
      * @return success if added
      */
-    cb::engine_errc addNewScan(std::shared_ptr<RangeScan> scan);
+    cb::engine_errc addNewScan(std::shared_ptr<RangeScan> scan,
+                               EPVBucket& vb,
+                               EpEngineTaskable& taskable);
 
     /**
      * Handler for a range-scan-continue operation. Method will locate the
@@ -173,6 +182,20 @@ public:
     cb::engine_errc doStats(const StatCollector& collector);
 
     /**
+     * Check all scans to see if they have existed for more than the given
+     * duration. Any scans that have existed for more then the given duration
+     * are set to cancelled.
+     *
+     * @param bucket The bucket of the scan
+     * @param duration that the scans are checked against
+     * @return an optional seconds, when initialised this is how many seconds
+     *         until the expiring scan (used for testing). If no scans remain
+     *         this is not initialised.
+     */
+    std::optional<std::chrono::seconds> cancelAllExceedingDuration(
+            EPBucket& bucket, std::chrono::seconds duration);
+
+    /**
      * Find the scan for the given id
      */
     std::shared_ptr<RangeScan> getScan(cb::rangescan::Id id) const;
@@ -200,6 +223,12 @@ public:
             cb::rangescan::Id id,
             const CookieIface& cookie,
             const EventuallyPersistentEngine& engine) const;
+    /// @return size of the map (how many scans exist)
+    size_t size() const;
+
+    std::chrono::seconds getMaxScanDuration() const {
+        return maxScanDuration;
+    }
 
 protected:
     std::shared_ptr<RangeScan> processScanRemoval(cb::rangescan::Id id,
@@ -207,12 +236,20 @@ protected:
 
     ReadyRangeScans* readyScans;
 
-    /**
-     * All scans that are available for continue/cancel
-     */
-    folly::Synchronized<std::unordered_map<cb::rangescan::Id,
-                                           std::shared_ptr<RangeScan>,
-                                           boost::hash<boost::uuids::uuid>>>
-            rangeScans;
+    // Following struct wraps all objects managed via folly::Synchronized
+    struct SynchronizedData {
+        /// All scans that are available for continue/cancel
+        std::unordered_map<cb::rangescan::Id,
+                           std::shared_ptr<RangeScan>,
+                           boost::hash<boost::uuids::uuid>>
+                rangeScans;
+        /// The task which will check that scans don't exceed maxScanDuration
+        std::unique_ptr<EventDrivenTimeoutTask> timeoutTask;
+    };
+
+    folly::Synchronized<SynchronizedData> syncData;
+
+    /// The max duration a scan can exist for (set from config)
+    std::chrono::seconds maxScanDuration{0};
 };
 } // namespace VB

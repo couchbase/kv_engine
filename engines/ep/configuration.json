@@ -1308,6 +1308,12 @@
             "descr": "The maximum number of range scan tasks that can exist concurrently. Setting to 0 results in num_auxio_threads - 1 tasks",
             "type": "size_t"
         },
+        "range_scan_max_lifetime": {
+            "default": "180",
+            "dynamic": false,
+            "descr": "The maximum lifetime in seconds for a range-scan. Scans that don't complete before this limit are cancelled",
+            "type": "size_t"
+        },
         "retain_erroneous_tombstones": {
             "default": "true",
             "descr": "whether erroneous tombstones need to be retain during compaction. Erroneous tombstones are those that have invalid meta data in it. For example, a delete time of 0.",

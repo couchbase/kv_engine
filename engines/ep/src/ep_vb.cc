@@ -100,8 +100,7 @@ EPVBucket::EPVBucket(Vbid i,
               maxVisibleSeqno,
               maxPrepareSeqno),
       shard(kvshard),
-      rangeScans(bucket ? static_cast<EPBucket*>(bucket)->getReadyRangeScans()
-                        : nullptr) {
+      rangeScans(static_cast<EPBucket*>(bucket), *this) {
 }
 
 EPVBucket::~EPVBucket() {
@@ -1356,7 +1355,8 @@ std::shared_ptr<RangeScan> EPVBucket::getRangeScan(cb::rangescan::Id id) const {
 }
 
 cb::engine_errc EPVBucket::addNewRangeScan(std::shared_ptr<RangeScan> scan) {
-    return rangeScans.addNewScan(std::move(scan));
+    return rangeScans.addNewScan(
+            std::move(scan), *this, bucket->getEPEngine().getTaskable());
 }
 
 cb::engine_errc EPVBucket::continueRangeScan(
@@ -1434,4 +1434,10 @@ void EPVBucket::completeRangeScan(cb::rangescan::Id id) {
 
 cb::engine_errc EPVBucket::doRangeScanStats(const StatCollector& collector) {
     return rangeScans.doStats(collector);
+}
+
+std::optional<std::chrono::seconds>
+EPVBucket::cancelRangeScansExceedingDuration(std::chrono::seconds duration) {
+    return rangeScans.cancelAllExceedingDuration(
+            dynamic_cast<EPBucket&>(*bucket), duration);
 }

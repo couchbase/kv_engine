@@ -46,6 +46,7 @@ RangeScan::RangeScan(
     // Don't init the uuid in the initialisation list as we may read various
     // members which must be initialised first
     uuid = createScan(cookie, bucket, snapshotReqs, samplingConfig);
+    createTime = now();
 
     fmt::memory_buffer snapshotLog, samplingLog;
     if (snapshotReqs) {
@@ -85,6 +86,13 @@ RangeScan::RangeScan(
                 std::string_view{samplingLog.data(), samplingLog.size()});
 }
 
+RangeScan::RangeScan(cb::rangescan::Id id)
+    : uuid(id),
+      start(StoredDocKey("start", CollectionID::Default)),
+      end(StoredDocKey("end", CollectionID::Default)) {
+    createTime = now();
+}
+
 RangeScan::~RangeScan() {
     fmt::memory_buffer valueScanStats;
     if (keyOnly == cb::rangescan::KeyOnly::No) {
@@ -95,10 +103,15 @@ RangeScan::~RangeScan() {
                        totalValuesFromDisk);
     }
 
-    EP_LOG_INFO("{} RangeScan {} finished in state:{}, keys:{}{}",
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            now() - createTime)
+                            .count();
+
+    EP_LOG_INFO("{} RangeScan {} finished in state:{}, after {}ms, keys:{}{}",
                 getVBucketId(),
                 uuid,
                 continueState.rlock()->state,
+                duration,
                 totalKeys,
                 std::string_view{valueScanStats.data(), valueScanStats.size()});
 }
@@ -464,6 +477,16 @@ void RangeScan::setStateCompleted() {
     });
 }
 
+std::chrono::seconds RangeScan::getRemainingTime(
+        std::chrono::seconds timeLimit) {
+    // 16:00 + 30 seconds limit = 16:00:30
+    // Then subtract now()  e.g. if now is 16:01, return 0 seconds
+    // or if now() is 16:00:20, return 10 seconds.
+    return std::max(std::chrono::seconds(0),
+                    std::chrono::duration_cast<std::chrono::seconds>(
+                            (createTime + timeLimit) - now()));
+}
+
 void RangeScan::handleKey(DocKey key) {
     incrementItemCounters(key.size());
     Expects(continueRunState.cState.cookie);
@@ -543,9 +566,17 @@ bool RangeScan::isVbucketScannable(const VBucket& vb) const {
            vb.failovers->getLatestUUID() == vbUuid;
 }
 
-std::function<std::chrono::steady_clock::time_point()> RangeScan::now = []() {
-    return std::chrono::steady_clock::now();
-};
+static std::function<std::chrono::steady_clock::time_point()>
+getDefaultClockFunction() {
+    return []() { return std::chrono::steady_clock::now(); };
+}
+
+std::function<std::chrono::steady_clock::time_point()> RangeScan::now =
+        getDefaultClockFunction();
+
+void RangeScan::resetClockFunction() {
+    now = getDefaultClockFunction();
+}
 
 void RangeScan::addStats(const StatCollector& collector) const {
     fmt::memory_buffer prefix;
@@ -560,6 +591,7 @@ void RangeScan::addStats(const StatCollector& collector) const {
         collector.addStat(std::string_view(key.data(), key.size()), statValue);
     };
 
+    addStat("create_time", createTime.time_since_epoch().count());
     addStat("vbuuid", vbUuid);
     addStat("start", cb::UserDataView(start.to_string()).getRawValue());
     addStat("end", cb::UserDataView(end.to_string()).getRawValue());
@@ -594,15 +626,16 @@ void RangeScan::dump(std::ostream& os) const {
     // copy state then print, avoiding invoking ostream whilst locked
     auto cs = *continueState.rlock();
     fmt::print(os,
-               "RangeScan: uuid:{}, {}, vbuuid:{}, range:({},{}), mode:{}, "
-               "queued:{}, totalKeys:{} values m:{}, d:{}, totalLimit:{}, "
-               "crs_itemCount:{}, crs_cookie:{}, crs_item_limit:{},"
-               "crs_time_limit:{}, crs_byte_limit:{}, crs_deadline:{}, "
-               "cs.state:{}, cs.cookie:{}, cs.itemLimit:{}, cs.timeLimit:{}, "
-               "cs.byteLimit:{}",
+               "RangeScan: uuid:{}, {}, vbuuid:{}, created:{}. range:({},{}), "
+               "mode:{}, queued:{}, totalKeys:{} values m:{}, d:{}, "
+               "totalLimit:{}, crs_itemCount:{}, crs_cookie:{}, "
+               "crs_item_limit:{}, crs_time_limit:{}, crs_byte_limit:{}, "
+               "crs_deadline:{}, cs.state:{}, cs.cookie:{}, cs.itemLimit:{}, "
+               "cs.timeLimit:{}, cs.byteLimit:{}",
                uuid,
                vbid,
                vbUuid,
+               createTime.time_since_epoch().count(),
                cb::UserDataView(start.to_string()),
                cb::UserDataView(end.to_string()),
                (keyOnly == cb::rangescan::KeyOnly::Yes ? "key" : "value"),

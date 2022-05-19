@@ -334,6 +334,18 @@ public:
      */
     void completeRangeScan(cb::rangescan::Id id);
 
+    /**
+     * Locate all scans and cancel any with a lifetime > duration
+     * @param duration scans with a "lifetime" above this duration are cancelled
+     * @return seconds until the next scan would need cancelling or nothing
+     */
+    std::optional<std::chrono::seconds> cancelRangeScansExceedingDuration(
+            std::chrono::seconds duration);
+
+    VB::RangeScanOwner& getRangeScans() {
+        return rangeScans;
+    }
+
 protected:
     /**
      * queue a background fetch of the specified item.

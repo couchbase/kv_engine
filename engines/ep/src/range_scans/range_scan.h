@@ -78,6 +78,16 @@ public:
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
             std::optional<cb::rangescan::SamplingConfiguration> samplingConfig);
 
+    /**
+     * Create a RangeScan initialising the uuid to the given value.
+     *
+     * This constructor exists only to aid testing of RangeScanOwner. A scan
+     * constructed with this will fail to scan.
+     *
+     * @param id value to use for RangeScan::uuid
+     */
+    RangeScan(cb::rangescan::Id id);
+
     ~RangeScan();
 
     /**
@@ -135,6 +145,9 @@ public:
 
     /// change the state of the scan to Completed
     void setStateCompleted();
+
+    /// @return how many seconds the scan has left (based on the timeLimit)
+    std::chrono::seconds getRemainingTime(std::chrono::seconds timeLimit);
 
     /// @return the vbucket ID owning this scan
     Vbid getVBucketId() const {
@@ -223,6 +236,11 @@ public:
         now = func;
     }
 
+    /**
+     * Change the clock function (which drives now()) back to default
+     */
+    static void resetClockFunction();
+
 protected:
     /**
      * Function to create a scan by opening the underlying disk snapshot. The
@@ -277,7 +295,7 @@ protected:
     DiskDocKey start;
     DiskDocKey end;
     // uuid of the vbucket to assist detection of a vbucket state change
-    uint64_t vbUuid;
+    uint64_t vbUuid{0};
     std::unique_ptr<ByIdScanContext> scanCtx;
     std::unique_ptr<RangeScanDataHandlerIFace> handler;
     /// keys read for the life of this scan (counted for key and value scans)
@@ -286,6 +304,8 @@ protected:
     size_t totalValuesFromMemory{0};
     /// items read from disk for the life of this scan (only for value scans)
     size_t totalValuesFromDisk{0};
+    /// Time the scan was created
+    std::chrono::steady_clock::time_point createTime;
 
     /**
      * Following 3 member variables are used only when a
@@ -297,7 +317,7 @@ protected:
     std::bernoulli_distribution distribution{0.0};
     size_t totalLimit{0};
 
-    Vbid vbid;
+    Vbid vbid{0};
 
     // RangeScan can be continued with client defined limits
     // These are written from the worker (continue) into the locked 'runState'

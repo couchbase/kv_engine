@@ -16,10 +16,12 @@
 #include "kvstore/kvstore.h"
 #include "range_scans/range_scan.h"
 #include "range_scans/range_scan_callbacks.h"
+#include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
 
+#include <boost/uuid/name_generator.hpp>
 #include <memcached/range_scan_optional_configuration.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
@@ -101,6 +103,7 @@ public:
     void TearDown() override {
         MockCookie::setCheckPrivilegeFunction({});
         mock_set_privilege_context_revision(0);
+        RangeScan::resetClockFunction();
         SingleThreadedEPBucketTest::TearDown();
     }
 
@@ -1562,6 +1565,91 @@ TEST_P(RangeScanTest, lose_access_to_scan) {
     }
 }
 
+TEST_P(RangeScanTest, cancel_scan_due_to_time_limit) {
+    // Create the scan
+    auto uuid = createScan(scanCollection,
+                           {"user"},
+                           {"user\xFF"},
+                           {/* no snapshot requirements */},
+                           {/* no sampling*/});
+
+    auto vb = store->getVBucket(vbid);
+
+    // Force cancel by time-limit path (0 limit)
+    auto& epVb = dynamic_cast<EPVBucket&>(*vb);
+    EXPECT_FALSE(epVb.cancelRangeScansExceedingDuration(std::chrono::seconds(0))
+                         .has_value());
+
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->continueRangeScan(
+                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+
+    // scan cancels and cleans-up
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+}
+
+TEST_P(RangeScanTest, cancel_scans_due_to_time_limit) {
+    std::chrono::seconds tick(5);
+    RangeScan::setClockFunction([&tick]() {
+        static auto now = std::chrono::time_point<std::chrono::steady_clock>();
+        now += tick;
+        return now;
+    });
+
+    auto vb = store->getVBucket(vbid);
+
+    // Create the scans
+    auto uuid1 = createScan(
+            scanCollection,
+            {"user"},
+            {"user\xFF"},
+            {/* no snapshot requirements */},
+            {/* no sampling*/},
+            cb::engine_errc::success,
+            std::make_unique<DummyRangeScanHandler>(dummyCallbackCounter));
+    auto uuid2 = createScan(
+            scanCollection,
+            {"user"},
+            {"user\xFF"},
+            {/* no snapshot requirements */},
+            {/* no sampling*/},
+            cb::engine_errc::success,
+            std::make_unique<DummyRangeScanHandler>(dummyCallbackCounter));
+    // RangeScanOwnerTest::cancelRangeScansExceedingDuration gives more details
+    // to the flow of time (or calls to now())
+    tick = std::chrono::seconds(0);
+
+    // Force cancel one scan
+    auto& epVb = dynamic_cast<EPVBucket&>(*vb);
+    auto duration =
+            epVb.cancelRangeScansExceedingDuration(std::chrono::seconds(5));
+    ASSERT_TRUE(duration.has_value());
+    EXPECT_EQ(std::chrono::seconds(5), duration.value());
+    EXPECT_EQ(
+            cb::engine_errc::no_such_key,
+            store->continueRangeScan(
+                    vbid, uuid1, *cookie, 0, std::chrono::milliseconds(0), 0));
+    // Can start uuid2
+    EXPECT_EQ(
+            cb::engine_errc::would_block,
+            store->continueRangeScan(
+                    vbid, uuid2, *cookie, 0, std::chrono::milliseconds(0), 0));
+
+    // Let's cancel whilst uuid2 is queued
+    tick = std::chrono::seconds(5);
+    duration = epVb.cancelRangeScansExceedingDuration(std::chrono::seconds(5));
+    ASSERT_FALSE(duration.has_value());
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->cancelRangeScan(vbid, uuid2, *cookie));
+
+    // Task runs twice to drive scans to close files i.e. cancel
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+}
+
 bool TestRangeScanHandler::validateStatus(cb::engine_errc code) {
     switch (code) {
     case cb::engine_errc::success:
@@ -1661,6 +1749,105 @@ TEST_P(RangeScanTestSimple, MB_53184) {
                   scanCollection,
                   {"\0", 1}, // from min
                   {"c-12", cb::rangescan::KeyType::Exclusive});
+}
+
+class RangeScanOwnerTest : public SingleThreadedEPBucketTest {
+public:
+    void SetUp() override {
+        SingleThreadedEPBucketTest::SetUp();
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    }
+
+    void TearDown() override {
+        SingleThreadedEPBucketTest::TearDown();
+    }
+
+    cb::rangescan::Id addScan(VB::RangeScanOwner& rangeScans) {
+        static int scanId = 0;
+        boost::uuids::name_generator_sha1 gen(boost::uuids::ns::dns());
+        boost::uuids::uuid udoc = gen(std::to_string(++scanId));
+        EXPECT_EQ(cb::engine_errc::success,
+                  rangeScans.addNewScan(std::make_shared<RangeScan>(udoc),
+                                        getEPVBucket(),
+                                        store->getEPEngine().getTaskable()));
+        return udoc;
+    }
+
+    EPVBucket& getEPVBucket() {
+        auto vb = store->getVBucket(vbid);
+        EXPECT_TRUE(vb);
+        return static_cast<EPVBucket&>(*vb);
+    }
+};
+
+TEST_F(RangeScanOwnerTest, cancelRangeScansExceedingDuration) {
+    VB::RangeScanOwner& rangeScans = getEPVBucket().getRangeScans();
+
+    // RangeScan::now will tick 5 seconds per call
+    static std::chrono::seconds tick = std::chrono::seconds(5);
+    RangeScan::setClockFunction([]() {
+        static auto now = std::chrono::steady_clock::now();
+        now += tick;
+        return now;
+    });
+    auto* nonIOQueue = task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto initialQueueSize = nonIOQueue->getFutureQueueSize();
+
+    auto t5 = addScan(rangeScans); // now() = T5
+    // first scan schedules the task
+    EXPECT_EQ(initialQueueSize + 1, nonIOQueue->getFutureQueueSize());
+    auto t10 = addScan(rangeScans); // now() = T10
+    // no changes expected
+    EXPECT_EQ(initialQueueSize + 1, nonIOQueue->getFutureQueueSize());
+
+    // Freeze the flow of time. cancelRangeScansExceedingDuration will call
+    // now() once for each scan (and there's no known order in which our T5 or
+    // T10 scan will be visited). Keeping time frozen allows the test to check
+    // for an outcome irrespective of the order the scans are tested.
+    tick = std::chrono::seconds(0);
+
+    // Use 9 seconds as the timeLimit parameter, i.e. any scan which has existed
+    // for longer than 9 seconds should be cancelled. Time is frozen at T10,
+    // thus both scans are under the 9 second limit. The function returns though
+    // how many seconds until a scan would need cancelling (for use in setting
+    // the sleep of our watchdog). The T5 scan will have existed for 9 seconds
+    // at T14 and now() is T10, thus the expected return value is 4.
+    auto rv = rangeScans.cancelAllExceedingDuration(getEPBucket(),
+                                                    std::chrono::seconds(9));
+    EXPECT_EQ(2, rangeScans.size());
+    ASSERT_TRUE(rv.has_value());
+    EXPECT_EQ(std::chrono::seconds(4), rv.value());
+
+    // With time still frozen, call again. But this time setting a much smaller
+    // limit of 3 seconds. With now() being T10, this means the first scan (T5)
+    // has existed too long and is cancelled. The return value of 3 is when the
+    // T10 scan should be cancelled.
+    rv = rangeScans.cancelAllExceedingDuration(getEPBucket(),
+                                               std::chrono::seconds(3));
+    EXPECT_EQ(1, rangeScans.size()); // 1 as the first scan was removed
+    ASSERT_TRUE(rv.has_value());
+    EXPECT_EQ(std::chrono::seconds(3), rv.value());
+    // Check the t10 scan remains
+    ASSERT_TRUE(rangeScans.getScan(t10));
+    EXPECT_FALSE(rangeScans.getScan(t5));
+    EXPECT_EQ(t10, rangeScans.getScan(t10)->getUuid());
+
+    // Now force cancel of T10, unfreeze time
+    tick = std::chrono::seconds(5);
+    rv = rangeScans.cancelAllExceedingDuration(getEPBucket(),
+                                               std::chrono::seconds(1));
+    EXPECT_EQ(0, rangeScans.size());
+    // task still queued, but is dead (was cancelled)
+    EXPECT_EQ(initialQueueSize + 1, nonIOQueue->getFutureQueueSize());
+    CheckedExecutor executor(task_executor,
+                             *task_executor->getLpTaskQ()[NONIO_TASK_IDX]);
+    EXPECT_TRUE(executor.getCurrentTask()->isdead());
+    EXPECT_EQ("RangeScanTimeoutTask for vb:0",
+              executor.getCurrentTask()->getDescription());
+
+    // The return value has no value, which would be interpreted by the watch
+    // dog task as sleep forever
+    ASSERT_FALSE(rv.has_value());
 }
 
 auto valueScanConfig =
