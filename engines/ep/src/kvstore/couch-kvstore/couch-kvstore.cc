@@ -79,25 +79,23 @@ static bool allDigit(const std::string& input) {
 }
 
 static std::string couchkvstore_strerrno(Db *db, couchstore_error_t err) {
-    std::array<char, 256> msg;
+    std::string msg;
+
     switch (err) {
     case COUCHSTORE_ERROR_OPEN_FILE:
     case COUCHSTORE_ERROR_READ:
     case COUCHSTORE_ERROR_WRITE:
     case COUCHSTORE_ERROR_FILE_CLOSE:
-        if (couchstore_last_os_error(db, msg.data(), msg.size()) ==
-            COUCHSTORE_SUCCESS) {
-            return {msg.data()};
+        if (db) {
+            return cb::couchstore::getLastOsError(*db);
         }
-        return {"<error retrieving last_os_error>"};
+        throw std::runtime_error(
+                "couchkvstore_strerrno: error code must have a database "
+                "instance");
 
     case COUCHSTORE_ERROR_CORRUPT:
     case COUCHSTORE_ERROR_CHECKSUM_FAIL:
-        if (couchstore_last_internal_error(db, msg.data(), msg.size()) ==
-            COUCHSTORE_SUCCESS) {
-            return {msg.data()};
-        }
-        return {"<error retrieving last_internal_error>"};
+        return cb::couchstore::getLastInternalError();
 
     default:
         return {"none"};
