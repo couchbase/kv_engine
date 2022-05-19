@@ -213,13 +213,18 @@ private:
             Vbid id) const;
 
     /**
+     * !! create rwStore before vbuckets, and destruct in reverse !!
+     * A vbucket may try to access a KVStore during destruct, e.g. a RangeScan
+     * closing its ScanContext, these operations will touch the rwStore
+     */
+    std::unique_ptr<KVStoreIface> rwStore;
+
+    /**
      * VBuckets owned by this Shard.
      * Note that elements are indexed by the vbid % numShards, e.g for shard 1
      * the first element in the vector is vb:1, second is vb:5, 3rd is vb:9 ...
      */
     std::vector<VBMapElement> vbuckets;
-
-    std::unique_ptr<KVStoreIface> rwStore;
 
 public:
     DISALLOW_COPY_AND_ASSIGN(KVShard);

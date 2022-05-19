@@ -44,6 +44,17 @@ INSTANTIATE_TEST_SUITE_P(
                                              ClientSnappySupport::No)),
         PrintToStringCombinedName());
 
+// Create one range scan which we leave, this gives test coverage of shutdown
+// whilst we have a snapshot open (have seen crashes/destruct issues)
+TEST_P(RangeScanTest, CreateAndLeave) {
+    BinprotRangeScanCreate create(Vbid(0), config);
+    userConnection->sendCommand(create);
+
+    BinprotResponse resp;
+    userConnection->recvResponse(resp);
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+}
+
 TEST_P(RangeScanTest, CreateInvalid) {
     BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::RangeScanCreate);
     userConnection->sendCommand(cmd);
