@@ -632,9 +632,30 @@ public:
      */
     bool hasNonMetaItems() const;
 
+    /**
+     * @return Whether this checkpoint wasn't empty in the past but is empty now
+     *  because of ItemExpel. Note that being empty here means "not containing
+     *  any non-meta item".
+     */
+    bool isEmptyByExpel() const;
+
+    /**
+     * @return Whether ItemExpel has touched this checkpoint
+     */
+    bool modifiedByExpel() const;
+
+    /**
+     * @return Whether this checkpoint is open
+     */
+    bool isOpen() const;
+
     // Memory overhead of the toWrite container (a list), ie 3 ptrs (forward,
     // backwards and element pointers) per element in the list.
     static constexpr uint8_t per_item_queue_overhead = 3 * sizeof(uintptr_t);
+
+    int64_t getHighestExpelledSeqno() const {
+        return highestExpelledSeqno;
+    }
 
 private:
     /**

@@ -197,7 +197,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "chk_max_items=5000;chk_period=600;checkpoint_memory_recovery_"
-                 "upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
+                 "upper_mark=0;checkpoint_memory_recovery_lower_mark=0;chk_"
+                 "expel_enabled=false",
                  prepare,
                  cleanup),
         TestCase("test checkpoint deduplication",

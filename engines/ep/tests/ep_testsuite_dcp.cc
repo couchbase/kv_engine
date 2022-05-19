@@ -8353,7 +8353,8 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "chk_remover_stime=1;chk_max_items=10;checkpoint_memory_"
                  "recovery_upper_mark=0;"
-                 "checkpoint_memory_recovery_lower_mark=0",
+                 "checkpoint_memory_recovery_lower_mark=0;chk_expel_enabled="
+                 "false",
                  prepare,
                  cleanup),
         TestCase("test producer stream request nmvb",
@@ -8404,7 +8405,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_failover_scenario_one_with_dcp,
                  test_setup,
                  teardown,
-                 nullptr,
+                 "chk_expel_enabled=false",
                  prepare,
                  cleanup),
         TestCase("test failover scenario two with dcp",
@@ -8412,7 +8413,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "checkpoint_memory_recovery_upper_mark=0;checkpoint_memory_"
-                 "recovery_lower_mark=0",
+                 "recovery_lower_mark=0;chk_expel_enabled=false",
                  prepare,
                  cleanup),
         TestCase("test add stream",
