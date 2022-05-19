@@ -222,6 +222,24 @@ cb::engine_errc server_prometheus_stats(
         const StatCollector& collector,
         cb::prometheus::Cardinality cardinality);
 
+/**
+ * Add all "low cardinality" group stats to the provided collector.
+ *
+ * These stats should remain (comparatively) few in number, and should
+ * scale at most per-bucket (no per-vbucket, no per-collection).
+ */
+cb::engine_errc server_prometheus_stats_low(const StatCollector& collector);
+
+/**
+ * Add all "high cardinality" group stats to the provided collector.
+ *
+ * These stats are expected to be numerous, and may scale e.g., per-collection.
+ * It should be expected that these stats will be scraped less frequently
+ * (than the "low cardinality" group) by Prometheus, but no exact interval
+ * should be assumed.
+ */
+cb::engine_errc server_prometheus_stats_high(const StatCollector& collector);
+
 /*
  *  Macros for managing statistics inside memcached
  */

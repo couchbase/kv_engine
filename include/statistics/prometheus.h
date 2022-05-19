@@ -47,23 +47,24 @@ enum class IncludeTimestamps {
 using AuthCallback =
         std::function<bool(const std::string&, const std::string&)>;
 
-using GetStatsCallback =
-        std::function<cb::engine_errc(const StatCollector&, Cardinality)>;
+using GetStatsCallback = std::function<cb::engine_errc(const StatCollector&)>;
 
 /**
  * Initialize the prometheus exporter
  *
  * @param config the port number and address family to bind to (specifying
  *               0 as the port number will use an ephemeral port)
- * @param getStatsCB The callback function to call to retrieve the statistic
  * @param authCB The callback to use for authentication for the requests
  * @return The current configuration
  * @throws std::bad_alloc for memory allocation failures
  * @throws std::runtime_errors if we failed to start the exporter service
  */
 nlohmann::json initialize(const std::pair<in_port_t, sa_family_t>& config,
-                          GetStatsCallback getStatsCB,
                           AuthCallback authCB);
+
+void addEndpoint(std::string path,
+                 IncludeTimestamps timestamps,
+                 GetStatsCallback getStatsCB);
 
 void shutdown();
 
@@ -88,7 +89,6 @@ public:
      */
     explicit MetricServer(in_port_t port,
                           sa_family_t family,
-                          GetStatsCallback getStatsCB,
                           AuthCallback authCB);
     ~MetricServer();
 
@@ -97,6 +97,10 @@ public:
 
     MetricServer& operator=(const MetricServer&) = delete;
     MetricServer& operator=(MetricServer&&) = delete;
+
+    void AddEndpoint(std::string path,
+                     IncludeTimestamps timestamps,
+                     GetStatsCallback getStatsCB);
 
     /**
      * Check if the HTTP server was created successfully and
@@ -121,24 +125,18 @@ public:
     [[nodiscard]] nlohmann::json getRunningConfigAsJson() const;
 
 private:
-    class KVCollectable;
+    class Endpoint;
 
     // Prometheus exposer takes weak pointers to `Collectable`s
-    // 4 endpoints are exposed:
-    //    {HighCardinality, LowCardinality}
-    //  x {IncludeTimestamps::Yes, IncludeTimestamps::No}
-    std::array<std::shared_ptr<KVCollectable>, 4> endpoints;
+    std::vector<std::shared_ptr<Endpoint>> endpoints;
 
     // May be empty if the exposer could not be initialised
     // e.g., port already in use
     std::unique_ptr<::prometheus::Exposer> exposer;
 
-    static const std::string lowCardinalityPath;
-    static const std::string highCardinalityPath;
-    static const std::string excludeTimestampsSuffix;
-
     // Realm name sent to unauthed clients in 401 Unauthorized responses.
     static const std::string authRealm;
+    const AuthCallback authCB;
 
     const sa_family_t family;
     const std::string uuid;

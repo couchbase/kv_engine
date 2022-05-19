@@ -254,3 +254,12 @@ cb::engine_errc server_prometheus_stats(
     }
     return cb::engine_errc::success;
 }
+
+cb::engine_errc server_prometheus_stats_low(const StatCollector& collector) {
+    return server_prometheus_stats(collector, cb::prometheus::Cardinality::Low);
+}
+
+cb::engine_errc server_prometheus_stats_high(const StatCollector& collector) {
+    return server_prometheus_stats(collector,
+                                   cb::prometheus::Cardinality::High);
+}

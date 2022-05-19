@@ -112,13 +112,9 @@ void NetworkInterfaceManager::createBootstrapInterface() {
     }
 
     if (settings.has.prometheus_config) {
-        cb::prometheus::initialize(settings.getPrometheusConfig(),
-                                   server_prometheus_stats,
-                                   authCallback);
+        prometheus_init(settings.getPrometheusConfig(), authCallback);
     } else {
-        cb::prometheus::initialize({0, ipv4.empty() ? AF_INET6 : AF_INET},
-                                   server_prometheus_stats,
-                                   authCallback);
+        prometheus_init({0, ipv4.empty() ? AF_INET6 : AF_INET}, authCallback);
     }
 
     writeInterfaceFile(true);
@@ -386,10 +382,8 @@ NetworkInterfaceManager::doDefineInterface(const nlohmann::json& spec) {
             return {cb::mcbp::Status::KeyEexists, {}};
         }
         try {
-            const auto port = cb::prometheus::initialize(
-                    {descr.getPort(), descr.getFamily()},
-                    server_prometheus_stats,
-                    authCallback);
+            const auto port = prometheus_init(
+                    {descr.getPort(), descr.getFamily()}, authCallback);
             nlohmann::json json;
             json["errors"] = nlohmann::json::array();
             json["ports"].push_back(port);

@@ -15,6 +15,7 @@
 #include <daemon/log_macros.h>
 #include <daemon/settings.h>
 #include <daemon/stats.h>
+#include <fmt/format.h>
 #include <folly/SynchronizedPtr.h>
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
@@ -26,15 +27,11 @@
 
 namespace cb::prometheus {
 
-const std::string MetricServer::lowCardinalityPath = "/_prometheusMetrics";
-const std::string MetricServer::highCardinalityPath = "/_prometheusMetricsHigh";
-const std::string MetricServer::excludeTimestampsSuffix = "NoTS";
 const std::string MetricServer::authRealm = "KV Prometheus Exporter";
 
 folly::SynchronizedPtr<std::unique_ptr<MetricServer>> instance;
 
 nlohmann::json initialize(const std::pair<in_port_t, sa_family_t>& config,
-                          GetStatsCallback getStatsCB,
                           AuthCallback authCB) {
     auto handle = instance.wlockPointer();
     // May be called at init or on config change.
@@ -43,8 +40,7 @@ nlohmann::json initialize(const std::pair<in_port_t, sa_family_t>& config,
     handle->reset();
 
     auto [port, family] = config;
-    *handle = std::make_unique<MetricServer>(
-            port, family, std::move(getStatsCB), std::move(authCB));
+    *handle = std::make_unique<MetricServer>(port, family, std::move(authCB));
     if (!(*handle)->isAlive()) {
         handle->reset();
         auto message = fmt::format(
@@ -62,6 +58,19 @@ nlohmann::json initialize(const std::pair<in_port_t, sa_family_t>& config,
              (family == AF_INET) ? "inet" : "inet6",
              listeningPort);
     return (*handle)->getRunningConfigAsJson();
+}
+
+void addEndpoint(std::string path,
+                 IncludeTimestamps timestamps,
+                 GetStatsCallback getStatsCB) {
+    auto handle = instance.wlock();
+    if (!handle) {
+        throw std::runtime_error(fmt::format(
+                "MetricServer: Can't register endpoint {} on uninitialised "
+                "MetricServer instance",
+                path));
+    }
+    handle->AddEndpoint(std::move(path), timestamps, std::move(getStatsCB));
 }
 
 void shutdown() {
@@ -86,12 +95,12 @@ nlohmann::json getRunningConfigAsJson() {
     return handle->getRunningConfigAsJson();
 }
 
-class MetricServer::KVCollectable : public ::prometheus::Collectable {
+class MetricServer::Endpoint : public ::prometheus::Collectable {
 public:
-    KVCollectable(Cardinality cardinality,
-                  IncludeTimestamps timestamps,
-                  GetStatsCallback getStatsCB)
-        : cardinality(cardinality),
+    Endpoint(std::string path,
+             IncludeTimestamps timestamps,
+             GetStatsCallback getStatsCB)
+        : path(std::move(path)),
           timestamps(timestamps),
           getStatsCB(std::move(getStatsCB)) {
     }
@@ -119,7 +128,7 @@ public:
         // collect KV stats
         std::unordered_map<std::string, ::prometheus::MetricFamily> statsMap;
         PrometheusStatCollector collector(statsMap);
-        getStatsCB(collector, cardinality);
+        getStatsCB(collector);
 
         // KVCollectable interface requires a vector of metric families,
         // but during collection it is necessary to frequently look up
@@ -143,7 +152,7 @@ public:
     }
 
 private:
-    const Cardinality cardinality;
+    const std::string path;
     const IncludeTimestamps timestamps;
 
     // function to call on every incoming request to generate stats
@@ -152,9 +161,10 @@ private:
 
 MetricServer::MetricServer(in_port_t port,
                            sa_family_t family,
-                           GetStatsCallback getStatsCB,
                            AuthCallback authCB)
-    : family(family), uuid(::to_string(cb::uuid::random())) {
+    : authCB(std::move(authCB)),
+      family(family),
+      uuid(::to_string(cb::uuid::random())) {
     try {
         /*
          * The connectionStr should meet the spec for civetweb's
@@ -173,31 +183,6 @@ MetricServer::MetricServer(in_port_t port,
         auto connectionStr = fmt::format("{}:{}", localhost, port);
 
         exposer = std::make_unique<::prometheus::Exposer>(connectionStr);
-
-        // used to store the newly created KVCollectable into the array
-        auto arrayItr = endpoints.begin();
-        for (auto [cardinality, timestamps] : {
-                     std::make_pair(Cardinality::Low, IncludeTimestamps::No),
-                     std::make_pair(Cardinality::Low, IncludeTimestamps::Yes),
-                     std::make_pair(Cardinality::High, IncludeTimestamps::No),
-                     std::make_pair(Cardinality::High, IncludeTimestamps::Yes),
-             }) {
-            auto ptr = std::make_shared<KVCollectable>(
-                    cardinality, timestamps, getStatsCB);
-
-            // construct the path this endpoint should listen on
-            auto path = cardinality == Cardinality::High ? highCardinalityPath
-                                                         : lowCardinalityPath;
-
-            if (timestamps == IncludeTimestamps::No) {
-                path += excludeTimestampsSuffix;
-            }
-
-            exposer->RegisterAuth(authCB, authRealm, path);
-            exposer->RegisterCollectable(ptr, path);
-            *arrayItr = std::move(ptr);
-            ++arrayItr;
-        }
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to start Prometheus Exposer: {}", e.what());
         // Kill a partially initialized object
@@ -214,6 +199,23 @@ MetricServer::~MetricServer() {
     } catch (const std::exception&) {
         // we don't want any exception being thrown in the destructor
     }
+}
+
+void MetricServer::AddEndpoint(std::string path,
+                               IncludeTimestamps timestamps,
+                               GetStatsCallback getStatsCB) {
+    if (!isAlive()) {
+        throw std::runtime_error(
+                fmt::format("MetricServer: Can't register endpoint {} on dead "
+                            "MetricServer instance",
+                            path));
+    }
+    auto ptr =
+            std::make_shared<Endpoint>(path, timestamps, std::move(getStatsCB));
+
+    exposer->RegisterAuth(authCB, authRealm, path);
+    exposer->RegisterCollectable(ptr, path);
+    endpoints.emplace_back(std::move(ptr));
 }
 
 bool MetricServer::isAlive() const {
