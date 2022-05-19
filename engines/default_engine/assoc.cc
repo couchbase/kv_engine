@@ -155,7 +155,7 @@ static hash_item** _hashitem_before(uint32_t hash, const hash_key* key) {
     return pos;
 }
 
-static void assoc_maintenance_thread(void *arg);
+static void assoc_maintenance_thread();
 
 /*
     grows the hashtable to the next power of 2.
@@ -172,25 +172,14 @@ static void assoc_expand() {
         return;
     }
 
-    int ret = 0;
-    cb_thread_t tid;
-
     global_assoc->hashpower++;
     global_assoc->expanding = true;
     global_assoc->expand_bucket = 0;
 
     /* start a thread to do the expansion */
-    if ((ret = cb_create_named_thread(&tid, assoc_maintenance_thread,
-                                      nullptr, 1, "mc:assoc_maint")) != 0)
-    {
-        LOG_ERROR("Can't create thread for rebalance assoc table: {}",
-                  cb_strerror());
-        global_assoc->hashpower--;
-        global_assoc->expanding = false;
-        global_assoc->primary_hashtable.swap(global_assoc->old_hashtable);
-        global_assoc->old_hashtable.resize(0);
-        global_assoc->old_hashtable.shrink_to_fit();
-    }
+    auto thread = create_thread([]() { assoc_maintenance_thread(); },
+                                "mc:assoc_maint");
+    thread.detach();
 }
 
 /* Note: this isn't an assoc_update.  The key must not already exist to call this */
@@ -239,7 +228,7 @@ void assoc_delete(uint32_t hash, const hash_key *key) {
 #define DEFAULT_HASH_BULK_MOVE 1
 int hash_bulk_move = DEFAULT_HASH_BULK_MOVE;
 
-static void assoc_maintenance_thread(void *arg) {
+static void assoc_maintenance_thread() {
     bool done = false;
     do {
         int ii;

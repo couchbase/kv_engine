@@ -29,10 +29,8 @@ ScrubberTask::ScrubberTask(EngineManager& manager)
       shuttingdown(false),
       engineManager(manager) {
     std::unique_lock<std::mutex> lck(lock);
-    if (cb_create_named_thread(&scrubberThread, &scrubber_task_main, this, 0,
-                               "mc:item scrub") != 0) {
-        throw std::runtime_error("Error creating 'mc:item scrub' thread");
-    }
+    scrubberThread = create_thread([this]() { scrubber_task_main(this); },
+                                   "mc:item scrub");
 }
 
 void ScrubberTask::shutdown() {
@@ -43,7 +41,7 @@ void ScrubberTask::shutdown() {
 }
 
 void ScrubberTask::joinThread() {
-    cb_join_thread(scrubberThread);
+    scrubberThread.join();
 }
 
 void ScrubberTask::placeOnWorkQueue(struct default_engine* engine,

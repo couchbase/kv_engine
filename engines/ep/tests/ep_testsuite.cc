@@ -1653,7 +1653,7 @@ static enum test_result test_multiple_vb_compactions(EngineIface* h) {
 
     // Compact multiple vbuckets.
     const int n_threads = 4;
-    cb_thread_t threads[n_threads];
+    std::array<std::thread, n_threads> threads;
     struct comp_thread_ctx ctx[n_threads];
 
     const int num_shards =
@@ -1662,13 +1662,12 @@ static enum test_result test_multiple_vb_compactions(EngineIface* h) {
     for (int i = 0; i < n_threads; i++) {
         ctx[i].h = h;
         ctx[i].db_file_id = Vbid(static_cast<Vbid>(i).get() % num_shards);
-        int r = cb_create_thread(&threads[i], compaction_thread, &ctx[i], 0);
-        cb_assert(r == 0);
+        threads[i] = create_thread([c = &ctx[i]]() { compaction_thread(c); },
+                                   "t:" + std::to_string(i));
     }
 
-    for (auto thread : threads) {
-        int r = cb_join_thread(thread);
-        cb_assert(r == 0);
+    for (auto& thread : threads) {
+        thread.join();
     }
 
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
@@ -1727,19 +1726,18 @@ static enum test_result test_multi_vb_compactions_with_workload(
 
     // Compact multiple vbuckets.
     const int n_threads = 4;
-    cb_thread_t threads[n_threads];
+    std::array<std::thread, n_threads> threads;
     struct comp_thread_ctx ctx[n_threads];
 
     for (int i = 0; i < n_threads; i++) {
         ctx[i].h = h;
         ctx[i].db_file_id = static_cast<Vbid>(i);
-        int r = cb_create_thread(&threads[i], compaction_thread, &ctx[i], 0);
-        cb_assert(r == 0);
+        threads[i] = create_thread([c = &ctx[i]]() { compaction_thread(c); },
+                                   "t:" + std::to_string(i));
     }
 
-    for (auto thread : threads) {
-        int r = cb_join_thread(thread);
-        cb_assert(r == 0);
+    for (auto& thread : threads) {
+        thread.join();
     }
 
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
@@ -4406,17 +4404,15 @@ static enum test_result test_disk_gt_ram_set_race(EngineIface* h) {
 
     evict_key(h, "k1");
 
-    cb_thread_t tid;
-    if (cb_create_thread(&tid, bg_set_thread, new ThreadData(h), 0) != 0) {
-        abort();
-    }
+    auto thread = create_thread([h]() { bg_set_thread(new ThreadData(h)); },
+                                "mythread");
 
     check_key_value(h, "k1", "new value", 9);
 
     // Should have bg_fetched, but discarded the old value.
     cb_assert(1 == get_int_stat(h, "ep_bg_fetched"));
 
-    cb_assert(cb_join_thread(tid) == 0);
+    thread.join();
 
     return SUCCESS;
 }
@@ -4426,10 +4422,8 @@ static enum test_result test_disk_gt_ram_rm_race(EngineIface* h) {
 
     evict_key(h, "k1");
 
-    cb_thread_t tid;
-    if (cb_create_thread(&tid, bg_del_thread, new ThreadData(h), 0) != 0) {
-        abort();
-    }
+    auto thread = create_thread([h]() { bg_del_thread(new ThreadData(h)); },
+                                "mythread");
 
     checkeq(cb::engine_errc::no_such_key,
             verify_key(h, "k1"),
@@ -4438,7 +4432,7 @@ static enum test_result test_disk_gt_ram_rm_race(EngineIface* h) {
     // Should have bg_fetched, but discarded the old value.
     cb_assert(1 == get_int_stat(h, "ep_bg_fetched"));
 
-    cb_assert(cb_join_thread(tid) == 0);
+    thread.join();
 
     return SUCCESS;
 }

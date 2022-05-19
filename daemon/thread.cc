@@ -79,14 +79,9 @@ static std::condition_variable init_cond;
  */
 static void create_worker(void (*func)(void*),
                           void* arg,
-                          cb_thread_t* id,
-                          const std::string& name) {
-    if (cb_create_named_thread(id, func, arg, 0, name.c_str()) != 0) {
-        FATAL_ERROR(EXIT_FAILURE,
-                    "Can't create thread {}: {}",
-                    name,
-                    cb_strerror());
-    }
+                          std::thread& thread,
+                          std::string name) {
+    thread = create_thread([arg, func]() { func(arg); }, std::move(name));
 }
 
 void FrontEndThread::forEach(std::function<void(FrontEndThread&)> callback,
@@ -285,7 +280,7 @@ void worker_threads_init() {
     for (auto& thread : threads) {
         create_worker(worker_libevent,
                       &thread,
-                      &thread.thread_id,
+                      thread.thread,
                       fmt::format("mc:worker_{:02d}", uint64_t(thread.index)));
     }
 
@@ -322,7 +317,7 @@ void threads_shutdown() {
             });
             std::this_thread::sleep_for(std::chrono::microseconds(250));
         }
-        cb_join_thread(thread.thread_id);
+        thread.thread.join();
     }
     threads.clear();
 }

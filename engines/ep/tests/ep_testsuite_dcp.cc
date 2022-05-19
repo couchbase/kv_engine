@@ -2723,9 +2723,8 @@ static enum test_result test_dcp_producer_keep_stream_open(EngineIface* h) {
             conn_name,
             0,
             std::make_unique<TestDcpConsumer>(conn_name, cookie, h)};
-    cb_thread_t dcp_thread;
-    cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0)
-              == 0);
+    auto dcp_thread = create_thread([&cdc]() { continuous_dcp_thread(&cdc); },
+                                    "dcp_thread");
 
     /* Wait for producer to be created */
     wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
@@ -2751,7 +2750,7 @@ static enum test_result test_dcp_producer_keep_stream_open(EngineIface* h) {
        for dcp data */
     cdc.dcpConsumer->stop();
     testHarness->notify_io_complete(cookie, cb::engine_errc::success);
-    cb_assert(cb_join_thread(dcp_thread) == 0);
+    dcp_thread.join();
     testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
@@ -2850,9 +2849,8 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
             conn_name1,
             0,
             std::make_unique<TestDcpConsumer>(conn_name1, cookie1, h)};
-    cb_thread_t dcp_thread;
-    cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0)
-              == 0);
+    auto dcp_thread = create_thread([&cdc]() { continuous_dcp_thread(&cdc); },
+                                    "dcp_thread");
 
     /* Wait for producer to be created */
     wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
@@ -2888,7 +2886,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
        for dcp data */
     cdc.dcpConsumer->stop();
     testHarness->notify_io_complete(cookie1, cb::engine_errc::success);
-    cb_assert(cb_join_thread(dcp_thread) == 0);
+    dcp_thread.join();
 
     testHarness->destroy_cookie(cookie);
     testHarness->destroy_cookie(cookie1);
@@ -2924,9 +2922,8 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
             conn_name,
             20,
             std::make_unique<TestDcpConsumer>(conn_name, cookie, h)};
-    cb_thread_t dcp_thread;
-    cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0)
-              == 0);
+    auto dcp_thread = create_thread([&cdc]() { continuous_dcp_thread(&cdc); },
+                                    "dcp_thread");
 
     /* Wait for producer to be created */
     wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
@@ -2951,7 +2948,7 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
        for dcp data */
     cdc.dcpConsumer->stop();
     testHarness->notify_io_complete(cookie, cb::engine_errc::success);
-    cb_assert(cb_join_thread(dcp_thread) == 0);
+    dcp_thread.join();
     testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
@@ -6041,11 +6038,10 @@ static enum test_result test_dcp_persistence_seqno(EngineIface* h) {
              writer thread itself notifies the waiting condition variable,
              hence it cannot be this thread (as we are in the mutex associated
              with the condition variable) */
-    cb_thread_t writerThread;
+
     struct writer_thread_ctx t1 = {h, 1, Vbid(0)};
-    checkeq(0,
-            cb_create_thread(&writerThread, writer_thread, &t1, 0),
-            "Error creating the writer thread");
+    auto writerThread =
+            create_thread([&t1]() { writer_thread(&t1); }, "writer_thread");
 
     /* now wait on the condition variable; the condition variable is signaled
        by the notification from the seqnoPersistence request that had received
@@ -6059,9 +6055,7 @@ static enum test_result test_dcp_persistence_seqno(EngineIface* h) {
     testHarness->destroy_cookie(cookie);
 
     /* wait for the writer thread to complete */
-    checkeq(0,
-            cb_join_thread(writerThread),
-            "Error in writer thread join");
+    writerThread.join();
     return SUCCESS;
 }
 
@@ -6996,22 +6990,19 @@ static enum test_result test_mb16357(EngineIface* h) {
     testHarness->time_travel(3617); // force expiry pushing time forward.
 
     struct mb16357_ctx ctx(h, num_items);
-    cb_thread_t cp_thread, dcp_thread;
 
     // First thread used to start a background compaction; note this waits
     // on the DCP thread to start before initiating compaction.
-    cb_assert(cb_create_thread(&cp_thread,
-                               compact_thread_func,
-                               &ctx, 0) == 0);
+    auto cp_thread =
+            create_thread([&ctx]() { compact_thread_func(&ctx); }, "cp_thread");
+
     // Second thread flips vbucket to replica, notifies compaction to start,
     // and then performs DCP on the vbucket.
-    cb_assert(cb_create_thread(&dcp_thread,
-                               dcp_thread_func,
-                               &ctx, 0) == 0);
+    auto dcp_thread =
+            create_thread([&ctx]() { dcp_thread_func(&ctx); }, "dcp_thread");
 
-    cb_assert(cb_join_thread(cp_thread) == 0);
-    cb_assert(cb_join_thread(dcp_thread) == 0);
-
+    cp_thread.join();
+    dcp_thread.join();
     return SUCCESS;
 }
 
@@ -7189,17 +7180,15 @@ static enum test_result test_dcp_multiple_streams(EngineIface* h) {
     tdc.addStreamCtx(ctx1);
     tdc.addStreamCtx(ctx2);
 
-    cb_thread_t thread1, thread2;
     struct writer_thread_ctx t1 = {h, extra_items, Vbid(1)};
     struct writer_thread_ctx t2 = {h, extra_items, Vbid(2)};
-    cb_assert(cb_create_thread(&thread1, writer_thread, &t1, 0) == 0);
-    cb_assert(cb_create_thread(&thread2, writer_thread, &t2, 0) == 0);
+    auto thread1 = create_thread([&t1]() { writer_thread(&t1); }, "thread1");
+    auto thread2 = create_thread([&t2]() { writer_thread(&t2); }, "thread2");
 
     tdc.run();
 
-    cb_assert(cb_join_thread(thread1) == 0);
-    cb_assert(cb_join_thread(thread2) == 0);
-
+    thread1.join();
+    thread2.join();
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
@@ -7216,8 +7205,8 @@ static enum test_result test_dcp_on_vbucket_state_change(EngineIface* h) {
             conn_name,
             0,
             std::make_unique<TestDcpConsumer>(conn_name, cookie, h)};
-    cb_thread_t dcp_thread;
-    cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0) == 0);
+    auto dcp_thread = create_thread([&cdc]() { continuous_dcp_thread(&cdc); },
+                                    "dcp_thread");
 
     // Wait for producer to be created
     wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
@@ -7236,7 +7225,7 @@ static enum test_result test_dcp_on_vbucket_state_change(EngineIface* h) {
           "Failed set vbucket state on 1");
 
     // Expect DcpTestConsumer to close
-    cb_assert(cb_join_thread(dcp_thread) == 0);
+    dcp_thread.join();
 
     // Expect producers->last_end_status to carry StateChanged as reason
     // for stream closure

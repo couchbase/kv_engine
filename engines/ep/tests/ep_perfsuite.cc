@@ -568,7 +568,7 @@ static enum test_result perf_latency_baseline_multi_thread_bucket(engine_test_t*
     }
 
     std::vector<ThreadArguments> thread_args(n_threads);
-    std::vector<cb_thread_t> threads(n_threads);
+    std::vector<std::thread> threads(n_threads);
 
     // setup the arguments each thread will use.
     // just round robin allocate buckets to threads
@@ -585,13 +585,13 @@ static enum test_result perf_latency_baseline_multi_thread_bucket(engine_test_t*
 
     // Now drive bucket(s) from thread(s)
     for (int i = 0; i < n_threads; i++) {
-        int r = cb_create_thread(&threads[i], perf_latency_thread, &thread_args[i], 0);
-        cb_assert(r == 0);
+        threads[i] = create_thread(
+                [args = &thread_args[i]]() { perf_latency_thread(args); },
+                "t:" + std::to_string(i));
     }
 
     for (int i = 0; i < n_threads; i++) {
-        int r = cb_join_thread(threads[i]);
-        cb_assert(r == 0);
+        threads[i].join();
     }
 
     // destroy the buckets and rm the db path

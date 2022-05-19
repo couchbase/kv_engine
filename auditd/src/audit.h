@@ -114,7 +114,7 @@ protected:
     std::string configfile;
 
     /// The thread id of the consumer thread
-    cb_thread_t consumer_tid = {};
+    std::thread consumer;
 
     /// The consumer should run until this flag is set to true
     bool stop_audit_consumer = {false};

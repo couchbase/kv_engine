@@ -17,6 +17,7 @@
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <thread>
 #include <utility>
 
 #define TASK_LOG_SIZE 80
@@ -136,7 +137,7 @@ public:
 protected:
     void cancelCurrentTask(CB3ExecutorPool& manager);
 
-    cb_thread_t thread;
+    std::thread thread;
     CB3ExecutorPool* manager;
     task_type_t taskType;
     const std::string name;

@@ -43,15 +43,8 @@ void CB3ExecutorThread::start() {
         thread_name.replace(pos, worker.size(), "");
     }
     thread_name.resize(15);
-    if (cb_create_named_thread(&thread,
-                               launch_executor_thread,
-                               this,
-                               0,
-                               thread_name.c_str()) != 0) {
-        std::stringstream ss;
-        ss << name.c_str() << ": Initialization error!!!";
-        throw std::runtime_error(ss.str().c_str());
-    }
+    thread = create_thread([this]() { launch_executor_thread(this); },
+                           std::move(thread_name));
 
     LOG_DEBUG("{}: Started", name);
 }
@@ -67,7 +60,7 @@ void CB3ExecutorThread::stop(bool wait) {
         LOG_INFO("{}: Stopping", name);
         return;
     }
-    cb_join_thread(thread);
+    thread.join();
     LOG_INFO("{}: Stopped", name);
 }
 

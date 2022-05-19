@@ -19,6 +19,7 @@
 
 #include <memcached/engine.h>
 #include <platform/platform_thread.h>
+#include <thread>
 
 #include "memcached.h"
 
@@ -90,7 +91,7 @@ static char* get_command(char* buffer, size_t buffsize) {
  *
  * If the input stream is closed a clean shutdown is initiated
  */
-static void check_stdin_thread(void* arg) {
+static void check_stdin_thread() {
     char command[80];
 
     bool call_exit_handler = true;
@@ -121,12 +122,6 @@ static void check_stdin_thread(void* arg) {
 
 void start_stdin_listener(std::function<void()> function) {
     exit_function = function;
-    cb_thread_t t;
-
-    if (cb_create_named_thread(
-                &t, check_stdin_thread, nullptr, 1, "mc:check_stdin") != 0) {
-        throw std::system_error(errno,
-                                std::system_category(),
-                                "couldn't create stdin checking thread.");
-    }
+    auto thr = create_thread([]() { check_stdin_thread(); }, "mc:check_stdin");
+    thr.detach();
 }

@@ -18,6 +18,7 @@
 #include <memcached/isotime.h>
 #include <memcached/server_cookie_iface.h>
 #include <nlohmann/json.hpp>
+#include <phosphor/phosphor.h>
 #include <platform/dirutils.h>
 #include <statistics/collector.h>
 #include <statistics/definitions.h>
@@ -44,16 +45,7 @@ AuditImpl::AuditImpl(std::string config_file,
     }
 
     std::unique_lock<std::mutex> lock(producer_consumer_lock);
-    if (cb_create_named_thread(
-                &consumer_tid,
-                [](void* audit) {
-                    static_cast<AuditImpl*>(audit)->consume_events();
-                },
-                this,
-                0,
-                "mc:auditd") != 0) {
-        throw std::runtime_error("Failed to create audit thread");
-    }
+    consumer = create_thread([this]() { consume_events(); }, "mc:auditd");
     events_arrived.wait(lock);
 }
 
@@ -73,7 +65,7 @@ AuditImpl::~AuditImpl() {
     }
 
     // Wait for the consumer thread to stop
-    cb_join_thread(consumer_tid);
+    consumer.join();
 }
 
 void AuditImpl::create_audit_event(uint32_t event_id, nlohmann::json& payload) {

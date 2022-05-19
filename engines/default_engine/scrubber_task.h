@@ -21,6 +21,7 @@
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <thread>
 
 class EngineManager;
 
@@ -108,5 +109,5 @@ private:
     /**
      * The identifier to the thread handle
      */
-    cb_thread_t scrubberThread;
+    std::thread scrubberThread;
 };

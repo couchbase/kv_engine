@@ -41,7 +41,7 @@ struct FrontEndThread {
     ~FrontEndThread();
 
     /// unique ID of this thread
-    cb_thread_t thread_id = {};
+    std::thread thread;
 
     /// The event base used by this thread
     folly::EventBase eventBase;

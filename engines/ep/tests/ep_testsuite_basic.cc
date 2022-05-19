@@ -341,18 +341,17 @@ extern "C" {
 
 static enum test_result test_conc_set(EngineIface* h) {
     const int n_threads = 8;
-    cb_thread_t threads[n_threads];
+    std::array<std::thread, n_threads> threads;
 
     wait_for_persisted_value(h, "key", "value1");
-
+    int ii = 0;
     for (auto& thread : threads) {
-        int r = cb_create_thread(&thread, conc_del_set_thread, h, 0);
-        cb_assert(r == 0);
+        thread = create_thread([h]() { conc_del_set_thread(h); },
+                               "t:" + std::to_string(ii++));
     }
 
-    for (auto thread : threads) {
-        int r = cb_join_thread(thread);
-        cb_assert(r == 0);
+    for (auto& thread : threads) {
+        thread.join();
     }
 
     if (isWarmupEnabled(h)) {
@@ -397,20 +396,20 @@ extern "C" {
 }
 
 static enum test_result test_multi_set(EngineIface* h) {
-    cb_thread_t thread1, thread2;
     struct multi_set_args msa1, msa2;
     msa1.h = h;
     msa1.prefix = "ONE_";
     msa1.count = 10000;
-    cb_assert(cb_create_thread(&thread1, multi_set_thread, &msa1, 0) == 0);
+    auto thread1 =
+            create_thread([&msa1]() { multi_set_thread(&msa1); }, "thread1");
 
     msa2.h = h;
     msa2.prefix = "TWO_";
     msa2.count = 10000;
-    cb_assert(cb_create_thread(&thread2, multi_set_thread, &msa2, 0) == 0);
-
-    cb_assert(cb_join_thread(thread1) == 0);
-    cb_assert(cb_join_thread(thread2) == 0);
+    auto thread2 =
+            create_thread([&msa2]() { multi_set_thread(&msa2); }, "thread2");
+    thread1.join();
+    thread2.join();
 
     wait_for_flusher_to_settle(h);
 

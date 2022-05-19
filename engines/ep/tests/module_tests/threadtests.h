@@ -76,9 +76,8 @@ public:
         gen(other.gen) {}
 
     void start() {
-        if (cb_create_thread(&thread, (CB_THREAD_MAIN)( launch_sync_test_thread<T> ), this, 0) != 0) {
-            throw std::runtime_error("Error initializing thread");
-        }
+        thread = create_thread([this]() { launch_sync_test_thread<T>(this); },
+                               "thread");
     }
 
     void run() {
@@ -88,9 +87,7 @@ public:
     }
 
     void join() {
-        if (cb_join_thread(thread) != 0) {
-            throw std::runtime_error("Failed to join.");
-        }
+        thread.join();
     }
 
     const T getResult() const { return result; };
@@ -101,7 +98,7 @@ private:
     Generator<T>   *gen;
 
     T         result;
-    cb_thread_t thread;
+    std::thread thread;
 };
 
 template <typename T>
