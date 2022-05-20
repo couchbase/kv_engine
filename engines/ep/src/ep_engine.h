@@ -99,6 +99,7 @@ public:
     void disconnect(const CookieIface& cookie) override;
 
     void notify_num_writer_threads_changed() override;
+    void notify_num_auxio_threads_changed() override;
     void set_num_storage_threads(
             ThreadPoolConfig::StorageThreadCount num) override;
 
@@ -1336,6 +1337,12 @@ private:
     parseStatKeyArg(const CookieIface* cookie,
                     std::string_view statKeyPrefix,
                     std::string_view statKey);
+
+    /**
+     * Set the concurrency of range-scans (no-op if bucket is ephemeral)
+     * @param The configuration value where 0 means auto configure
+     */
+    void configureRangeScanConcurrency(size_t rangeScanMaxContinueTasksValue);
 
 public:
     // Testing hook for MB-45756, to allow a throw to be made during

@@ -745,6 +745,11 @@ static void startExecutorPool() {
             "num_auxio_threads", [](const std::string&, Settings& s) -> void {
                 auto val = s.getNumAuxIoThreads();
                 ExecutorPool::get()->setNumAuxIO(val);
+                BucketManager::instance().forEach([](Bucket& b) -> bool {
+                    // Notify all buckets of the recent change
+                    b.getEngine().notify_num_auxio_threads_changed();
+                    return true;
+                });
             });
     settings.addChangeListener("num_nonio_threads",
                                [](const std::string&, Settings& s) -> void {

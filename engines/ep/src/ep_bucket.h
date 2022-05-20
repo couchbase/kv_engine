@@ -333,14 +333,15 @@ public:
     }
 
     /**
-     * Take the next available scan out of the 'ready' scans container
+     * Take the next available scan out of the 'ready' scans container.
+     * The calling task must provide their unique ID and if there are no scans
+     * available the task is removed from the internal set of known tasks. The
+     * calling task must now exit and not reschedule.
+     *
+     * @param taskId unique-id of the tasking taking the next scan
+     * @return The next scan or a nullptr if no scans available
      */
-    std::shared_ptr<RangeScan> takeNextRangeScan();
-
-    /**
-     * Add scan to the 'ready' scans container
-     */
-    void addRangeScan(std::shared_ptr<RangeScan> scan);
+    std::shared_ptr<RangeScan> takeNextRangeScan(size_t taskId);
 
 protected:
     // During the warmup phase we might want to enable external traffic

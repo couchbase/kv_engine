@@ -830,6 +830,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setVbucketMappingSanityCheckingErrorMode(val);
         } else if (key == "seqno_persistence_timeout") {
             configuration.setSeqnoPersistenceTimeout(std::stoul(val));
+        } else if (key == "range_scan_max_continue_tasks") {
+            configuration.setRangeScanMaxContinueTasks(std::stoul(val));
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::invalid_arguments;
@@ -1877,6 +1879,8 @@ public:
             engine.setMaxItemSize(value);
         } else if (key.compare("max_item_privileged_bytes") == 0) {
             engine.setMaxItemPrivilegedBytes(value);
+        } else if (key == "range_scan_max_continue_tasks") {
+            engine.configureRangeScanConcurrency(value);
         }
     }
 
@@ -2074,6 +2078,10 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
             configuration.isAllowSanitizeValueInDeletion());
     configuration.addValueChangedListener(
             "allow_sanitize_value_in_deletion",
+            std::make_unique<EpEngineValueChangeListener>(*this));
+
+    configuration.addValueChangedListener(
+            "range_scan_max_continue_tasks",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     // The number of shards for a magma bucket cannot be changed after the first
@@ -6909,6 +6917,22 @@ void EventuallyPersistentEngine::notify_num_writer_threads_changed() {
         // flusher batch split trigger to adjust our limits accordingly.
         epBucket->setFlusherBatchSplitTrigger(
                 configuration.getFlusherTotalBatchLimit());
+    }
+}
+
+void EventuallyPersistentEngine::notify_num_auxio_threads_changed() {
+    configureRangeScanConcurrency(configuration.getRangeScanMaxContinueTasks());
+}
+
+void EventuallyPersistentEngine::configureRangeScanConcurrency(
+        size_t rangeScanMaxContinueTasksValue) {
+    if (auto* epBucket = dynamic_cast<EPBucket*>(getKVBucket()); epBucket) {
+        // Notify RangeScans that AUXIO has changed. Note some unit-tests don't
+        // have a rangeScans object. In all cases we care about auxio changes
+        // like a full server build - we do...
+        Expects(epBucket->getReadyRangeScans());
+        epBucket->getReadyRangeScans()->setConcurrentTaskLimit(
+                rangeScanMaxContinueTasksValue);
     }
 }
 

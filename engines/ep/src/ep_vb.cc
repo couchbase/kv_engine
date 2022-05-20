@@ -1379,25 +1379,20 @@ cb::engine_errc EPVBucket::continueRangeScan(
         const CookieIface& cookie,
         size_t itemLimit,
         std::chrono::milliseconds timeLimit) {
-    auto status = rangeScans.continueScan(id, cookie, itemLimit, timeLimit);
+    auto status = rangeScans.continueScan(
+            dynamic_cast<EPBucket&>(*bucket), id, cookie, itemLimit, timeLimit);
 
     if (status != cb::engine_errc::success) {
         return status;
     }
-
-    // @todo: limit/reuse range scan continue tasks, they are likely to have a
-    // slow run loop and scheduling new tasks per 'continue/cancel' will just
-    // create a long line of waiting reader tasks. Secondly task should limit
-    // concurrency to avoid using up all threads
-    ExecutorPool::get()->schedule(std::make_shared<RangeScanContinueTask>(
-            dynamic_cast<EPBucket&>(*bucket)));
     return cb::engine_errc::would_block;
 }
 
 cb::engine_errc EPVBucket::cancelRangeScan(cb::rangescan::Id id,
                                            const CookieIface* cookie,
                                            bool schedule) {
-    auto status = rangeScans.cancelScan(id, schedule);
+    auto status = rangeScans.cancelScan(
+            dynamic_cast<EPBucket&>(*bucket), id, schedule);
 
     if (status != cb::engine_errc::success || !schedule) {
         return status;
@@ -1407,8 +1402,6 @@ cb::engine_errc EPVBucket::cancelRangeScan(cb::rangescan::Id id,
         EP_LOG_INFO("{} RangeScan {} cancelled by request", getId(), id);
     }
 
-    ExecutorPool::get()->schedule(std::make_shared<RangeScanContinueTask>(
-            dynamic_cast<EPBucket&>(*bucket)));
     // The client doesn't wait for the task to run/complete
     return cb::engine_errc::success;
 }

@@ -24,20 +24,16 @@ RangeScanContinueTask::RangeScanContinueTask(EPBucket& bucket)
 }
 
 bool RangeScanContinueTask::run() {
-    auto scan = bucket.takeNextRangeScan();
-
-    // With more than one continue task scheduled, it's possible to run and find
-    // the scans have all been taken/handled by other tasks
-    if (scan) {
+    if (auto scan = bucket.takeNextRangeScan(getId())) {
         TRACE_EVENT1("ep-engine/task",
                      "RangeScanContinueTask",
                      "vbid",
                      scan->getVBucketId().get());
-        // Attempt to continue the scan
         continueScan(*scan);
+        // Task must reschedule
+        return true;
     }
-
-    // @todo: consider a reschedule if more work exists, similar to compaction
+    // Task can now expire
     return false;
 }
 

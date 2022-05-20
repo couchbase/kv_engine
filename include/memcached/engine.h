@@ -199,6 +199,10 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
         // ignored
     }
 
+    virtual void notify_num_auxio_threads_changed() {
+        // ignored
+    }
+
     // Set the number of storage threads
     virtual void set_num_storage_threads(
             ThreadPoolConfig::StorageThreadCount num) {

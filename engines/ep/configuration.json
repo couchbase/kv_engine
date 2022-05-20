@@ -1365,6 +1365,12 @@
             "dynamic": false,
             "type": "float"
         },
+        "range_scan_max_continue_tasks": {
+            "default": "0",
+            "dynamic": true,
+            "descr": "The maximum number of range scan tasks that can exist concurrently. Setting to 0 results in num_auxio_threads - 1 tasks",
+            "type": "size_t"
+        },
         "retain_erroneous_tombstones": {
             "default": "true",
             "descr": "whether erroneous tombstones need to be retain during compaction. Erroneous tombstones are those that have invalid meta data in it. For example, a delete time of 0.",
