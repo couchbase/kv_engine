@@ -276,6 +276,11 @@ nlohmann::json prometheus_init(const std::pair<in_port_t, sa_family_t>& config,
     cb::prometheus::addEndpoint("/_prometheusMetricsHighNoTS",
                                 IncludeTimestamps::No,
                                 server_prometheus_stats_high);
+    if (isServerlessDeployment()) {
+        cb::prometheus::addEndpoint("/_metering",
+                                    IncludeTimestamps::No,
+                                    server_prometheus_metering);
+    }
 
     return port;
 }

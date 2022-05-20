@@ -25,6 +25,7 @@
 #include <platform/scope_timer.h>
 #include <platform/timeutils.h>
 #include <serverless/config.h>
+#include <statistics/labelled_collector.h>
 #include <utilities/engine_errc_2_mcbp.h>
 
 Bucket::Bucket() = default;
@@ -95,6 +96,35 @@ nlohmann::json Bucket::to_json() const {
     }
 
     return json;
+}
+
+void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
+    using namespace cb::stats;
+    // metering
+    collector.addStat(Key::meter_rcu_total, read_compute_units_used);
+    collector.addStat(Key::meter_wcu_total, write_compute_units_used);
+    // kv does not currently account for actual compute (i.e., CPU) units
+    // but other components do. Expose it for consistency and ease of use
+    collector.addStat(Key::meter_ccu_total, 0);
+
+    collector.addStat(Key::op_count_total, num_commands);
+
+    // the spec declares that some components may need to perform some
+    // actions "on behalf of" other components - e.g., credit back
+    // CUs, or throttle.
+    // For now, simply report such metrics as "for kv", until we have
+    // more information recorded internally to support this.
+    auto forKV = collector.withLabel("for", "kv");
+
+    // credits
+    forKV.addStat(Key::credit_rcu_total, 0);
+    forKV.addStat(Key::credit_wcu_total, 0);
+    forKV.addStat(Key::credit_ccu_total, 0);
+
+    // throttling
+    forKV.addStat(Key::limit_count_total, num_rejected);
+    forKV.addStat(Key::throttle_count_total, num_throttled);
+    forKV.addStat(Key::throttle_secs_total, throttle_wait_time);
 }
 
 void Bucket::setThrottleLimit(uint32_t id, std::size_t limit) {

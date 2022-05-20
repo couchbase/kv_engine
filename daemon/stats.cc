@@ -263,3 +263,39 @@ cb::engine_errc server_prometheus_stats_high(const StatCollector& collector) {
     return server_prometheus_stats(collector,
                                    cb::prometheus::Cardinality::High);
 }
+
+cb::engine_errc server_prometheus_metering(const StatCollector& collector) {
+    try {
+        using namespace cb::stats;
+        using namespace std::chrono;
+        // add the memcached start time (epoch) as the most recent time
+        // the metering metrics were zeroed by service restart.
+        // Note: The counters can still be reset by bucket recreation,
+        // without this timestamp advancing.
+        // For now, this is service-restart for consistency with the
+        // metering spec and other impls.
+        collector.addStat(Key::boot_timestamp,
+                          duration_cast<milliseconds>(
+                                  system_clock::from_time_t(
+                                          mc_time_convert_to_abs_time(0))
+                                          .time_since_epoch())
+                                  .count());
+        // add per bucket metering metrics
+        BucketManager::instance().forEach([&collector](Bucket& bucket) {
+            if (std::string_view(bucket.name).empty()) {
+                // skip the initial bucket with aggregated stats
+                return true;
+            }
+            auto bucketC = collector.forBucket(bucket.name);
+
+            bucket.addMeteringMetrics(bucketC);
+
+            // continue checking buckets
+            return true;
+        });
+
+    } catch (const std::bad_alloc&) {
+        return cb::engine_errc::no_memory;
+    }
+    return cb::engine_errc::success;
+}

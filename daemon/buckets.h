@@ -27,6 +27,7 @@
 #include <unordered_map>
 
 struct thread_stats;
+class BucketStatCollector;
 struct DcpIface;
 class Connection;
 struct FrontEndThread;
@@ -168,6 +169,13 @@ public:
 
     /// Get a JSON representation of the bucket
     nlohmann::json to_json() const;
+
+    /**
+     * Add all per-bucket metering related metrics to a stat collector.
+     *
+     * Used to generate `_metering` metrics endpoint.
+     */
+    void addMeteringMetrics(const BucketStatCollector& collector) const;
 
     /**
      * Reset the bucket back to NoBucket state

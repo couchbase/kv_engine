@@ -240,6 +240,14 @@ cb::engine_errc server_prometheus_stats_low(const StatCollector& collector);
  */
 cb::engine_errc server_prometheus_stats_high(const StatCollector& collector);
 
+/**
+ * Add metering/throttling specific metrics to the provided collector.
+ *
+ * These metrics are relevant to "serverless" deployments, and will not be
+ * exposed at all otherwise.
+ */
+cb::engine_errc server_prometheus_metering(const StatCollector& collector);
+
 /*
  *  Macros for managing statistics inside memcached
  */

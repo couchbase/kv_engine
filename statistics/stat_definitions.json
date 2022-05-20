@@ -2529,5 +2529,61 @@
                 "op": "get"
             }
         }
+    },
+    // Metering
+    {
+        "key": "boot_timestamp",
+        "unit": "none",
+        "description": "The time KV last restarted (and counters reset)"
+    },
+    {
+        "key": "meter_rcu_total",
+        "unit": "none",
+        "description": "Total Read Capacity Units used by a bucket since reset"
+    },
+    {
+        "key": "meter_wcu_total",
+        "unit": "none",
+        "description": "Total Write Capacity Units used by a bucket since reset"
+    },
+    {
+        "key": "meter_ccu_total",
+        "unit": "none",
+        "description": "Total Compute Capacity Units used by a bucket since reset"
+    },
+    {
+        "key": "op_count_total",
+        "unit": "none",
+        "description": "Total operations successfully executed for a bucket since reset"
+    },
+    {
+        "key": "credit_rcu_total",
+        "unit": "none",
+        "description": "Total Read Capacity Units refunded for a bucket (RCU was charged, but operation failed) since reset"
+    },
+    {
+        "key": "credit_wcu_total",
+        "unit": "none",
+        "description": "Total Write Capacity Units refunded for a bucket (WCU was charged, but operation failed) since reset"
+    },
+    {
+        "key": "credit_ccu_total",
+        "unit": "none",
+        "description": "Total Compute Capacity Units refunded for a bucket (CCU was charged, but operation failed) since reset"
+    },
+    {
+        "key": "limit_count_total",
+        "unit": "none",
+        "description": "Total number of operations rejected for a bucket since reset (e.g., invalid operations)"
+    },
+    {
+        "key": "throttle_secs_total",
+        "unit": "none",
+        "description": "Total time spent throttling requests for a bucket since reset"
+    },
+    {
+        "key": "throttle_count_total",
+        "unit": "none",
+        "description": "Total number of times requests have been throttled for a bucket since reset"
     }
 ]
