@@ -40,6 +40,12 @@ void Bucket::reset() {
     supportedFeatures = {};
     read_compute_units_used = 0;
     write_compute_units_used = 0;
+    throttle_gauge.reset();
+    throttle_limit = 0;
+    num_throttled = 0;
+    throttle_wait_time = 0;
+    num_commands = 0;
+
     for (auto& c : responseCounters) {
         c.reset();
     }

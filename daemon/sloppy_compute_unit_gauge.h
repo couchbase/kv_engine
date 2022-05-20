@@ -49,6 +49,9 @@ public:
     /// Iterate through the entries in the log (oldest to newest)
     void iterate(std::function<void(std::size_t)>) const;
 
+    /// Reset all members to 0
+    void reset();
+
 protected:
     /// The index of the current slot to use
     std::atomic<unsigned int> current{0};

@@ -18,6 +18,7 @@
 #include "get_authorization_task.h"
 #include "mcaudit.h"
 #include "mcbp_executors.h"
+#include "mcbp_validators.h"
 #include "memcached.h"
 #include "opentelemetry.h"
 #include "settings.h"

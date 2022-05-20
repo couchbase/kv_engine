@@ -49,3 +49,10 @@ void SloppyComputeUnitGauge::iterate(
         ++entry;
     }
 }
+
+void SloppyComputeUnitGauge::reset() {
+    for (auto& slot : slots) {
+        slot = 0;
+    }
+    current = 0;
+}

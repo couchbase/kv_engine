@@ -10,7 +10,6 @@
 #pragma once
 
 #include "cluster_config.h"
-#include "mcbp_validators.h"
 #include "sloppy_compute_unit_gauge.h"
 #include "stat_timings.h"
 #include "timings.h"
@@ -31,6 +30,7 @@ struct thread_stats;
 struct DcpIface;
 class Connection;
 struct FrontEndThread;
+class Cookie;
 
 #define MAX_BUCKET_NAME_LENGTH 100
 

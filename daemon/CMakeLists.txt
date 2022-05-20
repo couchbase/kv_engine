@@ -262,6 +262,7 @@ INSTALL(TARGETS memcached
 #
 cb_add_test_executable(memcached_unit_tests
                        bucket_validator_test.cc
+                       buckets_test.cc
                        client_cert_config_test.cc
                        connection_unit_tests.cc
                        datatype_filter_test.cc
