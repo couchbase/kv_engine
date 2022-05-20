@@ -92,11 +92,12 @@ nlohmann::json Bucket::to_json() const {
     return json;
 }
 
-void Bucket::setThrottleLimit(std::size_t limit) {
+void Bucket::setThrottleLimit(uint32_t id, std::size_t limit) {
     if (limit == throttle_limit) {
         return;
     }
-    LOG_INFO("Update throttle limits for bucket [{}] from {} to {}",
+    LOG_INFO("{} Update throttle limits for bucket [{}] from {} to {}",
+             id,
              name,
              throttle_limit.load(),
              limit);

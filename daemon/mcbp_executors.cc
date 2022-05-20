@@ -478,9 +478,10 @@ static void set_bucket_compute_unit_throttle_limits_executor(Cookie& cookie) {
                     extras.data());
     bool found = false;
     BucketManager::instance().forEach(
-            [&name, &found, payload](auto& bucket) -> bool {
+            [id = cookie.getConnectionId(), &name, &found, payload](
+                    auto& bucket) -> bool {
                 if (strcmp(bucket.name, name.c_str()) == 0) {
-                    bucket.setThrottleLimit(payload->getLimit());
+                    bucket.setThrottleLimit(id, payload->getLimit());
                     found = true;
                     return false;
                 }

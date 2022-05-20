@@ -193,9 +193,11 @@ public:
     /**
      * Set the throttle limit for the bucket
      *
+     * @param client the identifier for the client changing the limit (for
+     *               logging purposes)
      * @param limit Number of compute units to use before throttle commands
      */
-    void setThrottleLimit(std::size_t limit);
+    void setThrottleLimit(uint32_t client, std::size_t limit);
 
 protected:
     unique_engine_ptr engine;
