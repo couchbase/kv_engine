@@ -15,23 +15,13 @@
 #include <daemon/connection.h>
 #include <daemon/one_shot_task.h>
 #include <daemon/settings.h>
-#include <daemon/tenant_manager.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
 
 cb::engine_errc SaslRefreshCommandContext::doSaslRefresh() {
     try {
         using namespace cb::sasl;
-        std::function<void(const cb::sasl::pwdb::User&)> usercallback;
-        if (Settings::instance().isEnforceTenantLimitsEnabled()) {
-            usercallback = [](const cb::sasl::pwdb::User& user) {
-                cb::rbac::UserIdent ident(user.getUsername().getRawValue(),
-                                          Domain::Local);
-                TenantManager::setLimits(ident, user.getLimits());
-            };
-        }
-
-        switch (server::reload_password_database(usercallback)) {
+        switch (server::reload_password_database({})) {
         case Error::OK:
             return cb::engine_errc::success;
         case Error::NO_MEM:

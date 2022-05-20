@@ -15,9 +15,7 @@
 #include "daemon/protocol/mcbp/engine_wrapper.h"
 #include "memcached.h"
 #include "nobucket_taskable.h"
-#include "tenant_manager.h"
 #include <logger/logger.h>
-#include <memcached/tenant.h>
 
 StatsTask::StatsTask(TaskId id, Cookie& cookie)
     : GlobalTask(NoBucketTaskable::instance(), id), cookie(cookie) {
@@ -90,47 +88,4 @@ std::string StatsTaskConnectionStats::getDescription() const {
 std::chrono::microseconds StatsTaskConnectionStats::maxExpectedDuration()
         const {
     return std::chrono::seconds(1);
-}
-
-StatsTenantsStats::StatsTenantsStats(Cookie& cookie, std::string user)
-    : StatsTask(TaskId::Core_StatsTenantTask, cookie), user(std::move(user)) {
-}
-
-std::string StatsTenantsStats::getDescription() const {
-    if (user.empty()) {
-        return "stats tenant";
-    } else {
-        return "stats tenant " + user;
-    }
-}
-
-std::chrono::microseconds StatsTenantsStats::maxExpectedDuration() const {
-    return std::chrono::seconds(1);
-}
-
-bool StatsTenantsStats::run() {
-    // lookup the user
-    if (user.empty()) {
-        auto json = TenantManager::to_json();
-        if (!json.empty()) {
-            stats.emplace_back(
-                    std::make_pair<std::string, std::string>({}, json.dump()));
-        }
-    } else {
-        try {
-            auto tenant = TenantManager::get(
-                    cb::rbac::UserIdent{nlohmann::json::parse(user)}, false);
-            if (tenant) {
-                stats.emplace_back(std::make_pair<std::string, std::string>(
-                        std::string{user}, tenant->to_json().dump()));
-            } else {
-                command_error = cb::engine_errc::no_such_key;
-            }
-        } catch (...) {
-            command_error = cb::engine_errc::failed;
-        }
-    }
-
-    notifyIoComplete(cookie, cb::engine_errc::success);
-    return false;
 }

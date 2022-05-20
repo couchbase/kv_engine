@@ -29,7 +29,6 @@ enum class StatGroupId {
     SubdocExecute,
     Responses,
     Tracing,
-    Tenants,
     Allocator,
     Scopes,
     ScopesById,

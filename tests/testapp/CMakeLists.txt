@@ -68,7 +68,6 @@ set(memcached_testapp_SOURCES
     testapp_subdoc_concurrency.cc
     testapp_subdoc_multipath.cc
     testapp_subdoc_perf.cc
-    testapp_tenant.cc
     testapp_tls.cc
     testapp_touch.cc
     testapp_tracing.cc

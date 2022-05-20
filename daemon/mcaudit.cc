@@ -305,19 +305,6 @@ bool mc_audit_event(Cookie& cookie,
 
 namespace cb::audit {
 
-void addTenantRateLimited(const Connection& c, Tenant::RateLimit limit) {
-    if (!isEnabled(MEMCACHED_AUDIT_TENANT_RATE_LIMITED) ||
-        !c.isAuthenticated()) {
-        return;
-    }
-    auto root = create_memcached_audit_object(c, c.getUser(), {});
-    root["reason"] = to_string(limit);
-    do_audit(nullptr,
-             MEMCACHED_AUDIT_TENANT_RATE_LIMITED,
-             root,
-             "Failed to audit tenant rate limited");
-}
-
 void addSessionTerminated(const Connection& c) {
     if (!isEnabled(MEMCACHED_AUDIT_SESSION_TERMINATED) ||
         !c.isAuthenticated()) {

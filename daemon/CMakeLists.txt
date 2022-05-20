@@ -176,9 +176,6 @@ add_library(memcached_daemon STATIC
             subdocument_traits.h
             subdocument_validators.cc
             subdocument_validators.h
-            tenant.cc
-            tenant_manager.cc
-            tenant_manager.h
             thread.cc
             timing_histogram.cc
             timing_histogram.h

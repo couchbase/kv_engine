@@ -921,14 +921,6 @@ void Cookie::setUnknownCollectionErrorContext(uint64_t manifestUid) {
     event_id.clear();
 }
 
-Tenant* Cookie::getTenant() {
-    return connection.getTenant().get();
-}
-
-const Tenant* Cookie::getTenant() const {
-    return connection.getTenant().get();
-}
-
 bool Cookie::isMutationExtrasSupported() const {
     return connection.isSupportsMutationExtras();
 }

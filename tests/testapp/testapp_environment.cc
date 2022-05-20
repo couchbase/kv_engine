@@ -434,25 +434,13 @@ public:
         // Write the initial password database:
         using cb::sasl::pwdb::User;
         using cb::sasl::pwdb::UserFactory;
-        using cb::sasl::pwdb::user::Limits;
 
         // Reduce the iteration count to speed up the unit tests
         UserFactory::setDefaultHmacIterationCount(10);
 
         for (const auto& [u, p] : users) {
-            if (u != "jones") {
-                passwordDatabase.upsert(UserFactory::create(u, p));
-            }
+            passwordDatabase.upsert(UserFactory::create(u, p));
         }
-
-        auto jones = UserFactory::create("jones", "jonespassword");
-        Limits limits;
-        limits.egress_mib_per_min = 1;
-        limits.ingress_mib_per_min = 1;
-        limits.num_ops_per_min = 100;
-        limits.num_connections = 10;
-        jones.setLimits(limits);
-        passwordDatabase.upsert(std::move(jones));
 
         std::ofstream cbsasldb(isasl_file_name.generic_string());
         cbsasldb << passwordDatabase.to_json() << std::endl;

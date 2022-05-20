@@ -23,7 +23,6 @@
 #include "sendbuffer.h"
 #include "settings.h"
 #include "ssl_utils.h"
-#include "tenant_manager.h"
 #include "tracing.h"
 
 #include <event2/bufferevent.h>
@@ -35,7 +34,6 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/durability_spec.h>
-#include <memcached/tenant.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/backtrace.h>
@@ -259,10 +257,6 @@ void Connection::restartAuthentication() {
         if (user.domain == cb::sasl::Domain::External) {
             externalAuthManager->logoff(user.name);
         }
-        if (tenant) {
-            tenant->logoff();
-            tenant.reset();
-        }
     }
     internal = false;
     authenticated = false;
@@ -455,9 +449,6 @@ void Connection::addCpuTime(std::chrono::nanoseconds ns) {
     total_cpu_time += ns;
     min_sched_time = std::min(min_sched_time, ns);
     max_sched_time = std::max(min_sched_time, ns);
-    if (tenant) {
-        tenant->addCpuTime(ns);
-    }
 }
 
 void Connection::shutdownIfSendQueueStuck(
@@ -607,97 +598,52 @@ void Connection::executeCommandPipeline() {
             auto drainSize = cookie.getPacket().size();
 
             updateRecvBytes(drainSize);
-            auto limit = tenant ? tenant->checkRateLimits()
-                                : Tenant::RateLimit::None;
 
             const auto status = cookie.validate();
             if (status == cb::mcbp::Status::Success) {
-                if (cookie.getHeader().isResponse()) {
-                    // We can't really rate limit response packets (we only
-                    // accept a handful of them anyway (DCP related))
-                    limit = Tenant::RateLimit::None;
+                // Internal users and DCP is not subject for Throttling
+                // (at least not for now)
+                bool throttle = false;
+                if (!internal && !isDCP()) {
+                    throttle = getBucket().shouldThrottle(cookie, true);
                 }
-                // @todo should we honor reorder?
-                if (limit == Tenant::RateLimit::None) {
-                    // Internal users and DCP is not subject for Throttling
-                    // (at least not for now)
-                    bool throttle = false;
-                    if (!internal && !isDCP()) {
-                        throttle = getBucket().shouldThrottle(cookie, true);
-                    }
 
-                    // We may only start execute the packet if:
-                    //  * We shouldn't be throttled
-                    //  * We don't have any ongoing commands
-                    //  * We have an ongoing command and this command allows
-                    //    for reorder
-                    if (throttle) {
-                        cookie.setThrottled(true);
-                        // Set the cookie to true to block the destruction
-                        // of the command (and the connection)
-                        cookie.setEwouldblock(true);
-                        cookie.preserveRequest();
-                        if (!cookie.mayReorder()) {
-                            // Don't add commands as we need the last one to
-                            // complete
-                            stop = true;
-                        }
-                    } else if ((!active || cookie.mayReorder()) &&
-                               cookie.execute(true)) {
-                        // Command executed successfully, reset the cookie to
-                        // allow it to be reused
-                        cookie.reset();
-                        // Check that we're not reserving too much memory for
-                        // this client...
-                        stop = !isDCP() &&
-                               (getSendQueueSize() >= maxSendQueueSize);
-                    } else {
-                        active = true;
-                        // We need to block so we need to preserve the request
-                        // as we'll drain the data from the buffer)
-                        cookie.preserveRequest();
-                        if (!cookie.mayReorder()) {
-                            // Don't add commands as we need the last one to
-                            // complete
-                            stop = true;
-                        }
+                // We may only start execute the packet if:
+                //  * We shouldn't be throttled
+                //  * We don't have any ongoing commands
+                //  * We have an ongoing command and this command allows
+                //    for reorder
+                if (throttle) {
+                    cookie.setThrottled(true);
+                    // Set the cookie to true to block the destruction
+                    // of the command (and the connection)
+                    cookie.setEwouldblock(true);
+                    cookie.preserveRequest();
+                    if (!cookie.mayReorder()) {
+                        // Don't add commands as we need the last one to
+                        // complete
+                        stop = true;
                     }
-                    --numEvents;
-                } else {
-                    switch (limit) {
-                    case Tenant::RateLimit::None:
-                        throw std::logic_error(
-                                "executeCommandPipeline(): Should not get here "
-                                "as we've checked it above");
-                    case Tenant::RateLimit::Ingress:
-                        cb::audit::addTenantRateLimited(
-                                *this, Tenant::RateLimit::Ingress);
-                        cookie.sendResponse(
-                                cb::mcbp::Status::RateLimitedNetworkIngress);
-                        break;
-                    case Tenant::RateLimit::Egress:
-                        cb::audit::addTenantRateLimited(
-                                *this, Tenant::RateLimit::Egress);
-                        cookie.sendResponse(
-                                cb::mcbp::Status::RateLimitedNetworkEgress);
-                        break;
-                    case Tenant::RateLimit::Operations:
-                        cb::audit::addTenantRateLimited(
-                                *this, Tenant::RateLimit::Operations);
-                        cookie.sendResponse(
-                                cb::mcbp::Status::RateLimitedMaxCommands);
-                        break;
-                    case Tenant::RateLimit::Connections:
-                        cb::audit::addTenantRateLimited(
-                                *this, Tenant::RateLimit::Connections);
-                        cookie.sendResponse(
-                                cb::mcbp::Status::RateLimitedMaxConnections);
-                        setTerminationReason("Tenant exceeds max connections");
-                        shutdown();
-                        break;
-                    }
+                } else if ((!active || cookie.mayReorder()) &&
+                           cookie.execute(true)) {
+                    // Command executed successfully, reset the cookie to
+                    // allow it to be reused
                     cookie.reset();
+                    // Check that we're not reserving too much memory for
+                    // this client...
+                    stop = !isDCP() && (getSendQueueSize() >= maxSendQueueSize);
+                } else {
+                    active = true;
+                    // We need to block so we need to preserve the request
+                    // as we'll drain the data from the buffer)
+                    cookie.preserveRequest();
+                    if (!cookie.mayReorder()) {
+                        // Don't add commands as we need the last one to
+                        // complete
+                        stop = true;
+                    }
                 }
+                --numEvents;
             } else {
                 // Packet validation failed
                 cookie.sendResponse(status);
@@ -773,9 +719,6 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
 
 void Connection::commandExecuted(Cookie& cookie) {
     getBucket().commandExecuted(cookie);
-    if (tenant) {
-        tenant->executed();
-    }
 }
 
 void Connection::logExecutionException(const std::string_view where,
@@ -1334,15 +1277,8 @@ void Connection::setAuthenticated(bool authenticated_,
     if (authenticated_) {
         updateDescription();
         privilegeContext = cb::rbac::createContext(user, "");
-        if (!internal && Settings::instance().isEnforceTenantLimitsEnabled()) {
-            tenant = TenantManager::get(user);
-            tenant->logon();
-        } else {
-            tenant.reset();
-        }
     } else {
         updateDescription();
-        tenant.reset();
         privilegeContext = cb::rbac::PrivilegeContext{user.domain};
     }
 }
@@ -1387,17 +1323,11 @@ bool Connection::dcpUseWriteBuffer(size_t size) const {
 void Connection::updateSendBytes(size_t nbytes) {
     totalSend += nbytes;
     get_thread_stats(this)->bytes_written += nbytes;
-    if (tenant) {
-        tenant->send(nbytes);
-    }
 }
 
 void Connection::updateRecvBytes(size_t nbytes) {
     totalRecv += nbytes;
     get_thread_stats(this)->bytes_read += nbytes;
-    if (tenant) {
-        tenant->recv(nbytes);
-    }
 }
 
 void Connection::copyToOutputStream(std::string_view data) {
@@ -1526,14 +1456,6 @@ Connection::~Connection() {
     }
     if (authenticated && user.domain == cb::sasl::Domain::External) {
         externalAuthManager->logoff(user.name);
-    }
-
-    if (tenant) {
-        tenant->logoff();
-        LOG_DEBUG("Current tenant use for {}:{} - {}",
-                  user.name,
-                  to_string(user.domain),
-                  tenant->to_json());
     }
 
     if (bev) {

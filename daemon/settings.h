@@ -742,16 +742,6 @@ public:
         notify_changed("num_storage_threads");
     }
 
-    bool isEnforceTenantLimitsEnabled() const {
-        return enforce_tenant_limits_enabled.load(std::memory_order_acquire);
-    }
-
-    void setEnforceTenantLimitsEnabled(bool val) {
-        enforce_tenant_limits_enabled.store(val, std::memory_order_release);
-        has.enforce_tenant_limits_enabled = true;
-        notify_changed("enforce_tenant_limits_enabled");
-    }
-
     void setPhosphorConfig(std::string value) {
         *phosphor_config.wlock() = std::move(value);
         has.phosphor_config = true;
@@ -937,8 +927,6 @@ protected:
     /// Should we allow for using the external authentication service or not
     std::atomic_bool external_auth_service{false};
 
-    std::atomic_bool enforce_tenant_limits_enabled{false};
-
     /// If "localhost" is whitelisted from deleting connections as part
     /// of server cleanup. This setting should only be used for unit
     /// tests
@@ -1005,7 +993,6 @@ public:
         bool parent_identifier = false;
         bool prometheus_config = false;
         bool phosphor_config = false;
-        bool enforce_tenant_limits_enabled = false;
         bool whitelist_localhost_interface = false;
         bool read_compute_unit_size = false;
         bool write_compute_unit_size = false;

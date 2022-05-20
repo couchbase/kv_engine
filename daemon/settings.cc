@@ -174,13 +174,6 @@ static void handle_tracing_enabled(Settings& s, const nlohmann::json& obj) {
     s.setTracingEnabled(obj.get<bool>());
 }
 
-/// Handle the "enforce_tenant_limits_enabled" tag in the settings. Throws
-/// an exception for incorrect datatype
-static void handle_enforce_tenant_limits_enabled(Settings& s,
-                                                 const nlohmann::json& obj) {
-    s.setEnforceTenantLimitsEnabled(obj.get<bool>());
-}
-
 /**
  * Handle the "stdin_listener" tag in the settings
  *
@@ -687,8 +680,6 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"num_auxio_threads", handle_num_auxio_threads},
             {"num_nonio_threads", handle_num_nonio_threads},
             {"tracing_enabled", handle_tracing_enabled},
-            {"enforce_tenant_limits_enabled",
-             handle_enforce_tenant_limits_enabled},
             {"scramsha_fallback_salt", handle_scramsha_fallback_salt},
             {"external_auth_service", handle_external_auth_service},
             {"active_external_users_push_interval",
@@ -962,17 +953,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             LOG_INFO("{} collections_enabled",
                      other.collections_enabled.load() ? "Enable" : "Disable");
             setCollectionsPrototype(other.collections_enabled.load());
-        }
-    }
-
-    if (other.has.enforce_tenant_limits_enabled) {
-        if (other.enforce_tenant_limits_enabled !=
-            enforce_tenant_limits_enabled) {
-            LOG_INFO("{} tenant resource control",
-                     other.enforce_tenant_limits_enabled.load() ? "Enable"
-                                                                : "Disable");
-            setEnforceTenantLimitsEnabled(
-                    other.enforce_tenant_limits_enabled.load());
         }
     }
 

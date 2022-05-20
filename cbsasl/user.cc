@@ -64,7 +64,7 @@ User::User(const nlohmann::json& json)
         } else if (label == "uuid") {
             uuid = cb::uuid::from_string(it.value().get<std::string>());
         } else if (label == "limits") {
-            user::from_json(it.value(), limits);
+            // Ignore as of MB-52216
         } else {
             throw std::runtime_error(
                     "cb::sasl::pwdb::User::User(): Invalid "
@@ -367,10 +367,6 @@ nlohmann::json User::to_json() const {
         }
     }
     ret["uuid"] = ::to_string(uuid);
-    nlohmann::json json = limits;
-    if (!json.empty()) {
-        ret["limits"] = limits;
-    }
 
     return ret;
 }
@@ -391,40 +387,4 @@ void to_json(nlohmann::json& json, const User& user) {
     json = user.to_json();
 }
 
-namespace user {
-void to_json(nlohmann::json& json, const Limits& limits) {
-    json = {{"ingress_mib_per_min", limits.ingress_mib_per_min},
-            {"egress_mib_per_min", limits.egress_mib_per_min},
-            {"num_connections", limits.num_connections},
-            {"num_ops_per_min", limits.num_ops_per_min}};
-}
-
-void from_json(const nlohmann::json& json, Limits& limits) {
-    limits = {};
-    for (auto it = json.begin(); it != json.end(); ++it) {
-        const std::string label(it.key());
-        if (!it.value().is_number()) {
-            throw std::runtime_error(
-                    "cb::sasl::pwdb::user::from_json: All limits must be "
-                    "numeric values: " +
-                    label);
-        }
-        if (label == "ingress_mib_per_min") {
-            limits.ingress_mib_per_min = it.value().get<uint64_t>();
-        } else if (label == "egress_mib_per_min") {
-            limits.egress_mib_per_min = it.value().get<uint64_t>();
-        } else if (label == "num_connections") {
-            limits.num_connections = it.value().get<uint64_t>();
-        } else if (label == "num_ops_per_min") {
-            limits.num_ops_per_min = it.value().get<uint64_t>();
-
-        } else {
-            throw std::runtime_error(
-                    "cb::sasl::pwdb::user::from_json: Invalid "
-                    "label \"" +
-                    label + "\" specified");
-        }
-    }
-}
-} // namespace user
 } // namespace cb::sasl::pwdb

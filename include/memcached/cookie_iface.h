@@ -27,7 +27,6 @@ enum class Privilege;
 
 class CollectionID;
 class ScopeID;
-class Tenant;
 using protocol_binary_datatype_t = uint8_t;
 
 /**
@@ -46,15 +45,6 @@ public:
     /// Get the identifier user for logging for all cookies bound to this
     /// connection.
     virtual uint32_t getConnectionId() const = 0;
-
-    /// Get the tenant the cookie is bound to. The cookie may not be bound
-    /// to a tenant and nullptr may be returned.
-    ///
-    /// The lifetime of the pointer is (at least) the same as the cookie object
-    /// itself (but one should _not_ cache the returned pointer as the order
-    /// of the destructors of the Cookie and Tenant is undefined)
-    virtual Tenant* getTenant() = 0;
-    virtual const Tenant* getTenant() const = 0;
 
     // The underlying engine may store information bound to the given cookie
     // in an opaque pointer. The framework will _NOT_ take ownership of the

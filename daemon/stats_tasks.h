@@ -69,17 +69,3 @@ protected:
     bool run() override;
     const int64_t fd;
 };
-
-class StatsTenantsStats : public StatsTask {
-public:
-    StatsTenantsStats() = delete;
-    StatsTenantsStats(const StatsTaskConnectionStats&) = delete;
-    StatsTenantsStats(Cookie& cookie, std::string user);
-
-    std::string getDescription() const override;
-    std::chrono::microseconds maxExpectedDuration() const override;
-
-protected:
-    bool run() override;
-    const std::string user;
-};

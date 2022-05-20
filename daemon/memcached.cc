@@ -30,7 +30,6 @@
 #include "protocol/mcbp/engine_wrapper.h"
 #include "settings.h"
 #include "stats.h"
-#include "tenant_manager.h"
 #include "tracing.h"
 #include "utilities/terminate_handler.h"
 #include <boost/filesystem.hpp>
@@ -1040,9 +1039,6 @@ int memcached_main(int argc, char** argv) {
 
     startExecutorPool();
 
-    LOG_INFO_RAW("Starting Tenant stats collecting");
-    TenantManager::startup();
-
     // Schedule the StaleTraceRemover
     startStaleTraceDumpRemover(std::chrono::minutes(1),
                                std::chrono::minutes(5));
@@ -1100,9 +1096,6 @@ int memcached_main(int argc, char** argv) {
 
     LOG_INFO_RAW("Shutting down RBAC subsystem");
     cb::rbac::destroy();
-
-    LOG_INFO_RAW("Shutting down Tenant stats collecting");
-    TenantManager::shutdown();
 
     LOG_INFO_RAW("Shutting down executor pool");
     ExecutorPool::get()->unregisterTaskable(NoBucketTaskable::instance(),

@@ -40,14 +40,6 @@ public:
 
     ~MockCookie() override;
 
-    Tenant* getTenant() override {
-        return nullptr;
-    }
-
-    const Tenant* getTenant() const override {
-        return nullptr;
-    }
-
     /// Is the current cookie blocked?
     bool isEwouldblock() const {
         return handle_ewouldblock;

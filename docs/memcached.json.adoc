@@ -304,12 +304,6 @@ parameter to specify the number of seconds between each time
 memcached push the set of active external users to the authentication
 providers.
 
-=== tenant_specific_stats
-
-The *tenant_specific_stats* attribute is a boolean value to enable or
-disable collection on statistics on a per-tenant base. By default it is
-set to off.
-
 === opcode-attributes-override
 
 The *opcode-attributes-override* attribute is an object which follows
@@ -359,11 +353,6 @@ values).
 Specifies the number of storage backend threads.
 If 0 means that memcached should use the default number of storage threads which
 is calculated as 3 x num_writer_threads.
-
-=== enforce_tenant_limits_enabled
-
-Specifies if cross-connection resource control should be enforced for
-tenants.
 
 === logger
 

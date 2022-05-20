@@ -22,21 +22,6 @@
 
 namespace cb::sasl::pwdb {
 
-namespace user {
-/// It is possible to insert a "limits" section per user in cbsasl.json
-/// This struct contains the legal properties to specify
-struct Limits {
-    constexpr static uint64_t Unlimited = 0;
-    uint64_t egress_mib_per_min = Unlimited;
-    uint64_t ingress_mib_per_min = Unlimited;
-    uint64_t num_connections = Unlimited;
-    uint64_t num_ops_per_min = Unlimited;
-};
-
-void to_json(nlohmann::json&, const Limits&);
-void from_json(const nlohmann::json&, Limits&);
-} // namespace user
-
 class UserFactory;
 
 class User {
@@ -167,15 +152,6 @@ public:
         return username;
     }
 
-    /// Get the limits set for the user
-    user::Limits getLimits() const {
-        return limits;
-    }
-
-    void setLimits(user::Limits next) {
-        limits = next;
-    }
-
     /// Get the users UUID
     cb::uuid::uuid_t getUuid() const {
         return uuid;
@@ -217,7 +193,6 @@ protected:
     UserData username;
 
     cb::uuid::uuid_t uuid{};
-    user::Limits limits;
 
     /// To avoid leaking if a user exists or not we want to be able to
     /// complete a full SASL authentication cycle (and not fail in the

@@ -40,7 +40,6 @@ class ListeningPort;
 struct EngineIface;
 struct FrontEndThread;
 class SendBuffer;
-class Tenant;
 
 namespace cb::mcbp {
 class Header;
@@ -147,14 +146,6 @@ public:
      */
     const cb::rbac::UserIdent& getUser() const {
         return user;
-    }
-
-    /// Get the tenant object the connection belongs to (or "nullptr" if
-    /// no tenant is set for the user (Tenants will only be set if we're
-    /// running in a configure which require tenant tracking, and none of
-    /// the internal users will have aa tenant object)
-    std::shared_ptr<Tenant> getTenant() {
-        return tenant;
     }
 
     /**
@@ -916,9 +907,6 @@ protected:
      * that we want to get rid of more elements as we traverse).
      */
     std::deque<std::unique_ptr<Cookie>> cookies;
-
-    /// The tenant this connection belongs to
-    std::shared_ptr<Tenant> tenant;
 
     /// The current privilege context
     cb::rbac::PrivilegeContext privilegeContext{cb::sasl::Domain::Local};

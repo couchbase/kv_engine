@@ -100,10 +100,6 @@ public:
     void SetUp() override {
         root["n"] = "username";
         root["uuid"] = "00000000-0000-0000-0000-000000000000";
-        root["limits"] = {{"ingress_mib_per_min", 10},
-                          {"egress_mib_per_min", 20},
-                          {"num_connections", 1},
-                          {"num_ops_per_min", 1000}};
         root["plain"] = Couchbase::Base64::encode("secret");
 
         nlohmann::json sha1;
@@ -138,10 +134,6 @@ TEST_F(UserTest, TestNormalInit) {
     using namespace cb::sasl;
     pwdb::User u(root);
     EXPECT_EQ("username", u.getUsername().getRawValue());
-    EXPECT_EQ(1, u.getLimits().num_connections);
-    EXPECT_EQ(1000, u.getLimits().num_ops_per_min);
-    EXPECT_EQ(10, u.getLimits().ingress_mib_per_min);
-    EXPECT_EQ(20, u.getLimits().egress_mib_per_min);
     EXPECT_EQ(cb::uuid::uuid_t{}, u.getUuid());
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
