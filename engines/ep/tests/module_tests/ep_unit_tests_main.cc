@@ -16,9 +16,7 @@
 #include "programs/engine_testapp/mock_server.h"
 
 #include "bucket_logger.h"
-#include "configuration.h"
 #include "ep_time.h"
-#include "hash_table.h"
 #include <engines/ep/src/environment.h>
 #include <folly/portability/GMock.h>
 #include <getopt.h>
@@ -28,9 +26,11 @@
 #include <phosphor/phosphor.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/cbassert.h>
+#include <array>
 
 /* static storage for environment variable set by putenv(). */
-static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
+static std::array<char, 28> allow_no_stats_env{
+        {"ALLOW_NO_STATS_UPDATE=yeah\0"}};
 
 /**
  * Implementation of ServerCoreIface for unit tests.
@@ -131,7 +131,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    putenv(allow_no_stats_env);
+    putenv(allow_no_stats_env.data());
 
     cb::ArenaMalloc::setTCacheEnabled(threadCacheEnabled);
 
