@@ -18,38 +18,38 @@
  * The supported datatypes the config file parser can handle
  */
 enum config_datatype {
-   DT_SIZE,
-   DT_SSIZE,
-   DT_FLOAT,
-   DT_BOOL,
-   DT_STRING,
-   DT_CONFIGFILE
+    DT_SIZE,
+    DT_SSIZE,
+    DT_FLOAT,
+    DT_BOOL,
+    DT_STRING,
+    DT_CONFIGFILE
 };
 
 /**
  * I don't like casting, so let's create a union to keep all the values in
  */
 union config_value {
-   size_t *dt_size;
-   ssize_t* dt_ssize;
-   float *dt_float;
-   bool *dt_bool;
-   // Allocated via cb_malloc. Should be freed with cb_free().
-   char **dt_string;
+    size_t* dt_size;
+    ssize_t* dt_ssize;
+    float* dt_float;
+    bool* dt_bool;
+    // Allocated via cb_malloc. Should be freed with cb_free().
+    char** dt_string;
 };
 
 /**
  * An entry for a single item in the config file.
  */
 struct config_item {
-   /** The name of the key */
-   const char* key;
-   /** The datatype for the value */
-   enum config_datatype datatype;
-   /** Where to store the value from the config file */
-   union config_value value;
-   /** If the item was found in the config file or not */
-   bool found;
+    /** The name of the key */
+    const char* key;
+    /** The datatype for the value */
+    enum config_datatype datatype;
+    /** Where to store the value from the config file */
+    union config_value value;
+    /** If the item was found in the config file or not */
+    bool found;
 };
 
 /**
