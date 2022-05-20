@@ -91,7 +91,7 @@ public:
      */
     virtual void stringValueChanged(const std::string& key, const char*);
 
-    virtual ~ValueChangedListener() { /* EMPTY */}
+    virtual ~ValueChangedListener() = default;
 };
 
 /**
@@ -164,7 +164,7 @@ public:
      */
     virtual void validateString(const std::string& key, const char*);
 
-    virtual ~ValueChangedValidator() { }
+    virtual ~ValueChangedValidator() = default;
 };
 
 class StatCollector;
