@@ -20,12 +20,14 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_bucket.h"
 #include "test_helpers.h"
+#include "tests/mock/mock_couch_kvstore.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/test_fileops.h"
 #include "vbucket.h"
-#include "vbucket_state.h"
 
+#include "vbucket_state.h"
 #include <folly/portability/GMock.h>
+#include <storage_common/local_doc_constants.h>
 
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
@@ -51,6 +53,10 @@ public:
      * fail
      */
     virtual void failNextSnapshotVBucket() = 0;
+
+    virtual void failAllSnapshotVBuckets() = 0;
+
+    virtual bool deleteLocalDoc(Vbid, std::string_view key) = 0;
 };
 
 class CouchKVStoreErrorInjector : public ErrorInjector {
@@ -58,6 +64,8 @@ public:
     CouchKVStoreErrorInjector(KVBucketTest& test)
         : ops(create_default_file_ops()) {
         test.replaceCouchKVStore(ops);
+        kvstore = dynamic_cast<MockCouchKVStore*>(
+                test.store->getRWUnderlying(test.vbid));
     }
 
     void failNextCommit() override {
@@ -74,8 +82,19 @@ public:
                 .WillRepeatedly(Return(COUCHSTORE_SUCCESS));
     }
 
+    void failAllSnapshotVBuckets() override {
+        using namespace testing;
+        EXPECT_CALL(ops, sync(_, _))
+                .WillRepeatedly(Return(COUCHSTORE_ERROR_WRITE));
+    }
+
+    bool deleteLocalDoc(Vbid vbid, std::string_view key) override {
+        return kvstore->deleteLocalDoc(vbid, key);
+    }
+
 protected:
     ::testing::NiceMock<MockOps> ops;
+    MockCouchKVStore* kvstore;
 };
 
 #ifdef EP_USE_MAGMA
@@ -100,6 +119,15 @@ public:
             kvstore->snapshotVBucketErrorInjector = nullptr;
             return false;
         };
+    }
+
+    void failAllSnapshotVBuckets() override {
+        kvstore->snapshotVBucketErrorInjector = []() { return false; };
+    }
+
+    bool deleteLocalDoc(Vbid vbid, std::string_view key) override {
+        auto status = kvstore->deleteLocalDoc(vbid, key);
+        return status.IsOK();
     }
 
     MockMagmaKVStore* kvstore;
@@ -804,6 +832,52 @@ TEST_P(KVStoreErrorInjectionTest, ResetPCursorAtPersistNonMetaItems) {
                                     0 /*HCS*/,
                                     2 /*maxDelRevSeqno*/);
     }
+}
+
+#include "warmup.h"
+
+/**
+ * Test that we can deal with a vBucket on disk that does not have a vBucket
+ * state. This may happen due to crashes and/or IO errors followed by another
+ * IO error during warmup that prevents us from being able to write back a
+ * vBucket state during warmup.
+ */
+TEST_P(KVStoreErrorInjectionTest, WarmupVBucketWithoutState) {
+    // Vbid 0 (vbid) is the vBucket that we are testing here. Write a state
+    // and nothing else. We'll use the errorInjector to remove the vBucket
+    // state later as that's easier than creating the header/KVStore without
+    // writing a state.
+    setVBucketState(vbid, vbucket_state_active);
+    flushVBucketToDiskIfPersistent(vbid, 0);
+
+    // To make the test work for full eviction we need another vBucket with an
+    // item to make Warmup::estimatedItemCount non-zero. It otherwise skips
+    // the backfill.
+    auto secondVbid = Vbid(1);
+    setVBucketState(secondVbid, vbucket_state_active);
+    store_item(secondVbid, makeStoredDocKey("key"), "value");
+    flushVBucketToDiskIfPersistent(secondVbid, 1);
+
+    // Remove our vbstate.
+    ASSERT_TRUE(errorInjector->deleteLocalDoc(vbid, LocalDocKey::vbstate));
+
+    // Reset but don't warmup so that we can set up our test objects again.
+    resetEngineAndEnableWarmup();
+
+    // The errorInjector points to the underlying KVStore so it must be
+    // re-created post-warmup to point to a valid object.
+    createErrorInjector();
+
+    // Magma orders vBuckets during warmup in reverse (2->0) order vs couchstore
+    // which orders numerically (0->2) so we have to fail all of the
+    // snapshotVBuckets rather than just the first.
+    errorInjector->failAllSnapshotVBuckets();
+
+    // Before the fix we would fail during a warmup backfill as magma would not
+    // create a scan context if a vBucket state did not exist on disk.
+    EXPECT_NO_THROW(runReadersUntilWarmedUp());
+    EXPECT_EQ(WarmupState::State::Done,
+              engine->getKVBucket()->getWarmup()->getWarmupState());
 }
 
 INSTANTIATE_TEST_SUITE_P(

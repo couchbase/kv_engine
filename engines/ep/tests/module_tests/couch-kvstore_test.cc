@@ -666,6 +666,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, initializeWithHeaderButNoVBState) {
     // state (and not throw an exception)
     kvstore = std::make_unique<CouchKVStore>(
             dynamic_cast<CouchKVStoreConfig&>(config), ops);
+
+    EXPECT_FALSE(kvstore->getCachedVBucketState(vbid));
+
     diskState = kvstore->getPersistedVBucketState(vbid);
     ASSERT_EQ(KVStoreIface::ReadVBStateStatus::NotFound, diskState.status);
     EXPECT_EQ(defaultState, diskState.state);

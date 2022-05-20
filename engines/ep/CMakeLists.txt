@@ -488,6 +488,7 @@ endfunction()
 add_subdirectory(tests)
 
 SET(MOCK_SOURCE
+    tests/mock/mock_couch_kvstore.cc
     tests/mock/mock_dcp_conn_map.cc
     tests/mock/mock_dcp_consumer.cc
     tests/mock/mock_dcp_producer.cc
