@@ -241,12 +241,12 @@ TEST(ConfigParserTest, A) {
     float float_val = 0;
     char *string_val = nullptr;
     int ii;
-    char buffer[1024];
+    std::array<char, 1024> buffer;
     FILE *cfg;
     FILE *error;
 
     /* Set up the different items I can handle */
-    struct config_item items[7];
+    std::array<config_item, 7> items;
     memset(&items, 0, sizeof(items));
     ii = 0;
     items[ii].key = "bool";
@@ -287,13 +287,13 @@ TEST(ConfigParserTest, A) {
     error = fopen(outfile.c_str(), "w");
 
     ASSERT_NE(error, nullptr);
-    ASSERT_EQ(0, parse_config("", items, error));
+    ASSERT_EQ(0, parse_config("", items.data(), error));
     /* Nothing should be found */
     for (ii = 0; ii < 5; ++ii) {
         EXPECT_FALSE(items[0].found);
     }
 
-    ASSERT_EQ(0, parse_config("bool=true", items, error));
+    ASSERT_EQ(0, parse_config("bool=true", items.data(), error));
     EXPECT_TRUE(bool_val);
     /* only bool should be found */
     EXPECT_TRUE(items[0].found);
@@ -303,12 +303,12 @@ TEST(ConfigParserTest, A) {
     }
 
     /* It should allow illegal keywords */
-    ASSERT_EQ(1, parse_config("pacman=dead", items, error));
+    ASSERT_EQ(1, parse_config("pacman=dead", items.data(), error));
     /* and illegal values */
-    ASSERT_EQ(-1, parse_config("bool=12", items, error));
+    ASSERT_EQ(-1, parse_config("bool=12", items.data(), error));
     EXPECT_FALSE(items[0].found);
     /* and multiple occurences of the same value */
-    ASSERT_EQ(0, parse_config("size_t=1; size_t=1024", items, error));
+    ASSERT_EQ(0, parse_config("size_t=1; size_t=1024", items.data(), error));
     EXPECT_TRUE(items[1].found);
     EXPECT_EQ(1024u, size_val);
     items[1].found = false;
@@ -321,51 +321,53 @@ TEST(ConfigParserTest, A) {
     items[4].found = false;
     */
     /* Plain string */
-    ASSERT_EQ(0, parse_config("string=sval", items, error));
+    ASSERT_EQ(0, parse_config("string=sval", items.data(), error));
     EXPECT_TRUE(items[4].found);
     EXPECT_STREQ("sval", string_val);
     items[4].found = false;
     cb_free(string_val);
     /* Leading space */
-    ASSERT_EQ(0, parse_config("string= sval", items, error));
+    ASSERT_EQ(0, parse_config("string= sval", items.data(), error));
     EXPECT_TRUE(items[4].found);
     EXPECT_STREQ("sval", string_val);
     items[4].found = false;
     cb_free(string_val);
     /* Escaped leading space */
-    ASSERT_EQ(0, parse_config("string=\\ sval", items, error));
+    ASSERT_EQ(0, parse_config("string=\\ sval", items.data(), error));
     EXPECT_TRUE(items[4].found);
     EXPECT_STREQ(" sval", string_val);
     items[4].found = false;
     cb_free(string_val);
     /* trailing space */
-    ASSERT_EQ(0, parse_config("string=sval ", items, error));
+    ASSERT_EQ(0, parse_config("string=sval ", items.data(), error));
     EXPECT_TRUE(items[4].found);
     EXPECT_STREQ("sval", string_val);
     items[4].found = false;
     cb_free(string_val);
     /* escaped trailing space */
-    ASSERT_EQ(0, parse_config("string=sval\\ ", items, error));
+    ASSERT_EQ(0, parse_config("string=sval\\ ", items.data(), error));
     EXPECT_TRUE(items[4].found);
     EXPECT_STREQ("sval ", string_val);
     items[4].found = false;
     cb_free(string_val);
     /* escaped stop char */
-    ASSERT_EQ(0, parse_config("string=sval\\;blah=x", items, error));
+    ASSERT_EQ(0, parse_config("string=sval\\;blah=x", items.data(), error));
     EXPECT_TRUE(items[4].found);
     EXPECT_STREQ("sval;blah=x", string_val);
     items[4].found = false;
     cb_free(string_val);
     /* middle space */
-    ASSERT_EQ(0, parse_config("string=s val", items, error));
+    ASSERT_EQ(0, parse_config("string=s val", items.data(), error));
     EXPECT_TRUE(items[4].found);
     EXPECT_STREQ("s val", string_val);
     items[4].found = false;
     cb_free(string_val);
 
     /* And all of the variables */
-    ASSERT_EQ(0, parse_config("bool=true;size_t=1024;float=12.5;string=somestr",
-                              items, error));
+    ASSERT_EQ(0,
+              parse_config("bool=true;size_t=1024;float=12.5;string=somestr",
+                           items.data(),
+                           error));
     EXPECT_TRUE(bool_val);
     EXPECT_EQ(1024u, size_val);
     EXPECT_EQ(12.5f, float_val);
@@ -375,27 +377,27 @@ TEST(ConfigParserTest, A) {
         items[ii].found = false;
     }
 
-    ASSERT_EQ(0, parse_config("size_t=1k", items, error));
+    ASSERT_EQ(0, parse_config("size_t=1k", items.data(), error));
     EXPECT_TRUE(items[1].found);
     EXPECT_EQ(1024u, size_val);
     items[1].found = false;
-    ASSERT_EQ(0, parse_config("size_t=1m", items, error));
+    ASSERT_EQ(0, parse_config("size_t=1m", items.data(), error));
     EXPECT_TRUE(items[1].found);
     EXPECT_EQ(1024u * 1024u, size_val);
     items[1].found = false;
-    ASSERT_EQ(0, parse_config("size_t=1g", items, error));
+    ASSERT_EQ(0, parse_config("size_t=1g", items.data(), error));
     EXPECT_TRUE(items[1].found);
     EXPECT_EQ(1024u * 1024u * 1024u ,size_val);
     items[1].found = false;
-    ASSERT_EQ(0, parse_config("size_t=1K", items, error));
+    ASSERT_EQ(0, parse_config("size_t=1K", items.data(), error));
     EXPECT_TRUE(items[1].found);
     EXPECT_EQ(1024u, size_val);
     items[1].found = false;
-    ASSERT_EQ(0, parse_config("size_t=1M", items, error));
+    ASSERT_EQ(0, parse_config("size_t=1M", items.data(), error));
     EXPECT_TRUE(items[1].found);
     EXPECT_EQ(1024u * 1024u, size_val);
     items[1].found = false;
-    ASSERT_EQ(0, parse_config("size_t=1G", items, error));
+    ASSERT_EQ(0, parse_config("size_t=1G", items.data(), error));
     EXPECT_TRUE(items[1].found);
     EXPECT_EQ(1024u * 1024u * 1024u, size_val);
     items[1].found = false;
@@ -418,12 +420,12 @@ TEST(ConfigParserTest, A) {
      *
      *    SEH exception with code 0xc0000005 thrown in the test body
      */
-    const ssize_t values[5] = { -1000, -1, 0, 1, 1000 };
+    std::array<const ssize_t, 5> values = {{-1000, -1, 0, 1, 1000}};
     for (const ssize_t test_val : values) {
         for (auto suffix : suffixes) {
             std::string config = "ssize_t=" +
                                  std::to_string(test_val) + suffix.first;
-            ASSERT_EQ(0, parse_config(config.c_str(), items, error));
+            ASSERT_EQ(0, parse_config(config.c_str(), items.data(), error));
             EXPECT_TRUE(items[2].found);
             EXPECT_EQ(suffix.second * test_val, ssize_val);
             items[2].found = false;
@@ -435,8 +437,8 @@ TEST(ConfigParserTest, A) {
     ASSERT_NE(cfg, nullptr);
     fprintf(cfg, "# This is a config file\nbool=true\nsize_t=1023\nfloat=12.4\n");
     fclose(cfg);
-    sprintf(buffer, "config_file=%s", cfgfile.c_str());
-    ASSERT_EQ(0, parse_config(buffer, items, error));
+    sprintf(buffer.data(), "config_file=%s", cfgfile.c_str());
+    ASSERT_EQ(0, parse_config(buffer.data(), items.data(), error));
     EXPECT_TRUE(bool_val);
     EXPECT_EQ(1023u, size_val);
     EXPECT_EQ(12.4f, float_val);
@@ -447,13 +449,14 @@ TEST(ConfigParserTest, A) {
     error = fopen(outfile.c_str(), "r");
     ASSERT_TRUE(error);
 
-    EXPECT_TRUE(fgets(buffer, sizeof(buffer), error));
-    EXPECT_STREQ("Unsupported key: <pacman>", trim(buffer));
-    EXPECT_TRUE(fgets(buffer, sizeof(buffer), error));
-    EXPECT_STREQ("Invalid entry, Key: <bool> Value: <12>", trim(buffer));
-    EXPECT_TRUE(fgets(buffer, sizeof(buffer), error));
-    EXPECT_STREQ("WARNING: Found duplicate entry for \"size_t\"", trim(buffer));
-    EXPECT_EQ(nullptr, fgets(buffer, sizeof(buffer), error));
+    EXPECT_TRUE(fgets(buffer.data(), buffer.size(), error));
+    EXPECT_STREQ("Unsupported key: <pacman>", trim(buffer.data()));
+    EXPECT_TRUE(fgets(buffer.data(), buffer.size(), error));
+    EXPECT_STREQ("Invalid entry, Key: <bool> Value: <12>", trim(buffer.data()));
+    EXPECT_TRUE(fgets(buffer.data(), buffer.size(), error));
+    EXPECT_STREQ("WARNING: Found duplicate entry for \"size_t\"",
+                 trim(buffer.data()));
+    EXPECT_EQ(nullptr, fgets(buffer.data(), sizeof(buffer), error));
 
     EXPECT_EQ(0, fclose(error));
     cb::io::rmrf(outfile);
