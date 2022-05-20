@@ -70,9 +70,9 @@ public:
     void abortCompactionIfRunning(std::unique_lock<std::mutex>& vbLock,
                                   Vbid vbid) override;
     vbucket_state* getCachedVBucketState(Vbid vbid) override;
-    vbucket_state getPersistedVBucketState(Vbid vbid) const override;
-    vbucket_state getPersistedVBucketState(KVFileHandle& handle,
-                                           Vbid vbid) const override;
+    ReadVBStateResult getPersistedVBucketState(Vbid vbid) const override;
+    ReadVBStateResult getPersistedVBucketState(KVFileHandle& handle,
+                                               Vbid vbid) const override;
     size_t getNumPersistedDeletes(Vbid vbid) override;
     DBFileInfo getDbFileInfo(Vbid dbFileId) override;
     DBFileInfo getAggrDbFileInfo() override;

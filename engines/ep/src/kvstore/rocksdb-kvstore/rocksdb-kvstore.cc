@@ -1932,7 +1932,8 @@ const KVStoreConfig& RocksDBKVStore::getConfig() const {
     return configuration;
 }
 
-vbucket_state RocksDBKVStore::getPersistedVBucketState(Vbid vbid) const {
+KVStoreIface::ReadVBStateResult RocksDBKVStore::getPersistedVBucketState(
+        Vbid vbid) const {
     auto handle = getVBHandle(vbid);
     auto state = readVBStateFromDisk(*handle);
     if (state.status != ReadVBStateStatus::Success) {
@@ -1942,11 +1943,11 @@ vbucket_state RocksDBKVStore::getPersistedVBucketState(Vbid vbid) const {
                 to_string(state.status));
     }
 
-    return state.state;
+    return state;
 }
 
-vbucket_state RocksDBKVStore::getPersistedVBucketState(KVFileHandle& handle,
-                                                       Vbid vbid) const {
+KVStoreIface::ReadVBStateResult RocksDBKVStore::getPersistedVBucketState(
+        KVFileHandle& handle, Vbid vbid) const {
     throw std::runtime_error(
             "RocksDBKVStore::getPersistedVBucketState(handle, vbid) not "
             "implemented");

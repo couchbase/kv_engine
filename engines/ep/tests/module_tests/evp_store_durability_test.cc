@@ -3166,8 +3166,9 @@ void DurabilityCouchstoreBucketTest::
         EXPECT_EQ(0, vbstateCached->getOnDiskPrepareBytes());
 
         const auto vbstateDisk = kvstore.getPersistedVBucketState(vbid);
-        EXPECT_EQ(1, vbstateDisk.onDiskPrepares);
-        EXPECT_EQ(0, vbstateDisk.getOnDiskPrepareBytes());
+        EXPECT_EQ(KVStoreIface::ReadVBStateStatus::Success, vbstateDisk.status);
+        EXPECT_EQ(1, vbstateDisk.state.onDiskPrepares);
+        EXPECT_EQ(0, vbstateDisk.state.getOnDiskPrepareBytes());
     }
 
     // Trigger compaction
@@ -3206,8 +3207,9 @@ void DurabilityCouchstoreBucketTest::
     EXPECT_EQ(0, vbstateCached->onDiskPrepares);
     EXPECT_EQ(0, vbstateCached->getOnDiskPrepareBytes());
 
-    EXPECT_EQ(0, vbstateDisk.onDiskPrepares);
-    EXPECT_EQ(0, vbstateDisk.getOnDiskPrepareBytes());
+    ASSERT_EQ(KVStore::ReadVBStateStatus::Success, vbstateDisk.status);
+    EXPECT_EQ(0, vbstateDisk.state.onDiskPrepares);
+    EXPECT_EQ(0, vbstateDisk.state.getOnDiskPrepareBytes());
 }
 
 TEST_P(DurabilityCouchstoreBucketTest,
@@ -3245,8 +3247,9 @@ void DurabilityCouchstoreBucketTest::testOnDiskPrepareSizeUpgrade(
     EXPECT_EQ(1, vbstateCached->onDiskPrepares);
     EXPECT_EQ(0, vbstateCached->getOnDiskPrepareBytes());
     const auto vbstateDisk = kvstore.getPersistedVBucketState(vbid);
-    EXPECT_EQ(1, vbstateDisk.onDiskPrepares);
-    EXPECT_EQ(0, vbstateDisk.getOnDiskPrepareBytes());
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, vbstateDisk.status);
+    EXPECT_EQ(1, vbstateDisk.state.onDiskPrepares);
+    EXPECT_EQ(0, vbstateDisk.state.getOnDiskPrepareBytes());
 }
 
 TEST_P(DurabilityCouchstoreBucketTest,
@@ -3312,8 +3315,9 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_43964) {
     ASSERT_EQ(1, stats.flusherCommits);
 
     auto* kvstore = store->getRWUnderlying(vbid);
-    ASSERT_EQ(0,
-              kvstore->getPersistedVBucketState(vbid).getOnDiskPrepareBytes());
+    auto diskState = kvstore->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, diskState.status);
+    ASSERT_EQ(0, diskState.state.getOnDiskPrepareBytes());
 
     // Insert
     const auto key = makeStoredDocKey("key");
@@ -3327,8 +3331,9 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_43964) {
     EXPECT_EQ(2, stats.flusherCommits);
 
     // Still 0
-    EXPECT_EQ(0,
-              kvstore->getPersistedVBucketState(vbid).getOnDiskPrepareBytes());
+    diskState = kvstore->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, diskState.status);
+    EXPECT_EQ(0, diskState.state.getOnDiskPrepareBytes());
 
     // Update
     item = makeCommittedItem(key, "bigValue0123456789abcdef");
@@ -3342,8 +3347,9 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_43964) {
 
     // Still 0
     // Before the fix this is > 0
-    EXPECT_EQ(0,
-              kvstore->getPersistedVBucketState(vbid).getOnDiskPrepareBytes());
+    diskState = kvstore->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, diskState.status);
+    EXPECT_EQ(0, diskState.state.getOnDiskPrepareBytes());
 }
 
 template <typename F>
