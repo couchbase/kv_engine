@@ -222,7 +222,7 @@ cb::engine_errc mock_waitfor_cookie(const CookieIface* cookie) {
     // Using at() here as the cookie should have been registered in
     // cookieNotifications when it was created.
     auto locked = cookieNotifications.lock();
-    cookieNotificationSignal.wait(locked.getUniqueLock(), [&locked, cookie] {
+    cookieNotificationSignal.wait(locked.as_lock(), [&locked, cookie] {
         return !locked->at(cookie).empty();
     });
     auto& notificationQueue = (*locked)[cookie];
