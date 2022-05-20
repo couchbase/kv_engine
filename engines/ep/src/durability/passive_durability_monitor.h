@@ -176,12 +176,7 @@ public:
      */
     void notifyLocalPersistence() override;
 
-    /**
-     * Get the highest seqno for which there is a SyncWrite in trackedWrites.
-     * Returns 0 if trackedWrites is empty.
-     *
-     */
-    int64_t getHighestTrackedSeqno() const;
+    int64_t getHighestTrackedSeqno() const override;
 
     void dump() const override;
 
