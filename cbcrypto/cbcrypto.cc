@@ -25,7 +25,6 @@
 #else
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
-#include <openssl/md5.h>
 #include <openssl/sha.h>
 #endif
 
@@ -136,10 +135,6 @@ static inline std::string hash(std::string_view key,
     return ret;
 }
 
-static std::string HMAC_MD5(std::string_view key, std::string_view data) {
-    return hash(key, data, BCRYPT_MD5_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
-}
-
 static std::string HMAC_SHA1(std::string_view key, std::string_view data) {
     return hash(key, data, BCRYPT_SHA1_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
 }
@@ -229,10 +224,6 @@ static std::string PBKDF2_HMAC_SHA512(std::string_view pass,
     return PBKDF2(pass, salt, iterationCount, BCRYPT_SHA512_ALGORITHM);
 }
 
-static std::string digest_md5(std::string_view data) {
-    return hash({}, data, BCRYPT_MD5_ALGORITHM, 0);
-}
-
 static std::string digest_sha1(std::string_view data) {
     return hash({}, data, BCRYPT_SHA1_ALGORITHM, 0);
 }
@@ -246,18 +237,6 @@ static std::string digest_sha512(std::string_view data) {
 }
 
 #elif defined(__APPLE__)
-
-static std::string HMAC_MD5(std::string_view key, std::string_view data) {
-    std::string ret;
-    ret.resize(cb::crypto::MD5_DIGEST_SIZE);
-    CCHmac(kCCHmacAlgMD5,
-           key.data(),
-           key.size(),
-           data.data(),
-           data.size(),
-           reinterpret_cast<uint8_t*>(const_cast<char*>(ret.data())));
-    return ret;
-}
 
 static std::string HMAC_SHA1(std::string_view key, std::string_view data) {
     std::string ret;
@@ -367,15 +346,6 @@ static std::string PBKDF2_HMAC_SHA512(std::string_view pass,
     return ret;
 }
 
-static std::string digest_md5(std::string_view data) {
-    std::string ret;
-    ret.resize(cb::crypto::MD5_DIGEST_SIZE);
-    CC_MD5(data.data(),
-           data.size(),
-           reinterpret_cast<uint8_t*>(const_cast<char*>(ret.data())));
-    return ret;
-}
-
 static std::string digest_sha1(std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::SHA1_DIGEST_SIZE);
@@ -405,21 +375,6 @@ static std::string digest_sha512(std::string_view data) {
 
 #else
 // OpenSSL
-
-static std::string HMAC_MD5(std::string_view key, std::string_view data) {
-    std::string ret;
-    ret.resize(cb::crypto::MD5_DIGEST_SIZE);
-    if (HMAC(EVP_md5(),
-             key.data(),
-             key.size(),
-             reinterpret_cast<const uint8_t*>(data.data()),
-             data.size(),
-             reinterpret_cast<uint8_t*>(const_cast<char*>(ret.data())),
-             nullptr) == nullptr) {
-        throw std::runtime_error("cb::crypto::HMAC(MD5): HMAC failed");
-    }
-    return ret;
-}
 
 static std::string HMAC_SHA1(std::string_view key, std::string_view data) {
     std::string ret;
@@ -537,15 +492,6 @@ static std::string PBKDF2_HMAC_SHA512(std::string_view pass,
     return ret;
 }
 
-static std::string digest_md5(std::string_view data) {
-    std::string ret;
-    ret.resize(cb::crypto::MD5_DIGEST_SIZE);
-    MD5(reinterpret_cast<const uint8_t*>(data.data()),
-        data.size(),
-        reinterpret_cast<uint8_t*>(const_cast<char*>(ret.data())));
-    return ret;
-}
-
 static std::string digest_sha1(std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::SHA1_DIGEST_SIZE);
@@ -582,8 +528,6 @@ std::string cb::crypto::HMAC(const Algorithm algorithm,
                              std::string_view data) {
     TRACE_EVENT1("cbcrypto", "HMAC", "algorithm", int(algorithm));
     switch (algorithm) {
-    case Algorithm::MD5:
-        return internal::HMAC_MD5(key, data);
     case Algorithm::SHA1:
         return internal::HMAC_SHA1(key, data);
     case Algorithm::SHA256:
@@ -607,8 +551,6 @@ std::string cb::crypto::PBKDF2_HMAC(const Algorithm algorithm,
                  "iteration",
                  iterationCount);
     switch (algorithm) {
-    case Algorithm::MD5:
-        throw std::invalid_argument("cb::crypto::PBKDF2_HMAC: Can't use MD5");
     case Algorithm::SHA1:
         return internal::PBKDF2_HMAC_SHA1(pass, salt, iterationCount);
     case Algorithm::SHA256:
@@ -623,7 +565,6 @@ std::string cb::crypto::PBKDF2_HMAC(const Algorithm algorithm,
 
 static inline void verifyLegalAlgorithm(const cb::crypto::Algorithm al) {
     switch (al) {
-    case cb::crypto::Algorithm::MD5:
     case cb::crypto::Algorithm::SHA1:
     case cb::crypto::Algorithm::SHA256:
     case cb::crypto::Algorithm::SHA512:
@@ -643,8 +584,6 @@ std::string cb::crypto::digest(const Algorithm algorithm,
                                std::string_view data) {
     TRACE_EVENT1("cbcrypto", "digest", "algorithm", int(algorithm));
     switch (algorithm) {
-    case Algorithm::MD5:
-        return internal::digest_md5(data);
     case Algorithm::SHA1:
         return internal::digest_sha1(data);
     case Algorithm::SHA256:

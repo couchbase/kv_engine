@@ -200,7 +200,7 @@ void UserFactory::setScramshaFallbackSalt(const std::string& salt) {
 void User::generateSecrets(Mechanism mech, std::string_view passwd) {
     std::vector<uint8_t> salt;
     std::string encodedSalt;
-    cb::crypto::Algorithm algorithm = cb::crypto::Algorithm::MD5;
+    cb::crypto::Algorithm algorithm;
 
     switch (mech) {
     case Mechanism::SCRAM_SHA512:
@@ -245,21 +245,7 @@ void User::generateSecrets(Mechanism mech, std::string_view passwd) {
         }
         algorithm = cb::crypto::Algorithm::SHA1;
         break;
-    case Mechanism::PLAIN:
-        throw std::logic_error(
-                "cb::cbsasl::User::generateSecrets invalid algorithm");
-    }
-
-    if (algorithm == cb::crypto::Algorithm::MD5) {
-        // gcc7 complains that algorithm may have been uninitialized when we
-        // used it below. This would happen if the user provided a mech
-        // which isn't handled above. If that happens we should just
-        // throw an exception.
-        throw std::invalid_argument(
-                "cb::sasl::User::generateSecrets: invalid mechanism provided");
-    }
-
-    if (salt.empty()) {
+    default:
         throw std::logic_error(
                 "cb::cbsasl::User::generateSecrets invalid algorithm");
     }
