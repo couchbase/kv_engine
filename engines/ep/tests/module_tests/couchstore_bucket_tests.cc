@@ -315,7 +315,9 @@ TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails) {
     const auto& vb = *store->getVBucket(vbid);
     ASSERT_EQ(0, vb.getNumItems());
     auto* kvstore = store->getRWUnderlying(vbid);
-    ASSERT_EQ(0, kvstore->getPersistedVBucketState(vbid).onDiskPrepares);
+    auto diskState = kvstore->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, diskState.status);
+    ASSERT_EQ(0, diskState.state.onDiskPrepares);
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(0, stats.commitFailed);
     ASSERT_EQ(1, stats.flusherCommits);
@@ -340,7 +342,9 @@ TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails) {
     EXPECT_EQ(1, stats.commitFailed); // This indicates that we failed once
     EXPECT_EQ(2, stats.flusherCommits);
     EXPECT_EQ(1, vb.getNumTotalItems());
-    EXPECT_EQ(1, kvstore->getPersistedVBucketState(vbid).onDiskPrepares);
+    diskState = kvstore->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, diskState.status);
+    EXPECT_EQ(1, diskState.state.onDiskPrepares);
     EXPECT_EQ(1, kvstore->getCachedVBucketState(vbid)->onDiskPrepares);
 }
 
@@ -352,8 +356,9 @@ TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails_VBStateOnly) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto* kvstore = dynamic_cast<CouchKVStore*>(store->getRWUnderlying(vbid));
     ASSERT_TRUE(kvstore);
-    ASSERT_EQ(vbucket_state_active,
-              kvstore->getPersistedVBucketState(vbid).transition.state);
+    auto diskState = kvstore->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, diskState.status);
+    ASSERT_EQ(vbucket_state_active, diskState.state.transition.state);
     ASSERT_EQ(vbucket_state_active,
               kvstore->getCachedVBucketState(vbid)->transition.state);
     const auto& stats = engine->getEpStats();
@@ -381,8 +386,9 @@ TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails_VBStateOnly) {
 
     // Set new vbstate in memory only
     setVBucketState(vbid, vbucket_state_replica);
-    EXPECT_EQ(vbucket_state_active,
-              kvstore->getPersistedVBucketState(vbid).transition.state);
+    diskState = kvstore->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, diskState.status);
+    EXPECT_EQ(vbucket_state_active, diskState.state.transition.state);
     EXPECT_EQ(vbucket_state_active,
               kvstore->getCachedVBucketState(vbid)->transition.state);
 
@@ -394,8 +400,9 @@ TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails_VBStateOnly) {
 
     // Given that write-data has succeded, we have written the new vbstate to
     // the OS buffer cache, so we do see the new vbstate when we make a VFS read
-    EXPECT_EQ(vbucket_state_replica,
-              kvstore->getPersistedVBucketState(vbid).transition.state);
+    diskState = kvstore->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, diskState.status);
+    EXPECT_EQ(vbucket_state_replica, diskState.state.transition.state);
     // Note: Cached vbstate is updated only if commit succeeds, so we didn't
     // reach the point where we update it.
     EXPECT_EQ(vbucket_state_active,
@@ -406,8 +413,9 @@ TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails_VBStateOnly) {
     EXPECT_EQ(MoreAvailable::No, res.moreAvailable);
     EXPECT_EQ(1, stats.commitFailed);
     EXPECT_EQ(2, stats.flusherCommits);
-    EXPECT_EQ(vbucket_state_replica,
-              kvstore->getPersistedVBucketState(vbid).transition.state);
+    diskState = kvstore->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, diskState.status);
+    EXPECT_EQ(vbucket_state_replica, diskState.state.transition.state);
     EXPECT_EQ(vbucket_state_replica,
               kvstore->getCachedVBucketState(vbid)->transition.state);
 }

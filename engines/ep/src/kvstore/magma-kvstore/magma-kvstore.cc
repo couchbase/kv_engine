@@ -1945,7 +1945,8 @@ vbucket_state* MagmaKVStore::getCachedVBucketState(Vbid vbid) {
     return vbstate.get();
 }
 
-vbucket_state MagmaKVStore::getPersistedVBucketState(Vbid vbid) const {
+KVStoreIface::ReadVBStateResult MagmaKVStore::getPersistedVBucketState(
+        Vbid vbid) const {
     auto state = readVBStateFromDisk(vbid);
     if (state.status != ReadVBStateStatus::Success) {
         throw std::runtime_error(
@@ -1955,11 +1956,11 @@ vbucket_state MagmaKVStore::getPersistedVBucketState(Vbid vbid) const {
                             to_string(state.status)));
     }
 
-    return state.state;
+    return state;
 }
 
-vbucket_state MagmaKVStore::getPersistedVBucketState(KVFileHandle& handle,
-                                                     Vbid vbid) const {
+KVStoreIface::ReadVBStateResult MagmaKVStore::getPersistedVBucketState(
+        KVFileHandle& handle, Vbid vbid) const {
     auto& magmaHandle = static_cast<MagmaKVFileHandle&>(handle);
 
     auto state = readVBStateFromDisk(magmaHandle.vbid, *magmaHandle.snapshot);
@@ -1970,7 +1971,7 @@ vbucket_state MagmaKVStore::getPersistedVBucketState(KVFileHandle& handle,
                             vbid,
                             to_string(state.status)));
     }
-    return state.state;
+    return state;
 }
 
 uint64_t MagmaKVStore::getKVStoreRevision(Vbid vbid) const {

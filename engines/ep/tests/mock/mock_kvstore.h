@@ -111,11 +111,11 @@ public:
                 (std::unique_lock<std::mutex> & vbLock, Vbid vbid),
                 (override));
     MOCK_METHOD(vbucket_state*, getCachedVBucketState, (Vbid vbid), (override));
-    MOCK_METHOD(vbucket_state,
+    MOCK_METHOD(KVStoreIface::ReadVBStateResult,
                 getPersistedVBucketState,
                 (Vbid vbid),
                 (const, override));
-    MOCK_METHOD(vbucket_state,
+    MOCK_METHOD(KVStoreIface::ReadVBStateResult,
                 getPersistedVBucketState,
                 (KVFileHandle & handle, Vbid vbid),
                 (const, override));

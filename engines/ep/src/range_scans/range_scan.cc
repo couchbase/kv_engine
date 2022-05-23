@@ -90,9 +90,9 @@ cb::rangescan::Id RangeScan::createScan(
         // the parsing to cover against a bad JSON structure.
         auto state = bucket.getRWUnderlying(getVBucketId())
                              ->getPersistedVBucketState(handle, getVBucketId());
-        FailoverTable ft(state.transition.failovers,
+        FailoverTable ft(state.state.transition.failovers,
                          bucket.getEPEngine().getMaxFailoverEntries(),
-                         state.highSeqno);
+                         state.state.highSeqno);
         if (ft.getLatestUUID() != snapshotReqs->vbUuid) {
             throw cb::engine_error(cb::engine_errc::not_my_vbucket,
                                    fmt::format("RangeScan::createScan {} "
