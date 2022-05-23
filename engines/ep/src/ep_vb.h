@@ -306,7 +306,7 @@ public:
      * A range-scan-create may need to be cancelled after the I/O task has
      * completed.
      *
-     * @return
+     * @return status (currently only success)
      */
     cb::engine_errc checkAndCancelRangeScanCreate(const CookieIface& cookie);
 

@@ -222,6 +222,14 @@ void RangeScan::tryAndScanOneKey(KVStoreIface& kvstore) {
     }
 }
 
+cb::engine_errc RangeScan::hasPrivilege(
+        const CookieIface& cookie, const EventuallyPersistentEngine& engine) {
+    // @todo: change to Privilege::RangeScan
+    return engine.checkPrivilege(&cookie,
+                                 cb::rbac::Privilege::Read,
+                                 start.getDocKey().getCollectionID());
+}
+
 cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
     // continue works on a copy of the state.
     continueRunState = continueState.withWLock([](auto& cs) {

@@ -862,6 +862,14 @@ public:
                                    std::optional<CollectionID> cid) const;
 
     /**
+     * Check the access for the given privilege for the collection. The function
+     * locates the scope of the collection
+     */
+    cb::engine_errc checkPrivilege(const CookieIface* cookie,
+                                   cb::rbac::Privilege priv,
+                                   CollectionID) const;
+
+    /**
      * Test the access for the given privilege for the bucket.scope.collection
      * This differs from checkPrivilege in that the error case has no side
      * effect, such as setting error extras/logging
@@ -934,10 +942,6 @@ protected:
     cb::engine_errc deleteVBucketInner(const CookieIface& cookie,
                                        Vbid vbid,
                                        bool sync);
-
-    cb::engine_errc checkPrivilege(const CookieIface* cookie,
-                                   cb::rbac::Privilege priv,
-                                   CollectionID) const;
 
     /**
      * Check the access for the given privilege for the given key

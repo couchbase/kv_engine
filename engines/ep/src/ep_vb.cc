@@ -1371,12 +1371,30 @@ cb::engine_errc EPVBucket::continueRangeScan(
         size_t itemLimit,
         std::chrono::milliseconds timeLimit,
         size_t byteLimit) {
-    auto status = rangeScans.continueScan(dynamic_cast<EPBucket&>(*bucket),
-                                          id,
-                                          cookie,
-                                          itemLimit,
-                                          timeLimit,
-                                          byteLimit);
+    auto status = rangeScans.hasPrivilege(id, cookie, bucket->getEPEngine());
+    if (status != cb::engine_errc::success) {
+        // continue of a dropped collection detected, cancel the scan now as
+        // this may sooner free resources than waiting for another path to
+        // detect
+        if (status == cb::engine_errc::unknown_collection) {
+            EP_LOG_INFO(
+                    "EPVBucket::continueRangeScan {} {} cancelling for a "
+                    "dropped collection",
+                    getId(),
+                    id);
+            // cancel the scan (and request an I/O task to cancel)
+            rangeScans.cancelScan(dynamic_cast<EPBucket&>(*bucket), id, true);
+        }
+
+        return status;
+    }
+
+    status = rangeScans.continueScan(dynamic_cast<EPBucket&>(*bucket),
+                                     id,
+                                     cookie,
+                                     itemLimit,
+                                     timeLimit,
+                                     byteLimit);
     if (status != cb::engine_errc::success) {
         return status;
     }
@@ -1386,19 +1404,34 @@ cb::engine_errc EPVBucket::continueRangeScan(
 cb::engine_errc EPVBucket::cancelRangeScan(cb::rangescan::Id id,
                                            const CookieIface* cookie,
                                            bool schedule) {
-    auto status = rangeScans.cancelScan(
-            dynamic_cast<EPBucket&>(*bucket), id, schedule);
-
-    if (status != cb::engine_errc::success || !schedule) {
-        return status;
+    cb::engine_errc status{cb::engine_errc::success};
+    if (cookie) {
+        status = rangeScans.hasPrivilege(id, *cookie, bucket->getEPEngine());
+        if (status == cb::engine_errc::no_access ||
+            status == cb::engine_errc::no_such_key) {
+            return status;
+        }
     }
+    // hasPrivilege returns success, no_such_key, no_access, or
+    // unknown_collection. no_access/no_such_key have been dealt with, so now
+    // process success or unknown_collection
+    Expects(status == cb::engine_errc::success ||
+            status == cb::engine_errc::unknown_collection);
 
-    if (status == cb::engine_errc::success) {
+    // Cancel even for a dropped collection. Note cancelScan returns either
+    // success or no_such_key. The latter can happen if the scan self cancels
+    // by some other means (completes/timesout on another thread).
+    const auto cancelStatus = rangeScans.cancelScan(
+            dynamic_cast<EPBucket&>(*bucket), id, schedule);
+    Expects(cancelStatus == cb::engine_errc::success ||
+            cancelStatus == cb::engine_errc::no_such_key);
+
+    if (cancelStatus == cb::engine_errc::success) {
         EP_LOG_INFO("{} RangeScan {} cancelled by request", getId(), id);
     }
 
     // The client doesn't wait for the task to run/complete
-    return cb::engine_errc::success;
+    return cancelStatus;
 }
 
 void EPVBucket::completeRangeScan(cb::rangescan::Id id) {

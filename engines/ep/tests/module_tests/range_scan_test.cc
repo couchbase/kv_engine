@@ -98,6 +98,12 @@ public:
         storeTestKeys();
     }
 
+    void TearDown() override {
+        MockCookie::setCheckPrivilegeFunction({});
+        mock_set_privilege_context_revision(0);
+        SingleThreadedEPBucketTest::TearDown();
+    }
+
     static std::string PrintToStringParamName(
             const ::testing::TestParamInfo<ParamType>& info) {
         return std::get<0>(info.param) + "_" + std::get<1>(info.param) + "_" +
@@ -214,6 +220,20 @@ public:
     void validateItemScan(const std::unordered_set<StoredDocKey>& expectedKeys);
     std::vector<std::pair<cb::rangescan::Id, MockCookie*>>
     setupConcurrencyMaxxed();
+
+    void setNoAccess(CollectionID noaccess) {
+        MockCookie::setCheckPrivilegeFunction(
+                [noaccess](const CookieIface&,
+                           cb::rbac::Privilege priv,
+                           std::optional<ScopeID> sid,
+                           std::optional<CollectionID> cid)
+                        -> cb::rbac::PrivilegeAccess {
+                    if (cid && *cid == noaccess) {
+                        return cb::rbac::PrivilegeAccessFail;
+                    }
+                    return cb::rbac::PrivilegeAccessOk;
+                });
+    }
 
     // Tests all scan against the following collection
     const CollectionID scanCollection = CollectionEntry::vegetable.getId();
@@ -1413,6 +1433,89 @@ TEST_P(RangeScanTest, concurrency_maxxed_and_reduce) {
         EXPECT_GT(dummyCallbackCounter, counter);
         counter = dummyCallbackCounter;
         destroy_mock_cookie(scan.second);
+    }
+}
+
+// Dropped collection detection is noted by privilege check when we process a
+// range scan continue (different to detection whilst a scan is continuing)
+TEST_P(RangeScanTest, dropped_collection_for_continue) {
+    // Create the scan
+    auto uuid1 = createScan(scanCollection,
+                            {"user"},
+                            {"user\xFF"},
+                            {/* no snapshot requirements */},
+                            {/* no sampling*/});
+
+    auto uuid2 = createScan(scanCollection,
+                            {"user"},
+                            {"user\xFF"},
+                            {/* no snapshot requirements */},
+                            {/* no sampling*/});
+
+    cm.remove(CollectionEntry::vegetable);
+    setCollections(cookie, cm);
+
+    // Continue spots the collection has gone and fails the request
+    EXPECT_EQ(
+            cb::engine_errc::unknown_collection,
+            store->continueRangeScan(
+                    vbid, uuid1, *cookie, 0, std::chrono::milliseconds(0), 0));
+
+    // Scan was removed from the vbucket
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->cancelRangeScan(vbid, uuid1, *cookie));
+
+    // And a task was still scheduled because the scan has been cancelled as
+    // a side affect
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+
+    // uuid2 - we just attempt to cancel. The collection has gone, but that's
+    // fine - the scan still cancels
+    EXPECT_EQ(cb::engine_errc::success,
+              store->cancelRangeScan(vbid, uuid2, *cookie));
+
+    // And the second scan cancels on the AUXIO task
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+}
+
+// Lose access to a collection after create
+TEST_P(RangeScanTest, lose_access_to_scan) {
+    // Create the scan
+    auto uuid = createScan(scanCollection,
+                           {"user"},
+                           {"user\xFF"},
+                           {/* no snapshot requirements */},
+                           {/* no sampling*/});
+
+    setNoAccess(scanCollection);
+
+    EXPECT_EQ(cb::engine_errc::no_access,
+              store->continueRangeScan(
+                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+
+    EXPECT_EQ(cb::engine_errc::no_access,
+              store->cancelRangeScan(vbid, uuid, *cookie));
+
+    EXPECT_EQ(
+            0,
+            task_executor->getLpTaskQ()[AUXIO_TASK_IDX]->getFutureQueueSize());
+
+    // validate scan still exists and runs
+    MockCookie::setCheckPrivilegeFunction({});
+    mock_set_privilege_context_revision(2);
+    EXPECT_EQ(cb::engine_errc::would_block,
+              store->continueRangeScan(
+                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+
+    if (isKeyOnly()) {
+        validateKeyScan(getUserKeys());
+    } else {
+        validateItemScan(getUserKeys());
     }
 }
 

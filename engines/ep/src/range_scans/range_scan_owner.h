@@ -187,6 +187,20 @@ public:
      */
     void completeScan(cb::rangescan::Id id);
 
+    /**
+     * Check if the caller can progress the scan with the given id by doing
+     * a privilege check.
+     *
+     * @param id The id of the scan to check
+     * @param cookie The cookie of the connection
+     * @param engine required to call checkPrivilege
+     * @return success if privileged
+     */
+    cb::engine_errc hasPrivilege(
+            cb::rangescan::Id id,
+            const CookieIface& cookie,
+            const EventuallyPersistentEngine& engine) const;
+
 protected:
     std::shared_ptr<RangeScan> processScanRemoval(cb::rangescan::Id id,
                                                   bool cancelled);

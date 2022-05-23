@@ -28,6 +28,7 @@
 class ByIdScanContext;
 class CookieIface;
 class EPBucket;
+class EventuallyPersistentEngine;
 class KVStoreIface;
 class RangeScanDataHandlerIFace;
 class StatCollector;
@@ -78,6 +79,19 @@ public:
             std::optional<cb::rangescan::SamplingConfiguration> samplingConfig);
 
     ~RangeScan();
+
+    /**
+     * Check if the calling connection is privileged to progress this scan.
+     * Continue/Cancel must defer privilege checks until we reach the engine
+     * and locate the scan as we must look up the collection being scanned from
+     * this object.
+     *
+     * Note this call also has the side affect of rechecking the scan-collection
+     * exists (which could be dropped whilst a scan is idle). Caller can use
+     * that to cancel scans.
+     */
+    cb::engine_errc hasPrivilege(const CookieIface& cookie,
+                                 const EventuallyPersistentEngine& engine);
 
     /**
      * Continue the range scan by calling kvstore.scan()
