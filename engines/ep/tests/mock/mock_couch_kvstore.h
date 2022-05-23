@@ -104,4 +104,6 @@ public:
     uint64_t public_getDbRevision(Vbid vbucketId) const {
         return getDbRevision(vbucketId);
     }
+
+    bool deleteLocalDoc(Vbid vbid, std::string_view doc);
 };

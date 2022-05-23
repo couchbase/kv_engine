@@ -503,28 +503,42 @@ void CouchKVStore::initialize(
         }
 
         const auto readRes = readVBStateAndUpdateCache(db, vbid).status;
-        if (readRes != ReadVBStateStatus::Success) {
-            const auto msg = "CouchKVStore::initialize: readVBState error:" +
-                             to_string(readRes) + ", file_name:" +
-                             getDBFileName(dbname, vbid, db.getFileRev());
 
+        switch (readRes) {
+        case ReadVBStateStatus::Success:
+            // Success, update stats
+            ++st.numLoadedVb;
+            cachedDeleteCount[getCacheSlot(vbid)] =
+                    cb::couchstore::getHeader(*db.getDb()).deletedCount;
+            break;
+        case ReadVBStateStatus::NotFound:
+            // No vBucket state found. It's possible for a vBucket header to
+            // exist on disk without a state if we crashed or hit some IO error
+            // during a flush. Continue as though it does not exist so that we
+            // can rebuild it correctly, rather than warmup some odd state.
+            logger.warn(
+                    "CouchKVStore::initialize found vBucket with no "
+                    "state, file_name:{}",
+                    getDBFileName(dbname, vbid, db.getFileRev()));
+            continue;
+        case ReadVBStateStatus::CorruptSnapshot:
             // Note: The  CorruptSnapshot error is a special case. That is
             // generated for replica/pending vbuckets only and we want to
             // continue as if the vbucket does not exist so it gets rebuilt from
             // the active.
-            if (readRes == ReadVBStateStatus::CorruptSnapshot) {
-                logger.warn(msg);
-                continue;
-            }
-
+            logger.warn(
+                    "CouchKVStore::initialize: found corrupt snapshot, "
+                    "file_name:{}",
+                    getDBFileName(dbname, vbid, db.getFileRev()));
+            continue;
+        case ReadVBStateStatus::JsonInvalid:
+        case ReadVBStateStatus::Error:
+            const auto msg = "CouchKVStore::initialize: readVBState error:" +
+                             to_string(readRes) + ", file_name:" +
+                             getDBFileName(dbname, vbid, db.getFileRev());
             logger.error(msg);
             throw std::runtime_error(msg);
         }
-
-        // Success, update stats
-        ++st.numLoadedVb;
-        cachedDeleteCount[getCacheSlot(vbid)] =
-                cb::couchstore::getHeader(*db.getDb()).deletedCount;
     }
 }
 
@@ -3381,12 +3395,6 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBStateAndUpdateCache(
                     ". Max shards is:" +
                     std::to_string(configuration.getMaxShards()));
         }
-    }
-
-    // @TODO MB-51413: NotFound should probably not load a state, but for now
-    // we'd segfault higher up the stack during initialize if we don't allow it.
-    if (res.status == ReadVBStateStatus::NotFound) {
-        res.status = ReadVBStateStatus::Success;
     }
 
     if (res.status == ReadVBStateStatus::Success) {
