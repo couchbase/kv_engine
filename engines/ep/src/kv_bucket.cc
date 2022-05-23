@@ -3086,6 +3086,8 @@ cb::engine_errc KVBucket::continueRangeScan(Vbid,
     return cb::engine_errc::not_supported;
 }
 
-cb::engine_errc KVBucket::cancelRangeScan(Vbid, cb::rangescan::Id) {
+cb::engine_errc KVBucket::cancelRangeScan(Vbid,
+                                          cb::rangescan::Id,
+                                          const CookieIface&) {
     return cb::engine_errc::not_supported;
 }

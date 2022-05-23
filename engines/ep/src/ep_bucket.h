@@ -323,7 +323,9 @@ public:
             size_t itemLimit,
             std::chrono::milliseconds timeLimit) override;
 
-    cb::engine_errc cancelRangeScan(Vbid vbid, cb::rangescan::Id uuid) override;
+    cb::engine_errc cancelRangeScan(Vbid vbid,
+                                    cb::rangescan::Id uuid,
+                                    const CookieIface& cookie) override;
 
     ReadyRangeScans* getReadyRangeScans() {
         return &rangeScans;

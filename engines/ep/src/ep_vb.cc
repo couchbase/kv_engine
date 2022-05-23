@@ -1360,7 +1360,7 @@ cb::engine_errc EPVBucket::checkAndCancelRangeScanCreate(
     bucket->getEPEngine().storeEngineSpecific(&cookie, nullptr);
 
     if (rangeScanCreateData->state == RangeScanCreateState::Creating) {
-        return cancelRangeScan(rangeScanCreateData->uuid, true);
+        return cancelRangeScan(rangeScanCreateData->uuid, nullptr, true);
     }
     return cb::engine_errc::success;
 }
@@ -1394,6 +1394,7 @@ cb::engine_errc EPVBucket::continueRangeScan(
 }
 
 cb::engine_errc EPVBucket::cancelRangeScan(cb::rangescan::Id id,
+                                           const CookieIface* cookie,
                                            bool schedule) {
     auto status = rangeScans.cancelScan(id, schedule);
 

@@ -281,7 +281,9 @@ public:
                                       const CookieIface&,
                                       size_t,
                                       std::chrono::milliseconds) override;
-    cb::engine_errc cancelRangeScan(cb::rangescan::Id, bool) override;
+    cb::engine_errc cancelRangeScan(cb::rangescan::Id,
+                                    const CookieIface*,
+                                    bool) override;
 
 protected:
     /* Data structure for in-memory sequential storage */

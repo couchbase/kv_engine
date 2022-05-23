@@ -339,7 +339,8 @@ void RangeScanTest::testRangeScan(
     // In this case the scan finished and cleaned up
 
     // Check scan is gone, cannot be cancelled again
-    EXPECT_EQ(cb::engine_errc::no_such_key, store->cancelRangeScan(vbid, uuid));
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->cancelRangeScan(vbid, uuid, *cookie));
 
     // Or continued, uuid is unknown
     EXPECT_EQ(cb::engine_errc::no_such_key,
@@ -535,14 +536,16 @@ TEST_P(RangeScanTest, continue_must_be_serialised) {
                       uuid, *cookie, 0, std::chrono::milliseconds(0)));
 
     // But can cancel
-    EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, true));
+    EXPECT_EQ(cb::engine_errc::success,
+              vb->cancelRangeScan(uuid, cookie, true));
 }
 
 // Create and then straight to cancel
 TEST_P(RangeScanTest, create_cancel) {
     auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
     auto vb = store->getVBucket(vbid);
-    EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, true));
+    EXPECT_EQ(cb::engine_errc::success,
+              vb->cancelRangeScan(uuid, cookie, true));
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
 
@@ -556,7 +559,8 @@ TEST_P(RangeScanTest, create_cancel_no_data) {
     // cancel
     auto uuid = createScan(scanCollection, {"0"}, {"0\xFF"});
     auto vb = store->getVBucket(vbid);
-    EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, true));
+    EXPECT_EQ(cb::engine_errc::success,
+              vb->cancelRangeScan(uuid, cookie, true));
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
 
@@ -576,7 +580,8 @@ TEST_P(RangeScanTest, create_continue_is_cancelled) {
                       uuid, *cookie, 0, std::chrono::milliseconds(0)));
 
     // Cancel
-    EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, true));
+    EXPECT_EQ(cb::engine_errc::success,
+              vb->cancelRangeScan(uuid, cookie, true));
 
     // Note that at the moment continue and cancel are creating new tasks.
     // run them both and future changes will clean this up.
@@ -611,11 +616,11 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
                       uuid, *cookie, 0, std::chrono::milliseconds(0)));
 
     // Set a hook which will cancel when the 2nd key is read
-    testHook = [&vb, uuid](size_t count) {
+    testHook = [&vb, uuid, this](size_t count) {
         EXPECT_LT(count, 3); // never reach third key
         if (count == 2) {
             EXPECT_EQ(cb::engine_errc::success,
-                      vb->cancelRangeScan(uuid, true));
+                      vb->cancelRangeScan(uuid, cookie, true));
         }
     };
 
@@ -625,7 +630,8 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
     EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
 
     // Check scan is gone, cannot be cancelled again
-    EXPECT_EQ(cb::engine_errc::no_such_key, vb->cancelRangeScan(uuid, true));
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              vb->cancelRangeScan(uuid, cookie, true));
 
     // Or continued, uuid is unknown
     EXPECT_EQ(cb::engine_errc::no_such_key,
@@ -688,7 +694,8 @@ TEST_P(RangeScanTest, snapshot_upto_seqno) {
                            reqs,
                            {/* no sampling config*/},
                            cb::engine_errc::success);
-    EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, false));
+    EXPECT_EQ(cb::engine_errc::success,
+              vb->cancelRangeScan(uuid, cookie, false));
 }
 
 TEST_P(RangeScanTest, snapshot_contains_seqno) {
@@ -703,7 +710,8 @@ TEST_P(RangeScanTest, snapshot_contains_seqno) {
                            reqs,
                            {/* no sampling config*/},
                            cb::engine_errc::success);
-    EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, false));
+    EXPECT_EQ(cb::engine_errc::success,
+              vb->cancelRangeScan(uuid, cookie, false));
 }
 
 // There is no wait option, so a future seqno is a failure
@@ -1026,7 +1034,8 @@ TEST_P(RangeScanTest, wait_for_persistence_success) {
                            cb::engine_errc::success);
 
     // Close the scan
-    EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, false));
+    EXPECT_EQ(cb::engine_errc::success,
+              vb->cancelRangeScan(uuid, cookie, false));
 }
 
 TEST_P(RangeScanTest, wait_for_persistence_fails) {

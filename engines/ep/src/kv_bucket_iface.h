@@ -901,12 +901,13 @@ public:
      *
      * @param vbid vbucket to find the scan on
      * @param uuid The identifier of the scan to continue
-     * @param schedule true if a task should be scheduled for the cancellation
+     * @param cookie The cookie of the connection/request
      * @return would_block if the scan was found and successfully scheduled for
      *         cancellation
      */
     virtual cb::engine_errc cancelRangeScan(Vbid vbid,
-                                            cb::rangescan::Id uuid) = 0;
+                                            cb::rangescan::Id uuid,
+                                            const CookieIface& cookie) = 0;
 
     /**
      * Result of the loadPreparedSyncWrites function

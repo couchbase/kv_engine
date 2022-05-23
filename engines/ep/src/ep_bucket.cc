@@ -2468,11 +2468,14 @@ cb::engine_errc EPBucket::continueRangeScan(
     return vb->continueRangeScan(uuid, cookie, itemLimit, timeLimit);
 }
 
-cb::engine_errc EPBucket::cancelRangeScan(Vbid vbid, cb::rangescan::Id uuid) {
+cb::engine_errc EPBucket::cancelRangeScan(Vbid vbid,
+                                          cb::rangescan::Id uuid,
+                                          const CookieIface& cookie) {
     auto vb = getVBucket(vbid);
     if (!vb) {
         ++stats.numNotMyVBuckets;
         return cb::engine_errc::not_my_vbucket;
     }
-    return vb->cancelRangeScan(uuid, true /* schedule for background cancel */);
+    return vb->cancelRangeScan(
+            uuid, &cookie, true /* schedule for background cancel */);
 }

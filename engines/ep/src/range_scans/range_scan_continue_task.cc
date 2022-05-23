@@ -54,7 +54,9 @@ void RangeScanContinueTask::continueScan(RangeScan& scan) {
             // of known scans.
             // 2) vbucket could of been removed and re-added whilst scan was
             // busy so, vbucket has no knowledge
-            vb->cancelRangeScan(scan.getUuid(), false /* no schedule*/);
+            vb->cancelRangeScan(scan.getUuid(),
+                                nullptr /* no cookie */,
+                                false /* no schedule*/);
         }
         return;
     }

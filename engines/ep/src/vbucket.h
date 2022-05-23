@@ -1729,6 +1729,9 @@ public:
      * Cancel the range scan with the given identifier. The cancel itself will
      * be scheduled to run on an I/O task
      * @param id The identifier of the scan to continue
+     * @param cookie The cookie of the connection/request. This is a pointer so
+     *        that cancellation from internal paths doesn't need to pass a
+     *        cookie (and skips privilege checking).
      * @param schedule request if a task should be scheduled to perform the
      *        cancellation. If false, the RangeScan object may destruct (and
      *        close any snapshot) within this function call.
@@ -1736,6 +1739,7 @@ public:
      *         cancellation
      */
     virtual cb::engine_errc cancelRangeScan(cb::rangescan::Id id,
+                                            const CookieIface* cookie,
                                             bool schedule) = 0;
 
     std::unique_ptr<FailoverTable> failovers;
