@@ -280,3 +280,12 @@ TEST_F(TestappTest, MB_46853_TotalBodyLengthValidation) {
     const auto rsp = BinprotHelloResponse(conn.execute(followup));
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
 }
+
+TEST_F(TestappTest, ServerlessConfigCantBeSetInDefaultDeployment) {
+    auto rsp = adminConnection->execute(
+            SetBucketComputeUnitThrottleLimitCommand(bucketName, 1024));
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
+    rsp = adminConnection->execute(
+            SetBucketDataLimitExceededCommand{bucketName, true});
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
+}

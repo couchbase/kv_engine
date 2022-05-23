@@ -469,6 +469,10 @@ static void shutdown_executor(Cookie& cookie) {
 }
 
 static void set_bucket_compute_unit_throttle_limits_executor(Cookie& cookie) {
+    if (!isServerlessDeployment()) {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+        return;
+    }
     std::string name(cookie.getRequestKey().getBuffer());
     using cb::mcbp::request::SetBucketComputeUnitThrottleLimitPayload;
     auto& req = cookie.getRequest();
@@ -496,6 +500,10 @@ static void set_bucket_compute_unit_throttle_limits_executor(Cookie& cookie) {
 }
 
 static void set_bucket_data_limit_exceeded_executor(Cookie& cookie) {
+    if (!isServerlessDeployment()) {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+        return;
+    }
     std::string name(cookie.getRequestKey().getBuffer());
     using cb::mcbp::request::SetBucketDataLimitExceededPayload;
     auto& req = cookie.getRequest();
