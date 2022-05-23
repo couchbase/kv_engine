@@ -37,6 +37,11 @@ public:
     virtual int64_t getHighCompletedSeqno() const = 0;
 
     /**
+     * Get the highest seqno of a prepare that this DM is tracking
+     */
+    virtual int64_t getHighestTrackedSeqno() const = 0;
+
+    /**
      * @return the number of pending SyncWrite(s) currently tracked
      */
     virtual size_t getNumTracked() const = 0;
