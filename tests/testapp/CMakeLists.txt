@@ -39,7 +39,6 @@ set(memcached_testapp_SOURCES
     testapp_dcp_consumer.cc
     testapp_deprecated_commands.cc
     testapp_durability.cc
-    testapp_elixir.cc
     testapp_environment.cc
     testapp_environment.h
     testapp_errmap.cc
