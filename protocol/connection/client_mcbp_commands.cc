@@ -2127,3 +2127,18 @@ void SetBucketComputeUnitThrottleLimitCommand::encode(
     buf.insert(buf.end(), extraBuf.begin(), extraBuf.end());
     buf.insert(buf.end(), key.begin(), key.end());
 }
+
+SetBucketDataLimitExceededCommand::SetBucketDataLimitExceededCommand(
+        std::string key_, bool exceeded)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
+                            std::move(key_)) {
+    extras.setEnabled(exceeded);
+}
+
+void SetBucketDataLimitExceededCommand::encode(
+        std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 0, sizeof(extras));
+    auto extraBuf = extras.getBuffer();
+    buf.insert(buf.end(), extraBuf.begin(), extraBuf.end());
+    buf.insert(buf.end(), key.begin(), key.end());
+}

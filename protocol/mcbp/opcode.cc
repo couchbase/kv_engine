@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -62,6 +61,7 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
     case ClientOpcode::SetBucketComputeUnitThrottleLimits:
+    case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -250,6 +250,7 @@ bool is_supported_opcode(ClientOpcode opcode) {
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
     case ClientOpcode::SetBucketComputeUnitThrottleLimits:
+    case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::SetVbucket:
     case ClientOpcode::GetVbucket:
     case ClientOpcode::DelVbucket:
@@ -442,6 +443,7 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
     case ClientOpcode::SetBucketComputeUnitThrottleLimits:
+    case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -601,6 +603,7 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::SubdocGetCount:
     case ClientOpcode::SubdocReplaceBodyWithXattr:
     case ClientOpcode::SetBucketComputeUnitThrottleLimits:
+    case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::RangeScanCreate:
         return true;
 
@@ -826,6 +829,7 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
     case ClientOpcode::SetBucketComputeUnitThrottleLimits:
+    case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -991,6 +995,7 @@ bool is_deprecated(ClientOpcode opcode) {
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
     case ClientOpcode::SetBucketComputeUnitThrottleLimits:
+    case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -1176,6 +1181,7 @@ bool is_preserve_ttl_supported(ClientOpcode opcode) {
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
     case ClientOpcode::SetBucketComputeUnitThrottleLimits:
+    case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -1392,6 +1398,7 @@ bool is_subject_for_throttling(ClientOpcode opcode) {
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
     case ClientOpcode::SetBucketComputeUnitThrottleLimits:
+    case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::SetVbucket:
     case ClientOpcode::GetVbucket:
     case ClientOpcode::DelVbucket:
@@ -1482,6 +1489,190 @@ bool is_subject_for_throttling(ClientOpcode opcode) {
 
     throw std::runtime_error(
             "cb::mcbp::is_subject_for_throttling: Unknown command " +
+            cb::to_hex(uint8_t(opcode)));
+}
+
+bool is_client_writing_data(ClientOpcode opcode) {
+    switch (opcode) {
+    case ClientOpcode::Set:
+    case ClientOpcode::Add:
+    case ClientOpcode::Replace:
+    case ClientOpcode::Increment:
+    case ClientOpcode::Decrement:
+    case ClientOpcode::Append:
+    case ClientOpcode::Prepend:
+    case ClientOpcode::Setq:
+    case ClientOpcode::Addq:
+    case ClientOpcode::Replaceq:
+    case ClientOpcode::Incrementq:
+    case ClientOpcode::Decrementq:
+    case ClientOpcode::Appendq:
+    case ClientOpcode::Prependq:
+    case ClientOpcode::SetWithMeta:
+    case ClientOpcode::SetqWithMeta:
+    case ClientOpcode::AddWithMeta:
+    case ClientOpcode::AddqWithMeta:
+    case ClientOpcode::ReturnMeta:
+    case ClientOpcode::SubdocDictAdd:
+    case ClientOpcode::SubdocDictUpsert:
+    case ClientOpcode::SubdocReplace:
+    case ClientOpcode::SubdocArrayPushLast:
+    case ClientOpcode::SubdocArrayPushFirst:
+    case ClientOpcode::SubdocArrayInsert:
+    case ClientOpcode::SubdocArrayAddUnique:
+    case ClientOpcode::SubdocCounter:
+    case ClientOpcode::SubdocMultiMutation:
+    case ClientOpcode::SubdocReplaceBodyWithXattr:
+        return true;
+
+    case ClientOpcode::Get:
+    case ClientOpcode::Delete:
+    case ClientOpcode::Quit:
+    case ClientOpcode::Flush:
+    case ClientOpcode::Getq:
+    case ClientOpcode::Noop:
+    case ClientOpcode::Version:
+    case ClientOpcode::Getk:
+    case ClientOpcode::Getkq:
+    case ClientOpcode::Stat:
+    case ClientOpcode::Deleteq:
+    case ClientOpcode::Quitq:
+    case ClientOpcode::Flushq:
+    case ClientOpcode::Verbosity:
+    case ClientOpcode::Touch:
+    case ClientOpcode::Gat:
+    case ClientOpcode::Gatq:
+    case ClientOpcode::Hello:
+    case ClientOpcode::SaslListMechs:
+    case ClientOpcode::SaslAuth:
+    case ClientOpcode::SaslStep:
+    case ClientOpcode::IoctlGet:
+    case ClientOpcode::IoctlSet:
+    case ClientOpcode::ConfigValidate:
+    case ClientOpcode::ConfigReload:
+    case ClientOpcode::AuditPut:
+    case ClientOpcode::AuditConfigReload:
+    case ClientOpcode::Shutdown:
+    case ClientOpcode::SetBucketComputeUnitThrottleLimits:
+    case ClientOpcode::SetBucketDataLimitExceeded:
+    case ClientOpcode::Rget_Unsupported:
+    case ClientOpcode::Rset_Unsupported:
+    case ClientOpcode::Rsetq_Unsupported:
+    case ClientOpcode::Rappend_Unsupported:
+    case ClientOpcode::Rappendq_Unsupported:
+    case ClientOpcode::Rprepend_Unsupported:
+    case ClientOpcode::Rprependq_Unsupported:
+    case ClientOpcode::Rdelete_Unsupported:
+    case ClientOpcode::Rdeleteq_Unsupported:
+    case ClientOpcode::Rincr_Unsupported:
+    case ClientOpcode::Rincrq_Unsupported:
+    case ClientOpcode::Rdecr_Unsupported:
+    case ClientOpcode::Rdecrq_Unsupported:
+    case ClientOpcode::SetVbucket:
+    case ClientOpcode::GetVbucket:
+    case ClientOpcode::DelVbucket:
+    case ClientOpcode::TapConnect_Unsupported:
+    case ClientOpcode::TapMutation_Unsupported:
+    case ClientOpcode::TapDelete_Unsupported:
+    case ClientOpcode::TapFlush_Unsupported:
+    case ClientOpcode::TapOpaque_Unsupported:
+    case ClientOpcode::TapVbucketSet_Unsupported:
+    case ClientOpcode::TapCheckpointStart_Unsupported:
+    case ClientOpcode::TapCheckpointEnd_Unsupported:
+    case ClientOpcode::GetAllVbSeqnos:
+    case ClientOpcode::DcpOpen:
+    case ClientOpcode::DcpAddStream:
+    case ClientOpcode::DcpCloseStream:
+    case ClientOpcode::DcpStreamReq:
+    case ClientOpcode::DcpGetFailoverLog:
+    case ClientOpcode::DcpStreamEnd:
+    case ClientOpcode::DcpSnapshotMarker:
+    case ClientOpcode::DcpMutation:
+    case ClientOpcode::DcpDeletion:
+    case ClientOpcode::DcpExpiration:
+    case ClientOpcode::DcpFlush_Unsupported:
+    case ClientOpcode::DcpSetVbucketState:
+    case ClientOpcode::DcpNoop:
+    case ClientOpcode::DcpBufferAcknowledgement:
+    case ClientOpcode::DcpControl:
+    case ClientOpcode::DcpSystemEvent:
+    case ClientOpcode::DcpPrepare:
+    case ClientOpcode::DcpSeqnoAcknowledged:
+    case ClientOpcode::DcpCommit:
+    case ClientOpcode::DcpAbort:
+    case ClientOpcode::DcpSeqnoAdvanced:
+    case ClientOpcode::DcpOsoSnapshot:
+    case ClientOpcode::StopPersistence:
+    case ClientOpcode::StartPersistence:
+    case ClientOpcode::SetParam:
+    case ClientOpcode::GetReplica:
+    case ClientOpcode::CreateBucket:
+    case ClientOpcode::DeleteBucket:
+    case ClientOpcode::ListBuckets:
+    case ClientOpcode::SelectBucket:
+    case ClientOpcode::ObserveSeqno:
+    case ClientOpcode::Observe:
+    case ClientOpcode::EvictKey:
+    case ClientOpcode::GetLocked:
+    case ClientOpcode::UnlockKey:
+    case ClientOpcode::GetFailoverLog:
+    case ClientOpcode::LastClosedCheckpoint:
+    case ClientOpcode::DeregisterTapClient_Unsupported:
+    case ClientOpcode::ResetReplicationChain_Unsupported:
+    case ClientOpcode::GetMeta:
+    case ClientOpcode::GetqMeta:
+    case ClientOpcode::SnapshotVbStates_Unsupported:
+    case ClientOpcode::VbucketBatchCount_Unsupported:
+    case ClientOpcode::DelWithMeta:
+    case ClientOpcode::DelqWithMeta:
+    case ClientOpcode::CreateCheckpoint:
+    case ClientOpcode::NotifyVbucketUpdate_Unsupported:
+    case ClientOpcode::EnableTraffic:
+    case ClientOpcode::DisableTraffic:
+    case ClientOpcode::Ifconfig:
+    case ClientOpcode::ChangeVbFilter_Unsupported:
+    case ClientOpcode::CheckpointPersistence_Unsupported:
+    case ClientOpcode::CompactDb:
+    case ClientOpcode::SetClusterConfig:
+    case ClientOpcode::GetClusterConfig:
+    case ClientOpcode::GetRandomKey:
+    case ClientOpcode::SeqnoPersistence:
+    case ClientOpcode::GetKeys:
+    case ClientOpcode::CollectionsSetManifest:
+    case ClientOpcode::CollectionsGetManifest:
+    case ClientOpcode::CollectionsGetID:
+    case ClientOpcode::CollectionsGetScopeID:
+    case ClientOpcode::SetDriftCounterState_Unsupported:
+    case ClientOpcode::GetAdjustedTime_Unsupported:
+    case ClientOpcode::SubdocGet:
+    case ClientOpcode::SubdocExists:
+    case ClientOpcode::SubdocDelete:
+    case ClientOpcode::SubdocMultiLookup:
+    case ClientOpcode::SubdocGetCount:
+    case ClientOpcode::RangeScanCreate:
+    case ClientOpcode::RangeScanContinue:
+    case ClientOpcode::RangeScanCancel:
+    case ClientOpcode::Scrub:
+    case ClientOpcode::IsaslRefresh:
+    case ClientOpcode::SslCertsRefresh:
+    case ClientOpcode::GetCmdTimer:
+    case ClientOpcode::SetCtrlToken:
+    case ClientOpcode::GetCtrlToken:
+    case ClientOpcode::UpdateExternalUserPermissions:
+    case ClientOpcode::RbacRefresh:
+    case ClientOpcode::AuthProvider:
+    case ClientOpcode::DropPrivilege:
+    case ClientOpcode::AdjustTimeofday:
+    case ClientOpcode::EwouldblockCtl:
+    case ClientOpcode::GetErrorMap:
+        return false;
+
+    case ClientOpcode::Invalid:
+        break;
+    }
+
+    throw std::runtime_error(
+            "cb::mcbp::is_client_writing_data: Unknown command " +
             cb::to_hex(uint8_t(opcode)));
 }
 
@@ -1589,6 +1780,8 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "SHUTDOWN";
     case ClientOpcode::SetBucketComputeUnitThrottleLimits:
         return "SET_BUCKET_COMPUTE_UNIT_THROTTLE_LIMITS";
+    case ClientOpcode::SetBucketDataLimitExceeded:
+        return "SET_BUCKET_DATA_LIMIT_EXCEEDED";
     case ClientOpcode::Rget_Unsupported:
         return "RGET";
     case ClientOpcode::Rset_Unsupported:

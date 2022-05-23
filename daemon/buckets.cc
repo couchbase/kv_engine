@@ -45,6 +45,8 @@ void Bucket::reset() {
     num_throttled = 0;
     throttle_wait_time = 0;
     num_commands = 0;
+    num_rejected = 0;
+    bucket_quota_exceeded = false;
 
     for (auto& c : responseCounters) {
         c.reset();
@@ -79,10 +81,7 @@ nlohmann::json Bucket::to_json() const {
                 json["throttle_limit"] = throttle_limit.load();
                 json["throttle_wait_time"] = throttle_wait_time.load();
                 json["num_commands"] = num_commands.load();
-                // We don't reject commands at this time, but just add the
-                // empty stat to allow other parties to implement their logic
-                // and work out of the box if we this
-                json["num_rejected"] = 0;
+                json["num_rejected"] = num_rejected.load();
             } catch (const std::exception& e) {
                 LOG_ERROR("Failed to generate bucket details: {}", e.what());
             }
@@ -138,6 +137,10 @@ void Bucket::commandExecuted(const Cookie& cookie) {
     read_compute_units_used += rcu;
     write_compute_units_used += wcu;
     ++num_commands;
+}
+
+void Bucket::rejectCommand(const Cookie&) {
+    ++num_rejected;
 }
 
 void Bucket::tick() {

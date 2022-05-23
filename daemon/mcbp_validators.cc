@@ -420,6 +420,11 @@ Status McbpValidator::verify_header(Cookie& cookie,
                 sid, key.getCollectionID(), manifestUid);
     }
 
+    if (connection.getBucket().bucket_quota_exceeded &&
+        cb::mcbp::is_client_writing_data(opcode)) {
+        return Status::BucketSizeLimitExceeded;
+    }
+
     return Status::Success;
 }
 
@@ -1620,6 +1625,18 @@ static Status set_bucket_compute_unit_throttle_limits_validator(
             PROTOCOL_BINARY_RAW_BYTES);
 }
 
+static Status set_bucket_data_limit_exceeded_validator(
+        Cookie& cookie) {
+    using cb::mcbp::request::SetBucketDataLimitExceededPayload;
+    return McbpValidator::verify_header(
+            cookie,
+            sizeof(SetBucketDataLimitExceededPayload),
+            ExpectedKeyLen::NonZero,
+            ExpectedValueLen::Zero,
+            ExpectedCas::NotSet,
+            PROTOCOL_BINARY_RAW_BYTES);
+}
+
 static Status get_meta_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
 
@@ -2316,6 +2333,8 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::Shutdown, shutdown_validator);
     setup(cb::mcbp::ClientOpcode::SetBucketComputeUnitThrottleLimits,
           set_bucket_compute_unit_throttle_limits_validator);
+    setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
+          set_bucket_data_limit_exceeded_validator);
     setup(cb::mcbp::ClientOpcode::ObserveSeqno, observe_seqno_validator);
     setup(cb::mcbp::ClientOpcode::GetAdjustedTime_Unsupported,
           not_supported_validator);

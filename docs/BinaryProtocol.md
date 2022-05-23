@@ -432,6 +432,7 @@ information about a given command.
 | 0x28 | Audit config reload |
 | 0x29 | Shutdown |
 | 0x2a | [SetBucketComputeUnitThrottleLimits](#0x2a-set-bucket-compute-unit-throttle-limits) |
+| 0x2b | [SetBucketDataLimitExceeded](#0x2b-set-bucket-data-limit-exceeded) |
 | 0x30 | RGet (not supported) |
 | 0x31 | RSet (not supported) |
 | 0x32 | RSetQ (not supported) |
@@ -540,19 +541,19 @@ information about a given command.
 | 0xd1 | Subdoc multi mutation |
 | 0xd2 | Subdoc get count |
 | 0xd3 | Subdoc replace body with xattr (see https://docs.google.com/document/d/1vaQJxIA5nhWJqji7X2R1xQDZadb5PabfKAid1kVe65o ) |
-| 0xf0 | Scrub |
-| 0xf1 | Isasl refresh |
-| 0xf2 | Ssl certs refresh |
-| 0xf3 | Get cmd timer |
-| 0xf4 | [Set ctrl token](#0xf4-set-ctrl-token)  |
-| 0xf5 | [Get ctrl token](#0xf5-get-ctrl-token) |
-| 0xf6 | [Update External User Permissions](ExternalAuthProvider.md#updateexternaluserpermission) |
-| 0xf7 | RBAC refresh |
-| 0xf8 | AUTH provider |
-| 0xfb | Drop Privilege (for testing) |
-| 0xfc | Adjust time of day (for testing) |
-| 0xfd | EwouldblockCtl (for testing) |
-| 0xfe | [Get error map](#0xf5-get-error-map) |
+| 0xf0 | Scrub                                                                                                                 |
+| 0xf1 | Isasl refresh                                                                                                         |
+| 0xf2 | Ssl certs refresh                                                                                                     |
+| 0xf3 | Get cmd timer                                                                                                         |
+| 0xf4 | [Set ctrl token](#0xf4-set-ctrl-token)                                                                                |
+| 0xf5 | [Get ctrl token](#0xf5-get-ctrl-token)                                                                                |
+| 0xf6 | [Update External User Permissions](ExternalAuthProvider.md#updateexternaluserpermission)                              |
+| 0xf7 | RBAC refresh                                                                                                          |
+| 0xf8 | AUTH provider                                                                                                         |
+| 0xfb | Drop Privilege (for testing)                                                                                          |
+| 0xfc | Adjust time of day (for testing)                                                                                      |
+| 0xfd | EwouldblockCtl (for testing)                                                                                          |
+| 0xfe | [Get error map](#0xf5-get-error-map)                                                                                  |
 
 As a convention all of the commands ending with "Q" for Quiet. A quiet version
 of a command will omit responses that are considered uninteresting. Whether a
@@ -2036,6 +2037,38 @@ The extra section is encoded in the following way:
        4|                                                               |
         +---------------+---------------+---------------+---------------+
         Total 8 bytes
+
+The successful return message carries no extra userdata.
+
+### 0x2b Set Bucket Data Limit Exceeded
+
+The `Set Bucket Data Limit Exceeded` command is used to inform memcached
+that the data limit of the bucket is exceeded and that clients are no longer
+allowed to store additional data (The same command is also used to clear
+the setting). Once set the clients may only get and delete data. Note
+that this setting does NOT affect DCP traffic.
+
+Request:
+
+* MUST have extra
+* MUST have key (the name of the bucket)
+* MUST NOT have value
+* MUST NOT set CAS
+* Datatype MUST be set to RAW
+* Require the BucketThrottleManagement privilege
+
+The extra section is encoded in the following way:
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0|    0  / 1     |                                               |
+        +---------------+---------------+---------------+---------------+
+        Total 1 bytes
+
+A value of 0 will clear the setting, and all other values enables the
+data limit exceeded mode.
 
 The successful return message carries no extra userdata.
 

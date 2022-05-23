@@ -85,6 +85,8 @@ enum class Status : uint16_t {
     RateLimitedMaxCommands = 0x33,
     /// There is too much data in the scope
     ScopeSizeLimitExceeded = 0x34,
+    /// There is too much data in the bucket
+    BucketSizeLimitExceeded = 0x35,
 
     // END Rate limit error codes. Next error should be 0x50
 

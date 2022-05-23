@@ -188,6 +188,14 @@
                 "rate-limit"
             ]
         },
+        "35": {
+            "name": "BUCKET_SIZE_LIMIT_EXCEEDED",
+            "desc": "The bucket contains too much data",
+            "attrs": [
+                "item-only",
+                "rate-limit"
+            ]
+        },
         "80": {
             "name": "UNKNOWN_FRAME_INFO",
             "desc": "Unknown frame info identifier encountered. Maybe a newer server version knows about it",

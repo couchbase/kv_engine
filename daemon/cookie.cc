@@ -533,7 +533,8 @@ cb::mcbp::Status Cookie::validate() {
     auto result = packetValidator.validate(opcode, *this);
     if (result != cb::mcbp::Status::Success) {
         if (result != cb::mcbp::Status::UnknownCollection &&
-            result != cb::mcbp::Status::NotMyVbucket) {
+            result != cb::mcbp::Status::NotMyVbucket &&
+            result != cb::mcbp::Status::BucketSizeLimitExceeded) {
             LOG_WARNING(
                     "{}: Packet validation failed for \"{}\" - Status: \"{}\" "
                     "- Packet:[{}] - Returned payload:[{}]",

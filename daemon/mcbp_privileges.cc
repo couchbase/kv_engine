@@ -137,6 +137,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
 
     setup(cb::mcbp::ClientOpcode::SetBucketComputeUnitThrottleLimits,
           require<Privilege::BucketThrottleManagement>);
+    setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
+          require<Privilege::BucketThrottleManagement>);
 
     /* VBucket commands */
     setup(cb::mcbp::ClientOpcode::SetVbucket,

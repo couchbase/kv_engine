@@ -64,6 +64,8 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::Shutdown, "SHUTDOWN"},
          {ClientOpcode::SetBucketComputeUnitThrottleLimits,
           "SET_BUCKET_COMPUTE_UNIT_THROTTLE_LIMITS"},
+         {ClientOpcode::SetBucketDataLimitExceeded,
+          "SET_BUCKET_DATA_LIMIT_EXCEEDED"},
          {ClientOpcode::Rget_Unsupported, "RGET"},
          {ClientOpcode::Rset_Unsupported, "RSET"},
          {ClientOpcode::Rsetq_Unsupported, "RSETQ"},
@@ -334,6 +336,7 @@ TEST(ClientOpcode, is_reorder_supported) {
                      ClientOpcode::SubdocGetCount,
                      ClientOpcode::SubdocReplaceBodyWithXattr,
                      ClientOpcode::SetBucketComputeUnitThrottleLimits,
+                     ClientOpcode::SetBucketDataLimitExceeded,
                      ClientOpcode::RangeScanCreate}},
                    "reorder");
 }
@@ -496,6 +499,42 @@ TEST(ClientOpcode, is_subject_for_throttling) {
                      ClientOpcode::SubdocMultiLookup,
                      ClientOpcode::SubdocMultiMutation,
                      ClientOpcode::SubdocGetCount,
+                     ClientOpcode::SubdocReplaceBodyWithXattr}},
+                   "throttling");
+}
+
+TEST(ClientOpcode, is_client_writing_data) {
+    using cb::mcbp::ClientOpcode;
+
+    testAllOpcodes(cb::mcbp::is_client_writing_data,
+                   {{ClientOpcode::Set,
+                     ClientOpcode::Add,
+                     ClientOpcode::Replace,
+                     ClientOpcode::Increment,
+                     ClientOpcode::Decrement,
+                     ClientOpcode::Append,
+                     ClientOpcode::Prepend,
+                     ClientOpcode::Setq,
+                     ClientOpcode::Addq,
+                     ClientOpcode::Replaceq,
+                     ClientOpcode::Incrementq,
+                     ClientOpcode::Decrementq,
+                     ClientOpcode::Appendq,
+                     ClientOpcode::Prependq,
+                     ClientOpcode::SetWithMeta,
+                     ClientOpcode::SetqWithMeta,
+                     ClientOpcode::AddWithMeta,
+                     ClientOpcode::AddqWithMeta,
+                     ClientOpcode::ReturnMeta,
+                     ClientOpcode::SubdocDictAdd,
+                     ClientOpcode::SubdocDictUpsert,
+                     ClientOpcode::SubdocReplace,
+                     ClientOpcode::SubdocArrayPushLast,
+                     ClientOpcode::SubdocArrayPushFirst,
+                     ClientOpcode::SubdocArrayInsert,
+                     ClientOpcode::SubdocArrayAddUnique,
+                     ClientOpcode::SubdocCounter,
+                     ClientOpcode::SubdocMultiMutation,
                      ClientOpcode::SubdocReplaceBodyWithXattr}},
                    "throttling");
 }

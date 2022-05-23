@@ -108,6 +108,9 @@ public:
      */
     char name[MAX_BUCKET_NAME_LENGTH + 1]{};
 
+    /// Is the bucket quota exceeded or not
+    std::atomic_bool bucket_quota_exceeded;
+
     /**
      * Statistics vector, one per front-end thread.
      */
@@ -175,6 +178,9 @@ public:
     /// the bucket
     void commandExecuted(const Cookie& cookie);
 
+    /// The number of commands we rected to execute
+    void rejectCommand(const Cookie& cookie);
+
     /**
      * Check to see if execution of the provided cookie should be throttled
      * or not
@@ -228,6 +234,9 @@ protected:
 
     /// The total number of commands executed within the bucket
     std::atomic<uint64_t> num_commands{0};
+
+    /// The number of commands we rejected to start executing
+    std::atomic<uint64_t> num_rejected{0};
 
     /// A deque per front end thread containing all of the connections
     /// which have one or more cookies throttled. It should _only_ be

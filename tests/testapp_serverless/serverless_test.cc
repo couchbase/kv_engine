@@ -292,4 +292,49 @@ TEST_F(ServerlessTest, AllConnectionsAreMetered) {
     readDoc(*conn);
 }
 
+TEST_F(ServerlessTest, StopClientDataIngress) {
+    auto writeDoc = [](MemcachedConnection& conn) {
+        Document doc;
+        doc.info.id = "mydoc";
+        doc.value = "This is the value";
+        conn.mutate(doc, Vbid{0}, MutationType::Set);
+    };
+
+    auto admin = cluster->getConnection(0);
+    admin->authenticate("@admin", "password");
+    admin->selectBucket("bucket-0");
+
+    auto bucket0 = admin->clone();
+    bucket0->authenticate("bucket-0", "bucket-0");
+    bucket0->selectBucket("bucket-0");
+
+    // store a document
+    writeDoc(*bucket0);
+
+    // Disable client ingress
+    auto rsp =
+            admin->execute(SetBucketDataLimitExceededCommand{"bucket-0", true});
+    EXPECT_TRUE(rsp.isSuccess());
+
+    // fail to store a document
+    try {
+        writeDoc(*bucket0);
+        FAIL() << "Should not be able to store a document";
+    } catch (ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::BucketSizeLimitExceeded, error.getReason());
+    }
+    // Succeeds to store a document in bucket-1
+    auto bucket1 = admin->clone();
+    bucket1->authenticate("bucket-1", "bucket-1");
+    bucket1->selectBucket("bucket-1");
+    writeDoc(*bucket1);
+
+    // enable client ingress
+    rsp = admin->execute(SetBucketDataLimitExceededCommand{"bucket-0", false});
+    EXPECT_TRUE(rsp.isSuccess());
+
+    // succeed to store a document
+    writeDoc(*bucket0);
+}
+
 } // namespace cb::test

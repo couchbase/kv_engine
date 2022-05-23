@@ -645,6 +645,7 @@ void Connection::executeCommandPipeline() {
                 }
                 --numEvents;
             } else {
+                cookie.getConnection().getBucket().rejectCommand(cookie);
                 // Packet validation failed
                 cookie.sendResponse(status);
                 cookie.reset();

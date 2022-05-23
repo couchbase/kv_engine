@@ -75,6 +75,9 @@ enum class ClientOpcode : uint8_t {
     /// Set the bucket CU counts
     SetBucketComputeUnitThrottleLimits = 0x2a,
 
+    /// Toggle bucket limit exceeded
+    SetBucketDataLimitExceeded = 0x2b,
+
     /* These commands are used for range operations and exist within
      * this header for use in other projects.  Range operations are
      * not expected to be implemented in the memcached server itself.
@@ -456,6 +459,9 @@ bool is_subject_for_throttling(ClientOpcode opcode);
 
 /// Is the command currently supported but deprecated
 bool is_deprecated(ClientOpcode opcode);
+
+/// Does the client write data with this opcode?
+bool is_client_writing_data(ClientOpcode opcode);
 
 std::ostream& operator<<(std::ostream& out,
                          const cb::mcbp::ClientOpcode& opcode);

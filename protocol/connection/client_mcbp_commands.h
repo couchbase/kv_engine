@@ -1192,3 +1192,13 @@ public:
 protected:
     cb::mcbp::request::SetBucketComputeUnitThrottleLimitPayload extras;
 };
+
+class SetBucketDataLimitExceededCommand : public BinprotGenericCommand {
+public:
+    SetBucketDataLimitExceededCommand(std::string key_, bool exceeded);
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    cb::mcbp::request::SetBucketDataLimitExceededPayload extras;
+};

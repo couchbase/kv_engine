@@ -279,6 +279,24 @@ protected:
 static_assert(sizeof(SetBucketComputeUnitThrottleLimitPayload) == 8,
               "Unexpected struct size");
 
+class SetBucketDataLimitExceededPayload {
+public:
+    bool isEnabled() const {
+        return enabled;
+    }
+    void setEnabled(bool val) {
+        enabled = val;
+    }
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    bool enabled;
+};
+static_assert(sizeof(SetBucketDataLimitExceededPayload) == 1,
+              "Unexpected struct size");
+
 #pragma pack()
 } // namespace cb::mcbp::request
 
