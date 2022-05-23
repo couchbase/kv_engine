@@ -39,7 +39,8 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"BucketThrottleManagement", Privilege::BucketThrottleManagement},
         {"Impersonate", Privilege::Impersonate},
         {"Settings", Privilege::Settings},
-        {"SystemSettings", Privilege::SystemSettings}};
+        {"SystemSettings", Privilege::SystemSettings},
+        {"RangeScan", Privilege::RangeScan}};
 
 std::string to_string(Privilege privilege) {
     for (const auto& entry : privilegemap) {
@@ -89,6 +90,7 @@ bool is_bucket_privilege(Privilege priv) {
     case Privilege::SystemXattrWrite:
     case Privilege::Settings:
     case Privilege::SimpleStats:
+    case Privilege::RangeScan:
         return true;
 
     case Privilege::BucketManagement:
@@ -121,6 +123,7 @@ bool is_collection_privilege(Privilege priv) {
     case Privilege::SystemXattrWrite:
     case Privilege::DcpStream:
     case Privilege::SimpleStats:
+    case Privilege::RangeScan:
         return true;
 
     case Privilege::DcpConsumer:

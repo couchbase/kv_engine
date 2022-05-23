@@ -144,6 +144,11 @@ enum class Privilege {
     /// global system configuration (Cluster topology)
     SystemSettings,
 
+    /// The 'RangeScan' privilege allows the connection to create, continue
+    /// and cancel RangeScan - effectively a bulk read of ranges of keys or
+    // keys/values
+    RangeScan,
+
     /**
      * Remember to update the rest of the internals of the RBAC module when
      * you add new privileges.
