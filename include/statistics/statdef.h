@@ -16,6 +16,8 @@
 
 #include "units.h"
 
+#include <prometheus/metric_type.h>
+
 namespace cb::stats {
 
 /**
@@ -115,6 +117,7 @@ struct StatDef {
     StatDef(CBStatsKey cbstatsKey,
             cb::stats::Unit unit = cb::stats::units::none,
             std::string_view metricFamilyKey = "",
+            ::prometheus::MetricType type = ::prometheus::MetricType::Untyped,
             Labels&& labels = {});
 
     /**
@@ -151,6 +154,7 @@ struct StatDef {
      */
     StatDef(std::string_view metricFamilyKey,
             cb::stats::Unit unit,
+            ::prometheus::MetricType type,
             Labels&& labels,
             PrometheusOnlyTag);
 
@@ -175,6 +179,10 @@ struct StatDef {
     // Metric name used by Prometheus. Used to "group"
     // stats in combination with distinguishing labels.
     std::string metricFamily;
+
+    // type of the metric for exposition for Prometheus
+    const ::prometheus::MetricType type = ::prometheus::MetricType::Untyped;
+
     // Labels for this metric. Labels set here will
     // override defaults labels set in the StatCollector
     const Labels labels;

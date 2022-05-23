@@ -22,6 +22,43 @@
 #include <stdexcept>
 #include <unordered_map>
 
+#include <prometheus/metric_type.h>
+
+namespace prometheus {
+// inject json deserialisation def as it needs to be in the same namespace
+// as MetricType.
+// maps MetricType enum to/from json strings
+// default to "untyped"
+// ignore linting, can't correct the macro.
+// NOLINTNEXTLINE(modernize-avoid-c-arrays)
+NLOHMANN_JSON_SERIALIZE_ENUM(MetricType,
+                             {{MetricType::Untyped, "untyped"},
+                              {MetricType::Counter, "counter"},
+                              {MetricType::Gauge, "gauge"},
+                              {MetricType::Histogram, "histogram"},
+                              {MetricType::Summary, "summary"}})
+
+std::string to_string(MetricType type) {
+    switch (type) {
+    case MetricType::Untyped:
+        return "MetricType::Untyped";
+    case MetricType::Counter:
+        return "MetricType::Counter";
+    case MetricType::Gauge:
+        return "MetricType::Gauge";
+    case MetricType::Histogram:
+        return "MetricType::Histogram";
+    case MetricType::Summary:
+        return "MetricType::Summary";
+    }
+    return "MetricType::Invalid(" + std::to_string(int(type)) + ")";
+}
+
+std::ostream& operator<<(std::ostream& os, const MetricType& type) {
+    return os << to_string(type);
+}
+} // namespace prometheus
+
 // leading text to be included in the header and source files
 constexpr const char* preamble = R"(/*
  *     Copyright 2022 Couchbase, Inc
@@ -68,6 +105,7 @@ struct Spec {
     std::string enumKey;
     std::string cbstat;
     std::string unit;
+    ::prometheus::MetricType type = ::prometheus::MetricType::Untyped;
 
     struct Prometheus {
         std::string family;
@@ -163,6 +201,18 @@ void from_json(const nlohmann::json& j, Spec& s) {
                                 prometheus.type_name()));
         }
     }
+
+    if (auto itr = j.find("type"); itr != j.end()) {
+        const auto& type = *itr;
+        if (!type.is_string()) {
+            throw std::runtime_error(
+                    fmt::format("Stat:{} has invalid type field type "
+                                "{}, must be a string",
+                                j.at("family"),
+                                type.type_name()));
+        }
+        type.get_to(s.type);
+    }
 }
 
 /**
@@ -207,16 +257,18 @@ std::ostream& operator<<(std::ostream& os, const Spec& spec) {
 
     if (spec.prometheusEnabled && spec.cbstatEnabled) {
         fmt::print(os,
-                   R"(StatDef({}, {}, "{}", {}))",
+                   R"(StatDef({}, {}, "{}", {}, {}))",
                    cbstat,
                    spec.unit,
                    prom,
+                   spec.type,
                    formatLabels(spec.prometheus.labels));
     } else if (spec.prometheusEnabled) {
         fmt::print(os,
-                   R"(StatDef("{}"sv, {}, {}, {}))",
+                   R"(StatDef("{}"sv, {}, {}, {}, {}))",
                    prom,
                    spec.unit,
+                   spec.type,
                    formatLabels(spec.prometheus.labels),
                    "cb::stats::StatDef::PrometheusOnlyTag{}");
     } else if (spec.cbstatEnabled) {
@@ -360,12 +412,15 @@ extern const std::array<StatDef, size_t(Key::enum_max)> statDefinitions;
                R"(
 #include "generated_stats.h"
 
+#include <prometheus/metric_type.h>
+
 #include <string_view>
 
 using namespace std::string_view_literals;
 
 namespace cb::stats {{
 using namespace units;
+using prometheus::MetricType;
 const std::array<StatDef, size_t(Key::enum_max)> statDefinitions{{{{
 {}
 }}}};

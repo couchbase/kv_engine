@@ -21,6 +21,7 @@
 #include <gmock/gmock-matchers.h>
 #include <gmock/gmock-more-matchers.h>
 #include <gtest/gtest-matchers.h>
+#include <prometheus/text_serializer.h>
 #include <statistics/labelled_collector.h>
 #include <statistics/prometheus.h>
 #include <statistics/prometheus_collector.h>
@@ -152,4 +153,40 @@ TEST_F(PrometheusStatTest, MeteringIncludedInHighCardinality) {
         EXPECT_THAT(metrics.high,
                     Not(Contains(Key("kv_boot_timestamp_seconds"))));
     }
+}
+
+TEST_F(PrometheusStatTest, metricType) {
+    // Check that stats expected to be exposed as a counter/gauge/histogram
+    // actually are.
+    // use some audit stats to test that stats declared in
+    // stat_definitions.json plumb through the metric type to the generated
+    // StatDefs, and then to Prometheus.
+    auto metrics = getMetrics();
+    using namespace cb::stats;
+    using namespace ::testing;
+
+    // check that a selection of the collected metrics match the definitions
+    EXPECT_EQ(::prometheus::MetricType::Untyped,
+              metrics.low.at("kv_audit_enabled").type);
+
+    EXPECT_EQ(::prometheus::MetricType::Counter,
+              metrics.low.at("kv_audit_dropped_events").type);
+
+    // and are serialised as expected
+
+    ::prometheus::TextSerializer serialiser;
+
+    std::string metricStr =
+            serialiser.Serialize({metrics.low.at("kv_audit_enabled"),
+                                  metrics.low.at("kv_audit_dropped_events")});
+
+    // it's a little brittle to expect an exact string value
+    // but it's a simple test and will show up any unexpected changes
+    std::string expected = R"(# TYPE kv_audit_enabled untyped
+kv_audit_enabled 0.000000
+# TYPE kv_audit_dropped_events counter
+kv_audit_dropped_events 0.000000
+)";
+
+    EXPECT_EQ(expected, metricStr);
 }

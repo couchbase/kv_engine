@@ -19,10 +19,12 @@ namespace cb::stats {
 StatDef::StatDef(CBStatsKey cbstatsKey,
                  cb::stats::Unit unit,
                  std::string_view metricFamilyKey,
+                 ::prometheus::MetricType type,
                  Labels&& labels)
     : cbstatsKey(std::move(cbstatsKey)),
       unit(unit),
       metricFamily(metricFamilyKey),
+      type(type),
       labels(std::move(labels)) {
     if (metricFamily.empty()) {
         metricFamily = std::string(cbstatsKey);
@@ -36,9 +38,13 @@ StatDef::StatDef(CBStatsKey cbstatsKey, CBStatsOnlyTag)
 
 StatDef::StatDef(std::string_view metricFamilyKey,
                  cb::stats::Unit unit,
+                 ::prometheus::MetricType type,
                  Labels&& labels,
                  PrometheusOnlyTag)
-    : unit(unit), metricFamily(metricFamilyKey), labels(std::move(labels)) {
+    : unit(unit),
+      metricFamily(metricFamilyKey),
+      type(type),
+      labels(std::move(labels)) {
     metricFamily += unit.getSuffix();
 }
 

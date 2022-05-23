@@ -11,6 +11,7 @@
 
 #include <statistics/prometheus_collector.h>
 
+#include <fmt/format.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <memcached/dockey.h>
 #include <memcached/engine_error.h>
@@ -24,6 +25,13 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
                                       const Labels& additionalLabels) const {
     if (!spec.isPrometheusStat()) {
         return;
+    }
+    if (spec.type != prometheus::MetricType::Histogram &&
+        spec.type != prometheus::MetricType::Untyped) {
+        throw std::logic_error(fmt::format(
+                "PrometheusStatCollector: metricFamily:{} cannot "
+                "expose a histogram value as metric with non-histogram type",
+                spec.metricFamily));
     }
     prometheus::ClientMetric metric;
 
@@ -41,10 +49,7 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
                 {cumulativeCount, gsl::narrow_cast<double>(normalised)});
     }
 
-    addClientMetric(spec,
-                    additionalLabels,
-                    std::move(metric),
-                    prometheus::MetricType::Histogram);
+    addClientMetric(spec, additionalLabels, std::move(metric), spec.type);
 }
 
 void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
@@ -80,12 +85,15 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
     if (!spec.isPrometheusStat()) {
         return;
     }
+    if (spec.type == prometheus::MetricType::Histogram) {
+        throw std::logic_error(
+                fmt::format("PrometheusStatCollector: metricFamily:{} cannot "
+                            "expose a scalar value as metric of type histogram",
+                            spec.metricFamily));
+    }
     prometheus::ClientMetric metric;
     metric.untyped.value = spec.unit.toBaseUnit(v);
-    addClientMetric(spec,
-                    additionalLabels,
-                    std::move(metric),
-                    prometheus::MetricType::Untyped);
+    addClientMetric(spec, additionalLabels, std::move(metric), spec.type);
 }
 
 cb::engine_errc PrometheusStatCollector::testPrivilegeForStat(

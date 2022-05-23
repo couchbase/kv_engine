@@ -1,5 +1,8 @@
 add_executable(genstats gen_stat_definitions.cc)
-target_link_libraries(genstats PRIVATE nlohmann_json::nlohmann_json fmt::fmt)
+target_link_libraries(genstats PRIVATE
+        nlohmann_json::nlohmann_json
+        fmt::fmt
+        prometheus-cpp::core)
 kv_enable_pch(genstats)
 
 if (WIN32)

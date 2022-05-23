@@ -7,6 +7,7 @@
  * "key": "unique_enum_key",
  * "unit": "none",
  * "cbstat": "key_used_for_cbstats_{format_arg}",
+ * "type": "counter",
  * "prometheus": {
  *     "family": "metric_family",
  *     "labels": {
@@ -51,6 +52,17 @@
  *    "num_vbuckets", with differing labels.
  *    CBstats instead needs to format the key "vb_{state}_num" to get back to
  *    a unique value, "vb_active_num", "vb_replica_num".
+ *
+ * * "type"
+ *    Prometheus metric type, one of:
+ *        "untyped", "counter", "gauge", "histogram", "summary"
+ *    Optional.
+ *    If specified, Prometheus exposition will verify that a metric declared
+ *    as a counter/gauge is not provided e.g., a HdrHistogram to expose.
+ *    If not specified, defaults to "untyped" or "histogram", based on the
+ *    actual datatype added to the StatCollector.
+ *    Can typically be omitted, as it is largely informational in Prometheus
+ *    anyway.
  *
  * * "prometheus"
  *    If set to false, this metric will not be exposed for prometheus.
@@ -1789,6 +1801,7 @@
         "key": "audit_dropped_events",
         "unit": "count",
         "cbstat": "dropped_events",
+        "type": "counter",
         "prometheus": {
             "family": "audit_dropped_events"
         }
@@ -2534,61 +2547,73 @@
     {
         "key": "boot_timestamp",
         "unit": "seconds",
+        "type": "gauge",
         "description": "The time KV last restarted (and counters reset)"
     },
     {
         "key": "meter_ru_total",
         "unit": "none",
+        "type": "counter",
         "description": "Total Read Units used by a bucket since reset"
     },
     {
         "key": "meter_wu_total",
         "unit": "none",
+        "type": "counter",
         "description": "Total Write Units used by a bucket since reset"
     },
     {
         "key": "meter_cu_total",
         "unit": "none",
+        "type": "counter",
         "description": "Total Compute Units used by a bucket since reset"
     },
     {
         "key": "op_count_total",
         "unit": "none",
+        "type": "counter",
         "description": "Total operations successfully executed for a bucket since reset"
     },
     {
         "key": "credit_ru_total",
         "unit": "none",
+        "type": "counter",
         "description": "Total Read Units refunded for a bucket (RU was charged, but operation failed) since reset"
     },
     {
         "key": "credit_wu_total",
         "unit": "none",
+        "type": "counter",
         "description": "Total Write Units refunded for a bucket (WU was charged, but operation failed) since reset"
     },
     {
         "key": "credit_cu_total",
         "unit": "none",
+        "type": "counter",
         "description": "Total Compute Units refunded for a bucket (CU was charged, but operation failed) since reset"
     },
     {
         "key": "reject_count_total",
         "unit": "none",
+        "type": "counter",
         "description": "Total number of operations rejected for a bucket since reset (e.g., invalid operations)"
     },
     {
         "key": "throttle_seconds_total",
         "unit": "none",
+        "type": "counter",
         "description": "Total time spent throttling requests for a bucket since reset"
     },
     {
         "key": "throttle_count_total",
         "unit": "none",
+        "type": "counter",
         "description": "Total number of times requests have been throttled for a bucket since reset"
     },
     {
         "key": "storage",
         "unit": "bytes",
+        "type": "gauge",
         "description": "Total bytes on disk used by a bucket"
     }
 ]
