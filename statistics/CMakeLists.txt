@@ -18,6 +18,7 @@ ADD_CUSTOM_COMMAND(
                      -h ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.h
                      -c ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.cc
         DEPENDS
+            ${Memcached_SOURCE_DIR}/engines/ep/configuration.json
             stat_definitions.json
             genstats
         COMMENT "Generating stat definitions from json")
