@@ -771,7 +771,10 @@
             }
         },
         "max_vbuckets": {
-            "default": {"on-prem" :  "1024", "serverless" :  "1024"},
+            "default": {
+                "on-prem": "1024",
+                "serverless": "48"
+            },
             "descr": "Maximum number of vbuckets expected",
             "dynamic": false,
             "type": "size_t"
