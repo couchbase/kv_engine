@@ -683,12 +683,17 @@ TEST_P(CheckpointTest, MB25056_backfill_not_required) {
     ASSERT_TRUE(this->queueNewItem("key0"));
     // Add duplicate items, which should cause de-duplication to occur.
     for (unsigned int ii = 0; ii < 10; ii++) {
-        EXPECT_FALSE(this->queueNewItem("key0"));
+        ASSERT_FALSE(this->queueNewItem("key0"));
     }
+    // [e:1 cs:1 m:1011)
+    ASSERT_EQ(1011, manager->getHighSeqno());
+
     // Add a number of non duplicate items to the same checkpoint
     for (unsigned int ii = 1; ii < 10; ii++) {
-        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
+        ASSERT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
     }
+    // [e:1 cs:1 m:1011 m:1012 .. m:1020)
+    ASSERT_EQ(1020, manager->getHighSeqno());
 
     // Register DCP replication cursor
     std::string dcp_cursor(DCP_CURSOR_PREFIX);

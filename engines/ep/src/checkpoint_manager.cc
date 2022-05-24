@@ -374,25 +374,24 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
             }
 
             // Requested sequence number lies within this checkpoint.
-            // Calculate which item to position the cursor at and the distance
-            // from checkpoint begin.
-            ChkptQueueIterator pos = (*ckptIt)->begin();
+            // Calculate the position/distance to place the cursor, plus the
+            // information for the caller on what's the next seqno available in
+            // checkpoint.
+            auto pos = (*ckptIt)->begin();
             size_t distance = 0;
-            while (++pos != (*ckptIt)->end() &&
-                   static_cast<uint64_t>((*pos)->getBySeqno()) <=
-                           startBySeqno) {
+            while (true) {
+                auto next = std::next(pos);
+                if (next == (*ckptIt)->end()) {
+                    result.seqno = uint64_t((*pos)->getBySeqno() + 1);
+                    break;
+                }
+                const auto nextSeqno = uint64_t((*next)->getBySeqno());
+                if (startBySeqno < nextSeqno) {
+                    result.seqno = nextSeqno;
+                    break;
+                }
+                ++pos;
                 ++distance;
-            }
-
-            // Note: There is an early-increment on 'pos' in the while-loop
-            // above, so we need to reset it to std::prev(pos). While 'distance'
-            // is already consistent with std::prev(pos).
-            if (pos == (*ckptIt)->end()) {
-                --pos;
-                result.seqno = static_cast<uint64_t>((*pos)->getBySeqno()) + 1;
-            } else {
-                result.seqno = static_cast<uint64_t>((*pos)->getBySeqno());
-                --pos;
             }
 
             auto cursor = std::make_shared<CheckpointCursor>(
