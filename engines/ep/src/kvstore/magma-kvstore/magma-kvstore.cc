@@ -1745,13 +1745,13 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
 
         mctx.diskBytesRead += keySlice.Len() + metaSlice.Len() + valSlice.Len();
 
-        auto diskKey = makeDiskDocKey(keySlice);
+        CacheLookup lookup(makeDiskDocKey(keySlice), seqno, ctx.vbid);
 
         if (configuration.isSanityCheckingVBucketMapping()) {
             validateKeyMapping(
                     "MagmaKVStore::scan",
                     configuration.getVBucketMappingErrorHandlingMethod(),
-                    diskKey.getDocKey(),
+                    lookup.getKey().getDocKey(),
                     ctx.vbid,
                     configuration.getMaxVBuckets());
         }
@@ -1764,21 +1764,20 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
                         "MagmaKVStore::scan SKIPPED(Deleted) {} key:{} "
                         "seqno:{}",
                         ctx.vbid,
-                        cb::UserData{diskKey.to_string()},
+                        cb::UserData{lookup.getKey().to_string()},
                         seqno);
             }
             continue;
         }
 
-        auto docKey = diskKey.getDocKey();
-
         // Determine if the key is logically deleted, if it is we skip the key
         // Note that system event keys (like create scope) are never skipped
         // here
-        if (!docKey.isInSystemCollection()) {
+        if (!lookup.getKey().getDocKey().isInSystemCollection()) {
             if (ctx.docFilter !=
                 DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
-                if (ctx.collectionsContext.isLogicallyDeleted(docKey, seqno)) {
+                if (ctx.collectionsContext.isLogicallyDeleted(
+                            lookup.getKey().getDocKey(), seqno)) {
                     ctx.lastReadSeqno = seqno;
                     if (logger->should_log(spdlog::level::TRACE)) {
                         logger->TRACE(
@@ -1787,14 +1786,12 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
                                 "key:{} "
                                 "seqno:{}",
                                 ctx.vbid,
-                                cb::UserData{diskKey.to_string()},
+                                cb::UserData{lookup.getKey().to_string()},
                                 seqno);
                     }
                     continue;
                 }
             }
-
-            CacheLookup lookup(diskKey, seqno, ctx.vbid);
 
             ctx.getCacheCallback().callback(lookup);
             if (ctx.getCacheCallback().getStatus() ==
@@ -1806,7 +1803,7 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
                             "SKIPPED(cb::engine_errc::key_already_exists) {} "
                             "key:{} seqno:{}",
                             ctx.vbid,
-                            cb::UserData{diskKey.to_string()},
+                            cb::UserData{lookup.getKey().to_string()},
                             seqno);
                 }
                 continue;
@@ -1817,7 +1814,7 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
                             "MagmaKVStore::scan lookup->callback {} "
                             "key:{} returned cb::engine_errc::no_memory",
                             ctx.vbid,
-                            cb::UserData{diskKey.to_string()});
+                            cb::UserData{lookup.getKey().to_string()});
                 }
                 return scan_again;
             }
@@ -1829,7 +1826,7 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
                     "expiry:{} "
                     "compressed:{}",
                     ctx.vbid,
-                    cb::UserData{diskKey.to_string()},
+                    cb::UserData{lookup.getKey().to_string()},
                     seqno,
                     magmakv::isDeleted(metaSlice),
                     magmakv::getExpiryTime(metaSlice),
@@ -1849,7 +1846,7 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
                         "key:{} "
                         "seqno:{}",
                         ctx.vbid,
-                        cb::UserData{diskKey.to_string()},
+                        cb::UserData{lookup.getKey().to_string()},
                         seqno);
                 continue;
             }
@@ -1864,7 +1861,7 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
                         "MagmaKVStore::scan callback {} "
                         "key:{} returned cb::engine_errc::no_memory",
                         ctx.vbid,
-                        cb::UserData{diskKey.to_string()});
+                        cb::UserData{lookup.getKey().to_string()});
             }
             return scan_again;
         }
