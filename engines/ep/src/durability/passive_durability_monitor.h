@@ -166,18 +166,15 @@ public:
      * The snapshot-end seqno is used for the correct implementation of the HPS
      * move-logic.
      *
-     * @param vbStateLock the lock holder for the vBucket state lock
      * @param snapEnd The snapshot-end seqno
      */
-    void notifySnapshotEndReceived(folly::SharedMutex::ReadHolder& vbStateLock,
-                                   uint64_t snapEnd);
+    void notifySnapshotEndReceived(uint64_t snapEnd);
 
     /**
      * Notify this PDM that some persistence has happened. Attempts to update
      * the HPS and ack back to the active.
      */
-    void notifyLocalPersistence(
-            folly::SharedMutex::ReadHolder& vbStateLock) override;
+    void notifyLocalPersistence() override;
 
     int64_t getHighestTrackedSeqno() const override;
 
@@ -191,12 +188,18 @@ public:
 
 protected:
     /**
-     * Send, if we need to, a seqno ack to the active node.
+     * Store the seqno ack that we should now send to the consumer. Overwrites
+     * any outstanding ack not yet sent if the new value is greater.
      *
-     * @param vbStateLock the VB state lock
-     * @newHps the seqno to ack
+     * @param prevHps determines if we should send an ack or not
+     * @param newHps new hps to ack
      */
-    void sendSeqnoAck(folly::SharedMutex::ReadHolder& vbStateLock, int64_t newHps);
+    void storeSeqnoAck(int64_t prevHps, int64_t newHps);
+
+    /**
+     * Send, if we need to, a seqno ack to the active node.
+     */
+    void sendSeqnoAck();
 
     void toOStream(std::ostream& os) const override;
     /**

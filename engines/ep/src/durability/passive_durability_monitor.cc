@@ -231,10 +231,7 @@ size_t PassiveDurabilityMonitor::getNumAborted() const {
     return state.rlock()->totalAborted;
 }
 
-void PassiveDurabilityMonitor::notifySnapshotEndReceived(
-        folly::SharedMutex::ReadHolder& rlh, uint64_t snapEnd) {
-    int64_t newHps;
-
+void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd) {
     { // state locking scope
         auto s = state.wlock();
         s->receivedSnapshotEnds.push({int64_t(snapEnd),
@@ -243,42 +240,49 @@ void PassiveDurabilityMonitor::notifySnapshotEndReceived(
                                               : CheckpointType::Memory});
         // Maybe the new tracked Prepare is already satisfied and could be
         // ack'ed back to the Active.
+        auto prevHps = s->highPreparedSeqno.lastWriteSeqno;
         s->updateHighPreparedSeqno();
         s->checkForAndRemoveDroppedCollections();
 
         // Store the seqno ack to send after we drop the state lock
-        newHps = s->highPreparedSeqno.lastWriteSeqno;
+        storeSeqnoAck(prevHps, s->highPreparedSeqno.lastWriteSeqno);
     }
 
     notifySnapEndSeqnoAckPreProcessHook();
 
-    sendSeqnoAck(rlh, newHps);
+    sendSeqnoAck();
 }
 
-void PassiveDurabilityMonitor::notifyLocalPersistence(
-        folly::SharedMutex::ReadHolder& vbStateLock) {
-    int64_t newHps;
-
+void PassiveDurabilityMonitor::notifyLocalPersistence() {
     { // state locking scope
         auto s = state.wlock();
+        auto prevHps = s->highPreparedSeqno.lastWriteSeqno;
         s->updateHighPreparedSeqno();
         s->checkForAndRemoveDroppedCollections();
 
         // Store the seqno ack to send after we drop the state lock
-        newHps = s->highPreparedSeqno.lastWriteSeqno;
+        storeSeqnoAck(prevHps, s->highPreparedSeqno.lastWriteSeqno);
     }
 
-    sendSeqnoAck(vbStateLock, newHps);
+    sendSeqnoAck();
 }
 
-void PassiveDurabilityMonitor::sendSeqnoAck(
-        folly::SharedMutex::ReadHolder& vbStateLock, int64_t newHps) {
+void PassiveDurabilityMonitor::storeSeqnoAck(int64_t prevHps, int64_t newHps) {
+    if (prevHps != newHps) {
+        auto seqno = seqnoToAck.wlock();
+        if (*seqno < newHps) {
+            *seqno = newHps;
+        }
+    }
+}
+
+void PassiveDurabilityMonitor::sendSeqnoAck() {
     // Hold the lock throughout to ensure that we do not race with another ack
     auto seqno = seqnoToAck.wlock();
-    if (*seqno < newHps) {
-        *seqno = newHps;
-        vb.sendSeqnoAck(vbStateLock, *seqno);
+    if (*seqno != 0) {
+        vb.sendSeqnoAck(*seqno);
     }
+    *seqno = 0;
 }
 
 std::string PassiveDurabilityMonitor::to_string(Resolution res) {

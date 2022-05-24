@@ -1680,10 +1680,7 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
 
     // Notify the snapshot end to move the PDM HPS so that the ADM HPS will be
     // correct post topology change
-    {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
-        pdm.notifySnapshotEndReceived(rlh, 3);
-    }
+    pdm.notifySnapshotEndReceived(3);
 
     // VBState transitions from Replica to Active
     const nlohmann::json meta(
@@ -1767,11 +1764,8 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologySetup(
     ASSERT_EQ(0, pdm.getHighPreparedSeqno());
 
     // Still got a persist level prepare we need to persist
-    {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
-        const_cast<PassiveDurabilityMonitor&>(pdm).notifySnapshotEndReceived(
-                rlh, writes.back().seqno);
-    }
+    const_cast<PassiveDurabilityMonitor&>(pdm).notifySnapshotEndReceived(
+            writes.back().seqno);
     EXPECT_EQ(writes.size(), pdm.getNumTracked());
     EXPECT_EQ(2, pdm.getHighPreparedSeqno());
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
@@ -1833,8 +1827,7 @@ void VBucketDurabilityTest::
     EXPECT_EQ(1, adm.getNumTracked());
 
     vbucket->setPersistenceSeqno(3);
-    folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
-    adm.notifyLocalPersistence(rlh);
+    adm.notifyLocalPersistence();
     adm.processCompletedSyncWriteQueue();
     EXPECT_EQ(3, adm.getHighPreparedSeqno());
     EXPECT_EQ(3, adm.getHighCompletedSeqno());
@@ -1864,10 +1857,7 @@ void VBucketDurabilityTest::
 
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
     vbucket->setPersistenceSeqno(3);
-    {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
-        adm.notifyLocalPersistence(rlh);
-    }
+    adm.notifyLocalPersistence();
 
     // ns_server then sets the topology
     simulateSetVBState(vbucket_state_active,
@@ -1910,15 +1900,9 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
     ASSERT_EQ(3, vbucket->getHighSeqno());
 
     // "Persist" them too and notify the PDM.
-    {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
-        pdm.notifySnapshotEndReceived(rlh, 3);
-    }
+    pdm.notifySnapshotEndReceived(3);
     vbucket->setPersistenceSeqno(3);
-    {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
-        pdm.notifyLocalPersistence(rlh);
-    }
+    pdm.notifyLocalPersistence();
     EXPECT_EQ(2, pdm.getNumTracked());
     EXPECT_EQ(2, pdm.getHighPreparedSeqno());
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
@@ -1982,10 +1966,7 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDMUnpersistedPrepare(
     testAddPrepare(writes);
     ASSERT_EQ(1, pdm.getNumTracked());
 
-    {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
-        pdm.notifySnapshotEndReceived(rlh, 2);
-    }
+    pdm.notifySnapshotEndReceived(2);
 
     // Still tracking the prepare because we must persist it
     ASSERT_EQ(1, pdm.getNumTracked());
@@ -2003,8 +1984,7 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDMUnpersistedPrepare(
 
     // Fake persistence and check again
     vbucket->setPersistenceSeqno(1);
-    folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
-    adm.notifyLocalPersistence(rlh);
+    adm.notifyLocalPersistence();
     EXPECT_EQ(0, adm.getNumTracked());
     EXPECT_EQ(1, adm.getHighPreparedSeqno());
 }
@@ -2190,10 +2170,7 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDMNoPrepares(
     nonConstPdm.completeSyncWrite(
             key, PassiveDurabilityMonitor::Resolution::Commit, 1);
     // Won't remove from trackedWrites until snap end
-    {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
-        nonConstPdm.notifySnapshotEndReceived(rlh, 2);
-    }
+    nonConstPdm.notifySnapshotEndReceived(2);
     ASSERT_EQ(0, pdm.getNumTracked());
 
     // VBState transitions from Replica to Active
@@ -2261,10 +2238,7 @@ TEST_P(VBucketDurabilityTest, ConvertActiveDMToPassiveDMPreparedSyncWrites) {
     ASSERT_EQ(MutationStatus::WasClean,
               public_processSet(*pending, 0 /*cas*/, ctx));
 
-    {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
-        pdm.notifySnapshotEndReceived(rlh, 3);
-    }
+    pdm.notifySnapshotEndReceived(3);
     EXPECT_EQ(3, pdm.getHighPreparedSeqno());
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
 
@@ -2366,10 +2340,7 @@ TEST_P(EPVBucketDurabilityTest, ReplicaToActiveToReplica) {
     pdm.completeSyncWrite(makeStoredDocKey("key2"),
                           PassiveDurabilityMonitor::Resolution::Commit,
                           2);
-    {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
-        pdm.notifySnapshotEndReceived(rlh, 4);
-    }
+    pdm.notifySnapshotEndReceived(4);
 
     // Sanity: Check PassiveDM state as expected - HPS is still zero as haven't
     // locally prepared the persistMajority, but globally that's been
@@ -2399,10 +2370,7 @@ TEST_P(EPVBucketDurabilityTest, ReplicaToActiveToReplica) {
         // @todo MB-35366: This notifySnapshotEndReceived *shouldn't* be
         // necessary; calling notifyPersistenceToDurabilityMonitor (via
         // simulateLocalAck) should be sufficient to prepare.
-        {
-            folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
-            pdm.notifySnapshotEndReceived(rlh, 4);
-        }
+        pdm.notifySnapshotEndReceived(4);
         simulateLocalAck(4);
 
         EXPECT_EQ(0, pdm.getNumTracked());
@@ -2457,10 +2425,7 @@ TEST_P(EPVBucketDurabilityTest, ReplicaToActiveToReplica2) {
     pdm.completeSyncWrite(makeStoredDocKey("key2"),
                           PassiveDurabilityMonitor::Resolution::Commit,
                           2);
-    {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
-        pdm.notifySnapshotEndReceived(rlh, 4);
-    }
+    pdm.notifySnapshotEndReceived(4);
 
     // Sanity: Check PassiveDM state as expected - HPS is still zero as haven't
     // locally prepared the persistMajority, but globally that's been
@@ -2594,10 +2559,7 @@ TEST_P(EPVBucketDurabilityTest,
 
     // Notify persistence and commit our prepares
     vbucket->setPersistenceSeqno(2);
-    {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
-        adm.notifyLocalPersistence(rlh);
-    }
+    adm.notifyLocalPersistence();
     EXPECT_EQ(0, adm.getNumTracked());
 
     // Client should be notified once processed.
@@ -2888,10 +2850,7 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
     EXPECT_EQ(writes.back().seqno, pdm.getHighCompletedSeqno());
     EXPECT_EQ(0, pdm.getHighPreparedSeqno());
 
-    {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
-        pdm.notifySnapshotEndReceived(rlh, 4 /*snap-end*/);
-    }
+    pdm.notifySnapshotEndReceived(4 /*snap-end*/);
 
     // All removed from PassiveDM as HPS has moved up to covering all the
     // completed Prepares.
@@ -3244,31 +3203,4 @@ TEST_P(VBucketDurabilityTest, SyncAddUsesCommittedValueRevSeqno) {
     // used the first prepare's revSeqno +1, instead of using the committed
     // values.
     EXPECT_EQ(3, sv->getRevSeqno());
-}
-
-TEST_P(EPVBucketDurabilityTest, DeadVBucketSeqnoAck) {
-    vbucket->setState(vbucket_state_replica);
-
-    auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
-    ASSERT_EQ(0, pdm.getNumTracked());
-
-    std::vector<SyncWriteSpec> writes;
-    using namespace cb::durability;
-    writes.emplace_back(1, false /*deletion*/, Level::PersistToMajority);
-    testAddPrepare(writes);
-    ASSERT_EQ(1, pdm.getNumTracked());
-    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
-
-    vbucket->notifyPassiveDMOfSnapEndReceived(1 /*snapEnd*/);
-    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
-
-    vbucket->setState(vbucket_state_dead);
-    vbucket->setPersistenceSeqno(1);
-
-    // Before the change we would hit a GSL assertion if we called sendSeqnoAck
-    // on a dead vBucket
-    vbucket->notifyPersistenceToDurabilityMonitor();
-
-    // HPS has moved
-    EXPECT_EQ(1, pdm.getHighPreparedSeqno());
 }

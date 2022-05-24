@@ -130,11 +130,6 @@ protected:
      * Stream and is in state AwaitingFirstSnapshotMarker.
      */
     void setupConsumerAndPassiveStream();
-    void setupConsumer();
-    void setupPassiveStream();
-    void consumePassiveStreamStreamReq();
-    void consumePassiveStreamAddStream();
-    void maybeConsumePassiveStreamSeqnoAck();
 
     enum class mb_33773Mode {
         closeStreamOnTask,

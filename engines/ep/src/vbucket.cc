@@ -623,18 +623,6 @@ void VBucket::setupSyncReplication(const nlohmann::json* topology) {
     if (!currentPassiveDM && durabilityMonitor &&
         state != vbucket_state_active) {
         auto& adm = dynamic_cast<ActiveDurabilityMonitor&>(*durabilityMonitor);
-        // ADM tracks writes in both trackedWrites and the resolvedQueue at
-        // various stages of their progress. A dead vBucket may have an ADM if
-        // it was previously active and persistence notifications must be
-        // handled to avoid having a lagging HPS value. Those notifications can
-        // cause us to move writes from trackedWrites to the resolvedQueue. At
-        // this point, any notification is blocked on the vb state lock that we
-        // should be holding, so dump all of the writes in the resolvedQueue
-        // back into trackedWrites so that we can iterate more easily over the
-        // pending writes to set their states. This is also required for PDM
-        // construction later in this function.
-        adm.prepareTransitionAwayFromActive();
-
         trackedWrites = adm.getTrackedWrites();
         for (auto& write : trackedWrites) {
             auto htRes = ht.findOnlyPrepared(write->getKey());
@@ -1070,36 +1058,12 @@ void VBucket::notifyClientOfSyncWriteComplete(const CookieIface* cookie,
 }
 
 void VBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd) {
-    // Allowed for any PassiveDM state (but we hold the lock to prevent
-    // transitions from changing the DM).
-    folly::SharedMutex::ReadHolder rlh(stateLock);
-    Expects(state != vbucket_state_active);
-    getPassiveDM().notifySnapshotEndReceived(rlh, snapEnd);
+    getPassiveDM().notifySnapshotEndReceived(snapEnd);
 }
 
-void VBucket::sendSeqnoAck(folly::SharedMutex::ReadHolder& rlh, int64_t seqno) {
-    switch (state) {
-    case vbucket_state_replica:
-    case vbucket_state_pending:
-        seqnoAckCb(getId(), seqno);
-        break;
-    case vbucket_state_dead:
-        // Dead vBuckets have a DM that is semi-active (it will be notified of
-        // persistence) and if we're hitting this path then it must be a PDM.
-        // Dead vBuckets shouldn't be acking (the connection should hopefully
-        // have gone away at this point) as they shouldn't be considered part
-        // of the replication topology but that's ns_server's domain so it's
-        // better to be defensive here and just make sure that we don't attempt
-        // to send any seqno ack.
-        break;
-    case vbucket_state_active:
-        throw std::logic_error(
-                fmt::format("VBucket::sendSeqnoAck: {} "
-                            "attempting to send a seqno ack with value {} "
-                            "for an active vBucket",
-                            getId(),
-                            seqno));
-    }
+void VBucket::sendSeqnoAck(int64_t seqno) {
+    Expects(state == vbucket_state_replica || state == vbucket_state_pending);
+    seqnoAckCb(getId(), seqno);
 }
 
 bool VBucket::addPendingOp(const CookieIface* cookie) {
@@ -4115,14 +4079,13 @@ cb::engine_errc VBucket::seqnoAcknowledged(
 }
 
 void VBucket::notifyPersistenceToDurabilityMonitor() {
-    // Allowed in any state (but we hold the lock to prevent transitions from
-    // changing the DM) because we could end up in some situation in which we
-    // temporarily have a dead vBucket which is turned into an active or replica
-    // before being deleted. Were we to not update the DM then we could
-    // potentially have an out of date DM state at that point if persisting
-    // some seqno were enough to move the HPS.
-    folly::SharedMutex::ReadHolder rlh(stateLock);
-    durabilityMonitor->notifyLocalPersistence(rlh);
+    folly::SharedMutex::ReadHolder wlh(stateLock);
+
+    if (state == vbucket_state_dead) {
+        return;
+    }
+
+    durabilityMonitor->notifyLocalPersistence();
 }
 
 const DurabilityMonitor& VBucket::getDurabilityMonitor() const {

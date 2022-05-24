@@ -425,8 +425,7 @@ void ActiveDurabilityMonitor::processTimeout(
     checkForResolvedSyncWrites();
 }
 
-void ActiveDurabilityMonitor::notifyLocalPersistence(
-        folly::SharedMutex::ReadHolder& vbStateLock) {
+void ActiveDurabilityMonitor::notifyLocalPersistence() {
     checkForCommit();
 }
 
@@ -620,12 +619,6 @@ void ActiveDurabilityMonitor::unresolveCompletedSyncWriteQueue() {
 
 size_t ActiveDurabilityMonitor::getNumTracked() const {
     return state.rlock()->trackedWrites.size();
-}
-
-bool ActiveDurabilityMonitor::isResolvedQueueEmpty() const {
-    std::lock_guard<ResolvedQueue::ConsumerLock> lock(
-            resolvedQueue->getConsumerLock());
-    return resolvedQueue->empty();
 }
 
 size_t ActiveDurabilityMonitor::getNumAccepted() const {

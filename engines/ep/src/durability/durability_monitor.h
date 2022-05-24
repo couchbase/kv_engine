@@ -11,9 +11,6 @@
 #pragma once
 
 #include "memcached/engine_common.h"
-
-#include <folly/SharedMutex.h>
-
 #include <list>
 
 class CookieIface;
@@ -71,11 +68,8 @@ public:
      * Inform the DurabilityMonitor that the Flusher has run.
      * Expected to be called by the Flusher after a flush-batch (that contains
      * pending Prepares) has been committed to the storage.
-     *
-     * @param vbStateLock Read lock holder for the vb state lock
      */
-    virtual void notifyLocalPersistence(
-            folly::SharedMutex::ReadHolder& vbStateLock) = 0;
+    virtual void notifyLocalPersistence() = 0;
 
     /**
      * Debug function that prints the DM state to stderr.

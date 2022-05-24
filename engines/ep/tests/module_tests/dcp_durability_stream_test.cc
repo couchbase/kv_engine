@@ -6090,80 +6090,6 @@ TEST_P(DurabilityPassiveStreamEphemeralTest,
     testAbortCommitedInDiskSnapshotCorrectState(DeleteSource::Explicit);
 }
 
-void DurabilityDemotionStreamTest::SetUp() {
-    return DurabilityActiveStreamTest::SetUp();
-}
-
-void DurabilityDemotionStreamTest::TearDown() {
-    return DurabilityPassiveStreamTest::TearDown();
-}
-
-TEST_P(DurabilityDemotionStreamTest,
-       PersistenceForDeadVBucketNotifiesDurabilityMonitor) {
-    using namespace cb::durability;
-    setVBucketToActiveWithValidTopology();
-
-    auto key = makeStoredDocKey("k");
-    auto item = makePendingItem(
-            key,
-            "value",
-            Requirements{Level::MajorityAndPersistOnMaster, Timeout()});
-    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
-
-    auto vb = store->getVBucket(vbid);
-    ASSERT_TRUE(vb);
-
-    EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
-    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighPreparedSeqno());
-    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
-
-    vb->seqnoAcknowledged(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()), "replica", 1);
-
-    // Remote ack does not attempt to commit, need local ack (persistence)
-    EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
-    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighPreparedSeqno());
-    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
-
-    // Transition via "takeover"
-    setVBucketState(vbid, vbucket_state_dead);
-    DurabilityActiveStreamTest::stream.reset();
-    producer.reset();
-
-    // Flush of key "k" from before we were set to dead, allows the HPS to move
-    // in the DM
-    flushVBucketToDiskIfPersistent(vbid, 1);
-    EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
-    EXPECT_EQ(1, vb->getDurabilityMonitor().getHighPreparedSeqno());
-    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
-
-    {
-        auto& adm = dynamic_cast<ActiveDurabilityMonitor&>(
-                const_cast<DurabilityMonitor&>(vb->getDurabilityMonitor()));
-        EXPECT_FALSE(adm.isResolvedQueueEmpty());
-    }
-
-    // Now we are replica...
-    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
-
-    EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
-    EXPECT_EQ(1, vb->getDurabilityMonitor().getHighPreparedSeqno());
-    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
-
-    enableSyncReplication = true;
-    setupConsumer();
-    setupPassiveStream();
-    consumePassiveStreamStreamReq();
-    consumePassiveStreamAddStream();
-
-    auto msg = DurabilityPassiveStreamTest::stream->public_popFromReadyQ();
-    ASSERT_TRUE(msg);
-    EXPECT_EQ(DcpResponse::Event::SeqnoAcknowledgement, msg->getEvent());
-
-    const auto& ack = static_cast<SeqnoAcknowledgement&>(*msg);
-    EXPECT_EQ(1, ack.getPreparedSeqno());
-}
-
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          DurabilityActiveStreamTest,
                          STParameterizedBucketTest::allConfigValues(),
@@ -6182,11 +6108,6 @@ INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          DurabilityPromotionStreamTest,
                          STParameterizedBucketTest::allConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
-                         DurabilityDemotionStreamTest,
-                         STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(Ephemeral,

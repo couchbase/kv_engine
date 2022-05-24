@@ -220,8 +220,7 @@ void ActiveDurabilityMonitorTest::testLocalAck(int64_t ackSeqno,
                                                int64_t expectedLastWriteSeqno,
                                                int64_t expectedLastAckSeqno) {
     vb->setPersistenceSeqno(ackSeqno);
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    monitor->notifyLocalPersistence(rlh);
+    monitor->notifyLocalPersistence();
     EXPECT_EQ(expectedNumTracked, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
@@ -2012,8 +2011,7 @@ void DurabilityMonitorTest::notifyPersistence(const int64_t persistedSeqno,
                                               const int64_t expectedHPS,
                                               const int64_t expectedHCS) {
     vb->setPersistenceSeqno(persistedSeqno);
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    monitor->notifyLocalPersistence(rlh);
+    monitor->notifyLocalPersistence();
     ASSERT_EQ(expectedHPS, monitor->getHighPreparedSeqno());
     ASSERT_EQ(expectedHCS, monitor->getHighCompletedSeqno());
 }
@@ -2579,10 +2577,7 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
 void PassiveDurabilityMonitorTest::notifySnapEndReceived(int64_t snapEnd,
                                                          int64_t expectedHPS,
                                                          int64_t expectedHCS) {
-    {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        getPassiveDM().notifySnapshotEndReceived(rlh, snapEnd);
-    }
+    getPassiveDM().notifySnapshotEndReceived(snapEnd);
     ASSERT_EQ(expectedHPS, monitor->getHighPreparedSeqno());
     ASSERT_EQ(expectedHCS, monitor->getHighCompletedSeqno());
 }
@@ -3465,8 +3460,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
 
     // Active finally persists, but it is too late
     vb->setPersistenceSeqno(2);
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    monitor->notifyLocalPersistence(rlh);
+    monitor->notifyLocalPersistence();
 
     {
         SCOPED_TRACE("");
@@ -3487,8 +3481,7 @@ TEST_P(PassiveDurabilityMonitorTest, SendSeqnoAckRace) {
         // vb->sendSeqnoAck. Simulate this race by notifying persistence which
         // should attempt to ack 2.
         vb->setPersistenceSeqno(2);
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        pdm.notifyLocalPersistence(rlh);
+        pdm.notifyLocalPersistence();
     };
 
     // Test: Assert the monotonicity of the ack that we attempt to send
@@ -3511,11 +3504,7 @@ TEST_P(PassiveDurabilityMonitorTest, SendSeqnoAckRace) {
 
     // Should only be able to ack seqno 1 as we require persistence to ack seqno
     // 2.
-    {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        pdm.notifySnapshotEndReceived(rlh, 2);
-    }
-
+    pdm.notifySnapshotEndReceived(2);
     EXPECT_EQ(2, ackedSeqno);
 }
 
@@ -3587,10 +3576,7 @@ TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndReceiveSnapEnd) {
 
     auto& pdm = getPassiveDM();
 
-    {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        pdm.notifySnapshotEndReceived(rlh, 3);
-    }
+    pdm.notifySnapshotEndReceived(3);
 
     EXPECT_EQ(1, pdm.getNumTracked());
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
@@ -3602,10 +3588,7 @@ TEST_P(PassiveDurabilityMonitorTest, dropLastKeyAndReceiveSnapEnd) {
 
     auto& pdm = getPassiveDM();
 
-    {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        pdm.notifySnapshotEndReceived(rlh, 3);
-    }
+    pdm.notifySnapshotEndReceived(3);
 
     EXPECT_EQ(1, pdm.getNumTracked());
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
@@ -3617,11 +3600,7 @@ TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndCompleteNext) {
 
     auto& pdm = getPassiveDM();
 
-    {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        pdm.notifySnapshotEndReceived(rlh, 3);
-    }
-
+    pdm.notifySnapshotEndReceived(3);
     pdm.completeSyncWrite(makeStoredDocKey("key2"), PassiveDurabilityMonitor::Resolution::Commit, 2);
 
     EXPECT_EQ(0, pdm.getNumTracked());
@@ -3634,11 +3613,7 @@ TEST_P(PassiveDurabilityMonitorTest, dropLastKeyAndCompletePrevious) {
 
     auto& pdm = getPassiveDM();
 
-    {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        pdm.notifySnapshotEndReceived(rlh, 3);
-    }
-
+    pdm.notifySnapshotEndReceived(3);
     pdm.completeSyncWrite(makeStoredDocKey("key1"), PassiveDurabilityMonitor::Resolution::Commit, 1);
 
     EXPECT_EQ(0, pdm.getNumTracked());
@@ -3653,11 +3628,7 @@ TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndCompleteNextDiskSnap) {
 
     auto& pdm = getPassiveDM();
 
-    {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        pdm.notifySnapshotEndReceived(rlh, 3);
-    }
-
+    pdm.notifySnapshotEndReceived(3);
     pdm.completeSyncWrite(makeStoredDocKey("key2"), PassiveDurabilityMonitor::Resolution::Commit, 2);
 
     EXPECT_EQ(0, pdm.getNumTracked());
@@ -3671,11 +3642,8 @@ TEST_P(PassiveDurabilityMonitorTest, dropLastKeyAndCompletePreviousDiskSnap) {
     testDropLastKey();
 
     auto& pdm = getPassiveDM();
-    {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        pdm.notifySnapshotEndReceived(rlh, 3);
-    }
 
+    pdm.notifySnapshotEndReceived(3);
     pdm.completeSyncWrite(makeStoredDocKey("key1"), PassiveDurabilityMonitor::Resolution::Commit, 1);
 
     EXPECT_EQ(0, pdm.getNumTracked());
@@ -3742,10 +3710,7 @@ TEST_P(PassiveDurabilityMonitorTest, DropMultipleCollections) {
                           1);
     EXPECT_EQ(2, pdm.getNumDroppedCollections());
 
-    {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        pdm.notifySnapshotEndReceived(rlh, 20);
-    }
+    pdm.notifySnapshotEndReceived(20);
     EXPECT_EQ(0, pdm.getNumDroppedCollections());
 }
 

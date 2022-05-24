@@ -1390,11 +1390,9 @@ public:
     /**
      * Send a SeqnoAck message on the PassiveStream (if any) for this VBucket.
      *
-     * @param vbStateLock The VB state lock lock holder
      * @param seqno The payload
      */
-    void sendSeqnoAck(folly::SharedMutex::ReadHolder& vbStateLock,
-                      int64_t seqno);
+    void sendSeqnoAck(int64_t seqno);
 
     /**
      * Update in memory data structures after an item is deleted on disk
