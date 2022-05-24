@@ -8,8 +8,6 @@
  *   the file licenses/APL2.txt.
  */
 
-#pragma once
-
 #include "mock_couch_kvstore.h"
 
 #include "kvstore/couch-kvstore/couch-kvstore-db-holder.h"
