@@ -13,6 +13,7 @@
 #include <daemon/connection.h>
 #include <daemon/enginemap.h>
 #include <daemon/one_shot_task.h>
+#include <daemon/settings.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
@@ -43,6 +44,11 @@ cb::engine_errc CreateRemoveBucketCommandContext::create() {
     }
 
     auto type = module_to_bucket_type(value);
+    if (isServerlessDeployment() && type == BucketType::Memcached) {
+        cookie.setErrorContext(
+                "memcached buckets can't be used in serverless configuration");
+        return cb::engine_errc::not_supported;
+    }
 
     std::string taskname{"Create bucket [" + name + "]"};
     ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(

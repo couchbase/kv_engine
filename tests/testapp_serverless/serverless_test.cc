@@ -337,4 +337,12 @@ TEST_F(ServerlessTest, StopClientDataIngress) {
     writeDoc(*bucket0);
 }
 
+TEST_F(ServerlessTest, MemcachedBucketNotSupported) {
+    auto admin = cluster->getConnection(0);
+    admin->authenticate("@admin", "password");
+    auto rsp = admin->execute(BinprotCreateBucketCommand{
+            "NotSupported", "default_engine.so", ""});
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
+}
+
 } // namespace cb::test
