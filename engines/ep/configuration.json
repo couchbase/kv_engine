@@ -894,7 +894,10 @@
             }
         },
         "num_reader_threads": {
-            "default": "0",
+            "default": {
+                "on-prem": "0",
+                "serverless": "64"
+            },
             "descr": "Number of reader threads (0 = Default, -1 = Disk IO Optimized)",
             "dynamic": true,
             "type": "ssize_t",
@@ -906,7 +909,10 @@
             }
         },
         "num_writer_threads": {
-            "default": "0",
+            "default": {
+                "on-prem": "0",
+                "serverless": "64"
+            },
             "descr": "Number of writer threads (0 = Default, -1 = Disk IO Optimized)",
             "dynamic": true,
             "type": "ssize_t",
