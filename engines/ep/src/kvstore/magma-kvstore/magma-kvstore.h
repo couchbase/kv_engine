@@ -38,6 +38,7 @@ class MagmaKVStoreConfig;
 class MagmaMemoryTrackingProxy;
 struct kvstats_ctx;
 struct MagmaKVStoreTransactionContext;
+struct MagmaScanResult;
 struct vbucket_state;
 
 /**
@@ -737,6 +738,23 @@ protected:
      */
     std::pair<bool, Collections::ManifestUid> getCollectionsManifestUid(
             Vbid vbid) const;
+
+    /**
+     * Run the ScanContext callbacks for a single key/value (when scanning)
+     *
+     * @param ctx The ScanContext owning the callbacks to use
+     * @param keySlice Slice "pointing" at the scanned key
+     * @param seqno The seqno of the scanned key
+     * @param metaSlice Slice "pointing" at the key's metadata
+     * @oaram valSlice Slice "pointing" at the key's value.
+     * @return A MagmaScanResult, which is ScanResult with one bespoke extra
+     *         status (Next)
+     */
+    MagmaScanResult scanOne(ScanContext& ctx,
+                            magma::Slice& keySlice,
+                            uint64_t seqno,
+                            magma::Slice& metaSlice,
+                            magma::Slice& valSlice) const;
 
     MagmaKVStoreConfig& configuration;
 
