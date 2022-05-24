@@ -1461,6 +1461,7 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
         status_code = cb::mcbp::Status::SubdocMultiPathFailureDeleted;
     }
 
+    cookie.addDocumentReadBytes(context.response_val_len);
     connection.sendResponseHeaders(cookie,
                                    status_code,
                                    {},
@@ -1497,10 +1498,6 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
                 h.setLength((mloc.length));
                 connection.copyToOutputStream(h.getBuffer(),
                                               {mloc.at, mloc.length});
-
-                if (context.overall_status == cb::mcbp::Status::Success) {
-                    cookie.addDocumentReadBytes(mloc.length);
-                }
             } else {
                 connection.copyToOutputStream(h.getBuffer());
             }

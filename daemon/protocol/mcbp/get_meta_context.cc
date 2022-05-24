@@ -64,6 +64,7 @@ cb::engine_errc GetMetaCommandContext::sendResponse() {
 
     std::string_view extras = {reinterpret_cast<const char*>(&metaResponse),
                                responseExtlen};
+    cookie.addDocumentReadBytes(extras.size());
     cookie.sendResponse(cb::mcbp::Status::Success,
                         extras,
                         {},

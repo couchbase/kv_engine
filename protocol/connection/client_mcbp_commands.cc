@@ -355,7 +355,9 @@ void BinprotResponse::assign(std::vector<uint8_t>&& srcbuf) {
 static uint16_t to_uint16(cb::const_byte_buffer val) {
     uint16_t ret;
     if (val.size() != sizeof(ret)) {
-        throw std::invalid_argument("to_uint16: Invalid size provided");
+        throw std::invalid_argument(
+                "to_uint16: Invalid size provided (expected 2 bytes): " +
+                std::to_string(val.size()));
     }
     // copy the data over to avoid potential alignment problems ;)
     memcpy(&ret, val.data(), sizeof(ret));
@@ -375,7 +377,7 @@ std::optional<std::chrono::microseconds> BinprotResponse::getTracingData()
         });
     } catch (const std::invalid_argument& e) {
         throw std::runtime_error(
-                "Invalid size for ReadComputeUnits frame info");
+                std::string{"ServerRecvSendDuration frame info: "} + e.what());
     }
     return ret;
 }
@@ -391,8 +393,8 @@ std::optional<size_t> BinprotResponse::getReadComputeUnits() const {
             return true;
         });
     } catch (const std::invalid_argument& e) {
-        throw std::runtime_error(
-                "Invalid size for ReadComputeUnits frame info");
+        throw std::runtime_error(std::string{"ReadComputeUnits frame info: "} +
+                                 e.what());
     }
     return ret;
 }
@@ -408,8 +410,8 @@ std::optional<size_t> BinprotResponse::getWriteComputeUnits() const {
             return true;
         });
     } catch (const std::invalid_argument& e) {
-        throw std::runtime_error(
-                "Invalid size for WriteComputeUnits frame info");
+        throw std::runtime_error(std::string{"WriteComputeUnits frame info: "} +
+                                 e.what());
     }
     return ret;
 }

@@ -1065,6 +1065,8 @@ cb::engine_errc EventuallyPersistentEngine::getReplicaCmd(
         guardedIface.audit_document_access(
                 const_cast<CookieIface&>(*cookie),
                 cb::audit::document::Operation::Read);
+        const_cast<CookieIface*>(cookie)->addDocumentReadBytes(
+                rv.item->getNBytes());
         return sendResponse(
                 response,
                 rv.item->getKey(), // key
@@ -6311,8 +6313,9 @@ cb::engine_errc EventuallyPersistentEngine::getRandomKey(
     cb::engine_errc ret = gv.getStatus();
 
     if (ret == cb::engine_errc::success) {
-        Item* it = gv.item.get();
-        uint32_t flags = it->getFlags();
+        auto* it = gv.item.get();
+        const_cast<CookieIface*>(cookie)->addDocumentReadBytes(it->getNBytes());
+        const auto flags = it->getFlags();
         ret = sendResponse(
                 response,
                 cookie->isCollectionsSupported()

@@ -1797,7 +1797,7 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
             ++ptr;
             val = htons(val);
             memcpy(ptr, &val, sizeof(val));
-            ptr += val;
+            ptr += sizeof(val);
         };
 
         if (tracing) {

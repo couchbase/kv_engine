@@ -345,4 +345,772 @@ TEST_F(ServerlessTest, MemcachedBucketNotSupported) {
     EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
 }
 
+/// Test that we meter all operations according to their spec (well, there
+/// is no spec at the moment ;)
+///
+/// To make sure that we don't sneak in a new opcode without considering if
+/// it should be metered or not the code loops over all available opcodes
+/// and call a function which performs a switch (so the compiler will barf
+/// out if we don't handle the case). By doing so one must explicitly think
+/// if the new opcode needs to be metered or not.
+TEST_F(ServerlessTest, OpsMetered) {
+    using namespace cb::mcbp;
+    auto admin = cluster->getConnection(0);
+    admin->authenticate("@admin", "password");
+
+    auto executeWithExpectedCU = [&admin](std::function<void()> func,
+                                          size_t rcu,
+                                          size_t wcu) {
+        nlohmann::json before;
+        admin->stats([&before](auto k,
+                               auto v) { before = nlohmann::json::parse(v); },
+                     "bucket_details bucket-0");
+        func();
+        nlohmann::json after;
+        admin->stats(
+                [&after](auto k, auto v) { after = nlohmann::json::parse(v); },
+                "bucket_details bucket-0");
+        EXPECT_EQ(rcu,
+                  after["rcu"].get<size_t>() - before["rcu"].get<size_t>());
+        EXPECT_EQ(wcu,
+                  after["wcu"].get<size_t>() - before["wcu"].get<size_t>());
+    };
+
+    auto testOpcode = [&executeWithExpectedCU](MemcachedConnection& conn,
+                                               ClientOpcode opcode) {
+        auto createDocument = [&conn](std::string key,
+                                      std::string value,
+                                      MutationType op = MutationType::Set,
+                                      uint64_t cas = 0) {
+            Document doc;
+            doc.info.id = std::move(key);
+            doc.info.cas = cas;
+            doc.value = std::move(value);
+            return conn.mutate(doc, Vbid{0}, op);
+        };
+
+        BinprotResponse rsp;
+        switch (opcode) {
+        case ClientOpcode::Flush:
+        case ClientOpcode::Quitq:
+        case ClientOpcode::Flushq:
+        case ClientOpcode::Getq:
+        case ClientOpcode::Getk:
+        case ClientOpcode::Getkq:
+        case ClientOpcode::Gatq:
+        case ClientOpcode::Deleteq:
+        case ClientOpcode::Incrementq:
+        case ClientOpcode::Decrementq:
+        case ClientOpcode::Setq:
+        case ClientOpcode::Addq:
+        case ClientOpcode::Replaceq:
+        case ClientOpcode::Appendq:
+        case ClientOpcode::Prependq:
+        case ClientOpcode::GetqMeta:
+        case ClientOpcode::SetqWithMeta:
+        case ClientOpcode::AddqWithMeta:
+        case ClientOpcode::DelqWithMeta:
+        case ClientOpcode::Rget_Unsupported:
+        case ClientOpcode::Rset_Unsupported:
+        case ClientOpcode::Rsetq_Unsupported:
+        case ClientOpcode::Rappend_Unsupported:
+        case ClientOpcode::Rappendq_Unsupported:
+        case ClientOpcode::Rprepend_Unsupported:
+        case ClientOpcode::Rprependq_Unsupported:
+        case ClientOpcode::Rdelete_Unsupported:
+        case ClientOpcode::Rdeleteq_Unsupported:
+        case ClientOpcode::Rincr_Unsupported:
+        case ClientOpcode::Rincrq_Unsupported:
+        case ClientOpcode::Rdecr_Unsupported:
+        case ClientOpcode::Rdecrq_Unsupported:
+        case ClientOpcode::TapConnect_Unsupported:
+        case ClientOpcode::TapMutation_Unsupported:
+        case ClientOpcode::TapDelete_Unsupported:
+        case ClientOpcode::TapFlush_Unsupported:
+        case ClientOpcode::TapOpaque_Unsupported:
+        case ClientOpcode::TapVbucketSet_Unsupported:
+        case ClientOpcode::TapCheckpointStart_Unsupported:
+        case ClientOpcode::TapCheckpointEnd_Unsupported:
+        case ClientOpcode::ResetReplicationChain_Unsupported:
+        case ClientOpcode::SnapshotVbStates_Unsupported:
+        case ClientOpcode::VbucketBatchCount_Unsupported:
+        case ClientOpcode::NotifyVbucketUpdate_Unsupported:
+        case ClientOpcode::ChangeVbFilter_Unsupported:
+        case ClientOpcode::CheckpointPersistence_Unsupported:
+        case ClientOpcode::SetDriftCounterState_Unsupported:
+        case ClientOpcode::GetAdjustedTime_Unsupported:
+        case ClientOpcode::DcpFlush_Unsupported:
+        case ClientOpcode::DeregisterTapClient_Unsupported:
+            // Just verify that we don't support them
+            rsp = conn.execute(BinprotGenericCommand{opcode});
+            EXPECT_EQ(Status::NotSupported, rsp.getStatus()) << opcode;
+
+            // SASL commands aren't being metered (and not necessairly bound
+            // to a bucket so its hard to check as we don't know where it'll
+        // go
+        case ClientOpcode::SaslListMechs:
+        case ClientOpcode::SaslAuth:
+        case ClientOpcode::SaslStep:
+            break;
+
+        case ClientOpcode::CreateBucket:
+        case ClientOpcode::DeleteBucket:
+        case ClientOpcode::SelectBucket:
+            break;
+
+            // Quit close the connection so its hard to test (and it would
+        // be weird if someone updated the code to start collecting data)
+        case ClientOpcode::Quit:
+            executeWithExpectedCU(
+                    [&conn]() {
+                        conn.sendCommand(
+                                BinprotGenericCommand{ClientOpcode::Quit});
+                        // Allow some time for the connection to disconnect
+                        std::this_thread::sleep_for(
+                                std::chrono::milliseconds{500});
+                    },
+                    0,
+                    0);
+            conn.reconnect();
+            conn.authenticate("@admin", "password");
+            conn.selectBucket("bucket-0");
+            conn.setFeature(cb::mcbp::Feature::ReportComputeUnitUsage, true);
+            conn.setReadTimeout(std::chrono::seconds{3});
+            break;
+
+        case ClientOpcode::ListBuckets:
+        case ClientOpcode::Version:
+        case ClientOpcode::Noop:
+        case ClientOpcode::GetClusterConfig:
+        case ClientOpcode::GetFailoverLog:
+        case ClientOpcode::CollectionsGetManifest:
+            rsp = conn.execute(BinprotGenericCommand{opcode});
+            EXPECT_TRUE(rsp.isSuccess()) << opcode;
+            EXPECT_FALSE(rsp.getReadComputeUnits()) << opcode;
+            EXPECT_FALSE(rsp.getWriteComputeUnits()) << opcode;
+            break;
+
+        case ClientOpcode::Get:
+            // Get of a non-existing document should not cost anything
+            rsp = conn.execute(
+                    BinprotGenericCommand{opcode, "ClientOpcode::Get"});
+            EXPECT_EQ(Status::KeyEnoent, rsp.getStatus());
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+
+            createDocument("ClientOpcode::Get", "Hello World");
+            rsp = conn.execute(
+                    BinprotGenericCommand{opcode, "ClientOpcode::Get"});
+            EXPECT_TRUE(rsp.isSuccess());
+            ASSERT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::Set:
+            // Writing a document should cost
+            executeWithExpectedCU(
+                    [&createDocument]() {
+                        createDocument("ClientOpcode::Set",
+                                       "Hello",
+                                       MutationType::Set);
+                    },
+                    0,
+                    1);
+            break;
+        case ClientOpcode::Add:
+            // Writing a document should cost
+            executeWithExpectedCU(
+                    [&createDocument]() {
+                        createDocument("ClientOpcode::Add",
+                                       "Hello",
+                                       MutationType::Add);
+                    },
+                    0,
+                    1);
+            // add failure shouldn't cost anything
+            executeWithExpectedCU(
+                    [&createDocument]() {
+                        try {
+                            createDocument("ClientOpcode::Add",
+                                           "Hello",
+                                           MutationType::Add);
+                            FAIL() << "Add of existing document should fail";
+                        } catch (const ConnectionError&) {
+                        }
+                    },
+                    0,
+                    0);
+            break;
+        case ClientOpcode::Replace:
+            // Replace failure shouldn't cost anything
+            executeWithExpectedCU(
+                    [&createDocument]() {
+                        try {
+                            createDocument("ClientOpcode::Replace",
+                                           "Hello",
+                                           MutationType::Replace);
+                            FAIL() << "Add of existing document should fail";
+                        } catch (const ConnectionError&) {
+                        }
+                    },
+                    0,
+                    0);
+            createDocument("ClientOpcode::Replace", "Hello");
+            executeWithExpectedCU(
+                    [&createDocument]() {
+                        createDocument("ClientOpcode::Replace",
+                                       "World",
+                                       MutationType::Replace);
+                    },
+                    0,
+                    1);
+            break;
+        case ClientOpcode::Delete:
+            // Delete of a document should cost
+            createDocument("ClientOpcode::Delete", "Hello");
+            rsp = conn.execute(
+                    BinprotGenericCommand{opcode, "ClientOpcode::Delete"});
+            EXPECT_TRUE(rsp.isSuccess());
+            ASSERT_TRUE(rsp.getWriteComputeUnits());
+            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            break;
+        case ClientOpcode::Increment:
+            createDocument("ClientOpcode::Increment", "foo");
+            executeWithExpectedCU(
+                    [&conn]() {
+                        try {
+                            conn.increment("ClientOpcode::Increment", 1);
+                            FAIL() << "Document not a number";
+                        } catch (const ConnectionError&) {
+                        }
+                    },
+                    0,
+                    0);
+            createDocument("ClientOpcode::Increment", "0");
+            executeWithExpectedCU(
+                    [&conn]() { conn.increment("ClientOpcode::Increment", 1); },
+                    1,
+                    1);
+            break;
+        case ClientOpcode::Decrement:
+            createDocument("ClientOpcode::Decrement", "foo");
+            executeWithExpectedCU(
+                    [&conn]() {
+                        try {
+                            conn.decrement("ClientOpcode::Decrement", 1);
+                            FAIL() << "Document not a number";
+                        } catch (const ConnectionError&) {
+                        }
+                    },
+                    0,
+                    0);
+            createDocument("ClientOpcode::Decrement", "1");
+            executeWithExpectedCU(
+                    [&conn]() { conn.decrement("ClientOpcode::Decrement", 1); },
+                    1,
+                    1);
+            break;
+        case ClientOpcode::Append:
+            // Append on non-existing document should fail and be free
+            executeWithExpectedCU(
+                    [&conn]() {
+                        auto r = conn.execute(
+                                BinprotGenericCommand{ClientOpcode::Append,
+                                                      "ClientOpcode::Append",
+                                                      "world"});
+                        EXPECT_FALSE(r.isSuccess());
+                        EXPECT_FALSE(r.getReadComputeUnits());
+                        EXPECT_FALSE(r.getWriteComputeUnits());
+                    },
+                    0,
+                    0);
+            createDocument("ClientOpcode::Append", "hello");
+            rsp = conn.execute(BinprotGenericCommand{
+                    ClientOpcode::Append, "ClientOpcode::Append", "world"});
+            EXPECT_TRUE(rsp.isSuccess());
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getWriteComputeUnits());
+            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::Prepend:
+            // Append on non-existing document should fail and be free
+            executeWithExpectedCU(
+                    [&conn]() {
+                        auto r = conn.execute(
+                                BinprotGenericCommand{ClientOpcode::Prepend,
+                                                      "ClientOpcode::Prepend",
+                                                      "hello"});
+                        EXPECT_FALSE(r.isSuccess());
+                        EXPECT_FALSE(r.getReadComputeUnits());
+                        EXPECT_FALSE(r.getWriteComputeUnits());
+                    },
+                    0,
+                    0);
+            createDocument("ClientOpcode::Prepend", "world");
+            rsp = conn.execute(BinprotGenericCommand{
+                    ClientOpcode::Append, "ClientOpcode::Prepend", "hello"});
+            EXPECT_TRUE(rsp.isSuccess());
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getWriteComputeUnits());
+            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::Stat:
+            executeWithExpectedCU([&conn]() { conn.stats(""); }, 0, 0);
+            break;
+        case ClientOpcode::Verbosity:
+            rsp = conn.execute(BinprotVerbosityCommand{0});
+            EXPECT_TRUE(rsp.isSuccess());
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::Touch:
+            // Touch of non-existing document should fail and is free
+            rsp = conn.execute(BinprotTouchCommand{"ClientOpcode::Touch", 0});
+            EXPECT_EQ(Status::KeyEnoent, rsp.getStatus());
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            createDocument("ClientOpcode::Touch", "Hello World");
+            rsp = conn.execute(BinprotTouchCommand{"ClientOpcode::Touch", 0});
+            EXPECT_TRUE(rsp.isSuccess());
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getWriteComputeUnits());
+            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::Gat:
+            // Touch of non-existing document should fail and is free
+            rsp = conn.execute(
+                    BinprotGetAndTouchCommand{"ClientOpcode::Gat", Vbid{0}, 0});
+            EXPECT_EQ(Status::KeyEnoent, rsp.getStatus());
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            createDocument("ClientOpcode::Gat", "Hello World");
+            rsp = conn.execute(
+                    BinprotGetAndTouchCommand{"ClientOpcode::Gat", Vbid{0}, 0});
+            EXPECT_TRUE(rsp.isSuccess());
+            ASSERT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getWriteComputeUnits());
+            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::Hello:
+            executeWithExpectedCU(
+                    [&conn]() {
+                        conn.setFeature(Feature::AltRequestSupport, true);
+                    },
+                    0,
+                    0);
+            break;
+
+        case ClientOpcode::GetReplica:
+            do {
+                auto bucket = cluster->getBucket("bucket-0");
+                auto rcon = bucket->getConnection(
+                        Vbid(0), vbucket_state_replica, 1);
+                rcon->authenticate("@admin", "password");
+                rcon->selectBucket("bucket-0");
+                rcon->setFeature(cb::mcbp::Feature::ReportComputeUnitUsage,
+                                 true);
+                rcon->setReadTimeout(std::chrono::seconds{3});
+                createDocument("ClientOpcode::GetReplica", "value");
+                std::this_thread::sleep_for(std::chrono::milliseconds{100});
+                do {
+                    rsp = rcon->execute(
+                            BinprotGenericCommand{ClientOpcode::GetReplica,
+                                                  "ClientOpcode::GetReplica"});
+                } while (rsp.getStatus() == Status::KeyEnoent);
+                EXPECT_TRUE(rsp.isSuccess());
+            } while (false);
+            ASSERT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::GetLocked:
+            rsp = conn.execute(
+                    BinprotGetAndLockCommand{"ClientOpcode::GetLocked"});
+            EXPECT_EQ(Status::KeyEnoent, rsp.getStatus());
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            createDocument("ClientOpcode::GetLocked", "value");
+            rsp = conn.execute(
+                    BinprotGetAndLockCommand{"ClientOpcode::GetLocked"});
+            EXPECT_TRUE(rsp.isSuccess());
+            ASSERT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::UnlockKey:
+            do {
+                createDocument("ClientOpcode::UnlockKey", "value");
+                auto doc = conn.get_and_lock(
+                        "ClientOpcode::UnlockKey", Vbid{0}, 15);
+                executeWithExpectedCU(
+                        [&conn, cas = doc.info.cas]() {
+                            conn.unlock(
+                                    "ClientOpcode::UnlockKey", Vbid{0}, cas);
+                        },
+                        0,
+                        0);
+            } while (false);
+            break;
+        case ClientOpcode::ObserveSeqno:
+            do {
+                uint64_t uuid = 0;
+                conn.stats(
+                        [&uuid](auto k, auto v) {
+                            if (k == "vb_0:uuid") {
+                                uuid = std::stoull(v);
+                            }
+                        },
+                        "vbucket-details 0");
+                rsp = conn.execute(BinprotObserveSeqnoCommand{Vbid{0}, uuid});
+                EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+                EXPECT_FALSE(rsp.getReadComputeUnits());
+                EXPECT_FALSE(rsp.getWriteComputeUnits());
+            } while (false);
+            break;
+        case ClientOpcode::Observe:
+            do {
+                createDocument("ClientOpcode::Observe", "myvalue");
+                std::vector<std::pair<Vbid, std::string>> keys;
+                keys.emplace_back(std::make_pair<Vbid, std::string>(
+                        Vbid{0}, "ClientOpcode::Observe"));
+                rsp = conn.execute(BinprotObserveCommand{std::move(keys)});
+                EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+                EXPECT_FALSE(rsp.getReadComputeUnits());
+                EXPECT_FALSE(rsp.getWriteComputeUnits());
+            } while (false);
+            break;
+        case ClientOpcode::GetMeta:
+            rsp = conn.execute(
+                    BinprotGenericCommand{opcode, "ClientOpcode::GetMeta"});
+            EXPECT_EQ(Status::KeyEnoent, rsp.getStatus()) << rsp.getStatus();
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            createDocument("ClientOpcode::GetMeta", "myvalue");
+            rsp = conn.execute(
+                    BinprotGenericCommand{opcode, "ClientOpcode::GetMeta"});
+            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+            ASSERT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::GetRandomKey:
+            rsp = conn.execute(BinprotGenericCommand{opcode});
+            EXPECT_TRUE(rsp.isSuccess());
+            ASSERT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_NE(0, *rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::SeqnoPersistence:
+            break;
+        case ClientOpcode::GetKeys:
+            break;
+        case ClientOpcode::CollectionsGetID:
+            break;
+        case ClientOpcode::CollectionsGetScopeID:
+            break;
+
+        case ClientOpcode::SubdocGet:
+            createDocument("ClientOpcode::SubdocGet",
+                           R"({ "hello" : "world"})");
+            rsp = conn.execute(BinprotSubdocCommand{
+                    opcode, "ClientOpcode::SubdocGet", "hello"});
+            EXPECT_TRUE(rsp.isSuccess());
+            ASSERT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::SubdocExists:
+            createDocument("ClientOpcode::SubdocExists",
+                           R"({ "hello" : "world"})");
+            rsp = conn.execute(BinprotSubdocCommand{
+                    opcode, "ClientOpcode::SubdocExists", "hello"});
+            EXPECT_TRUE(rsp.isSuccess());
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::SubdocDictAdd:
+        case ClientOpcode::SubdocDictUpsert:
+            createDocument("ClientOpcode::SubdocDictAdd",
+                           R"({ "hello" : "world"})");
+            rsp = conn.execute(BinprotSubdocCommand{
+                    opcode, "ClientOpcode::SubdocDictAdd", "add", "true"});
+            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getWriteComputeUnits());
+            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::SubdocDelete:
+            createDocument("ClientOpcode::SubdocDelete",
+                           R"({ "hello" : "world"})");
+            rsp = conn.execute(BinprotSubdocCommand{
+                    opcode, "ClientOpcode::SubdocDelete", "hello"});
+            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getWriteComputeUnits());
+            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::SubdocReplace:
+            createDocument("ClientOpcode::SubdocReplace",
+                           R"({ "hello" : "world"})");
+            rsp = conn.execute(
+                    BinprotSubdocCommand{opcode,
+                                         "ClientOpcode::SubdocReplace",
+                                         "hello",
+                                         R"("couchbase")"});
+            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getWriteComputeUnits());
+            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::SubdocArrayPushLast:
+        case ClientOpcode::SubdocArrayPushFirst:
+        case ClientOpcode::SubdocArrayAddUnique:
+            createDocument("ClientOpcode::SubdocArrayPush",
+                           R"({ "hello" : ["world"]})");
+            rsp = conn.execute(
+                    BinprotSubdocCommand{opcode,
+                                         "ClientOpcode::SubdocArrayPush",
+                                         "hello",
+                                         R"("couchbase")"});
+            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getWriteComputeUnits());
+            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::SubdocArrayInsert:
+            createDocument("ClientOpcode::SubdocArrayPush",
+                           R"({ "hello" : ["world"]})");
+            rsp = conn.execute(
+                    BinprotSubdocCommand{opcode,
+                                         "ClientOpcode::SubdocArrayPush",
+                                         "hello.[0]",
+                                         R"("couchbase")"});
+            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getWriteComputeUnits());
+            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::SubdocCounter:
+            createDocument("ClientOpcode::SubdocCounter",
+                           R"({ "counter" : 0})");
+            rsp = conn.execute(BinprotSubdocCommand{
+                    opcode, "ClientOpcode::SubdocCounter", "counter", "1"});
+            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getWriteComputeUnits());
+            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::SubdocGetCount:
+            createDocument("ClientOpcode::SubdocGetCount",
+                           R"({ "array" : [0,1,2,3,4]})");
+            rsp = conn.execute(BinprotSubdocCommand{
+                    opcode, "ClientOpcode::SubdocGetCount", "array"});
+            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+            ASSERT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            break;
+        case ClientOpcode::SubdocMultiLookup:
+            do {
+                createDocument(
+                        "ClientOpcode::SubdocMultiLookup",
+                        R"({ "array" : [0,1,2,3,4], "hello" : "world"})");
+
+                rsp = conn.execute(BinprotSubdocMultiLookupCommand{
+                        "ClientOpcode::SubdocMultiLookup",
+                        {
+                                {ClientOpcode::SubdocGet,
+                                 SUBDOC_FLAG_NONE,
+                                 "array.[0]"},
+                                {ClientOpcode::SubdocGet,
+                                 SUBDOC_FLAG_NONE,
+                                 "array.[1]"},
+                                {ClientOpcode::SubdocGet,
+                                 SUBDOC_FLAG_NONE,
+                                 "array[4]"},
+                                {ClientOpcode::SubdocGet,
+                                 SUBDOC_FLAG_NONE,
+                                 "hello"},
+                        },
+                        ::mcbp::subdoc::doc_flag::None});
+                EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+                ASSERT_TRUE(rsp.getReadComputeUnits());
+                EXPECT_EQ(1, *rsp.getReadComputeUnits());
+                EXPECT_FALSE(rsp.getWriteComputeUnits());
+            } while (false);
+            break;
+        case ClientOpcode::SubdocMultiMutation:
+            do {
+                rsp = conn.execute(BinprotSubdocMultiMutationCommand{
+                        "ClientOpcode::SubdocMultiMutation",
+                        {
+                                {ClientOpcode::SubdocDictUpsert,
+                                 SUBDOC_FLAG_MKDIR_P,
+                                 "foo",
+                                 "true"},
+                                {ClientOpcode::SubdocDictUpsert,
+                                 SUBDOC_FLAG_MKDIR_P,
+                                 "foo1",
+                                 "true"},
+                                {ClientOpcode::SubdocDictUpsert,
+                                 SUBDOC_FLAG_MKDIR_P,
+                                 "foo2",
+                                 "true"},
+                        },
+                        ::mcbp::subdoc::doc_flag::Mkdoc});
+                EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+                EXPECT_FALSE(rsp.getReadComputeUnits());
+                ASSERT_TRUE(rsp.getWriteComputeUnits());
+                EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            } while (false);
+            break;
+        case ClientOpcode::SubdocReplaceBodyWithXattr:
+            do {
+                rsp = conn.execute(BinprotSubdocMultiMutationCommand{
+                        "ClientOpcode::SubdocReplaceBodyWithXattr",
+                        {{cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                          SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                          "tnx.op.staged",
+                          R"({"couchbase": {"version": "cheshire-cat", "next_version": "unknown"}})"},
+                         {cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                          SUBDOC_FLAG_NONE,
+                          "couchbase",
+                          R"({"version": "mad-hatter", "next_version": "cheshire-cat"})"}},
+                        ::mcbp::subdoc::doc_flag::Mkdoc});
+                EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+                EXPECT_FALSE(rsp.getReadComputeUnits());
+                ASSERT_TRUE(rsp.getWriteComputeUnits());
+                EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+
+                rsp = conn.execute(BinprotSubdocMultiMutationCommand{
+                        "ClientOpcode::SubdocReplaceBodyWithXattr",
+                        {{cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
+                          SUBDOC_FLAG_XATTR_PATH,
+                          "tnx.op.staged",
+                          {}},
+                         {cb::mcbp::ClientOpcode::SubdocDelete,
+                          SUBDOC_FLAG_XATTR_PATH,
+                          "tnx.op.staged",
+                          {}}},
+                        ::mcbp::subdoc::doc_flag::None});
+                EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+                EXPECT_FALSE(rsp.getReadComputeUnits());
+                ASSERT_TRUE(rsp.getWriteComputeUnits());
+                EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            } while (false);
+            break;
+
+        case ClientOpcode::GetCmdTimer:
+            rsp = conn.execute(
+                    BinprotGetCmdTimerCommand{"bucket-0", ClientOpcode::Noop});
+            EXPECT_TRUE(rsp.isSuccess());
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            break;
+
+        case ClientOpcode::GetErrorMap:
+            rsp = conn.execute(BinprotGetErrorMapCommand{});
+            EXPECT_TRUE(rsp.isSuccess());
+            EXPECT_FALSE(rsp.getReadComputeUnits());
+            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            break;
+
+            // MetaWrite ops require meta write privilege... probably not
+        // something we'll need initially...
+        case ClientOpcode::SetWithMeta:
+        case ClientOpcode::AddWithMeta:
+        case ClientOpcode::DelWithMeta:
+        case ClientOpcode::ReturnMeta:
+            break;
+
+            // @todo create a test case for range scans
+        case ClientOpcode::RangeScanCreate:
+        case ClientOpcode::RangeScanContinue:
+        case ClientOpcode::RangeScanCancel:
+            break;
+
+            // We need a special unit test for DCP
+        case ClientOpcode::DcpOpen:
+        case ClientOpcode::DcpAddStream:
+        case ClientOpcode::DcpCloseStream:
+        case ClientOpcode::DcpStreamReq:
+        case ClientOpcode::DcpGetFailoverLog:
+        case ClientOpcode::DcpStreamEnd:
+        case ClientOpcode::DcpSnapshotMarker:
+        case ClientOpcode::DcpMutation:
+        case ClientOpcode::DcpDeletion:
+        case ClientOpcode::DcpExpiration:
+        case ClientOpcode::DcpSetVbucketState:
+        case ClientOpcode::DcpNoop:
+        case ClientOpcode::DcpBufferAcknowledgement:
+        case ClientOpcode::DcpControl:
+        case ClientOpcode::DcpSystemEvent:
+        case ClientOpcode::DcpPrepare:
+        case ClientOpcode::DcpSeqnoAcknowledged:
+        case ClientOpcode::DcpCommit:
+        case ClientOpcode::DcpAbort:
+        case ClientOpcode::DcpSeqnoAdvanced:
+        case ClientOpcode::DcpOsoSnapshot:
+            break;
+
+            // The following are "internal"/advanced commands not intended
+        // for the average users. We may add unit tests at a later time for
+        // them
+        case ClientOpcode::IoctlGet:
+        case ClientOpcode::IoctlSet:
+        case ClientOpcode::ConfigValidate:
+        case ClientOpcode::ConfigReload:
+        case ClientOpcode::AuditPut:
+        case ClientOpcode::AuditConfigReload:
+        case ClientOpcode::Shutdown:
+        case ClientOpcode::SetBucketComputeUnitThrottleLimits:
+        case ClientOpcode::SetBucketDataLimitExceeded:
+        case ClientOpcode::SetVbucket:
+        case ClientOpcode::GetVbucket:
+        case ClientOpcode::DelVbucket:
+        case ClientOpcode::GetAllVbSeqnos:
+        case ClientOpcode::StopPersistence:
+        case ClientOpcode::StartPersistence:
+        case ClientOpcode::SetParam:
+        case ClientOpcode::EnableTraffic:
+        case ClientOpcode::DisableTraffic:
+        case ClientOpcode::Ifconfig:
+        case ClientOpcode::CreateCheckpoint:
+        case ClientOpcode::LastClosedCheckpoint:
+        case ClientOpcode::CompactDb:
+        case ClientOpcode::SetClusterConfig:
+        case ClientOpcode::CollectionsSetManifest:
+        case ClientOpcode::EvictKey:
+        case ClientOpcode::Scrub:
+        case ClientOpcode::IsaslRefresh:
+        case ClientOpcode::SslCertsRefresh:
+        case ClientOpcode::SetCtrlToken:
+        case ClientOpcode::GetCtrlToken:
+        case ClientOpcode::UpdateExternalUserPermissions:
+        case ClientOpcode::RbacRefresh:
+        case ClientOpcode::AuthProvider:
+        case ClientOpcode::DropPrivilege:
+        case ClientOpcode::AdjustTimeofday:
+        case ClientOpcode::EwouldblockCtl:
+        case ClientOpcode::Invalid:
+            break;
+        }
+    };
+
+    auto connection = cluster->getConnection(0);
+    connection->authenticate("@admin", "password");
+    connection->selectBucket("bucket-0");
+    connection->setFeature(cb::mcbp::Feature::ReportComputeUnitUsage, true);
+    connection->setReadTimeout(std::chrono::seconds{3});
+
+    for (int ii = 0; ii < 0x100; ++ii) {
+        auto opcode = ClientOpcode(ii);
+        if (is_valid_opcode(opcode)) {
+            testOpcode(*connection, opcode);
+        }
+    }
+}
+
 } // namespace cb::test

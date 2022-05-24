@@ -247,7 +247,9 @@ cb::EngineErrorItemPair bucket_get_and_touch(
     auto ret = c.getBucketEngine().get_and_touch(
             cookie, key, vbucket, expiration, durability);
 
-    if (ret.first == cb::engine_errc::disconnect) {
+    if (ret.first == cb::engine_errc::success) {
+        cookie.addDocumentWriteBytes(ret.second->getValueView().size());
+    } else if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} bucket_get_and_touch return "
                 "cb::engine_errc::disconnect",
