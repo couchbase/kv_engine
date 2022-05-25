@@ -740,6 +740,19 @@ void Checkpoint::applyQueuedItemsMemUsageDecrement(size_t size) {
     queuedItemsMemUsage -= size;
 }
 
+bool Checkpoint::hasNonMetaItems() const {
+    // Note: Function theoretically O(N) but O(1) in practice, as O(N) behaviour
+    // only in the case of many subsequent set_vbstate items.
+    auto pos = begin();
+    Expects((*pos)->isEmptyItem());
+    while (++pos != end()) {
+        if (!(*pos)->isCheckPointMetaItem()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 std::ostream& operator<<(std::ostream& os, const Checkpoint& c) {
     os << "Checkpoint[" << &c << "] with"
        << " id:" << c.checkpointId << " seqno:{" << c.getMinimumCursorSeqno()

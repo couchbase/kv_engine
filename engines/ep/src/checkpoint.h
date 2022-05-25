@@ -593,6 +593,11 @@ public:
      */
     void applyQueuedItemsMemUsageDecrement(size_t size);
 
+    /**
+     * @return whether this checkpoint contains at least one non-meta item
+     */
+    bool hasNonMetaItems() const;
+
     // Memory overhead of the toWrite container (a list), ie 3 ptrs (forward,
     // backwards and element pointers) per element in the list.
     static constexpr uint8_t per_item_queue_overhead = 3 * sizeof(uintptr_t);

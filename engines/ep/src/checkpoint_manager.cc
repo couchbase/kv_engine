@@ -1766,7 +1766,7 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
         return {};
     }
 
-    if (oldestCheckpoint->getNumItems() == 0) {
+    if (!oldestCheckpoint->hasNonMetaItems()) {
         // There are no mutation items in the checkpoint to expel.
         return {};
     }
