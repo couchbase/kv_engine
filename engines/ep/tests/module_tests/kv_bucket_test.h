@@ -156,7 +156,10 @@ public:
      */
     void flushVBucketToDiskIfPersistent(Vbid vbid, int expected = 1);
 
-    void removeCheckpoint(VBucket& vb, int numItems);
+    /**
+     * Creates a new open checkpoint and removes all the closed ones.
+     */
+    void removeCheckpoint(VBucket& vb);
 
     void flushAndRemoveCheckpoints(Vbid vbid);
 

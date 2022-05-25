@@ -676,8 +676,8 @@ TEST_P(StreamTest, test_mb17766) {
 TEST_P(StreamTest, MB17653_ItemsRemaining) {
     auto& manager =
             *(engine->getKVBucket()->getVBucket(vbid)->checkpointManager);
-
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    // cs, vbs
+    ASSERT_EQ(2, manager.getNumOpenChkItems());
 
     // Create 10 mutations to the same key which, while increasing the high
     // seqno by 10 will result in de-duplication and hence only one actual
@@ -687,8 +687,8 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
         store_item(vbid, "key", "value");
     }
 
-    ASSERT_EQ(1, manager.getNumOpenChkItems())
-            << "Expected 1 items after population (set)";
+    ASSERT_EQ(3, manager.getNumOpenChkItems())
+            << "Expected 3 items after population (cs, vbs, set)";
 
     setup_dcp_stream();
 
@@ -1689,7 +1689,7 @@ TEST_P(SingleThreadedActiveStreamTest, DiskSnapshotSendsChkMarker) {
     // Ensure mutation is on disk; no longer present in CheckpointManager.
     vb->checkpointManager->createNewCheckpoint();
     flushVBucketToDiskIfPersistent(vbid, 1);
-    removeCheckpoint(*vb, 1);
+    removeCheckpoint(*vb);
 
     recreateStream(*vb);
     ASSERT_TRUE(stream->isBackfilling());
@@ -1732,11 +1732,13 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     store_item(vbid, makeStoredDocKey("key1"), "value");
     store_item(vbid, makeStoredDocKey("key2"), "value");
     store_item(vbid, makeStoredDocKey("key3"), "value");
-    ckptMgr.createNewCheckpoint();
 
-    flushVBucketToDiskIfPersistent(vbid, 3);
-
-    ASSERT_EQ(3, ckptMgr.removeClosedUnrefCheckpoints().count);
+    const auto openId = ckptMgr.getOpenCheckpointId();
+    ASSERT_GT(ckptMgr.createNewCheckpoint(), openId);
+    flushVBucketToDiskIfPersistent(vbid, 3 /*expected_num_flushed*/);
+    ASSERT_EQ(6, ckptMgr.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
+    ASSERT_EQ(1, ckptMgr.getNumOpenChkItems());
 
     // Re-create producer now we have items only on disk.
     setupProducer();
@@ -1816,11 +1818,14 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillDeletedVBucket) {
         // something to backfill from disk
         store_item(vbid, makeStoredDocKey("key1"), "value");
         store_item(vbid, makeStoredDocKey("key2"), "value");
-        ckptMgr.createNewCheckpoint();
-        flushVBucketToDiskIfPersistent(vbid, 2);
 
+        const auto openId = ckptMgr.getOpenCheckpointId();
+        ASSERT_GT(ckptMgr.createNewCheckpoint(), openId);
+        flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
         // Close the now unreferenced checkpoint so DCP stream must go to disk.
-        ASSERT_EQ(2, ckptMgr.removeClosedUnrefCheckpoints().count);
+        ASSERT_EQ(5, ckptMgr.removeClosedUnrefCheckpoints().count);
+        ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
+        ASSERT_EQ(1, ckptMgr.getNumOpenChkItems());
     }
 
     auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
@@ -1891,9 +1896,12 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
         // To ensure that a backfill is required, must ensure items are no
         // longer present in CheckpointManager. Achieve this by creating a
         // new checkpoint, flushing the (now-closed) one and removing it.
-        ckptMgr.createNewCheckpoint();
-        flushVBucketToDiskIfPersistent(vbid, 2);
-        ASSERT_EQ(2, ckptMgr.removeClosedUnrefCheckpoints().count);
+        const auto openId = ckptMgr.getOpenCheckpointId();
+        ASSERT_GT(ckptMgr.createNewCheckpoint(), openId);
+        flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
+        ASSERT_EQ(5, ckptMgr.removeClosedUnrefCheckpoints().count);
+        ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
+        ASSERT_EQ(1, ckptMgr.getNumOpenChkItems());
     }
 
     // Re-create producer now we have items only on disk, setting a scan buffer
@@ -2027,7 +2035,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB36146) {
 
     ckptMgr.runGetItemsHook = [this, &ckptMgr](const CheckpointCursor* cursor,
                                                Vbid vbid) {
-        EXPECT_EQ(1, ckptMgr.removeClosedUnrefCheckpoints().count);
+        EXPECT_EQ(4, ckptMgr.removeClosedUnrefCheckpoints().count);
         size_t numberOfItemsInCursor = 0;
         EXPECT_NO_THROW(numberOfItemsInCursor =
                                 ckptMgr.getNumItemsForCursor(cursor));
@@ -2057,7 +2065,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
     }
     producer->closeStream(stream->getOpaque(), vbid, stream->getStreamId());
     stream.reset();
-    removeCheckpoint(*vb, 1);
+    removeCheckpoint(*vb);
 
     auto& bfm = dynamic_cast<MockDcpBackfillManager&>(producer->getBFM());
     // Normal flow if stream in correct state
@@ -3232,10 +3240,13 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
 
     // Add items, flush it to disk, then clear checkpoint to force backfill.
     store_item(vbid, makeStoredDocKey("key1"), "value");
-    ckptMgr.createNewCheckpoint();
 
+    const auto openId = ckptMgr.getOpenCheckpointId();
+    ASSERT_GT(ckptMgr.createNewCheckpoint(), openId);
     flushVBucketToDiskIfPersistent(vbid, 1);
-    ASSERT_EQ(1, ckptMgr.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(4, ckptMgr.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
+    ASSERT_EQ(1, ckptMgr.getNumOpenChkItems());
 
     // Re-create producer now we have items only on disk. We want to stream up
     // to seqno 1 (our only item) to test that we get the StreamEnd message.
@@ -3683,7 +3694,7 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
         EXPECT_EQ(queue_op::set_vbucket_state, (*it)->getOperation());
         // 1 non-metaitem is our deletion
         it++;
-        ASSERT_EQ(1, ckpt->getNumItems());
+        ASSERT_EQ(4, ckpt->getNumItems());
         ASSERT_TRUE((*it)->isDeleted());
         const auto expectedOp =
                 durReqs ? queue_op::pending_sync_write : queue_op::mutation;
@@ -3891,7 +3902,7 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
     auto* ckpt = list.front().get();
     ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
     ASSERT_EQ(2, ckpt->getNumMetaItems());
-    ASSERT_EQ(1, ckpt->getNumItems());
+    ASSERT_EQ(3, ckpt->getNumItems());
     auto it = ckpt->begin(); // empty-item
     it++; // checkpoint-start
     it++; // set-vbstate
@@ -3983,32 +3994,32 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
     }
 }
 
-TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody_Pre66) {
+TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_Pre66) {
     testExpirationRemovesBody(0, Xattrs::None);
 }
 
-TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody_Pre66_UserXa) {
+TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_Pre66_UserXa) {
     testExpirationRemovesBody(0, Xattrs::User);
 }
 
 TEST_P(SingleThreadedActiveStreamTest,
-       testExpirationRemovesBody_Pre66_UserXa_SysXa) {
+       ExpirationRemovesBody_Pre66_UserXa_SysXa) {
     testExpirationRemovesBody(0, Xattrs::UserAndSys);
 }
 
-TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody) {
+TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody) {
     using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
                               Xattrs::None);
 }
 
-TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody_UserXa) {
+TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_UserXa) {
     using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
                               Xattrs::User);
 }
 
-TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody_UserXa_SysXa) {
+TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_UserXa_SysXa) {
     using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
                               Xattrs::UserAndSys);
@@ -4043,11 +4054,12 @@ TEST_P(SingleThreadedActiveStreamTest, NoValueStreamBackfillsFullSystemEvent) {
     EXPECT_EQ(2, vb.getHighSeqno());
 
     // Ensure backfill
-    manager.createNewCheckpoint();
+    const auto openId = manager.getOpenCheckpointId();
+    ASSERT_GT(manager.createNewCheckpoint(), openId);
     flushVBucketToDiskIfPersistent(vbid, 2);
-    EXPECT_EQ(2, manager.removeClosedUnrefCheckpoints().count);
-    ASSERT_EQ(1, list.size());
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    EXPECT_EQ(7, manager.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     // Re-create producer and stream
     const std::string jsonFilter =
@@ -4107,9 +4119,14 @@ protected:
         store_item(vbid, makeStoredDocKey("key3"), "value");
         ckptMgr.createNewCheckpoint();
 
-        flushVBucketToDiskIfPersistent(vbid, 3);
-
-        ASSERT_EQ(3, ckptMgr.removeClosedUnrefCheckpoints().count);
+        const auto& stats = engine->getEpStats();
+        if (isPersistent()) {
+            ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
+            flushVBucketToDiskIfPersistent(vbid, 3);
+        }
+        // cs, vbs, 3 mut(s), ce
+        ASSERT_EQ(6, ckptMgr.removeClosedUnrefCheckpoints().count);
+        ASSERT_EQ(6, stats.itemsRemovedFromCheckpoints);
 
         // Re-create the stream now we have items only on disk.
         stream = producer->mockActiveStreamRequest(0 /*flags*/,
@@ -4208,7 +4225,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     // Ensure mutation is on disk; no longer present in CheckpointManager.
     vb->checkpointManager->createNewCheckpoint();
     flushVBucketToDiskIfPersistent(vbid, 2);
-    removeCheckpoint(*vb, 2);
+    removeCheckpoint(*vb);
 
     recreateStream(*vb);
     ASSERT_TRUE(stream->isBackfilling());
@@ -4303,7 +4320,8 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_EQ(CheckpointType::Memory, ckptList.front()->getCheckpointType());
     ASSERT_EQ(0, ckptList.front()->getSnapshotStartSeqno());
     ASSERT_EQ(0, ckptList.front()->getSnapshotEndSeqno());
-    ASSERT_EQ(0, ckptList.front()->getNumItems());
+    // cs, vbs
+    ASSERT_EQ(2, ckptList.front()->getNumItems());
     ASSERT_EQ(0, manager.getHighSeqno());
 
     // Replica receives a complete disk snapshot {keyA:1, keyB:2}
@@ -4322,7 +4340,8 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_TRUE(ckptList.front()->isDiskCheckpoint());
     ASSERT_EQ(1, ckptList.front()->getSnapshotStartSeqno());
     ASSERT_EQ(2, ckptList.front()->getSnapshotEndSeqno());
-    ASSERT_EQ(0, ckptList.front()->getNumItems());
+    // cs, vbs
+    ASSERT_EQ(2, ckptList.front()->getNumItems());
     ASSERT_EQ(0, manager.getHighSeqno());
 
     const auto keyA = makeStoredDocKey("keyA");
@@ -4362,7 +4381,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_TRUE(ckptList.front()->isDiskCheckpoint());
     ASSERT_EQ(1, ckptList.front()->getSnapshotStartSeqno());
     ASSERT_EQ(2, ckptList.front()->getSnapshotEndSeqno());
-    ASSERT_EQ(2, ckptList.front()->getNumItems());
+    ASSERT_EQ(4, ckptList.front()->getNumItems());
     ASSERT_EQ(2, manager.getHighSeqno());
 
     // Move the persistence cursor to point to keyB:2.
@@ -4395,12 +4414,12 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_EQ(CHECKPOINT_CLOSED, ckptList.front()->getState());
     ASSERT_EQ(1, ckptList.front()->getSnapshotStartSeqno());
     ASSERT_EQ(2, ckptList.front()->getSnapshotEndSeqno());
-    ASSERT_EQ(2, ckptList.front()->getNumItems());
+    ASSERT_EQ(5, ckptList.front()->getNumItems());
     ASSERT_EQ(CheckpointType::Memory, ckptList.back()->getCheckpointType());
     ASSERT_EQ(CHECKPOINT_OPEN, ckptList.back()->getState());
     ASSERT_EQ(3, ckptList.back()->getSnapshotStartSeqno());
     ASSERT_EQ(3, ckptList.back()->getSnapshotEndSeqno());
-    ASSERT_EQ(0, ckptList.back()->getNumItems());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
     ASSERT_EQ(2, manager.getHighSeqno());
 
     // Now replica receives a doc within the new Memory snapshot.
@@ -4430,7 +4449,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_EQ(CHECKPOINT_OPEN, ckptList.back()->getState());
     ASSERT_EQ(3, ckptList.back()->getSnapshotStartSeqno());
     ASSERT_EQ(3, ckptList.back()->getSnapshotEndSeqno());
-    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(2, ckptList.back()->getNumItems());
     ASSERT_EQ(3, manager.getHighSeqno());
 
     // Another SnapMarker with no MARKER_FLAG_CHK
@@ -4456,7 +4475,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_EQ(CHECKPOINT_OPEN, ckptList.back()->getState());
     ASSERT_EQ(3, ckptList.back()->getSnapshotStartSeqno());
     ASSERT_EQ(4, ckptList.back()->getSnapshotEndSeqno());
-    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(2, ckptList.back()->getNumItems());
     ASSERT_EQ(3, manager.getHighSeqno());
 
     // Now replica receives again keyC. KeyC is in the KeyIndex of the
@@ -4500,7 +4519,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_EQ(CHECKPOINT_OPEN, ckptList.back()->getState());
     ASSERT_EQ(3, ckptList.back()->getSnapshotStartSeqno());
     ASSERT_EQ(4, ckptList.back()->getSnapshotEndSeqno());
-    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(2, ckptList.back()->getNumItems());
     ASSERT_EQ(4, manager.getHighSeqno());
 }
 
@@ -4535,11 +4554,11 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillRangeCoversAllDataInTheStorage) {
     flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
     ASSERT_EQ(2, list.size());
     const auto openCkptId = manager.getOpenCheckpointId();
-    ASSERT_EQ(2, manager.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(5, manager.removeClosedUnrefCheckpoints().count);
     // No new checkpoint created
     ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
     ASSERT_EQ(1, list.size());
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     // Move high-seqno to 4
     const auto keyC = makeStoredDocKey("keyC");
@@ -4635,11 +4654,12 @@ TEST_P(SingleThreadedActiveStreamTest, MB_45757) {
     flushVBucketToDiskIfPersistent(vbid, 1 /*expected_num_flushed*/);
     ASSERT_EQ(2, list.size());
     const auto openCkptId = manager.getOpenCheckpointId();
-    ASSERT_EQ(1, manager.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(4, manager.removeClosedUnrefCheckpoints().count);
     // No new checkpoint created
     ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
     ASSERT_EQ(1, list.size());
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     // Re-create the old producer and stream
     recreateProducerAndStream(vb, 0 /*flags*/);
@@ -5376,7 +5396,7 @@ void CDCActiveStreamTest::clearCMAndPersistenceAndReplication() {
 
     // Eager checkpoint removal ensures 1 empty checkpoint at this point
     ASSERT_EQ(1, manager.getNumCheckpoints());
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 }
 
 TEST_P(CDCActiveStreamTest, CollectionNotDeduped_InMemory) {
@@ -5472,7 +5492,7 @@ TEST_P(CDCActiveStreamTest, MarkerHistoryFlagClearIfCheckpointNotHistorical) {
 
     auto& manager = *vb.checkpointManager;
     ASSERT_EQ(1, manager.getNumCheckpoints());
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
     // Main precondition
     ASSERT_EQ(CheckpointHistorical::No, manager.getOpenCheckpointHistorical());
 
@@ -5543,7 +5563,7 @@ void CDCActiveStreamTest::testResilientToRetentionConfigChanges(
     // 1 historical checkpoint contains the mutation
     const auto& manager = *vb.checkpointManager;
     ASSERT_EQ(1, manager.getNumCheckpoints());
-    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(2, manager.getNumOpenChkItems());
     ASSERT_EQ(CheckpointHistorical::Yes, manager.getOpenCheckpointHistorical());
     // Save the current checkpoint id for later in the test
     const auto prevCkptId = manager.getOpenCheckpointId();
@@ -5592,7 +5612,7 @@ void CDCActiveStreamTest::testResilientToRetentionConfigChanges(
     // non-historical checkpoint must be created
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_GT(manager.getOpenCheckpointId(), prevCkptId);
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
     ASSERT_EQ(CheckpointHistorical::No, manager.getOpenCheckpointHistorical());
 
     // Now store another mutation into the historical collection
@@ -5907,7 +5927,6 @@ void CDCPassiveStreamTest::createHistoricalCollection(CheckpointType snapType,
 
     ASSERT_EQ(0, vb.getNumTotalItems());
     ASSERT_EQ(snapStart, vb.getHighSeqno());
-    ASSERT_EQ(1, manager.getNumOpenChkItems());
 }
 
 /*
@@ -5932,7 +5951,7 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_Disk) {
     auto& manager = *vb.checkpointManager;
     manager.createNewCheckpoint();
     ASSERT_EQ(1, manager.getNumCheckpoints());
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     const uint32_t opaque = 1;
     SnapshotMarker snapshotMarker(
@@ -5947,7 +5966,7 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_Disk) {
             {} /*streamId*/);
     stream->processMarker(&snapshotMarker);
     ASSERT_EQ(1, manager.getNumCheckpoints());
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
     ASSERT_EQ(CheckpointType::Disk, manager.getOpenCheckpointType());
     ASSERT_EQ(CheckpointHistorical::Yes, manager.getOpenCheckpointHistorical());
 
@@ -5966,7 +5985,7 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_Disk) {
 
     EXPECT_EQ(initialHighSeqno + numItems, vb.getHighSeqno());
     EXPECT_EQ(1, manager.getNumCheckpoints());
-    EXPECT_EQ(numItems, manager.getNumOpenChkItems());
+    EXPECT_EQ(numItems + 1, manager.getNumOpenChkItems()); // +1 cs
 
     // All duplicates persisted
     flush_vbucket_to_disk(vbid, numItems);
@@ -5987,7 +6006,7 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_InitialDisk) {
     ASSERT_EQ(1, initialHighSeqno);
     auto& manager = *vb.checkpointManager;
     ASSERT_EQ(1, manager.getNumCheckpoints());
-    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(3, manager.getNumOpenChkItems());
 
     // Historical items received within the same snapshot
     const auto collection = CollectionEntry::historical;
@@ -6014,7 +6033,8 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_InitialDisk) {
 
     EXPECT_EQ(initialHighSeqno + numItems, vb.getHighSeqno());
     EXPECT_EQ(1, manager.getNumCheckpoints());
-    EXPECT_EQ(initialHighSeqno + numItems, manager.getNumOpenChkItems());
+    // +2 for cs, vbs
+    EXPECT_EQ(initialHighSeqno + numItems + 2, manager.getNumOpenChkItems());
 
     // All duplicates persisted
     flush_vbucket_to_disk(vbid, numItems);
@@ -6028,7 +6048,7 @@ TEST_P(CDCPassiveStreamTest, MemorySnapshotTransitionToHistory) {
     ASSERT_EQ(0, vb.getHighSeqno());
     auto& manager = *vb.checkpointManager;
     ASSERT_EQ(1, manager.getNumCheckpoints());
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(2, manager.getNumOpenChkItems());
     ASSERT_EQ(CheckpointType::Memory, manager.getOpenCheckpointType());
     // Note: 7.2 vbucket sets itself to History mode when created.
     ASSERT_EQ(CheckpointHistorical::Yes, manager.getOpenCheckpointHistorical());
@@ -6054,7 +6074,7 @@ TEST_P(CDCPassiveStreamTest, MemorySnapshotTransitionToHistory) {
                       "some-key",
                       CollectionEntry::defaultC.getId())));
     ASSERT_EQ(1, manager.getNumCheckpoints());
-    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(3, manager.getNumOpenChkItems());
     ASSERT_EQ(CheckpointType::Memory, manager.getOpenCheckpointType());
     ASSERT_EQ(CheckpointHistorical::No, manager.getOpenCheckpointHistorical());
     ASSERT_EQ(1, vb.getHighSeqno());
@@ -6062,7 +6082,7 @@ TEST_P(CDCPassiveStreamTest, MemorySnapshotTransitionToHistory) {
     // Replica receives a Snap{Memory|History}.
     createHistoricalCollection(CheckpointType::Memory, 2, 10);
     ASSERT_EQ(2, manager.getNumCheckpoints());
-    ASSERT_EQ(1, manager.getNumOpenChkItems()); // sysevent
+    ASSERT_EQ(2, manager.getNumOpenChkItems()); // sysevent
     ASSERT_EQ(CheckpointType::Memory, manager.getOpenCheckpointType());
     ASSERT_EQ(CheckpointHistorical::Yes, manager.getOpenCheckpointHistorical());
     ASSERT_EQ(2, vb.getHighSeqno()); // sysevent bumped the seqno
@@ -6079,7 +6099,7 @@ TEST_P(CDCPassiveStreamTest, MemorySnapshotTransitionToHistory) {
                                                   collection.getId())));
 
     EXPECT_EQ(3, vb.getHighSeqno());
-    EXPECT_EQ(2, manager.getNumOpenChkItems());
+    EXPECT_EQ(3, manager.getNumOpenChkItems());
     EXPECT_EQ(2, manager.getNumCheckpoints());
 
     // Test: The flusher must process one checkpoint at a time, as we can't

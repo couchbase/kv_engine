@@ -40,12 +40,13 @@ void CheckpointDurabilityTest::test_AvoidDeDuplication(
     ASSERT_EQ(1, manager->getNumCheckpoints());
 
     // Setup: enqueue a first item.
+    ASSERT_EQ(1, manager->getNumOpenChkItems());
     ASSERT_TRUE(manager->queueDirty(first,
                                     GenerateBySeqno::Yes,
                                     GenerateCas::Yes,
                                     /*preLinkDocCtx*/ nullptr));
     ASSERT_EQ(1, manager->getNumCheckpoints());
-    ASSERT_EQ(1, manager->getNumOpenChkItems());
+    ASSERT_EQ(2, manager->getNumOpenChkItems());
 
     // Test: enqueue second item
     EXPECT_TRUE(manager->queueDirty(second,
@@ -60,6 +61,7 @@ void CheckpointDurabilityTest::test_AvoidDeDuplication(
 // Committed SyncWrite (with the same key) is added to the CheckpointManager.
 TEST_P(CheckpointDurabilityTest,
        AvoidDeDuplicationOfExistingPendingWithCommit) {
+    ASSERT_EQ(1, manager->getNumOpenChkItems());
     auto pending = makePendingItem(makeStoredDocKey("durable"), "pending");
 
     auto committed = makeCommittedviaPrepareItem(makeStoredDocKey("durable"),
@@ -73,13 +75,14 @@ TEST_P(CheckpointDurabilityTest,
                                  HasOperation(queue_op::commit_sync_write)));
 
     EXPECT_EQ(1, manager->getNumCheckpoints());
-    EXPECT_EQ(2, manager->getNumOpenChkItems());
+    EXPECT_EQ(3, manager->getNumOpenChkItems());
 }
 
 // Check that an existing Committed SyncWrite is not de-duplicated when a
 // Pending SyncWrite (with the same key) is added to the CheckpointManager.
 TEST_P(CheckpointDurabilityTest,
        AvoidDeDuplicationOfExistingCommitWithPending) {
+    ASSERT_EQ(1, manager->getNumOpenChkItems());
     auto committed = makeCommittedviaPrepareItem(makeStoredDocKey("durable"),
                                                  "committed");
     auto pending = makePendingItem(makeStoredDocKey("durable"), "pending");
@@ -94,13 +97,14 @@ TEST_P(CheckpointDurabilityTest,
 
     // Verify: Should not have de-duplicated, should be in one checkpoint
     EXPECT_EQ(1, manager->getNumCheckpoints());
-    EXPECT_EQ(2, manager->getNumOpenChkItems());
+    EXPECT_EQ(3, manager->getNumOpenChkItems());
 }
 
 // Check that an existing Committed SyncWrite is not de-duplicated when a
 // non-SyncWrite (with the same key) is added to the CheckpointManager.
 TEST_P(CheckpointDurabilityTest,
        AvoidDeDuplicationOfExistingCommitWithMutation) {
+    ASSERT_EQ(1, manager->getNumOpenChkItems());
     auto committed = makeCommittedviaPrepareItem(makeStoredDocKey("durable"),
                                                  "committed");
     auto mutation = makeCommittedItem(makeStoredDocKey("durable"), "mutation");
@@ -115,13 +119,14 @@ TEST_P(CheckpointDurabilityTest,
                                      HasOperation(queue_op::mutation)));
     // Verify: Should not have de-duplicated, should be in two checkpoints
     EXPECT_EQ(2, manager->getNumCheckpoints());
-    EXPECT_EQ(1, manager->getNumOpenChkItems());
+    EXPECT_EQ(2, manager->getNumOpenChkItems());
 }
 
 // Check that an existing Committed non-SyncWrite is not de-duplicated when a
 // pending SyncWrite (with the same key) is added to the CheckpointManager.
 TEST_P(CheckpointDurabilityTest,
        AvoidDeDuplicationOfExistingCommitWithPrepare) {
+    ASSERT_EQ(1, manager->getNumOpenChkItems());
     auto mutation = makeCommittedItem(makeStoredDocKey("durable"), "mutation");
     auto pending = makePendingItem(makeStoredDocKey("durable"), "pending");
 
@@ -135,7 +140,7 @@ TEST_P(CheckpointDurabilityTest,
 
     // Verify: Should not have de-duplicated, should be in one checkpoint
     EXPECT_EQ(1, manager->getNumCheckpoints());
-    EXPECT_EQ(2, manager->getNumOpenChkItems());
+    EXPECT_EQ(3, manager->getNumOpenChkItems());
 }
 
 INSTANTIATE_TEST_SUITE_P(

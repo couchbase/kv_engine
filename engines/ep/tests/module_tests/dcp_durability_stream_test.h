@@ -80,8 +80,6 @@ protected:
     void testEmptyBackfillAfterCursorDroppingNoSyncWriteSupport(
             DocumentState docState, cb::durability::Level level);
 
-    void removeCheckpoint(VBucket& vb, int numItems);
-
     const std::string active = "active";
     const std::string replica = "replica";
 };

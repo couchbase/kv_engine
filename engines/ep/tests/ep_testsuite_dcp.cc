@@ -1999,26 +1999,41 @@ static enum test_result test_dcp_producer_stream_req_open(EngineIface* h) {
 }
 
 static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h) {
-    // Should start at checkpoint_id 2
-    const auto initial_ckpt_id =
-            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint");
-    checkeq(1, initial_ckpt_id, "Expected to start at checkpoint ID 1");
+    checkeq(1,
+            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
+            "Expected to start at checkpoint ID 1");
+
+    // Get rid of the first checkpoint that contains the setvbstate item. That
+    // makes the following computations less problematic.
+    createCheckpoint(h);
+    checkeq(2,
+            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
+            "Expected checkpoint ID 2");
 
     // Create two 'full' checkpoints by storing exactly 2 x 'chk_max_items'
     // into the VBucket.
+    // Note: +1 is to account for the checkpoint_sytart item in each checkpoint
     const auto max_ckpt_items = get_int_stat(h, "ep_chk_max_items");
+    set_param(h,
+              EngineParamCategory::Checkpoint,
+              "chk_max_items",
+              std::to_string(max_ckpt_items + 1).c_str());
+    checkeq(max_ckpt_items + 1,
+            get_int_stat(h, "ep_chk_max_items"),
+            "Failed to set chk_max_items");
 
     write_items(h, max_ckpt_items);
     wait_for_flusher_to_settle(h);
-    wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", max_ckpt_items);
-    checkeq(initial_ckpt_id + 1,
+    wait_for_stat_to_be_gte(h, "ep_items_rm_from_checkpoints", max_ckpt_items);
+    checkeq(3,
             get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
             "Expected #checkpoints to increase by 1 after storing items");
 
     write_items(h, max_ckpt_items, max_ckpt_items);
     wait_for_flusher_to_settle(h);
-    wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", max_ckpt_items * 2);
-    checkeq(initial_ckpt_id + 2,
+    wait_for_stat_to_be_gte(
+            h, "ep_items_rm_from_checkpoints", max_ckpt_items * 2);
+    checkeq(4,
             get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
             "Expected #checkpoints to increase by 2 after storing 2x "
             "max_ckpt_items");
@@ -2264,7 +2279,7 @@ static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h) {
          start_seqno += batch_items) {
         if (200 == start_seqno) {
             wait_for_flusher_to_settle(h);
-            wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", 200);
+            wait_for_stat_to_be_gte(h, "ep_items_rm_from_checkpoints", 200);
             stop_persistence(h);
         }
         write_items(h, batch_items, start_seqno);
@@ -2352,7 +2367,7 @@ static enum test_result test_dcp_producer_disk_backfill_buffer_limits(
 
     /* Wait for the checkpoint to be removed so that upon DCP connection
        backfill is scheduled */
-    wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", num_items);
+    wait_for_stat_to_be_gte(h, "ep_items_rm_from_checkpoints", num_items);
 
     auto* cookie = testHarness->create_cookie(h);
 

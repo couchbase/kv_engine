@@ -23,30 +23,49 @@ static enum test_result test_create_new_checkpoint(EngineIface* h) {
     // Inserting more than 5 items (see testcase config) will cause a new open
     // checkpoint to be created.
 
+    // Close the first checkpoint that contains the setvbstate item. That
+    // makes the following computations less problematic.
+    checkeq(1,
+            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
+            "Expected to start at checkpoint ID 1");
+    createCheckpoint(h);
+    checkeq(2,
+            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
+            "Expected checkpoint ID 2");
+
+    // Note: +1 is to account for the checkpoint_start item in each checkpoint
+    set_param(h,
+              EngineParamCategory::Checkpoint,
+              "chk_max_items",
+              std::to_string(5 + 1).c_str());
+    checkeq(5 + 1,
+            get_int_stat(h, "ep_chk_max_items"),
+            "Failed to set chk_max_items");
+
     write_items(h, 5);
     wait_for_flusher_to_settle(h);
 
-    checkeq(0,
+    checkeq(1,
             get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
-            "Last closed checkpoint Id for VB 0 should still be 0 after "
+            "Last closed checkpoint Id for VB 0 should still be 1 after "
             "storing 5 items");
 
     // Store 1 more - should push it over to the next checkpoint.
     write_items(h, 1, 5);
     wait_for_flusher_to_settle(h);
 
-    checkeq(1,
+    checkeq(2,
             get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
-            "Last closed checkpoint Id for VB 0 should increase to 1 after "
+            "Last closed checkpoint Id for VB 0 should increase to 2 after "
             "storing 6 items");
 
     createCheckpoint(h);
     checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected success response from creating a new checkpoint");
 
-    checkeq(2,
+    checkeq(3,
             get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
-            "Last closed checkpoint Id for VB 0 should be 2");
+            "Last closed checkpoint Id for VB 0 should be 3");
 
     return SUCCESS;
 }
@@ -88,6 +107,25 @@ static enum test_result test_validate_checkpoint_params(EngineIface* h) {
 }
 
 static enum test_result test_checkpoint_create(EngineIface* h) {
+    // Close the first checkpoint that contains the setvbstate item. That
+    // makes the following computations less problematic.
+    checkeq(1,
+            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
+            "Expected to start at checkpoint ID 1");
+    createCheckpoint(h);
+    checkeq(2,
+            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
+            "Expected checkpoint ID 2");
+
+    // Note: +1 is to account for the checkpoint_start item in each checkpoint
+    set_param(h,
+              EngineParamCategory::Checkpoint,
+              "chk_max_items",
+              std::to_string(5000 + 1).c_str());
+    checkeq(5000 + 1,
+            get_int_stat(h, "ep_chk_max_items"),
+            "Failed to set chk_max_items");
+
     for (int i = 0; i < 5001; i++) {
         char key[8];
         sprintf(key, "key%d", i);
@@ -95,10 +133,10 @@ static enum test_result test_checkpoint_create(EngineIface* h) {
                 store(h, nullptr, StoreSemantics::Set, key, "value"),
                 "Failed to store an item.");
     }
-    checkeq(2,
+    checkeq(3,
             get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
             "New checkpoint wasn't create after 5001 item creates");
-    checkeq(1,
+    checkeq(2,
             get_int_stat(h, "vb_0:num_open_checkpoint_items", "checkpoint"),
             "New open checkpoint should has only one dirty item");
     return SUCCESS;

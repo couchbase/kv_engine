@@ -2937,7 +2937,7 @@ TEST_P(EPBucketCDCTest, CollectionNonHistorical) {
     manager.createNewCheckpoint();
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumItems()); // [cs
-    ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     const auto collection = CollectionEntry::defaultC;
     const auto key = makeStoredDocKey("key", collection);
@@ -2947,7 +2947,7 @@ TEST_P(EPBucketCDCTest, CollectionNonHistorical) {
 
     EXPECT_EQ(1, manager.getNumCheckpoints());
     EXPECT_EQ(2, manager.getNumItems()); // [cs x m)
-    EXPECT_EQ(1, manager.getNumOpenChkItems());
+    EXPECT_EQ(2, manager.getNumOpenChkItems());
     EXPECT_EQ(initialHighSeqno + 2, manager.getHighSeqno());
 
     // Preconditions before flushing
@@ -2981,7 +2981,7 @@ TEST_P(EPBucketCDCTest, CollectionHistorical) {
     manager.createNewCheckpoint();
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumItems()); // [cs
-    ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     const auto collection = CollectionEntry::historical;
     const auto key = makeStoredDocKey("key", collection);
@@ -2991,7 +2991,7 @@ TEST_P(EPBucketCDCTest, CollectionHistorical) {
 
     EXPECT_EQ(2, manager.getNumCheckpoints());
     EXPECT_EQ(5, manager.getNumItems()); // [cs m ce] [cs m)
-    EXPECT_EQ(1, manager.getNumOpenChkItems());
+    EXPECT_EQ(2, manager.getNumOpenChkItems());
     EXPECT_EQ(initialHighSeqno + 2, manager.getHighSeqno());
 
     // Preconditions before flushing
@@ -3029,7 +3029,7 @@ TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_MemoryDedup) {
     flushVBucket(vbid);
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumItems()); // [cs
-    ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     const auto collection = CollectionEntry::historical;
     const auto key = makeStoredDocKey("key", collection);
@@ -3039,7 +3039,7 @@ TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_MemoryDedup) {
 
     EXPECT_EQ(1, manager.getNumCheckpoints());
     EXPECT_EQ(2, manager.getNumItems()); // [cs x m:2)
-    EXPECT_EQ(1, manager.getNumOpenChkItems());
+    EXPECT_EQ(2, manager.getNumOpenChkItems());
     EXPECT_EQ(initialHighSeqno + 2, manager.getHighSeqno());
 }
 
@@ -3055,7 +3055,7 @@ TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_FlusherDedup) {
     flushVBucket(vbid);
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumItems()); // [cs
-    ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     const auto collection = CollectionEntry::historical;
     const auto key = makeStoredDocKey("key", collection);
@@ -3071,9 +3071,9 @@ TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_FlusherDedup) {
 
     EXPECT_EQ(2, manager.getNumCheckpoints());
     EXPECT_EQ(5, manager.getNumItems()); // [cs m ce] [cs m)
-    EXPECT_EQ(1, manager.getNumOpenChkItems());
+    EXPECT_EQ(2, manager.getNumOpenChkItems());
     EXPECT_EQ(initialHighSeqno + 2, manager.getHighSeqno());
-    EXPECT_EQ(2, manager.getNumItemsForPersistence());
+    EXPECT_EQ(3, manager.getNumItemsForPersistence());
 
     // Preconditions before flushing
     // magma
@@ -3107,7 +3107,7 @@ TEST_P(EPBucketCDCTest, CollectionInterleaved) {
     manager.createNewCheckpoint();
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumItems()); // [cs
-    ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     const auto keyHistorical =
             makeStoredDocKey("key", CollectionEntry::historical);
@@ -3191,7 +3191,7 @@ TEST_P(EPBucketCDCTest, SetVBStatePreservesHistory) {
     manager.createNewCheckpoint();
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumItems()); // [cs
-    ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     // Write a couple of mutations to disk
     const auto collection = CollectionEntry::historical;

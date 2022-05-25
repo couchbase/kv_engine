@@ -767,7 +767,7 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
     // Remove the first checkpoint (to force a DCP backfill).
     auto& manager = *vb->checkpointManager;
     const auto openCkptId = manager.getOpenCheckpointId();
-    ASSERT_EQ(2, manager.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(5, manager.removeClosedUnrefCheckpoints().count);
     // No new checkpoint created
     ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
     /* State is now:
@@ -913,7 +913,7 @@ TEST_P(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
             vbid, pStream->getCursor().lock().get()));
     auto& manager = *vb->checkpointManager;
     const auto openCkptId = manager.getOpenCheckpointId();
-    ASSERT_EQ(2, manager.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(5, manager.removeClosedUnrefCheckpoints().count);
     // No new checkpoint created
     ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
 
@@ -1119,7 +1119,9 @@ TEST_P(DCPLoopbackStreamTest, MB50874_DeDuplicatedMutationsReplicaToActive) {
 
     // Setup - fill up the initial checkpoint, with items, so when we
     // queue the next mutations a new checkpoints is created.
-    for (int i = 0; i < 10; i++) {
+    // Note: We have already a cs+vbs in the checkpoint
+    const size_t numMutations = 10 - 2;
+    for (size_t i = 0; i < numMutations; ++i) {
         auto key = makeStoredDocKey("key_" + std::to_string(i));
         ASSERT_EQ(cb::engine_errc::success, storeSet(key));
     }
@@ -1140,15 +1142,15 @@ TEST_P(DCPLoopbackStreamTest, MB50874_DeDuplicatedMutationsReplicaToActive) {
     auto route0_1 = createDcpRoute(Node0, Node1);
     ASSERT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
     route0_1.transferSnapshotMarker(
-            0, 10, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
-    for (int i = 0; i < 10; i++) {
+            0, numMutations, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    for (size_t i = 0; i < numMutations; ++i) {
         route0_1.transferMessage(DcpResponse::Event::Mutation);
     }
 
     // Test - transfer the snapshot marker (but no mutations), then close stream
     // and promote to active; and try to accept a new mutation.
     route0_1.transferSnapshotMarker(
-            11, 12, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+            9, 10, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
 
     route0_1.closeStreamAtConsumer();
     engines[Node1]->getKVBucket()->setVBucketState(vbid, vbucket_state_active);

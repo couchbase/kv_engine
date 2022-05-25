@@ -110,6 +110,11 @@ void VBucketDurabilityTest::simulateLocalAck(uint64_t seqno) {
 
 void VBucketDurabilityTest::testAddPrepare(
         const std::vector<SyncWriteSpec>& writes) {
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *ckptMgr);
+    const auto initialNumItems = ckptList.back()->getNumItems();
+
     {
         SCOPED_TRACE("");
         storeSyncWrites(writes);
@@ -125,11 +130,8 @@ void VBucketDurabilityTest::testAddPrepare(
         EXPECT_EQ(write.deletion, sv->isDeleted());
     }
 
-    const auto& ckptList =
-            CheckpointManagerTestIntrospector::public_getCheckpointList(
-                    *ckptMgr);
     ASSERT_EQ(1, ckptList.size());
-    EXPECT_EQ(writes.size(), ckptList.front()->getNumItems());
+    EXPECT_EQ(initialNumItems + writes.size(), ckptList.front()->getNumItems());
     for (const auto& qi : *ckptList.front()) {
         if (!qi->isCheckPointMetaItem()) {
             EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
@@ -151,6 +153,11 @@ void VBucketDurabilityTest::testAddPrepareAndCommit(
 
     // Simulate flush + checkpoint-removal
     ckptMgr->clear();
+
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *ckptMgr);
+    const auto initialNumItems = ckptList.front()->getNumItems();
 
     // Simulate replica and active seqno-ack
     vbucket->seqnoAcknowledged(
@@ -174,11 +181,8 @@ void VBucketDurabilityTest::testAddPrepareAndCommit(
         i++;
     }
 
-    const auto& ckptList =
-            CheckpointManagerTestIntrospector::public_getCheckpointList(
-                    *ckptMgr);
-    ASSERT_EQ(1, ckptList.size());
-    EXPECT_EQ(writes.size(), ckptList.front()->getNumItems());
+    ASSERT_EQ(1, ckptMgr->getNumCheckpoints());
+    EXPECT_EQ(initialNumItems + writes.size(), ckptList.front()->getNumItems());
     for (const auto& qi : *ckptList.front()) {
         if (!qi->isCheckPointMetaItem()) {
             EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
@@ -561,7 +565,7 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
         ASSERT_NE(nullptr, sv);
         EXPECT_EQ(CommittedState::Pending, sv->getCommitted());
         EXPECT_EQ(1, ckptList.size());
-        ASSERT_EQ(1, ckptList.front()->getNumItems());
+        ASSERT_EQ(2, ckptList.front()->getNumItems());
         for (const auto& qi : *ckptList.front()) {
             if (!qi->isCheckPointMetaItem()) {
                 EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
@@ -577,7 +581,7 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
         EXPECT_NE(nullptr, ht->findForWrite(key).storedValue);
         EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
         EXPECT_EQ(1, ckptList.size());
-        EXPECT_EQ(1, ckptList.front()->getNumItems());
+        EXPECT_EQ(2, ckptList.front()->getNumItems());
         for (const auto& qi : *ckptList.front()) {
             if (!qi->isCheckPointMetaItem()) {
                 EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
@@ -656,7 +660,7 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
         EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
         // 1 non-metaitem is pending and contains the expected value
         it++;
-        ASSERT_EQ(1, ckpt.getNumItems());
+        ASSERT_EQ(2, ckpt.getNumItems());
         EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
         EXPECT_EQ("value", (*it)->getValue()->to_s());
 
@@ -723,7 +727,7 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     // 1 non-metaitem is committed and contains the expected value
     it++;
-    ASSERT_EQ(1, ckpt.getNumItems());
+    ASSERT_EQ(2, ckpt.getNumItems());
     EXPECT_EQ(queue_op::commit_sync_write, (*it)->getOperation());
     EXPECT_EQ("value", (*it)->getValue()->to_s());
 }
@@ -933,7 +937,7 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     // 1 non-metaitem is pending and contains the expected value
     it++;
-    ASSERT_EQ(1, ckpt->getNumItems());
+    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
     EXPECT_EQ(preparedSeqno, (*it)->getBySeqno());
     EXPECT_EQ("value", (*it)->getValue()->to_s());
@@ -987,7 +991,7 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     // 1 non-metaitem is a deleted durable-abort item with no value
     it++;
-    ASSERT_EQ(1, ckpt->getNumItems());
+    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::abort_sync_write, (*it)->getOperation());
     EXPECT_TRUE((*it)->isDeleted());
     EXPECT_FALSE((*it)->getValue());
@@ -2826,8 +2830,8 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
     it++;
     ASSERT_EQ(1, ckpt.getNumMetaItems());
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
-    // 3 non-metaitem are Committed or Aborted
-    ASSERT_EQ(writes.size(), ckpt.getNumItems());
+    // cs + 3 non-metaitem are Committed or Aborted
+    ASSERT_EQ(1 + writes.size(), ckpt.getNumItems());
     const auto expectedOp =
             (res == Resolution::Commit ? queue_op::commit_sync_write
                                        : queue_op::abort_sync_write);

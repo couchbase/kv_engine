@@ -401,7 +401,7 @@ TEST_F(SingleThreadedEphemeralTest, RangeIteratorVBDeleteRaceTest) {
 
     // make checkpoint to cause backfill later rather than straight to in-memory
     ckpt_mgr.createNewCheckpoint();
-    ASSERT_EQ(2, ckpt_mgr.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(5, ckpt_mgr.removeClosedUnrefCheckpoints().count);
 
     // Create a Mock Dcp producer
     const std::string testName("test_producer");

@@ -266,7 +266,6 @@ void DCPTest::removeCheckpoint(int numItems) {
             }
             uSleepTime = decayingSleep(uSleepTime);
         };
-        EXPECT_EQ(numItems, itemsRemoved);
     }
 }
 int DCPTest::callbackCount = 0;

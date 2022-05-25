@@ -778,7 +778,7 @@ TEST_P(STParameterizedBucketTest,
     kvBucket.setVBucketState(vbid1, vbucket_state_active);
     store_item(vbid1, makeStoredDocKey("key"), "value");
     flushVBucketToDiskIfPersistent(vbid1, 1);
-    removeCheckpoint(*kvBucket.getVBucket(vbid1), 1);
+    removeCheckpoint(*kvBucket.getVBucket(vbid1));
 
     // 4) Configure hook in updateStreamsMap so just before our 2nd
     // DcpProducer::streamRequest (below) adds the created stream to
@@ -870,7 +870,7 @@ TEST_P(STParameterizedBucketTest, StreamReqAcceptedAfterBucketShutdown) {
     // stream will enter backfilling state later
     store_item(vbid, makeStoredDocKey("key"), "value");
     flushVBucketToDiskIfPersistent(vbid, 1);
-    removeCheckpoint(*vb, 1);
+    removeCheckpoint(*vb);
 
     // 2) Create Producer and ensure it is in the ConnMap so that we can emulate
     // the shutdown
@@ -927,7 +927,7 @@ TEST_P(STParameterizedBucketTest, ConcurrentProducerCloseAllStreams) {
     // stream will enter backfilling state later
     store_item(vbid, makeStoredDocKey("key"), "value");
     flushVBucketToDiskIfPersistent(vbid, 1);
-    removeCheckpoint(*vb, 1);
+    removeCheckpoint(*vb);
 
     // 2) Create Producer and ensure it is in the ConnMap so that we can emulate
     // the shutdown
@@ -1134,7 +1134,7 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
     << "stream cursor should have been dropped";
 
     // Remove checkpoint, forcing the stream to Backfill.
-    removeCheckpoint(*vb, 2);
+    removeCheckpoint(*vb);
 
     // This will schedule the backfill
     mock_stream->transitionStateToBackfilling();
@@ -1272,7 +1272,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
                                                "cursor dropping.";
 
     // Remove the closed checkpoint to force stream to backfill.
-    removeCheckpoint(*vb, 1);
+    removeCheckpoint(*vb);
 
     // 2. Request next item from stream. Will transition to backfilling as part
     // of this.
@@ -1420,7 +1420,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     queueNewItem(*vb, "key2");
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
               getEPBucket().flushVBucket(vbid));
-    EXPECT_EQ(1, vb->checkpointManager->removeClosedUnrefCheckpoints().count);
+    EXPECT_EQ(4, vb->checkpointManager->removeClosedUnrefCheckpoints().count);
 
     // Now store another item, without MB-29369 fix we would lose this item
     store_item(vbid, makeStoredDocKey("key3"), "value");
@@ -1606,7 +1606,7 @@ void MB22960callbackBeforeRegisterCursor(
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
         // Now remove the earlier checkpoint
-        EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints().count);
+        EXPECT_EQ(3, ckpt_mgr.removeClosedUnrefCheckpoints().count);
         EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
@@ -1634,7 +1634,7 @@ void MB22960callbackBeforeRegisterCursor(
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
         // Now remove the earlier checkpoint
-        EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints().count);
+        EXPECT_EQ(3, ckpt_mgr.removeClosedUnrefCheckpoints().count);
         EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
     }
@@ -1742,7 +1742,7 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
     // checkpoint, so we can now remove the 2 closed checkpoints
     EXPECT_EQ(1,
               ckpt_mgr.getCheckpointList().back()->getNumCursorsInCheckpoint());
-    EXPECT_EQ(2, ckpt_mgr.removeClosedUnrefCheckpoints().count);
+    EXPECT_EQ(7, ckpt_mgr.removeClosedUnrefCheckpoints().count);
     EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
 
     //schedule a backfill
@@ -2206,8 +2206,8 @@ TEST_P(STParamPersistentBucketTest, MB19892_BackfillNotDeleted) {
     //   environment, we need to manually remove the prev checkpoint).
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
               getEPBucket().flushVBucket(vbid));
-
-    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints().count);
+    // cs, vbs, mut, ce
+    EXPECT_EQ(4, ckpt_mgr.removeClosedUnrefCheckpoints().count);
 
     // Create a DCP producer, and start a stream request.
     std::string name{"test_producer"};
@@ -2575,8 +2575,8 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
     //   environment, we need to manually remove the prev checkpoint).
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
               getEPBucket().flushVBucket(vbid));
-
-    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints().count);
+    // cs, vbs, mut, ce
+    EXPECT_EQ(4, ckpt_mgr.removeClosedUnrefCheckpoints().count);
     vb.reset();
 
     EXPECT_EQ(0, lpAuxioQ->getFutureQueueSize());
@@ -3459,7 +3459,8 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
 
     // remove the previous checkpoint to force a backfill
     auto removed = ckpt_mgr.removeClosedUnrefCheckpoints().count;
-    EXPECT_EQ(2, removed);
+    // cs, vbs, del , del, ce
+    EXPECT_EQ(5, removed);
 
     // Kick the stream into backfill
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
@@ -3543,7 +3544,8 @@ void STParameterizedBucketTest::testPurgeSeqnoAdvancesAfterStreamRequest(
     // Force persistence into new CP
     store_item(vbid, makeStoredDocKey("k3"), "k3");
     flushVBucketToDiskIfPersistent(vbid, 1);
-    EXPECT_EQ(2, vb->checkpointManager->removeClosedUnrefCheckpoints().count);
+    // cs, vbs, del, del, ce
+    EXPECT_EQ(5, vb->checkpointManager->removeClosedUnrefCheckpoints().count);
 
     // 4) Stream request picking up where we left off.
     const uint32_t flags =
@@ -4398,6 +4400,8 @@ void STParameterizedBucketTest::testValidateDatatypeForEmptyPayload(
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     manager);
     ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(0, vb.getHighSeqno());
 
     // Try to store an empty value with (datatype != raw)
     const auto key = makeStoredDocKey("key");
@@ -4461,7 +4465,7 @@ void STParameterizedBucketTest::testValidateDatatypeForEmptyPayload(
         EXPECT_EQ(1, ckpt->getNumMetaItems());
         EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
         it++;
-        EXPECT_EQ(0, ckpt->getNumItems());
+        EXPECT_EQ(1, ckpt->getNumItems());
 
         // Verify not in the storage
         if (persistent()) {
@@ -4586,7 +4590,7 @@ void STParamPersistentBucketTest::testAbortDoesNotIncrementOpsDelete(
                        vb.lockCollections(key)));
 
     // Flush ABORT
-    EXPECT_EQ(flusherDedup ? 2 : 1, manager.getNumItemsForPersistence());
+    EXPECT_EQ(flusherDedup ? 3 : 1, manager.getNumItemsForPersistence());
     flush_vbucket_to_disk(vbid, 1);
     EXPECT_EQ(0, manager.getNumItemsForPersistence());
     EXPECT_EQ(0, vb.getNumTotalItems());
@@ -5229,7 +5233,7 @@ TEST_P(STParamPersistentBucketTest, SyncWriteXattrExpiryViaDcp) {
 
     // Pre-DCP, remove checkpoint to force backfill and assert that we still
     // have the item in the HashTable (for CacheCallback later).
-    removeCheckpoint(*vb, 2);
+    removeCheckpoint(*vb);
 
     {
         auto res = vb->ht.findForUpdate(key);
@@ -5463,6 +5467,9 @@ TEST_P(STParamPersistentBucketTest,
     auto& mockKVStore = MockKVStore::replaceRWKVStoreWithMock(*store, 0);
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(2, manager.getNumOpenChkItems()); // cs + vbs
 
     SCOPED_TRACE("");
     store_item(vbid,
@@ -5472,9 +5479,7 @@ TEST_P(STParamPersistentBucketTest,
                {cb::engine_errc::success} /*expected*/,
                PROTOCOL_BINARY_RAW_BYTES);
 
-    const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
-    auto& manager = *vb.checkpointManager;
-    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(3, manager.getNumOpenChkItems());
     EXPECT_EQ(1, vb.dirtyQueueSize);
     EXPECT_EQ(0, vb.getPersistenceSeqno());
     EXPECT_EQ(1, vb.getHighSeqno());
