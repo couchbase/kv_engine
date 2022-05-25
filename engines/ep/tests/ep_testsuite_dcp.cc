@@ -22,6 +22,7 @@
 #include "ep_testsuite_common.h"
 #include "mock/mock_dcp.h"
 
+#include <executor/executorpool.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
@@ -7603,7 +7604,7 @@ static enum test_result test_mb19153(EngineIface* h) {
 
     // Set max num AUX IO to 0, so no backfill would start
     // immediately
-    set_param(h, EngineParamCategory::Flush, "num_auxio_threads", "0");
+    ExecutorPool::get()->setNumAuxIO(0);
 
     int num_items = 10000;
 
@@ -7664,7 +7665,7 @@ static enum test_result test_mb19153(EngineIface* h) {
 
     // Set auxIO threads to 1, so the backfill for the closed producer
     // is picked up, and begins to run.
-    set_param(h, EngineParamCategory::Flush, "num_auxio_threads", "1");
+    ExecutorPool::get()->setNumAuxIO(1);
 
     // Terminate engine
     return SUCCESS;

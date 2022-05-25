@@ -660,7 +660,7 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setWarmupMinMemoryThreshold(std::stoull(val));
         } else if (key == "warmup_min_items_threshold") {
             configuration.setWarmupMinItemsThreshold(std::stoull(val));
-        } else if (key == "num_reader_threads") {
+        } else if (key == "num_reader_threads" || key == "num_auxio_threads") {
             msg = fmt::format(
                     "Setting of key '{0}' is no longer supported "
                     "using set flush param, a post request to the REST API "
@@ -674,10 +674,6 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setNumWriterThreads(value);
             ExecutorPool::get()->setNumWriters(
                     ThreadPoolConfig::ThreadCount(value));
-        } else if (key == "num_auxio_threads") {
-            size_t value = std::stoull(val);
-            configuration.setNumAuxioThreads(value);
-            ExecutorPool::get()->setNumAuxIO(value);
         } else if (key == "num_nonio_threads") {
             size_t value = std::stoull(val);
             configuration.setNumNonioThreads(value);
@@ -2057,7 +2053,6 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     // been created.
     auto* pool = ExecutorPool::get();
     configuration.setNumWriterThreads(pool->getNumWriters());
-    configuration.setNumAuxioThreads(pool->getNumAuxIO());
     configuration.setNumNonioThreads(pool->getNumNonIO());
 
     maxFailoverEntries = configuration.getMaxFailoverEntries();

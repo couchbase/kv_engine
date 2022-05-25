@@ -34,7 +34,6 @@ memcached like this:
 | max_size                       | int    | Max cumulative item size in bytes.         |
 | max_threads                    | int    | Override default number of global threads. |
 | num_writer_threads             | int    | Override default number of writer threads. |
-| num_auxio_threads              | int    | Override default number of aux io threads. |
 | num_nonio_threads              | int    | Override default number of non io threads. |
 | mem_high_wat                   | int    | Automatically evict when exceeding         |
 |                                |        | this size.                                 |

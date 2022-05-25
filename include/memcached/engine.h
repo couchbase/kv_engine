@@ -200,10 +200,6 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
         // ignored
     }
 
-    virtual void set_num_auxio_threads(size_t num) {
-        // ignored
-    }
-
     virtual void set_num_nonio_threads(size_t num) {
         // ignored
     }
