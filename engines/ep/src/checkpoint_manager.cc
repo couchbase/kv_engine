@@ -1316,6 +1316,27 @@ void CheckpointManager::checkOpenCheckpoint(
     // (3) the age of the current open checkpoint is greater than the threshold
     //     @todo MB-48038: allow disabling the time-based trigger via config
     // (4) current open checkpoint has reached its max size (in bytes)
+
+    // Note on the backport for MB-52276.
+    // In the original Trinity code change here I replaced all the usages of
+    //     openCkpt.getNumItems() > 0
+    // by
+    //     openCkpt.hasNonMetaItems()
+    //
+    // The reason is that Checkpoint::numItems is "broken" by that ItemExpel
+    // doesn't update it (which is what we fix in MB-52276), so we don't want
+    // to rely on it anymore.
+    // Now, in Trinity we don't have any "num-item trigger" when we make that
+    // change, so here we have to keep using the checkpoint's numItems for that.
+    //
+    // Not a big problem though. As soon as the backport of MB-52276 is complete
+    // numItems will be fixed and so will be the "num-item trigger". The only
+    // side effect will be that numItems will account for both meta and non-meta
+    // items, so the "num-item trigger" semantic will change slightly by that.
+    //
+    // Note: Removing the "num-item trigger" was done in Trinity as part of
+    // MB-50984 - Different MB, we are trying to limit the scope of the backport
+
     const auto numItems = openCkpt.getNumItems();
     const auto numItemsTrigger =
             checkpointConfig.isItemNumBasedNewCheckpoint() &&
@@ -1323,14 +1344,14 @@ void CheckpointManager::checkOpenCheckpoint(
 
     const auto openCkptAge = ep_real_time() - openCkpt.getCreationTime();
     const auto timeTrigger =
-            (numItems > 0) &&
+            openCkpt.hasNonMetaItems() &&
             (openCkptAge >= checkpointConfig.getCheckpointPeriod());
 
     // Note: The condition ensures that we always allow at least 1 non-meta item
     //  in the open checkpoint, regardless of any setting.
     const auto memTrigger =
             (openCkpt.getMemUsage() >= vb.getCheckpointMaxSize()) &&
-            (numItems > 0);
+            openCkpt.hasNonMetaItems();
 
     if (numItemsTrigger || timeTrigger || memTrigger) {
         addNewCheckpoint(lh);
