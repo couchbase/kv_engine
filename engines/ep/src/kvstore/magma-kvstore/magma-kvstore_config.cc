@@ -113,9 +113,6 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             "magma_fragmentation_percentage",
             std::make_unique<ConfigChangeListener>(*this));
     config.addValueChangedListener(
-            "num_writer_threads",
-            std::make_unique<ConfigChangeListener>(*this));
-    config.addValueChangedListener(
             "magma_flusher_thread_percentage",
             std::make_unique<ConfigChangeListener>(*this));
     config.addValueChangedListener(

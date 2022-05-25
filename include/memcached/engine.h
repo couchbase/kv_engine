@@ -195,8 +195,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
         // empty
     }
 
-    // Set the number or writer threads
-    virtual void set_num_writer_threads(ThreadPoolConfig::ThreadCount num) {
+    virtual void notify_num_writer_threads_changed() {
         // ignored
     }
 

@@ -60,7 +60,9 @@ TEST_F(SingleThreadedEPBucketTest, FlusherBatchSizeLimitWritersChange) {
     auto expected = totalLimit / writers;
     EXPECT_EQ(expected, bucket.getFlusherBatchSplitTrigger());
 
-    engine->set_num_writer_threads(ThreadPoolConfig::ThreadCount(writers * 2));
+    ExecutorPool::get()->setNumWriters(
+            ThreadPoolConfig::ThreadCount(writers * 2));
+    engine->notify_num_writer_threads_changed();
     writers = ExecutorPool::get()->getNumWriters();
 
     expected = totalLimit / writers;

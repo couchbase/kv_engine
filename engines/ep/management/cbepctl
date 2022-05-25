@@ -283,8 +283,6 @@ Available params for "set":
                                    traffic
     warmup_min_items_threshold   - Item number threshold (%) during warmup to enable
                                    traffic
-    num_writer_threads           - Override default number of global threads
-                                   that perform write operations.
     retain_erroneous_tombstones  - Whether to retain erroneous tombstones or not.
     xattr_enabled                - Enabled/Disable xattr support for the specified bucket.
                                    Accepted input values are true or false.

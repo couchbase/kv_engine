@@ -660,8 +660,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setWarmupMinMemoryThreshold(std::stoull(val));
         } else if (key == "warmup_min_items_threshold") {
             configuration.setWarmupMinItemsThreshold(std::stoull(val));
-        } else if (key == "num_reader_threads" || key == "num_auxio_threads" ||
-                   key == "num_nonio_threads") {
+        } else if (key == "num_reader_threads" || key == "num_writer_threads" ||
+                   key == "num_auxio_threads" || key == "num_nonio_threads") {
             msg = fmt::format(
                     "Setting of key '{0}' is no longer supported "
                     "using set flush param, a post request to the REST API "
@@ -670,11 +670,6 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
                     "global with payload {0}=N) should be made instead",
                     key);
             return cb::engine_errc::invalid_arguments;
-        } else if (key == "num_writer_threads") {
-            ssize_t value = std::stoull(val);
-            configuration.setNumWriterThreads(value);
-            ExecutorPool::get()->setNumWriters(
-                    ThreadPoolConfig::ThreadCount(value));
         } else if (key == "bfilter_enabled") {
             configuration.setBfilterEnabled(cb_stob(val));
         } else if (key == "bfilter_residency_threshold") {
@@ -2045,11 +2040,6 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
 
     auto& env = Environment::get();
     env.engineFileDescriptors = serverApi->core->getMaxEngineFileDescriptors();
-
-    // Update configuration to reflect the actual number of threads which have
-    // been created.
-    auto* pool = ExecutorPool::get();
-    configuration.setNumWriterThreads(pool->getNumWriters());
 
     maxFailoverEntries = configuration.getMaxFailoverEntries();
 
@@ -6915,10 +6905,7 @@ void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
     cb::ArenaMalloc::setAllocatedThreshold(arena);
 }
 
-void EventuallyPersistentEngine::set_num_writer_threads(
-        ThreadPoolConfig::ThreadCount num) {
-    getConfiguration().setNumWriterThreads(static_cast<int>(num));
-
+void EventuallyPersistentEngine::notify_num_writer_threads_changed() {
     auto* epBucket = dynamic_cast<EPBucket*>(getKVBucket());
     if (epBucket) {
         // We just changed number of writers so we also need to refresh the

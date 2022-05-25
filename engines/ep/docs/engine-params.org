@@ -33,7 +33,6 @@ memcached like this:
 |                                |        | an item.                                   |
 | max_size                       | int    | Max cumulative item size in bytes.         |
 | max_threads                    | int    | Override default number of global threads. |
-| num_writer_threads             | int    | Override default number of writer threads. |
 | mem_high_wat                   | int    | Automatically evict when exceeding         |
 |                                |        | this size.                                 |
 | mem_low_wat                    | int    | Low water mark to aim for when evicting.   |

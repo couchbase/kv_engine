@@ -742,9 +742,9 @@ static void startExecutorPool() {
                         ThreadPoolConfig::ThreadCount(s.getNumWriterThreads());
                 // Update the ExecutorPool
                 ExecutorPool::get()->setNumWriters(val);
-                // Notify all buckets of the recent change
-                BucketManager::instance().forEach([val](Bucket& b) -> bool {
-                    b.getEngine().set_num_writer_threads(val);
+                BucketManager::instance().forEach([](Bucket& b) -> bool {
+                    // Notify all buckets of the recent change
+                    b.getEngine().notify_num_writer_threads_changed();
                     return true;
                 });
             });

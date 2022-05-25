@@ -30,8 +30,7 @@
 // 3145728 * 4 / 0.1 = 125829120
 static std::string magmaConfig =
         "max_size=125829120;"
-        "magma_flusher_thread_percentage=50;"
-        "num_writer_threads=2";
+        "magma_flusher_thread_percentage=50";
 
 // When a test needs to do a rollback, we need to configure magma
 // to generate a rollback point with each item batch, similar to what

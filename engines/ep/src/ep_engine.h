@@ -98,7 +98,7 @@ public:
     void destroy(bool force) override;
     void disconnect(const CookieIface& cookie) override;
 
-    void set_num_writer_threads(ThreadPoolConfig::ThreadCount num) override;
+    void notify_num_writer_threads_changed() override;
     void set_num_storage_threads(
             ThreadPoolConfig::StorageThreadCount num) override;
 
