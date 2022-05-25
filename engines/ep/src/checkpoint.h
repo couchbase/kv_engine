@@ -295,13 +295,6 @@ public:
     }
 
     /**
-     * Return the creation timestamp of this checkpoint in sec.
-     */
-    rel_time_t getCreationTime() const {
-        return creationTime;
-    }
-
-    /**
      * Return the number of non-meta items belonging to this checkpoint.
      */
     size_t getNumItems() const {
@@ -624,7 +617,7 @@ private:
     /// The seqno of the highest expelled item.
     Monotonic<int64_t> highestExpelledSeqno{0};
     const Vbid vbucketId;
-    rel_time_t                     creationTime;
+
     folly::Synchronized<checkpoint_state> checkpointState;
     /// Number of non-meta items (see Item::isCheckPointMetaItem).
     size_t                         numItems;
