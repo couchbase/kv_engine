@@ -283,8 +283,6 @@ Available params for "set":
                                    traffic
     warmup_min_items_threshold   - Item number threshold (%) during warmup to enable
                                    traffic
-    num_reader_threads           - Override default number of global threads
-                                   that perform read operations.
     num_writer_threads           - Override default number of global threads
                                    that perform write operations.
     num_auxio_threads            - Override default number of global threads

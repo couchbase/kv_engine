@@ -740,11 +740,6 @@ static void startExecutorPool() {
                         ThreadPoolConfig::ThreadCount(s.getNumReaderThreads());
                 // Update the ExecutorPool
                 ExecutorPool::get()->setNumReaders(val);
-                // Notify all buckets of the recent change
-                BucketManager::instance().forEach([val](Bucket& b) -> bool {
-                    b.getEngine().set_num_reader_threads(val);
-                    return true;
-                });
             });
     settings.addChangeListener(
             "num_writer_threads", [](const std::string&, Settings& s) -> void {

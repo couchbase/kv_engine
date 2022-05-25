@@ -893,21 +893,6 @@
                 "backend": "nexus"
             }
         },
-        "num_reader_threads": {
-            "default": {
-                "on-prem": "0",
-                "serverless": "64"
-            },
-            "descr": "Number of reader threads (0 = Default, -1 = Disk IO Optimized)",
-            "dynamic": true,
-            "type": "ssize_t",
-            "validator": {
-                "range": {
-                    "max": 512,
-                    "min": -1
-                }
-            }
-        },
         "num_writer_threads": {
             "default": {
                 "on-prem": "0",

@@ -431,13 +431,6 @@ TEST_F(StatTest, ConfigStatDefinitions) {
     // confirm that specific stats known to be generated from the config
     // are definitely present
 
-    // test a ssize_t stat
-    auto readerThreads = config.getNumReaderThreads();
-    EXPECT_CALL(collector,
-                addStat(StatDefNameMatcher("ep_num_reader_threads"),
-                        Matcher<int64_t>(readerThreads),
-                        _));
-
     auto maxSize = config.getMaxSize();
     // test a sssize_t stat
     EXPECT_CALL(collector,

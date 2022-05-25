@@ -24,6 +24,7 @@
 #include "kvstore/couch-kvstore/couch-kvstore-metadata.h"
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "module_tests/thread_gate.h"
+#include <executor/executorpool.h>
 #include <libcouchstore/couch_db.h>
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
@@ -7063,7 +7064,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_mutation_mem_threshold",
               "ep_num_auxio_threads",
               "ep_num_nonio_threads",
-              "ep_num_reader_threads",
               "ep_num_writer_threads",
               "ep_pager_active_vb_pcnt",
               "ep_pager_sleep_time_ms",
@@ -7324,7 +7324,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_num_ops_set_meta_res_fail",
               "ep_num_ops_set_ret_meta",
               "ep_num_pager_runs",
-              "ep_num_reader_threads",
               "ep_num_value_ejects",
               "ep_num_workers",
               "ep_num_writer_threads",
@@ -8244,6 +8243,8 @@ static enum test_result test_replace_at_pending_insert(EngineIface* h) {
  * warmup times.
  */
 static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
+    ExecutorPool::get()->setNumReaders(ThreadPoolConfig::ThreadCount{1});
+
     const size_t keysPerVbucket = 1500;
     const size_t numberOfKeyVbucketSmall = 1;
 
@@ -9665,7 +9666,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_reader_thread_starvation_warmup,
                  test_setup,
                  teardown,
-                 "num_reader_threads=1;",
+                 nullptr,
                  prepare_broken_test,
                  cleanup),
 

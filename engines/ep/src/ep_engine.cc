@@ -661,10 +661,14 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         } else if (key == "warmup_min_items_threshold") {
             configuration.setWarmupMinItemsThreshold(std::stoull(val));
         } else if (key == "num_reader_threads") {
-            ssize_t value = std::stoll(val);
-            configuration.setNumReaderThreads(value);
-            ExecutorPool::get()->setNumReaders(
-                    ThreadPoolConfig::ThreadCount(value));
+            msg = fmt::format(
+                    "Setting of key '{0}' is no longer supported "
+                    "using set flush param, a post request to the REST API "
+                    "(POST "
+                    "http://<host>:<port>/pools/default/settings/memcached/"
+                    "global with payload {0}=N) should be made instead",
+                    key);
+            return cb::engine_errc::invalid_arguments;
         } else if (key == "num_writer_threads") {
             ssize_t value = std::stoull(val);
             configuration.setNumWriterThreads(value);
@@ -2052,7 +2056,6 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     // Update configuration to reflect the actual number of threads which have
     // been created.
     auto* pool = ExecutorPool::get();
-    configuration.setNumReaderThreads(pool->getNumReaders());
     configuration.setNumWriterThreads(pool->getNumWriters());
     configuration.setNumAuxioThreads(pool->getNumAuxIO());
     configuration.setNumNonioThreads(pool->getNumNonIO());
@@ -6919,11 +6922,6 @@ void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
     arena.setEstimateUpdateThreshold(
             size, configuration.getMemUsedMergeThresholdPercent());
     cb::ArenaMalloc::setAllocatedThreshold(arena);
-}
-
-void EventuallyPersistentEngine::set_num_reader_threads(
-        ThreadPoolConfig::ThreadCount num) {
-    getConfiguration().setNumReaderThreads(static_cast<int>(num));
 }
 
 void EventuallyPersistentEngine::set_num_writer_threads(
