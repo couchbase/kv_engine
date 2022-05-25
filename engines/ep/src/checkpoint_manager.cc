@@ -1213,7 +1213,7 @@ uint64_t CheckpointManager::getVisibleSnapshotEndSeqno() const {
 
     // This clause is also in getSnapshotInfo, if we have no items for the open
     // checkpoint, return the "end" as maxVisible
-    if (openCkpt.getNumItems() == 0 &&
+    if (!openCkpt.hasNonMetaItems() &&
         static_cast<uint64_t>(lastBySeqno) < openCkpt.getSnapshotStartSeqno()) {
         return maxVisibleSeqno;
     }
