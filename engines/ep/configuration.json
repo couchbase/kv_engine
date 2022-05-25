@@ -908,18 +908,6 @@
                 }
             }
         },
-        "num_nonio_threads": {
-            "default": "0",
-            "descr": "Throttle max number of non io threads (0 = Default, auto-configured based on CPU core count)",
-            "dynamic": true,
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 512,
-                    "min": 0
-                }
-            }
-        },
         "mem_high_wat": {
             "default": "max",
             "dynamic": true,

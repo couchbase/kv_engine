@@ -753,15 +753,11 @@ static void startExecutorPool() {
                 auto val = s.getNumAuxIoThreads();
                 ExecutorPool::get()->setNumAuxIO(val);
             });
-    settings.addChangeListener(
-            "num_nonio_threads", [](const std::string&, Settings& s) -> void {
-                auto val = s.getNumNonIoThreads();
-                ExecutorPool::get()->setNumNonIO(val);
-                BucketManager::instance().forEach([val](Bucket& b) -> bool {
-                    b.getEngine().set_num_nonio_threads(val);
-                    return true;
-                });
-            });
+    settings.addChangeListener("num_nonio_threads",
+                               [](const std::string&, Settings& s) -> void {
+                                   auto val = s.getNumNonIoThreads();
+                                   ExecutorPool::get()->setNumNonIO(val);
+                               });
 }
 
 nlohmann::json cb::serverless::Config::to_json() const {

@@ -285,8 +285,6 @@ Available params for "set":
                                    traffic
     num_writer_threads           - Override default number of global threads
                                    that perform write operations.
-    num_nonio_threads            - Override default number of global threads
-                                   that perform nonio operations.
     retain_erroneous_tombstones  - Whether to retain erroneous tombstones or not.
     xattr_enabled                - Enabled/Disable xattr support for the specified bucket.
                                    Accepted input values are true or false.

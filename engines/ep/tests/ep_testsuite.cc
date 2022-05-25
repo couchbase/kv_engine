@@ -3793,6 +3793,7 @@ static enum test_result test_workload_stats(EngineIface* h) {
 
 static enum test_result test_max_workload_stats(EngineIface* h) {
     ExecutorPool::get()->setNumAuxIO(1);
+    ExecutorPool::get()->setNumNonIO(4);
     auto* cookie = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::success,
             h->get_stats(*cookie, "workload"sv, {}, add_stats),
@@ -7063,7 +7064,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_mem_used_merge_threshold_percent",
               "ep_min_compression_ratio",
               "ep_mutation_mem_threshold",
-              "ep_num_nonio_threads",
               "ep_num_writer_threads",
               "ep_pager_active_vb_pcnt",
               "ep_pager_sleep_time_ms",
@@ -7312,7 +7312,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_num_expiry_pager_runs",
               "ep_num_freq_decayer_runs",
               "ep_num_non_resident",
-              "ep_num_nonio_threads",
               "ep_num_not_my_vbuckets",
               "ep_num_ops_del_meta",
               "ep_num_ops_del_meta_res_fail",
@@ -8883,8 +8882,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_max_workload_stats,
                  test_setup,
                  teardown,
-                 "max_num_shards=5;max_threads=14;num_"
-                 "nonio_threads=4",
+                 "max_num_shards=5;max_threads=14",
                  prepare,
                  cleanup),
         TestCase("test ALL_KEYS api",
