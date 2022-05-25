@@ -3416,6 +3416,15 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     const auto initialIndex = checkpoint->getMemOverheadIndex();
     const auto initialMemOverhead = stats.getMemOverhead();
     auto checkpointOverhead = manager.getNumCheckpoints() * sizeof(Checkpoint);
+
+    const auto initialMemOverheadAllocator =
+            checkpoint->getMemOverheadAllocatorBytes();
+    const auto initialQueuedOverheadAllocator =
+            checkpoint->getWriteQueueAllocatorBytes();
+    const auto initialIndexAllocator = checkpoint->getKeyIndexAllocatorBytes();
+    const auto initialKeyIndexKeyAllocator =
+            checkpoint->getKeyIndexKeyAllocatorBytes();
+
     // Some metaitems are already in the queue
     EXPECT_GT(initialQueued, 0);
     EXPECT_EQ(initialQueueSize * Checkpoint::per_item_queue_overhead,
@@ -3426,14 +3435,21 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     EXPECT_EQ(initialQueued + initialQueueOverhead + checkpointOverhead,
               manager.getMemUsage());
 
+    EXPECT_EQ(initialMemOverheadAllocator,
+              sizeof(Checkpoint) + initialQueuedOverheadAllocator +
+                      initialIndexAllocator + initialKeyIndexKeyAllocator);
+
     size_t itemsAlloc = 0;
     size_t itemOverheadAlloc = 0;
     size_t queueAlloc = 0;
     size_t keyIndexAlloc = 0;
+    size_t keyIndexKeyAlloc = 0;
     const size_t numItems = 10;
     for (size_t i = 1; i <= numItems; ++i) {
         auto item = makeCommittedItem(
-                makeStoredDocKey("key" + std::to_string(i)), "value", vbid);
+                makeStoredDocKey("key" + std::to_string(i)),
+                "value",
+                vbid); // @todo test without SSO, large keysize
         EXPECT_TRUE(vb->checkpointManager->queueDirty(
                 item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
         // Our estimated mem-usage must account for the queued item + the
@@ -3441,6 +3457,7 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
         itemsAlloc += item->size();
         itemOverheadAlloc += (item->size() - item->getValMemSize());
         queueAlloc += Checkpoint::per_item_queue_overhead;
+        keyIndexKeyAlloc += item->getKey().size();
         keyIndexAlloc += item->getKey().size() + sizeof(IndexEntry);
     }
 
@@ -3453,6 +3470,15 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     const auto queueOverhead = checkpoint->getMemOverheadQueue();
     const auto index = checkpoint->getMemOverheadIndex();
     checkpointOverhead = manager.getNumCheckpoints() * sizeof(Checkpoint);
+
+    const auto memOverheadAllocator =
+            checkpoint->getMemOverheadAllocatorBytes();
+    const auto queuedOverheadAllocator =
+            checkpoint->getWriteQueueAllocatorBytes();
+    const auto indexAllocator = checkpoint->getKeyIndexAllocatorBytes();
+    const auto keyIndexKeyAllocator =
+            checkpoint->getKeyIndexKeyAllocatorBytes();
+
     EXPECT_EQ(initialQueued + itemsAlloc, queued);
     EXPECT_EQ(initialQueueOverhead + queueAlloc, queueOverhead);
     EXPECT_EQ(initialIndex + keyIndexAlloc, index);
@@ -3472,6 +3498,12 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     // calculate the CM's memory overhead
     EXPECT_EQ(queueOverhead + index + sizeof(Checkpoint),
               manager.getMemOverhead());
+
+    EXPECT_EQ(memOverheadAllocator,
+              sizeof(Checkpoint) + queuedOverheadAllocator + indexAllocator +
+                      keyIndexKeyAllocator);
+    EXPECT_EQ(queuedOverheadAllocator,
+              initialQueuedOverheadAllocator + queueAlloc);
 }
 
 TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsage) {

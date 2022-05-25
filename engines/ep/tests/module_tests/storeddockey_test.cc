@@ -12,6 +12,7 @@
 
 #include <folly/portability/GTest.h>
 #include <mcbp/protocol/unsigned_leb128.h>
+#include <platform/memory_tracking_allocator.h>
 #include <map>
 
 class StoredDocKeyTest : public ::testing::TestWithParam<CollectionID> {};
@@ -21,6 +22,28 @@ class StoredDocKeyTestCombi
 };
 
 class SerialisedDocKeyTest : public ::testing::TestWithParam<CollectionID> {};
+
+TEST(StoredDocKeyTest, trackedByAllocator) {
+    MemoryTrackingAllocator<char> allocator;
+    EXPECT_EQ(0, allocator.getBytesAllocated());
+
+    // Expect 0 bytes alloc for small string due to SSO
+    StoredDocKeyT<MemoryTrackingAllocator> key1(
+            DocKey("small", DocKeyEncodesCollectionId::Yes), allocator);
+    EXPECT_EQ(0, allocator.getBytesAllocated());
+
+    // Expect alloc for string >> 24 bytes
+    StoredDocKeyT<MemoryTrackingAllocator> key2(
+            DocKey("long - - - - - - - - - - - - - - - - - - - - - - - - - ",
+                   DocKeyEncodesCollectionId::Yes), // Simplifies accounting
+            allocator);
+
+    // We can't calculate the exact allocation as it may differ across
+    // environments - std::string makes no guarantee as to the capacity that is
+    // allocated. Instead, expect a reasonable lower/upper bound
+    EXPECT_LE(key2.size(), allocator.getBytesAllocated());
+    EXPECT_GT(key2.size() * 1.2, allocator.getBytesAllocated());
+}
 
 TEST_P(StoredDocKeyTest, constructors) {
     // C-string/std::string
