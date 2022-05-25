@@ -1191,7 +1191,7 @@ snapshot_info_t CheckpointManager::getSnapshotInfo() {
     // we should just use the last by sequence number. The open checkpoint will
     // be overwritten once the next snapshot marker is received since there are
     // no items in it.
-    if (openCkpt.getNumItems() == 0 &&
+    if (!openCkpt.hasNonMetaItems() &&
         static_cast<uint64_t>(lastBySeqno) < info.range.getStart()) {
         info.range = snapshot_range_t(lastBySeqno, lastBySeqno);
     }
