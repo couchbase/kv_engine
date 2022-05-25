@@ -1623,8 +1623,8 @@ void CheckpointManager::maybeCreateNewCheckpoint(
     // Note: The condition ensures that we always allow at least 1 non-meta item
     //  in the open checkpoint, regardless of any setting.
     const auto& openCkpt = getOpenCheckpoint(lh);
-    if ((openCkpt.getMemUsage() >= checkpointConfig.getCheckpointMaxSize()) &&
-        (openCkpt.getNumItems() > 0)) {
+    if (openCkpt.getMemUsage() >= checkpointConfig.getCheckpointMaxSize() &&
+        openCkpt.hasNonMetaItems()) {
         addNewCheckpoint(lh);
     }
 }
