@@ -23,10 +23,50 @@ public:
             GTEST_SKIP();
         }
         TestappXattrClientTest::SetUp();
-        start = Couchbase::Base64::encode("user");
-        end = Couchbase::Base64::encode("user\xFF");
+        auto mInfo = storeTestKeys();
 
-        config = {{"range", {{"start", start}, {"end", end}}}};
+        start = cb::base64::encode("user", false);
+        end = cb::base64::encode("user\xFF", false);
+
+        // Setup to scan for user prefixed docs. Utilise wait_for_seqno so the
+        // tests should be stable (have data ready to scan)
+        config = {{"range", {{"start", start}, {"end", end}}},
+                  {"snapshot_requirements",
+                   {{"seqno", mInfo.seqno},
+                    {"vb_uuid", mInfo.vbucketuuid},
+                    {"timeout_ms", 120000}}}};
+    }
+
+    // All successful scans are scanning for these keys
+    std::unordered_set<std::string> userKeys = {"user-alan",
+                                                "useralan",
+                                                "user.claire",
+                                                "user::zoe",
+                                                "user:aaaaaaaa",
+                                                "users"};
+    // Other keys that get stored in the bucket
+    std::vector<std::string> otherKeys = {
+            "useq", "uses", "abcd", "uuu", "uuuu", "xyz"};
+
+    std::unordered_set<std::string> sequential = {"0", "1", "2", "3"};
+
+    MutationInfo storeTestKeys() {
+        for (const auto& key : userKeys) {
+            store_document(key, key);
+        }
+
+        for (const auto& key : otherKeys) {
+            store_document(key, key);
+        }
+
+        for (const auto& key : sequential) {
+            store_document(key, key);
+        }
+
+        Document doc;
+        doc.value = "persist me";
+        doc.info.id = "final";
+        return userConnection->mutate(doc, Vbid(0), MutationType::Set);
     }
 
     std::string start;
