@@ -276,9 +276,13 @@ void KVBucketTest::flushVBucketToDiskIfPersistent(Vbid vbid, int expected) {
     }
 }
 
-void KVBucketTest::removeCheckpoint(VBucket& vb, size_t expectedRemoved) {
+void KVBucketTest::removeCheckpoint(VBucket& vb) {
     const auto& stats = engine->getEpStats();
     const auto pre = stats.itemsRemovedFromCheckpoints;
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    // Note: open items + checkpoint_end
+    const auto expectedRemoved = manager.getNumOpenChkItems() + 1;
     vb.checkpointManager->createNewCheckpoint();
     flushVBucketToDiskIfPersistent(vb.getId(), 0);
     EXPECT_EQ(pre + expectedRemoved, stats.itemsRemovedFromCheckpoints);

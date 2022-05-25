@@ -548,9 +548,10 @@ void KVStoreErrorInjectionTest::testFlushFailureStatsAtDedupedNonMetaItems(
     }
 
     auto& manager = *vb.checkpointManager;
-    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    // cs + vbstate + mut
+    ASSERT_EQ(3, manager.getNumOpenChkItems());
     manager.createNewCheckpoint();
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     const auto storedKey = makeStoredDocKey("keyA");
     const std::string value2 = "value2";
@@ -563,8 +564,8 @@ void KVStoreErrorInjectionTest::testFlushFailureStatsAtDedupedNonMetaItems(
                    {cb::engine_errc::success} /*expected*/,
                    PROTOCOL_BINARY_RAW_BYTES);
     }
-    ASSERT_EQ(1, manager.getNumOpenChkItems());
-    ASSERT_EQ(2, manager.getNumItemsForPersistence());
+    ASSERT_EQ(2, manager.getNumOpenChkItems());
+    ASSERT_EQ(3, manager.getNumItemsForPersistence());
 
     EXPECT_EQ(2, vb.dirtyQueueSize);
 
@@ -654,7 +655,8 @@ void KVStoreErrorInjectionTest::testFlushFailureAtPersistDelete(
     delete_item(vbid, storedKey);
 
     auto& manager = *vb.checkpointManager;
-    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    // cs + vbs + mut
+    ASSERT_EQ(3, manager.getNumOpenChkItems());
     // Mutation deduplicated, just deletion
     ASSERT_EQ(1, manager.getNumItemsForPersistence());
 

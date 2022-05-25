@@ -430,7 +430,7 @@ TEST_P(CheckpointRemoverTest, MemRecoveryByCheckpointCreation) {
 
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(0, stats.itemsExpelledFromCheckpoints);
-    ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
+    const auto initialRemoved = stats.itemsRemovedFromCheckpoints;
 
     // Mem-recovery is expected to:
     // 1. Create a new checkpoint on at least 1 vbucket
@@ -447,7 +447,7 @@ TEST_P(CheckpointRemoverTest, MemRecoveryByCheckpointCreation) {
     // Before the fix, nothing removed from checkpoints and mem-reduction still
     // required at this point
     EXPECT_EQ(0, stats.itemsExpelledFromCheckpoints);
-    EXPECT_GT(stats.itemsRemovedFromCheckpoints, 0);
+    EXPECT_GT(stats.itemsRemovedFromCheckpoints, initialRemoved);
     EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
 }
 
@@ -763,27 +763,28 @@ TEST_P(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
     auto* cm = static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
 
     createCheckpointAndEnsureOldRemoved(*cm);
+    ASSERT_EQ(1, cm->getNumOpenChkItems());
 
     store_item(vbid, makeStoredDocKey("key_1"), "value");
     store_item(vbid, makeStoredDocKey("key_2"), "value");
+    EXPECT_EQ(3, cm->getNumOpenChkItems());
 
     // Queue a prepare
     auto prepareKey = makeStoredDocKey("key_1");
     auto prepare = makePendingItem(prepareKey, "value");
     EXPECT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*prepare, cookie, nullptr /*StoreIfPredicate*/));
+    EXPECT_EQ(4, cm->getNumOpenChkItems());
 
     // Persist to move our cursor so that we can expel the prepare
     flushVBucketToDiskIfPersistent(vbid, 3);
 
-    auto result = cm->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(2, result.count);
+    auto expelRes = cm->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(2, expelRes.count);
+    EXPECT_EQ(2, cm->getNumOpenChkItems());
 
     store_item(vbid, makeStoredDocKey("key_2"), "value");
-
     EXPECT_EQ(1, cm->getNumCheckpoints());
-
-    // We should have decremented numItems when we added again
     EXPECT_EQ(3, cm->getNumOpenChkItems());
 }
 
@@ -982,15 +983,16 @@ TEST_P(CheckpointRemoverTest, CursorMoveWakesDestroyer) {
     ASSERT_TRUE(dcpCursor);
 
     // Store an item
+    ASSERT_EQ(2, cm.getNumOpenChkItems()); // cs+ vbs
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
     EXPECT_EQ(1, cm.getNumCheckpoints());
-    EXPECT_EQ(1, cm.getNumOpenChkItems());
+    EXPECT_EQ(3, cm.getNumOpenChkItems());
 
     // Create new open checkpoint
     cm.createNewCheckpoint();
     EXPECT_EQ(2, cm.getNumCheckpoints());
-    EXPECT_EQ(0, cm.getNumOpenChkItems());
+    EXPECT_EQ(1, cm.getNumOpenChkItems());
 
     // Memory usage should be higher than it started
     const auto preDetachGlobalMemUsage =

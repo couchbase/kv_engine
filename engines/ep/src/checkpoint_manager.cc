@@ -532,29 +532,26 @@ CheckpointManager::ReleaseResult
 CheckpointManager::updateStatsForCheckpointRemoval(
         const CheckpointList& toRemove) {
     // Update stats and compute return value
-    size_t numNonMetaItemsRemoved = 0;
-    size_t numMetaItemsRemoved = 0;
+    size_t numItemsRemoved = 0;
     size_t memoryReleased = 0;
     for (const auto& checkpoint : toRemove) {
-        numNonMetaItemsRemoved += checkpoint->getNumItems();
-        numMetaItemsRemoved += checkpoint->getNumMetaItems();
+        numItemsRemoved += checkpoint->getNumItems();
         memoryReleased += checkpoint->getMemUsage();
         checkpoint->detachFromManager();
     }
-    numItems.fetch_sub(numNonMetaItemsRemoved + numMetaItemsRemoved);
-    stats.itemsRemovedFromCheckpoints.fetch_add(numNonMetaItemsRemoved);
+    numItems.fetch_sub(numItemsRemoved);
+    stats.itemsRemovedFromCheckpoints.fetch_add(numItemsRemoved);
     memFreedByCheckpointRemoval += memoryReleased;
 
     EP_LOG_DEBUG(
             "CheckpointManager::updateStatsForCheckpointRemoval: Removed {} "
-            "checkpoints, {} meta-items, {} non-meta-items, {} bytes from {}",
+            "checkpoints, {} items, {} bytes from {}",
             toRemove.size(),
-            numMetaItemsRemoved,
-            numNonMetaItemsRemoved,
+            numItemsRemoved,
             memoryReleased,
             vb.getId());
 
-    return {numNonMetaItemsRemoved, memoryReleased};
+    return {numItemsRemoved, memoryReleased};
 }
 
 CheckpointManager::ReleaseResult

@@ -2429,7 +2429,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     auto& ckpt_mgr =
             *(static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
     ckpt_mgr.createNewCheckpoint();
-    ASSERT_EQ(1, stats.itemsRemovedFromCheckpoints);
+    ASSERT_EQ(4, stats.itemsRemovedFromCheckpoints);
     EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 

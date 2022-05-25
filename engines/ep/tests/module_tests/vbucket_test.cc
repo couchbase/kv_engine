@@ -583,7 +583,7 @@ TEST_P(VBucketTest, DISABLED_GetItemsToPersist_Limit) {
     auto keys = generateKeys(2 /*numItems*/, 1 /*start key*/);
     setMany(keys, MutationStatus::WasClean);
     auto& manager = *vbucket->checkpointManager;
-    ASSERT_EQ(2, manager.getNumOpenChkItems());
+    ASSERT_EQ(3, manager.getNumOpenChkItems());
     ASSERT_EQ(2, manager.getNumItemsForPersistence());
 
     // Create second checkpoint
@@ -594,7 +594,7 @@ TEST_P(VBucketTest, DISABLED_GetItemsToPersist_Limit) {
     // Add items to the second checkpoint
     keys = generateKeys(3 /*numItems*/, 3 /*start key*/);
     setMany(keys, MutationStatus::WasClean);
-    EXPECT_EQ(3, manager.getNumOpenChkItems());
+    EXPECT_EQ(5, manager.getNumOpenChkItems());
     EXPECT_EQ(5, manager.getNumItemsForPersistence());
 
     // Test - fetch items with (approxLimit < size_first_ckpt), we must retrieve

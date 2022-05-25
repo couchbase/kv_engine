@@ -121,7 +121,7 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     // 1 non-metaitem is pending and contains the expected value
     it++;
-    ASSERT_EQ(1, ckpt->getNumItems());
+    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
     EXPECT_EQ(key, (*it)->getKey());
     EXPECT_EQ(value, (*it)->getValue()->to_s());
@@ -271,7 +271,7 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
     switch (res) {
     case Resolution::Commit:
         // For Commit, Prepare is in the same checkpoint.
-        ASSERT_EQ(2, ckpt->getNumItems());
+        ASSERT_EQ(3, ckpt->getNumItems());
         EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
         it++;
         EXPECT_EQ(queue_op::commit_sync_write, (*it)->getOperation());
@@ -279,7 +279,7 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
         break;
     case Resolution::Abort:
         // For Abort, the prepare is in the previous checkpoint.
-        ASSERT_EQ(1, ckpt->getNumItems());
+        ASSERT_EQ(2, ckpt->getNumItems());
         EXPECT_EQ(queue_op::abort_sync_write, (*it)->getOperation());
         EXPECT_FALSE((*it)->getValue()) << "Abort should carry no value";
         break;
@@ -418,7 +418,7 @@ TEST_P(DurabilityActiveStreamTest, BackfillDurabilityLevel) {
     flushVBucketToDiskIfPersistent(vbid, 1 /*num expected flushed*/);
 
     stream.reset();
-    removeCheckpoint(*vb, 1);
+    removeCheckpoint(*vb);
 
     recreateStream(*vb);
     ASSERT_TRUE(stream->isBackfilling());
@@ -502,7 +502,8 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
     flushVBucketToDiskIfPersistent(vbid, expected);
 
     // Ensure we have removed the prepare to backfill it
-    ASSERT_EQ(1,
+    // cs, pre, ce
+    ASSERT_EQ(3,
               stats.itemsRemovedFromCheckpoints +
                       stats.itemsExpelledFromCheckpoints);
 
@@ -561,7 +562,7 @@ TEST_P(DurabilityActiveStreamTest, BackfillHCSZero) {
 
     // remove the stream and the checkpoint to force a backfill
     stream.reset();
-    removeCheckpoint(*vb, 1);
+    removeCheckpoint(*vb);
     recreateStream(*vb);
 
     ASSERT_TRUE(stream->isBackfilling());
@@ -642,7 +643,7 @@ TEST_P(DurabilityActiveStreamTest, RemoveCorrectQueuedAckAtStreamSetDead) {
 
     // remove the stream and the checkpoint to force a backfill
     stream.reset();
-    removeCheckpoint(*vb, 1);
+    removeCheckpoint(*vb);
 
     stream = std::make_shared<MockActiveStream>(
             engine.get(), producer, 0 /*flags*/, 0 /*opaque*/, *vb);
@@ -873,7 +874,7 @@ TEST_P(DurabilityActiveStreamTest,
     stream->public_processItems(items);
 
     flushVBucketToDiskIfPersistent(vbid, 2);
-    removeCheckpoint(*vb, 2);
+    removeCheckpoint(*vb);
 
     { // Locking scope for collections handle
         auto item = makePendingItem(
@@ -902,7 +903,7 @@ TEST_P(DurabilityActiveStreamTest,
     // remove the stream and the checkpoint to force a backfill
     stream.reset();
     flushVBucketToDiskIfPersistent(vbid, 2);
-    removeCheckpoint(*vb, 2);
+    removeCheckpoint(*vb);
 
     stream = std::make_shared<MockActiveStream>(
             engine.get(), producer, 0 /*flags*/, 0 /*opaque*/, *vb);
@@ -964,7 +965,7 @@ TEST_P(DurabilityActiveStreamTest,
     // 2) Start backfill but don't process items
     // Remove the stream and the checkpoint to force a backfill
     stream.reset();
-    removeCheckpoint(*vb, 1);
+    removeCheckpoint(*vb);
 
     stream = std::make_shared<MockActiveStream>(
             engine.get(), producer, 0 /*flags*/, 0 /*opaque*/, *vb);
@@ -1023,7 +1024,7 @@ TEST_P(DurabilityActiveStreamTest, DiskSnapshotSendsHCSWithSyncRepSupport) {
 
     flushVBucketToDiskIfPersistent(vbid, 1);
     stream.reset();
-    removeCheckpoint(*vb, 2);
+    removeCheckpoint(*vb);
     recreateStream(*vb);
 
     producer->createCheckpointProcessorTask();
@@ -1489,7 +1490,8 @@ void DurabilityPassiveStreamTest::
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     it++;
 
-    ASSERT_EQ(2, ckpt->getNumItems());
+    // chk_start, prepare, commit
+    ASSERT_EQ(3, ckpt->getNumItems());
     EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
     it++;
 
@@ -2095,7 +2097,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     // 1 non-metaitem is pending and contains the expected prepared item.
     it++;
-    ASSERT_EQ(1, ckpt->getNumItems());
+    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(*qi, **it) << "Item in Checkpoint doesn't match queued_item";
 
     EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
@@ -2542,7 +2544,7 @@ void DurabilityPassiveStreamPersistentTest::
         const auto* ckpt = ckptList.back().get();
         EXPECT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
         ASSERT_EQ(1, ckpt->getNumMetaItems());
-        ASSERT_EQ(2, ckpt->getNumItems());
+        ASSERT_EQ(3, ckpt->getNumItems());
         auto it = ckpt->begin();
         EXPECT_EQ(queue_op::empty, (*it)->getOperation());
         it++;
@@ -2750,7 +2752,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepareCommit() {
     ASSERT_GT(manager.getOpenCheckpointId(), openId);
     auto* ckpt = ckptList.front().get();
     ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
-    ASSERT_EQ(0, ckpt->getNumItems());
+    ASSERT_EQ(1, ckpt->getNumItems());
 
     // Now simulate the Consumer receiving Commit for that Prepare
     ASSERT_EQ(cb::engine_errc::success,
@@ -2782,7 +2784,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepareCommit() {
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     // 1 non-metaitem is Commit and contains the expected value
     it++;
-    ASSERT_EQ(1, ckpt->getNumItems());
+    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::commit_sync_write, (*it)->getOperation());
     EXPECT_EQ(key, (*it)->getKey());
     EXPECT_TRUE((*it)->getValue());
@@ -2830,7 +2832,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpPrepareCommitPrepare) {
     ASSERT_GT(manager.getOpenCheckpointId(), openId);
     auto ckptIt = ckptList.begin();
     ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, (*ckptIt)->getState());
-    ASSERT_EQ(1, (*ckptIt)->getNumItems());
+    ASSERT_EQ(2, (*ckptIt)->getNumItems());
 
     // 2 Items in HashTable.
     EXPECT_EQ(2, vb->ht.getNumItems())
@@ -2896,7 +2898,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpAbort() {
     ASSERT_GT(manager.getOpenCheckpointId(), openId);
     auto* ckpt = ckptList.front().get();
     ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
-    ASSERT_EQ(0, ckpt->getNumItems());
+    ASSERT_EQ(1, ckpt->getNumItems());
 
     // The consumer receives an Abort for the previous Prepare.
     // Note: The call to abortReceived() above throws /after/
@@ -2928,7 +2930,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpAbort() {
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     // 1 non-metaitem is Abort and carries no value
     it++;
-    ASSERT_EQ(1, ckpt->getNumItems());
+    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::abort_sync_write, (*it)->getOperation());
     EXPECT_EQ(key, (*it)->getKey());
     EXPECT_FALSE((*it)->getValue());
@@ -5516,7 +5518,7 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
                   vb->set(*prepare, cookie, *engine, {}, cHandle));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
-    removeCheckpoint(*vb, 2);
+    removeCheckpoint(*vb);
 
     ASSERT_EQ(cb::engine_errc::success,
               vb->abort(prepare->getKey(),
@@ -5525,7 +5527,7 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
                         vb->lockCollections(prepare->getKey())));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    removeCheckpoint(*vb, 1);
+    removeCheckpoint(*vb);
 
     // Create NON sync repl DCP stream
     stream = producer->mockActiveStreamRequest(
@@ -5627,7 +5629,7 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
                   vb->set(*prepare, cookie, *engine, {}, cHandle));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
-    removeCheckpoint(*vb, 1);
+    removeCheckpoint(*vb);
 
     ASSERT_EQ(cb::engine_errc::success,
               vb->abort(key,
@@ -5636,7 +5638,7 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
                         vb->lockCollections(prepare->getKey())));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    removeCheckpoint(*vb, 1);
+    removeCheckpoint(*vb);
 
     // Create NON sync repl DCP stream
     auto stream = producer->mockActiveStreamRequest(
@@ -5734,7 +5736,7 @@ void DurabilityActiveStreamTest::
     auto mutation = store_item(vbid, key, "value");
     // drop the checkpoint to cause initial backfill
     flushVBucketToDiskIfPersistent(vbid, 1);
-    removeCheckpoint(*vb, 1);
+    removeCheckpoint(*vb);
 
     // Create NON sync repl DCP stream
     auto stream = producer->mockActiveStreamRequest(
@@ -5793,7 +5795,7 @@ void DurabilityActiveStreamTest::
                   vb->set(*prepare, cookie, *engine, {}, cHandle));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
-    removeCheckpoint(*vb, 1);
+    removeCheckpoint(*vb);
 
     ASSERT_EQ(cb::engine_errc::success,
               vb->abort(key,
@@ -5802,7 +5804,7 @@ void DurabilityActiveStreamTest::
                         vb->lockCollections(prepare->getKey())));
     // remove checkpoint to ensure stream backfills from disk
     flushVBucketToDiskIfPersistent(vbid, 1);
-    removeCheckpoint(*vb, 1);
+    removeCheckpoint(*vb);
 
     // stream transitions back to backfilling because the cursor was dropped
     resp = stream->next(*producer);

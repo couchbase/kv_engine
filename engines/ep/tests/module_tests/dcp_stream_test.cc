@@ -687,8 +687,8 @@ TEST_P(StreamTest, test_mb17766) {
 TEST_P(StreamTest, MB17653_ItemsRemaining) {
     auto& manager =
             *(engine->getKVBucket()->getVBucket(vbid)->checkpointManager);
-
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    // cs, vbs
+    ASSERT_EQ(2, manager.getNumOpenChkItems());
 
     // Create 10 mutations to the same key which, while increasing the high
     // seqno by 10 will result in de-duplication and hence only one actual
@@ -698,8 +698,8 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
         store_item(vbid, "key", "value");
     }
 
-    ASSERT_EQ(1, manager.getNumOpenChkItems())
-            << "Expected 1 items after population (set)";
+    ASSERT_EQ(3, manager.getNumOpenChkItems())
+            << "Expected 3 items after population (cs, vbs, set)";
 
     setup_dcp_stream();
 
@@ -1698,7 +1698,7 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     ASSERT_GT(manager.createNewCheckpoint(), openId);
     flushVBucketToDiskIfPersistent(vbid, 3 /*expected_num_flushed*/);
     ASSERT_EQ(1, manager.getNumCheckpoints());
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     // Re-create producer now we have items only on disk.
     setupProducer();
@@ -1783,7 +1783,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillDeletedVBucket) {
         ASSERT_GT(manager.createNewCheckpoint(), openId);
         flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
         ASSERT_EQ(1, manager.getNumCheckpoints());
-        ASSERT_EQ(0, manager.getNumOpenChkItems());
+        ASSERT_EQ(1, manager.getNumOpenChkItems());
     }
 
     auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
@@ -1853,7 +1853,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
         ASSERT_GT(manager.createNewCheckpoint(), openId);
         flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
         ASSERT_EQ(1, manager.getNumCheckpoints());
-        ASSERT_EQ(0, manager.getNumOpenChkItems());
+        ASSERT_EQ(1, manager.getNumOpenChkItems());
     }
 
     // Re-create producer now we have items only on disk, setting a scan buffer
@@ -3190,7 +3190,7 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
     ASSERT_GT(ckptMgr.createNewCheckpoint(), openId);
     flushVBucketToDiskIfPersistent(vbid, 1 /*expected_num_flushed*/);
     ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
-    ASSERT_EQ(0, ckptMgr.getNumOpenChkItems());
+    ASSERT_EQ(1, ckptMgr.getNumOpenChkItems());
 
     // Re-create producer now we have items only on disk. We want to stream up
     // to seqno 1 (our only item) to test that we get the StreamEnd message.
@@ -3515,7 +3515,7 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
         EXPECT_EQ(queue_op::set_vbucket_state, (*it)->getOperation());
         // 1 non-metaitem is our deletion
         it++;
-        ASSERT_EQ(1, ckpt->getNumItems());
+        ASSERT_EQ(4, ckpt->getNumItems());
         ASSERT_TRUE((*it)->isDeleted());
         const auto expectedOp =
                 durReqs ? queue_op::pending_sync_write : queue_op::mutation;
@@ -3723,7 +3723,7 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
     auto* ckpt = list.front().get();
     ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
     ASSERT_EQ(2, ckpt->getNumMetaItems());
-    ASSERT_EQ(1, ckpt->getNumItems());
+    ASSERT_EQ(3, ckpt->getNumItems());
     auto it = ckpt->begin(); // empty-item
     it++; // checkpoint-start
     it++; // set-vbstate
@@ -3815,32 +3815,32 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
     }
 }
 
-TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody_Pre66) {
+TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_Pre66) {
     testExpirationRemovesBody(0, Xattrs::None);
 }
 
-TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody_Pre66_UserXa) {
+TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_Pre66_UserXa) {
     testExpirationRemovesBody(0, Xattrs::User);
 }
 
 TEST_P(SingleThreadedActiveStreamTest,
-       testExpirationRemovesBody_Pre66_UserXa_SysXa) {
+       ExpirationRemovesBody_Pre66_UserXa_SysXa) {
     testExpirationRemovesBody(0, Xattrs::UserAndSys);
 }
 
-TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody) {
+TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody) {
     using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
                               Xattrs::None);
 }
 
-TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody_UserXa) {
+TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_UserXa) {
     using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
                               Xattrs::User);
 }
 
-TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody_UserXa_SysXa) {
+TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_UserXa_SysXa) {
     using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
                               Xattrs::UserAndSys);
@@ -3879,7 +3879,7 @@ TEST_P(SingleThreadedActiveStreamTest, NoValueStreamBackfillsFullSystemEvent) {
     ASSERT_GT(manager.createNewCheckpoint(), openId);
     flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
     ASSERT_EQ(1, manager.getNumCheckpoints());
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     // Re-create producer and stream
     const std::string jsonFilter =
@@ -3944,7 +3944,8 @@ protected:
             ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
             flushVBucketToDiskIfPersistent(vbid, 3);
         }
-        ASSERT_EQ(3, stats.itemsRemovedFromCheckpoints);
+        // cs, vbs, 3 mut(s), ce
+        ASSERT_EQ(6, stats.itemsRemovedFromCheckpoints);
 
         // Re-create the stream now we have items only on disk.
         stream = producer->mockActiveStreamRequest(0 /*flags*/,
@@ -4053,7 +4054,8 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_EQ(CheckpointType::Memory, ckptList.front()->getCheckpointType());
     ASSERT_EQ(0, ckptList.front()->getSnapshotStartSeqno());
     ASSERT_EQ(0, ckptList.front()->getSnapshotEndSeqno());
-    ASSERT_EQ(0, ckptList.front()->getNumItems());
+    // cs, vbs
+    ASSERT_EQ(2, ckptList.front()->getNumItems());
     ASSERT_EQ(0, manager.getHighSeqno());
 
     // Replica receives a complete disk snapshot {keyA:1, keyB:2}
@@ -4072,7 +4074,8 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_TRUE(ckptList.front()->isDiskCheckpoint());
     ASSERT_EQ(1, ckptList.front()->getSnapshotStartSeqno());
     ASSERT_EQ(2, ckptList.front()->getSnapshotEndSeqno());
-    ASSERT_EQ(0, ckptList.front()->getNumItems());
+    // cs
+    ASSERT_EQ(1, ckptList.front()->getNumItems());
     ASSERT_EQ(0, manager.getHighSeqno());
 
     const auto keyA = makeStoredDocKey("keyA");
@@ -4112,7 +4115,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_TRUE(ckptList.front()->isDiskCheckpoint());
     ASSERT_EQ(1, ckptList.front()->getSnapshotStartSeqno());
     ASSERT_EQ(2, ckptList.front()->getSnapshotEndSeqno());
-    ASSERT_EQ(2, ckptList.front()->getNumItems());
+    ASSERT_EQ(3, ckptList.front()->getNumItems());
     ASSERT_EQ(2, manager.getHighSeqno());
 
     // Move the persistence cursor to point to keyB:2.
@@ -4149,7 +4152,8 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_EQ(CHECKPOINT_OPEN, ckptList.front()->getState());
     ASSERT_EQ(3, ckptList.front()->getSnapshotStartSeqno());
     ASSERT_EQ(3, ckptList.front()->getSnapshotEndSeqno());
-    ASSERT_EQ(0, ckptList.front()->getNumItems());
+    // cs
+    ASSERT_EQ(1, ckptList.front()->getNumItems());
     ASSERT_EQ(2, manager.getHighSeqno());
 
     // Now replica receives a doc within the new Memory snapshot.
@@ -4179,7 +4183,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_EQ(CHECKPOINT_OPEN, ckptList.back()->getState());
     ASSERT_EQ(3, ckptList.back()->getSnapshotStartSeqno());
     ASSERT_EQ(3, ckptList.back()->getSnapshotEndSeqno());
-    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(2, ckptList.back()->getNumItems());
     ASSERT_EQ(3, manager.getHighSeqno());
 
     // Another SnapMarker with no MARKER_FLAG_CHK
@@ -4206,7 +4210,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_EQ(CHECKPOINT_OPEN, ckptList.back()->getState());
     ASSERT_EQ(3, ckptList.back()->getSnapshotStartSeqno());
     ASSERT_EQ(4, ckptList.back()->getSnapshotEndSeqno());
-    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(2, ckptList.back()->getNumItems());
     ASSERT_EQ(3, manager.getHighSeqno());
 
     // Now replica receives again keyC. KeyC is in the KeyIndex of the
@@ -4251,7 +4255,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_EQ(CHECKPOINT_OPEN, ckptList.back()->getState());
     ASSERT_EQ(3, ckptList.back()->getSnapshotStartSeqno());
     ASSERT_EQ(4, ckptList.back()->getSnapshotEndSeqno());
-    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(2, ckptList.back()->getNumItems());
     ASSERT_EQ(4, manager.getHighSeqno());
 }
 
@@ -4286,7 +4290,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillRangeCoversAllDataInTheStorage) {
     ASSERT_GT(manager.createNewCheckpoint(), openId);
     flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
     ASSERT_EQ(1, manager.getNumCheckpoints());
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     // Move high-seqno to 4
     const auto keyC = makeStoredDocKey("keyC");
@@ -4382,7 +4386,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB_45757) {
     ASSERT_GT(manager.createNewCheckpoint(), openId);
     flushVBucketToDiskIfPersistent(vbid, 1 /*expected_num_flushed*/);
     ASSERT_EQ(1, manager.getNumCheckpoints());
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     // Re-create the old producer and stream
     recreateProducerAndStream(vb, 0 /*flags*/);

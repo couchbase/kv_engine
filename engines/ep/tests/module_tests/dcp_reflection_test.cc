@@ -1147,12 +1147,17 @@ TEST_P(DCPLoopbackStreamTest, MB50874_DeDuplicatedMutationsReplicaToActive) {
     // queue the next mutations a new checkpoints is created.
     auto srcVB = engines[Node0]->getVBucket(vbid);
     auto& manager = *srcVB->checkpointManager;
+    size_t numItemsClosed = 0;
     for (size_t i = 0; manager.getNumCheckpoints() < 2; ++i) {
         auto key = makeStoredDocKey("key_" + std::to_string(i));
         ASSERT_EQ(cb::engine_errc::success, storeSet(key));
+        ++numItemsClosed;
     }
+    // 1 item was queued into the new open checkpoint
+    --numItemsClosed;
     ASSERT_EQ(2, manager.getNumCheckpoints());
-    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    // cs + 1 mut
+    ASSERT_EQ(2, manager.getNumOpenChkItems());
 
     // Now modify one more key, which should create a new Checkpoint.
     auto key = makeStoredDocKey("deduplicated_key");
@@ -1161,11 +1166,6 @@ TEST_P(DCPLoopbackStreamTest, MB50874_DeDuplicatedMutationsReplicaToActive) {
     ASSERT_EQ(cb::engine_errc::success, storeSet(key));
     // Sanity check our state - still 2 checkpoints
     ASSERT_EQ(2, manager.getNumCheckpoints());
-
-    const auto& ckptList =
-            CheckpointManagerTestIntrospector::public_getCheckpointList(
-                    manager);
-    const auto numItemsClosed = ckptList.front()->getNumItems();
 
     // Create a DCP connection between node0 and 1, and stream the initial
     // marker and the numItemsClosed mutations.

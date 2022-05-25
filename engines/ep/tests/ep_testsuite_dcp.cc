@@ -2033,7 +2033,8 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h) {
               EngineParamCategory::Checkpoint,
               "checkpoint_memory_recovery_upper_mark",
               "0");
-    wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", firstCkptNumItems);
+    wait_for_stat_to_be_gte(
+            h, "ep_items_rm_from_checkpoints", firstCkptNumItems);
     set_param(h,
               EngineParamCategory::Checkpoint,
               "checkpoint_memory_recovery_upper_mark",
@@ -2063,9 +2064,9 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h) {
               EngineParamCategory::Checkpoint,
               "checkpoint_memory_recovery_upper_mark",
               "0");
-    wait_for_stat_to_be(h,
-                        "ep_items_rm_from_checkpoints",
-                        firstCkptNumItems + secondCkptNumItems);
+    wait_for_stat_to_be_gte(h,
+                            "ep_items_rm_from_checkpoints",
+                            firstCkptNumItems + secondCkptNumItems);
 
     // Stop persistece (so the persistence cursor cannot advance into the
     // deletions below, and hence de-dupe them with respect to the
@@ -2084,10 +2085,10 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h) {
     }
 
     // 3rd checkpoint is expected to store 1 mutation + all the deletes for keys
-    // queued into the 1st checkpoint
+    // queued into the 1st checkpoint + checkpoint_start
     const auto thirdCkptNumItems =
             get_ull_stat(h, "vb_0:num_open_checkpoint_items", "checkpoint");
-    checkeq(firstCkptNumItems + 1, thirdCkptNumItems, "");
+    checkeq(firstCkptNumItems + 1 + 1, thirdCkptNumItems, "");
 
     auto* cookie = testHarness->create_cookie(h);
 
@@ -2412,7 +2413,7 @@ static enum test_result test_dcp_producer_disk_backfill_buffer_limits(
 
     /* Wait for the checkpoint to be removed so that upon DCP connection
        backfill is scheduled */
-    wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", num_items);
+    wait_for_stat_to_be_gte(h, "ep_items_rm_from_checkpoints", num_items);
 
     auto* cookie = testHarness->create_cookie(h);
 

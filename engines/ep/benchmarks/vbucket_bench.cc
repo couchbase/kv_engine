@@ -508,7 +508,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
         // expelling numItems
         loadItemsAndMovePersistenceCursor(numItems + 1, 1024);
         ASSERT_EQ(1, manager.getNumCheckpoints());
-        ASSERT_EQ(numItems + 1, manager.getNumOpenChkItems());
+        ASSERT_EQ(1 + (numItems + 1), manager.getNumOpenChkItems());
         // Note: Checkpoint type set after loading items, as the above call
         //  resets the CM before loading, so any previous setup is lost
         CheckpointManagerTestIntrospector::setOpenCheckpointType(manager,
@@ -533,7 +533,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
             queueItem("extra", "");
             manager.createNewCheckpoint();
             ASSERT_EQ(2, manager.getNumCheckpoints());
-            ASSERT_EQ(0, manager.getNumOpenChkItems());
+            ASSERT_EQ(1, manager.getNumOpenChkItems());
             // numItems + 1
             // + extra
             // + 2 meta-items in closed checkpoint

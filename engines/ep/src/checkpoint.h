@@ -296,10 +296,11 @@ public:
     }
 
     /**
-     * Return the number of non-meta items belonging to this checkpoint.
+     * Return the number of all items belonging to this checkpoint, empty item
+     * excluded.
      */
     size_t getNumItems() const {
-        return numItems;
+        return toWrite.size() - 1;
     }
 
     /**
