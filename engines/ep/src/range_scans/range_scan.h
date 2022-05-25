@@ -77,6 +77,8 @@ public:
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
             std::optional<cb::rangescan::SamplingConfiguration> samplingConfig);
 
+    ~RangeScan();
+
     /**
      * Continue the range scan by calling kvstore.scan()
      *
@@ -99,6 +101,9 @@ public:
     /// @return true if the scan is cancelled
     bool isCancelled() const;
 
+    /// @return true if the scan is completed (reached the end)
+    bool isCompleted() const;
+
     /// change the state of the scan to Idle
     void setStateIdle(cb::engine_errc status);
 
@@ -114,6 +119,9 @@ public:
 
     /// change the state of the scan to Cancelled
     void setStateCancelled();
+
+    /// change the state of the scan to Completed
+    void setStateCompleted();
 
     /// @return the vbucket ID owning this scan
     Vbid getVBucketId() const {
@@ -270,15 +278,41 @@ protected:
     } continueLimits;
 
     /**
-     * RangeScan has a state with the following legal transitions. Also
-     * shown is the operation which makes that transition.
+     * Idle: The scan is awaiting a range-scan-continue or a cancel event.
+     * Continuing: The scan is contiuning, this state covers the point from
+     *             processing the range-scan-continue, waiting for a task and
+     *             whilst scanning on the task.
+     * Cancelled: A cancellation occurred - this could be a client request or
+     *            some other issue (timeout, vbucket state change). When a
+     *            scan is in this state, the VB::RangeScanOwner does not have
+     *            the scan any more, but note that the object (via shared_ptr)
+     *            could be queued waiting for a task or running on the task.
+     * Completed: A scan reached the end of the range. When a scan is in this
+     *            state, the VB::RangeScanOwner does not have the scan.
+     *            Only a small part of the RangeScanContinueTask can still have
+     *            a reference to the scan (via a shared_ptr).
      *
-     * Idle->Continuing  (via range-scan-continue)
-     * Idle->Cancelled (via range-scan-cancel)
-     * Continuing->Idle (via I/O task after a successful continue)
-     * Continuing->Cancelled (via range-scan-cancel)
+     * The following transitions can occur:
+     *
+     * Idle -> Continuing
+     *   - range-scan-continue
+     * Continuing -> Idle
+     *   - RangeScanCreateTask when a scan must Yield
+     * Continuing -> Completed
+     *   - RangeScanCreateTask calling EPVbucket::completeRangeScan() because
+     *     scan reached the end.
+     * Continuing -> Cancelled
+     *   - RangeScanCreateTask calling EPVBucket::cancelRangeScan because a
+     *     KVStore::scan failure or runtime state change occurred.
+     *   - range-scan-cancel
+     *   - VB::~RangeScanOwner (~VBucket path)
+     *   - RangeScanWatchDog
+     * Idle -> Cancelled
+     *   - range-scan-cancel
+     *   - VB::~RangeScanOwner (~VBucket path)
+     *   - RangeScanWatchDog
      */
-    enum class State : char { Idle, Continuing, Cancelled };
+    enum class State : char { Idle, Continuing, Cancelled, Completed };
 
     /**
      * The 'continue' state of the scan is updated from different threads.

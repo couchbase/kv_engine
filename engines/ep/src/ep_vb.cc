@@ -37,6 +37,7 @@
 #include "vbucket_queue_item_ctx.h"
 #include "vbucket_state.h"
 #include "vbucketdeletiontask.h"
+#include <boost/uuid/uuid_io.hpp>
 #include <executor/executorpool.h>
 #include <folly/lang/Assume.h>
 #include <gsl/gsl-lite.hpp>
@@ -1402,8 +1403,16 @@ cb::engine_errc EPVBucket::cancelRangeScan(cb::rangescan::Id id,
         return status;
     }
 
+    if (status == cb::engine_errc::success) {
+        EP_LOG_INFO("{} RangeScan {} cancelled by request", getId(), id);
+    }
+
     ExecutorPool::get()->schedule(std::make_shared<RangeScanContinueTask>(
             dynamic_cast<EPBucket&>(*bucket)));
     // The client doesn't wait for the task to run/complete
     return cb::engine_errc::success;
+}
+
+void EPVBucket::completeRangeScan(cb::rangescan::Id id) {
+    rangeScans.completeScan(id);
 }

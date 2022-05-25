@@ -48,6 +48,14 @@ std::shared_ptr<RangeScan> ReadyRangeScans::takeNextScan() {
 VB::RangeScanOwner::RangeScanOwner(ReadyRangeScans* scans) : readyScans(scans) {
 }
 
+VB::RangeScanOwner::~RangeScanOwner() {
+    auto locked = rangeScans.wlock();
+    for (const auto& [id, scan] : *locked) {
+        // mark everything we know as cancelled
+        scan->setStateCancelled();
+    }
+}
+
 cb::engine_errc VB::RangeScanOwner::addNewScan(
         std::shared_ptr<RangeScan> scan) {
     Expects(readyScans);
@@ -97,28 +105,20 @@ cb::engine_errc VB::RangeScanOwner::continueScan(
 cb::engine_errc VB::RangeScanOwner::cancelScan(cb::rangescan::Id id,
                                                bool addScan) {
     Expects(readyScans);
-    EP_LOG_DEBUG("VB::RangeScanOwner::cancelScan {}", id);
-    auto locked = rangeScans.wlock();
-    auto itr = locked->find(id);
-    if (itr == locked->end()) {
+    EP_LOG_DEBUG("VB::RangeScanOwner::cancelScan {} addScan:{}", id, addScan);
+    auto scan = processScanRemoval(id, true);
+    if (!scan) {
         return cb::engine_errc::no_such_key;
     }
-
-    // Set to cancel
-    itr->second->setStateCancelled();
-
-    // obtain the scan
-    auto scan = itr->second;
-
-    // Erase from the map, no further continue/cancel allowed.
-    locked->erase(itr);
 
     if (addScan) {
         // Make the scan available to I/O task(s) for final closure of data file
         readyScans->addScan(scan);
     }
-    // scan should now destruct here (!addScan) - this case is used when the
-    // I/O task itself calls cancelRangeScan, not when the worker thread does
+
+    // scan should now destruct here if addScan==false this case is used when
+    // the I/O task itself calls cancelRangeScan, not when the worker thread
+    // does.
 
     return cb::engine_errc::success;
 }
@@ -131,4 +131,29 @@ std::shared_ptr<RangeScan> VB::RangeScanOwner::getScan(
         return {};
     }
     return itr->second;
+}
+
+void VB::RangeScanOwner::completeScan(cb::rangescan::Id id) {
+    processScanRemoval(id, false);
+}
+
+std::shared_ptr<RangeScan> VB::RangeScanOwner::processScanRemoval(
+        cb::rangescan::Id id, bool cancelled) {
+    std::shared_ptr<RangeScan> scan;
+    auto locked = rangeScans.wlock();
+    auto itr = locked->find(id);
+    if (itr == locked->end()) {
+        return {};
+    }
+    // obtain the scan
+    scan = itr->second;
+    if (cancelled) {
+        scan->setStateCancelled();
+    } else {
+        scan->setStateCompleted();
+    }
+
+    // Erase from the map, no further continue/cancel allowed.
+    locked->erase(itr);
+    return scan;
 }

@@ -53,10 +53,9 @@ bool RangeScanCreateTask::run() {
     try {
         std::tie(status, scanData->uuid) = create();
     } catch (const cb::engine_error& e) {
-        EP_LOG_WARN(
-                "RangeScanCreateTask::run() failed to create RangeScan "
-                "exception:{}",
-                e.what());
+        // Failure induced by KV will have logged, e.g. KVStore open failures.
+        // Failure induced by the user (e.g. empty range) has no need to log
+        engine->setErrorContext(&cookie, e.what());
         status = cb::engine_errc(e.code().value());
         // create failure, clear out cookie (this object will free the data
         // which was "there")

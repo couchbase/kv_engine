@@ -66,6 +66,12 @@ public:
     RangeScanOwner(ReadyRangeScans* scans);
 
     /**
+     * Destructor will mark all scans as cancelled, thus if any scans happen
+     * to be on task or waiting, they come to a 'quick' end
+     */
+    ~RangeScanOwner();
+
+    /**
      * Add a new scan to the set of available scans.
      *
      * @param scan to add
@@ -93,8 +99,9 @@ public:
                                  std::chrono::milliseconds timeLimit);
 
     /**
-     * Handler for a range-scan-cancel operation. Method will locate the
-     * scan and mark it cancelled and remove it from the set of known scans.
+     * Handler for a range-scan-cancel operation or a force cancel due to some
+     * error. Method will locate the scan and mark it cancelled and remove it
+     * from the set of known scans.
      *
      * Failure to locate the scan -> cb::engine_errc::no_such_key
      * @param id of the scan to cancel
@@ -108,7 +115,20 @@ public:
      */
     std::shared_ptr<RangeScan> getScan(cb::rangescan::Id id) const;
 
+    /**
+     * Handler for completed scans. A completed scan will be removed from the
+     * set of known scans and allowed to destruct. The destruction is intended
+     * to happen in the caller. It is possible that this call does nothing if
+     * a cancellation occurs ahead of this call.
+     *
+     * @param id scan to complete
+     */
+    void completeScan(cb::rangescan::Id id);
+
 protected:
+    std::shared_ptr<RangeScan> processScanRemoval(cb::rangescan::Id id,
+                                                  bool cancelled);
+
     ReadyRangeScans* readyScans;
 
     /**

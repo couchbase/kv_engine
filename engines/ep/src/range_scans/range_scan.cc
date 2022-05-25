@@ -50,7 +50,14 @@ RangeScan::RangeScan(
     // members which must be initialised first
     uuid = createScan(cookie, bucket, snapshotReqs, samplingConfig);
 
-    EP_LOG_DEBUG("RangeScan {} created for {}", uuid, getVBucketId());
+    EP_LOG_INFO("{} RangeScan {} created", getVBucketId(), uuid);
+}
+
+RangeScan::~RangeScan() {
+    EP_LOG_INFO("{} RangeScan {} finished in state:{}",
+                getVBucketId(),
+                uuid,
+                continueState.rlock()->state);
 }
 
 cb::rangescan::Id RangeScan::createScan(
@@ -221,11 +228,9 @@ cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
 
     // Only attempt scan when !cancelled
     if (isCancelled()) {
-        EP_LOG_DEBUG("RangeScan {} is cancelled for {}", uuid, getVBucketId());
         // ensure the client/cookie sees cancelled
         handleStatus(cb::engine_errc::range_scan_cancelled);
-        // but return success so the scan now gets cleaned-up
-        return cb::engine_errc::success;
+        return cb::engine_errc::range_scan_cancelled;
     } else if (isTotalLimitReached()) {
         // No point scanning if the total has been hit. Change to Idle and
         // return success. Any waiting client will see the complete status and
@@ -248,32 +253,30 @@ cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
         // must be read again. We adjust the startKey so we continue from next
         scanCtx->ranges[0].startKey.append(0);
 
-        // return too_busy status so scan is eligible for further continue
-        return cb::engine_errc::too_busy;
+        // return range_scan_more status so scan can continue
+        return cb::engine_errc::range_scan_more;
     }
     case ScanStatus::Success:
         // Scan has reached the end
-        setStateIdle(cb::engine_errc::range_scan_complete);
-        break;
-    case ScanStatus::Cancelled:
-        // Scan cannot continue and has been cancelled, e.g. vbucket has gone
-        // The engine_err has been passed to the handler already
-        break;
+        handleStatus(cb::engine_errc::range_scan_complete);
+        return cb::engine_errc::success;
     case ScanStatus::Failed:
         // Scan cannot continue due to KVStore failure
         handleStatus(cb::engine_errc::failed);
-        break;
+    case ScanStatus::Cancelled:
+        // Scan cannot continue, it has been cancelled, e.g. the "handler"
+        // spotted the vbucket is no loner compatible. In this case an
+        // appropriate engine_errc has already been passed to
+        // handler::handleStatus at the point it detected the issue.
+
+        // For both Failed/Cancelled return range_scan_cancelled so the caller
+        // knows this scan is to be cancelled (leading to the destruction of
+        // this object)
+        return cb::engine_errc::range_scan_cancelled;
     }
-
-    EP_LOG_DEBUG("RangeScan {} complete with status:{} for {}",
-                 uuid,
-                 status,
-                 getVBucketId());
-
-    // For Success/Cancelled/Failed return success. The actual client visible
-    // status has been push though handleStatus. The caller of this method only
-    // needs too_busy (for Yield) or success (please cancel and clean-up)
-    return cb::engine_errc::success;
+    throw std::runtime_error(
+            "RangeScan::continueScan all case statements should return a "
+            "status");
 }
 
 bool RangeScan::isIdle() const {
@@ -288,11 +291,16 @@ bool RangeScan::isCancelled() const {
     return continueState.rlock()->state == State::Cancelled;
 }
 
+bool RangeScan::isCompleted() const {
+    return continueState.rlock()->state == State::Completed;
+}
+
 void RangeScan::setStateIdle(cb::engine_errc status) {
     continueState.withWLock([](auto& cs) {
         switch (cs.state) {
         case State::Idle:
         case State::Cancelled:
+        case State::Completed:
             throw std::runtime_error(fmt::format(
                     "RangeScan::setStateIdle invalid state:{}", cs.state));
         case State::Continuing:
@@ -323,6 +331,7 @@ void RangeScan::setStateContinuing(const CookieIface& client,
         switch (cs.state) {
         case State::Continuing:
         case State::Cancelled:
+        case State::Completed:
             throw std::runtime_error(fmt::format(
                     "RangeScan::setStateContinuing invalid state:{}",
                     cs.state));
@@ -340,11 +349,27 @@ void RangeScan::setStateCancelled() {
     continueState.withWLock([](auto& cs) {
         switch (cs.state) {
         case State::Cancelled:
+        case State::Completed:
             throw std::runtime_error(fmt::format(
                     "RangeScan::setStateCancelled invalid state:{}", cs.state));
         case State::Idle:
         case State::Continuing:
             cs.state = State::Cancelled;
+            break;
+        }
+    });
+}
+
+void RangeScan::setStateCompleted() {
+    continueState.withWLock([](auto& cs) {
+        switch (cs.state) {
+        case State::Completed:
+        case State::Cancelled:
+        case State::Idle:
+            throw std::runtime_error(fmt::format(
+                    "RangeScan::setStateCompleted invalid state:{}", cs.state));
+        case State::Continuing:
+            cs.state = State::Completed;
             break;
         }
     });
@@ -516,6 +541,8 @@ std::ostream& operator<<(std::ostream& os, const RangeScan::State& state) {
         return os << "State::Continuing";
     case RangeScan::State::Cancelled:
         return os << "State::Cancelled";
+    case RangeScan::State::Completed:
+        return os << "State::Completed";
     }
     throw std::runtime_error(
             fmt::format("RangeScan::State ostream operator<< invalid state:{}",

@@ -12,6 +12,7 @@
 
 #include "ep_bucket.h"
 #include "ep_engine.h"
+#include "ep_vb.h"
 #include "vbucket.h"
 
 #include <phosphor/phosphor.h>
@@ -45,8 +46,11 @@ void RangeScanContinueTask::continueScan(RangeScan& scan) {
             scan.continueScan(*bucket.getRWUnderlying(scan.getVBucketId()));
 
     if (status == cb::engine_errc::success) {
-        // success is used in all cases where the scan is now complete (even if
-        // it was  an error). The scan must now be cancelled
+        auto vb = bucket.getVBucket(scan.getVBucketId());
+        if (vb) {
+            dynamic_cast<EPVBucket&>(*vb).completeRangeScan(scan.getUuid());
+        }
+    } else if (status != cb::engine_errc::range_scan_more) {
         auto vb = bucket.getVBucket(scan.getVBucketId());
         if (vb) {
             // Note this may return a failure, which we are ignoring
@@ -58,8 +62,6 @@ void RangeScanContinueTask::continueScan(RangeScan& scan) {
                                 nullptr /* no cookie */,
                                 false /* no schedule*/);
         }
-        return;
     }
-
-    Expects(status == cb::engine_errc::too_busy);
+    // else scan can be continued
 }

@@ -994,8 +994,8 @@ TEST_P(RangeScanTest, scan_detects_vbucket_change_during_continue) {
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
 
-    // The scan task detected the change and set the status to not_my_vbucket
-    EXPECT_EQ(cb::engine_errc::not_my_vbucket, status);
+    // The scan task detected that it was cancelled
+    EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
 
     // scan has gone now
     EXPECT_EQ(cb::engine_errc::no_such_key,

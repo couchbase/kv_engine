@@ -323,6 +323,15 @@ public:
      */
     cb::engine_errc addNewRangeScan(std::shared_ptr<RangeScan> scan);
 
+    /**
+     * Locate the scan with the given id and remove it from the set of known
+     * scans, marking as complete. Note the scan may genuinely not exist due
+     * to a cancellation getting ahead of this call, or even a vbucket state
+     * change (this is no longer the vbucket which created the scan).
+     * @param id uuid of the scan to mark as complete
+     */
+    void completeRangeScan(cb::rangescan::Id id);
+
 protected:
     /**
      * queue a background fetch of the specified item.
