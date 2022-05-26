@@ -157,10 +157,6 @@ void FrontEndThread::dispatch_new_connections() {
 }
 
 void notifyIoComplete(Cookie& cookie, cb::engine_errc status) {
-    using cb::tracing::SpanStopwatch;
-    ScopeTimer<SpanStopwatch> timer(
-            std::forward_as_tuple(cookie, cb::tracing::Code::NotifyIoComplete));
-
     auto& thr = cookie.getConnection().getThread();
     thr.eventBase.runInEventBaseThreadAlwaysEnqueue([&cookie, status]() {
         TRACE_LOCKGUARD_TIMED(cookie.getConnection().getThread().mutex,
