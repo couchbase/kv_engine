@@ -1253,7 +1253,19 @@ int main(int argc, char** argv) {
     }
     setupWindowsDebugCRTAssertHandling();
 
+    // peek at the arguments to check if we're just going to dump the tests
+    bool list_tests = false;
+    for (int ii = 1; ii < argc; ++ii) {
+        if (std::string_view{"--gtest_list_tests"} == argv[ii]) {
+            list_tests = true;
+        }
+    }
+
     ::testing::InitGoogleTest(&argc, argv);
+
+    if (list_tests) {
+        return (RUN_ALL_TESTS());
+    }
 
 #ifndef WIN32
     /*
