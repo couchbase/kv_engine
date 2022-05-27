@@ -76,11 +76,11 @@ CheckpointManager::CheckpointManager(EPStats& st,
 CheckpointManager::~CheckpointManager() = default;
 
 uint64_t CheckpointManager::getOpenCheckpointId(
-        const std::lock_guard<std::mutex>& lh) {
+        const std::lock_guard<std::mutex>& lh) const {
     return getOpenCheckpoint(lh).getId();
 }
 
-uint64_t CheckpointManager::getOpenCheckpointId() {
+uint64_t CheckpointManager::getOpenCheckpointId() const {
     std::lock_guard<std::mutex> lh(queueLock);
     return getOpenCheckpointId(lh);
 }
