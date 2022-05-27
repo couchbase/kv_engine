@@ -147,9 +147,7 @@ User UserFactory::create(const std::string& unm, const std::string& passwd) {
     ret.password[Mechanism::PLAIN] = User::PasswordMetaData{hash};
 
     for (const auto& info : algo_info) {
-        if (cb::crypto::isSupported(info.algoritm)) {
-            ret.generateSecrets(info.mech, passwd);
-        }
+        ret.generateSecrets(info.mech, passwd);
     }
 
     return ret;

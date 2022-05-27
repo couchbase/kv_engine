@@ -20,25 +20,7 @@
 namespace cb::sasl::server {
 
 std::string listmech() {
-    std::string ret;
-
-    using namespace cb::crypto;
-
-    if (isSupported(Algorithm::SHA512)) {
-        ret.append("SCRAM-SHA512 ");
-    }
-
-    if (isSupported(Algorithm::SHA256)) {
-        ret.append("SCRAM-SHA256 ");
-    }
-
-    if (isSupported(Algorithm::SHA1)) {
-        ret.append("SCRAM-SHA1 ");
-    }
-
-    ret.append("PLAIN");
-
-    return ret;
+    return "SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1 PLAIN";
 }
 
 std::pair<cb::sasl::Error, std::string_view> ServerContext::start(

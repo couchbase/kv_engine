@@ -563,23 +563,6 @@ std::string cb::crypto::PBKDF2_HMAC(const Algorithm algorithm,
                                 std::to_string((int)algorithm));
 }
 
-static inline void verifyLegalAlgorithm(const cb::crypto::Algorithm al) {
-    switch (al) {
-    case cb::crypto::Algorithm::SHA1:
-    case cb::crypto::Algorithm::SHA256:
-    case cb::crypto::Algorithm::SHA512:
-        return;
-    }
-    throw std::invalid_argument("verifyLegalAlgorithm: Unknown Algorithm: " +
-                                std::to_string((int)al));
-}
-
-bool cb::crypto::isSupported(const Algorithm algorithm) {
-    verifyLegalAlgorithm(algorithm);
-
-    return true;
-}
-
 std::string cb::crypto::digest(const Algorithm algorithm,
                                std::string_view data) {
     TRACE_EVENT1("cbcrypto", "digest", "algorithm", int(algorithm));

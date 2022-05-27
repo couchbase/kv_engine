@@ -10,6 +10,7 @@
  */
 
 #include "check_password.h"
+#include "../cbcrypto.h"
 
 #include "../cbcrypto.h"
 #include <cbsasl/logging.h>

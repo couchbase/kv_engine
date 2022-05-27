@@ -16,27 +16,10 @@
 #include <algorithm>
 #include <cstdlib>
 
-static std::string mechanisms;
-
 class SaslServerTest : public ::testing::Test {
 protected:
     static void SetUpTestCase() {
         setenv("CBSASL_PWFILE", SOURCE_ROOT "/cbsasl/sasl_server_test.json", 1);
-
-        using namespace cb::crypto;
-        if (isSupported(Algorithm::SHA512)) {
-            mechanisms.append("SCRAM-SHA512 ");
-        }
-
-        if (isSupported(Algorithm::SHA256)) {
-            mechanisms.append("SCRAM-SHA256 ");
-        }
-
-        if (isSupported(Algorithm::SHA1)) {
-            mechanisms.append("SCRAM-SHA1 ");
-        }
-
-        mechanisms.append("PLAIN");
         cb::sasl::server::initialize();
     }
 
@@ -50,6 +33,8 @@ protected:
 };
 
 TEST_F(SaslServerTest, ListMechs) {
+    auto mechanisms =
+            std::string_view{"SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1 PLAIN"};
     EXPECT_EQ(mechanisms, cb::sasl::server::listmech());
 }
 
