@@ -11,7 +11,6 @@
 #include "sasl_refresh_command_context.h"
 
 #include <cbsasl/mechanism.h>
-#include <cbsasl/user.h>
 #include <daemon/connection.h>
 #include <daemon/one_shot_task.h>
 #include <daemon/settings.h>

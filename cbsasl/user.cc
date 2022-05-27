@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "cbcrypto.h"
 #include <cbsasl/user.h>
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>

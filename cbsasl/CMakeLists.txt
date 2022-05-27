@@ -1,4 +1,5 @@
 add_library(cbsasl STATIC
+            cbcrypto.cc
             client.cc
             context.cc
             domain.cc
@@ -28,11 +29,22 @@ target_link_libraries(cbsasl
         PUBLIC
                 platform
         PRIVATE
-                cbcrypto
                 mcd_util)
 add_sanitizers(cbsasl)
 
+if (APPLE)
+    # Apple is using the Common Crypto Framework for all crypto functions
+    target_link_libraries(cbsasl PRIVATE platform phosphor)
+elseif (WIN32)
+    # We're using Bcrypt on windows
+    target_link_libraries(cbsasl PRIVATE platform phosphor Bcrypt)
+else()
+    # Use the OpenSSL ones for all other platforms
+    target_link_libraries(cbsasl PRIVATE platform phosphor ${OPENSSL_LIBRARIES})
+endif ()
+
 cb_add_test_executable(cbsasl_unit_test
+                       cbcrypto_test.cc
                        client_server_test.cc
                        password_database_test.cc
                        sasl_server_test.cc
@@ -43,7 +55,6 @@ kv_enable_pch(cbsasl_unit_test)
 target_link_libraries(cbsasl_unit_test
         PRIVATE
                 cbsasl
-                cbcrypto
                 GTest::gtest
                 GTest::gtest_main
                 platform)

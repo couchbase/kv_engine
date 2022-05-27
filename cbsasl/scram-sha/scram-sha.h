@@ -20,12 +20,13 @@
  * don't advertise the -PLUS)
  */
 
+#include "../cbcrypto.h"
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>
+#include <cbsasl/user.h>
 #include <array>
 #include <iostream>
 #include <vector>
-#include "cbsasl/user.h"
 
 namespace cb::sasl::mechanism::scram {
 

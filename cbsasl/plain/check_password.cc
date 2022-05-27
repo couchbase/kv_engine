@@ -11,6 +11,7 @@
 
 #include "check_password.h"
 
+#include "../cbcrypto.h"
 #include <cbsasl/logging.h>
 #include <utilities/logtags.h>
 

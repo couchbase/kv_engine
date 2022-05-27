@@ -10,6 +10,7 @@
 
 #include "pwfile.h"
 
+#include "cbcrypto.h"
 #include <cbsasl/plain/plain.h>
 #include <cbsasl/scram-sha/scram-sha.h>
 #include <cbsasl/server.h>

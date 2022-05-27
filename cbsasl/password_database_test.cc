@@ -8,7 +8,6 @@
  *   the file licenses/APL2.txt.
  */
 
-#include <cbcrypto/cbcrypto.h>
 #include <cbsasl/password_database.h>
 #include <cbsasl/server.h>
 #include <cbsasl/user.h>

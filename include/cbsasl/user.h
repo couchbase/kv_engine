@@ -10,7 +10,6 @@
  */
 #pragma once
 
-#include <cbcrypto/cbcrypto.h>
 #include <cbsasl/mechanism.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/uuid.h>

@@ -7,7 +7,8 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include <cbcrypto/cbcrypto.h>
+#include "cbcrypto.h"
+
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>
 #include <folly/portability/GTest.h>

@@ -14,13 +14,13 @@
  *   http://tools.ietf.org/html/draft-cheng-hmac-test-cases-00
  */
 
+#include "cbcrypto.h"
+
 #include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
 #include <platform/base64.h>
 #include <stdexcept>
 #include <string>
-
-#include <cbcrypto/cbcrypto.h>
 
 std::vector<uint8_t> string2vector(const std::string& str) {
     std::vector<uint8_t> ret(str.size());
