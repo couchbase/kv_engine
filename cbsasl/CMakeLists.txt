@@ -35,13 +35,22 @@ target_link_libraries(cbsasl
                 ${OPENSSL_LIBRARIES})
 add_sanitizers(cbsasl)
 
+if (LIBSODIUM_INCLUDE_DIR AND LIBSODIUM_LIBRARIES)
+    message(STATUS "Adding support for Argon2id v1.3")
+    target_include_directories(cbsasl SYSTEM AFTER PRIVATE ${LIBSODIUM_INCLUDE_DIR})
+    target_compile_definitions(cbsasl PUBLIC -DHAVE_LIBSODIUM=1)
+    target_link_libraries(cbsasl PRIVATE ${LIBSODIUM_LIBRARIES})
+endif()
+
 cb_add_test_executable(cbsasl_unit_test
                        cbcrypto_test.cc
                        client_server_test.cc
                        password_database_test.cc
+                       plain/plain_test.cc
                        sasl_server_test.cc
                        scram-sha/saslprep_test.cc
-                       strcmp_test.cc)
+                       strcmp_test.cc
+                       user_test.cc)
 cb_enable_unity_build(cbsasl_unit_test)
 kv_enable_pch(cbsasl_unit_test)
 target_link_libraries(cbsasl_unit_test

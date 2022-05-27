@@ -41,3 +41,10 @@ std::string to_string(cb::sasl::Error error) {
             "to_string(cb::sasl::Error error): Unknown error: " +
             std::to_string(int(error)));
 }
+
+namespace cb::sasl {
+std::ostream& operator<<(std::ostream& os, const Error& error) {
+    os << ::to_string(error);
+    return os;
+}
+} // namespace cb::sasl

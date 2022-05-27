@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -11,13 +10,15 @@
 #pragma once
 
 #include <cbsasl/mechanism.h>
-#include <nlohmann/json_fwd.hpp>
-#include <platform/uuid.h>
+#include <nlohmann/json.hpp>
 #include <utilities/logtags.h>
 #include <cstdint>
-#include <map>
+#include <optional>
 #include <string>
-#include <vector>
+
+namespace cb::crypto {
+enum class Algorithm;
+}
 
 namespace cb::sasl::pwdb {
 
@@ -40,26 +41,25 @@ public:
          *
          * @param h the password
          * @param s the salt used (Base64 encoded)
-         * @param i iteration count
+         * @param json additional properties
          */
-        explicit PasswordMetaData(std::string h, std::string s = "", int i = 0)
-            : salt(std::move(s)), password(std::move(h)), iteration_count(i) {
+        explicit PasswordMetaData(std::string h,
+                                  std::string s,
+                                  nlohmann::json json = {})
+            : salt(std::move(s)),
+              password(std::move(h)),
+              properties(std::move(json)) {
         }
 
         /**
          * Create a new instance of the PasswordMetaData and
-         * initialize it from the specified JSON. The JSON *MUST*
-         * be of the following syntax:
-         *
-         *     {
-         *         "h" : "base64 encoded password",
-         *         "s" : "base64 encoded salt",
-         *         "i" : "iteration count"
-         *     }
+         * initialize it from the specified JSON.
          *
          * @param obj reference to the json structure
          */
         explicit PasswordMetaData(const nlohmann::json& obj);
+
+        explicit PasswordMetaData(const nlohmann::json& obj, bool);
 
         /**
          * This is a helper function used from the unit tests
@@ -75,8 +75,16 @@ public:
             return password;
         }
 
-        int getIterationCount() const {
-            return iteration_count;
+        const std::string& getAlgorithm() const {
+            return algorithm;
+        }
+
+        const nlohmann::json& getProperties() const {
+            return properties;
+        }
+
+        nlohmann::json& getProperties() {
+            return properties;
         }
 
     protected:
@@ -86,8 +94,11 @@ public:
         /// The actual password used
         std::string password;
 
-        /// The iteration count used for generating the password
-        int iteration_count = 0;
+        /// The algorithm in play (not used by SCRAM)
+        std::string algorithm;
+
+        /// Various per hash type properties
+        nlohmann::json properties;
     };
 
     /**
@@ -108,52 +119,22 @@ public:
     }
 
     /**
-     * Create a user entry and initialize it from the supplied
-     * JSON structure:
-     *
-     *       {
-     *            "limits" : {
-     *                "egress_mib_per_min": 1,
-     *                "ingress_mib_per_min": 1,
-     *                "num_ops_per_min": 1,
-     *                "num_connections": 1
-     *            },
-     *            "n" : "username",
-     *            "sha512" : {
-     *                "h" : "base64 encoded sha512 hash of the password",
-     *                "s" : "base64 encoded salt",
-     *                "i" : iteration-count
-     *            },
-     *            "sha256" : {
-     *                "h" : "base64 encoded sha256 hash of the password",
-     *                "s" : "base64 encoded salt",
-     *                "i" : iteration-count
-     *            },
-     *            "sha1" : {
-     *                "h" : "base64 encoded sha1 hash of the password",
-     *                "s" : "base64 encoded salt",
-     *                "i" : iteration-count
-     *            },
-     *            "plain" : "base64 encoded hex version of sha1 hash
-     *                       of plain text password",
-     *            "uuid" : "00000000-0000-0000-0000-000000000000"
-     *       }
+     * Create a user entry and initialize it from the old (deprecated)
+     * JSON structure which is to be removed once ns_server adds support
+     * for V1
      *
      * @param obj the object containing the JSON description
      * @throws std::runtime_error if there is a syntax error
      */
     explicit User(const nlohmann::json& json);
 
+    User(const nlohmann::json& json, UserData username);
+
     /**
      * Get the username for this entry
      */
     const UserData getUsername() const {
         return username;
-    }
-
-    /// Get the users UUID
-    cb::uuid::uuid_t getUuid() const {
-        return uuid;
     }
 
     /**
@@ -163,14 +144,14 @@ public:
         return dummy;
     }
 
-    /**
-     * Get the password metadata used for the requested mechanism
-     *
-     * @param mech the mechanism to retrieve the metadata for
-     * @return the passwod metadata
-     * @throws std::illegal_arguement if the mechanism isn't supported
-     */
-    const PasswordMetaData& getPassword(const Mechanism& mech) const;
+    bool isPasswordHashAvailable(cb::crypto::Algorithm algorithm) const;
+
+    /// Get the password metadata used for SCRAM authentication
+    const PasswordMetaData& getScramMetaData(
+            cb::crypto::Algorithm algorithm) const;
+    const PasswordMetaData& getPaswordHash() const {
+        return password_hash.value();
+    };
 
     /**
      * Generate a JSON encoding of this object (it is primarily used
@@ -181,17 +162,14 @@ public:
 protected:
     friend class UserFactory;
 
-    /**
-     * Generate (and insert) the "secrets" entry for the provided mechanism
-     * and password.
-     */
-    void generateSecrets(Mechanism mech, std::string_view passwd);
+    void generateSecrets(crypto::Algorithm algo, std::string_view passwd);
 
-    std::map<Mechanism, PasswordMetaData> password;
+    std::optional<PasswordMetaData> scram_sha_512;
+    std::optional<PasswordMetaData> scram_sha_256;
+    std::optional<PasswordMetaData> scram_sha_1;
+    std::optional<PasswordMetaData> password_hash;
 
     UserData username;
-
-    cb::uuid::uuid_t uuid{};
 
     /// To avoid leaking if a user exists or not we want to be able to
     /// complete a full SASL authentication cycle (and not fail in the
@@ -199,7 +177,7 @@ protected:
     /// is such a dummy object that we want the authentcation to fail
     /// anyway (even if the user ended up using the same password as
     /// we randomly generated).
-    bool dummy;
+    bool dummy = false;
 };
 
 void to_json(nlohmann::json& json, const User& user);
@@ -215,10 +193,14 @@ public:
      *
      * @param name username
      * @param pw password
+     * @param callback callback to return true/false if the provided
+     *                 algorithm should be created
      *
      * @return a newly created dummy object
      */
-    static User create(const std::string& name, const std::string& pw);
+    static User create(const std::string& name,
+                       const std::string& pw,
+                       std::function<bool(crypto::Algorithm)> callback = {});
 
     /**
      * Construct a dummy user object that may be used in authentication
@@ -228,7 +210,8 @@ public:
      *
      * @return a newly created dummy object
      */
-    static User createDummy(const std::string& name, const Mechanism& mech);
+    static User createDummy(const std::string& name,
+                            cb::crypto::Algorithm algorithm);
 
     /**
      * Set the default iteration count to use (may be overridden by

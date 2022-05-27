@@ -68,6 +68,10 @@ std::pair<Error, std::string_view> ServerBackend::start(
 std::pair<Error, std::string_view> ClientBackend::start() {
     auto usernm = usernameCallback();
     auto passwd = passwordCallback();
+    if (usernm.empty() || usernm.find('\0') != std::string::npos ||
+        passwd.find('\0') != std::string::npos) {
+        return {Error::BAD_PARAM, {}};
+    }
 
     buffer.push_back(0);
     std::copy(usernm.begin(), usernm.end(), std::back_inserter(buffer));

@@ -114,7 +114,7 @@ public:
 
 protected:
     std::string getSaltedPassword() override {
-        return user.getPassword(mechanism).getPassword();
+        return user.getScramMetaData(algorithm).getPassword();
     }
 
     pwdb::User user;

@@ -18,26 +18,49 @@
 namespace cb::sasl::pwdb {
 
 PasswordDatabase::PasswordDatabase(const nlohmann::json& json) {
-    if (json.size() != 1) {
-        throw std::runtime_error("PasswordDatabase: format error..");
+    if (!json.contains("@@version@@")) {
+        if (json.size() != 1) {
+            throw std::runtime_error("PasswordDatabase: format error..");
+        }
+
+        auto it = json.find("users");
+        if (it == json.end()) {
+            throw std::runtime_error(
+                    "PasswordDatabase: format error. users not"
+                    " present");
+        }
+
+        if (!it->is_array()) {
+            throw std::runtime_error(
+                    "PasswordDatabase: Illegal type for \"users\". Expected "
+                    "Array");
+        }
+
+        // parse all of the users
+        for (const auto& u : *it) {
+            User user(u);
+            db[user.getUsername().getRawValue()] = user;
+        }
+        return;
     }
 
-    auto it = json.find("users");
-    if (it == json.end()) {
+    if (!json["@@version@@"].is_number()) {
         throw std::runtime_error(
-                "PasswordDatabase: format error. users not"
-                " present");
+                "PasswordDatabase(): @@version@@ must be a number");
     }
 
-    if (!it->is_array()) {
+    if (json["@@version@@"].get<int>() != 2) {
         throw std::runtime_error(
-                "PasswordDatabase: Illegal type for \"users\". Expected Array");
+                "PasswordDatabase(): Unknown version: " +
+                std::to_string(json["@@version@@"].get<int>()));
     }
 
-    // parse all of the users
-    for (const auto& u : *it) {
-        User user(u);
-        db[user.getUsername().getRawValue()] = user;
+    for (auto it = json.begin(); it != json.end(); ++it) {
+        const std::string username = it.key();
+        if (username != "@@version@@") {
+            // @todo do I want to validate the username for some reason?
+            db.emplace(username, User(it.value(), UserData{username}));
+        }
     }
 }
 
@@ -63,12 +86,11 @@ void PasswordDatabase::iterate(
 
 nlohmann::json PasswordDatabase::to_json() const {
     nlohmann::json json;
-    nlohmann::json array = nlohmann::json::array();
+    json["@@version@@"] = 2;
 
-    for (const auto& u : db) {
-        array.push_back(u.second.to_json());
+    for (const auto& [u, e] : db) {
+        json[u] = e.to_json();
     }
-    json["users"] = array;
     return json;
 }
 

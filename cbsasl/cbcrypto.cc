@@ -18,6 +18,10 @@
 #include <openssl/hmac.h>
 #include <openssl/sha.h>
 
+#ifdef HAVE_LIBSODIUM
+#include <sodium.h>
+#endif
+
 namespace internal {
 
 static std::string HMAC_SHA1(std::string_view key, std::string_view data) {
@@ -175,6 +179,10 @@ std::string cb::crypto::HMAC(const Algorithm algorithm,
         return internal::HMAC_SHA256(key, data);
     case Algorithm::SHA512:
         return internal::HMAC_SHA512(key, data);
+    case Algorithm::Argon2id13:
+    case Algorithm::DeprecatedPlain:
+        throw std::invalid_argument(
+                "cb::crypto::HMAC(): Can't be called with Argon2id13");
     }
 
     throw std::invalid_argument("cb::crypto::HMAC: Unknown Algorithm: " +
@@ -185,6 +193,10 @@ std::string cb::crypto::PBKDF2_HMAC(const Algorithm algorithm,
                                     std::string_view pass,
                                     std::string_view salt,
                                     unsigned int iterationCount) {
+    if (iterationCount == 0) {
+        throw std::invalid_argument(
+                "cb::crypto::PBKDF2_HMAC: Iteration count can't be 0");
+    }
     TRACE_EVENT2("cbcrypto",
                  "PBKDF2_HMAC",
                  "algorithm",
@@ -198,10 +210,75 @@ std::string cb::crypto::PBKDF2_HMAC(const Algorithm algorithm,
         return internal::PBKDF2_HMAC_SHA256(pass, salt, iterationCount);
     case Algorithm::SHA512:
         return internal::PBKDF2_HMAC_SHA512(pass, salt, iterationCount);
+    case Algorithm::DeprecatedPlain:
+    case Algorithm::Argon2id13:
+        throw std::invalid_argument(
+                "cb::crypto::PBKDF2_HMAC(): Can't be called with Argon2id13");
     }
 
     throw std::invalid_argument("cb::crypto::PBKDF2_HMAC: Unknown Algorithm: " +
                                 std::to_string((int)algorithm));
+}
+
+static std::string pbkdf2_hmac(const cb::crypto::Algorithm algorithm,
+                               std::string_view pass,
+                               std::string_view salt,
+                               const nlohmann::json& properties) {
+    return cb::crypto::PBKDF2_HMAC(
+            algorithm, pass, salt, properties.value("iterations", 0));
+}
+
+static std::string argon2id13_pwhash(std::string_view password,
+                                     std::string_view salt,
+                                     uint64_t opslimit,
+                                     size_t memlimit) {
+    if (!opslimit || !memlimit) {
+        throw std::invalid_argument(
+                "argon2id13_pwhash(): time or memory can't be 0");
+    }
+
+#ifdef HAVE_LIBSODIUM
+    std::string generated;
+    generated.resize(cb::crypto::Argon2id13DigestSize);
+    if (crypto_pwhash(reinterpret_cast<unsigned char*>(generated.data()),
+                      generated.size(),
+                      password.data(),
+                      password.size(),
+                      reinterpret_cast<const unsigned char*>(salt.data()),
+                      opslimit,
+                      memlimit,
+                      crypto_pwhash_argon2id_alg_argon2id13()) == -1) {
+        // According to https://doc.libsodium.org/password_hashing/default_phf
+        // it states:
+        // The function returns 0 on success and -1 if the computation didn't
+        // complete, usually because the operating system refused to allocate
+        // the amount of requested memory.
+        throw std::bad_alloc();
+    };
+    return generated;
+#else
+    throw std::runtime_error("argon2id13 not supported");
+#endif
+}
+
+std::string cb::crypto::pwhash(Algorithm algorithm,
+                               std::string_view password,
+                               std::string_view salt,
+                               const nlohmann::json& properties) {
+    switch (algorithm) {
+    case Algorithm::SHA1:
+    case Algorithm::SHA256:
+    case Algorithm::SHA512:
+        return pbkdf2_hmac(algorithm, password, salt, properties);
+    case Algorithm::Argon2id13:
+        return argon2id13_pwhash(password,
+                                 salt,
+                                 properties.value("time", uint64_t(0)),
+                                 properties.value("memory", std::size_t(0)));
+    case Algorithm::DeprecatedPlain:
+        return cb::crypto::HMAC(Algorithm::SHA1, salt, password);
+    }
+    throw std::invalid_argument("pwhash(): Unknown algorithm");
 }
 
 std::string cb::crypto::digest(const Algorithm algorithm,
@@ -214,6 +291,10 @@ std::string cb::crypto::digest(const Algorithm algorithm,
         return internal::digest_sha256(data);
     case Algorithm::SHA512:
         return internal::digest_sha512(data);
+    case Algorithm::DeprecatedPlain:
+    case Algorithm::Argon2id13:
+        throw std::invalid_argument(
+                "cb::crypto::digest: can't be called with Argon2id13");
     }
 
     throw std::invalid_argument("cb::crypto::digest: Unknown Algorithm" +

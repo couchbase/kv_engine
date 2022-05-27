@@ -48,9 +48,7 @@ public:
     void iterate(std::function<void(const cb::sasl::pwdb::User&)> usercallback)
             const;
 
-    /**
-     * Create a JSON representation of the password database
-     */
+    /// Create a JSON representation of the password database
     nlohmann::json to_json() const;
 
     /**

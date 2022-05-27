@@ -41,30 +41,23 @@ cb::engine_errc SaslStartCommandContext::initial() {
 
     state = State::HandleSaslAuthTaskResult;
 
-    // If the mechanism is PLAIN we don't need to offload the auth
-    // to a dedicated thread, but can do the first pass locally
-    if (mechanism == "PLAIN") {
-        doSaslStart();
-
-        // If the user doesn't exist locally we may try the external AUTH
-        // service
-        if (error == cb::sasl::Error::NO_USER &&
-            Settings::instance().isExternalAuthServiceEnabled()) {
-            task = std::make_shared<StartSaslAuthTask>(
-                    cookie,
-                    *connection.getSaslServerContext(),
-                    mechanism,
-                    challenge);
-            externalAuthManager->enqueueRequest(*task);
-            return cb::engine_errc::would_block;
-        }
-
-        return cb::engine_errc::success;
-    }
-
     ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
             TaskId::Core_SaslStartTask, "SASL Start", [this]() {
                 doSaslStart();
+
+                // If the user doesn't exist locally we may try the external
+                // AUTH service
+                if (error == cb::sasl::Error::NO_USER &&
+                    Settings::instance().isExternalAuthServiceEnabled()) {
+                    task = std::make_shared<StartSaslAuthTask>(
+                            cookie,
+                            *connection.getSaslServerContext(),
+                            mechanism,
+                            challenge);
+                    externalAuthManager->enqueueRequest(*task);
+                    return;
+                }
+
                 // We need to notify with success here to avoid having the
                 // framework report the error
                 ::notifyIoComplete(cookie, cb::engine_errc::success);

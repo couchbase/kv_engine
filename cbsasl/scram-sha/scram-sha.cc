@@ -369,10 +369,10 @@ std::pair<Error, std::string_view> ServerBackend::start(
         logging::log(&context,
                      logging::Level::Debug,
                      "User [" + username + "] doesn't exist.. using dummy");
-        user = pwdb::UserFactory::createDummy(username, mechanism);
+        user = pwdb::UserFactory::createDummy(username, algorithm);
     }
 
-    const auto& passwordMeta = user.getPassword(mechanism);
+    const auto& passwordMeta = user.getScramMetaData(algorithm);
 
     nonce = clientNonce + std::string(serverNonce.data(), serverNonce.size());
 
@@ -381,7 +381,10 @@ std::pair<Error, std::string_view> ServerBackend::start(
     addAttribute(out, 'r', nonce, true);
     addAttribute(
             out, 's', Couchbase::Base64::decode(passwordMeta.getSalt()), true);
-    addAttribute(out, 'i', passwordMeta.getIterationCount(), false);
+    addAttribute(out,
+                 'i',
+                 passwordMeta.getProperties().value("iterations", 0),
+                 false);
     server_first_message = out.str();
 
     return std::make_pair<Error, std::string_view>(Error::CONTINUE,

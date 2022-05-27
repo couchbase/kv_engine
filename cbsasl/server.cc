@@ -15,7 +15,12 @@
 #include <cbsasl/scram-sha/scram-sha.h>
 #include <cbsasl/server.h>
 #include <memory>
+#include <stdexcept>
 #include <string>
+
+#ifdef HAVE_LIBSODIUM
+#include "sodium.h"
+#endif
 
 namespace cb::sasl::server {
 
@@ -58,6 +63,13 @@ cb::sasl::Error reload_password_database(
 }
 
 void initialize() {
+#ifdef HAVE_LIBSODIUM
+    if (sodium_init() == -1) {
+        throw std::runtime_error(
+                "cb::sasl::server::initialize: sodium_init failed");
+    }
+#endif
+
     const auto ret = load_user_db();
     if (ret != Error::OK) {
         throw std::runtime_error(
