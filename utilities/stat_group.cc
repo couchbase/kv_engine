@@ -325,7 +325,12 @@ StatsGroupManager::StatsGroupManager()
                 "stat-timings",
                 "Get timing information for stat commands",
                 false,
-                true}}) {
+                true},
+               {StatGroupId::Threads,
+                "threads",
+                "Get information about thread numbers",
+                true,
+                false}}) {
 }
 
 StatsGroupManager& StatsGroupManager::getInstance() {

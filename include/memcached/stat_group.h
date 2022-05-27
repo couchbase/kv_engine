@@ -86,6 +86,9 @@ enum class StatGroupId {
 
     StatTimings,
 
+    // Global thread numbers
+    Threads,
+
     enum_max
 };
 

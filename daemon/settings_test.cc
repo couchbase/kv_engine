@@ -14,6 +14,7 @@
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <variant>
 
 class SettingsTest : public ::testing::Test {
 public:
@@ -1300,4 +1301,84 @@ TEST_F(SettingsTest, ScramshaFallbackSaltIsDynamic) {
     } catch (std::exception& exception) {
         FAIL() << exception.what();
     }
+}
+
+TEST_F(SettingsTest, TestSettingNumThreads) {
+    std::array<std::string, 5> threadKeys = {{"threads",
+                                              "num_reader_threads",
+                                              "num_writer_threads",
+                                              "num_auxio_threads",
+                                              "num_nonio_threads"}};
+    nlohmann::json config;
+    Settings settings;
+    auto updateConfig = [&threadKeys, &config, &settings](
+                                std::variant<std::string, uint8_t> value,
+                                bool shouldFail = false) {
+        size_t numberOfFailures = 0;
+        size_t numberOfJsonErrors = 0;
+        for (const auto& key : threadKeys) {
+            if (value.index() == 0) {
+                // "threads" doesn't take string values so if we're setting to
+                // "default" just set it to 0.
+                if (key == "threads" &&
+                    std::get<std::string>(value) == "default") {
+                    config[key] = uint8_t{0};
+                } else {
+                    config[key] = std::get<std::string>(value);
+                }
+            } else {
+                config[key] = std::get<uint8_t>(value);
+            }
+            try {
+                settings.reconfigure(config);
+            } catch (const std::invalid_argument& e) {
+                ++numberOfFailures;
+            } catch (const nlohmann::json::type_error& e) {
+                // Key "threads" will throw a json error no a
+                // std::invalid_argument
+                ++numberOfJsonErrors;
+            }
+        }
+        if (shouldFail) {
+            return numberOfFailures == (threadKeys.size() - 1) &&
+                   numberOfJsonErrors == 1;
+        } else {
+            return numberOfFailures == 0 && numberOfJsonErrors == 0;
+        }
+    };
+    EXPECT_TRUE(updateConfig("default"));
+
+    EXPECT_EQ(0, settings.getNumWorkerThreads());
+    EXPECT_EQ(0, settings.getNumReaderThreads());
+    EXPECT_EQ(0, settings.getNumWriterThreads());
+    EXPECT_EQ(0, settings.getNumAuxIoThreads());
+    EXPECT_EQ(0, settings.getNumNonIoThreads());
+
+    settings.setNumWorkerThreads(1);
+    settings.setNumReaderThreads(1);
+    settings.setNumWriterThreads(1);
+    settings.setNumAuxIoThreads(1);
+    settings.setNumNonIoThreads(1);
+
+    EXPECT_EQ(1, settings.getNumWorkerThreads());
+    EXPECT_EQ(1, settings.getNumReaderThreads());
+    EXPECT_EQ(1, settings.getNumWriterThreads());
+    EXPECT_EQ(1, settings.getNumAuxIoThreads());
+    EXPECT_EQ(1, settings.getNumNonIoThreads());
+
+    EXPECT_TRUE(updateConfig(uint8_t{2}));
+
+    EXPECT_EQ(2, settings.getNumWorkerThreads());
+    EXPECT_EQ(2, settings.getNumReaderThreads());
+    EXPECT_EQ(2, settings.getNumWriterThreads());
+    EXPECT_EQ(2, settings.getNumAuxIoThreads());
+    EXPECT_EQ(2, settings.getNumNonIoThreads());
+
+    EXPECT_TRUE(updateConfig("abc", true));
+
+    EXPECT_EQ(2, settings.getNumWorkerThreads());
+    EXPECT_EQ(2, settings.getNumReaderThreads());
+    EXPECT_EQ(2, settings.getNumWriterThreads());
+    EXPECT_EQ(2, settings.getNumAuxIoThreads());
+    EXPECT_EQ(2, settings.getNumNonIoThreads());
 }

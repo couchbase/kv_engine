@@ -541,6 +541,29 @@ static cb::engine_errc stat_timings_executor(const std::string&,
     return cb::engine_errc::success;
 }
 
+static cb::engine_errc stat_threads_executor(const std::string& key,
+                                             Cookie& cookie) {
+    auto& setting = Settings::instance();
+
+    append_stats(std::string{"num_frontend_threads"},
+                 std::to_string(setting.getNumWorkerThreads()),
+                 static_cast<void*>(&cookie));
+    append_stats(std::string{"num_reader_threads"},
+                 std::to_string(setting.getNumReaderThreads()),
+                 static_cast<void*>(&cookie));
+    append_stats(std::string{"num_writer_threads"},
+                 std::to_string(setting.getNumWriterThreads()),
+                 static_cast<void*>(&cookie));
+    append_stats(std::string{"num_auxio_threads"},
+                 std::to_string(setting.getNumAuxIoThreads()),
+                 static_cast<void*>(&cookie));
+    append_stats(std::string{"num_nonio_threads"},
+                 std::to_string(setting.getNumNonIoThreads()),
+                 static_cast<void*>(&cookie));
+
+    return cb::engine_errc::success;
+}
+
 /***************************** STAT HANDLERS *****************************/
 
 struct command_stat_handler {
@@ -584,7 +607,8 @@ static std::unordered_map<StatGroupId, struct command_stat_handler>
                  {false, stat_bucket_collections_stats}},
                 {StatGroupId::CollectionsById,
                  {false, stat_bucket_collections_stats}},
-                {StatGroupId::StatTimings, {true, stat_timings_executor}}};
+                {StatGroupId::StatTimings, {true, stat_timings_executor}},
+                {StatGroupId::Threads, {true, stat_threads_executor}}};
 
 /**
  * For a given key, try and return the handler for it
