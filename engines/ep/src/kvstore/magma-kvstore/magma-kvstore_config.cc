@@ -100,6 +100,8 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaBloomFilterAccuracyForBottomLevel =
             config.getMagmaBloomFilterAccuracyForBottomLevel();
     magmaEnableWAL = config.isMagmaEnableWal();
+    magmaEnableMemoryOptimizedWrites =
+            config.isMagmaEnableMemoryOptimizedWrites();
     magmaEnableGroupCommit = config.isMagmaEnableGroupCommit();
     magmaGroupCommitMaxSyncWaitDuration = std::chrono::milliseconds(
             config.getMagmaGroupCommitMaxSyncWaitDurationMs());

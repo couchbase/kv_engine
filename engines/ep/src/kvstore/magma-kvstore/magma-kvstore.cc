@@ -565,6 +565,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.WALBufferSize =
             configuration.getMagmaInitialWalBufferSize();
     configuration.magmaCfg.EnableWAL = configuration.getMagmaEnableWAL();
+    configuration.magmaCfg.EnableMemoryOptimizedWrites =
+            configuration.getMagmaEnableMemoryOptimizedWrites();
     configuration.magmaCfg.EnableGroupCommit =
             configuration.getMagmaEnableGroupCommit();
     configuration.magmaCfg.GroupCommitMaxSyncWaitDuration =

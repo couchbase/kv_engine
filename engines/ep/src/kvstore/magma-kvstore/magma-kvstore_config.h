@@ -158,6 +158,10 @@ public:
         return magmaEnableWAL;
     }
 
+    bool getMagmaEnableMemoryOptimizedWrites() const {
+        return magmaEnableMemoryOptimizedWrites;
+    }
+
     bool getMagmaEnableGroupCommit() const {
         return magmaEnableGroupCommit;
     }
@@ -262,6 +266,14 @@ private:
     // WAL ensures Magma's atomicity, durability. Disabling it is useful in
     // performance analysis.
     bool magmaEnableWAL;
+
+    // When enabled, if copying a write batch into memtable results in exceeding
+    // the write cache quota, Magma avoids the copy and instead flushes the
+    // batch to disk on the writer thread itself. This tradeoffs an increase in
+    // write latency for reduced memory consumption and obeys quota limits. If
+    // copying a batch keeps us under the quota, Magma will to continue to
+    // copy and do the flush in background.
+    bool magmaEnableMemoryOptimizedWrites;
 
     // Magma uses a common skiplist to buffer all items at the shard level
     // called the write cache. The write cache contains items from all the
