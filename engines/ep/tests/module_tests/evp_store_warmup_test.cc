@@ -32,9 +32,9 @@
 #include "vbucket.h"
 #include "vbucket_state.h"
 #include "warmup.h"
-#include <boost/filesystem.hpp>
 #include <engines/ep/src/tasks.h>
 #include <folly/synchronization/Baton.h>
+#include <filesystem>
 
 class WarmupTest : public SingleThreadedKVBucketTest {
 public:
@@ -2342,16 +2342,16 @@ TEST_F(WarmupTest, MB_35326) {
 
 class WarmupDiskTest : public SingleThreadedKVBucketTest {
 public:
-    boost::filesystem::path getDataDir() {
+    std::filesystem::path getDataDir() {
         auto* kvstore = engine->getKVBucket()->getOneRWUnderlying();
         const auto dbname = kvstore->getConfig().getDBName();
-        return boost::filesystem::current_path() / dbname;
+        return std::filesystem::current_path() / dbname;
     }
 
-    boost::filesystem::path getDataFile() {
-        const boost::filesystem::path dir(getDataDir());
+    std::filesystem::path getDataFile() {
+        const std::filesystem::path dir(getDataDir());
         for (const auto& file :
-             boost::filesystem::recursive_directory_iterator(dir)) {
+             std::filesystem::recursive_directory_iterator(dir)) {
             if (file.path().has_filename() &&
                 file.path().filename().string().find("stats.json") !=
                         std::string::npos) {
@@ -2364,21 +2364,22 @@ public:
 
     void deleteDataFile() {
         auto dataFile = getDataFile();
-        EXPECT_TRUE(boost::filesystem::remove(dataFile));
-        ASSERT_FALSE(boost::filesystem::is_regular_file(dataFile));
+        EXPECT_TRUE(std::filesystem::remove(dataFile));
+        ASSERT_FALSE(std::filesystem::is_regular_file(dataFile));
     };
 
     void makeFileReadOnly() {
         auto dataFile = getDataFile();
-        boost::filesystem::permissions(
+        std::filesystem::permissions(
                 dataFile,
-                boost::filesystem::others_read | boost::filesystem::owner_read);
+                std::filesystem::perms::others_read |
+                        std::filesystem::perms::owner_read);
     }
 
     void deleteStatsFile() {
         auto statsFile = (getDataDir() / "stats.json");
-        EXPECT_TRUE(boost::filesystem::remove(statsFile));
-        ASSERT_FALSE(boost::filesystem::is_regular_file(statsFile));
+        EXPECT_TRUE(std::filesystem::remove(statsFile));
+        ASSERT_FALSE(std::filesystem::is_regular_file(statsFile));
     }
 
     TaskQueue& getReaderQueue() {

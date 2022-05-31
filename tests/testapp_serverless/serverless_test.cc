@@ -10,7 +10,6 @@
 
 #include "serverless_test.h"
 
-#include <boost/filesystem.hpp>
 #include <cluster_framework/auth_provider_service.h>
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
@@ -18,6 +17,7 @@
 #include <protocol/connection/client_mcbp_commands.h>
 #include <serverless/config.h>
 #include <deque>
+#include <filesystem>
 #include <vector>
 
 namespace cb::test {
@@ -30,7 +30,7 @@ void ServerlessTest::StartCluster() {
             3, {}, [](std::string_view, nlohmann::json& config) {
                 config["deployment_model"] = "serverless";
                 auto file =
-                        boost::filesystem::path{
+                        std::filesystem::path{
                                 config["root"].get<std::string>()} /
                         "etc" / "couchbase" / "kv" / "serverless" /
                         "configuration.json";

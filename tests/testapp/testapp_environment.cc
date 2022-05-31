@@ -10,7 +10,6 @@
  */
 #include "testapp_environment.h"
 #include "memcached_audit_events.h"
-#include <boost/filesystem.hpp>
 #include <cbsasl/password_database.h>
 #include <cbsasl/user.h>
 #include <folly/portability/GTest.h>
@@ -22,6 +21,7 @@
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/openssl_utils.h>
 #include <utilities/string_utilities.h>
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <thread>
@@ -202,7 +202,7 @@ public:
 
 class EpBucketImpl : public TestBucketImpl {
 public:
-    EpBucketImpl(const boost::filesystem::path& test_directory,
+    EpBucketImpl(const std::filesystem::path& test_directory,
                  std::string extraConfig)
         : TestBucketImpl(std::move(extraConfig)),
           dbPath(test_directory / "dbase") {
@@ -214,9 +214,9 @@ public:
 
     BucketCreateMode bucketCreateMode = BucketCreateMode::Clean;
 
-    void removeDbDir(const boost::filesystem::path& path) {
+    void removeDbDir(const std::filesystem::path& path) {
         if (exists(path)) {
-            boost::filesystem::remove_all(path);
+            std::filesystem::remove_all(path);
         }
     }
 
@@ -335,7 +335,7 @@ public:
     }
 
     /// Directory for any database files.
-    const boost::filesystem::path dbPath;
+    const std::filesystem::path dbPath;
 };
 
 class McdEnvironmentImpl : public McdEnvironment {
@@ -343,7 +343,7 @@ public:
     McdEnvironmentImpl(bool manageSSL_,
                        const std::string& engineName,
                        const std::string& engineConfig)
-        : test_directory(absolute(boost::filesystem::path(
+        : test_directory(absolute(std::filesystem::path(
                   cb::io::mkdtemp("memcached_testapp.")))),
           isasl_file_name(test_directory / "cbsaslpw.json"),
           configuration_file(test_directory / "memcached.json"),
@@ -384,7 +384,7 @@ public:
         // windows without it:
         //
         // cannot convert argument 2 from
-        // 'const boost::filesystem::path::value_type *' to 'const char *'
+        // 'const std::filesystem::path::value_type *' to 'const char *'
         setenv("CBSASL_PWFILE", isasl_file_name.generic_string().c_str(), 1);
         setupPasswordDatabase();
 
@@ -473,8 +473,7 @@ public:
             // over them all and print the last 8k of each file
             std::cerr << "Last 8k of the log files" << std::endl
                       << "========================" << std::endl;
-            for (const auto& p :
-                 boost::filesystem::directory_iterator(log_dir)) {
+            for (const auto& p : std::filesystem::directory_iterator(log_dir)) {
                 if (is_regular_file(p)) {
                     auto content = cb::io::loadFile(p.path().generic_string());
                     if (content.size() > 8192) {
@@ -490,7 +489,7 @@ public:
 
         bool cleanup = true;
         for (const auto& p :
-             boost::filesystem::directory_iterator(minidump_dir)) {
+             std::filesystem::directory_iterator(minidump_dir)) {
             if (is_regular_file(p)) {
                 cleanup = false;
                 break;
@@ -500,7 +499,7 @@ public:
         if (cleanup) {
             for (int ii = 0; ii < 100; ++ii) {
                 try {
-                    boost::filesystem::remove_all(test_directory);
+                    std::filesystem::remove_all(test_directory);
                     break;
                 } catch (const std::exception& e) {
                     std::cerr << "Failed to remove: "
@@ -615,15 +614,15 @@ public:
     }
 
 private:
-    const boost::filesystem::path test_directory;
-    const boost::filesystem::path isasl_file_name;
-    const boost::filesystem::path configuration_file;
-    const boost::filesystem::path portnumber_file;
-    const boost::filesystem::path rbac_file_name;
-    const boost::filesystem::path audit_file_name;
-    const boost::filesystem::path audit_log_dir;
-    const boost::filesystem::path minidump_dir;
-    const boost::filesystem::path log_dir;
+    const std::filesystem::path test_directory;
+    const std::filesystem::path isasl_file_name;
+    const std::filesystem::path configuration_file;
+    const std::filesystem::path portnumber_file;
+    const std::filesystem::path rbac_file_name;
+    const std::filesystem::path audit_file_name;
+    const std::filesystem::path audit_log_dir;
+    const std::filesystem::path minidump_dir;
+    const std::filesystem::path log_dir;
     const bool manageSSL;
     /// first entry is IPv4 addresses, second is IPv6
     /// (see cb::net::getIPAdresses)

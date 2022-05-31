@@ -9,7 +9,7 @@
  */
 #pragma once
 
-#include <boost/filesystem/path.hpp>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -38,7 +38,7 @@ public:
      *                        the error occurs (file IO, invalid JSON,
      *                        unexpected format etc)
      */
-    static void initialize(const boost::filesystem::path& directory);
+    static void initialize(const std::filesystem::path& directory);
 
     /// Release memory allocated (and invalidate) the ErrorMapManager
     static void shutdown();

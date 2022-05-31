@@ -9,10 +9,10 @@
  *   the file licenses/APL2.txt.
  */
 #include "testapp_client_test.h"
-#include <boost/filesystem.hpp>
 #include <mcbp/mcbp.h>
 #include <platform/dirutils.h>
 #include <utilities/string_utilities.h>
+#include <filesystem>
 #include <thread>
 
 /**
@@ -125,7 +125,7 @@ TEST_P(TuneMcbpSla, SlowCommandLogging) {
     auto findLogLines = []() {
         std::vector<std::string> ret;
         for (const auto& p :
-             boost::filesystem::directory_iterator(mcd_env->getLogDir())) {
+             std::filesystem::directory_iterator(mcd_env->getLogDir())) {
             if (is_regular_file(p)) {
                 auto lines = split_string(
                         cb::io::loadFile(p.path().generic_string()), "\n");

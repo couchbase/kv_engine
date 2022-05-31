@@ -10,7 +10,6 @@
 
 #include "clustertest.h"
 
-#include <boost/filesystem.hpp>
 #include <cluster_framework/auth_provider_service.h>
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
@@ -20,6 +19,7 @@
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <protocol/connection/frameinfo.h>
+#include <filesystem>
 #include <thread>
 
 class CollectionsTests : public cb::test::ClusterTest {

@@ -9,7 +9,6 @@
  */
 #include "memcached_audit_events.h"
 
-#include <boost/filesystem/path.hpp>
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
@@ -18,6 +17,7 @@
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <cstdint>
+#include <filesystem>
 #include <iostream>
 
 /**
@@ -80,7 +80,7 @@ public:
         cb::logger::createBlackholeLogger();
         Settings::instance().setXattrEnabled(true);
         cb::rbac::initialize();
-        const auto path = boost::filesystem::path(SOURCE_ROOT) / "protocol" /
+        const auto path = std::filesystem::path(SOURCE_ROOT) / "protocol" /
                           "mcbp" / "mcbp_fuzz_test_rbac.json";
         cb::rbac::loadPrivilegeDatabase(path.generic_string());
         connection.setAuthenticated(

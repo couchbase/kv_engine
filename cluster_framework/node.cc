@@ -9,7 +9,6 @@
  */
 
 #include "node.h"
-#include <boost/filesystem.hpp>
 #include <folly/portability/Unistd.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
@@ -18,20 +17,21 @@
 #include <protocol/connection/client_connection_map.h>
 #include <atomic>
 #include <chrono>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <thread>
 
 namespace cb::test {
 
 Node::~Node() = default;
-Node::Node(boost::filesystem::path directory)
-    : directory(std::move(directory)) {
+Node::Node(std::filesystem::path directory) : directory(std::move(directory)) {
 }
 
 class NodeImpl : public Node {
 public:
-    NodeImpl(boost::filesystem::path directory, std::string id);
+    NodeImpl(std::filesystem::path directory, std::string id);
     ~NodeImpl() override;
     void startMemcachedServer();
 
@@ -53,7 +53,7 @@ public:
 protected:
     void parsePortnumberFile();
 
-    const boost::filesystem::path configfile;
+    const std::filesystem::path configfile;
     nlohmann::json config;
     ConnectionMap connectionMap;
     const std::string id;
@@ -61,11 +61,11 @@ protected:
     std::atomic_bool allow_child_death{false};
 };
 
-NodeImpl::NodeImpl(boost::filesystem::path directory, std::string id)
+NodeImpl::NodeImpl(std::filesystem::path directory, std::string id)
     : Node(std::move(directory)),
       configfile(Node::directory / "memcached.json"),
       id(std::move(id)) {
-    const boost::filesystem::path source_root(SOURCE_ROOT);
+    const std::filesystem::path source_root(SOURCE_ROOT);
     const auto errmaps =
             source_root / "etc" / "couchbase" / "kv" / "error_maps";
     const auto rbac = source_root / "tests" / "testapp_cluster" / "rbac.json";
@@ -108,12 +108,11 @@ NodeImpl::NodeImpl(boost::filesystem::path directory, std::string id)
 }
 
 void NodeImpl::startMemcachedServer() {
-    boost::filesystem::path exe{boost::filesystem::current_path() /
-                                "memcached"};
-    exe = exe.generic_path();
-    if (!boost::filesystem::exists(exe)) {
+    std::filesystem::path exe{std::filesystem::current_path() / "memcached"};
+    exe = exe.generic_string();
+    if (!std::filesystem::exists(exe)) {
         exe = exe.generic_string() + ".exe";
-        if (!boost::filesystem::exists(exe)) {
+        if (!std::filesystem::exists(exe)) {
             throw std::runtime_error(
                     "NodeImpl::startMemcachedServer(): Failed to locate "
                     "memcached");
@@ -132,7 +131,7 @@ void NodeImpl::startMemcachedServer() {
             std::cerr << "Last 8k of the log files" << std::endl
                       << "========================" << std::endl;
             for (const auto& p :
-                 boost::filesystem::directory_iterator(directory / "log")) {
+                 std::filesystem::directory_iterator(directory / "log")) {
                 if (is_regular_file(p)) {
                     auto content = cb::io::loadFile(p.path().generic_string());
                     if (content.size() > 8192) {
@@ -164,7 +163,7 @@ void NodeImpl::startMemcachedServer() {
             std::cerr << "Last 8k of the log files" << std::endl
                       << "========================" << std::endl;
             for (const auto& p :
-                 boost::filesystem::directory_iterator(directory / "log")) {
+                 std::filesystem::directory_iterator(directory / "log")) {
                 if (is_regular_file(p)) {
                     auto content = cb::io::loadFile(p.path().generic_string());
                     if (content.size() > 8192) {
@@ -222,7 +221,7 @@ std::unique_ptr<MemcachedConnection> NodeImpl::getConnection() const {
 }
 
 std::unique_ptr<Node> Node::create(
-        boost::filesystem::path directory,
+        std::filesystem::path directory,
         const std::string& id,
         std::function<void(std::string_view, nlohmann::json&)> configCallback) {
     auto ret = std::make_unique<NodeImpl>(std::move(directory), id);

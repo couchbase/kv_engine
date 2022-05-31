@@ -10,12 +10,12 @@
 
 #pragma once
 
-#include <boost/filesystem/path.hpp>
 #include <folly/portability/Unistd.h>
 #include <folly/portability/Windows.h>
 #include <nlohmann/json_fwd.hpp>
 #include <protocol/connection/client_connection_map.h>
 #include <sys/types.h>
+#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -33,7 +33,7 @@ public:
 
     virtual std::unique_ptr<MemcachedConnection> getConnection() const = 0;
 
-    const boost::filesystem::path directory;
+    const std::filesystem::path directory;
 
     /**
      * Get the map of connections to the node. Given that the node was
@@ -60,13 +60,13 @@ public:
      *                       starting the node
      */
     static std::unique_ptr<Node> create(
-            boost::filesystem::path directory,
+            std::filesystem::path directory,
             const std::string& id,
             std::function<void(std::string_view, nlohmann::json&)>
                     configCallback);
 
 protected:
-    explicit Node(boost::filesystem::path dir);
+    explicit Node(std::filesystem::path dir);
 };
 
 } // namespace cb::test

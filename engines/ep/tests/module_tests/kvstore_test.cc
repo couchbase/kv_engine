@@ -33,10 +33,11 @@
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
 #include "vbucket_test.h"
-#include <boost/filesystem.hpp>
 #include <executor/workload.h>
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
+#include <filesystem>
+#include <fstream>
 #include <thread>
 #include <unordered_map>
 #include <utility>
@@ -1398,11 +1399,11 @@ TEST_P(KVStoreParamTestSkipRocks, GetPersistedVBucketState) {
 void KVStoreParamTestSkipRocks::corruptCouchKVStoreDataFile() {
     ASSERT_EQ("couchdb", GetParam())
             << "This method should only be used for couchdb";
-    namespace fs = boost::filesystem;
+    namespace fs = std::filesystem;
     fs::path dataDir(fs::current_path() / kvstore->getConfig().getDBName());
     fs::path dataFile;
     for (const auto& file :
-         boost::filesystem::recursive_directory_iterator(dataDir)) {
+         std::filesystem::recursive_directory_iterator(dataDir)) {
         if (file.path().has_filename() &&
             file.path().filename() == "stats.json") {
             continue;
@@ -1411,7 +1412,7 @@ void KVStoreParamTestSkipRocks::corruptCouchKVStoreDataFile() {
     }
     // manually write nothing to the file as resizing it to 0 using boost
     // fails on windows.
-    fs::ofstream osf{dataFile};
+    std::ofstream osf{dataFile};
     if (osf.is_open()) {
         osf << "";
         osf.close();

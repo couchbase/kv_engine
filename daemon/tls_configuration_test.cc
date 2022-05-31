@@ -9,13 +9,13 @@
  */
 #include "json_validator_test.h"
 #include "tls_configuration.h"
-#include <boost/filesystem/path.hpp>
 #include <platform/base64.h>
+#include <filesystem>
 
 /// Helper method to get one of the files we've got stored for
 /// unit tests
 static std::string getCertFile(const std::string& filename) {
-    auto root = boost::filesystem::path(OBJECT_ROOT);
+    auto root = std::filesystem::path(OBJECT_ROOT);
     return (root / "tests" / "cert" / "root" / filename).generic_string();
 }
 

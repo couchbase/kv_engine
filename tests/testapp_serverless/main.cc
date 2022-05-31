@@ -10,13 +10,13 @@
 
 #include "serverless_test.h"
 
-#include <boost/filesystem/path.hpp>
 #include <event2/thread.h>
 #include <folly/portability/Stdlib.h>
 #include <platform/cbassert.h>
 #include <platform/platform_socket.h>
 #include <platform/socket.h>
 #include <csignal>
+#include <filesystem>
 #include <string>
 
 int main(int argc, char** argv) {
@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
 
     setenv("MEMCACHED_UNIT_TESTS", "true", 1);
 
-    auto pwdb = boost::filesystem::path{SOURCE_ROOT} / "tests" /
+    auto pwdb = std::filesystem::path{SOURCE_ROOT} / "tests" /
                 "testapp_serverless" / "pwdb.json";
     setenv("CBSASL_PWFILE", pwdb.generic_string().c_str(), 1);
 

@@ -51,7 +51,6 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
-#include <boost/filesystem.hpp>
 #include <hdrhistogram/hdrhistogram.h>
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
@@ -80,9 +79,10 @@
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/logtags.h>
 #include <xattr/utils.h>
-
 #include <chrono>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -1936,10 +1936,10 @@ std::optional<size_t> EventuallyPersistentEngine::getShardCountFromDisk() {
     Expects(configuration.getBackend() == "magma");
 
     // Look for the file
-    const auto shardFile = boost::filesystem::path(
+    const auto shardFile = std::filesystem::path(
             configuration.getDbname().append(magmaShardFile));
-    if (boost::filesystem::exists(shardFile)) {
-        boost::filesystem::ifstream ifs(shardFile);
+    if (std::filesystem::exists(shardFile)) {
+        std::ifstream ifs(shardFile);
         std::string data;
         std::getline(ifs, data);
         EP_LOG_INFO("Found shard file for magma with {} shards", data);
@@ -1960,12 +1960,12 @@ void EventuallyPersistentEngine::maybeSaveShardCount(
         WorkLoadPolicy& workloadPolicy) {
     if (configuration.getBackend() == "magma") {
         // We should have created this directory already
-        Expects(boost::filesystem::exists(configuration.getDbname()));
+        Expects(std::filesystem::exists(configuration.getDbname()));
 
-        const auto shardFilePath = boost::filesystem::path(
+        const auto shardFilePath = std::filesystem::path(
                 configuration.getDbname().append(magmaShardFile));
 
-        if (boost::filesystem::exists(shardFilePath)) {
+        if (std::filesystem::exists(shardFilePath)) {
             // File already exists, don't overwrite it (we should have the same
             // of shards, it's just pointless).
             return;
@@ -2003,7 +2003,7 @@ void EventuallyPersistentEngine::maybeSaveShardCount(
                     std::to_string(ret));
         }
 
-        Ensures(boost::filesystem::exists(shardFilePath));
+        Ensures(std::filesystem::exists(shardFilePath));
     }
 }
 

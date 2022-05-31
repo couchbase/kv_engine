@@ -9,11 +9,11 @@
  */
 
 #include "testapp.h"
-#include <boost/filesystem/path.hpp>
 #include <evutil.h>
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
 #include <platform/process_monitor.h>
+#include <filesystem>
 #include <string>
 
 /**
@@ -333,8 +333,8 @@ TEST_F(SslCertTest, MB50564_intermediate_cert_not_in_trusted_store_using_chain) 
 
     auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
-    const auto certfile = boost::filesystem::path(OBJECT_ROOT) / "tests" /
-                        "cert" / "clients" / "jane_chain.pem";
+    const auto certfile = std::filesystem::path(OBJECT_ROOT) / "tests" /
+                          "cert" / "clients" / "jane_chain.pem";
     setClientCertData(*connection, "jane");
     connection->setSslCertFile(certfile.generic_string());
     connection->connect();
@@ -350,8 +350,8 @@ TEST_F(SslCertTest, MB50564_intermediate_cert_in_trusted_store) {
 
     // Put the intermediate certificate and the root certificate in the
     // trusted ca store
-    const auto cafile = boost::filesystem::path(OBJECT_ROOT) / "tests" /
-                        "cert" / "intermediate" / "client_intermediate_ca.pem";
+    const auto cafile = std::filesystem::path(OBJECT_ROOT) / "tests" / "cert" /
+                        "intermediate" / "client_intermediate_ca.pem";
     setClientCertData(*connection, "jane");
     connection->setCaFile(cafile.generic_string());
     connection->connect();

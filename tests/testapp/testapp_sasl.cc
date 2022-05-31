@@ -12,8 +12,8 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
-#include <boost/filesystem.hpp>
 #include <algorithm>
+#include <filesystem>
 
 using namespace std::string_literals;
 
@@ -34,7 +34,7 @@ public:
         adminConnection->createBucket(bucket1, "", BucketType::Memcached);
         adminConnection->createBucket(bucket2, "", BucketType::Memcached);
         const auto dbname =
-                boost::filesystem::path{mcd_env->getTestDir()} / bucket3;
+                std::filesystem::path{mcd_env->getTestDir()} / bucket3;
         const auto config = "dbname="s + dbname.generic_string();
         adminConnection->createBucket(bucket3, config, BucketType::Couchbase);
     }

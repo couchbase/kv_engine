@@ -8,9 +8,9 @@
  *   the file licenses/APL2.txt.
  */
 #include "error_map_manager.h"
-#include <boost/filesystem.hpp>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <filesystem>
 
 class ErrorMapManagerImpl : public ErrorMapManager {
 public:
@@ -65,7 +65,7 @@ nlohmann::json v2to1(nlohmann::json map) {
     return map;
 }
 
-std::vector<std::string> getMap(const boost::filesystem::path& directory) {
+std::vector<std::string> getMap(const std::filesystem::path& directory) {
     // we need revision 0, 1 and 2
     std::vector<std::string> maps(3);
 
@@ -81,7 +81,7 @@ std::vector<std::string> getMap(const boost::filesystem::path& directory) {
 
 } // namespace cb::errormap
 
-void ErrorMapManager::initialize(const boost::filesystem::path& directory) {
+void ErrorMapManager::initialize(const std::filesystem::path& directory) {
     cb::errormap::instance = std::make_unique<ErrorMapManagerImpl>(
             cb::errormap::getMap(directory));
 }

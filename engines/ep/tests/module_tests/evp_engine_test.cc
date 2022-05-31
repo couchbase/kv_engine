@@ -26,11 +26,11 @@
 #include <executor/cb3_taskqueue.h>
 
 #include <boost/algorithm/string/join.hpp>
-#include <boost/filesystem.hpp>
 #include <configuration_impl.h>
 #include <folly/synchronization/Baton.h>
 #include <platform/dirutils.h>
 #include <chrono>
+#include <filesystem>
 #include <thread>
 
 EventuallyPersistentEngineTest::EventuallyPersistentEngineTest()
@@ -435,16 +435,13 @@ TEST_P(EPEnginePersistentTest, EngineInitReadOnlyDataDir) {
     store_item(vbid, "key", "value");
 
     shutdownEngine();
-
+    using namespace std::filesystem;
     // As we're modifying the directory we still need execute permissions or we
     // can't even look in it.
-    boost::filesystem::permissions(test_dbname,
-                                   boost::filesystem::others_read |
-                                           boost::filesystem::owner_read |
-                                           boost::filesystem::group_read |
-                                           boost::filesystem::others_exe |
-                                           boost::filesystem::owner_exe |
-                                           boost::filesystem::group_exe);
+    permissions(test_dbname,
+                perms::others_read | perms::owner_read | perms::group_read |
+                        perms::others_exec | perms::owner_exec |
+                        perms::group_exec);
 
     std::string config = config_string;
     config += "dbname=" + test_dbname;
@@ -464,7 +461,7 @@ TEST_P(EPEnginePersistentTest, EngineInitReadOnlyDataDir) {
     EXPECT_EQ(cb::engine_errc::success, engine->initialize(config));
 
     // Set the filesystem permissions back for the next test
-    boost::filesystem::permissions(test_dbname, boost::filesystem::all_all);
+    permissions(test_dbname, perms::all);
 
     // Reset our cookie to have a ptr to the new engine which is required when
     // we destroy it in TearDown()

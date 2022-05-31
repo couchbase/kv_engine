@@ -8,7 +8,6 @@
  *   the file licenses/APL2.txt.
  */
 
-#include <boost/filesystem.hpp>
 #include <folly/portability/Unistd.h>
 #include <getopt.h>
 #include <platform/dirutils.h>
@@ -20,6 +19,7 @@
 #include <utilities/string_utilities.h>
 #include <utilities/terminal_color.h>
 #include <utilities/terminate_handler.h>
+#include <filesystem>
 #include <iostream>
 
 static void usage() {
@@ -59,7 +59,7 @@ Commands:
  * @param param the parameter passed to the program
  */
 std::string getPayload(const std::string& param) {
-    boost::filesystem::path nm(param);
+    std::filesystem::path nm(param);
     std::string value = param;
     if (exists(nm)) {
         value = cb::io::loadFile(nm.generic_string());

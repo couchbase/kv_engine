@@ -17,7 +17,6 @@
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "vbucket.h"
 
-#include <boost/filesystem.hpp>
 #include <folly/portability/GTest.h>
 #include <libcouchstore/couch_db.h>
 #include <nlohmann/json.hpp>
@@ -26,6 +25,7 @@
 #include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
+#include <filesystem>
 
 #include <memory>
 #include <regex>
@@ -294,14 +294,14 @@ std::string dbnameFromCurrentGTestInfo() {
 }
 
 void removePathIfExists(const std::string& path) {
-    boost::filesystem::path p(path);
+    std::filesystem::path p(path);
     if (exists(p)) {
         // try a few times while backing off in case someone else holds
         // the resource open (and thats the reason why we fail to remove
         // the file.
         for (int ii = 0; ii < 20; ++ii) {
             try {
-                boost::filesystem::remove_all(p);
+                std::filesystem::remove_all(p);
                 return;
             } catch (const std::exception& e) {
                 std::cerr << "Failed to remove: " << p.generic_string() << ": "
@@ -311,7 +311,7 @@ void removePathIfExists(const std::string& path) {
         }
 
         // Try a final time and this time we'll throw an exception
-        boost::filesystem::remove_all(p);
+        std::filesystem::remove_all(p);
     }
 }
 

@@ -10,7 +10,6 @@
 #include "testapp.h"
 #include "testapp_binprot.h"
 
-#include <boost/filesystem.hpp>
 #include <cbsasl/client.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
@@ -33,6 +32,7 @@
 #include <atomic>
 #include <chrono>
 #include <csignal>
+#include <filesystem>
 #include <fstream>
 
 std::unique_ptr<McdEnvironment> mcd_env;
@@ -309,11 +309,11 @@ void TestappTest::reconfigure_client_cert_auth(const std::string& state,
 
 void TestappTest::setClientCertData(MemcachedConnection& connection,
                                     std::string_view user) {
-    auto directory = boost::filesystem::path(OBJECT_ROOT) / "tests" / "cert";
+    auto directory = std::filesystem::path(OBJECT_ROOT) / "tests" / "cert";
     auto cert = directory / "clients" /
-                boost::filesystem::path{std::string(user) + ".cert"};
+                std::filesystem::path{std::string(user) + ".cert"};
     auto key = directory / "clients" /
-               boost::filesystem::path{std::string(user) + ".key"};
+               std::filesystem::path{std::string(user) + ".key"};
     auto ca = directory / "root" / "ca_root.cert";
     connection.setSslCertFile(cert.generic_string());
     connection.setSslKeyFile(key.generic_string());
@@ -629,12 +629,11 @@ void TestappTest::spawn_embedded_server() {
 }
 
 void TestappTest::start_external_server() {
-    boost::filesystem::path exe{boost::filesystem::current_path() /
-                                "memcached"};
-    exe = exe.generic_path();
-    if (!boost::filesystem::exists(exe)) {
+    std::filesystem::path exe{std::filesystem::current_path() / "memcached"};
+    exe = exe.generic_string();
+    if (!std::filesystem::exists(exe)) {
         exe = exe.generic_string() + ".exe";
-        if (!boost::filesystem::exists(exe)) {
+        if (!std::filesystem::exists(exe)) {
             throw std::runtime_error(
                     "start_external_server(): Failed to locate memcached");
         }

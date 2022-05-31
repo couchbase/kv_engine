@@ -32,7 +32,6 @@
 #include "stats.h"
 #include "tracing.h"
 #include "utilities/terminate_handler.h"
-#include <boost/filesystem.hpp>
 #include <cbsasl/logging.h>
 #include <cbsasl/mechanism.h>
 #include <executor/executorpool.h>
@@ -63,6 +62,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <filesystem>
 #include <memory>
 #include <thread>
 
@@ -506,7 +506,7 @@ static void update_settings_from_config()
 
     if (settings.getErrorMapsDir().empty()) {
         // Set the error map dir.
-        auto path = boost::filesystem::path(root) / "etc" / "couchbase" / "kv" /
+        auto path = std::filesystem::path(root) / "etc" / "couchbase" / "kv" /
                     "error_maps";
         if (cb::io::isDirectory(path.generic_string())) {
             settings.setErrorMapsDir(path.generic_string());
@@ -786,9 +786,9 @@ void cb::serverless::Config::update_from_json(const nlohmann::json& json) {
 }
 
 static void initialize_serverless_config() {
-    const auto serverless = boost::filesystem::path{Settings::instance().getRoot()} /
-                            "etc" / "couchbase" / "kv" / "serverless" /
-                            "configuration.json";
+    const auto serverless =
+            std::filesystem::path{Settings::instance().getRoot()} / "etc" /
+            "couchbase" / "kv" / "serverless" / "configuration.json";
     auto& config = cb::serverless::Config::instance();
     if (exists(serverless)) {
         LOG_INFO("Using serverless static configuration from: {}",
@@ -977,7 +977,7 @@ int memcached_main(int argc, char** argv) {
 
     try {
         const auto errormapPath =
-                boost::filesystem::path{Settings::instance().getErrorMapsDir()};
+                std::filesystem::path{Settings::instance().getErrorMapsDir()};
         LOG_INFO("Loading error maps from [{}]", errormapPath.generic_string());
         ErrorMapManager::initialize(errormapPath);
     } catch (const std::exception& e) {

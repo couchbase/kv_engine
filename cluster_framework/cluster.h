@@ -13,9 +13,9 @@
 #include "dcp_packet_filter.h"
 #include "utilities/test_manifest.h"
 
-#include <boost/filesystem/path.hpp>
 #include <memcached/vbucket.h>
 #include <nlohmann/json_fwd.hpp>
+#include <filesystem>
 #include <memory>
 #include <optional>
 
@@ -142,7 +142,7 @@ public:
      *
      */
     static void removeWithRetry(
-            const boost::filesystem::path& path,
+            const std::filesystem::path& path,
             std::function<bool(const std::exception&)> errorcallback = {});
 };
 

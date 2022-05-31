@@ -8,19 +8,19 @@
  *   the file licenses/APL2.txt.
  */
 
-#include <boost/filesystem/path.hpp>
 #include <daemon/error_map_manager.h>
 #include <folly/portability/GTest.h>
 #include <mcbp/protocol/status.h>
 #include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
 #include <array>
+#include <filesystem>
 #include <iostream>
 
 class ErrorMapManagerTest : public ::testing::Test {
 public:
     static void SetUpTestCase() {
-        auto dir = boost::filesystem::path(SOURCE_ROOT) / "etc" / "couchbase" /
+        auto dir = std::filesystem::path(SOURCE_ROOT) / "etc" / "couchbase" /
                    "kv" / "error_maps";
         try {
             ErrorMapManager::initialize(dir);

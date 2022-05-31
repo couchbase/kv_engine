@@ -13,9 +13,10 @@
 #include "bucket.h"
 #include "node.h"
 
-#include <boost/filesystem.hpp>
+#include <boost/filesystem/operations.hpp>
 #include <platform/uuid.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <filesystem>
 #include <iostream>
 #include <string>
 #include <system_error>
@@ -30,7 +31,7 @@ public:
     ClusterImpl() = delete;
     ClusterImpl(const ClusterImpl&) = delete;
     ClusterImpl(std::vector<std::unique_ptr<Node>>& nod,
-                boost::filesystem::path dir)
+                std::filesystem::path dir)
         : nodes(std::move(nod)),
           directory(std::move(dir)),
           authProviderService(*this),
@@ -122,7 +123,7 @@ public:
 protected:
     std::vector<std::unique_ptr<Node>> nodes;
     std::vector<std::shared_ptr<Bucket>> buckets;
-    const boost::filesystem::path directory;
+    const std::filesystem::path directory;
     AuthProviderService authProviderService;
     const std::string uuid;
     nlohmann::json manifest;
@@ -316,7 +317,7 @@ ClusterImpl::~ClusterImpl() {
     for (auto& n : nodes) {
         const auto minidump_dir = n->directory / "crash";
         for (const auto& p :
-             boost::filesystem::directory_iterator(minidump_dir)) {
+             std::filesystem::directory_iterator(minidump_dir)) {
             if (is_regular_file(p)) {
                 cleanup = false;
                 break;
@@ -356,10 +357,11 @@ void ClusterImpl::iterateNodes(std::function<void(const Node&)> visitor) const {
     }
 }
 
-static boost::filesystem::path createTemporaryDirectory() {
-    const auto cwd = absolute(boost::filesystem::path{"."}).parent_path();
+static std::filesystem::path createTemporaryDirectory() {
+    const auto cwd = absolute(std::filesystem::path{"."}).parent_path();
     for (;;) {
-        auto candidate = cwd / boost::filesystem::unique_path("cluster_%%%%%%");
+        auto candidate =
+                cwd / boost::filesystem::unique_path("cluster_%%%%%%").string();
         if (create_directories(candidate)) {
             return candidate;
         }
@@ -370,8 +372,9 @@ std::unique_ptr<Cluster> Cluster::create(
         size_t num_nodes,
         std::optional<std::string> directory,
         std::function<void(std::string_view, nlohmann::json&)> configCallback) {
-    const boost::filesystem::path root =
-            directory.has_value() ? *directory : createTemporaryDirectory();
+    const std::filesystem::path root =
+            directory.has_value() ? *directory
+                                  : createTemporaryDirectory().string();
     std::vector<std::unique_ptr<Node>> nodes;
     for (size_t n = 0; n < num_nodes; ++n) {
         const std::string id = "n_" + std::to_string(n);
@@ -396,7 +399,7 @@ nlohmann::json Cluster::getUninitializedJson() {
 }
 
 void Cluster::removeWithRetry(
-        const boost::filesystem::path& path,
+        const std::filesystem::path& path,
         std::function<bool(const std::exception&)> errorcallback) {
     int retry = 100;
     if (!errorcallback) {
@@ -411,7 +414,7 @@ void Cluster::removeWithRetry(
 
     do {
         try {
-            boost::filesystem::remove_all(path);
+            std::filesystem::remove_all(path);
             return;
         } catch (const std::exception& e) {
             if (!errorcallback(e)) {
