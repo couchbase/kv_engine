@@ -29,6 +29,7 @@ target_link_libraries(cbsasl
         PUBLIC
                 platform
         PRIVATE
+                fmt::fmt
                 phosphor
                 mcd_util
                 ${OPENSSL_LIBRARIES})

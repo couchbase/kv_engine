@@ -11,8 +11,10 @@
 #include "pwfile.h"
 #include <cbsasl/logging.h>
 #include <cbsasl/password_database.h>
+#include <fmt/format.h>
 #include <folly/Synchronized.h>
-#include <platform/timeutils.h>
+#include <nlohmann/json.hpp>
+#include <platform/dirutils.h>
 #include <chrono>
 #include <memory>
 #include <mutex>
@@ -50,34 +52,26 @@ bool find_user(const std::string& username, cb::sasl::pwdb::User& user) {
     return !user.isDummy();
 }
 
-cb::sasl::Error parse_user_db(
-        const std::string content,
-        bool file,
+static cb::sasl::Error parse_user_db(
+        const nlohmann::json& content,
         std::function<void(const cb::sasl::pwdb::User&)> usercallback) {
     try {
-        auto start = std::chrono::steady_clock::now();
         std::unique_ptr<cb::sasl::pwdb::PasswordDatabase> db(
-                new cb::sasl::pwdb::PasswordDatabase(content, file));
-        std::string logmessage(
-                "Loading [" + content + "] took " +
-                cb::time2text(std::chrono::steady_clock::now() - start));
-        cb::sasl::logging::log(cb::sasl::logging::Level::Debug, logmessage);
+                new cb::sasl::pwdb::PasswordDatabase(content));
         PasswordDatabaseManager::instance().swap(db);
         if (usercallback) {
             PasswordDatabaseManager::instance().iterate(usercallback);
         }
     } catch (std::exception& e) {
-        std::string message("Failed loading [");
-        message.append(content);
-        message.append("]: ");
-        message.append(e.what());
-        cb::sasl::logging::log(cb::sasl::logging::Level::Error, message);
+        cb::sasl::logging::log(
+                cb::sasl::logging::Level::Error,
+                fmt::format("Failed initializing database due to: {}",
+                            e.what()));
         return cb::sasl::Error::FAIL;
     } catch (...) {
-        std::string message("Failed loading [");
-        message.append(content);
-        message.append("]: Unknown error");
-        cb::sasl::logging::log(cb::sasl::logging::Level::Error, message);
+        cb::sasl::logging::log(
+                cb::sasl::logging::Level::Error,
+                "Failed initializing database due to unknown error");
         return cb::sasl::Error::FAIL;
     }
 
@@ -90,12 +84,27 @@ cb::sasl::Error load_user_db(
         const char* filename = getenv("CBSASL_PWFILE");
 
         if (filename) {
-            return parse_user_db(filename, true, std::move(usercallback));
+            const auto content =
+                    cb::io::loadFile(filename, std::chrono::seconds{5});
+            nlohmann::json json;
+            try {
+                json = nlohmann::json::parse(content);
+            } catch (const std::bad_alloc&) {
+                return cb::sasl::Error::NO_MEM;
+            } catch (const std::exception& e) {
+                cb::sasl::logging::log(
+                        cb::sasl::logging::Level::Error,
+                        fmt::format("Failed parsing JSON from \"{}\": {}",
+                                    filename,
+                                    e.what()));
+                return cb::sasl::Error::FAIL;
+            }
+            return parse_user_db(json, std::move(usercallback));
         }
 
         throw std::runtime_error(
                 "load_user_db: Environment variable CBSASL_PWFILE must be set");
-    } catch (std::bad_alloc&) {
+    } catch (const std::bad_alloc&) {
         return cb::sasl::Error::NO_MEM;
     }
 }

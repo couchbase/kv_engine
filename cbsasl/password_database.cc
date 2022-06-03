@@ -11,65 +11,13 @@
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <chrono>
-#include <fstream>
 #include <iostream>
 #include <memory>
-#include <sstream>
 #include <string>
 
 namespace cb::sasl::pwdb {
 
-std::string PasswordDatabase::read_password_file(const std::string& filename) {
-    if (filename == "-") {
-        std::string contents;
-        try {
-            contents.assign(std::istreambuf_iterator<char>{std::cin},
-                            std::istreambuf_iterator<char>());
-        } catch (const std::exception& ex) {
-            std::cerr << "Failed to read password database from stdin: "
-                      << ex.what() << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        return contents;
-    }
-
-    return cb::io::loadFile(filename, std::chrono::seconds{5});
-}
-
-void PasswordDatabase::write_password_file(const std::string& filename,
-                                           const std::string& content) {
-    if (filename == "-") {
-        std::cout.write(content.data(), content.size());
-        std::cout.flush();
-        return;
-    }
-
-    std::ofstream of(filename, std::ios::binary);
-    of.write(content.data(), content.size());
-    of.flush();
-    of.close();
-}
-
-PasswordDatabase::PasswordDatabase(const std::string& content, bool file) {
-    nlohmann::json json;
-
-    if (file) {
-        auto c = read_password_file(content);
-        try {
-            json = nlohmann::json::parse(c);
-        } catch (const nlohmann::json::exception&) {
-            throw std::runtime_error(
-                    "PasswordDatabase: Failed to parse the JSON in " + content);
-        }
-    } else {
-        try {
-            json = nlohmann::json::parse(content);
-        } catch (const nlohmann::json::exception&) {
-            throw std::runtime_error(
-                    "PasswordDatabase: Failed to parse the supplied JSON");
-        }
-    }
-
+PasswordDatabase::PasswordDatabase(const nlohmann::json& json) {
     if (json.size() != 1) {
         throw std::runtime_error("PasswordDatabase: format error..");
     }
@@ -126,10 +74,6 @@ nlohmann::json PasswordDatabase::to_json() const {
 
 std::string PasswordDatabase::to_string() const {
     return to_json().dump();
-}
-
-MutablePasswordDatabase::MutablePasswordDatabase(const nlohmann::json& content)
-    : PasswordDatabase(content.dump(), false) {
 }
 
 void MutablePasswordDatabase::upsert(User user) {

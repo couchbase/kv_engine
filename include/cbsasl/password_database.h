@@ -29,14 +29,12 @@ public:
 
     /**
      * Create an instance of the password database and initialize
-     * it with the content of the filename
+     * it with the provided content
      *
      * @param content the content for the user database
-     * @param file if set to true, the content contains the name
-     *             of the file to parse
      * @throws std::runtime_error if an error occurs
      */
-    explicit PasswordDatabase(const std::string& content, bool file = true);
+    explicit PasswordDatabase(const nlohmann::json& content);
 
     /**
      * Try to locate the user in the password database
@@ -60,25 +58,6 @@ public:
      */
     std::string to_string() const;
 
-    /**
-     * Read the password file from the specified filename.
-     *
-     * @param filename the name of the file to read
-     * @return the content of the file
-     * @throws std::exception if an error occurs while reading
-     */
-    static std::string read_password_file(const std::string& filename);
-
-    /**
-     * Write the password data to the specified filename.
-     *
-     * @param filename the name of the file to write
-     * @param content the data to write
-     * @throws std::exception if an error occurs while writing the data
-     */
-    static void write_password_file(const std::string& filename,
-                                    const std::string& content);
-
 protected:
     /**
      * The actual user database
@@ -91,7 +70,6 @@ class MutablePasswordDatabase : public PasswordDatabase {
 public:
     MutablePasswordDatabase() : PasswordDatabase() {
     }
-    explicit MutablePasswordDatabase(const nlohmann::json& content);
     void upsert(User user);
     void remove(const std::string& username);
 };

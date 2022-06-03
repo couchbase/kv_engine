@@ -250,7 +250,6 @@ TEST_F(UserTest, CreateDummy) {
 class PasswordDatabaseTest : public ::testing::Test {
 public:
     void SetUp() override {
-        nlohmann::json root;
         nlohmann::json array = nlohmann::json::array();
 
         array.push_back(cb::sasl::pwdb::UserFactory::create("trond", "secret1")
@@ -264,17 +263,15 @@ public:
         array.push_back(cb::sasl::pwdb::UserFactory::create("dave", "secret5")
                                 .to_json());
 
-        root["users"] = array;
-
-        json = root.dump();
+        json["users"] = array;
     }
 
-    std::string json;
+    nlohmann::json json;
 };
 
 TEST_F(PasswordDatabaseTest, TestNormalInit) {
     cb::sasl::pwdb::PasswordDatabase db;
-    EXPECT_NO_THROW(db = cb::sasl::pwdb::PasswordDatabase(json, false));
+    EXPECT_NO_THROW(db = cb::sasl::pwdb::PasswordDatabase(json));
 
     EXPECT_FALSE(db.find("trond").isDummy());
     EXPECT_FALSE(db.find("mike").isDummy());
@@ -289,20 +286,19 @@ TEST_F(PasswordDatabaseTest, EmptyConstructor) {
 }
 
 TEST_F(PasswordDatabaseTest, DetectIllegalLabel) {
-    EXPECT_THROW(cb::sasl::pwdb::PasswordDatabase db("{ \"foo\": [] }", false),
+    EXPECT_THROW(cb::sasl::pwdb::PasswordDatabase db(R"({ "foo": [] })"_json),
                  std::runtime_error);
 }
 
 TEST_F(PasswordDatabaseTest, DetectIllegalUsersType) {
-    EXPECT_THROW(
-            cb::sasl::pwdb::PasswordDatabase db("{ \"users\": 24 }", false),
-            std::runtime_error);
+    EXPECT_THROW(cb::sasl::pwdb::PasswordDatabase db(R"({ "users": 24 })"_json),
+                 std::runtime_error);
 }
 
 TEST_F(PasswordDatabaseTest, CreateFromJsonDatabaseNoUsers) {
     cb::sasl::pwdb::PasswordDatabase db;
     EXPECT_NO_THROW(
-            db = cb::sasl::pwdb::PasswordDatabase("{ \"users\": [] }", false));
+            db = cb::sasl::pwdb::PasswordDatabase(R"({ "users": [] })"_json));
 
     EXPECT_TRUE(db.find("trond").isDummy());
     EXPECT_TRUE(db.find("unknown").isDummy());
@@ -310,6 +306,6 @@ TEST_F(PasswordDatabaseTest, CreateFromJsonDatabaseNoUsers) {
 
 TEST_F(PasswordDatabaseTest, CreateFromJsonDatabaseExtraLabel) {
     EXPECT_THROW(cb::sasl::pwdb::PasswordDatabase db(
-                         "{ \"users\": [], \"foo\", 2 }", false),
+                         R"({ "users": [], "foo": 2 })"_json),
                  std::runtime_error);
 }
