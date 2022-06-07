@@ -55,7 +55,11 @@ public:
         return nextCheckpointItem(producer);
     }
 
-    const std::queue<std::unique_ptr<DcpResponse>>& public_readyQ() {
+    void public_nextCheckpointItemTask() {
+        nextCheckpointItemTask();
+    }
+
+    std::queue<std::unique_ptr<DcpResponse>>& public_readyQ() {
         return readyQ;
     }
 
@@ -178,6 +182,10 @@ public:
 
     IncludeDeletedUserXattrs public_getIncludeDeletedUserXattrs() const {
         return includeDeletedUserXattrs;
+    }
+
+    bool public_nextSnapshotIsCheckpoint() const {
+        return nextSnapshotIsCheckpoint;
     }
 };
 

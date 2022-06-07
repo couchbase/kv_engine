@@ -4029,6 +4029,7 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     // perform this change on the replica).
     auto activeTakeOverStream = producer->findStream(vbid);
     ASSERT_TRUE(activeTakeOverStream->isTakeoverSend());
+    runCheckpointProcessor();
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSetVbucketState);
     ASSERT_TRUE(activeTakeOverStream->isTakeoverWait());
     setVBucketState(

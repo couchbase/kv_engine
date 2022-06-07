@@ -634,6 +634,13 @@ protected:
     // deletions?
     const IncludeDeletedUserXattrs includeDeletedUserXattrs;
 
+    /**
+     * Should the next snapshot marker have the 'checkpoint' flag
+     * (MARKER_FLAG_CHK) set?
+     * See comments in processItems() for usage of this variable.
+     */
+    bool nextSnapshotIsCheckpoint = false;
+
 private:
     std::unique_ptr<DcpResponse> inMemoryPhase(DcpProducer& producer);
 
@@ -796,13 +803,6 @@ private:
 
     //! The last known seqno pointed to by the checkpoint cursor
     ATOMIC_WEAKLY_MONOTONIC3(uint64_t, curChkSeqno, Labeller);
-
-    /**
-     * Should the next snapshot marker have the 'checkpoint' flag
-     * (MARKER_FLAG_CHK) set?
-     * See comments in processItems() for usage of this variable.
-     */
-    bool nextSnapshotIsCheckpoint = false;
 
     /*
      * The next snapshot start that we will send (set when we set
