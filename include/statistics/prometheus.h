@@ -63,6 +63,7 @@ nlohmann::json initialize(const std::pair<in_port_t, sa_family_t>& config,
                           AuthCallback authCB);
 
 void addEndpoint(std::string path,
+                 std::string prefix,
                  IncludeTimestamps timestamps,
                  GetStatsCallback getStatsCB);
 
@@ -98,7 +99,8 @@ public:
     MetricServer& operator=(const MetricServer&) = delete;
     MetricServer& operator=(MetricServer&&) = delete;
 
-    void AddEndpoint(std::string path,
+    void addEndpoint(std::string path,
+                     std::string prefix,
                      IncludeTimestamps timestamps,
                      GetStatsCallback getStatsCB);
 
