@@ -106,6 +106,8 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_backfilling_but_task_finished) {
                                                       cookie,
                                                       "test_producer",
                                                       /*notifyOnly*/ false);
+    producer->createCheckpointProcessorTask();
+
     // Create a Mock Active Stream
     auto mock_stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(engine.get()),
@@ -167,6 +169,8 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
                                                       cookie,
                                                       "test_producer",
                                                       /*flags*/ 0);
+    producer->createCheckpointProcessorTask();
+
     // Create a Mock Active Stream
     auto mock_stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(engine.get()),

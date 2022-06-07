@@ -258,12 +258,8 @@ void DCPTest::removeCheckpoint(int numItems) {
             uSleepTime = decayingSleep(uSleepTime);
         };
     } else {
-        int itemsRemoved = 0;
-        while (true) {
-            itemsRemoved += ckpt_mgr.removeClosedUnrefCheckpoints().count;
-            if (itemsRemoved >= numItems) {
-                break;
-            }
+        while (ckpt_mgr.getNumCheckpoints() > 1) {
+            ckpt_mgr.removeClosedUnrefCheckpoints();
             uSleepTime = decayingSleep(uSleepTime);
         };
     }

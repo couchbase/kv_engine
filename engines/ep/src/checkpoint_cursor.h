@@ -136,13 +136,11 @@ public:
      */
     void incrPos();
 
-    /*
-     * Calculate the number of items (excluding meta-items) remaining to be
-     * processed in the checkpoint the cursor is currently in.
-     *
-     * @return number of items remaining to be processed.
+    /**
+     * @return The number of all items (empty item excluded) remaining to be
+     * processed in the current checkpoint
      */
-    size_t getRemainingItemsCount() const;
+    size_t getRemainingItemsInCurrentCheckpoint() const;
 
 private:
     std::string name;

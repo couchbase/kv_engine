@@ -3073,7 +3073,7 @@ TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_FlusherDedup) {
     EXPECT_EQ(5, manager.getNumItems()); // [cs m ce] [cs m)
     EXPECT_EQ(2, manager.getNumOpenChkItems());
     EXPECT_EQ(initialHighSeqno + 2, manager.getHighSeqno());
-    EXPECT_EQ(3, manager.getNumItemsForPersistence());
+    EXPECT_EQ(4, manager.getNumItemsForPersistence());
 
     // Preconditions before flushing
     // magma

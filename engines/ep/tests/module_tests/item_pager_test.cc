@@ -71,7 +71,7 @@ protected:
         // magma to flush with every batch. This will release memory
         // being held by streaming sstables (~600KB). Otherwise, we would
         // have to bump up the quota for magma.
-        increaseQuota(800 * 1024);
+        increaseQuota(1024 * 1024);
 
         // How many nonIO tasks we expect initially
         // - 0 for persistent.
@@ -2376,13 +2376,12 @@ TEST_P(MultiPagingVisitorTest, ItemPagerCreatesMultiplePagers) {
         return stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat.load();
     };
 
-    auto itemCount = 0;
     auto i = 0;
     // items need to be persisted to be evicted, but flushing after each item
     // would be slow. Load to the HWM, then flush, then repeat if we dropped
     // below the HWM
     while (!aboveHWM()) {
-        itemCount += populateVbsUntil(
+        populateVbsUntil(
                 vbids, aboveHWM, "keys_" + std::to_string(i++) + "_", 500);
         for (const auto& vb : vbids) {
             // flush and remove checkpoints as eviction will not touch

@@ -81,20 +81,16 @@ void CheckpointCursor::incrPos() {
     ++distance;
 }
 
-size_t CheckpointCursor::getRemainingItemsCount() const {
-    size_t remaining = 0;
-    ChkptQueueIterator itr = currentPos;
-    // Start counting from the next item
-    if (itr != (*currentCheckpoint)->end()) {
-        ++itr;
+size_t CheckpointCursor::getRemainingItemsInCurrentCheckpoint() const {
+    auto it = currentPos;
+    if (it == (*currentCheckpoint)->end()) {
+        return 0;
     }
-    while (itr != (*currentCheckpoint)->end()) {
-        if (!(*itr)->isCheckPointMetaItem()) {
-            ++remaining;
-        }
-        ++itr;
+    size_t count = 0;
+    for (++it; it != (*currentCheckpoint)->end(); ++it) {
+        ++count;
     }
-    return remaining;
+    return count;
 }
 
 bool operator<(const CheckpointCursor& a, const CheckpointCursor& b) {

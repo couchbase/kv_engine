@@ -681,11 +681,22 @@ void DCPLoopbackStreamTest::takeoverTest(
             << "Producer stream state should have transitioned to "
                "TakeoverSend";
 
-    auto* consumerStream = route0_1.consumer->getVbucketStream(vbid).get();
+    auto* consumerStream = route0_1.getStreams().second;
     while (true) {
         // We expect an producer->consumer message that will trigger a response
-        route0_1.transferMessage();
-        route0_1.transferResponseMessage();
+        auto msg = route0_1.getNextProducerMsg(producerStream);
+        if (msg) {
+            EXPECT_EQ(cb::engine_errc::success,
+                      consumerStream->messageReceived(std::move(msg)));
+            route0_1.transferResponseMessage();
+        } else {
+            // Note: At some point in this loop we end-up in a state where the
+            // stream cursor has just 1 meta item in the queue (the
+            // set_vbstate(dead) message queued for the active vb at producer).
+            // In that state the producer schedules the StreamTask and needs
+            // another StreamTask::run + Producer::step for moving the stream.
+            continue;
+        }
 
         // Check consumer stream state - drop reflecting messages when
         // stream goes dead.

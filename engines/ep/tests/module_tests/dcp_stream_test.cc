@@ -694,8 +694,7 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
 
     ASSERT_TRUE(stream->isInMemory());
 
-    // Should start with one item remaining.
-    EXPECT_EQ(1, stream->getItemsRemaining())
+    EXPECT_EQ(3, stream->getItemsRemaining())
             << "Unexpected initial stream item count";
 
     // Populate the streams' ready queue with items from the checkpoint,
@@ -1506,10 +1505,8 @@ void SingleThreadedActiveStreamTest::setupProducer(
                                                  "test_producer->test_consumer",
                                                  flags,
                                                  false /*startTask*/);
-
-    if (startCheckpointProcessorTask) {
-        startCheckpointTask();
-    }
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
 
     for (const auto& c : controls) {
         EXPECT_EQ(cb::engine_errc::success,
@@ -1549,6 +1546,7 @@ void SingleThreadedActiveStreamTest::recreateProducerAndStream(
                                                  "test_producer->test_consumer",
                                                  flags,
                                                  false /*startTask*/);
+    producer->createCheckpointProcessorTask();
     producer->setSyncReplication(SyncReplication::SyncReplication);
     recreateStream(vb, true /*enforceProducerFlags*/, jsonFilter);
 }
@@ -4771,6 +4769,91 @@ TEST_P(SingleThreadedActiveStreamTest, MB_57772) {
 
     EXPECT_EQ(0, engine->getDcpConnMap().getNumRunningBackfills());
     EXPECT_EQ(0, bfm.getNumBackfills());
+}
+
+TEST_P(SingleThreadedActiveStreamTest,
+       StreamTaskMovesCursorToLastItemInEmptyCheckpoint) {
+    auto& vb = *engine->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = *vb.checkpointManager;
+    const auto& list =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    manager);
+    ASSERT_EQ(1, list.size());
+    ASSERT_EQ(2, manager.getNumOpenChkItems()); // cs, vbs
+
+    // Note: The first in-memory snapshot is special with regard to the CHK
+    // flag. We force nextSnapshotIsCheckpoint=true at (some) state transition
+    // in ActiveStream. Given that in this test we need to verify that the CHK
+    // flag is set by processing checkpoint_start messages, then here I make the
+    // stream process a first snapshot for clearing nextSnapshotIsCheckpoint
+    // before proceeding.
+    EXPECT_TRUE(stream->public_nextSnapshotIsCheckpoint());
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    ASSERT_EQ(1, vb.getHighSeqno());
+    // Push from checkpoint to readyQ
+    stream->public_nextCheckpointItemTask();
+    // Drain readyQ
+    auto& readyQ = stream->public_readyQ();
+    while (readyQ.size() > 0) {
+        readyQ.pop();
+    }
+    // We want just a new open checkpoint
+    manager.createNewCheckpoint();
+    if (isPersistent()) {
+        flushVBucket(vbid);
+    }
+    ASSERT_EQ(2, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+
+    // Verify that the stream doesn't know of any checkpoint so far
+    ASSERT_FALSE(stream->public_nextSnapshotIsCheckpoint());
+
+    // Verify 1 item for cursor (checkpoint_start)
+    auto cursor = stream->getCursor().lock();
+    EXPECT_TRUE(manager.hasItemsForCursor(*cursor));
+    EXPECT_EQ(1, cursor->getRemainingItemsInCurrentCheckpoint());
+
+    // Run the StreamTask
+    ASSERT_EQ(0, readyQ.size());
+    stream->public_nextCheckpointItemTask();
+
+    // Verify nothing in the stream readyQ yet, as no mutations in checkpoints
+    ASSERT_EQ(0, readyQ.size());
+
+    // But, cursor already moved to the last item in checkpoint (set-vbstate at
+    // this point)
+    EXPECT_FALSE(manager.hasItemsForCursor(*cursor));
+    EXPECT_EQ(0, cursor->getRemainingItemsInCurrentCheckpoint());
+
+    // Now we want to verify that ActiveStream has already processed the 2 meta
+    // items. In particular, we need to ensure that the checkpoint_start item
+    // has updated the ActiveStream state to make it ready for streaming a
+    // proper SnapMarker later (ie, as soon as a mutation is queued and
+    // streamed). Here "proper" means that the CHK_FLAG must be set in the
+    // marker.
+
+    // checkpoint_start already processed
+    EXPECT_TRUE(stream->public_nextSnapshotIsCheckpoint());
+
+    // So now queue some mutations
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    store_item(vbid, makeStoredDocKey("other-key"), "value");
+    EXPECT_EQ(3, vb.getHighSeqno());
+
+    // Run the StreamTask again
+    stream->public_nextCheckpointItemTask();
+
+    // Verify that we have two items in the readyQ (SnapshotMarker and two
+    // DcpMutations), and that the SnapshotMarker is correctly encoded (should
+    // have CHK flag set and the expected seqno-range).
+    ASSERT_EQ(3, readyQ.size());
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
+    auto& snapMarker = dynamic_cast<SnapshotMarker&>(*readyQ.front());
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, snapMarker.getFlags());
+    EXPECT_EQ(2, snapMarker.getStartSeqno());
+    EXPECT_EQ(3, snapMarker.getEndSeqno());
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ.back()->getEvent());
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,

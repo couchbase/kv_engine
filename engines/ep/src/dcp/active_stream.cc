@@ -966,7 +966,7 @@ bool ActiveStream::nextCheckpointItem(DcpProducer& producer) {
     auto vb = engine->getVBucket(vb_);
     if (vb) {
         const auto curs = cursor.lock();
-        if (curs && vb->checkpointManager->hasNonMetaItemsForCursor(*curs)) {
+        if (curs && vb->checkpointManager->hasItemsForCursor(*curs)) {
             // Schedule the stream-processor for pulling items from checkpoints
             // and pushing them into the stream readyQ
             producer.scheduleCheckpointProcessorTask(shared_from_this());

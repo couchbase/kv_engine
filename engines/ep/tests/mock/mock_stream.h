@@ -54,7 +54,11 @@ public:
         return nextCheckpointItem(producer);
     }
 
-    const std::queue<std::unique_ptr<DcpResponse>>& public_readyQ() {
+    void public_nextCheckpointItemTask() {
+        nextCheckpointItemTask();
+    }
+
+    std::queue<std::unique_ptr<DcpResponse>>& public_readyQ() {
         return readyQ;
     }
 
@@ -184,6 +188,10 @@ public:
     }
 
     std::unique_ptr<DcpResponse> public_backfillPhase(DcpProducer& producer);
+
+    bool public_nextSnapshotIsCheckpoint() const {
+        return nextSnapshotIsCheckpoint;
+    }
 };
 
 /**
