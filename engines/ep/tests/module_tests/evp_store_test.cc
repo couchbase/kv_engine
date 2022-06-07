@@ -21,6 +21,7 @@
 #include "evp_store_test.h"
 
 #include "../mock/mock_dcp_producer.h"
+#include "../mock/mock_paging_visitor.h"
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
@@ -1997,6 +1998,104 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest,
 
     EXPECT_EQ(1, vb->ht.getNumItems());
     EXPECT_EQ(0, vb->ht.getNumTempItems());
+}
+
+TEST_P(EPBucketFullEvictionNoBloomFilterTest, MB_52067) {
+    /* Test that removing a temp non-existent item from the hashtable does not
+     * "short circuit" ongoing front end requests expecting to find that item
+     *  as a result of a bgfetch.
+     *
+     * The item pager (or a completed concurrent get if the option DELETE_TEMP
+     * is set) can delete a temp non-existent item from the HashTable.
+     * .
+     * A concurrent bgfetch for the same key would then find no temp item in
+     * the HT.
+     *
+     * Prior to MB-52067, this would directly report no_such_key to the frontend
+     * in notifyIOComplete. This would skip any later SteppableCommandContext
+     * stages (as it only proceeds on success). Operations like Increment
+     * could normally create the document if it does not exist, but this logic
+     * would be bypassed in that situation, leading to an unusual enoent.
+     *
+     * Test to confirm that concurrent gets in the above crafted scenario
+     * cause the second get to retry if the temp item is missing.
+     *
+     */
+    auto vbid = Vbid(0);
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto* cookie = create_mock_cookie();
+
+    const auto key = makeStoredDocKey("key");
+    const auto value = std::string(1024 * 1024, 'x');
+    auto item =
+            make_item(vbid, key, value, 0 /*exp*/, PROTOCOL_BINARY_RAW_BYTES);
+
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+
+    auto& store = getEPBucket();
+    // start a get for the non-existent value
+    ASSERT_EQ(cb::engine_errc::would_block,
+              store.get(key, vbid, cookie, options).getStatus());
+
+    auto& ht = store.getVBucket(vbid)->ht;
+
+    {
+        auto svp = ht.findForWrite(key);
+        EXPECT_TRUE(svp.storedValue);
+        EXPECT_TRUE(svp.storedValue->isTempInitialItem());
+    }
+
+    // run a paging visitor to remove the temp item
+    // This could also be achieved with a second get request, or by manually
+    // evicting the temp item. Running a full paging visitor to best reflect
+    // a real world scenario, while keeping it simpler than managing overlapping
+    // get requests.
+    auto pagerSemaphore = std::make_shared<cb::Semaphore>();
+    pagerSemaphore->try_acquire(1);
+    auto pv = std::make_unique<MockPagingVisitor>(
+            *engine->getKVBucket(),
+            engine->getEpStats(),
+            EvictionRatios{1.0 /* active&pending */,
+                           1.0 /* replica */}, // try evict everything
+            pagerSemaphore,
+            ITEM_PAGER,
+            false,
+            VBucketFilter(),
+            0 /* "protected" age percentage */,
+            255 /* mfu age threshold */);
+
+    // Drop the low watermark to ensure paging removes everything
+    engine->getConfiguration().setMemLowWat(0);
+    // drop the mfu of the temp item to evict it immediately
+    ht.findOnlyCommitted(key).storedValue->setFreqCounterValue(0);
+    pv->visitBucket(*store.getVBucket(vbid));
+
+    // Item is gone
+    {
+        auto svp = ht.findForWrite(key);
+        EXPECT_FALSE(svp.storedValue);
+    }
+
+    // bgfetch, should not find the temp item at all, should notify the
+    // cookie with "success" to allow it to run again.
+    runBGFetcherTask();
+
+    // get should have been notified with success (not no_such_key).
+    // MB-52067: if no_such_key were reported here, frontend ops like
+    // Increment would not continue on to later phases. Thus, an Increment
+    // which could create the item if it is missing would unexpectedly respond
+    // no_such_key.
+    ASSERT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookie));
+
+    // retrying the get should would_block again, causing the bgfetch to be
+    // retried.
+    ASSERT_EQ(cb::engine_errc::would_block,
+              store.get(key, vbid, cookie, options).getStatus());
+
+    destroy_mock_cookie(cookie);
 }
 
 class EPBucketTestNoRocksDb : public EPBucketTest {
