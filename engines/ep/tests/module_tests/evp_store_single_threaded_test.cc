@@ -4509,7 +4509,7 @@ void STParamPersistentBucketTest::testAbortDoesNotIncrementOpsDelete(
                        vb.lockCollections(key)));
 
     // Flush ABORT
-    EXPECT_EQ(flusherDedup ? 3 : 1, manager.getNumItemsForPersistence());
+    EXPECT_EQ(flusherDedup ? 4 : 2, manager.getNumItemsForPersistence());
     flush_vbucket_to_disk(vbid, 1);
     EXPECT_EQ(0, manager.getNumItemsForPersistence());
     EXPECT_EQ(0, vb.getNumTotalItems());
@@ -4743,11 +4743,11 @@ TEST_P(STParamPersistentBucketTest,
 }
 
 TEST_P(STParamPersistentBucketTest,
-       AbortDoesNotIncrementOpsDelete_FlusherDedupe) {
-    auto flusherDedupe = !store->getOneROUnderlying()
-                                  ->getStorageProperties()
-                                  .hasAutomaticDeduplication();
-    if (!flusherDedupe) {
+       AbortDoesNotIncrementOpsDelete_FlusherDedup) {
+    auto flusherDedup = !store->getOneROUnderlying()
+                                 ->getStorageProperties()
+                                 .hasAutomaticDeduplication();
+    if (!flusherDedup) {
         GTEST_SKIP();
     }
     testAbortDoesNotIncrementOpsDelete(true /*flusherDedup*/);

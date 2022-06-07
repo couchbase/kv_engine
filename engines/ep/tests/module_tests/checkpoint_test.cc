@@ -83,7 +83,7 @@ void CheckpointTest::createManager(int64_t lastSeqno) {
     ASSERT_EQ(1, manager->getNumOfCursors());
     ASSERT_EQ(1, manager->getNumOpenChkItems());
     ASSERT_EQ(1, manager->getNumCheckpoints());
-    ASSERT_EQ(0, manager->getNumItemsForCursor(cursor));
+    ASSERT_EQ(1, manager->getNumItemsForCursor(cursor));
 }
 
 void CheckpointTest::resetManager() {
@@ -135,9 +135,9 @@ void ReplicaCheckpointTest::SetUp() {
 TEST_P(CheckpointTest, CheckFixture) {
     // Initially have a single cursor (persistence).
     EXPECT_EQ(1, this->manager->getNumOfCursors());
+    // cs item
     EXPECT_EQ(1, manager->getNumOpenChkItems());
-    // Should initially be zero items to persist.
-    EXPECT_EQ(0, this->manager->getNumItemsForCursor(cursor));
+    EXPECT_EQ(1, manager->getNumItemsForCursor(cursor));
 
     // Check that the items fetched matches the number we were told to expect.
     std::vector<queued_item> items;
@@ -169,7 +169,7 @@ TEST_P(CheckpointTest, OneOpenCkpt) {
     EXPECT_EQ(2, manager->getNumOpenChkItems());
     EXPECT_EQ(1001, qi->getBySeqno());
     EXPECT_EQ(20, qi->getRevSeqno());
-    EXPECT_EQ(1, this->manager->getNumItemsForCursor(cursor));
+    EXPECT_EQ(2, this->manager->getNumItemsForCursor(cursor));
     EXPECT_EQ(1001, this->manager->getHighSeqno());
     EXPECT_EQ(1001, this->manager->getMaxVisibleSeqno());
 
@@ -187,7 +187,7 @@ TEST_P(CheckpointTest, OneOpenCkpt) {
     EXPECT_EQ(2, manager->getNumOpenChkItems());
     EXPECT_EQ(1002, qi2->getBySeqno());
     EXPECT_EQ(21, qi2->getRevSeqno());
-    EXPECT_EQ(1, this->manager->getNumItemsForCursor(cursor));
+    EXPECT_EQ(2, this->manager->getNumItemsForCursor(cursor));
     EXPECT_EQ(1002, this->manager->getHighSeqno());
     EXPECT_EQ(1002, this->manager->getMaxVisibleSeqno());
 
@@ -205,7 +205,7 @@ TEST_P(CheckpointTest, OneOpenCkpt) {
     EXPECT_EQ(3, manager->getNumOpenChkItems());
     EXPECT_EQ(1003, qi3->getBySeqno());
     EXPECT_EQ(0, qi3->getRevSeqno());
-    EXPECT_EQ(2, this->manager->getNumItemsForCursor(cursor));
+    EXPECT_EQ(3, this->manager->getNumItemsForCursor(cursor));
     EXPECT_EQ(1003, this->manager->getHighSeqno());
     EXPECT_EQ(1003, this->manager->getMaxVisibleSeqno());
 
@@ -287,7 +287,7 @@ TEST_P(CheckpointTest, OneOpenOneClosed) {
     EXPECT_EQ(3, manager->getNumOpenChkItems());
 
     // Examine the items - should be 2 lots of two keys + meta-items.
-    EXPECT_EQ(5, manager->getNumItemsForCursor(cursor));
+    EXPECT_EQ(7, manager->getNumItemsForCursor(cursor));
 
     // Check that the items fetched matches the number we were told to expect.
     std::vector<queued_item> items;
@@ -407,8 +407,8 @@ TEST_P(CheckpointTest, CursorOffsetOnCheckpointClose) {
     EXPECT_EQ(3, manager->getNumOpenChkItems());
 
     // Use the existing persistence cursor for this test:
-    EXPECT_EQ(2, manager->getNumItemsForCursor(cursor))
-            << "Cursor should initially have two items pending";
+    EXPECT_EQ(3, manager->getNumItemsForCursor(cursor))
+            << "Cursor should initially have 3 items pending";
 
     // Check de-dupe counting - after adding another item with the same key,
     // should still see two items.
@@ -416,16 +416,17 @@ TEST_P(CheckpointTest, CursorOffsetOnCheckpointClose) {
                                                 "open checkpoint should not "
                                                 "increase queue size";
 
-    EXPECT_EQ(2, manager->getNumItemsForCursor(cursor))
-            << "Expected 2 items for cursor (2x op_set) after adding a "
+    EXPECT_EQ(3, manager->getNumItemsForCursor(cursor))
+            << "Expected 3 items for cursor (cs + 2x op_set) after adding a "
                "duplicate.";
 
     // Create a new checkpoint (closing the current open one).
     this->manager->createNewCheckpoint();
     EXPECT_EQ(1, manager->getNumOpenChkItems());
     EXPECT_EQ(2, this->manager->getNumCheckpoints());
-    EXPECT_EQ(3, manager->getNumItemsForCursor(cursor))
-            << "Expected 3 items for cursor after creating new checkpoint";
+    EXPECT_EQ(5, manager->getNumItemsForCursor(cursor))
+            << "Expected 5 items for cursor after creating new checkpoint (ce "
+               "+ cs added)";
 
     // Advance persistence cursor - first to get the 'checkpoint_start' meta
     // item, and a second time to get the a 'proper' mutation.
@@ -433,14 +434,14 @@ TEST_P(CheckpointTest, CursorOffsetOnCheckpointClose) {
     auto item = manager->nextItem(cursor, isLastMutationItem);
     EXPECT_TRUE(item->isCheckPointMetaItem());
     EXPECT_FALSE(isLastMutationItem);
-    EXPECT_EQ(3, manager->getNumItemsForCursor(cursor))
-            << "Expected 3 items for cursor after advancing one item";
+    EXPECT_EQ(4, manager->getNumItemsForCursor(cursor))
+            << "Expected 4 items for cursor after advancing one item";
 
     item = manager->nextItem(cursor, isLastMutationItem);
     EXPECT_FALSE(item->isCheckPointMetaItem());
     EXPECT_FALSE(isLastMutationItem);
-    EXPECT_EQ(2, manager->getNumItemsForCursor(cursor))
-            << "Expected 2 item for cursor after advancing by 1";
+    EXPECT_EQ(3, manager->getNumItemsForCursor(cursor))
+            << "Expected 3 item for cursor after advancing by 1";
 
     // Add two items to the newly-opened checkpoint. Same keys as 1st ckpt,
     // but cannot de-dupe across checkpoints.
@@ -448,8 +449,8 @@ TEST_P(CheckpointTest, CursorOffsetOnCheckpointClose) {
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
     }
 
-    EXPECT_EQ(4, manager->getNumItemsForCursor(cursor))
-            << "Expected 4 items for cursor after adding 2 more to new "
+    EXPECT_EQ(5, manager->getNumItemsForCursor(cursor))
+            << "Expected 5 items for cursor after adding 2 more to new "
                "checkpoint";
 
     // Advance the cursor 'out' of the first checkpoint.
@@ -648,8 +649,8 @@ TEST_P(CheckpointTest, CursorMovement) {
     EXPECT_EQ(openId + 1, manager->getOpenCheckpointId());
 
     /* Get items for persistence cursor */
-    EXPECT_EQ(0, manager->getNumItemsForCursor(cursor))
-            << "Expected to have no normal (only meta) items";
+    EXPECT_EQ(1, manager->getNumItemsForCursor(cursor))
+            << "Expected to have just the checkpoint_start item for cursor";
     items.clear();
     result = manager->getNextItemsForCursor(*cursor, items);
 
@@ -1634,7 +1635,7 @@ TEST_P(CheckpointTest, reRegister) {
     EXPECT_EQ(2, this->manager->getNumOfCursors());
 }
 
-TEST_P(CheckpointTest, takeAndResetCursors) {
+TEST_P(CheckpointTest, TakeAndResetCursors) {
     // The test runs with 2 cursors:
     // 1: CheckpointTest::cursor -> that is Persistence/DCP depending on the
     //                              bucket type
@@ -1650,7 +1651,8 @@ TEST_P(CheckpointTest, takeAndResetCursors) {
 
     for (const auto* c : cursors) {
         ASSERT_NE(nullptr, c);
-        ASSERT_EQ(0, manager->getNumItemsForCursor(c));
+        // cs
+        ASSERT_EQ(1, manager->getNumItemsForCursor(c));
         ASSERT_EQ(0, c->getDistance());
     }
 
@@ -1658,7 +1660,7 @@ TEST_P(CheckpointTest, takeAndResetCursors) {
     queueNewItem("key");
 
     for (const auto* c : cursors) {
-        EXPECT_EQ(1, manager->getNumItemsForCursor(c));
+        EXPECT_EQ(2, manager->getNumItemsForCursor(c));
         EXPECT_EQ(0, c->getDistance());
     }
 
@@ -1697,7 +1699,7 @@ TEST_P(CheckpointTest, takeAndResetCursors) {
             2,
             manager2->getCheckpointList().front()->getNumCursorsInCheckpoint());
     for (const auto* c : cursors) {
-        EXPECT_EQ(0, manager2->getNumItemsForCursor(c));
+        EXPECT_EQ(1, manager2->getNumItemsForCursor(c));
         EXPECT_EQ(0, c->getDistance());
     }
 }
@@ -1810,7 +1812,7 @@ void CheckpointTest::testExpelCheckpointItems() {
 
     // cs + mutations
     ASSERT_EQ(itemCount + 1, this->manager->getNumOpenChkItems());
-    ASSERT_EQ(itemCount, manager->getNumItemsForCursor(cursor));
+    ASSERT_EQ(itemCount + 1, manager->getNumItemsForCursor(cursor));
     ASSERT_EQ(1000 + itemCount, this->manager->getHighSeqno());
 
     bool isLastMutationItem{true};
@@ -1875,18 +1877,18 @@ void CheckpointTest::testExpelCheckpointItems() {
     EXPECT_FALSE(regResult.tryBackfill);
 }
 
-TEST_P(CheckpointTest, testExpelCheckpointItemsMemory) {
+TEST_P(CheckpointTest, ExpelCheckpointItemsMemory) {
     testExpelCheckpointItems();
 }
 
-TEST_P(ReplicaCheckpointTest, testExpelCheckpointItemsDisk) {
+TEST_P(ReplicaCheckpointTest, ExpelCheckpointItemsDisk) {
     manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
     testExpelCheckpointItems();
 }
 
 // Test that we correctly handle duplicates, where the initial version of the
 // document has been expelled.
-TEST_P(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
+TEST_P(CheckpointTest, ExpelCheckpointItemsWithDuplicateTest) {
     const int itemCount{3};
 
     for (auto ii = 0; ii < itemCount; ++ii) {
@@ -1895,7 +1897,7 @@ TEST_P(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
 
     ASSERT_EQ(1, this->manager->getNumCheckpoints()); // Single open checkpoint.
     ASSERT_EQ(1 + itemCount, this->manager->getNumOpenChkItems());
-    ASSERT_EQ(itemCount, this->manager->getNumItemsForCursor(cursor));
+    ASSERT_EQ(1 + itemCount, manager->getNumItemsForCursor(cursor));
     ASSERT_EQ(1000 + itemCount, this->manager->getHighSeqno());
 
     bool isLastMutationItem{true};
@@ -1963,7 +1965,7 @@ void CheckpointTest::testExpelCursorPointingToLastItem() {
     ASSERT_EQ(1, this->manager->getNumCheckpoints()); // Single open checkpoint.
     // cs + mutations
     ASSERT_EQ(itemCount + 1, manager->getNumOpenChkItems());
-    ASSERT_EQ(itemCount, manager->getNumItemsForCursor(cursor));
+    ASSERT_EQ(itemCount + 1, manager->getNumItemsForCursor(cursor));
     ASSERT_EQ(1000 + itemCount, this->manager->getHighSeqno());
 
     bool isLastMutationItem{true};
@@ -1990,11 +1992,11 @@ void CheckpointTest::testExpelCursorPointingToLastItem() {
     EXPECT_EQ(1, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
-TEST_P(CheckpointTest, testExpelCursorPointingToLastItemMemory) {
+TEST_P(CheckpointTest, ExpelCursorPointingToLastItemMemory) {
     testExpelCursorPointingToLastItem();
 }
 
-TEST_P(ReplicaCheckpointTest, testExpelCursorPointingToLastItemDisk) {
+TEST_P(ReplicaCheckpointTest, ExpelCursorPointingToLastItemDisk) {
     manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
     testExpelCursorPointingToLastItem();
 }
@@ -2021,11 +2023,11 @@ void CheckpointTest::testExpelCursorPointingToChkptStart() {
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
-TEST_P(CheckpointTest, testExpelCursorPointingToChkptStartMemory) {
+TEST_P(CheckpointTest, ExpelCursorPointingToChkptStartMemory) {
     testExpelCursorPointingToChkptStart();
 }
 
-TEST_P(ReplicaCheckpointTest, testExpelCursorPointingToChkptStartDisk) {
+TEST_P(ReplicaCheckpointTest, ExpelCursorPointingToChkptStartDisk) {
     manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
     testExpelCursorPointingToChkptStart();
 }
@@ -2196,7 +2198,7 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
 
     // cs + mutations
     ASSERT_EQ(itemCount + 1, manager->getNumOpenChkItems());
-    ASSERT_EQ(itemCount, manager->getNumItemsForCursor(cursor));
+    ASSERT_EQ(itemCount + 1, manager->getNumItemsForCursor(cursor));
     ASSERT_EQ(1000 + itemCount, this->manager->getHighSeqno());
 
     bool isLastMutationItem{true};
@@ -2247,11 +2249,11 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
               memUsageBeforeExpel - manager->getMemUsage());
 }
 
-TEST_P(CheckpointTest, testExpelCheckpointItemsMemoryRecoveredMemory) {
+TEST_P(CheckpointTest, ExpelCheckpointItemsMemoryRecoveredMemory) {
     testExpelCheckpointItemsMemoryRecovered();
 }
 
-TEST_P(ReplicaCheckpointTest, testExpelCheckpointItemsMemoryRecoveredDisk) {
+TEST_P(ReplicaCheckpointTest, ExpelCheckpointItemsMemoryRecoveredDisk) {
     manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
     testExpelCheckpointItemsMemoryRecovered();
 }
@@ -2803,7 +2805,7 @@ TEST_P(CheckpointRemovalTest, CursorMovement) {
     }
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
     EXPECT_EQ(3, manager->getNumOpenChkItems());
-    EXPECT_EQ(2, manager->getNumItemsForCursor(cursor));
+    EXPECT_EQ(3, manager->getNumItemsForCursor(cursor));
 
     using namespace testing;
 
@@ -2817,7 +2819,7 @@ TEST_P(CheckpointRemovalTest, CursorMovement) {
         EXPECT_EQ(1, manager->getNumOpenChkItems());
         EXPECT_EQ(2, this->manager->getNumCheckpoints());
         EXPECT_EQ(openId + 1, manager->getOpenCheckpointId());
-        EXPECT_EQ(3, manager->getNumItemsForCursor(cursor));
+        EXPECT_EQ(5, manager->getNumItemsForCursor(cursor));
     }
 
     {
@@ -2841,7 +2843,7 @@ TEST_P(CheckpointRemovalTest, NewClosedCheckpointMovesCursor) {
     }
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
     EXPECT_EQ(3, manager->getNumOpenChkItems());
-    EXPECT_EQ(2, manager->getNumItemsForCursor(cursor));
+    EXPECT_EQ(3, manager->getNumItemsForCursor(cursor));
 
     const auto openId = manager->getOpenCheckpointId();
 
@@ -2865,7 +2867,7 @@ TEST_P(CheckpointRemovalTest, NewClosedCheckpointMovesCursor) {
         EXPECT_EQ(1, manager->getNumOpenChkItems());
         EXPECT_EQ(1, this->manager->getNumCheckpoints());
         EXPECT_GT(manager->getOpenCheckpointId(), openId);
-        EXPECT_EQ(0, manager->getNumItemsForCursor(cursor));
+        EXPECT_EQ(1, manager->getNumItemsForCursor(cursor));
     }
 }
 
@@ -2937,7 +2939,7 @@ TEST_P(CheckpointRemovalTest, OnlyOldestCkptIsRemoved) {
         }
         EXPECT_EQ(2, this->manager->getNumCheckpoints());
         EXPECT_EQ(openId + 2, manager->getOpenCheckpointId());
-        EXPECT_EQ(2, manager->getNumItemsForCursor(cursor));
+        EXPECT_EQ(4, manager->getNumItemsForCursor(cursor));
     }
 }
 
@@ -2948,7 +2950,7 @@ TEST_P(CheckpointRemovalTest, RemoveCursorTriggersCkptRemoval) {
     }
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
     EXPECT_EQ(3, manager->getNumOpenChkItems());
-    EXPECT_EQ(2, manager->getNumItemsForCursor(cursor));
+    EXPECT_EQ(3, manager->getNumItemsForCursor(cursor));
 
     const auto openId = manager->getOpenCheckpointId();
 
@@ -2960,7 +2962,7 @@ TEST_P(CheckpointRemovalTest, RemoveCursorTriggersCkptRemoval) {
         EXPECT_EQ(1, manager->getNumOpenChkItems());
         EXPECT_EQ(2, this->manager->getNumCheckpoints());
         EXPECT_EQ(openId + 1, manager->getOpenCheckpointId());
-        EXPECT_EQ(3, manager->getNumItemsForCursor(cursor));
+        EXPECT_EQ(5, manager->getNumItemsForCursor(cursor));
     }
 
     {
@@ -2971,8 +2973,8 @@ TEST_P(CheckpointRemovalTest, RemoveCursorTriggersCkptRemoval) {
         EXPECT_EQ(1, manager->getNumOpenChkItems());
         EXPECT_EQ(3, this->manager->getNumCheckpoints());
         EXPECT_EQ(openId + 2, manager->getOpenCheckpointId());
-        // start, mut, mut, end, start, mut
-        EXPECT_EQ(6, manager->getNumItemsForCursor(cursor));
+        // cs, mut, mut, ce, cs, mut, ce, cs
+        EXPECT_EQ(8, manager->getNumItemsForCursor(cursor));
     }
 
     {
@@ -3810,7 +3812,7 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     auto* cursor = manager.getPersistenceCursor();
     EXPECT_EQ(1, manager.getNumCheckpoints());
     EXPECT_EQ(4, manager.getNumOpenChkItems());
-    EXPECT_EQ(2, manager.getNumItemsForCursor(cursor));
+    EXPECT_EQ(4, manager.getNumItemsForCursor(cursor));
 
     // task should not have been woken yet
     EXPECT_EQ(initialWaketime, task.getWaketime());
@@ -3821,7 +3823,7 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     manager.createNewCheckpoint();
     EXPECT_EQ(1, manager.getNumOpenChkItems());
     EXPECT_EQ(2, manager.getNumCheckpoints());
-    EXPECT_EQ(3, manager.getNumItemsForCursor(cursor));
+    EXPECT_EQ(6, manager.getNumItemsForCursor(cursor));
 
     // task should not have been woken yet
     EXPECT_EQ(initialWaketime, task.getWaketime());

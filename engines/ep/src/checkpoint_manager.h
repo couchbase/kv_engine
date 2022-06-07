@@ -341,32 +341,18 @@ public:
     }
 
     /**
-     * Returns the number of non-meta items in the currently open checkpoint.
+     * Returns the number of all items (empty item excluded) in the currently
+     * open checkpoint.
      */
     size_t getNumOpenChkItems() const;
 
-    /* WARNING! This method can return inaccurate counts - see MB-28431. It
-     * at *least* can suffer from overcounting by at least 1 (in scenarios as
-     * yet not clear).
-     * As such it is *not* safe to use when a precise count of remaining
-     * items is needed.
-     *
-     * Returns the count of Items (excluding meta items) that the given cursor
-     * has yet to process (i.e. between the cursor's current position and the
-     * end of the last checkpoint).
-     */
-    size_t getNumItemsForCursor(const CheckpointCursor* cursor) const;
-
-    /* WARNING! This method can return inaccurate counts - see MB-28431. It
-     * at *least* can suffer from overcounting by at least 1 (in scenarios as
-     * yet not clear).
-     * As such it is *not* safe to use when a precise count of remaining
-     * items is needed.
-     *
-     * Returns the count of Items (excluding meta items) that the persistence
+    /**
+     * Returns the count of all items (empty item excluded) that the given
      * cursor has yet to process (i.e. between the cursor's current position and
      * the end of the last checkpoint).
      */
+    size_t getNumItemsForCursor(const CheckpointCursor* cursor) const;
+
     size_t getNumItemsForPersistence() const {
         return getNumItemsForCursor(persistenceCursor);
     }

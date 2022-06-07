@@ -705,8 +705,7 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
 
     ASSERT_TRUE(stream->isInMemory());
 
-    // Should start with one item remaining.
-    EXPECT_EQ(1, stream->getItemsRemaining())
+    EXPECT_EQ(3, stream->getItemsRemaining())
             << "Unexpected initial stream item count";
 
     // Populate the streams' ready queue with items from the checkpoint,

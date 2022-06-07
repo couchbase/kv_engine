@@ -856,11 +856,8 @@ cb::engine_errc TestDcpConsumer::openStreams() {
 
         if ((ctx.flags & DCP_ADD_STREAM_FLAG_TAKEOVER) &&
             !ctx.skip_estimate_check) {
-            std::string high_seqno_str(
-                    "vb_" + std::to_string(ctx.vbucket.get()) + ":high_seqno");
-            uint64_t vb_high_seqno =
-                    get_ull_stat(h, high_seqno_str.c_str(), "vbucket-seqno");
-            uint64_t est = vb_high_seqno - ctx.seqno.start;
+            const auto est =
+                    get_int_stat(h, "vb_0:num_checkpoint_items", "checkpoint");
             std::stringstream stats_takeover;
             stats_takeover << "dcp-vbtakeover " << ctx.vbucket.get() << " "
                            << name.c_str();
