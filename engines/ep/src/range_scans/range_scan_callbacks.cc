@@ -38,13 +38,15 @@ void RangeScanDataHandler::send(const CookieIface& cookie,
         engine.getServerApi()->cookie->send_response(
                 cookie,
                 status,
-                {reinterpret_cast<const char*>(responseBuffer.data()), responseBuffer.size()});
+                {reinterpret_cast<const char*>(responseBuffer.data()),
+                 responseBuffer.size()});
     }
     responseBuffer.clear();
 }
 
 void RangeScanDataHandler::handleKey(const CookieIface& cookie, DocKey key) {
-    cb::mcbp::response::RangeScanContinueKeyPayload::encode(responseBuffer, key);
+    cb::mcbp::response::RangeScanContinueKeyPayload::encode(responseBuffer,
+                                                            key);
     checkAndSend(cookie);
 }
 
