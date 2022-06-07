@@ -528,8 +528,7 @@ void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {
     vb.scheduleDestruction(std::move(toRemove));
 }
 
-CheckpointManager::ReleaseResult
-CheckpointManager::updateStatsForCheckpointRemoval(
+void CheckpointManager::updateStatsForCheckpointRemoval(
         const CheckpointList& toRemove) {
     // Update stats and compute return value
     size_t numItemsRemoved = 0;
@@ -550,8 +549,6 @@ CheckpointManager::updateStatsForCheckpointRemoval(
             numItemsRemoved,
             memoryReleased,
             vb.getId());
-
-    return {numItemsRemoved, memoryReleased};
 }
 
 CheckpointManager::ReleaseResult

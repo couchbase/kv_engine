@@ -624,10 +624,8 @@ protected:
      * Update stats regarding checkpoints which have been removed from the
      * manager.
      * @param toRemove the checkpoints which are about to be removed
-     * @return the number of non-meta items in toRemove
      */
-    ReleaseResult updateStatsForCheckpointRemoval(
-            const CheckpointList& toRemove);
+    void updateStatsForCheckpointRemoval(const CheckpointList& toRemove);
 
     /**
      * Advance the given cursor. Protected as it's valid to call this from
