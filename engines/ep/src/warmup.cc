@@ -1374,7 +1374,8 @@ void Warmup::createVBuckets(uint16_t shardId) {
                                    vbs.hlcCasEpochSeqno,
                                    vbs.mightContainXattrs,
                                    topology,
-                                   vbs.maxVisibleSeqno);
+                                   vbs.maxVisibleSeqno,
+                                   vbs.persistedPreparedSeqno);
 
             if (vbs.transition.state == vbucket_state_active &&
                 (!cleanShutdown ||

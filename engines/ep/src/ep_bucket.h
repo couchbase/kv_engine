@@ -192,7 +192,8 @@ public:
                            int64_t hlcEpochSeqno,
                            bool mightContainXattrs,
                            const nlohmann::json* replicationTopology,
-                           uint64_t maxVisibleSeqno) override;
+                           uint64_t maxVisibleSeqno,
+                           uint64_t maxPrepareSeqno) override;
 
     cb::engine_errc statsVKey(const DocKey& key,
                               Vbid vbucket,
