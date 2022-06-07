@@ -15,9 +15,9 @@
 
 TEST(BucketTest, Reset) {
 #if defined(__linux) && defined(__x86_64__)
-    static_assert(sizeof(Bucket) == 6240,
-                  "Bucket size changed, the reset test must be updated with "
-                  "the new members");
+    ASSERT_EQ(6240, sizeof(Bucket))
+            << "Bucket size changed, the reset test must be updated with "
+               "the new members";
 #endif
 
     class MockBucket : public Bucket {
