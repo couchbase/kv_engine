@@ -82,7 +82,8 @@ public:
                            int64_t hlcEpochSeqno,
                            bool mightContainXattrs,
                            const nlohmann::json* replicationTopology,
-                           uint64_t maxVisibleSeqno) override;
+                           uint64_t maxVisibleSeqno,
+                           uint64_t maxPrepareSeqno) override;
 
     /// Do nothing - no flusher to notify
     void notifyFlusher(const Vbid vbid) override {
