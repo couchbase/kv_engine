@@ -1639,7 +1639,8 @@ VBucketPtr EPBucket::makeVBucket(
                           hlcEpochSeqno,
                           mightContainXattrs,
                           replicationTopology,
-                          maxVisibleSeqno),
+                          maxVisibleSeqno,
+                          maxPrepareSeqno),
             VBucket::DeferredDeleter(engine)};
 }
 

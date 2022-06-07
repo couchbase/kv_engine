@@ -69,7 +69,8 @@ EPVBucket::EPVBucket(Vbid i,
                      int64_t hlcEpochSeqno,
                      bool mightContainXattrs,
                      const nlohmann::json* replicationTopology,
-                     uint64_t maxVisibleSeqno)
+                     uint64_t maxVisibleSeqno,
+                     uint64_t maxPrepareSeqno)
     : VBucket(i,
               newState,
               st,
@@ -95,7 +96,8 @@ EPVBucket::EPVBucket(Vbid i,
               hlcEpochSeqno,
               mightContainXattrs,
               replicationTopology,
-              maxVisibleSeqno),
+              maxVisibleSeqno,
+              maxPrepareSeqno),
       shard(kvshard),
       rangeScans(bucket ? static_cast<EPBucket*>(bucket)->getReadyRangeScans()
                         : nullptr) {

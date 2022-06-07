@@ -193,7 +193,8 @@ VBucket::VBucket(Vbid i,
                  int64_t hlcEpochSeqno,
                  bool mightContainXattrs,
                  const nlohmann::json* replTopology,
-                 uint64_t maxVisibleSeqno)
+                 uint64_t maxVisibleSeqno,
+                 uint64_t maxPrepareSeqno)
     : ht(st, std::move(valFact), config.getHtSize(), config.getHtLocks()),
       failovers(std::move(table)),
       opsCreate(0),
