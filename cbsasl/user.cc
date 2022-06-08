@@ -10,6 +10,7 @@
 
 #include "cbcrypto.h"
 #include <cbsasl/user.h>
+#include <folly/Synchronized.h>
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <platform/base64.h>
@@ -138,22 +139,24 @@ std::atomic<int> IterationCount(4096);
 
 class ScamShaFallbackSalt {
 public:
-    ScamShaFallbackSalt();
-
-    void set(const std::string& salt) {
-        std::lock_guard<std::mutex> guard(mutex);
-        data = cb::base64::decode(salt);
+    static ScamShaFallbackSalt& instance() {
+        static ScamShaFallbackSalt _instance;
+        return _instance;
     }
 
-    std::vector<uint8_t> get() {
-        std::lock_guard<std::mutex> guard(mutex);
-        return std::vector<uint8_t>{data};
+    void set(const std::string& salt) {
+        auto decoded = Couchbase::Base64::decode(salt);
+        fallback.swap(decoded);
+    }
+
+    std::string get() {
+        return *fallback.rlock();
     }
 
 protected:
-    mutable std::mutex mutex;
-    std::vector<uint8_t> data;
-} scramsha_fallback_salt;
+    ScamShaFallbackSalt();
+    folly::Synchronized<std::string> fallback;
+};
 
 /**
  * Generate a salt and store it base64 encoded into the salt
@@ -171,10 +174,11 @@ static void generateSalt(std::vector<uint8_t>& bytes, std::string& salt) {
             std::string(reinterpret_cast<char*>(bytes.data()), bytes.size()));
 }
 
-ScamShaFallbackSalt::ScamShaFallbackSalt()
-    : data(cb::crypto::SHA512_DIGEST_SIZE) {
-    std::string ignore;
-    generateSalt(data, ignore);
+ScamShaFallbackSalt::ScamShaFallbackSalt() {
+    std::vector<uint8_t> data(cb::crypto::SHA512_DIGEST_SIZE);
+    std::string encoded;
+    generateSalt(data, encoded);
+    set(encoded);
 }
 
 User UserFactory::create(const std::string& unm,
@@ -260,7 +264,7 @@ void UserFactory::setDefaultHmacIterationCount(int count) {
 }
 
 void UserFactory::setScramshaFallbackSalt(const std::string& salt) {
-    scramsha_fallback_salt.set(salt);
+    ScamShaFallbackSalt::instance().set(salt);
 }
 
 static User::PasswordMetaData generateShaSecrets(Algorithm algorithm,
@@ -271,11 +275,8 @@ static User::PasswordMetaData generateShaSecrets(Algorithm algorithm,
     std::string encodedSalt;
 
     if (dummy) {
-        auto fallback = scramsha_fallback_salt.get();
         auto hs_salt = cb::crypto::HMAC(
-                algorithm,
-                unm,
-                {reinterpret_cast<char*>(fallback.data()), fallback.size()});
+                algorithm, unm, ScamShaFallbackSalt::instance().get());
         std::copy(hs_salt.begin(), hs_salt.end(), std::back_inserter(salt));
         encodedSalt = Couchbase::Base64::encode(
                 std::string{reinterpret_cast<char*>(salt.data()), salt.size()});
