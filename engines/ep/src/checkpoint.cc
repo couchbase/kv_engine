@@ -68,7 +68,6 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
       vbucketId(vbid),
       creationTime(ep_real_time()),
       checkpointState(CHECKPOINT_OPEN),
-      numMetaItems(0),
       toWrite(queueAllocator),
       committedKeyIndex(keyIndexAllocator),
       preparedKeyIndex(keyIndexAllocator),
@@ -442,10 +441,6 @@ void Checkpoint::addItemToCheckpoint(const queued_item& qi) {
     queueMemOverhead += per_item_queue_overhead;
     // Increase the size of the checkpoint by the item being added
     queuedItemsMemUsage += qi->size();
-
-    if (qi->isNonEmptyCheckpointMetaItem()) {
-        ++numMetaItems;
-    }
 }
 
 void Checkpoint::removeItemFromCheckpoint(CheckpointQueue::const_iterator it) {

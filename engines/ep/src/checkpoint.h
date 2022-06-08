@@ -320,14 +320,6 @@ public:
     }
 
     /**
-     * Return the number of meta items (as defined by Item::isNonEmptyCheckpointMetaItem)
-     * in this checkpoint.
-     */
-    size_t getNumMetaItems() const {
-        return numMetaItems;
-    }
-
-    /**
      * Returns the total number of elements in toWrite (including all meta /
      * non-meta / dummy items).
      *
@@ -676,9 +668,6 @@ private:
     Vbid vbucketId;
     rel_time_t                     creationTime;
     folly::Synchronized<checkpoint_state> checkpointState;
-
-    /// Number of meta items (see Item::isCheckPointMetaItem).
-    size_t numMetaItems;
 
     // Count of the number of all cursors (ie persistence and DCP) that reside
     // in the checkpoint

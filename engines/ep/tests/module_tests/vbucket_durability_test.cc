@@ -656,11 +656,10 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
         ASSERT_EQ(queue_op::empty, (*it)->getOperation());
         // 1 metaitem (checkpoint-start)
         it++;
-        ASSERT_EQ(1, ckpt.getNumMetaItems());
+        ASSERT_EQ(2, ckpt.getNumItems());
         EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
         // 1 non-metaitem is pending and contains the expected value
         it++;
-        ASSERT_EQ(2, ckpt.getNumItems());
         EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
         EXPECT_EQ("value", (*it)->getValue()->to_s());
 
@@ -723,11 +722,10 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
     ASSERT_EQ(queue_op::empty, (*it)->getOperation());
     // 1 metaitem (checkpoint-start)
     it++;
-    ASSERT_EQ(1, ckpt.getNumMetaItems());
+    ASSERT_EQ(2, ckpt.getNumItems());
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     // 1 non-metaitem is committed and contains the expected value
     it++;
-    ASSERT_EQ(2, ckpt.getNumItems());
     EXPECT_EQ(queue_op::commit_sync_write, (*it)->getOperation());
     EXPECT_EQ("value", (*it)->getValue()->to_s());
 }
@@ -933,11 +931,10 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
     ASSERT_EQ(queue_op::empty, (*it)->getOperation());
     // 1 metaitem (checkpoint-start)
     it++;
-    ASSERT_EQ(1, ckpt->getNumMetaItems());
+    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     // 1 non-metaitem is pending and contains the expected value
     it++;
-    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
     EXPECT_EQ(preparedSeqno, (*it)->getBySeqno());
     EXPECT_EQ("value", (*it)->getValue()->to_s());
@@ -987,11 +984,10 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
     ASSERT_EQ(queue_op::empty, (*it)->getOperation());
     // 1 metaitem (checkpoint-start)
     it++;
-    ASSERT_EQ(1, ckpt->getNumMetaItems());
+    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     // 1 non-metaitem is a deleted durable-abort item with no value
     it++;
-    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::abort_sync_write, (*it)->getOperation());
     EXPECT_TRUE((*it)->isDeleted());
     EXPECT_FALSE((*it)->getValue());
@@ -2828,7 +2824,6 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
     ASSERT_EQ(queue_op::empty, (*it)->getOperation());
     // 1 metaitem (checkpoint-start)
     it++;
-    ASSERT_EQ(1, ckpt.getNumMetaItems());
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     // cs + 3 non-metaitem are Committed or Aborted
     ASSERT_EQ(1 + writes.size(), ckpt.getNumItems());
