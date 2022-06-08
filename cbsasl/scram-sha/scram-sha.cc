@@ -218,44 +218,19 @@ void ScramShaBackend::addAttribute(std::ostream& out,
  * ServerSignature := HMAC(ServerKey, AuthMessage)
  */
 std::string ScramShaBackend::getServerSignature() {
-    auto serverKey =
-            cb::crypto::HMAC(algorithm, getSaltedPassword(), "Server Key");
-
-    return cb::crypto::HMAC(algorithm, serverKey, getAuthMessage());
+    return cb::crypto::HMAC(algorithm, getServerKey(), getAuthMessage());
 }
 
 /**
- * Generate the Client Proof. It is computed as:
+ * Generate the ClientSignature. It is computed as:
  *
- * SaltedPassword  := Hi(Normalize(password), salt, i)
- * ClientKey       := HMAC(SaltedPassword, "Client Key")
- * StoredKey       := H(ClientKey)
  * AuthMessage     := client-first-message-bare + "," +
  *                    server-first-message + "," +
  *                    client-final-message-without-proof
  * ClientSignature := HMAC(StoredKey, AuthMessage)
- * ClientProof     := ClientKey XOR ClientSignature
  */
-std::string ScramShaBackend::getClientProof() {
-    auto clientKey =
-            cb::crypto::HMAC(algorithm, getSaltedPassword(), "Client Key");
-    auto storedKey = cb::crypto::digest(algorithm, clientKey);
-    std::string authMessage = getAuthMessage();
-    auto clientSignature = cb::crypto::HMAC(algorithm, storedKey, authMessage);
-
-    // Client Proof is ClientKey XOR ClientSignature
-    const auto* ck = clientKey.data();
-    const auto* cs = clientSignature.data();
-
-    std::string proof;
-    proof.resize(clientKey.size());
-
-    auto total = proof.size();
-    for (std::size_t ii = 0; ii < total; ++ii) {
-        proof[ii] = ck[ii] ^ cs[ii];
-    }
-
-    return proof;
+std::string ScramShaBackend::getClientSignature() {
+    return cb::crypto::HMAC(algorithm, getStoredKey(), getAuthMessage());
 }
 
 /********************************************************************
@@ -423,21 +398,38 @@ std::pair<Error, std::string_view> ServerBackend::step(std::string_view input) {
     client_final_message_without_proof = client_final_message.substr(0, idx);
 
     // Generate the server signature
-
     std::stringstream out;
-
     auto serverSignature = getServerSignature();
     addAttribute(out, 'v', serverSignature, false);
     server_final_message = out.str();
 
-    std::string clientproof = iter->second;
-    std::string my_clientproof = Couchbase::Base64::encode(getClientProof());
+    const auto clientproof = Couchbase::Base64::decode(iter->second);
+    const auto client_signature = getClientSignature();
+    if (clientproof.size() != client_signature.size()) {
+        logging::log(&context,
+                     logging::Level::Error,
+                     "SCRAM: client proof has a different width than client "
+                     "signature");
+        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+    }
+    // ClientKey is Client Proof XOR ClientSignature
+    const auto* cp = clientproof.data();
+    const auto* cs = client_signature.data();
+    std::string ck;
+    ck.resize(clientproof.size());
 
-    int fail = cbsasl_secure_compare(clientproof.c_str(),
-                                     clientproof.length(),
-                                     my_clientproof.c_str(),
-                                     my_clientproof.length()) ^
-               gsl::narrow_cast<int>(user.isDummy());
+    auto total = ck.size();
+    for (std::size_t ii = 0; ii < total; ++ii) {
+        ck[ii] = cp[ii] ^ cs[ii];
+    }
+
+    const auto sh = cb::crypto::digest(algorithm, ck);
+    auto storedKey = getStoredKey();
+
+    int fail =
+            cbsasl_secure_compare(
+                    sh.data(), sh.size(), storedKey.data(), storedKey.size()) ^
+            gsl::narrow_cast<int>(user.isDummy());
 
     if (fail != 0) {
         if (user.isDummy()) {
@@ -454,10 +446,19 @@ std::pair<Error, std::string_view> ServerBackend::step(std::string_view input) {
                     Error::PASSWORD_ERROR, server_final_message);
         }
     }
-
     logging::log(&context, logging::Level::Trace, server_final_message);
     return std::make_pair<Error, std::string_view>(Error::OK,
                                                    server_final_message);
+}
+
+std::string ServerBackend::getStoredKey() {
+    return cb::crypto::digest(
+            algorithm,
+            cb::crypto::HMAC(algorithm, getSaltedPassword(), "Client Key"));
+}
+
+std::string ServerBackend::getServerKey() {
+    return cb::crypto::HMAC(algorithm, getSaltedPassword(), "Server Key");
 }
 
 /********************************************************************
@@ -616,6 +617,49 @@ bool ClientBackend::generateSaltedPassword(const std::string& secret) {
     } catch (...) {
         return false;
     }
+}
+
+std::string ClientBackend::getStoredKey() {
+    return cb::crypto::digest(algorithm, getClientKey());
+}
+
+std::string ClientBackend::getServerKey() {
+    return cb::crypto::HMAC(algorithm, getSaltedPassword(), "Server Key");
+}
+
+std::string ClientBackend::getClientKey() {
+    return cb::crypto::HMAC(algorithm, getSaltedPassword(), "Client Key");
+}
+
+/**
+ * Generate the Client Proof. It is computed as:
+ *
+ * SaltedPassword  := Hi(Normalize(password), salt, i)
+ * ClientKey       := HMAC(SaltedPassword, "Client Key")
+ * StoredKey       := H(ClientKey)
+ * AuthMessage     := client-first-message-bare + "," +
+ *                    server-first-message + "," +
+ *                    client-final-message-without-proof
+ * ClientSignature := HMAC(StoredKey, AuthMessage)
+ * ClientProof     := ClientKey XOR ClientSignature
+ */
+std::string ClientBackend::getClientProof() {
+    auto clientSignature = getClientSignature();
+
+    // Client Proof is ClientKey XOR ClientSignature
+    const auto clientKey = getClientKey();
+    const auto* ck = clientKey.data();
+    const auto* cs = clientSignature.data();
+
+    std::string proof;
+    proof.resize(clientKey.size());
+
+    auto total = proof.size();
+    for (std::size_t ii = 0; ii < total; ++ii) {
+        proof[ii] = ck[ii] ^ cs[ii];
+    }
+
+    return proof;
 }
 
 } // namespace cb::sasl::mechanism::scram

@@ -72,10 +72,10 @@ protected:
     static void addAttribute(std::ostream& out, char key, int value, bool more);
 
     std::string getServerSignature();
+    std::string getClientSignature();
 
-    std::string getClientProof();
-
-    virtual std::string getSaltedPassword() = 0;
+    virtual std::string getStoredKey() = 0;
+    virtual std::string getServerKey() = 0;
 
     /**
      * Get the AUTH message (as specified in the RFC)
@@ -114,7 +114,10 @@ public:
     }
 
 protected:
-    std::string getSaltedPassword() override {
+    std::string getStoredKey() override;
+    std::string getServerKey() override;
+
+    std::string getSaltedPassword() {
         return user.getScramMetaData(algorithm).getPassword();
     }
 
@@ -179,9 +182,14 @@ public:
     }
 
 protected:
+    std::string getStoredKey() override;
+    std::string getServerKey() override;
+    std::string getClientKey();
+    std::string getClientProof();
+
     bool generateSaltedPassword(const std::string& secret);
 
-    std::string getSaltedPassword() override {
+    std::string getSaltedPassword() {
         if (saltedPassword.empty()) {
             throw std::logic_error(
                     "getSaltedPassword called before salted "
