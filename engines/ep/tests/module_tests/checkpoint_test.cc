@@ -3599,11 +3599,13 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
             ckptStartSize = pos->size();
         } else if (pos->getOperation() == queue_op::set_vbucket_state) {
             setVBStateSize = pos->size();
-            setVBStateOverhead = (setVBStateSize - pos->getValMemSize());
+            setVBStateOverhead = setVBStateSize - pos->getValMemSize() +
+                                 Checkpoint::per_item_queue_overhead;
         } else if (pos->getOperation() == queue_op::mutation &&
                    pos->getBySeqno() == 1) {
             m1Size = pos->size();
-            m1Overhead = (m1Size - pos->getValMemSize());
+            m1Overhead = m1Size - pos->getValMemSize() +
+                         Checkpoint::per_item_queue_overhead;
         }
     }
 

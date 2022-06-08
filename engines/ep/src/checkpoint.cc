@@ -552,7 +552,9 @@ CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last,
     // 'distance' is === expelledItems.size()
     // I avoid to make the size() call as it's O(N). See CheckpointQueue type
     // for details.
-    queueMemOverhead -= distance * per_item_queue_overhead;
+    const auto overhead = distance * per_item_queue_overhead;
+    queueMemOverhead -= overhead;
+    stats.coreLocal.get()->memOverhead.fetch_sub(overhead);
 
     return expelledItems;
 }
