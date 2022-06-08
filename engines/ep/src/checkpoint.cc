@@ -66,7 +66,6 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
       visibleSnapEndSeqno(visibleSnapEnd),
       vbucketId(vbid),
       checkpointState(CHECKPOINT_OPEN),
-      numItems(0),
       numMetaItems(0),
       toWrite(queueAllocator),
       committedKeyIndex(keyIndexAllocator),
@@ -172,53 +171,6 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                 // expelled so all cursors must have passed it.
                 rv.status = QueueDirtyStatus::SuccessPersistAgain;
                 addItemToCheckpoint(qi);
-
-                // This is the current semantic of numItems:
-                // 1. increased at queueDirty()
-                // 2. NOT decreased at expel
-                // 3. decreased at deduplication, even when that is just a
-                //    logic deduplication of a previously expelled item, ie this
-                //    code path.
-                //
-                // We do (2) because most of the numItems accounting in CM rely
-                // on that.. but maybe we should "fix" that ? @todo
-                // Note that essentially (3) "fixes" (2). If we fix (2) by
-                // accounting the decreases at expel, then we can remove (3).
-                //
-                // @todo: At the time of writing fixing numItems (ie, the num of
-                //  non-meta items in the checkpoint) appears non-trivial.
-                //  The problem is that the "item extraction phase" at expel is
-                //  a O(1) operation that doesn't scan the items extracted.
-                //  Collateral steps at ItemExpel like updating mem-usage stats
-                //  and expel counters are asynch with regard to the extraction,
-                //  ie:
-                //  - acquire CM::lock
-                //  - extract items (O(1))
-                //  - release CM::lock
-                //  - scan extracted items and compute stats deltas (O(N), lock
-                //    free)
-                //  - acquire CM::lock and apply stat deltas (O(1))
-                // So we have two options:
-                //  1. We do the same with numItems, but then we can't use
-                //     numItems anyway for inferring whether the checkpoint is
-                //     "empty" (ie, whether it contains no mutation), as
-                //     numItems wouldn't represent a locked / consistent /
-                //     point-in-time state of the checkpoint
-                //  2. We stop tracking meta vs non-meta items in the checkpoint
-                //     and we track just the total number of items (that
-                //     includes everything, same as we do in CM). At that point
-                //     tracking numItems would be a O(1) opearation under lock.
-                //     That seems feasible as numItems it's almost used in tests
-                //     only.
-                // (2) Seems the way to go, as it seems more reasonable to
-                // expose something that we can track accurately than some
-                // quantity that has no useful meaning as soon as ItemExpel
-                // kicks in.
-                //
-                // Assessed during the investigation for MB-39344. For now I'm
-                // deferring the work as for the purpose of MB-39344 I don't
-                // need to rely on this quantity.
-                --numItems;
             } else {
                 // Case: item not expelled, normal path
 
@@ -488,12 +440,6 @@ uint64_t Checkpoint::getMinimumCursorSeqno() const {
         return seqno;
     }
 
-    // @todo MB-39344: ItemExpel doesn't update numItems, that needs to be fixed
-    //
-    // Expel has run and modified the checkpoint, we must have at least one
-    // item as expel would not remove high-seqno.
-    Expects(numItems > 0);
-
     // Seek to the first item after checkpoint start
     ++pos;
     return (*pos)->getBySeqno();
@@ -523,9 +469,7 @@ void Checkpoint::addItemToCheckpoint(const queued_item& qi) {
     // Increase the size of the checkpoint by the item being added
     queuedItemsMemUsage += qi->size();
 
-    if (!qi->isCheckPointMetaItem()) {
-        ++numItems;
-    } else if (qi->isNonEmptyCheckpointMetaItem()) {
+    if (qi->isNonEmptyCheckpointMetaItem()) {
         ++numMetaItems;
     }
 }
@@ -538,7 +482,6 @@ void Checkpoint::removeItemFromCheckpoint(CheckpointQueue::const_iterator it) {
     toWrite.erase(it);
     queueMemOverhead -= per_item_queue_overhead;
     queuedItemsMemUsage -= itemSize;
-    --numItems;
 }
 
 CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last,

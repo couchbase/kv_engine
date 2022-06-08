@@ -621,8 +621,7 @@ private:
     const Vbid vbucketId;
 
     folly::Synchronized<checkpoint_state> checkpointState;
-    /// Number of non-meta items (see Item::isCheckPointMetaItem).
-    size_t                         numItems;
+
     /// Number of meta items (see Item::isCheckPointMetaItem).
     size_t numMetaItems;
 
