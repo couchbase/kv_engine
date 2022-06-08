@@ -59,6 +59,7 @@ void CheckpointTest::createManager(int64_t lastSeqno) {
             range.getStart(),
             range.getEnd(),
             lastSeqno, // setting maxVisibleSeqno to equal lastSeqno
+            0, // lastPrepareSeqno
             /*flusher callback*/ nullptr);
 
     ASSERT_TRUE(vbucket);
@@ -1396,6 +1397,7 @@ TEST_F(SingleThreadedCheckpointTest, CursorDistance_ResetCursor) {
             0 /*lastSnapStart*/,
             0 /*lastSnapEnd*/,
             0 /*maxVisible*/,
+            0 /*maxPrepareSeqno*/,
             nullptr /*persistence callback*/);
     newManager->removeCursor(*newManager->getPersistenceCursor());
 
@@ -1678,6 +1680,7 @@ TEST_P(CheckpointTest, takeAndResetCursors) {
             0 /*lastSnapStart*/,
             0 /*lastSnapEnd*/,
             0 /*maxVisible*/,
+            0 /*maxPrepareSeqno*/,
             nullptr /*persistence callback*/);
 
     // Take cursors from the first CM and place them into the second CM..
