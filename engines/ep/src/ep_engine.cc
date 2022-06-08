@@ -2676,8 +2676,16 @@ bool EventuallyPersistentEngine::enableTraffic(bool enable) {
     bool bTrafficEnabled =
             trafficEnabled.compare_exchange_strong(inverse, enable);
     if (bTrafficEnabled) {
-        EP_LOG_INFO_RAW(
-                "EventuallyPersistentEngine::enableTraffic() result true");
+        EP_LOG_INFO(
+                "EventuallyPersistentEngine::enableTraffic: Traffic "
+                "successfully {}",
+                enable ? "enabled" : "disabled");
+    } else {
+        EP_LOG_WARN(
+                "EventuallyPersistentEngine::enableTraffic: Failed to {} "
+                "traffic - traffic was already {}",
+                enable ? "enable" : "disable",
+                enable ? "enabled" : "disabled");
     }
     return bTrafficEnabled;
 }
@@ -5988,9 +5996,6 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
             return cb::engine_errc::failed;
         } else {
             if (enableTraffic(true)) {
-                EP_LOG_INFO_RAW(
-                        "EventuallyPersistentEngine::handleTrafficControlCmd() "
-                        "Data traffic to persistence engine is enabled");
                 setErrorContext(
                         cookie,
                         "Data traffic to persistence engine is enabled");
