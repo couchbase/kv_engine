@@ -10,6 +10,7 @@
 #pragma once
 
 #include <cbsasl/mechanism.h>
+#include <cbsasl/scram_password_meta_data.h>
 #include <nlohmann/json.hpp>
 #include <utilities/logtags.h>
 #include <cstdint>
@@ -147,7 +148,7 @@ public:
     bool isPasswordHashAvailable(cb::crypto::Algorithm algorithm) const;
 
     /// Get the password metadata used for SCRAM authentication
-    const PasswordMetaData& getScramMetaData(
+    const ScramPasswordMetaData& getScramMetaData(
             cb::crypto::Algorithm algorithm) const;
     const PasswordMetaData& getPaswordHash() const {
         return password_hash.value();
@@ -164,9 +165,9 @@ protected:
 
     void generateSecrets(crypto::Algorithm algo, std::string_view passwd);
 
-    std::optional<PasswordMetaData> scram_sha_512;
-    std::optional<PasswordMetaData> scram_sha_256;
-    std::optional<PasswordMetaData> scram_sha_1;
+    std::optional<ScramPasswordMetaData> scram_sha_512;
+    std::optional<ScramPasswordMetaData> scram_sha_256;
+    std::optional<ScramPasswordMetaData> scram_sha_1;
     std::optional<PasswordMetaData> password_hash;
 
     UserData username;

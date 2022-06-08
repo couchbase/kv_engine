@@ -114,11 +114,11 @@ public:
     }
 
 protected:
-    std::string getStoredKey() override;
-    std::string getServerKey() override;
-
-    std::string getSaltedPassword() {
-        return user.getScramMetaData(algorithm).getPassword();
+    std::string getStoredKey() override {
+        return user.getScramMetaData(algorithm).stored_key;
+    }
+    std::string getServerKey() override {
+        return user.getScramMetaData(algorithm).server_key;
     }
 
     pwdb::User user;

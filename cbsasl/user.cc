@@ -65,11 +65,13 @@ User::User(const nlohmann::json& json) : username(getUsernameField(json)) {
             }
             password_hash = User::PasswordMetaData(it.value(), true);
         } else if (label == "sha512") {
-            scram_sha_512 = User::PasswordMetaData(it.value(), true);
+            scram_sha_512 =
+                    ScramPasswordMetaData(it.value(), Algorithm::SHA512);
         } else if (label == "sha256") {
-            scram_sha_256 = User::PasswordMetaData(it.value(), true);
+            scram_sha_256 =
+                    ScramPasswordMetaData(it.value(), Algorithm::SHA256);
         } else if (label == "sha1") {
-            scram_sha_1 = User::PasswordMetaData(it.value(), true);
+            scram_sha_1 = ScramPasswordMetaData(it.value(), Algorithm::SHA1);
         } else if (label == "plain") {
             if (password_hash) {
                 throw std::runtime_error("cb::sasl::pwdb::User::User(" +
@@ -80,7 +82,8 @@ User::User(const nlohmann::json& json) : username(getUsernameField(json)) {
                 User::PasswordMetaData pd(it.value(), true);
                 password_hash = pd;
             } else {
-                auto decoded = Couchbase::Base64::decode(it.value());
+                const auto decoded = Couchbase::Base64::decode(
+                        it.value().get<std::string>());
                 // the salt is the first 16 bytes, the rest is the password
                 std::string salt =
                         Couchbase::Base64::encode(decoded.substr(0, 16));
@@ -116,11 +119,26 @@ User::User(const nlohmann::json& json, UserData unm)
         if (label == "hash") {
             password_hash = User::PasswordMetaData(it.value());
         } else if (label == "scram-sha-512") {
-            scram_sha_512 = User::PasswordMetaData(it.value());
+            if (it.value().value("server_key", "").empty()) {
+                scram_sha_512 =
+                        ScramPasswordMetaData(it.value(), Algorithm::SHA512);
+            } else {
+                scram_sha_512 = ScramPasswordMetaData(it.value());
+            }
         } else if (label == "scram-sha-256") {
-            scram_sha_256 = User::PasswordMetaData(it.value());
+            if (it.value().value("server_key", "").empty()) {
+                scram_sha_256 =
+                        ScramPasswordMetaData(it.value(), Algorithm::SHA256);
+            } else {
+                scram_sha_256 = ScramPasswordMetaData(it.value());
+            }
         } else if (label == "scram-sha-1") {
-            scram_sha_1 = User::PasswordMetaData(it.value());
+            if (it.value().value("server_key", "").empty()) {
+                scram_sha_1 =
+                        ScramPasswordMetaData(it.value(), Algorithm::SHA1);
+            } else {
+                scram_sha_1 = ScramPasswordMetaData(it.value());
+            }
         } else {
             throw std::runtime_error("User(\"" + username.getSanitizedValue() +
                                      "\"): Invalid attribute \"" + label +
@@ -168,10 +186,8 @@ static void generateSalt(std::vector<uint8_t>& bytes, std::string& salt) {
         throw std::runtime_error("Failed to get random bytes");
     }
 
-    using Couchbase::Base64::encode;
-
-    salt = encode(
-            std::string(reinterpret_cast<char*>(bytes.data()), bytes.size()));
+    salt = Couchbase::Base64::encode(std::string{
+            reinterpret_cast<const char*>(bytes.data()), bytes.size()});
 }
 
 ScamShaFallbackSalt::ScamShaFallbackSalt() {
@@ -267,10 +283,10 @@ void UserFactory::setScramshaFallbackSalt(const std::string& salt) {
     ScamShaFallbackSalt::instance().set(salt);
 }
 
-static User::PasswordMetaData generateShaSecrets(Algorithm algorithm,
-                                                 std::string_view passwd,
-                                                 std::string_view unm,
-                                                 bool dummy) {
+static ScramPasswordMetaData generateShaSecrets(Algorithm algorithm,
+                                                std::string_view passwd,
+                                                std::string_view unm,
+                                                bool dummy) {
     std::vector<uint8_t> salt;
     std::string encodedSalt;
 
@@ -305,10 +321,15 @@ static User::PasswordMetaData generateShaSecrets(Algorithm algorithm,
             {reinterpret_cast<const char*>(salt.data()), salt.size()},
             nlohmann::json{{"iterations", IterationCount.load()}});
 
-    return User::PasswordMetaData(
-            nlohmann::json{{"hash", Couchbase::Base64::encode(digest)},
-                           {"salt", encodedSalt},
-                           {"iterations", IterationCount.load()}});
+    const auto server_key = cb::crypto::HMAC(algorithm, digest, "Server Key");
+    const auto stored_key = cb::crypto::digest(
+            algorithm, cb::crypto::HMAC(algorithm, digest, "Client Key"));
+
+    return ScramPasswordMetaData(
+            {{"server_key", Couchbase::Base64::encode(server_key)},
+             {"stored_key", Couchbase::Base64::encode(stored_key)},
+             {"salt", encodedSalt},
+             {"iterations", IterationCount.load()}});
 }
 
 static User::PasswordMetaData generateArgon2id13Secret(
@@ -394,7 +415,7 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
         throw std::invalid_argument("PasswordMetaData: invalid object type");
     }
 
-    if (!obj.contains("algorithm") && !obj.contains("iterations")) {
+    if (!obj.contains("algorithm")) {
         throw std::invalid_argument(
                 "PasswordMetaData(): algorithm must be specified");
     }
@@ -402,7 +423,6 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
     std::optional<size_t> m;
     std::optional<size_t> t;
     std::optional<size_t> p;
-    std::optional<size_t> i;
 
     for (auto it = obj.begin(); it != obj.end(); ++it) {
         const std::string label = it.key();
@@ -451,13 +471,6 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
                 throw std::invalid_argument(
                         R"(PasswordMetaData(): algorithm must be set to "argon2id" or "SHA-1")");
             }
-        } else if (label == "iterations") {
-            if (!it->is_number()) {
-                throw std::invalid_argument(
-                        "PasswordMetaData(): iterations must be a number");
-            }
-            i = it->get<std::size_t>();
-            properties["iterations"] = *i;
         } else {
             throw std::invalid_argument(
                     "PasswordMetaData(): Invalid attribute: \"" + label + "\"");
@@ -495,13 +508,6 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
             throw std::invalid_argument(
                     "PasswordMetaData(): time can't be set with SHA-1");
         }
-    } else {
-        // This is most likely for an scram!
-        if (!i) {
-            throw std::invalid_argument(
-                    "PasswordMetaData(): iterations must be provided for "
-                    "SCRAM");
-        }
     }
 
     if (salt.empty()) {
@@ -517,9 +523,7 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
 
 nlohmann::json User::PasswordMetaData::to_json() const {
     auto ret = properties;
-    if (!algorithm.empty()) {
-        ret["algorithm"] = algorithm;
-    }
+    ret["algorithm"] = algorithm;
     ret["hash"] = Couchbase::Base64::encode(password);
     ret["salt"] = salt;
     return ret;
@@ -563,7 +567,7 @@ bool User::isPasswordHashAvailable(Algorithm algorithm) const {
             "User::isPasswordHashAvailable: Invalid algorithm");
 }
 
-const User::PasswordMetaData& User::getScramMetaData(
+const ScramPasswordMetaData& User::getScramMetaData(
         cb::crypto::Algorithm algorithm) const {
     switch (algorithm) {
     case Algorithm::SHA1:

@@ -263,17 +263,24 @@ class UserTest : public ::testing::Test {
 public:
     void SetUp() override {
         root = {{"scram-sha-1",
-                 {{"hash", "NP0b1Ji5jWG/ZV6hPzOIk3lmTmw="},
+                 {{"server_key", "xlmIdzh5718/323JcFbA9oxz2N4="},
+                  {"stored_key", "/xBUzh1cpAxZ6mClwSJpWISt8g4="},
                   {"salt", "iiU7hLv7l3yOoEgXusJvT2i1J2A="},
                   {"iterations", 10}}},
                 {"scram-sha-256",
-                 {{"hash", "BGq4Rd/YH5nfqeV2CtL0lTBLZezuBQVpdTHDGFAwW8w="},
+                 {{"server_key",
+                   "AIBEwCV3hyZTM/sWiS2llpYmIJSrue6o3xOBSKqi7J4="},
+                  {"stored_key",
+                   "nenK/vukVml9UAqTyrfD5EziUKVL4HRLqJ9xB7LD7vk="},
                   {"salt", "i5Jn//LLM0245cscYnldCjM/HMC7Hj2U1HT6iXqCC0E="},
                   {"iterations", 10}}},
                 {"scram-sha-512",
-                 {{"hash",
-                   "KZuRjeXbF6NR5rrrQMyHAOvkFq7dUSQ6H08uVae6TPUTKs4DZNSCenq+"
-                   "puXq5t9zrW9oZbIc/6wUODFh3ZKAOQ=="},
+                 {{"server_key",
+                   "XqUk1GEK2VEi+QNxCxJQNO6Bxm4j4zMPjKu/"
+                   "SA2I+OSpeXZGt3J6BVGguDaQC2Zo7p2J6aqwHQNf0kDiYqG4VA=="},
+                  {"stored_key",
+                   "qA3MP+EMTSn8pfyYailyCs6maoAJWu1FGhVJYhlD+Dew9+"
+                   "kt8XRs1ljQYnXprHzwRfKWIqHyOgQMVqWgVyVEHA=="},
                   {"salt",
                    "nUNk2ZbAZTabxboF+OBQws3zNJpxePtnuF8KwcylC3h/"
                    "NnQQ9FqU0YYohjJhvGRNbxjPTTSuYOgxBG4FMV1W3A=="},
@@ -302,33 +309,40 @@ TEST_F(UserTest, TestNormalInit) {
 
     {
         auto& md = u.getScramMetaData(Algorithm::SHA512);
-        EXPECT_EQ(10, md.getProperties().value("iterations", 0));
+        EXPECT_EQ(10, md.iteration_count);
         EXPECT_EQ(
                 "nUNk2ZbAZTabxboF+OBQws3zNJpxePtnuF8Kw"
                 "cylC3h/NnQQ9FqU0YYohjJhvGRNbxjPTT"
                 "SuYOgxBG4FMV1W3A==",
-                md.getSalt());
+                md.salt);
         EXPECT_EQ(
-                "KZuRjeXbF6NR5rrrQMyHAOvkFq7dUSQ6H08uV"
-                "ae6TPUTKs4DZNSCenq+puXq5t9zrW9oZb"
-                "Ic/6wUODFh3ZKAOQ==",
-                Couchbase::Base64::encode(md.getPassword()));
+                "XqUk1GEK2VEi+QNxCxJQNO6Bxm4j4zMPjKu/"
+                "SA2I+OSpeXZGt3J6BVGguDaQC2Zo7p2J6aqwHQNf0kDiYqG4VA==",
+                Couchbase::Base64::encode(md.server_key));
+        EXPECT_EQ(
+                "qA3MP+EMTSn8pfyYailyCs6maoAJWu1FGhVJYhlD+Dew9+"
+                "kt8XRs1ljQYnXprHzwRfKWIqHyOgQMVqWgVyVEHA==",
+                Couchbase::Base64::encode(md.stored_key));
     }
 
     {
         auto& md = u.getScramMetaData(Algorithm::SHA256);
-        EXPECT_EQ(10, md.getProperties().value("iterations", 0));
-        EXPECT_EQ("i5Jn//LLM0245cscYnldCjM/HMC7Hj2U1HT6iXqCC0E=", md.getSalt());
-        EXPECT_EQ("BGq4Rd/YH5nfqeV2CtL0lTBLZezuBQVpdTHDGFAwW8w=",
-                  Couchbase::Base64::encode(md.getPassword()));
+        EXPECT_EQ(10, md.iteration_count);
+        EXPECT_EQ("i5Jn//LLM0245cscYnldCjM/HMC7Hj2U1HT6iXqCC0E=", md.salt);
+        EXPECT_EQ("AIBEwCV3hyZTM/sWiS2llpYmIJSrue6o3xOBSKqi7J4=",
+                  Couchbase::Base64::encode(md.server_key));
+        EXPECT_EQ("nenK/vukVml9UAqTyrfD5EziUKVL4HRLqJ9xB7LD7vk=",
+                  Couchbase::Base64::encode(md.stored_key));
     }
 
     {
         auto& md = u.getScramMetaData(Algorithm::SHA1);
-        EXPECT_EQ(10, md.getProperties().value("iterations", 0));
-        EXPECT_EQ("iiU7hLv7l3yOoEgXusJvT2i1J2A=", md.getSalt());
-        EXPECT_EQ("NP0b1Ji5jWG/ZV6hPzOIk3lmTmw=",
-                  Couchbase::Base64::encode(md.getPassword()));
+        EXPECT_EQ(10, md.iteration_count);
+        EXPECT_EQ("iiU7hLv7l3yOoEgXusJvT2i1J2A=", md.salt);
+        EXPECT_EQ("xlmIdzh5718/323JcFbA9oxz2N4=",
+                  Couchbase::Base64::encode(md.server_key));
+        EXPECT_EQ("/xBUzh1cpAxZ6mClwSJpWISt8g4=",
+                  Couchbase::Base64::encode(md.stored_key));
     }
 
     {
@@ -422,5 +436,5 @@ TEST(UserFactoryTest, CreateDummy) {
     EXPECT_EQ(
             "ZLBvongMC+gVSc8JsnCmK8CE+KJrCdS/8fT4cvb3IkJJGTgaGQ+HGuQaXKTN9829l/"
             "8eoUUpiI2Cyk/CRnULtw==",
-            meta.getSalt());
+            meta.salt);
 }

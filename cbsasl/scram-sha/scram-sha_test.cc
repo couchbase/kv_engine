@@ -35,17 +35,25 @@ public:
                 {"@@version@@", 2},
                 {"username",
                  {{"scram-sha-1",
-                   {{"hash", "VcEpRYqDQNvMxPJEadPOSag96hM="},
+                   {{"server_key", "pg2ct27hONTiHZUVqSmrvqTygFU="},
+                    {"stored_key", "jzKB1UWP22qrj7GnDSHB2ZFuC2o="},
                     {"salt", "ZP8Dc+4BGCAMitu9B7qSbjaB2fs="},
                     {"iterations", 4096}}},
                   {"scram-sha-256",
-                   {{"hash", "non+4eYQu187sSZYklHAAX6sxV5InTlbMQmKqY5yxvs="},
+                   {{"server_key",
+                     "DB7sPHIaX5lM/Hjl4+DUVlzyMXuQWKVpnPiLkpjSI4E="},
+                    {"stored_key",
+                     "gGb47OHwfK7cH8Gf9HIcPAGu/nPSH4CvYp5VHI/lxZc="},
                     {"salt", "PxxruqJ4/CL3QR2fEH0ZDNqq56u8qf0eZm6YLK1aoTQ="},
                     {"iterations", 4096}}},
                   {"scram-sha-512",
-                   {{"hash",
-                     "IzJdxYFcBuwooTc30neYXSECygeWodXqcIOGefe51z9rsMIjFxLJJ0r0q"
-                     "bbtDXBxH5gP50e8MRTb1uRKKy2dVg=="},
+                   {{"server_key",
+                     "GrAxYN148LHbEyNBlG0gihZAF1VVUbi3nYlxwKhQY9v6K5hRLd3ksO0Ac"
+                     "flVX9BrcaEt5NGj0q2vX6kF+gxFlQ=="},
+                    {"stored_key",
+                     "ZiPWL4pApW5k/"
+                     "tXCTNV1Zbdephtdmh8PrtjUO+"
+                     "feSjbRPf7bkMNUhPBHqqpclLiBpNIjAUnhmHVEyk85un/jmg=="},
                     {"salt",
                      "PU0/"
                      "GpqaHx9+XsECIYGuGnN9o65two+"

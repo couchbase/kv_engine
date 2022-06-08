@@ -359,12 +359,8 @@ std::pair<Error, std::string_view> ServerBackend::start(
     // build up the server-first-message
     std::ostringstream out;
     addAttribute(out, 'r', nonce, true);
-    addAttribute(
-            out, 's', Couchbase::Base64::decode(passwordMeta.getSalt()), true);
-    addAttribute(out,
-                 'i',
-                 passwordMeta.getProperties().value("iterations", 0),
-                 false);
+    addAttribute(out, 's', Couchbase::Base64::decode(passwordMeta.salt), true);
+    addAttribute(out, 'i', passwordMeta.iteration_count, false);
     server_first_message = out.str();
 
     return std::make_pair<Error, std::string_view>(Error::CONTINUE,
@@ -449,16 +445,6 @@ std::pair<Error, std::string_view> ServerBackend::step(std::string_view input) {
     logging::log(&context, logging::Level::Trace, server_final_message);
     return std::make_pair<Error, std::string_view>(Error::OK,
                                                    server_final_message);
-}
-
-std::string ServerBackend::getStoredKey() {
-    return cb::crypto::digest(
-            algorithm,
-            cb::crypto::HMAC(algorithm, getSaltedPassword(), "Client Key"));
-}
-
-std::string ServerBackend::getServerKey() {
-    return cb::crypto::HMAC(algorithm, getSaltedPassword(), "Server Key");
 }
 
 /********************************************************************
