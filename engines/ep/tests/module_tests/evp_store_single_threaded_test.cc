@@ -4359,10 +4359,9 @@ void STParameterizedBucketTest::testValidateDatatypeForEmptyPayload(
         auto it = ckpt->begin();
         EXPECT_EQ(queue_op::empty, (*it)->getOperation());
         it++;
-        EXPECT_EQ(1, ckpt->getNumMetaItems());
+        EXPECT_EQ(1, ckpt->getNumItems());
         EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
         it++;
-        EXPECT_EQ(1, ckpt->getNumItems());
 
         // Verify not in the storage
         if (persistent()) {

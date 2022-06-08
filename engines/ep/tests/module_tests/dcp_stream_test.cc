@@ -3506,7 +3506,7 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
         ASSERT_EQ(queue_op::empty, (*it)->getOperation());
         // 1 metaitem (checkpoint-start)
         it++;
-        ASSERT_EQ(3, ckpt->getNumMetaItems());
+        ASSERT_EQ(4, ckpt->getNumItems());
         EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
         it++;
         EXPECT_EQ(queue_op::set_vbucket_state, (*it)->getOperation());
@@ -3514,7 +3514,6 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
         EXPECT_EQ(queue_op::set_vbucket_state, (*it)->getOperation());
         // 1 non-metaitem is our deletion
         it++;
-        ASSERT_EQ(4, ckpt->getNumItems());
         ASSERT_TRUE((*it)->isDeleted());
         const auto expectedOp =
                 durReqs ? queue_op::pending_sync_write : queue_op::mutation;
@@ -3721,7 +3720,6 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
     ASSERT_EQ(1, list.size());
     auto* ckpt = list.front().get();
     ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
-    ASSERT_EQ(2, ckpt->getNumMetaItems());
     ASSERT_EQ(3, ckpt->getNumItems());
     auto it = ckpt->begin(); // empty-item
     it++; // checkpoint-start

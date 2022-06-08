@@ -4811,7 +4811,6 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
                     manager);
     ASSERT_EQ(1, ckptList.size());
     const auto& ckpt = *ckptList.front();
-    ASSERT_EQ(2, ckpt.getNumMetaItems());
     const auto expectedNumMutations = engineOp != EngineOp::Remove ? 1 : 2;
     // cs + vbs + 1 or 2 mutations
     ASSERT_EQ(2 + expectedNumMutations, ckpt.getNumItems());

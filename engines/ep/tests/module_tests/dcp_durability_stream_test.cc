@@ -117,11 +117,10 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     ASSERT_EQ(queue_op::empty, (*it)->getOperation());
     // 1 metaitem (checkpoint-start)
     it++;
-    ASSERT_EQ(1, ckpt->getNumMetaItems());
+    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     // 1 non-metaitem is pending and contains the expected value
     it++;
-    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
     EXPECT_EQ(key, (*it)->getKey());
     EXPECT_EQ(value, (*it)->getValue()->to_s());
@@ -264,7 +263,6 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
     EXPECT_EQ(queue_op::empty, (*it)->getOperation());
     // 1 metaitem (checkpoint-start)
     it++;
-    ASSERT_EQ(1, ckpt->getNumMetaItems());
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     it++;
 
@@ -1486,15 +1484,12 @@ void DurabilityPassiveStreamTest::
     EXPECT_EQ(queue_op::empty, (*it)->getOperation());
     // 1 metaitem (checkpoint-start)
     it++;
-    ASSERT_EQ(1, ckpt->getNumMetaItems());
-    EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
-    it++;
-
     // chk_start, prepare, commit
     ASSERT_EQ(3, ckpt->getNumItems());
+    EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
+    it++;
     EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
     it++;
-
     // The logical commit is a mutation in the checkpoint manager, not a commit.
     EXPECT_EQ(queue_op::mutation, (*it)->getOperation());
 }
@@ -2093,11 +2088,10 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
     ASSERT_EQ(queue_op::empty, (*it)->getOperation());
     // 1 metaitem (checkpoint-start)
     it++;
-    ASSERT_EQ(1, ckpt->getNumMetaItems());
+    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     // 1 non-metaitem is pending and contains the expected prepared item.
     it++;
-    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(*qi, **it) << "Item in Checkpoint doesn't match queued_item";
 
     EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
@@ -2543,7 +2537,6 @@ void DurabilityPassiveStreamPersistentTest::
                         ckptMgr);
         const auto* ckpt = ckptList.back().get();
         EXPECT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
-        ASSERT_EQ(1, ckpt->getNumMetaItems());
         ASSERT_EQ(3, ckpt->getNumItems());
         auto it = ckpt->begin();
         EXPECT_EQ(queue_op::empty, (*it)->getOperation());
@@ -2780,11 +2773,10 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepareCommit() {
     ASSERT_EQ(queue_op::empty, (*it)->getOperation());
     // 1 metaitem (checkpoint-start)
     it++;
-    ASSERT_EQ(1, ckpt->getNumMetaItems());
+    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     // 1 non-metaitem is Commit and contains the expected value
     it++;
-    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::commit_sync_write, (*it)->getOperation());
     EXPECT_EQ(key, (*it)->getKey());
     EXPECT_TRUE((*it)->getValue());
@@ -2926,11 +2918,10 @@ void DurabilityPassiveStreamTest::testReceiveDcpAbort() {
     ASSERT_EQ(queue_op::empty, (*it)->getOperation());
     // 1 metaitem (checkpoint-start)
     it++;
-    ASSERT_EQ(1, ckpt->getNumMetaItems());
+    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
     // 1 non-metaitem is Abort and carries no value
     it++;
-    ASSERT_EQ(2, ckpt->getNumItems());
     EXPECT_EQ(queue_op::abort_sync_write, (*it)->getOperation());
     EXPECT_EQ(key, (*it)->getKey());
     EXPECT_FALSE((*it)->getValue());
