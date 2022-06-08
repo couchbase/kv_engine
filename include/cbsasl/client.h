@@ -115,7 +115,8 @@ public:
      */
     ClientContext(GetUsernameCallback user_cb,
                   GetPasswordCallback password_cb,
-                  const std::string& mechanisms);
+                  const std::string& mechanisms,
+                  std::function<std::string()> generateNonceFunction = {});
 
     /**
      * Get the name of the mechanism in use by this backend.

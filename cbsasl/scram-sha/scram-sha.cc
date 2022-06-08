@@ -263,20 +263,25 @@ std::string ScramShaBackend::getClientProof() {
  *******************************************************************/
 ServerBackend::ServerBackend(server::ServerContext& ctx,
                              Mechanism mechanism,
-                             cb::crypto::Algorithm algo)
+                             cb::crypto::Algorithm algo,
+                             std::function<std::string()> generateNonceFunction)
     : MechanismBackend(ctx), ScramShaBackend(mechanism, algo) {
-    /* Generate a challenge */
-    cb::RandomGenerator randomGenerator;
+    if (generateNonceFunction) {
+        serverNonce = generateNonceFunction();
+    } else {
+        /* Generate a challenge */
+        cb::RandomGenerator randomGenerator;
 
-    std::array<char, 8> nonce{};
-    if (!randomGenerator.getBytes(nonce.data(), nonce.size())) {
-        logging::log(&context,
-                     logging::Level::Error,
-                     "Failed to generate server nonce");
-        throw std::bad_alloc();
+        std::array<char, 8> nonce{};
+        if (!randomGenerator.getBytes(nonce.data(), nonce.size())) {
+            logging::log(&context,
+                         logging::Level::Error,
+                         "Failed to generate server nonce");
+            throw std::bad_alloc();
+        }
+
+        serverNonce = cb::hex_encode({nonce.data(), nonce.size()});
     }
-
-    serverNonce = cb::hex_encode({nonce.data(), nonce.size()});
 }
 
 std::pair<Error, std::string_view> ServerBackend::start(
@@ -462,20 +467,25 @@ ClientBackend::ClientBackend(client::GetUsernameCallback& user_cb,
                              client::GetPasswordCallback& password_cb,
                              client::ClientContext& ctx,
                              Mechanism mechanism,
-                             cb::crypto::Algorithm algo)
+                             cb::crypto::Algorithm algo,
+                             std::function<std::string()> generateNonceFunction)
     : MechanismBackend(user_cb, password_cb, ctx),
       ScramShaBackend(mechanism, algo) {
-    cb::RandomGenerator randomGenerator;
+    if (generateNonceFunction) {
+        clientNonce = generateNonceFunction();
+    } else {
+        cb::RandomGenerator randomGenerator;
 
-    std::array<char, 8> nonce{};
-    if (!randomGenerator.getBytes(nonce.data(), nonce.size())) {
-        logging::log(&context,
-                     logging::Level::Error,
-                     "Failed to generate server nonce");
-        throw std::bad_alloc();
+        std::array<char, 8> nonce{};
+        if (!randomGenerator.getBytes(nonce.data(), nonce.size())) {
+            logging::log(&context,
+                         logging::Level::Error,
+                         "Failed to generate server nonce");
+            throw std::bad_alloc();
+        }
+
+        clientNonce = cb::hex_encode({nonce.data(), nonce.size()});
     }
-
-    clientNonce = cb::hex_encode({nonce.data(), nonce.size()});
 }
 
 std::pair<Error, std::string_view> ClientBackend::start() {

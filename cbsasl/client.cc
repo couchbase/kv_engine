@@ -15,21 +15,23 @@
 #include <memory>
 
 namespace cb::sasl::client {
-ClientContext::ClientContext(GetUsernameCallback user_cb,
-                             GetPasswordCallback password_cb,
-                             const std::string& mechanisms) {
+ClientContext::ClientContext(
+        GetUsernameCallback user_cb,
+        GetPasswordCallback password_cb,
+        const std::string& mechanisms,
+        std::function<std::string()> generateNonceFunction) {
     switch (selectMechanism(mechanisms)) {
     case Mechanism::SCRAM_SHA512:
         backend = std::make_unique<mechanism::scram::Sha512ClientBackend>(
-                user_cb, password_cb, *this);
+                user_cb, password_cb, *this, generateNonceFunction);
         break;
     case Mechanism::SCRAM_SHA256:
         backend = std::make_unique<mechanism::scram::Sha256ClientBackend>(
-                user_cb, password_cb, *this);
+                user_cb, password_cb, *this, generateNonceFunction);
         break;
     case Mechanism::SCRAM_SHA1:
         backend = std::make_unique<mechanism::scram::Sha1ClientBackend>(
-                user_cb, password_cb, *this);
+                user_cb, password_cb, *this, generateNonceFunction);
         break;
     case Mechanism::PLAIN:
         backend = std::make_unique<mechanism::plain::ClientBackend>(

@@ -102,7 +102,8 @@ class ServerBackend : public cb::sasl::server::MechanismBackend,
 public:
     ServerBackend(server::ServerContext& ctx,
                   Mechanism mechanism,
-                  cb::crypto::Algorithm algo);
+                  cb::crypto::Algorithm algo,
+                  std::function<std::string()> generateNonceFunction);
 
     std::pair<Error, std::string_view> start(std::string_view input) override;
 
@@ -122,25 +123,37 @@ protected:
 
 class Sha512ServerBackend : public ServerBackend {
 public:
-    explicit Sha512ServerBackend(server::ServerContext& ctx)
-        : ServerBackend(
-                  ctx, Mechanism::SCRAM_SHA512, cb::crypto::Algorithm::SHA512) {
+    explicit Sha512ServerBackend(
+            server::ServerContext& ctx,
+            std::function<std::string()> generateNonceFunction = {})
+        : ServerBackend(ctx,
+                        Mechanism::SCRAM_SHA512,
+                        cb::crypto::Algorithm::SHA512,
+                        std::move(generateNonceFunction)) {
     }
 };
 
 class Sha256ServerBackend : public ServerBackend {
 public:
-    explicit Sha256ServerBackend(server::ServerContext& ctx)
-        : ServerBackend(
-                  ctx, Mechanism::SCRAM_SHA256, cb::crypto::Algorithm::SHA256) {
+    explicit Sha256ServerBackend(
+            server::ServerContext& ctx,
+            std::function<std::string()> generateNonceFunction = {})
+        : ServerBackend(ctx,
+                        Mechanism::SCRAM_SHA256,
+                        cb::crypto::Algorithm::SHA256,
+                        std::move(generateNonceFunction)) {
     }
 };
 
 class Sha1ServerBackend : public ServerBackend {
 public:
-    explicit Sha1ServerBackend(server::ServerContext& ctx)
-        : ServerBackend(
-                  ctx, Mechanism::SCRAM_SHA1, cb::crypto::Algorithm::SHA1) {
+    explicit Sha1ServerBackend(
+            server::ServerContext& ctx,
+            std::function<std::string()> generateNonceFunction = {})
+        : ServerBackend(ctx,
+                        Mechanism::SCRAM_SHA1,
+                        cb::crypto::Algorithm::SHA1,
+                        std::move(generateNonceFunction)) {
     }
 };
 
@@ -155,7 +168,8 @@ public:
                   client::GetPasswordCallback& password_cb,
                   client::ClientContext& ctx,
                   Mechanism mechanism,
-                  cb::crypto::Algorithm algo);
+                  cb::crypto::Algorithm algo,
+                  std::function<std::string()> generateNonceFunction);
 
     std::pair<Error, std::string_view> start() override;
     std::pair<Error, std::string_view> step(std::string_view input) override;
@@ -185,12 +199,14 @@ class Sha512ClientBackend : public ClientBackend {
 public:
     Sha512ClientBackend(client::GetUsernameCallback& user_cb,
                         client::GetPasswordCallback& password_cb,
-                        client::ClientContext& ctx)
+                        client::ClientContext& ctx,
+                        std::function<std::string()> generateNonceFunction = {})
         : ClientBackend(user_cb,
                         password_cb,
                         ctx,
                         Mechanism::SCRAM_SHA512,
-                        cb::crypto::Algorithm::SHA512) {
+                        cb::crypto::Algorithm::SHA512,
+                        std::move(generateNonceFunction)) {
     }
 };
 
@@ -198,12 +214,14 @@ class Sha256ClientBackend : public ClientBackend {
 public:
     Sha256ClientBackend(client::GetUsernameCallback& user_cb,
                         client::GetPasswordCallback& password_cb,
-                        client::ClientContext& ctx)
+                        client::ClientContext& ctx,
+                        std::function<std::string()> generateNonceFunction = {})
         : ClientBackend(user_cb,
                         password_cb,
                         ctx,
                         Mechanism::SCRAM_SHA256,
-                        cb::crypto::Algorithm::SHA256) {
+                        cb::crypto::Algorithm::SHA256,
+                        std::move(generateNonceFunction)) {
     }
 };
 
@@ -211,12 +229,14 @@ class Sha1ClientBackend : public ClientBackend {
 public:
     Sha1ClientBackend(client::GetUsernameCallback& user_cb,
                       client::GetPasswordCallback& password_cb,
-                      client::ClientContext& ctx)
+                      client::ClientContext& ctx,
+                      std::function<std::string()> generateNonceFunction = {})
         : ClientBackend(user_cb,
                         password_cb,
                         ctx,
                         Mechanism::SCRAM_SHA1,
-                        cb::crypto::Algorithm::SHA1) {
+                        cb::crypto::Algorithm::SHA1,
+                        std::move(generateNonceFunction)) {
     }
 };
 

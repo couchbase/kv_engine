@@ -49,6 +49,7 @@ cb_add_test_executable(cbsasl_unit_test
                        plain/plain_test.cc
                        sasl_server_test.cc
                        scram-sha/saslprep_test.cc
+                       scram-sha/scram-sha_test.cc
                        strcmp_test.cc
                        user_test.cc)
 cb_enable_unity_build(cbsasl_unit_test)
