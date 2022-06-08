@@ -68,7 +68,6 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
       vbucketId(vbid),
       creationTime(ep_real_time()),
       checkpointState(CHECKPOINT_OPEN),
-      numItems(0),
       numMetaItems(0),
       toWrite(queueAllocator),
       committedKeyIndex(keyIndexAllocator),
@@ -188,19 +187,6 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                 // expelled so all cursors must have passed it.
                 rv.status = QueueDirtyStatus::SuccessPersistAgain;
                 addItemToCheckpoint(qi);
-
-                // This is the current semantic of numItems:
-                // 1. increased at queueDirty()
-                // 2. NOT decreased at expel
-                // 3. decreased at deduplication, even when that is just a
-                //    logic deduplication of a previously expelled item, ie this
-                //    code path.
-                //
-                // We do (2) because most of the numItems accounting in CM rely
-                // on that.. but maybe we should "fix" that ? @todo
-                // Note that essentially (3) "fixes" (2). If we fix (2) by
-                // accounting the decreases at expel, then we can remove (3).
-                --numItems;
             } else {
                 // Case: item not expelled, normal path
 
@@ -446,10 +432,6 @@ uint64_t Checkpoint::getMinimumCursorSeqno() const {
         return seqno;
     }
 
-    // Expel has run and modified the checkpoint, we must have at least one
-    // item as expel would not remove high-seqno.
-    Expects(numItems > 0);
-
     // Seek to the first item after checkpoint start
     ++pos;
     return (*pos)->getBySeqno();
@@ -461,9 +443,7 @@ void Checkpoint::addItemToCheckpoint(const queued_item& qi) {
     // Increase the size of the checkpoint by the item being added
     queuedItemsMemUsage += qi->size();
 
-    if (!qi->isCheckPointMetaItem()) {
-        ++numItems;
-    } else if (qi->isNonEmptyCheckpointMetaItem()) {
+    if (qi->isNonEmptyCheckpointMetaItem()) {
         ++numMetaItems;
     }
 }
@@ -476,7 +456,6 @@ void Checkpoint::removeItemFromCheckpoint(CheckpointQueue::const_iterator it) {
     toWrite.erase(it);
     queueMemOverhead -= per_item_queue_overhead;
     queuedItemsMemUsage -= itemSize;
-    --numItems;
 }
 
 CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last,
