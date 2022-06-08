@@ -101,11 +101,11 @@ nlohmann::json Bucket::to_json() const {
 void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
     using namespace cb::stats;
     // metering
-    collector.addStat(Key::meter_rcu_total, read_compute_units_used);
-    collector.addStat(Key::meter_wcu_total, write_compute_units_used);
+    collector.addStat(Key::meter_ru_total, read_compute_units_used);
+    collector.addStat(Key::meter_wu_total, write_compute_units_used);
     // kv does not currently account for actual compute (i.e., CPU) units
     // but other components do. Expose it for consistency and ease of use
-    collector.addStat(Key::meter_ccu_total, 0);
+    collector.addStat(Key::meter_cu_total, 0);
 
     collector.addStat(Key::op_count_total, num_commands);
 
@@ -117,9 +117,9 @@ void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
     auto forKV = collector.withLabel("for", "kv");
 
     // credits
-    forKV.addStat(Key::credit_rcu_total, 0);
-    forKV.addStat(Key::credit_wcu_total, 0);
-    forKV.addStat(Key::credit_ccu_total, 0);
+    forKV.addStat(Key::credit_ru_total, 0);
+    forKV.addStat(Key::credit_wu_total, 0);
+    forKV.addStat(Key::credit_cu_total, 0);
 
     // throttling
     forKV.addStat(Key::limit_count_total, num_rejected);

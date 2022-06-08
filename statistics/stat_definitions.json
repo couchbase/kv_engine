@@ -2537,19 +2537,19 @@
         "description": "The time KV last restarted (and counters reset)"
     },
     {
-        "key": "meter_rcu_total",
+        "key": "meter_ru_total",
         "unit": "none",
-        "description": "Total Read Capacity Units used by a bucket since reset"
+        "description": "Total Read Units used by a bucket since reset"
     },
     {
-        "key": "meter_wcu_total",
+        "key": "meter_wu_total",
         "unit": "none",
-        "description": "Total Write Capacity Units used by a bucket since reset"
+        "description": "Total Write Units used by a bucket since reset"
     },
     {
-        "key": "meter_ccu_total",
+        "key": "meter_cu_total",
         "unit": "none",
-        "description": "Total Compute Capacity Units used by a bucket since reset"
+        "description": "Total Compute Units used by a bucket since reset"
     },
     {
         "key": "op_count_total",
@@ -2557,19 +2557,19 @@
         "description": "Total operations successfully executed for a bucket since reset"
     },
     {
-        "key": "credit_rcu_total",
+        "key": "credit_ru_total",
         "unit": "none",
-        "description": "Total Read Capacity Units refunded for a bucket (RCU was charged, but operation failed) since reset"
+        "description": "Total Read Units refunded for a bucket (RU was charged, but operation failed) since reset"
     },
     {
-        "key": "credit_wcu_total",
+        "key": "credit_wu_total",
         "unit": "none",
-        "description": "Total Write Capacity Units refunded for a bucket (WCU was charged, but operation failed) since reset"
+        "description": "Total Write Units refunded for a bucket (WU was charged, but operation failed) since reset"
     },
     {
-        "key": "credit_ccu_total",
+        "key": "credit_cu_total",
         "unit": "none",
-        "description": "Total Compute Capacity Units refunded for a bucket (CCU was charged, but operation failed) since reset"
+        "description": "Total Compute Units refunded for a bucket (CU was charged, but operation failed) since reset"
     },
     {
         "key": "limit_count_total",
