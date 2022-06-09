@@ -61,6 +61,7 @@ CheckpointManager::CheckpointManager(EPStats& st,
                       lastSnapEnd,
                       maxVisibleSeqno,
                       {},
+                      maxPrepareSeqno,
                       CheckpointType::Memory);
 
     if (checkpointConfig.isPersistenceEnabled()) {
@@ -158,6 +159,7 @@ void CheckpointManager::addNewCheckpoint(
                       snapEndSeqno,
                       visibleSnapEnd,
                       highCompletedSeqno,
+                      0, // HPS - default to 0 for now
                       checkpointType);
 
     // If cursors reached to the end of its current checkpoint, move it to the
@@ -205,6 +207,7 @@ void CheckpointManager::addOpenCheckpoint(
         uint64_t snapEnd,
         uint64_t visibleSnapEnd,
         std::optional<uint64_t> highCompletedSeqno,
+        uint64_t highPreparedSeqno,
         CheckpointType checkpointType) {
     Expects(checkpointList.empty() ||
             checkpointList.back()->getState() ==
@@ -216,13 +219,14 @@ void CheckpointManager::addOpenCheckpoint(
     EP_LOG_DEBUG(
             "CheckpointManager::addOpenCheckpoint: Create "
             "a new open checkpoint: [{}, id:{}, snapStart:{}, snapEnd:{}, "
-            "visibleSnapEnd:{}, hcs:{}, type:{}]",
+            "visibleSnapEnd:{}, hcs:{}, hps:{} type:{}]",
             vb.getId(),
             id,
             snapStart,
             snapEnd,
             visibleSnapEnd,
             to_string_or_none(highCompletedSeqno),
+            highPreparedSeqno,
             to_string(checkpointType));
 
     auto ckpt = std::make_unique<Checkpoint>(*this,
@@ -232,6 +236,7 @@ void CheckpointManager::addOpenCheckpoint(
                                              snapEnd,
                                              visibleSnapEnd,
                                              highCompletedSeqno,
+                                             highPreparedSeqno,
                                              vb.getId(),
                                              checkpointType);
     // Add an empty-item into the new checkpoint.
@@ -1048,6 +1053,7 @@ void CheckpointManager::clear(const std::lock_guard<std::mutex>& lh,
                       lastBySeqno + 1,
                       maxVisibleSeqno,
                       {},
+                      0, // HPS=0 because we have correct val on disk and in PDM
                       CheckpointType::Memory);
     resetCursors();
 }
