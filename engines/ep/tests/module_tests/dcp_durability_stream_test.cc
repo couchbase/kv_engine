@@ -1068,6 +1068,102 @@ void DurabilityPassiveStreamTest::TearDown() {
     SingleThreadedPassiveStreamTest::TearDown();
 }
 
+TEST_P(DurabilityPassiveStreamPersistentTest,
+       RestartMidSnapshotAfterPrepareMovesHPSOnReconnect) {
+    // 1) SnapshotMarker 1 - 2 Memory
+    auto opaque = 0;
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            1 /*snapStart*/,
+            2 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
+            {}, // timestamp
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // 2) Prepare at 1
+    using namespace cb::durability;
+    auto prepare =
+            makePendingItem(makeStoredDocKey("prepare"),
+                            "value",
+                            Requirements(Level::Majority, Timeout::Infinity()));
+    prepare->setBySeqno(1);
+    prepare->setCas(1);
+
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      prepare,
+                      stream->getOpaque(),
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    // 3) Persist prepare
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // HPS not moved as we don't have a complete snapshot
+    ASSERT_EQ(0, store->getVBucket(vbid)->getHighPreparedSeqno());
+    auto res = store->getRWUnderlying(vbid)->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, res.status);
+    ASSERT_EQ(0, res.state.highPreparedSeqno);
+
+    // 4) Restart
+    consumer->closeAllStreams();
+    consumer.reset();
+
+    resetEngineAndWarmup();
+
+    // HPS state not change
+    ASSERT_EQ(0, store->getVBucket(vbid)->getHighPreparedSeqno());
+    res = store->getRWUnderlying(vbid)->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, res.status);
+    ASSERT_EQ(0, res.state.highPreparedSeqno);
+
+    // 5) Recreate our stream
+    consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+    consumer->enableSyncReplication();
+    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    stream->acceptStream(cb::mcbp::Status::Success, opaque);
+
+    // 6) Same marker as before
+    stream->processMarker(&marker);
+
+    // 7) Mutation at 2
+    auto mutation = makeCommittedItem(makeStoredDocKey("mutation"), "value");
+    mutation->setBySeqno(2);
+    mutation->setCas(2);
+
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      mutation,
+                      stream->getOpaque(),
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Prepare at 1 was Majority level so we should be able to move our HPS now
+    EXPECT_EQ(1, store->getVBucket(vbid)->getHighPreparedSeqno());
+
+    res = store->getRWUnderlying(vbid)->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, res.status);
+    EXPECT_EQ(1, res.state.highPreparedSeqno);
+}
+
 TEST_P(DurabilityPassiveStreamTest, SendSeqnoAckOnStreamAcceptance) {
     // 1) Put something in the vBucket as we won't send a seqno ack if there are
     // no items
