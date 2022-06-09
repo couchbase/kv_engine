@@ -34,30 +34,57 @@ down by calling `cbsasl_server_term`.
 The user database is stored in JSON format with the following syntax:
 
     {
-         "users" : [
-             {
-                 "n" : "username",
-                 "sha512" : {
-                     "h" : "base64 encoded sha512 hash of the password",
-                     "s" : "base64 encoded salt",
-                     "i" : iteration-count
-                 },
-                 "sha256" : {
-                     "h" : "base64 encoded sha256 hash of the password",
-                     "s" : "base64 encoded salt",
-                     "i" : iteration-count
-                 },
-                 "sha1" : {
-                     "h" : "base64 encoded sha1 hash of the password",
-                     "s" : "base64 encoded salt",
-                     "i" : iteration-count
-                 },
-                 "plain" : "base64 encoded hex version of salt + HMAC
-                            of plain text password"
+        "@@version@@": 2
+         "username" : {
+             "hash": {
+                 "algorithm": "[argon2id/SHA-1]",
+                 "hash": "base64 encoded salted hash of the password",
+                 "memory": memory-cost,
+                 "parallelism": parallel-cost,
+                 "salt": "base64 encoded salt"
+                 "time": time-cost,
+             },
+             "scram-sha-512" : {
+                 "server_key" : "base64 encoded ",
+                 "stored_key" : "base64 encoded",
+                 "salt": "base64 encoded salt"
+                 "iterations" : iteration-count
+             },
+             "scram-sha-256" : {
+                 "server_key" : "base64 encoded ",
+                 "stored_key" : "base64 encoded",
+                 "salt": "base64 encoded salt"
+                 "iterations" : iteration-count
+             },
+             "scram-sha-1" : {
+                 "server_key" : "base64 encoded ",
+                 "stored_key" : "base64 encoded",
+                 "salt": "base64 encoded salt"
+                 "iterations" : iteration-count
              }
-         ]
+         }
      }
 
-The `plain` entry consists of a salt and the salted hash of the users
-password. The first 16 bytes contains the salt followed by 20 bytes
-of the SHA1 HMAC of the password with the salt.
+The `hash` entry may currently only use two different algorithm
+(and the allowed attributes depend on the algorithm)
+
+*Argon2id*:
+
+     "hash": {
+         "algorithm": "argon2id",
+         "hash": "base64 encoded salted hash of the password",
+         "memory": memory-cost,
+         "parallelism": parallel-cost,
+         "salt": "base64 encoded salt"
+         "time": time-cost,
+     }
+
+`parallelism` *must* be set to 1
+
+*SHA-1*:
+
+     "hash": {
+         "algorithm": "SHA-1",
+         "hash": "base64 encoded salted hash of the password",
+         "salt": "base64 encoded salt"
+     }
