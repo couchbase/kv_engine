@@ -7,25 +7,25 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include "cbcrypto.h"
+
 #include <cbsasl/mechanism.h>
+#include <cbsasl/password_database.h>
+#include <cbsasl/pwfile.h>
 #include <cbsasl/server.h>
 #include <folly/portability/GTest.h>
-#include <folly/portability/Stdlib.h>
-
 #include <algorithm>
-#include <cstdlib>
 
 class SaslServerTest : public ::testing::Test {
 protected:
     static void SetUpTestCase() {
-        setenv("CBSASL_PWFILE", SOURCE_ROOT "/cbsasl/sasl_server_test.json", 1);
-        cb::sasl::server::initialize();
-    }
+        using cb::sasl::pwdb::User;
+        using cb::sasl::pwdb::UserFactory;
 
-    static void TearDownTestCase() {
-        unsetenv("CBSASL_PWFILE");
-        cb::sasl::server::shutdown();
+        auto passwordDatabase =
+                std::make_unique<cb::sasl::pwdb::MutablePasswordDatabase>();
+        passwordDatabase->upsert(UserFactory::create("mikewied", "mikepw"));
+        passwordDatabase->upsert(UserFactory::create("nopass", ""));
+        swap_password_database(std::move(passwordDatabase));
     }
 
 protected:
