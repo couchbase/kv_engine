@@ -5026,6 +5026,45 @@ TEST_P(DurabilityBucketTest, MB_46272) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 }
 
+TEST_P(DurabilityEPBucketTest, HPSAtPersistenceAndDedupeOfLastItemInSnapshot) {
+    using namespace cb::durability;
+    setVBucketToActiveWithValidTopology();
+
+    // 1) Prepare in 1st Checkpoint
+    auto keyA = makeStoredDocKey("keyA");
+    ASSERT_EQ(
+            cb::engine_errc::sync_write_pending,
+            store->set(*makePendingItem(
+                               keyA, "value", {Level::Majority, Timeout(4000)}),
+                       cookie));
+    ASSERT_EQ(1, store->getVBucket(vbid)->getHighPreparedSeqno());
+
+    // 2) Mutation we can dedupe at end of 1st Checkpoint
+    auto key = makeStoredDocKey("key");
+    auto committed = makeCommittedItem(key, "value");
+    ASSERT_EQ(cb::engine_errc::success, store->set(*committed, cookie));
+
+    // 3) Force creation of new Checkpoint for test purposes
+    store->getVBucket(vbid)->checkpointManager->createNewCheckpoint();
+
+    // 4) Mutation deduping mutation from 2
+    ASSERT_EQ(cb::engine_errc::success, store->set(*committed, cookie));
+
+    ASSERT_EQ(1, store->getVBucket(vbid)->getHighPreparedSeqno());
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    auto res = store->getRWUnderlying(vbid)->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, res.status);
+    EXPECT_EQ(1, res.state.highPreparedSeqno);
+
+    resetEngineAndWarmup();
+
+    EXPECT_EQ(1, store->getVBucket(vbid)->getHighPreparedSeqno());
+    res = store->getRWUnderlying(vbid)->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, res.status);
+    EXPECT_EQ(1, res.state.highPreparedSeqno);
+}
+
 /**
  * MB-46787: Test that GET_RANDOM works when finding a complete prepare
  */
