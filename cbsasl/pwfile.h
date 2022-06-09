@@ -33,3 +33,12 @@ bool find_user(const std::string& username, cb::sasl::pwdb::User& user);
  */
 cb::sasl::Error load_user_db(
         std::function<void(const cb::sasl::pwdb::User&)> usercallback = {});
+
+namespace cb::sasl::pwdb {
+class PasswordDatabase;
+}
+
+/// Utiliy function for unit tests to avoid having to go through a file in
+/// order to write tests which touch code which may call find_user
+void swap_password_database(
+        std::unique_ptr<cb::sasl::pwdb::PasswordDatabase> database);

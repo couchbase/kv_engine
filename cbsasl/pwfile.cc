@@ -108,3 +108,8 @@ cb::sasl::Error load_user_db(
         return cb::sasl::Error::NO_MEM;
     }
 }
+
+void swap_password_database(
+        std::unique_ptr<cb::sasl::pwdb::PasswordDatabase> database) {
+    PasswordDatabaseManager::instance().swap(database);
+}

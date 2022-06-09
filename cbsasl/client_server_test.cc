@@ -8,17 +8,12 @@
  *   the file licenses/APL2.txt.
  */
 #include "cbcrypto.h"
-
+#include "pwfile.h"
 #include <cbsasl/client.h>
+#include <cbsasl/password_database.h>
 #include <cbsasl/server.h>
 #include <folly/portability/GTest.h>
-#include <folly/portability/Stdlib.h>
-#include <nlohmann/json.hpp>
-#include <cstdio>
-#include <cstdlib>
 #include <memory>
-
-const char* cbpwfile = "cbsasl_test.pw";
 
 class SaslClientServerTest : public ::testing::Test {
 protected:
@@ -26,25 +21,10 @@ protected:
         using cb::sasl::pwdb::User;
         using cb::sasl::pwdb::UserFactory;
 
-        // Create a password with a leading, middle and trailing space
-        auto user = UserFactory::create("mikewied", " mik epw ");
-        nlohmann::json pwdb;
-        pwdb["users"] = nlohmann::json::array();
-        pwdb["users"].emplace_back(user);
-
-        FILE* fp = fopen(cbpwfile, "w");
-        ASSERT_NE(nullptr, fp);
-        fprintf(fp, "%s\n", pwdb.dump().c_str());
-        ASSERT_EQ(0, fclose(fp));
-
-        setenv("CBSASL_PWFILE", cbpwfile, 1);
-        cb::sasl::server::initialize();
-    }
-
-    static void TearDownTestCase() {
-        unsetenv("CBSASL_PWFILE");
-        cb::sasl::server::shutdown();
-        ASSERT_EQ(0, remove(cbpwfile));
+        auto passwordDatabase =
+                std::make_unique<cb::sasl::pwdb::MutablePasswordDatabase>();
+        passwordDatabase->upsert(UserFactory::create("mikewied", " mik epw "));
+        swap_password_database(std::move(passwordDatabase));
     }
 
     // You may set addNonce to true to have it use a fixed nonce
