@@ -155,11 +155,22 @@ void CheckpointManager::addNewCheckpoint(
     ++numItems;
     oldOpenCkpt.close();
 
+    // Inherit the HPS from the previous Checkpoint. Should we de-dupe in the
+    // Flusher some item at a snapshot end then we must ensure that the HPS of
+    // any given Checkpoint is persisted. Consider the following Checkpoints:
+    // [1:Pre, 2:Mutation][3:Mutation] in which seqnos 2 and 3 are the same key.
+    // To ensure that the flusher persists the HPS for 1:Pre without modifying
+    // the Flusher we can inherit the HPS value from the previous Checkpoint
+    // such that the Checkpoint [3:Mutation] also has HPS = 1.
+    auto hps = oldOpenCkpt.getHighPreparedSeqno()
+                       ? *oldOpenCkpt.getHighPreparedSeqno()
+                       : 0;
+
     addOpenCheckpoint(snapStartSeqno,
                       snapEndSeqno,
                       visibleSnapEnd,
                       highCompletedSeqno,
-                      0, // HPS - default to 0 for now
+                      hps,
                       checkpointType);
 
     // If cursors reached to the end of its current checkpoint, move it to the
