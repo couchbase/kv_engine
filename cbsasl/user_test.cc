@@ -42,7 +42,8 @@ public:
 
 TEST_F(PasswordMetaTest, TestNormalInit) {
     User::PasswordMetaData md(sha1_blueprint);
-    EXPECT_EQ("iiU7hLv7l3yOoEgXusJvT2i1J2A=", md.getSalt());
+    EXPECT_EQ("iiU7hLv7l3yOoEgXusJvT2i1J2A=",
+              Couchbase::Base64::encode(md.getSalt()));
     EXPECT_EQ("NP0b1Ji5jWG/ZV6hPzOIk3lmTmw=",
               Couchbase::Base64::encode(md.getPassword()));
     EXPECT_EQ("SHA-1", md.getAlgorithm());
@@ -347,7 +348,8 @@ TEST_F(UserTest, TestNormalInit) {
 
     {
         auto& md = u.getPaswordHash();
-        EXPECT_EQ("wkhDB1DVlfeqZ10PnV4VJA==", md.getSalt());
+        EXPECT_EQ("wkhDB1DVlfeqZ10PnV4VJA==",
+                  Couchbase::Base64::encode(md.getSalt()));
         EXPECT_EQ("fehlwuE2N30W336KzLvLJEe6Z32XhHURSP9W6ayhoDU=",
                   Couchbase::Base64::encode(md.getPassword()));
         EXPECT_EQ("argon2id", md.getAlgorithm());

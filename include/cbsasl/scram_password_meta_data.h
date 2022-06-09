@@ -33,7 +33,8 @@ public:
     /// Dump the object to JSON (used in unit tests)
     nlohmann::json to_json() const;
 
-    /// salt (kept base64 encoded in memory)
+    /// salt (kept base64 encoded in memory) as it is only to the
+    /// client
     std::string salt;
     /// stored key kept in raw format
     std::string stored_key;

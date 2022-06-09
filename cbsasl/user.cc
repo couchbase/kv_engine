@@ -437,9 +437,7 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
                 throw std::invalid_argument(
                         "PasswordMetaData(): salt must be a string");
             }
-            salt = it->get<std::string>();
-            // decode so that we know it is legal
-            cb::base64::decode(salt);
+            salt = Couchbase::Base64::decode(it->get<std::string>());
         } else if (label == "memory") {
             if (!it->is_number()) {
                 throw std::invalid_argument(
@@ -525,7 +523,7 @@ nlohmann::json User::PasswordMetaData::to_json() const {
     auto ret = properties;
     ret["algorithm"] = algorithm;
     ret["hash"] = Couchbase::Base64::encode(password);
-    ret["salt"] = salt;
+    ret["salt"] = Couchbase::Base64::encode(salt);
     return ret;
 }
 

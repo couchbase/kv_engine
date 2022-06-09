@@ -21,20 +21,16 @@ Error check_password(Context* context,
                      const cb::sasl::pwdb::User& user,
                      const std::string& password) {
     const auto& metadata = user.getPaswordHash();
-    auto salt = cb::base64::decode(metadata.getSalt());
     std::string generated;
 
     if (metadata.getAlgorithm() == "argon2id") {
-        generated = cb::crypto::pwhash(
-                Algorithm::Argon2id13,
-                password,
-                {reinterpret_cast<const char*>(salt.data()), salt.size()},
-                metadata.getProperties());
+        generated = cb::crypto::pwhash(Algorithm::Argon2id13,
+                                       password,
+                                       metadata.getSalt(),
+                                       metadata.getProperties());
     } else {
         generated = cb::crypto::pwhash(
-                Algorithm::DeprecatedPlain,
-                password,
-                {reinterpret_cast<const char*>(salt.data()), salt.size()});
+                Algorithm::DeprecatedPlain, password, metadata.getSalt());
     }
 
     const auto& original = metadata.getPassword();

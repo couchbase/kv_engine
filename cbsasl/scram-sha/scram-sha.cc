@@ -132,9 +132,10 @@ void ScramShaBackend::addAttribute(std::ostream& out,
         }
         out << value;
         break;
-
-    case 'c': // base64 encoded GS2 header and channel binding data
     case 's': // base64 encoded salt
+        out << value;
+        break;
+    case 'c': // base64 encoded GS2 header and channel binding data
     case 'p': // base64 encoded client proof
     case 'v': // base64 encoded server signature
         out << Couchbase::Base64::encode(value);
@@ -359,7 +360,7 @@ std::pair<Error, std::string_view> ServerBackend::start(
     // build up the server-first-message
     std::ostringstream out;
     addAttribute(out, 'r', nonce, true);
-    addAttribute(out, 's', Couchbase::Base64::decode(passwordMeta.salt), true);
+    addAttribute(out, 's', passwordMeta.salt, true);
     addAttribute(out, 'i', passwordMeta.iteration_count, false);
     server_first_message = out.str();
 

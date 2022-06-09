@@ -21,17 +21,15 @@ ScramPasswordMetaData::ScramPasswordMetaData(const nlohmann::json& obj) {
 
     for (const auto& [label, value] : obj.items()) {
         if (label == "stored_key") {
-            const auto decoded = cb::base64::decode(value.get<std::string>());
-            stored_key = {reinterpret_cast<const char*>(decoded.data()),
-                          decoded.size()};
+            stored_key = Couchbase::Base64::decode(value.get<std::string>());
         } else if (label == "server_key") {
-            const auto decoded = cb::base64::decode(value.get<std::string>());
-            server_key = {reinterpret_cast<const char*>(decoded.data()),
-                          decoded.size()};
+            server_key = Couchbase::Base64::decode(value.get<std::string>());
         } else if (label == "iterations") {
             iteration_count = value.get<std::size_t>();
         } else if (label == "salt") {
             salt = value.get<std::string>();
+            // verify that it is a legal base64 encoding
+            Couchbase::Base64::decode(value.get<std::string>());
         } else {
             throw std::invalid_argument(
                     "ScramPasswordMetaData(): Invalid attribute: \"" + label +

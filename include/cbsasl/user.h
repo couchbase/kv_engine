@@ -89,10 +89,10 @@ public:
         }
 
     protected:
-        /// Base 64 encoded version of the salt
+        /// The salt in raw format
         std::string salt;
 
-        /// The actual password used
+        /// The password hash in raw format
         std::string password;
 
         /// The algorithm in play (not used by SCRAM)
