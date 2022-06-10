@@ -1304,9 +1304,6 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
     // bucket_store.
     if (!context.traits.is_mutator) {
         cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
-        if (context.overall_status == cb::mcbp::Status::Success) {
-            cookie.addDocumentReadBytes(value.size());
-        }
     }
 
     // Add mutation descr to response buffer if requested.
@@ -1461,7 +1458,6 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
         status_code = cb::mcbp::Status::SubdocMultiPathFailureDeleted;
     }
 
-    cookie.addDocumentReadBytes(context.response_val_len);
     connection.sendResponseHeaders(cookie,
                                    status_code,
                                    {},

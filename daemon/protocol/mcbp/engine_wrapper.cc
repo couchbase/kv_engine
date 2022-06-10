@@ -77,6 +77,11 @@ cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
                                             Vbid vbucket) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().get_meta(cookie, key, vbucket);
+    if (ret.first == cb::engine_errc::success) {
+        // For some reason nbytes and the key is not populated in
+        // the item_info. For now just add the size of the key
+        cookie.addDocumentReadBytes(key.size());
+    }
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_get_meta return cb::engine_errc::disconnect",
                     c.getId(),
@@ -195,7 +200,10 @@ cb::EngineErrorItemPair bucket_get(Cookie& cookie,
     auto& c = cookie.getConnection();
     auto ret =
             c.getBucketEngine().get(cookie, key, vbucket, documentStateFilter);
-    if (ret.first == cb::engine_errc::disconnect) {
+    if (ret.first == cb::engine_errc::success) {
+        cookie.addDocumentReadBytes(ret.second->getValueView().size() +
+                                    ret.second->getDocKey().size());
+    } else if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_get return cb::engine_errc::disconnect",
                     c.getId(),
                     c.getDescription());
@@ -228,7 +236,10 @@ cb::EngineErrorItemPair bucket_get_if(
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().get_if(cookie, key, vbucket, filter);
 
-    if (ret.first == cb::engine_errc::disconnect) {
+    if (ret.first == cb::engine_errc::success) {
+        cookie.addDocumentReadBytes(ret.second->getValueView().size() +
+                                    ret.second->getDocKey().size());
+    } else if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_get_if return cb::engine_errc::disconnect",
                     c.getId(),
                     c.getDescription());
@@ -248,7 +259,10 @@ cb::EngineErrorItemPair bucket_get_and_touch(
             cookie, key, vbucket, expiration, durability);
 
     if (ret.first == cb::engine_errc::success) {
-        cookie.addDocumentWriteBytes(ret.second->getValueView().size());
+        cookie.addDocumentReadBytes(ret.second->getValueView().size() +
+                                    ret.second->getDocKey().size());
+        cookie.addDocumentWriteBytes(ret.second->getValueView().size() +
+                                     ret.second->getDocKey().size());
     } else if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} bucket_get_and_touch return "
@@ -270,6 +284,8 @@ cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
 
     if (ret.first == cb::engine_errc::success) {
         cb::audit::document::add(cookie, cb::audit::document::Operation::Lock);
+        cookie.addDocumentReadBytes(ret.second->getValueView().size() +
+                                    ret.second->getDocKey().size());
     } else if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} bucket_get_locked return cb::engine_errc::disconnect",

@@ -260,7 +260,6 @@ cb::engine_errc ArithmeticCommandContext::sendResult() {
         extras = {};
     }
 
-    cookie.addDocumentReadBytes(extras.size() + value.size());
     cookie.sendResponse(cb::mcbp::Status::Success,
                         extras,
                         {},

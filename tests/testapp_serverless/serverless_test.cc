@@ -573,7 +573,8 @@ TEST_F(ServerlessTest, OpsMetered) {
             EXPECT_TRUE(rsp.isSuccess());
             ASSERT_TRUE(rsp.getWriteComputeUnits());
             EXPECT_EQ(1, *rsp.getWriteComputeUnits());
-            EXPECT_FALSE(rsp.getReadComputeUnits());
+            EXPECT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
             break;
         case ClientOpcode::Increment:
             createDocument("ClientOpcode::Increment", "foo");
@@ -585,7 +586,7 @@ TEST_F(ServerlessTest, OpsMetered) {
                         } catch (const ConnectionError&) {
                         }
                     },
-                    0,
+                    1,
                     0);
             createDocument("ClientOpcode::Increment", "0");
             executeWithExpectedCU(
@@ -603,7 +604,7 @@ TEST_F(ServerlessTest, OpsMetered) {
                         } catch (const ConnectionError&) {
                         }
                     },
-                    0,
+                    1,
                     0);
             createDocument("ClientOpcode::Decrement", "1");
             executeWithExpectedCU(
@@ -629,7 +630,8 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(BinprotGenericCommand{
                     ClientOpcode::Append, "ClientOpcode::Append", "world"});
             EXPECT_TRUE(rsp.isSuccess());
-            EXPECT_FALSE(rsp.getReadComputeUnits());
+            EXPECT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
             ASSERT_TRUE(rsp.getWriteComputeUnits());
             EXPECT_EQ(1, *rsp.getWriteComputeUnits());
             break;
@@ -651,7 +653,8 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(BinprotGenericCommand{
                     ClientOpcode::Append, "ClientOpcode::Prepend", "hello"});
             EXPECT_TRUE(rsp.isSuccess());
-            EXPECT_FALSE(rsp.getReadComputeUnits());
+            EXPECT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
             ASSERT_TRUE(rsp.getWriteComputeUnits());
             EXPECT_EQ(1, *rsp.getWriteComputeUnits());
             break;
@@ -673,7 +676,8 @@ TEST_F(ServerlessTest, OpsMetered) {
             createDocument("ClientOpcode::Touch", "Hello World");
             rsp = conn.execute(BinprotTouchCommand{"ClientOpcode::Touch", 0});
             EXPECT_TRUE(rsp.isSuccess());
-            EXPECT_FALSE(rsp.getReadComputeUnits());
+            EXPECT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
             ASSERT_TRUE(rsp.getWriteComputeUnits());
             EXPECT_EQ(1, *rsp.getWriteComputeUnits());
             break;
@@ -827,7 +831,8 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(BinprotSubdocCommand{
                     opcode, "ClientOpcode::SubdocExists", "hello"});
             EXPECT_TRUE(rsp.isSuccess());
-            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
             EXPECT_FALSE(rsp.getWriteComputeUnits());
             break;
         case ClientOpcode::SubdocDictAdd:
@@ -837,7 +842,8 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(BinprotSubdocCommand{
                     opcode, "ClientOpcode::SubdocDictAdd", "add", "true"});
             EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
             ASSERT_TRUE(rsp.getWriteComputeUnits());
             EXPECT_EQ(1, *rsp.getWriteComputeUnits());
             break;
@@ -847,7 +853,8 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(BinprotSubdocCommand{
                     opcode, "ClientOpcode::SubdocDelete", "hello"});
             EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
             ASSERT_TRUE(rsp.getWriteComputeUnits());
             EXPECT_EQ(1, *rsp.getWriteComputeUnits());
             break;
@@ -860,7 +867,8 @@ TEST_F(ServerlessTest, OpsMetered) {
                                          "hello",
                                          R"("couchbase")"});
             EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
             ASSERT_TRUE(rsp.getWriteComputeUnits());
             EXPECT_EQ(1, *rsp.getWriteComputeUnits());
             break;
@@ -875,7 +883,8 @@ TEST_F(ServerlessTest, OpsMetered) {
                                          "hello",
                                          R"("couchbase")"});
             EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
             ASSERT_TRUE(rsp.getWriteComputeUnits());
             EXPECT_EQ(1, *rsp.getWriteComputeUnits());
             break;
@@ -888,7 +897,8 @@ TEST_F(ServerlessTest, OpsMetered) {
                                          "hello.[0]",
                                          R"("couchbase")"});
             EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
             ASSERT_TRUE(rsp.getWriteComputeUnits());
             EXPECT_EQ(1, *rsp.getWriteComputeUnits());
             break;
@@ -898,7 +908,8 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(BinprotSubdocCommand{
                     opcode, "ClientOpcode::SubdocCounter", "counter", "1"});
             EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            EXPECT_FALSE(rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getReadComputeUnits());
+            EXPECT_EQ(1, *rsp.getReadComputeUnits());
             ASSERT_TRUE(rsp.getWriteComputeUnits());
             EXPECT_EQ(1, *rsp.getWriteComputeUnits());
             break;
@@ -996,7 +1007,8 @@ TEST_F(ServerlessTest, OpsMetered) {
                           {}}},
                         ::mcbp::subdoc::doc_flag::None});
                 EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-                EXPECT_FALSE(rsp.getReadComputeUnits());
+                ASSERT_TRUE(rsp.getReadComputeUnits());
+                EXPECT_EQ(1, *rsp.getReadComputeUnits());
                 ASSERT_TRUE(rsp.getWriteComputeUnits());
                 EXPECT_EQ(1, *rsp.getWriteComputeUnits());
             } while (false);

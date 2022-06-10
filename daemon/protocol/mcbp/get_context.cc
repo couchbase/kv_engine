@@ -103,7 +103,6 @@ cb::engine_errc GetCommandContext::sendResponse() {
         }
     }
 
-    cookie.addDocumentReadBytes(payload.size());
     connection.sendResponse(
             cookie,
             cb::mcbp::Status::Success,
