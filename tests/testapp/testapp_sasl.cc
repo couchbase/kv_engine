@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -33,16 +32,16 @@ public:
     void SetUp() override {
         adminConnection->createBucket(bucket1, "", BucketType::Memcached);
         adminConnection->createBucket(bucket2, "", BucketType::Memcached);
-        const auto dbname =
-                std::filesystem::path{mcd_env->getTestDir()} / bucket3;
-        const auto config = "dbname="s + dbname.generic_string();
-        adminConnection->createBucket(bucket3, config, BucketType::Couchbase);
     }
 
     void TearDown() override {
-        adminConnection->deleteBucket(bucket1);
-        adminConnection->deleteBucket(bucket2);
-        adminConnection->deleteBucket(bucket3);
+        // Delete any buckets created for the unit case.
+        auto buckets = adminConnection->listBuckets();
+        for (const auto& bucket : buckets) {
+            if (bucket.find("bucket") == 0) {
+                adminConnection->deleteBucket(bucket);
+            }
+        }
     }
 
 protected:
@@ -51,8 +50,9 @@ protected:
 
         for (const auto& mech : mechanisms) {
             conn.reconnect();
-            conn.authenticate(bucket1, password1, mechanism);
-            conn.authenticate(bucket2, password2, mech);
+            conn.authenticate(
+                    bucket1, mcd_env->getPassword(bucket1), mechanism);
+            conn.authenticate(bucket2, mcd_env->getPassword(bucket2), mech);
         }
     }
 
@@ -89,17 +89,6 @@ protected:
 
         memcached_cfg[key] = mechanisms;
         reconfigure();
-    }
-
-    bool isSupported(const std::string mechanism) {
-        auto& conn = getConnection();
-        const auto mechs = conn.getSaslMechanisms();
-        if (mechs.find(mechanism) == std::string::npos) {
-            std::cerr << "Skipping test due to missing server support for "
-                      << mechanism << std::endl;
-            return false;
-        }
-        return true;
     }
 
     std::vector<std::string> mechanisms;
@@ -232,8 +221,11 @@ TEST_P(SaslTest, TestDisablePLAIN) {
 
 // Pretend we're a collection aware client
 TEST_P(SaslTest, CollectionsConnectionSetup) {
-    auto& conn = getConnection();
+    const auto dbname = std::filesystem::path{mcd_env->getTestDir()} / bucket3;
+    const auto config = "dbname="s + dbname.generic_string();
+    adminConnection->createBucket(bucket3, config, BucketType::Couchbase);
 
+    auto& conn = getConnection();
     // Hello
     BinprotHelloCommand helloCmd("Collections");
     helloCmd.enableFeature(cb::mcbp::Feature::Collections);
@@ -249,10 +241,10 @@ TEST_P(SaslTest, CollectionsConnectionSetup) {
     const auto mechs = conn.getSaslMechanisms();
 
     // Do a SASL auth
-    EXPECT_NO_THROW(conn.authenticate(bucket3, password1, mechs));
+    conn.authenticate(bucket3, mcd_env->getPassword(bucket3), mechs);
 
     // Select the bucket
-    EXPECT_NO_THROW(conn.selectBucket(bucket3));
+    conn.selectBucket(bucket3);
 
     // Do a get
     BinprotGetCommand getCmd(std::string{"\0key", 4});
