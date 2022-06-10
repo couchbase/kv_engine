@@ -162,8 +162,8 @@ public:
         return _instance;
     }
 
-    void set(const std::string& salt) {
-        auto decoded = Couchbase::Base64::decode(salt);
+    void set(std::string_view salt) {
+        auto decoded = cb::base64::decode(salt);
         fallback.swap(decoded);
     }
 
@@ -186,7 +186,7 @@ static void generateSalt(std::vector<uint8_t>& bytes, std::string& salt) {
         throw std::runtime_error("Failed to get random bytes");
     }
 
-    salt = Couchbase::Base64::encode(std::string{
+    salt = cb::base64::encode(std::string_view{
             reinterpret_cast<const char*>(bytes.data()), bytes.size()});
 }
 
@@ -221,7 +221,7 @@ User UserFactory::create(const std::string& unm,
 
         ret.password_hash = User::PasswordMetaData{
                 nlohmann::json{{"algorithm", "SHA-1"},
-                               {"hash", Couchbase::Base64::encode(mystr)},
+                               {"hash", cb::base64::encode(mystr)},
                                {"salt", saltstring}}};
     }
 
@@ -294,8 +294,8 @@ static ScramPasswordMetaData generateShaSecrets(Algorithm algorithm,
         auto hs_salt = cb::crypto::HMAC(
                 algorithm, unm, ScamShaFallbackSalt::instance().get());
         std::copy(hs_salt.begin(), hs_salt.end(), std::back_inserter(salt));
-        encodedSalt = Couchbase::Base64::encode(
-                std::string{reinterpret_cast<char*>(salt.data()), salt.size()});
+        encodedSalt = cb::base64::encode(std::string_view{
+                reinterpret_cast<char*>(salt.data()), salt.size()});
     } else {
         switch (algorithm) {
         case Algorithm::SHA512:
@@ -326,8 +326,8 @@ static ScramPasswordMetaData generateShaSecrets(Algorithm algorithm,
             algorithm, cb::crypto::HMAC(algorithm, digest, "Client Key"));
 
     return ScramPasswordMetaData(
-            {{"server_key", Couchbase::Base64::encode(server_key)},
-             {"stored_key", Couchbase::Base64::encode(stored_key)},
+            {{"server_key", cb::base64::encode(server_key)},
+             {"stored_key", cb::base64::encode(stored_key)},
              {"salt", encodedSalt},
              {"iterations", IterationCount.load()}});
 }
@@ -354,7 +354,7 @@ static User::PasswordMetaData generateArgon2id13Secret(
 
     return User::PasswordMetaData(
             nlohmann::json{{"algorithm", "argon2id"},
-                           {"hash", Couchbase::Base64::encode(generated)},
+                           {"hash", cb::base64::encode(generated)},
                            {"salt", encodedSalt},
                            {"time", ops},
                            {"memory", mcost},
@@ -431,13 +431,13 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
                 throw std::invalid_argument(
                         "PasswordMetaData(): hash must be a string");
             }
-            password = Couchbase::Base64::decode(it->get<std::string>());
+            password = cb::base64::decode(it->get<std::string>());
         } else if (label == "salt") {
             if (!it->is_string()) {
                 throw std::invalid_argument(
                         "PasswordMetaData(): salt must be a string");
             }
-            salt = Couchbase::Base64::decode(it->get<std::string>());
+            salt = cb::base64::decode(it->get<std::string>());
         } else if (label == "memory") {
             if (!it->is_number()) {
                 throw std::invalid_argument(
@@ -522,8 +522,8 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
 nlohmann::json User::PasswordMetaData::to_json() const {
     auto ret = properties;
     ret["algorithm"] = algorithm;
-    ret["hash"] = Couchbase::Base64::encode(password);
-    ret["salt"] = Couchbase::Base64::encode(salt);
+    ret["hash"] = cb::base64::encode(password);
+    ret["salt"] = cb::base64::encode(salt);
     return ret;
 }
 

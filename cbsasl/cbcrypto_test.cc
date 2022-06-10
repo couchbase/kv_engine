@@ -290,6 +290,6 @@ TEST(Crypt, ns_server_password_encoding) {
 
     // And the password entry is dumped as base64
     EXPECT_EQ("AAECAwQFBgcICQoLDA0ODx9wH2MSI+M0YPwUNbdBjIm+C13q",
-              Couchbase::Base64::encode(
-                      std::string{(const char*)pwent.data(), pwent.size()}));
+              cb::base64::encode(std::string_view{(const char*)pwent.data(),
+                                                  pwent.size()}));
 }

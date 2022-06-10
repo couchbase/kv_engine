@@ -138,7 +138,7 @@ void ScramShaBackend::addAttribute(std::ostream& out,
     case 'c': // base64 encoded GS2 header and channel binding data
     case 'p': // base64 encoded client proof
     case 'v': // base64 encoded server signature
-        out << Couchbase::Base64::encode(value);
+        out << cb::base64::encode(value);
         break;
 
     case 'i': // iterator count
@@ -400,7 +400,7 @@ std::pair<Error, std::string_view> ServerBackend::step(std::string_view input) {
     addAttribute(out, 'v', serverSignature, false);
     server_final_message = out.str();
 
-    const auto clientproof = Couchbase::Base64::decode(iter->second);
+    const auto clientproof = cb::base64::decode(iter->second);
     const auto client_signature = getClientSignature();
     if (clientproof.size() != client_signature.size()) {
         logging::log(&context,
@@ -509,7 +509,7 @@ std::pair<Error, std::string_view> ClientBackend::step(std::string_view input) {
                 nonce = attribute.second;
                 break;
             case 's':
-                salt = Couchbase::Base64::decode(attribute.second);
+                salt = cb::base64::decode(attribute.second);
                 break;
             case 'i':
                 try {
@@ -584,7 +584,7 @@ std::pair<Error, std::string_view> ClientBackend::step(std::string_view input) {
                                                            {});
         }
 
-        auto encoded = Couchbase::Base64::encode(getServerSignature());
+        auto encoded = cb::base64::encode(getServerSignature());
         if (encoded != attributes['v']) {
             logging::log(&context,
                          logging::Level::Trace,

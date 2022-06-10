@@ -42,10 +42,9 @@ public:
 
 TEST_F(PasswordMetaTest, TestNormalInit) {
     User::PasswordMetaData md(sha1_blueprint);
-    EXPECT_EQ("iiU7hLv7l3yOoEgXusJvT2i1J2A=",
-              Couchbase::Base64::encode(md.getSalt()));
+    EXPECT_EQ("iiU7hLv7l3yOoEgXusJvT2i1J2A=", cb::base64::encode(md.getSalt()));
     EXPECT_EQ("NP0b1Ji5jWG/ZV6hPzOIk3lmTmw=",
-              Couchbase::Base64::encode(md.getPassword()));
+              cb::base64::encode(md.getPassword()));
     EXPECT_EQ("SHA-1", md.getAlgorithm());
 }
 
@@ -319,11 +318,11 @@ TEST_F(UserTest, TestNormalInit) {
         EXPECT_EQ(
                 "XqUk1GEK2VEi+QNxCxJQNO6Bxm4j4zMPjKu/"
                 "SA2I+OSpeXZGt3J6BVGguDaQC2Zo7p2J6aqwHQNf0kDiYqG4VA==",
-                Couchbase::Base64::encode(md.server_key));
+                cb::base64::encode(md.server_key));
         EXPECT_EQ(
                 "qA3MP+EMTSn8pfyYailyCs6maoAJWu1FGhVJYhlD+Dew9+"
                 "kt8XRs1ljQYnXprHzwRfKWIqHyOgQMVqWgVyVEHA==",
-                Couchbase::Base64::encode(md.stored_key));
+                cb::base64::encode(md.stored_key));
     }
 
     {
@@ -331,9 +330,9 @@ TEST_F(UserTest, TestNormalInit) {
         EXPECT_EQ(10, md.iteration_count);
         EXPECT_EQ("i5Jn//LLM0245cscYnldCjM/HMC7Hj2U1HT6iXqCC0E=", md.salt);
         EXPECT_EQ("AIBEwCV3hyZTM/sWiS2llpYmIJSrue6o3xOBSKqi7J4=",
-                  Couchbase::Base64::encode(md.server_key));
+                  cb::base64::encode(md.server_key));
         EXPECT_EQ("nenK/vukVml9UAqTyrfD5EziUKVL4HRLqJ9xB7LD7vk=",
-                  Couchbase::Base64::encode(md.stored_key));
+                  cb::base64::encode(md.stored_key));
     }
 
     {
@@ -341,17 +340,16 @@ TEST_F(UserTest, TestNormalInit) {
         EXPECT_EQ(10, md.iteration_count);
         EXPECT_EQ("iiU7hLv7l3yOoEgXusJvT2i1J2A=", md.salt);
         EXPECT_EQ("xlmIdzh5718/323JcFbA9oxz2N4=",
-                  Couchbase::Base64::encode(md.server_key));
+                  cb::base64::encode(md.server_key));
         EXPECT_EQ("/xBUzh1cpAxZ6mClwSJpWISt8g4=",
-                  Couchbase::Base64::encode(md.stored_key));
+                  cb::base64::encode(md.stored_key));
     }
 
     {
         auto& md = u.getPaswordHash();
-        EXPECT_EQ("wkhDB1DVlfeqZ10PnV4VJA==",
-                  Couchbase::Base64::encode(md.getSalt()));
+        EXPECT_EQ("wkhDB1DVlfeqZ10PnV4VJA==", cb::base64::encode(md.getSalt()));
         EXPECT_EQ("fehlwuE2N30W336KzLvLJEe6Z32XhHURSP9W6ayhoDU=",
-                  Couchbase::Base64::encode(md.getPassword()));
+                  cb::base64::encode(md.getPassword()));
         EXPECT_EQ("argon2id", md.getAlgorithm());
         EXPECT_EQ(3, md.getProperties()["time"]);
         EXPECT_EQ(1, md.getProperties()["parallelism"]);

@@ -158,8 +158,8 @@ static std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
         }
 
         // And now get the 'raw' key encoding from the base64 encoding
-        start = Couchbase::Base64::decode(start);
-        end = Couchbase::Base64::decode(end);
+        start = cb::base64::decode(start);
+        end = cb::base64::decode(end);
     }
 
     std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs;

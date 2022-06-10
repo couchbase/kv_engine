@@ -21,15 +21,15 @@ ScramPasswordMetaData::ScramPasswordMetaData(const nlohmann::json& obj) {
 
     for (const auto& [label, value] : obj.items()) {
         if (label == "stored_key") {
-            stored_key = Couchbase::Base64::decode(value.get<std::string>());
+            stored_key = cb::base64::decode(value.get<std::string>());
         } else if (label == "server_key") {
-            server_key = Couchbase::Base64::decode(value.get<std::string>());
+            server_key = cb::base64::decode(value.get<std::string>());
         } else if (label == "iterations") {
             iteration_count = value.get<std::size_t>();
         } else if (label == "salt") {
             salt = value.get<std::string>();
             // verify that it is a legal base64 encoding
-            Couchbase::Base64::decode(value.get<std::string>());
+            cb::base64::decode(value.get<std::string>());
         } else {
             throw std::invalid_argument(
                     "ScramPasswordMetaData(): Invalid attribute: \"" + label +
@@ -99,8 +99,8 @@ ScramPasswordMetaData::ScramPasswordMetaData(const nlohmann::json& obj,
 nlohmann::json ScramPasswordMetaData::to_json() const {
     return {{"iterations", iteration_count},
             {"salt", salt},
-            {"server_key", Couchbase::Base64::encode(server_key)},
-            {"stored_key", Couchbase::Base64::encode(stored_key)}};
+            {"server_key", cb::base64::encode(server_key)},
+            {"stored_key", cb::base64::encode(stored_key)}};
 }
 
 } // namespace cb::sasl::pwdb
