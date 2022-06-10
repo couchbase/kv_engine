@@ -275,11 +275,7 @@ cb::engine_errc server_prometheus_metering(const StatCollector& collector) {
         // For now, this is service-restart for consistency with the
         // metering spec and other impls.
         collector.addStat(Key::boot_timestamp,
-                          duration_cast<milliseconds>(
-                                  system_clock::from_time_t(
-                                          mc_time_convert_to_abs_time(0))
-                                          .time_since_epoch())
-                                  .count());
+                          double(mc_time_convert_to_abs_time(0)));
         // add per bucket metering metrics
         BucketManager::instance().forEach([&collector](Bucket& bucket) {
             if (std::string_view(bucket.name).empty()) {

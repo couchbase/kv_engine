@@ -2533,7 +2533,7 @@
     // Metering
     {
         "key": "boot_timestamp",
-        "unit": "none",
+        "unit": "seconds",
         "description": "The time KV last restarted (and counters reset)"
     },
     {
@@ -2572,12 +2572,12 @@
         "description": "Total Compute Units refunded for a bucket (CU was charged, but operation failed) since reset"
     },
     {
-        "key": "limit_count_total",
+        "key": "reject_count_total",
         "unit": "none",
         "description": "Total number of operations rejected for a bucket since reset (e.g., invalid operations)"
     },
     {
-        "key": "throttle_secs_total",
+        "key": "throttle_seconds_total",
         "unit": "none",
         "description": "Total time spent throttling requests for a bucket since reset"
     },

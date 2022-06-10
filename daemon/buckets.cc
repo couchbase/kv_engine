@@ -122,9 +122,13 @@ void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
     forKV.addStat(Key::credit_cu_total, 0);
 
     // throttling
-    forKV.addStat(Key::limit_count_total, num_rejected);
+    forKV.addStat(Key::reject_count_total, num_rejected);
     forKV.addStat(Key::throttle_count_total, num_throttled);
-    forKV.addStat(Key::throttle_secs_total, throttle_wait_time);
+
+    using namespace std::chrono;
+    forKV.addStat(
+            Key::throttle_seconds_total,
+            duration_cast<seconds>(milliseconds(throttle_wait_time)).count());
 }
 
 void Bucket::setThrottleLimit(uint32_t id, std::size_t limit) {
