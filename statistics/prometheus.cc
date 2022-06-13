@@ -61,7 +61,6 @@ nlohmann::json initialize(const std::pair<in_port_t, sa_family_t>& config,
 }
 
 void addEndpoint(std::string path,
-                 std::string prefix,
                  IncludeTimestamps timestamps,
                  GetStatsCallback getStatsCB) {
     auto handle = instance.wlock();
@@ -72,7 +71,6 @@ void addEndpoint(std::string path,
                 path));
     }
     handle->addEndpoint(std::move(path),
-                        std::move(prefix),
                         timestamps,
                         std::move(getStatsCB));
 }
@@ -102,11 +100,9 @@ nlohmann::json getRunningConfigAsJson() {
 class MetricServer::Endpoint : public ::prometheus::Collectable {
 public:
     Endpoint(std::string path,
-             std::string prefix,
              IncludeTimestamps timestamps,
              GetStatsCallback getStatsCB)
         : path(std::move(path)),
-          prefix(std::move(prefix)),
           timestamps(timestamps),
           getStatsCB(std::move(getStatsCB)) {
     }
@@ -133,7 +129,7 @@ public:
 
         // collect KV stats
         std::unordered_map<std::string, ::prometheus::MetricFamily> statsMap;
-        PrometheusStatCollector collector(statsMap, prefix);
+        PrometheusStatCollector collector(statsMap);
         getStatsCB(collector);
 
         // KVCollectable interface requires a vector of metric families,
@@ -159,7 +155,6 @@ public:
 
 private:
     const std::string path;
-    const std::string prefix;
     const IncludeTimestamps timestamps;
 
     // function to call on every incoming request to generate stats
@@ -209,7 +204,6 @@ MetricServer::~MetricServer() {
 }
 
 void MetricServer::addEndpoint(std::string path,
-                               std::string prefix,
                                IncludeTimestamps timestamps,
                                GetStatsCallback getStatsCB) {
     if (!isAlive()) {
@@ -218,8 +212,8 @@ void MetricServer::addEndpoint(std::string path,
                             "MetricServer instance",
                             path));
     }
-    auto ptr = std::make_shared<Endpoint>(
-            path, std::move(prefix), timestamps, std::move(getStatsCB));
+    auto ptr =
+            std::make_shared<Endpoint>(path, timestamps, std::move(getStatsCB));
 
     exposer->RegisterAuth(authCB, authRealm, path);
     exposer->RegisterCollectable(ptr, path);

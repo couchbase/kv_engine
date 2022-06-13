@@ -24,6 +24,7 @@
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
 #include <statistics/prometheus.h>
+#include <statistics/prometheus_collector.h>
 
 #include <string_view>
 
@@ -218,21 +219,27 @@ cb::engine_errc server_stats(const StatCollector& collector,
 }
 
 cb::engine_errc server_prometheus_stats(
-        const StatCollector& collector,
+        const PrometheusStatCollector& collector,
         cb::prometheus::Cardinality cardinality) {
+    // prefix all "normal" KV metrics with a short string indicating the
+    // service of origin - "kv_".
+    // Only metering metrics are exposed without this, for consistency with
+    // other services.
+    auto kvCollector =
+            collector.withPrefix(std::string(cb::prometheus::kvPrefix));
     try {
         // do global stats
         if (cardinality == cb::prometheus::Cardinality::Low) {
-            server_global_stats(collector);
-            stats_audit(collector);
+            server_global_stats(kvCollector);
+            stats_audit(kvCollector);
         }
-        BucketManager::instance().forEach([&collector,
+        BucketManager::instance().forEach([&kvCollector,
                                            cardinality](Bucket& bucket) {
             if (std::string_view(bucket.name).empty()) {
                 // skip the initial bucket with aggregated stats
                 return true;
             }
-            auto bucketC = collector.forBucket(bucket.name);
+            auto bucketC = kvCollector.forBucket(bucket.name);
 
             // do engine stats
             bucket.getEngine().get_prometheus_stats(bucketC, cardinality);
@@ -255,16 +262,19 @@ cb::engine_errc server_prometheus_stats(
     return cb::engine_errc::success;
 }
 
-cb::engine_errc server_prometheus_stats_low(const StatCollector& collector) {
+cb::engine_errc server_prometheus_stats_low(
+        const PrometheusStatCollector& collector) {
     return server_prometheus_stats(collector, cb::prometheus::Cardinality::Low);
 }
 
-cb::engine_errc server_prometheus_stats_high(const StatCollector& collector) {
+cb::engine_errc server_prometheus_stats_high(
+        const PrometheusStatCollector& collector) {
     return server_prometheus_stats(collector,
                                    cb::prometheus::Cardinality::High);
 }
 
-cb::engine_errc server_prometheus_metering(const StatCollector& collector) {
+cb::engine_errc server_prometheus_metering(
+        const PrometheusStatCollector& collector) {
     try {
         using namespace cb::stats;
         using namespace std::chrono;

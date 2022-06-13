@@ -17,6 +17,7 @@
 #include <statistics/labelled_collector.h>
 
 #include <cmath>
+#include <utility>
 
 void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
                                       const HistogramData& hist,
@@ -100,15 +101,15 @@ void PrometheusStatCollector::addClientMetric(
         const Labels& additionalLabels,
         prometheus::ClientMetric metric,
         prometheus::MetricType metricType) const {
-    auto name = key.metricFamily;
+    auto name = prefix + key.metricFamily;
 
-    auto [itr, inserted] = metricFamilies.try_emplace(
-            std::string(name), prometheus::MetricFamily());
+    auto [itr, inserted] = metricFamilies.emplace(
+            name,
+            prometheus::MetricFamily{name,
+                                     "" /* no help text */,
+                                     metricType,
+                                     {} /* empty client metrics */});
     auto& metricFamily = itr->second;
-    if (inserted) {
-        metricFamily.name = prefix + std::string(name);
-        metricFamily.type = metricType;
-    }
 
     metric.label.reserve(key.labels.size() + additionalLabels.size());
 
@@ -143,4 +144,9 @@ void PrometheusStatCollector::addClientMetric(
         metric.label.push_back({std::string(label), std::string(value)});
     }
     metricFamily.metric.emplace_back(std::move(metric));
+}
+
+PrometheusStatCollector PrometheusStatCollector::withPrefix(
+        std::string prefix) const {
+    return {metricFamilies, std::move(prefix)};
 }

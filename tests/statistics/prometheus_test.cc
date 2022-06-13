@@ -31,6 +31,7 @@ PrometheusStatTest::EndpointMetrics PrometheusStatTest::getMetrics() const {
                             cb::prometheus::Cardinality::Low);
     server_prometheus_stats(PrometheusStatCollector(metrics.high),
                             cb::prometheus::Cardinality::High);
+    server_prometheus_metering(PrometheusStatCollector(metrics.metering));
     return metrics;
 }
 
@@ -42,7 +43,8 @@ TEST_F(PrometheusStatTest, auditStatsNotPerBucket) {
     using namespace cb::stats;
     using namespace ::testing;
 
-    for (const auto& metricName : {"audit_dropped_events", "audit_enabled"}) {
+    for (const auto& metricName :
+         {"kv_audit_dropped_events", "kv_audit_enabled"}) {
         // confirm audit stats are not in cardinality endpoint
         EXPECT_EQ(0, metrics.high.count(metricName));
 
@@ -112,4 +114,16 @@ TEST_F(PrometheusStatTest, EmptyOpTimingHistograms) {
     // buckets.
 
     EXPECT_THAT(histogram.bucket, SizeIs(expectedBuckets));
+}
+
+TEST_F(PrometheusStatTest, MeteringNotPrefixed) {
+    // Check that _metering endpoint metrics are not prefixed with kv_
+    using namespace ::testing;
+    using namespace std::chrono_literals;
+
+    auto metrics = getMetrics();
+
+    EXPECT_THAT(metrics.metering, Contains(Key("boot_timestamp_seconds")));
+    EXPECT_THAT(metrics.metering,
+                Not(Contains(Key("kv_boot_timestamp_seconds"))));
 }

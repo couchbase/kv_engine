@@ -266,24 +266,19 @@ nlohmann::json prometheus_init(const std::pair<in_port_t, sa_family_t>& config,
 
     using cb::prometheus::IncludeTimestamps;
     cb::prometheus::addEndpoint("/_prometheusMetrics",
-                                "kv_", /* metric prefix */
                                 IncludeTimestamps::Yes,
                                 server_prometheus_stats_low);
     cb::prometheus::addEndpoint("/_prometheusMetricsNoTS",
-                                "kv_",
                                 IncludeTimestamps::No,
                                 server_prometheus_stats_low);
     cb::prometheus::addEndpoint("/_prometheusMetricsHigh",
-                                "kv_",
                                 IncludeTimestamps::Yes,
                                 server_prometheus_stats_high);
     cb::prometheus::addEndpoint("/_prometheusMetricsHighNoTS",
-                                "kv_",
                                 IncludeTimestamps::No,
                                 server_prometheus_stats_high);
     if (isServerlessDeployment()) {
         cb::prometheus::addEndpoint("/_metering",
-                                    "", /* no prefix */
                                     IncludeTimestamps::No,
                                     server_prometheus_metering);
     }

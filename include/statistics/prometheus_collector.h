@@ -16,6 +16,14 @@
 #include <prometheus/client_metric.h>
 #include <prometheus/metric_family.h>
 
+namespace cb::prometheus {
+/* common prefix added to the majority of metrics to indicate the originating
+ * service. Only metrics which require an exact name for consistency should be
+ * exposed without this prefix, e.g., metering metrics.
+ */
+inline constexpr std::string_view kvPrefix = "kv_";
+} // namespace cb::prometheus
+
 class PrometheusStatCollector : public StatCollector {
 public:
     /**
@@ -27,7 +35,7 @@ public:
     PrometheusStatCollector(
             std::unordered_map<std::string, prometheus::MetricFamily>&
                     metricFamilies,
-            std::string prefix = "kv_")
+            std::string prefix = "")
         : metricFamilies(metricFamilies), prefix(std::move(prefix)) {
     }
 
@@ -84,6 +92,13 @@ public:
     cb::engine_errc testPrivilegeForStat(
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) const override;
+
+    /**
+     * Return a copy of this collector which will add stats to the same
+     * result map (metricFamilies reference), but with the provided
+     * prefix.
+     */
+    PrometheusStatCollector withPrefix(std::string prefix) const;
 
 protected:
     void addClientMetric(const cb::stats::StatDef& key,

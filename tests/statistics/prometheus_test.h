@@ -29,6 +29,7 @@ public:
     struct EndpointMetrics {
         StatMap high;
         StatMap low;
+        StatMap metering;
     };
     EndpointMetrics getMetrics() const;
 };

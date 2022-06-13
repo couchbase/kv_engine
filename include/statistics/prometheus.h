@@ -25,7 +25,7 @@ namespace prometheus {
 class Exposer;
 } // namespace prometheus
 
-class StatCollector;
+class PrometheusStatCollector;
 
 namespace cb::prometheus {
 /**
@@ -47,7 +47,8 @@ enum class IncludeTimestamps {
 using AuthCallback =
         std::function<bool(const std::string&, const std::string&)>;
 
-using GetStatsCallback = std::function<cb::engine_errc(const StatCollector&)>;
+using GetStatsCallback =
+        std::function<cb::engine_errc(const PrometheusStatCollector&)>;
 
 /**
  * Initialize the prometheus exporter
@@ -63,7 +64,6 @@ nlohmann::json initialize(const std::pair<in_port_t, sa_family_t>& config,
                           AuthCallback authCB);
 
 void addEndpoint(std::string path,
-                 std::string prefix,
                  IncludeTimestamps timestamps,
                  GetStatsCallback getStatsCB);
 
@@ -100,7 +100,6 @@ public:
     MetricServer& operator=(MetricServer&&) = delete;
 
     void addEndpoint(std::string path,
-                     std::string prefix,
                      IncludeTimestamps timestamps,
                      GetStatsCallback getStatsCB);
 

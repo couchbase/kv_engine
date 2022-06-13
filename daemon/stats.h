@@ -198,6 +198,7 @@ struct thread_stats* get_thread_stats(Connection* c);
 
 class BucketStatCollector;
 class StatCollector;
+class PrometheusStatCollector;
 class Bucket;
 cb::engine_errc server_stats(const StatCollector& collector,
                              const Bucket& bucket);
@@ -219,7 +220,7 @@ void server_bucket_timing_stats(const BucketStatCollector& collector,
  * or low cardinality endpoint.
  */
 cb::engine_errc server_prometheus_stats(
-        const StatCollector& collector,
+        const PrometheusStatCollector& collector,
         cb::prometheus::Cardinality cardinality);
 
 /**
@@ -228,7 +229,8 @@ cb::engine_errc server_prometheus_stats(
  * These stats should remain (comparatively) few in number, and should
  * scale at most per-bucket (no per-vbucket, no per-collection).
  */
-cb::engine_errc server_prometheus_stats_low(const StatCollector& collector);
+cb::engine_errc server_prometheus_stats_low(
+        const PrometheusStatCollector& collector);
 
 /**
  * Add all "high cardinality" group stats to the provided collector.
@@ -238,7 +240,8 @@ cb::engine_errc server_prometheus_stats_low(const StatCollector& collector);
  * (than the "low cardinality" group) by Prometheus, but no exact interval
  * should be assumed.
  */
-cb::engine_errc server_prometheus_stats_high(const StatCollector& collector);
+cb::engine_errc server_prometheus_stats_high(
+        const PrometheusStatCollector& collector);
 
 /**
  * Add metering/throttling specific metrics to the provided collector.
@@ -246,7 +249,8 @@ cb::engine_errc server_prometheus_stats_high(const StatCollector& collector);
  * These metrics are relevant to "serverless" deployments, and will not be
  * exposed at all otherwise.
  */
-cb::engine_errc server_prometheus_metering(const StatCollector& collector);
+cb::engine_errc server_prometheus_metering(
+        const PrometheusStatCollector& collector);
 
 /*
  *  Macros for managing statistics inside memcached
