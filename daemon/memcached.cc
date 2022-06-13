@@ -36,6 +36,7 @@
 #include <cbsasl/mechanism.h>
 #include <executor/executorpool.h>
 #include <fmt/chrono.h>
+#include <fmt/format.h>
 #include <folly/Chrono.h>
 #include <folly/CpuId.h>
 #include <folly/io/async/EventBase.h>
@@ -695,13 +696,19 @@ static void sasl_log_callback(cb::sasl::logging::Level level,
 }
 
 static void initialize_sasl() {
-    using namespace cb::sasl;
-    logging::set_log_callback(sasl_log_callback);
-    server::initialize();
+    try {
+        LOG_INFO_RAW("Initialize SASL");
+        using namespace cb::sasl;
+        logging::set_log_callback(sasl_log_callback);
+        server::initialize();
 
-    if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
-        // Speed up the unit tests ;)
-        server::set_hmac_iteration_count(10);
+        if (!getenv("MEMCACHED_UNIT_TESTS")) {
+            // Speed up the unit tests ;)
+            server::set_hmac_iteration_count(10);
+        }
+    } catch (std::exception& e) {
+        FATAL_ERROR(EXIT_FAILURE,
+                    fmt::format("Failed to initialize SASL: {}", e.what()));
     }
 }
 
