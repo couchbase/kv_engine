@@ -232,6 +232,9 @@ cb::engine_errc server_prometheus_stats(
         if (cardinality == cb::prometheus::Cardinality::Low) {
             server_global_stats(kvCollector);
             stats_audit(kvCollector);
+        } else if (isServerlessDeployment()) {
+            // include all metering metrics, without the "kv_" prefix
+            server_prometheus_metering(collector);
         }
         BucketManager::instance().forEach([&kvCollector,
                                            cardinality](Bucket& bucket) {

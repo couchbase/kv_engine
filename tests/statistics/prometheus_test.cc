@@ -15,6 +15,7 @@
 #include <folly/portability/GTest.h>
 
 #include <daemon/mcaudit.h>
+#include <daemon/settings.h>
 #include <daemon/stats.h>
 #include <daemon/timings.h>
 #include <gmock/gmock-matchers.h>
@@ -126,4 +127,29 @@ TEST_F(PrometheusStatTest, MeteringNotPrefixed) {
     EXPECT_THAT(metrics.metering, Contains(Key("boot_timestamp_seconds")));
     EXPECT_THAT(metrics.metering,
                 Not(Contains(Key("kv_boot_timestamp_seconds"))));
+}
+
+TEST_F(PrometheusStatTest, MeteringIncludedInHighCardinality) {
+    // Check that metering metrics are included in the high cardinality endpoint
+    // iff serverless deployment, and that they are not prefixed with kv_
+    using namespace ::testing;
+    using namespace std::chrono_literals;
+
+    {
+        auto metrics = getMetrics();
+
+        EXPECT_THAT(metrics.high, Not(Contains(Key("boot_timestamp_seconds"))));
+        EXPECT_THAT(metrics.high,
+                    Not(Contains(Key("kv_boot_timestamp_seconds"))));
+    }
+
+    Settings::instance().setDeploymentModel(DeploymentModel::Serverless);
+
+    {
+        auto metrics = getMetrics();
+
+        EXPECT_THAT(metrics.high, Contains(Key("boot_timestamp_seconds")));
+        EXPECT_THAT(metrics.high,
+                    Not(Contains(Key("kv_boot_timestamp_seconds"))));
+    }
 }
