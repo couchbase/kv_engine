@@ -352,3 +352,12 @@ void StatsGroupManager::iterate(
         callback(e);
     }
 }
+
+const StatGroup* StatsGroupManager::lookup(StatGroupId id) {
+    for (const auto& e : entries) {
+        if (e.id == id) {
+            return &e;
+        }
+    }
+    return nullptr;
+}

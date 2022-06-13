@@ -111,6 +111,12 @@ public:
     /// Get the one and only instance of the StatsGroupManager
     static StatsGroupManager& getInstance();
 
+    /// Lookup the provided id and return a pointer to the description
+    // for the id if found, or nullptr if no description exists for the
+    // id. The main purpose for this method is to be able to write a
+    // unit test to ensure that all stats are documented
+    const StatGroup* lookup(StatGroupId id);
+
     /**
      * Try to look up the stats matching the key
      *

@@ -68,7 +68,7 @@ target_link_libraries(mcd_test_util
 add_sanitizers(mcd_test_util)
 kv_enable_pch(mcd_test_util)
 
-cb_add_test_executable(utilities_testapp util_test.cc)
+cb_add_test_executable(utilities_testapp util_test.cc stat_group_test.cc)
 kv_enable_pch(utilities_testapp)
 target_link_libraries(utilities_testapp PRIVATE
                       mcd_util
