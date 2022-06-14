@@ -619,19 +619,17 @@ void VBucket::setupSyncReplication(const nlohmann::json* topology) {
 
     // If we are transitioning away from active then we need to mark all of our
     // prepares as PreparedMaybeVisible to avoid exposing them
-    std::vector<queued_item> trackedWrites;
     if (!currentPassiveDM && durabilityMonitor &&
         state != vbucket_state_active) {
         auto& adm = dynamic_cast<ActiveDurabilityMonitor&>(*durabilityMonitor);
-        trackedWrites = adm.getTrackedWrites();
-        for (auto& write : trackedWrites) {
-            auto htRes = ht.findOnlyPrepared(write->getKey());
+        auto trackedWrites = adm.getTrackedKeys();
+        for (auto& key : trackedWrites) {
+            auto htRes = ht.findOnlyPrepared(key);
             Expects(htRes.storedValue);
             Expects(htRes.storedValue->isPending() ||
                     htRes.storedValue->isPrepareCompleted());
             htRes.storedValue->setCommitted(
                     CommittedState::PreparedMaybeVisible);
-            write->setPreparedMaybeVisible();
         }
     }
 

@@ -1194,11 +1194,11 @@ std::unordered_set<int64_t> ActiveDurabilityMonitor::getTrackedSeqnos() const {
     return ret;
 }
 
-std::vector<queued_item> ActiveDurabilityMonitor::getTrackedWrites() const {
-    std::vector<queued_item> items;
+std::vector<StoredDocKey> ActiveDurabilityMonitor::getTrackedKeys() const {
+    std::vector<StoredDocKey> items;
     auto s = state.rlock();
     for (auto& w : s->trackedWrites) {
-        items.push_back(w.getItem());
+        items.push_back(w.getKey());
     }
     return items;
 }

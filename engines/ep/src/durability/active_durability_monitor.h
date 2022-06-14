@@ -13,6 +13,7 @@
 #include "durability_monitor.h"
 #include "ep_types.h"
 #include "memcached/engine_error.h"
+#include "storeddockey_fwd.h"
 #include "utilities/testing_hook.h"
 
 #include <folly/SynchronizedPtr.h>
@@ -332,9 +333,9 @@ public:
     void unresolveCompletedSyncWriteQueue();
 
     /**
-     * @return all of the currently tracked writes
+     * @return all of the currently tracked keys
      */
-    std::vector<queued_item> getTrackedWrites() const;
+    std::vector<StoredDocKey> getTrackedKeys() const;
 
     /// Debug - print a textual description of this object to stderr.
     void dump() const override;
