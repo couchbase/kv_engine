@@ -10,7 +10,9 @@
  */
 
 #include "passive_durability_monitor.h"
+
 #include "active_durability_monitor.h"
+#include "dead_durability_monitor.h"
 #include "durability_monitor_impl.h"
 
 #include "bucket_logger.h"
@@ -120,6 +122,51 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb,
             s->highCompletedSeqno.it = lastIt;
         }
     }
+
+    // When we transition from dead we may have to pass some extra state into
+    // the new DM to ensure that we move the HPS appropriately. This extra state
+    // is the last consistent point (which is the last point which we could move
+    // the HPS up to). Consider the following scenario in which this code is
+    // required:
+    //
+    // 1) vBucket was active - HPS = 0
+    // 2) vBucket starts sync write requiring persistence (seqno 1) - HPS = 0
+    // 3) vBucket set to dead - HPS = 0
+    // 4) vBucket persists sync write from step 3 - HPS = 0
+    // 5) vBucket set to replica - HPS = ???
+    // 6) vBucket connects to new active and has to send a seqno ack - HPS = ???
+    //
+    // At step 5/6 we need to be able to move the HPS based on things that may
+    // have happened when we are in the dead state but that relate to a previous
+    // state that this node saw (i.e. being active at step 2). This is important
+    // as the new active may not send a snapshot end if this node is up to date.
+    // To do this, the DeadDurabilityMonitor tracks the last consistent point
+    // which is either the high seqno if the node was previously active, or the
+    // last received snapshot end if the node was previously a replica.
+    auto* ddm = dynamic_cast<DeadDurabilityMonitor*>(&dm);
+    if (ddm) {
+        auto last = ddm->getLastConsistentSeqno();
+        if (last) {
+            s->processSnapshotEnd(vb.isReceivingDiskSnapshot()
+                                          ? CheckpointType::Disk
+                                          : CheckpointType::Memory,
+                                  *last);
+        }
+    }
+
+    // Similar to the above case, we want to be resilient to any state
+    // transition including active->replica. It's expected that takeovers
+    // generally do active->dead->replica transitions, but we don't want to
+    // assume that this is always the case. In the active->dead->replica case
+    // this code is handled by the DDM, but for an active->replica transition
+    // we must handle it here.
+    auto* adm = dynamic_cast<ActiveDurabilityMonitor*>(&dm);
+    if (adm) {
+        s->processSnapshotEnd(vb.isReceivingDiskSnapshot()
+                                      ? CheckpointType::Disk
+                                      : CheckpointType::Memory,
+                              vb.getHighSeqno());
+    }
 }
 
 PassiveDurabilityMonitor::~PassiveDurabilityMonitor() = default;
@@ -132,6 +179,15 @@ PassiveDurabilityMonitor::getTrackedWrites() const {
         ret.emplace_back(write);
     }
     return ret;
+}
+
+std::optional<int64_t> PassiveDurabilityMonitor::getLatestSnapshotEnd() const {
+    auto s = state.rlock();
+    if (s->receivedSnapshotEnds.empty()) {
+        return {};
+    }
+
+    return s->receivedSnapshotEnds.back().seqno;
 }
 
 void PassiveDurabilityMonitor::addStats(const AddStatFn& addStat,

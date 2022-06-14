@@ -82,6 +82,10 @@ public:
 
     std::list<SyncWrite> getTrackedWrites() const override;
 
+    std::optional<int64_t> getLastConsistentSeqno() const {
+        return lastConsistentSeqno;
+    }
+
 protected:
     void toOStream(std::ostream& os) const override;
 
@@ -92,4 +96,14 @@ protected:
 
     using Container = std::list<SyncWrite>;
     Container trackedWrites;
+
+    // lastConsistentSeqno is taken when we transition to DDM. If we are
+    // transitioning from active to dead (ADM to DDM) then it is the
+    // (in-memory) high seqno at that point. If we are transitioning from
+    // replica or pending to dead (PDM to DDM) then it is the last received
+    // snapshot end (may have been the high seqno of the vBucket if it was
+    // previously active and has not yet received another snapshot). This is
+    // used later when we transition to PDM to allow a newly created PDM to ack
+    // back up to that seqno.
+    std::optional<int64_t> lastConsistentSeqno = {};
 };

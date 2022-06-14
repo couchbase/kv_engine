@@ -180,6 +180,13 @@ public:
 
     int64_t getHighestTrackedSeqno() const override;
 
+    /**
+     * Used by the DDM to tell a future PDM about the last consistent point.
+     *
+     * @return the last snapshot end that this PDM knows about
+     */
+    std::optional<int64_t> getLatestSnapshotEnd() const;
+
     void dump() const override;
 
     /**

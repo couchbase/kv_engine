@@ -320,3 +320,54 @@ protected:
      */
     void testActiveSendsHCSAtDiskSnapshotSentFromMemory();
 };
+
+/**
+ * Similar to DurabilityPromotionStreamTest, this test suite tests a "demotion"
+ * case in which the vBucket starts as active and ends up as a replica
+ */
+class DurabilityDemotionStreamTest : public DurabilityPassiveStreamTest,
+                                     public DurabilityActiveStreamTest {
+public:
+    void SetUp() override;
+    void TearDown() override;
+
+    /**
+     * MB-51606:
+     *
+     * Test behaviour of persistence of durable writes when a vBucket is in the
+     * process of changing state from active to replica (possibly via dead).
+     * Before this bug was fixed, a situation existed in which we satisfied
+     * a write while a vBucket was dead while it was transitioning from active
+     * to replica caused that write to get stuck indefinitely as the new replica
+     * vBucket would not ack. The situation was as follows:
+     *
+     * 1) vBucket was active
+     * 2) vBucket starts sync write requiring persistence (seqno 1)
+     * 3) vBucket set to dead
+     * 4) vBucket persists sync write from step 3
+     * 5) vBucket set to replica
+     * 6) vBucket connects to new active and sends no seqno ack
+     *
+     * This happened because a dead vBucket inherited the DurabilityMonitor from
+     * its previous state (either ADM or PDM) and notifications to it were
+     * blocked based on its state being dead. On transition to replica, nothing
+     * moved the HPS as the replica can only move the HPS up to snapshot ends
+     * (of which it had none).
+     *
+     * To fix this issue, a DeadDurabilityMonitor was introduced which tracks
+     * state to notify the PDM of a consistent point on creation, allowing it to
+     * move the HPS up to anything that the previous active vBucket had
+     * accepted.
+     *
+     * A variation of this test exists for a transition from active->replica
+     * without the in-between dead state (and hence without the DDM) which is
+     * not a transition that we would generally expect to happen, but should be
+     * resilient to.
+     *
+     * @param stateTransitions A function performing a number of state
+     *                         transitions and the persistence of the durable
+     *                         write at the appropriate point in time.
+     */
+    void testHPSMovesWithDelayedPersistenceDuringStateTransition(
+            std::function<void()> stateTransitions);
+};

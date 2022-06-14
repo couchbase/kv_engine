@@ -5468,6 +5468,98 @@ TEST_P(DurabilityPromotionStreamTest,
     EXPECT_EQ(3, m->getEndSeqno());
 }
 
+TEST_P(DurabilityPromotionStreamTest, ReplicaDeadActiveCanCommitPrepare) {
+    auto key = makeStoredDocKey("key");
+    SnapshotMarker marker(
+            0,
+            vbid,
+            1 /*snapStart*/,
+            1 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*HCS*/,
+            1 /*maxVisibleSeqno*/,
+            {}, // timestamp
+            {} /*streamId*/);
+    DurabilityPassiveStreamTest::stream->processMarker(&marker);
+
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->prepare(DurabilityPassiveStreamTest::stream->getOpaque(),
+                              key,
+                              {}, // value (none)
+                              0, // priv_bytes
+                              0, // datatype
+                              0, // cas
+                              vbid,
+                              0, // flags
+                              1, // seqno
+                              1, // rev
+                              0, // expiration
+                              0, // lock
+                              0, // nru
+                              DocumentState::Alive,
+                              cb::durability::Level::PersistToMajority));
+
+    // Remove PassiveStream and Consumer
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->closeStream(0 /*opaque*/, vbid));
+    consumer.reset();
+
+    // Transition via dead
+    setVBucketState(vbid, vbucket_state_dead);
+
+    // In which we flush
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Simulate vbstate-change Dead->Active (we have also a Producer and
+    // ActiveStream from this point onward)
+    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
+    ASSERT_TRUE(producer);
+    auto* activeStream = DurabilityActiveStreamTest::stream.get();
+    ASSERT_TRUE(activeStream);
+
+    // Push items into the Stream::readyQ
+    auto vb = store->getVBucket(vbid);
+    auto outItems = activeStream->public_getOutstandingItems(*vb);
+    activeStream->public_processItems(outItems);
+
+    // readyQ also contains SnapshotMarker
+    ASSERT_EQ(2, activeStream->public_readyQSize());
+
+    auto resp = activeStream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto* m = dynamic_cast<SnapshotMarker*>(resp.get());
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, m->getFlags());
+    EXPECT_EQ(0, m->getStartSeqno());
+    EXPECT_EQ(1, m->getEndSeqno());
+
+    resp = activeStream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+
+    // Now ack from some replica to poke things along
+    activeStream->seqnoAck(DurabilityActiveStreamTest::replica, 1);
+    vb->processResolvedSyncWrites();
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Push items into the Stream::readyQ
+    outItems = activeStream->public_getOutstandingItems(*vb);
+    activeStream->public_processItems(outItems);
+
+    resp = activeStream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    m = dynamic_cast<SnapshotMarker*>(resp.get());
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, m->getFlags());
+    EXPECT_EQ(2, m->getStartSeqno());
+    EXPECT_EQ(2, m->getEndSeqno());
+
+    resp = activeStream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::Commit, resp->getEvent());
+}
+
 /**
  * Test fixture for durability-related PassiveStream tests where the Producer
  * is a downlevel version and doesn't support SyncWrites.
@@ -6090,6 +6182,130 @@ TEST_P(DurabilityPassiveStreamEphemeralTest,
     testAbortCommitedInDiskSnapshotCorrectState(DeleteSource::Explicit);
 }
 
+void DurabilityDemotionStreamTest::SetUp() {
+    return DurabilityActiveStreamTest::SetUp();
+}
+
+void DurabilityDemotionStreamTest::TearDown() {
+    return DurabilityPassiveStreamTest::TearDown();
+}
+
+void DurabilityDemotionStreamTest::
+        testHPSMovesWithDelayedPersistenceDuringStateTransition(
+                std::function<void()> stateTransitions) {
+    using namespace cb::durability;
+    setVBucketToActiveWithValidTopology();
+
+    auto key1 = makeStoredDocKey("k1");
+    auto item = makePendingItem(
+            key1, "value", Requirements{Level::PersistToMajority, Timeout()});
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    vb->seqnoAcknowledged(
+            folly::SharedMutex::ReadHolder(vb->getStateLock()), "replica", 1);
+
+    auto key2 = makeStoredDocKey("k2");
+    item = makePendingItem(
+            key2, "value", Requirements{Level::PersistToMajority, Timeout()});
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+
+    EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
+    EXPECT_EQ(1, vb->getDurabilityMonitor().getHighPreparedSeqno());
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
+
+    vb->seqnoAcknowledged(
+            folly::SharedMutex::ReadHolder(vb->getStateLock()), "replica", 1);
+
+    // Remote ack does not attempt to commit, need local ack (persistence)
+    EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
+    EXPECT_EQ(1, vb->getDurabilityMonitor().getHighPreparedSeqno());
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
+
+    // Transition via "takeover"
+    DurabilityActiveStreamTest::stream.reset();
+    producer.reset();
+
+    stateTransitions();
+
+    // Now we are replica, HPS can move up to the last consistent point (the
+    // point at which we were active)
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    EXPECT_EQ(2, vb->getDurabilityMonitor().getNumTracked());
+    EXPECT_EQ(2, vb->getDurabilityMonitor().getHighPreparedSeqno());
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
+
+    enableSyncReplication = true;
+    setupConsumer();
+    setupPassiveStream();
+    consumePassiveStreamStreamReq();
+    consumePassiveStreamAddStream();
+
+    auto msg = DurabilityPassiveStreamTest::stream->public_popFromReadyQ();
+    ASSERT_TRUE(msg);
+    EXPECT_EQ(DcpResponse::Event::SeqnoAcknowledgement, msg->getEvent());
+
+    const auto& ack = static_cast<SeqnoAcknowledgement&>(*msg);
+    EXPECT_EQ(2, ack.getPreparedSeqno());
+}
+
+TEST_P(DurabilityDemotionStreamTest, DelayedPersistenceHPSActiveDeadReplica) {
+    testHPSMovesWithDelayedPersistenceDuringStateTransition([this]() {
+        auto vb = store->getVBucket(vbid);
+        setVBucketState(vbid, vbucket_state_dead);
+
+        // Flush of key "k2" from before we were set to dead, HPS cannot move
+        // yet as we are in the dead state
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        EXPECT_EQ(2, vb->getDurabilityMonitor().getNumTracked());
+        EXPECT_EQ(1, vb->getDurabilityMonitor().getHighPreparedSeqno());
+        EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
+    });
+}
+
+TEST_P(DurabilityDemotionStreamTest,
+       DelayedPersistenceHPSActiveDeadReplicaDeadReplica) {
+    testHPSMovesWithDelayedPersistenceDuringStateTransition([this]() {
+        auto vb = store->getVBucket(vbid);
+        setVBucketState(vbid, vbucket_state_dead);
+
+        setVBucketState(vbid, vbucket_state_replica);
+        EXPECT_EQ(2, vb->getDurabilityMonitor().getNumTracked());
+        EXPECT_EQ(1, vb->getDurabilityMonitor().getHighPreparedSeqno());
+        EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
+
+        setVBucketState(vbid, vbucket_state_dead);
+        EXPECT_EQ(2, vb->getDurabilityMonitor().getNumTracked());
+        EXPECT_EQ(1, vb->getDurabilityMonitor().getHighPreparedSeqno());
+        EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
+
+        // Flush of key "k2" from before we were set to dead, HPS cannot move
+        // yet as we are in the dead state
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        EXPECT_EQ(2, vb->getDurabilityMonitor().getNumTracked());
+        EXPECT_EQ(1, vb->getDurabilityMonitor().getHighPreparedSeqno());
+        EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
+    });
+}
+
+TEST_P(DurabilityDemotionStreamTest, DelayedPersistenceHPSActiveReplica) {
+    testHPSMovesWithDelayedPersistenceDuringStateTransition([this]() {
+        auto vb = store->getVBucket(vbid);
+        setVBucketState(vbid, vbucket_state_replica);
+
+        // Flush of key "k2" from before we were set to dead, HPS cannot move
+        // yet as we are in the dead state
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        EXPECT_EQ(2, vb->getDurabilityMonitor().getNumTracked());
+        EXPECT_EQ(2, vb->getDurabilityMonitor().getHighPreparedSeqno());
+        EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
+    });
+}
+
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          DurabilityActiveStreamTest,
                          STParameterizedBucketTest::allConfigValues(),
@@ -6108,6 +6324,11 @@ INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          DurabilityPromotionStreamTest,
                          STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         DurabilityDemotionStreamTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(Ephemeral,
