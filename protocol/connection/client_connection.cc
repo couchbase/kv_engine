@@ -12,6 +12,7 @@
 #include "frameinfo.h"
 
 #include <cbsasl/client.h>
+#include <fmt/format.h>
 #include <folly/io/IOBuf.h>
 #include <folly/io/async/AsyncSSLSocket.h>
 #include <mcbp/codec/dcp_snapshot_marker.h>
@@ -23,7 +24,6 @@
 #include <platform/dirutils.h>
 #include <platform/socket.h>
 #include <platform/string_hex.h>
-
 #include <cerrno>
 #include <functional>
 #include <iostream>
@@ -995,6 +995,20 @@ void MemcachedConnection::authenticate(const std::string& username,
         stepCommand.setMechanism(client.getName());
         stepCommand.setChallenge(client_data.second);
         response = execute(stepCommand);
+    }
+
+    if (response.isSuccess()) {
+        const auto challenge = response.getDataView();
+        if (!challenge.empty()) {
+            auto [e, c] = client.step(challenge);
+            if (e != cb::sasl::Error::OK) {
+                throw std::runtime_error(
+                        fmt::format("Authentication failed as part of final "
+                                    "verification: Error:{} Reason:{}",
+                                    ::to_string(e),
+                                    c));
+            }
+        }
     }
 
     if (!response.isSuccess()) {
