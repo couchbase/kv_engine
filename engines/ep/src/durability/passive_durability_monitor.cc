@@ -77,28 +77,26 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(
     }
 }
 
-PassiveDurabilityMonitor::PassiveDurabilityMonitor(
-        VBucket& vb, ActiveDurabilityMonitor&& adm)
+PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb,
+                                                   DurabilityMonitor&& dm)
     : PassiveDurabilityMonitor(
-              vb, adm.getHighPreparedSeqno(), adm.getHighCompletedSeqno()) {
+              vb, dm.getHighPreparedSeqno(), dm.getHighCompletedSeqno()) {
     EP_LOG_INFO(
-            "PassiveDurabilityMonitor::ctor(ADM&&): {} Transitioning from "
-            "ADM. HPS:{}, HCS:{}, numTracked:{}, highestTracked:{}",
+            "PassiveDurabilityMonitor::ctor(DM&&): {} Transitioning to PDM. "
+            "HPS:{}, HCS:{}, numTracked:{}, highestTracked:{}",
             vb.getId(),
-            adm.getHighPreparedSeqno(),
-            adm.getHighCompletedSeqno(),
-            adm.getNumTracked(),
-            adm.getHighestTrackedSeqno());
-
+            dm.getHighPreparedSeqno(),
+            dm.getHighCompletedSeqno(),
+            dm.getNumTracked(),
+            dm.getHighestTrackedSeqno());
     auto s = state.wlock();
 
-    // The adm will have to (read) lock it's own state to get these for us so
-    // grab a copy for our use
-    auto highPreparedSeqno = adm.getHighPreparedSeqno();
-    auto highCompletedSeqno = adm.getHighCompletedSeqno();
+    // The adm will have to (read) lock it's own state to get these for us
+    // so grab a copy for our use
+    auto highPreparedSeqno = dm.getHighPreparedSeqno();
+    auto highCompletedSeqno = dm.getHighCompletedSeqno();
 
-    auto admState = adm.state.wlock();
-    for (auto& write : admState->trackedWrites) {
+    for (auto& write : dm.getTrackedWrites()) {
         s->trackedWrites.emplace_back(std::move(write));
 
         // Advance the highPreparedSeqno iterator to point to the highest
@@ -112,12 +110,12 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(
         // SyncWrite which has been completed.
         //
         // Note: One might assume that this would always point to
-        // trackedWrites.begin(), given that we are a newly minted PassiveDM and
-        // hence would only be tracking incomplete SyncWrites. However, we
-        // _could_ have been converted from an ActiveDM with null topology which
-        // itself was converted from a previous PassiveDM which _did_ have
-        // completed SyncWrites still in trackedWrites (because they haven't
-        // been persisted locally yet).
+        // trackedWrites.begin(), given that we are a newly minted PassiveDM
+        // and hence would only be tracking incomplete SyncWrites. However,
+        // we _could_ have been converted from an ActiveDM with null
+        // topology which itself was converted from a previous PassiveDM
+        // which _did_ have completed SyncWrites still in trackedWrites
+        // (because they haven't been persisted locally yet).
         if (lastIt->getBySeqno() <= highCompletedSeqno) {
             s->highCompletedSeqno.it = lastIt;
         }
@@ -125,6 +123,16 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(
 }
 
 PassiveDurabilityMonitor::~PassiveDurabilityMonitor() = default;
+
+std::list<DurabilityMonitor::SyncWrite>
+PassiveDurabilityMonitor::getTrackedWrites() const {
+    auto s = state.rlock();
+    std::list<DurabilityMonitor::SyncWrite> ret;
+    for (auto& write : s->trackedWrites) {
+        ret.emplace_back(write);
+    }
+    return ret;
+}
 
 void PassiveDurabilityMonitor::addStats(const AddStatFn& addStat,
                                         const CookieIface* cookie) const {

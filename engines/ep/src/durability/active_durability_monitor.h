@@ -136,15 +136,17 @@ public:
                             std::vector<queued_item>&& outstandingPrepares);
 
     /**
-     * Construct an ActiveDM by converting the given PassiveDM.
-     * All the (in-flight) tracked Prepares in the old PassiveDM are retained.
+     * Construct an ActiveDM by converting the given DM.
+     * All the (in-flight) tracked Prepares in the old DM are retained.
      *
      * @param stats EPStats object for the associated Bucket.
-     * @param pdm The PassiveDM to be converted
+     * @param vb VBucket which owns this Durability Monitor.
+     * @param dm The DM to be converted
      * @param nextExpiryChanged Object to use for timing out SyncWrites.
      */
     ActiveDurabilityMonitor(EPStats& stats,
-                            PassiveDurabilityMonitor&& pdm,
+                            VBucket& vb,
+                            DurabilityMonitor&& dm,
                             std::unique_ptr<EventDrivenDurabilityTimeoutIface>
                                     nextExpiryChanged);
 
@@ -336,6 +338,8 @@ public:
      * @return all of the currently tracked keys
      */
     std::vector<StoredDocKey> getTrackedKeys() const;
+
+    std::list<SyncWrite> getTrackedWrites() const override;
 
     /// Debug - print a textual description of this object to stderr.
     void dump() const override;

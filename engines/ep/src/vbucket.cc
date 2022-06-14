@@ -641,6 +641,7 @@ void VBucket::setupSyncReplication(const nlohmann::json* topology) {
             // SyncWrites.
             durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(
                     stats,
+                    *this,
                     std::move(*currentPassiveDM),
                     syncWriteTimeoutFactory(*this));
         } else if (!durabilityMonitor) {
