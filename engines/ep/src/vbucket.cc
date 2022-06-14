@@ -4185,3 +4185,11 @@ size_t VBucket::getCheckpointMaxSize() const {
     return bucket ? bucket->getCheckpointMaxSize()
                   : std::numeric_limits<size_t>::max();
 }
+
+void VBucket::failAllSeqnoPersistenceReqs(EventuallyPersistentEngine& engine) {
+    auto toNotify = tmpFailAndGetAllHpNotifies(engine);
+
+    for (auto& notify : toNotify) {
+        engine.notifyIOComplete(notify.first, notify.second);
+    }
+}

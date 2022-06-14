@@ -1634,6 +1634,15 @@ public:
      */
     size_t getCheckpointMaxSize() const;
 
+    /**
+     * Remove all pending seqno persistence requests ("high priority requests")
+     * and notify the associated cookie with temp_fail.
+     *
+     * Used to cancel requests which are not likely to be fulfilled (e.g.,
+     * bucket/vbucket is being deleted)
+     */
+    void failAllSeqnoPersistenceReqs(EventuallyPersistentEngine& engine);
+
     std::unique_ptr<FailoverTable> failovers;
 
     std::atomic<size_t>  opsCreate;

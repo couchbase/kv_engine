@@ -2077,6 +2077,24 @@ TEST_P(KVBucketParamTest, DeleteVBucket_ConcurrentDelete) {
     EXPECT_EQ(1, results.rlock()->count(cb::engine_errc::not_my_vbucket));
 }
 
+TEST_P(KVBucketParamTest, SeqnoPersistenceCancelledIfBucketDeleted) {
+    // Test that seqno persistence requests are cancelled when the bucket is
+    // deleted. If they were not, the would_block'ed connection could
+    // block bucket deletion.
+    auto vbid = Vbid(0);
+    store->setVBucketState(vbid, vbucket_state_replica);
+    auto vb = engine->getVBucket(vbid);
+
+    // Simulate a SEQNO_PERSISTENCE request, which won't be satisfied
+    ASSERT_EQ(0, vb->getHighPriorityChkSize());
+    vb->checkAddHighPriorityVBEntry(1 /*seqno*/, cookie);
+    ASSERT_EQ(1, vb->getHighPriorityChkSize());
+
+    engine->cancel_all_operations_in_ewb_state();
+
+    EXPECT_EQ(cb::engine_errc::temporary_failure, mock_waitfor_cookie(cookie));
+}
+
 class StoreIfTest : public KVBucketTest {
 public:
     void SetUp() override {
