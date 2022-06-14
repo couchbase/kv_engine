@@ -12,8 +12,8 @@
 #include "cbsasl/pwfile.h"
 #include "cbsasl/scram-sha/stringutils.h"
 #include "cbsasl/util.h"
-
 #include <cbsasl/logging.h>
+#include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
 #include <platform/base64.h>
 #include <platform/random.h>
@@ -36,13 +36,13 @@ using AttributeMap = std::map<char, std::string>;
  * @return true if success, false otherwise
  */
 static bool decodeAttributeList(Context& context,
-                                const std::string& list,
+                                std::string_view list,
                                 AttributeMap& attributes) {
     size_t pos = 0;
 
     logging::log(&context,
                  logging::Level::Debug,
-                 "Decoding attribute list [" + list + "]");
+                 "Decoding attribute list [" + std::string{list} + "]");
 
     while (pos < list.length()) {
         auto equal = list.find('=', pos);
@@ -50,14 +50,15 @@ static bool decodeAttributeList(Context& context,
             // syntax error!!
             logging::log(&context,
                          logging::Level::Error,
-                         "Decode attribute list [" + list + "] failed: no '='");
+                         "Decode attribute list [" + std::string{list} +
+                                 "] failed: no '='");
             return false;
         }
 
         if ((equal - pos) != 1) {
             logging::log(&context,
                          logging::Level::Error,
-                         "Decode attribute list [" + list +
+                         "Decode attribute list [" + std::string{list} +
                                  "] failed: " + "key is multichar");
             return false;
         }
@@ -69,8 +70,9 @@ static bool decodeAttributeList(Context& context,
         if (attributes.find(key) != attributes.end()) {
             logging::log(&context,
                          logging::Level::Error,
-                         "Decode attribute list [" + list + "] failed: " +
-                                 "key [" + key + "] is multichar");
+                         "Decode attribute list [" + std::string{list} +
+                                 "] failed: " + "key [" + key +
+                                 "] is multichar");
             return false;
         }
 
@@ -491,7 +493,7 @@ std::pair<Error, std::string_view> ClientBackend::start() {
 
 std::pair<Error, std::string_view> ClientBackend::step(std::string_view input) {
     if (input.empty()) {
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+        return {Error::BAD_PARAM, {}};
     }
 
     if (server_first_message.empty()) {
@@ -499,8 +501,7 @@ std::pair<Error, std::string_view> ClientBackend::step(std::string_view input) {
 
         AttributeMap attributes;
         if (!decodeAttributeList(context, server_first_message, attributes)) {
-            return std::make_pair<Error, std::string_view>(Error::BAD_PARAM,
-                                                           {});
+            return {Error::BAD_PARAM, {}};
         }
 
         for (const auto& attribute : attributes) {
@@ -515,32 +516,27 @@ std::pair<Error, std::string_view> ClientBackend::step(std::string_view input) {
                 try {
                     iterationCount = (unsigned int)std::stoul(attribute.second);
                 } catch (...) {
-                    return std::make_pair<Error, std::string_view>(
-                            Error::BAD_PARAM, {});
+                    return {Error::BAD_PARAM, {}};
                 }
                 break;
             default:
-                return std::make_pair<Error, std::string_view>(Error::BAD_PARAM,
-                                                               {});
+                return {Error::BAD_PARAM, {}};
             }
         }
 
         if (attributes.find('r') == attributes.end() ||
             attributes.find('s') == attributes.end() ||
             attributes.find('i') == attributes.end()) {
-            logging::log(&context,
-                         logging::Level::Error,
-                         "Missing r/s/i in server message");
-            return std::make_pair<Error, std::string_view>(Error::BAD_PARAM,
-                                                           {});
+            errorMessage = "Missing r/s/i in server message";
+            logging::log(&context, logging::Level::Error, errorMessage);
+            return {Error::BAD_PARAM, errorMessage};
         }
 
         // I've got the SALT, lets generate the salted password
         if (!generateSaltedPassword(passwordCallback())) {
-            logging::log(&context,
-                         logging::Level::Error,
-                         "Failed to generate salted passwod");
-            return std::make_pair<Error, std::string_view>(Error::FAIL, {});
+            errorMessage = "Failed to generate salted passwod";
+            logging::log(&context, logging::Level::Error, errorMessage);
+            return {Error::FAIL, errorMessage};
         }
 
         // Ok so we have salted hased password :D
@@ -555,9 +551,10 @@ std::pair<Error, std::string_view> ClientBackend::step(std::string_view input) {
 
         client_final_message = out.str();
 
-        return std::make_pair<Error, std::string_view>(Error::CONTINUE,
-                                                       client_final_message);
-    } else {
+        return {Error::CONTINUE, client_final_message};
+    }
+
+    if (server_final_message.empty()) {
         server_final_message.assign(input.data(), input.size());
 
         AttributeMap attributes;
@@ -565,35 +562,38 @@ std::pair<Error, std::string_view> ClientBackend::step(std::string_view input) {
             logging::log(&context,
                          logging::Level::Error,
                          "SCRAM: Failed to decode server-final-message");
-            return std::make_pair<Error, std::string_view>(Error::BAD_PARAM,
-                                                           {});
+            return {Error::BAD_PARAM, {}};
         }
 
         if (attributes.find('e') != attributes.end()) {
-            logging::log(&context,
-                         logging::Level::Fail,
-                         "Failed to authenticate: " + attributes['e']);
-            return std::make_pair<Error, std::string_view>(Error::FAIL, {});
+            errorMessage =
+                    fmt::format("Failed to authenticate. Server reported: {}",
+                                attributes['e']);
+            logging::log(&context, logging::Level::Fail, errorMessage);
+            return {Error::FAIL, errorMessage};
         }
 
         if (attributes.find('v') == attributes.end()) {
-            logging::log(&context,
-                         logging::Level::Trace,
-                         "Syntax error server final message is missing 'v'");
-            return std::make_pair<Error, std::string_view>(Error::BAD_PARAM,
-                                                           {});
+            errorMessage = "Syntax error server final message is missing 'v'";
+            logging::log(&context, logging::Level::Trace, errorMessage);
+            return {Error::BAD_PARAM, errorMessage};
         }
 
         auto encoded = cb::base64::encode(getServerSignature());
         if (encoded != attributes['v']) {
-            logging::log(&context,
-                         logging::Level::Trace,
-                         "Incorrect ServerKey received");
-            return std::make_pair<Error, std::string_view>(Error::FAIL, {});
+            errorMessage = fmt::format(
+                    "Incorrect ServerKey received. Server reported: [{}]. "
+                    "Mine: [{}]",
+                    attributes['v'],
+                    encoded);
+            logging::log(&context, logging::Level::Trace, errorMessage);
+            return {Error::FAIL, errorMessage};
         }
 
-        return std::make_pair<Error, std::string_view>(Error::OK, {});
+        return {Error::OK, {}};
     }
+
+    return {Error::FAIL, {}};
 }
 
 bool ClientBackend::generateSaltedPassword(const std::string& secret) {

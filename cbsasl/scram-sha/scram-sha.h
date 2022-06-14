@@ -200,6 +200,7 @@ protected:
 
     std::string saltedPassword;
     std::string salt;
+    std::string errorMessage;
     unsigned int iterationCount = 4096;
 };
 
