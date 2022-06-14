@@ -2580,12 +2580,10 @@ TEST_P(EPVBucketDurabilityTest,
 }
 
 TEST_P(VBucketDurabilityTest, IgnoreAckAtTakeoverDead) {
-    // Queue some Prepares into the PDM
-    const auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
-    ASSERT_EQ(0, adm.getNumTracked());
+    ASSERT_EQ(0, vbucket->getDurabilityMonitor().getNumTracked());
     const std::vector<SyncWriteSpec> seqnos{1, 2, 3};
     testAddPrepare(seqnos);
-    ASSERT_EQ(seqnos.size(), adm.getNumTracked());
+    ASSERT_EQ(seqnos.size(), vbucket->getDurabilityMonitor().getNumTracked());
 
     // VBState transitions from Replica to Active
     simulateSetVBState(vbucket_state_dead, nlohmann::json{});
@@ -2596,7 +2594,7 @@ TEST_P(VBucketDurabilityTest, IgnoreAckAtTakeoverDead) {
                       "replica1",
                       3));
     // We won't have crashed and we will have ignored the ack
-    EXPECT_EQ(seqnos.size(), adm.getNumTracked());
+    EXPECT_EQ(seqnos.size(), vbucket->getDurabilityMonitor().getNumTracked());
 }
 
 void VBucketDurabilityTest::setupPendingDelete(StoredDocKey key) {
