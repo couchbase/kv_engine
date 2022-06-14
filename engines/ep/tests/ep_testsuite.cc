@@ -9666,7 +9666,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "num_reader_threads=1;",
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_broken_test,
                  cleanup),
 
         TestCase("test sync write timeout",
