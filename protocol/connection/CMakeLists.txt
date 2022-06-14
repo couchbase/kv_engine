@@ -1,4 +1,6 @@
 add_library(mc_client_connection STATIC
+            async_client_connection.cc
+            async_client_connection.h
             client_connection.h
             client_connection.cc
             client_connection_map.cc

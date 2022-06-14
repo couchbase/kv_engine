@@ -499,7 +499,9 @@ cb::engine_errc dcpDeletion(Cookie& cookie,
                              bySeqno,
                              revSeqno,
                              meta);
-    if (ret == cb::engine_errc::disconnect) {
+    if (ret == cb::engine_errc::success && !connection.isInternal()) {
+        cookie.addDocumentWriteBytes(value.size() + key.size());
+    } else if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} dcp.deletion returned cb::engine_errc::disconnect",
                     connection.getId(),
                     connection.getDescription());
@@ -532,7 +534,9 @@ cb::engine_errc dcpDeletionV2(Cookie& cookie,
                                 bySeqno,
                                 revSeqno,
                                 deleteTime);
-    if (ret == cb::engine_errc::disconnect) {
+    if (ret == cb::engine_errc::success && !connection.isInternal()) {
+        cookie.addDocumentWriteBytes(value.size() + key.size());
+    } else if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} dcp.deletion_v2 returned cb::engine_errc::disconnect",
                 connection.getId(),
@@ -566,7 +570,9 @@ cb::engine_errc dcpExpiration(Cookie& cookie,
                                bySeqno,
                                revSeqno,
                                deleteTime);
-    if (ret == cb::engine_errc::disconnect) {
+    if (ret == cb::engine_errc::success && !connection.isInternal()) {
+        cookie.addDocumentWriteBytes(value.size() + key.size());
+    } else if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} dcp.expiration returned cb::engine_errc::disconnect",
                 connection.getId(),
@@ -626,7 +632,9 @@ cb::engine_errc dcpMutation(Cookie& cookie,
                              lockTime,
                              meta,
                              nru);
-    if (ret == cb::engine_errc::disconnect) {
+    if (ret == cb::engine_errc::success && !connection.isInternal()) {
+        cookie.addDocumentWriteBytes(value.size() + key.size());
+    } else if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} dcp.mutation returned cb::engine_errc::disconnect",
                     connection.getId(),
                     connection.getDescription());

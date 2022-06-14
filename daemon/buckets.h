@@ -189,6 +189,10 @@ public:
     /// The number of commands we rected to execute
     void rejectCommand(const Cookie& cookie);
 
+    /// Update the bucket metering data that we've read (used when pushing
+    /// DCP messages)
+    void recordMeteringReadBytes(std::size_t nread);
+
     /**
      * Check to see if execution of the provided cookie should be throttled
      * or not

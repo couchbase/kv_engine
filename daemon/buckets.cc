@@ -168,6 +168,16 @@ void Bucket::setEngine(unique_engine_ptr engine_) {
     bucketDcp = dynamic_cast<DcpIface*>(engine.get());
 }
 
+void Bucket::recordMeteringReadBytes(std::size_t nread) {
+    if (!nread) {
+        return;
+    }
+    auto& inst = cb::serverless::Config::instance();
+    const auto rcu = inst.to_rcu(nread);
+    throttle_gauge.increment(rcu);
+    read_compute_units_used += rcu;
+}
+
 void Bucket::commandExecuted(const Cookie& cookie) {
     auto& inst = cb::serverless::Config::instance();
     const auto [read, write] = cookie.getDocumentRWBytes();

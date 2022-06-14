@@ -13,6 +13,10 @@
 #include <cluster_framework/auth_provider_service.h>
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
+#include <folly/io/IOBuf.h>
+#include <folly/io/async/AsyncSocketException.h>
+#include <folly/io/async/EventBase.h>
+#include <protocol/connection/async_client_connection.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <serverless/config.h>
@@ -64,7 +68,9 @@ void ServerlessTest::SetUpTestCase() {
       "SimpleStats",
       "Insert",
       "Delete",
-      "Upsert"
+      "Upsert",
+      "DcpProducer",
+      "DcpStream"
     ]
   }
 },
@@ -364,6 +370,246 @@ TEST_F(ServerlessTest, MemcachedBucketNotSupported) {
             "NotSupported", "default_engine.so", ""});
     EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
 }
+
+class DcpDrain {
+public:
+    DcpDrain(const std::string host,
+             const std::string port,
+             const std::string username,
+             const std::string password,
+             const std::string bucketname)
+        : host(std::move(host)),
+          port(std::move(port)),
+          username(std::move(username)),
+          password(std::move(password)),
+          bucketname(std::move(bucketname)),
+          connection(AsyncClientConnection::create(base)) {
+        connection->setIoErrorListener(
+                [this](AsyncClientConnection::Direction dir,
+                       const folly::AsyncSocketException& ex) {
+                    error = ex.what();
+                    base.terminateLoopSoon();
+                });
+    }
+
+    void drain() {
+        connect();
+        // We need to use PLAIN auth as we're using the external auth
+        // service
+        connection->authenticate(username, password, "PLAIN");
+        setFeatures();
+        selectBucket();
+
+        openDcp();
+
+        setControlMessages();
+
+        sendStreamRequest();
+
+        connection->setFrameReceivedListener(
+                [this](const auto& header) { onFrameReceived(header); });
+
+        // Now loop until we're done
+        base.loopForever();
+        if (error) {
+            throw std::runtime_error(*error);
+        }
+    }
+
+    size_t getNumMutations() const {
+        return num_mutations;
+    }
+
+    size_t getRcu() const {
+        return rcu;
+    }
+
+protected:
+    void onFrameReceived(const cb::mcbp::Header& header) {
+        if (header.isRequest()) {
+            onRequest(header.getRequest());
+        } else {
+            onResponse(header.getResponse());
+        }
+    }
+
+    void onResponse(const cb::mcbp::Response& res) {
+        if (res.getClientOpcode() == cb::mcbp::ClientOpcode::DcpStreamReq) {
+            if (!cb::mcbp::isStatusSuccess(res.getStatus())) {
+                error = "onResponse::DcpStreamReq returned error: " +
+                        ::to_string(res.getStatus());
+                base.terminateLoopSoon();
+            }
+        } else {
+            error = "onResponse(): Unexpected message received: " +
+                    res.toJSON(false).dump();
+            base.terminateLoopSoon();
+        }
+    }
+
+    std::size_t calcRcu(std::size_t size) {
+        return (size + 1023) / 1024;
+    }
+
+    void onRequest(const cb::mcbp::Request& req) {
+        if (req.getClientOpcode() == cb::mcbp::ClientOpcode::DcpStreamEnd) {
+            base.terminateLoopSoon();
+        }
+
+        switch (req.getClientOpcode()) {
+        case cb::mcbp::ClientOpcode::DcpStreamEnd:
+            base.terminateLoopSoon();
+            break;
+        case cb::mcbp::ClientOpcode::DcpNoop:
+            handleDcpNoop(req);
+            break;
+        case cb::mcbp::ClientOpcode::DcpMutation:
+            ++num_mutations;
+            rcu += calcRcu(req.getValue().size() + req.getKey().size());
+            break;
+        case cb::mcbp::ClientOpcode::DcpDeletion:
+            ++num_deletions;
+            rcu += calcRcu(req.getValue().size() + req.getKey().size());
+            break;
+        case cb::mcbp::ClientOpcode::DcpExpiration:
+            ++num_expirations;
+            rcu += calcRcu(req.getValue().size() + req.getKey().size());
+            break;
+
+        case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
+            break;
+
+        case cb::mcbp::ClientOpcode::DcpAddStream:
+        case cb::mcbp::ClientOpcode::DcpCloseStream:
+        case cb::mcbp::ClientOpcode::DcpStreamReq:
+        case cb::mcbp::ClientOpcode::DcpGetFailoverLog:
+        case cb::mcbp::ClientOpcode::DcpFlush_Unsupported:
+        case cb::mcbp::ClientOpcode::DcpSetVbucketState:
+        case cb::mcbp::ClientOpcode::DcpBufferAcknowledgement:
+        case cb::mcbp::ClientOpcode::DcpControl:
+        case cb::mcbp::ClientOpcode::DcpSystemEvent:
+        case cb::mcbp::ClientOpcode::DcpPrepare:
+        case cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged:
+        case cb::mcbp::ClientOpcode::DcpCommit:
+        case cb::mcbp::ClientOpcode::DcpAbort:
+        case cb::mcbp::ClientOpcode::DcpSeqnoAdvanced:
+        case cb::mcbp::ClientOpcode::DcpOsoSnapshot:
+            // fallthrough
+        default:
+            error = "Received unexpected message: " + req.toJSON(false).dump();
+            base.terminateLoopSoon();
+        }
+    }
+
+    void connect() {
+        connection->setConnectListener([this]() { base.terminateLoopSoon(); });
+        connection->connect(host, port);
+        base.loopForever();
+        if (error) {
+            throw std::runtime_error("DcpDrain::connect: " + *error);
+        }
+    }
+
+    void setFeatures() {
+        using cb::mcbp::Feature;
+
+        const std::vector<Feature> requested{{Feature::MUTATION_SEQNO,
+                                              Feature::XATTR,
+                                              Feature::XERROR,
+                                              Feature::SNAPPY,
+                                              Feature::JSON,
+                                              Feature::Tracing,
+                                              Feature::Collections,
+                                              Feature::ReportComputeUnitUsage}};
+
+        auto enabled = connection->hello("serverless", "MeterDCP", requested);
+        if (enabled != requested) {
+            throw std::runtime_error(
+                    "DcpDrain::setFeatures(): Failed to enable the "
+                    "requested "
+                    "features");
+        }
+    }
+
+    void selectBucket() {
+        const auto rsp = connection->execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::SelectBucket, bucketname});
+        if (!rsp.isSuccess()) {
+            throw std::runtime_error(
+                    "DcpDrain::selectBucket: " + ::to_string(rsp.getStatus()) +
+                    " " + rsp.getDataString());
+        }
+    }
+
+    void openDcp() {
+        const auto rsp = connection->execute(BinprotDcpOpenCommand{
+                "MeterDcpName", cb::mcbp::request::DcpOpenPayload::Producer});
+        if (!rsp.isSuccess()) {
+            throw std::runtime_error(
+                    "DcpDrain::openDcp: " + ::to_string(rsp.getStatus()) + " " +
+                    rsp.getDataString());
+        }
+    }
+
+    void setControlMessages() {
+        auto setCtrlMessage = [this](const std::string& key,
+                                     const std::string& value) {
+            const auto rsp = connection->execute(BinprotGenericCommand{
+                    cb::mcbp::ClientOpcode::DcpControl, key, value});
+            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+        };
+        std::vector<std::pair<std::string, std::string>> controls{
+                {"set_priority", "high"},
+                {"supports_cursor_dropping_vulcan", "true"},
+                {"supports_hifi_MFU", "true"},
+                {"send_stream_end_on_client_close_stream", "true"},
+                {"enable_expiry_opcode", "true"},
+                {"set_noop_interval", "1"},
+                {"enable_noop", "true"}};
+        for (const auto& [k, v] : controls) {
+            setCtrlMessage(k, v);
+        }
+    }
+
+    void sendStreamRequest() {
+        BinprotDcpStreamRequestCommand cmd;
+        cmd.setDcpFlags(DCP_ADD_STREAM_FLAG_TO_LATEST);
+        cmd.setDcpReserved(0);
+        cmd.setDcpStartSeqno(0);
+        cmd.setDcpEndSeqno(~0);
+        cmd.setDcpVbucketUuid(0);
+        cmd.setDcpSnapStartSeqno(0);
+        cmd.setDcpSnapEndSeqno(0);
+        cmd.setVBucket(Vbid(0));
+
+        connection->send(cmd);
+    }
+
+    void handleDcpNoop(const cb::mcbp::Request& header) {
+        cb::mcbp::Response resp = {};
+        resp.setMagic(cb::mcbp::Magic::ClientResponse);
+        resp.setOpaque(header.getOpaque());
+        resp.setOpcode(header.getClientOpcode());
+
+        auto iob = folly::IOBuf::createCombined(sizeof(resp));
+        std::memcpy(iob->writableData(), &resp, sizeof(resp));
+        iob->append(sizeof(resp));
+        connection->send(std::move(iob));
+    }
+
+    const std::string host;
+    const std::string port;
+    const std::string username;
+    const std::string password;
+    const std::string bucketname;
+    folly::EventBase base;
+    std::unique_ptr<AsyncClientConnection> connection;
+    std::optional<std::string> error;
+    std::size_t num_mutations = 0;
+    std::size_t num_deletions = 0;
+    std::size_t num_expirations = 0;
+    std::size_t rcu = 0;
+};
 
 /// Test that we meter all operations according to their spec (well, there
 /// is no spec at the moment ;)
@@ -1143,6 +1389,41 @@ TEST_F(ServerlessTest, OpsMetered) {
             testOpcode(*connection, opcode);
         }
     }
+
+    executeWithExpectedCU(
+            [&connection]() {
+                DcpDrain instance("127.0.0.1",
+                                  std::to_string(connection->getPort()),
+                                  "@admin",
+                                  "password",
+                                  "bucket-0");
+                instance.drain();
+                EXPECT_NE(0, instance.getNumMutations());
+                EXPECT_NE(0, instance.getRcu());
+            },
+            0,
+            0);
+
+    /// but when running as another user it should meter
+    nlohmann::json before;
+    admin->stats(
+            [&before](auto k, auto v) { before = nlohmann::json::parse(v); },
+            "bucket_details bucket-0");
+    DcpDrain instance("127.0.0.1",
+                      std::to_string(connection->getPort()),
+                      "bucket-0",
+                      "bucket-0",
+                      "bucket-0");
+    instance.drain();
+    EXPECT_NE(0, instance.getNumMutations());
+    EXPECT_NE(0, instance.getRcu());
+
+    nlohmann::json after;
+    admin->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
+                 "bucket_details bucket-0");
+    EXPECT_EQ(instance.getRcu(),
+              after["rcu"].get<size_t>() - before["rcu"].get<size_t>());
+    EXPECT_EQ(0, after["wcu"].get<size_t>() - before["wcu"].get<size_t>());
 }
 
 } // namespace cb::test

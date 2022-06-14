@@ -2098,6 +2098,10 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
                                      uint8_t nru,
                                      cb::mcbp::DcpStreamId sid) {
     auto key = it->getDocKey();
+
+    const auto doc_read_bytes =
+            isInternal() ? 0 : key.size() + it->getValueView().size();
+
     // The client doesn't support collections, so must not send an encoded key
     if (!isCollectionsSupported()) {
         key = key.makeDocKeyWithoutCollectionID();
@@ -2132,7 +2136,12 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
         builder.setVBucket(vbucket);
         builder.setCas(it->getCas());
         builder.setDatatype(cb::mcbp::Datatype(it->getDataType()));
-        return add_packet_to_send_pipe(builder.getFrame()->getFrame());
+        const auto ret =
+                add_packet_to_send_pipe(builder.getFrame()->getFrame());
+        if (ret == cb::engine_errc::success) {
+            getBucket().recordMeteringReadBytes(doc_read_bytes);
+        }
+        return ret;
     }
 
     cb::mcbp::Request req = {};
@@ -2181,6 +2190,7 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
         return cb::engine_errc::disconnect;
     }
 
+    getBucket().recordMeteringReadBytes(doc_read_bytes);
     return cb::engine_errc::success;
 }
 
@@ -2208,6 +2218,9 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
                                      uint64_t rev_seqno,
                                      cb::mcbp::DcpStreamId sid) {
     auto key = it->getDocKey();
+    const auto doc_read_bytes =
+            isInternal() ? 0 : key.size() + it->getValueView().size();
+
     if (!isCollectionsSupported()) {
         key = key.makeDocKeyWithoutCollectionID();
     }
@@ -2237,7 +2250,12 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
         builder.setCas(it->getCas());
         builder.setDatatype(cb::mcbp::Datatype(it->getDataType()));
 
-        return add_packet_to_send_pipe(builder.getFrame()->getFrame());
+        const auto ret =
+                add_packet_to_send_pipe(builder.getFrame()->getFrame());
+        if (ret == cb::engine_errc::success) {
+            getBucket().recordMeteringReadBytes(doc_read_bytes);
+        }
+        return ret;
     }
 
     using cb::mcbp::Request;
@@ -2274,7 +2292,11 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
             sizeof(Request) + sizeof(DcpDeletionV1Payload) +
                     (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0)};
 
-    return deletionInner(*it, packetBuffer, key);
+    const auto ret = deletionInner(*it, packetBuffer, key);
+    if (ret == cb::engine_errc::success) {
+        getBucket().recordMeteringReadBytes(doc_read_bytes);
+    }
+    return ret;
 }
 
 cb::engine_errc Connection::deletion_v2(uint32_t opaque,
@@ -2285,6 +2307,9 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
                                         uint32_t delete_time,
                                         cb::mcbp::DcpStreamId sid) {
     auto key = it->getDocKey();
+    const auto doc_read_bytes =
+            isInternal() ? 0 : key.size() + it->getValueView().size();
+
     if (!isCollectionsSupported()) {
         key = key.makeDocKeyWithoutCollectionID();
     }
@@ -2313,7 +2338,12 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
         builder.setVBucket(vbucket);
         builder.setCas(it->getCas());
         builder.setDatatype(cb::mcbp::Datatype(it->getDataType()));
-        return add_packet_to_send_pipe(builder.getFrame()->getFrame());
+        const auto ret =
+                add_packet_to_send_pipe(builder.getFrame()->getFrame());
+        if (ret == cb::engine_errc::success) {
+            getBucket().recordMeteringReadBytes(doc_read_bytes);
+        }
+        return ret;
     }
 
     // Make blob big enough for either delete or expiry
@@ -2350,7 +2380,11 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
     std::copy(buffer.begin(), buffer.end(), ptr);
     size += buffer.size();
 
-    return deletionInner(*it, {blob.data(), size}, key);
+    const auto ret = deletionInner(*it, {blob.data(), size}, key);
+    if (ret == cb::engine_errc::success) {
+        getBucket().recordMeteringReadBytes(doc_read_bytes);
+    }
+    return ret;
 }
 
 cb::engine_errc Connection::expiration(uint32_t opaque,
@@ -2361,6 +2395,9 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
                                        uint32_t delete_time,
                                        cb::mcbp::DcpStreamId sid) {
     auto key = it->getDocKey();
+    const auto doc_read_bytes =
+            isInternal() ? 0 : key.size() + it->getValueView().size();
+
     if (!isCollectionsSupported()) {
         key = key.makeDocKeyWithoutCollectionID();
     }
@@ -2389,7 +2426,12 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
         builder.setVBucket(vbucket);
         builder.setCas(it->getCas());
         builder.setDatatype(cb::mcbp::Datatype(it->getDataType()));
-        return add_packet_to_send_pipe(builder.getFrame()->getFrame());
+        const auto ret =
+                add_packet_to_send_pipe(builder.getFrame()->getFrame());
+        if (ret == cb::engine_errc::success) {
+            getBucket().recordMeteringReadBytes(doc_read_bytes);
+        }
+        return ret;
     }
 
     // Make blob big enough for either delete or expiry
@@ -2426,7 +2468,11 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
     std::copy(buffer.begin(), buffer.end(), ptr);
     size += buffer.size();
 
-    return deletionInner(*it, {blob.data(), size}, key);
+    const auto ret = deletionInner(*it, {blob.data(), size}, key);
+    if (ret == cb::engine_errc::success) {
+        getBucket().recordMeteringReadBytes(doc_read_bytes);
+    }
+    return ret;
 }
 
 cb::engine_errc Connection::set_vbucket_state(uint32_t opaque,
