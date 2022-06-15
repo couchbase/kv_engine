@@ -14,6 +14,7 @@
 #include <nlohmann/json.hpp>
 
 // Used by most unit test files.
+#include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 
 // Used throughout the codebase
