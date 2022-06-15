@@ -242,15 +242,12 @@ size_t PassiveDurabilityMonitor::getNumAborted() const {
 void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd) {
     { // state locking scope
         auto s = state.wlock();
-        s->receivedSnapshotEnds.push({int64_t(snapEnd),
-                                      vb.isReceivingDiskSnapshot()
-                                              ? CheckpointType::Disk
-                                              : CheckpointType::Memory});
-        // Maybe the new tracked Prepare is already satisfied and could be
-        // ack'ed back to the Active.
+
         auto prevHps = s->highPreparedSeqno.lastWriteSeqno;
-        s->updateHighPreparedSeqno();
-        s->checkForAndRemoveDroppedCollections();
+        s->processSnapshotEnd(vb.isReceivingDiskSnapshot()
+                                      ? CheckpointType::Disk
+                                      : CheckpointType::Memory,
+                              snapEnd);
 
         // Store the seqno ack to send after we drop the state lock
         storeSeqnoAck(prevHps, s->highPreparedSeqno.lastWriteSeqno);
@@ -805,6 +802,16 @@ void PassiveDurabilityMonitor::State::checkForAndRemoveDroppedCollections() {
             ++itr;
         }
     }
+}
+
+void PassiveDurabilityMonitor::State::processSnapshotEnd(CheckpointType type,
+                                                         uint64_t snapEnd) {
+    receivedSnapshotEnds.push({int64_t(snapEnd), type});
+    // Maybe the new tracked Prepare is already satisfied and could be
+    // ack'ed back to the Active.
+    auto prevHps = highPreparedSeqno.lastWriteSeqno;
+    updateHighPreparedSeqno();
+    checkForAndRemoveDroppedCollections();
 }
 
 template <class exception>

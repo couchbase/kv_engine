@@ -793,6 +793,14 @@ struct PassiveDurabilityMonitor::State {
     void checkForAndRemoveDroppedCollections();
 
     /**
+     * Track the snapshot end (a boundary at which we can move the HPS) and move
+     * the HPS if appropriate.
+     * @param type Type of Checkpoint
+     * @param snapEnd The snapshot end
+     */
+    void processSnapshotEnd(CheckpointType type, uint64_t snapEnd);
+
+    /**
      * Erase the SyncWrite at the given iterator after fixing up the iterators
      * for the HCS and HPS values (if they point to the element to be erased)
      *
