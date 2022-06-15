@@ -215,7 +215,10 @@ cb::engine_errc ArithmeticCommandContext::storeItem() {
     if (ret == cb::engine_errc::success) {
         cookie.setCas(ncas);
         state = State::SendResult;
-    } else if (ret == cb::engine_errc::key_already_exists && cas == 0) {
+    } else if (cas == 0 && (ret == cb::engine_errc::key_already_exists ||
+                            ret == cb::engine_errc::no_such_key)) {
+        // CAS mismatch case (either doc exists with different cas or no longer
+        // exists).
         state = State::Reset;
         ret = cb::engine_errc::success;
     }
