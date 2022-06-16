@@ -1100,7 +1100,6 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
         bool drop_deletes) {
     if (getEngineSpecific(&cookie)) {
         // This is a completion of a compaction. Clear the engine-specific
-        // part
         storeEngineSpecific(&cookie, nullptr);
         return cb::engine_errc::success;
     }
@@ -1109,25 +1108,22 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
             purge_before_ts, purge_before_seq, drop_deletes, false};
 
     ++stats.pendingCompactions;
+    // Set something in the EngineSpecfic so we can determine which phase of the
+    // command is executing.
     storeEngineSpecific(&cookie, this);
-    const auto err = cb::engine_errc(
-            scheduleCompaction(vbid, compactionConfig, &cookie));
 
-    switch (err) {
-    case cb::engine_errc::success:
-        break;
-    case cb::engine_errc::would_block:
-        // We don't use the value stored in the engine-specific code, just
-        // that it is non-null...
-        storeEngineSpecific(&cookie, this);
-        break;
-    default:
+    // returns would_block for success or another status (e.g. nmvb)
+    const auto status = scheduleCompaction(vbid, compactionConfig, &cookie);
+
+    Expects(status != cb::engine_errc::success);
+    if (status != cb::engine_errc::would_block) {
         --stats.pendingCompactions;
-        EP_LOG_WARN("Compaction of {} failed: {}", vbid, cb::to_string(err));
-        break;
+        // failed, clear the engine-specific
+        storeEngineSpecific(&cookie, nullptr);
+        EP_LOG_WARN("Compaction of {} failed: {}", vbid, status);
     }
 
-    return err;
+    return status;
 }
 
 cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(

@@ -29,6 +29,7 @@
 #include "vbucket.h"
 #include <executor/executorpool.h>
 #include <executor/globaltask.h>
+#include <programs/engine_testapp/mock_cookie.h>
 
 TEST_F(SingleThreadedEPBucketTest, FlusherBatchSizeLimitLimitChange) {
     auto& bucket = getEPBucket();
@@ -990,4 +991,11 @@ TEST_F(SingleThreadedEPBucketTest, TestConsumerSendEEXISTSIfOpaqueWrong) {
                                 {},
                                 {},
                                 cb::durability::Level::Majority));
+}
+
+// MB-52542 found that the engine-specific was dirty for the NMVB path
+TEST_F(SingleThreadedEPBucketTest, CompactionNotMyVB) {
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket,
+              engine->compactDatabase(*cookie, Vbid(1), 0, 0, false));
+    EXPECT_EQ(nullptr, cookie_to_mock_cookie(cookie)->getEngineStorage());
 }
