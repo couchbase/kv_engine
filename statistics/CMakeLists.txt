@@ -53,6 +53,7 @@ target_link_libraries(statistics
                 hdrhistogram
                 Folly::headers
                 mcd_util
+                OpenSSL::SSL
                 spdlog::spdlog
                 prometheus-cpp::pull
                 )

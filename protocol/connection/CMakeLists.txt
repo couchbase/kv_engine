@@ -19,8 +19,8 @@ target_link_libraries(mc_client_connection PRIVATE
     cbsocket
     mcd_tracing
     memcached_rbac
+    OpenSSL::SSL
     platform
     ${COUCHBASE_NETWORK_LIBS}
-    ${OPENSSL_LIBRARIES}
   PRIVATE
     cbcompress)

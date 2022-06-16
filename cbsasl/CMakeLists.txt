@@ -33,8 +33,8 @@ target_link_libraries(cbsasl
                 fmt::fmt
                 phosphor
                 mcd_util
-		libsodium::libsodium
-                ${OPENSSL_LIBRARIES})
+                libsodium::libsodium
+                OpenSSL::SSL)
 add_sanitizers(cbsasl)
 
 cb_add_test_executable(cbsasl_unit_test

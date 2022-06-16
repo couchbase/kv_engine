@@ -57,7 +57,7 @@ target_link_libraries(mcd_util
                 memcached_logger
                 platform
                 hdrhistogram
-                ${OPENSSL_LIBRARIES})
+                OpenSSL::SSL)
 add_sanitizers(mcd_util)
 kv_enable_pch(mcd_util)
 
