@@ -10,17 +10,13 @@
 #include "cbcrypto.h"
 
 #include <nlohmann/json.hpp>
-#include <phosphor/phosphor.h>
-#include <memory>
-#include <stdexcept>
-
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/sha.h>
-
-#ifdef HAVE_LIBSODIUM
+#include <phosphor/phosphor.h>
 #include <sodium.h>
-#endif
+#include <memory>
+#include <stdexcept>
 
 namespace internal {
 
@@ -237,7 +233,6 @@ static std::string argon2id13_pwhash(std::string_view password,
                 "argon2id13_pwhash(): time or memory can't be 0");
     }
 
-#ifdef HAVE_LIBSODIUM
     std::string generated;
     generated.resize(cb::crypto::Argon2id13DigestSize);
     if (crypto_pwhash(reinterpret_cast<unsigned char*>(generated.data()),
@@ -256,9 +251,6 @@ static std::string argon2id13_pwhash(std::string_view password,
         throw std::bad_alloc();
     };
     return generated;
-#else
-    throw std::runtime_error("argon2id13 not supported");
-#endif
 }
 
 std::string cb::crypto::pwhash(Algorithm algorithm,

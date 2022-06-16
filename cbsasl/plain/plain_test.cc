@@ -51,7 +51,6 @@ public:
             }));
         }
 
-#ifdef HAVE_LIBSODIUM
         passwordDatabase->upsert(
                 UserFactory::create("argon2id", "password", [](auto alg) {
                     switch (alg) {
@@ -65,7 +64,6 @@ public:
                     }
                     return false;
                 }));
-#endif
         swap_password_database(std::move(passwordDatabase));
     }
 
@@ -133,7 +131,6 @@ TEST_F(PlainServerTest, PlainAuthDontAllowStep) {
     EXPECT_TRUE(detected) << "The exception was not thrown";
 }
 
-#ifdef HAVE_LIBSODIUM
 TEST_F(PlainServerTest, CorrectChallengeWithPasswordForArgon2id) {
     const auto [error, data] = backend->start("\0argon2id\0password"sv);
     EXPECT_TRUE(data.empty());
@@ -145,7 +142,6 @@ TEST_F(PlainServerTest, CorrectChallengeWithWrongPasswordForArgon2id) {
     EXPECT_TRUE(data.empty());
     EXPECT_EQ(Error::PASSWORD_ERROR, error);
 }
-#endif
 
 TEST_F(PlainServerTest, Authenticate) {
     using cb::sasl::mechanism::plain::authenticate;
@@ -153,9 +149,7 @@ TEST_F(PlainServerTest, Authenticate) {
     EXPECT_EQ(Error::OK, authenticate("password", "secret"));
     EXPECT_EQ(Error::NO_USER, authenticate("nouser", "secret"));
     EXPECT_EQ(Error::PASSWORD_ERROR, authenticate("nopassword", "secret"));
-#ifdef HAVE_LIBSODIUM
     EXPECT_EQ(Error::OK, authenticate("argon2id", "password"));
-#endif
 }
 
 TEST(PlainClientTest, TestName) {

@@ -1,11 +1,5 @@
 PROJECT(Memcached LANGUAGES C CXX)
 
-# The following should go in tlm once ns_server adds libsodium cbdep, but
-# for now just keep it here
-find_path(LIBSODIUM_INCLUDE_DIR sodium.h)
-find_library(LIBSODIUM_LIBRARIES NAMES sodium)
-# end libsodium
-
 INCLUDE(CheckCSourceCompiles)
 INCLUDE(CheckIncludeFiles)
 INCLUDE(CheckIncludeFileCXX)

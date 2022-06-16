@@ -15,11 +15,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/base64.h>
 #include <platform/random.h>
-
-#ifdef HAVE_LIBSODIUM
 #include <sodium.h>
-#endif
-
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -228,10 +224,7 @@ User UserFactory::create(const std::string& unm,
     for (const auto& alg : std::vector<Algorithm>{{Algorithm::SHA1,
                                                    Algorithm::SHA256,
                                                    Algorithm::SHA512,
-#ifdef HAVE_LIBSODIUM
-                                                   Algorithm::Argon2id13
-#endif
-         }}) {
+                                                   Algorithm::Argon2id13}}) {
         if (callback(alg)) {
             ret.generateSecrets(alg, passwd);
         }
@@ -334,7 +327,6 @@ static ScramPasswordMetaData generateShaSecrets(Algorithm algorithm,
 
 static User::PasswordMetaData generateArgon2id13Secret(
         std::string_view passwd) {
-#ifdef HAVE_LIBSODIUM
     std::string encodedSalt;
     std::vector<uint8_t> salt(crypto_pwhash_argon2id_saltbytes());
     generateSalt(salt, encodedSalt);
@@ -359,9 +351,6 @@ static User::PasswordMetaData generateArgon2id13Secret(
                            {"time", ops},
                            {"memory", mcost},
                            {"parallelism", 1}});
-#else
-    throw std::runtime_error("built without support for Argon2id");
-#endif
 }
 
 void User::generateSecrets(Algorithm algo, std::string_view passwd) {

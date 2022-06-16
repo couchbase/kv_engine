@@ -33,15 +33,9 @@ target_link_libraries(cbsasl
                 fmt::fmt
                 phosphor
                 mcd_util
+		libsodium::libsodium
                 ${OPENSSL_LIBRARIES})
 add_sanitizers(cbsasl)
-
-if (LIBSODIUM_INCLUDE_DIR AND LIBSODIUM_LIBRARIES)
-    message(STATUS "Adding support for Argon2id v1.3")
-    target_include_directories(cbsasl SYSTEM AFTER PRIVATE ${LIBSODIUM_INCLUDE_DIR})
-    target_compile_definitions(cbsasl PUBLIC -DHAVE_LIBSODIUM=1)
-    target_link_libraries(cbsasl PRIVATE ${LIBSODIUM_LIBRARIES})
-endif()
 
 cb_add_test_executable(cbsasl_unit_test
                        cbcrypto_test.cc
