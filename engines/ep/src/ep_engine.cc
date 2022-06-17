@@ -6889,6 +6889,8 @@ void EventuallyPersistentEngine::setCompressionMode(
 void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
     stats.setMaxDataSize(size); // Set first because following code may read
 
+    kvBucket->autoConfigCheckpointMaxSize();
+
     // Setting the quota must set the water-marks and the new water-mark values
     // must be readable from both the configuration and EPStats. The following
     // is also updating EPStats because the configuration has a change listener

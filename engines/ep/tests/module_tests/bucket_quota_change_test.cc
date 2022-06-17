@@ -11,8 +11,10 @@
 #include "evp_store_single_threaded_test.h"
 
 #include "../mock/mock_synchronous_ep_engine.h"
+#include "checkpoint_manager.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
+#include "vbucket.h"
 
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
@@ -26,6 +28,7 @@ class BucketQuotaChangeTest : public STParameterizedBucketTest {
 public:
     void SetUp() override {
         STParameterizedBucketTest::SetUp();
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
         // Watermark percentages are the percentage of the current watermark
         // of the current quota
@@ -101,12 +104,23 @@ public:
 #endif
     }
 
+    void checkCheckpointMaxSize(size_t quotaValue) {
+        EXPECT_EQ(
+                percentOf(
+                        quotaValue,
+                        engine->getConfiguration().getCheckpointMemoryRatio()) /
+                        engine->getCheckpointConfig().getMaxCheckpoints() /
+                        store->getVBuckets().getNumAliveVBuckets(),
+                engine->getCheckpointConfig().getCheckpointMaxSize());
+    }
+
     void checkBucketQuotaAndRelatedValues(size_t quotaValue) {
         SCOPED_TRACE("");
         checkQuota(quotaValue);
         checkWatermarkValues(quotaValue);
         checkMaxRunningBackfills(quotaValue);
         checkStorageEngineQuota(quotaValue);
+        checkCheckpointMaxSize(quotaValue);
     }
 
     void testQuotaChangeUp() {
