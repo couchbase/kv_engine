@@ -75,9 +75,7 @@ public:
     }
 
     void sizeValueChanged(const std::string& key, size_t value) override {
-        if (key == "max_size") {
-            store.getEPEngine().setMaxDataSize(value);
-        } else if (key == "mem_low_wat") {
+        if (key == "mem_low_wat") {
             stats.setLowWaterMark(value);
         } else if (key == "mem_high_wat") {
             stats.setHighWaterMark(value);
@@ -334,9 +332,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             "mem_used_merge_threshold_percent",
             std::make_unique<StatsValueChangeListener>(stats, *this));
 
-    config.addValueChangedListener(
-            "max_size",
-            std::make_unique<StatsValueChangeListener>(stats, *this));
     getEPEngine().getDcpConnMap().updateMaxRunningBackfills(
             config.getMaxSize());
 

@@ -104,11 +104,7 @@ protected:
         const size_t expectedStart = stats.getPreciseTotalMemoryUsed();
 
         const size_t quota = expectedStart + val;
-        engine->getConfiguration().setMaxSize(quota);
-
-        // Set the water marks to 70% and 85%
-        engine->getConfiguration().setMemLowWat(quota * 0.7);
-        engine->getConfiguration().setMemHighWat(quota * 0.85);
+        engine->setMaxDataSize(quota);
     }
 
     cb::engine_errc storeItem(Item& item) {
@@ -608,8 +604,7 @@ void STItemPagerTest::pagerEvictsSomething(bool dropCollection) {
             // Bump up max size and HWM so we don't encounter memory issues
             // during get phase
             auto quota = engine->getEpStats().getPreciseTotalMemoryUsed() * 2;
-            engine->getConfiguration().setMaxSize(quota);
-            engine->getConfiguration().setMemHighWat(quota * 0.85);
+            increaseQuota(quota);
 
             // Read all of our items to verify that they are still there. Some
             // will be on disk

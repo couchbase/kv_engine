@@ -6801,6 +6801,7 @@ void EventuallyPersistentEngine::setCompressionMode(
 // Set the max_size, low/high water mark (absolute values and percentages)
 // and some other interested parties.
 void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
+    getConfiguration().setMaxSize(size);
     stats.setMaxDataSize(size); // Set first because following code may read
 
     kvBucket->autoConfigCheckpointMaxSize();

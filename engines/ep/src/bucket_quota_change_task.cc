@@ -20,7 +20,7 @@ bool BucketQuotaChangeTask::run() {
     checkForNewQuotaChange();
 
     if (desiredQuota != getCurrentBucketQuota()) {
-        engine->getConfiguration().setMaxSize(desiredQuota);
+        engine->setMaxDataSize(desiredQuota);
     }
 
     finishProcessingQuotaChange();

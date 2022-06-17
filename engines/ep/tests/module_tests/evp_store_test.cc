@@ -1515,9 +1515,7 @@ TEST_P(EPBucketTest, GetNonResidentCompressed) {
 TEST_P(EPBucketTest, memOverheadMemoryCondition) {
     //Limit the bucket quota to 200K
     Configuration& config = engine->getConfiguration();
-    config.setMaxSize(204800);
-    config.setMemHighWat(0.8 * 204800);
-    config.setMemLowWat(0.6 * 204800);
+    engine->setMaxDataSize(204800);
 
     //Ensure the memOverhead is greater than the bucket quota
     auto& stats = engine->getEpStats();
