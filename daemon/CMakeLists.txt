@@ -226,7 +226,6 @@ target_link_libraries(memcached_daemon
                       cbcompress
                       engine_utilities
                       gsl::gsl-lite
-                      platform_cb_malloc_arena
                       json_validator
                       memcached_rbac
                       phosphor
@@ -241,7 +240,9 @@ add_sanitizers(memcached_daemon)
 kv_enable_pch(memcached_daemon)
 
 ADD_EXECUTABLE(memcached main.cc)
-target_link_libraries(memcached PRIVATE memcached_daemon)
+target_link_libraries(memcached PRIVATE
+                      memcached_daemon
+                      platform_cb_malloc_arena)
 add_sanitizers(memcached)
 kv_enable_pch(memcached)
 # Allow 'memcached' to export symbols - i.e. symbols marked as
@@ -282,6 +283,7 @@ cb_enable_unity_build(memcached_unit_tests)
 add_sanitizers(memcached_unit_tests)
 target_link_libraries(memcached_unit_tests PRIVATE
                       memcached_daemon
+                      platform_cb_malloc_arena
                       GTest::gtest)
 add_test(NAME memcached_unit_tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}

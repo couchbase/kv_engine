@@ -886,6 +886,11 @@ int memcached_main(int argc, char** argv) {
 
 #if CB_DEVELOPMENT_ASSERTS
     LOG_INFO_RAW("Development asserts enabled");
+    if (cb_malloc_is_using_arenas() == 0) {
+        throw std::runtime_error(
+                "memory tracking is not detected when calling "
+                "cb_malloc_is_using_arenas");
+    }
 #endif
 
 #if defined(__x86_64__) || defined(_M_X64)
