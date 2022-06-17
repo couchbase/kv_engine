@@ -458,20 +458,26 @@ void DcpConnMap::decrNumRunningBackfills() {
 }
 
 void DcpConnMap::updateMaxRunningBackfills(size_t maxDataSize) {
-    double numBackfillsMemThresholdPercent =
-                         static_cast<double>(numBackfillsMemThreshold)/100;
-    size_t max = maxDataSize * numBackfillsMemThresholdPercent / dbFileMem;
-
-    uint16_t newMaxActive;
+    auto newMaxRunningBackfills = getMaxRunningBackfillsForQuota(maxDataSize);
     {
         std::lock_guard<std::mutex> lh(backfills.mutex);
         /* We must have atleast one active/snoozing backfill */
-        backfills.maxRunning = std::max(
-                static_cast<size_t>(1),
-                std::min(max, static_cast<size_t>(numBackfillsThreshold)));
-        newMaxActive = backfills.maxRunning;
+        backfills.maxRunning = newMaxRunningBackfills;
     }
-    EP_LOG_DEBUG("Max running backfills set to {}", newMaxActive);
+    EP_LOG_DEBUG("Max running backfills set to {}", newMaxRunningBackfills);
+}
+
+uint16_t DcpConnMap::getMaxRunningBackfillsForQuota(size_t maxDataSize) {
+    double numBackfillsMemThresholdPercent =
+            static_cast<double>(numBackfillsMemThreshold) / 100;
+    size_t max = maxDataSize * numBackfillsMemThresholdPercent / dbFileMem;
+
+    size_t newMaxActive;
+    /* We must have atleast one active/snoozing backfill */
+    newMaxActive =
+            std::max(static_cast<size_t>(1),
+                     std::min(max, static_cast<size_t>(numBackfillsThreshold)));
+    return gsl::narrow_cast<uint16_t>(newMaxActive);
 }
 
 void DcpConnMap::addStats(const AddStatFn& add_stat, const CookieIface* c) {

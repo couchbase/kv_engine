@@ -120,6 +120,14 @@ public:
 
     void updateMaxRunningBackfills(size_t maxDataSize);
 
+    /**
+     * Calculate how many backfills we can run for the given Bucket quota.
+     *
+     * @param maxDataSize bucket quota
+     * @return number of backfills we can run with the given quota
+     */
+    static uint16_t getMaxRunningBackfillsForQuota(size_t maxDataSize);
+
     uint16_t getNumRunningBackfills() {
         std::lock_guard<std::mutex> lh(backfills.mutex);
         return backfills.running;
