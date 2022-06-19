@@ -42,7 +42,14 @@ void Bucket::reset() {
     read_compute_units_used = 0;
     write_compute_units_used = 0;
     throttle_gauge.reset();
-    throttle_limit = 0;
+    if (isServerlessDeployment()) {
+        throttle_limit.store(
+                cb::serverless::Config::instance().defaultThrottleLimit.load(
+                        std::memory_order_acquire),
+                std::memory_order_release);
+    } else {
+        throttle_limit = 0;
+    }
     num_throttled = 0;
     throttle_wait_time = 0;
     num_commands = 0;

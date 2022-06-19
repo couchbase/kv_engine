@@ -110,6 +110,26 @@ void ServerlessTest::TearDown() {
     Test::TearDown();
 }
 
+TEST_F(ServerlessTest, TestDefaultThrottleLimit) {
+    auto admin = cluster->getConnection(0);
+    admin->authenticate("@admin", "password");
+    auto bucket = cluster->createBucket("TestDefaultThrottleLimit",
+                                        {{"replicas", 2}, {"max_vbuckets", 8}});
+    if (!bucket) {
+        throw std::runtime_error(
+                "Failed to create bucket: TestDefaultThrottleLimit");
+    }
+    std::size_t limit;
+    admin->stats(
+            [&limit](const auto& k, const auto& v) {
+                nlohmann::json json = nlohmann::json::parse(v);
+                limit = json["throttle_limit"].get<size_t>();
+            },
+            "bucket_details TestDefaultThrottleLimit");
+    cluster->deleteBucket("TestDefaultThrottleLimit");
+    EXPECT_EQ(cb::serverless::DefaultThrottleLimit, limit);
+}
+
 TEST_F(ServerlessTest, MaxConnectionPerBucket) {
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
