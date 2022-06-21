@@ -71,13 +71,6 @@
 #include <numa.h>
 #endif
 
-namespace cb::serverless {
-Config& Config::instance() {
-    static Config instance;
-    return instance;
-}
-} // namespace cb::serverless
-
 std::atomic<bool> memcached_shutdown;
 std::atomic<bool> sigint;
 std::atomic<bool> sigterm;
@@ -758,45 +751,6 @@ static void startExecutorPool() {
                                    auto val = s.getNumNonIoThreads();
                                    ExecutorPool::get()->setNumNonIO(val);
                                });
-}
-
-nlohmann::json cb::serverless::Config::to_json() const {
-    nlohmann::json json;
-    json["default_throttle_limit"] =
-            defaultThrottleLimit.load(std::memory_order_acquire);
-    json["max_connections_per_bucket"] =
-            maxConnectionsPerBucket.load(std::memory_order_acquire);
-    json["read_compute_unit_size"] =
-            readComputeUnitSize.load(std::memory_order_acquire);
-    json["write_compute_unit_size"] =
-            writeComputeUnitSize.load(std::memory_order_acquire);
-    return json;
-}
-
-void cb::serverless::Config::update_from_json(const nlohmann::json& json) {
-    try {
-        defaultThrottleLimit.store(
-                json.value("default_throttle_limit",
-                           cb::serverless::DefaultThrottleLimit),
-                std::memory_order_release);
-        maxConnectionsPerBucket.store(
-                json.value("max_connections_per_bucket",
-                           cb::serverless::MaxConnectionsPerBucket),
-                std::memory_order_release);
-        readComputeUnitSize.store(
-                json.value("read_compute_unit_size",
-                           cb::serverless::ReadComputeUnitSize),
-                std::memory_order_release);
-        writeComputeUnitSize.store(
-                json.value("write_compute_unit_size",
-                           cb::serverless::WriteComputeUnitSize),
-                std::memory_order_release);
-    } catch (const std::exception& exception) {
-        LOG_WARNING(
-                "Failed to update serverless configuration: {}. Exeption: {}",
-                json.dump(),
-                exception.what());
-    }
 }
 
 static void initialize_serverless_config() {

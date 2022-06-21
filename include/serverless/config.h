@@ -63,6 +63,9 @@ struct Config {
         }
         return (value + size - 1) / size;
     }
+
+private:
+    Config() = default;
 };
 
 } // namespace cb::serverless

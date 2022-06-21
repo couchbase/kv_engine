@@ -202,7 +202,9 @@ endif()
 target_include_directories(memcached_daemon PRIVATE ${Memcached_BINARY_DIR})
 cb_enable_unity_build(memcached_daemon)
 
-ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
+add_dependencies(memcached_daemon
+                 generate_audit_descriptors
+                 generate_serverless_configuration)
 
 target_link_libraries(memcached_daemon
         PUBLIC

@@ -34,6 +34,7 @@ add_library(mcd_util STATIC
             logtags.h
             openssl_utils.cc
             openssl_utils.h
+            serverless_config.cc
             stat_group.cc
             string_utilities.cc
             string_utilities.h
