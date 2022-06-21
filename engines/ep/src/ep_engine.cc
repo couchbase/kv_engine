@@ -6887,7 +6887,6 @@ void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
     configuration.setMemHighWat(percentOf(size, stats.mem_high_wat_percent));
 
     getDcpConnMap().updateMaxRunningBackfills(size);
-    getDcpConnMap().updateMaxRunningBackfills(size);
     // Pass the max bucket quota size down to the storage layer.
     for (uint16_t ii = 0; ii < getKVBucket()->getVBuckets().getNumShards();
          ++ii) {
