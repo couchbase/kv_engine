@@ -63,6 +63,11 @@ public:
         this->status = status;
     }
 
+    void addStats(std::string_view prefix,
+                  const StatCollector& collector) override {
+        // none
+    }
+
     void validateKeyScan(const std::unordered_set<StoredDocKey>& expectedKeys);
     void validateItemScan(const std::unordered_set<StoredDocKey>& expectedKeys);
     void checkKeyIsUnique(DocKey key) {
@@ -1347,6 +1352,11 @@ public:
 
     void handleStatus(const CookieIface&, cb::engine_errc) override {
         ++callbackCounter;
+    }
+
+    void addStats(std::string_view prefix,
+                  const StatCollector& collector) override {
+        // none
     }
 
     size_t& callbackCounter;

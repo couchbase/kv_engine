@@ -620,6 +620,9 @@ void RangeScan::addStats(const StatCollector& collector) const {
     if (isSampling()) {
         addStat("dist_p", distribution.p());
     }
+
+    handler->addStats(std::string_view{prefix.data(), prefix.size()},
+                      collector);
 }
 
 void RangeScan::dump(std::ostream& os) const {

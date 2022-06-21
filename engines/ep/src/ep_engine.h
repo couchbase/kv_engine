@@ -1401,9 +1401,17 @@ private:
 
     /**
      * Set the concurrency of range-scans (no-op if bucket is ephemeral)
-     * @param The configuration value where 0 means auto configure
+     * @param rangeScanMaxContinueTasksValue The configuration value where 0
+     *        means auto configure
      */
     void configureRangeScanConcurrency(size_t rangeScanMaxContinueTasksValue);
+
+    /**
+     * Push the new config value through to the range scan module
+     * @param rangeScanMaxDuration The configuration value
+     */
+    void configureRangeScanMaxDuration(
+            std::chrono::seconds rangeScanMaxDuration);
 
 public:
     // Testing hook for MB-45756, to allow a throw to be made during

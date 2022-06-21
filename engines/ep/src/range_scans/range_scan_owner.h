@@ -75,6 +75,14 @@ public:
      */
     void setConcurrentTaskLimit(size_t maxContinueTasksValue);
 
+    void setMaxDuration(std::chrono::seconds maxDuration) {
+        this->maxDuration.store(maxDuration);
+    }
+
+    std::chrono::seconds getMaxDuration() const {
+        return maxDuration;
+    }
+
     void addStats(const StatCollector& collector) const;
 
 protected:
@@ -87,6 +95,8 @@ protected:
     }
 
     std::atomic<size_t> concurrentTaskLimit;
+
+    std::atomic<std::chrono::seconds> maxDuration;
 
     folly::Synchronized<std::queue<std::shared_ptr<RangeScan>>> rangeScans;
 
@@ -226,9 +236,7 @@ public:
     /// @return size of the map (how many scans exist)
     size_t size() const;
 
-    std::chrono::seconds getMaxScanDuration() const {
-        return maxScanDuration;
-    }
+    std::chrono::seconds getMaxDuration() const;
 
 protected:
     std::shared_ptr<RangeScan> processScanRemoval(cb::rangescan::Id id,
@@ -248,8 +256,5 @@ protected:
     };
 
     folly::Synchronized<SynchronizedData> syncData;
-
-    /// The max duration a scan can exist for (set from config)
-    std::chrono::seconds maxScanDuration{0};
 };
 } // namespace VB

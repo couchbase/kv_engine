@@ -16,6 +16,7 @@ class CookieIface;
 class EventuallyPersistentEngine;
 class EPBucket;
 class RangeScan;
+class StatCollector;
 class VBucket;
 
 /**
@@ -62,6 +63,12 @@ public:
      */
     virtual void handleStatus(const CookieIface& cookie,
                               cb::engine_errc status) = 0;
+
+    /**
+     * Generate stats from the handler
+     */
+    virtual void addStats(std::string_view prefix,
+                          const StatCollector& collector) = 0;
 };
 
 /**
@@ -70,8 +77,7 @@ public:
  */
 class RangeScanDataHandler : public RangeScanDataHandlerIFace {
 public:
-    RangeScanDataHandler(EventuallyPersistentEngine& engine) : engine(engine) {
-    }
+    RangeScanDataHandler(EventuallyPersistentEngine& engine);
 
     void handleKey(const CookieIface& cookie, DocKey key) override;
 
@@ -81,6 +87,9 @@ public:
     void handleStatus(const CookieIface& cookie,
                       cb::engine_errc status) override;
 
+    void addStats(std::string_view prefix,
+                  const StatCollector& collector) override;
+
 private:
     void checkAndSend(const CookieIface& cookie);
     void send(const CookieIface& cookie,
@@ -89,10 +98,13 @@ private:
     EventuallyPersistentEngine& engine;
     /**
      * Data read from the scan is stored in this vector ready for sending. When
-     * a threshold is reached the content of this buffer makes up a single
-     * response (value) back to the client
+     * sendTriggerThreshold is reached the content of this buffer makes up a
+     * single response (value) back to the client
      */
     std::vector<uint8_t> responseBuffer;
+
+    /// the trigger for pushing data to send, set from engine configuration
+    size_t sendTriggerThreshold{0};
 };
 
 /**

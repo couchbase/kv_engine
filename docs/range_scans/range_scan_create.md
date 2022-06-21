@@ -108,6 +108,7 @@ object has the following keys.
   * `"samples"`
   * value is a number
   * This key must be included in the `"sampling"` object.
+  * If the target collection is smaller than samples, the entire collection is returned.
 
 ### Snapshot Requirements
 

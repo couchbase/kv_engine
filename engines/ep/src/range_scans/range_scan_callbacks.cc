@@ -21,13 +21,16 @@
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/server_cookie_iface.h>
+#include <statistics/cbstat_collector.h>
+
+RangeScanDataHandler::RangeScanDataHandler(EventuallyPersistentEngine& engine)
+    : engine(engine),
+      sendTriggerThreshold(
+              engine.getConfiguration().getRangeScanReadBufferSendSize()) {
+}
 
 void RangeScanDataHandler::checkAndSend(const CookieIface& cookie) {
-    // @todo: set the "size" from configuration and also test various sizes
-    // For now a "page-size" multiple is probably fine. This value controls
-    // roughly how much a scan can read into memory, but we can be over this
-    // e.g. if we were to load a 20Mib value...
-    if (responseBuffer.size() >= 8192) {
+    if (responseBuffer.size() >= sendTriggerThreshold) {
         send(cookie);
     }
 }
@@ -71,6 +74,18 @@ void RangeScanDataHandler::handleStatus(const CookieIface& cookie,
     NonBucketAllocationGuard guard;
     // Wake-up front-end to complete the command
     engine.notifyIOComplete(&cookie, status);
+}
+
+void RangeScanDataHandler::addStats(std::string_view prefix,
+                                    const StatCollector& collector) {
+    const auto addStat = [&prefix, &collector](const auto& statKey,
+                                               auto statValue) {
+        fmt::memory_buffer key;
+        format_to(std::back_inserter(key), "{}:{}", prefix, statKey);
+        collector.addStat(std::string_view(key.data(), key.size()), statValue);
+    };
+
+    addStat("send_threshold", sendTriggerThreshold);
 }
 
 RangeScanCacheCallback::RangeScanCacheCallback(RangeScan& scan,

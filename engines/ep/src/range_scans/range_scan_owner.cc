@@ -28,7 +28,8 @@
 #include <fmt/ostream.h>
 #include <statistics/cbstat_collector.h>
 
-ReadyRangeScans::ReadyRangeScans(const Configuration& config) {
+ReadyRangeScans::ReadyRangeScans(const Configuration& config)
+    : maxDuration(std::chrono::seconds(config.getRangeScanMaxLifetime())) {
     setConcurrentTaskLimit(config.getRangeScanMaxContinueTasks());
 }
 
@@ -103,6 +104,7 @@ void ReadyRangeScans::addStats(const StatCollector& collector) const {
     collector.addStat("concurrent_task_limit", concurrentTaskLimit);
     collector.addStat("tasks_size", getTaskQueueSize());
     collector.addStat("ready_queue_size", getReadyQueueSize());
+    collector.addStat("max_duration", maxDuration.load().count());
 }
 
 // Task used by RangeScans for checking that any scans of a vbucket have not
@@ -134,8 +136,8 @@ protected:
     bool run() override {
         // Call into the vbucket with the current max duration. All scans that
         // have exceeded this duration will be cancelled
-        vBucket.cancelRangeScansExceedingDuration(std::chrono::seconds(
-                vBucket.getRangeScans().getMaxScanDuration()));
+        vBucket.cancelRangeScansExceedingDuration(
+                vBucket.getRangeScans().getMaxDuration());
 
         // Task must re-run (if not shutting down). The sleep time of the task
         // is adjusted inside cancelRangeScansExceedingDuration
@@ -154,11 +156,6 @@ private:
 
 VB::RangeScanOwner::RangeScanOwner(EPBucket* bucket, EPVBucket& vb) {
     if (bucket) {
-        // @todo: make reconfigurable (upstream and in-progress)
-        maxScanDuration =
-                std::chrono::seconds(bucket->getEPEngine()
-                                             .getConfiguration()
-                                             .getRangeScanMaxLifetime());
         readyScans = bucket->getReadyRangeScans();
     }
 }
@@ -185,7 +182,7 @@ cb::engine_errc VB::RangeScanOwner::addNewScan(std::shared_ptr<RangeScan> scan,
                 // if it still exists.
                 syncData.timeoutTask = std::make_unique<EventDrivenTimeoutTask>(
                         std::make_shared<RangeScanTimeoutTask>(
-                                taskable, vb, maxScanDuration));
+                                taskable, vb, readyScans->getMaxDuration()));
             }
 
             return emplaced;
@@ -355,4 +352,11 @@ cb::engine_errc VB::RangeScanOwner::hasPrivilege(
 
 size_t VB::RangeScanOwner::size() const {
     return syncData.rlock()->rangeScans.size();
+}
+
+std::chrono::seconds VB::RangeScanOwner::getMaxDuration() const {
+    if (readyScans) {
+        return readyScans->getMaxDuration();
+    }
+    return std::chrono::seconds(0);
 }

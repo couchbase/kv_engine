@@ -44,6 +44,21 @@ public:
                     });
         }
 
+        // Reduce the max-scan lifetime to give coverage of the dynamic change
+        adminConnection->executeInBucket(bucketName, [&](auto& connection) {
+            // Encode a set_flush_param (like cbepctl)
+            BinprotGenericCommand cmd1{cb::mcbp::ClientOpcode::SetParam,
+                                       "range_scan_max_lifetime",
+                                       "60"};
+            cmd1.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
+                    cb::mcbp::request::SetParamPayload::Type::Flush)));
+
+            const auto resp = connection.execute(cmd1);
+            ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+            EXPECT_EQ("60", connection.statsMap("range-scans")["max_duration"]);
+        });
+
         // Setup to scan for user prefixed docs. Utilise wait_for_seqno so the
         // tests should be stable (have data ready to scan)
         config = {{"range", {{"start", start}, {"end", end}}},

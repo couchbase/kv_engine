@@ -859,6 +859,10 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         } else if (key == "bucket_quota_change_task_poll_interval") {
             configuration.setBucketQuotaChangeTaskPollInterval(std::stoul
                                                                 (val));
+        } else if (key == "range_scan_read_buffer_send_size") {
+            configuration.setRangeScanReadBufferSendSize(std::stoull(val));
+        } else if (key == "range_scan_max_lifetime") {
+            configuration.setRangeScanMaxLifetime(std::stoull(val));
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::invalid_arguments;
@@ -1892,6 +1896,8 @@ void EpEngineValueChangeListener::sizeValueChanged(const std::string& key,
         engine.setMaxItemPrivilegedBytes(value);
     } else if (key == "range_scan_max_continue_tasks") {
         engine.configureRangeScanConcurrency(value);
+    } else if (key == "range_scan_max_lifetime") {
+        engine.configureRangeScanMaxDuration(std::chrono::seconds(value));
     }
 }
 
@@ -2089,6 +2095,9 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
 
     configuration.addValueChangedListener(
             "range_scan_max_continue_tasks",
+            std::make_unique<EpEngineValueChangeListener>(*this));
+    configuration.addValueChangedListener(
+            "range_scan_max_lifetime",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     // The number of shards for a magma bucket cannot be changed after the first
@@ -6904,6 +6913,14 @@ void EventuallyPersistentEngine::configureRangeScanConcurrency(
         Expects(epBucket->getReadyRangeScans());
         epBucket->getReadyRangeScans()->setConcurrentTaskLimit(
                 rangeScanMaxContinueTasksValue);
+    }
+}
+
+void EventuallyPersistentEngine::configureRangeScanMaxDuration(
+        std::chrono::seconds rangeScanMaxDuration) {
+    if (auto* epBucket = dynamic_cast<EPBucket*>(getKVBucket()); epBucket) {
+        Expects(epBucket->getReadyRangeScans());
+        epBucket->getReadyRangeScans()->setMaxDuration(rangeScanMaxDuration);
     }
 }
 
