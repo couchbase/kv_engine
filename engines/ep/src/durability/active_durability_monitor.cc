@@ -450,14 +450,8 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
                         addStat,
                         cookie);
 
-        // Do not have a valid HPS unless the first chain has been set.
-        int64_t highPreparedSeqno = 0;
-        if (s->firstChain) {
-            highPreparedSeqno = s->getNodeWriteSeqno(s->getActive());
-        }
-
         add_casted_stat(fmt::format("vb_{}:high_prepared_seqno", vbid),
-                        highPreparedSeqno,
+                        s->highPreparedSeqno,
                         addStat,
                         cookie);
 
