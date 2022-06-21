@@ -6810,18 +6810,31 @@ void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
     // must be readable from both the configuration and EPStats. The following
     // is also updating EPStats because the configuration has a change listener
     // that will update EPStats
-    configuration.setMemLowWat(percentOf(size, stats.mem_low_wat_percent));
-    configuration.setMemHighWat(percentOf(size, stats.mem_high_wat_percent));
+    configureMemWatermarksForQuota(size);
 
     getDcpConnMap().updateMaxRunningBackfills(size);
+
+    configureStorageMemoryForQuota(size);
+
+    updateArenaAllocThresholdForQuota(size);
+}
+
+void EventuallyPersistentEngine::configureMemWatermarksForQuota(size_t quota) {
+    configuration.setMemLowWat(percentOf(quota, stats.mem_low_wat_percent));
+    configuration.setMemHighWat(percentOf(quota, stats.mem_high_wat_percent));
+}
+
+void EventuallyPersistentEngine::configureStorageMemoryForQuota(size_t quota) {
     // Pass the max bucket quota size down to the storage layer.
     for (uint16_t ii = 0; ii < getKVBucket()->getVBuckets().getNumShards();
          ++ii) {
         getKVBucket()->getVBuckets().getShard(ii)->forEachKVStore(
-                [size](auto* kvs) { kvs->setMaxDataSize(size); });
+                [quota](auto* kvs) { kvs->setMaxDataSize(quota); });
     }
+}
 
-    // Update the ArenaMalloc threshold
+void EventuallyPersistentEngine::updateArenaAllocThresholdForQuota(
+        size_t size) {
     arena.setEstimateUpdateThreshold(
             size, configuration.getMemUsedMergeThresholdPercent());
     cb::ArenaMalloc::setAllocatedThreshold(arena);

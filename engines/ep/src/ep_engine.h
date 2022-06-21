@@ -816,6 +816,27 @@ public:
      */
     void setMaxDataSize(size_t size);
 
+    /**
+     * Set the low and high watermarks for the given quota
+     *
+     * @param size in bytes for the new quota
+     */
+    void configureMemWatermarksForQuota(size_t size);
+
+    /**
+     * Set the quota in the storage engine
+     *
+     * @param size in bytes for the new quota
+     */
+    void configureStorageMemoryForQuota(size_t size);
+
+    /**
+     * Update the arena threshold for the given quota
+     *
+     * @param size in bytes for the new quota
+     */
+    void updateArenaAllocThresholdForQuota(size_t size);
+
     cb::ArenaMallocClient& getArenaMallocClient() {
         return arena;
     }
