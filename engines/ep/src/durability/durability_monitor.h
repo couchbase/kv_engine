@@ -81,8 +81,13 @@ public:
         Second = 2,
     };
 
-protected:
     class SyncWrite;
+    /**
+     * @return all of the current tracked writes
+     */
+    virtual std::list<SyncWrite> getTrackedWrites() const = 0;
+
+protected:
     class ActiveSyncWrite;
 
     template <typename Container>

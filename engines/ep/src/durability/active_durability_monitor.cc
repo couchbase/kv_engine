@@ -196,17 +196,18 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
 
 ActiveDurabilityMonitor::ActiveDurabilityMonitor(
         EPStats& stats,
-        PassiveDurabilityMonitor&& pdm,
+        VBucket& vb,
+        DurabilityMonitor&& dm,
         std::unique_ptr<EventDrivenDurabilityTimeoutIface> nextExpiryChanged)
-    : ActiveDurabilityMonitor(stats, pdm.vb, std::move(nextExpiryChanged)) {
+    : ActiveDurabilityMonitor(stats, vb, std::move(nextExpiryChanged)) {
     EP_LOG_INFO(
-            "ActiveDurabilityMonitor::ctor(PDM&&): {} Transitioning from "
-            "PDM: HPS:{}, HCS:{}, numTracked:{}, highestTracked:{}",
+            "ActiveDurabilityMonitor::ctor(DM&&): {} Transitioning to ADM. "
+            "HPS:{}, HCS:{}, numTracked:{}, highestTracked:{}",
             vb.getId(),
-            pdm.getHighPreparedSeqno(),
-            pdm.getHighCompletedSeqno(),
-            pdm.getNumTracked(),
-            pdm.getHighestTrackedSeqno());
+            dm.getHighPreparedSeqno(),
+            dm.getHighCompletedSeqno(),
+            dm.getNumTracked(),
+            dm.getHighestTrackedSeqno());
 
     int64_t lastSeqno = 0;
 #if CB_DEVELOPMENT_ASSERTS
@@ -221,13 +222,13 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
     // state to ADM from a PDM. Which means all prepare seqnos should come after
     // any committed ones
     const bool snapshotCompleted =
-            pdm.getHighestTrackedSeqno() <
+            dm.getHighestTrackedSeqno() <
             static_cast<int64_t>(
                     vb.checkpointManager->getOpenSnapshotStartSeqno());
 #endif
 
     auto s = state.wlock();
-    for (auto& write : pdm.state.wlock()->trackedWrites) {
+    for (auto& write : dm.getTrackedWrites()) {
 #if CB_DEVELOPMENT_ASSERTS
         switch (write.getStatus()) {
         case SyncWriteStatus::Pending:
@@ -267,17 +268,16 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
     } else {
         // If we have no tracked writes then the last tracked should be the last
         // completed. Reset in case we had no SyncWrites (0 -> 0).
-        s->lastTrackedSeqno.reset(
-                pdm.state.wlock()->highCompletedSeqno.lastWriteSeqno);
+        s->lastTrackedSeqno.reset(dm.getHighCompletedSeqno());
     }
-    s->highPreparedSeqno.reset(pdm.getHighPreparedSeqno());
-    s->highCompletedSeqno.reset(pdm.getHighCompletedSeqno());
+    s->highPreparedSeqno.reset(dm.getHighPreparedSeqno());
+    s->highCompletedSeqno.reset(dm.getHighCompletedSeqno());
 #if CB_DEVELOPMENT_ASSERTS
     if (snapshotCompleted && lastPreparedSeqno > 0) {
         Expects(lastCompletedSeqno < lastPreparedSeqno);
     }
     EP_LOG_INFO(
-            "ActiveDurabilityMonitor::ctor(PDM&&): finished {} "
+            "ActiveDurabilityMonitor::ctor(DM&&): finished {} "
             "trackedWrites[numberPending:{}, numberToComplete:{}, "
             "numberCommitted:{}] highPreparedSeqno:{} "
             "highCompletedSeqno:{}",
@@ -1189,6 +1189,16 @@ void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
     updateNodeAck(node, seqno);
 }
 
+std::list<DurabilityMonitor::SyncWrite>
+ActiveDurabilityMonitor::getTrackedWrites() const {
+    auto s = state.rlock();
+    std::list<DurabilityMonitor::SyncWrite> ret;
+    for (auto& write : s->trackedWrites) {
+        ret.emplace_back(write);
+    }
+    return ret;
+}
+
 std::unordered_set<int64_t> ActiveDurabilityMonitor::getTrackedSeqnos() const {
     const auto s = state.rlock();
     std::unordered_set<int64_t> ret;
@@ -1198,11 +1208,11 @@ std::unordered_set<int64_t> ActiveDurabilityMonitor::getTrackedSeqnos() const {
     return ret;
 }
 
-std::vector<queued_item> ActiveDurabilityMonitor::getTrackedWrites() const {
-    std::vector<queued_item> items;
+std::vector<StoredDocKey> ActiveDurabilityMonitor::getTrackedKeys() const {
+    std::vector<StoredDocKey> items;
     auto s = state.rlock();
     for (auto& w : s->trackedWrites) {
-        items.push_back(w.getItem());
+        items.push_back(w.getKey());
     }
     return items;
 }
