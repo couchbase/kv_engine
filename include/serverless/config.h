@@ -17,7 +17,7 @@
 namespace cb::serverless {
 constexpr size_t DefaultThrottleLimit = 1666;
 constexpr size_t MaxConnectionsPerBucket = 600;
-constexpr size_t ReadComputeUnitSize = 1024;
+constexpr size_t ReadComputeUnitSize = 4096;
 constexpr size_t WriteComputeUnitSize = 1024;
 
 struct Config {
