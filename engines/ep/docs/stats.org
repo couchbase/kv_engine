@@ -1004,7 +1004,6 @@ each stat name.
 |                                     | including all Vbuckets/CMs/Destroyers     |
 | num_checkpoints_pending_destruction | Number of checkpoints detached from CMs   |
 |                                     | and owned by Destroyers                   |
-| num_items_for_persistence           | Number of items remaining for persistence |
 | state                               | The state of the vbucket this checkpoint  |
 |                                     | contains data for                         |
 | persisted_checkpoint_id             | The last persisted checkpoint number      |

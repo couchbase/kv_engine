@@ -7650,7 +7650,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "vb_0:persistence:cursor_checkpoint_id",
                 "vb_0:persistence:cursor_seqno",
                 "vb_0:persistence:num_visits",
-                "vb_0:num_items_for_persistence"};
+                "vb_0:persistence:num_items_for_cursor"};
         auto& ckpt_stats = statsKeys.at("checkpoint");
         ckpt_stats.insert(ckpt_stats.end(), persistence_stats);
         auto& ckpt0_stats = statsKeys.at("checkpoint 0");

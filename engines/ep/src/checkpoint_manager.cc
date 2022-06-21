@@ -1416,16 +1416,6 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
                          vbucketId.get());
         add_casted_stat(buf.data(), checkpointList.size(), add_stat, cookie);
 
-        if (persistenceCursor) {
-            checked_snprintf(buf.data(),
-                             buf.size(),
-                             "vb_%d:num_items_for_persistence",
-                             vbucketId.get());
-            add_casted_stat(buf.data(),
-                            getNumItemsForCursor(lh, persistenceCursor),
-                            add_stat,
-                            cookie);
-        }
         checked_snprintf(
                 buf.data(), buf.size(), "vb_%d:mem_usage", vbucketId.get());
         add_casted_stat(buf.data(), getMemUsage(lh), add_stat, cookie);
@@ -1440,6 +1430,7 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
                             (*(cursor.second->getCheckpoint()))->getId(),
                             add_stat,
                             cookie);
+
             checked_snprintf(buf.data(),
                              buf.size(),
                              "vb_%d:%s:cursor_seqno",
@@ -1449,6 +1440,7 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
                             (*(cursor.second->getPos()))->getBySeqno(),
                             add_stat,
                             cookie);
+
             checked_snprintf(buf.data(),
                              buf.size(),
                              "vb_%d:%s:num_visits",
@@ -1456,17 +1448,16 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
                              cursor.second->getName().c_str());
             add_casted_stat(
                     buf.data(), cursor.second->getNumVisit(), add_stat, cookie);
-            if (cursor.second.get() != persistenceCursor) {
-                checked_snprintf(buf.data(),
-                                 buf.size(),
-                                 "vb_%d:%s:num_items_for_cursor",
-                                 vbucketId.get(),
-                                 cursor.second->getName().c_str());
-                add_casted_stat(buf.data(),
-                                getNumItemsForCursor(lh, cursor.second.get()),
-                                add_stat,
-                                cookie);
-            }
+
+            checked_snprintf(buf.data(),
+                             buf.size(),
+                             "vb_%d:%s:num_items_for_cursor",
+                             vbucketId.get(),
+                             cursor.second->getName().c_str());
+            add_casted_stat(buf.data(),
+                            getNumItemsForCursor(lh, cursor.second.get()),
+                            add_stat,
+                            cookie);
         }
 
         // Iterate all checkpoints and dump usages
