@@ -91,7 +91,8 @@ public:
             dcp_add_failover_log callback,
             std::optional<std::string_view> json) override;
 
-    cb::engine_errc step(DcpMessageProducersIface& producers) override;
+    cb::engine_errc step(bool throttled,
+                         DcpMessageProducersIface& producers) override;
 
     cb::engine_errc bufferAcknowledgement(uint32_t opaque,
                                           Vbid vbucket,

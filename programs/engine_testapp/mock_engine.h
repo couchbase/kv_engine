@@ -156,6 +156,7 @@ struct MockEngine : public EngineIface, public DcpIface {
     // DcpIface implementation ////////////////////////////////////////////////
 
     cb::engine_errc step(const CookieIface& cookie,
+                         bool throttled,
                          DcpMessageProducersIface& producers) override;
 
     cb::engine_errc open(const CookieIface& cookie,

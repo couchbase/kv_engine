@@ -12,6 +12,7 @@
 #include "engine_wrapper.h"
 #include "executors.h"
 #include "utilities.h"
+#include <daemon/front_end_thread.h>
 #include <daemon/mcaudit.h>
 #include <logger/logger.h>
 #include <memcached/protocol_binary.h>
@@ -137,6 +138,8 @@ void dcp_open_executor(Cookie& cookie) {
                  logBuffer,
                  connection.getDescription().c_str());
 
+        connection.getThread().maybeRegisterThrottleableDcpConnection(
+                connection);
         audit_dcp_open(cookie);
         cookie.sendResponse(cb::mcbp::Status::Success);
     } else {

@@ -121,6 +121,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "range scan complete";
     case engine_errc::too_many_connections:
         return "too many connections";
+    case engine_errc::throttled:
+        return "throttled";
     };
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "

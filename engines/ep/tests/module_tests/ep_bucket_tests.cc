@@ -582,10 +582,10 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
     runNextTask(lpAuxioQ);
 
     // Now drain all items before we proceed to complete
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
     for (const auto& key : keys) {
-        EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+        EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
         EXPECT_EQ(key, producers.last_key);
     }
@@ -606,7 +606,7 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
     flush_vbucket_to_disk(vbid, keys.size());
 
     // Sent all items in the readyQueue, but there are some in the checkpoint
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
 
     // So run the checkpoint task to pull them into the readyQueue
     producer->getCheckpointSnapshotTask()->run();
@@ -616,19 +616,19 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
     TimeTraveller t(engine->getConfiguration().getDcpTakeoverMaxTime() + 1);
 
     // Send the snapshot marker
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
     EXPECT_TRUE(vb->isTakeoverBackedUp());
 
     // Send 3 items
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
     EXPECT_TRUE(as0->isTakeoverSend());
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
     EXPECT_TRUE(as0->isTakeoverSend());
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
     EXPECT_TRUE(as0->isTakeoverSend());
 
     // Hitting waitForSnapshot, unblock it by "acking" from the consumer
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
     EXPECT_TRUE(as0->isTakeoverSend());
     as0->snapshotMarkerAckReceived();
 
@@ -651,7 +651,7 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
 
     // Takeover still blocked, before the fix this would have reset
     // takeoverBackedUp
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
     EXPECT_TRUE(as0->isTakeoverSend());
     EXPECT_TRUE(vb->isTakeoverBackedUp());
     store_item(vbid, makeStoredDocKey("testest"), "val", 0, expected);
@@ -668,7 +668,7 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
 
     // If we hadn't notified the stream when the buffer log was full then this
     // would return would_block
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
     EXPECT_TRUE(as0->isTakeoverWait());
     EXPECT_TRUE(vb->isTakeoverBackedUp());
 

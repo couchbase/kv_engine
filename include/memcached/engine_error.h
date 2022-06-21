@@ -139,6 +139,9 @@ enum class engine_errc {
     /// Too many connections
     too_many_connections = 0x29,
 
+    /// Throttled for some reason
+    throttled = 0x2a,
+
     /** Generic failue. */
     failed = 0xff
 };

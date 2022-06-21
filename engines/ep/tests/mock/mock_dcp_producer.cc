@@ -83,7 +83,7 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
 cb::engine_errc MockDcpProducer::stepAndExpect(
         MockDcpMessageProducers& producers,
         cb::mcbp::ClientOpcode expectedOpcode) {
-    auto rv = step(producers);
+    auto rv = step(false, producers);
     EXPECT_EQ(expectedOpcode, producers.last_op);
     return rv;
 }
@@ -91,7 +91,7 @@ cb::engine_errc MockDcpProducer::stepAndExpect(
 cb::engine_errc MockDcpProducer::stepWithBorderGuard(
         DcpMessageProducersIface& producers) {
     DcpMsgProducersBorderGuard guardedProducers(producers);
-    return step(guardedProducers);
+    return step(false, guardedProducers);
 }
 
 std::shared_ptr<ActiveStream> MockDcpProducer::findStream(Vbid vbid) {

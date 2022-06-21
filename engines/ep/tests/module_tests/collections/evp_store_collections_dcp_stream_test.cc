@@ -141,7 +141,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
     EXPECT_EQ(vb->getHighSeqno(), producers->last_byseqno);
     // should be no more ops
     EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(*producers));
+              producer->step(false, *producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
@@ -213,7 +213,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
 
     // should be no more ops
     EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(*producers));
+              producer->step(false, *producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest,
@@ -274,7 +274,7 @@ TEST_F(CollectionsDcpStreamsTest,
 
     // should be no more ops
     EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(*producers));
+              producer->step(false, *producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
@@ -348,7 +348,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
 
     // should be no more ops
     EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(*producers));
+              producer->step(false, *producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
@@ -465,7 +465,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
 
     // should be no more ops
     EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(*producers));
+              producer->step(false, *producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest, close_stream_validation1) {

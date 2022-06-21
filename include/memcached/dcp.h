@@ -375,6 +375,10 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      *
      * @param cookie a unique handle the engine should pass on to the
      *               message producers
+     * @param throttled set to true if the connection is currently throttle
+     *                  and in this case you're not allowed to send new
+     *                  mutations / expiry / deletions (only control
+     *                  messages)
      * @param producers functions the client may use to add messages to
      *                  the DCP stream
      *
@@ -384,6 +388,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      *                        to send at this moment
      */
     virtual cb::engine_errc step(const CookieIface& cookie,
+                                 bool throttled,
                                  DcpMessageProducersIface& producers) = 0;
 
     /**

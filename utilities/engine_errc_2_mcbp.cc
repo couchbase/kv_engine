@@ -87,6 +87,7 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
     case engine_errc::too_many_connections:
         return Status::RateLimitedMaxConnections;
 
+    case engine_errc::throttled:
     case engine_errc::would_block:
     case engine_errc::disconnect:
     case engine_errc::predicate_failed:

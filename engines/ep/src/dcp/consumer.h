@@ -184,7 +184,8 @@ public:
                                     Vbid vbucket,
                                     vbucket_state_t state) override;
 
-    cb::engine_errc step(DcpMessageProducersIface& producers) override;
+    cb::engine_errc step(bool throttled,
+                         DcpMessageProducersIface& producers) override;
 
     /**
      * Sub-classes must implement a method that processes a response

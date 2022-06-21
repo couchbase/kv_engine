@@ -256,7 +256,7 @@ cb::engine_errc ConnHandler::control(uint32_t opaque,
     return cb::engine_errc::disconnect;
 }
 
-cb::engine_errc ConnHandler::step(DcpMessageProducersIface&) {
+cb::engine_errc ConnHandler::step(bool, DcpMessageProducersIface&) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp step API");

@@ -833,7 +833,8 @@ cb::engine_errc DcpConsumer::setVBucketState(uint32_t opaque,
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
-cb::engine_errc DcpConsumer::step(DcpMessageProducersIface& producers) {
+cb::engine_errc DcpConsumer::step(bool throttled,
+                                  DcpMessageProducersIface& producers) {
     if (doDisconnect()) {
         return cb::engine_errc::disconnect;
     }

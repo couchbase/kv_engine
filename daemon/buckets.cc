@@ -54,6 +54,7 @@ void Bucket::reset() {
     throttle_wait_time = 0;
     num_commands = 0;
     num_commands_with_metered_units = 0;
+    num_metered_dcp_messages = 0;
     num_rejected = 0;
     bucket_quota_exceeded = false;
 
@@ -92,6 +93,8 @@ nlohmann::json Bucket::to_json() const {
                 json["num_commands"] = num_commands.load();
                 json["num_commands_with_metered_units"] =
                         num_commands_with_metered_units.load();
+                json["num_metered_dcp_messages"] =
+                        num_metered_dcp_messages.load();
                 json["num_rejected"] = num_rejected.load();
             } catch (const std::exception& e) {
                 LOG_ERROR("Failed to generate bucket details: {}", e.what());
@@ -175,6 +178,7 @@ void Bucket::recordMeteringReadBytes(const Connection& conn,
     const auto ru = inst.to_ru(nread);
     throttle_gauge.increment(ru);
     read_units_used += ru;
+    ++num_metered_dcp_messages;
 }
 
 void Bucket::commandExecuted(const Cookie& cookie) {
@@ -212,7 +216,21 @@ void Bucket::tick() {
                 throttledConnections[thr.index].push_back(c);
             }
         }
+
+        // Iterate over all of the DCP connections bound to this bucket
+        // which is subject for throttling so that they may send more
+        // data (in the case they stopped producing data due to throttling
+        thr.iterateThrottleableDcpConnections(
+                [](Connection& c) { c.triggerCallback(); });
     });
+}
+
+bool Bucket::shouldThrottleDcp(const Connection& connection) {
+    if (throttle_limit == 0 || connection.isUnthrottled()) {
+        return false;
+    }
+
+    return !throttle_gauge.isBelow(throttle_limit);
 }
 
 bool Bucket::shouldThrottle(const Cookie& cookie,

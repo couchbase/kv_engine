@@ -411,8 +411,9 @@ cb::EngineErrorGetScopeIDResult MockEngine::get_scope_id(
 }
 
 cb::engine_errc MockEngine::step(const CookieIface& cookie,
+                                 bool throttled,
                                  DcpMessageProducersIface& producers) {
-    return the_engine_dcp->step(cookie, producers);
+    return the_engine_dcp->step(cookie, throttled, producers);
 }
 
 cb::engine_errc MockEngine::open(const CookieIface& cookie,

@@ -71,7 +71,7 @@ TEST_P(CollectionsLegacyDcpTest, default_collection_is_not_vbucket_highseqno) {
     EXPECT_EQ(3, producers->last_byseqno);
 
     // And no more!
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
 // Similar to the previous test, but the high-seqno of the default collection
@@ -130,7 +130,7 @@ TEST_P(CollectionsLegacyDcpTest,
     }
 
     // And no more!
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
 // Check when the default collection hasn't been written the backfill exits
@@ -159,7 +159,7 @@ TEST_P(CollectionsLegacyDcpTest, default_collection_is_empty) {
     // finds no default collection data exists and ends early
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid, false);
     EXPECT_TRUE(vb0Stream->isInMemory());
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 
     // Stream continues
     store_item(vbid, StoredDocKey{"one", CollectionEntry::defaultC}, "value");
@@ -228,7 +228,7 @@ TEST_P(CollectionsLegacyDcpTest,
     // in-memory stream
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid, false);
     EXPECT_TRUE(vb0Stream->isInMemory());
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 
     // Now the rest of the stream runs and first thing we see is the end of the
     // the default collection -> stream ends
@@ -262,7 +262,7 @@ TEST_P(CollectionsLegacyDcpTest, sync_replication_stream_is_ok) {
     EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
     EXPECT_EQ(2, producers->last_byseqno);
     // And no more!
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 
     // There is a quirk of this though - if the stream now gets cursor dropped
     // it can't catch-up. This case only covers a bucket with collections
@@ -279,7 +279,7 @@ TEST_P(CollectionsLegacyDcpTest, sync_replication_stream_is_ok) {
     auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
     vb0Stream->handleSlowStream();
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
     // This isn't pretty, but a legacy stream can't be given a more descriptive
     // end stream reason. We would log the issue with warnings
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
@@ -451,7 +451,7 @@ TEST_P(CollectionsLegacyDcpTest,
 
     createDcpObjects({});
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid, false);
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 
     createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
@@ -702,7 +702,7 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
     EXPECT_EQ(highSeqno, producers->last_byseqno);
 
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 
     store_item(vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value");
 
@@ -747,7 +747,7 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_EQ("cid:0x0:d", producers->last_key);
     EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
     EXPECT_EQ(highSeqno, producers->last_commit_seqno);
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 
     store_item(vbid, StoredDocKey{"d", CollectionEntry::fruit}, "value");
 

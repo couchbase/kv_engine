@@ -818,6 +818,7 @@ public:
     // the DCP interface will be proxied down to the underlying engine.      //
     ///////////////////////////////////////////////////////////////////////////
     cb::engine_errc step(const CookieIface& cookie,
+                         bool throttled,
                          DcpMessageProducersIface& producers) override;
 
     cb::engine_errc open(const CookieIface& cookie,
@@ -1427,6 +1428,7 @@ EWB_Engine::~EWB_Engine() {
 }
 
 cb::engine_errc EWB_Engine::step(const CookieIface& cookie,
+                                 bool throttled,
                                  DcpMessageProducersIface& producers) {
     auto stream = dcp_stream.find(&cookie);
     if (stream != dcp_stream.end()) {
@@ -1453,7 +1455,7 @@ cb::engine_errc EWB_Engine::step(const CookieIface& cookie,
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
     }
-    return real_engine_dcp->step(cookie, producers);
+    return real_engine_dcp->step(cookie, throttled, producers);
 }
 
 cb::engine_errc EWB_Engine::open(const CookieIface& cookie,

@@ -205,6 +205,14 @@ public:
      */
     bool shouldThrottle(const Cookie& cookie, bool addConnectionToThrottleList);
 
+    /**
+     * Check to see if this DCP connection should be throttled or not
+     *
+     * @param connection The connection to check
+     * @return true if the DCP should be throttled, false otherwise
+     */
+    bool shouldThrottleDcp(const Connection& connection);
+
     /// move the clock forwards in all buckets
     void tick();
 
@@ -247,6 +255,9 @@ protected:
 
     /// The total number of commands using metered units within the bucket
     std::atomic<uint64_t> num_commands_with_metered_units{0};
+
+    /// The total number of metered DCP messages
+    std::atomic<uint64_t> num_metered_dcp_messages{0};
 
     /// The number of commands we rejected to start executing
     std::atomic<uint64_t> num_rejected{0};

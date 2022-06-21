@@ -227,7 +227,7 @@ void CollectionsDcpTest::testDcpCreateDelete(
     auto scopeDropItr = expectedScopeDrops.begin();
 
     // step until done
-    while (producer->step(*producers) == cb::engine_errc::success) {
+    while (producer->step(false, *producers) == cb::engine_errc::success) {
         if (producers->last_op == cb::mcbp::ClientOpcode::DcpSystemEvent) {
             switch (producers->last_system_event) {
             case mcbp::systemevent::id::CreateCollection:

@@ -110,6 +110,32 @@ struct FrontEndThread {
     static void forEach(std::function<void(FrontEndThread&)> callback,
                         bool wait = false);
 
+    /**
+     * Register the DCP connection bound to this front end thread to
+     * the list of DCP connections to notify as part of each tick (note
+     * only connections subjected to throttling will be recorded)
+     *
+     * @param connection The connection (must be bound to this thread)
+     */
+    void maybeRegisterThrottleableDcpConnection(Connection& connection);
+
+    /**
+     * Remove the DCP connection from the list of DCP connections to notify
+     * as part of throttling ticks.
+     *
+     * @param connection The connection to remove
+     */
+    void removeThrottleableDcpConnection(Connection& connection);
+
+    /**
+     * Iterate over all registered DCP connections and call the provided
+     * callback
+     *
+     * @param callback The callback to call for each connection
+     */
+    void iterateThrottleableDcpConnections(
+            std::function<void(Connection&)> callback);
+
 protected:
     void dispatch_new_connections();
 
@@ -145,6 +171,9 @@ protected:
     /// Shared validator used by all connections serviced by this thread
     /// when they need to validate a JSON document
     std::unique_ptr<cb::json::SyntaxValidator> validator;
+
+    /// A list of all DCP connections bound this thread
+    std::deque<std::reference_wrapper<Connection>> dcp_connections;
 };
 
 class Hdr1sfMicroSecHistogram;

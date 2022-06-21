@@ -157,7 +157,7 @@ void DcpStreamSyncReplTest::testNoPendingWithoutSyncReplica(
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
 
     EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
@@ -189,7 +189,7 @@ TEST_P(DcpStreamSyncReplTest, NoPendingNotificationWithoutSyncReplication) {
     ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // Step to empty the ready queue of the Producer
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
 
     // Verify number of io notification calls for the producer
     EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(producerCookie));
@@ -226,7 +226,7 @@ TEST_P(DcpStreamSyncReplTest, PendingNotificationWithSyncReplication) {
     ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // Step to empty the ready queue of the Producer
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
 
     // Verify number of io notification calls for the producer
     producer->scheduleNotify();
@@ -276,9 +276,9 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithoutSyncReplica(
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
 
     EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
@@ -329,9 +329,9 @@ void DcpStreamSyncReplTest::testMutationAndPendingWithoutSyncReplica(
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
 
     EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
@@ -382,9 +382,9 @@ void DcpStreamSyncReplTest::testPendingItemWithSyncReplica(
 
     // Drive the DcpMessageProducers
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
 
     EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
@@ -444,10 +444,10 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithSyncReplica(
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
 
     EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
@@ -518,11 +518,11 @@ void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
 
     EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }

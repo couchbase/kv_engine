@@ -172,6 +172,7 @@ public:
     // DcpIface implementation ////////////////////////////////////////////////
 
     cb::engine_errc step(const CookieIface&,
+                         bool,
                          DcpMessageProducersIface&) override {
         return cb::engine_errc::no_bucket;
     }

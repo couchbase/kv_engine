@@ -603,7 +603,8 @@ cb::unique_item_ptr DcpProducer::toUniqueItemPtr(
     return {item.release(), cb::ItemDeleter(&engine_)};
 }
 
-cb::engine_errc DcpProducer::step(DcpMessageProducersIface& producers) {
+cb::engine_errc DcpProducer::step(bool throttled,
+                                  DcpMessageProducersIface& producers) {
     if (doDisconnect()) {
         return cb::engine_errc::disconnect;
     }
@@ -615,6 +616,10 @@ cb::engine_errc DcpProducer::step(DcpMessageProducersIface& producers) {
 
     if ((ret = maybeSendNoop(producers)) != cb::engine_errc::failed) {
         return ret;
+    }
+
+    if (throttled) {
+        return cb::engine_errc::throttled;
     }
 
     std::unique_ptr<DcpResponse> resp;

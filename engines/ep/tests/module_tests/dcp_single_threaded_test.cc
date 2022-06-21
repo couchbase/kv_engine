@@ -420,14 +420,14 @@ void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
     // SyncRepl negotiation, which is the last blocking step before the
     // DeletedUserXattrs negotiation
     do {
-        result = consumer.step(producers);
+        result = consumer.step(false, producers);
         handleProducerResponseIfStepBlocked(consumer, producers);
         syncReplNeg = consumer.public_getSyncReplNegotiation();
     } while (syncReplNeg.state != State::Completed);
     EXPECT_EQ(cb::engine_errc::success, result);
 
     // Skip over "send consumer name"
-    EXPECT_EQ(cb::engine_errc::success, consumer.step(producers));
+    EXPECT_EQ(cb::engine_errc::success, consumer.step(false, producers));
     ASSERT_FALSE(consumer.public_getPendingSendConsumerName());
 
     // Check pre-negotiation state
@@ -436,7 +436,7 @@ void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
     ASSERT_EQ(0, xattrNeg.opaque);
 
     // Start negotiation - consumer sends DcpControl
-    EXPECT_EQ(cb::engine_errc::success, consumer.step(producers));
+    EXPECT_EQ(cb::engine_errc::success, consumer.step(false, producers));
     xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
     EXPECT_EQ(State::PendingResponse, xattrNeg.state);
     EXPECT_EQ("include_deleted_user_xattrs", producers.last_key);
@@ -445,7 +445,7 @@ void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
     EXPECT_EQ(xattrNeg.opaque, producers.last_opaque);
 
     // Verify blocked - Consumer cannot proceed until negotiation completes
-    EXPECT_EQ(cb::engine_errc::would_block, consumer.step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, consumer.step(false, producers));
     xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
     EXPECT_EQ(State::PendingResponse, xattrNeg.state);
 
@@ -568,7 +568,8 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
         EXPECT_FALSE(consumer->isPaused());
 
         /* Expect disconnect signal in Ephemeral with "fail_new_data" policy */
-        EXPECT_EQ(cb::engine_errc::disconnect, consumer->step(producers));
+        EXPECT_EQ(cb::engine_errc::disconnect,
+                  consumer->step(false, producers));
     } else {
         uint32_t backfoffs = consumer->getNumBackoffs();
 
@@ -585,7 +586,7 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
         /* In 'couchbase' buckets we buffer the replica items and indirectly
            throttle replication by not sending flow control acks to the
            producer. Hence we do not drop the connection here */
-        EXPECT_EQ(cb::engine_errc::success, consumer->step(producers));
+        EXPECT_EQ(cb::engine_errc::success, consumer->step(false, producers));
 
         /* Close stream before deleting the connection */
         EXPECT_EQ(cb::engine_errc::success,
@@ -661,7 +662,7 @@ TEST_P(STDcpTest, test_producer_stream_end_on_client_close_stream) {
 
     /* Expect a stream end message */
     MockDcpMessageProducers producers;
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Closed, producers.last_end_status);
 
@@ -707,7 +708,7 @@ TEST_P(STDcpTest, test_producer_no_stream_end_on_client_close_stream) {
     /* Don't expect a stream end message (or any other message as the stream is
        closed) */
     MockDcpMessageProducers producers;
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
 
     /* Check that the stream is not found in the producer's stream map */
     EXPECT_TRUE(producer->findStreams(vbid)->wlock().empty());
@@ -1077,13 +1078,13 @@ TEST_P(STDcpTest, MB_45863) {
             return cb::engine_errc::too_big;
         }
     } producers1;
-    EXPECT_EQ(cb::engine_errc::too_big, producer->step(producers1));
+    EXPECT_EQ(cb::engine_errc::too_big, producer->step(false, producers1));
     EXPECT_TRUE(producer->findStream(vbid));
 
     // Now expect a stream end message to send, this would throw before fixing
     // MB-45863
     MockDcpMessageProducers producers2;
-    EXPECT_EQ(cb::engine_errc::success, producer->step(producers2));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers2));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers2.last_op);
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Closed, producers2.last_end_status);
     EXPECT_FALSE(producer->findStream(vbid));

@@ -84,6 +84,30 @@ static void create_worker(void (*func)(void*),
     thread = create_thread([arg, func]() { func(arg); }, std::move(name));
 }
 
+void FrontEndThread::maybeRegisterThrottleableDcpConnection(
+        Connection& connection) {
+    if (!connection.isUnthrottled()) {
+        dcp_connections.emplace_back(connection);
+    }
+}
+
+void FrontEndThread::removeThrottleableDcpConnection(Connection& connection) {
+    for (auto iter = dcp_connections.begin(); iter != dcp_connections.end();
+         ++iter) {
+        if (&iter->get() == &connection) {
+            dcp_connections.erase(iter);
+            return;
+        }
+    }
+}
+
+void FrontEndThread::iterateThrottleableDcpConnections(
+        std::function<void(Connection&)> callback) {
+    for (auto& c : dcp_connections) {
+        callback(c);
+    }
+}
+
 void FrontEndThread::forEach(std::function<void(FrontEndThread&)> callback,
                              bool wait) {
     for (auto& thr : threads) {

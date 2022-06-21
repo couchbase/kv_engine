@@ -1206,11 +1206,13 @@ void EventuallyPersistentEngine::item_set_datatype(
 }
 
 cb::engine_errc EventuallyPersistentEngine::step(
-        const CookieIface& cookie, DcpMessageProducersIface& producers) {
+        const CookieIface& cookie,
+        bool throttled,
+        DcpMessageProducersIface& producers) {
     auto engine = acquireEngine(this);
     auto& conn = engine->getConnHandler(&cookie);
     DcpMsgProducersBorderGuard guardedProducers(producers);
-    return conn.step(guardedProducers);
+    return conn.step(throttled, guardedProducers);
 }
 
 cb::engine_errc EventuallyPersistentEngine::open(const CookieIface& cookie,

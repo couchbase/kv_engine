@@ -204,7 +204,8 @@ public:
                                     std::string_view key,
                                     std::string_view value);
 
-    virtual cb::engine_errc step(DcpMessageProducersIface& producers);
+    virtual cb::engine_errc step(bool throttled,
+                                 DcpMessageProducersIface& producers);
 
     /**
      * Sub-classes must implement a method that processes a response

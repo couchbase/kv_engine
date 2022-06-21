@@ -264,6 +264,11 @@ void Connection::restartAuthentication() {
 }
 
 cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
+    if (isDCP() && privilege == cb::rbac::Privilege::Unthrottled) {
+        // DCP connections set up as unmetered can't drop the privilege
+        // as we only registered throttled DCP connections
+        return cb::engine_errc::failed;
+    }
     privilegeContext.dropPrivilege(privilege);
     if (privilege == cb::rbac::Privilege::Unmetered) {
         subject_to_metering.store(true,
@@ -356,6 +361,7 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
          */
     case cb::engine_errc::stream_not_found:
     case cb::engine_errc::opaque_no_match:
+    case cb::engine_errc::throttled:
         return code;
 
     case cb::engine_errc::too_many_connections:
@@ -907,12 +913,15 @@ bool Connection::executeCommandsCallback() {
                 }
                 while (more && numEvents > 0) {
                     const auto ret = getBucket().getDcpIface()->step(
-                            *cookies.front().get(), *this);
+                            *cookies.front().get(),
+                            getBucket().shouldThrottleDcp(*this),
+                            *this);
                     switch (remapErrorCode(ret)) {
                     case cb::engine_errc::success:
                         more = (getSendQueueSize() < dcpMaxQSize);
                         --numEvents;
                         break;
+                    case cb::engine_errc::throttled:
                     case cb::engine_errc::would_block:
                         more = false;
                         break;
@@ -955,6 +964,9 @@ bool Connection::executeCommandsCallback() {
         }
 
         if (state == State::immediate_close) {
+            if (isDCP()) {
+                thread.removeThrottleableDcpConnection(*this);
+            }
             disassociate_bucket(*this);
             // delete the object
             return false;
