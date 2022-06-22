@@ -10,7 +10,7 @@
 #pragma once
 
 #include "cluster_config.h"
-#include "sloppy_compute_unit_gauge.h"
+#include "sloppy_gauge.h"
 #include "stat_timings.h"
 #include "timings.h"
 
@@ -226,14 +226,14 @@ protected:
      */
     DcpIface* bucketDcp{nullptr};
 
-    /// The number of RCUs being used in this bucket
-    std::atomic<std::size_t> read_compute_units_used{0};
+    /// The number of RUs being used in this bucket
+    std::atomic<std::size_t> read_units_used{0};
 
-    /// The number of WCUs being used in this bucket
-    std::atomic<std::size_t> write_compute_units_used{0};
+    /// The number of WUs being used in this bucket
+    std::atomic<std::size_t> write_units_used{0};
 
     /// The gauge to use for throttling of commands.
-    SloppyComputeUnitGauge throttle_gauge;
+    SloppyGauge throttle_gauge;
 
     /// The number of CUs consumed before we should start throttle
     std::atomic<std::size_t> throttle_limit{0};

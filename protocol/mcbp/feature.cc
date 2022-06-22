@@ -65,8 +65,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "SubdocDocumentMacroSupport";
     case cb::mcbp::Feature::SubdocReplaceBodyWithXattr:
         return "SubdocReplaceBodyWithXattr";
-    case cb::mcbp::Feature::ReportComputeUnitUsage:
-        return "ReportComputeUnitUsage";
+    case cb::mcbp::Feature::ReportUnitUsage:
+        return "ReportUnitUsage";
     }
 
     throw std::invalid_argument(

@@ -72,8 +72,7 @@ enum class ClientOpcode : uint8_t {
     /* Shutdown the server */
     Shutdown = 0x29,
 
-    /// Set the bucket CU counts
-    SetBucketComputeUnitThrottleLimits = 0x2a,
+    SetBucketUnitThrottleLimits = 0x2a,
 
     /// Toggle bucket limit exceeded
     SetBucketDataLimitExceeded = 0x2b,

@@ -12,8 +12,8 @@ limit to set for each bucket as part of bucket creation.
 `max_connections_per_bucket` This is an integer value containing the maximum
 number of (external) connections to be permitted to select a given bucket.
 
-`read_compute_unit_size` This is an integer value containing the size
-(in bytes) of a compute unit used for reading.
+`read_unit_size` This is an integer value containing the size (in
+bytes) of the unit used for reading.
 
-`write_compute_unit_size` This is an integer value containing the size
-(in bytes) of a compute unit used for writing.
+`write_unit_size` This is an integer value containing the size (in
+bytes) of the unit used for writing.

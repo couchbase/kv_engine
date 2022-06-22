@@ -245,15 +245,15 @@ public:
     /// Retrieve the approximate time spent on the server
     std::optional<std::chrono::microseconds> getTracingData() const;
 
-    /// Get the RCU count in the response (if present). We could of course
+    /// Get the RU count in the response (if present). We could of course
     /// return 0 if not set, but by using std::optional we can write more
     /// unit tests to verify if it is sent or not
-    std::optional<size_t> getReadComputeUnits() const;
+    std::optional<size_t> getReadUnits() const;
 
-    /// Get the WCU count in the response (if present). We could of course
+    /// Get the WU count in the response (if present). We could of course
     // return 0 if not set, but by using std::optional we can write more
     // unit tests to verify if it is sent or not
-    std::optional<size_t> getWriteComputeUnits() const;
+    std::optional<size_t> getWriteUnits() const;
 
     /**
      * Populate this response from a response
@@ -1188,15 +1188,14 @@ public:
     std::unordered_map<Vbid, uint64_t> getVbucketSeqnos() const;
 };
 
-class SetBucketComputeUnitThrottleLimitCommand : public BinprotGenericCommand {
+class SetBucketUnitThrottleLimitCommand : public BinprotGenericCommand {
 public:
-    SetBucketComputeUnitThrottleLimitCommand(std::string key_,
-                                             std::size_t limit = 0);
+    SetBucketUnitThrottleLimitCommand(std::string key_, std::size_t limit = 0);
 
     void encode(std::vector<uint8_t>& buf) const override;
 
 protected:
-    cb::mcbp::request::SetBucketComputeUnitThrottleLimitPayload extras;
+    cb::mcbp::request::SetBucketUnitThrottleLimitPayload extras;
 };
 
 class SetBucketDataLimitExceededCommand : public BinprotGenericCommand {

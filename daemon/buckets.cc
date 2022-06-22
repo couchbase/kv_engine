@@ -39,8 +39,8 @@ void Bucket::reset() {
     clusterConfiguration.reset();
     max_document_size = default_max_item_size;
     supportedFeatures = {};
-    read_compute_units_used = 0;
-    write_compute_units_used = 0;
+    read_units_used = 0;
+    write_units_used = 0;
     throttle_gauge.reset();
     if (isServerlessDeployment()) {
         throttle_limit.store(
@@ -83,8 +83,8 @@ nlohmann::json Bucket::to_json() const {
                 json["clients"] = clients.load();
                 json["name"] = name;
                 json["type"] = to_string(type);
-                json["rcu"] = read_compute_units_used.load();
-                json["wcu"] = write_compute_units_used.load();
+                json["ru"] = read_units_used.load();
+                json["wu"] = write_units_used.load();
                 json["num_throttled"] = num_throttled.load();
                 json["throttle_limit"] = throttle_limit.load();
                 json["throttle_wait_time"] = throttle_wait_time.load();
@@ -108,8 +108,8 @@ nlohmann::json Bucket::to_json() const {
 void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
     using namespace cb::stats;
     // metering
-    collector.addStat(Key::meter_ru_total, read_compute_units_used);
-    collector.addStat(Key::meter_wu_total, write_compute_units_used);
+    collector.addStat(Key::meter_ru_total, read_units_used);
+    collector.addStat(Key::meter_wu_total, write_units_used);
     // kv does not currently account for actual compute (i.e., CPU) units
     // but other components do. Expose it for consistency and ease of use
     collector.addStat(Key::meter_cu_total, 0);
@@ -173,20 +173,20 @@ void Bucket::recordMeteringReadBytes(std::size_t nread) {
         return;
     }
     auto& inst = cb::serverless::Config::instance();
-    const auto rcu = inst.to_rcu(nread);
-    throttle_gauge.increment(rcu);
-    read_compute_units_used += rcu;
+    const auto ru = inst.to_ru(nread);
+    throttle_gauge.increment(ru);
+    read_units_used += ru;
 }
 
 void Bucket::commandExecuted(const Cookie& cookie) {
     auto& inst = cb::serverless::Config::instance();
     const auto [read, write] = cookie.getDocumentRWBytes();
-    const auto rcu = inst.to_rcu(read);
-    const auto wcu = inst.to_wcu(write);
-    throttle_gauge.increment(rcu + wcu);
+    const auto ru = inst.to_ru(read);
+    const auto wu = inst.to_wu(write);
+    throttle_gauge.increment(ru + wu);
     throttle_wait_time += cookie.getTotalThrottleTime();
-    read_compute_units_used += rcu;
-    write_compute_units_used += wcu;
+    read_units_used += ru;
+    write_units_used += wu;
     ++num_commands;
 }
 

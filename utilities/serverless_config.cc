@@ -22,10 +22,8 @@ nlohmann::json Config::to_json() const {
             defaultThrottleLimit.load(std::memory_order_acquire);
     json["max_connections_per_bucket"] =
             maxConnectionsPerBucket.load(std::memory_order_acquire);
-    json["read_compute_unit_size"] =
-            readComputeUnitSize.load(std::memory_order_acquire);
-    json["write_compute_unit_size"] =
-            writeComputeUnitSize.load(std::memory_order_acquire);
+    json["read_unit_size"] = readUnitSize.load(std::memory_order_acquire);
+    json["write_unit_size"] = writeUnitSize.load(std::memory_order_acquire);
     return json;
 }
 
@@ -36,11 +34,9 @@ void Config::update_from_json(const nlohmann::json& json) {
     maxConnectionsPerBucket.store(
             json.value("max_connections_per_bucket", MaxConnectionsPerBucket),
             std::memory_order_release);
-    readComputeUnitSize.store(
-            json.value("read_compute_unit_size", ReadComputeUnitSize),
-            std::memory_order_release);
-    writeComputeUnitSize.store(
-            json.value("write_compute_unit_size", WriteComputeUnitSize),
-            std::memory_order_release);
+    readUnitSize.store(json.value("read_unit_size", ReadUnitSize),
+                       std::memory_order_release);
+    writeUnitSize.store(json.value("write_unit_size", WriteUnitSize),
+                        std::memory_order_release);
 }
 } // namespace cb::serverless

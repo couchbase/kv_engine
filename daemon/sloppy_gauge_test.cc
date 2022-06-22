@@ -11,9 +11,9 @@
 #include <folly/portability/GTest.h>
 #include <thread>
 
-#include "sloppy_compute_unit_gauge.h"
+#include "sloppy_gauge.h"
 
-class MockSloppyComputeUnitGauge : public SloppyComputeUnitGauge {
+class MockSloppyGauge : public SloppyGauge {
 public:
     std::atomic<unsigned int>& getCurrent() {
         return current;
@@ -23,8 +23,8 @@ public:
     }
 };
 
-TEST(SloppyComputeUnitGaugeTest, increment) {
-    MockSloppyComputeUnitGauge gauge;
+TEST(SloppyGaugeTest, increment) {
+    MockSloppyGauge gauge;
     auto& current = gauge.getCurrent();
     auto& slot = gauge.getSlots().at(0);
 
@@ -38,16 +38,16 @@ TEST(SloppyComputeUnitGaugeTest, increment) {
     ASSERT_EQ(1, slot);
 }
 
-TEST(SloppyComputeUnitGaugeTest, isBelow) {
-    SloppyComputeUnitGauge gauge;
+TEST(SloppyGaugeTest, isBelow) {
+    SloppyGauge gauge;
     ASSERT_TRUE(gauge.isBelow(1));
     gauge.increment(1);
     ASSERT_FALSE(gauge.isBelow(1));
     ASSERT_TRUE(gauge.isBelow(2));
 }
 
-TEST(SloppyComputeUnitGaugeTest, tick) {
-    MockSloppyComputeUnitGauge gauge;
+TEST(SloppyGaugeTest, tick) {
+    MockSloppyGauge gauge;
     auto& slots = gauge.getSlots();
 
     for (std::size_t ii = 0; ii < slots.size() * 2; ++ii) {
@@ -63,8 +63,8 @@ TEST(SloppyComputeUnitGaugeTest, tick) {
     }
 }
 
-TEST(SloppyComputeUnitGaugeTest, tickDataRollover) {
-    MockSloppyComputeUnitGauge gauge;
+TEST(SloppyGaugeTest, tickDataRollover) {
+    MockSloppyGauge gauge;
     auto& slots = gauge.getSlots();
 
     gauge.increment(1000);
@@ -74,19 +74,19 @@ TEST(SloppyComputeUnitGaugeTest, tickDataRollover) {
     }
 }
 
-TEST(SloppyComputeUnitGaugeTest, tickNoDataRollover) {
+TEST(SloppyGaugeTest, tickNoDataRollover) {
     // Test that if we don't have any limits (when we're not running in
     // serverless configuration) that we don't roll over _everything_
     // into the next slot, but let each slot count whatever is used
     // within that second.
-    MockSloppyComputeUnitGauge gauge;
+    MockSloppyGauge gauge;
     gauge.increment(1000);
     gauge.tick(0);
     EXPECT_EQ(0, gauge.getSlots().at(gauge.getCurrent()));
 }
 
-TEST(SloppyComputeUnitGaugeTest, iterate) {
-    SloppyComputeUnitGauge gauge;
+TEST(SloppyGaugeTest, iterate) {
+    SloppyGauge gauge;
 
     // Populate the gauge with data (and make sure that we don't
     // start at the beginning of the slots so that we can verify that
@@ -104,8 +104,8 @@ TEST(SloppyComputeUnitGaugeTest, iterate) {
     });
 }
 
-TEST(SloppyComputeUnitGaugeTest, Multithread) {
-    MockSloppyComputeUnitGauge gauge;
+TEST(SloppyGaugeTest, Multithread) {
+    MockSloppyGauge gauge;
     std::atomic_bool stop{false};
 
     std::thread other{[&gauge, &stop]() {

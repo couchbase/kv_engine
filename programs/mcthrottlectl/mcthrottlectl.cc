@@ -37,7 +37,7 @@ Options:
                            private key.
   --ipv4                   Connect over IPv4
   --ipv6                   Connect over IPv6
-  --throttle-limit         The number of compute units per sec
+  --throttle-limit         The number of units per sec
   --help                   This help text
 
 )";
@@ -180,7 +180,7 @@ int main(int argc, char** argv) {
         connection.setFeatures({cb::mcbp::Feature::XERROR});
 
         auto rsp = connection.execute(
-                SetBucketComputeUnitThrottleLimitCommand(argv[optind], limit));
+                SetBucketUnitThrottleLimitCommand(argv[optind], limit));
         if (rsp.isSuccess()) {
             std::cout << TerminalColor::Green << rsp.getDataString()
                       << TerminalColor::Reset << std::endl;

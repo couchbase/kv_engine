@@ -994,8 +994,6 @@ public:
         bool prometheus_config = false;
         bool phosphor_config = false;
         bool whitelist_localhost_interface = false;
-        bool read_compute_unit_size = false;
-        bool write_compute_unit_size = false;
     } has;
 };
 

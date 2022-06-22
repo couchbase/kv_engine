@@ -1741,8 +1741,8 @@ void Connection::setDcpFlowControlBufferSize(std::size_t size) {
 
 static constexpr size_t MaxFrameInfoSize =
         cb::mcbp::response::ServerRecvSendDurationFrameInfoSize +
-        cb::mcbp::response::ReadComputeUnitsFrameInfoSize +
-        cb::mcbp::response::WriteComputeUnitsFrameInfoSize;
+        cb::mcbp::response::ReadUnitsFrameInfoSize +
+        cb::mcbp::response::WriteUnitsFrameInfoSize;
 
 std::string_view Connection::formatResponseHeaders(Cookie& cookie,
                                                    cb::char_buffer dest,
@@ -1773,18 +1773,18 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
     auto& connection = cookie.getConnection();
     const auto tracing =
             connection.isTracingEnabled() && cookie.isTracingEnabled();
-    auto cutracing = connection.isReportComputeUnitUsage();
-    size_t rcu = 0;
-    size_t wcu = 0;
+    auto cutracing = connection.isReportUnitUsage();
+    size_t ru = 0;
+    size_t wu = 0;
     if (cutracing) {
         auto [read, write] = cookie.getDocumentRWBytes();
         if (!read && !write) {
             cutracing = false;
         } else {
             auto& inst = cb::serverless::Config::instance();
-            rcu = inst.to_rcu(read);
-            wcu = inst.to_wcu(write);
-            if (!rcu && !wcu) {
+            ru = inst.to_ru(read);
+            wu = inst.to_wu(write);
+            if (!ru && !wu) {
                 cutracing = false;
             }
         }
@@ -1805,11 +1805,11 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
         if (tracing) {
             framing_extras_size += ServerRecvSendDurationFrameInfoSize;
         }
-        if (rcu) {
-            framing_extras_size += ReadComputeUnitsFrameInfoSize;
+        if (ru) {
+            framing_extras_size += ReadUnitsFrameInfoSize;
         }
-        if (wcu) {
-            framing_extras_size += WriteComputeUnitsFrameInfoSize;
+        if (wu) {
+            framing_extras_size += WriteUnitsFrameInfoSize;
         }
         response.setFramingExtraslen(framing_extras_size);
         response.setBodylen(value_len + extras_len + key_len +
@@ -1830,14 +1830,14 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
                            tracer.getEncodedMicros());
         }
 
-        if (rcu) {
-            add_frame_info(ReadComputeUnitsFrameInfoMagic,
-                           gsl::narrow_cast<uint16_t>(rcu));
+        if (ru) {
+            add_frame_info(ReadUnitsFrameInfoMagic,
+                           gsl::narrow_cast<uint16_t>(ru));
         }
 
-        if (wcu) {
-            add_frame_info(WriteComputeUnitsFrameInfoMagic,
-                           gsl::narrow_cast<uint16_t>(wcu));
+        if (wu) {
+            add_frame_info(WriteUnitsFrameInfoMagic,
+                           gsl::narrow_cast<uint16_t>(wu));
         }
 
         wbuf = {wbuf.data(), sizeof(cb::mcbp::Response) + framing_extras_size};

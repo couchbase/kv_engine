@@ -8,23 +8,23 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "sloppy_compute_unit_gauge.h"
+#include "sloppy_gauge.h"
 
-SloppyComputeUnitGauge::SloppyComputeUnitGauge() {
+SloppyGauge::SloppyGauge() {
     for (auto& e : slots) {
         e.store(0);
     }
 }
 
-void SloppyComputeUnitGauge::increment(std::size_t used) {
+void SloppyGauge::increment(std::size_t used) {
     slots.at(current.load()) += used;
 }
 
-bool SloppyComputeUnitGauge::isBelow(std::size_t value) const {
+bool SloppyGauge::isBelow(std::size_t value) const {
     return slots.at(current.load()) < value;
 }
 
-void SloppyComputeUnitGauge::tick(size_t max) {
+void SloppyGauge::tick(size_t max) {
     size_t next = current + 1;
     if (next == slots.size()) {
         next = 0;
@@ -37,8 +37,7 @@ void SloppyComputeUnitGauge::tick(size_t max) {
     }
 }
 
-void SloppyComputeUnitGauge::iterate(
-        std::function<void(std::size_t)> function) const {
+void SloppyGauge::iterate(std::function<void(std::size_t)> function) const {
     size_t entry = current + 1;
 
     for (std::size_t ii = 0; ii < slots.size(); ++ii) {
@@ -50,7 +49,7 @@ void SloppyComputeUnitGauge::iterate(
     }
 }
 
-void SloppyComputeUnitGauge::reset() {
+void SloppyGauge::reset() {
     for (auto& slot : slots) {
         slot = 0;
     }

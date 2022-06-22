@@ -17,8 +17,8 @@
 namespace cb::serverless {
 constexpr size_t DefaultThrottleLimit = 1666;
 constexpr size_t MaxConnectionsPerBucket = 600;
-constexpr size_t ReadComputeUnitSize = 4096;
-constexpr size_t WriteComputeUnitSize = 1024;
+constexpr size_t ReadUnitSize = 4096;
+constexpr size_t WriteUnitSize = 1024;
 
 struct Config {
     static Config& instance();
@@ -29,11 +29,11 @@ struct Config {
     /// The maximum number of (external) connections for a bucket
     std::atomic<size_t> maxConnectionsPerBucket = MaxConnectionsPerBucket;
 
-    /// Size in bytes for the Read Compute Unit
-    std::atomic<size_t> readComputeUnitSize{ReadComputeUnitSize};
+    /// Size in bytes for the Read Unit
+    std::atomic<size_t> readUnitSize{ReadUnitSize};
 
-    /// Size in bytes for the Write Compute Unit
-    std::atomic<size_t> writeComputeUnitSize{WriteComputeUnitSize};
+    /// Size in bytes for the Write Unit
+    std::atomic<size_t> writeUnitSize{WriteUnitSize};
 
     /// Generate a JSON representation of the object
     nlohmann::json to_json() const;
@@ -42,16 +42,14 @@ struct Config {
     /// keys)
     void update_from_json(const nlohmann::json& json);
 
-    /// Calculate the number of Read Compute Units from a byte value
-    size_t to_rcu(size_t nbytes) {
-        return calc_cu(nbytes,
-                       readComputeUnitSize.load(std::memory_order_acquire));
+    /// Calculate the number of Read Units from a byte value
+    size_t to_ru(size_t nbytes) {
+        return calc_cu(nbytes, readUnitSize.load(std::memory_order_acquire));
     }
 
-    /// Calculate the number of Write Compute Units from a byte value
-    size_t to_wcu(size_t nbytes) {
-        return calc_cu(nbytes,
-                       writeComputeUnitSize.load(std::memory_order_acquire));
+    /// Calculate the number of Write Units from a byte value
+    size_t to_wu(size_t nbytes) {
+        return calc_cu(nbytes, writeUnitSize.load(std::memory_order_acquire));
     }
 
     /// Calculate the number of compute units with the provided size a value

@@ -15,7 +15,7 @@
 #include <functional>
 
 /**
- * The SloppyComputeUnitGauge is just a hack used in the prototype for
+ * The SloppyGauge is just a hack used in the prototype for
  * implementing throttling.
  *
  * To avoid having to read the time "every time" we want to get the
@@ -27,11 +27,11 @@
  * look back almost a minute (which would be nice in the prototoype to
  * see if it is working as expected ;) )
  */
-class SloppyComputeUnitGauge {
+class SloppyGauge {
 public:
-    SloppyComputeUnitGauge();
+    SloppyGauge();
 
-    /// Bump the number of compute units used for the current slot
+    /// Bump the number of units used for the current slot
     void increment(std::size_t used);
 
     /// Check to see if the current cu_count for the current slot

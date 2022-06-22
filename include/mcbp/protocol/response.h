@@ -27,8 +27,8 @@ namespace response {
 /// frame identifiers and their encoding
 enum class FrameInfoId : uint8_t {
     ServerRecvSendDuration = 0,
-    ReadComputeUnits = 1,
-    WriteComputeUnits = 2
+    ReadUnits = 1,
+    WriteUnits = 2
 };
 
 /// ServerRecvSendDuration use 1 byte header and 2 byte value
@@ -36,13 +36,13 @@ static constexpr size_t ServerRecvSendDurationFrameInfoSize = 3;
 /// The magic (id and size) for a ServerRecvSendDuration
 static constexpr uint8_t ServerRecvSendDurationFrameInfoMagic = 0x02;
 
-/// ReadComputeUnits use 1 byte header and 2 byte value
-static constexpr size_t ReadComputeUnitsFrameInfoSize = 3;
-static constexpr uint8_t ReadComputeUnitsFrameInfoMagic = 0x12;
+/// ReadUnits use 1 byte header and 2 byte value
+static constexpr size_t ReadUnitsFrameInfoSize = 3;
+static constexpr uint8_t ReadUnitsFrameInfoMagic = 0x12;
 
-/// WriteComputeUnits use 1 byte header and 2 byte value
-static constexpr size_t WriteComputeUnitsFrameInfoSize = 3;
-static constexpr uint8_t WriteComputeUnitsFrameInfoMagic = 0x22;
+/// WriteUnits use 1 byte header and 2 byte value
+static constexpr size_t WriteUnitsFrameInfoSize = 3;
+static constexpr uint8_t WriteUnitsFrameInfoMagic = 0x22;
 } // namespace response
 
 /**

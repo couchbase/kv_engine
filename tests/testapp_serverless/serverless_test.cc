@@ -234,15 +234,15 @@ TEST_F(ServerlessTest, OpsAreThrottled) {
     }
 }
 
-TEST_F(ServerlessTest, ComputeUnitsReported) {
+TEST_F(ServerlessTest, UnitsReported) {
     auto conn = cluster->getConnection(0);
     conn->authenticate("bucket-0", "bucket-0");
     conn->selectBucket("bucket-0");
-    conn->setFeature(cb::mcbp::Feature::ReportComputeUnitUsage, true);
+    conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
     conn->setReadTimeout(std::chrono::seconds{3});
 
     DocumentInfo info;
-    info.id = "ComputeUnitsReported";
+    info.id = "UnitsReported";
 
     BinprotMutationCommand command;
     command.setDocumentInfo(info);
@@ -251,23 +251,23 @@ TEST_F(ServerlessTest, ComputeUnitsReported) {
     auto rsp = conn->execute(command);
     ASSERT_TRUE(rsp.isSuccess());
 
-    auto rcu = rsp.getReadComputeUnits();
-    auto wcu = rsp.getWriteComputeUnits();
+    auto ru = rsp.getReadUnits();
+    auto wu = rsp.getWriteUnits();
 
-    ASSERT_FALSE(rcu.has_value()) << "mutate should not use RCU";
-    ASSERT_TRUE(wcu.has_value()) << "mutate should use WCU";
-    ASSERT_EQ(1, *wcu) << "The value should be 1 WCU";
-    wcu.reset();
+    ASSERT_FALSE(ru.has_value()) << "mutate should not use RU";
+    ASSERT_TRUE(wu.has_value()) << "mutate should use WU";
+    ASSERT_EQ(1, *wu) << "The value should be 1 WU";
+    wu.reset();
 
     rsp = conn->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, info.id});
 
-    rcu = rsp.getReadComputeUnits();
-    wcu = rsp.getWriteComputeUnits();
+    ru = rsp.getReadUnits();
+    wu = rsp.getWriteUnits();
 
-    ASSERT_TRUE(rcu.has_value()) << "get should use RCU";
-    ASSERT_FALSE(wcu.has_value()) << "get should not use WCU";
-    ASSERT_EQ(1, *rcu) << "The value should be 1 RCU";
+    ASSERT_TRUE(ru.has_value()) << "get should use RU";
+    ASSERT_FALSE(wu.has_value()) << "get should not use WU";
+    ASSERT_EQ(1, *ru) << "The value should be 1 RU";
 }
 
 TEST_F(ServerlessTest, AllConnectionsAreMetered) {
@@ -290,11 +290,11 @@ TEST_F(ServerlessTest, AllConnectionsAreMetered) {
         auto initial = stat();
         conn.get("mydoc", Vbid{0});
         auto after = stat();
-        EXPECT_EQ(initial["rcu"].get<std::size_t>() + 1,
-                  after["rcu"].get<std::size_t>());
-        // Read should not update wcu
-        EXPECT_EQ(initial["wcu"].get<std::size_t>(),
-                  after["wcu"].get<std::size_t>());
+        EXPECT_EQ(initial["ru"].get<std::size_t>() + 1,
+                  after["ru"].get<std::size_t>());
+        // Read should not update wu
+        EXPECT_EQ(initial["wu"].get<std::size_t>(),
+                  after["wu"].get<std::size_t>());
     };
 
     auto writeDoc = [stat = getStats](MemcachedConnection& conn) {
@@ -304,12 +304,12 @@ TEST_F(ServerlessTest, AllConnectionsAreMetered) {
         doc.value = "This is the value";
         conn.mutate(doc, Vbid{0}, MutationType::Set);
         auto after = stat();
-        EXPECT_EQ(initial["wcu"].get<std::size_t>() + 1,
-                  after["wcu"].get<std::size_t>());
+        EXPECT_EQ(initial["wu"].get<std::size_t>() + 1,
+                  after["wu"].get<std::size_t>());
 
-        // write should not update rcu
-        EXPECT_EQ(initial["rcu"].get<std::size_t>(),
-                  after["rcu"].get<std::size_t>());
+        // write should not update ru
+        EXPECT_EQ(initial["ru"].get<std::size_t>(),
+                  after["ru"].get<std::size_t>());
     };
 
     writeDoc(*admin);
@@ -420,8 +420,8 @@ public:
         return num_mutations;
     }
 
-    size_t getRcu() const {
-        return rcu;
+    size_t getRu() const {
+        return ru;
     }
 
 protected:
@@ -447,7 +447,7 @@ protected:
         }
     }
 
-    std::size_t calcRcu(std::size_t size) {
+    std::size_t calcRu(std::size_t size) {
         return (size + 1023) / 1024;
     }
 
@@ -465,15 +465,15 @@ protected:
             break;
         case cb::mcbp::ClientOpcode::DcpMutation:
             ++num_mutations;
-            rcu += calcRcu(req.getValue().size() + req.getKey().size());
+            ru += calcRu(req.getValue().size() + req.getKey().size());
             break;
         case cb::mcbp::ClientOpcode::DcpDeletion:
             ++num_deletions;
-            rcu += calcRcu(req.getValue().size() + req.getKey().size());
+            ru += calcRu(req.getValue().size() + req.getKey().size());
             break;
         case cb::mcbp::ClientOpcode::DcpExpiration:
             ++num_expirations;
-            rcu += calcRcu(req.getValue().size() + req.getKey().size());
+            ru += calcRu(req.getValue().size() + req.getKey().size());
             break;
 
         case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
@@ -520,7 +520,7 @@ protected:
                                               Feature::JSON,
                                               Feature::Tracing,
                                               Feature::Collections,
-                                              Feature::ReportComputeUnitUsage}};
+                                              Feature::ReportUnitUsage}};
 
         auto enabled = connection->hello("serverless", "MeterDCP", requested);
         if (enabled != requested) {
@@ -608,7 +608,7 @@ protected:
     std::size_t num_mutations = 0;
     std::size_t num_deletions = 0;
     std::size_t num_expirations = 0;
-    std::size_t rcu = 0;
+    std::size_t ru = 0;
 };
 
 /// Test that we meter all operations according to their spec (well, there
@@ -625,8 +625,8 @@ TEST_F(ServerlessTest, OpsMetered) {
     admin->authenticate("@admin", "password");
 
     auto executeWithExpectedCU = [&admin](std::function<void()> func,
-                                          size_t rcu,
-                                          size_t wcu) {
+                                          size_t ru,
+                                          size_t wu) {
         nlohmann::json before;
         admin->stats([&before](auto k,
                                auto v) { before = nlohmann::json::parse(v); },
@@ -636,10 +636,8 @@ TEST_F(ServerlessTest, OpsMetered) {
         admin->stats(
                 [&after](auto k, auto v) { after = nlohmann::json::parse(v); },
                 "bucket_details bucket-0");
-        EXPECT_EQ(rcu,
-                  after["rcu"].get<size_t>() - before["rcu"].get<size_t>());
-        EXPECT_EQ(wcu,
-                  after["wcu"].get<size_t>() - before["wcu"].get<size_t>());
+        EXPECT_EQ(ru, after["ru"].get<size_t>() - before["ru"].get<size_t>());
+        EXPECT_EQ(wu, after["wu"].get<size_t>() - before["wu"].get<size_t>());
     };
 
     auto testOpcode = [&executeWithExpectedCU](MemcachedConnection& conn,
@@ -740,7 +738,7 @@ TEST_F(ServerlessTest, OpsMetered) {
             conn.reconnect();
             conn.authenticate("@admin", "password");
             conn.selectBucket("bucket-0");
-            conn.setFeature(cb::mcbp::Feature::ReportComputeUnitUsage, true);
+            conn.setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
             conn.setReadTimeout(std::chrono::seconds{3});
             break;
 
@@ -752,8 +750,8 @@ TEST_F(ServerlessTest, OpsMetered) {
         case ClientOpcode::CollectionsGetManifest:
             rsp = conn.execute(BinprotGenericCommand{opcode});
             EXPECT_TRUE(rsp.isSuccess()) << opcode;
-            EXPECT_FALSE(rsp.getReadComputeUnits()) << opcode;
-            EXPECT_FALSE(rsp.getWriteComputeUnits()) << opcode;
+            EXPECT_FALSE(rsp.getReadUnits()) << opcode;
+            EXPECT_FALSE(rsp.getWriteUnits()) << opcode;
             break;
 
         case ClientOpcode::Get:
@@ -761,16 +759,16 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(
                     BinprotGenericCommand{opcode, "ClientOpcode::Get"});
             EXPECT_EQ(Status::KeyEnoent, rsp.getStatus());
-            EXPECT_FALSE(rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            EXPECT_FALSE(rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
 
             createDocument("ClientOpcode::Get", "Hello World");
             rsp = conn.execute(
                     BinprotGenericCommand{opcode, "ClientOpcode::Get"});
             EXPECT_TRUE(rsp.isSuccess());
-            ASSERT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             break;
         case ClientOpcode::Set:
             // Writing a document should cost
@@ -837,10 +835,10 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(
                     BinprotGenericCommand{opcode, "ClientOpcode::Delete"});
             EXPECT_TRUE(rsp.isSuccess());
-            ASSERT_TRUE(rsp.getWriteComputeUnits());
-            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
-            EXPECT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
+            ASSERT_TRUE(rsp.getWriteUnits());
+            EXPECT_EQ(1, *rsp.getWriteUnits());
+            EXPECT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
             break;
         case ClientOpcode::Increment:
             createDocument("ClientOpcode::Increment", "foo");
@@ -887,8 +885,8 @@ TEST_F(ServerlessTest, OpsMetered) {
                                                       "ClientOpcode::Append",
                                                       "world"});
                         EXPECT_FALSE(r.isSuccess());
-                        EXPECT_FALSE(r.getReadComputeUnits());
-                        EXPECT_FALSE(r.getWriteComputeUnits());
+                        EXPECT_FALSE(r.getReadUnits());
+                        EXPECT_FALSE(r.getWriteUnits());
                     },
                     0,
                     0);
@@ -896,10 +894,10 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(BinprotGenericCommand{
                     ClientOpcode::Append, "ClientOpcode::Append", "world"});
             EXPECT_TRUE(rsp.isSuccess());
-            EXPECT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            ASSERT_TRUE(rsp.getWriteComputeUnits());
-            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            EXPECT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            ASSERT_TRUE(rsp.getWriteUnits());
+            EXPECT_EQ(1, *rsp.getWriteUnits());
             break;
         case ClientOpcode::Prepend:
             // Append on non-existing document should fail and be free
@@ -910,8 +908,8 @@ TEST_F(ServerlessTest, OpsMetered) {
                                                       "ClientOpcode::Prepend",
                                                       "hello"});
                         EXPECT_FALSE(r.isSuccess());
-                        EXPECT_FALSE(r.getReadComputeUnits());
-                        EXPECT_FALSE(r.getWriteComputeUnits());
+                        EXPECT_FALSE(r.getReadUnits());
+                        EXPECT_FALSE(r.getWriteUnits());
                     },
                     0,
                     0);
@@ -919,10 +917,10 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(BinprotGenericCommand{
                     ClientOpcode::Append, "ClientOpcode::Prepend", "hello"});
             EXPECT_TRUE(rsp.isSuccess());
-            EXPECT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            ASSERT_TRUE(rsp.getWriteComputeUnits());
-            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            EXPECT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            ASSERT_TRUE(rsp.getWriteUnits());
+            EXPECT_EQ(1, *rsp.getWriteUnits());
             break;
         case ClientOpcode::Stat:
             executeWithExpectedCU([&conn]() { conn.stats(""); }, 0, 0);
@@ -930,38 +928,38 @@ TEST_F(ServerlessTest, OpsMetered) {
         case ClientOpcode::Verbosity:
             rsp = conn.execute(BinprotVerbosityCommand{0});
             EXPECT_TRUE(rsp.isSuccess());
-            EXPECT_FALSE(rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            EXPECT_FALSE(rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             break;
         case ClientOpcode::Touch:
             // Touch of non-existing document should fail and is free
             rsp = conn.execute(BinprotTouchCommand{"ClientOpcode::Touch", 0});
             EXPECT_EQ(Status::KeyEnoent, rsp.getStatus());
-            EXPECT_FALSE(rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            EXPECT_FALSE(rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             createDocument("ClientOpcode::Touch", "Hello World");
             rsp = conn.execute(BinprotTouchCommand{"ClientOpcode::Touch", 0});
             EXPECT_TRUE(rsp.isSuccess());
-            EXPECT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            ASSERT_TRUE(rsp.getWriteComputeUnits());
-            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            EXPECT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            ASSERT_TRUE(rsp.getWriteUnits());
+            EXPECT_EQ(1, *rsp.getWriteUnits());
             break;
         case ClientOpcode::Gat:
             // Touch of non-existing document should fail and is free
             rsp = conn.execute(
                     BinprotGetAndTouchCommand{"ClientOpcode::Gat", Vbid{0}, 0});
             EXPECT_EQ(Status::KeyEnoent, rsp.getStatus());
-            EXPECT_FALSE(rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            EXPECT_FALSE(rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             createDocument("ClientOpcode::Gat", "Hello World");
             rsp = conn.execute(
                     BinprotGetAndTouchCommand{"ClientOpcode::Gat", Vbid{0}, 0});
             EXPECT_TRUE(rsp.isSuccess());
-            ASSERT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            ASSERT_TRUE(rsp.getWriteComputeUnits());
-            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            ASSERT_TRUE(rsp.getWriteUnits());
+            EXPECT_EQ(1, *rsp.getWriteUnits());
             break;
         case ClientOpcode::Hello:
             executeWithExpectedCU(
@@ -979,8 +977,7 @@ TEST_F(ServerlessTest, OpsMetered) {
                         Vbid(0), vbucket_state_replica, 1);
                 rcon->authenticate("@admin", "password");
                 rcon->selectBucket("bucket-0");
-                rcon->setFeature(cb::mcbp::Feature::ReportComputeUnitUsage,
-                                 true);
+                rcon->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
                 rcon->setReadTimeout(std::chrono::seconds{3});
                 createDocument("ClientOpcode::GetReplica", "value");
                 std::this_thread::sleep_for(std::chrono::milliseconds{100});
@@ -991,23 +988,23 @@ TEST_F(ServerlessTest, OpsMetered) {
                 } while (rsp.getStatus() == Status::KeyEnoent);
                 EXPECT_TRUE(rsp.isSuccess());
             } while (false);
-            ASSERT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             break;
         case ClientOpcode::GetLocked:
             rsp = conn.execute(
                     BinprotGetAndLockCommand{"ClientOpcode::GetLocked"});
             EXPECT_EQ(Status::KeyEnoent, rsp.getStatus());
-            EXPECT_FALSE(rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            EXPECT_FALSE(rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             createDocument("ClientOpcode::GetLocked", "value");
             rsp = conn.execute(
                     BinprotGetAndLockCommand{"ClientOpcode::GetLocked"});
             EXPECT_TRUE(rsp.isSuccess());
-            ASSERT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             break;
         case ClientOpcode::UnlockKey:
             do {
@@ -1035,8 +1032,8 @@ TEST_F(ServerlessTest, OpsMetered) {
                         "vbucket-details 0");
                 rsp = conn.execute(BinprotObserveSeqnoCommand{Vbid{0}, uuid});
                 EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-                EXPECT_FALSE(rsp.getReadComputeUnits());
-                EXPECT_FALSE(rsp.getWriteComputeUnits());
+                EXPECT_FALSE(rsp.getReadUnits());
+                EXPECT_FALSE(rsp.getWriteUnits());
             } while (false);
             break;
         case ClientOpcode::Observe:
@@ -1047,30 +1044,30 @@ TEST_F(ServerlessTest, OpsMetered) {
                         Vbid{0}, "ClientOpcode::Observe"));
                 rsp = conn.execute(BinprotObserveCommand{std::move(keys)});
                 EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-                EXPECT_FALSE(rsp.getReadComputeUnits());
-                EXPECT_FALSE(rsp.getWriteComputeUnits());
+                EXPECT_FALSE(rsp.getReadUnits());
+                EXPECT_FALSE(rsp.getWriteUnits());
             } while (false);
             break;
         case ClientOpcode::GetMeta:
             rsp = conn.execute(
                     BinprotGenericCommand{opcode, "ClientOpcode::GetMeta"});
             EXPECT_EQ(Status::KeyEnoent, rsp.getStatus()) << rsp.getStatus();
-            EXPECT_FALSE(rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            EXPECT_FALSE(rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             createDocument("ClientOpcode::GetMeta", "myvalue");
             rsp = conn.execute(
                     BinprotGenericCommand{opcode, "ClientOpcode::GetMeta"});
             EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             break;
         case ClientOpcode::GetRandomKey:
             rsp = conn.execute(BinprotGenericCommand{opcode});
             EXPECT_TRUE(rsp.isSuccess());
-            ASSERT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_NE(0, *rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_NE(0, *rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             break;
         case ClientOpcode::SeqnoPersistence:
             break;
@@ -1087,9 +1084,9 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(BinprotSubdocCommand{
                     opcode, "ClientOpcode::SubdocGet", "hello"});
             EXPECT_TRUE(rsp.isSuccess());
-            ASSERT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             break;
         case ClientOpcode::SubdocExists:
             createDocument("ClientOpcode::SubdocExists",
@@ -1097,9 +1094,9 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(BinprotSubdocCommand{
                     opcode, "ClientOpcode::SubdocExists", "hello"});
             EXPECT_TRUE(rsp.isSuccess());
-            ASSERT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             break;
         case ClientOpcode::SubdocDictAdd:
         case ClientOpcode::SubdocDictUpsert:
@@ -1108,10 +1105,10 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(BinprotSubdocCommand{
                     opcode, "ClientOpcode::SubdocDictAdd", "add", "true"});
             EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            ASSERT_TRUE(rsp.getWriteComputeUnits());
-            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            ASSERT_TRUE(rsp.getWriteUnits());
+            EXPECT_EQ(1, *rsp.getWriteUnits());
             break;
         case ClientOpcode::SubdocDelete:
             createDocument("ClientOpcode::SubdocDelete",
@@ -1119,10 +1116,10 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(BinprotSubdocCommand{
                     opcode, "ClientOpcode::SubdocDelete", "hello"});
             EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            ASSERT_TRUE(rsp.getWriteComputeUnits());
-            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            ASSERT_TRUE(rsp.getWriteUnits());
+            EXPECT_EQ(1, *rsp.getWriteUnits());
             break;
         case ClientOpcode::SubdocReplace:
             createDocument("ClientOpcode::SubdocReplace",
@@ -1133,10 +1130,10 @@ TEST_F(ServerlessTest, OpsMetered) {
                                          "hello",
                                          R"("couchbase")"});
             EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            ASSERT_TRUE(rsp.getWriteComputeUnits());
-            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            ASSERT_TRUE(rsp.getWriteUnits());
+            EXPECT_EQ(1, *rsp.getWriteUnits());
             break;
         case ClientOpcode::SubdocArrayPushLast:
         case ClientOpcode::SubdocArrayPushFirst:
@@ -1149,10 +1146,10 @@ TEST_F(ServerlessTest, OpsMetered) {
                                          "hello",
                                          R"("couchbase")"});
             EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            ASSERT_TRUE(rsp.getWriteComputeUnits());
-            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            ASSERT_TRUE(rsp.getWriteUnits());
+            EXPECT_EQ(1, *rsp.getWriteUnits());
             break;
         case ClientOpcode::SubdocArrayInsert:
             createDocument("ClientOpcode::SubdocArrayPush",
@@ -1163,10 +1160,10 @@ TEST_F(ServerlessTest, OpsMetered) {
                                          "hello.[0]",
                                          R"("couchbase")"});
             EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            ASSERT_TRUE(rsp.getWriteComputeUnits());
-            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            ASSERT_TRUE(rsp.getWriteUnits());
+            EXPECT_EQ(1, *rsp.getWriteUnits());
             break;
         case ClientOpcode::SubdocCounter:
             createDocument("ClientOpcode::SubdocCounter",
@@ -1174,10 +1171,10 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(BinprotSubdocCommand{
                     opcode, "ClientOpcode::SubdocCounter", "counter", "1"});
             EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            ASSERT_TRUE(rsp.getWriteComputeUnits());
-            EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            ASSERT_TRUE(rsp.getWriteUnits());
+            EXPECT_EQ(1, *rsp.getWriteUnits());
             break;
         case ClientOpcode::SubdocGetCount:
             createDocument("ClientOpcode::SubdocGetCount",
@@ -1185,9 +1182,9 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(BinprotSubdocCommand{
                     opcode, "ClientOpcode::SubdocGetCount", "array"});
             EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadComputeUnits());
-            EXPECT_EQ(1, *rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             break;
         case ClientOpcode::SubdocMultiLookup:
             do {
@@ -1213,9 +1210,9 @@ TEST_F(ServerlessTest, OpsMetered) {
                         },
                         ::mcbp::subdoc::doc_flag::None});
                 EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-                ASSERT_TRUE(rsp.getReadComputeUnits());
-                EXPECT_EQ(1, *rsp.getReadComputeUnits());
-                EXPECT_FALSE(rsp.getWriteComputeUnits());
+                ASSERT_TRUE(rsp.getReadUnits());
+                EXPECT_EQ(1, *rsp.getReadUnits());
+                EXPECT_FALSE(rsp.getWriteUnits());
             } while (false);
             break;
         case ClientOpcode::SubdocMultiMutation:
@@ -1238,9 +1235,9 @@ TEST_F(ServerlessTest, OpsMetered) {
                         },
                         ::mcbp::subdoc::doc_flag::Mkdoc});
                 EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-                EXPECT_FALSE(rsp.getReadComputeUnits());
-                ASSERT_TRUE(rsp.getWriteComputeUnits());
-                EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+                EXPECT_FALSE(rsp.getReadUnits());
+                ASSERT_TRUE(rsp.getWriteUnits());
+                EXPECT_EQ(1, *rsp.getWriteUnits());
             } while (false);
             break;
         case ClientOpcode::SubdocReplaceBodyWithXattr:
@@ -1257,9 +1254,9 @@ TEST_F(ServerlessTest, OpsMetered) {
                           R"({"version": "mad-hatter", "next_version": "cheshire-cat"})"}},
                         ::mcbp::subdoc::doc_flag::Mkdoc});
                 EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-                EXPECT_FALSE(rsp.getReadComputeUnits());
-                ASSERT_TRUE(rsp.getWriteComputeUnits());
-                EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+                EXPECT_FALSE(rsp.getReadUnits());
+                ASSERT_TRUE(rsp.getWriteUnits());
+                EXPECT_EQ(1, *rsp.getWriteUnits());
 
                 rsp = conn.execute(BinprotSubdocMultiMutationCommand{
                         "ClientOpcode::SubdocReplaceBodyWithXattr",
@@ -1273,10 +1270,10 @@ TEST_F(ServerlessTest, OpsMetered) {
                           {}}},
                         ::mcbp::subdoc::doc_flag::None});
                 EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-                ASSERT_TRUE(rsp.getReadComputeUnits());
-                EXPECT_EQ(1, *rsp.getReadComputeUnits());
-                ASSERT_TRUE(rsp.getWriteComputeUnits());
-                EXPECT_EQ(1, *rsp.getWriteComputeUnits());
+                ASSERT_TRUE(rsp.getReadUnits());
+                EXPECT_EQ(1, *rsp.getReadUnits());
+                ASSERT_TRUE(rsp.getWriteUnits());
+                EXPECT_EQ(1, *rsp.getWriteUnits());
             } while (false);
             break;
 
@@ -1284,15 +1281,15 @@ TEST_F(ServerlessTest, OpsMetered) {
             rsp = conn.execute(
                     BinprotGetCmdTimerCommand{"bucket-0", ClientOpcode::Noop});
             EXPECT_TRUE(rsp.isSuccess());
-            EXPECT_FALSE(rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            EXPECT_FALSE(rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             break;
 
         case ClientOpcode::GetErrorMap:
             rsp = conn.execute(BinprotGetErrorMapCommand{});
             EXPECT_TRUE(rsp.isSuccess());
-            EXPECT_FALSE(rsp.getReadComputeUnits());
-            EXPECT_FALSE(rsp.getWriteComputeUnits());
+            EXPECT_FALSE(rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             break;
 
             // MetaWrite ops require meta write privilege... probably not
@@ -1343,7 +1340,7 @@ TEST_F(ServerlessTest, OpsMetered) {
         case ClientOpcode::AuditPut:
         case ClientOpcode::AuditConfigReload:
         case ClientOpcode::Shutdown:
-        case ClientOpcode::SetBucketComputeUnitThrottleLimits:
+        case ClientOpcode::SetBucketUnitThrottleLimits:
         case ClientOpcode::SetBucketDataLimitExceeded:
         case ClientOpcode::SetVbucket:
         case ClientOpcode::GetVbucket:
@@ -1380,7 +1377,7 @@ TEST_F(ServerlessTest, OpsMetered) {
     auto connection = cluster->getConnection(0);
     connection->authenticate("@admin", "password");
     connection->selectBucket("bucket-0");
-    connection->setFeature(cb::mcbp::Feature::ReportComputeUnitUsage, true);
+    connection->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
     connection->setReadTimeout(std::chrono::seconds{3});
 
     for (int ii = 0; ii < 0x100; ++ii) {
@@ -1399,7 +1396,7 @@ TEST_F(ServerlessTest, OpsMetered) {
                                   "bucket-0");
                 instance.drain();
                 EXPECT_NE(0, instance.getNumMutations());
-                EXPECT_NE(0, instance.getRcu());
+                EXPECT_NE(0, instance.getRu());
             },
             0,
             0);
@@ -1416,14 +1413,14 @@ TEST_F(ServerlessTest, OpsMetered) {
                       "bucket-0");
     instance.drain();
     EXPECT_NE(0, instance.getNumMutations());
-    EXPECT_NE(0, instance.getRcu());
+    EXPECT_NE(0, instance.getRu());
 
     nlohmann::json after;
     admin->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
                  "bucket_details bucket-0");
-    EXPECT_EQ(instance.getRcu(),
-              after["rcu"].get<size_t>() - before["rcu"].get<size_t>());
-    EXPECT_EQ(0, after["wcu"].get<size_t>() - before["wcu"].get<size_t>());
+    EXPECT_EQ(instance.getRu(),
+              after["ru"].get<size_t>() - before["ru"].get<size_t>());
+    EXPECT_EQ(0, after["wu"].get<size_t>() - before["wu"].get<size_t>());
 }
 
 } // namespace cb::test

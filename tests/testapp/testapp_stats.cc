@@ -354,8 +354,8 @@ TEST_P(StatsTest, TestBucketDetails) {
         EXPECT_NE(bucket.end(), bucket.find("clients"));
         EXPECT_NE(bucket.end(), bucket.find("name"));
         EXPECT_NE(bucket.end(), bucket.find("type"));
-        EXPECT_NE(bucket.end(), bucket.find("rcu"));
-        EXPECT_NE(bucket.end(), bucket.find("wcu"));
+        EXPECT_NE(bucket.end(), bucket.find("ru"));
+        EXPECT_NE(bucket.end(), bucket.find("wu"));
         EXPECT_NE(bucket.end(), bucket.find("num_throttled"));
         EXPECT_NE(bucket.end(), bucket.find("throttle_limit"));
         EXPECT_NE(bucket.end(), bucket.find("throttle_wait_time"));

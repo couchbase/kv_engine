@@ -382,35 +382,35 @@ std::optional<std::chrono::microseconds> BinprotResponse::getTracingData()
     return ret;
 }
 
-std::optional<size_t> BinprotResponse::getReadComputeUnits() const {
+std::optional<size_t> BinprotResponse::getReadUnits() const {
     std::optional<size_t> ret;
     try {
         getResponse().parseFrameExtras([&ret](auto id, auto val) -> bool {
-            if (id == cb::mcbp::response::FrameInfoId::ReadComputeUnits) {
+            if (id == cb::mcbp::response::FrameInfoId::ReadUnits) {
                 ret = ntohs(to_uint16(val));
                 return false;
             }
             return true;
         });
     } catch (const std::invalid_argument& e) {
-        throw std::runtime_error(std::string{"ReadComputeUnits frame info: "} +
+        throw std::runtime_error(std::string{"ReadUnits frame info: "} +
                                  e.what());
     }
     return ret;
 }
 
-std::optional<size_t> BinprotResponse::getWriteComputeUnits() const {
+std::optional<size_t> BinprotResponse::getWriteUnits() const {
     std::optional<size_t> ret;
     try {
         getResponse().parseFrameExtras([&ret](auto id, auto val) -> bool {
-            if (id == cb::mcbp::response::FrameInfoId::WriteComputeUnits) {
+            if (id == cb::mcbp::response::FrameInfoId::WriteUnits) {
                 ret = ntohs(to_uint16(val));
                 return false;
             }
             return true;
         });
     } catch (const std::invalid_argument& e) {
-        throw std::runtime_error(std::string{"WriteComputeUnits frame info: "} +
+        throw std::runtime_error(std::string{"WriteUnits frame info: "} +
                                  e.what());
     }
     return ret;
@@ -2116,16 +2116,14 @@ BinprotGetAllVbucketSequenceNumbersResponse::getVbucketSeqnos() const {
     return vbMap;
 }
 
-SetBucketComputeUnitThrottleLimitCommand::
-        SetBucketComputeUnitThrottleLimitCommand(std::string key_,
-                                                 std::size_t limit)
-    : BinprotGenericCommand(
-              cb::mcbp::ClientOpcode::SetBucketComputeUnitThrottleLimits,
-              std::move(key_)) {
+SetBucketUnitThrottleLimitCommand::SetBucketUnitThrottleLimitCommand(
+        std::string key_, std::size_t limit)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetBucketUnitThrottleLimits,
+                            std::move(key_)) {
     extras.setLimit(limit);
 }
 
-void SetBucketComputeUnitThrottleLimitCommand::encode(
+void SetBucketUnitThrottleLimitCommand::encode(
         std::vector<uint8_t>& buf) const {
     writeHeader(buf, 0, sizeof(extras));
     auto extraBuf = extras.getBuffer();

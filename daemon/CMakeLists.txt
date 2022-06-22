@@ -160,8 +160,8 @@ add_library(memcached_daemon STATIC
             session_cas.h
             settings.cc
             settings.h
-            sloppy_compute_unit_gauge.cc
-            sloppy_compute_unit_gauge.h
+            sloppy_gauge.cc
+            sloppy_gauge.h
             ssl_utils.cc
             ssl_utils.h
             start_sasl_auth_task.cc
@@ -277,7 +277,7 @@ cb_add_test_executable(memcached_unit_tests
                        mc_time_test.cc
                        network_interface_description_test.cc
                        settings_test.cc
-                       sloppy_compute_unit_gauge_test.cc
+                       sloppy_gauge_test.cc
                        ssl_utils_test.cc
                        tls_configuration_test.cc)
 add_dependencies(memcached_unit_tests Generate_kv_engine_X509_Test_Certificates)

@@ -80,7 +80,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::SubdocCreateAsDeleted:
         case cb::mcbp::Feature::SubdocDocumentMacroSupport:
         case cb::mcbp::Feature::SubdocReplaceBodyWithXattr:
-        case cb::mcbp::Feature::ReportComputeUnitUsage:
+        case cb::mcbp::Feature::ReportUnitUsage:
 
             // This isn't very optimal, but we've only got a handfull of elements ;)
             if (!containsFeature(requested, feature)) {
@@ -115,7 +115,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::PiTR:
         case cb::mcbp::Feature::SubdocCreateAsDeleted:
         case cb::mcbp::Feature::SubdocReplaceBodyWithXattr:
-        case cb::mcbp::Feature::ReportComputeUnitUsage:
+        case cb::mcbp::Feature::ReportUnitUsage:
             // No other dependency
             break;
 
@@ -204,7 +204,7 @@ void process_hello_packet_executor(Cookie& cookie) {
     connection.setClustermapChangeNotificationSupported(false);
     connection.setTracingEnabled(false);
     connection.setAllowUnorderedExecution(false);
-    connection.setReportComputeUnitUsage(false);
+    connection.setReportUnitUsage(false);
 
     if (!key.empty()) {
         if (key.front() == '{') {
@@ -342,8 +342,8 @@ void process_hello_packet_executor(Cookie& cookie) {
             }
             break;
 
-        case cb::mcbp::Feature::ReportComputeUnitUsage:
-            connection.setReportComputeUnitUsage(true);
+        case cb::mcbp::Feature::ReportUnitUsage:
+            connection.setReportUnitUsage(true);
             added = true;
             break;
         case cb::mcbp::Feature::PreserveTtl:

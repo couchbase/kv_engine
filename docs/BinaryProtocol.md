@@ -275,25 +275,10 @@ The duration in micros is encoded as:
     encoded =  (micros * 2) ^ (1.0 / 1.74)
     decoded =  (encoded ^ 1.74) / 2
 
-##### ID:1 - Read Compute Units Used
+##### ID:1 - Read Units Used
 
-The amount of read compute units used by the command (only
-added if the value is non-zero)
-
-Size: 2 bytes
-
-FrameInfo encoded as:
-
-    Byte/     0       |       1       |       2       |
-       /              |               |               |
-      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
-      +---------------+---------------+---------------+
-     0|  ID:1 | Len:2 | Number of read compute units  |
-
-##### ID:2 - Write Compute Units Used
-
-The amount of write compute units used by the command (only
-added if the value is non-zero)
+The amount of read units used by the command (only added if the value
+is non-zero)
 
 Size: 2 bytes
 
@@ -303,7 +288,22 @@ FrameInfo encoded as:
        /              |               |               |
       |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
       +---------------+---------------+---------------+
-     0|  ID:2 | Len:2 | Number of write compute units |
+     0|  ID:1 | Len:2 | Number of read units          |
+
+##### ID:2 - Write Units Used
+
+The amount of write units used by the command (only added if the value is
+non-zero)
+
+Size: 2 bytes
+
+FrameInfo encoded as:
+
+    Byte/     0       |       1       |       2       |
+       /              |               |               |
+      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+      +---------------+---------------+---------------+
+     0|  ID:2 | Len:2 | Number of write units         |
 
 ### Header fields description
 
@@ -431,7 +431,7 @@ information about a given command.
 | 0x27 | Audit put |
 | 0x28 | Audit config reload |
 | 0x29 | Shutdown |
-| 0x2a | [SetBucketComputeUnitThrottleLimits](#0x2a-set-bucket-compute-unit-throttle-limits) |
+| 0x2a | [SetBucketUnitThrottleLimits](#0x2a-set-bucket-unit-throttle-limits) |
 | 0x2b | [SetBucketDataLimitExceeded](#0x2b-set-bucket-data-limit-exceeded) |
 | 0x30 | RGet (not supported) |
 | 0x31 | RSet (not supported) |
@@ -1814,7 +1814,7 @@ The following features is defined:
 | 0x0017 | SubdocCreateAsDeleted support |
 | 0x0018 | SubdocDocumentMacroSupport |
 | 0x0019 | SubdocReplaceBodyWithXattr |
-| 0x001a | ReportComputeUnitUsage |
+| 0x001a | ReportUnitUsage |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1901,8 +1901,8 @@ The following features is defined:
 * `SubdocReplaceBodyWithXattr` This is purely information (it does not enable /
   disable anything on the server). It may be used from the client to
   determine if the server supports the command SubdocReplaceBodyWithXattr.
-* `ReportComputeUnitUsage` When enabled the server will insert frame info field(s)
-  in the response containing the amount of read and write compute units the
+* `ReportUnitUsage` When enabled the server will insert frame info field(s)
+  in the response containing the amount of read and write units the
   command used on the server.
 
 Response:
@@ -2007,10 +2007,10 @@ The following example shows that the server agreed to enable 0x0003 and
                   (24-25): TCP NODELAY
                   (26-27): Mutation seqno
 
-### 0x2a Set Bucket Compute Unit Throttle Limits
+### 0x2a Set Bucket Unit Throttle Limits
 
-The `Set Bucket Compute Unit Throttle Limits` command is used to set
-the number of compute units per second the server should allow in a bucket
+The `Set Bucket Unit Throttle Limits` command is used to set
+the number of units per second the server should allow in a bucket
 before throttling requests to the bucket.
 
 The command should be used from the throttle manager to push new throttle
@@ -2036,7 +2036,7 @@ The extra section is encoded in the following way:
         |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
         +---------------+---------------+---------------+---------------+
        0|                                                               |
-        +        Number of compute units in network byte order          +
+        +        Number of units in network byte order                  +
        4|                                                               |
         +---------------+---------------+---------------+---------------+
         Total 8 bytes

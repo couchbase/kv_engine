@@ -468,18 +468,17 @@ static void shutdown_executor(Cookie& cookie) {
     }
 }
 
-static void set_bucket_compute_unit_throttle_limits_executor(Cookie& cookie) {
+static void set_bucket_unit_throttle_limits_executor(Cookie& cookie) {
     if (!isServerlessDeployment()) {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
         return;
     }
     std::string name(cookie.getRequestKey().getBuffer());
-    using cb::mcbp::request::SetBucketComputeUnitThrottleLimitPayload;
+    using cb::mcbp::request::SetBucketUnitThrottleLimitPayload;
     auto& req = cookie.getRequest();
     auto extras = req.getExtdata();
-    auto* payload =
-            reinterpret_cast<const SetBucketComputeUnitThrottleLimitPayload*>(
-                    extras.data());
+    auto* payload = reinterpret_cast<const SetBucketUnitThrottleLimitPayload*>(
+            extras.data());
     bool found = false;
     BucketManager::instance().forEach(
             [id = cookie.getConnectionId(), &name, &found, payload](
@@ -796,8 +795,8 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::AuditConfigReload,
                   audit_config_reload_executor);
     setup_handler(cb::mcbp::ClientOpcode::Shutdown, shutdown_executor);
-    setup_handler(cb::mcbp::ClientOpcode::SetBucketComputeUnitThrottleLimits,
-                  set_bucket_compute_unit_throttle_limits_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SetBucketUnitThrottleLimits,
+                  set_bucket_unit_throttle_limits_executor);
     setup_handler(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
                   set_bucket_data_limit_exceeded_executor);
     setup_handler(cb::mcbp::ClientOpcode::CreateBucket,

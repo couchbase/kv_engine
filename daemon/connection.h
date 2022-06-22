@@ -256,12 +256,12 @@ public:
         allow_unordered_execution = enable;
     }
 
-    void setReportComputeUnitUsage(bool enable) {
-        report_compute_unit_usage = enable;
+    void setReportUnitUsage(bool enable) {
+        report_unit_usage = enable;
     }
 
-    bool isReportComputeUnitUsage() const {
-        return report_compute_unit_usage;
+    bool isReportUnitUsage() const {
+        return report_unit_usage;
     }
 
     /**
@@ -1045,7 +1045,7 @@ protected:
 
     bool allow_unordered_execution{false};
 
-    bool report_compute_unit_usage{false};
+    bool report_unit_usage{false};
 
     /// The name of the client provided to us by hello
     std::array<char, MaxSavedAgentName> agentName{};

@@ -181,8 +181,8 @@ cb::engine_errc ioctl_get_property(Cookie& cookie,
         case cb::ioctl::Id::JemallocProfDump: // may only be used with Set
         case cb::ioctl::Id::ReleaseFreeMemory: // may only be used with Set
         case cb::ioctl::Id::ServerlessMaxConnectionsPerBucket: // set only
-        case cb::ioctl::Id::ServerlessReadComputeUnitSize: // set only
-        case cb::ioctl::Id::ServerlessWriteComputeUnitSize: // set only
+        case cb::ioctl::Id::ServerlessReadUnitSize: // set only
+        case cb::ioctl::Id::ServerlessWriteUnitSize: // set only
         case cb::ioctl::Id::TraceDumpClear: // may only be used with Set
         case cb::ioctl::Id::TraceStart: // may only be used with Set
         case cb::ioctl::Id::TraceStop: // may only be used with Set
@@ -245,29 +245,26 @@ static cb::engine_errc ioctlSetServerlessMaxConnectionsPerBucket(
     return cb::engine_errc::invalid_arguments;
 }
 
-static cb::engine_errc ioctlSetServerlessComputeUnitSize(
-        Cookie& cookie, cb::ioctl::Id id, const std::string& value) {
+static cb::engine_errc ioctlSetServerlessUnitSize(Cookie& cookie,
+                                                  cb::ioctl::Id id,
+                                                  const std::string& value) {
     if (isServerlessDeployment()) {
         try {
             auto& config = cb::serverless::Config::instance();
             auto val = std::stoul(value);
-            if (id == cb::ioctl::Id::ServerlessReadComputeUnitSize) {
+            if (id == cb::ioctl::Id::ServerlessReadUnitSize) {
                 LOG_INFO("Change RCU size from {} to {}",
-                         config.readComputeUnitSize.load(
-                                 std::memory_order_acquire),
+                         config.readUnitSize.load(std::memory_order_acquire),
                          val);
-                config.readComputeUnitSize.store(val,
-                                                 std::memory_order_release);
-            } else if (id == cb::ioctl::Id::ServerlessWriteComputeUnitSize) {
+                config.readUnitSize.store(val, std::memory_order_release);
+            } else if (id == cb::ioctl::Id::ServerlessWriteUnitSize) {
                 LOG_INFO("Change WCU size from {} to {}",
-                         config.writeComputeUnitSize.load(
-                                 std::memory_order_acquire),
+                         config.writeUnitSize.load(std::memory_order_acquire),
                          val);
-                config.writeComputeUnitSize.store(val,
-                                                  std::memory_order_release);
+                config.writeUnitSize.store(val, std::memory_order_release);
             } else {
                 LOG_WARNING_RAW(
-                        "ioctlSetServerlessComputeUnitSize: Internal error, "
+                        "ioctlSetServerlessUnitSize: Internal error, "
                         "called for unknown id. request ignored");
                 cookie.setErrorContext("Internal error");
                 return cb::engine_errc::invalid_arguments;
@@ -313,9 +310,9 @@ cb::engine_errc ioctl_set_property(Cookie& cookie,
         case cb::ioctl::Id::ServerlessMaxConnectionsPerBucket:
             return ioctlSetServerlessMaxConnectionsPerBucket(
                     cookie, request.second, value);
-        case cb::ioctl::Id::ServerlessReadComputeUnitSize:
-        case cb::ioctl::Id::ServerlessWriteComputeUnitSize:
-            return ioctlSetServerlessComputeUnitSize(cookie, id->id, value);
+        case cb::ioctl::Id::ServerlessReadUnitSize:
+        case cb::ioctl::Id::ServerlessWriteUnitSize:
+            return ioctlSetServerlessUnitSize(cookie, id->id, value);
         case cb::ioctl::Id::TraceConfig:
             return ioctlSetTracingConfig(cookie, request.second, value);
         case cb::ioctl::Id::TraceStart:

@@ -283,7 +283,7 @@ TEST_F(TestappTest, MB_46853_TotalBodyLengthValidation) {
 
 TEST_F(TestappTest, ServerlessConfigCantBeSetInDefaultDeployment) {
     auto rsp = adminConnection->execute(
-            SetBucketComputeUnitThrottleLimitCommand(bucketName, 1024));
+            SetBucketUnitThrottleLimitCommand(bucketName, 1024));
     EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
     rsp = adminConnection->execute(
             SetBucketDataLimitExceededCommand{bucketName, true});

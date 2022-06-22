@@ -41,8 +41,7 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
           "SubdocDocumentMacroSupport"},
          {cb::mcbp::Feature::SubdocReplaceBodyWithXattr,
           "SubdocReplaceBodyWithXattr"},
-         {cb::mcbp::Feature::ReportComputeUnitUsage,
-          "ReportComputeUnitUsage"}}};
+         {cb::mcbp::Feature::ReportUnitUsage, "ReportUnitUsage"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : featureBlueprint) {

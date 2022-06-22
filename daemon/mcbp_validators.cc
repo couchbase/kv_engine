@@ -1617,10 +1617,10 @@ static Status shutdown_validator(Cookie& cookie) {
 
 static Status set_bucket_compute_unit_throttle_limits_validator(
         Cookie& cookie) {
-    using cb::mcbp::request::SetBucketComputeUnitThrottleLimitPayload;
+    using cb::mcbp::request::SetBucketUnitThrottleLimitPayload;
     return McbpValidator::verify_header(
             cookie,
-            sizeof(SetBucketComputeUnitThrottleLimitPayload),
+            sizeof(SetBucketUnitThrottleLimitPayload),
             ExpectedKeyLen::NonZero,
             ExpectedValueLen::Zero,
             ExpectedCas::NotSet,
@@ -2413,7 +2413,7 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::ConfigReload, config_reload_validator);
     setup(cb::mcbp::ClientOpcode::ConfigValidate, config_validate_validator);
     setup(cb::mcbp::ClientOpcode::Shutdown, shutdown_validator);
-    setup(cb::mcbp::ClientOpcode::SetBucketComputeUnitThrottleLimits,
+    setup(cb::mcbp::ClientOpcode::SetBucketUnitThrottleLimits,
           set_bucket_compute_unit_throttle_limits_validator);
     setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
           set_bucket_data_limit_exceeded_validator);
