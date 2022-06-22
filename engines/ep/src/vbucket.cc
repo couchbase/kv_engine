@@ -18,6 +18,7 @@
 #include "conflict_resolution.h"
 #include "dcp/dcpconnmap.h"
 #include "durability/active_durability_monitor.h"
+#include "durability/dead_durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
 #include "ep_engine.h"
 #include "ep_time.h"
@@ -636,11 +637,14 @@ void VBucket::setupSyncReplication(const nlohmann::json* topology) {
     // Then, initialize the DM and propagate the new topology if necessary
     auto* currentPassiveDM =
             dynamic_cast<PassiveDurabilityMonitor*>(durabilityMonitor.get());
+    auto* currentActiveDM =
+            dynamic_cast<ActiveDurabilityMonitor*>(durabilityMonitor.get());
+    auto* currentDeadDM =
+            dynamic_cast<DeadDurabilityMonitor*>(durabilityMonitor.get());
 
     // If we are transitioning away from active then we need to mark all of our
     // prepares as PreparedMaybeVisible to avoid exposing them
-    if (!currentPassiveDM && durabilityMonitor &&
-        state != vbucket_state_active) {
+    if (currentActiveDM && durabilityMonitor && state != vbucket_state_active) {
         auto& adm = dynamic_cast<ActiveDurabilityMonitor&>(*durabilityMonitor);
         auto trackedWrites = adm.getTrackedKeys();
         for (auto& key : trackedWrites) {
@@ -655,29 +659,18 @@ void VBucket::setupSyncReplication(const nlohmann::json* topology) {
 
     switch (state) {
     case vbucket_state_active: {
-        if (currentPassiveDM) {
-            // Change to active from passive durability monitor - construct
-            // an ActiveDM from the PassiveDM, maintaining any in-flight
-            // SyncWrites.
-            durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(
-                    stats,
-                    *this,
-                    std::move(*currentPassiveDM),
-                    syncWriteTimeoutFactory(*this));
-        } else if (!durabilityMonitor) {
+        if (!durabilityMonitor) {
             // Change to Active from no previous DurabilityMonitor - create
             // one.
             durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(
                     stats, *this, syncWriteTimeoutFactory(*this));
-        } else {
-            // Already have an (active?) DurabilityMonitor and just changing
-            // topology.
-            if (!dynamic_cast<ActiveDurabilityMonitor*>(
-                        durabilityMonitor.get())) {
-                throw std::logic_error(
-                        "VBucket::setupSyncReplication: A durabilityMonitor "
-                        "already exists but it is neither Active nor Passive!");
-            }
+        } else if (!currentActiveDM) {
+            // Change to active from current DM
+            durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(
+                    stats,
+                    *this,
+                    std::move(*durabilityMonitor),
+                    syncWriteTimeoutFactory(*this));
         }
 
         // @todo: We want to support empty-topology in ActiveDM, that's for
@@ -697,16 +690,23 @@ void VBucket::setupSyncReplication(const nlohmann::json* topology) {
         // Current DM (if exists) is not Passive; replace it with a Passive one.
         if (durabilityMonitor) {
             durabilityMonitor = std::make_unique<PassiveDurabilityMonitor>(
-                    *this,
-                    std::move(dynamic_cast<ActiveDurabilityMonitor&>(
-                            *durabilityMonitor.get())));
+                    *this, std::move(*durabilityMonitor.get()));
         } else {
             durabilityMonitor =
                     std::make_unique<PassiveDurabilityMonitor>(*this);
         }
         return;
     case vbucket_state_dead:
-        // No DM in dead state.
+        if (currentDeadDM) {
+            // Already have a DeadDM - just return
+            return;
+        }
+        if (durabilityMonitor) {
+            durabilityMonitor = std::make_unique<DeadDurabilityMonitor>(
+                    *this, std::move(*durabilityMonitor.get()));
+        } else {
+            durabilityMonitor = std::make_unique<DeadDurabilityMonitor>(*this);
+        }
         return;
     }
     folly::assume_unreachable();

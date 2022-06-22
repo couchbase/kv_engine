@@ -3942,14 +3942,7 @@ void DurabilityBucketTest::
     adm.processTimeout(std::chrono::steady_clock::now() +
                        std::chrono::seconds(70));
 
-    // A dead vbucket will not create a PDM so the timeouts are preserved
-    if (newState == vbucket_state_dead) {
-        EXPECT_EQ(0, adm.getNumTracked());
-        EXPECT_EQ(1, adm.getHighPreparedSeqno());
-        EXPECT_EQ(0, adm.getHighCompletedSeqno());
-        return;
-    }
-
+    // A dead vbucket will create a DDM and so the timeouts are lost
     EXPECT_EQ(1, adm.getNumTracked());
     EXPECT_EQ(1, adm.getHighPreparedSeqno());
     EXPECT_EQ(0, adm.getHighCompletedSeqno());
