@@ -15,7 +15,7 @@
 
 TEST(BucketTest, Reset) {
 #if defined(__linux) && defined(__x86_64__)
-    ASSERT_EQ(6272, sizeof(Bucket))
+    ASSERT_EQ(6280, sizeof(Bucket))
             << "Bucket size changed, the reset test must be updated with "
                "the new members";
 #endif
@@ -28,6 +28,7 @@ TEST(BucketTest, Reset) {
             num_throttled = 1;
             throttle_wait_time = 1;
             num_commands = 1;
+            num_commands_with_metered_units = 1;
             num_rejected = 1;
             bucket_quota_exceeded = true;
 
@@ -36,6 +37,7 @@ TEST(BucketTest, Reset) {
             EXPECT_EQ(0, num_throttled);
             EXPECT_EQ(0, throttle_wait_time);
             EXPECT_EQ(0, num_commands);
+            EXPECT_EQ(0, num_commands_with_metered_units);
             EXPECT_EQ(0, num_rejected);
             throttle_gauge.iterate([](auto val) { EXPECT_EQ(0, val); });
             EXPECT_FALSE(bucket_quota_exceeded);

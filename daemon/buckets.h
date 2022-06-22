@@ -247,6 +247,9 @@ protected:
     /// The total number of commands executed within the bucket
     std::atomic<uint64_t> num_commands{0};
 
+    /// The total number of commands using metered units within the bucket
+    std::atomic<uint64_t> num_commands_with_metered_units{0};
+
     /// The number of commands we rejected to start executing
     std::atomic<uint64_t> num_rejected{0};
 

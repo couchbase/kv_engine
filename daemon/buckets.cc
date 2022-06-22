@@ -53,6 +53,7 @@ void Bucket::reset() {
     num_throttled = 0;
     throttle_wait_time = 0;
     num_commands = 0;
+    num_commands_with_metered_units = 0;
     num_rejected = 0;
     bucket_quota_exceeded = false;
 
@@ -89,6 +90,8 @@ nlohmann::json Bucket::to_json() const {
                 json["throttle_limit"] = throttle_limit.load();
                 json["throttle_wait_time"] = throttle_wait_time.load();
                 json["num_commands"] = num_commands.load();
+                json["num_commands_with_metered_units"] =
+                        num_commands_with_metered_units.load();
                 json["num_rejected"] = num_rejected.load();
             } catch (const std::exception& e) {
                 LOG_ERROR("Failed to generate bucket details: {}", e.what());
@@ -187,6 +190,9 @@ void Bucket::commandExecuted(const Cookie& cookie) {
     throttle_wait_time += cookie.getTotalThrottleTime();
     read_units_used += ru;
     write_units_used += wu;
+    if (ru || wu) {
+        ++num_commands_with_metered_units;
+    }
     ++num_commands;
 }
 

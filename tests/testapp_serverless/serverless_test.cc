@@ -295,6 +295,10 @@ TEST_F(ServerlessTest, AllConnectionsAreMetered) {
         // Read should not update wu
         EXPECT_EQ(initial["wu"].get<std::size_t>(),
                   after["wu"].get<std::size_t>());
+        EXPECT_EQ(
+                initial["num_commands_with_metered_units"].get<std::size_t>() +
+                        1,
+                after["num_commands_with_metered_units"].get<std::size_t>());
     };
 
     auto writeDoc = [stat = getStats](MemcachedConnection& conn) {
@@ -310,12 +314,26 @@ TEST_F(ServerlessTest, AllConnectionsAreMetered) {
         // write should not update ru
         EXPECT_EQ(initial["ru"].get<std::size_t>(),
                   after["ru"].get<std::size_t>());
+        EXPECT_EQ(
+                initial["num_commands_with_metered_units"].get<std::size_t>() +
+                        1,
+                after["num_commands_with_metered_units"].get<std::size_t>());
     };
 
     writeDoc(*admin);
     writeDoc(*conn);
     readDoc(*admin);
     readDoc(*conn);
+
+    auto initial = getStats();
+    EXPECT_TRUE(
+            conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop})
+                    .isSuccess());
+    auto after = getStats();
+    EXPECT_EQ(initial["num_commands"].get<std::size_t>() + 2, // 1 noop, 1 stat
+              after["num_commands"].get<std::size_t>());
+    EXPECT_EQ(initial["num_commands_with_metered_units"].get<std::size_t>(),
+              after["num_commands_with_metered_units"].get<std::size_t>());
 }
 
 TEST_F(ServerlessTest, StopClientDataIngress) {
