@@ -916,6 +916,12 @@ void KVBucket::releaseBlockedCookies() {
         if (!vb) {
             continue;
         }
+        // tmp_fail and remove all current seqno_persistence requests, they
+        // are unlikely to be completed successfully at this stage of bucket
+        // deletion, and the associated connection could block deletion if
+        // not notified now.
+        vb->failAllSeqnoPersistenceReqs(engine);
+
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         if (vb->getState() != vbucket_state_active) {
             continue;

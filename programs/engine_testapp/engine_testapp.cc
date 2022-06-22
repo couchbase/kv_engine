@@ -366,6 +366,9 @@ static test_result execute_test(engine_test_t test, const char* default_cfg) {
     int executorNumMaxThread = 0;
     int executorNumAuxIo = 0;
     int executorNumNonIo = 0;
+    int maxReaders = 0;
+    int maxWriters = 0;
+
     auto options = split_string(test.cfg, ";");
     for (auto& o : options) {
         auto kv = split_string(o, "=");
@@ -379,13 +382,17 @@ static test_result execute_test(engine_test_t test, const char* default_cfg) {
             executorNumAuxIo = std::stoi(kv.back());
         } else if (kv.front() == "num_nonio_threads") {
             executorNumNonIo = std::stoi(kv.back());
+        } else if (kv.front() == "num_reader_threads") {
+            maxReaders = std::stoi(kv.back());
+        } else if (kv.front() == "num_writer_threads") {
+            maxWriters = std::stoi(kv.back());
         }
     }
 
     ExecutorPool::create(executorBackend,
                          executorNumMaxThread,
-                         ThreadPoolConfig::ThreadCount(0),
-                         ThreadPoolConfig::ThreadCount(0),
+                         ThreadPoolConfig::ThreadCount(maxReaders),
+                         ThreadPoolConfig::ThreadCount(maxWriters),
                          executorNumAuxIo,
                          executorNumNonIo);
 

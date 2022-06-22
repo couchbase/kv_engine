@@ -4242,3 +4242,11 @@ void VBucket::createFailoverEntry(uint64_t seqno) {
     failovers->createEntry(seqno);
     checkpointManager->queueSetVBState();
 }
+
+void VBucket::failAllSeqnoPersistenceReqs(EventuallyPersistentEngine& engine) {
+    auto toNotify = tmpFailAndGetAllHpNotifies(engine);
+
+    for (auto& notify : toNotify) {
+        engine.notifyIOComplete(notify.first, notify.second);
+    }
+}

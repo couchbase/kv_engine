@@ -8280,19 +8280,32 @@ static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
     testHarness->destroy_bucket(slowBucket, false);
     testHarness->destroy_bucket(smallBucket, false);
 
+    // Ensure that we've correctly set only one reader thread
+    checkeq(size_t{1},
+            ExecutorPool::get()->getNumReaders(),
+            "Num reader threads is not correct");
     // 5. Start warming up the slow bucket first
     ThreadGate tg(2);
+    size_t timesCalled = 0;
     {
         // Create the in memory engine but don't kick of initialization
         slowBucket = testHarness->create_bucket(false, "");
         auto* me = dynamic_cast<MockEngine*>(slowBucket);
         // add a test hook which will slow down the warmup of the bucket
         dynamic_cast<EventuallyPersistentEngine*>(me->the_engine.get())
-                ->hangWarmupHook = [&tg]() -> void {
-            using namespace std::chrono_literals;
-            // Block the backfill until we can read the stats of the
-            // small bucket
+                ->visitWarmupHook = [&tg, &timesCalled]() -> void {
+            // Wait till small bucket has been created
             tg.threadUp();
+            // Track that the hook has been called
+            ++timesCalled;
+            // Now consume 90% of the time slice so that we have to revisit the
+            // vbucket. But only do this if we've not visited the bucket no more
+            // than 2 times. As otherwise we've proved that we're yielding
+            // correctly, and we don't want to slow down the test unnecessary.
+            if (timesCalled <= 2) {
+                using namespace std::chrono_literals;
+                std::this_thread::sleep_for(9ms);
+            }
         };
         // start warmup
         checkeq(me->the_engine->initialize(
@@ -8302,21 +8315,27 @@ static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
     }
     // 6. Create and warmup the small bucket
     smallBucket = testHarness->create_bucket(true, smallBucketConf);
+    tg.threadUp();
 
     // 7. Ensure we can get stats of the vbucket state during warmup
     checkeq(get_str_stat(smallBucket, "vb_0", "vbucket"),
             std::string("active"),
             "vbucket state isn't active");
-    // 8. Ensure of the slow bucket is still warming up
-    checkne(get_str_stat(slowBucket, "ep_warmup_thread", "warmup"),
-            std::string("complete"),
-            "Slow bucket completed before the fast bucket");
-    // Small bucket stats are available, unblock the slow bucket warmup
-    tg.threadUp();
-    // 9. Wait for the small bucket is warmup
+
+    // 8. Wait for the small bucket is warmup
     wait_for_warmup_complete(smallBucket);
-    // 10. Wait for the slow bucket to warmup
+    // 9. Wait for the slow bucket to warmup
     wait_for_warmup_complete(slowBucket);
+
+    // 10. The visitWarmupHook() should have been called more than twice if
+    // warmup yielding is working correctly. We should see it get called at
+    // least twice, once by WarmupKeyDump or WarmupLoadingKVPairs and then once
+    // by WarmupLoadingData
+    checklt(size_t{2},
+            timesCalled,
+            "We should have visited the vbucket more "
+            "than twice, if we were yielding correctly");
+
     // 11. Ensure all buckets have the correct count
     verify_curr_items(smallBucket, numberOfKeyVbucketSmall, "after warmup");
     verify_curr_items(slowBucket, keysPerVbucket, "after warmup");

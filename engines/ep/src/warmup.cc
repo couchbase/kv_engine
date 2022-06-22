@@ -532,11 +532,11 @@ bool WarmupVbucketVisitor::visit(VBucket& vb) {
         }
     }
     // Update backfill deadline for when we need to next pause
-    auto kvCallback = dynamic_cast<LoadStorageKVPairCallback&>(
+    auto& kvCallback = dynamic_cast<LoadStorageKVPairCallback&>(
             currentScanCtx->getValueCallback());
     kvCallback.updateDeadLine();
 
-    ep.getEPEngine().hangWarmupHook();
+    ep.getEPEngine().visitWarmupHook();
 
     auto scanStatus = kvstore->scan(*currentScanCtx);
     switch (scanStatus) {

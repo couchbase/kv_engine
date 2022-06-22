@@ -282,12 +282,7 @@ HighPriorityVBReqStatus EphemeralVBucket::checkAddHighPriorityVBEntry(
 
 void EphemeralVBucket::notifyAllPendingConnsFailed(
         EventuallyPersistentEngine& e) {
-    auto toNotify = tmpFailAndGetAllHpNotifies(e);
-
-    for (auto& notify : toNotify) {
-        e.notifyIOComplete(notify.first, notify.second);
-    }
-
+    failAllSeqnoPersistenceReqs(e);
     fireAllOps(e);
 }
 
