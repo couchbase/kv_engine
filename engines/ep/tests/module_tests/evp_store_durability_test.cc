@@ -672,8 +672,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
     ASSERT_EQ(1,
               (*(--ckptList.back()->end()))->getOperation() ==
                       queue_op::abort_sync_write);
-    // pre, ce, cs, abr
-    EXPECT_EQ(4, ckptMgr.getNumItemsForPersistence());
+    EXPECT_EQ(3, ckptMgr.getNumItemsForPersistence());
     EXPECT_EQ(2, stats.diskQueueSize);
     validateHighAndVisibleSeqno(vb, 2, 0);
 
@@ -753,8 +752,8 @@ void DurabilityEPBucketTest::testPersistPrepareAbortPrepare(
     ASSERT_EQ(1,
               (*(--ckptList.back()->end()))->getOperation() ==
                       queue_op::pending_sync_write);
-    // pre, ce, cs, abr, ce, cs, pre
-    EXPECT_EQ(7, ckptMgr.getNumItemsForPersistence());
+    // cs, vbs, vbs, pre, abr, pre
+    EXPECT_EQ(6, ckptMgr.getNumItemsForPersistence());
     validateHighAndVisibleSeqno(vb, 3, 0);
 
     EXPECT_EQ(3, vb.getHighSeqno());
@@ -830,8 +829,8 @@ void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
     ASSERT_EQ(1,
               (*(--ckptList.back()->end()))->getOperation() ==
                       queue_op::abort_sync_write);
-    // pre, ce, cs, abr, ce, cs, pre, ce, cs, abr
-    EXPECT_EQ(10, ckptMgr.getNumItemsForPersistence());
+    // cs, vbs, vbs, pre, abr, end, cs, pre , abr
+    EXPECT_EQ(9, ckptMgr.getNumItemsForPersistence());
     validateHighAndVisibleSeqno(vb, 4, 0);
 
     EXPECT_EQ(4, vb.getHighSeqno());
@@ -915,7 +914,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
 
     ASSERT_EQ(1, ckptList.size());
     ASSERT_EQ(2, ckptList.back()->getNumItems());
-    EXPECT_EQ(2, ckptMgr.getNumItemsForPersistence());
+    EXPECT_EQ(1, ckptMgr.getNumItemsForPersistence());
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 

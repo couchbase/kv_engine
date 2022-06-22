@@ -565,7 +565,7 @@ void KVStoreErrorInjectionTest::testFlushFailureStatsAtDedupedNonMetaItems(
                    PROTOCOL_BINARY_RAW_BYTES);
     }
     ASSERT_EQ(2, manager.getNumOpenChkItems());
-    ASSERT_EQ(4, manager.getNumItemsForPersistence());
+    ASSERT_EQ(3, manager.getNumItemsForPersistence());
 
     EXPECT_EQ(2, vb.dirtyQueueSize);
 
