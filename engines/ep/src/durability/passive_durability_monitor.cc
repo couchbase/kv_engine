@@ -146,7 +146,7 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb,
     auto* ddm = dynamic_cast<DeadDurabilityMonitor*>(&dm);
     if (ddm) {
         auto last = ddm->getLastConsistentSeqno();
-        if (last) {
+        if (last && *last != 0) {
             s->processSnapshotEnd(vb.isReceivingDiskSnapshot()
                                           ? CheckpointType::Disk
                                           : CheckpointType::Memory,
@@ -161,7 +161,7 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb,
     // this code is handled by the DDM, but for an active->replica transition
     // we must handle it here.
     auto* adm = dynamic_cast<ActiveDurabilityMonitor*>(&dm);
-    if (adm) {
+    if (adm && vb.getHighSeqno() != 0) {
         s->processSnapshotEnd(vb.isReceivingDiskSnapshot()
                                       ? CheckpointType::Disk
                                       : CheckpointType::Memory,
