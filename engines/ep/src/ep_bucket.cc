@@ -35,8 +35,9 @@
 #include "vb_visitors.h"
 #include "vbucket_state.h"
 #include "warmup.h"
-#include <executor/executorpool.h>
 
+#include <fmt/ostream.h>
+#include <executor/executorpool.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <memcached/range_scan_optional_configuration.h>
 #include <platform/timeutils.h>
@@ -1443,7 +1444,7 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
 bool EPBucket::doCompact(Vbid vbid,
                          CompactionConfig& config,
                          std::vector<const CookieIface*>& cookies) {
-    cb::engine_errc err = cb::engine_errc::success;
+    cb::engine_errc status = cb::engine_errc::success;
 
     auto vb = getLockedVBucket(vbid, std::try_to_lock);
     if (!vb.owns_lock()) {
@@ -1462,24 +1463,27 @@ bool EPBucket::doCompact(Vbid vbid,
     bool reschedule = false;
     if (vb) {
         if (!compactInternal(vb, config)) {
-            err = cb::engine_errc::failed;
+            status = cb::engine_errc::failed;
 
             // Only if an internal request was made should we reschedule. If
             // compaction came externally, it is up to the client to retry
             reschedule = config.internally_requested;
         }
-    } else if (!cookies.empty()) {
+    } else {
+        status = cb::engine_errc::not_my_vbucket;
+    }
+
+    if (status != cb::engine_errc::success && !cookies.empty()) {
         // The memcached core won't call back into the engine if the error
         // code returned in notifyIOComplete is != success so we need to
-        // do all of the cleanup for here.
-        err = cb::engine_errc::not_my_vbucket;
+        // do all of the clean-up here.
         for (const auto& cookie : cookies) {
             engine.storeEngineSpecific(cookie, nullptr);
         }
     }
 
     for (const auto& cookie : cookies) {
-        engine.notifyIOComplete(cookie, err);
+        engine.notifyIOComplete(cookie, status);
     }
     // All cookies notified so clear the container
     cookies.clear();

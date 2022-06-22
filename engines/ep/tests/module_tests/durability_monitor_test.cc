@@ -3892,7 +3892,7 @@ TEST_P(ActiveDurabilityMonitorTest, MB_41235_commit) {
 
     EPStats stats;
     ActiveDurabilityMonitor adm(
-            stats, std::move(pdm), NoopSyncWriteTimeoutFactory(*vb));
+            stats, *vb, std::move(pdm), NoopSyncWriteTimeoutFactory(*vb));
     vb->setState(vbucket_state_active);
     ASSERT_EQ(vbucket_state_active, vb->getState());
     adm.setReplicationTopology(nlohmann::json::array({{"active", "replica1"}}));

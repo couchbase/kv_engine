@@ -79,18 +79,20 @@ public:
     /**
      * Construct a PassiveDM for the given vBucket using pre-existing state.
      *
-     * This constructor is used when we transition state from ADM to PDM.
+     * This constructor is used when we transition state to PDM.
      *
-     * This constructor is used during state changes where an
-     * ActiveDurabilityMonitor must handover any outstanding prepares when an
-     * active switches to replica.
+     * This constructor is used during state changes where a DurabilityMonitor
+     * of some other type must handover any outstanding prepares when an
+     * switching to replica.
      *
      * @param vb VBucket which owns this Durability Monitor.
-     * @param adm The ActiveDM to be converted
+     * @param dm The DM to be converted
      */
-    PassiveDurabilityMonitor(VBucket& vb, ActiveDurabilityMonitor&& adm);
+    PassiveDurabilityMonitor(VBucket& vb, DurabilityMonitor&& dm);
 
     ~PassiveDurabilityMonitor() override;
+
+    std::list<SyncWrite> getTrackedWrites() const override;
 
     void addStats(const AddStatFn& addStat,
                   const CookieIface* cookie) const override;
