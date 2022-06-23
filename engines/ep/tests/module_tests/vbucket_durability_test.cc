@@ -744,7 +744,7 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbort) {
     // Visible at read
     const auto* sv = ht->findForRead(nonPendingKey).storedValue;
     ASSERT_TRUE(sv);
-    const int64_t bySeqno = 1001;
+    const int64_t bySeqno = lastSeqno + 1;
     ASSERT_EQ(bySeqno, sv->getBySeqno());
     EXPECT_EQ(cb::engine_errc::invalid_arguments,
               vbucket->abort(nonPendingKey,

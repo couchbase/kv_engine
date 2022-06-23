@@ -151,7 +151,7 @@ protected:
     std::unique_ptr<CheckpointConfig> checkpoint_config;
     Configuration config;
     CookieIface* cookie = nullptr;
-    const uint64_t lastSeqno{1000};
+    const uint64_t lastSeqno{0};
     snapshot_range_t range{lastSeqno, lastSeqno};
 };
 
