@@ -1072,6 +1072,12 @@ TEST_F(ServerlessTest, OpsMetered) {
         case ClientOpcode::SeqnoPersistence:
             break;
         case ClientOpcode::GetKeys:
+            rsp = conn.execute(
+                    BinprotGenericCommand{opcode, std::string{"\0", 1}});
+            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(1, *rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
             break;
         case ClientOpcode::CollectionsGetID:
             break;

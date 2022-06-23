@@ -18,6 +18,7 @@
 
 #include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/status.h>
+#include <memcached/cookie_iface.h>
 #include <phosphor/phosphor.h>
 
 #include <utility>
@@ -103,6 +104,8 @@ bool FetchAllKeysTask::run() {
         auto cb = std::make_shared<AllKeysCallback>(collection, count);
         err = engine->getKVBucket()->getROUnderlying(vbid)->getAllKeys(
                 vbid, start_key, count, cb);
+        const_cast<CookieIface*>(cookie)->addDocumentReadBytes(
+                cb->getAllKeysLen());
         if (err == cb::engine_errc::success) {
             err = response({}, // key
                            {}, // extra
