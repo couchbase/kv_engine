@@ -96,10 +96,10 @@ target_link_libraries(memcached_testapp PRIVATE
     ${SNAPPY_LIBRARIES}
     ${LIBEVENT_LIBRARIES}
     ${COUCHBASE_NETWORK_LIBS})
-add_dependencies(memcached_testapp memcached Generate_kv_engine_X509_Test_Certificates)
-if (NOT APPLE)
-    add_dependencies(memcached_testapp golang_tls_test)
-endif()
+add_dependencies(memcached_testapp
+    memcached
+    Generate_kv_engine_X509_Test_Certificates
+    golang_tls_test)
 add_sanitizers(memcached_testapp)
 cb_enable_unity_build(memcached_testapp)
 kv_enable_pch(memcached_testapp)

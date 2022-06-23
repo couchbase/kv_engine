@@ -273,7 +273,6 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCertShouldNotSupportSASL) {
     }
 }
 
-#ifndef __APPLE__
 /// The following test tries to use the TLS stack from golang to connect
 /// to the server and establish a connection and authenticate with the
 /// client certificate.
@@ -282,7 +281,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryGoClient) {
 
     auto connection = createConnection();
     std::vector<std::string> argv = {
-            {SOURCE_ROOT "/tests/gocode/bin/tls_test"},
+            {OBJECT_ROOT "/tests/gocode/tls_test/tls_test"},
             {"-kv"},
             {"localhost:" + std::to_string(connection->getPort())},
             {"-clientKey"},
@@ -307,7 +306,6 @@ TEST_F(SslCertTest, LoginWhenMandatoryGoClient) {
 
     EXPECT_EQ("Success", status) << json.dump(2);
 }
-#endif
 
 /// Verify we can't connect with the client certificate if the client
 /// don't have the certificate in the trusted certificate store.
