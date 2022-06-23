@@ -13,6 +13,7 @@
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
 #include <folly/portability/GTest.h>
+#include <platform/base64.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <protocol/connection/frameinfo.h>
@@ -317,6 +318,8 @@ protected:
         });
         return value;
     }
+
+    void testRangeScan(bool keyOnly);
 
     static std::unique_ptr<MemcachedConnection> conn;
 };
@@ -682,7 +685,7 @@ TEST_F(MeteringTest, OpsMetered) {
         case ClientOpcode::RangeScanCreate:
         case ClientOpcode::RangeScanContinue:
         case ClientOpcode::RangeScanCancel:
-            // @todo create a test case for range scans
+            // tested in MeteringTest::testRangeScan
             break;
 
         case ClientOpcode::DcpOpen:
@@ -2740,6 +2743,55 @@ TEST_F(MeteringTest, TTL_Expiry_Compaction) {
     //  Received last message 4294967276s ago. DCP noop [lastSent:4294967276s,
     //  lastRecv:4294967276s, interval:1s, opaque:10000008, pendingRecv:false],
     //  paused:true, pausedReason:ReadyListEmpty
+}
+
+void MeteringTest::testRangeScan(bool keyOnly) {
+    Document doc;
+    doc.value = "value";
+    doc.info.id = "key";
+    auto mInfo = conn->mutate(doc, Vbid(0), MutationType::Set);
+
+    auto start = cb::base64::encode("key", false);
+    auto end = cb::base64::encode("key\xFF", false);
+    nlohmann::json range = {{"range", {{"start", start}, {"end", end}}}};
+    range["snapshot_requirements"] = {
+            {"seqno", mInfo.seqno},
+            {"vb_uuid", std::to_string(mInfo.vbucketuuid)},
+            {"timeout_ms", 120000}};
+
+    if (keyOnly) {
+        range["key_only"] = true;
+    }
+    BinprotRangeScanCreate create(Vbid(0), range);
+    auto resp = conn->execute(create);
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    cb::rangescan::Id id;
+    std::memcpy(id.data, resp.getData().data(), resp.getData().size());
+
+    // 1 key in scan, issue 1 continue
+    BinprotRangeScanContinue scanContinue(
+            Vbid(0),
+            id,
+            0, /* no limit */
+            std::chrono::milliseconds(0) /* no time limit*/,
+            0 /*no byte limit*/);
+    resp = conn->execute(scanContinue);
+    ASSERT_EQ(cb::mcbp::Status::RangeScanComplete, resp.getStatus());
+
+    if (keyOnly) {
+        EXPECT_EQ(to_ru(doc.info.id.size()), *resp.getReadUnits());
+
+    } else {
+        EXPECT_EQ(to_ru(doc.info.id.size() + doc.value.size()),
+                  *resp.getReadUnits());
+    }
+}
+
+TEST_F(MeteringTest, RangeScanKey) {
+    testRangeScan(true);
+}
+TEST_F(MeteringTest, RangeScanValue) {
+    testRangeScan(false);
 }
 
 } // namespace cb::test

@@ -19,6 +19,7 @@
 
 #include <mcbp/codec/range_scan_continue_codec.h>
 #include <mcbp/protocol/unsigned_leb128.h>
+#include <memcached/cookie_iface.h>
 #include <memcached/server_cookie_iface.h>
 
 void RangeScanDataHandler::checkAndSend(const CookieIface& cookie) {
@@ -48,6 +49,7 @@ void RangeScanDataHandler::handleKey(const CookieIface& cookie, DocKey key) {
     cb::mcbp::response::RangeScanContinueKeyPayload::encode(responseBuffer,
                                                             key);
     checkAndSend(cookie);
+    const_cast<CookieIface&>(cookie).addDocumentReadBytes(key.size());
 }
 
 void RangeScanDataHandler::handleItem(const CookieIface& cookie,
@@ -55,6 +57,8 @@ void RangeScanDataHandler::handleItem(const CookieIface& cookie,
     cb::mcbp::response::RangeScanContinueValuePayload::encode(
             responseBuffer, item->toItemInfo(0, false));
     checkAndSend(cookie);
+    const_cast<CookieIface&>(cookie).addDocumentReadBytes(
+            item->getKey().size() + item->getNBytes());
 }
 
 void RangeScanDataHandler::handleStatus(const CookieIface& cookie,

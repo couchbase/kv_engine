@@ -195,7 +195,7 @@ void RangeScan::tryAndScanOneKey(KVStoreIface& kvstore) {
             getVBucketId(),
             {ByIdRange{start, end}},
             DocumentFilter::NO_DELETES,
-            ValueFilter::VALUES_COMPRESSED,
+            ValueFilter::KEYS_ONLY,
             std::move(scanCtx->handle));
 
     auto status = kvstore.scan(*checkOneKey);
