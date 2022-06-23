@@ -116,6 +116,33 @@ void ServerlessTest::TearDown() {
     Test::TearDown();
 }
 
+TEST_F(ServerlessTest, TestBucketDetailedStats) {
+    auto admin = cluster->getConnection(0);
+    admin->authenticate("@admin", "password");
+
+    nlohmann::json bucket;
+    admin->stats(
+            [&bucket](const auto& k, const auto& v) {
+                bucket = nlohmann::json::parse(v);
+            },
+            "bucket_details bucket-0");
+    EXPECT_EQ(14, bucket.size());
+    EXPECT_NE(bucket.end(), bucket.find("state"));
+    EXPECT_NE(bucket.end(), bucket.find("clients"));
+    EXPECT_NE(bucket.end(), bucket.find("name"));
+    EXPECT_NE(bucket.end(), bucket.find("type"));
+    EXPECT_NE(bucket.end(), bucket.find("ru"));
+    EXPECT_NE(bucket.end(), bucket.find("wu"));
+    EXPECT_NE(bucket.end(), bucket.find("num_throttled"));
+    EXPECT_NE(bucket.end(), bucket.find("throttle_limit"));
+    EXPECT_NE(bucket.end(), bucket.find("throttle_wait_time"));
+    EXPECT_NE(bucket.end(), bucket.find("num_commands"));
+    EXPECT_NE(bucket.end(), bucket.find("num_commands_with_metered_units"));
+    EXPECT_NE(bucket.end(), bucket.find("num_metered_dcp_messages"));
+    EXPECT_NE(bucket.end(), bucket.find("num_rejected"));
+    EXPECT_NE(bucket.end(), bucket.find("sloppy_cu"));
+}
+
 TEST_F(ServerlessTest, TestDefaultThrottleLimit) {
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");

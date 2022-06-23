@@ -348,22 +348,13 @@ TEST_P(StatsTest, TestBucketDetails) {
     // Validate each bucket entry (I should probably extend it with checking
     // of the actual values
     for (const auto& bucket : array) {
-        EXPECT_EQ(15, bucket.size());
+        EXPECT_EQ(6, bucket.size());
         EXPECT_NE(bucket.end(), bucket.find("index"));
         EXPECT_NE(bucket.end(), bucket.find("state"));
         EXPECT_NE(bucket.end(), bucket.find("clients"));
         EXPECT_NE(bucket.end(), bucket.find("name"));
         EXPECT_NE(bucket.end(), bucket.find("type"));
-        EXPECT_NE(bucket.end(), bucket.find("ru"));
-        EXPECT_NE(bucket.end(), bucket.find("wu"));
-        EXPECT_NE(bucket.end(), bucket.find("num_throttled"));
-        EXPECT_NE(bucket.end(), bucket.find("throttle_limit"));
-        EXPECT_NE(bucket.end(), bucket.find("throttle_wait_time"));
         EXPECT_NE(bucket.end(), bucket.find("num_commands"));
-        EXPECT_NE(bucket.end(), bucket.find("num_commands_with_metered_units"));
-        EXPECT_NE(bucket.end(), bucket.find("num_metered_dcp_messages"));
-        EXPECT_NE(bucket.end(), bucket.find("num_rejected"));
-        EXPECT_NE(bucket.end(), bucket.find("sloppy_cu"));
     }
 }
 
@@ -388,10 +379,6 @@ TEST_P(StatsTest, TestBucketDetailsSingleBucket) {
     EXPECT_LE(1, json["clients"].get<int>());
     EXPECT_EQ(bucketName, json["name"].get<std::string>());
     EXPECT_EQ("EWouldBlock", json["type"].get<std::string>());
-    // we can't really check the RCU and WCUs used as it depends on which
-    // tests have been executed before this test
-    EXPECT_EQ(0, json["num_throttled"].get<int>());
-    EXPECT_EQ(0, json["throttle_limit"].get<int>());
 
     auto rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Stat,
