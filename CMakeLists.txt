@@ -9,6 +9,10 @@ INCLUDE(GenerateExportHeader)
 include(check_unit_test_enabled)
 include(HeaderObjectLibrary)
 
+IF(COUCHBASE_KV_COMMIT_VALIDATION AND NOT CB_DEVELOPMENT_ASSERTS)
+    message(FATAL_ERROR "CB_DEVELOPMENT_ASSERTS MUST have been enabled for KV_COMMIT_VALIDATION builds to ensure that tests are valid.")
+ENDIF(COUCHBASE_KV_COMMIT_VALIDATION AND NOT CB_DEVELOPMENT_ASSERTS)
+
 check_unit_test_enabled(kv_engine COUCHBASE_KV_BUILD_UNIT_TESTS)
 
 # The test program expects to find the output files in
