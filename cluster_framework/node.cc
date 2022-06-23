@@ -68,7 +68,14 @@ NodeImpl::NodeImpl(std::filesystem::path directory, std::string id)
     const std::filesystem::path source_root(SOURCE_ROOT);
     const auto errmaps =
             source_root / "etc" / "couchbase" / "kv" / "error_maps";
-    const auto rbac = source_root / "tests" / "testapp_cluster" / "rbac.json";
+    std::filesystem::path rbac;
+
+    const auto* rbac_file = getenv("MEMCACHED_RBAC");
+    if (rbac_file) {
+        rbac = rbac_file;
+    } else {
+        rbac = source_root / "tests" / "testapp_cluster" / "rbac.json";
+    }
     const auto log_filename = NodeImpl::directory / "log" / "memcached_log";
     const auto portnumber_file = NodeImpl::directory / "memcached.ports.json";
     const auto minidump_dir = NodeImpl::directory / "crash";

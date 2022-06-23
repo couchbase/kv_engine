@@ -43,6 +43,10 @@ int main(int argc, char** argv) {
                 "testapp_serverless" / "pwdb.json";
     setenv("CBSASL_PWFILE", pwdb.generic_string().c_str(), 1);
 
+    auto rbac = std::filesystem::path{SOURCE_ROOT} / "tests" /
+                "testapp_serverless" / "rbac.json";
+    setenv("MEMCACHED_RBAC", rbac.generic_string().c_str(), 1);
+
 #ifndef WIN32
     if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
         std::cerr << "Fatal: failed to ignore SIGPIPE" << std::endl;
