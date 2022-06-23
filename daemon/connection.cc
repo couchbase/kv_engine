@@ -601,19 +601,12 @@ void Connection::executeCommandPipeline() {
 
             const auto status = cookie.validate();
             if (status == cb::mcbp::Status::Success) {
-                // Internal users and DCP is not subject for Throttling
-                // (at least not for now)
-                bool throttle = false;
-                if (!internal && !isDCP()) {
-                    throttle = getBucket().shouldThrottle(cookie, true);
-                }
-
                 // We may only start execute the packet if:
                 //  * We shouldn't be throttled
                 //  * We don't have any ongoing commands
                 //  * We have an ongoing command and this command allows
                 //    for reorder
-                if (throttle) {
+                if (getBucket().shouldThrottle(cookie, true)) {
                     cookie.setThrottled(true);
                     // Set the cookie to true to block the destruction
                     // of the command (and the connection)
