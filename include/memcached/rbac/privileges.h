@@ -123,6 +123,12 @@ enum class Privilege {
      */
     BucketThrottleManagement,
 
+    /// The Unthrottled privilege allows for override throttle limit
+    Unthrottled,
+
+    /// The Unmetered privilege allows for skipping recoring metering info
+    Unmetered,
+
     /**
      * The `Impersonate` privilege allows the connection to execute commands
      * by using a different authentication context. The intented use is
