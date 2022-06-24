@@ -305,10 +305,10 @@ TEST_F(ServerlessTest, AllConnectionsAreMetered) {
         auto initial = stat();
         Document doc;
         doc.info.id = "mydoc";
-        doc.value = "This is the value";
+        doc.value.resize(1024);
         conn.mutate(doc, Vbid{0}, MutationType::Set);
         auto after = stat();
-        EXPECT_EQ(initial["wu"].get<std::size_t>() + 1,
+        EXPECT_EQ(initial["wu"].get<std::size_t>() + 2,
                   after["wu"].get<std::size_t>());
 
         // write should not update ru

@@ -124,7 +124,8 @@ cb::engine_errc bucket_store(
         add(cookie,
             document_state == DocumentState::Alive ? Operation::Modify
                                                    : Operation::Delete);
-        cookie.addDocumentWriteBytes(item_->getValueView().size());
+        cookie.addDocumentWriteBytes(item_->getValueView().size() +
+                                     item_->getDocKey().size());
     } else if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_store return cb::engine_errc::disconnect",
                     c.getId(),
@@ -158,7 +159,8 @@ cb::EngineErrorCasPair bucket_store_if(
         add(cookie,
             document_state == DocumentState::Alive ? Operation::Modify
                                                    : Operation::Delete);
-        cookie.addDocumentWriteBytes(item_->getValueView().size());
+        cookie.addDocumentWriteBytes(item_->getValueView().size() +
+                                     item_->getDocKey().size());
     } else if (ret.status == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} store_if return cb::engine_errc::disconnect",
                     c.getId(),
