@@ -357,8 +357,17 @@ UserEntry::UserEntry(const std::string& username,
 
     iter = json.find("privileges");
     if (iter != json.end()) {
+        static const bool unit_tests =
+                getenv("MEMCACHED_UNIT_TESTS") != nullptr;
         // Parse the privileges
         privilegeMask = parsePrivileges(*iter, false);
+        if (!unit_tests && username != "@ns_server") {
+            // ns_server currently populate the internal users with "all",
+            // but they should not have the unthrottled and unmetered
+            // privileges
+            privilegeMask.set(int(Privilege::Unthrottled), false);
+            privilegeMask.set(int(Privilege::Unmetered), false);
+        }
     }
 
     iter = json.find("buckets");
