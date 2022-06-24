@@ -330,8 +330,6 @@ TEST_F(ServerlessTest, AllConnectionsAreMetered) {
             conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop})
                     .isSuccess());
     auto after = getStats();
-    EXPECT_EQ(initial["num_commands"].get<std::size_t>() + 2, // 1 noop, 1 stat
-              after["num_commands"].get<std::size_t>());
     EXPECT_EQ(initial["num_commands_with_metered_units"].get<std::size_t>(),
               after["num_commands_with_metered_units"].get<std::size_t>());
 }
