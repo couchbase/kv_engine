@@ -1834,6 +1834,14 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
             continue;
         }
     }
+
+    if (!mctx.itr->GetStatus().IsOK()) {
+        logger->warn("MagmaKVStore::scan(BySeq) scan failed {} error:{}",
+                     ctx.vbid,
+                     mctx.itr->GetStatus().String());
+
+        return scan_failed;
+    }
     return scan_success;
 }
 
@@ -1891,6 +1899,13 @@ scan_error_t MagmaKVStore::scan(ByIdScanContext& ctx,
             ctx.lastReadKey = makeDiskDocKey(keySlice);
             continue;
         }
+    }
+
+    if (!itr->GetStatus().IsOK()) {
+        logger->warn("MagmaKVStore::scan(ById) scan failed {} error:{}",
+                     ctx.vbid,
+                     itr->GetStatus().String());
+        return scan_failed;
     }
     return scan_success;
 }
