@@ -921,6 +921,10 @@ protected:
     void updateSendBytes(size_t nbytes);
     void updateRecvBytes(size_t nbytes);
 
+    /// Update the privilege context and drop all of the previously dropped
+    /// privileges and update any cached variables
+    void updatePrivilegeContext();
+
     /**
      * The "list" of commands currently being processed. We ALWAYS keep the
      * the first entry in the list (and try to reuse that) due to how DCP
@@ -938,6 +942,9 @@ protected:
 
     /// The current privilege context
     cb::rbac::PrivilegeContext privilegeContext{cb::sasl::Domain::Local};
+
+    /// The current dropped privilege set
+    cb::rbac::PrivilegeMask droppedPrivileges;
 
     /// The authenticated user
     cb::rbac::UserIdent user{std::string("unknown"), cb::sasl::Domain::Local};

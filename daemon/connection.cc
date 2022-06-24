@@ -263,20 +263,30 @@ void Connection::restartAuthentication() {
     user = cb::rbac::UserIdent{"unknown", cb::rbac::Domain::Local};
 }
 
+void Connection::updatePrivilegeContext() {
+    for (std::size_t ii = 0; ii < droppedPrivileges.size(); ++ii) {
+        if (droppedPrivileges.test(ii)) {
+            privilegeContext.dropPrivilege(cb::rbac::Privilege(ii));
+        }
+    }
+    subject_to_metering.store(
+            privilegeContext.check(cb::rbac::Privilege::Unmetered, {}, {})
+                    .failed(),
+            std::memory_order::memory_order_release);
+    subject_to_throttling.store(
+            privilegeContext.check(cb::rbac::Privilege::Unthrottled, {}, {})
+                    .failed(),
+            std::memory_order::memory_order_release);
+}
+
 cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
     if (isDCP() && privilege == cb::rbac::Privilege::Unthrottled) {
         // DCP connections set up as unmetered can't drop the privilege
         // as we only registered throttled DCP connections
         return cb::engine_errc::failed;
     }
-    privilegeContext.dropPrivilege(privilege);
-    if (privilege == cb::rbac::Privilege::Unmetered) {
-        subject_to_metering.store(true,
-                                  std::memory_order::memory_order_release);
-    } else if (privilege == cb::rbac::Privilege::Unthrottled) {
-        subject_to_throttling.store(true,
-                                    std::memory_order::memory_order_release);
-    }
+    droppedPrivileges.set(int(privilege), true);
+    updatePrivilegeContext();
     return cb::engine_errc::success;
 }
 
@@ -307,14 +317,7 @@ cb::rbac::PrivilegeContext Connection::getPrivilegeContext() {
                          getDescription());
             }
         }
-        subject_to_throttling.store(
-                privilegeContext.check(cb::rbac::Privilege::Unthrottled, {}, {})
-                        .failed(),
-                std::memory_order::memory_order_release);
-        subject_to_metering.store(
-                privilegeContext.check(cb::rbac::Privilege::Unmetered, {}, {})
-                        .failed(),
-                std::memory_order::memory_order_release);
+        updatePrivilegeContext();
     }
 
     return privilegeContext;
@@ -464,14 +467,7 @@ void Connection::setBucketIndex(int index, Cookie* cookie) {
         // possible bucket privileges
         privilegeContext.setBucketPrivileges();
     }
-    subject_to_throttling.store(
-            privilegeContext.check(cb::rbac::Privilege::Unthrottled, {}, {})
-                    .failed(),
-            std::memory_order::memory_order_release);
-    subject_to_metering.store(
-            privilegeContext.check(cb::rbac::Privilege::Unmetered, {}, {})
-                    .failed(),
-            std::memory_order::memory_order_release);
+    updatePrivilegeContext();
 }
 
 void Connection::addCpuTime(std::chrono::nanoseconds ns) {
@@ -1329,19 +1325,13 @@ void Connection::setAuthenticated(bool authenticated_,
     user = std::move(ui);
     if (authenticated_) {
         updateDescription();
+        droppedPrivileges.reset();
         privilegeContext = cb::rbac::createContext(user, "");
     } else {
         updateDescription();
         privilegeContext = cb::rbac::PrivilegeContext{user.domain};
     }
-    subject_to_throttling.store(
-            privilegeContext.check(cb::rbac::Privilege::Unthrottled, {}, {})
-                    .failed(),
-            std::memory_order::memory_order_release);
-    subject_to_metering.store(
-            privilegeContext.check(cb::rbac::Privilege::Unmetered, {}, {})
-                    .failed(),
-            std::memory_order::memory_order_release);
+    updatePrivilegeContext();
 }
 
 bool Connection::tryAuthFromSslCert(const std::string& userName,
