@@ -265,6 +265,13 @@ void Connection::restartAuthentication() {
 
 cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
     privilegeContext.dropPrivilege(privilege);
+    if (privilege == cb::rbac::Privilege::Unmetered) {
+        subject_to_metering.store(true,
+                                  std::memory_order::memory_order_release);
+    } else if (privilege == cb::rbac::Privilege::Unthrottled) {
+        subject_to_throttling.store(true,
+                                    std::memory_order::memory_order_release);
+    }
     return cb::engine_errc::success;
 }
 
@@ -295,6 +302,14 @@ cb::rbac::PrivilegeContext Connection::getPrivilegeContext() {
                          getDescription());
             }
         }
+        subject_to_throttling.store(
+                privilegeContext.check(cb::rbac::Privilege::Unthrottled, {}, {})
+                        .failed(),
+                std::memory_order::memory_order_release);
+        subject_to_metering.store(
+                privilegeContext.check(cb::rbac::Privilege::Unmetered, {}, {})
+                        .failed(),
+                std::memory_order::memory_order_release);
     }
 
     return privilegeContext;
@@ -443,6 +458,14 @@ void Connection::setBucketIndex(int index, Cookie* cookie) {
         // possible bucket privileges
         privilegeContext.setBucketPrivileges();
     }
+    subject_to_throttling.store(
+            privilegeContext.check(cb::rbac::Privilege::Unthrottled, {}, {})
+                    .failed(),
+            std::memory_order::memory_order_release);
+    subject_to_metering.store(
+            privilegeContext.check(cb::rbac::Privilege::Unmetered, {}, {})
+                    .failed(),
+            std::memory_order::memory_order_release);
 }
 
 void Connection::addCpuTime(std::chrono::nanoseconds ns) {
@@ -1299,6 +1322,14 @@ void Connection::setAuthenticated(bool authenticated_,
         updateDescription();
         privilegeContext = cb::rbac::PrivilegeContext{user.domain};
     }
+    subject_to_throttling.store(
+            privilegeContext.check(cb::rbac::Privilege::Unthrottled, {}, {})
+                    .failed(),
+            std::memory_order::memory_order_release);
+    subject_to_metering.store(
+            privilegeContext.check(cb::rbac::Privilege::Unmetered, {}, {})
+                    .failed(),
+            std::memory_order::memory_order_release);
 }
 
 bool Connection::tryAuthFromSslCert(const std::string& userName,
@@ -1763,10 +1794,8 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
     response.setOpaque(request.getOpaque());
     response.setCas(cookie.getCas());
 
-    auto& connection = cookie.getConnection();
-    const auto tracing =
-            connection.isTracingEnabled() && cookie.isTracingEnabled();
-    auto cutracing = connection.isReportUnitUsage();
+    const auto tracing = isTracingEnabled() && cookie.isTracingEnabled();
+    auto cutracing = isReportUnitUsage() && isSubjectToMetering();
     size_t ru = 0;
     size_t wu = 0;
     if (cutracing) {
@@ -2092,8 +2121,7 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
                                      cb::mcbp::DcpStreamId sid) {
     auto key = it->getDocKey();
 
-    const auto doc_read_bytes =
-            isInternal() ? 0 : key.size() + it->getValueView().size();
+    const auto doc_read_bytes = key.size() + it->getValueView().size();
 
     // The client doesn't support collections, so must not send an encoded key
     if (!isCollectionsSupported()) {
@@ -2132,7 +2160,7 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
         if (ret == cb::engine_errc::success) {
-            getBucket().recordMeteringReadBytes(doc_read_bytes);
+            getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
         }
         return ret;
     }
@@ -2183,7 +2211,7 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
         return cb::engine_errc::disconnect;
     }
 
-    getBucket().recordMeteringReadBytes(doc_read_bytes);
+    getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
     return cb::engine_errc::success;
 }
 
@@ -2211,8 +2239,7 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
                                      uint64_t rev_seqno,
                                      cb::mcbp::DcpStreamId sid) {
     auto key = it->getDocKey();
-    const auto doc_read_bytes =
-            isInternal() ? 0 : key.size() + it->getValueView().size();
+    const auto doc_read_bytes = key.size() + it->getValueView().size();
 
     if (!isCollectionsSupported()) {
         key = key.makeDocKeyWithoutCollectionID();
@@ -2246,7 +2273,7 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
         if (ret == cb::engine_errc::success) {
-            getBucket().recordMeteringReadBytes(doc_read_bytes);
+            getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
         }
         return ret;
     }
@@ -2287,7 +2314,7 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
 
     const auto ret = deletionInner(*it, packetBuffer, key);
     if (ret == cb::engine_errc::success) {
-        getBucket().recordMeteringReadBytes(doc_read_bytes);
+        getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
     }
     return ret;
 }
@@ -2300,8 +2327,7 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
                                         uint32_t delete_time,
                                         cb::mcbp::DcpStreamId sid) {
     auto key = it->getDocKey();
-    const auto doc_read_bytes =
-            isInternal() ? 0 : key.size() + it->getValueView().size();
+    const auto doc_read_bytes = key.size() + it->getValueView().size();
 
     if (!isCollectionsSupported()) {
         key = key.makeDocKeyWithoutCollectionID();
@@ -2334,7 +2360,7 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
         if (ret == cb::engine_errc::success) {
-            getBucket().recordMeteringReadBytes(doc_read_bytes);
+            getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
         }
         return ret;
     }
@@ -2375,7 +2401,7 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
 
     const auto ret = deletionInner(*it, {blob.data(), size}, key);
     if (ret == cb::engine_errc::success) {
-        getBucket().recordMeteringReadBytes(doc_read_bytes);
+        getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
     }
     return ret;
 }
@@ -2388,8 +2414,7 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
                                        uint32_t delete_time,
                                        cb::mcbp::DcpStreamId sid) {
     auto key = it->getDocKey();
-    const auto doc_read_bytes =
-            isInternal() ? 0 : key.size() + it->getValueView().size();
+    const auto doc_read_bytes = key.size() + it->getValueView().size();
 
     if (!isCollectionsSupported()) {
         key = key.makeDocKeyWithoutCollectionID();
@@ -2422,7 +2447,7 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
         if (ret == cb::engine_errc::success) {
-            getBucket().recordMeteringReadBytes(doc_read_bytes);
+            getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
         }
         return ret;
     }
@@ -2463,7 +2488,7 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
 
     const auto ret = deletionInner(*it, {blob.data(), size}, key);
     if (ret == cb::engine_errc::success) {
-        getBucket().recordMeteringReadBytes(doc_read_bytes);
+        getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
     }
     return ret;
 }

@@ -191,7 +191,7 @@ public:
 
     /// Update the bucket metering data that we've read (used when pushing
     /// DCP messages)
-    void recordMeteringReadBytes(std::size_t nread);
+    void recordMeteringReadBytes(const Connection& conn, std::size_t nread);
 
     /**
      * Check to see if execution of the provided cookie should be throttled

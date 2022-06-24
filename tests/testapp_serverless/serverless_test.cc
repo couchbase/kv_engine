@@ -277,6 +277,7 @@ TEST_F(ServerlessTest, AllConnectionsAreMetered) {
     conn->authenticate("bucket-0", "bucket-0");
     admin->selectBucket("bucket-0");
     conn->selectBucket("bucket-0");
+    admin->dropPrivilege(cb::rbac::Privilege::Unmetered);
 
     auto getStats = [&admin]() -> nlohmann::json {
         nlohmann::json ret;
@@ -639,6 +640,7 @@ TEST_F(ServerlessTest, OpsMetered) {
     using namespace cb::mcbp;
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
+    admin->dropPrivilege(cb::rbac::Privilege::Unmetered);
 
     auto executeWithExpectedCU = [&admin](std::function<void()> func,
                                           size_t ru,
@@ -754,6 +756,7 @@ TEST_F(ServerlessTest, OpsMetered) {
             conn.reconnect();
             conn.authenticate("@admin", "password");
             conn.selectBucket("bucket-0");
+            conn.dropPrivilege(cb::rbac::Privilege::Unmetered);
             conn.setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
             conn.setReadTimeout(std::chrono::seconds{3});
             break;
@@ -993,6 +996,7 @@ TEST_F(ServerlessTest, OpsMetered) {
                         Vbid(0), vbucket_state_replica, 1);
                 rcon->authenticate("@admin", "password");
                 rcon->selectBucket("bucket-0");
+                rcon->dropPrivilege(cb::rbac::Privilege::Unmetered);
                 rcon->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
                 rcon->setReadTimeout(std::chrono::seconds{3});
                 createDocument("ClientOpcode::GetReplica", "value");
@@ -1399,6 +1403,7 @@ TEST_F(ServerlessTest, OpsMetered) {
     auto connection = cluster->getConnection(0);
     connection->authenticate("@admin", "password");
     connection->selectBucket("bucket-0");
+    connection->dropPrivilege(cb::rbac::Privilege::Unmetered);
     connection->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
     connection->setReadTimeout(std::chrono::seconds{3});
 
@@ -1443,6 +1448,32 @@ TEST_F(ServerlessTest, OpsMetered) {
     EXPECT_EQ(instance.getRu(),
               after["ru"].get<size_t>() - before["ru"].get<size_t>());
     EXPECT_EQ(0, after["wu"].get<size_t>() - before["wu"].get<size_t>());
+}
+
+TEST_F(ServerlessTest, UnmeteredPrivilege) {
+    auto admin = cluster->getConnection(0);
+    admin->authenticate("@admin", "password");
+    admin->selectBucket("bucket-0");
+
+    nlohmann::json before;
+    admin->stats(
+            [&before](auto k, auto v) { before = nlohmann::json::parse(v); },
+            "bucket_details bucket-0");
+
+    Document doc;
+    doc.info.id = "UnmeteredPrivilege";
+    doc.value = "This is the value";
+    admin->mutate(doc, Vbid{0}, MutationType::Set);
+    admin->get("UnmeteredPrivilege", Vbid{0});
+
+    nlohmann::json after;
+    admin->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
+                 "bucket_details bucket-0");
+
+    EXPECT_EQ(before["ru"].get<std::size_t>(), after["ru"].get<std::size_t>());
+    EXPECT_EQ(before["wu"].get<std::size_t>(), after["wu"].get<std::size_t>());
+    EXPECT_EQ(before["num_commands_with_metered_units"].get<std::size_t>(),
+              after["num_commands_with_metered_units"].get<std::size_t>());
 }
 
 } // namespace cb::test

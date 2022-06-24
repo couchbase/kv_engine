@@ -166,8 +166,9 @@ void Bucket::setEngine(unique_engine_ptr engine_) {
     bucketDcp = dynamic_cast<DcpIface*>(engine.get());
 }
 
-void Bucket::recordMeteringReadBytes(std::size_t nread) {
-    if (!nread) {
+void Bucket::recordMeteringReadBytes(const Connection& conn,
+                                     std::size_t nread) {
+    if (conn.isUnmetered()) {
         return;
     }
     auto& inst = cb::serverless::Config::instance();
@@ -177,18 +178,22 @@ void Bucket::recordMeteringReadBytes(std::size_t nread) {
 }
 
 void Bucket::commandExecuted(const Cookie& cookie) {
+    ++num_commands;
+    if (cookie.getConnection().isUnmetered()) {
+        return;
+    }
+
     auto& inst = cb::serverless::Config::instance();
     const auto [read, write] = cookie.getDocumentRWBytes();
-    const auto ru = inst.to_ru(read);
-    const auto wu = inst.to_wu(write);
-    throttle_gauge.increment(ru + wu);
-    throttle_wait_time += cookie.getTotalThrottleTime();
-    read_units_used += ru;
-    write_units_used += wu;
-    if (ru || wu) {
+    if (read || write) {
+        const auto ru = inst.to_ru(read);
+        const auto wu = inst.to_wu(write);
+        throttle_gauge.increment(ru + wu);
+        throttle_wait_time += cookie.getTotalThrottleTime();
+        read_units_used += ru;
+        write_units_used += wu;
         ++num_commands_with_metered_units;
     }
-    ++num_commands;
 }
 
 void Bucket::rejectCommand(const Cookie&) {
@@ -212,7 +217,7 @@ void Bucket::tick() {
 
 bool Bucket::shouldThrottle(const Cookie& cookie,
                             bool addConnectionToThrottleList) {
-    if (throttle_limit == 0) {
+    if (throttle_limit == 0 || cookie.getConnection().isUnthrottled()) {
         // No limit specified, so we don't need to do any further inspection
         return false;
     }

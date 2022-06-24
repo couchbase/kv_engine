@@ -829,6 +829,26 @@ public:
     /// Notify that a command was executed (needed for command rate limiting)
     void commandExecuted(Cookie& cookie);
 
+    /// Is this connection not to be metered?
+    bool isUnmetered() const {
+        return !isSubjectToMetering();
+    }
+
+    bool isSubjectToMetering() const {
+        return subject_to_metering.load(
+                std::memory_order::memory_order_acquire);
+    }
+
+    /// Is this connection not to be throttled?
+    bool isUnthrottled() const {
+        return !isSubjectToThrottling();
+    }
+
+    bool isSubjectToThrottling() const {
+        return subject_to_throttling.load(
+                std::memory_order::memory_order_acquire);
+    }
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses
@@ -1046,6 +1066,9 @@ protected:
     bool allow_unordered_execution{false};
 
     bool report_unit_usage{false};
+
+    std::atomic_bool subject_to_throttling{true};
+    std::atomic_bool subject_to_metering{true};
 
     /// The name of the client provided to us by hello
     std::array<char, MaxSavedAgentName> agentName{};
