@@ -84,9 +84,8 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
             get_float_stat(h, "ep_mem_high_wat_percent"),
             "Incorrect initial high wat. percent");
 
-    set_param(h, EngineParamCategory::Flush, "max_size", "1000000");
+    setAndWaitForQuotaChange(h, 1000000);
 
-    checkeq(1000000, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
     check(epsilon(get_int_stat(h, "ep_mem_low_wat"), 750000),
           "Incorrect larger low wat.");
     check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 850000),
@@ -114,9 +113,8 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
             get_float_stat(h, "ep_mem_high_wat_percent"),
             "Incorrect even larger high wat. percent");
 
-    set_param(h, EngineParamCategory::Flush, "max_size", "100");
+    setAndWaitForQuotaChange(h, 100);
 
-    checkeq(100, get_int_stat(h, "ep_max_size"), "Incorrect smaller size.");
     check(epsilon(get_int_stat(h, "ep_mem_low_wat"), 70),
           "Incorrect smaller low wat.");
     check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 80),
@@ -146,7 +144,7 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
     // to the max_size will calculate watermarks based on the current ratio.
     // Example here is that we get 50% and 70% watermarks because of the
     // prior configuration tweaks that resulted in changes to the percentages.
-    set_param(h, EngineParamCategory::Flush, "max_size", "1000");
+    setAndWaitForQuotaChange(h, 1000);
     checkeq(500,
             get_int_stat(h, "ep_mem_low_wat"),
             "Incorrect low wat."); // Now engine computes 50 %

@@ -547,3 +547,11 @@ void checkPersistentBucketTempItems(EngineIface* h, int exp) {
                 "expected");
     }
 }
+
+void setAndWaitForQuotaChange(EngineIface* h, uint64_t newQuota) {
+    set_param(h,
+              EngineParamCategory::Flush,
+              "max_size",
+              std::to_string(newQuota).c_str());
+    wait_for_stat_to_be(h, "ep_max_size", newQuota);
+}

@@ -34,6 +34,16 @@ public:
         // of the current quota
         initialMemLowWatPercent = engine->getEpStats().mem_low_wat_percent;
         initialMemHighWatPercent = engine->getEpStats().mem_high_wat_percent;
+
+        // Test setup doesn't call KVBucket::initialize (which creates the quota
+        // change task) so we have to do that manually here.
+        store->createAndScheduleBucketQuotaChangeTask();
+    }
+
+    void runQuotaChangeTaskOnce() {
+        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        // run the task.
+        runNextTask(lpNonioQ, "Changing bucket quota");
     }
 
     size_t getCurrentBucketQuota() {
@@ -41,25 +51,30 @@ public:
     }
 
     void setBucketQuota(size_t newValue) {
+        auto oldQuota = getCurrentBucketQuota();
         std::string msg;
         engine->setFlushParam("max_size", std::to_string(newValue), msg);
+
+        // Changes don't take place until we run the task
+        EXPECT_EQ(oldQuota, engine->getEpStats().getMaxDataSize());
+    }
+
+    void setBucketQuotaAndRunQuotaChangeTask(size_t newValue) {
+        setBucketQuota(newValue);
+        runQuotaChangeTaskOnce();
     }
 
     void setLowWatermark(double percentage) {
         auto newValue = percentOf(getCurrentBucketQuota(), percentage);
-
         std::string msg;
         engine->setFlushParam("mem_low_wat", std::to_string(newValue), msg);
-
         initialMemLowWatPercent = percentage;
     }
 
     void setHighWatermark(double percentage) {
         auto newValue = percentOf(getCurrentBucketQuota(), percentage);
-
         std::string msg;
         engine->setFlushParam("mem_high_wat", std::to_string(newValue), msg);
-
         initialMemHighWatPercent = percentage;
     }
 
@@ -73,7 +88,6 @@ public:
                   engine->getEpStats().mem_low_wat_percent);
         EXPECT_EQ(percentOf(quotaValue, initialMemLowWatPercent),
                   engine->getConfiguration().getMemLowWat());
-
         EXPECT_EQ(initialMemHighWatPercent,
                   engine->getEpStats().mem_high_wat_percent);
         EXPECT_EQ(percentOf(quotaValue, initialMemHighWatPercent),
@@ -91,11 +105,9 @@ public:
         if (STParameterizedBucketTest::isMagma()) {
             auto& magmaKVStoreConfig = static_cast<const MagmaKVStoreConfig&>(
                     engine->getKVBucket()->getOneRWUnderlying()->getConfig());
-
             size_t magmaQuota;
             engine->getKVBucket()->getOneRWUnderlying()->getStat("memory_quota",
                                                                  magmaQuota);
-
             EXPECT_EQ(
                     percentOf(quotaValue,
                               magmaKVStoreConfig.getMagmaMemQuotaRatio()),
@@ -124,6 +136,7 @@ public:
     }
 
     void testQuotaChangeUp() {
+        SCOPED_TRACE("");
         auto currentQuota = getCurrentBucketQuota();
 
         {
@@ -132,7 +145,7 @@ public:
         }
 
         auto newQuota = currentQuota * 2;
-        setBucketQuota(newQuota);
+        setBucketQuotaAndRunQuotaChangeTask(newQuota);
 
         {
             SCOPED_TRACE("");
@@ -141,6 +154,7 @@ public:
     }
 
     void testQuotaChangeDown() {
+        SCOPED_TRACE("");
         auto currentQuota = getCurrentBucketQuota();
 
         {
@@ -149,7 +163,7 @@ public:
         }
 
         auto newQuota = currentQuota / 2;
-        setBucketQuota(newQuota);
+        setBucketQuotaAndRunQuotaChangeTask(newQuota);
 
         {
             SCOPED_TRACE("");
@@ -162,14 +176,20 @@ public:
 };
 
 TEST_P(BucketQuotaChangeTest, QuotaChangeEqual) {
+    SCOPED_TRACE("");
     auto currentQuota = getCurrentBucketQuota();
-
-    auto newQuota = currentQuota;
-    setBucketQuota(newQuota);
 
     {
         SCOPED_TRACE("");
-        checkQuota(newQuota);
+        checkBucketQuotaAndRelatedValues(currentQuota);
+    }
+
+    auto newQuota = currentQuota;
+    setBucketQuotaAndRunQuotaChangeTask(newQuota);
+
+    {
+        SCOPED_TRACE("");
+        checkBucketQuotaAndRelatedValues(newQuota);
     }
 }
 

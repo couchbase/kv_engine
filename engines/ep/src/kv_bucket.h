@@ -29,6 +29,7 @@
 #include <deque>
 
 class CheckpointDestroyerTask;
+class BucketQuotaChangeTask;
 class DurabilityCompletionTask;
 class NotifiableTask;
 class ReplicationThrottle;
@@ -921,6 +922,7 @@ public:
 
     void createAndScheduleCheckpointDestroyerTasks();
     void createAndScheduleCheckpointRemoverTasks();
+    void createAndScheduleBucketQuotaChangeTask();
 
     /**
      * Add a vbucket that has a SeqnoPersistentRequest (so it can be notified
@@ -957,6 +959,13 @@ public:
     cb::engine_errc cancelRangeScan(Vbid vbid,
                                     cb::rangescan::Id uuid,
                                     const CookieIface& cookie) override;
+
+    /**
+     * Process a bucket quota change to the desired value
+     *
+     * @param desiredQuota
+     */
+    void processBucketQuotaChange(size_t desiredQuota);
 
 protected:
     /**
@@ -1210,6 +1219,14 @@ protected:
      * A task that will notify (success or timeout) of SeqnoPersistenceRequests.
      */
     std::shared_ptr<SeqnoPersistenceNotifyTask> seqnoPersistenceNotifyTask;
+
+    /**
+     * A task that is used to change the Bucket quota if a client requests it.
+     * It exists beyond the lifetime of a quota change for the sake of handling
+     * attempted concurrent changes to the bucket quota. The latest quota change
+     * requested will always be used over a currently running change request
+     */
+    std::shared_ptr<BucketQuotaChangeTask> bucketQuotaChangeTask;
 
     friend class KVBucketTest;
 

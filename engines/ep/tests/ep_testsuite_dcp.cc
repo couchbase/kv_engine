@@ -1435,13 +1435,9 @@ static enum test_result test_dcp_consumer_flow_control_enabled(EngineIface* h) {
     std::vector<CookieIface*> cookie(max_conns);
     const auto flow_ctl_buf_max = 52428800;
     const auto flow_ctl_buf_min = 10485760;
-    const auto ep_max_size = 1200000000;
+    const uint64_t ep_max_size = 1200000000;
     const auto bucketMemQuotaFraction = 0.05;
-    set_param(h,
-              EngineParamCategory::Flush,
-              "max_size",
-              std::to_string(ep_max_size).c_str());
-    checkeq(ep_max_size, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
+    setAndWaitForQuotaChange(h, ep_max_size);
 
     std::vector<Vbid> vbuckets = {
             {Vbid{1}, Vbid{2}, Vbid{3}, Vbid{4}, Vbid{5}, Vbid{6}}};

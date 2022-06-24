@@ -315,3 +315,6 @@ bool isFollyExecutorPool(EngineIface* h);
 
 // Checks number of temp items in a persistent bucket (EPBucket).
 void checkPersistentBucketTempItems(EngineIface* h, int exp);
+
+// Set the Bucket quota to the given value and wait for it to take effect
+void setAndWaitForQuotaChange(EngineIface* h, uint64_t newQuota);

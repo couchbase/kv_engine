@@ -12,6 +12,7 @@
 #include "kv_bucket.h"
 #include "access_scanner.h"
 #include "bucket_logger.h"
+#include "bucket_quota_change_task.h"
 #include "checkpoint_config.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
@@ -517,6 +518,9 @@ bool KVBucket::initialize() {
     ExecutorPool::get()->schedule(itemFreqDecayerTask);
 
     createAndScheduleSeqnoPersistenceNotifier();
+
+    bucketQuotaChangeTask = std::make_shared<BucketQuotaChangeTask>(engine);
+    ExecutorPool::get()->schedule(bucketQuotaChangeTask);
 
     return true;
 }
@@ -3055,6 +3059,13 @@ void KVBucket::createAndScheduleCheckpointRemoverTasks() {
     }
 }
 
+void KVBucket::createAndScheduleBucketQuotaChangeTask() {
+    Expects(!bucketQuotaChangeTask);
+    bucketQuotaChangeTask =
+            std::make_shared<BucketQuotaChangeTask>(getEPEngine());
+    ExecutorPool::get()->schedule(bucketQuotaChangeTask);
+}
+
 void KVBucket::addVbucketWithSeqnoPersistenceRequest(
         Vbid vbid, std::chrono::steady_clock::time_point deadline) {
     if (seqnoPersistenceNotifyTask) {
@@ -3095,4 +3106,9 @@ cb::engine_errc KVBucket::cancelRangeScan(Vbid,
                                           cb::rangescan::Id,
                                           const CookieIface&) {
     return cb::engine_errc::not_supported;
+}
+
+void KVBucket::processBucketQuotaChange(size_t desiredQuota) {
+    Expects(bucketQuotaChangeTask);
+    bucketQuotaChangeTask->notifyNewQuotaChange(desiredQuota);
 }

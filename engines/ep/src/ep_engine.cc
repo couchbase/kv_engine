@@ -577,7 +577,7 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
 
         if (key == "max_size" || key == "cache_size") {
             size_t vsize = std::stoull(val);
-            configuration.setMaxSize(vsize);
+            kvBucket->processBucketQuotaChange(vsize);
         } else if (key == "mem_low_wat") {
             configuration.setMemLowWat(std::stoull(val));
         } else if (key == "mem_high_wat") {

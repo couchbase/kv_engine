@@ -287,6 +287,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/blob.cc
             src/bloomfilter.cc
             src/bucket_logger.cc
+            src/bucket_quota_change_task.cc
             src/callbacks.cc
             src/checkpoint.cc
             src/checkpoint_config.cc
