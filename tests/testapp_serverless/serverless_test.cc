@@ -19,6 +19,7 @@
 #include <protocol/connection/async_client_connection.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <protocol/connection/frameinfo.h>
 #include <serverless/config.h>
 #include <deque>
 #include <filesystem>
@@ -887,40 +888,8 @@ TEST_F(ServerlessTest, OpsMetered) {
             EXPECT_EQ(1, *rsp.getReadUnits());
             break;
         case ClientOpcode::Increment:
-            createDocument("ClientOpcode::Increment", "foo");
-            executeWithExpectedCU(
-                    [&conn]() {
-                        try {
-                            conn.increment("ClientOpcode::Increment", 1);
-                            FAIL() << "Document not a number";
-                        } catch (const ConnectionError&) {
-                        }
-                    },
-                    1,
-                    0);
-            createDocument("ClientOpcode::Increment", "0");
-            executeWithExpectedCU(
-                    [&conn]() { conn.increment("ClientOpcode::Increment", 1); },
-                    1,
-                    1);
-            break;
         case ClientOpcode::Decrement:
-            createDocument("ClientOpcode::Decrement", "foo");
-            executeWithExpectedCU(
-                    [&conn]() {
-                        try {
-                            conn.decrement("ClientOpcode::Decrement", 1);
-                            FAIL() << "Document not a number";
-                        } catch (const ConnectionError&) {
-                        }
-                    },
-                    1,
-                    0);
-            createDocument("ClientOpcode::Decrement", "1");
-            executeWithExpectedCU(
-                    [&conn]() { conn.decrement("ClientOpcode::Decrement", 1); },
-                    1,
-                    1);
+            // Tested in TestArithmeticMethods
             break;
         case ClientOpcode::Append:
             // Append on non-existing document should fail and be free
@@ -1501,6 +1470,160 @@ TEST_F(ServerlessTest, UnmeteredPrivilege) {
     EXPECT_EQ(before["wu"].get<std::size_t>(), after["wu"].get<std::size_t>());
     EXPECT_EQ(before["num_commands_with_metered_units"].get<std::size_t>(),
               after["num_commands_with_metered_units"].get<std::size_t>());
+}
+
+static void writeDocument(MemcachedConnection& conn,
+                          std::string id,
+                          std::string value,
+                          std::string xattr_path = {},
+                          std::string xattr_value = {},
+                          Vbid vbid = Vbid{0},
+                          bool remove = false) {
+    if (remove) {
+        (void)conn.execute(BinprotRemoveCommand{id});
+    }
+
+    if (xattr_path.empty()) {
+        Document doc;
+        doc.info.id = std::move(id);
+        doc.value = std::move(value);
+        conn.mutate(doc, vbid, MutationType::Set);
+    } else {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setKey(id);
+        cmd.setVBucket(vbid);
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                        SUBDOC_FLAG_XATTR_PATH,
+                        xattr_path,
+                        xattr_value);
+        cmd.addMutation(
+                cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
+        cmd.addDocFlag(::mcbp::subdoc::doc_flag::Mkdoc);
+        auto rsp = conn.execute(cmd);
+        if (!rsp.isSuccess()) {
+            throw ConnectionError("Subdoc failed", rsp);
+        }
+    }
+}
+
+TEST_F(ServerlessTest, MeterArithmeticMethods) {
+    auto& sconfig = cb::serverless::Config::instance();
+    auto admin = cluster->getConnection(0);
+    admin->authenticate("@admin", "password");
+    admin->selectBucket("bucket-0");
+    admin->dropPrivilege(cb::rbac::Privilege::Unmetered);
+    admin->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
+
+    auto incrCmd = BinprotIncrDecrCommand{cb::mcbp::ClientOpcode::Increment,
+                                          "TestArithmeticMethods",
+                                          Vbid{0},
+                                          1ULL,
+                                          0ULL,
+                                          0};
+    auto decrCmd = BinprotIncrDecrCommand{cb::mcbp::ClientOpcode::Decrement,
+                                          "TestArithmeticMethods",
+                                          Vbid{0},
+                                          1ULL,
+                                          0ULL,
+                                          0};
+
+    // Operating on a document which isn't a numeric value should
+    // account for X ru's and fail
+    std::string key = "TestArithmeticMethods";
+    std::string value;
+    value.resize(1024 * 1024);
+    std::fill(value.begin(), value.end(), 'a');
+    value.front() = '"';
+    value.back() = '"';
+    writeDocument(*admin, key, value);
+
+    auto rsp = admin->execute(incrCmd);
+    EXPECT_EQ(cb::mcbp::Status::DeltaBadval, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits().has_value());
+    EXPECT_EQ(sconfig.to_ru(value.size() + key.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits().has_value());
+
+    rsp = admin->execute(decrCmd);
+    EXPECT_EQ(cb::mcbp::Status::DeltaBadval, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits().has_value());
+    EXPECT_EQ(sconfig.to_ru(value.size() + key.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits().has_value());
+
+    // When creating a value as part of incr/decr it should cost 1WU and no RU
+    admin->remove(key, Vbid{0});
+    rsp = admin->execute(incrCmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    EXPECT_FALSE(rsp.getReadUnits().has_value());
+    EXPECT_TRUE(rsp.getWriteUnits().has_value());
+    EXPECT_EQ(1, *rsp.getWriteUnits());
+
+    admin->remove(key, Vbid{0});
+    rsp = admin->execute(decrCmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    EXPECT_FALSE(rsp.getReadUnits().has_value());
+    EXPECT_TRUE(rsp.getWriteUnits().has_value());
+    EXPECT_EQ(1, *rsp.getWriteUnits());
+
+    // Operating on a document without XAttrs should account 1WU during
+    // create and 1RU + 1WU during update (it is 1 because it only contains
+    // the body and we don't support an interger which consumes 4k digits ;)
+    writeDocument(*admin, key, "10");
+    rsp = admin->execute(incrCmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits().has_value());
+    EXPECT_EQ(1, *rsp.getReadUnits());
+    EXPECT_TRUE(rsp.getWriteUnits().has_value());
+    EXPECT_EQ(1, *rsp.getWriteUnits());
+
+    rsp = admin->execute(decrCmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits().has_value());
+    EXPECT_EQ(1, *rsp.getReadUnits());
+    EXPECT_TRUE(rsp.getWriteUnits().has_value());
+    EXPECT_EQ(1, *rsp.getWriteUnits());
+
+    // Let's up the game and operate on a document with XAttrs which spans 1RU.
+    // We should then consume 2RU (one for the XAttr and one for the actual
+    // number). It'll then span into more WUs as they're 1/4 of the size of
+    // the RU.
+    writeDocument(*admin, key, "10", "xattr", value);
+    rsp = admin->execute(incrCmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits().has_value());
+    EXPECT_EQ(sconfig.to_ru(value.size() + key.size()), *rsp.getReadUnits());
+    EXPECT_TRUE(rsp.getWriteUnits().has_value());
+    EXPECT_EQ(sconfig.to_wu(value.size() + key.size()), *rsp.getWriteUnits());
+
+    rsp = admin->execute(decrCmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits().has_value());
+    EXPECT_EQ(sconfig.to_ru(value.size() + key.size()), *rsp.getReadUnits());
+    EXPECT_TRUE(rsp.getWriteUnits().has_value());
+    EXPECT_EQ(sconfig.to_wu(value.size() + key.size()), *rsp.getWriteUnits());
+
+    // So far, so good.. According to the spec Durability is supported and
+    // should cost 2 WU.
+    // @todo Metering of durable writes not implemented yet
+    admin->remove(key, Vbid{0});
+    writeDocument(*admin, key, "10");
+
+    DurabilityFrameInfo fi(cb::durability::Level::Majority);
+
+    incrCmd.addFrameInfo(fi);
+    rsp = admin->execute(incrCmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits().has_value());
+    EXPECT_EQ(1, *rsp.getReadUnits());
+    EXPECT_TRUE(rsp.getWriteUnits().has_value());
+    EXPECT_EQ(1, *rsp.getWriteUnits());
+
+    decrCmd.addFrameInfo(fi);
+    rsp = admin->execute(decrCmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits().has_value());
+    EXPECT_EQ(1, *rsp.getReadUnits());
+    EXPECT_TRUE(rsp.getWriteUnits().has_value());
+    EXPECT_EQ(1, *rsp.getWriteUnits());
 }
 
 } // namespace cb::test
