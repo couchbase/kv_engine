@@ -1218,7 +1218,8 @@ public:
     BinprotRangeScanContinue(Vbid vbid,
                              cb::rangescan::Id id,
                              size_t itemLimit,
-                             std::chrono::milliseconds timeLimit);
+                             std::chrono::milliseconds timeLimit,
+                             size_t byteLimit);
     void encode(std::vector<uint8_t>& buf) const override;
 
 protected:

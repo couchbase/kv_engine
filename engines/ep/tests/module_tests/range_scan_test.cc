@@ -201,6 +201,7 @@ public:
             cb::rangescan::KeyView end,
             size_t itemLimit = 0,
             std::chrono::milliseconds timeLimit = std::chrono::milliseconds(0),
+            size_t byteLimit = 0,
             size_t extraContinues = 0);
 
     void testLessThan(std::string key);
@@ -317,6 +318,7 @@ void RangeScanTest::testRangeScan(
         cb::rangescan::KeyView end,
         size_t itemLimit,
         std::chrono::milliseconds timeLimit,
+        size_t byteLimit,
         size_t extraContinues) {
     // Not smart enough to test both limits yet
     EXPECT_TRUE(!(itemLimit && timeLimit.count()));
@@ -328,7 +330,7 @@ void RangeScanTest::testRangeScan(
     // 2.1) Frontend thread would call this method using clients uuid
     EXPECT_EQ(cb::engine_errc::would_block,
               store->continueRangeScan(
-                      vbid, uuid, *cookie, itemLimit, timeLimit));
+                      vbid, uuid, *cookie, itemLimit, timeLimit, byteLimit));
 
     // 2.2) An I/O task now reads data from disk
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
@@ -336,9 +338,10 @@ void RangeScanTest::testRangeScan(
 
     // Tests will need more continues if a limit is in-play
     for (size_t count = 0; count < extraContinues; count++) {
-        EXPECT_EQ(cb::engine_errc::would_block,
-                  store->continueRangeScan(
-                          vbid, uuid, *cookie, itemLimit, timeLimit));
+        EXPECT_EQ(
+                cb::engine_errc::would_block,
+                store->continueRangeScan(
+                        vbid, uuid, *cookie, itemLimit, timeLimit, byteLimit));
         runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                     "RangeScanContinueTask");
         if (count < extraContinues - 1) {
@@ -364,7 +367,7 @@ void RangeScanTest::testRangeScan(
     // Or continued, uuid is unknown
     EXPECT_EQ(cb::engine_errc::no_such_key,
               store->continueRangeScan(
-                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0)));
+                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
 }
 
 // Scan for the user prefixed keys
@@ -423,6 +426,7 @@ TEST_P(RangeScanTest, user_prefix_with_item_limit_1) {
                   {"user\xFF"},
                   1,
                   std::chrono::milliseconds(0),
+                  0,
                   expectedKeys.size());
 }
 
@@ -434,6 +438,7 @@ TEST_P(RangeScanTest, user_prefix_with_item_limit_2) {
                   {"user\xFF"},
                   2,
                   std::chrono::milliseconds(0),
+                  0,
                   expectedKeys.size() / 2);
 }
 
@@ -452,6 +457,19 @@ TEST_P(RangeScanTest, user_prefix_with_time_limit) {
                   {"user\xFF"},
                   0,
                   std::chrono::milliseconds(10),
+                  0,
+                  expectedKeys.size());
+}
+
+TEST_P(RangeScanTest, user_prefix_with_byte_limit) {
+    auto expectedKeys = getUserKeys();
+    testRangeScan(expectedKeys,
+                  scanCollection,
+                  {"user"},
+                  {"user\xFF"},
+                  0,
+                  std::chrono::milliseconds(0),
+                  1, // 1 byte forces 1 key or document per continue
                   expectedKeys.size());
 }
 
@@ -467,6 +485,7 @@ TEST_P(RangeScanTest, user_prefix_evicted) {
                   {"user\xFF"},
                   2,
                   std::chrono::milliseconds(0),
+                  0,
                   expectedKeys.size() / 2);
 }
 
@@ -628,14 +647,14 @@ TEST_P(RangeScanTest, continue_must_be_serialised) {
 
     EXPECT_EQ(cb::engine_errc::would_block,
               vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0)));
+                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
     auto& epVb = dynamic_cast<EPVBucket&>(*vb);
     EXPECT_TRUE(epVb.getRangeScan(uuid)->isContinuing());
 
     // Cannot continue again
     EXPECT_EQ(cb::engine_errc::too_busy,
               vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0)));
+                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
 
     // But can cancel
     EXPECT_EQ(cb::engine_errc::success,
@@ -681,7 +700,7 @@ TEST_P(RangeScanTest, create_continue_is_cancelled) {
 
     EXPECT_EQ(cb::engine_errc::would_block,
               vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0)));
+                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
 
     // Cancel
     EXPECT_EQ(cb::engine_errc::success,
@@ -718,7 +737,7 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
 
     EXPECT_EQ(cb::engine_errc::would_block,
               vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0)));
+                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
 
     // Set a hook which will cancel when the 2nd key is read
     testHook = [&vb, uuid, this](size_t count) {
@@ -741,7 +760,7 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
     // Or continued, uuid is unknown
     EXPECT_EQ(cb::engine_errc::no_such_key,
               vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0)));
+                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
 
     // Scan only read 2 of the possible keys
     if (isKeyOnly()) {
@@ -902,7 +921,7 @@ TEST_P(RangeScanTest, random_sample) {
 
     EXPECT_EQ(cb::engine_errc::would_block,
               vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0)));
+                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
 
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
@@ -935,7 +954,7 @@ TEST_P(RangeScanTest, random_sample_with_limit_1) {
     for (size_t ii = 0; ii < sampleSize; ii++) {
         EXPECT_EQ(cb::engine_errc::would_block,
                   vb->continueRangeScan(
-                          uuid, *cookie, 1, std::chrono::milliseconds(0)));
+                          uuid, *cookie, 1, std::chrono::milliseconds(0), 0));
 
         runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                     "RangeScanContinueTask");
@@ -1082,7 +1101,7 @@ TEST_P(RangeScanTest, scan_detects_vbucket_change_during_continue) {
     // Continue
     EXPECT_EQ(cb::engine_errc::would_block,
               store->continueRangeScan(
-                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0)));
+                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
 
     // destroy and create the vbucket - a new uuid will be created
     EXPECT_TRUE(store->resetVBucket(vbid));
@@ -1108,7 +1127,7 @@ TEST_P(RangeScanTest, scan_detects_vbucket_change_during_continue) {
     // scan has gone now
     EXPECT_EQ(cb::engine_errc::no_such_key,
               store->continueRangeScan(
-                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0)));
+                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
 }
 
 TEST_P(RangeScanTest, wait_for_persistence_success) {
@@ -1253,7 +1272,8 @@ RangeScanTest::setupConcurrencyMaxxed() {
                                            scan.first,
                                            *scan.second,
                                            0,
-                                           std::chrono::milliseconds(0)));
+                                           std::chrono::milliseconds(0),
+                                           0));
     }
     // Check only AUXIO - 1 tasks were scheduled to handle the scans
     auto& q = task_executor->getLpTaskQ()[AUXIO_TASK_IDX];

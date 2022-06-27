@@ -110,12 +110,14 @@ public:
     /**
      * Change the state of the scan to Continuing
      * @param client cookie of the client which continued the scan
-     * @param itemLimit how many items the scan can return
+     * @param itemLimit how many items the scan can return (0 no limit)
      * @param timeLimit how long the scan can run for (0 no limit)
+     * @param byteLimit how many bytes the continue can return (0 no limit)
      */
     void setStateContinuing(const CookieIface& client,
                             size_t itemLimit,
-                            std::chrono::milliseconds timeLimit);
+                            std::chrono::milliseconds timeLimit,
+                            size_t byteLimit);
 
     /// change the state of the scan to Cancelled
     void setStateCancelled();
@@ -171,8 +173,12 @@ public:
      */
     void handleStatus(cb::engine_errc status);
 
-    /// Increment the scan's itemCount for an item read by the scan
-    void incrementItemCount();
+    /**
+     * Increment the scan's itemCount/byteCount/totalCount for an something
+     * read by the scan
+     * @param size value to increment byteCount by
+     */
+    void incrementItemCounters(size_t size);
 
     /// Increment the scan's itemCount for an item read by the scan
     void incrementValueFromMemory();
@@ -275,6 +281,9 @@ protected:
 
         /// current time limit for the continuation of this scan
         std::chrono::milliseconds timeLimit{0};
+
+        /// current byte limit for the continuation of this scan
+        size_t byteLimit{0};
     } continueLimits;
 
     /**
@@ -335,7 +344,8 @@ protected:
          */
         void setupForContinue(const CookieIface& c,
                               size_t limit,
-                              std::chrono::milliseconds timeLimit);
+                              std::chrono::milliseconds timeLimit,
+                              size_t byteLimit);
 
         /**
          * Complete only occurs once a scan has successfully reached and sent
@@ -371,6 +381,8 @@ protected:
         ContinueState cState;
         /// item count for the continuation of this scan
         size_t itemCount{0};
+        /// byte count for the continuation of this scan
+        size_t byteCount{0};
         /// deadline for the continue (only enforced if a time limit is set)
         std::chrono::steady_clock::time_point scanContinueDeadline;
     } continueRunState;

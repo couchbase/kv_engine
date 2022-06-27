@@ -3081,11 +3081,13 @@ std::pair<cb::engine_errc, cb::rangescan::Id> KVBucket::createRangeScan(
         std::optional<cb::rangescan::SamplingConfiguration>) {
     return {cb::engine_errc::not_supported, {}};
 }
+
 cb::engine_errc KVBucket::continueRangeScan(Vbid,
                                             cb::rangescan::Id,
                                             const CookieIface&,
                                             size_t,
-                                            std::chrono::milliseconds) {
+                                            std::chrono::milliseconds,
+                                            size_t) {
     return cb::engine_errc::not_supported;
 }
 

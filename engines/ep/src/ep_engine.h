@@ -882,12 +882,12 @@ public:
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
             std::optional<cb::rangescan::SamplingConfiguration> samplingConfig)
             override;
-    cb::engine_errc continueRangeScan(
-            const CookieIface& cookie,
-            Vbid vbid,
-            cb::rangescan::Id uuid,
-            size_t itemLimit,
-            std::chrono::milliseconds timeLimit) override;
+    cb::engine_errc continueRangeScan(const CookieIface& cookie,
+                                      Vbid vbid,
+                                      cb::rangescan::Id uuid,
+                                      size_t itemLimit,
+                                      std::chrono::milliseconds timeLimit,
+                                      size_t byteLimit) override;
     cb::engine_errc cancelRangeScan(const CookieIface& cookie,
                                     Vbid vbid,
                                     cb::rangescan::Id uuid) override;

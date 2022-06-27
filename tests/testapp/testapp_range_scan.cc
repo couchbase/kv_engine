@@ -247,7 +247,11 @@ size_t RangeScanTest::drainScan(
     do {
         // Keep sending continue until we get the response with complete
         BinprotRangeScanContinue scanContinue(
-                Vbid(0), id, itemLimit, std::chrono::milliseconds(0));
+                Vbid(0),
+                id,
+                itemLimit,
+                std::chrono::milliseconds(0) /* no time limit*/,
+                0 /*no byte limit*/);
         userConnection->sendCommand(scanContinue);
 
         // Keep receiving responses until the sequence ends (!success)

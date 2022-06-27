@@ -9,15 +9,13 @@ The request:
 * No key
 * No value
 
-A continue will return at least 1 key/document unless:
+Each continue request will return at least 1 key/document unless:
 
-* scan reaches the end
-* an error occurs
+* The scan reaches the end
+* An error occurs
 
-The client is obligated to keep continuing a scan. The server will cancel scans
-that are idle for too long or not making enough progress (TBD, scans can
-currently remain indefinitely idle).
-
+The client is responsible for progressing the scan by issuing new continue
+requests until the server indicates the scan has reached the end.
 
 The command uses an extras section to describe the input parameters.
 
@@ -29,6 +27,11 @@ The extras for a continue range scan encodes:
 * Maximum key/document count to return (when 0 there is no limit)
 * Maximum time (ms) for the scan to keep returning key/documents (when 0 there
   is no time limit)
+* Bytes to return (when 0 there is no limit). Note the response will always include
+  whole keys or documents, thus even with a byte limit in place the client
+  must be prepared to receive at least one document or key that could exceed the
+  value of this field. E.g. A value of 1 can result in a payload of 20MB
+  (assuming 20MB is the maximum document size).
 
 ```
      Byte/     0       |       1       |       2       |       3       |
@@ -48,7 +51,9 @@ The extras for a continue range scan encodes:
        +---------------+---------------+---------------+---------------+
      20| time limit (network byte order)                               |
        +---------------+---------------+---------------+---------------+
-       Total 24bytes
+     24| byte limit (network byte order)                               |
+       +---------------+---------------+---------------+---------------+
+       Total 28bytes
 ```
 
 ## Response format
@@ -219,12 +224,30 @@ A range-scan-continue response sequence indicates success using status codes
 
 ### Errors
 
-Additional to common errors such as validation failure, auth-failure,
-not-my-vbucket, unknown-collection the following errors can occur.
-
 **Status::KeyEexists (0x01)**
 
 No scan with the given uuid could be found.
+
+**Status::Einval (0x04)**
+
+The request failed an input validation check, details of which should be returned
+in the response.
+
+**Status::NotMyVbucket (0x07)**
+
+The requested vbucket no longer exists on this node.
+
+**Status::Eaccess (0x24)**
+
+The user no longer has the required privilege for range-scans.
+
+**Status::EBusy (0x85)**
+
+The scan with the given uuid cannot be continued because it is already continuing.
+
+**Status::UnknownCollection (0x88)**
+
+The collection was dropped.
 
 **Status::RangeScanCancelled (0xA5)**
 

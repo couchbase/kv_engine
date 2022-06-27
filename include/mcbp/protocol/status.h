@@ -100,11 +100,7 @@ enum class Status : uint16_t {
     NotSupported = 0x83,
     /** An internal error in the server */
     Einternal = 0x84,
-    /** The system is currently too busy to handle the request.
-     * it is _currently_ only being used by the scrubber in
-     * default_engine to run a task there may only be one of
-     * (subsequent requests to start it would return ebusy until
-     * it's done). */
+    /** The system is currently too busy to handle the request. */
     Ebusy = 0x85,
     /** A temporary error condition occurred. Retrying the
      * operation may resolve the problem. This could be that the

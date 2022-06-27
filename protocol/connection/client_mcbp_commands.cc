@@ -2159,9 +2159,13 @@ BinprotRangeScanContinue::BinprotRangeScanContinue(
         Vbid vbid,
         cb::rangescan::Id id,
         size_t itemLimit,
-        std::chrono::milliseconds timeLimit)
+        std::chrono::milliseconds timeLimit,
+        size_t byteLimit)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::RangeScanContinue),
-      extras(id, itemLimit, timeLimit.count()) {
+      extras(id,
+             gsl::narrow_cast<uint32_t>(itemLimit),
+             timeLimit.count(),
+             gsl::narrow_cast<uint32_t>(byteLimit)) {
     setVBucket(vbid);
 }
 

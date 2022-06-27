@@ -2303,8 +2303,12 @@ public:
     RangeScanContinuePayload() = default;
     explicit RangeScanContinuePayload(cb::rangescan::Id id,
                                       uint32_t itemLimit,
-                                      uint32_t timeLimit)
-        : id(id), itemLimit(htonl(itemLimit)), timeLimit(htonl(timeLimit)) {
+                                      uint32_t timeLimit,
+                                      uint32_t byteLimit)
+        : id(id),
+          itemLimit(htonl(itemLimit)),
+          timeLimit(htonl(timeLimit)),
+          byteLimit(htonl(byteLimit)) {
     }
 
     cb::rangescan::Id getId() const {
@@ -2319,6 +2323,10 @@ public:
         return ntohl(timeLimit);
     }
 
+    size_t getByteLimit() const {
+        return ntohll(byteLimit);
+    }
+
     std::string_view getBuffer() const {
         return {reinterpret_cast<const char*>(this), sizeof(*this)};
     }
@@ -2327,6 +2335,7 @@ protected:
     cb::rangescan::Id id{};
     uint32_t itemLimit{0};
     uint32_t timeLimit{0};
+    uint32_t byteLimit{0};
 };
 
 #pragma pack()

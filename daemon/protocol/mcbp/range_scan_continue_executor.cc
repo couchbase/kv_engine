@@ -32,7 +32,8 @@ void range_scan_continue_executor(Cookie& cookie) {
                 req.getVBucket(),
                 payload.getId(),
                 payload.getItemLimit(),
-                std::chrono::milliseconds(payload.getTimeLimit()));
+                std::chrono::milliseconds(payload.getTimeLimit()),
+                payload.getByteLimit());
     }
 
     handle_executor_status(cookie, status);

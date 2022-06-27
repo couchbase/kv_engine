@@ -1367,10 +1367,14 @@ cb::engine_errc EPVBucket::continueRangeScan(
         cb::rangescan::Id id,
         const CookieIface& cookie,
         size_t itemLimit,
-        std::chrono::milliseconds timeLimit) {
-    auto status = rangeScans.continueScan(
-            dynamic_cast<EPBucket&>(*bucket), id, cookie, itemLimit, timeLimit);
-
+        std::chrono::milliseconds timeLimit,
+        size_t byteLimit) {
+    auto status = rangeScans.continueScan(dynamic_cast<EPBucket&>(*bucket),
+                                          id,
+                                          cookie,
+                                          itemLimit,
+                                          timeLimit,
+                                          byteLimit);
     if (status != cb::engine_errc::success) {
         return status;
     }

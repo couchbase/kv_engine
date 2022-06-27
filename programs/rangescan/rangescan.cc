@@ -105,6 +105,8 @@ Options:
                                  default is no limit.
   --continue-time-limit          How long a continue can execute for (ms),
                                  default is no limit.
+  --continue-byte-limit          How many byes each continue can return,
+                                 default is no limit.
   --vbucket                      Scan only this vbucket (default is all)
   --help                         This help text
 )";
@@ -140,11 +142,13 @@ public:
                         std::shared_ptr<folly::EventBase> eb,
                         bool keyOnly,
                         size_t continueItemLimit,
-                        std::chrono::milliseconds continueTimeLimit)
+                        std::chrono::milliseconds continueTimeLimit,
+                        size_t continueByteLimit)
         : vbuckets(std::move(v)),
           keyOnly(keyOnly),
           continueItemLimit(continueItemLimit),
-          continueTimeLimit(continueTimeLimit) {
+          continueTimeLimit(continueTimeLimit),
+          continueByteLimit(continueByteLimit) {
         auto [host, port, family] = cb::inet::parse_hostname(hostname, {});
         connection = std::make_unique<MemcachedConnection>(
                 host, port, family, tls, eb);
@@ -282,8 +286,11 @@ protected:
         auto id = ++opaque;
         opaques.emplace(id, vb);
 
-        BinprotRangeScanContinue rangeScanContinue(
-                Vbid(vb), scans[vb], continueItemLimit, continueTimeLimit);
+        BinprotRangeScanContinue rangeScanContinue(Vbid(vb),
+                                                   scans[vb],
+                                                   continueItemLimit,
+                                                   continueTimeLimit,
+                                                   continueByteLimit);
         rangeScanContinue.setOpaque(id);
         std::vector<uint8_t> vec;
         rangeScanContinue.encode(vec);
@@ -371,6 +378,7 @@ protected:
     bool keyOnly{false};
     size_t continueItemLimit{0};
     std::chrono::milliseconds continueTimeLimit{0};
+    size_t continueByteLimit{0};
 };
 
 static unsigned long strtoul(const char* arg) {
@@ -503,6 +511,7 @@ int main(int argc, char** argv) {
     size_t num_connections = 1;
 
     size_t continueItemLimit = 0;
+    size_t continueByteLimit = 0;
     std::chrono::milliseconds continueTimeLimit{0};
     std::optional<uint16_t> vbucketOption;
 
@@ -514,7 +523,8 @@ int main(int argc, char** argv) {
     const int endOptionId = 4;
     const int itemLimitOptionId = 5;
     const int timeLimitOptionId = 6;
-    const int vbucketOptionId = 7;
+    const int byteLimitOptionId = 7;
+    const int vbucketOptionId = 8;
 
     std::vector<option> long_options = {
             {"ipv4", no_argument, nullptr, '4'},
@@ -545,6 +555,10 @@ int main(int argc, char** argv) {
              required_argument,
              nullptr,
              timeLimitOptionId},
+            {"continue-byte-limit",
+             required_argument,
+             nullptr,
+             byteLimitOptionId},
             {"vbucket", required_argument, nullptr, vbucketOptionId},
             {nullptr, 0, nullptr, 0}};
 
@@ -651,6 +665,9 @@ int main(int argc, char** argv) {
             break;
         case timeLimitOptionId:
             continueTimeLimit = std::chrono::milliseconds(strtoul(optarg));
+            break;
+        case byteLimitOptionId:
+            continueByteLimit = strtoul(optarg);
             break;
         case vbucketOptionId:
             vbucketOption = strtoul(optarg);
@@ -802,7 +819,8 @@ int main(int argc, char** argv) {
                         event_base,
                         !value,
                         continueItemLimit,
-                        continueTimeLimit));
+                        continueTimeLimit,
+                        continueByteLimit));
                 auto& c = connections.back()->getConnection();
                 if (!user.empty()) {
                     c.authenticate(user, password, "PLAIN");

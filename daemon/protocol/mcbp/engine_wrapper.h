@@ -505,7 +505,8 @@ cb::engine_errc continueRangeScan(Cookie& cookie,
                                   Vbid vbid,
                                   cb::rangescan::Id uuid,
                                   size_t itemLimit,
-                                  std::chrono::milliseconds timeLimit);
+                                  std::chrono::milliseconds timeLimit,
+                                  size_t byteLimit);
 
 cb::engine_errc cancelRangeScan(Cookie& cookie,
                                 Vbid vbid,

@@ -46,7 +46,8 @@ cb::engine_errc EngineIface::continueRangeScan(
         Vbid vbid,
         cb::rangescan::Id uuid,
         size_t itemLimit,
-        std::chrono::milliseconds timeLimit) {
+        std::chrono::milliseconds timeLimit,
+        size_t byteLimit) {
     return cb::engine_errc::not_supported;
 }
 

@@ -317,12 +317,12 @@ public:
             std::optional<cb::rangescan::SamplingConfiguration> samplingConfig)
             override;
 
-    cb::engine_errc continueRangeScan(
-            Vbid vbid,
-            cb::rangescan::Id uuid,
-            const CookieIface& cookie,
-            size_t itemLimit,
-            std::chrono::milliseconds timeLimit) override;
+    cb::engine_errc continueRangeScan(Vbid vbid,
+                                      cb::rangescan::Id uuid,
+                                      const CookieIface& cookie,
+                                      size_t itemLimit,
+                                      std::chrono::milliseconds timeLimit,
+                                      size_t byteLimit) override;
 
     cb::engine_errc cancelRangeScan(Vbid vbid,
                                     cb::rangescan::Id uuid,

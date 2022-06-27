@@ -929,10 +929,11 @@ cb::engine_errc continueRangeScan(Cookie& cookie,
                                   Vbid vbid,
                                   cb::rangescan::Id uuid,
                                   size_t itemLimit,
-                                  std::chrono::milliseconds timeLimit) {
+                                  std::chrono::milliseconds timeLimit,
+                                  size_t byteLimit) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().continueRangeScan(
-            cookie, vbid, uuid, itemLimit, timeLimit);
+            cookie, vbid, uuid, itemLimit, timeLimit, byteLimit);
 
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(

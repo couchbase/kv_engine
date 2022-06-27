@@ -12,11 +12,17 @@ The request:
 The range scan create gives the client a number of options for scanning a
 collection in a vbucket.
 
-* An inclusive or exclusive (TBD) scan using a start and end key.
+* An inclusive or exclusive scan using a start and end key.
 * A random sample of keys where the user chooses a seed and sample size.
 * The scan can require a specific vb-uuid and sequence number to be stored.
 
 All scans must target active vbuckets only.
+
+Once a scan has been created (and success returned to the create request) the
+server will hold open a snapshot that keys/documents are read from by a
+subsequent [continue](range_scan_continue.md). The server will only allow a
+range scan to exist for a fixed amount of time, after which the range scan is
+cancelled so that disk resources can be released.
 
 ## JSON definition
 

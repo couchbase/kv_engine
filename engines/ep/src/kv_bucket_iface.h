@@ -887,6 +887,9 @@ public:
      *                  0 means no limit enforced
      * @param timeLimit The maximum duration the continue can return
      *                  0 means no limit enforced
+     * @param byteLimit A trip wire value, when the number of bytes included in
+     *                  the scan exceeds this value, the continue is complete.
+     *                  Value of 0 disables this trigger.
      * @return would_block if the scan was found and successfully scheduled
      */
     virtual cb::engine_errc continueRangeScan(
@@ -894,7 +897,8 @@ public:
             cb::rangescan::Id uuid,
             const CookieIface& cookie,
             size_t itemLimit,
-            std::chrono::milliseconds timeLimit) = 0;
+            std::chrono::milliseconds timeLimit,
+            size_t byteLimit) = 0;
     /**
      * Cancel the range scan with the given identifier.
      *

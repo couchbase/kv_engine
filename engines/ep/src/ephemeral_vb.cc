@@ -1111,7 +1111,8 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EphemeralVBucket::createRangeScan(
 cb::engine_errc EphemeralVBucket::continueRangeScan(cb::rangescan::Id,
                                                     const CookieIface&,
                                                     size_t,
-                                                    std::chrono::milliseconds) {
+                                                    std::chrono::milliseconds,
+                                                    size_t) {
     return cb::engine_errc::not_supported;
 }
 

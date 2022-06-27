@@ -280,7 +280,8 @@ public:
     cb::engine_errc continueRangeScan(cb::rangescan::Id,
                                       const CookieIface&,
                                       size_t,
-                                      std::chrono::milliseconds) override;
+                                      std::chrono::milliseconds,
+                                      size_t) override;
     cb::engine_errc cancelRangeScan(cb::rangescan::Id,
                                     const CookieIface*,
                                     bool) override;

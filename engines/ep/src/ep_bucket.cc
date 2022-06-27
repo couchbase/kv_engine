@@ -2444,19 +2444,19 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPBucket::createRangeScan(
                                samplingConfig);
 }
 
-cb::engine_errc EPBucket::continueRangeScan(
-        Vbid vbid,
-        cb::rangescan::Id uuid,
-        const CookieIface& cookie,
-        size_t itemLimit,
-        std::chrono::milliseconds timeLimit) {
+cb::engine_errc EPBucket::continueRangeScan(Vbid vbid,
+                                            cb::rangescan::Id uuid,
+                                            const CookieIface& cookie,
+                                            size_t itemLimit,
+                                            std::chrono::milliseconds timeLimit,
+                                            size_t byteLimit) {
     auto vb = getVBucket(vbid);
     if (!vb) {
         ++stats.numNotMyVBuckets;
         return cb::engine_errc::not_my_vbucket;
     }
 
-    return vb->continueRangeScan(uuid, cookie, itemLimit, timeLimit);
+    return vb->continueRangeScan(uuid, cookie, itemLimit, timeLimit, byteLimit);
 }
 
 cb::engine_errc EPBucket::cancelRangeScan(Vbid vbid,

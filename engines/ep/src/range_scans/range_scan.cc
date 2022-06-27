@@ -327,8 +327,9 @@ void RangeScan::setStateIdle(cb::engine_errc status) {
 
 void RangeScan::setStateContinuing(const CookieIface& client,
                                    size_t limit,
-                                   std::chrono::milliseconds timeLimit) {
-    continueState.withWLock([&client, limit, timeLimit](auto& cs) {
+                                   std::chrono::milliseconds timeLimit,
+                                   size_t byteLimit) {
+    continueState.withWLock([&client, limit, timeLimit, byteLimit](auto& cs) {
         switch (cs.state) {
         case State::Continuing:
         case State::Cancelled:
@@ -337,7 +338,7 @@ void RangeScan::setStateContinuing(const CookieIface& client,
                     "RangeScan::setStateContinuing invalid state:{}",
                     cs.state));
         case State::Idle:
-            cs.setupForContinue(client, limit, timeLimit);
+            cs.setupForContinue(client, limit, timeLimit, byteLimit);
             break;
         }
     });
@@ -374,7 +375,7 @@ void RangeScan::setStateCompleted() {
 }
 
 void RangeScan::handleKey(DocKey key) {
-    incrementItemCount();
+    incrementItemCounters(key.size());
     Expects(continueRunState.cState.cookie);
     handler->handleKey(*continueRunState.cState.cookie, key);
 }
@@ -385,7 +386,7 @@ void RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
     } else {
         incrementValueFromDisk();
     }
-    incrementItemCount();
+    incrementItemCounters(item->getNBytes() + item->getKey().size());
     Expects(continueRunState.cState.cookie);
     handler->handleItem(*continueRunState.cState.cookie, std::move(item));
 }
@@ -408,8 +409,9 @@ void RangeScan::handleStatus(cb::engine_errc status) {
     }
 }
 
-void RangeScan::incrementItemCount() {
+void RangeScan::incrementItemCounters(size_t size) {
     ++continueRunState.itemCount;
+    continueRunState.byteCount += size;
     ++totalKeys;
 }
 
@@ -427,6 +429,9 @@ bool RangeScan::areLimitsExceeded() const {
                continueRunState.cState.limits.itemLimit;
     } else if (continueRunState.cState.limits.timeLimit.count()) {
         return now() >= continueRunState.scanContinueDeadline;
+    } else if (continueRunState.cState.limits.byteLimit) {
+        return continueRunState.byteCount >=
+               continueRunState.cState.limits.byteLimit;
     }
     return false;
 }
@@ -480,6 +485,7 @@ void RangeScan::addStats(const StatCollector& collector) const {
     addStat("crs_cookie", continueRunState.cState.cookie);
     addStat("crs_item_limit", continueRunState.cState.limits.itemLimit);
     addStat("crs_time_limit", continueRunState.cState.limits.timeLimit.count());
+    addStat("crs_byte_limit", continueRunState.cState.limits.byteLimit);
 
     // copy state and then addStat the copy
     auto cs = *continueState.rlock();
@@ -487,6 +493,7 @@ void RangeScan::addStats(const StatCollector& collector) const {
     addStat("cookie", cs.cookie);
     addStat("item_limit", cs.limits.itemLimit);
     addStat("time_limit", cs.limits.timeLimit.count());
+    addStat("byte_limit", cs.limits.byteLimit);
 
     if (isSampling()) {
         addStat("dist_p", distribution.p());
@@ -499,9 +506,10 @@ void RangeScan::dump(std::ostream& os) const {
     fmt::print(os,
                "RangeScan: uuid:{}, {}, vbuuid:{}, range:({},{}), mode:{}, "
                "queued:{}, totalKeys:{} values m:{}, d:{}, totalLimit:{}, "
-               "crs_itemCount:{}, crs_cookie:{}, crs_item_limit:{}, "
-               "crs_time_limit:{}, crs_deadline:{}, cs.state:{}, cs.cookie:{}, "
-               "cs.itemLimit:{}, cs.timeLimit:{}",
+               "crs_itemCount:{}, crs_cookie:{}, crs_item_limit:{},"
+               "crs_time_limit:{}, crs_byte_limit:{}, crs_deadline:{}, "
+               "cs.state:{}, cs.cookie:{}, cs.itemLimit:{}, cs.timeLimit:{}, "
+               "cs.byteLimit:{}",
                uuid,
                vbid,
                vbUuid,
@@ -517,11 +525,13 @@ void RangeScan::dump(std::ostream& os) const {
                reinterpret_cast<const void*>(continueRunState.cState.cookie),
                continueRunState.cState.limits.itemLimit,
                continueRunState.cState.limits.timeLimit.count(),
+               continueRunState.cState.limits.byteLimit,
                continueRunState.scanContinueDeadline.time_since_epoch(),
                cs.state,
                reinterpret_cast<const void*>(cs.cookie),
                cs.limits.itemLimit,
-               cs.limits.timeLimit.count());
+               cs.limits.timeLimit.count(),
+               cs.limits.byteLimit);
 
     if (isSampling()) {
         fmt::print(os, ", distribution(p:{})", distribution.p());
@@ -537,11 +547,13 @@ void RangeScan::ContinueState::setupForIdle() {
 void RangeScan::ContinueState::setupForContinue(
         const CookieIface& c,
         size_t limit,
-        std::chrono::milliseconds timeLimit) {
+        std::chrono::milliseconds timeLimit,
+        size_t byteLimit) {
     state = State::Continuing;
     cookie = &c;
     limits.itemLimit = limit;
     limits.timeLimit = timeLimit;
+    limits.byteLimit = byteLimit;
 }
 
 void RangeScan::ContinueState::setupForComplete() {

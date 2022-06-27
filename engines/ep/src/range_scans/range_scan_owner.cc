@@ -134,13 +134,16 @@ cb::engine_errc VB::RangeScanOwner::continueScan(
         cb::rangescan::Id id,
         const CookieIface& cookie,
         size_t itemLimit,
-        std::chrono::milliseconds timeLimit) {
+        std::chrono::milliseconds timeLimit,
+        size_t byteLimit) {
     Expects(readyScans);
     EP_LOG_DEBUG(
-            "VB::RangeScanOwner::continueScan {} itemLimit:{} timeLimit:{}",
+            "VB::RangeScanOwner::continueScan {} itemLimit:{} timeLimit:{} "
+            "byteLimit:{}",
             id,
             itemLimit,
-            timeLimit.count());
+            timeLimit.count(),
+            byteLimit);
     auto locked = rangeScans.wlock();
     auto itr = locked->find(id);
     if (itr == locked->end()) {
@@ -153,7 +156,7 @@ cb::engine_errc VB::RangeScanOwner::continueScan(
     }
 
     // set scan to 'continuing'
-    itr->second->setStateContinuing(cookie, itemLimit, timeLimit);
+    itr->second->setStateContinuing(cookie, itemLimit, timeLimit, byteLimit);
 
     // Make the scan available to I/O task(s)
     // addScan will check if a task needs creating or scheduling to process the
