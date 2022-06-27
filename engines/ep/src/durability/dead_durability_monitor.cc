@@ -10,6 +10,7 @@
 
 #include "dead_durability_monitor.h"
 
+#include "active_durability_monitor.h"
 #include "bucket_logger.h"
 #include "durability_monitor_impl.h"
 
@@ -23,6 +24,22 @@ DeadDurabilityMonitor::DeadDurabilityMonitor(VBucket& vb,
       highPreparedSeqno(oldDM.getHighPreparedSeqno()),
       highCompletedSeqno(oldDM.getHighCompletedSeqno()),
       trackedWrites(oldDM.getTrackedWrites()) {
+    // Grab our last consistent point so that we can tell a future PDM what it
+    // can ack up to. The last consistent point differs by the previous vBucket
+    // state, and the vBucket state will have already changed so we cast the
+    // oldDM to work out the old vBucket state to work out how to find our last
+    // consistent point.
+    auto* adm = dynamic_cast<ActiveDurabilityMonitor*>(&oldDM);
+    if (adm) {
+        lastConsistentSeqno = vb.getHighSeqno();
+        return;
+    }
+
+    auto* pdm = dynamic_cast<PassiveDurabilityMonitor*>(&oldDM);
+    if (pdm) {
+        lastConsistentSeqno = pdm->getLatestSnapshotEnd();
+        return;
+    }
 }
 
 int64_t DeadDurabilityMonitor::getHighestTrackedSeqno() const {
