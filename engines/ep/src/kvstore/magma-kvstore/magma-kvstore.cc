@@ -1597,8 +1597,7 @@ public:
                      uint64_t _documentCount,
                      const vbucket_state& vbucketState,
                      const std::vector<Collections::KVStore::DroppedCollection>&
-                             droppedCollections,
-                     DomainAwareUniquePtr<DomainAwareSeqIterator> itr)
+                             droppedCollections)
         : BySeqnoScanContext(std::move(cb),
                              std::move(cl),
                              vb,
@@ -1610,11 +1609,8 @@ public:
                              _valFilter,
                              _documentCount,
                              vbucketState,
-                             droppedCollections),
-          itr(std::move(itr)) {
+                             droppedCollections) {
     }
-
-    DomainAwareUniquePtr<DomainAwareSeqIterator> itr{nullptr};
 };
 
 std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
@@ -1646,14 +1642,6 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
     }
 
     auto& snapshot = *dynamic_cast<MagmaKVFileHandle&>(*handle).snapshot;
-    auto itr = magma->NewSeqIterator(snapshot);
-    if (!itr) {
-        logger->warn(
-                "MagmaKVStore::initBySeqnoScanContext {} Failed to get magma seq "
-                "iterator",
-                vbid);
-        return nullptr;
-    }
 
     auto readState = readVBStateFromDisk(vbid, snapshot);
     if (readState.status != ReadVBStateStatus::Success) {
@@ -1681,16 +1669,14 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
     if (logger->should_log(spdlog::level::info)) {
         logger->info(
                 "MagmaKVStore::initBySeqnoScanContext {} seqno:{} endSeqno:{}"
-                " purgeSeqno:{} nDocsToRead:{} docFilter:{} valFilter:{} "
-                "SeqIterator:{}",
+                " purgeSeqno:{} nDocsToRead:{} docFilter:{} valFilter:{}",
                 vbid,
                 startSeqno,
                 highSeqno,
                 purgeSeqno,
                 nDocsToRead,
                 options,
-                valOptions,
-                itr->to_string());
+                valOptions);
     }
 
     return std::make_unique<MagmaScanContext>(std::move(cb),
@@ -1704,8 +1690,7 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
                                               valOptions,
                                               nDocsToRead,
                                               readState.state,
-                                              dropped,
-                                              std::move(itr));
+                                              dropped);
 }
 
 /**
@@ -1819,11 +1804,18 @@ ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
     }
 
     auto& mctx = dynamic_cast<MagmaScanContext&>(ctx);
-    for (mctx.itr->Seek(startSeqno, ctx.maxSeqno); mctx.itr->Valid();
-         mctx.itr->Next()) {
+    auto& snapshot = *dynamic_cast<MagmaKVFileHandle&>(*mctx.handle).snapshot;
+    auto itr = magma->NewSeqIterator(snapshot);
+    if (!itr) {
+        logger->warn("MagmaKVStore::scan {} Failed to get magma seq iterator",
+                     mctx.vbid);
+        return ScanStatus(MagmaScanResult::Status::Failed);
+    }
+
+    for (itr->Seek(startSeqno, ctx.maxSeqno); itr->Valid(); itr->Next()) {
         Slice keySlice, metaSlice, valSlice;
         uint64_t seqno;
-        mctx.itr->GetRecord(keySlice, metaSlice, valSlice, seqno);
+        itr->GetRecord(keySlice, metaSlice, valSlice, seqno);
         const auto result =
                 scanOne(ctx,
                         keySlice,
