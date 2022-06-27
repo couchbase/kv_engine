@@ -135,7 +135,8 @@ private:
     cb::unique_item_ptr existing;
 
     // The metadata for the existing item
-    item_info existing_info;
+    uint64_t existing_cas;
+    uint8_t existing_datatype;
 
     // The mutation descriptor for the mutation
     mutation_descr_t mutation_descr;

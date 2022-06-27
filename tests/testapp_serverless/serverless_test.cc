@@ -877,15 +877,7 @@ TEST_F(ServerlessTest, OpsMetered) {
                     1);
             break;
         case ClientOpcode::Delete:
-            // Delete of a document should cost
-            createDocument("ClientOpcode::Delete", "Hello");
-            rsp = conn.execute(
-                    BinprotGenericCommand{opcode, "ClientOpcode::Delete"});
-            EXPECT_TRUE(rsp.isSuccess());
-            ASSERT_TRUE(rsp.getWriteUnits());
-            EXPECT_EQ(1, *rsp.getWriteUnits());
-            EXPECT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
+            // Tested in MeterDocumentDelete
             break;
         case ClientOpcode::Increment:
         case ClientOpcode::Decrement:
@@ -1624,6 +1616,64 @@ TEST_F(ServerlessTest, MeterArithmeticMethods) {
     EXPECT_EQ(1, *rsp.getReadUnits());
     EXPECT_TRUE(rsp.getWriteUnits().has_value());
     EXPECT_EQ(1, *rsp.getWriteUnits());
+}
+
+TEST_F(ServerlessTest, MeterDocumentDelete) {
+    auto& sconfig = cb::serverless::Config::instance();
+    auto admin = cluster->getConnection(0);
+    admin->authenticate("@admin", "password");
+    admin->selectBucket("bucket-0");
+    admin->dropPrivilege(cb::rbac::Privilege::Unmetered);
+    admin->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
+
+    const std::string id = "MeterDocumentDelete";
+    auto command = BinprotGenericCommand{cb::mcbp::ClientOpcode::Delete, id};
+    // Delete of a non-existing document should be free
+    auto rsp = admin->execute(command);
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    EXPECT_FALSE(rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+
+    // Delete of a single document should cost 1WU
+    writeDocument(*admin, id, "Hello");
+    rsp = admin->execute(command);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    EXPECT_FALSE(rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(1, *rsp.getWriteUnits());
+
+    // But if it contains XAttrs we need to read the document to prune those
+    // and end up with a single write unit
+    std::string xattr_value;
+    xattr_value.resize(8192);
+    std::fill(xattr_value.begin(), xattr_value.end(), 'a');
+    xattr_value.front() = '"';
+    xattr_value.back() = '"';
+    writeDocument(*admin, id, "Hello", "xattr", xattr_value);
+
+    rsp = admin->execute(command);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    // lets just add 100 to the xattr value to account for key; xattr path,
+    // and some "overhead".. we're going to round to the nearest 4k anyway.
+    EXPECT_EQ(sconfig.to_ru(xattr_value.size() + 100), *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(1, *rsp.getWriteUnits());
+
+    // If the object contains system xattrs those will be persisted and
+    // increase the WU size.
+    writeDocument(*admin, id, "Hello", "_xattr", xattr_value);
+    rsp = admin->execute(command);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    // lets just add 100 to the xattr value to account for key; xattr path,
+    // and some "overhead".. we're going to round to the nearest 4k anyway.
+    EXPECT_EQ(sconfig.to_ru(xattr_value.size() + 100), *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(sconfig.to_wu(xattr_value.size() + 100), *rsp.getWriteUnits());
+
+    // @todo add Durability test once we implement metering of that on
+    //       the server
 }
 
 } // namespace cb::test

@@ -55,32 +55,37 @@ cb::engine_errc RemoveCommandContext::step() {
 }
 
 cb::engine_errc RemoveCommandContext::getItem() {
-    auto ret = bucket_get(cookie, cookie.getRequestKey(), vbucket);
-    if (ret.first == cb::engine_errc::success) {
-        existing = std::move(ret.second);
-        if (!bucket_get_item_info(connection, existing.get(), &existing_info)) {
-            return cb::engine_errc::failed;
-        }
+    auto [status, doc] =
+            bucket_get_if(cookie,
+                          cookie.getRequestKey(),
+                          vbucket,
+                          [this](const item_info& info) {
+                              existing_cas = info.cas;
+                              existing_datatype = info.datatype;
+                              return mcbp::datatype::is_xattr(info.datatype);
+                          });
 
+    if (status == cb::engine_errc::success) {
+        existing = std::move(doc);
         if (input_cas != 0) {
-            if (existing_info.cas == uint64_t(-1)) {
+            if (existing_cas == uint64_t(-1)) {
                 // The object in the cache is locked... lets try to use
                 // the cas provided by the user to override this
-                existing_info.cas = input_cas;
-            } else if (input_cas != existing_info.cas) {
+                existing_cas = input_cas;
+            } else if (input_cas != existing_cas) {
                 return cb::engine_errc::key_already_exists;
             }
-        } else if (existing_info.cas == uint64_t(-1)) {
+        } else if (existing_cas == uint64_t(-1)) {
             return cb::engine_errc::locked;
         }
 
-        if (mcbp::datatype::is_xattr(existing_info.datatype)) {
+        if (mcbp::datatype::is_xattr(existing_datatype)) {
             state = State::RebuildXattr;
         } else {
             state = State::RemoveItem;
         }
     }
-    return cb::engine_errc(ret.first);
+    return status;
 }
 
 cb::engine_errc RemoveCommandContext::allocateDeletedItem() {
@@ -103,7 +108,7 @@ cb::engine_errc RemoveCommandContext::allocateDeletedItem() {
 
     deleted = std::move(pair.first);
     if (input_cas == 0) {
-        bucket_item_set_cas(connection, deleted.get(), existing_info.cas);
+        bucket_item_set_cas(connection, deleted.get(), existing_cas);
     } else {
         bucket_item_set_cas(connection, deleted.get(), input_cas);
     }
@@ -212,14 +217,15 @@ cb::engine_errc RemoveCommandContext::sendResponse() {
 }
 
 cb::engine_errc RemoveCommandContext::rebuildXattr() {
-    if (mcbp::datatype::is_xattr(existing_info.datatype)) {
+    if (mcbp::datatype::is_xattr(existing_datatype)) {
         // Create a const blob of the incoming data, which may decompress it
         // Note when writing back the xattrs (if any remain) the snappy bit is
         // never reset, so no need to remember if we did decompress.
+
+        auto view = existing->getValueView();
         const cb::xattr::Blob existingData(
-                {static_cast<char*>(existing_info.value[0].iov_base),
-                 existing_info.value[0].iov_len},
-                mcbp::datatype::is_snappy(existing_info.datatype));
+                {const_cast<char*>(view.data()), view.size()},
+                mcbp::datatype::is_snappy(existing_datatype));
 
         // We can't modify the item as when we try to replace the item it
         // may fail due to a race condition (writing back into the existing

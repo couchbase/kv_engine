@@ -238,7 +238,7 @@ cb::EngineErrorItemPair bucket_get_if(
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().get_if(cookie, key, vbucket, filter);
 
-    if (ret.first == cb::engine_errc::success) {
+    if (ret.first == cb::engine_errc::success && ret.second) {
         cookie.addDocumentReadBytes(ret.second->getValueView().size() +
                                     ret.second->getDocKey().size());
     } else if (ret.first == cb::engine_errc::disconnect) {

@@ -427,7 +427,7 @@ cb::EngineErrorItemPair default_engine::get_if(
 
     if (!filter(info)) {
         item_release(this, it);
-        it = nullptr;
+        return {cb::engine_errc::success, cb::unique_item_ptr{}};
     }
 
     return cb::makeEngineErrorItemPair(
