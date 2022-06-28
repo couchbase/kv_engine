@@ -659,13 +659,6 @@ protected:
 
     void collectTimings(const std::chrono::steady_clock::time_point& end);
 
-    bool validated = false;
-
-    bool reorder = false;
-
-    /// Is the cookie currently throttled
-    std::atomic_bool throttled{false};
-
     /// The tracing context provided by the client to use as the
     /// parent span
     std::string openTracingContext;
@@ -710,6 +703,11 @@ protected:
     std::chrono::duration<int32_t, std::micro> total_throttle_time;
 
     /**
+     * The status for the async io operation
+     */
+    cb::engine_errc aiostat = cb::engine_errc::success;
+
+    /**
      *  command-specific context - for use by command executors to maintain
      *  additional state while executing a command. For example
      *  a command may want to maintain some temporary state between retries
@@ -734,26 +732,6 @@ protected:
      * @param reason the text to log
      */
     void logResponse(const char* reason) const;
-
-    /**
-     * The status for the async io operation
-     */
-    cb::engine_errc aiostat = cb::engine_errc::success;
-
-    bool ewouldblock = false;
-
-    /// The number of times someone tried to reserve the cookie (to avoid
-    /// releasing it while other parties think they reserved the object.
-    /// Previously reserve would lock the connection, but with OOO we
-    /// might have multiple cookies in flight and needs to be able to
-    /// lock them independently
-    std::atomic<uint8_t> refcount = 0;
-
-    /// see isAuthorized/setAuthorized
-    bool authorized = false;
-
-    /// should we try to preserve TTL for this operation
-    bool preserveTtl{false};
 
     cb::compression::Buffer inflated_input_payload;
 
@@ -802,4 +780,26 @@ protected:
     /// The response status we sent for this cookie (for a multi-response
     /// command such as STATS it would be the _last_ status code)
     cb::mcbp::Status responseStatus = cb::mcbp::Status::COUNT;
+
+    bool validated = false;
+
+    bool reorder = false;
+
+    /// Is the cookie currently throttled
+    std::atomic_bool throttled{false};
+
+    bool ewouldblock = false;
+
+    /// The number of times someone tried to reserve the cookie (to avoid
+    /// releasing it while other parties think they reserved the object.
+    /// Previously reserve would lock the connection, but with OOO we
+    /// might have multiple cookies in flight and needs to be able to
+    /// lock them independently
+    std::atomic<uint8_t> refcount = 0;
+
+    /// see isAuthorized/setAuthorized
+    bool authorized = false;
+
+    /// should we try to preserve TTL for this operation
+    bool preserveTtl{false};
 };
