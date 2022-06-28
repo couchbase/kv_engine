@@ -168,6 +168,12 @@
                         ]
             }
         },
+        "bucket_quota_change_task_poll_interval": {
+            "default": "30",
+            "descr": "Time in seconds between the BucketQuotaChangeTask polling memory usage to attempt to reduce the bucket quota",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "compaction_expire_from_start": {
             "default": "true",
             "descr": "Should compaction expire items that were logically deleted at the start of the compaction (true) or at the point in time at which they were visited (false)?",

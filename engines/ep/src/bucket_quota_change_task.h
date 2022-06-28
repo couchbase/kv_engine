@@ -21,7 +21,37 @@
  * increases too to avoid attempted concurrent changes in Bucket quota in either
  * direction.
  *
- * @TODO MB-52264 Update this comment with details on how we go about this.
+ * To deal with Bucket quota increases, the tasks needs to only increase the
+ * Bucket quota and all associated values. We do not need to wait for memory
+ * recovery. To deal with Bucket quota reductions the task operates in 2 phases:
+ *
+ * Phase 1:
+ *
+ * Set the new watermark values to reduce memory usage without causing out of
+ * memory errors.
+ *
+ * 1) Set the storage quota to the new value (to kick off any background memory
+ *    reclamation)
+ * 2) Set the checkpoint manager watermarks (kicks in memory recovery if
+ *    necessary but does not reduce the quota so new mutations are not any more
+ *    likely to be blocked due ot the quota).
+ * 3) Decrease our memory determined backfill limit
+ * 4) Set the low and high watermark values
+ * 5) Wake the ItemPager/ExpiryPager to recover memory from the HashTable
+ *
+ * We perform steps 1-4 in this particular order to avoid over-reclaiming memory
+ * from the HashTables if possible. After completing Phase 1, the task moves
+ * immediately to Phase 2 (i.e. if memory is already low enough to support the
+ * new quota then the new quota is applied immediately).
+ *
+ * Phase 2:
+ *
+ * Wait for memory usage to be within acceptable limits for the new quota,
+ * then enforece the new quota.
+ *
+ * 6) Wait until memory is below the high watermark
+ * 7) Enforce the new quota by changing the config and stats values
+ *
  */
 class BucketQuotaChangeTask : public GlobalTask {
 public:
@@ -39,8 +69,7 @@ public:
     }
 
     std::chrono::microseconds maxExpectedDuration() const override {
-        // @TODO MB-52264 evaluate this
-        return std::chrono::seconds(1);
+        return std::chrono::milliseconds(1);
     }
 
     /**
@@ -61,9 +90,51 @@ private:
     void checkForNewQuotaChange();
 
     /**
+     * Phase 1:
+     * Steps 1-5:
+     * Set watermark values for the desiredQuota to start memory reclamation.
+     *
+     * @param desiredQuota new quota
+     */
+    void prepareToReduceMemoryUsage();
+
+    /**
+     * Phase 2:
+     * Step 6-7:
+     * Check if memory usage is acceptable and set the new quota if possible
+     *
+     * @param desiredQuota new quota
+     * @return true if the new quota was set
+     */
+    bool setNewQuotaIfMemoryUsageAcceptable();
+
+    /**
+     * Phase 2:
+     * Step 7:
+     * Set the actual quota value to the desired value.
+     *
+     * @param desiredQuota
+     */
+    void setDesiredQuota();
+
+    /**
+     * Check if memory usage is such that we can set the new quota
+     *
+     * @return true if below the high watermark
+     */
+    bool checkMemoryState();
+
+    /**
      * Cleans up any state set while processing the quota change.
      */
     void finishProcessingQuotaChange();
+
+    // State of the current quota change
+    enum class ChangeState {
+        ApplyingWatermarkChanges,
+        WaitingForMemoryReclamation,
+        Done,
+    };
 
     // latestDesiredQuota is set when scheduling this task. It is used to
     // determine if a new quota change has come in whilst processing the
@@ -76,8 +147,13 @@ private:
      * All the state required to change the quota. Below state is not atomic
      * is it will only be operated on by the thread running the task.
      */
+    ChangeState state{ChangeState::Done};
 
     // The quota change we are currently processing. A value of 0 means that no
     // quota change is currently in progress.
     size_t desiredQuota{0};
+
+    // Watermarks values for the old quota. They are stored
+    size_t previousLowWatermark{0};
+    size_t previousHighWatermark{0};
 };

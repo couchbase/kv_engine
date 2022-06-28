@@ -14,6 +14,7 @@
 #include "checkpoint_manager.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
+#include "test_helpers.h"
 #include "vbucket.h"
 
 #ifdef EP_USE_MAGMA
@@ -38,12 +39,30 @@ public:
         // Test setup doesn't call KVBucket::initialize (which creates the quota
         // change task) so we have to do that manually here.
         store->createAndScheduleBucketQuotaChangeTask();
+
+        // Ephemeral fail new data does not use an item pager, so don't run it
+        // here.
+        if (!ephemeralFailNewData()) {
+            store->enableItemPager();
+        }
+
+        // Drop task wait time to run the next stage instantly so that:
+        // 1) we don't have to wait
+        // 2) we can run the task and the ItemPager manually and assert the
+        //    order in which they run
+        engine->getConfiguration().setBucketQuotaChangeTaskPollInterval(0);
     }
 
     void runQuotaChangeTaskOnce() {
         auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
         // run the task.
         runNextTask(lpNonioQ, "Changing bucket quota");
+    }
+
+    void runItemPagerTask() {
+        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        // run the task.
+        runNextTask(lpNonioQ, "Paging out items.");
     }
 
     size_t getCurrentBucketQuota() {
@@ -171,6 +190,67 @@ public:
         }
     }
 
+    void setUpQuotaChangeDownHighMemoryUsageTest() {
+        SCOPED_TRACE("");
+        // Drop our initial quota values because we're going to create a "large"
+        // item to inflate memory usage for the purposes of this test and we
+        // don't want that item to have to be too large (allocations aren't
+        // fast).
+        engine->getConfiguration().setMaxSize(10 * 1024 * 1024);
+        engine->setMaxDataSize(10 * 1024 * 1024);
+
+        // We need our item to be a certain size (and hard-coding some size is
+        // brittle) so we'll calculate an appropriate value. Our HWM defaults to
+        // 85% of the Bucket quota and the new mutation threshold is 93% by
+        // default. We'll target 90% memory usage when we store this item to sit
+        // between the two. We're going to reduce the quota by half and it's the
+        // post-change values that we care about so add a further multiple of
+        // 0.5.
+        ASSERT_LT(0.9, engine->getConfiguration().getMutationMemThreshold());
+        ASSERT_GT(0.9, engine->getEpStats().mem_high_wat_percent);
+        auto valueToHit = (0.9 * 0.5 * getCurrentBucketQuota());
+        auto size =
+                valueToHit - engine->getEpStats().getPreciseTotalMemoryUsed();
+
+        auto key = makeStoredDocKey("key");
+        store_item(vbid, StoredDocKey{key}, std::string(size, 'x'), 0);
+        // Flushing the item ensure that it's in the storage engine (which we
+        // care about if this is a magma test).
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        // Force create a new Checkpoint and run the checkpoint destroyer task
+        // to make sure the CheckpointManager isn't referencing the item. We
+        // want the ItemPager to be able to evict the item and for memory to
+        // come down when it does so.
+        store->getVBucket(vbid)->checkpointManager->createNewCheckpoint();
+        runCheckpointDestroyer(vbid);
+
+        auto oldQuota = getCurrentBucketQuota();
+
+        {
+            SCOPED_TRACE("");
+            checkBucketQuotaAndRelatedValues(oldQuota);
+        }
+
+        auto newQuota = oldQuota / 2;
+        setBucketQuotaAndRunQuotaChangeTask(newQuota);
+
+        // The BucketQuotaChangeTask will have changed watermark values,
+        // backfills, and storage engine quota, before it changes the actual
+        // quota, check that those values have been updated now (and that quota
+        // is still the same).
+        EXPECT_EQ(percentOf(newQuota, initialMemLowWatPercent),
+                  engine->getConfiguration().getMemLowWat());
+
+        EXPECT_EQ(percentOf(newQuota, initialMemHighWatPercent),
+                  engine->getConfiguration().getMemHighWat());
+
+        checkMaxRunningBackfills(newQuota);
+        checkStorageEngineQuota(newQuota);
+
+        checkQuota(oldQuota);
+    }
+
     double initialMemLowWatPercent;
     double initialMemHighWatPercent;
 };
@@ -215,6 +295,162 @@ TEST_P(BucketQuotaChangeTest, QuotaChangeDownNonDefaultWatermarks) {
     setLowWatermark(0.5);
     setHighWatermark(0.6);
     testQuotaChangeDown();
+}
+
+TEST_P(BucketQuotaChangeTest, QuotaChangeDownMemoryUsageHigh) {
+    SCOPED_TRACE("");
+    setUpQuotaChangeDownHighMemoryUsageTest();
+
+    auto oldQuota = engine->getEpStats().getMaxDataSize();
+    auto key = makeStoredDocKey("key");
+    auto newQuota = oldQuota / 2;
+
+    if (ephemeralFailNewData()) {
+        // Ephemeral fail new data can't recover memory via item paging (which
+        // this test relies on) so just run the task again, make sure the quota
+        // isn't changing, and end the test early.
+        runQuotaChangeTaskOnce();
+        EXPECT_EQ(oldQuota, getCurrentBucketQuota());
+        return;
+    }
+
+    auto diffKey = makeStoredDocKey("diffKey");
+    store_item(vbid, diffKey, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Poke the item and the pager setting to ensure that we will evict it
+    store->getVBucket(vbid)
+            ->ht.findOnlyCommitted(key)
+            .storedValue->setFreqCounterValue(0);
+    engine->getConfiguration().setItemEvictionAgePercentage(0);
+    engine->getConfiguration().setItemEvictionFreqCounterAgeThreshold(255);
+
+    // ItemPager will have been woken by the BucketQuotaChangeTask after it sets
+    // the new watermark values. ItemPager is a multi-phase task though and it
+    // will schedule the next stages now (which actually do the eviction).
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(lpNonioQ, "Paging out items.");
+
+    // Quota task is up next because it snoozes for the configured duration
+    // (wakes up immediately for test purposes) after setting the watermarks
+    // if it can't immediately change the quota. It will still find that the
+    // memory usage is too high and won't change the quota down yet.
+    runQuotaChangeTaskOnce();
+    EXPECT_NE(newQuota, engine->getEpStats().getMaxDataSize());
+
+    // Now the two ItemPager tasks can run
+    runNextTask(lpNonioQ, "Item pager no vbucket assigned");
+    runNextTask(lpNonioQ, "Item pager no vbucket assigned");
+
+    if (ephemeral()) {
+        // Item is deleted rather than evicted by the pager for ephemeral
+        ASSERT_EQ(1, store->getVBucket(vbid)->getNumInMemoryDeletes());
+    } else {
+        EXPECT_LT(0, store->getVBucket(vbid)->ht.getNumEjects());
+    }
+
+    // Now the BucketQuotaChangeTask can _probably_ change the quota value.
+    // For the case of a magma Bucket though it may still be recovering memory
+    // in a background thread (which we don't control) so we'll allow magma
+    // Buckets a bit of time to reduce memory usage before checking our new
+    // values. Anecdotally, this runs in ~40ms on my M1 MacbookPro.
+    runQuotaChangeTaskOnce();
+
+    if (STParameterizedBucketTest::isMagma()) {
+        // Allow magma 10 seconds to reduce memory.
+        auto timeout =
+                std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (engine->getEpStats().getMaxDataSize() != newQuota) {
+            if (timeout < std::chrono::steady_clock::now()) {
+                // We waited too long for magma to reduce memory usage. Either
+                // the test is racey and we need to up the timeout, or magma is
+                // not recovering memory for some reason. Fail now for some
+                // human intervention rather than hanging the test forever.
+                FAIL() << "Magma took too long to reduce memory usage";
+            }
+
+            std::this_thread::yield();
+
+            // The BucketQuotaChangeTask is going to interleave with the
+            // ItemPager (which reschedules itself if memory usage is still
+            // above the HWM after a full iteration). As a result, we can't
+            // check the task that ran.
+            auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+            runNextTask(lpNonioQ);
+        }
+    }
+
+    // Finally, we can check that the new quota values have applied
+    // successfully.
+    {
+        SCOPED_TRACE("");
+        checkBucketQuotaAndRelatedValues(newQuota);
+    }
+}
+
+TEST_P(BucketQuotaChangeTest, HandleIdenticalQuotaChange) {
+    auto currentQuota = getCurrentBucketQuota();
+
+    {
+        SCOPED_TRACE("");
+        checkBucketQuotaAndRelatedValues(currentQuota);
+    }
+
+    auto newQuota = currentQuota / 2;
+    setBucketQuotaAndRunQuotaChangeTask(newQuota);
+
+    checkWatermarkValues(newQuota);
+
+    // Should extra change now hit the task?
+    setBucketQuota(newQuota);
+
+    {
+        SCOPED_TRACE("");
+        checkBucketQuotaAndRelatedValues(newQuota);
+    }
+
+    runQuotaChangeTaskOnce();
+    {
+        SCOPED_TRACE("");
+        checkBucketQuotaAndRelatedValues(newQuota);
+    }
+}
+
+TEST_P(BucketQuotaChangeTest, HandleQuotaChangeCancel) {
+    auto currentQuota = getCurrentBucketQuota();
+
+    setUpQuotaChangeDownHighMemoryUsageTest();
+
+    // 1 run of the ItemPager doesn't actually free up any memory
+    if (!ephemeralFailNewData()) {
+        runItemPagerTask();
+    }
+
+    setBucketQuotaAndRunQuotaChangeTask(currentQuota);
+
+    {
+        SCOPED_TRACE("");
+        checkBucketQuotaAndRelatedValues(currentQuota);
+    }
+}
+
+TEST_P(BucketQuotaChangeTest, HandleQuotaIncreaseDuringQuotaDecreaseChange) {
+    auto currentQuota = getCurrentBucketQuota();
+    auto newQuota = currentQuota * 2;
+
+    setUpQuotaChangeDownHighMemoryUsageTest();
+
+    // 1 run of the ItemPager doesn't actually free up any memory
+    if (!ephemeralFailNewData()) {
+        runItemPagerTask();
+    }
+
+    setBucketQuotaAndRunQuotaChangeTask(newQuota);
+
+    {
+        SCOPED_TRACE("");
+        checkBucketQuotaAndRelatedValues(newQuota);
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,

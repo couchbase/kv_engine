@@ -1838,20 +1838,31 @@ int write_items_upto_mem_perc(EngineIface* h,
     float mem_thresh = static_cast<float>(mem_thresh_perc) / (100.0);
     int num_items = 0;
     while (true) {
-        /* Load items into server until mem_thresh_perc of the mem quota
-         is used. Getting stats is expensive, only check every 100
-         iterations. */
-        if ((num_items % 100) == 0) {
-            auto memUsed = float(get_int_stat(h, "mem_used", "memory"));
-            if (memUsed > (maxSize * mem_thresh)) {
-                /* Persist all items written so far. */
+        auto memUsed = float(get_int_stat(h, "mem_used", "memory"));
+        if (memUsed > (maxSize * mem_thresh)) {
+            if (get_stat<uint64_t>(h, "ep_queue_size") == 0) {
                 break;
             }
+
+            /* Persist all items written so far. */
+            wait_for_flusher_to_settle(h);
+            wait_for_stat_to_be(
+                    h, "ep_checkpoint_memory_pending_destruction", false);
+            continue;
         }
         std::string key("key" + std::to_string(num_items + start_seqno));
-        cb::engine_errc ret = store(
-                h, nullptr, StoreSemantics::Set, key.c_str(), "somevalue");
-        validate_store_resp(ret, num_items);
+        cb::engine_errc ret = store(h,
+                                    nullptr,
+                                    StoreSemantics::Set,
+                                    key.c_str(),
+                                    std::string(1024 * 100, 'x').c_str());
+        if (ret == cb::engine_errc::temporary_failure ||
+            ret == cb::engine_errc::no_memory) {
+            wait_for_flusher_to_settle(h);
+            wait_for_stat_to_be(
+                    h, "ep_checkpoint_memory_pending_destruction", false);
+        }
+        num_items++;
     }
     return num_items;
 }

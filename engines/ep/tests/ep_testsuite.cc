@@ -6913,6 +6913,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_bfilter_key_count",
               "ep_bfilter_residency_threshold",
               "ep_bucket_type",
+              "ep_bucket_quota_change_task_poll_interval",
               "ep_cache_size",
               "ep_chk_expel_enabled",
               "ep_chk_remover_stime",
@@ -7135,6 +7136,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_blob_overhead",
               "ep_bucket_priority",
               "ep_bucket_type",
+              "ep_bucket_quota_change_task_poll_interval",
               "ep_cache_size",
               "ep_chk_expel_enabled",
               "ep_chk_persistence_remains",
@@ -8401,6 +8403,83 @@ static enum test_result test_seqno_persistence_timeout(EngineIface* h) {
             seqnoPersistence(h, nullptr, Vbid(0), /*seqno*/ num_items * 2),
             "Expected success for seqno persistence request");
     testHarness->destroy_cookie(cookie1);
+    return SUCCESS;
+}
+
+static enum test_result test_bucket_quota_reduction(EngineIface* h) {
+    // Hack number 1 - We want to disable the item pager to ensure that
+    // memory usage can remain high while we attempt to write a new key but
+    // we don't expose that anywhere (probably for good reason). We can get a
+    // little creative though and set NonIO threads to 0 to effectively do that.
+    // We don't strictly need to do this before loading the data, but it does
+    // make the test less racey as memory shouldn't drop before we expect it to
+    ExecutorPool::get()->setNumNonIO(0);
+
+    // Write up to 75%, we need to be more than 93% (mem_mutation_threshold)
+    // of the new quota (50% of the current) so anything above 50% of the
+    // current quota _should_ be fine but the extra margin should make this
+    // less racey.
+    write_items_upto_mem_perc(h, 75);
+
+    auto quota = get_stat<uint64_t>(h, "ep_max_size");
+    uint64_t newQuota = quota / 2;
+    uint64_t newHWM = newQuota * 0.85;
+    set_param(h,
+              EngineParamCategory::Flush,
+              "max_size",
+              std::to_string(newQuota).c_str());
+
+    // Hack number 2 - To set the new quota we need to run a NonIO task but
+    // we've just disabled all of the threads. To avoid paging things out, we
+    // can cheat the ItemPager by setting the vBucket to dead (ItemPager will
+    // skip it) but not delete it (different code path). Then, we can enable
+    // our NonIO threads again to run the BucketQuotaChangeTask.
+    set_vbucket_state(h, Vbid(0), vbucket_state_dead);
+    ExecutorPool::get()->setNumNonIO(1);
+
+    // Wait for a change in HWM to check that the BucketQuotaChangeTask has run
+    // (it will not enforce the quota until memory usage is lower)
+    wait_for_stat_to_be(h, "ep_mem_high_wat", newHWM);
+
+    // Helpful lambda to store an item and return the result
+    auto storeItem = [h]() {
+        auto ret = store(h,
+                         nullptr,
+                         StoreSemantics::Set,
+                         "dontcare",
+                         "dontcare",
+                         nullptr,
+                         /*cas*/ 0,
+                         Vbid(0),
+                         0,
+                         0,
+                         DocumentState::Alive);
+        return ret;
+    };
+
+    // We want to store our item now and check the return result, set NonIO
+    // back to 0 to avoid ItemPager runs and the vBucket back to active.
+    ExecutorPool::get()->setNumNonIO(0);
+    set_vbucket_state(h, Vbid(0), vbucket_state_active);
+    checkeq(cb::engine_errc::success,
+            storeItem(),
+            "We should be able to "
+            "store an item as the BucketQuotaChangeTask should not enforce "
+            "memory limits until memory usage is low enough.");
+
+    // Let the ItemPager run and free up some memory
+    ExecutorPool::get()->setNumNonIO(1);
+
+    // Should be able to wait for memory usage to be reduced below the new HWM
+    wait_for_memory_usage_below(h, newHWM);
+
+    // And we should be able to:
+    // a) write a new item
+    checkeq(cb::engine_errc::success, storeItem(), "uhoh2");
+
+    // b) see the new quota
+    wait_for_stat_to_be(h, "ep_max_size", newQuota);
+
     return SUCCESS;
 }
 
@@ -9682,6 +9761,19 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "seqno_persistence_timeout=0;",
                  prepare,
+                 cleanup),
+        TestCase("test bucket quota reduction",
+                 test_bucket_quota_reduction,
+                 test_setup,
+                 teardown,
+                 // A slightly generous quota is required to give us room to
+                 // work with - 10MB
+                 "max_size=10485760;"
+                 // Have the quota change task run constantly to avoid
+                 // unnecessary waiting in the test
+                 "bucket_quota_change_task_poll_interval=0",
+                 // Skip for RocksDB, it requires too much memory
+                 prepare_skip_broken_under_rocks,
                  cleanup),
 
         TestCase(

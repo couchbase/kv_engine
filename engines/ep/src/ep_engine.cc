@@ -830,6 +830,9 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setSeqnoPersistenceTimeout(std::stoul(val));
         } else if (key == "range_scan_max_continue_tasks") {
             configuration.setRangeScanMaxContinueTasks(std::stoul(val));
+        } else if (key == "bucket_quota_change_task_poll_interval") {
+            configuration.setBucketQuotaChangeTaskPollInterval(std::stoul
+                                                                (val));
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::invalid_arguments;
