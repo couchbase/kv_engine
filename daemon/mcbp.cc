@@ -62,7 +62,7 @@ static bool mcbp_response_handler(std::string_view key,
     }
 
     datatype = c->getEnabledDatatypes(datatype);
-    auto& error_json = cookie->getErrorJson();
+    const auto error_json = cookie->getErrorJson();
 
     switch (status) {
     case cb::mcbp::Status::Success:
@@ -75,7 +75,7 @@ static bool mcbp_response_handler(std::string_view key,
         return true;
     default:
         //
-        payload = {error_json.data(), error_json.size()};
+        payload = error_json;
         key = {};
         extras = {};
         datatype = payload.empty() ? PROTOCOL_BINARY_RAW_BYTES

@@ -167,7 +167,7 @@ public:
      *
      * @return An empty string if no extended error information is being set
      */
-    const std::string& getErrorJson();
+    std::string getErrorJson();
 
     /**
      * Get the connection object the cookie is bound to.
@@ -671,12 +671,6 @@ protected:
     mutable std::string event_id;
     std::string error_context;
     nlohmann::json error_extra_json;
-
-    /**
-     * A member variable to keep the data around until it's been safely
-     * transferred to the client.
-     */
-    std::string json_message;
 
     /**
      * The input packet used in this command context

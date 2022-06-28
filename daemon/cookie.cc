@@ -93,10 +93,9 @@ void Cookie::setErrorJsonExtras(const nlohmann::json& json) {
     error_extra_json = json;
 }
 
-const std::string& Cookie::getErrorJson() {
-    json_message.clear();
+std::string Cookie::getErrorJson() {
     if (error_context.empty() && event_id.empty() && error_extra_json.empty()) {
-        return json_message;
+        return {};
     }
 
     nlohmann::json error;
@@ -116,8 +115,7 @@ const std::string& Cookie::getErrorJson() {
     if (!error_extra_json.empty()) {
         root.update(error_extra_json);
     }
-    json_message = root.dump();
-    return json_message;
+    return root.dump();
 }
 
 bool Cookie::doExecute() {
@@ -305,7 +303,7 @@ void Cookie::sendResponse(cb::mcbp::Status status,
         return;
     }
 
-    const auto& error_json = getErrorJson();
+    const auto error_json = getErrorJson();
 
     if (cb::mcbp::isStatusSuccess(status)) {
         setCas(casValue);
@@ -313,7 +311,7 @@ void Cookie::sendResponse(cb::mcbp::Status status,
         // This is an error message.. Inject the error JSON!
         extras = {};
         key = {};
-        value = {error_json.data(), error_json.size()};
+        value = error_json;
         datatype = value.empty() ? cb::mcbp::Datatype::Raw
                                  : cb::mcbp::Datatype::JSON;
     }
@@ -573,7 +571,6 @@ void Cookie::reset() {
     total_throttle_time = total_throttle_time.zero();
     event_id.clear();
     error_context.clear();
-    json_message.clear();
     error_extra_json.clear();
     packet = {};
     validated = false;
