@@ -89,7 +89,7 @@ void cb::audit::setEnabled(uint32_t id, bool enable) {
 static nlohmann::json create_memcached_audit_object(
         const Connection& c,
         const cb::rbac::UserIdent& ui,
-        const std::optional<cb::rbac::UserIdent>& euid) {
+        const cb::rbac::UserIdent* euid) {
     nlohmann::json root;
 
     root["timestamp"] = ISOTime::generatetimestamp();

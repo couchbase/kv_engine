@@ -588,8 +588,8 @@ public:
      */
     cb::mcbp::Status setEffectiveUser(const cb::rbac::UserIdent& e);
 
-    std::optional<cb::rbac::UserIdent> getEffectiveUser() const {
-        return euid;
+    const cb::rbac::UserIdent* getEffectiveUser() const {
+        return euid.get();
     }
 
     void addImposedUserExtraPrivilege(cb::rbac::Privilege privilege) {
@@ -754,7 +754,10 @@ protected:
 
     /// If the request came in with the impersonate frame info set, this
     /// is the user requested
-    std::optional<cb::rbac::UserIdent> euid;
+    /// Using unique_ptr for optional semantics, without paying the memory
+    /// footprint of PrivilegeContext (40B at time of writing) if
+    /// impersonate not being used.
+    std::unique_ptr<cb::rbac::UserIdent> euid;
 
     /// Fetch the privileges from the EUID
     bool fetchEuidPrivilegeSet();
@@ -764,8 +767,11 @@ protected:
     std::shared_ptr<GetAuthorizationTask> getAuthorizationTask;
 
     /// If the request came in with the impersonate frame info set, this
-    /// is the privilege context for that user (which we'll also test)
-    std::optional<cb::rbac::PrivilegeContext> euidPrivilegeContext;
+    /// is the privilege context for that user (which we'll also test).
+    /// Using unique_ptr for optional semantics, without paying the memory
+    /// footprint of PrivilegeContext (40B at time of writing) if
+    /// impersonate not being used.
+    std::unique_ptr<cb::rbac::PrivilegeContext> euidPrivilegeContext;
 
     /// When impersonating users we may grant the user extra privileges
     /// (but the authenticated user must also have the privileges in the

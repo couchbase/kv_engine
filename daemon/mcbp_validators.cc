@@ -393,7 +393,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
         cb::mcbp::is_collection_command(request.getClientOpcode()) &&
         connection.getBucket().supports(cb::engine::Feature::Collections) &&
         (cookie.getPrivilegeContext().hasScopePrivileges() ||
-         cookie.getEffectiveUser().has_value())) {
+         cookie.getEffectiveUser())) {
         // verify that we can map the connection to sid. To make our
         // unit tests easier lets go through the connection
         auto key = cookie.getRequestKey();

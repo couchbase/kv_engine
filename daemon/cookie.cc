@@ -842,7 +842,8 @@ cb::mcbp::Status Cookie::setEffectiveUser(const cb::rbac::UserIdent& e) {
         return cb::mcbp::Status::Einval;
     }
 
-    euid = e;
+    euid = std::make_unique<cb::rbac::UserIdent>(e);
+
     return cb::mcbp::Status::Success;
 }
 
@@ -889,14 +890,15 @@ bool Cookie::fetchEuidPrivilegeSet() {
     }
 
     try {
-        euidPrivilegeContext =
-                cb::rbac::createContext(*euid, connection.getBucket().name);
+        euidPrivilegeContext = std::make_unique<cb::rbac::PrivilegeContext>(
+                cb::rbac::createContext(*euid, connection.getBucket().name));
     } catch (const cb::rbac::NoSuchBucketException&) {
         // The user exists, but don't have access to the bucket.
         // Let the command continue to execute, but set create an empty
         // privilege set (this make sure that we get the correcct audit
         // event at a later time.
-        euidPrivilegeContext = cb::rbac::PrivilegeContext{euid->domain};
+        euidPrivilegeContext =
+                std::make_unique<cb::rbac::PrivilegeContext>(euid->domain);
     } catch (const cb::rbac::Exception&) {
         setErrorContext("User \"" + euid->name + "\" is not a Couchbase user");
         sendResponse(cb::mcbp::Status::Eaccess);
