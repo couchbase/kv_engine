@@ -967,33 +967,10 @@ TEST_F(ServerlessTest, OpsMetered) {
             break;
 
         case ClientOpcode::GetLocked:
-            rsp = conn.execute(
-                    BinprotGetAndLockCommand{"ClientOpcode::GetLocked"});
-            EXPECT_EQ(Status::KeyEnoent, rsp.getStatus());
-            EXPECT_FALSE(rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
-            createDocument("ClientOpcode::GetLocked", "value");
-            rsp = conn.execute(
-                    BinprotGetAndLockCommand{"ClientOpcode::GetLocked"});
-            EXPECT_TRUE(rsp.isSuccess());
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
-            break;
         case ClientOpcode::UnlockKey:
-            do {
-                createDocument("ClientOpcode::UnlockKey", "value");
-                auto doc = conn.get_and_lock(
-                        "ClientOpcode::UnlockKey", Vbid{0}, 15);
-                executeWithExpectedCU(
-                        [&conn, cas = doc.info.cas]() {
-                            conn.unlock(
-                                    "ClientOpcode::UnlockKey", Vbid{0}, cas);
-                        },
-                        0,
-                        0);
-            } while (false);
+            // Tested in MeterDocumentLocking
             break;
+
         case ClientOpcode::ObserveSeqno:
             do {
                 uint64_t uuid = 0;
@@ -1734,6 +1711,40 @@ TEST_F(ServerlessTest, MeterDocumentGet) {
     //    EXPECT_EQ(sconfig.to_ru(xattr_value.size() + document_value.size() +
     //                            id.size()),
     //              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+TEST_F(ServerlessTest, MeterDocumentLocking) {
+    auto& sconfig = cb::serverless::Config::instance();
+    auto conn = cluster->getConnection(0);
+    conn->authenticate("@admin", "password");
+    conn->selectBucket("bucket-0");
+    conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
+    conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
+
+    const std::string id = "MeterDocumentLocking";
+    const auto getl = BinprotGetAndLockCommand{id};
+    auto rsp = conn->execute(getl);
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    EXPECT_FALSE(rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+
+    std::string document_value;
+    document_value.resize(sconfig.readUnitSize - 5);
+    std::fill(document_value.begin(), document_value.end(), 'a');
+
+    writeDocument(*conn, id, document_value);
+    rsp = conn->execute(getl);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(sconfig.to_ru(document_value.size() + id.size()),
+              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+
+    auto unl = BinprotUnlockCommand{id, Vbid{0}, rsp.getCas()};
+    rsp = conn->execute(unl);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    EXPECT_FALSE(rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
 }
 
