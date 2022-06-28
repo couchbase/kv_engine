@@ -593,7 +593,8 @@ public:
     }
 
     void addImposedUserExtraPrivilege(cb::rbac::Privilege privilege) {
-        euidExtraPrivileges.push_back(privilege);
+        const auto idx = size_t(privilege);
+        euidExtraPrivileges.set(idx);
     }
 
     bool isPreserveTtl() const {
@@ -769,7 +770,7 @@ protected:
     /// When impersonating users we may grant the user extra privileges
     /// (but the authenticated user must also have the privileges in the
     /// effective set)
-    std::vector<cb::rbac::Privilege> euidExtraPrivileges;
+    cb::rbac::PrivilegeMask euidExtraPrivileges;
 
     /// The response status we sent for this cookie (for a multi-response
     /// command such as STATS it would be the _last_ status code)

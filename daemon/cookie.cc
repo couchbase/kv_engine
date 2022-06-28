@@ -589,7 +589,7 @@ void Cookie::reset() {
     euidPrivilegeContext.reset();
     frame_copy.reset();
     responseStatus = cb::mcbp::Status::COUNT;
-    euidExtraPrivileges.clear();
+    euidExtraPrivileges.reset();
 }
 
 void Cookie::setThrottled(bool val) {
@@ -721,9 +721,8 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
     auto ret = checkPrivilege(privilegeContext, privilege, sid, cid);
 
     if (ret.success() && euidPrivilegeContext) {
-        if (std::find(euidExtraPrivileges.begin(),
-                      euidExtraPrivileges.end(),
-                      privilege) != euidExtraPrivileges.end()) {
+        const auto idx = size_t(privilege);
+        if (euidExtraPrivileges.test(idx)) {
             // the caller explicitly granted the privilege
             return cb::rbac::PrivilegeAccessOk;
         }
@@ -800,9 +799,8 @@ cb::rbac::PrivilegeAccess Cookie::testPrivilege(
     auto ret = testPrivilege(privilegeContext, privilege, sid, cid);
 
     if (ret.success() && euidPrivilegeContext) {
-        if (std::find(euidExtraPrivileges.begin(),
-                      euidExtraPrivileges.end(),
-                      privilege) != euidExtraPrivileges.end()) {
+        const auto idx = size_t(privilege);
+        if (euidExtraPrivileges.test(idx)) {
             // the caller explicitly granted the privilege
             return cb::rbac::PrivilegeAccessOk;
         }
@@ -826,9 +824,8 @@ cb::rbac::PrivilegeAccess Cookie::checkForPrivilegeAtLeastInOneCollection(
             privilegeContext.checkForPrivilegeAtLeastInOneCollection(privilege);
 
     if (ret.success() && euidPrivilegeContext) {
-        if (std::find(euidExtraPrivileges.begin(),
-                      euidExtraPrivileges.end(),
-                      privilege) != euidExtraPrivileges.end()) {
+        const auto idx = size_t(privilege);
+        if (euidExtraPrivileges.test(idx)) {
             // the caller explicitly granted the privilege
             return cb::rbac::PrivilegeAccessOk;
         }
