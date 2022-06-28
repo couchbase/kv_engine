@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -152,13 +151,11 @@ enum class Privilege {
 
     /// The 'RangeScan' privilege allows the connection to create, continue
     /// and cancel RangeScan - effectively a bulk read of ranges of keys or
-    // keys/values
+    /// keys/values
     RangeScan,
 
-    /**
-     * Remember to update the rest of the internals of the RBAC module when
-     * you add new privileges.
-     */
+    // Let RangeScan be the last privilege in the file, as its value is
+    // used to size bitsets inside the RBAC module.
 };
 
 /**
