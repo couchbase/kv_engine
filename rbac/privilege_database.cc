@@ -498,8 +498,9 @@ const UserEntry& PrivilegeDatabase::lookup(const std::string& user) const {
 void PrivilegeContext::dropPrivilege(Privilege privilege) {
     // Given that we're using a shared_ptr to the buckets we can't modify
     // the privilege mask for the buckets/scopes/collections.
-    // Keep them around in a vector and check it later on.
-    droppedPrivileges.push_back(privilege);
+    // Keep them around in a separate mask and check it later on.
+    const auto idx = size_t(privilege);
+    droppedPrivileges.set(idx);
 }
 
 bool PrivilegeContext::isStale() const {
@@ -522,12 +523,8 @@ PrivilegeAccess PrivilegeContext::check(Privilege privilege,
     }
 
     // Check if the user dropped the privilege over the connection.
-    if (!droppedPrivileges.empty()) {
-        if (std::find(droppedPrivileges.begin(),
-                      droppedPrivileges.end(),
-                      privilege) != droppedPrivileges.end()) {
-            return PrivilegeAccessFail;
-        }
+    if (droppedPrivileges.test(idx)) {
+        return PrivilegeAccessFail;
     }
 
     if (mask.test(idx)) {
@@ -554,12 +551,8 @@ PrivilegeAccess PrivilegeContext::checkForPrivilegeAtLeastInOneCollection(
 #endif
 
     // Check if the user dropped the privilege over the connection.
-    if (!droppedPrivileges.empty()) {
-        if (std::find(droppedPrivileges.begin(),
-                      droppedPrivileges.end(),
-                      privilege) != droppedPrivileges.end()) {
-            return PrivilegeAccessFail;
-        }
+    if (droppedPrivileges.test(idx)) {
+        return PrivilegeAccessFail;
     }
 
     if (mask.test(idx)) {

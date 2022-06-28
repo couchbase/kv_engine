@@ -385,8 +385,8 @@ protected:
     /// The Bucket rbac setting
     std::shared_ptr<const Bucket> bucket;
 
-    /// The list of dropped privileges
-    std::vector<Privilege> droppedPrivileges;
+    /// The set of dropped privileges
+    PrivilegeMask droppedPrivileges;
 };
 
 /**
