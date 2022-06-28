@@ -923,34 +923,8 @@ TEST_F(ServerlessTest, OpsMetered) {
             EXPECT_FALSE(rsp.getWriteUnits());
             break;
         case ClientOpcode::Touch:
-            // Touch of non-existing document should fail and is free
-            rsp = conn.execute(BinprotTouchCommand{"ClientOpcode::Touch", 0});
-            EXPECT_EQ(Status::KeyEnoent, rsp.getStatus());
-            EXPECT_FALSE(rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
-            createDocument("ClientOpcode::Touch", "Hello World");
-            rsp = conn.execute(BinprotTouchCommand{"ClientOpcode::Touch", 0});
-            EXPECT_TRUE(rsp.isSuccess());
-            EXPECT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            ASSERT_TRUE(rsp.getWriteUnits());
-            EXPECT_EQ(1, *rsp.getWriteUnits());
-            break;
         case ClientOpcode::Gat:
-            // Touch of non-existing document should fail and is free
-            rsp = conn.execute(
-                    BinprotGetAndTouchCommand{"ClientOpcode::Gat", Vbid{0}, 0});
-            EXPECT_EQ(Status::KeyEnoent, rsp.getStatus());
-            EXPECT_FALSE(rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
-            createDocument("ClientOpcode::Gat", "Hello World");
-            rsp = conn.execute(
-                    BinprotGetAndTouchCommand{"ClientOpcode::Gat", Vbid{0}, 0});
-            EXPECT_TRUE(rsp.isSuccess());
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            ASSERT_TRUE(rsp.getWriteUnits());
-            EXPECT_EQ(1, *rsp.getWriteUnits());
+            // Tested in MeterDocumentTouch
             break;
         case ClientOpcode::Hello:
             executeWithExpectedCU(
@@ -1746,6 +1720,55 @@ TEST_F(ServerlessTest, MeterDocumentLocking) {
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+TEST_F(ServerlessTest, MeterDocumentTouch) {
+    auto& sconfig = cb::serverless::Config::instance();
+    auto conn = cluster->getConnection(0);
+    conn->authenticate("@admin", "password");
+    conn->selectBucket("bucket-0");
+    conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
+    conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
+
+    const std::string id = "MeterDocumentTouch";
+
+    // Touch of non-existing document should fail and is free
+    auto rsp = conn->execute(BinprotTouchCommand{id, 0});
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    EXPECT_FALSE(rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+
+    // Gat should fail and free
+    rsp = conn->execute(BinprotGetAndTouchCommand{id, Vbid{0}, 0});
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    EXPECT_FALSE(rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+
+    std::string document_value;
+    document_value.resize(sconfig.readUnitSize - 5);
+    std::fill(document_value.begin(), document_value.end(), 'a');
+    writeDocument(*conn, id, document_value);
+
+    // Touch of a document is a full read and write of the document on the
+    // server, but no data returned
+    rsp = conn->execute(BinprotTouchCommand{id, 0});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(sconfig.to_ru(document_value.size() + id.size()),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(sconfig.to_wu(document_value.size() + id.size()),
+              *rsp.getWriteUnits());
+    EXPECT_TRUE(rsp.getDataString().empty());
+    rsp = conn->execute(BinprotGetAndTouchCommand{id, Vbid{0}, 0});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(sconfig.to_ru(document_value.size() + id.size()),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(sconfig.to_wu(document_value.size() + id.size()),
+              *rsp.getWriteUnits());
+    EXPECT_EQ(document_value, rsp.getDataString());
 }
 
 } // namespace cb::test
