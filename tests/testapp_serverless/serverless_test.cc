@@ -801,22 +801,6 @@ TEST_F(ServerlessTest, OpsMetered) {
             EXPECT_FALSE(rsp.getWriteUnits()) << opcode;
             break;
 
-        case ClientOpcode::Get:
-            // Get of a non-existing document should not cost anything
-            rsp = conn.execute(
-                    BinprotGenericCommand{opcode, "ClientOpcode::Get"});
-            EXPECT_EQ(Status::KeyEnoent, rsp.getStatus());
-            EXPECT_FALSE(rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
-
-            createDocument("ClientOpcode::Get", "Hello World");
-            rsp = conn.execute(
-                    BinprotGenericCommand{opcode, "ClientOpcode::Get"});
-            EXPECT_TRUE(rsp.isSuccess());
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
-            break;
         case ClientOpcode::Set:
             // Writing a document should cost
             executeWithExpectedCU(
@@ -977,29 +961,11 @@ TEST_F(ServerlessTest, OpsMetered) {
                     0);
             break;
 
+        case ClientOpcode::Get:
         case ClientOpcode::GetReplica:
-            do {
-                auto bucket = cluster->getBucket("bucket-0");
-                auto rcon = bucket->getConnection(
-                        Vbid(0), vbucket_state_replica, 1);
-                rcon->authenticate("@admin", "password");
-                rcon->selectBucket("bucket-0");
-                rcon->dropPrivilege(cb::rbac::Privilege::Unmetered);
-                rcon->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
-                rcon->setReadTimeout(std::chrono::seconds{3});
-                createDocument("ClientOpcode::GetReplica", "value");
-                std::this_thread::sleep_for(std::chrono::milliseconds{100});
-                do {
-                    rsp = rcon->execute(
-                            BinprotGenericCommand{ClientOpcode::GetReplica,
-                                                  "ClientOpcode::GetReplica"});
-                } while (rsp.getStatus() == Status::KeyEnoent);
-                EXPECT_TRUE(rsp.isSuccess());
-            } while (false);
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
+            // Tested in MeterDocumentGet
             break;
+
         case ClientOpcode::GetLocked:
             rsp = conn.execute(
                     BinprotGetAndLockCommand{"ClientOpcode::GetLocked"});
@@ -1674,6 +1640,101 @@ TEST_F(ServerlessTest, MeterDocumentDelete) {
 
     // @todo add Durability test once we implement metering of that on
     //       the server
+}
+
+/// The MeterDocumentGet is used to test Get and GetReplica to ensure
+/// that we meter correctly on them.
+TEST_F(ServerlessTest, MeterDocumentGet) {
+    auto& sconfig = cb::serverless::Config::instance();
+    auto conn = cluster->getConnection(0);
+    conn->authenticate("@admin", "password");
+    conn->selectBucket("bucket-0");
+    conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
+    conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
+
+    auto bucket = cluster->getBucket("bucket-0");
+    auto rconn = bucket->getConnection(Vbid(0), vbucket_state_replica, 1);
+    rconn->authenticate("@admin", "password");
+    rconn->selectBucket("bucket-0");
+    rconn->dropPrivilege(cb::rbac::Privilege::Unmetered);
+    rconn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
+
+    // Start off by creating the documents we want to test on. We'll be
+    // using different document names as I want to run the same test
+    // on the replica (with GetReplica) and by creating them all up front
+    // they can replicate in the background while we're testing the other
+
+    const std::string id = "MeterDocumentGet";
+    std::string document_value;
+    document_value.resize(6144);
+    std::fill(document_value.begin(), document_value.end(), 'a');
+    std::string xattr_value;
+    xattr_value.resize(8192);
+    std::fill(xattr_value.begin(), xattr_value.end(), 'a');
+    xattr_value.front() = '"';
+    xattr_value.back() = '"';
+
+    writeDocument(*conn, id, document_value);
+    writeDocument(*conn, id + "-xattr", document_value, "xattr", xattr_value);
+
+    // Get of a non-existing document should not cost anything
+    auto rsp = conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Get,
+                                                   id + "-missing"});
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    EXPECT_FALSE(rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+
+    // Get of a single document without xattrs costs the size of the document
+    rsp = conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, id});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(sconfig.to_ru(document_value.size() + id.size()),
+              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+
+    // If the document contains XAttrs (system or user) those are accounted
+    // for as well.
+    rsp = conn->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, id + "-xattr"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(sconfig.to_ru(xattr_value.size() + document_value.size() +
+                            id.size()),
+              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+
+    // Lets verify on the replicas...
+    rsp = rconn->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::GetReplica, id + "-missing"});
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    EXPECT_FALSE(rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+
+    do {
+        rsp = rconn->execute(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::GetReplica, id});
+    } while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(sconfig.to_ru(document_value.size() + id.size()),
+              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+
+    do {
+        rsp = rconn->execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::GetReplica, id + "-xattr"});
+    } while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, cb::mcbp::Datatype(rsp.getDatatype()));
+    EXPECT_EQ(document_value, rsp.getDataString());
+
+    // @todo It looks like GetReplica is ignoring the XAttrs in the callback
+    //       in ep_engine. Investigate that further as a separate task
+    //    EXPECT_EQ(sconfig.to_ru(xattr_value.size() + document_value.size() +
+    //                            id.size()),
+    //              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
 }
 
 } // namespace cb::test
