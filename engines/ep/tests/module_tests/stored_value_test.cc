@@ -26,6 +26,7 @@
 #include "stats.h"
 #include "stored_value_factories.h"
 #include "tests/module_tests/test_helpers.h"
+#include <xattr/blob.h>
 
 #include <folly/portability/GTest.h>
 
@@ -434,6 +435,43 @@ TYPED_TEST(ValueTest, MB_32568) {
     itm.setDeleted(DeleteSource::TTL);
     this->sv->setValue(itm);
     EXPECT_EQ(DeleteSource::TTL, this->sv->getDeletionSource());
+}
+
+TYPED_TEST(ValueTest, DeleteUpdatesDatatype) {
+    // MB-52793: Ensure that calling StoredValue::del() on a non-resident,
+    // deleted item correctly changes the datatype to RAW_BYTES.
+    // See MB/patch for scenario and other tests.
+    auto key = makeStoredDocKey("key");
+
+    cb::xattr::Blob xattrBlob;
+    xattrBlob.set("_sync", "somexattrvalue");
+    auto xattrs = xattrBlob.finalize();
+    std::string value = std::string(xattrs.begin(), xattrs.end());
+
+    auto item = make_item(Vbid(0),
+                          key,
+                          value,
+                          0 /* expiry */,
+                          PROTOCOL_BINARY_DATATYPE_XATTR);
+
+    item.setDeleted(DeleteSource::Explicit);
+
+    // create a deleted stored value with xattrs
+    auto sv = this->factory(item, {});
+
+    sv->ejectValue();
+
+    EXPECT_FALSE(sv->isResident());
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, sv->getDatatype());
+
+    // delete the stored value "again". MB-52793: this occurred when removing
+    // xattrs from a deleted document, leaving it with no value, but erroneously
+    // keeping xattr datatype. See MB.
+    sv->del(DeleteSource::Explicit);
+
+    // check the datatype has correctly changed, even though the value is
+    // not resident.
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, sv->getDatatype());
 }
 
 /**

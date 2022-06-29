@@ -724,6 +724,10 @@ public:
 
     cb::durability::Level getMinDurabilityLevel() const;
 
+    EvictionPolicy getEvictionPolicy() const {
+        return eviction_policy;
+    }
+
 protected:
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,

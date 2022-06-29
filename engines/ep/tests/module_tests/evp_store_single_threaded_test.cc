@@ -5855,3 +5855,144 @@ INSTANTIATE_TEST_CASE_P(Persistent,
                         STParamPersistentBucketTest,
                         STParameterizedBucketTest::persistentConfigValues(),
                         STParameterizedBucketTest::PrintToStringParamName);
+
+TEST_P(STParamPersistentBucketTest,
+       RemovingXattrDoesNotCauseIncorrectDatatypeOnReplica) {
+    // MB-52793: Under value eviction, if a replica:
+    // 1. Is a version without the fix for MB-50423 (6.6.5, 7.0.4 and down)
+    // 2. Has metadata for a deleted item with xattrs, but a non-resident value
+    //    (e.g., has been bgfetched and evicted)
+    // 3. Receives a deletion over DCP changing a document from
+    //    Xattrs+value -> no xattrs+no value
+    // The replica will persist a deleted item with datatype=xattrs but no
+    // value.
+    // NOTE: this has already been (incidentally) prevented by the fix for
+    //       MB-50423 in some versions, this test is to guard against future
+    //       regressions in this specific case.
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    // 1) Store an item with a (system) xattr
+    auto key = makeStoredDocKey("key");
+
+    cb::xattr::Blob xattrBlob;
+
+    xattrBlob.set("_sync", "somexattrvalue");
+    auto xattrs = xattrBlob.finalize();
+    auto xattrsStr = std::string(xattrs.begin(), xattrs.end());
+
+    // store the deleted item
+    {
+        auto item = make_item(
+                vbid, key, xattrsStr, 0, PROTOCOL_BINARY_DATATYPE_XATTR);
+
+        item.setCas(1234);
+        item.setDeleted(DeleteSource::Explicit);
+
+        uint64_t seqno;
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  store->setWithMeta(item,
+                                     0 /* cas */,
+                                     &seqno,
+                                     cookie,
+                                     {vbucket_state_replica},
+                                     CheckConflicts::No,
+                                     /*allowExisting*/ true));
+    }
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto vb = store->getVBucket(vbid);
+    auto& ht = vb->ht;
+
+    // persistence callback removes the delete from the HT
+    {
+        auto res = ht.findForRead(key,
+                                  TrackReference::No,
+                                  WantsDeleted::Yes,
+                                  ForGetReplicaOp::No);
+        ASSERT_FALSE(res.storedValue);
+    }
+
+    {
+        // cause the deleted item to be bgfetched back into the HT
+        get_options_t options =
+                static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
+        auto gv = store->get(key, vbid, cookie, options);
+        ASSERT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+
+        runBGFetcherTask();
+        gv = store->get(key, vbid, cookie, options);
+        ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+        ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, gv.item->getDataType());
+        ASSERT_NE(0, gv.item->getNBytes());
+        ASSERT_EQ(xattrsStr, gv.item->getValue()->to_s());
+    }
+
+    // now evict the value
+    {
+        auto res = ht.findForWrite(key, WantsDeleted::Yes);
+        ht.unlocked_ejectItem(
+                res.lock, res.storedValue, store->getEvictionPolicy());
+    }
+
+    // check it exists in the desired state
+    {
+        auto res = ht.findForRead(key,
+                                  TrackReference::No,
+                                  WantsDeleted::Yes,
+                                  ForGetReplicaOp::No);
+        const auto* v = res.storedValue;
+        if (fullEviction()) {
+            // Item should be entirely removed.
+            EXPECT_FALSE(v);
+        } else {
+            // Item should still be present.
+            ASSERT_TRUE(v);
+            ASSERT_TRUE(v->isDeleted());
+            ASSERT_FALSE(v->isResident());
+            ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, v->getDatatype());
+        }
+    }
+
+    // now drop the xattrs and store again, as if the only xattr has been
+    // removed by subdoc (as per what SyncGW does).
+    {
+        auto item = make_item(vbid, key, "", 0, PROTOCOL_BINARY_RAW_BYTES);
+        item.setCas(5678);
+        item.setDeleted(DeleteSource::Explicit);
+
+        uint64_t cas = 0;
+        uint64_t seqno;
+
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  store->deleteWithMeta(key,
+                                        cas,
+                                        &seqno,
+                                        vbid,
+                                        cookie,
+                                        {vbucket_state_replica},
+                                        CheckConflicts::No,
+                                        item.getMetaData(),
+                                        GenerateBySeqno::Yes,
+                                        GenerateCas::No,
+                                        0,
+                                        nullptr,
+                                        DeleteSource::Explicit));
+    }
+
+    // At this point the damage has been done - the document has been corrupted
+    // (zero byte value but datatype==XATTR) both on-disk and in-memory.
+
+    // MB-50423: The item _must_ have datatype RAW_BYTES now, as it does not
+    //           have any xattrs or a value.
+    {
+        auto res = ht.findForRead(key,
+                                  TrackReference::No,
+                                  WantsDeleted::Yes,
+                                  ForGetReplicaOp::No);
+        const auto* v = res.storedValue;
+        EXPECT_TRUE(v->isDeleted());
+        EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, v->getDatatype());
+    }
+}
