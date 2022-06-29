@@ -802,63 +802,11 @@ TEST_F(ServerlessTest, OpsMetered) {
             break;
 
         case ClientOpcode::Set:
-            // Writing a document should cost
-            executeWithExpectedCU(
-                    [&createDocument]() {
-                        createDocument("ClientOpcode::Set",
-                                       "Hello",
-                                       MutationType::Set);
-                    },
-                    0,
-                    1);
-            break;
         case ClientOpcode::Add:
-            // Writing a document should cost
-            executeWithExpectedCU(
-                    [&createDocument]() {
-                        createDocument("ClientOpcode::Add",
-                                       "Hello",
-                                       MutationType::Add);
-                    },
-                    0,
-                    1);
-            // add failure shouldn't cost anything
-            executeWithExpectedCU(
-                    [&createDocument]() {
-                        try {
-                            createDocument("ClientOpcode::Add",
-                                           "Hello",
-                                           MutationType::Add);
-                            FAIL() << "Add of existing document should fail";
-                        } catch (const ConnectionError&) {
-                        }
-                    },
-                    0,
-                    0);
-            break;
         case ClientOpcode::Replace:
-            // Replace failure shouldn't cost anything
-            executeWithExpectedCU(
-                    [&createDocument]() {
-                        try {
-                            createDocument("ClientOpcode::Replace",
-                                           "Hello",
-                                           MutationType::Replace);
-                            FAIL() << "Add of existing document should fail";
-                        } catch (const ConnectionError&) {
-                        }
-                    },
-                    0,
-                    0);
-            createDocument("ClientOpcode::Replace", "Hello");
-            executeWithExpectedCU(
-                    [&createDocument]() {
-                        createDocument("ClientOpcode::Replace",
-                                       "World",
-                                       MutationType::Replace);
-                    },
-                    0,
-                    1);
+        case ClientOpcode::Append:
+        case ClientOpcode::Prepend:
+            // Tested in MeterDocumentSimpleMutations
             break;
         case ClientOpcode::Delete:
             // Tested in MeterDocumentDelete
@@ -866,52 +814,6 @@ TEST_F(ServerlessTest, OpsMetered) {
         case ClientOpcode::Increment:
         case ClientOpcode::Decrement:
             // Tested in TestArithmeticMethods
-            break;
-        case ClientOpcode::Append:
-            // Append on non-existing document should fail and be free
-            executeWithExpectedCU(
-                    [&conn]() {
-                        auto r = conn.execute(
-                                BinprotGenericCommand{ClientOpcode::Append,
-                                                      "ClientOpcode::Append",
-                                                      "world"});
-                        EXPECT_FALSE(r.isSuccess());
-                        EXPECT_FALSE(r.getReadUnits());
-                        EXPECT_FALSE(r.getWriteUnits());
-                    },
-                    0,
-                    0);
-            createDocument("ClientOpcode::Append", "hello");
-            rsp = conn.execute(BinprotGenericCommand{
-                    ClientOpcode::Append, "ClientOpcode::Append", "world"});
-            EXPECT_TRUE(rsp.isSuccess());
-            EXPECT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            ASSERT_TRUE(rsp.getWriteUnits());
-            EXPECT_EQ(1, *rsp.getWriteUnits());
-            break;
-        case ClientOpcode::Prepend:
-            // Append on non-existing document should fail and be free
-            executeWithExpectedCU(
-                    [&conn]() {
-                        auto r = conn.execute(
-                                BinprotGenericCommand{ClientOpcode::Prepend,
-                                                      "ClientOpcode::Prepend",
-                                                      "hello"});
-                        EXPECT_FALSE(r.isSuccess());
-                        EXPECT_FALSE(r.getReadUnits());
-                        EXPECT_FALSE(r.getWriteUnits());
-                    },
-                    0,
-                    0);
-            createDocument("ClientOpcode::Prepend", "world");
-            rsp = conn.execute(BinprotGenericCommand{
-                    ClientOpcode::Append, "ClientOpcode::Prepend", "hello"});
-            EXPECT_TRUE(rsp.isSuccess());
-            EXPECT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            ASSERT_TRUE(rsp.getWriteUnits());
-            EXPECT_EQ(1, *rsp.getWriteUnits());
             break;
         case ClientOpcode::Stat:
             executeWithExpectedCU([&conn]() { conn.stats(""); }, 0, 0);
@@ -1769,6 +1671,175 @@ TEST_F(ServerlessTest, MeterDocumentTouch) {
     EXPECT_EQ(sconfig.to_wu(document_value.size() + id.size()),
               *rsp.getWriteUnits());
     EXPECT_EQ(document_value, rsp.getDataString());
+}
+
+TEST_F(ServerlessTest, MeterDocumentSimpleMutations) {
+    auto& sconfig = cb::serverless::Config::instance();
+    auto conn = cluster->getConnection(0);
+    conn->authenticate("@admin", "password");
+    conn->selectBucket("bucket-0");
+    conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
+    conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
+
+    const std::string id = "MeterDocumentSimpleMutations";
+    std::string document_value;
+    std::string xattr_path = "xattr";
+    std::string xattr_value;
+    document_value.resize(sconfig.readUnitSize - 10);
+    std::fill(document_value.begin(), document_value.end(), 'a');
+    xattr_value.resize(sconfig.readUnitSize - 10);
+    std::fill(xattr_value.begin(), xattr_value.end(), 'a');
+    xattr_value.front() = '"';
+    xattr_value.back() = '"';
+
+    BinprotMutationCommand command;
+    command.setKey(id);
+    command.addValueBuffer(document_value);
+
+    // Set of an nonexistent document shouldn't cost any RUs and the
+    // size of the new document's WUs
+    command.setMutationType(MutationType::Set);
+    auto rsp = conn->execute(command);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size()),
+              *rsp.getWriteUnits());
+
+    // Using Set on an existing document is a replace and will be tested
+    // later on.
+
+    // Add of an existing document should fail, and cost 1RU to read the
+    // metadata
+    command.setMutationType(MutationType::Add);
+    rsp = conn->execute(command);
+    EXPECT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
+    // @todo it currently don't cost an RU - fix this
+    EXPECT_FALSE(rsp.getReadUnits());
+    //    ASSERT_TRUE(rsp.getReadUnits());
+    //    EXPECT_EQ(sconfig.to_ru(id.size() + document_value.size()),
+    //    rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
+
+    // Add of a new document should cost the same as a set (no read, just write)
+    conn->remove(id, Vbid{0});
+    rsp = conn->execute(command);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size()),
+              *rsp.getWriteUnits());
+
+    // Replace of the document should cost 1 ru (for the metadata read)
+    // then X WUs
+    command.setMutationType(MutationType::Replace);
+    rsp = conn->execute(command);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    // @todo it currently don't cost the 1 ru for the metadata read!
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size()),
+              *rsp.getWriteUnits());
+
+    // But if we try to replace a document containing XATTRs we would
+    // need to read the full document in order to replace, and it should
+    // cost the size of the full size of the old document and the new one
+    // (containing the xattrs)
+    writeDocument(*conn, id, document_value, xattr_path, xattr_value);
+    rsp = conn->execute(command);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(sconfig.to_ru(id.size() + document_value.size() +
+                            xattr_path.size() + xattr_value.size()),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() +
+                            xattr_path.size() + xattr_value.size()),
+              *rsp.getWriteUnits());
+
+    // Trying to replace a document with incorrect CAS should cost 1 RU and
+    // no WU
+    command.setCas(1);
+    rsp = conn->execute(command);
+    EXPECT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    // @todo it currently fails and return the size of the old document!
+    // EXPECT_EQ(1, *rsp.getReadUnits());
+    EXPECT_EQ(sconfig.to_ru(id.size() + document_value.size() +
+                            xattr_path.size() + xattr_value.size()),
+              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
+    command.setCas(0);
+
+    // Trying to replace a nonexisting document should not cost anything
+    conn->remove(id, Vbid{0});
+    rsp = conn->execute(command);
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
+
+    command.setMutationType(MutationType::Append);
+    rsp = conn->execute(command);
+    EXPECT_EQ(cb::mcbp::Status::NotStored, rsp.getStatus());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
+
+    command.setMutationType(MutationType::Prepend);
+    rsp = conn->execute(command);
+    EXPECT_EQ(cb::mcbp::Status::NotStored, rsp.getStatus());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
+
+    writeDocument(*conn, id, document_value);
+    command.setMutationType(MutationType::Append);
+    rsp = conn->execute(command);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(sconfig.to_ru(id.size() + document_value.size()),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2),
+              *rsp.getWriteUnits());
+
+    writeDocument(*conn, id, document_value);
+    command.setMutationType(MutationType::Prepend);
+    rsp = conn->execute(command);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(sconfig.to_ru(id.size() + document_value.size()),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2),
+              *rsp.getWriteUnits());
+
+    // And if we have XATTRs they should be copied as well
+    writeDocument(*conn, id, document_value, xattr_path, xattr_value);
+    command.setMutationType(MutationType::Append);
+    rsp = conn->execute(command);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(sconfig.to_ru(id.size() + document_value.size() +
+                            xattr_path.size() + xattr_value.size()),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2 +
+                            xattr_path.size() + xattr_value.size()),
+              *rsp.getWriteUnits());
+
+    writeDocument(*conn, id, document_value, xattr_path, xattr_value);
+    command.setMutationType(MutationType::Prepend);
+    rsp = conn->execute(command);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(sconfig.to_ru(id.size() + document_value.size() +
+                            xattr_path.size() + xattr_value.size()),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2 +
+                            xattr_path.size() + xattr_value.size()),
+              *rsp.getWriteUnits());
+
+    // @todo add test cases for durability
 }
 
 } // namespace cb::test
