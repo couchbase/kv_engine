@@ -36,12 +36,9 @@ public:
         if (mcd_env->getTestBucket().getName() == "default_engine") {
             GTEST_SKIP() << "Skipping as DCP not supported";
         }
-        // Enable consumer control so we can force buffering and disable any
-        // dynamic recalculation of flow control size (which triggers messages)
+        // Enable consumer control so we can force buffering
         TestappTest::doSetUpTestCaseWithConfiguration(
-                generate_config(),
-                "dcp_flow_control_policy=static;dcp_consumer_control_enabled="
-                "true");
+                generate_config(), "dcp_consumer_control_enabled=true");
     }
     void SetUp() override {
         if (mcd_env->getTestBucket().getName() == "default_engine") {

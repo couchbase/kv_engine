@@ -55,21 +55,6 @@ protected:
 };
 
 /**
- * In this policy all flow control buffer sizes are fixed to a particular value
- * (10 MB)
- */
-class DcpFlowControlManagerStatic : public DcpFlowControlManager {
-public:
-    explicit DcpFlowControlManagerStatic(EventuallyPersistentEngine& engine);
-
-    ~DcpFlowControlManagerStatic() override;
-
-    size_t newConsumerConn(DcpConsumer* consumerConn) override;
-
-    bool isEnabled() const override;
-};
-
-/**
  * In this policy flow control buffer sizes are set only once during the
  * connection set up. It is set as a percentage of bucket mem quota and also
  * within max (50MB) and a min value (10 MB). Once aggr flow control buffer

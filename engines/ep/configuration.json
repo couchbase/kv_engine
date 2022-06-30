@@ -1010,7 +1010,6 @@
             "validator": {
                 "enum": [
                          "none",
-                         "static",
                          "dynamic",
                          "aggressive"
                         ]

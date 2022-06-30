@@ -2102,13 +2102,10 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     /* Get the flow control policy */
     std::string flowCtlPolicy = configuration.getDcpFlowControlPolicy();
 
-    if (!flowCtlPolicy.compare("static")) {
-        dcpFlowControlManager_ =
-                std::make_unique<DcpFlowControlManagerStatic>(*this);
-    } else if (!flowCtlPolicy.compare("dynamic")) {
+    if (flowCtlPolicy == "dynamic") {
         dcpFlowControlManager_ =
                 std::make_unique<DcpFlowControlManagerDynamic>(*this);
-    } else if (!flowCtlPolicy.compare("aggressive")) {
+    } else if (flowCtlPolicy == "aggressive") {
         dcpFlowControlManager_ =
                 std::make_unique<DcpFlowControlManagerAggressive>(*this);
     } else {

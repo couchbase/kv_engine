@@ -56,24 +56,6 @@ void DcpFlowControlManager::setBufSizeWithinBounds(DcpConsumer *consumerConn,
     }
 }
 
-DcpFlowControlManagerStatic::DcpFlowControlManagerStatic(
-                                        EventuallyPersistentEngine &engine) :
-    DcpFlowControlManager(engine)
-{
-}
-
-DcpFlowControlManagerStatic::~DcpFlowControlManagerStatic() {}
-
-size_t DcpFlowControlManagerStatic::newConsumerConn(DcpConsumer *consumerConn)
-{
-    return engine_.getConfiguration().getDcpConnBufferSize();
-}
-
-bool DcpFlowControlManagerStatic::isEnabled() const
-{
-    return true;
-}
-
 DcpFlowControlManagerDynamic::DcpFlowControlManagerDynamic(
                                         EventuallyPersistentEngine &engine) :
     DcpFlowControlManager(engine), aggrDcpConsumerBufferSize(0)

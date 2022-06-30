@@ -1429,33 +1429,6 @@ static enum test_result test_dcp_consumer_flow_control_none(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_flow_control_static(EngineIface* h) {
-    auto* cookie1 = testHarness->create_cookie(h);
-    const std::string name("unittest");
-    const uint32_t opaque = 0;
-    const uint32_t seqno = 0;
-    const uint32_t flags = 0;
-    const auto flow_ctl_buf_def_size = 10485760;
-    auto dcp = requireDcpIface(h);
-
-    checkeq(cb::engine_errc::success,
-            dcp->open(*cookie1,
-                      opaque,
-                      seqno,
-                      flags,
-                      name,
-                      R"({"consumer_name":"replica1"})"),
-            "Failed dcp consumer open connection.");
-
-    const auto stat_name("eq_dcpq:" + name + ":max_buffer_bytes");
-    checkeq(flow_ctl_buf_def_size,
-            get_int_stat(h, stat_name.c_str(), "dcp"),
-            "Flow Control Buffer Size not equal to default value");
-    testHarness->destroy_cookie(cookie1);
-
-    return SUCCESS;
-}
-
 static enum test_result test_dcp_consumer_flow_control_dynamic(EngineIface* h) {
     auto* cookie1 = testHarness->create_cookie(h);
     const std::string name("unittest");
@@ -8108,13 +8081,6 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "dcp_flow_control_policy=none",
-                 prepare,
-                 cleanup),
-        TestCase("test dcp consumer flow control static",
-                 test_dcp_consumer_flow_control_static,
-                 test_setup,
-                 teardown,
-                 "dcp_flow_control_policy=static",
                  prepare,
                  cleanup),
         TestCase("test dcp consumer flow control dynamic",
