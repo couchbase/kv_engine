@@ -11,14 +11,13 @@
 #include "cbcrypto.h"
 #include <cbsasl/user.h>
 #include <folly/Synchronized.h>
-#include <gsl/gsl-lite.hpp>
+#include <memcached/limits.h>
 #include <nlohmann/json.hpp>
 #include <platform/base64.h>
 #include <platform/random.h>
 #include <sodium.h>
 #include <atomic>
 #include <memory>
-#include <mutex>
 #include <stdexcept>
 #include <string>
 
@@ -26,85 +25,16 @@ using cb::crypto::Algorithm;
 
 namespace cb::sasl::pwdb {
 
-static std::string getUsernameField(const nlohmann::json& json) {
-    if (!json.is_object()) {
-        throw std::runtime_error(
-                "cb::sasl::pwdb::getUsernameField(): provided json MUST be an "
-                "object");
-    }
-    auto n = json.find("n");
-    if (n == json.end()) {
-        throw std::runtime_error(
-                "cb::sasl::pwdb::getUsernameField(): missing mandatory label "
-                "'n'");
-    }
-    if (!n->is_string()) {
-        throw std::runtime_error(
-                "cb::sasl::pwdb::getUsernameField(): 'n' must be a string");
-    }
-    return n->get<std::string>();
-}
-
-User::User(const nlohmann::json& json) : username(getUsernameField(json)) {
-    // getUsernameField validated that json is in fact an object.
-    // Iterate over the rest of the fields and pick out the values
-
-    for (auto it = json.begin(); it != json.end(); ++it) {
-        std::string label(it.key());
-        if (label == "n") {
-            // skip. we've already processed this
-        } else if (label == "hash") {
-            if (password_hash) {
-                throw std::runtime_error("cb::sasl::pwdb::User::User(" +
-                                         username.getSanitizedValue() +
-                                         ") contains hash and plain entry");
-            }
-            password_hash = User::PasswordMetaData(it.value(), true);
-        } else if (label == "sha512") {
-            scram_sha_512 =
-                    ScramPasswordMetaData(it.value(), Algorithm::SHA512);
-        } else if (label == "sha256") {
-            scram_sha_256 =
-                    ScramPasswordMetaData(it.value(), Algorithm::SHA256);
-        } else if (label == "sha1") {
-            scram_sha_1 = ScramPasswordMetaData(it.value(), Algorithm::SHA1);
-        } else if (label == "plain") {
-            if (password_hash) {
-                throw std::runtime_error("cb::sasl::pwdb::User::User(" +
-                                         username.getSanitizedValue() +
-                                         ") contains hash and plain entry");
-            }
-            if (it.value().is_object()) {
-                User::PasswordMetaData pd(it.value(), true);
-                password_hash = pd;
-            } else {
-                const auto decoded = Couchbase::Base64::decode(
-                        it.value().get<std::string>());
-                // the salt is the first 16 bytes, the rest is the password
-                std::string salt =
-                        Couchbase::Base64::encode(decoded.substr(0, 16));
-                std::string hash =
-                        Couchbase::Base64::encode(decoded.substr(16));
-                User::PasswordMetaData pd(
-                        nlohmann::json{{"h", hash}, {"s", salt}}, true);
-                password_hash = pd;
-            }
-        } else {
-            throw std::runtime_error(
-                    "cb::sasl::pwdb::User::User(): Invalid label \"" + label +
-                    "\" specified");
-        }
-    }
-
-    if (!password_hash) {
-        throw std::runtime_error("cb::sasl::pwdb::User::User(" +
-                                 username.getSanitizedValue() +
-                                 ") must contain either hash or plain entry");
-    }
-}
-
 User::User(const nlohmann::json& json, UserData unm)
     : username(std::move(unm)) {
+    const auto name = username.getRawValue();
+    if (name.size() > cb::limits::MaxUsernameLength ||
+        name.find_first_of(R"(()<>,;:\"/[]?={})") != std::string::npos ||
+        name.find('@') != name.rfind('@')) {
+        throw std::runtime_error("User(\"" + username.getSanitizedValue() +
+                                 "\"): is not a valid username");
+    }
+
     if (!json.is_object()) {
         throw std::runtime_error("User(\"" + username.getSanitizedValue() +
                                  "\"): provided json MUST be an object");
@@ -115,26 +45,11 @@ User::User(const nlohmann::json& json, UserData unm)
         if (label == "hash") {
             password_hash = User::PasswordMetaData(it.value());
         } else if (label == "scram-sha-512") {
-            if (it.value().value("server_key", "").empty()) {
-                scram_sha_512 =
-                        ScramPasswordMetaData(it.value(), Algorithm::SHA512);
-            } else {
-                scram_sha_512 = ScramPasswordMetaData(it.value());
-            }
+            scram_sha_512 = ScramPasswordMetaData(it.value());
         } else if (label == "scram-sha-256") {
-            if (it.value().value("server_key", "").empty()) {
-                scram_sha_256 =
-                        ScramPasswordMetaData(it.value(), Algorithm::SHA256);
-            } else {
-                scram_sha_256 = ScramPasswordMetaData(it.value());
-            }
+            scram_sha_256 = ScramPasswordMetaData(it.value());
         } else if (label == "scram-sha-1") {
-            if (it.value().value("server_key", "").empty()) {
-                scram_sha_1 =
-                        ScramPasswordMetaData(it.value(), Algorithm::SHA1);
-            } else {
-                scram_sha_1 = ScramPasswordMetaData(it.value());
-            }
+            scram_sha_1 = ScramPasswordMetaData(it.value());
         } else {
             throw std::runtime_error("User(\"" + username.getSanitizedValue() +
                                      "\"): Invalid attribute \"" + label +
@@ -374,29 +289,6 @@ void User::generateSecrets(Algorithm algo, std::string_view passwd) {
         break;
     }
     throw std::invalid_argument("User::generateSecrets(): Invalid algorithm");
-}
-
-static nlohmann::json rewrite_password_metadata_obj(const nlohmann::json& obj) {
-    nlohmann::json ret = obj;
-    if (ret.contains("h")) {
-        ret["hash"] = ret["h"];
-        ret.erase("h");
-    }
-    if (ret.contains("s")) {
-        ret["salt"] = ret["s"];
-        ret.erase("s");
-    }
-    if (ret.contains("i")) {
-        ret["iterations"] = ret["i"];
-        ret.erase("i");
-    } else {
-        ret["algorithm"] = "SHA-1";
-    }
-    return ret;
-}
-
-User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj, bool)
-    : PasswordMetaData(rewrite_password_metadata_obj(obj)) {
 }
 
 User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {

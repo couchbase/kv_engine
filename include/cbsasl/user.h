@@ -60,8 +60,6 @@ public:
          */
         explicit PasswordMetaData(const nlohmann::json& obj);
 
-        explicit PasswordMetaData(const nlohmann::json& obj, bool);
-
         /**
          * This is a helper function used from the unit tests
          * to generate a JSON representation of a user
@@ -120,15 +118,12 @@ public:
     }
 
     /**
-     * Create a user entry and initialize it from the old (deprecated)
-     * JSON structure which is to be removed once ns_server adds support
-     * for V1
+     * Create a user entry and initialize it from the JSON structure
      *
      * @param obj the object containing the JSON description
+     * @param username the name of the user
      * @throws std::runtime_error if there is a syntax error
      */
-    explicit User(const nlohmann::json& json);
-
     User(const nlohmann::json& json, UserData username);
 
     /**

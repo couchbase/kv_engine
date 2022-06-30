@@ -19,29 +19,8 @@ namespace cb::sasl::pwdb {
 
 PasswordDatabase::PasswordDatabase(const nlohmann::json& json) {
     if (!json.contains("@@version@@")) {
-        if (json.size() != 1) {
-            throw std::runtime_error("PasswordDatabase: format error..");
-        }
-
-        auto it = json.find("users");
-        if (it == json.end()) {
-            throw std::runtime_error(
-                    "PasswordDatabase: format error. users not"
-                    " present");
-        }
-
-        if (!it->is_array()) {
-            throw std::runtime_error(
-                    "PasswordDatabase: Illegal type for \"users\". Expected "
-                    "Array");
-        }
-
-        // parse all of the users
-        for (const auto& u : *it) {
-            User user(u);
-            db[user.getUsername().getRawValue()] = user;
-        }
-        return;
+        throw std::runtime_error(
+                "PasswordDatabase(): @@version@@ attribute not found");
     }
 
     if (!json["@@version@@"].is_number()) {
@@ -58,7 +37,6 @@ PasswordDatabase::PasswordDatabase(const nlohmann::json& json) {
     for (auto it = json.begin(); it != json.end(); ++it) {
         const std::string username = it.key();
         if (username != "@@version@@") {
-            // @todo do I want to validate the username for some reason?
             db.emplace(username, User(it.value(), UserData{username}));
         }
     }

@@ -24,4 +24,7 @@ constexpr std::size_t TotalBuckets = cb::ArenaMallocMaxClients;
 /// users in a document
 constexpr std::size_t PrivilegedBytes = 1024 * 1024;
 
+/// The maximum length of a username
+constexpr std::size_t MaxUsernameLength = 128;
+
 } // namespace cb::limits

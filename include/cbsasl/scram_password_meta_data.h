@@ -24,12 +24,6 @@ class ScramPasswordMetaData {
 public:
     explicit ScramPasswordMetaData(const nlohmann::json& obj);
 
-    /// Until ns_server supplies stored_key and server_key we need
-    /// to generate them off the salted password hash.
-    /// This code should be deleted
-    ScramPasswordMetaData(const nlohmann::json& obj,
-                          cb::crypto::Algorithm algorithm);
-
     /// Dump the object to JSON (used in unit tests)
     nlohmann::json to_json() const;
 

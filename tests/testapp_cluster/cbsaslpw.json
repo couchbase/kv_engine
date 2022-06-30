@@ -1,23 +1,28 @@
 {
-  "users": [
-    {
-      "n": "@admin",
-      "plain": "fNhbZS6b0S3o4PTAy6A2D5assQemE/GtWetim2hnrDsm86p3",
-      "sha1": {
-        "h": "u1o4HJNdN+N1gkevmiIQY1EFS7U=",
-        "s": "49XyyJ3u/tvNklPqTWvWpC0sAXI=",
-        "i": 10
-      },
-      "sha256": {
-        "h": "b8fktnoN00YnLMhm5BvqNEKaaB68cczVN2IrKPxH7Vs=",
-        "s": "NAyT+pNHCg5iBotL/z+7i4cKxgTl6EEPL90kivJGfUM=",
-        "i": 10
-      },
-      "sha512": {
-        "h": "T+hZMHyPSCYA7n1ZbaGKl9BHPAgmZC+1tJzMd1OZucC/31/PnbF2EfAlEcBh31Ou/V4NJfrRcv8vcSLCUnTRdw==",
-        "s": "T4lakeA6K34lWBwRSAqJNsrOPiUCBH3NQDEwtzdOYar/+zjbaZIgB1j8hf7E2vk/cyldYzYZemiVeRaNvJSA1w==",
-        "i": 10
-      }
+  "@admin": {
+    "hash": {
+      "algorithm": "SHA-1",
+      "hash": "AL7HJe5cMJpunyz7WKFC1P6tFbg=",
+      "salt": "KCOTStugC+KpcWJW7n4hLA=="
+    },
+    "scram-sha-1": {
+      "iterations": 4000,
+      "salt": "sbbRzu/cC5a9SJo6l3b+bhGRc6k=",
+      "server_key": "qaTcWtIK7V2Ozmy03RvN1bOA9ZA=",
+      "stored_key": "4vTVsFczAJfI0Dgt3xSFh718fVs="
+    },
+    "scram-sha-256": {
+      "iterations": 4000,
+      "salt": "uiw4iqj34rW7VlnzmZ5aqi4ZIv+7yZXKxjhekF2WBY4=",
+      "server_key": "StEVvXJKGsgLy8LpXN3xNiimI6w1oMPVZLgrzdlMdYQ=",
+      "stored_key": "JGLrLZ0x3laCU/Yuu3RtHzmhEP1reCGA4qd4PLGSXDI="
+    },
+    "scram-sha-512": {
+      "iterations": 4000,
+      "salt": "+GklTT0bG2dOhTmKZEAFHJYgCqiQv8vXj3V4dtZNHHPGDd67NB9a4TSwmpPqcgMIJbay2x6VNZJmI9X20qdJbQ==",
+      "server_key": "63/huVLOCFM5Bqq7TlHx/UxlP7igic6/8Rcj5TIwodgloD/z0P5RgWXj5qaYXwZVj8tyXqN+7xoSuUQ0jep1oA==",
+      "stored_key": "jVoBKRuIXqT9J4ZLpgFrajXAFCSaPqQLgs9oU7nuYqYVxmXxzsqjIS+8YJvDFrVEs3lr55yAzPJGay1KzyJksA=="
     }
-  ]
+  },
+  "@@version@@": 2
 }
