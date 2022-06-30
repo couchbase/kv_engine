@@ -1190,6 +1190,9 @@ protected:
      */
     void executeCommandPipeline();
 
+    /// Try to make any progress on a DCP stream by calling step()
+    void tryToProgressDcpStream();
+
     /**
      * bufferevents calls rw_callback if there is a read or write event
      * for the connection, and event_callback for other events (error ect).

@@ -700,6 +700,75 @@ void Connection::executeCommandPipeline() {
     }
 }
 
+void Connection::tryToProgressDcpStream() {
+    if (cookies.empty()) {
+        throw std::runtime_error(
+                "Connection::executeCommandsCallback(): no cookies "
+                "available!");
+    }
+    if (cookies.front()->empty()) {
+        // make sure we reset the privilege context
+        cookies.front()->reset();
+
+        // MB-38007: We see an increase in rebalance time for
+        // "in memory" workloads when allowing DCP to fill up to
+        // 40MB (thats the default) batch size into the output buffer.
+        // We've not been able to figure out exactly _why_ this is
+        // happening and have assumptions that it may be caused
+        // that it doesn't align too much with the flow control being
+        // used. Before moving to bufferevent we would copy the entire
+        // message into kernel space before trying to read (and process)
+        // any input messages before trying to send the next one.
+        // It could be that it would be better at processing the
+        // incoming flow control messages instead of the current
+        // model where the input socket gets drained and put in
+        // userspace buffers, the send queue is tried to be drained
+        // before we do the callback and process the already queued
+        // input and generate more output before returning to the
+        // layer doing the actual IO.
+        std::size_t dcpMaxQSize =
+                (dcpFlowControlBufferSize == 0)
+                        ? Settings::instance().getMaxSendQueueSize()
+                        : 1024 * 1024;
+        bool more = (getSendQueueSize() < dcpMaxQSize);
+        if (type == Type::Consumer) {
+            // We want the consumer to perform some steps because
+            // it could be pending bufferAcks
+            numEvents = max_reqs_per_event;
+        }
+        while (more && numEvents > 0) {
+            const auto ret = getBucket().getDcpIface()->step(
+                    *cookies.front().get(),
+                    getBucket().shouldThrottleDcp(*this),
+                    *this);
+            switch (remapErrorCode(ret)) {
+            case cb::engine_errc::success:
+                more = (getSendQueueSize() < dcpMaxQSize);
+                --numEvents;
+                break;
+            case cb::engine_errc::throttled:
+            case cb::engine_errc::would_block:
+                more = false;
+                break;
+            default:
+                LOG_WARNING(R"({}: step returned {} - closing connection {})",
+                            getId(),
+                            cb::to_string(ret),
+                            getDescription());
+                if (ret == cb::engine_errc::disconnect) {
+                    setTerminationReason("Engine forced disconnect");
+                }
+                shutdown();
+                more = false;
+            }
+        }
+        if (more && numEvents == 0) {
+            // We used the entire timeslice... schedule a new one
+            triggerCallback();
+        }
+    }
+}
+
 void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
     using std::chrono::duration_cast;
     using std::chrono::microseconds;
@@ -872,73 +941,7 @@ bool Connection::executeCommandsCallback() {
 
     if (isDCP() && state == State::running) {
         try {
-            if (cookies.empty()) {
-                throw std::runtime_error(
-                        "Connection::executeCommandsCallback(): no cookies "
-                        "available!");
-            }
-            if (cookies.front()->empty()) {
-                // make sure we reset the privilege context
-                cookies.front()->reset();
-
-                // MB-38007: We see an increase in rebalance time for
-                // "in memory" workloads when allowing DCP to fill up to
-                // 40MB (thats the default) batch size into the output buffer.
-                // We've not been able to figure out exactly _why_ this is
-                // happening and have assumptions that it may be caused
-                // that it doesn't align too much with the flow control being
-                // used. Before moving to bufferevent we would copy the entire
-                // message into kernel space before trying to read (and process)
-                // any input messages before trying to send the next one.
-                // It could be that it would be better at processing the
-                // incoming flow control messages instead of the current
-                // model where the input socket gets drained and put in
-                // userspace buffers, the send queue is tried to be drained
-                // before we do the callback and process the already queued
-                // input and generate more output before returning to the
-                // layer doing the actual IO.
-                std::size_t dcpMaxQSize =
-                        (dcpFlowControlBufferSize == 0)
-                                ? Settings::instance().getMaxSendQueueSize()
-                                : 1024 * 1024;
-                bool more = (getSendQueueSize() < dcpMaxQSize);
-                if (type == Type::Consumer) {
-                    // We want the consumer to perform some steps because
-                    // it could be pending bufferAcks
-                    numEvents = max_reqs_per_event;
-                }
-                while (more && numEvents > 0) {
-                    const auto ret = getBucket().getDcpIface()->step(
-                            *cookies.front().get(),
-                            getBucket().shouldThrottleDcp(*this),
-                            *this);
-                    switch (remapErrorCode(ret)) {
-                    case cb::engine_errc::success:
-                        more = (getSendQueueSize() < dcpMaxQSize);
-                        --numEvents;
-                        break;
-                    case cb::engine_errc::throttled:
-                    case cb::engine_errc::would_block:
-                        more = false;
-                        break;
-                    default:
-                        LOG_WARNING(
-                                R"({}: step returned {} - closing connection {})",
-                                getId(),
-                                cb::to_string(ret),
-                                getDescription());
-                        if (ret == cb::engine_errc::disconnect) {
-                            setTerminationReason("Engine forced disconnect");
-                        }
-                        shutdown();
-                        more = false;
-                    }
-                }
-                if (more && numEvents == 0) {
-                    // We used the entire timeslice... schedule a new one
-                    triggerCallback();
-                }
-            }
+            tryToProgressDcpStream();
         } catch (const std::exception& e) {
             logExecutionException("DCP step()", e);
         }
