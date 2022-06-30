@@ -1581,12 +1581,9 @@ TEST_F(ServerlessTest, MeterDocumentGet) {
     ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_EQ(cb::mcbp::Datatype::Raw, cb::mcbp::Datatype(rsp.getDatatype()));
     EXPECT_EQ(document_value, rsp.getDataString());
-
-    // @todo It looks like GetReplica is ignoring the XAttrs in the callback
-    //       in ep_engine. Investigate that further as a separate task
-    //    EXPECT_EQ(sconfig.to_ru(xattr_value.size() + document_value.size() +
-    //                            id.size()),
-    //              *rsp.getReadUnits());
+    EXPECT_EQ(sconfig.to_ru(xattr_value.size() + document_value.size() +
+                            id.size()),
+              *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
 }
 
