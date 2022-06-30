@@ -731,8 +731,33 @@ void Connection::tryToProgressDcpStream() {
         return;
     }
 
-    // make sure we reset the privilege context
+    // Reset the privilegeContext in the cookie (this will also ensure
+    // that we update the privilege context in the connection to the
+    // current revision)
     cookies.front()->reset();
+
+    // Verify that we still have access to DCP
+    if (privilegeContext
+                .checkForPrivilegeAtLeastInOneCollection(
+                        type == Type::Consumer
+                                ? cb::rbac::Privilege::DcpConsumer
+                                : cb::rbac::Privilege::DcpProducer)
+                .failed()) {
+        setTerminationReason(fmt::format(
+                "{} privilege no longer available",
+                to_string(type == Type::Consumer
+                                  ? cb::rbac::Privilege::DcpConsumer
+                                  : cb::rbac::Privilege::DcpProducer)));
+        LOG_WARNING(
+                "{}: Shutting down connection ({}) as the {} privilege is lost",
+                getId(),
+                getDescription(),
+                to_string(type == Type::Consumer
+                                  ? cb::rbac::Privilege::DcpConsumer
+                                  : cb::rbac::Privilege::DcpProducer));
+        shutdown();
+        return;
+    }
 
     // MB-38007: We see an increase in rebalance time for
     // "in memory" workloads when allowing DCP to fill up to
