@@ -3315,7 +3315,14 @@ cb::engine_errc EventuallyPersistentEngine::doMemoryStats(
     add_casted_stat(
             "ep_value_size", stats.getTotalValueSize(), add_stat, cookie);
     add_casted_stat("ep_overhead", stats.getMemOverhead(), add_stat, cookie);
-    add_casted_stat("ep_max_size", stats.getMaxDataSize(), add_stat, cookie);
+    auto quotaValue = stats.getMaxDataSize();
+    add_casted_stat("ep_max_size", quotaValue, add_stat, cookie);
+    auto desiredQuotaValue = stats.desiredMaxDataSize.load();
+    if (desiredQuotaValue == 0) {
+        // No quota change in progress, just return the actual quota
+        desiredQuotaValue = quotaValue;
+    }
+    add_casted_stat("ep_desired_max_size", desiredQuotaValue, add_stat, cookie);
     add_casted_stat("ep_mem_low_wat", stats.mem_low_wat, add_stat, cookie);
     add_casted_stat("ep_mem_low_wat_percent",
                     stats.mem_low_wat_percent,

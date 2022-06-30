@@ -31,6 +31,7 @@ EPStats::EPStats()
       mem_low_wat_percent(0),
       mem_high_wat(0),
       mem_high_wat_percent(0),
+      desiredMaxDataSize(0),
       replicaHTMemory(0),
       replicaCheckpointOverhead(0),
       forceShutdown(false),
@@ -50,7 +51,7 @@ EPStats::EPStats()
 
 EPStats::~EPStats() = default;
 
-static_assert(sizeof(EPStats) == 1632,
+static_assert(sizeof(EPStats) == 1640,
               "EPStats size is unexpected - have you added/removed stats?");
 
 void EPStats::setMaxDataSize(size_t size) {

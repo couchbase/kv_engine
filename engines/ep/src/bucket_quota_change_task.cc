@@ -24,6 +24,7 @@ bool BucketQuotaChangeTask::run() {
 
     checkForNewQuotaChange();
 
+    const auto desiredQuota = engine->getEpStats().desiredMaxDataSize.load();
     if (desiredQuota >= getCurrentBucketQuota()) {
         // Increases in quota (or no change at all) do not run the risk of
         // TMP_OOMs if we blow the quota so they're easy to deal with here.
@@ -56,9 +57,9 @@ bool BucketQuotaChangeTask::run() {
 
         // To reduce memory usage we need to adjust watermarks to start
         // recovering memory
-        prepareToReduceMemoryUsage();
+        prepareToReduceMemoryUsage(desiredQuota);
 
-        if (!setNewQuotaIfMemoryUsageAcceptable()) {
+        if (!setNewQuotaIfMemoryUsageAcceptable(desiredQuota)) {
             EP_LOG_INFO(
                     "Quota change to {} could not be applied immediately "
                     "as a reduction in memory usage from {} to {} is required",
@@ -73,7 +74,7 @@ bool BucketQuotaChangeTask::run() {
         }
         break;
     case ChangeState::WaitingForMemoryReclamation:
-        if (!setNewQuotaIfMemoryUsageAcceptable()) {
+        if (!setNewQuotaIfMemoryUsageAcceptable(desiredQuota)) {
             EP_LOG_INFO(
                     "Quota change to {} in progress. Current memory usage"
                     " {} must reach {} before quota change can progress",
@@ -109,9 +110,10 @@ void BucketQuotaChangeTask::notifyNewQuotaChange(size_t desired) {
     ExecutorPool::get()->wake(getId());
 }
 
-bool BucketQuotaChangeTask::setNewQuotaIfMemoryUsageAcceptable() {
+bool BucketQuotaChangeTask::setNewQuotaIfMemoryUsageAcceptable(
+        size_t desiredQuota) {
     if (checkMemoryState()) {
-        setDesiredQuota();
+        setDesiredQuota(desiredQuota);
         finishProcessingQuotaChange();
         return true;
     }
@@ -122,6 +124,8 @@ bool BucketQuotaChangeTask::setNewQuotaIfMemoryUsageAcceptable() {
 void BucketQuotaChangeTask::checkForNewQuotaChange() {
     size_t newQuotaChangeValue = latestDesiredQuota;
     if (newQuotaChangeValue != 0) {
+        const auto desiredQuota =
+                engine->getEpStats().desiredMaxDataSize.load();
         bool quotaChangeWasInProgress = desiredQuota != 0;
         if (quotaChangeWasInProgress) {
             EP_LOG_INFO(
@@ -148,21 +152,22 @@ void BucketQuotaChangeTask::checkForNewQuotaChange() {
         }
 
         state = ChangeState::ApplyingWatermarkChanges;
-        desiredQuota = newQuotaChangeValue;
+        engine->getEpStats().desiredMaxDataSize = newQuotaChangeValue;
         previousLowWatermark = 0;
         previousHighWatermark = 0;
     }
 }
 
 void BucketQuotaChangeTask::finishProcessingQuotaChange() {
-    EP_LOG_INFO("Completed quota change to: {}", desiredQuota);
+    EP_LOG_INFO("Completed quota change to: {}",
+                engine->getEpStats().desiredMaxDataSize);
     state = ChangeState::Done;
-    desiredQuota = 0;
+    engine->getEpStats().desiredMaxDataSize = 0;
     previousLowWatermark = 0;
     previousHighWatermark = 0;
 }
 
-void BucketQuotaChangeTask::prepareToReduceMemoryUsage() {
+void BucketQuotaChangeTask::prepareToReduceMemoryUsage(size_t desiredQuota) {
     // Step 1
     engine->configureStorageMemoryForQuota(desiredQuota);
 
@@ -196,7 +201,7 @@ void BucketQuotaChangeTask::prepareToReduceMemoryUsage() {
     engine->getKVBucket()->checkAndMaybeFreeMemory();
 }
 
-void BucketQuotaChangeTask::setDesiredQuota() {
+void BucketQuotaChangeTask::setDesiredQuota(size_t desiredQuota) {
     engine->getConfiguration().setMaxSize(desiredQuota);
     engine->getEpStats().setMaxDataSize(desiredQuota);
 

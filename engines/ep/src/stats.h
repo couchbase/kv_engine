@@ -310,6 +310,11 @@ public:
     std::atomic<size_t> mem_high_wat;
     std::atomic<double> mem_high_wat_percent;
 
+    // The currently desired quota. This may not match the actual quota
+    // (maxDataSize) if a quota change is in progress and we are reducing memory
+    // usage. The value is set to 0 when no quota change is in progress.
+    std::atomic<size_t> desiredMaxDataSize;
+
     //! Number of cursors dropped by checkpoint remover
     Counter cursorsDropped;
 

@@ -7553,6 +7553,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_blob_overhead",
               "ep_item_num",
               "ep_kv_size",
+              "ep_desired_max_size",
               "ep_max_size",
               "ep_mem_high_wat",
               "ep_mem_high_wat_percent",

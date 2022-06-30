@@ -96,7 +96,7 @@ private:
      *
      * @param desiredQuota new quota
      */
-    void prepareToReduceMemoryUsage();
+    void prepareToReduceMemoryUsage(size_t desiredQuota);
 
     /**
      * Phase 2:
@@ -106,7 +106,7 @@ private:
      * @param desiredQuota new quota
      * @return true if the new quota was set
      */
-    bool setNewQuotaIfMemoryUsageAcceptable();
+    bool setNewQuotaIfMemoryUsageAcceptable(size_t desiredQuota);
 
     /**
      * Phase 2:
@@ -115,7 +115,7 @@ private:
      *
      * @param desiredQuota
      */
-    void setDesiredQuota();
+    void setDesiredQuota(size_t desiredQuota);
 
     /**
      * Check if memory usage is such that we can set the new quota
@@ -148,10 +148,6 @@ private:
      * is it will only be operated on by the thread running the task.
      */
     ChangeState state{ChangeState::Done};
-
-    // The quota change we are currently processing. A value of 0 means that no
-    // quota change is currently in progress.
-    size_t desiredQuota{0};
 
     // Watermarks values for the old quota. They are stored
     size_t previousLowWatermark{0};
