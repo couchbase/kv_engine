@@ -1262,11 +1262,10 @@ TEST_P(ConnectionTest, consumer_get_error_map) {
                   static_cast<uint8_t>(consumer.getGetErrorMapState()));
         ASSERT_EQ(false, consumer.getProducerIsVersion5orHigher());
 
-        // If a Flow Control Policy is enabled, then the first call to step()
-        // will handle the Flow Control negotiation. We do not want to test that
-        // here, so this is just to let the test to work with all EP
-        // configurations.
-        if (engine->getConfiguration().getDcpFlowControlPolicy() != "none") {
+        // If Flow Control is enabled, then the first call to step() will handle
+        // the Flow Control negotiation. We do not want to test that here, so
+        // this is just to let the test to work with all EP configurations.
+        if (engine->getConfiguration().isDcpConsumerFlowControlEnabled()) {
             ASSERT_EQ(cb::engine_errc::success,
                       consumer.step(false, producers));
         }
@@ -2507,8 +2506,8 @@ TEST_F(SingleThreadedKVBucketTest, ProducerIdleTimeoutUpdatedOnConfigChange) {
 
 void FlowControlTest::SetUp() {
     flowControlEnabled = GetParam();
-    const std::string policy = flowControlEnabled ? "aggressive" : "none";
-    config_string = "dcp_flow_control_policy=" + policy;
+    config_string = std::string("dcp_consumer_flow_control_enabled=") +
+                    (flowControlEnabled ? "true" : "false");
     KVBucketTest::SetUp();
 }
 

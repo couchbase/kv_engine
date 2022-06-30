@@ -453,10 +453,10 @@ TEST_F(StatTest, ConfigStatDefinitions) {
                         _));
 
     // test a string stat
-    auto policy = config.getDcpFlowControlPolicy();
+    auto flowControlEnabled = config.isDcpConsumerFlowControlEnabled();
     EXPECT_CALL(collector,
-                addStat(StatDefNameMatcher("ep_dcp_flow_control_policy"),
-                        Matcher<std::string_view>(policy),
+                addStat(StatDefNameMatcher("ep_dcp_consumer_flow_control_enabled"),
+                        Matcher<bool>(flowControlEnabled),
                         _));
 
     // config stats are per-bucket, wrap the collector up with a bucket label

@@ -1002,17 +1002,11 @@
             "dynamic": false,
             "type": "size_t"
         },
-        "dcp_flow_control_policy": {
-            "default": "aggressive",
-            "descr": "Flow control policy used on consumer side buffer",
+        "dcp_consumer_flow_control_enabled": {
+            "default": "true",
+            "descr": "Whether DCP Consumer on this node enable flow control",
             "dynamic": false,
-            "type": "std::string",
-            "validator": {
-                "enum": [
-                         "none",
-                         "aggressive"
-                        ]
-            }
+            "type": "bool"
         },
         "dcp_conn_buffer_size": {
             "default": "10485760",

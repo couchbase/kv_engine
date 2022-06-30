@@ -1403,7 +1403,8 @@ static enum test_result test_dcp_consumer_open(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_flow_control_none(EngineIface* h) {
+static enum test_result test_dcp_consumer_flow_control_disabled(
+        EngineIface* h) {
     auto* cookie1 = testHarness->create_cookie(h);
     const std::string name("unittest");
     const uint32_t opaque = 0;
@@ -1429,8 +1430,7 @@ static enum test_result test_dcp_consumer_flow_control_none(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_flow_control_aggressive(
-        EngineIface* h) {
+static enum test_result test_dcp_consumer_flow_control_enabled(EngineIface* h) {
     const auto max_conns = 6;
     std::vector<CookieIface*> cookie(max_conns);
     const auto flow_ctl_buf_max = 52428800;
@@ -7976,21 +7976,21 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  prepare,
                  cleanup),
-        TestCase("test dcp consumer flow control none",
-                 test_dcp_consumer_flow_control_none,
+        TestCase("test dcp consumer flow control disabled",
+                 test_dcp_consumer_flow_control_disabled,
                  test_setup,
                  teardown,
-                 "dcp_flow_control_policy=none",
+                 "dcp_consumer_flow_control_enabled=false",
                  prepare,
                  cleanup),
-        TestCase("test dcp consumer flow control aggressive",
-                 test_dcp_consumer_flow_control_aggressive,
-                 test_setup,
-                 teardown,
-                 "max_vbuckets=7;max_num_shards=4;dcp_flow_control_policy="
-                 "aggressive",
-                 prepare,
-                 cleanup),
+        TestCase(
+                "test dcp consumer flow control aggressive",
+                test_dcp_consumer_flow_control_enabled,
+                test_setup,
+                teardown,
+                "max_vbuckets=7;max_num_shards=4;dcp_consumer_flow_control_enabled=true",
+                prepare,
+                cleanup),
         TestCase("test open producer",
                  test_dcp_producer_open,
                  test_setup,
@@ -8357,7 +8357,7 @@ BaseTestCase testsuite_testcases[] = {
                  // 'magma_checkpoint_interval=0' and
                  // 'magma_min_checkpoint_interval=0' allows us to create more
                  // than one checkpoint in less than 2mins
-                 "dcp_flow_control_policy=none;dcp_enable_noop=false;"
+                 "dcp_consumer_flow_control_enabled=false;dcp_enable_noop=false;"
                  "magma_checkpoint_interval=0;"
                  "magma_min_checkpoint_interval=0;",
                  // TODO RDB: implement getItemCount.

@@ -2099,10 +2099,7 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
 
     dcpConnMap_ = std::make_unique<DcpConnMap>(*this);
 
-    /* Get the flow control policy */
-    std::string flowCtlPolicy = configuration.getDcpFlowControlPolicy();
-
-    if (flowCtlPolicy == "aggressive") {
+    if (configuration.isDcpConsumerFlowControlEnabled()) {
         dcpFlowControlManager_ =
                 std::make_unique<DcpFlowControlManagerAggressive>(*this);
     } else {
