@@ -59,6 +59,12 @@ protected:
 };
 
 /**
+ * Test fixture for ExecutorPool tests which should cause the process to die.
+ */
+template <typename T>
+class ExecutorPoolDeathTest : public ExecutorPoolTest<T> {};
+
+/**
  * Test fixture for ExecutorPool tests which require a full EPEngine instance.
  * @tparam T
  */

@@ -70,6 +70,7 @@ void ExecutorPoolTest<T>::makePool(int maxThreads,
 
 using ExecutorPoolTypes = ::testing::Types<TestExecutorPool, FollyExecutorPool>;
 TYPED_TEST_SUITE(ExecutorPoolTest, ExecutorPoolTypes);
+TYPED_TEST_SUITE(ExecutorPoolDeathTest, ExecutorPoolTypes);
 
 /**
  * Tests basic registration / unregistration of Taskables.
@@ -1466,6 +1467,46 @@ TYPED_TEST(ExecutorPoolTest, TaskRunningDuringShutdownResetsOnSchedulerThread) {
     }
 
     this->testTaskRunningDuringShutdownResetsOnSchedulerThread();
+}
+
+/// Test that tasks which (incorrectly) throw exceptions result in the
+/// process getting terminated (uncaught exception).
+/// (Note that GlobalTasks *shouldn't* throw, but if they do we want to treat
+/// that as a fatal error as there isn't a good way to handle background tasks
+/// failing otherwise.
+TYPED_TEST(ExecutorPoolDeathTest, ThrowingTaskCrashes) {
+    testing::FLAGS_gtest_death_test_style = "threadsafe";
+
+    this->makePool(1);
+    NiceMock<MockTaskable> taskable;
+    this->pool->registerTaskable(taskable);
+
+    // Create a lambda task which throws when run.
+    ThreadGate tg{1};
+    auto sleepTime = 60.0 * 60.0; // 1 hour.
+    ExTask task{new LambdaTask(
+            taskable, TaskId::ItemPager, sleepTime, true, [&](LambdaTask&) {
+                throw std::runtime_error("ThrowingTaskCrashes");
+                tg.threadUp();
+                return false;
+            })};
+    const auto taskId = this->pool->schedule(task);
+
+    EXPECT_DEATH(
+            {
+                // Test: Wake the task - should result in the test crashing,
+                this->pool->wake(taskId);
+
+                // We shouldn't get past this point - ThreadGate should never
+                // be notified and instead the process should be terminated
+                // when the Folly bg thread runs our task. However set a
+                // finite wait time so the test doesn't hang forever if
+                // the process doesn't die.
+                tg.waitFor(std::chrono::seconds(10));
+            },
+            "");
+
+    this->pool->unregisterTaskable(taskable, true);
 }
 
 TYPED_TEST_SUITE(ExecutorPoolDynamicWorkerTest, ExecutorPoolTypes);
