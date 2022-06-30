@@ -2249,18 +2249,14 @@ bool EPBucket::maybeEnableTraffic() {
 }
 
 void EPBucket::warmupCompleted() {
-    if (engine.getConfiguration().getAlogPath().length() > 0) {
+    if (!engine.getConfiguration().getAlogPath().empty()) {
         if (engine.getConfiguration().isAccessScannerEnabled()) {
-            {
-                std::lock_guard<std::mutex> lh(accessScanner.mutex);
-                accessScanner.enabled = true;
-            }
+            accessScanner.wlock()->enabled = true;
             EP_LOG_INFO_RAW("Access Scanner task enabled");
-            size_t smin = engine.getConfiguration().getAlogSleepTime();
+            auto smin = engine.getConfiguration().getAlogSleepTime();
             setAccessScannerSleeptime(smin, true);
         } else {
-            std::lock_guard<std::mutex> lh(accessScanner.mutex);
-            accessScanner.enabled = false;
+            accessScanner.wlock()->enabled = false;
             EP_LOG_INFO_RAW("Access Scanner task disabled");
         }
 

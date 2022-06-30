@@ -507,7 +507,8 @@ public:
     void resetAccessScannerStartTime() override;
 
     void resetAccessScannerTasktime() override {
-        accessScanner.lastTaskRuntime = std::chrono::steady_clock::now();
+        accessScanner.wlock()->lastTaskRuntime =
+                std::chrono::steady_clock::now();
     }
 
     void enableItemCompressor();
@@ -616,8 +617,7 @@ public:
     }
 
     bool isAccessScannerEnabled() override {
-        std::lock_guard<std::mutex> lh(accessScanner.mutex);
-        return accessScanner.enabled;
+        return accessScanner.rlock()->enabled;
     }
 
     bool isExpPagerEnabled() override {
@@ -1134,12 +1134,13 @@ protected:
               lastTaskRuntime(std::chrono::steady_clock::now()),
               enabled(true) {
         }
-        std::mutex mutex;
         size_t sleeptime;
         size_t task;
         std::chrono::steady_clock::time_point lastTaskRuntime;
         bool enabled;
-    } accessScanner;
+    };
+    folly::Synchronized<ALogTask> accessScanner;
+
     struct ResidentRatio {
         std::atomic<size_t> activeRatio;
         std::atomic<size_t> replicaRatio;

@@ -2199,24 +2199,24 @@ void KVBucket::wakeItemFreqDecayerTask() {
 }
 
 void KVBucket::enableAccessScannerTask() {
-    std::lock_guard<std::mutex> lh(accessScanner.mutex);
-    if (!accessScanner.enabled) {
-        accessScanner.enabled = true;
+    auto acLock = accessScanner.wlock();
+    if (!acLock->enabled) {
+        acLock->enabled = true;
 
-        if (accessScanner.sleeptime != 0) {
-            ExecutorPool::get()->cancel(accessScanner.task);
+        if (acLock->sleeptime != 0) {
+            ExecutorPool::get()->cancel(acLock->task);
         }
 
         size_t alogSleepTime = engine.getConfiguration().getAlogSleepTime();
-        accessScanner.sleeptime = alogSleepTime * 60;
-        if (accessScanner.sleeptime != 0) {
+        acLock->sleeptime = alogSleepTime * 60;
+        if (acLock->sleeptime != 0) {
             ExTask task =
                     std::make_shared<AccessScanner>(*this,
                                                     engine.getConfiguration(),
                                                     stats,
-                                                    accessScanner.sleeptime,
+                                                    acLock->sleeptime,
                                                     true);
-            accessScanner.task = ExecutorPool::get()->schedule(task);
+            acLock->task = ExecutorPool::get()->schedule(task);
         } else {
             EP_LOG_INFO_RAW(
                     "Did not enable access scanner task, "
@@ -2228,52 +2228,52 @@ void KVBucket::enableAccessScannerTask() {
 }
 
 void KVBucket::disableAccessScannerTask() {
-    std::lock_guard<std::mutex> lh(accessScanner.mutex);
-    if (accessScanner.enabled) {
-        ExecutorPool::get()->cancel(accessScanner.task);
-        accessScanner.sleeptime = 0;
-        accessScanner.enabled = false;
+    auto acLock = accessScanner.wlock();
+    if (acLock->enabled) {
+        ExecutorPool::get()->cancel(acLock->task);
+        acLock->sleeptime = 0;
+        acLock->enabled = false;
     } else {
         EP_LOG_DEBUG_RAW("Access scanner already disabled!");
     }
 }
 
 void KVBucket::setAccessScannerSleeptime(size_t val, bool useStartTime) {
-    std::lock_guard<std::mutex> lh(accessScanner.mutex);
+    auto acLock = accessScanner.wlock();
 
-    if (accessScanner.enabled) {
-        if (accessScanner.sleeptime != 0) {
-            ExecutorPool::get()->cancel(accessScanner.task);
+    if (acLock->enabled) {
+        if (acLock->sleeptime != 0) {
+            ExecutorPool::get()->cancel(acLock->task);
         }
 
         // store sleeptime in seconds
-        accessScanner.sleeptime = val * 60;
-        if (accessScanner.sleeptime != 0) {
-            ExTask task =
+        acLock->sleeptime = val * 60;
+        if (acLock->sleeptime != 0) {
+            auto task =
                     std::make_shared<AccessScanner>(*this,
                                                     engine.getConfiguration(),
                                                     stats,
-                                                    accessScanner.sleeptime,
+                                                    acLock->sleeptime,
                                                     useStartTime);
-            accessScanner.task = ExecutorPool::get()->schedule(task);
+            acLock->task = ExecutorPool::get()->schedule(task);
         }
     }
 }
 
 void KVBucket::resetAccessScannerStartTime() {
-    std::lock_guard<std::mutex> lh(accessScanner.mutex);
+    auto acLock = accessScanner.wlock();
 
-    if (accessScanner.enabled) {
-        if (accessScanner.sleeptime != 0) {
-            ExecutorPool::get()->cancel(accessScanner.task);
+    if (acLock->enabled) {
+        if (acLock->sleeptime != 0) {
+            ExecutorPool::get()->cancel(acLock->task);
             // re-schedule task according to the new task start hour
             ExTask task =
                     std::make_shared<AccessScanner>(*this,
                                                     engine.getConfiguration(),
                                                     stats,
-                                                    accessScanner.sleeptime,
+                                                    acLock->sleeptime,
                                                     true);
-            accessScanner.task = ExecutorPool::get()->schedule(task);
+            acLock->task = ExecutorPool::get()->schedule(task);
         }
     }
 }
@@ -2583,7 +2583,7 @@ void KVBucket::runItemFreqDecayerTask() {
 }
 
 bool KVBucket::runAccessScannerTask() {
-    return ExecutorPool::get()->wakeAndWait(accessScanner.task);
+    return ExecutorPool::get()->wakeAndWait(accessScanner.rlock()->task);
 }
 
 void KVBucket::runVbStatePersistTask(Vbid vbid) {
