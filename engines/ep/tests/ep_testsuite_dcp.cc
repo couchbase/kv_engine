@@ -1429,106 +1429,6 @@ static enum test_result test_dcp_consumer_flow_control_none(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_flow_control_dynamic(EngineIface* h) {
-    auto* cookie1 = testHarness->create_cookie(h);
-    const std::string name("unittest");
-    const uint32_t opaque = 0;
-    const uint32_t seqno = 0;
-    const uint32_t flags = 0;
-    /* Check the min limit */
-    set_param(h, EngineParamCategory::Flush, "max_size", "500000000");
-    checkeq(500000000, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
-
-    auto dcp = requireDcpIface(h);
-    checkeq(cb::engine_errc::success,
-            dcp->open(*cookie1,
-                      opaque,
-                      seqno,
-                      flags,
-                      name,
-                      R"({"consumer_name":"replica1"})"),
-            "Failed dcp consumer open connection.");
-
-    const auto stat_name("eq_dcpq:" + name + ":max_buffer_bytes");
-    checkeq(10485760,
-            get_int_stat(h, stat_name.c_str(), "dcp"),
-            "Flow Control Buffer Size not equal to min");
-    testHarness->destroy_cookie(cookie1);
-
-    /* Check the size as percentage of the bucket memory */
-    auto* cookie2 = testHarness->create_cookie(h);
-    set_param(h, EngineParamCategory::Flush, "max_size", "2000000000");
-    checkeq(2000000000, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
-
-    checkeq(cb::engine_errc::success,
-            dcp->open(*cookie2,
-                      opaque,
-                      seqno,
-                      flags,
-                      name,
-                      R"({"consumer_name":"replica1"})"),
-            "Failed dcp consumer open connection.");
-
-    checkeq(20000000,
-            get_int_stat(h, stat_name.c_str(), "dcp"),
-            "Flow Control Buffer Size not equal to 1% of mem size");
-    testHarness->destroy_cookie(cookie2);
-
-    /* Check the case when mem used by flow control bufs hit the threshold */
-    /* Create around 10 more connections to use more than 10% of the total
-       memory */
-    for (auto count = 0; count < 10; count++) {
-        auto* cookie = testHarness->create_cookie(h);
-        checkeq(cb::engine_errc::success,
-                dcp->open(*cookie,
-                          opaque,
-                          seqno,
-                          flags,
-                          name,
-                          R"({"consumer_name":"replica1"})"),
-                "Failed dcp consumer open connection.");
-        testHarness->destroy_cookie(cookie);
-    }
-    /* By now mem used by flow control bufs would have crossed the threshold */
-    auto* cookie3 = testHarness->create_cookie(h);
-    checkeq(cb::engine_errc::success,
-            dcp->open(*cookie3,
-                      opaque,
-                      seqno,
-                      flags,
-                      name,
-                      R"({"consumer_name":"replica1"})"),
-            "Failed dcp consumer open connection.");
-
-    checkeq(10485760,
-            get_int_stat(h, stat_name.c_str(), "dcp"),
-            "Flow Control Buffer Size not equal to min after threshold is hit");
-    testHarness->destroy_cookie(cookie3);
-
-    /* Check the max limit */
-    auto* cookie4 = testHarness->create_cookie(h);
-    set_param(h, EngineParamCategory::Flush, "max_size", "7000000000");
-    checkeq(static_cast<uint64_t>(7000000000),
-            get_ull_stat(h, "ep_max_size"),
-            "Incorrect new size.");
-
-    checkeq(cb::engine_errc::success,
-            dcp->open(*cookie4,
-                      opaque,
-                      seqno,
-                      flags,
-                      name,
-                      R"({"consumer_name":"replica1"})"),
-            "Failed dcp consumer open connection.");
-
-    checkeq(52428800,
-            get_int_stat(h, stat_name.c_str(), "dcp"),
-            "Flow Control Buffer Size beyond max");
-    testHarness->destroy_cookie(cookie4);
-
-    return SUCCESS;
-}
-
 static enum test_result test_dcp_consumer_flow_control_aggressive(
         EngineIface* h) {
     const auto max_conns = 6;
@@ -8081,13 +7981,6 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "dcp_flow_control_policy=none",
-                 prepare,
-                 cleanup),
-        TestCase("test dcp consumer flow control dynamic",
-                 test_dcp_consumer_flow_control_dynamic,
-                 test_setup,
-                 teardown,
-                 "dcp_flow_control_policy=dynamic",
                  prepare,
                  cleanup),
         TestCase("test dcp consumer flow control aggressive",

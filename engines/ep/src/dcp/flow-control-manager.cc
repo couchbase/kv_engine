@@ -56,65 +56,6 @@ void DcpFlowControlManager::setBufSizeWithinBounds(DcpConsumer *consumerConn,
     }
 }
 
-DcpFlowControlManagerDynamic::DcpFlowControlManagerDynamic(
-                                        EventuallyPersistentEngine &engine) :
-    DcpFlowControlManager(engine), aggrDcpConsumerBufferSize(0)
-{
-}
-
-DcpFlowControlManagerDynamic::~DcpFlowControlManagerDynamic() {}
-
-size_t DcpFlowControlManagerDynamic::newConsumerConn(DcpConsumer *consumerConn)
-{
-    if (consumerConn == nullptr) {
-        throw std::invalid_argument(
-                "DcpFlowControlManagerDynamic::newConsumerConn: resp is NULL");
-    }
-    Configuration &config = engine_.getConfiguration();
-    double dcpConnBufferSizePerc = static_cast<double>
-                                        (config.getDcpConnBufferSizePerc())/100;
-    size_t bufferSize = dcpConnBufferSizePerc *
-                                          engine_.getEpStats().getMaxDataSize();
-
-    /* Make sure that the flow control buffer size is within a max and min
-     range */
-    setBufSizeWithinBounds(consumerConn, bufferSize);
-
-    /* If aggr memory used for flow control buffers across all consumers
-     exceeds the threshold, then we limit it to min size */
-    double dcpConnBufferSizeThreshold = static_cast<double>
-                            (config.getDcpConnBufferSizeAggrMemThreshold())/100;
-    if ((aggrDcpConsumerBufferSize + bufferSize)
-        > dcpConnBufferSizeThreshold * engine_.getEpStats().getMaxDataSize())
-    {
-        /* Setting to default minimum size */
-        bufferSize = config.getDcpConnBufferSize();
-        EP_LOG_DEBUG(
-                "{} Conn flow control buffer is set to"
-                "minimum, as aggr memory used for flow control buffers across"
-                "all consumers is {} and is above the threshold ({}) * ({})",
-                consumerConn->logHeader(),
-                aggrDcpConsumerBufferSize.load(std::memory_order_relaxed),
-                dcpConnBufferSizeThreshold,
-                engine_.getEpStats().getMaxDataSize());
-    }
-    aggrDcpConsumerBufferSize += bufferSize;
-    EP_LOG_DEBUG("{} Conn flow control buffer is {}",
-                 consumerConn->logHeader(),
-                 bufferSize);
-    return bufferSize;
-}
-
-void DcpFlowControlManagerDynamic::handleDisconnect(DcpConsumer *consumerConn)
-{
-    aggrDcpConsumerBufferSize -= consumerConn->getFlowControlBufSize();
-}
-
-bool DcpFlowControlManagerDynamic::isEnabled() const
-{
-    return true;
-}
-
 DcpFlowControlManagerAggressive::DcpFlowControlManagerAggressive(
                                         EventuallyPersistentEngine &engine) :
     DcpFlowControlManager(engine)

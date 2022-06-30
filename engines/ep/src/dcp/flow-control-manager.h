@@ -55,30 +55,6 @@ protected:
 };
 
 /**
- * In this policy flow control buffer sizes are set only once during the
- * connection set up. It is set as a percentage of bucket mem quota and also
- * within max (50MB) and a min value (10 MB). Once aggr flow control buffer
- * memory usage goes beyond a threshold (10% of bucket memory), all subsequent
- * connections get a flow control buffer size of min value (10MB)
- */
-class DcpFlowControlManagerDynamic : public DcpFlowControlManager {
-public:
-    explicit DcpFlowControlManagerDynamic(EventuallyPersistentEngine& engine);
-
-    ~DcpFlowControlManagerDynamic() override;
-
-    size_t newConsumerConn(DcpConsumer* consumerConn) override;
-
-    void handleDisconnect(DcpConsumer* consumerConn) override;
-
-    bool isEnabled() const override;
-
-private:
-    /* Total memory used by all DCP consumer buffers */
-    std::atomic_size_t aggrDcpConsumerBufferSize;
-};
-
-/**
  * In this policy flow control buffer sizes are always set as percentage (5%) of
  * bucket memory quota across all flow control buffers, but within max (50MB)
  * and a min value (10 MB). Every time a new connection is made or a disconnect
