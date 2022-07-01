@@ -13,6 +13,7 @@
 #include "collections/manager.h"
 #include "collections/vbucket_manifest.h"
 #include "configuration.h"
+#include "environment.h"
 #include "item.h"
 #include "kvstore/kvstore_config.h"
 #include "kvstore/kvstore_iface.h"
@@ -83,6 +84,9 @@ protected:
 class KVStoreBench : public benchmark::Fixture {
 protected:
     void SetUp(benchmark::State& state) override {
+        auto& env = Environment::get();
+        env.engineFileDescriptors = env.reservedFileDescriptors;
+
         numItems = state.range(0);
         auto storage = state.range(1);
 
@@ -115,6 +119,13 @@ protected:
         // Initialize KVStore
         kvstoreConfig = KVStoreConfig::createKVStoreConfig(
                 config, config.getBackend(), workload.getNumShards(), shardId);
+
+        try {
+            cb::io::rmrf(kvstoreConfig->getDBName());
+        } catch (std::system_error& e) {
+            // Do nothing - directory probably just didn't exist
+        }
+        cb::io::mkdirp(kvstoreConfig->getDBName());
         kvstore = setup_kv_store(*kvstoreConfig);
 
         // Load some data
@@ -132,6 +143,8 @@ protected:
 
         Collections::VB::Manifest m{std::make_shared<Collections::Manager>()};
         VB::Commit f(m);
+        f.proposedVBState.lastSnapStart = 0;
+        f.proposedVBState.lastSnapEnd = numItems;
 
         kvstore->commit(std::move(ctx), f);
         // Just check that the VBucket High Seqno has been updated correctly
@@ -148,7 +161,11 @@ private:
         auto kvstore = KVStoreFactory::create(config);
         vbucket_state state;
         state.transition.state = vbucket_state_active;
-        kvstore->snapshotVBucket(vbid, state);
+        if (!kvstore->snapshotVBucket(vbid, state)) {
+            throw std::runtime_error(
+                    "Could not persist vbstate, benchmark "
+                    "cannot continue");
+        }
         return kvstore;
     }
 
