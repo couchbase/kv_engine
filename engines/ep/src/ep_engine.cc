@@ -872,9 +872,6 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(const std::string& key,
             getConfiguration().setDcpConnBufferSize(std::stoull(val));
         } else if (key == "dcp_conn_buffer_size_max") {
             getConfiguration().setDcpConnBufferSizeMax(std::stoull(val));
-        } else if (key == "dcp_conn_buffer_size_aggr_mem_threshold") {
-            getConfiguration().setDcpConnBufferSizeAggrMemThreshold(
-                    std::stoull(val));
         } else if (key == "dcp_conn_buffer_size_aggressive_perc") {
             getConfiguration().setDcpConnBufferSizeAggressivePerc(
                     std::stoull(val));
