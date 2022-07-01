@@ -25,7 +25,10 @@
             }
         },
         "access_scanner_enabled": {
-            "default": "true",
+            "default": {
+                "on-prem": "true",
+                "serverless": "false"
+            },
             "descr": "True if access scanner task is enabled",
             "dynamic": true,
             "type": "bool",
