@@ -15,28 +15,15 @@
 #include "dcp/consumer.h"
 #include "ep_engine.h"
 
-DcpFlowControlManager::DcpFlowControlManager(EventuallyPersistentEngine &engine)
-    : engine_(engine)
-{
+DcpFlowControlManager::DcpFlowControlManager(EventuallyPersistentEngine& engine)
+    : engine_(engine) {
+    dcpConnBufferSizeAggrFrac = static_cast<double>
+    (engine.getConfiguration().getDcpConnBufferSizeAggressivePerc())/100;
 }
 
-DcpFlowControlManager::~DcpFlowControlManager() {}
-
-size_t DcpFlowControlManager::newConsumerConn(DcpConsumer *) {
-    return 0;
-}
-
-void DcpFlowControlManager::handleDisconnect(DcpConsumer *) {}
-
-bool DcpFlowControlManager::isEnabled() const
-{
-    return false;
-}
-
-void DcpFlowControlManager::setBufSizeWithinBounds(DcpConsumer *consumerConn,
-                                                   size_t &bufSize)
-{
-    Configuration &config = engine_.getConfiguration();
+void DcpFlowControlManager::setBufSizeWithinBounds(DcpConsumer* consumerConn,
+                                                   size_t& bufSize) {
+    Configuration& config = engine_.getConfiguration();
     /* Make sure that the flow control buffer size is within a max and min
      range */
     if (bufSize < config.getDcpConnBufferSize()) {
@@ -56,24 +43,12 @@ void DcpFlowControlManager::setBufSizeWithinBounds(DcpConsumer *consumerConn,
     }
 }
 
-DcpFlowControlManagerAggressive::DcpFlowControlManagerAggressive(
-                                        EventuallyPersistentEngine &engine) :
-    DcpFlowControlManager(engine)
-{
-    dcpConnBufferSizeAggrFrac = static_cast<double>
-    (engine.getConfiguration().getDcpConnBufferSizeAggressivePerc())/100;
-}
-
-DcpFlowControlManagerAggressive::~DcpFlowControlManagerAggressive() {}
-
-size_t DcpFlowControlManagerAggressive::newConsumerConn(
-                                                    DcpConsumer *consumerConn)
-{
+size_t DcpFlowControlManager::newConsumerConn(DcpConsumer* consumerConn) {
     std::lock_guard<std::mutex> lh(dcpConsumersMapMutex);
 
     if (consumerConn == nullptr) {
         throw std::invalid_argument(
-                "DcpFlowControlManagerAggressive::newConsumerConn: resp is NULL");
+                "DcpFlowControlManager::newConsumerConn: resp is NULL");
     }
     /* Calculate new per conn buf size */
     uint32_t totalConns = dcpConsumersMap.size();
@@ -98,9 +73,7 @@ size_t DcpFlowControlManagerAggressive::newConsumerConn(
     return bufferSize;
 }
 
-void DcpFlowControlManagerAggressive::handleDisconnect(
-                                                    DcpConsumer *consumerConn)
-{
+void DcpFlowControlManager::handleDisconnect(DcpConsumer* consumerConn) {
     std::lock_guard<std::mutex> lh(dcpConsumersMapMutex);
 
     size_t bufferSize = 0;
@@ -128,13 +101,11 @@ void DcpFlowControlManagerAggressive::handleDisconnect(
     }
 }
 
-bool DcpFlowControlManagerAggressive::isEnabled() const
-{
+bool DcpFlowControlManager::isEnabled() const {
     return true;
 }
 
-void DcpFlowControlManagerAggressive::resizeBuffers_UNLOCKED(size_t bufferSize)
-{
+void DcpFlowControlManager::resizeBuffers_UNLOCKED(size_t bufferSize) {
     /* Set buffer size of all existing connections to the new buf size */
     for (auto& iter : dcpConsumersMap) {
         iter.second->setFlowControlBufSize(bufferSize);

@@ -2100,8 +2100,7 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     dcpConnMap_ = std::make_unique<DcpConnMap>(*this);
 
     if (configuration.isDcpConsumerFlowControlEnabled()) {
-        dcpFlowControlManager =
-                std::make_unique<DcpFlowControlManagerAggressive>(*this);
+        dcpFlowControlManager = std::make_unique<DcpFlowControlManager>(*this);
     }
 
     checkpointConfig = std::make_unique<CheckpointConfig>(configuration);

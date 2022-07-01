@@ -72,8 +72,7 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
     CheckpointConfig::addConfigChangeListener(*this);
 
     if (configuration.isDcpConsumerFlowControlEnabled()) {
-        dcpFlowControlManager =
-                std::make_unique<DcpFlowControlManagerAggressive>(*this);
+        dcpFlowControlManager = std::make_unique<DcpFlowControlManager>(*this);
     }
 
     // Tests may need to create multiple failover table entries, so allow that

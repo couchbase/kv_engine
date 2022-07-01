@@ -21,58 +21,29 @@ class DcpConsumer;
 class EventuallyPersistentEngine;
 
 /**
- * DcpFlowControlManager is a base class for handling/enforcing flow control
- * policies on the flow control buffer in DCP Consumer. The base class provides
- * apis for handling flow control buffer sizes during connection and
- * disconnection of a consumer connection. Using this base class only
- * implies that no flow control policy is adopted. To add a new flow control
- * policy just derive a new class from this base class.
- *
- * This class and the derived classes are thread safe.
+ * DcpFlowControlManager handles the flow control behaviour for DCP Consumers in
+ * the engine. The class provides apis for handling flow control buffer sizes
+ * during connection and disconnection of a consumer connection.
+ * Flow control buffer sizes are always set as percentage (5%) of bucket memory
+ * quota across all flow control buffers, but within max (50MB) and a min value
+ * (10 MB). Every time a new connection is made or a disconnect happens, flow
+ * control buffer size of all other connections is changed to share an aggregate
+ * percentage(5%) of bucket memory
  */
 class DcpFlowControlManager {
 public:
     explicit DcpFlowControlManager(EventuallyPersistentEngine& engine);
 
-    virtual ~DcpFlowControlManager();
+    size_t newConsumerConn(DcpConsumer* consumerConn);
 
-    /* To be called when a new consumer connection is created.
-       Returns the size of flow control buffer for the connection */
-    virtual size_t newConsumerConn(DcpConsumer *);
+    void handleDisconnect(DcpConsumer* consumerConn);
 
-    /* To be called when a consumer connection is deleted */
-    virtual void handleDisconnect(DcpConsumer *);
-
-    /* Will indicate if flow control is enabled */
-    virtual bool isEnabled() const;
+    bool isEnabled() const;
 
 protected:
-    void setBufSizeWithinBounds(DcpConsumer *consumerConn, size_t &bufSize);
+    void setBufSizeWithinBounds(DcpConsumer* consumerConn, size_t& bufSize);
 
-    /* Reference to ep engine instance */
-    EventuallyPersistentEngine &engine_;
-
-};
-
-/**
- * In this policy flow control buffer sizes are always set as percentage (5%) of
- * bucket memory quota across all flow control buffers, but within max (50MB)
- * and a min value (10 MB). Every time a new connection is made or a disconnect
- * happens, flow control buffer size of all other connections is changed to
- * share an aggregate percentage(5%) of bucket memory
- */
-class DcpFlowControlManagerAggressive : public DcpFlowControlManager {
-public:
-    explicit DcpFlowControlManagerAggressive(
-            EventuallyPersistentEngine& engine);
-
-    ~DcpFlowControlManagerAggressive() override;
-
-    size_t newConsumerConn(DcpConsumer* consumerConn) override;
-
-    void handleDisconnect(DcpConsumer* consumerConn) override;
-
-    bool isEnabled() const override;
+    EventuallyPersistentEngine& engine_;
 
 private:
     /**
@@ -80,10 +51,13 @@ private:
      * It assumes the dcpConsumersMapMutex is already taken.
      */
     void resizeBuffers_UNLOCKED(size_t bufferSize);
+
     /* Mutex to ensure dcpConsumersMap is thread safe */
     std::mutex dcpConsumersMapMutex;
+
     /* All DCP Consumers with flow control buffer */
     std::map<const CookieIface*, DcpConsumer*> dcpConsumersMap;
+
     /* Fraction of memQuota for all dcp consumer connection buffers */
     std::atomic<double> dcpConnBufferSizeAggrFrac;
 };
