@@ -89,7 +89,8 @@ BENCHMARK_DEFINE_F(AccessLogBenchEngine, MemoryOverhead)
             executorPool->wake(task->getId());
             executorPool->runNextTask(AUXIO_TASK_IDX, "Generating access log");
             executorPool->runNextTask(AUXIO_TASK_IDX,
-                                      "Item Access Scanner on vb:0");
+                                      "Item Access Scanner no vbucket "
+                                      "assigned");
         }
     }
     state.counters["MaxBytesAllocatedPerItem"] =
