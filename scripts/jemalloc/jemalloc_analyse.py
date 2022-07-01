@@ -1,12 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """Given the output of jemalloc's `malloc_stats_print`, analyse and show
 utilization information. Insipired by:
 http://www.canonware.com/pipermail/jemalloc-discuss/2013-November/000675.html
 """
-
-from __future__ import division
-from __future__ import print_function
 
 import re
 import sys
@@ -72,7 +69,7 @@ def calc_bin_stats(stats, arena_ID):
 
         fields = [int(x) if x.isdigit() else float(x)
                   for x in line.split()]
-        c = dict(zip(headers, fields))
+        c = dict(list(zip(headers, fields)))
 
         # jemalloc 5.0.0 onwards renames `runs` to `slabs` for small
         # allocations. Copy back to the old name to allow calculations to work.
@@ -111,7 +108,7 @@ def calc_bin_stats(stats, arena_ID):
                 line = stats.readline()
                 continue
             fields = [int(x) for x in line.split()]
-            c = dict(zip(headers, fields))
+            c = dict(list(zip(headers, fields)))
 
             # jemalloc 5.0.0 onwards renames `curruns` to `l(large)extents` for
             # large allocations. Copy back to the old name to allow
@@ -173,7 +170,7 @@ def calc_bin_stats(stats, arena_ID):
                          pct_of_small,
                          frag_memory,
                          pct_of_blame))
-    print
+
     print(FMT.format('total', '', '', '', '', sizeof_fmt(total_allocated), '',
                      '', '', sizeof_fmt(total_frag_memory), ''))
 
