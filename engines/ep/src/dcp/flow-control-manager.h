@@ -38,8 +38,6 @@ public:
 
     void handleDisconnect(DcpConsumer* consumerConn);
 
-    bool isEnabled() const;
-
 protected:
     void setBufSizeWithinBounds(DcpConsumer* consumerConn, size_t& bufSize);
 

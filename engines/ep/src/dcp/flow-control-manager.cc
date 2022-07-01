@@ -101,10 +101,6 @@ void DcpFlowControlManager::handleDisconnect(DcpConsumer* consumerConn) {
     }
 }
 
-bool DcpFlowControlManager::isEnabled() const {
-    return true;
-}
-
 void DcpFlowControlManager::resizeBuffers_UNLOCKED(size_t bufferSize) {
     /* Set buffer size of all existing connections to the new buf size */
     for (auto& iter : dcpConsumersMap) {
