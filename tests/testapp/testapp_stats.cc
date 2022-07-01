@@ -302,6 +302,43 @@ TEST_P(StatsTest, MB37147_TestEWBReturnFromStat) {
     });
 }
 
+/**
+ * MB-52728: Verify that the background tasks which perform budket-level STAT
+ * requests correctly handle async notificaiton - prior to the fix for this MB
+ * we could end up calling notifyIoComplete *twice* for a single engine API
+ * call (there should only be one).
+ */
+TEST_P(StatsTest, MB52728_TestEWBReturnFromStatBGTask) {
+    // Need any stat key which is handled at the bucket level - doesn't really
+    // matter which one, as we will not actually call down to real bucket
+    // for the STAT call, EWB_Engine is used instead.
+    const std::string statKey = "vbucket";
+
+    // Setup EBS engine to return:
+    //    1. STAT -> would_block, notifyIoComplete(success)
+    //    2. STAT -> success
+    // For the two stat calls. Prior to the bugfix, this caused 2x
+    // notifyIoComplete calls for the first STAT call - one from EWB_Engine
+    // after it returned would_block (correct), and a second spurious one
+    // from StatsTaskBucketStats::run() task.
+    //
+    // This manifested originally as an intermittent failure when verifying
+    // the Cookie during the processing of the 2nd spurious notifyIoComplete,
+    // but with the additon of more Expect()s in this patch it manifests as
+    // a failure in Connection::processNotifiedCookie() checking that
+    // cookie.isEwouldblock() == true.
+    adminConnection->executeInBucket(bucketName, [statKey](auto& connection) {
+        auto sequence = ewb::encodeSequence({cb::engine_errc::would_block,
+                                             cb::engine_errc::success,
+                                             cb::engine_errc::success});
+        connection.configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                              /*unused*/ {},
+                                              /*unused*/ {},
+                                              sequence);
+        auto stats = connection.stats(statKey);
+    });
+}
+
 TEST_P(StatsTest, TestAuditNoAccess) {
     MemcachedConnection& conn = getConnection();
 

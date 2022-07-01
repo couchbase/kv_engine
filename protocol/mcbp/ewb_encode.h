@@ -23,6 +23,11 @@ namespace ewb {
 /**
  * Helper function for EWBEngineMode::Sequence, encodes a vector of
  * status codes to inject into network order to be used as the key.
+ *
+ * Each call into the engine will return the next error code in the sequence.
+ * In the case of engine_errc::would_block, the /next/ element will be used
+ * for the value used for notifyIoComplete - i.e. a single engine call will
+ * consume 2 codes in the sequence.
  */
 std::string encodeSequence(const std::vector<cb::engine_errc>& sequence);
 

@@ -39,7 +39,14 @@ bool StatsTaskBucketStats::run() {
             [this](std::string_view key,
                    std::string_view value,
                    const void* ctx) { stats.emplace_back(key, value); });
-    notifyIoComplete(cookie, cb::engine_errc::success);
+
+    // If bucket_get_stats() returned a final "complete" status, notify
+    // back to the front-end so this command can complete. If would_block was
+    // returned then the engine would have scheduled its own background task
+    // which will call notifyIoComplete() itself when it is complete.
+    if (command_error != cb::engine_errc::would_block) {
+        notifyIoComplete(cookie, cb::engine_errc::success);
+    }
     return false;
 }
 

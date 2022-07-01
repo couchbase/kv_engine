@@ -781,9 +781,11 @@ cb::engine_errc StatsCommandContext::commandComplete() {
         break;
     case cb::engine_errc::would_block:
         /* If the stats call returns cb::engine_errc::would_block then set the
-         * state to DoStats again and return this error code */
+         * state to DoStats again and return success to re-trigger the
+         * stat_task.
+         */
         state = State::DoStats;
-        return command_exit_code;
+        return cb::engine_errc::success;
     case cb::engine_errc::disconnect:
         // We don't send these responses back so we will not store
         // stats for these.
