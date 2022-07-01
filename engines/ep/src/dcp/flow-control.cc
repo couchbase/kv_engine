@@ -21,7 +21,7 @@ FlowControl::FlowControl(EventuallyPersistentEngine& engine,
                          DcpConsumer& consumer)
     : consumerConn(consumer),
       engine_(engine),
-      enabled(engine.getDcpFlowControlManager().isEnabled()),
+      enabled(engine.getConfiguration().isDcpConsumerFlowControlEnabled()),
       pendingControl(true),
       lastBufferAck(ep_current_time()),
       ackedBytes(0),
@@ -33,7 +33,9 @@ FlowControl::FlowControl(EventuallyPersistentEngine& engine,
 }
 
 FlowControl::~FlowControl() {
-    engine_.getDcpFlowControlManager().handleDisconnect(&consumerConn);
+    if (enabled) {
+        engine_.getDcpFlowControlManager().handleDisconnect(&consumerConn);
+    }
 }
 
 cb::engine_errc FlowControl::handleFlowCtl(

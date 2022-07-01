@@ -71,10 +71,7 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
     checkpointConfig = std::make_unique<CheckpointConfig>(configuration);
     CheckpointConfig::addConfigChangeListener(*this);
 
-    // Simplified setup for switching FlowControl on/off
-    if (!configuration.isDcpConsumerFlowControlEnabled()) {
-        dcpFlowControlManager = std::make_unique<DcpFlowControlManager>(*this);
-    } else {
+    if (configuration.isDcpConsumerFlowControlEnabled()) {
         dcpFlowControlManager =
                 std::make_unique<DcpFlowControlManagerAggressive>(*this);
     }
