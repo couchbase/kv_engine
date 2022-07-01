@@ -102,6 +102,7 @@ protected:
             memoryTracker->reset();
         }
         VBucketBench::SetUp(state);
+        engine->getKVBucket()->createAndScheduleCheckpointDestroyerTasks();
     }
 
     void TearDown(const benchmark::State& state) override {

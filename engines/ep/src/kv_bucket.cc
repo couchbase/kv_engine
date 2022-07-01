@@ -468,12 +468,7 @@ bool KVBucket::initialize() {
         ExecutorPool::get()->schedule(task);
     }
 
-    auto numCkptDestroyers = config.getCheckpointDestructionTasks();
-    for (size_t i = 0; i < numCkptDestroyers; ++i) {
-        ckptDestroyerTasks.push_back(
-                std::make_shared<CheckpointDestroyerTask>(&engine));
-        ExecutorPool::get()->schedule(ckptDestroyerTasks.back());
-    }
+    createAndScheduleCheckpointDestroyerTasks();
 
     // Setup tasks related to SyncWrite timeout handling. At present there are
     // two possible modes:
@@ -3057,6 +3052,16 @@ KVBucket::createAndScheduleSeqnoPersistenceNotifier() {
             std::make_shared<SeqnoPersistenceNotifyTask>(*this);
     ExecutorPool::get()->schedule(seqnoPersistenceNotifyTask);
     return seqnoPersistenceNotifyTask;
+}
+
+void KVBucket::createAndScheduleCheckpointDestroyerTasks() {
+    auto numCkptDestroyers =
+            engine.getConfiguration().getCheckpointDestructionTasks();
+    for (size_t i = 0; i < numCkptDestroyers; ++i) {
+        ckptDestroyerTasks.push_back(
+                std::make_shared<CheckpointDestroyerTask>(&engine));
+        ExecutorPool::get()->schedule(ckptDestroyerTasks.back());
+    }
 }
 
 void KVBucket::addVbucketWithSeqnoPersistenceRequest(

@@ -919,6 +919,8 @@ public:
     std::shared_ptr<SeqnoPersistenceNotifyTask>
     createAndScheduleSeqnoPersistenceNotifier();
 
+    void createAndScheduleCheckpointDestroyerTasks();
+
     /**
      * Add a vbucket that has a SeqnoPersistentRequest (so it can be notified
      * of expiry).
