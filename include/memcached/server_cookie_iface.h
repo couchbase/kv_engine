@@ -254,11 +254,4 @@ struct ServerCookieIface {
     virtual void send_response(const CookieIface& cookieIface,
                                cb::engine_errc status,
                                std::string_view view) = 0;
-
-    /**
-     * Inform the state-machine that the blocking command is now complete.
-     * This is instead of the engine calling notifyIOComplete and is for
-     * commands that are complete and don't require re-entry to finish.
-     */
-    virtual void execution_complete(const CookieIface& cookieIface) = 0;
 };

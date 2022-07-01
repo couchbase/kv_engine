@@ -351,11 +351,6 @@ struct MockServerCookieApi : public ServerCookieIface {
                        std::string_view) override {
         throw std::runtime_error("MockServer::send_response unimplemented");
     }
-
-    void execution_complete(const CookieIface&) override {
-        throw std::runtime_error(
-                "MockServer::execution_complete unimplemented");
-    }
 };
 
 ServerApi* get_mock_server_api() {

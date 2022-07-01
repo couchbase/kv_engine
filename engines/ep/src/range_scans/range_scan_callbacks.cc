@@ -65,8 +65,8 @@ void RangeScanDataHandler::handleStatus(const CookieIface& cookie,
     send(cookie, status);
 
     NonBucketAllocationGuard guard;
-    // And execution is complete
-    engine.getServerApi()->cookie->execution_complete(cookie);
+    // Wake-up front-end to complete the command
+    engine.notifyIOComplete(&cookie, status);
 }
 
 RangeScanCacheCallback::RangeScanCacheCallback(RangeScan& scan,

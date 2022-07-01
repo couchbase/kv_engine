@@ -191,17 +191,6 @@ void notifyIoComplete(Cookie& cookie, cb::engine_errc status) {
     });
 }
 
-void executionComplete(Cookie& cookie) {
-    auto& thr = cookie.getConnection().getThread();
-    thr.eventBase.runInEventBaseThreadAlwaysEnqueue([&cookie]() {
-        TRACE_LOCKGUARD_TIMED(cookie.getConnection().getThread().mutex,
-                              "mutex",
-                              "executionComplete",
-                              SlowMutexThreshold);
-        cookie.getConnection().processCompletedCookie(cookie);
-    });
-}
-
 void scheduleDcpStep(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     if (!connection.isDCP()) {

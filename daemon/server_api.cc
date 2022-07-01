@@ -206,11 +206,6 @@ struct ServerCookieApi : public ServerCookieIface {
         getCookie(cookieIface)
                 .sendResponse(status, {}, {}, view, cb::mcbp::Datatype::Raw, 0);
     }
-
-    void execution_complete(const CookieIface& cookieIface) override {
-        auto& cookie = getCookie(cookieIface);
-        executionComplete(cookie);
-    }
 };
 
 class ServerApiImpl : public ServerApi {

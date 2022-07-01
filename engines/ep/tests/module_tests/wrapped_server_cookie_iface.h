@@ -120,9 +120,6 @@ public:
                        std::string_view view) override {
         wrapped->send_response(cookie, status, view);
     }
-    void execution_complete(const CookieIface& cookie) override {
-        wrapped->execution_complete(cookie);
-    }
 
 protected:
     ServerCookieIface* wrapped;

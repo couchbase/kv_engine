@@ -129,9 +129,6 @@ public:
                        std::string_view) override {
         throw std::runtime_error("send_response not implemented");
     }
-    void execution_complete(const CookieIface&) override {
-        throw std::runtime_error("execution_complete not implemented");
-    }
 };
 
 class AuditDaemonTest
