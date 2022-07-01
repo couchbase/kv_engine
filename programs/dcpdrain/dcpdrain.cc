@@ -212,6 +212,14 @@ public:
         start = std::chrono::steady_clock::now();
     }
 
+    size_t getSnapshots() const {
+        return snapshots;
+    }
+
+    size_t getOsoSnapshots() const {
+        return oso_snapshots;
+    }
+
     size_t getMutations() const {
         return mutations;
     }
@@ -230,12 +238,17 @@ public:
                                                                       start);
 
         size_t total_bytes = getTotalBytesReceived();
-        std::cout << "Connection took " << duration.count() << " ms - "
-                  << mutations << " mutations with a total of " << total_bytes
-                  << " bytes received (overhead "
-                  << total_bytes - mutation_bytes << ") ("
-                  << calculateThroughput(total_bytes, duration.count() / 1000)
-                  << ")" << std::endl;
+        fmt::print(
+                "Connection took {} ms - {} mutations with a total of {} bytes "
+                "received in {} snapshots and {} oso snapshots (overhead {} "
+                "bytes, {})",
+                duration.count(),
+                mutations,
+                total_bytes,
+                snapshots,
+                oso_snapshots,
+                total_bytes - mutation_bytes,
+                calculateThroughput(total_bytes, duration.count() / 1000));
     }
 
 protected:
@@ -267,11 +280,20 @@ protected:
             dcpmsg = true;
             break;
 
+        case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
+            ++snapshots;
+            dcpmsg = true;
+            break;
+
+        case cb::mcbp::ClientOpcode::DcpOsoSnapshot:
+            ++oso_snapshots;
+            dcpmsg = true;
+            break;
+
         case cb::mcbp::ClientOpcode::DcpAddStream:
         case cb::mcbp::ClientOpcode::DcpCloseStream:
         case cb::mcbp::ClientOpcode::DcpStreamReq:
         case cb::mcbp::ClientOpcode::DcpGetFailoverLog:
-        case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
         case cb::mcbp::ClientOpcode::DcpDeletion:
         case cb::mcbp::ClientOpcode::DcpExpiration:
         case cb::mcbp::ClientOpcode::DcpFlush_Unsupported:
@@ -284,7 +306,6 @@ protected:
         case cb::mcbp::ClientOpcode::DcpCommit:
         case cb::mcbp::ClientOpcode::DcpAbort:
         case cb::mcbp::ClientOpcode::DcpSeqnoAdvanced:
-        case cb::mcbp::ClientOpcode::DcpOsoSnapshot:
             dcpmsg = true;
             break;
 
@@ -356,6 +377,8 @@ protected:
     size_t mutation_bytes = 0;
     size_t stream_end = 0;
     size_t mutations = 0;
+    size_t snapshots = 0;
+    size_t oso_snapshots = 0;
     size_t current_buffer_window = 0;
     size_t max_vbuckets = 0;
     size_t totalStreams = 0;
@@ -836,10 +859,14 @@ int main(int argc, char** argv) {
     size_t total_bytes = 0;
     size_t mutations = 0;
     size_t mutation_bytes = 0;
+    size_t snapshots = 0;
+    size_t oso_snapshots = 0;
     for (const auto& c : connections) {
         total_bytes += c->getTotalBytesReceived();
         mutations += c->getMutations();
         mutation_bytes += c->getMutationBytes();
+        snapshots += c->getSnapshots();
+        oso_snapshots += c->getOsoSnapshots();
         if (!csv && connections.size() > 1) {
             c->reportConnectionStats();
         }
@@ -849,12 +876,17 @@ int main(int argc, char** argv) {
         std::cout << duration.count() << ';' << total_bytes << ';' << mutations
                   << std::endl;
     } else {
-        std::cout << "Took " << duration.count() << " ms - " << mutations
-                  << " mutations with a total of " << total_bytes
-                  << " bytes received (overhead "
-                  << total_bytes - mutation_bytes << ") ("
-                  << calculateThroughput(total_bytes, duration.count() / 1000)
-                  << ")" << std::endl;
+        fmt::print(
+                "Connection took {} ms - {} mutations with a total of {} bytes "
+                "received in {} snapshots and {} oso snapshots (overhead {} "
+                "bytes, {})",
+                duration.count(),
+                mutations,
+                total_bytes,
+                snapshots,
+                oso_snapshots,
+                total_bytes - mutation_bytes,
+                calculateThroughput(total_bytes, duration.count() / 1000));
     }
 
     connections.clear();
