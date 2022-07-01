@@ -1020,15 +1020,15 @@
             "dynamic": true,
             "type": "size_t"
         },
-        "dcp_conn_buffer_size_perc": {
-            "default": "5",
-            "descr": "Percentage of BucketQuota enforced by FlowControl for all dcp consumer connection buffers",
-            "type": "size_t",
+        "dcp_conn_buffer_ratio": {
+            "default": "0.05",
+            "descr": "Ratio of BucketQuota enforced by FlowControl for all dcp consumer connection buffers",
+            "type": "float",
             "dynamic": true,
             "validator": {
                 "range": {
-                    "max": 20,
-                    "min": 1
+                    "min": 0.01,
+                    "max": 0.2
                 }
             }
         },

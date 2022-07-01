@@ -17,10 +17,7 @@
 
 DcpFlowControlManager::DcpFlowControlManager(EventuallyPersistentEngine& engine)
     : engine_(engine) {
-    dcpConnBufferSizeRatio =
-            static_cast<double>(
-                    engine.getConfiguration().getDcpConnBufferSizePerc()) /
-            100;
+    dcpConnBufferSizeRatio = engine.getConfiguration().getDcpConnBufferRatio();
 }
 
 void DcpFlowControlManager::setBufSizeWithinBounds(DcpConsumer* consumerConn,
