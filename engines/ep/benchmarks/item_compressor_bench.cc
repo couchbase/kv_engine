@@ -52,7 +52,7 @@ public:
                 /*kvshard*/ nullptr,
                 /*lastSeqno*/ 1000,
                 /*lastSnapStart*/ 0,
-                /*lastSnapEnd*/ 0,
+                /*lastSnapEnd*/ 1000,
                 /*table*/ nullptr,
                 std::make_shared<DummyCB>(),
                 /*newSeqnoCb*/ nullptr,
