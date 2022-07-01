@@ -2211,10 +2211,11 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
 
     auto readVbStateResult = readVBState(db, vbid);
     if (readVbStateResult.status != ReadVBStateStatus::Success) {
-        EP_LOG_WARN_RAW(
-                "CouchKVStore::initBySeqnoScanContext:Failed to obtain vbState "
-                "for "
-                "the highCompletedSeqno");
+        EP_LOG_WARN(
+                "CouchKVStore::initBySeqnoScanContext: {} Failed to obtain "
+                "vbState for the highCompletedSeqno. Status - {}",
+                vbid,
+                to_string(readVbStateResult.status));
         return nullptr;
     }
 
