@@ -642,7 +642,7 @@ public:
     }
 
     DcpFlowControlManager& getDcpFlowControlManager() {
-        return *dcpFlowControlManager_;
+        return *dcpFlowControlManager;
     }
 
     /**
@@ -1380,7 +1380,8 @@ protected:
     std::mutex lookupMutex;
     GET_SERVER_API getServerApiFunc;
 
-    std::unique_ptr<DcpFlowControlManager> dcpFlowControlManager_;
+    std::unique_ptr<DcpFlowControlManager> dcpFlowControlManager;
+
     std::unique_ptr<DcpConnMap> dcpConnMap_;
     std::unique_ptr<CheckpointConfig> checkpointConfig;
     std::string name;

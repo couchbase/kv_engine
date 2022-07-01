@@ -73,9 +73,9 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
 
     // Simplified setup for switching FlowControl on/off
     if (!configuration.isDcpConsumerFlowControlEnabled()) {
-        dcpFlowControlManager_ = std::make_unique<DcpFlowControlManager>(*this);
+        dcpFlowControlManager = std::make_unique<DcpFlowControlManager>(*this);
     } else {
-        dcpFlowControlManager_ =
+        dcpFlowControlManager =
                 std::make_unique<DcpFlowControlManagerAggressive>(*this);
     }
 
