@@ -56,6 +56,6 @@ private:
     /* All DCP Consumers with flow control buffer */
     std::map<const CookieIface*, DcpConsumer*> dcpConsumersMap;
 
-    /* Fraction of memQuota for all dcp consumer connection buffers */
-    std::atomic<double> dcpConnBufferSizeAggrFrac;
+    // Ratio of BucketQuota for all dcp consumer connection buffers
+    std::atomic<double> dcpConnBufferSizeRatio;
 };

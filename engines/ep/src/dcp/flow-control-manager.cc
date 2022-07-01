@@ -17,8 +17,10 @@
 
 DcpFlowControlManager::DcpFlowControlManager(EventuallyPersistentEngine& engine)
     : engine_(engine) {
-    dcpConnBufferSizeAggrFrac = static_cast<double>
-    (engine.getConfiguration().getDcpConnBufferSizeAggressivePerc())/100;
+    dcpConnBufferSizeRatio =
+            static_cast<double>(
+                    engine.getConfiguration().getDcpConnBufferSizePerc()) /
+            100;
 }
 
 void DcpFlowControlManager::setBufSizeWithinBounds(DcpConsumer* consumerConn,
@@ -53,9 +55,9 @@ size_t DcpFlowControlManager::newConsumerConn(DcpConsumer* consumerConn) {
     /* Calculate new per conn buf size */
     uint32_t totalConns = dcpConsumersMap.size();
 
-    size_t bufferSize = (dcpConnBufferSizeAggrFrac *
-                        engine_.getEpStats().getMaxDataSize()) /
-                        (totalConns + 1);
+    size_t bufferSize =
+            (dcpConnBufferSizeRatio * engine_.getEpStats().getMaxDataSize()) /
+            (totalConns + 1);
 
     /* Make sure that the flow control buffer size is within a max and min
      range */
@@ -83,7 +85,7 @@ void DcpFlowControlManager::handleDisconnect(DcpConsumer* consumerConn) {
     if (iter != dcpConsumersMap.end()) {
         dcpConsumersMap.erase(iter);
         if (!dcpConsumersMap.empty()) {
-            bufferSize = (dcpConnBufferSizeAggrFrac *
+            bufferSize = (dcpConnBufferSizeRatio *
                           engine_.getEpStats().getMaxDataSize()) /
                          (dcpConsumersMap.size());
             /* Make sure that the flow control buffer size is within a max and

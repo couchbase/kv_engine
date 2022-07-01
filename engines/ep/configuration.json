@@ -1020,9 +1020,9 @@
             "dynamic": true,
             "type": "size_t"
         },
-        "dcp_conn_buffer_size_aggressive_perc": {
+        "dcp_conn_buffer_size_perc": {
             "default": "5",
-            "descr": "Percentage of memQuota for all dcp consumer connection buffers in aggressive flow ctl policy",
+            "descr": "Percentage of BucketQuota enforced by FlowControl for all dcp consumer connection buffers",
             "type": "size_t",
             "dynamic": true,
             "validator": {
