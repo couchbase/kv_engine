@@ -303,7 +303,22 @@ protected:
     }
 
     void handleResponse(const cb::mcbp::Response& response) {
-        // Do nothing
+        if (cb::mcbp::isStatusSuccess(response.getStatus())) {
+            return;
+        }
+
+        if (response.getClientOpcode() ==
+            cb::mcbp::ClientOpcode::DcpStreamReq) {
+            std::cerr << TerminalColor::Red << response.toJSON(true).dump()
+                      << TerminalColor::Reset << std::endl;
+            stream_end++;
+            if (stream_end == vbuckets.size()) {
+                // we got all we wanted
+                connection->getUnderlyingAsyncSocket().setReadCB(nullptr);
+                connection->getUnderlyingAsyncSocket().close();
+                stop = std::chrono::steady_clock::now();
+            }
+        }
     }
 
     void handleDcpNoop(const cb::mcbp::Request& header) {
