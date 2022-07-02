@@ -10,12 +10,12 @@
 
 #include "serverless_test.h"
 
-#include <cluster_framework/auth_provider_service.h>
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
 #include <folly/io/IOBuf.h>
 #include <folly/io/async/AsyncSocketException.h>
 #include <folly/io/async/EventBase.h>
+#include <folly/portability/GTest.h>
 #include <protocol/connection/async_client_connection.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
@@ -26,96 +26,8 @@
 #include <vector>
 
 namespace cb::test {
-constexpr size_t MaxConnectionsPerBucket = 16;
 
-std::unique_ptr<Cluster> ServerlessTest::cluster;
-
-void ServerlessTest::StartCluster() {
-    cluster = Cluster::create(
-            3, {}, [](std::string_view, nlohmann::json& config) {
-                config["deployment_model"] = "serverless";
-                auto file =
-                        std::filesystem::path{
-                                config["root"].get<std::string>()} /
-                        "etc" / "couchbase" / "kv" / "serverless" /
-                        "configuration.json";
-                create_directories(file.parent_path());
-                nlohmann::json json;
-                json["max_connections_per_bucket"] = MaxConnectionsPerBucket;
-                FILE* fp = fopen(file.generic_string().c_str(), "w");
-                fprintf(fp, "%s\n", json.dump(2).c_str());
-                fclose(fp);
-            });
-    if (!cluster) {
-        std::cerr << "Failed to create the cluster" << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
-}
-
-void ServerlessTest::SetUpTestCase() {
-    if (!cluster) {
-        std::cerr << "Cluster not running" << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
-
-    try {
-        for (int ii = 0; ii < 5; ++ii) {
-            const auto name = "bucket-" + std::to_string(ii);
-            std::string rbac = R"({
-"buckets": {
-  "bucket-@": {
-    "privileges": [
-      "Read",
-      "SimpleStats",
-      "Insert",
-      "Delete",
-      "Upsert",
-      "DcpProducer",
-      "DcpStream"
-    ]
-  }
-},
-"privileges": [],
-"domain": "external"
-})";
-            rbac[rbac.find('@')] = '0' + ii;
-            cluster->getAuthProviderService().upsertUser(
-                    {name, name, nlohmann::json::parse(rbac)});
-
-            auto bucket = cluster->createBucket(
-                    name, {{"replicas", 2}, {"max_vbuckets", 8}});
-            if (!bucket) {
-                throw std::runtime_error("Failed to create bucket: " + name);
-            }
-
-            // Running under sanitizers slow down the system a lot so
-            // lets use a lower limit to ensure that operations actually
-            // gets throttled.
-            bucket->setThrottleLimit(folly::kIsSanitize ? 256 : 1024);
-
-            // @todo add collections and scopes
-        }
-    } catch (const std::runtime_error& error) {
-        std::cerr << error.what();
-        std::exit(EXIT_FAILURE);
-    }
-}
-
-void ServerlessTest::TearDownTestCase() {
-    // @todo iterate over the buckets and delete all of them
-}
-
-void ServerlessTest::ShutdownCluster() {
-    cluster.reset();
-}
-
-void ServerlessTest::SetUp() {
-    Test::SetUp();
-}
-
-void ServerlessTest::TearDown() {
-    Test::TearDown();
-}
+class ServerlessTest : public ::testing::Test {};
 
 TEST_F(ServerlessTest, TestBucketDetailedStats) {
     auto admin = cluster->getConnection(0);
