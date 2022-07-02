@@ -30,7 +30,8 @@ std::unique_ptr<cb::test::Cluster> cluster;
 /// Start the cluster with 3 nodes all set to serverless deployment;
 /// create 5 buckets named [bucket-0, bucket-4] and set up the
 /// authentication module to provide users with access to those buckets
-/// and finally a bucket named metering
+/// A bucket named metering (configured without throttling)
+/// A bucket named dcp to be used for DCP drain tests
 void startCluster() {
     cluster = cb::test::Cluster::create(
             3, {}, [](std::string_view, nlohmann::json& config) {
@@ -99,6 +100,35 @@ void startCluster() {
 
         // Make sure we don't throttle the metering tests
         bucket->setThrottleLimit(0);
+
+        bucket = cluster->createBucket("dcp",
+                                       {{"replicas", 2}, {"max_vbuckets", 8}});
+        if (!bucket) {
+            throw std::runtime_error(R"(Failed to create bucket: "dcp")");
+        }
+
+        // Make sure we don't throttle the metering tests
+        bucket->setThrottleLimit(folly::kIsSanitize ? 256 : 1024);
+
+        std::string rbac = R"({
+"buckets": {
+  "dcp": {
+    "privileges": [
+      "Read",
+      "SimpleStats",
+      "Insert",
+      "Delete",
+      "Upsert",
+      "DcpProducer",
+      "DcpStream"
+    ]
+  }
+},
+"privileges": [],
+"domain": "external"
+})";
+        cluster->getAuthProviderService().upsertUser(
+                {"dcp", "dcp", nlohmann::json::parse(rbac)});
 
     } catch (const std::runtime_error& error) {
         std::cerr << error.what();

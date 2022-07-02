@@ -1,4 +1,7 @@
 cb_add_test_executable(serverless_test
+        dcp_drain.cc
+        dcp_drain.h
+        dcp_metering_test.cc
         main.cc
         misc_test.cc
         metering_test.cc

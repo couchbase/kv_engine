@@ -849,6 +849,9 @@ public:
                 std::memory_order::memory_order_acquire);
     }
 
+    /// Clear the DCP throttle for this connection to allow it to progress
+    void resumeThrottledDcpStream();
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses
@@ -1139,6 +1142,9 @@ protected:
 
     /// The type of connection this is
     Type type = Type::Normal;
+
+    /// Is this DCP Stream throttled or not
+    bool dcpStreamThrottled = false;
 
     /// The size of the current Dcp flow control buffer (0 = unlimited)
     std::size_t dcpFlowControlBufferSize = 0;

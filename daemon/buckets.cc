@@ -215,12 +215,6 @@ void Bucket::tick() {
                 throttledConnections[thr.index].push_back(c);
             }
         }
-
-        // Iterate over all of the DCP connections bound to this bucket
-        // which is subject for throttling so that they may send more
-        // data (in the case they stopped producing data due to throttling
-        thr.iterateThrottleableDcpConnections(
-                [](Connection& c) { c.triggerCallback(); });
     });
 }
 
@@ -229,7 +223,11 @@ bool Bucket::shouldThrottleDcp(const Connection& connection) {
         return false;
     }
 
-    return !throttle_gauge.isBelow(throttle_limit);
+    if (!throttle_gauge.isBelow(throttle_limit)) {
+        num_throttled++;
+        return true;
+    }
+    return false;
 }
 
 bool Bucket::shouldThrottle(const Cookie& cookie,
@@ -642,6 +640,16 @@ void BucketManager::tick() {
             b.tick();
         }
         return true;
+    });
+
+    FrontEndThread::forEach([](auto& thr) {
+        // Iterate over all of the DCP connections bound to this thread
+        // which is subject for throttling so that they may send more
+        // data (in the case they stopped producing data due to throttling
+        thr.iterateThrottleableDcpConnections([](Connection& c) {
+            c.resumeThrottledDcpStream();
+            c.triggerCallback();
+        });
     });
 }
 

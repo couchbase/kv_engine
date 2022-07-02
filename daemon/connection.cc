@@ -700,11 +700,19 @@ void Connection::executeCommandPipeline() {
     }
 }
 
+void Connection::resumeThrottledDcpStream() {
+    dcpStreamThrottled = false;
+}
+
 void Connection::tryToProgressDcpStream() {
     if (cookies.empty()) {
         throw std::runtime_error(
                 "Connection::executeCommandsCallback(): no cookies "
                 "available!");
+    }
+
+    if (dcpStreamThrottled) {
+        return;
     }
 
     // Currently working on an incomming packet
@@ -752,6 +760,8 @@ void Connection::tryToProgressDcpStream() {
             --numEvents;
             break;
         case cb::engine_errc::throttled:
+            dcpStreamThrottled = true;
+            // fallthrough
         case cb::engine_errc::would_block:
             more = false;
             break;
