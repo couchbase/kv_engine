@@ -22,11 +22,28 @@
 #include <protocol/connection/frameinfo.h>
 #include <serverless/config.h>
 #include <deque>
-#include <filesystem>
 
 namespace cb::test {
 
-class MeteringTest : public ::testing::Test {};
+class MeteringTest : public ::testing::Test {
+public:
+    static void SetUpTestCase() {
+        conn = cluster->getConnection(0);
+        conn->authenticate("@admin", "password");
+        conn->selectBucket("metering");
+        conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
+        conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
+    }
+
+    static void TearDownTestCase() {
+        conn.reset();
+    }
+
+protected:
+    static std::unique_ptr<MemcachedConnection> conn;
+};
+
+std::unique_ptr<MemcachedConnection> MeteringTest::conn;
 
 TEST_F(MeteringTest, UnitsReported) {
     auto conn = cluster->getConnection(0);
@@ -1032,11 +1049,6 @@ static void writeDocument(MemcachedConnection& conn,
 
 TEST_F(MeteringTest, MeterArithmeticMethods) {
     auto& sconfig = cb::serverless::Config::instance();
-    auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
-    admin->selectBucket("metering");
-    admin->dropPrivilege(cb::rbac::Privilege::Unmetered);
-    admin->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
 
     auto incrCmd = BinprotIncrDecrCommand{cb::mcbp::ClientOpcode::Increment,
                                           "TestArithmeticMethods",
@@ -1059,30 +1071,30 @@ TEST_F(MeteringTest, MeterArithmeticMethods) {
     std::fill(value.begin(), value.end(), 'a');
     value.front() = '"';
     value.back() = '"';
-    writeDocument(*admin, key, value);
+    writeDocument(*conn, key, value);
 
-    auto rsp = admin->execute(incrCmd);
+    auto rsp = conn->execute(incrCmd);
     EXPECT_EQ(cb::mcbp::Status::DeltaBadval, rsp.getStatus());
     ASSERT_TRUE(rsp.getReadUnits().has_value());
     EXPECT_EQ(sconfig.to_ru(value.size() + key.size()), *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits().has_value());
 
-    rsp = admin->execute(decrCmd);
+    rsp = conn->execute(decrCmd);
     EXPECT_EQ(cb::mcbp::Status::DeltaBadval, rsp.getStatus());
     ASSERT_TRUE(rsp.getReadUnits().has_value());
     EXPECT_EQ(sconfig.to_ru(value.size() + key.size()), *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits().has_value());
 
     // When creating a value as part of incr/decr it should cost 1WU and no RU
-    admin->remove(key, Vbid{0});
-    rsp = admin->execute(incrCmd);
+    conn->remove(key, Vbid{0});
+    rsp = conn->execute(incrCmd);
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits().has_value());
     EXPECT_TRUE(rsp.getWriteUnits().has_value());
     EXPECT_EQ(1, *rsp.getWriteUnits());
 
-    admin->remove(key, Vbid{0});
-    rsp = admin->execute(decrCmd);
+    conn->remove(key, Vbid{0});
+    rsp = conn->execute(decrCmd);
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits().has_value());
     EXPECT_TRUE(rsp.getWriteUnits().has_value());
@@ -1091,15 +1103,15 @@ TEST_F(MeteringTest, MeterArithmeticMethods) {
     // Operating on a document without XAttrs should account 1WU during
     // create and 1RU + 1WU during update (it is 1 because it only contains
     // the body and we don't support an interger which consumes 4k digits ;)
-    writeDocument(*admin, key, "10");
-    rsp = admin->execute(incrCmd);
+    writeDocument(*conn, key, "10");
+    rsp = conn->execute(incrCmd);
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
     ASSERT_TRUE(rsp.getReadUnits().has_value());
     EXPECT_EQ(1, *rsp.getReadUnits());
     EXPECT_TRUE(rsp.getWriteUnits().has_value());
     EXPECT_EQ(1, *rsp.getWriteUnits());
 
-    rsp = admin->execute(decrCmd);
+    rsp = conn->execute(decrCmd);
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
     ASSERT_TRUE(rsp.getReadUnits().has_value());
     EXPECT_EQ(1, *rsp.getReadUnits());
@@ -1110,15 +1122,15 @@ TEST_F(MeteringTest, MeterArithmeticMethods) {
     // We should then consume 2RU (one for the XAttr and one for the actual
     // number). It'll then span into more WUs as they're 1/4 of the size of
     // the RU.
-    writeDocument(*admin, key, "10", "xattr", value);
-    rsp = admin->execute(incrCmd);
+    writeDocument(*conn, key, "10", "xattr", value);
+    rsp = conn->execute(incrCmd);
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
     ASSERT_TRUE(rsp.getReadUnits().has_value());
     EXPECT_EQ(sconfig.to_ru(value.size() + key.size()), *rsp.getReadUnits());
     EXPECT_TRUE(rsp.getWriteUnits().has_value());
     EXPECT_EQ(sconfig.to_wu(value.size() + key.size()), *rsp.getWriteUnits());
 
-    rsp = admin->execute(decrCmd);
+    rsp = conn->execute(decrCmd);
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
     ASSERT_TRUE(rsp.getReadUnits().has_value());
     EXPECT_EQ(sconfig.to_ru(value.size() + key.size()), *rsp.getReadUnits());
@@ -1128,13 +1140,13 @@ TEST_F(MeteringTest, MeterArithmeticMethods) {
     // So far, so good.. According to the spec Durability is supported and
     // should cost 2 WU.
     // @todo Metering of durable writes not implemented yet
-    admin->remove(key, Vbid{0});
-    writeDocument(*admin, key, "10");
+    conn->remove(key, Vbid{0});
+    writeDocument(*conn, key, "10");
 
     DurabilityFrameInfo fi(cb::durability::Level::Majority);
 
     incrCmd.addFrameInfo(fi);
-    rsp = admin->execute(incrCmd);
+    rsp = conn->execute(incrCmd);
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
     ASSERT_TRUE(rsp.getReadUnits().has_value());
     EXPECT_EQ(1, *rsp.getReadUnits());
@@ -1142,7 +1154,7 @@ TEST_F(MeteringTest, MeterArithmeticMethods) {
     EXPECT_EQ(1, *rsp.getWriteUnits());
 
     decrCmd.addFrameInfo(fi);
-    rsp = admin->execute(decrCmd);
+    rsp = conn->execute(decrCmd);
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
     ASSERT_TRUE(rsp.getReadUnits().has_value());
     EXPECT_EQ(1, *rsp.getReadUnits());
@@ -1152,23 +1164,18 @@ TEST_F(MeteringTest, MeterArithmeticMethods) {
 
 TEST_F(MeteringTest, MeterDocumentDelete) {
     auto& sconfig = cb::serverless::Config::instance();
-    auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
-    admin->selectBucket("metering");
-    admin->dropPrivilege(cb::rbac::Privilege::Unmetered);
-    admin->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
 
     const std::string id = "MeterDocumentDelete";
     auto command = BinprotGenericCommand{cb::mcbp::ClientOpcode::Delete, id};
     // Delete of a non-existing document should be free
-    auto rsp = admin->execute(command);
+    auto rsp = conn->execute(command);
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
 
     // Delete of a single document should cost 1WU
-    writeDocument(*admin, id, "Hello");
-    rsp = admin->execute(command);
+    writeDocument(*conn, id, "Hello");
+    rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits());
     ASSERT_TRUE(rsp.getWriteUnits());
@@ -1181,9 +1188,9 @@ TEST_F(MeteringTest, MeterDocumentDelete) {
     std::fill(xattr_value.begin(), xattr_value.end(), 'a');
     xattr_value.front() = '"';
     xattr_value.back() = '"';
-    writeDocument(*admin, id, "Hello", "xattr", xattr_value);
+    writeDocument(*conn, id, "Hello", "xattr", xattr_value);
 
-    rsp = admin->execute(command);
+    rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
     // lets just add 100 to the xattr value to account for key; xattr path,
@@ -1194,8 +1201,8 @@ TEST_F(MeteringTest, MeterDocumentDelete) {
 
     // If the object contains system xattrs those will be persisted and
     // increase the WU size.
-    writeDocument(*admin, id, "Hello", "_xattr", xattr_value);
-    rsp = admin->execute(command);
+    writeDocument(*conn, id, "Hello", "_xattr", xattr_value);
+    rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
     // lets just add 100 to the xattr value to account for key; xattr path,
@@ -1212,11 +1219,6 @@ TEST_F(MeteringTest, MeterDocumentDelete) {
 /// that we meter correctly on them.
 TEST_F(MeteringTest, MeterDocumentGet) {
     auto& sconfig = cb::serverless::Config::instance();
-    auto conn = cluster->getConnection(0);
-    conn->authenticate("@admin", "password");
-    conn->selectBucket("metering");
-    conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
-    conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
 
     auto bucket = cluster->getBucket("metering");
     auto rconn = bucket->getConnection(Vbid(0), vbucket_state_replica, 1);
@@ -1302,11 +1304,6 @@ TEST_F(MeteringTest, MeterDocumentGet) {
 
 TEST_F(MeteringTest, MeterDocumentLocking) {
     auto& sconfig = cb::serverless::Config::instance();
-    auto conn = cluster->getConnection(0);
-    conn->authenticate("@admin", "password");
-    conn->selectBucket("metering");
-    conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
-    conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
 
     const std::string id = "MeterDocumentLocking";
     const auto getl = BinprotGetAndLockCommand{id};
@@ -1336,12 +1333,6 @@ TEST_F(MeteringTest, MeterDocumentLocking) {
 
 TEST_F(MeteringTest, MeterDocumentTouch) {
     auto& sconfig = cb::serverless::Config::instance();
-    auto conn = cluster->getConnection(0);
-    conn->authenticate("@admin", "password");
-    conn->selectBucket("metering");
-    conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
-    conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
-
     const std::string id = "MeterDocumentTouch";
 
     // Touch of non-existing document should fail and is free
@@ -1385,11 +1376,6 @@ TEST_F(MeteringTest, MeterDocumentTouch) {
 
 TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     auto& sconfig = cb::serverless::Config::instance();
-    auto conn = cluster->getConnection(0);
-    conn->authenticate("@admin", "password");
-    conn->selectBucket("metering");
-    conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
-    conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
 
     const std::string id = "MeterDocumentSimpleMutations";
     std::string document_value;
