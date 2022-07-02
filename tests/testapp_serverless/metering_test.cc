@@ -26,9 +26,9 @@
 
 namespace cb::test {
 
-class ServerlessTest : public ::testing::Test {};
+class MeteringTest : public ::testing::Test {};
 
-TEST_F(ServerlessTest, UnitsReported) {
+TEST_F(MeteringTest, UnitsReported) {
     auto conn = cluster->getConnection(0);
     conn->authenticate("bucket-0", "bucket-0");
     conn->selectBucket("bucket-0");
@@ -64,7 +64,7 @@ TEST_F(ServerlessTest, UnitsReported) {
     ASSERT_EQ(1, *ru) << "The value should be 1 RU";
 }
 
-TEST_F(ServerlessTest, AllConnectionsAreMetered) {
+TEST_F(MeteringTest, AllConnectionsAreMetered) {
     auto admin = cluster->getConnection(0);
     auto conn = admin->clone();
     admin->authenticate("@admin", "password");
@@ -377,7 +377,7 @@ protected:
 /// and call a function which performs a switch (so the compiler will barf
 /// out if we don't handle the case). By doing so one must explicitly think
 /// if the new opcode needs to be metered or not.
-TEST_F(ServerlessTest, DISABLED_OpsMetered) {
+TEST_F(MeteringTest, DISABLED_OpsMetered) {
     using namespace cb::mcbp;
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
@@ -970,7 +970,7 @@ TEST_F(ServerlessTest, DISABLED_OpsMetered) {
     EXPECT_EQ(0, after["wu"].get<size_t>() - before["wu"].get<size_t>());
 }
 
-TEST_F(ServerlessTest, UnmeteredPrivilege) {
+TEST_F(MeteringTest, UnmeteredPrivilege) {
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
     admin->selectBucket("metering");
@@ -1030,7 +1030,7 @@ static void writeDocument(MemcachedConnection& conn,
     }
 }
 
-TEST_F(ServerlessTest, MeterArithmeticMethods) {
+TEST_F(MeteringTest, MeterArithmeticMethods) {
     auto& sconfig = cb::serverless::Config::instance();
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
@@ -1150,7 +1150,7 @@ TEST_F(ServerlessTest, MeterArithmeticMethods) {
     EXPECT_EQ(1, *rsp.getWriteUnits());
 }
 
-TEST_F(ServerlessTest, MeterDocumentDelete) {
+TEST_F(MeteringTest, MeterDocumentDelete) {
     auto& sconfig = cb::serverless::Config::instance();
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
@@ -1210,7 +1210,7 @@ TEST_F(ServerlessTest, MeterDocumentDelete) {
 
 /// The MeterDocumentGet is used to test Get and GetReplica to ensure
 /// that we meter correctly on them.
-TEST_F(ServerlessTest, MeterDocumentGet) {
+TEST_F(MeteringTest, MeterDocumentGet) {
     auto& sconfig = cb::serverless::Config::instance();
     auto conn = cluster->getConnection(0);
     conn->authenticate("@admin", "password");
@@ -1300,7 +1300,7 @@ TEST_F(ServerlessTest, MeterDocumentGet) {
     EXPECT_FALSE(rsp.getWriteUnits());
 }
 
-TEST_F(ServerlessTest, MeterDocumentLocking) {
+TEST_F(MeteringTest, MeterDocumentLocking) {
     auto& sconfig = cb::serverless::Config::instance();
     auto conn = cluster->getConnection(0);
     conn->authenticate("@admin", "password");
@@ -1334,7 +1334,7 @@ TEST_F(ServerlessTest, MeterDocumentLocking) {
     EXPECT_FALSE(rsp.getWriteUnits());
 }
 
-TEST_F(ServerlessTest, MeterDocumentTouch) {
+TEST_F(MeteringTest, MeterDocumentTouch) {
     auto& sconfig = cb::serverless::Config::instance();
     auto conn = cluster->getConnection(0);
     conn->authenticate("@admin", "password");
@@ -1383,7 +1383,7 @@ TEST_F(ServerlessTest, MeterDocumentTouch) {
     EXPECT_EQ(document_value, rsp.getDataString());
 }
 
-TEST_F(ServerlessTest, MeterDocumentSimpleMutations) {
+TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     auto& sconfig = cb::serverless::Config::instance();
     auto conn = cluster->getConnection(0);
     conn->authenticate("@admin", "password");

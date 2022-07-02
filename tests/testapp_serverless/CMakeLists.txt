@@ -1,7 +1,7 @@
 cb_add_test_executable(serverless_test
         main.cc
         misc_test.cc
-        serverless_test.cc
+        metering_test.cc
         serverless_test.h
         throttle_test.cc
         )
