@@ -1,5 +1,10 @@
 cb_add_test_executable(serverless_test
-        main.cc serverless_test.cc serverless_test.h throttle_test.cc)
+        main.cc
+        misc_test.cc
+        serverless_test.cc
+        serverless_test.h
+        throttle_test.cc
+        )
 target_link_libraries(serverless_test PRIVATE cluster_framework)
 add_dependencies(serverless_test memcached)
 add_sanitizers(serverless_test)
