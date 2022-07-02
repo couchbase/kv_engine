@@ -23,7 +23,6 @@
 #include <serverless/config.h>
 #include <deque>
 #include <filesystem>
-#include <vector>
 
 namespace cb::test {
 
@@ -122,56 +121,6 @@ TEST_F(ServerlessTest, MaxConnectionPerBucket) {
         connections.emplace_back(std::move(conn));
     }
     EXPECT_EQ(MaxConnectionsPerBucket + 5, getNumClients());
-}
-
-TEST_F(ServerlessTest, OpsAreThrottled) {
-    auto func = [this](const std::string& name) {
-        auto conn = cluster->getConnection(0);
-        conn->authenticate(name, name);
-        conn->selectBucket(name);
-        conn->setReadTimeout(std::chrono::seconds{3});
-
-        Document document;
-        document.info.id = "OpsAreThrottled";
-        document.value = "This is the awesome document";
-
-        // store a document
-        conn->mutate(document, Vbid{0}, MutationType::Set);
-
-        auto start = std::chrono::steady_clock::now();
-        for (int i = 0; i < 4096; ++i) { // Run 4k mutations
-            conn->get(document.info.id, Vbid{0});
-        }
-        auto end = std::chrono::steady_clock::now();
-        EXPECT_LT(
-                std::chrono::seconds{2},
-                std::chrono::duration_cast<std::chrono::seconds>(end - start));
-
-        nlohmann::json stats;
-        conn->authenticate("@admin", "password");
-        conn->stats(
-                [&stats](const auto& k, const auto& v) {
-                    stats = nlohmann::json::parse(v);
-                },
-                std::string{"bucket_details "} + name);
-        ASSERT_FALSE(stats.empty());
-        ASSERT_LE(3, stats["num_throttled"]);
-        // it's hard to compare this with a "real value"; but it should at
-        // least be non-zero
-        ASSERT_NE(0, stats["throttle_wait_time"]);
-    };
-
-    std::vector<std::thread> threads;
-    for (int ii = 0; ii < 5; ++ii) {
-        threads.emplace_back(
-                std::thread{[func, name = "bucket-" + std::to_string(ii)]() {
-                    func(name);
-                }});
-    }
-
-    for (auto& t : threads) {
-        t.join();
-    }
 }
 
 TEST_F(ServerlessTest, UnitsReported) {
