@@ -30,6 +30,7 @@ std::unique_ptr<cb::test::Cluster> cluster;
 /// Start the cluster with 3 nodes all set to serverless deployment;
 /// create 5 buckets named [bucket-0, bucket-4] and set up the
 /// authentication module to provide users with access to those buckets
+/// and finally a bucket named metering
 void startCluster() {
     cluster = cb::test::Cluster::create(
             3, {}, [](std::string_view, nlohmann::json& config) {
@@ -89,6 +90,16 @@ void startCluster() {
 
             // @todo add collections and scopes
         }
+
+        auto bucket = cluster->createBucket(
+                "metering", {{"replicas", 2}, {"max_vbuckets", 8}});
+        if (!bucket) {
+            throw std::runtime_error(R"(Failed to create bucket: "metering")");
+        }
+
+        // Make sure we don't throttle the metering tests
+        bucket->setThrottleLimit(0);
+
     } catch (const std::runtime_error& error) {
         std::cerr << error.what();
         std::exit(EXIT_FAILURE);

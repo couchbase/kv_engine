@@ -576,7 +576,7 @@ protected:
 /// and call a function which performs a switch (so the compiler will barf
 /// out if we don't handle the case). By doing so one must explicitly think
 /// if the new opcode needs to be metered or not.
-TEST_F(ServerlessTest, OpsMetered) {
+TEST_F(ServerlessTest, DISABLED_OpsMetered) {
     using namespace cb::mcbp;
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
@@ -588,12 +588,12 @@ TEST_F(ServerlessTest, OpsMetered) {
         nlohmann::json before;
         admin->stats([&before](auto k,
                                auto v) { before = nlohmann::json::parse(v); },
-                     "bucket_details bucket-0");
+                     "bucket_details metering");
         func();
         nlohmann::json after;
         admin->stats(
                 [&after](auto k, auto v) { after = nlohmann::json::parse(v); },
-                "bucket_details bucket-0");
+                "bucket_details metering");
         EXPECT_EQ(ru, after["ru"].get<size_t>() - before["ru"].get<size_t>());
         EXPECT_EQ(wu, after["wu"].get<size_t>() - before["wu"].get<size_t>());
     };
@@ -695,7 +695,7 @@ TEST_F(ServerlessTest, OpsMetered) {
                     0);
             conn.reconnect();
             conn.authenticate("@admin", "password");
-            conn.selectBucket("bucket-0");
+            conn.selectBucket("metering");
             conn.dropPrivilege(cb::rbac::Privilege::Unmetered);
             conn.setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
             conn.setReadTimeout(std::chrono::seconds{3});
@@ -1024,7 +1024,7 @@ TEST_F(ServerlessTest, OpsMetered) {
 
         case ClientOpcode::GetCmdTimer:
             rsp = conn.execute(
-                    BinprotGetCmdTimerCommand{"bucket-0", ClientOpcode::Noop});
+                    BinprotGetCmdTimerCommand{"metering", ClientOpcode::Noop});
             EXPECT_TRUE(rsp.isSuccess());
             EXPECT_FALSE(rsp.getReadUnits());
             EXPECT_FALSE(rsp.getWriteUnits());
@@ -1121,7 +1121,7 @@ TEST_F(ServerlessTest, OpsMetered) {
 
     auto connection = cluster->getConnection(0);
     connection->authenticate("@admin", "password");
-    connection->selectBucket("bucket-0");
+    connection->selectBucket("metering");
     connection->dropPrivilege(cb::rbac::Privilege::Unmetered);
     connection->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
     connection->setReadTimeout(std::chrono::seconds{3});
@@ -1139,7 +1139,7 @@ TEST_F(ServerlessTest, OpsMetered) {
                                   std::to_string(connection->getPort()),
                                   "@admin",
                                   "password",
-                                  "bucket-0");
+                                  "metering");
                 instance.drain();
                 EXPECT_NE(0, instance.getNumMutations());
                 EXPECT_NE(0, instance.getRu());
@@ -1151,19 +1151,19 @@ TEST_F(ServerlessTest, OpsMetered) {
     nlohmann::json before;
     admin->stats(
             [&before](auto k, auto v) { before = nlohmann::json::parse(v); },
-            "bucket_details bucket-0");
+            "bucket_details metering");
     DcpDrain instance("127.0.0.1",
                       std::to_string(connection->getPort()),
-                      "bucket-0",
-                      "bucket-0",
-                      "bucket-0");
+                      "metering",
+                      "metering",
+                      "metering");
     instance.drain();
     EXPECT_NE(0, instance.getNumMutations());
     EXPECT_NE(0, instance.getRu());
 
     nlohmann::json after;
     admin->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
-                 "bucket_details bucket-0");
+                 "bucket_details metering");
     EXPECT_EQ(instance.getRu(),
               after["ru"].get<size_t>() - before["ru"].get<size_t>());
     EXPECT_EQ(0, after["wu"].get<size_t>() - before["wu"].get<size_t>());
@@ -1172,12 +1172,12 @@ TEST_F(ServerlessTest, OpsMetered) {
 TEST_F(ServerlessTest, UnmeteredPrivilege) {
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
-    admin->selectBucket("bucket-0");
+    admin->selectBucket("metering");
 
     nlohmann::json before;
     admin->stats(
             [&before](auto k, auto v) { before = nlohmann::json::parse(v); },
-            "bucket_details bucket-0");
+            "bucket_details metering");
 
     Document doc;
     doc.info.id = "UnmeteredPrivilege";
@@ -1187,7 +1187,7 @@ TEST_F(ServerlessTest, UnmeteredPrivilege) {
 
     nlohmann::json after;
     admin->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
-                 "bucket_details bucket-0");
+                 "bucket_details metering");
 
     EXPECT_EQ(before["ru"].get<std::size_t>(), after["ru"].get<std::size_t>());
     EXPECT_EQ(before["wu"].get<std::size_t>(), after["wu"].get<std::size_t>());
@@ -1233,7 +1233,7 @@ TEST_F(ServerlessTest, MeterArithmeticMethods) {
     auto& sconfig = cb::serverless::Config::instance();
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
-    admin->selectBucket("bucket-0");
+    admin->selectBucket("metering");
     admin->dropPrivilege(cb::rbac::Privilege::Unmetered);
     admin->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
 
@@ -1353,7 +1353,7 @@ TEST_F(ServerlessTest, MeterDocumentDelete) {
     auto& sconfig = cb::serverless::Config::instance();
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
-    admin->selectBucket("bucket-0");
+    admin->selectBucket("metering");
     admin->dropPrivilege(cb::rbac::Privilege::Unmetered);
     admin->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
 
@@ -1413,14 +1413,14 @@ TEST_F(ServerlessTest, MeterDocumentGet) {
     auto& sconfig = cb::serverless::Config::instance();
     auto conn = cluster->getConnection(0);
     conn->authenticate("@admin", "password");
-    conn->selectBucket("bucket-0");
+    conn->selectBucket("metering");
     conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
     conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
 
-    auto bucket = cluster->getBucket("bucket-0");
+    auto bucket = cluster->getBucket("metering");
     auto rconn = bucket->getConnection(Vbid(0), vbucket_state_replica, 1);
     rconn->authenticate("@admin", "password");
-    rconn->selectBucket("bucket-0");
+    rconn->selectBucket("metering");
     rconn->dropPrivilege(cb::rbac::Privilege::Unmetered);
     rconn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
 
@@ -1503,7 +1503,7 @@ TEST_F(ServerlessTest, MeterDocumentLocking) {
     auto& sconfig = cb::serverless::Config::instance();
     auto conn = cluster->getConnection(0);
     conn->authenticate("@admin", "password");
-    conn->selectBucket("bucket-0");
+    conn->selectBucket("metering");
     conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
     conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
 
@@ -1537,7 +1537,7 @@ TEST_F(ServerlessTest, MeterDocumentTouch) {
     auto& sconfig = cb::serverless::Config::instance();
     auto conn = cluster->getConnection(0);
     conn->authenticate("@admin", "password");
-    conn->selectBucket("bucket-0");
+    conn->selectBucket("metering");
     conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
     conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
 
@@ -1586,7 +1586,7 @@ TEST_F(ServerlessTest, MeterDocumentSimpleMutations) {
     auto& sconfig = cb::serverless::Config::instance();
     auto conn = cluster->getConnection(0);
     conn->authenticate("@admin", "password");
-    conn->selectBucket("bucket-0");
+    conn->selectBucket("metering");
     conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
     conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
 
