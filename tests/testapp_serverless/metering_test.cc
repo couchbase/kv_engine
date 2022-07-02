@@ -45,6 +45,48 @@ protected:
 
 std::unique_ptr<MemcachedConnection> MeteringTest::conn;
 
+/// Verify that the unmetered privilege allows to execute commands
+/// were its usage isn't being metered.
+TEST_F(MeteringTest, UnmeteredPrivilege) {
+    auto admin = cluster->getConnection(0);
+    admin->authenticate("@admin", "password");
+    admin->selectBucket("metering");
+
+    nlohmann::json before;
+    admin->stats(
+            [&before](auto k, auto v) { before = nlohmann::json::parse(v); },
+            "bucket_details metering");
+
+    Document doc;
+    doc.info.id = "UnmeteredPrivilege";
+    doc.value = "This is the value";
+    admin->mutate(doc, Vbid{0}, MutationType::Set);
+    admin->get("UnmeteredPrivilege", Vbid{0});
+
+    nlohmann::json after;
+    admin->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
+                 "bucket_details metering");
+
+    EXPECT_EQ(before["ru"].get<std::size_t>(), after["ru"].get<std::size_t>());
+    EXPECT_EQ(before["wu"].get<std::size_t>(), after["wu"].get<std::size_t>());
+    EXPECT_EQ(before["num_commands_with_metered_units"].get<std::size_t>(),
+              after["num_commands_with_metered_units"].get<std::size_t>());
+
+    // Drop the privilege and verify that the counters increase
+    admin->dropPrivilege(cb::rbac::Privilege::Unmetered);
+    admin->get("UnmeteredPrivilege", Vbid{0});
+    admin->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
+                 "bucket_details metering");
+
+    EXPECT_EQ(1,
+              after["ru"].get<std::size_t>() - before["ru"].get<std::size_t>());
+    EXPECT_EQ(before["wu"].get<std::size_t>(), after["wu"].get<std::size_t>());
+    EXPECT_EQ(1,
+              after["num_commands_with_metered_units"].get<std::size_t>() -
+                      before["num_commands_with_metered_units"]
+                              .get<std::size_t>());
+}
+
 TEST_F(MeteringTest, UnitsReported) {
     auto conn = cluster->getConnection(0);
     conn->authenticate("bucket-0", "bucket-0");
@@ -79,71 +121,6 @@ TEST_F(MeteringTest, UnitsReported) {
     ASSERT_TRUE(ru.has_value()) << "get should use RU";
     ASSERT_FALSE(wu.has_value()) << "get should not use WU";
     ASSERT_EQ(1, *ru) << "The value should be 1 RU";
-}
-
-TEST_F(MeteringTest, AllConnectionsAreMetered) {
-    auto admin = cluster->getConnection(0);
-    auto conn = admin->clone();
-    admin->authenticate("@admin", "password");
-    conn->authenticate("bucket-0", "bucket-0");
-    admin->selectBucket("bucket-0");
-    conn->selectBucket("bucket-0");
-    admin->dropPrivilege(cb::rbac::Privilege::Unmetered);
-
-    auto getStats = [&admin]() -> nlohmann::json {
-        nlohmann::json ret;
-        admin->stats([&ret](const auto& k,
-                            const auto& v) { ret = nlohmann::json::parse(v); },
-                     "bucket_details bucket-0");
-        return ret;
-    };
-
-    auto readDoc = [stat = getStats](MemcachedConnection& conn) {
-        auto initial = stat();
-        conn.get("mydoc", Vbid{0});
-        auto after = stat();
-        EXPECT_EQ(initial["ru"].get<std::size_t>() + 1,
-                  after["ru"].get<std::size_t>());
-        // Read should not update wu
-        EXPECT_EQ(initial["wu"].get<std::size_t>(),
-                  after["wu"].get<std::size_t>());
-        EXPECT_EQ(
-                initial["num_commands_with_metered_units"].get<std::size_t>() +
-                        1,
-                after["num_commands_with_metered_units"].get<std::size_t>());
-    };
-
-    auto writeDoc = [stat = getStats](MemcachedConnection& conn) {
-        auto initial = stat();
-        Document doc;
-        doc.info.id = "mydoc";
-        doc.value.resize(1024);
-        conn.mutate(doc, Vbid{0}, MutationType::Set);
-        auto after = stat();
-        EXPECT_EQ(initial["wu"].get<std::size_t>() + 2,
-                  after["wu"].get<std::size_t>());
-
-        // write should not update ru
-        EXPECT_EQ(initial["ru"].get<std::size_t>(),
-                  after["ru"].get<std::size_t>());
-        EXPECT_EQ(
-                initial["num_commands_with_metered_units"].get<std::size_t>() +
-                        1,
-                after["num_commands_with_metered_units"].get<std::size_t>());
-    };
-
-    writeDoc(*admin);
-    writeDoc(*conn);
-    readDoc(*admin);
-    readDoc(*conn);
-
-    auto initial = getStats();
-    EXPECT_TRUE(
-            conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop})
-                    .isSuccess());
-    auto after = getStats();
-    EXPECT_EQ(initial["num_commands_with_metered_units"].get<std::size_t>(),
-              after["num_commands_with_metered_units"].get<std::size_t>());
 }
 
 class DcpDrain {
@@ -985,32 +962,6 @@ TEST_F(MeteringTest, DISABLED_OpsMetered) {
     EXPECT_EQ(instance.getRu(),
               after["ru"].get<size_t>() - before["ru"].get<size_t>());
     EXPECT_EQ(0, after["wu"].get<size_t>() - before["wu"].get<size_t>());
-}
-
-TEST_F(MeteringTest, UnmeteredPrivilege) {
-    auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
-    admin->selectBucket("metering");
-
-    nlohmann::json before;
-    admin->stats(
-            [&before](auto k, auto v) { before = nlohmann::json::parse(v); },
-            "bucket_details metering");
-
-    Document doc;
-    doc.info.id = "UnmeteredPrivilege";
-    doc.value = "This is the value";
-    admin->mutate(doc, Vbid{0}, MutationType::Set);
-    admin->get("UnmeteredPrivilege", Vbid{0});
-
-    nlohmann::json after;
-    admin->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
-                 "bucket_details metering");
-
-    EXPECT_EQ(before["ru"].get<std::size_t>(), after["ru"].get<std::size_t>());
-    EXPECT_EQ(before["wu"].get<std::size_t>(), after["wu"].get<std::size_t>());
-    EXPECT_EQ(before["num_commands_with_metered_units"].get<std::size_t>(),
-              after["num_commands_with_metered_units"].get<std::size_t>());
 }
 
 static void writeDocument(MemcachedConnection& conn,
