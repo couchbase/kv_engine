@@ -85,42 +85,6 @@ TEST_F(MeteringTest, UnmeteredPrivilege) {
                               .get<std::size_t>());
 }
 
-TEST_F(MeteringTest, UnitsReported) {
-    auto conn = cluster->getConnection(0);
-    conn->authenticate("bucket-0", "bucket-0");
-    conn->selectBucket("bucket-0");
-    conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
-    conn->setReadTimeout(std::chrono::seconds{3});
-
-    DocumentInfo info;
-    info.id = "UnitsReported";
-
-    BinprotMutationCommand command;
-    command.setDocumentInfo(info);
-    command.addValueBuffer("This is a document");
-    command.setMutationType(MutationType::Set);
-    auto rsp = conn->execute(command);
-    ASSERT_TRUE(rsp.isSuccess());
-
-    auto ru = rsp.getReadUnits();
-    auto wu = rsp.getWriteUnits();
-
-    ASSERT_FALSE(ru.has_value()) << "mutate should not use RU";
-    ASSERT_TRUE(wu.has_value()) << "mutate should use WU";
-    ASSERT_EQ(1, *wu) << "The value should be 1 WU";
-    wu.reset();
-
-    rsp = conn->execute(
-            BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, info.id});
-
-    ru = rsp.getReadUnits();
-    wu = rsp.getWriteUnits();
-
-    ASSERT_TRUE(ru.has_value()) << "get should use RU";
-    ASSERT_FALSE(wu.has_value()) << "get should not use WU";
-    ASSERT_EQ(1, *ru) << "The value should be 1 RU";
-}
-
 /// Test that we meter all operations according to their spec (well, there
 /// is no spec at the moment ;)
 ///
