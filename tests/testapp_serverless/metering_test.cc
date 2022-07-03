@@ -38,10 +38,55 @@ public:
     }
 
 protected:
+    /**
+     * Upsert a document
+     *
+     * Helper function to update or insert a document with or without
+     * extended attributes. Given that xattrs will be copied over when updating
+     * a document it also offers the option to delete the document before
+     * updating it (which removes the user attributes)
+     *
+     * @param id The documents identifier
+     * @param value The documents value
+     * @param xattr_path An optional XAttr path
+     * @param xattr_value An optional XAttr value
+     */
+    static void upsert(std::string id,
+                       std::string value,
+                       std::string xattr_path = {},
+                       std::string xattr_value = {});
+
     static std::unique_ptr<MemcachedConnection> conn;
 };
 
 std::unique_ptr<MemcachedConnection> MeteringTest::conn;
+
+void MeteringTest::upsert(std::string id,
+                          std::string value,
+                          std::string xattr_path,
+                          std::string xattr_value) {
+    if (xattr_path.empty()) {
+        Document doc;
+        doc.info.id = std::move(id);
+        doc.value = std::move(value);
+        conn->mutate(doc, Vbid{0}, MutationType::Set);
+    } else {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setKey(id);
+        cmd.setVBucket(Vbid{0});
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                        SUBDOC_FLAG_XATTR_PATH,
+                        xattr_path,
+                        xattr_value);
+        cmd.addMutation(
+                cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
+        cmd.addDocFlag(::mcbp::subdoc::doc_flag::Mkdoc);
+        auto rsp = conn->execute(cmd);
+        if (!rsp.isSuccess()) {
+            throw ConnectionError("Subdoc failed", rsp);
+        }
+    }
+}
 
 /// Verify that the unmetered privilege allows to execute commands
 /// were its usage isn't being metered.
@@ -647,34 +692,6 @@ TEST_F(MeteringTest, DISABLED_OpsMetered) {
     }
 }
 
-static void writeDocument(MemcachedConnection& conn,
-                          std::string id,
-                          std::string value,
-                          std::string xattr_path = {},
-                          std::string xattr_value = {}) {
-    if (xattr_path.empty()) {
-        Document doc;
-        doc.info.id = std::move(id);
-        doc.value = std::move(value);
-        conn.mutate(doc, Vbid{0}, MutationType::Set);
-    } else {
-        BinprotSubdocMultiMutationCommand cmd;
-        cmd.setKey(id);
-        cmd.setVBucket(Vbid{0});
-        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                        SUBDOC_FLAG_XATTR_PATH,
-                        xattr_path,
-                        xattr_value);
-        cmd.addMutation(
-                cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
-        cmd.addDocFlag(::mcbp::subdoc::doc_flag::Mkdoc);
-        auto rsp = conn.execute(cmd);
-        if (!rsp.isSuccess()) {
-            throw ConnectionError("Subdoc failed", rsp);
-        }
-    }
-}
-
 TEST_F(MeteringTest, MeterArithmeticMethods) {
     auto& sconfig = cb::serverless::Config::instance();
 
@@ -699,7 +716,7 @@ TEST_F(MeteringTest, MeterArithmeticMethods) {
     std::fill(value.begin(), value.end(), 'a');
     value.front() = '"';
     value.back() = '"';
-    writeDocument(*conn, key, value);
+    upsert(key, value);
 
     auto rsp = conn->execute(incrCmd);
     EXPECT_EQ(cb::mcbp::Status::DeltaBadval, rsp.getStatus());
@@ -731,7 +748,7 @@ TEST_F(MeteringTest, MeterArithmeticMethods) {
     // Operating on a document without XAttrs should account 1WU during
     // create and 1RU + 1WU during update (it is 1 because it only contains
     // the body and we don't support an interger which consumes 4k digits ;)
-    writeDocument(*conn, key, "10");
+    upsert(key, "10");
     rsp = conn->execute(incrCmd);
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
     ASSERT_TRUE(rsp.getReadUnits().has_value());
@@ -750,7 +767,7 @@ TEST_F(MeteringTest, MeterArithmeticMethods) {
     // We should then consume 2RU (one for the XAttr and one for the actual
     // number). It'll then span into more WUs as they're 1/4 of the size of
     // the RU.
-    writeDocument(*conn, key, "10", "xattr", value);
+    upsert(key, "10", "xattr", value);
     rsp = conn->execute(incrCmd);
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
     ASSERT_TRUE(rsp.getReadUnits().has_value());
@@ -769,7 +786,7 @@ TEST_F(MeteringTest, MeterArithmeticMethods) {
     // should cost 2 WU.
     // @todo Metering of durable writes not implemented yet
     conn->remove(key, Vbid{0});
-    writeDocument(*conn, key, "10");
+    upsert(key, "10");
 
     DurabilityFrameInfo fi(cb::durability::Level::Majority);
 
@@ -802,7 +819,7 @@ TEST_F(MeteringTest, MeterDocumentDelete) {
     EXPECT_FALSE(rsp.getWriteUnits());
 
     // Delete of a single document should cost 1WU
-    writeDocument(*conn, id, "Hello");
+    upsert(id, "Hello");
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits());
@@ -816,7 +833,7 @@ TEST_F(MeteringTest, MeterDocumentDelete) {
     std::fill(xattr_value.begin(), xattr_value.end(), 'a');
     xattr_value.front() = '"';
     xattr_value.back() = '"';
-    writeDocument(*conn, id, "Hello", "xattr", xattr_value);
+    upsert(id, "Hello", "xattr", xattr_value);
 
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
@@ -829,7 +846,7 @@ TEST_F(MeteringTest, MeterDocumentDelete) {
 
     // If the object contains system xattrs those will be persisted and
     // increase the WU size.
-    writeDocument(*conn, id, "Hello", "_xattr", xattr_value);
+    upsert(id, "Hello", "_xattr", xattr_value);
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
@@ -870,8 +887,8 @@ TEST_F(MeteringTest, MeterDocumentGet) {
     xattr_value.front() = '"';
     xattr_value.back() = '"';
 
-    writeDocument(*conn, id, document_value);
-    writeDocument(*conn, id + "-xattr", document_value, "xattr", xattr_value);
+    upsert(id, document_value);
+    upsert(id + "-xattr", document_value, "xattr", xattr_value);
 
     // Get of a non-existing document should not cost anything
     auto rsp = conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Get,
@@ -944,7 +961,7 @@ TEST_F(MeteringTest, MeterDocumentLocking) {
     document_value.resize(sconfig.readUnitSize - 5);
     std::fill(document_value.begin(), document_value.end(), 'a');
 
-    writeDocument(*conn, id, document_value);
+    upsert(id, document_value);
     rsp = conn->execute(getl);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
@@ -978,7 +995,7 @@ TEST_F(MeteringTest, MeterDocumentTouch) {
     std::string document_value;
     document_value.resize(sconfig.readUnitSize - 5);
     std::fill(document_value.begin(), document_value.end(), 'a');
-    writeDocument(*conn, id, document_value);
+    upsert(id, document_value);
 
     // Touch of a document is a full read and write of the document on the
     // server, but no data returned
@@ -1069,7 +1086,7 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     // need to read the full document in order to replace, and it should
     // cost the size of the full size of the old document and the new one
     // (containing the xattrs)
-    writeDocument(*conn, id, document_value, xattr_path, xattr_value);
+    upsert(id, document_value, xattr_path, xattr_value);
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
@@ -1114,7 +1131,7 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 
-    writeDocument(*conn, id, document_value);
+    upsert(id, document_value);
     command.setMutationType(MutationType::Append);
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
@@ -1125,7 +1142,7 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2),
               *rsp.getWriteUnits());
 
-    writeDocument(*conn, id, document_value);
+    upsert(id, document_value);
     command.setMutationType(MutationType::Prepend);
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
@@ -1137,7 +1154,7 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
               *rsp.getWriteUnits());
 
     // And if we have XATTRs they should be copied as well
-    writeDocument(*conn, id, document_value, xattr_path, xattr_value);
+    upsert(id, document_value, xattr_path, xattr_value);
     command.setMutationType(MutationType::Append);
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
@@ -1150,7 +1167,7 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
                             xattr_path.size() + xattr_value.size()),
               *rsp.getWriteUnits());
 
-    writeDocument(*conn, id, document_value, xattr_path, xattr_value);
+    upsert(id, document_value, xattr_path, xattr_value);
     command.setMutationType(MutationType::Prepend);
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
@@ -1170,7 +1187,7 @@ TEST_F(MeteringTest, MeterGetRandomKey) {
     // Random key needs at least one key to be stored in the bucket so that
     // it may return the key. To make sure that the unit tests doesn't depend
     // on other tests lets store a document in vbucket 0.
-    writeDocument(*conn, "MeterGetRandomKey", "hello");
+    upsert("MeterGetRandomKey", "hello");
 
     // The document won't be visible through GetRandomKey until it has
     // been flushed to disk. I tried to use SyncWrite with a
