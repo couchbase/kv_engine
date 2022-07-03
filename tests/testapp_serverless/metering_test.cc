@@ -319,11 +319,7 @@ TEST_F(MeteringTest, DISABLED_OpsMetered) {
             EXPECT_FALSE(rsp.getWriteUnits());
             break;
         case ClientOpcode::GetRandomKey:
-            rsp = conn.execute(BinprotGenericCommand{opcode});
-            EXPECT_TRUE(rsp.isSuccess());
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_NE(0, *rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
+            // tested in its own unit test
             break;
         case ClientOpcode::SeqnoPersistence:
             break;
@@ -655,22 +651,16 @@ static void writeDocument(MemcachedConnection& conn,
                           std::string id,
                           std::string value,
                           std::string xattr_path = {},
-                          std::string xattr_value = {},
-                          Vbid vbid = Vbid{0},
-                          bool remove = false) {
-    if (remove) {
-        (void)conn.execute(BinprotRemoveCommand{id});
-    }
-
+                          std::string xattr_value = {}) {
     if (xattr_path.empty()) {
         Document doc;
         doc.info.id = std::move(id);
         doc.value = std::move(value);
-        conn.mutate(doc, vbid, MutationType::Set);
+        conn.mutate(doc, Vbid{0}, MutationType::Set);
     } else {
         BinprotSubdocMultiMutationCommand cmd;
         cmd.setKey(id);
-        cmd.setVBucket(vbid);
+        cmd.setVBucket(Vbid{0});
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                         SUBDOC_FLAG_XATTR_PATH,
                         xattr_path,
@@ -1174,6 +1164,43 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
               *rsp.getWriteUnits());
 
     // @todo add test cases for durability
+}
+
+TEST_F(MeteringTest, MeterGetRandomKey) {
+    // Random key needs at least one key to be stored in the bucket so that
+    // it may return the key. To make sure that the unit tests doesn't depend
+    // on other tests lets store a document in vbucket 0.
+    writeDocument(*conn, "MeterGetRandomKey", "hello");
+
+    // The document won't be visible through GetRandomKey until it has
+    // been flushed to disk. I tried to use SyncWrite with a
+    // MajorityAndPersistOnMaster, but that seemed to return before the
+    // collection counters was updated.
+    // I could loop and check for persistence, but its just as easy
+    // to just loop trying to fetch the random key.
+    // Typically the unit test is run as part of the entire batch,
+    // and the previous test cases would have caused a document to
+    // be written and returned through the call to GetRandomKey
+    // so we'll optimize for the happy path and just try to fetch
+    // a random key, and it "fails" the error code should be KeyEnoent
+    // and we could back off and retry.
+    const auto timeout =
+            std::chrono::steady_clock::now() + std::chrono::seconds{15};
+    do {
+        auto rsp = conn->execute(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::GetRandomKey});
+        if (rsp.isSuccess()) {
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_NE(0, *rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
+            // Test succeeded OK
+            return;
+        }
+        EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+        std::this_thread::sleep_for(std::chrono::milliseconds{50});
+    } while (std::chrono::steady_clock::now() < timeout);
+
+    FAIL() << "Failed to test GetRandomKey";
 }
 
 } // namespace cb::test
