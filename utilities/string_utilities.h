@@ -12,6 +12,7 @@
 #pragma once
 
 #include <platform/sized_buffer.h>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <unordered_map>
