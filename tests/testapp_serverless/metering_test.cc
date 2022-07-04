@@ -323,38 +323,32 @@ TEST_F(MeteringTest, OpsMetered) {
             rsp = conn.execute(BinprotGenericCommand{opcode});
             EXPECT_EQ(Status::NotSupported, rsp.getStatus()) << opcode;
 
-            // SASL commands aren't being metered (and not necessairly bound
-            // to a bucket so its hard to check as we don't know where it'll
-        // go
         case ClientOpcode::SaslListMechs:
         case ClientOpcode::SaslAuth:
         case ClientOpcode::SaslStep:
+            // SASL commands aren't being metered (and not necessairly bound
+            // to a bucket so its hard to check as we don't know where it'll
+            // go).
             break;
 
         case ClientOpcode::CreateBucket:
         case ClientOpcode::DeleteBucket:
+            // These are management commands which should only be called
+            // on a connection with the "unmetered" interface anyway.
+            // Like the SASL commands we don't know which bucket the data
+            // would go so it's a bit hard to test ;)
         case ClientOpcode::SelectBucket:
+            // Select bucket flip the bucket and isnt' being metered
+            // anyway so we don't really need a unit test for it
             break;
 
-            // Quit close the connection so its hard to test (and it would
-        // be weird if someone updated the code to start collecting data)
         case ClientOpcode::Quit:
-            executeWithExpectedCU(
-                    [&conn]() {
-                        conn.sendCommand(
-                                BinprotGenericCommand{ClientOpcode::Quit});
-                        // Allow some time for the connection to disconnect
-                        std::this_thread::sleep_for(
-                                std::chrono::milliseconds{500});
-                    },
-                    0,
-                    0);
-            conn.reconnect();
-            conn.authenticate("@admin", "password");
-            conn.selectBucket("metering");
-            conn.dropPrivilege(cb::rbac::Privilege::Unmetered);
-            conn.setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
-            conn.setReadTimeout(std::chrono::seconds{3});
+            // Quit close the connection so its hard to test (and it would
+            // be weird if someone updated the code to start collecting data).
+            // Don't test it as it would needs a "wait" in order for the
+            // stats to be updated as we could be connecting on another
+            // front end thread when running the stat and it would then
+            // race the thread potentially updating the stats
             break;
 
         case ClientOpcode::ListBuckets:
@@ -363,26 +357,15 @@ TEST_F(MeteringTest, OpsMetered) {
         case ClientOpcode::GetClusterConfig:
         case ClientOpcode::GetFailoverLog:
         case ClientOpcode::CollectionsGetManifest:
+            // The commands above don't carry any extra information
+            // in the request and aren't subject to metering.. just
+            // verify that..
             rsp = conn.execute(BinprotGenericCommand{opcode});
             EXPECT_TRUE(rsp.isSuccess()) << opcode;
             EXPECT_FALSE(rsp.getReadUnits()) << opcode;
             EXPECT_FALSE(rsp.getWriteUnits()) << opcode;
             break;
 
-        case ClientOpcode::Set:
-        case ClientOpcode::Add:
-        case ClientOpcode::Replace:
-        case ClientOpcode::Append:
-        case ClientOpcode::Prepend:
-            // Tested in MeterDocumentSimpleMutations
-            break;
-        case ClientOpcode::Delete:
-            // Tested in MeterDocumentDelete
-            break;
-        case ClientOpcode::Increment:
-        case ClientOpcode::Decrement:
-            // Tested in TestArithmeticMethods
-            break;
         case ClientOpcode::Stat:
             executeWithExpectedCU([&conn]() { conn.stats(""); }, 0, 0);
             break;
@@ -392,10 +375,6 @@ TEST_F(MeteringTest, OpsMetered) {
             EXPECT_FALSE(rsp.getReadUnits());
             EXPECT_FALSE(rsp.getWriteUnits());
             break;
-        case ClientOpcode::Touch:
-        case ClientOpcode::Gat:
-            // Tested in MeterDocumentTouch
-            break;
         case ClientOpcode::Hello:
             executeWithExpectedCU(
                     [&conn]() {
@@ -403,16 +382,6 @@ TEST_F(MeteringTest, OpsMetered) {
                     },
                     0,
                     0);
-            break;
-
-        case ClientOpcode::Get:
-        case ClientOpcode::GetReplica:
-            // Tested in MeterDocumentGet
-            break;
-
-        case ClientOpcode::GetLocked:
-        case ClientOpcode::UnlockKey:
-            // Tested in MeterDocumentLocking
             break;
 
         case ClientOpcode::ObserveSeqno:
@@ -444,20 +413,23 @@ TEST_F(MeteringTest, OpsMetered) {
             } while (false);
             break;
 
+        case ClientOpcode::Set:
+        case ClientOpcode::Add:
+        case ClientOpcode::Replace:
+        case ClientOpcode::Append:
+        case ClientOpcode::Prepend:
+        case ClientOpcode::Delete:
+        case ClientOpcode::Increment:
+        case ClientOpcode::Decrement:
+        case ClientOpcode::Touch:
+        case ClientOpcode::Gat:
+        case ClientOpcode::Get:
+        case ClientOpcode::GetReplica:
+        case ClientOpcode::GetLocked:
+        case ClientOpcode::UnlockKey:
         case ClientOpcode::GetMeta:
         case ClientOpcode::GetRandomKey:
-            // tested in its own unit test
-            break;
-        case ClientOpcode::SeqnoPersistence:
-            break;
         case ClientOpcode::GetKeys:
-            // Tested in its own unit test
-            break;
-        case ClientOpcode::CollectionsGetID:
-            break;
-        case ClientOpcode::CollectionsGetScopeID:
-            break;
-
         case ClientOpcode::SubdocGet:
         case ClientOpcode::SubdocExists:
         case ClientOpcode::SubdocDictAdd:
@@ -491,21 +463,26 @@ TEST_F(MeteringTest, OpsMetered) {
             EXPECT_FALSE(rsp.getWriteUnits());
             break;
 
-            // MetaWrite ops require meta write privilege... probably not
-        // something we'll need initially...
         case ClientOpcode::SetWithMeta:
         case ClientOpcode::AddWithMeta:
         case ClientOpcode::DelWithMeta:
         case ClientOpcode::ReturnMeta:
+            // MetaWrite ops require meta write privilege... probably not
+            // something we'll need initially...
             break;
 
-            // @todo create a test case for range scans
+        case ClientOpcode::SeqnoPersistence:
+        case ClientOpcode::CollectionsGetID:
+        case ClientOpcode::CollectionsGetScopeID:
+            // @todo add unit tests!
+            break;
+
         case ClientOpcode::RangeScanCreate:
         case ClientOpcode::RangeScanContinue:
         case ClientOpcode::RangeScanCancel:
+            // @todo create a test case for range scans
             break;
 
-            // We need a special unit test for DCP
         case ClientOpcode::DcpOpen:
         case ClientOpcode::DcpAddStream:
         case ClientOpcode::DcpCloseStream:
@@ -527,6 +504,7 @@ TEST_F(MeteringTest, OpsMetered) {
         case ClientOpcode::DcpAbort:
         case ClientOpcode::DcpSeqnoAdvanced:
         case ClientOpcode::DcpOsoSnapshot:
+            // tested in dcp_metering_test.cc
             break;
 
             // The following are "internal"/advanced commands not intended
