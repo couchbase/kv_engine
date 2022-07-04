@@ -17,7 +17,7 @@
 
 DcpFlowControlManager::DcpFlowControlManager(EventuallyPersistentEngine& engine)
     : engine_(engine) {
-    dcpConnBufferSizeRatio = engine.getConfiguration().getDcpConnBufferRatio();
+    dcpConnBufferRatio = engine.getConfiguration().getDcpConnBufferRatio();
 }
 
 void DcpFlowControlManager::setBufSizeWithinBounds(DcpConsumer* consumerConn,
@@ -43,66 +43,58 @@ void DcpFlowControlManager::setBufSizeWithinBounds(DcpConsumer* consumerConn,
 }
 
 size_t DcpFlowControlManager::newConsumerConn(DcpConsumer* consumerConn) {
-    std::lock_guard<std::mutex> lh(dcpConsumersMapMutex);
-
     if (consumerConn == nullptr) {
         throw std::invalid_argument(
                 "DcpFlowControlManager::newConsumerConn: resp is NULL");
     }
-    /* Calculate new per conn buf size */
-    uint32_t totalConns = dcpConsumersMap.size();
 
+    auto lockedConsumers = consumers.wlock();
+
+    // Calculate new per conn buf size
+    const auto bucketQuota = engine_.getEpStats().getMaxDataSize();
     size_t bufferSize =
-            (dcpConnBufferSizeRatio * engine_.getEpStats().getMaxDataSize()) /
-            (totalConns + 1);
+            (dcpConnBufferRatio * bucketQuota) / (lockedConsumers->size() + 1);
 
-    /* Make sure that the flow control buffer size is within a max and min
-     range */
+    // Make sure that the flow control buffer size is within a max and min range
     setBufSizeWithinBounds(consumerConn, bufferSize);
     EP_LOG_DEBUG("{} Conn flow control buffer is {}",
                  consumerConn->logHeader(),
                  bufferSize);
 
-    /* resize all flow control buffers */
-    resizeBuffers_UNLOCKED(bufferSize);
+    // Resize buffer of all existing consumers
+    for (auto* c : *lockedConsumers) {
+        c->setFlowControlBufSize(bufferSize);
+    }
 
-    /* Add this connection to the list of connections */
-    dcpConsumersMap[consumerConn->getCookie()] = consumerConn;
+    // Add the new consumer to the tracked set
+    lockedConsumers->emplace(consumerConn);
 
     return bufferSize;
 }
 
-void DcpFlowControlManager::handleDisconnect(DcpConsumer* consumerConn) {
-    std::lock_guard<std::mutex> lh(dcpConsumersMapMutex);
+void DcpFlowControlManager::handleDisconnect(DcpConsumer* conn) {
+    auto lockedConsumers = consumers.wlock();
 
-    size_t bufferSize = 0;
-    /* Remove this connection to the list of connections */
-    auto iter = dcpConsumersMap.find(consumerConn->getCookie());
-    /* Calculate new per conn buf size */
-    if (iter != dcpConsumersMap.end()) {
-        dcpConsumersMap.erase(iter);
-        if (!dcpConsumersMap.empty()) {
-            bufferSize = (dcpConnBufferSizeRatio *
-                          engine_.getEpStats().getMaxDataSize()) /
-                         (dcpConsumersMap.size());
-            /* Make sure that the flow control buffer size is within a max and
-             min range */
-            setBufSizeWithinBounds(consumerConn, bufferSize);
-            EP_LOG_DEBUG("{} Conn flow control buffer is {}",
-                         consumerConn->logHeader(),
-                         bufferSize);
-        }
+    // Remove consumer
+    const auto numRemoved = lockedConsumers->erase(conn);
+    Expects(numRemoved == 1);
+
+    if (lockedConsumers->empty()) {
+        return;
     }
 
-    /* Set buffer size of all existing connections to the new buf size */
-    if (bufferSize != 0) {
-        resizeBuffers_UNLOCKED(bufferSize);
-    }
-}
+    const auto bucketQuota = engine_.getEpStats().getMaxDataSize();
+    size_t bufferSize =
+            (dcpConnBufferRatio * bucketQuota) / lockedConsumers->size();
 
-void DcpFlowControlManager::resizeBuffers_UNLOCKED(size_t bufferSize) {
-    /* Set buffer size of all existing connections to the new buf size */
-    for (auto& iter : dcpConsumersMap) {
-        iter.second->setFlowControlBufSize(bufferSize);
+    /* Make sure that the flow control buffer size is within a max and
+     min range */
+    setBufSizeWithinBounds(conn, bufferSize);
+    EP_LOG_DEBUG(
+            "{} Conn flow control buffer is {}", conn->logHeader(), bufferSize);
+
+    // Resize buffer of all existing consumers
+    for (auto* c : *lockedConsumers) {
+        c->setFlowControlBufSize(bufferSize);
     }
 }

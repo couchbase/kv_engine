@@ -12,9 +12,10 @@
 
 #include "memcached/types.h"
 
+#include <folly/Synchronized.h>
+
 #include <atomic>
-#include <map>
-#include <mutex>
+#include <set>
 
 class CookieIface;
 class DcpConsumer;
@@ -44,18 +45,9 @@ protected:
     EventuallyPersistentEngine& engine_;
 
 private:
-    /**
-     * Resize all flow control buffers in dcpConsumersMap.
-     * It assumes the dcpConsumersMapMutex is already taken.
-     */
-    void resizeBuffers_UNLOCKED(size_t bufferSize);
-
-    /* Mutex to ensure dcpConsumersMap is thread safe */
-    std::mutex dcpConsumersMapMutex;
-
-    /* All DCP Consumers with flow control buffer */
-    std::map<const CookieIface*, DcpConsumer*> dcpConsumersMap;
+    // DCP Consumers on this node
+    folly::Synchronized<std::set<DcpConsumer*>> consumers;
 
     // Ratio of BucketQuota for all dcp consumer connection buffers
-    std::atomic<double> dcpConnBufferSizeRatio;
+    std::atomic<double> dcpConnBufferRatio;
 };
