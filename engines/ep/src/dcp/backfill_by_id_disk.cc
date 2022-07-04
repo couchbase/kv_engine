@@ -128,6 +128,8 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
     scan_error_t error = kvstore->scan(static_cast<ByIdScanContext&>(*scanCtx));
 
     if (error == scan_again) {
+        // Scan should run again (e.g. was paused by callback)
+        stream->incrementNumBackfillPauses();
         return backfill_success;
     }
 

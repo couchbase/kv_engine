@@ -1795,6 +1795,8 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
         backfillEnd = std::min(end_seqno_, curChkSeqno - 1);
     }
 
+    numBackfillPauses = 0;
+
     if (tryBackfill && tryAndScheduleOSOBackfill(producer, *vbucket)) {
         return;
     } else if (tryBackfill &&
@@ -1954,7 +1956,8 @@ void ActiveStream::completeBackfillInner(
                 "{} {}Backfill complete. {} items consisting of {} bytes read "
                 "from disk, "
                 "{} items from memory, lastReadSeqno:{} "
-                "lastSentSeqnoAdvance:{}, pendingBackfill:{}. Total runtime {} "
+                "lastSentSeqnoAdvance:{}, pendingBackfill:{},"
+                "numBackfillPaused:{}. Total runtime {} "
                 "({} item/s, {} MB/s)",
                 logPrefix,
                 backfillType == BackfillType::OutOfSequenceOrder ? "OSO " : "",
@@ -1964,6 +1967,7 @@ void ActiveStream::completeBackfillInner(
                 lastReadSeqno.load(),
                 lastSentSeqnoAdvance.load(),
                 pendingBackfill ? "True" : "False",
+                numBackfillPauses.load(),
                 cb::time2text(runtime),
                 diskItemsRead ? int(diskItemsRead / runtimeSecs) : 0,
                 diskBytesRead
@@ -2423,6 +2427,10 @@ bool ActiveStream::endIfRequiredPrivilegesLost(DcpProducer& producer) {
 std::unique_ptr<DcpResponse> ActiveStream::makeEndStreamResponse(
         cb::mcbp::DcpStreamEndStatus reason) {
     return std::make_unique<StreamEndResponse>(opaque_, reason, vb_, sid);
+}
+
+void ActiveStream::incrementNumBackfillPauses() {
+    numBackfillPauses++;
 }
 
 void ActiveStream::queueSeqnoAdvanced() {

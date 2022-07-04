@@ -199,6 +199,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
         return backfill_success;
     case scan_again:
         // Scan should run again (e.g. was paused by callback)
+        stream->incrementNumBackfillPauses();
         return backfill_success;
     case scan_failed:
         // Scan did not complete successfully. Backfill is missing data,

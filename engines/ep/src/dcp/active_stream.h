@@ -16,6 +16,7 @@
 #include "utilities/testing_hook.h"
 #include <memcached/engine_error.h>
 #include <platform/non_negative_counter.h>
+#include <relaxed_atomic.h>
 #include <spdlog/common.h>
 #include <optional>
 
@@ -190,6 +191,13 @@ public:
     void setBackfillRemaining(size_t value);
 
     void setBackfillRemaining_UNLOCKED(size_t value);
+
+    /// Increment the number of times a backfill is paused.
+    void incrementNumBackfillPauses();
+
+    uint64_t getNumBackfillPauses() {
+        return numBackfillPauses;
+    }
 
     /**
      * Queues a snapshot marker to be sent - only if there are items in
@@ -808,6 +816,9 @@ private:
      * @return
      */
     uint32_t getMarkerFlags(const OutstandingItemsResult& meta) const;
+
+    //! Number of times a backfill is paused.
+    cb::RelaxedAtomic<uint64_t> numBackfillPauses{0};
 
     /* The last sequence number queued from memory, but is yet to be
        snapshotted and put onto readyQ */
