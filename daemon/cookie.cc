@@ -123,8 +123,9 @@ bool Cookie::doExecute() {
         throw std::runtime_error("Cookie::execute: validate() not called");
     }
 
-    // Reset ewouldblock state!
-    setEwouldblock(false);
+    Expects(!ewouldblock &&
+            "Cookie::doExecute(): Executing while ewouldblock is true could "
+            "result in a background task notifying while executing.");
 
     if (euid && !euidPrivilegeContext) {
         // We're supposed to run as a different user, but we don't
@@ -577,7 +578,9 @@ void Cookie::reset() {
     cas = 0;
     commandContext.reset();
     tracer.clear();
-    ewouldblock = false;
+    Expects(!ewouldblock &&
+            "Cookie::reset() when ewouldblock is true could result in an "
+            "outstanding notifyIoComplete occuring on wrong cookie");
     openTracingContext.clear();
     authorized = false;
     preserveTtl = false;

@@ -790,6 +790,7 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
 
     const auto start = std::chrono::steady_clock::now();
     try {
+        Expects(cookie.isEwouldblock());
         cookie.setAiostat(status);
         cookie.setEwouldblock(false);
         if (cookie.execute()) {
@@ -809,8 +810,7 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
             triggerCallback();
         }
     } catch (const std::exception& e) {
-        LOG_CRITICAL("Connection::processNotifiedCookie got exception: {}",
-                     e.what());
+        logExecutionException("processNotifiedCookie", e);
     }
 
     const auto stop = std::chrono::steady_clock::now();

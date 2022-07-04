@@ -29,7 +29,6 @@ SteppableCommandContext::SteppableCommandContext(Cookie& cookie_)
 
 void SteppableCommandContext::drive() {
     auto ret = cookie.swapAiostat(cb::engine_errc::success);
-    cookie.setEwouldblock(false);
 
     if (ret == cb::engine_errc::success) {
         try {
