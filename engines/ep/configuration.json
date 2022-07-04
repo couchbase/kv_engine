@@ -1539,7 +1539,10 @@
             }
         },
         "warmup_min_memory_threshold": {
-            "default": "100",
+            "default": {
+                "on-prem": "100",
+                "serverless": "0"
+            },
             "descr": "Percentage of max mem warmed up before we enable traffic.",
             "dynamic": true,
             "type": "size_t",
@@ -1551,7 +1554,10 @@
             }
         },
         "warmup_min_items_threshold": {
-            "default": "100",
+            "default": {
+                "on-prem": "100",
+                "serverless": "0"
+            },
             "descr": "Percentage of total items warmed up before we enable traffic.",
             "dynamic": true,
             "type": "size_t",

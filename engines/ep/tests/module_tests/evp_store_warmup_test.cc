@@ -3034,3 +3034,42 @@ TEST_F(WarmupTest, WarmupStateRace) {
     // We'll throw here if we race
     runReadersUntilWarmedUp();
 }
+
+/**
+ * Test to ensure we don't load items into memory when warming up if
+ * warmup_min_memory_threshold=0;warmup_min_items_threshold=0 are set in full
+ * eviction mode.
+ */
+TEST_F(WarmupTest, WarmupZeroThreshold) {
+    const auto config =
+            "item_eviction_policy=full_eviction;"
+            "warmup_min_memory_threshold=0;warmup_min_items_threshold=0";
+
+    // 1. Create a vbucket and docs, persist them to disk
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    ASSERT_TRUE(store_items(5, vbid, makeStoredDocKey("key"), ""));
+    flush_vbucket_to_disk(vbid, 5);
+
+    // 2. reset the engine and warmup using the new thresholds in full eviction
+    resetEngineAndWarmup(config);
+
+    // 3. Verify that we didn't load any documents into memory when warming up
+    auto& epStats = engine->getEpStats();
+    EXPECT_EQ(0, epStats.warmedUpKeys);
+    EXPECT_EQ(0, epStats.warmedUpValues);
+    EXPECT_FALSE(store->isWarmupLoadingData());
+    EXPECT_FALSE(engine->isDegradedMode());
+
+    // 4. Verify we can still see get documents we wrote but we have to fetch
+    // them from disk
+    auto item = store->get(makeStoredDocKey("key1"),
+                           vbid,
+                           nullptr,
+                           get_options_t::QUEUE_BG_FETCH);
+    ASSERT_EQ(cb::engine_errc::would_block, item.getStatus());
+    runBGFetcherTask();
+    item = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
+    ASSERT_EQ(cb::engine_errc::success, item.getStatus());
+    ASSERT_EQ("cid:0x0:key1", item.item->getKey().to_string());
+    ASSERT_EQ("", item.item->getValueView());
+}
