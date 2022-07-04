@@ -41,6 +41,8 @@ public:
 class EPBucketFullEvictionNoBloomFilterTest : public EPBucketFullEvictionTest {
 protected:
     void SetUp() override;
+
+    void MB_52067(bool forceCasMismatch);
 };
 
 /**

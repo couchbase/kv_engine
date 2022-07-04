@@ -152,49 +152,6 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
         auto* v = res.storedValue;
 
         if (!v) {
-            /* The temporary item has been removed, either by a concurrent
-             * operation cleaning it up, or the item pager.
-             *
-             * This bgfetch can't follow the normal path of updating the
-             * temp item, but is complete. Return the status, and allow the
-             * operation to retry if necessary, potentially triggering another
-             * bgfetch.
-             *
-             * It might seem reasonable to insert a temporary item and
-             * continue this bgfetch, but that risks bringing
-             * "stale" data back into memory which would cause consistency
-             * issues (the item may have changed in various ways in the time
-             * from bgfetch being queued to it being completed).
-             *
-             * In that case, this bgfetch _does not_ need to modify anything
-             * in the hashtable. Instead, it should notify success, and allow
-             * the operation to run again. This will add a _new_ temp item
-             * and trigger a new bgfetch.
-             *
-             * MB-52067:
-             * The returned status will be used in notifyIOComplete.
-             * For many commands, returning anything other than success
-             * leads to an immediate response being written, without the
-             * command being executed again.
-             * For some commands, this may be reasonable - a get can immediately
-             * respond ENOENT, for example. However, many multi-step comands
-             * (as in, most of those implemented with a SteppableCommandContext)
-             * rely on being run to completion.
-             * E.g., an Increment may create a document if it does not exist,
-             * but `notifyIOComplete(no_such_key)` would write an immediate
-             * ENOENT response, skipping the next steps in the Increment.
-             * This could also affect a plain SET, if it needs to fetch an
-             * existing value to preserve xattrs.
-             * Commands like GETK would also write an unexpected response, as
-             * the key would not be included.
-             *
-             * To avoid these issues the status should either be success,
-             * or an actual failure for which an early exit is appropriate
-             * (temporary_failure, no_memory, etc.).
-             */
-            if (status == cb::engine_errc::no_such_key) {
-                return cb::engine_errc::success;
-            }
             return status;
         }
 
