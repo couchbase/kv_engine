@@ -40,44 +40,44 @@ FlowControl::~FlowControl() {
 
 cb::engine_errc FlowControl::handleFlowCtl(
         DcpMessageProducersIface& producers) {
-    if (enabled) {
-        cb::engine_errc ret;
-        uint32_t ackable_bytes = freedBytes.load();
-        std::unique_lock<std::mutex> lh(bufferSizeLock);
-        if (pendingControl) {
-            pendingControl = false;
-            std::string buf_size(std::to_string(bufferSize));
-            lh.unlock();
-            uint64_t opaque = consumerConn.incrOpaqueCounter();
-            const std::string& controlMsgKey = consumerConn.getControlMsgKey();
-            NonBucketAllocationGuard guard;
-            ret = producers.control(opaque, controlMsgKey, buf_size);
-            return ret;
-        } else if (isBufferSufficientlyDrained_UNLOCKED(ackable_bytes)) {
-            lh.unlock();
-            /* Send a buffer ack when at least 20% of the buffer is drained */
-            uint64_t opaque = consumerConn.incrOpaqueCounter();
-            ret = producers.buffer_acknowledgement(
-                    opaque, Vbid(0), ackable_bytes);
-            lastBufferAck = ep_current_time();
-            ackedBytes.fetch_add(ackable_bytes);
-            freedBytes.fetch_sub(ackable_bytes);
-            return ret;
-        } else if (ackable_bytes > 0 &&
-                   (ep_current_time() - lastBufferAck) > 5) {
-            lh.unlock();
-            /* Ack at least every 5 seconds */
-            uint64_t opaque = consumerConn.incrOpaqueCounter();
-            ret = producers.buffer_acknowledgement(
-                    opaque, Vbid(0), ackable_bytes);
-            lastBufferAck = ep_current_time();
-            ackedBytes.fetch_add(ackable_bytes);
-            freedBytes.fetch_sub(ackable_bytes);
-            return ret;
-        } else {
-            lh.unlock();
-        }
+    if (!enabled) {
+        return cb::engine_errc::failed;
     }
+
+    cb::engine_errc ret;
+    uint32_t ackable_bytes = freedBytes.load();
+    std::unique_lock<std::mutex> lh(bufferSizeLock);
+    if (pendingControl) {
+        pendingControl = false;
+        std::string buf_size(std::to_string(bufferSize));
+        lh.unlock();
+        uint64_t opaque = consumerConn.incrOpaqueCounter();
+        const std::string& controlMsgKey = consumerConn.getControlMsgKey();
+        NonBucketAllocationGuard guard;
+        ret = producers.control(opaque, controlMsgKey, buf_size);
+        return ret;
+    } else if (isBufferSufficientlyDrained_UNLOCKED(ackable_bytes)) {
+        lh.unlock();
+        /* Send a buffer ack when at least 20% of the buffer is drained */
+        uint64_t opaque = consumerConn.incrOpaqueCounter();
+        ret = producers.buffer_acknowledgement(opaque, Vbid(0), ackable_bytes);
+        lastBufferAck = ep_current_time();
+        ackedBytes.fetch_add(ackable_bytes);
+        freedBytes.fetch_sub(ackable_bytes);
+        return ret;
+    } else if (ackable_bytes > 0 && (ep_current_time() - lastBufferAck) > 5) {
+        lh.unlock();
+        /* Ack at least every 5 seconds */
+        uint64_t opaque = consumerConn.incrOpaqueCounter();
+        ret = producers.buffer_acknowledgement(opaque, Vbid(0), ackable_bytes);
+        lastBufferAck = ep_current_time();
+        ackedBytes.fetch_add(ackable_bytes);
+        freedBytes.fetch_sub(ackable_bytes);
+        return ret;
+    } else {
+        lh.unlock();
+    }
+
     return cb::engine_errc::failed;
 }
 
