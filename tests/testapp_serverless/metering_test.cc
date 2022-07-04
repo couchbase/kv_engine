@@ -17,6 +17,7 @@
 #include <protocol/connection/client_mcbp_commands.h>
 #include <protocol/connection/frameinfo.h>
 #include <serverless/config.h>
+#include <xattr/blob.h>
 #include <chrono>
 #include <deque>
 #include <thread>
@@ -59,6 +60,43 @@ protected:
                        std::string xattr_value = {},
                        bool wait_for_persistence = false);
 
+    size_t to_ru(size_t size) {
+        return cb::serverless::Config::instance().to_ru(size);
+    }
+
+    size_t to_wu(size_t size) {
+        return cb::serverless::Config::instance().to_wu(size);
+    }
+
+    /**
+     * Calulate the document size for a document with various components
+     *
+     * @param key The documents key
+     * @param value The documents value
+     * @param xp The XAttr path for an xattr
+     * @param xv The XAttr value for the path above
+     * @param sxp The xattr path for a second xattr
+     * @param sxv The xattr value for the path above
+     * @return The size of the document (key + value including the encoded
+     *         xattr blob)
+     */
+    size_t calculateDocumentSize(std::string_view key,
+                                 std::string_view value,
+                                 std::string_view xp = {},
+                                 std::string_view xv = {},
+                                 std::string_view sxp = {},
+                                 std::string_view sxv = {}) {
+        if (xp.empty()) {
+            return key.size() + value.size();
+        }
+        cb::xattr::Blob blob;
+        blob.set(xp, xv);
+        if (!sxp.empty()) {
+            blob.set(sxp, sxv);
+        }
+        return key.size() + value.size() + blob.size();
+    }
+
     /**
      * Get a string value of a given length which may be used as an xattr value
      *
@@ -66,7 +104,7 @@ protected:
      *             specified)
      * @return A string starting and ending with '"'
      */
-    std::string getStringValue(size_t size = 0) {
+    std::string getStringValue(bool quote = true, size_t size = 0) {
         std::string ret;
         if (size == 0) {
             ret.resize(cb::serverless::Config::instance().readUnitSize - 20);
@@ -74,8 +112,26 @@ protected:
             ret.resize(size);
         }
         std::fill(ret.begin(), ret.end(), 'a');
-        ret.front() = '"';
-        ret.back() = '"';
+        if (quote) {
+            ret.front() = '"';
+            ret.back() = '"';
+        }
+        return ret;
+    }
+
+    nlohmann::json getJsonDoc() {
+        nlohmann::json ret;
+        auto size = cb::serverless::Config::instance().readUnitSize * 2;
+        ret["v1"] = "version 1";
+        ret["v2"] = "version 2";
+        ret["counter"] = 0;
+        ret["array"] = nlohmann::json::array();
+        for (int ii = 0; ii < 5; ++ii) {
+            ret["array"].push_back(std::to_string(ii));
+        }
+        auto current = ret.dump().size();
+        ret["fill"] =
+                getStringValue(false, size - current - 10 /* "fill":"",  */);
         return ret;
     }
 
@@ -403,202 +459,21 @@ TEST_F(MeteringTest, OpsMetered) {
             break;
 
         case ClientOpcode::SubdocGet:
-            createDocument("ClientOpcode::SubdocGet",
-                           R"({ "hello" : "world"})");
-            rsp = conn.execute(BinprotSubdocCommand{
-                    opcode, "ClientOpcode::SubdocGet", "hello"});
-            EXPECT_TRUE(rsp.isSuccess());
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
-            break;
         case ClientOpcode::SubdocExists:
-            createDocument("ClientOpcode::SubdocExists",
-                           R"({ "hello" : "world"})");
-            rsp = conn.execute(BinprotSubdocCommand{
-                    opcode, "ClientOpcode::SubdocExists", "hello"});
-            EXPECT_TRUE(rsp.isSuccess());
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
-            break;
         case ClientOpcode::SubdocDictAdd:
         case ClientOpcode::SubdocDictUpsert:
-            createDocument("ClientOpcode::SubdocDictAdd",
-                           R"({ "hello" : "world"})");
-            rsp = conn.execute(BinprotSubdocCommand{
-                    opcode, "ClientOpcode::SubdocDictAdd", "add", "true"});
-            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            ASSERT_TRUE(rsp.getWriteUnits());
-            EXPECT_EQ(1, *rsp.getWriteUnits());
-            break;
         case ClientOpcode::SubdocDelete:
-            createDocument("ClientOpcode::SubdocDelete",
-                           R"({ "hello" : "world"})");
-            rsp = conn.execute(BinprotSubdocCommand{
-                    opcode, "ClientOpcode::SubdocDelete", "hello"});
-            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            ASSERT_TRUE(rsp.getWriteUnits());
-            EXPECT_EQ(1, *rsp.getWriteUnits());
-            break;
         case ClientOpcode::SubdocReplace:
-            createDocument("ClientOpcode::SubdocReplace",
-                           R"({ "hello" : "world"})");
-            rsp = conn.execute(
-                    BinprotSubdocCommand{opcode,
-                                         "ClientOpcode::SubdocReplace",
-                                         "hello",
-                                         R"("couchbase")"});
-            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            ASSERT_TRUE(rsp.getWriteUnits());
-            EXPECT_EQ(1, *rsp.getWriteUnits());
-            break;
         case ClientOpcode::SubdocArrayPushLast:
         case ClientOpcode::SubdocArrayPushFirst:
         case ClientOpcode::SubdocArrayAddUnique:
-            createDocument("ClientOpcode::SubdocArrayPush",
-                           R"({ "hello" : ["world"]})");
-            rsp = conn.execute(
-                    BinprotSubdocCommand{opcode,
-                                         "ClientOpcode::SubdocArrayPush",
-                                         "hello",
-                                         R"("couchbase")"});
-            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            ASSERT_TRUE(rsp.getWriteUnits());
-            EXPECT_EQ(1, *rsp.getWriteUnits());
-            break;
         case ClientOpcode::SubdocArrayInsert:
-            createDocument("ClientOpcode::SubdocArrayPush",
-                           R"({ "hello" : ["world"]})");
-            rsp = conn.execute(
-                    BinprotSubdocCommand{opcode,
-                                         "ClientOpcode::SubdocArrayPush",
-                                         "hello.[0]",
-                                         R"("couchbase")"});
-            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            ASSERT_TRUE(rsp.getWriteUnits());
-            EXPECT_EQ(1, *rsp.getWriteUnits());
-            break;
         case ClientOpcode::SubdocCounter:
-            createDocument("ClientOpcode::SubdocCounter",
-                           R"({ "counter" : 0})");
-            rsp = conn.execute(BinprotSubdocCommand{
-                    opcode, "ClientOpcode::SubdocCounter", "counter", "1"});
-            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            ASSERT_TRUE(rsp.getWriteUnits());
-            EXPECT_EQ(1, *rsp.getWriteUnits());
-            break;
         case ClientOpcode::SubdocGetCount:
-            createDocument("ClientOpcode::SubdocGetCount",
-                           R"({ "array" : [0,1,2,3,4]})");
-            rsp = conn.execute(BinprotSubdocCommand{
-                    opcode, "ClientOpcode::SubdocGetCount", "array"});
-            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
-            break;
         case ClientOpcode::SubdocMultiLookup:
-            do {
-                createDocument(
-                        "ClientOpcode::SubdocMultiLookup",
-                        R"({ "array" : [0,1,2,3,4], "hello" : "world"})");
-
-                rsp = conn.execute(BinprotSubdocMultiLookupCommand{
-                        "ClientOpcode::SubdocMultiLookup",
-                        {
-                                {ClientOpcode::SubdocGet,
-                                 SUBDOC_FLAG_NONE,
-                                 "array.[0]"},
-                                {ClientOpcode::SubdocGet,
-                                 SUBDOC_FLAG_NONE,
-                                 "array.[1]"},
-                                {ClientOpcode::SubdocGet,
-                                 SUBDOC_FLAG_NONE,
-                                 "array[4]"},
-                                {ClientOpcode::SubdocGet,
-                                 SUBDOC_FLAG_NONE,
-                                 "hello"},
-                        },
-                        ::mcbp::subdoc::doc_flag::None});
-                EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-                ASSERT_TRUE(rsp.getReadUnits());
-                EXPECT_EQ(1, *rsp.getReadUnits());
-                EXPECT_FALSE(rsp.getWriteUnits());
-            } while (false);
-            break;
         case ClientOpcode::SubdocMultiMutation:
-            do {
-                rsp = conn.execute(BinprotSubdocMultiMutationCommand{
-                        "ClientOpcode::SubdocMultiMutation",
-                        {
-                                {ClientOpcode::SubdocDictUpsert,
-                                 SUBDOC_FLAG_MKDIR_P,
-                                 "foo",
-                                 "true"},
-                                {ClientOpcode::SubdocDictUpsert,
-                                 SUBDOC_FLAG_MKDIR_P,
-                                 "foo1",
-                                 "true"},
-                                {ClientOpcode::SubdocDictUpsert,
-                                 SUBDOC_FLAG_MKDIR_P,
-                                 "foo2",
-                                 "true"},
-                        },
-                        ::mcbp::subdoc::doc_flag::Mkdoc});
-                EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-                EXPECT_FALSE(rsp.getReadUnits());
-                ASSERT_TRUE(rsp.getWriteUnits());
-                EXPECT_EQ(1, *rsp.getWriteUnits());
-            } while (false);
-            break;
         case ClientOpcode::SubdocReplaceBodyWithXattr:
-            do {
-                rsp = conn.execute(BinprotSubdocMultiMutationCommand{
-                        "ClientOpcode::SubdocReplaceBodyWithXattr",
-                        {{cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                          SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
-                          "tnx.op.staged",
-                          R"({"couchbase": {"version": "cheshire-cat", "next_version": "unknown"}})"},
-                         {cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                          SUBDOC_FLAG_NONE,
-                          "couchbase",
-                          R"({"version": "mad-hatter", "next_version": "cheshire-cat"})"}},
-                        ::mcbp::subdoc::doc_flag::Mkdoc});
-                EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-                EXPECT_FALSE(rsp.getReadUnits());
-                ASSERT_TRUE(rsp.getWriteUnits());
-                EXPECT_EQ(1, *rsp.getWriteUnits());
-
-                rsp = conn.execute(BinprotSubdocMultiMutationCommand{
-                        "ClientOpcode::SubdocReplaceBodyWithXattr",
-                        {{cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
-                          SUBDOC_FLAG_XATTR_PATH,
-                          "tnx.op.staged",
-                          {}},
-                         {cb::mcbp::ClientOpcode::SubdocDelete,
-                          SUBDOC_FLAG_XATTR_PATH,
-                          "tnx.op.staged",
-                          {}}},
-                        ::mcbp::subdoc::doc_flag::None});
-                EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-                ASSERT_TRUE(rsp.getReadUnits());
-                EXPECT_EQ(1, *rsp.getReadUnits());
-                ASSERT_TRUE(rsp.getWriteUnits());
-                EXPECT_EQ(1, *rsp.getWriteUnits());
-            } while (false);
+            // Tested in its own unit test
             break;
 
         case ClientOpcode::GetCmdTimer:
@@ -1281,6 +1156,826 @@ TEST_F(MeteringTest, GetMetaDocumentWithXattr) {
     ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_EQ(1, *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// Subdoc get should cost the entire doc read; even if the requested path
+/// doesn't exists
+TEST_F(MeteringTest, SubdocGetNoSuchPath) {
+    const std::string id = "SubdocGetENoPath";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    ASSERT_LT(1, to_ru(calculateDocumentSize(id, value)));
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocGet, id, "hello"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// Subdoc get should cost the entire doc read; and not just the returned
+/// path
+TEST_F(MeteringTest, SubdocGet) {
+    const std::string id = "SubdocGet";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocGet, id, "v1"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// Subdoc get should cost the entire doc read (including xattr); and not just
+//  the returned path
+TEST_F(MeteringTest, SubdocGetWithXattr) {
+    const std::string id = "SubdocGetXattr";
+    const auto value = getJsonDoc().dump();
+    const auto xattr = getStringValue();
+    upsert(id, value, "xattr", xattr);
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocGet, id, "v1"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// Subdoc exists should cost the entire doc read no matter if the path
+/// exists or not
+TEST_F(MeteringTest, SubdocExistsNoSuchPath) {
+    const std::string id = "SubdocExistsNoSuchPath";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocExists, id, "hello"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// Subdoc exists should cost the entire doc read
+TEST_F(MeteringTest, SubdocExistsPlainDoc) {
+    const std::string id = "SubdocExistsPlainDoc";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocExists, id, "v1"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// Subdoc exists should cost the entire doc read (that include xattrs)
+TEST_F(MeteringTest, SubdocExistsWithXattr) {
+    const std::string id = "SubdocExistsWithXattr";
+    const auto value = getJsonDoc().dump();
+    const auto xattr = getStringValue();
+    upsert(id, value, "xattr", xattr);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocExists, id, "v1"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// Dict add should cost RU for the document event if the path already
+/// exists
+TEST_F(MeteringTest, SubdocDictAddEExist) {
+    const std::string id = "SubdocDictAddEExist";
+    const auto value = getJsonDoc().dump();
+    const auto xattr = getStringValue();
+    upsert(id, value, "xattr", xattr);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocDictAdd, id, "v1", "true"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEexists, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// Dict add should cost RU for the document, and WUs for the new document
+TEST_F(MeteringTest, SubdocDictAddPlainDoc) {
+    const std::string id = "SubdocDictAddPlainDoc";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto v3 = getStringValue();
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocDictAdd, id, "v3", v3});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(id.size() + value.size() + v3.size()),
+              *rsp.getWriteUnits());
+}
+
+/// Dict add should cost RU for the document, and WUs for the new document
+/// (including the XAttrs copied over)
+TEST_F(MeteringTest, SubdocDictAddPlainDocWithXattr) {
+    const std::string id = "SubdocDictAddPlainDocWithXattr";
+    auto json = getJsonDoc();
+    auto value = json.dump();
+    auto v3 = getStringValue();
+    const auto xattr = getStringValue();
+    upsert(id, value, "xattr", xattr);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocDictAdd, id, "v3", v3});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    json["v3"] = v3;
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getWriteUnits());
+}
+
+/// Dict Upsert should cost RU for the document, and WUs for the new document
+TEST_F(MeteringTest, SubdocDictUpsertPlainDoc) {
+    const std::string id = "SubdocDictUpsertPlainDoc";
+    auto json = getJsonDoc();
+    const auto value = json.dump();
+    upsert(id, value);
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                                 id,
+                                 "v1",
+                                 R"("this is the new value")"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    json["v1"] = "this is the new value";
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
+              *rsp.getWriteUnits());
+}
+
+/// Dict Upsert should cost RU for the document, and WUs for the new document
+/// (including the XAttrs copied over)
+TEST_F(MeteringTest, SubdocDictUpsertPlainDocWithXattr) {
+    const std::string id = "SubdocDictAddPlainDocWithXattr";
+    auto json = getJsonDoc();
+    auto value = json.dump();
+    const auto xattr = getStringValue();
+    upsert(id, value, "xattr", xattr);
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                                 id,
+                                 "v1",
+                                 R"("this is the new value")"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    json["v1"] = "this is the new value";
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getWriteUnits());
+}
+
+/// Delete should cost the full read even if the path doesn't exist
+TEST_F(MeteringTest, SubdocDeleteENoPath) {
+    const std::string id = "SubdocDeleteENoPath";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocDelete, id, "ENOPATH"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// Delete should cost the full read, and the write of the full size of the
+/// new document
+TEST_F(MeteringTest, SubdocDeletePlainDoc) {
+    const std::string id = "SubdocDeletePlainDoc";
+    auto json = getJsonDoc();
+    const auto value = json.dump();
+    upsert(id, value);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocDelete, id, "fill"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    json.erase("fill");
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
+              *rsp.getWriteUnits());
+}
+
+/// Delete should cost the full read (including xattrs), and the write of the
+/// full size of the new document (including the xattrs copied over)
+TEST_F(MeteringTest, SubdocDeletePlainDocWithXattr) {
+    const std::string id = "SubdocDeletePlainDocWithXattr";
+    auto json = getJsonDoc();
+    const auto value = json.dump();
+    const auto xattr = getStringValue();
+    upsert(id, value, "xattr", xattr);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocDelete, id, "fill"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    json.erase("fill");
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getWriteUnits());
+}
+
+/// Replace should cost the read of the document even if the path isn't found
+TEST_F(MeteringTest, SubdocReplaceENoPath) {
+    const std::string id = "SubdocReplaceENoPath";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocReplace, id, "ENOPATH", "true"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// Replace should cost the read of the document, and the write of the
+/// new document
+TEST_F(MeteringTest, SubdocReplacePlainDoc) {
+    const std::string id = "SubdocReplacePlainDoc";
+    auto json = getJsonDoc();
+    const auto value = json.dump();
+    upsert(id, value);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocReplace, id, "fill", "true"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    json["fill"] = true;
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
+              *rsp.getWriteUnits());
+}
+
+/// Replace should cost the full read (including xattrs), and the write of the
+/// full size of the new document (including the xattrs copied over)
+TEST_F(MeteringTest, SubdocReplacePlainDocWithXattr) {
+    const std::string id = "SubdocReplacePlainDocWithXattr";
+    auto json = getJsonDoc();
+    const auto value = json.dump();
+    const auto xattr = getStringValue();
+    upsert(id, value, "xattr", xattr);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocReplace, id, "fill", "true"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    json["fill"] = true;
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getWriteUnits());
+}
+
+/// Counter should cost the read of the document even if the requested
+/// path isn't a counter
+TEST_F(MeteringTest, SubdocCounterENoCounter) {
+    const std::string id = "SubdocCounterENoPath";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocCounter, id, "array", "1"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// Counter should cost the read of the full document and the write of
+/// the new document
+TEST_F(MeteringTest, SubdocCounterPlainDoc) {
+    const std::string id = "SubdocCounterPlainDoc";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocCounter, id, "counter", "1"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value)), *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, value)), *rsp.getWriteUnits());
+}
+
+/// Counter should cost the read of the full document including xattr and
+/// write of the new document with the xattrs copied over
+TEST_F(MeteringTest, SubdocCounterPlainDocWithXattr) {
+    const std::string id = "SubdocCounterPlainDocWithXattr";
+    const auto value = getJsonDoc().dump();
+    const auto xattr = getStringValue();
+    upsert(id, value, "xattr", xattr);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocCounter, id, "counter", "1"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getWriteUnits());
+}
+
+/// GetCount should cost the read of the document even if the path doesn't
+/// exists
+TEST_F(MeteringTest, SubdocGetCountENoPath) {
+    const std::string id = "SubdocGetCountENoPath";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocGetCount, id, "ENOPATH"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// GetCount should cost the read of the document even if the path doesn't
+/// doesn't point to an array
+TEST_F(MeteringTest, SubdocGetCountENotArray) {
+    const std::string id = "SubdocGetCountENotArray";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocGetCount, id, "v1"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// GetCount should cost the read of the entire document
+TEST_F(MeteringTest, SubdocGetCountPlainDoc) {
+    const std::string id = "SubdocGetCountPlainDoc";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocGetCount, id, "array"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// GetCount should cost the read of the entire document including xattrs
+TEST_F(MeteringTest, SubdocGetCountPlainDocWithXattr) {
+    const std::string id = "SubdocGetCountPlainDocWithXattr";
+    const auto value = getJsonDoc().dump();
+    const auto xattr = getStringValue();
+    upsert(id, value, "xattr", xattr);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocGetCount, id, "array"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// ArrayPushLast should cost the read of the document even if the path
+/// doesn't exist
+TEST_F(MeteringTest, SubdocArrayPushLastENoPath) {
+    const std::string id = "SubdocArrayPushLastENoPath";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                                 id,
+                                 "ENOPATH",
+                                 "true"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// ArrayPushLast should cost the read of the document even if the path
+/// isn't an array
+TEST_F(MeteringTest, SubdocArrayPushLastENotArray) {
+    const std::string id = "SubdocArrayPushLastENotArray";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                                 id,
+                                 "counter",
+                                 "true"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// ArrayPushLast should cost the read of the document, and then the
+/// write of the new document
+TEST_F(MeteringTest, SubdocArrayPushLastPlainDoc) {
+    const std::string id = "SubdocArrayPushLastPlainDoc";
+    auto json = getJsonDoc();
+    upsert(id, json.dump());
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocArrayPushLast, id, "array", "true"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + json.dump().size()), *rsp.getReadUnits());
+    json["array"].push_back(true);
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(id.size() + json.dump().size()), *rsp.getWriteUnits());
+}
+
+/// ArrayPushLast should cost the read of the document, and then the
+/// write of the new document (including xattrs copied over)
+TEST_F(MeteringTest, SubdocArrayPushLastPlainDocWithXattr) {
+    const std::string id = "SubdocArrayPushLastPlainDocWithXattr";
+    auto json = getJsonDoc();
+    const auto xattr = getStringValue();
+    upsert(id, json.dump(), "xattr", xattr);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocArrayPushLast, id, "array", "true"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getReadUnits());
+    json["array"].push_back(true);
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getReadUnits());
+}
+
+/// ArrayPushFirst should cost the read of the document even if the path
+/// doesn't exist
+TEST_F(MeteringTest, SubdocArrayPushFirstENoPath) {
+    const std::string id = "SubdocArrayPushFirstENoPath";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+                                 id,
+                                 "ENOPATH",
+                                 "true"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// ArrayPushFirst should cost the read of the document even if the path
+/// isn't an array
+TEST_F(MeteringTest, SubdocArrayPushFirstENotArray) {
+    const std::string id = "SubdocArrayPushFirstENotArray";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+                                 id,
+                                 "counter",
+                                 "true"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// ArrayPushFirst should cost the read of the document, and then the
+/// write of the new document
+TEST_F(MeteringTest, SubdocArrayPushFirstPlainDoc) {
+    const std::string id = "SubdocArrayPushFirstPlainDoc";
+    auto json = getJsonDoc();
+    upsert(id, json.dump());
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocArrayPushFirst, id, "array", "true"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + json.dump().size()), *rsp.getReadUnits());
+    json["array"].insert(json["array"].begin(), true);
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(id.size() + json.dump().size()), *rsp.getWriteUnits());
+}
+
+/// ArrayPushFirst should cost the read of the document, and then the
+/// write of the new document (including xattrs copied over)
+TEST_F(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr) {
+    const std::string id = "SubdocArrayPushFirstPlainDocWithXattr";
+    auto json = getJsonDoc();
+    const auto xattr = getStringValue();
+    upsert(id, json.dump(), "xattr", xattr);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocArrayPushFirst, id, "array", "true"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getReadUnits());
+    json["array"].insert(json["array"].begin(), true);
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getReadUnits());
+}
+
+/// ArrayAddUnique should cost the read of the document, even if the path
+/// doesn't exists
+TEST_F(MeteringTest, SubdocArrayAddUniqueENoPath) {
+    const std::string id = "SubdocArrayAddUniqueENoPath";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                                 id,
+                                 "ENOPATH",
+                                 "true"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// ArrayAddUnique should cost the read of the document, even if the path
+/// isn't an array
+TEST_F(MeteringTest, SubdocArrayAddUniqueENotArray) {
+    const std::string id = "SubdocArrayAddUniqueENotArray";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocArrayAddUnique, id, "v1", "true"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// ArrayAddUnique should cost the read of the document, even if the array
+/// already contains the value
+TEST_F(MeteringTest, SubdocArrayAddUniqueEExists) {
+    const std::string id = "SubdocArrayAddUniqueEExists";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                                 id,
+                                 "array",
+                                 R"("1")"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEexists, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// ArrayAddUnique should cost the read of the document, and the write
+/// of the size of the new document
+TEST_F(MeteringTest, SubdocArrayAddUniquePlainDoc) {
+    const std::string id = "SubdocArrayAddUniquePlainDocWithXattr";
+    auto json = getJsonDoc();
+    upsert(id, json.dump());
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                                 id,
+                                 "array",
+                                 R"("Unique value")"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump())),
+              *rsp.getReadUnits());
+    json["array"].push_back("Unique value");
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump())),
+              *rsp.getReadUnits());
+}
+
+/// ArrayAddUnique should cost the read of the document, and the write
+/// of the size of the new document including the XATTRs copied over
+TEST_F(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr) {
+    const std::string id = "SubdocArrayAddUniquePlainDocWithXattr";
+    auto json = getJsonDoc();
+    const auto xattr = getStringValue();
+    upsert(id, json.dump(), "xattr", xattr);
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                                 id,
+                                 "array",
+                                 R"("Unique value")"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getReadUnits());
+    json["array"].push_back("Unique value");
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getReadUnits());
+}
+
+/// ArrayInsert should cost the read of the document, even if the path
+/// doesn't exists
+TEST_F(MeteringTest, SubdocArrayInsertENoPath) {
+    const std::string id = "SubdocArrayInsertENoPath";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayInsert,
+                                 id,
+                                 "ENOPATH.[0]",
+                                 "true"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// ArrayInsert should cost the read of the document, even if the path
+/// isn't an array
+TEST_F(MeteringTest, SubdocArrayInsertENotArray) {
+    const std::string id = "SubdocArrayInsertENotArray";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocArrayInsert, id, "v1.[0]", "true"});
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// ArrayInsert should cost the read of the document, and the write of
+/// the size of the new document
+TEST_F(MeteringTest, SubdocArrayInsertPlainDoc) {
+    const std::string id = "SubdocArrayInsertPlainDoc";
+    auto json = getJsonDoc();
+    upsert(id, json.dump());
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayInsert,
+                                 id,
+                                 "array.[0]",
+                                 "true"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump())),
+              *rsp.getReadUnits());
+    json["array"].insert(json["array"].begin(), true);
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump())),
+              *rsp.getReadUnits());
+}
+
+/// ArrayInsert should cost the read of the document, and the write of
+/// the size of the new document (including the xattrs copied over)
+TEST_F(MeteringTest, SubdocArrayInsertPlainDocWithXattr) {
+    const std::string id = "SubdocArrayInsertPlainDocWithXattr";
+    auto json = getJsonDoc();
+    const auto xattr = getStringValue();
+    upsert(id, json.dump(), "xattr", xattr);
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayInsert,
+                                 id,
+                                 "array.[0]",
+                                 "true"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getReadUnits());
+    json["array"].insert(json["array"].begin(), true);
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getReadUnits());
+}
+
+/// MultiLookup should cost the read of the full document even if no
+/// data gets returned
+TEST_F(MeteringTest, SubdocMultiLookupAllMiss) {
+    const std::string id = "SubdocMultiLookupAllMiss";
+    auto json = getJsonDoc();
+    const auto xattr = getStringValue();
+    upsert(id, json.dump(), "xattr", xattr);
+
+    auto rsp = conn->execute(BinprotSubdocMultiLookupCommand{
+            id,
+            {{cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing1"},
+             {cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing2"}},
+            ::mcbp::subdoc::doc_flag::None});
+
+    EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// MultiLookup should cost the read of the full document
+TEST_F(MeteringTest, SubdocMultiLookup) {
+    const std::string id = "SubdocMultiLookup";
+    auto json = getJsonDoc();
+    const auto xattr = getStringValue();
+    upsert(id, json.dump(), "xattr", xattr);
+
+    auto rsp = conn->execute(BinprotSubdocMultiLookupCommand{
+            id,
+            {{cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "array.[0]"},
+             {cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "counter"}},
+            ::mcbp::subdoc::doc_flag::None});
+
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// MultiMutation should cost the read of the full document even if no
+/// updates was made
+TEST_F(MeteringTest, SubdocMultiMutationAllFailed) {
+    const std::string id = "SubdocMultiMutationAllFailed";
+    auto json = getJsonDoc();
+    const auto xattr = getStringValue();
+    upsert(id, json.dump(), "xattr", xattr);
+
+    auto rsp = conn->execute(BinprotSubdocMultiMutationCommand{
+            id,
+            {{cb::mcbp::ClientOpcode::SubdocDictUpsert,
+              SUBDOC_FLAG_NONE,
+              "foo.missing.bar",
+              "true"},
+             {cb::mcbp::ClientOpcode::SubdocDictUpsert,
+              SUBDOC_FLAG_NONE,
+              "foo.missing.foo",
+              "true"}},
+            ::mcbp::subdoc::doc_flag::None});
+
+    EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// MultiMutation should cost the read of the full document, and write
+/// of the full size (including xattrs copied over)
+TEST_F(MeteringTest, SubdocMultiMutation) {
+    const std::string id = "SubdocMultiMutation";
+    auto json = getJsonDoc();
+    const auto xattr = getStringValue();
+    upsert(id, json.dump(), "xattr", xattr);
+
+    auto rsp = conn->execute(BinprotSubdocMultiMutationCommand{
+            id,
+            {{cb::mcbp::ClientOpcode::SubdocDictUpsert,
+              SUBDOC_FLAG_NONE,
+              "foo",
+              "true"},
+             {cb::mcbp::ClientOpcode::SubdocDictUpsert,
+              SUBDOC_FLAG_NONE,
+              "bar",
+              "true"}},
+            ::mcbp::subdoc::doc_flag::None});
+
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getReadUnits());
+    json["foo"] = true;
+    json["bar"] = true;
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getWriteUnits());
+}
+
+/// SubdocReplaceBodyWithXattr should cost the read of the full document,
+/// and write of the full size
+TEST_F(MeteringTest, SubdocReplaceBodyWithXattr) {
+    const std::string id = "SubdocReplaceBodyWithXattr";
+    const auto new_value = getJsonDoc().dump();
+    const auto old_value = getStringValue(false);
+    upsert(id, old_value, "tnx.op.staged", new_value);
+
+    auto rsp = conn->execute(BinprotSubdocMultiMutationCommand{
+            id,
+            {{cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
+              SUBDOC_FLAG_XATTR_PATH,
+              "tnx.op.staged",
+              {}},
+             {cb::mcbp::ClientOpcode::SubdocDelete,
+              SUBDOC_FLAG_XATTR_PATH,
+              "tnx.op.staged",
+              {}}},
+            ::mcbp::subdoc::doc_flag::None});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(
+                      id, old_value, "tnx.op.staged", new_value)),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, new_value)),
+              *rsp.getWriteUnits());
 }
 
 } // namespace cb::test

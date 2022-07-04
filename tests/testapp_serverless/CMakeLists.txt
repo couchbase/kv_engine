@@ -8,7 +8,7 @@ cb_add_test_executable(serverless_test
         serverless_test.h
         throttle_test.cc
         )
-target_link_libraries(serverless_test PRIVATE cluster_framework)
+target_link_libraries(serverless_test PRIVATE cluster_framework xattr)
 add_dependencies(serverless_test memcached)
 add_sanitizers(serverless_test)
 cb_enable_unity_build(serverless_test)
