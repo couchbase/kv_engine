@@ -56,6 +56,26 @@ protected:
                        std::string xattr_path = {},
                        std::string xattr_value = {});
 
+    /**
+     * Get a string value of a given length which may be used as an xattr value
+     *
+     * @param size The length of the string (or almost a full RU if no length
+     *             specified)
+     * @return A string starting and ending with '"'
+     */
+    std::string getStringValue(size_t size = 0) {
+        std::string ret;
+        if (size == 0) {
+            ret.resize(cb::serverless::Config::instance().readUnitSize - 20);
+        } else {
+            ret.resize(size);
+        }
+        std::fill(ret.begin(), ret.end(), 'a');
+        ret.front() = '"';
+        ret.back() = '"';
+        return ret;
+    }
+
     static std::unique_ptr<MemcachedConnection> conn;
 };
 
@@ -349,20 +369,8 @@ TEST_F(MeteringTest, OpsMetered) {
                 EXPECT_FALSE(rsp.getWriteUnits());
             } while (false);
             break;
+
         case ClientOpcode::GetMeta:
-            rsp = conn.execute(
-                    BinprotGenericCommand{opcode, "ClientOpcode::GetMeta"});
-            EXPECT_EQ(Status::KeyEnoent, rsp.getStatus()) << rsp.getStatus();
-            EXPECT_FALSE(rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
-            createDocument("ClientOpcode::GetMeta", "myvalue");
-            rsp = conn.execute(
-                    BinprotGenericCommand{opcode, "ClientOpcode::GetMeta"});
-            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
-            break;
         case ClientOpcode::GetRandomKey:
             // tested in its own unit test
             break;
@@ -1245,6 +1253,41 @@ TEST_F(MeteringTest, MeterGetKeys) {
     } while (std::chrono::steady_clock::now() < timeout);
 
     FAIL() << "Failed to test GetKeys";
+}
+
+/// GetMeta should cost 1 RU (we only look up metadata)
+TEST_F(MeteringTest, GetMetaNonexistentDocument) {
+    // Verify cost of nonexistent value
+    const std::string id = "ClientOpcode::GetMeta";
+    const auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::GetMeta, id};
+    auto rsp = conn->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus()) << rsp.getStatus();
+    EXPECT_FALSE(rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// GetMeta should cost 1 RU (we only look up metadata)
+TEST_F(MeteringTest, GetMetaPlainDocument) {
+    const std::string id = "ClientOpcode::GetMeta";
+    const auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::GetMeta, id};
+    upsert(id, getStringValue());
+    const auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(1, *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
+}
+
+/// GetMeta should cost 1 RU (we only look up metadata)
+TEST_F(MeteringTest, GetMetaDocumentWithXattr) {
+    const std::string id = "ClientOpcode::GetMeta";
+    const auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::GetMeta, id};
+    upsert(id, getStringValue(), "xattr", getStringValue());
+    const auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(1, *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
 }
 
 } // namespace cb::test
