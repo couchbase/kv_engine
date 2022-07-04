@@ -1022,7 +1022,7 @@
         },
         "dcp_conn_buffer_ratio": {
             "default": "0.05",
-            "descr": "Ratio of BucketQuota enforced by FlowControl for all dcp consumer connection buffers",
+            "descr": "Ratio of the BucketQuota that can be allocated by all DCP consumers for buffered messages",
             "type": "float",
             "dynamic": true,
             "validator": {

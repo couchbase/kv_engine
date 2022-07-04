@@ -1678,14 +1678,12 @@ uint64_t DcpConsumer::incrOpaqueCounter()
     return (++opaqueCounter);
 }
 
-uint32_t DcpConsumer::getFlowControlBufSize()
-{
-    return flowControl.getFlowControlBufSize();
+uint32_t DcpConsumer::getFlowControlBufSize() const {
+    return flowControl.getBufferSize();
 }
 
-void DcpConsumer::setFlowControlBufSize(uint32_t newSize)
-{
-    flowControl.setFlowControlBufSize(newSize);
+void DcpConsumer::setFlowControlBufSize(uint32_t newSize) {
+    flowControl.setBufferSize(newSize);
 }
 
 const std::string& DcpConsumer::getControlMsgKey()

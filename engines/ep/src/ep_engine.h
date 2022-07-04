@@ -1358,6 +1358,16 @@ private:
      */
     void configureRangeScanConcurrency(size_t rangeScanMaxContinueTasksValue);
 
+    /**
+     * Set the ratio of the Bucket Quota that DCP Consumers on this node can
+     * allocate for their DCP inbound buffer.
+     * Note that Consumers buffer messages only in the case of OOM conditions on
+     * the node.
+     *
+     * @param ratio
+     */
+    void setDcpConnBufferRatio(float ratio);
+
 public:
     // Testing hook for MB-45756, to allow a throw to be made during
     // destroyInner() to simulate a crash while waiting for the flusher to
@@ -1433,4 +1443,22 @@ protected:
     std::atomic<cb::ErrorHandlingMethod> vBucketMappingErrorHandlingMethod;
 
     cb::ArenaMallocClient arena;
+};
+
+/**
+ * A configuration value changed listener that responds to ep-engine
+ * parameter changes by invoking engine-specific methods on
+ * configuration change events.
+ */
+class EpEngineValueChangeListener : public ValueChangedListener {
+public:
+    explicit EpEngineValueChangeListener(EventuallyPersistentEngine& e);
+
+    void sizeValueChanged(const std::string& key, size_t value) override;
+    void stringValueChanged(const std::string& key, const char* value) override;
+    void floatValueChanged(const std::string& key, float value) override;
+    void booleanValueChanged(const std::string& key, bool b) override;
+
+private:
+    EventuallyPersistentEngine& engine;
 };

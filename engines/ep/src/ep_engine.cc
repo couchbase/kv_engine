@@ -1849,61 +1849,55 @@ void EventuallyPersistentEngine::notifyIOComplete(T cookies,
     }
 }
 
-/**
- * A configuration value changed listener that responds to ep-engine
- * parameter changes by invoking engine-specific methods on
- * configuration change events.
- */
-class EpEngineValueChangeListener : public ValueChangedListener {
-public:
-    explicit EpEngineValueChangeListener(EventuallyPersistentEngine& e)
-        : engine(e) {
-        // EMPTY
-    }
+EpEngineValueChangeListener::EpEngineValueChangeListener(
+        EventuallyPersistentEngine& e)
+    : engine(e) {
+}
 
-    void sizeValueChanged(const std::string& key, size_t value) override {
-        if (key.compare("getl_max_timeout") == 0) {
-            engine.setGetlMaxTimeout(value);
-        } else if (key.compare("getl_default_timeout") == 0) {
-            engine.setGetlDefaultTimeout(value);
-        } else if (key.compare("max_item_size") == 0) {
-            engine.setMaxItemSize(value);
-        } else if (key.compare("max_item_privileged_bytes") == 0) {
-            engine.setMaxItemPrivilegedBytes(value);
-        } else if (key == "range_scan_max_continue_tasks") {
-            engine.configureRangeScanConcurrency(value);
-        }
+void EpEngineValueChangeListener::sizeValueChanged(const std::string& key,
+                                                   size_t value) {
+    if (key.compare("getl_max_timeout") == 0) {
+        engine.setGetlMaxTimeout(value);
+    } else if (key.compare("getl_default_timeout") == 0) {
+        engine.setGetlDefaultTimeout(value);
+    } else if (key.compare("max_item_size") == 0) {
+        engine.setMaxItemSize(value);
+    } else if (key.compare("max_item_privileged_bytes") == 0) {
+        engine.setMaxItemPrivilegedBytes(value);
+    } else if (key == "range_scan_max_continue_tasks") {
+        engine.configureRangeScanConcurrency(value);
     }
+}
 
-    void stringValueChanged(const std::string& key,
-                            const char* value) override {
-        if (key == "compression_mode") {
-            std::string value_str{value, strlen(value)};
-            engine.setCompressionMode(value_str);
-        } else if (key == "vbucket_mapping_sanity_checking_error_mode") {
-            std::string value_str{value, strlen(value)};
-            engine.vBucketMappingErrorHandlingMethod =
-                    cb::getErrorHandlingMethod(value_str);
-        }
+void EpEngineValueChangeListener::stringValueChanged(const std::string& key,
+                                                     const char* value) {
+    if (key == "compression_mode") {
+        std::string value_str{value, strlen(value)};
+        engine.setCompressionMode(value_str);
+    } else if (key == "vbucket_mapping_sanity_checking_error_mode") {
+        std::string value_str{value, strlen(value)};
+        engine.vBucketMappingErrorHandlingMethod =
+                cb::getErrorHandlingMethod(value_str);
     }
+}
 
-    void floatValueChanged(const std::string& key, float value) override {
-        if (key == "min_compression_ratio") {
-            engine.setMinCompressionRatio(value);
-        }
+void EpEngineValueChangeListener::floatValueChanged(const std::string& key,
+                                                    float value) {
+    if (key == "min_compression_ratio") {
+        engine.setMinCompressionRatio(value);
+    } else if (key == "dcp_conn_buffer_ratio") {
+        engine.setDcpConnBufferRatio(value);
     }
+}
 
-    void booleanValueChanged(const std::string& key, bool b) override {
-        if (key == "allow_sanitize_value_in_deletion") {
-            engine.allowSanitizeValueInDeletion.store(b);
-        } else if (key == "vbucket_mapping_sanity_checking") {
-            engine.sanityCheckVBucketMapping = b;
-        }
+void EpEngineValueChangeListener::booleanValueChanged(const std::string& key,
+                                                      bool b) {
+    if (key == "allow_sanitize_value_in_deletion") {
+        engine.allowSanitizeValueInDeletion.store(b);
+    } else if (key == "vbucket_mapping_sanity_checking") {
+        engine.sanityCheckVBucketMapping = b;
     }
-
-private:
-    EventuallyPersistentEngine &engine;
-};
+}
 
 size_t EventuallyPersistentEngine::getShardCount() {
     auto configShardCount = configuration.getMaxNumShards();
@@ -2154,6 +2148,10 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
             std::make_unique<EpEngineValueChangeListener>(*this));
     configuration.addValueChangedListener(
             "vbucket_mapping_sanity_checking_error_mode",
+            std::make_unique<EpEngineValueChangeListener>(*this));
+
+    configuration.addValueChangedListener(
+            "dcp_conn_buffer_ratio",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     return cb::engine_errc::success;
@@ -6996,4 +6994,10 @@ cb::engine_errc EventuallyPersistentEngine::doRangeScanStats(
     kvBucket->visit(svbv);
 
     return cb::engine_errc::success;
+}
+
+void EventuallyPersistentEngine::setDcpConnBufferRatio(float ratio) {
+    if (dcpFlowControlManager) {
+        dcpFlowControlManager->setDcpConnBufferRatio(ratio);
+    }
 }

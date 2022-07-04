@@ -31,6 +31,7 @@
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/dcp-types.h"
 #include "dcp/dcpconnmap.h"
+#include "dcp/flow-control-manager.h"
 #include "dcp/producer.h"
 #include "dcp/response.h"
 #include "dcp/stream.h"
@@ -2525,7 +2526,7 @@ void FlowControlTestBase::testNotifyConsumerOnlyIfFlowControlEnabled(
     // the buffer is sufficiently drained. Setting the buffer size to 0 makes
     // the buffer sufficiently drained at any received DCP message.
     if (flowControlEnabled) {
-        consumer->public_flowControl().setFlowControlBufSize(0);
+        consumer->public_flowControl().setBufferSize(0);
     }
 
     // Setup the stream
@@ -2585,6 +2586,52 @@ void FlowControlTest::SetUp() {
 
 TEST_F(FlowControlTest, NotifyConsumerWhenEnabled) {
     testNotifyConsumerOnlyIfFlowControlEnabled(true);
+}
+
+TEST_F(FlowControlTest, Config_ConnBufferRatio_LowerThanMin) {
+    auto& config = engine->getConfiguration();
+    try {
+        config.setDcpConnBufferRatio(0.001);
+    } catch (const std::range_error& e) {
+        EXPECT_THAT(
+                e.what(),
+                testing::HasSubstr("Validation Error, dcp_conn_buffer_ratio "
+                                   "takes values between 0.010000"));
+        return;
+    }
+    FAIL();
+}
+
+TEST_F(FlowControlTest, Config_ConnBufferRatio_HigherThanMax) {
+    auto& config = engine->getConfiguration();
+    try {
+        config.setDcpConnBufferRatio(0.5);
+    } catch (const std::range_error& e) {
+        EXPECT_THAT(e.what(),
+                    testing::HasSubstr(
+                            "Validation Error, dcp_conn_buffer_ratio "
+                            "takes values between 0.010000 and 0.20000"));
+        return;
+    }
+    FAIL();
+}
+
+TEST_F(FlowControlTest, Config_ConnBufferRatio) {
+    engine->getKVBucket()->setVBucketState(vbid, vbucket_state_replica);
+
+    const float ratio = 0.1;
+    auto& config = engine->getConfiguration();
+    config.setDcpConnBufferRatio(ratio);
+
+    ASSERT_EQ(0, engine->getDcpFlowControlManager().getNumConsumers());
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+    ASSERT_TRUE(consumer->public_flowControl().isEnabled());
+    ASSERT_EQ(1, engine->getDcpFlowControlManager().getNumConsumers());
+    const auto bufferSize = consumer->getFlowControlBufSize();
+
+    config.setDcpConnBufferRatio(ratio * 2);
+    EXPECT_EQ(bufferSize * 2, consumer->getFlowControlBufSize());
 }
 
 struct PrintToStringCombinedNameXattrOnOff {

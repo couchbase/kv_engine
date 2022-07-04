@@ -82,11 +82,11 @@ void FlowControl::incrFreedBytes(uint32_t bytes)
     freedBytes.fetch_add(bytes);
 }
 
-uint32_t FlowControl::getFlowControlBufSize() {
+size_t FlowControl::getBufferSize() const {
     return buffer.rlock()->getSize();
 }
 
-void FlowControl::setFlowControlBufSize(uint32_t newSize) {
+void FlowControl::setBufferSize(size_t newSize) {
     auto lockedBuffer = buffer.wlock();
     if (newSize != lockedBuffer->getSize()) {
         lockedBuffer->setSize(newSize);

@@ -101,6 +101,10 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
         stats.mem_high_wat_percent.store(double(configuration.getMemHighWat()) /
                                          configuration.getMaxSize());
     }
+
+    configuration.addValueChangedListener(
+            "dcp_conn_buffer_ratio",
+            std::make_unique<EpEngineValueChangeListener>(*this));
 }
 
 void SynchronousEPEngine::setKVBucket(std::unique_ptr<KVBucket> store) {

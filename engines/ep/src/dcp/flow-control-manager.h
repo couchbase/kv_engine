@@ -39,19 +39,26 @@ public:
 
     void handleDisconnect(DcpConsumer& consumer);
 
-protected:
-    /**
-     * @param numConsumers Number of consumers on this node
-     * @return The new per-consumer buffer size based on the num of consumers
-     *  given in input
-     */
-    size_t computeBufferSize(size_t numConsumers) const;
+    void setDcpConnBufferRatio(float ratio);
 
-    EventuallyPersistentEngine& engine_;
+    size_t getNumConsumers() const;
+
+protected:
+    using ConsumerContainer = std::set<DcpConsumer*>;
+
+    /**
+     * Set a new buffer size for consumers in the given connections
+     *
+     * @param consumers Container of connections to update
+     * @param bufferSize The new buffer size
+     */
+    void updateConsumersBufferSize(ConsumerContainer& consumers);
+
+    EventuallyPersistentEngine& engine;
 
 private:
     // DCP Consumers on this node
-    folly::Synchronized<std::set<DcpConsumer*>> consumers;
+    folly::Synchronized<ConsumerContainer> consumers;
 
     // Ratio of BucketQuota for all dcp consumer connection buffers
     std::atomic<double> dcpConnBufferRatio;

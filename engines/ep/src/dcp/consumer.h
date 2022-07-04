@@ -271,7 +271,7 @@ public:
 
     uint64_t incrOpaqueCounter();
 
-    uint32_t getFlowControlBufSize();
+    uint32_t getFlowControlBufSize() const;
 
     void setFlowControlBufSize(uint32_t newSize);
 
