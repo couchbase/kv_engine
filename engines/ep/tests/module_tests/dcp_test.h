@@ -117,6 +117,4 @@ class FlowControlTest : public KVBucketTest,
                         public ::testing::WithParamInterface<bool> {
 protected:
     void SetUp() override;
-
-    bool flowControlEnabled;
 };

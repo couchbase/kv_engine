@@ -2505,9 +2505,8 @@ TEST_F(SingleThreadedKVBucketTest, ProducerIdleTimeoutUpdatedOnConfigChange) {
 }
 
 void FlowControlTest::SetUp() {
-    flowControlEnabled = GetParam();
     config_string = std::string("dcp_consumer_flow_control_enabled=") +
-                    (flowControlEnabled ? "true" : "false");
+                    (GetParam() ? "true" : "false");
     KVBucketTest::SetUp();
 }
 
@@ -2518,7 +2517,8 @@ TEST_P(FlowControlTest, NotifyConsumerOnlyIfFlowControlEnabled) {
     const auto connName = "test_consumer";
     auto consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, connName);
-    ASSERT_EQ(flowControlEnabled, consumer->public_flowControl().isEnabled());
+    const auto flowControlEnabled = consumer->public_flowControl().isEnabled();
+    ASSERT_EQ(flowControlEnabled, GetParam());
 
     // Add to consumer to ConnMap so that we can test whether the connection
     // is scheduled for notifying by checking if it is added to the 'pending
