@@ -50,11 +50,14 @@ protected:
      * @param value The documents value
      * @param xattr_path An optional XAttr path
      * @param xattr_value An optional XAttr value
+     * @param wait_for_persistence if set to true it'll use durable write
+     *                             and wait for persistence on master
      */
     static void upsert(std::string id,
                        std::string value,
                        std::string xattr_path = {},
-                       std::string xattr_value = {});
+                       std::string xattr_value = {},
+                       bool wait_for_persistence = false);
 
     /**
      * Get a string value of a given length which may be used as an xattr value
@@ -84,12 +87,22 @@ std::unique_ptr<MemcachedConnection> MeteringTest::conn;
 void MeteringTest::upsert(std::string id,
                           std::string value,
                           std::string xattr_path,
-                          std::string xattr_value) {
+                          std::string xattr_value,
+                          bool wait_for_persistence) {
     if (xattr_path.empty()) {
         Document doc;
         doc.info.id = std::move(id);
         doc.value = std::move(value);
-        conn->mutate(doc, Vbid{0}, MutationType::Set);
+        if (wait_for_persistence) {
+            conn->mutate(doc, Vbid{0}, MutationType::Set, []() {
+                FrameInfoVector ret;
+                ret.emplace_back(std::make_unique<DurabilityFrameInfo>(
+                        cb::durability::Level::MajorityAndPersistOnMaster));
+                return ret;
+            });
+        } else {
+            conn->mutate(doc, Vbid{0}, MutationType::Set);
+        }
     } else {
         BinprotSubdocMultiMutationCommand cmd;
         cmd.setKey(id);
@@ -101,6 +114,11 @@ void MeteringTest::upsert(std::string id,
         cmd.addMutation(
                 cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
         cmd.addDocFlag(::mcbp::subdoc::doc_flag::Mkdoc);
+        DurabilityFrameInfo fi(
+                cb::durability::Level::MajorityAndPersistOnMaster);
+        if (wait_for_persistence) {
+            cmd.addFrameInfo(fi);
+        }
         auto rsp = conn->execute(cmd);
         if (!rsp.isSuccess()) {
             throw ConnectionError("Subdoc failed", rsp);
@@ -1190,69 +1208,44 @@ TEST_F(MeteringTest, MeterGetRandomKey) {
     // Random key needs at least one key to be stored in the bucket so that
     // it may return the key. To make sure that the unit tests doesn't depend
     // on other tests lets store a document in vbucket 0.
+    // However GetRandomKey needs to check the collection item count, which only
+    // updates when we flush a committed item, yet a durable write is successful
+    // once all pending writes are "in-place" - thus GetRandomKey could race
+    // with the flush of a commit, to get around that we can store twice, this
+    // single connection will then ensure a non zero item count is observed by
+    // GetRandomKey
     upsert("MeterGetRandomKey", "hello");
+    upsert("MeterGetRandomKey", "hello", {}, {}, true);
 
-    // The document won't be visible through GetRandomKey until it has
-    // been flushed to disk. I tried to use SyncWrite with a
-    // MajorityAndPersistOnMaster, but that seemed to return before the
-    // collection counters was updated.
-    // I could loop and check for persistence, but its just as easy
-    // to just loop trying to fetch the random key.
-    // Typically the unit test is run as part of the entire batch,
-    // and the previous test cases would have caused a document to
-    // be written and returned through the call to GetRandomKey
-    // so we'll optimize for the happy path and just try to fetch
-    // a random key, and it "fails" the error code should be KeyEnoent
-    // and we could back off and retry.
-    const auto timeout =
-            std::chrono::steady_clock::now() + std::chrono::seconds{15};
-    do {
-        auto rsp = conn->execute(
-                BinprotGenericCommand{cb::mcbp::ClientOpcode::GetRandomKey});
-        if (rsp.isSuccess()) {
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_NE(0, *rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
-            // Test succeeded OK
-            return;
-        }
-        EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
-        std::this_thread::sleep_for(std::chrono::milliseconds{50});
-    } while (std::chrono::steady_clock::now() < timeout);
-
-    FAIL() << "Failed to test GetRandomKey";
+    const auto rsp = conn->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::GetRandomKey});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_NE(0, *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
 }
 
 TEST_F(MeteringTest, MeterGetKeys) {
     // GetKeys needs at least one key to be stored in the bucket so that
     // it may return the key. To make sure that the unit tests doesn't depend
     // on other tests lets store a document in vbucket 0.
+    // However GetKeys needs to check the collection item count, which only
+    // updates when we flush a committed item, yet a durable write is successful
+    // once all pending writes are "in-place" - thus GetKeys could race
+    // with the flush of a commit, to get around that we can store twice, this
+    // single connection will then ensure a non zero item count is observed by
+    // GetKeys
     upsert("MeterGetKeys", "hello");
+    upsert("MeterGetKeys", "hello", {}, {}, true);
 
-    // The document won't be visible through GetKeys until it has
-    // been flushed to disk.
-    // Typically the unit test is run as part of the entire batch,
-    // and the previous test cases would have caused a document to
-    // be written and returned through the call to GetKeys
-    // so we'll optimize for the happy path and just return data already
-    // stored, and it "fails" we back off and retry.
-    const auto timeout =
-            std::chrono::steady_clock::now() + std::chrono::seconds{15};
-    do {
-        auto rsp = conn->execute(BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::GetKeys, std::string{"\0", 1}});
-        ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-        if (!rsp.getData().empty()) {
-            ASSERT_TRUE(rsp.getReadUnits()) << rsp.getDataString();
-            // Depending on how many keys we've got in the database..
-            EXPECT_LE(1, *rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
-            return;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds{50});
-    } while (std::chrono::steady_clock::now() < timeout);
-
-    FAIL() << "Failed to test GetKeys";
+    const auto rsp = conn->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::GetKeys, std::string{"\0", 1}});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    EXPECT_FALSE(rsp.getData().empty());
+    ASSERT_TRUE(rsp.getReadUnits()) << rsp.getDataString();
+    // Depending on how many keys we've got in the database..
+    EXPECT_LE(1, *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getWriteUnits());
 }
 
 /// GetMeta should cost 1 RU (we only look up metadata)
