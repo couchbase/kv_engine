@@ -879,6 +879,8 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
 
     /* We want the backfill task to run in a background thread */
     ExecutorPool::get()->setNumAuxIO(1);
+
+    EXPECT_EQ(stream->getNumBackfillPauses(), 0);
     stream->transitionStateToBackfilling();
 
     /* Backfill can only read 1 as its buffer will become full after that */
@@ -888,6 +890,16 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
             uSleepTime = decayingSleep(uSleepTime);
         }
     }
+
+    /* Wait until backfill is paused to assert the pause count */
+    {
+        std::chrono::microseconds uSleepTime(128);
+        while (stream->getNumBackfillPauses() == 0) {
+            uSleepTime = decayingSleep(uSleepTime);
+        }
+    }
+
+    EXPECT_EQ(stream->getNumBackfillPauses(), 1);
 
     /* Consume the backfill item(s) */
     stream->consumeBackfillItems(*producer, /*snapshot*/ 1 + /*mutation*/ 1);
@@ -906,6 +918,14 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
 
     /* Read the other item */
     stream->consumeBackfillItems(*producer, 1);
+
+    EXPECT_EQ(stream->getNumBackfillPauses(), 1);
+
+    // Ensure next backfill starts off with a 0 pause count.
+    stream->handleSlowStream();
+    stream->next(*producer);
+    EXPECT_EQ(stream->getNumBackfillPauses(), 0);
+
     EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 

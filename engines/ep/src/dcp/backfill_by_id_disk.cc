@@ -133,6 +133,7 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
         return backfill_finished;
     case ScanStatus::Yield:
         // Scan should run again (e.g. was paused by callback)
+        stream->incrementNumBackfillPauses();
         return backfill_success;
     case ScanStatus::Failed:
         // Scan did not complete successfully. Propagate error to stream.
