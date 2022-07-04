@@ -22,13 +22,13 @@ FlowControl::FlowControl(EventuallyPersistentEngine& engine,
     : consumerConn(consumer),
       engine_(engine),
       enabled(engine.getConfiguration().isDcpConsumerFlowControlEnabled()),
-      pendingControl(true),
       lastBufferAck(ep_current_time()),
       ackedBytes(0),
       freedBytes(0) {
     if (enabled) {
-        bufferSize =
+        const auto newSize =
                 engine.getDcpFlowControlManager().newConsumerConn(&consumer);
+        buffer.wlock()->setSize(newSize);
     }
 }
 
@@ -44,37 +44,34 @@ cb::engine_errc FlowControl::handleFlowCtl(
         return cb::engine_errc::failed;
     }
 
-    cb::engine_errc ret;
-    uint32_t ackable_bytes = freedBytes.load();
-    std::unique_lock<std::mutex> lh(bufferSizeLock);
-    if (pendingControl) {
-        pendingControl = false;
-        std::string buf_size(std::to_string(bufferSize));
-        lh.unlock();
-        uint64_t opaque = consumerConn.incrOpaqueCounter();
-        const std::string& controlMsgKey = consumerConn.getControlMsgKey();
-        NonBucketAllocationGuard guard;
-        ret = producers.control(opaque, controlMsgKey, buf_size);
-        return ret;
+    {
+        auto lockedBuffer = buffer.wlock();
+        if (lockedBuffer->isPendingControl()) {
+            lockedBuffer->clearPendingControl();
+            const auto bufferSize = lockedBuffer->getSize();
+            lockedBuffer.unlock();
+
+            NonBucketAllocationGuard guard;
+            return producers.control(consumerConn.incrOpaqueCounter(),
+                                     consumerConn.getControlMsgKey(),
+                                     std::to_string(bufferSize));
+        }
     }
 
     // Send a buffer ack when the buffer is sufficiently drained, or every 5
-    // secs if there any unacked byte.
+    // secs if there's any unacked byte.
+    const auto ackableBytes = freedBytes.load();
     const auto sendBufferAck =
-            isBufferSufficientlyDrained_UNLOCKED(ackable_bytes) ||
-            (ackable_bytes > 0 && (ep_current_time() - lastBufferAck) > 5);
-
+            isBufferSufficientlyDrained() ||
+            (ackableBytes > 0 && (ep_current_time() - lastBufferAck) > 5);
     if (sendBufferAck) {
-        lh.unlock();
-        uint64_t opaque = consumerConn.incrOpaqueCounter();
-        ret = producers.buffer_acknowledgement(opaque, Vbid(0), ackable_bytes);
         lastBufferAck = ep_current_time();
-        ackedBytes.fetch_add(ackable_bytes);
-        freedBytes.fetch_sub(ackable_bytes);
-        return ret;
+        ackedBytes.fetch_add(ackableBytes);
+        freedBytes.fetch_sub(ackableBytes);
+        // @todo: Remove Vbid arg from DcpIface::buffer_acknowledgement, unused
+        return producers.buffer_acknowledgement(
+                consumerConn.incrOpaqueCounter(), Vbid(0), ackableBytes);
     }
-
-    lh.unlock();
 
     return cb::engine_errc::failed;
 }
@@ -84,32 +81,26 @@ void FlowControl::incrFreedBytes(uint32_t bytes)
     freedBytes.fetch_add(bytes);
 }
 
-uint32_t FlowControl::getFlowControlBufSize()
-{
-    return bufferSize;
+uint32_t FlowControl::getFlowControlBufSize() {
+    return buffer.rlock()->getSize();
 }
 
-void FlowControl::setFlowControlBufSize(uint32_t newSize)
-{
-    std::lock_guard<std::mutex> lh(bufferSizeLock);
-    if (newSize != bufferSize) {
-        bufferSize = newSize;
-        pendingControl = true;
+void FlowControl::setFlowControlBufSize(uint32_t newSize) {
+    auto lockedBuffer = buffer.wlock();
+    if (newSize != lockedBuffer->getSize()) {
+        lockedBuffer->setSize(newSize);
     }
 }
 
 bool FlowControl::isBufferSufficientlyDrained() {
-    std::lock_guard<std::mutex> lh(bufferSizeLock);
-    return isBufferSufficientlyDrained_UNLOCKED(freedBytes.load());
-}
-
-bool FlowControl::isBufferSufficientlyDrained_UNLOCKED(uint32_t ackable_bytes) {
-    return ackable_bytes > (bufferSize * .2);
+    auto lockedBuffer = buffer.rlock();
+    return freedBytes > (lockedBuffer->getSize() * 0.2);
 }
 
 void FlowControl::addStats(const AddStatFn& add_stat,
                            const CookieIface* c) const {
     consumerConn.addStat("total_acked_bytes", ackedBytes, add_stat, c);
-    consumerConn.addStat("max_buffer_bytes", bufferSize, add_stat, c);
+    consumerConn.addStat(
+            "max_buffer_bytes", buffer.rlock()->getSize(), add_stat, c);
     consumerConn.addStat("unacked_bytes", freedBytes, add_stat, c);
 }

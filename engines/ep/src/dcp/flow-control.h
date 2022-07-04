@@ -13,6 +13,7 @@
 #include "memcached/engine.h"
 
 #include <relaxed_atomic.h>
+#include <folly/Synchronized.h>
 #include <mutex>
 
 class DcpConsumer;
@@ -53,9 +54,6 @@ public:
     }
 
 private:
-
-    bool isBufferSufficientlyDrained_UNLOCKED(uint32_t ackable_bytes);
-
     /// Associated consumer connection handler
     DcpConsumer& consumerConn;
 
@@ -65,15 +63,34 @@ private:
     /* Indicates if flow control is enabled for this connection */
     const bool enabled;
 
-    /* Indicates whether control msg regarding flow control has been sent to
-       the producer */
-    bool pendingControl;
+    // The buffer size is a dynamic quantity that requires sending a new control
+    // message to the Producer for informing it of the new FlowControl setting
+    // whenevet the buffer size changes here at Consumer.
+    class Buffer {
+    public:
+        void setSize(size_t s) {
+            size = s;
+            pendingControl = true;
+        }
 
-    /* Flow control buffer size */
-    cb::RelaxedAtomic<uint32_t> bufferSize;
+        size_t getSize() const {
+            return size;
+        }
 
-    /* Lock while updating buffersize and pendingControl */
-    std::mutex bufferSizeLock;
+        bool isPendingControl() const {
+            return pendingControl;
+        }
+
+        void clearPendingControl() {
+            pendingControl = false;
+        }
+
+    private:
+        size_t size = 0;
+        bool pendingControl = false;
+    };
+    // Requires synchronization as this caches a dynamic configuration parameter
+    folly::Synchronized<Buffer> buffer;
 
     /* To keep track of when last buffer ack was sent */
     rel_time_t lastBufferAck;
