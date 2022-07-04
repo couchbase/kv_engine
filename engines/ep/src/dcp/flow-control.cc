@@ -56,27 +56,25 @@ cb::engine_errc FlowControl::handleFlowCtl(
         NonBucketAllocationGuard guard;
         ret = producers.control(opaque, controlMsgKey, buf_size);
         return ret;
-    } else if (isBufferSufficientlyDrained_UNLOCKED(ackable_bytes)) {
-        lh.unlock();
-        /* Send a buffer ack when at least 20% of the buffer is drained */
-        uint64_t opaque = consumerConn.incrOpaqueCounter();
-        ret = producers.buffer_acknowledgement(opaque, Vbid(0), ackable_bytes);
-        lastBufferAck = ep_current_time();
-        ackedBytes.fetch_add(ackable_bytes);
-        freedBytes.fetch_sub(ackable_bytes);
-        return ret;
-    } else if (ackable_bytes > 0 && (ep_current_time() - lastBufferAck) > 5) {
-        lh.unlock();
-        /* Ack at least every 5 seconds */
-        uint64_t opaque = consumerConn.incrOpaqueCounter();
-        ret = producers.buffer_acknowledgement(opaque, Vbid(0), ackable_bytes);
-        lastBufferAck = ep_current_time();
-        ackedBytes.fetch_add(ackable_bytes);
-        freedBytes.fetch_sub(ackable_bytes);
-        return ret;
-    } else {
-        lh.unlock();
     }
+
+    // Send a buffer ack when the buffer is sufficiently drained, or every 5
+    // secs if there any unacked byte.
+    const auto sendBufferAck =
+            isBufferSufficientlyDrained_UNLOCKED(ackable_bytes) ||
+            (ackable_bytes > 0 && (ep_current_time() - lastBufferAck) > 5);
+
+    if (sendBufferAck) {
+        lh.unlock();
+        uint64_t opaque = consumerConn.incrOpaqueCounter();
+        ret = producers.buffer_acknowledgement(opaque, Vbid(0), ackable_bytes);
+        lastBufferAck = ep_current_time();
+        ackedBytes.fetch_add(ackable_bytes);
+        freedBytes.fetch_sub(ackable_bytes);
+        return ret;
+    }
+
+    lh.unlock();
 
     return cb::engine_errc::failed;
 }
