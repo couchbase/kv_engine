@@ -303,7 +303,6 @@ bool is_supported_opcode(ClientOpcode opcode) {
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
     case ClientOpcode::Ifconfig:
-    case ClientOpcode::CheckpointPersistence_Unsupported:
     case ClientOpcode::ReturnMeta:
     case ClientOpcode::CompactDb:
     case ClientOpcode::SetClusterConfig:
@@ -375,6 +374,7 @@ bool is_supported_opcode(ClientOpcode opcode) {
     case ClientOpcode::VbucketBatchCount_Unsupported:
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::ChangeVbFilter_Unsupported:
+    case ClientOpcode::CheckpointPersistence_Unsupported:
     case ClientOpcode::SetDriftCounterState_Unsupported:
     case ClientOpcode::GetAdjustedTime_Unsupported:
     case ClientOpcode::Invalid:
