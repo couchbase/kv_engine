@@ -113,8 +113,17 @@ protected:
     static int callbackCount;
 };
 
-class FlowControlTest : public KVBucketTest,
-                        public ::testing::WithParamInterface<bool> {
+class FlowControlTestBase : public KVBucketTest {
+protected:
+    void testNotifyConsumerOnlyIfFlowControlEnabled(bool enabled);
+};
+
+class FlowControlDisabledTest : public FlowControlTestBase {
+protected:
+    void SetUp() override;
+};
+
+class FlowControlTest : public FlowControlTestBase {
 protected:
     void SetUp() override;
 };
