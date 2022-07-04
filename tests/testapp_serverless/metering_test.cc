@@ -138,7 +138,7 @@ TEST_F(MeteringTest, UnmeteredPrivilege) {
 /// and call a function which performs a switch (so the compiler will barf
 /// out if we don't handle the case). By doing so one must explicitly think
 /// if the new opcode needs to be metered or not.
-TEST_F(MeteringTest, DISABLED_OpsMetered) {
+TEST_F(MeteringTest, OpsMetered) {
     using namespace cb::mcbp;
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
@@ -369,12 +369,7 @@ TEST_F(MeteringTest, DISABLED_OpsMetered) {
         case ClientOpcode::SeqnoPersistence:
             break;
         case ClientOpcode::GetKeys:
-            rsp = conn.execute(
-                    BinprotGenericCommand{opcode, std::string{"\0", 1}});
-            EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(1, *rsp.getReadUnits());
-            EXPECT_FALSE(rsp.getWriteUnits());
+            // Tested in its own unit test
             break;
         case ClientOpcode::CollectionsGetID:
             break;
@@ -1218,6 +1213,38 @@ TEST_F(MeteringTest, MeterGetRandomKey) {
     } while (std::chrono::steady_clock::now() < timeout);
 
     FAIL() << "Failed to test GetRandomKey";
+}
+
+TEST_F(MeteringTest, MeterGetKeys) {
+    // GetKeys needs at least one key to be stored in the bucket so that
+    // it may return the key. To make sure that the unit tests doesn't depend
+    // on other tests lets store a document in vbucket 0.
+    upsert("MeterGetKeys", "hello");
+
+    // The document won't be visible through GetKeys until it has
+    // been flushed to disk.
+    // Typically the unit test is run as part of the entire batch,
+    // and the previous test cases would have caused a document to
+    // be written and returned through the call to GetKeys
+    // so we'll optimize for the happy path and just return data already
+    // stored, and it "fails" we back off and retry.
+    const auto timeout =
+            std::chrono::steady_clock::now() + std::chrono::seconds{15};
+    do {
+        auto rsp = conn->execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::GetKeys, std::string{"\0", 1}});
+        ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+        if (!rsp.getData().empty()) {
+            ASSERT_TRUE(rsp.getReadUnits()) << rsp.getDataString();
+            // Depending on how many keys we've got in the database..
+            EXPECT_LE(1, *rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getWriteUnits());
+            return;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds{50});
+    } while (std::chrono::steady_clock::now() < timeout);
+
+    FAIL() << "Failed to test GetKeys";
 }
 
 } // namespace cb::test
