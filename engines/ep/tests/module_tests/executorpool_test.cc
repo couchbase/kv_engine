@@ -826,8 +826,8 @@ TYPED_TEST(ExecutorPoolTest, increase_workers) {
     std::vector<ExTask> tasks;
 
     for (size_t i = 0; i < numWriters + 1; ++i) {
-        // Use any Writer thread task (StatSnap) for the TaskId.
-        ExTask task = makeTask(taskable, tg, TaskId::StatSnap);
+        // Use any Writer thread task (FlusherTask) for the TaskId.
+        ExTask task = makeTask(taskable, tg, TaskId::FlusherTask);
         this->pool->schedule(task);
         tasks.push_back(task);
     }

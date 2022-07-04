@@ -367,11 +367,9 @@ public:
     virtual void wakeUpFlusher() = 0;
 
     /**
-     * Takes a snapshot of the current stats and persists them to disk.
-     *
-     * @param shuttingDown is the bucket shutting down?
+     * Persists to disk if the shutdown was forced or not, to stats.json.
      */
-    virtual void snapshotStats(bool shuttingDown) = 0;
+    virtual void persistShutdownContext() = 0;
 
     /**
      * Get summarized vBucket stats for this bucket - total for all

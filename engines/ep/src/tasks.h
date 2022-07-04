@@ -188,35 +188,6 @@ private:
 };
 
 /**
- * A task that periodically takes a snapshot of the stats and persists them to
- * disk.
- */
-class StatSnap : public GlobalTask {
-public:
-    explicit StatSnap(EventuallyPersistentEngine* e)
-        : GlobalTask(e,
-                     TaskId::StatSnap,
-                     /*sleeptime*/ 0,
-                     /*completeBeforeShutdown*/ false) {
-    }
-
-    bool run() override;
-
-    std::string getDescription() const override {
-        return "Updating stat snapshot on disk";
-    }
-
-    std::chrono::microseconds maxExpectedDuration() const override {
-        // A background periodic Writer task; which no front-end operation
-        // depends on. However it does run on a writer thread; which we don't
-        // want to slow down persistTo times; so expect to complete quickly.
-        // p99.9 at 250ms.
-        // TODO: Consider moving this to AuxIO?
-        return std::chrono::milliseconds(250);
-    }
-};
-
-/**
  * A task for fetching items from disk.
  */
 class BgFetcher;

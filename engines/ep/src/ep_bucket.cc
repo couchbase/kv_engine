@@ -327,13 +327,10 @@ void EPBucket::deinitialize() {
 
     KVBucket::deinitialize();
 
-    // Perform a snapshot of the stats before shutting down so we can
-    // persist the type of shutdown (stats.forceShutdown), and consequently
+    // Persist the type of shutdown (stats.forceShutdown), and consequently
     // on the next warmup can determine is there was a clean shutdown - see
-    // Warmup::cleanShutdown. This must be called after KVBucket::deinitialize()
-    // to prevent a race condition with the StatSnap task as the deinitialize
-    // function will cancel all running tasks.
-    snapshotStats(true /*shuttingDown*/);
+    // Warmup::cleanShutdown.
+    persistShutdownContext();
 
     // Now that we've stopped all of our tasks, stop any tasks the storage
     // layer may have created.
@@ -2278,10 +2275,6 @@ void EPBucket::warmupCompleted() {
                 "alog_task_time",
                 std::make_unique<ValueChangedListener>(*this));
     }
-
-    ExecutorPool* iom = ExecutorPool::get();
-    ExTask task = std::make_shared<StatSnap>(&engine);
-    iom->schedule(task);
 
     // Whilst we do schedule a compaction here and it can run before we call
     // initializeShards below (which sets makeCompactionContext), this scheduled

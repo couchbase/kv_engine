@@ -68,7 +68,6 @@ TASK(RangeScanContinueTask, AUXIO_TASK_IDX, 6)
 TASK(RollbackTask, WRITER_TASK_IDX, 1)
 TASK(PersistCollectionsManifest, WRITER_TASK_IDX, 1)
 TASK(FlusherTask, WRITER_TASK_IDX, 5)
-TASK(StatSnap, WRITER_TASK_IDX, 9)
 
 // Non-IO tasks
 TASK(Core_CreateBucketTask, NONIO_TASK_IDX, 0)

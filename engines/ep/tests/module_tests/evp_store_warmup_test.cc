@@ -2601,11 +2601,7 @@ TEST_F(WarmupTest, DontStartFlushersUntilPopulateVBucketMap) {
 
 TEST_F(WarmupTest, OnlyShutdownPersistsForceShutdownStat) {
     // Hook to run
-    std::function<void()> stopDestructionEarly = [this]() {
-        // Run StatSnap manually
-        auto statSnap = StatSnap(engine.get());
-        statSnap.run();
-
+    std::function<void()> stopDestructionEarly = []() {
         // throw so we exit the destroy method early
         throw std::runtime_error("Stop destruction");
     };

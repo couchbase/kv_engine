@@ -170,13 +170,6 @@ std::vector<const CookieIface*> CompactTask::takeCookies() {
     return ret;
 }
 
-bool StatSnap::run() {
-    TRACE_EVENT0("ep-engine/task", "StatSnap");
-    engine->getKVBucket()->snapshotStats(false /*shuttingDown*/);
-    ExecutorPool::get()->snooze(uid, 60);
-    return true;
-}
-
 MultiBGFetcherTask::MultiBGFetcherTask(EventuallyPersistentEngine* e,
                                        BgFetcher* b)
     : GlobalTask(e,

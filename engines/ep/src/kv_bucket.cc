@@ -1230,25 +1230,10 @@ bool KVBucket::resetVBucket_UNLOCKED(LockedVBucketPtr& vb,
     return rv;
 }
 
-void KVBucket::snapshotStats(bool shuttingDown) {
-    std::map<std::string, std::string> statsMap;
-    auto snapshot_add_stat = [&statsMap](std::string_view key,
-                                         std::string_view value,
-                                         const void* ctx) {
-        statsMap.insert(std::pair<std::string, std::string>(
-                std::string{key.data(), key.size()},
-                std::string{value.data(), value.size()}));
-    };
-    cb::tracing::Traceable traceable;
-    bool rv = engine.getStats(&traceable, {}, {}, snapshot_add_stat) ==
-                      cb::engine_errc::success;
-
-    nlohmann::json snapshotStats(statsMap);
-    if (rv && shuttingDown) {
-        snapshotStats["ep_force_shutdown"] =
-                stats.forceShutdown ? "true" : "false";
-        snapshotStats["ep_shutdown_time"] = fmt::format("{}", ep_real_time());
-    }
+void KVBucket::persistShutdownContext() {
+    nlohmann::json snapshotStats = {
+            {"ep_force_shutdown", stats.forceShutdown ? "true" : "false"},
+            {"ep_shutdown_time", fmt::format("{}", ep_real_time())}};
     getOneRWUnderlying()->snapshotStats(snapshotStats);
 }
 
