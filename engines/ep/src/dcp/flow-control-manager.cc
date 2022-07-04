@@ -20,80 +20,57 @@ DcpFlowControlManager::DcpFlowControlManager(EventuallyPersistentEngine& engine)
     dcpConnBufferRatio = engine.getConfiguration().getDcpConnBufferRatio();
 }
 
-void DcpFlowControlManager::setBufSizeWithinBounds(DcpConsumer* consumerConn,
-                                                   size_t& bufSize) {
-    Configuration& config = engine_.getConfiguration();
-    /* Make sure that the flow control buffer size is within a max and min
-     range */
-    if (bufSize < config.getDcpConnBufferSize()) {
-        bufSize = config.getDcpConnBufferSize();
-        EP_LOG_DEBUG(
-                "{} Conn flow control buffer is set to "
-                "minimum, bucket size: {}",
-                consumerConn->logHeader(),
-                engine_.getEpStats().getMaxDataSize());
-    } else if (bufSize > config.getDcpConnBufferSizeMax()) {
-        bufSize = config.getDcpConnBufferSizeMax();
-        EP_LOG_DEBUG(
-                "{} Conn flow control buffer is set to "
-                "maximum, bucket size: {}",
-                consumerConn->logHeader(),
-                engine_.getEpStats().getMaxDataSize());
-    }
-}
+size_t DcpFlowControlManager::computeBufferSize(size_t numConsumers) const {
+    Expects(numConsumers > 0);
 
-size_t DcpFlowControlManager::newConsumerConn(DcpConsumer* consumerConn) {
-    if (consumerConn == nullptr) {
-        throw std::invalid_argument(
-                "DcpFlowControlManager::newConsumerConn: resp is NULL");
-    }
-
-    auto lockedConsumers = consumers.wlock();
-
-    // Calculate new per conn buf size
     const auto bucketQuota = engine_.getEpStats().getMaxDataSize();
-    size_t bufferSize =
-            (dcpConnBufferRatio * bucketQuota) / (lockedConsumers->size() + 1);
+    size_t bufferSize = (dcpConnBufferRatio * bucketQuota) / numConsumers;
 
     // Make sure that the flow control buffer size is within a max and min range
-    setBufSizeWithinBounds(consumerConn, bufferSize);
-    EP_LOG_DEBUG("{} Conn flow control buffer is {}",
-                 consumerConn->logHeader(),
-                 bufferSize);
-
-    // Resize buffer of all existing consumers
-    for (auto* c : *lockedConsumers) {
-        c->setFlowControlBufSize(bufferSize);
+    const auto& config = engine_.getConfiguration();
+    if (bufferSize < config.getDcpConnBufferSize()) {
+        bufferSize = config.getDcpConnBufferSize();
+    } else if (bufferSize > config.getDcpConnBufferSizeMax()) {
+        bufferSize = config.getDcpConnBufferSizeMax();
     }
 
-    // Add the new consumer to the tracked set
-    lockedConsumers->emplace(consumerConn);
+    EP_LOG_DEBUG(
+            "DcpFlowControlManager::computeBufferSize: The new FlowControl "
+            "buffer size for DCP Consumers is {}",
+            bufferSize);
 
     return bufferSize;
 }
 
-void DcpFlowControlManager::handleDisconnect(DcpConsumer* conn) {
-    auto lockedConsumers = consumers.wlock();
+void DcpFlowControlManager::newConsumer(DcpConsumer* consumer) {
+    if (consumer == nullptr) {
+        throw std::invalid_argument(
+                "DcpFlowControlManager::newConsumer: resp is NULL");
+    }
 
+    // Add the new consumer to the tracked set
+    auto lockedConsumers = consumers.wlock();
+    lockedConsumers->emplace(consumer);
+
+    // Compute new per conn buf size and resize buffer of all existing consumers
+    const auto bufferSize = computeBufferSize(lockedConsumers->size());
+    for (auto* c : *lockedConsumers) {
+        c->setFlowControlBufSize(bufferSize);
+    }
+}
+
+void DcpFlowControlManager::handleDisconnect(DcpConsumer* consumer) {
     // Remove consumer
-    const auto numRemoved = lockedConsumers->erase(conn);
+    auto lockedConsumers = consumers.wlock();
+    const auto numRemoved = lockedConsumers->erase(consumer);
     Expects(numRemoved == 1);
 
     if (lockedConsumers->empty()) {
         return;
     }
 
-    const auto bucketQuota = engine_.getEpStats().getMaxDataSize();
-    size_t bufferSize =
-            (dcpConnBufferRatio * bucketQuota) / lockedConsumers->size();
-
-    /* Make sure that the flow control buffer size is within a max and
-     min range */
-    setBufSizeWithinBounds(conn, bufferSize);
-    EP_LOG_DEBUG(
-            "{} Conn flow control buffer is {}", conn->logHeader(), bufferSize);
-
-    // Resize buffer of all existing consumers
+    // Compute new per conn buf size and resize buffer of all existing consumers
+    const auto bufferSize = computeBufferSize(lockedConsumers->size());
     for (auto* c : *lockedConsumers) {
         c->setFlowControlBufSize(bufferSize);
     }

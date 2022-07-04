@@ -35,12 +35,17 @@ class DcpFlowControlManager {
 public:
     explicit DcpFlowControlManager(EventuallyPersistentEngine& engine);
 
-    size_t newConsumerConn(DcpConsumer* consumerConn);
+    void newConsumer(DcpConsumer* consumer);
 
-    void handleDisconnect(DcpConsumer* consumerConn);
+    void handleDisconnect(DcpConsumer* consumer);
 
 protected:
-    void setBufSizeWithinBounds(DcpConsumer* consumerConn, size_t& bufSize);
+    /**
+     * @param numConsumers Number of consumers on this node
+     * @return The new per-consumer buffer size based on the num of consumers
+     *  given in input
+     */
+    size_t computeBufferSize(size_t numConsumers) const;
 
     EventuallyPersistentEngine& engine_;
 

@@ -20,21 +20,22 @@
 FlowControl::FlowControl(EventuallyPersistentEngine& engine,
                          DcpConsumer& consumer)
     : consumerConn(consumer),
-      engine_(engine),
+      engine(engine),
       enabled(engine.getConfiguration().isDcpConsumerFlowControlEnabled()),
       lastBufferAck(ep_current_time()),
       ackedBytes(0),
       freedBytes(0) {
     if (enabled) {
-        const auto newSize =
-                engine.getDcpFlowControlManager().newConsumerConn(&consumer);
-        buffer.wlock()->setSize(newSize);
+        // This call is responsible for recomputing the per-consumer buffer size
+        // (based on the new number of consumers on this node) for all
+        // consumers - this new consumer included.
+        engine.getDcpFlowControlManager().newConsumer(&consumer);
     }
 }
 
 FlowControl::~FlowControl() {
     if (enabled) {
-        engine_.getDcpFlowControlManager().handleDisconnect(&consumerConn);
+        engine.getDcpFlowControlManager().handleDisconnect(&consumerConn);
     }
 }
 

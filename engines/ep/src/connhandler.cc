@@ -400,7 +400,7 @@ void ConnHandler::setLogHeader(const std::string& header) {
     logger->prefix = header;
 }
 
-const char* ConnHandler::logHeader() {
+const char* ConnHandler::logHeader() const {
     return logger->prefix.c_str();
 }
 

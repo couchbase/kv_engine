@@ -58,7 +58,7 @@ private:
     DcpConsumer& consumerConn;
 
     /// Reference to ep engine instance
-    EventuallyPersistentEngine &engine_;
+    EventuallyPersistentEngine& engine;
 
     /* Indicates if flow control is enabled for this connection */
     const bool enabled;

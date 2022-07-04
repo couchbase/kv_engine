@@ -261,7 +261,7 @@ public:
                                                Vbid vbucket,
                                                uint64_t prepared_seqno);
 
-    const char* logHeader();
+    const char* logHeader() const;
 
     void setLogHeader(const std::string& header);
 
