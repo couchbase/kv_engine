@@ -29,13 +29,13 @@ FlowControl::FlowControl(EventuallyPersistentEngine& engine,
         // This call is responsible for recomputing the per-consumer buffer size
         // (based on the new number of consumers on this node) for all
         // consumers - this new consumer included.
-        engine.getDcpFlowControlManager().newConsumer(&consumer);
+        engine.getDcpFlowControlManager().newConsumer(consumer);
     }
 }
 
 FlowControl::~FlowControl() {
     if (enabled) {
-        engine.getDcpFlowControlManager().handleDisconnect(&consumerConn);
+        engine.getDcpFlowControlManager().handleDisconnect(consumerConn);
     }
 }
 

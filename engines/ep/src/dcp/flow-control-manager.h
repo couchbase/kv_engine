@@ -35,9 +35,9 @@ class DcpFlowControlManager {
 public:
     explicit DcpFlowControlManager(EventuallyPersistentEngine& engine);
 
-    void newConsumer(DcpConsumer* consumer);
+    void newConsumer(DcpConsumer& consumer);
 
-    void handleDisconnect(DcpConsumer* consumer);
+    void handleDisconnect(DcpConsumer& consumer);
 
 protected:
     /**

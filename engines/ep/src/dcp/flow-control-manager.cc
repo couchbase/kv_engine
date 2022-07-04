@@ -42,15 +42,10 @@ size_t DcpFlowControlManager::computeBufferSize(size_t numConsumers) const {
     return bufferSize;
 }
 
-void DcpFlowControlManager::newConsumer(DcpConsumer* consumer) {
-    if (consumer == nullptr) {
-        throw std::invalid_argument(
-                "DcpFlowControlManager::newConsumer: resp is NULL");
-    }
-
+void DcpFlowControlManager::newConsumer(DcpConsumer& consumer) {
     // Add the new consumer to the tracked set
     auto lockedConsumers = consumers.wlock();
-    lockedConsumers->emplace(consumer);
+    lockedConsumers->emplace(&consumer);
 
     // Compute new per conn buf size and resize buffer of all existing consumers
     const auto bufferSize = computeBufferSize(lockedConsumers->size());
@@ -59,10 +54,10 @@ void DcpFlowControlManager::newConsumer(DcpConsumer* consumer) {
     }
 }
 
-void DcpFlowControlManager::handleDisconnect(DcpConsumer* consumer) {
+void DcpFlowControlManager::handleDisconnect(DcpConsumer& consumer) {
     // Remove consumer
     auto lockedConsumers = consumers.wlock();
-    const auto numRemoved = lockedConsumers->erase(consumer);
+    const auto numRemoved = lockedConsumers->erase(&consumer);
     Expects(numRemoved == 1);
 
     if (lockedConsumers->empty()) {
