@@ -56,7 +56,7 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
 
     name = "SynchronousEPEngine:" + configuration.getCouchBucket();
 
-    auto& env = Environment::get();
+    auto& env = ::Environment::get();
     env.engineFileDescriptors = serverApi->core->getMaxEngineFileDescriptors();
 
     // workload is needed by EPStore's constructor (to construct the
