@@ -19,9 +19,9 @@
 #include <random>
 
 /**
- * Fixture for item pager benchmarks
+ * Fixture for VBCBAdaptor benchmarks
  */
-class ItemPagerBench : public EngineFixture {
+class VBCBAdaptorBench : public EngineFixture {
 protected:
     void SetUp(const benchmark::State& state) override {
         varConfig = "backend=couchdb;max_vbuckets=1024";
@@ -107,7 +107,7 @@ protected:
     std::vector<Vbid> vbids;
 };
 
-BENCHMARK_DEFINE_F(ItemPagerBench, VBCBAdaptorCreation)
+BENCHMARK_DEFINE_F(VBCBAdaptorBench, VBCBAdaptorCreation)
 (benchmark::State& state) {
     // Benchmark - measure how long it takes to create a VBCBAdaptor for a
     // PagingVisitor. This involves visiting each vb and checking the memory
@@ -141,4 +141,4 @@ BENCHMARK_DEFINE_F(ItemPagerBench, VBCBAdaptorCreation)
     }
 }
 
-BENCHMARK_REGISTER_F(ItemPagerBench, VBCBAdaptorCreation)->Range(1, 1024);
+BENCHMARK_REGISTER_F(VBCBAdaptorBench, VBCBAdaptorCreation)->Range(1, 1024);
