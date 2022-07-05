@@ -61,7 +61,11 @@ public:
     // counters merge their info, this could be negative.
     using Counter = cb::RelaxedAtomic<int64_t>;
 
-    //! Total size of stored objects.
+    /**
+     * Total size of stored objects: Sum of all:
+     * - Blob heap allocation sizes (>= Blob.size())
+     * - StoredValue::getObjectSize()
+     */
     Counter currentSize;
 
     //! Total number of blob objects
