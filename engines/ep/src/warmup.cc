@@ -1692,18 +1692,21 @@ void Warmup::checkForAccessLog()
         return;
     }
 
-    for (uint16_t i = 0; i < store.vbMap.getNumShards(); i++) {
-        accessLog.emplace_back(config.getAlogPath() + "." + std::to_string(i),
-                               config.getAlogBlockSize());
-    }
-
     size_t accesslogs = 0;
-    for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
-        std::string curr = accessLog[i].getLogFile();
-        std::string old = accessLog[i].getLogFile();
-        old.append(".old");
-        if (cb::io::isFile(curr) || cb::io::isFile(old)) {
-            accesslogs++;
+    if (config.isAccessScannerEnabled()) {
+        for (uint16_t i = 0; i < store.vbMap.getNumShards(); i++) {
+            accessLog.emplace_back(
+                    config.getAlogPath() + "." + std::to_string(i),
+                    config.getAlogBlockSize());
+        }
+
+        for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
+            std::string curr = accessLog[i].getLogFile();
+            std::string old = accessLog[i].getLogFile();
+            old.append(".old");
+            if (cb::io::isFile(curr) || cb::io::isFile(old)) {
+                accesslogs++;
+            }
         }
     }
     if (accesslogs == store.vbMap.shards.size()) {

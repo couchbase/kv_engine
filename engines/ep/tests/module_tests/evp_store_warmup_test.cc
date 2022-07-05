@@ -17,6 +17,7 @@
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
 #include "collections/vbucket_manifest_handles.h"
+#include "configuration.h"
 #include "dcp/response.h"
 #include "durability/durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
@@ -34,6 +35,7 @@
 #include "warmup.h"
 #include <engines/ep/src/tasks.h>
 #include <folly/synchronization/Baton.h>
+#include <platform/dirutils.h>
 #include <filesystem>
 
 class WarmupTest : public SingleThreadedKVBucketTest {
@@ -3072,4 +3074,90 @@ TEST_F(WarmupTest, WarmupZeroThreshold) {
     ASSERT_EQ(cb::engine_errc::success, item.getStatus());
     ASSERT_EQ("cid:0x0:key1", item.item->getKey().to_string());
     ASSERT_EQ("", item.item->getValueView());
+}
+
+/**
+ * Test to verify the behaviour of access_scanner_enabled=false at warmup
+ */
+TEST_F(WarmupTest, WarmupStateAccessScannerDisabled) {
+    // 1. Set the EPEngine config args so that set the access log even if we're
+    // 100% resident
+    const auto epConfig = std::string(
+                                  "alog_resident_ratio_threshold=100;"
+                                  "alog_max_stored_items=10;alog_path=") +
+                          test_dbname + cb::io::DirectorySeparator +
+                          "access.log";
+    {
+        auto& config = engine->getConfiguration();
+        // Check initial config state
+        ASSERT_TRUE(config.getAlogPath().empty());
+        ASSERT_TRUE(config.isAccessScannerEnabled());
+    }
+
+    // Restart engine to ensure we pick up our EPEngine config, in-particular
+    // the alog_path key
+    resetEngineAndEnableWarmup(epConfig);
+    runReadersUntilWarmedUp();
+    {
+        auto& config = engine->getConfiguration();
+        ASSERT_FALSE(config.getAlogPath().empty());
+        ASSERT_TRUE(config.isAccessScannerEnabled());
+    }
+    // 2. Create documents that can be added to the access log
+    // Create a vbucket on disk and store 5 items in it
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    ASSERT_TRUE(store_items(
+            5, vbid, makeStoredDocKey("key"), std::string(1024, ' ')));
+    flush_vbucket_to_disk(vbid, 5);
+
+    // 3. Schedule the access scanner to be run, and then run the access
+    // scanners tasks so that the documents are added to the access log
+    ASSERT_TRUE(store->runAccessScannerTask());
+    auto& auxioQueue = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    runNextTask(auxioQueue);
+    runNextTask(auxioQueue);
+    runNextTask(auxioQueue);
+
+    // 4. verify the items are picked up by the access scanner
+    {
+        auto& epStats = store->getEPEngine().getEpStats();
+        // Check the Access Scanner ran and we recorded 5 items
+        ASSERT_EQ(0, epStats.accessScannerSkips);
+        ASSERT_EQ(2, epStats.alogRuns);
+        ASSERT_EQ(5, epStats.alogNumItems);
+        ASSERT_GT(epStats.alogTime, 0);
+    }
+
+    // 5. Now reset the engine and add hook to verify if we enter the
+    // LoadingAccessLog state
+    resetEngineAndEnableWarmup(epConfig);
+    bool seenWarmupStateLoadAccessLog = false;
+    store->getWarmup()->stateTransitionHook =
+            [&seenWarmupStateLoadAccessLog](WarmupState::State state) {
+                if (state == WarmupState::State::LoadingAccessLog) {
+                    seenWarmupStateLoadAccessLog = true;
+                }
+            };
+
+    // 6. Disable the access scanner in the EPEngine config
+    bool accessScannerEnabled = false;
+    auto& config = engine->getConfiguration();
+    config.setAccessScannerEnabled(accessScannerEnabled);
+    ASSERT_FALSE(config.isAccessScannerEnabled());
+    // 7. Warmup the Engine
+    runReadersUntilWarmedUp();
+
+    // 8. Ensure we didn't load values from the access log
+    EXPECT_FALSE(seenWarmupStateLoadAccessLog);
+    // Check the access scanner is indeed disabled and can't be scheduled
+    EXPECT_FALSE(config.isAccessScannerEnabled());
+    EXPECT_FALSE(store->isAccessScannerEnabled());
+    EXPECT_FALSE(store->runAccessScannerTask());
+
+    // Check that the access hasn't been run and is not scheduled to be run
+    auto& epStats = store->getEPEngine().getEpStats();
+    EXPECT_EQ(0, epStats.alogNumItems);
+    EXPECT_EQ(0, epStats.alogTime);
+    EXPECT_EQ(0, epStats.alogRuntime);
+    EXPECT_EQ(0, epStats.accessScannerSkips);
 }
