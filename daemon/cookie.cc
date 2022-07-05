@@ -666,7 +666,7 @@ bool Cookie::inflateSnappy(std::string_view input,
     // Record how long Snappy decompression takes to both Tracer and
     // bucket-level histogram.
     using namespace cb::tracing;
-    ScopeTimer<HdrMicroSecStopwatch, SpanStopwatch> timer(
+    ScopeTimer2<HdrMicroSecStopwatch, SpanStopwatch> timer(
             std::forward_as_tuple(
                     getConnection().getBucket().snappyDecompressionTimes),
             std::forward_as_tuple(*this, Code::SnappyDecompress));

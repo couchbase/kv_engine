@@ -62,7 +62,7 @@ void SteppableCommandContext::setDatatypeJSONFromValue(
     // Record how long JSON checking takes to both Tracer and bucket-level
     // histogram.
     using namespace cb::tracing;
-    ScopeTimer<HdrMicroSecStopwatch, SpanStopwatch> timer(
+    ScopeTimer2<HdrMicroSecStopwatch, SpanStopwatch> timer(
             std::forward_as_tuple(
                     cookie.getConnection().getBucket().jsonValidateTimes),
             std::forward_as_tuple(cookie, Code::JsonValidate));
