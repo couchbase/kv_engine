@@ -18,24 +18,36 @@ ItemEviction::ItemEviction() {
 }
 
 void ItemEviction::addFreqAndAgeToHistograms(uint8_t freq, uint64_t age) {
-    freqHistogram.addValue(freq);
+    freqCounters[freq]++;
+    totalFreqCounterValues++;
     ageHistogram.addValue(age);
 }
 
 uint64_t ItemEviction::getFreqHistogramValueCount() const {
-    return freqHistogram.getValueCount();
+    return totalFreqCounterValues;
 }
 
 void ItemEviction::reset() {
-    freqHistogram.reset();
+    freqCounters.fill(0);
+    totalFreqCounterValues = 0;
     ageHistogram.reset();
     requiredToUpdateInterval = 1;
 }
 
 std::pair<uint16_t, uint64_t> ItemEviction::getThresholds(
         double freqPercentage, double agePercentage) const {
-    auto freqThreshold = gsl::narrow<uint16_t>(
-            freqHistogram.getValueAtPercentile(freqPercentage));
+    size_t runningTotal = 0;
+    uint16_t freqThreshold;
+    size_t percentileOfFreqCounts =
+            (freqPercentage / 100.0) * totalFreqCounterValues;
+    for (size_t i = 0; i < freqCounters.size(); i++) {
+        runningTotal += freqCounters[i];
+        if (runningTotal >= percentileOfFreqCounts) {
+            freqThreshold = gsl::narrow<uint16_t>(i);
+            break;
+        }
+    }
+
     uint64_t ageThreshold = ageHistogram.getValueAtPercentile(agePercentage);
     return std::make_pair(freqThreshold, ageThreshold);
 }
@@ -63,5 +75,7 @@ uint8_t ItemEviction::convertFreqCountToNRUValue(uint8_t probCounter) {
 }
 
 void ItemEviction::copyFreqHistogram(HdrHistogram& hist) {
-    hist = freqHistogram;
+    for (size_t i = 0; i < freqCounters.size(); i++) {
+        hist.addValueAndCount(i, freqCounters[i]);
+    }
 }

@@ -116,8 +116,18 @@ private:
     // method.
     static const int valueUnitsPerBucket = 1;
 
-    // The execution frequency histogram
-    HdrUint8Histogram freqHistogram;
+    // The execution frequency "histogram". As we have a fixed and
+    // relatively low number of frequency counter values (sizeof(uint8_t)) we
+    // track these in an array rather than a HdrHistogram as it saves space
+    // (~2040 bytes vs 16600 bytes) and time as we do not need atomicity.
+    std::array<size_t, 256> freqCounters{};
+
+    // To find our value at a given percentile we also track the total number of
+    // items we are tracking freq counter values for. With this we can
+    // calculate how many items belong to that percentile, and then iterate the
+    // freqCounters until we find a cumulative total exceeding that value to
+    // map the percentile to a frequency counter value.
+    size_t totalFreqCounterValues{0};
 
     // The age histogram.  Age is measured by taking the item's current cas
     // from the maxCas (which is the maximum cas value of the associated
