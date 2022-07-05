@@ -4354,7 +4354,16 @@ static enum test_result test_disk_gt_ram_update_paged_out(EngineIface* h) {
     return SUCCESS;
 }
 
+/*
+ * Test that reading a document which has been deleted does not go to disk
+ * but instead uses the Bloom filter to detect the document does not exist
+ * without having to access disk.
+ *
+ */
 static enum test_result test_disk_gt_ram_delete_paged_out(EngineIface* h) {
+    Expects(get_bool_stat(h, "ep_bfilter_enabled") &&
+            "This test expects Bloom filter to be enabled.");
+
     wait_for_persisted_value(h, "k1", "some value");
 
     evict_key(h, "k1");
@@ -9049,7 +9058,9 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare_ep_bucket,
+                 // Assumes there is an ep-engine Bloom filter enabled which is
+                 // not the case with Magma.
+                 prepare_ep_bucket_skip_broken_under_magma,
                  cleanup),
         TestCase("disk>RAM set bgfetch race",
                  test_disk_gt_ram_set_race,
