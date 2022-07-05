@@ -4300,7 +4300,6 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h) {
 
 static enum test_result test_disk_gt_ram_paged_rm(EngineIface* h) {
     // Check/grab initial state.
-    int overhead = get_int_stat(h, "ep_overhead");
     const auto initial_enqueued = get_int_stat(h, "ep_total_enqueued");
 
     // Store some data and check post-set state.
@@ -4311,9 +4310,6 @@ static enum test_result test_disk_gt_ram_paged_rm(EngineIface* h) {
     checkeq(initial_enqueued + 1,
             get_int_stat(h, "ep_total_enqueued"),
             "Expected total_enqueued to increase by 1 after storing 1 value");
-    checkge(get_int_stat(h, "ep_overhead"),
-            overhead,
-            "Fell below initial overhead.");
 
     // Evict the data.
     evict_key(h, "k1");
