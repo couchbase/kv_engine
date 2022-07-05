@@ -459,14 +459,7 @@ bool KVBucket::initialize() {
     ExTask htrTask = std::make_shared<HashtableResizerTask>(*this, 10);
     ExecutorPool::get()->schedule(htrTask);
 
-    const auto checkpointRemoverInterval = config.getChkRemoverStime();
-    const auto numChkRemovers = config.getCheckpointRemoverTaskCount();
-    for (size_t id = 0; id < numChkRemovers; ++id) {
-        auto task = std::make_shared<CheckpointMemRecoveryTask>(
-                &engine, stats, checkpointRemoverInterval, id);
-        chkRemovers.emplace_back(task);
-        ExecutorPool::get()->schedule(task);
-    }
+    createAndScheduleCheckpointRemoverTasks();
 
     createAndScheduleCheckpointDestroyerTasks();
 
@@ -3046,6 +3039,19 @@ void KVBucket::createAndScheduleCheckpointDestroyerTasks() {
         ckptDestroyerTasks.push_back(
                 std::make_shared<CheckpointDestroyerTask>(&engine));
         ExecutorPool::get()->schedule(ckptDestroyerTasks.back());
+    }
+}
+
+void KVBucket::createAndScheduleCheckpointRemoverTasks() {
+    const auto checkpointRemoverInterval =
+            engine.getConfiguration().getChkRemoverStime();
+    const auto numChkRemovers =
+            engine.getConfiguration().getCheckpointRemoverTaskCount();
+    for (size_t id = 0; id < numChkRemovers; ++id) {
+        auto task = std::make_shared<CheckpointMemRecoveryTask>(
+                &engine, stats, checkpointRemoverInterval, id);
+        chkRemovers.emplace_back(task);
+        ExecutorPool::get()->schedule(task);
     }
 }
 

@@ -920,6 +920,7 @@ public:
     createAndScheduleSeqnoPersistenceNotifier();
 
     void createAndScheduleCheckpointDestroyerTasks();
+    void createAndScheduleCheckpointRemoverTasks();
 
     /**
      * Add a vbucket that has a SeqnoPersistentRequest (so it can be notified
