@@ -321,6 +321,38 @@ protected:
      * a single structure via folly::Synchronized
      */
     struct ContinueState {
+        /**
+         * A scan changes from Continue to Idle, any cookie and limits are now
+         * cleared. This method changes the state to Idle and clears cookie and
+         * limits.
+         */
+        void setupForIdle();
+
+        /**
+         * A scan changes from Idle to Continue and copies in the cookie and
+         * limits so that the run can process the scan and respond to the
+         * cookie.
+         */
+        void setupForContinue(const CookieIface& c,
+                              size_t limit,
+                              std::chrono::milliseconds timeLimit);
+
+        /**
+         * Complete only occurs once a scan has successfully reached and sent
+         * the end key, any cookie/limits are now cleared. The scan will not
+         * run again and will soon delete. This method changes the state to
+         * Complete and clears cookie and limits.
+         */
+        void setupForComplete();
+
+        /**
+         * Cancellation can occur at any point. Whilst the scan is idle, waiting
+         * to run or running. This method will change only the state to
+         * Cancelled and leave the cookie/limits unchanged. This allows any
+         * waiting/running scan to end correctly passing a status to the cookie.
+         */
+        void setupForCancel();
+
         // cookie will transition from null -> cookie -> null ...
         const CookieIface* cookie{nullptr};
         State state{State::Idle};

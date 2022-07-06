@@ -687,12 +687,13 @@ TEST_P(RangeScanTest, create_continue_is_cancelled) {
     EXPECT_EQ(cb::engine_errc::success,
               vb->cancelRangeScan(uuid, cookie, true));
 
-    // Note that at the moment continue and cancel are creating new tasks.
-    // run them both and future changes will clean this up.
+    // Task will run and cancel the scan, it will reschedule until nothing is
+    // found in the ReadyScans queue (so 1 reschedule for this test).
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
 
-    // First task cancels, nothing read
+    // Scan cancels. No keys/items read and the status isn't changed (this
+    // status only reflects a continue and the continue never began).
     EXPECT_TRUE(scannedKeys.empty());
     EXPECT_TRUE(scannedItems.empty());
     // and handler was notified of the cancel status
@@ -701,7 +702,7 @@ TEST_P(RangeScanTest, create_continue_is_cancelled) {
     // set to some status we don't use
     status = cb::engine_errc::sync_write_pending;
 
-    // second task runs, but won't do anything
+    // Task does nothing
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
 
@@ -751,9 +752,15 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
     // And set our status to cancelled
     EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
 
+    // Set the status back to something we would never expect
+    status = cb::engine_errc::durability_impossible;
+
     // must run the cancel (so for magma we can shutdown)
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
+
+    // And expect that to remain
+    EXPECT_EQ(cb::engine_errc::durability_impossible, status);
 }
 
 TEST_P(RangeScanTest, snapshot_does_not_contain_seqno_0) {

@@ -223,8 +223,12 @@ void RangeScan::tryAndScanOneKey(KVStoreIface& kvstore) {
 }
 
 cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
-    // continue works on a copy of the state
-    continueRunState = *continueState.rlock();
+    // continue works on a copy of the state.
+    continueRunState = continueState.withWLock([](auto& cs) {
+        auto state = cs;
+        cs.cookie = nullptr; // This cookie is now 'used'
+        return state;
+    });
 
     // Only attempt scan when !cancelled
     if (isCancelled()) {
@@ -304,10 +308,7 @@ void RangeScan::setStateIdle(cb::engine_errc status) {
             throw std::runtime_error(fmt::format(
                     "RangeScan::setStateIdle invalid state:{}", cs.state));
         case State::Continuing:
-            cs.state = State::Idle;
-            cs.cookie = nullptr;
-            cs.limits.itemLimit = 0;
-            cs.limits.timeLimit = std::chrono::milliseconds(0);
+            cs.setupForIdle();
             break;
         }
     });
@@ -336,10 +337,7 @@ void RangeScan::setStateContinuing(const CookieIface& client,
                     "RangeScan::setStateContinuing invalid state:{}",
                     cs.state));
         case State::Idle:
-            cs.state = State::Continuing;
-            cs.cookie = &client;
-            cs.limits.itemLimit = limit;
-            cs.limits.timeLimit = timeLimit;
+            cs.setupForContinue(client, limit, timeLimit);
             break;
         }
     });
@@ -354,7 +352,7 @@ void RangeScan::setStateCancelled() {
                     "RangeScan::setStateCancelled invalid state:{}", cs.state));
         case State::Idle:
         case State::Continuing:
-            cs.state = State::Cancelled;
+            cs.setupForCancel();
             break;
         }
     });
@@ -369,7 +367,7 @@ void RangeScan::setStateCompleted() {
             throw std::runtime_error(fmt::format(
                     "RangeScan::setStateCompleted invalid state:{}", cs.state));
         case State::Continuing:
-            cs.state = State::Completed;
+            cs.setupForComplete();
             break;
         }
     });
@@ -396,6 +394,11 @@ void RangeScan::handleStatus(cb::engine_errc status) {
     if (continueRunState.cState.cookie) {
         // Only handle a status if the cookie is set.
         handler->handleStatus(*continueRunState.cState.cookie, status);
+        // The cookie can only receive a status once, for safety clear the
+        // cookie now. Code inspection and current testing deems this
+        // unnecessary but it is a safer approach for any future change or
+        // missed test coverage
+        continueRunState.cState.cookie = nullptr;
     } else {
         // No other error should be here. handleStatus maybe called when
         // continue task detects the task is in state cancelled and it
@@ -524,6 +527,30 @@ void RangeScan::dump(std::ostream& os) const {
         fmt::print(os, ", distribution(p:{})", distribution.p());
     }
     fmt::print(os, "\n");
+}
+
+void RangeScan::ContinueState::setupForIdle() {
+    *this = {};
+    state = State::Idle;
+}
+
+void RangeScan::ContinueState::setupForContinue(
+        const CookieIface& c,
+        size_t limit,
+        std::chrono::milliseconds timeLimit) {
+    state = State::Continuing;
+    cookie = &c;
+    limits.itemLimit = limit;
+    limits.timeLimit = timeLimit;
+}
+
+void RangeScan::ContinueState::setupForComplete() {
+    *this = {};
+    state = State::Completed;
+}
+
+void RangeScan::ContinueState::setupForCancel() {
+    state = State::Cancelled;
 }
 
 RangeScan::ContinueRunState::ContinueRunState() = default;
