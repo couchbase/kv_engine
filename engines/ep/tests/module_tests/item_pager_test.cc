@@ -1961,7 +1961,9 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrderIsSafe) {
                       store->setVBucketState(vbid,
                                              state == vbucket_state_replica
                                                      ? vbucket_state_active
-                                                     : vbucket_state_replica));
+                                                     : vbucket_state_replica,
+                                             {},
+                                             TransferVB::Yes));
         }
 
         return res;
