@@ -153,11 +153,14 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
                            {"compression_mode", "off"},
                            {"failpartialwarmup", false},
                            {"max_num_shards", 4},
-                           // flow control with 1-byte buffer. This will force
-                           // acking of every message and improve our ability to
-                           // catch issues with mismatched acking.
-                           // Note: flow_control_policy = aggressive by default
-                           {"dcp_conn_buffer_size", "1"}};
+                           // Keep the flow control buffer size reasonably low.
+                           // That increases the likelihood of consumers sending
+                           // buffer-ack messages and thus improves our ability
+                           // to catch issues with mismatched acking.
+                           // To give an idea with the current settings,
+                           // 67108864 * 0.01 ~ 671088 bytes with 1 consumer.
+                           // Then equally split across any other consumer.
+                           {"dcp_conn_buffer_ratio", "0.01"}};
 
     json.update(attributes);
 

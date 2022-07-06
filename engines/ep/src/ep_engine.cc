@@ -869,9 +869,7 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(const std::string& key,
                                                         std::string& msg) {
     auto rv = cb::engine_errc::success;
     try {
-        if (key == "dcp_conn_buffer_size") {
-            getConfiguration().setDcpConnBufferSize(std::stoull(val));
-        } else if (key == "dcp_conn_buffer_size_max") {
+        if (key == "dcp_conn_buffer_size_max") {
             getConfiguration().setDcpConnBufferSizeMax(std::stoull(val));
         } else if (key == "dcp_conn_buffer_ratio") {
             getConfiguration().setDcpConnBufferRatio(std::stof(val));

@@ -1008,12 +1008,6 @@
             "dynamic": false,
             "type": "bool"
         },
-        "dcp_conn_buffer_size": {
-            "default": "10485760",
-            "descr": "Size in bytes of an dcp consumer connection buffer",
-            "dynamic": true,
-            "type": "size_t"
-        },
         "dcp_conn_buffer_size_max": {
             "default": "52428800",
             "descr": "Max size in bytes of an dcp consumer connection buffer",
