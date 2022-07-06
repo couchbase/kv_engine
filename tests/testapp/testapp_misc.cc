@@ -92,26 +92,6 @@ TEST_P(MiscTest, UpdateUserPermissionsInvalidPayload) {
     EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 }
 
-/**
- * Create a basic test to verify that the ioctl to fetch the database
- * works. Once we add support for modifying the RBAC database we'll
- * add tests to verify the content
- */
-TEST_P(MiscTest, GetRbacDatabase) {
-    // Verify that we need privileges to do this
-    auto& conn = getConnection();
-    auto response = conn.execute(BinprotGenericCommand{
-            cb::mcbp::ClientOpcode::IoctlGet, "rbac.db.dump?domain=external"});
-    ASSERT_FALSE(response.isSuccess());
-    ASSERT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
-
-    conn.authenticate("@admin", mcd_env->getPassword("@admin"));
-    response = conn.execute(BinprotGenericCommand{
-            cb::mcbp::ClientOpcode::IoctlGet, "rbac.db.dump?domain=external"});
-    ASSERT_TRUE(response.isSuccess());
-    ASSERT_FALSE(response.getDataString().empty());
-}
-
 TEST_P(MiscTest, Config_Validate_Empty) {
     const auto rsp = adminConnection->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::ConfigValidate});

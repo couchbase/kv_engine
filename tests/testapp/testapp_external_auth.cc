@@ -289,8 +289,7 @@ TEST_P(ExternalAuthTest, TestExternalAuthServiceDying) {
 }
 
 TEST_P(ExternalAuthTest, TestReloadRbacDbDontNukeExternalUsers) {
-    // Do one authentication so that we know that the user is there
-    {
+    auto auth = [this]() {
         auto& conn = getConnection();
 
         BinprotSaslAuthCommand saslAuthCommand;
@@ -304,18 +303,17 @@ TEST_P(ExternalAuthTest, TestReloadRbacDbDontNukeExternalUsers) {
         BinprotResponse response;
         conn.recvResponse(response);
         EXPECT_TRUE(response.isSuccess()) << "Failed to authenticate";
-    }
+    };
+
+    // Do one authentication so that we know that the user is there
+    auth();
+
     // Now lets's reload the RBAC database
     auto response = adminConnection->execute(BinprotRbacRefreshCommand{});
     EXPECT_TRUE(response.isSuccess()) << "Failed to refresh DB";
 
     // Verify that the user is still there...
-    response = adminConnection->execute(BinprotGenericCommand{
-            cb::mcbp::ClientOpcode::IoctlGet, "rbac.db.dump?domain=external"});
-    ASSERT_TRUE(response.isSuccess());
-    auto json = nlohmann::json::parse(response.getDataString());
-    EXPECT_EQ("external", json["osbourne"]["domain"])
-            << response.getDataString();
+    auth();
 }
 
 TEST_P(ExternalAuthTest, GetActiveUsers) {

@@ -20,7 +20,6 @@ namespace cb::ioctl {
 enum class Id {
     JemallocProfActive,
     JemallocProfDump,
-    RbacDbDump,
     ReleaseFreeMemory,
     ServerlessMaxConnectionsPerBucket,
     ServerlessReadUnitSize,

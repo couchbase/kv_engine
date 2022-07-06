@@ -21,10 +21,6 @@ Manager::Manager()
                 "jemalloc.prof.dump",
                 "Request that jemalloc dumps the current profiling data",
                 Mode::WRONLY},
-               {Id::RbacDbDump,
-                "rbac.db.dump",
-                "Dump the RBAC database",
-                Mode::RDONLY},
                {Id::ReleaseFreeMemory,
                 "release_free_memory",
                 "Request the process to return unused memory to the operating "

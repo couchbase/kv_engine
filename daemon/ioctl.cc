@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2014-Present Couchbase, Inc.
  *
@@ -109,39 +108,6 @@ cb::engine_errc ioctlGetMcbpSla(Cookie& cookie,
     return cb::engine_errc::success;
 }
 
-cb::engine_errc ioctlRbacDbDump(Cookie& cookie,
-                                const StrToStrMap& arguments,
-                                std::string& value,
-                                cb::mcbp::Datatype& datatype) {
-    if (cookie.checkPrivilege(cb::rbac::Privilege::SecurityManagement)
-                .failed()) {
-        return cb::engine_errc::no_access;
-    }
-
-    if (!value.empty()) {
-        return cb::engine_errc::invalid_arguments;
-    }
-
-    cb::sasl::Domain domain = cb::sasl::Domain::Local;
-    if (!arguments.empty()) {
-        for (auto& arg : arguments) {
-            if (arg.first == "domain") {
-                try {
-                    domain = cb::sasl::to_domain(arg.second);
-                } catch (const std::exception&) {
-                    return cb::engine_errc::invalid_arguments;
-                }
-            } else {
-                return cb::engine_errc::invalid_arguments;
-            }
-        }
-    }
-
-    value = cb::rbac::to_json(domain).dump();
-    datatype = cb::mcbp::Datatype::JSON;
-    return cb::engine_errc::success;
-}
-
 cb::engine_errc ioctl_get_property(Cookie& cookie,
                                    const std::string& key,
                                    std::string& value,
@@ -159,8 +125,6 @@ cb::engine_errc ioctl_get_property(Cookie& cookie,
     auto* id = manager.lookup(request.first);
     if (id) {
         switch (id->id) {
-        case cb::ioctl::Id::RbacDbDump:
-            return ioctlRbacDbDump(cookie, request.second, value, datatype);
         case cb::ioctl::Id::Sla:
             return ioctlGetMcbpSla(cookie, request.second, value, datatype);
         case cb::ioctl::Id::TraceConfig:
@@ -326,7 +290,6 @@ cb::engine_errc ioctl_set_property(Cookie& cookie,
         case cb::ioctl::Id::TraceDumpGet: // may only be used with Get
         case cb::ioctl::Id::TraceDumpList: // may only be used with Get
         case cb::ioctl::Id::TraceStatus: // may only be used with Get
-        case cb::ioctl::Id::RbacDbDump: // may only be used with Get
         case cb::ioctl::Id::enum_max:
             break;
         }
