@@ -1400,7 +1400,7 @@ bool TestRangeScanHandler::validateStatus(cb::engine_errc code) {
             std::to_string(int(code)));
 }
 
-auto scanConfigValues =
+auto valueScanConfig =
         ::testing::Combine(::testing::Values("persistent_couchdb"
 #ifdef EP_USE_MAGMA
                                              ,
@@ -1409,9 +1409,25 @@ auto scanConfigValues =
 #endif
                                              ),
                            ::testing::Values("value_only", "full_eviction"),
-                           ::testing::Values("key_scan", "value_scan"));
+                           ::testing::Values("value_scan"));
 
-INSTANTIATE_TEST_SUITE_P(RangeScanFullAndValueEviction,
+auto keyScanConfig =
+        ::testing::Combine(::testing::Values("persistent_couchdb"
+#ifdef EP_USE_MAGMA
+                                             ,
+                                             "persistent_magma",
+                                             "persistent_nexus_couchstore_magma"
+#endif
+                                             ),
+                           ::testing::Values("full_eviction"),
+                           ::testing::Values("value_scan"));
+
+INSTANTIATE_TEST_SUITE_P(RangeScanValueScan,
                          RangeScanTest,
-                         scanConfigValues,
+                         valueScanConfig,
+                         RangeScanTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(RangeScanKeyScan,
+                         RangeScanTest,
+                         keyScanConfig,
                          RangeScanTest::PrintToStringParamName);
