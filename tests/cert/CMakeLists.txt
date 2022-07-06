@@ -72,8 +72,7 @@ MACRO (Generate_kv_engine_X509_Certificate)
                        -in ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.csr
                        -CA ${CMAKE_CURRENT_BINARY_DIR}/${Cert_ROOT}.cert
                        -CAkey ${CMAKE_CURRENT_BINARY_DIR}/${Cert_ROOT}.key
-                       -CAcreateserial
-                       -CAserial ${CMAKE_CURRENT_BINARY_DIR}/rootCA.srl
+                       -set_serial 1
                        -extfile ${CMAKE_CURRENT_SOURCE_DIR}/${Cert_EXTFILE}
                        -out ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.cert.tmp
                        -days 365
