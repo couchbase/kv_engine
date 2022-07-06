@@ -1431,138 +1431,74 @@ static enum test_result test_dcp_consumer_flow_control_disabled(
 }
 
 static enum test_result test_dcp_consumer_flow_control_enabled(EngineIface* h) {
-    const auto max_conns = 6;
-    std::vector<CookieIface*> cookie(max_conns);
-    const auto flow_ctl_buf_max = 52428800;
-    const auto flow_ctl_buf_min = 10485760;
-    const uint64_t ep_max_size = 1200000000;
-    const auto bucketMemQuotaFraction = 0.05;
-    setAndWaitForQuotaChange(h, ep_max_size);
+    const size_t numConsumers = 6;
+    std::vector<CookieIface*> cookie(numConsumers);
 
-    std::vector<Vbid> vbuckets = {
-            {Vbid{1}, Vbid{2}, Vbid{3}, Vbid{4}, Vbid{5}, Vbid{6}}};
-    checkeq(std::size_t(max_conns),
-            vbuckets.size(),
-            "I need one vbucket per cookie");
-    for (const auto& vb : vbuckets) {
-        check(set_vbucket_state(h, vb, vbucket_state_replica),
+    for (size_t i = 0; i < numConsumers; ++i) {
+        check(set_vbucket_state(h, Vbid(i), vbucket_state_replica),
               "Failed to set VBucket state.");
     }
 
-    /* Create first connection */
-    const std::string namePrefix("unittest_");
-    const auto name1(namePrefix + "0");
+    const uint64_t bucketQuota = 1024 * 1024 * 600;
+    setAndWaitForQuotaChange(h, bucketQuota);
+
+    const size_t dcpQuota =
+            bucketQuota * get_float_stat(h, "ep_dcp_conn_buffer_ratio");
+    const std::string connNamePrefix("consumer_");
     const uint32_t opaque = 0;
     const uint32_t seqno = 0;
     const uint32_t flags = 0;
-    cookie[0] = testHarness->create_cookie(h);
     auto dcp = requireDcpIface(h);
 
-    checkeq(cb::engine_errc::success,
-            dcp->open(*cookie[0],
-                      opaque,
-                      seqno,
-                      flags,
-                      name1,
-                      R"({"consumer_name":"replica1"})"),
-            "Failed dcp consumer open connection.");
 
-    checkeq(cb::engine_errc::success,
-            dcp->add_stream(*cookie[0], 0, vbuckets[0], 0),
-            "Failed to set up stream");
+    // Verify that consumer's buffer is resized every time a new consumer
+    // connection is opened.
+    // Also verify that consumers send control messages indicating the flow
+    // control buffer size change.
+    const auto checkBufferSize = [&](size_t count) {
+        const uint64_t expectedBufferSize = dcpQuota / count;
+        MockDcpMessageProducers producers;
+        for (size_t i = 0; i < count; ++i) {
+            const auto connName = connNamePrefix + std::to_string(i);
+            const auto stat = "eq_dcpq:" + connName + ":max_buffer_bytes";
+            checkeq(expectedBufferSize,
+                    get_ull_stat(h, stat.c_str(), "dcp"),
+                    "Flow Control Buffer Size not correct");
 
-    /* Check the max limit */
-    auto stat_name = "eq_dcpq:" + name1 + ":max_buffer_bytes";
-    checkeq(flow_ctl_buf_max,
-            get_int_stat(h, stat_name.c_str(), "dcp"),
-            "Flow Control Buffer Size not equal to max");
+            checkeq(cb::engine_errc::success,
+                    dcp->step(*cookie[i], false, producers),
+                    "Pending flow control buffer change not processed");
+            checkeq(cb::mcbp::ClientOpcode::DcpControl,
+                    producers.last_op,
+                    "Flow ctl buf size change control message not received");
+            checkeq(0,
+                    producers.last_key.compare("connection_buffer_size"),
+                    "Flow ctl buf size change control message key error");
+            checkeq(expectedBufferSize,
+                    static_cast<uint64_t>(atoll(producers.last_value.c_str())),
+                    "Flow ctl buf size in control message not correct");
+        }
+    };
 
-    /* Create at least 4 more connections */
-    for (auto count = 1; count < max_conns - 1; count++) {
-        cookie[count] = testHarness->create_cookie(h);
-        const auto name2(namePrefix + std::to_string(count));
+    // Create consumer connections and verify that flow control buffer size of
+    // existing conns decreases
+    for (size_t i = 0; i < numConsumers; ++i) {
+        cookie[i] = testHarness->create_cookie(h);
+        const auto connName = connNamePrefix + std::to_string(i);
         checkeq(cb::engine_errc::success,
-                dcp->open(*cookie[count],
-                          opaque,
-                          seqno,
-                          flags,
-                          name2,
-                          R"({"consumer_name":"replica1"})"),
+                dcp->open(*cookie[i], opaque, seqno, flags, connName),
                 "Failed dcp consumer open connection.");
 
         checkeq(cb::engine_errc::success,
-                dcp->add_stream(*cookie[count], 0, vbuckets[count], 0),
+                dcp->add_stream(*cookie[i], 0, Vbid(i), 0),
                 "Failed to set up stream");
 
-        for (auto i = 0; i <= count; i++) {
-            /* Check if the buffer size of all connections has changed */
-            const auto stat_name("eq_dcpq:" + namePrefix + std::to_string(i) +
-                                 ":max_buffer_bytes");
-            checkeq((int)((ep_max_size * bucketMemQuotaFraction) / (count + 1)),
-                    get_int_stat(h, stat_name.c_str(), "dcp"),
-                    "Flow Control Buffer Size not correct");
-        }
+        checkBufferSize(i + 1);
     }
 
-    /* Opening another connection should set the buffer size to min value */
-    cookie[max_conns - 1] = testHarness->create_cookie(h);
-    const auto name3(namePrefix + std::to_string(max_conns - 1));
-    const auto stat_name2("eq_dcpq:" + name3 + ":max_buffer_bytes");
-    checkeq(cb::engine_errc::success,
-            dcp->open(*cookie[max_conns - 1],
-                      opaque,
-                      seqno,
-                      flags,
-                      name3,
-                      R"({"consumer_name":"replica1"})"),
-            "Failed dcp consumer open connection.");
-
-    checkeq(cb::engine_errc::success,
-            dcp->add_stream(
-                    *cookie[max_conns - 1], 0, vbuckets[max_conns - 1], 0),
-            "Failed to set up stream");
-
-    checkeq(flow_ctl_buf_min,
-            get_int_stat(h, stat_name2.c_str(), "dcp"),
-            "Flow Control Buffer Size not equal to min");
-
-    /* Disconnect connections and see if flow control
-     * buffer size of existing conns increase
-     */
-    for (auto count = 0; count < max_conns / 2; count++) {
-        testHarness->destroy_cookie(cookie[count]);
-    }
-
-    /* Check if the buffer size of all connections has increased */
-    const auto exp_buf_size = (int)((ep_max_size * bucketMemQuotaFraction) /
-                              (max_conns - (max_conns / 2)));
-    for (auto i = max_conns / 2; i < max_conns; i++) {
-        const auto connName(namePrefix + std::to_string(i));
-        const auto statName("eq_dcpq:" + connName + ":max_buffer_bytes");
-        wait_for_stat_to_be(h, statName.c_str(), exp_buf_size, "dcp");
-    }
-
-    /* Also check if we get control message indicating the flow control buffer
-       size change from the consumer connections */
-    MockDcpMessageProducers producers;
-    for (auto i = max_conns / 2; i < max_conns; i++) {
-        checkeq(cb::engine_errc::success,
-                dcp->step(*cookie[i], false, producers),
-                "Pending flow control buffer change not processed");
-        checkeq(cb::mcbp::ClientOpcode::DcpControl,
-                producers.last_op,
-                "Flow ctl buf size change control message not received");
-        checkeq(0,
-                producers.last_key.compare("connection_buffer_size"),
-                "Flow ctl buf size change control message key error");
-        checkeq(exp_buf_size,
-                atoi(producers.last_value.c_str()),
-                "Flow ctl buf size in control message not correct");
-    }
-
-    /* Disconnect remaining connections */
-    for (auto count = max_conns / 2; count < max_conns; count++) {
-        testHarness->destroy_cookie(cookie[count]);
+    // Clean up
+    for (size_t i = 0; i < numConsumers; ++i) {
+        testHarness->destroy_cookie(cookie[i]);
     }
 
     return SUCCESS;
@@ -7988,14 +7924,14 @@ BaseTestCase testsuite_testcases[] = {
                  "dcp_consumer_flow_control_enabled=false",
                  prepare,
                  cleanup),
-        TestCase(
-                "test dcp consumer flow control aggressive",
-                test_dcp_consumer_flow_control_enabled,
-                test_setup,
-                teardown,
-                "max_vbuckets=7;max_num_shards=4;dcp_consumer_flow_control_enabled=true",
-                prepare,
-                cleanup),
+        TestCase("test dcp consumer flow control enabled",
+                 test_dcp_consumer_flow_control_enabled,
+                 test_setup,
+                 teardown,
+                 "max_vbuckets=7;max_num_shards=4;dcp_consumer_flow_control_"
+                 "enabled=true",
+                 prepare,
+                 cleanup),
         TestCase("test open producer",
                  test_dcp_producer_open,
                  test_setup,
@@ -8359,20 +8295,21 @@ BaseTestCase testsuite_testcases[] = {
                  "dcp_enable_noop=false",
                  prepare,
                  cleanup),
-        TestCase("test chk manager rollback",
-                 test_chk_manager_rollback,
-                 test_setup,
-                 teardown,
-                 // 'magma_checkpoint_interval=0' and
-                 // 'magma_min_checkpoint_interval=0' allows us to create more
-                 // than one checkpoint in less than 2mins
-                 "dcp_consumer_flow_control_enabled=false;dcp_enable_noop=false;"
-                 "magma_checkpoint_interval=0;"
-                 "magma_min_checkpoint_interval=0;",
-                 // TODO RDB: implement getItemCount.
-                 // Needs the 'curr_items_tot' stat.
-                 prepare_skip_broken_under_rocks,
-                 cleanup),
+        TestCase(
+                "test chk manager rollback",
+                test_chk_manager_rollback,
+                test_setup,
+                teardown,
+                // 'magma_checkpoint_interval=0' and
+                // 'magma_min_checkpoint_interval=0' allows us to create more
+                // than one checkpoint in less than 2mins
+                "dcp_consumer_flow_control_enabled=false;dcp_enable_noop=false;"
+                "magma_checkpoint_interval=0;"
+                "magma_min_checkpoint_interval=0;",
+                // TODO RDB: implement getItemCount.
+                // Needs the 'curr_items_tot' stat.
+                prepare_skip_broken_under_rocks,
+                cleanup),
         TestCase("test full rollback on consumer",
                  test_fullrollback_for_consumer,
                  test_setup,

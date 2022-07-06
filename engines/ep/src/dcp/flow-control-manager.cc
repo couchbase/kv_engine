@@ -28,19 +28,10 @@ void DcpFlowControlManager::updateConsumersBufferSize(
         return;
     }
 
-    // Compute new per-consumer buffer size
+    // Compute new per-consumer buffer size and resize buffer of all existing
+    // consumers
     const auto bucketQuota = engine.getEpStats().getMaxDataSize();
-    size_t bufferSize = (dcpConnBufferRatio * bucketQuota) / numConsumers;
-
-    // Make sure that the flow control buffer size is within a max and min range
-    const auto& config = engine.getConfiguration();
-    if (bufferSize < config.getDcpConnBufferSize()) {
-        bufferSize = config.getDcpConnBufferSize();
-    } else if (bufferSize > config.getDcpConnBufferSizeMax()) {
-        bufferSize = config.getDcpConnBufferSizeMax();
-    }
-
-    // Resize buffer of all existing consumers
+    const size_t bufferSize = (dcpConnBufferRatio * bucketQuota) / numConsumers;
     for (auto* c : consumers) {
         c->setFlowControlBufSize(bufferSize);
     }

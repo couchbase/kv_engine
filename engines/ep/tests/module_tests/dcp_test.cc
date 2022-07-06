@@ -2619,8 +2619,24 @@ TEST_F(FlowControlTest, Config_ConnBufferRatio_HigherThanMax) {
 TEST_F(FlowControlTest, Config_ConnBufferRatio) {
     engine->getKVBucket()->setVBucketState(vbid, vbucket_state_replica);
 
-    const float ratio = 0.1;
+    // Originally the final buffer size computed based on configuration was
+    // collapsed to some min/max value - ie:
+    //
+    //   0. Compute size based on dcp_conn_buffer_ratio
+    //   1. If size < min -> size = min
+    //   2. If size > max -> size = max
+    //
+    // At the time of removing (1) and (2) their values are min=10MB and
+    // max=50MB in config, so in this test we ensure that we can go below and
+    // above those.
+
     auto& config = engine->getConfiguration();
+    const size_t _100MB = 1024 * 1024 * 100;
+    engine->setMaxDataSize(_100MB);
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(_100MB, stats.getMaxDataSize());
+
+    float ratio = 0.05;
     config.setDcpConnBufferRatio(ratio);
 
     ASSERT_EQ(0, engine->getDcpFlowControlManager().getNumConsumers());
@@ -2628,10 +2644,16 @@ TEST_F(FlowControlTest, Config_ConnBufferRatio) {
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
     ASSERT_TRUE(consumer->public_flowControl().isEnabled());
     ASSERT_EQ(1, engine->getDcpFlowControlManager().getNumConsumers());
-    const auto bufferSize = consumer->getFlowControlBufSize();
+    // 5MB expected
+    EXPECT_EQ(_100MB * ratio, consumer->getFlowControlBufSize());
 
-    config.setDcpConnBufferRatio(ratio * 2);
-    EXPECT_EQ(bufferSize * 2, consumer->getFlowControlBufSize());
+    const size_t _1GB = 1024 * 1024 * 1024;
+    engine->setMaxDataSize(_1GB);
+    ASSERT_EQ(_1GB, stats.getMaxDataSize());
+    ratio = 0.1;
+    config.setDcpConnBufferRatio(ratio);
+    // 100MB expected
+    EXPECT_EQ(_1GB * ratio, consumer->getFlowControlBufSize());
 }
 
 struct PrintToStringCombinedNameXattrOnOff {
