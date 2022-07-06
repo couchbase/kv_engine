@@ -115,8 +115,8 @@ public:
     EPStats(const EPStats&) = delete;
     void operator=(const EPStats&) = delete;
 
-    size_t getMaxDataSize() {
-        return maxDataSize.load();
+    size_t getMaxDataSize() const {
+        return maxDataSize;
     }
 
     /**

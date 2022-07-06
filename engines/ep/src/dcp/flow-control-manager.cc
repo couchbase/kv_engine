@@ -15,7 +15,8 @@
 #include "dcp/consumer.h"
 #include "ep_engine.h"
 
-DcpFlowControlManager::DcpFlowControlManager(EventuallyPersistentEngine& engine)
+DcpFlowControlManager::DcpFlowControlManager(
+        const EventuallyPersistentEngine& engine)
     : engine(engine) {
     dcpConnBufferRatio = engine.getConfiguration().getDcpConnBufferRatio();
 }

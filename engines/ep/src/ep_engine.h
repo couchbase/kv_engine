@@ -629,6 +629,10 @@ public:
         return stats;
     }
 
+    const EPStats& getEpStats() const {
+        return stats;
+    }
+
     KVBucket* getKVBucket() {
         return kvBucket.get();
     }
@@ -661,6 +665,10 @@ public:
     }
 
     Configuration& getConfiguration() {
+        return configuration;
+    }
+
+    const Configuration& getConfiguration() const {
         return configuration;
     }
 

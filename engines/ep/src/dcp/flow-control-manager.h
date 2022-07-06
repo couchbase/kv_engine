@@ -33,7 +33,7 @@ class EventuallyPersistentEngine;
  */
 class DcpFlowControlManager {
 public:
-    explicit DcpFlowControlManager(EventuallyPersistentEngine& engine);
+    explicit DcpFlowControlManager(const EventuallyPersistentEngine& engine);
 
     void newConsumer(DcpConsumer& consumer);
 
@@ -54,9 +54,8 @@ protected:
      */
     void updateConsumersBufferSize(ConsumerContainer& consumers);
 
-    EventuallyPersistentEngine& engine;
+    const EventuallyPersistentEngine& engine;
 
-private:
     // DCP Consumers on this node
     folly::Synchronized<ConsumerContainer> consumers;
 
