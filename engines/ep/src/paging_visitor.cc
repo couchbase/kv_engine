@@ -195,7 +195,6 @@ void PagingVisitor::visitBucket(VBucket& vb) {
         return;
     }
 
-    // skip active vbuckets if active resident ratio is lower than replica
     auto current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
     auto lower = static_cast<double>(stats.mem_low_wat);
 
