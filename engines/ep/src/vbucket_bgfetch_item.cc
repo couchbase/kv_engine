@@ -38,6 +38,13 @@ void FrontEndBGFetchItem::complete(
         const DiskDocKey& key) const {
     cb::engine_errc status =
             vb->completeBGFetchForSingleItem(key, *this, startTime);
+
+    // MB-52067: A 'successful' bg-fetch either returns success or no_such_key.
+    // Both cases the front-end needs to revisit the engine and figure out how
+    // it wants to proceed, in which case io-complete must be success.
+    if (status == cb::engine_errc::no_such_key) {
+        status = cb::engine_errc::success;
+    }
     engine.notifyIOComplete(cookie, status);
 }
 

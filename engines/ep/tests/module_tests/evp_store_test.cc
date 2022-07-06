@@ -1988,7 +1988,7 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest,
     EXPECT_EQ(0, vb->ht.getNumTempItems());
 }
 
-TEST_P(EPBucketFullEvictionNoBloomFilterTest, MB_52067) {
+void EPBucketFullEvictionNoBloomFilterTest::MB_52067(bool forceCasMismatch) {
     /* Test that removing a temp non-existent item from the hashtable does not
      * "short circuit" ongoing front end requests expecting to find that item
      *  as a result of a bgfetch.
@@ -2067,6 +2067,16 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest, MB_52067) {
         EXPECT_FALSE(svp.storedValue);
     }
 
+    MockCookie* cookie2 = nullptr;
+    if (forceCasMismatch) {
+        cookie2 = create_mock_cookie();
+
+        // Store again so that this run of the bg-fetcher the HT has a tmp-item
+        // but a different CAS to the one generated for the waiting cookie
+        ASSERT_EQ(cb::engine_errc::would_block,
+                  store.get(key, vbid, cookie, options).getStatus());
+    }
+
     // bgfetch, should not find the temp item at all, should notify the
     // cookie with "success" to allow it to run again.
     runBGFetcherTask();
@@ -2078,12 +2088,30 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest, MB_52067) {
     // no_such_key.
     ASSERT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookie));
 
-    // retrying the get should would_block again, causing the bgfetch to be
-    // retried.
-    ASSERT_EQ(cb::engine_errc::would_block,
-              store.get(key, vbid, cookie, options).getStatus());
+    if (forceCasMismatch) {
+        // In the forceCasMismatch case a tmp-non-existent item exists so expect
+        // an immediate no_such_key
+        ASSERT_EQ(cb::engine_errc::no_such_key,
+                  store.get(key, vbid, cookie, options).getStatus());
+    } else {
+        // else retrying the get should would_block again, causing the bgfetch
+        // to be retried.
+        ASSERT_EQ(cb::engine_errc::would_block,
+                  store.get(key, vbid, cookie, options).getStatus());
+    }
 
     destroy_mock_cookie(cookie);
+    if (cookie2) {
+        destroy_mock_cookie(cookie2);
+    }
+}
+
+TEST_P(EPBucketFullEvictionNoBloomFilterTest, MB_52067) {
+    MB_52067(false);
+}
+
+TEST_P(EPBucketFullEvictionNoBloomFilterTest, MB_52067_cas_mismatch) {
+    MB_52067(true);
 }
 
 class EPBucketTestNoRocksDb : public EPBucketTest {
