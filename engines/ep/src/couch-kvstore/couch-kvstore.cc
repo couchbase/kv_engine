@@ -138,18 +138,27 @@ static sized_buf to_sized_buf(const DiskDocKey& key) {
 
 /**
  * Helper function to create an Item from couchstore DocInfo & related types.
+ * @param vbid The vbucket the Item belongs to
+ * @param docinfo The id, db_seq and rev_seq are used in the Item construction
+ * @param metadata The metadata to use to create the Item
+ * @param value an optional value, this allows "key-only" paths to be
+ *        distinguishable from a value of 0 length.
  */
 static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
                                                  const DocInfo& docinfo,
                                                  const MetaData& metadata,
-                                                 sized_buf value) {
+                                                 boost::optional<sized_buf> value) {
+
+    value_t body;
+    if (value) {
+        body.reset(Blob::New(value->buf, value->size));
+    }
     // Strip off the DurabilityPrepare namespace (if present) from the persisted
     // dockey before we create the in-memory item.
     auto item = std::make_unique<Item>(makeDiskDocKey(docinfo.id).getDocKey(),
                                        metadata.getFlags(),
                                        metadata.getExptime(),
-                                       value.buf,
-                                       value.size,
+                                       body,
                                        metadata.getDataType(),
                                        metadata.getCas(),
                                        docinfo.db_seq,
@@ -158,6 +167,8 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
     if (docinfo.deleted) {
         item->setDeleted(metadata.getDeleteSource());
     }
+
+    KVStore::checkAndFixKVStoreCreatedItem(*item);
 
     if (metadata.getVersionInitialisedFrom() == MetaData::Version::V3) {
         // Metadata is from a SyncWrite - update the Item appropriately.
@@ -843,7 +854,7 @@ static int notify_expired_item(DocInfo& info,
                                sized_buf item,
                                compaction_ctx& ctx,
                                time_t currtime) {
-    sized_buf data{nullptr, 0};
+    boost::optional<sized_buf> data;
     cb::compression::Buffer inflated;
 
     if (mcbp::datatype::is_xattr(metadata.getDataType())) {
@@ -870,7 +881,7 @@ static int notify_expired_item(DocInfo& info,
             // Now remove snappy bit
             metadata.setDataType(metadata.getDataType() &
                                  ~PROTOCOL_BINARY_DATATYPE_SNAPPY);
-            data = {inflated.data(), inflated.size()};
+            data = sized_buf{inflated.data(), inflated.size()};
         }
     }
 
@@ -1952,9 +1963,12 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
         return COUCHSTORE_ERROR_DB_NO_LONGER_VALID;
     }
 
-    if (metaOnly == GetMetaOnly::Yes) {
+    const bool forceValueFetch = isDocumentPotentiallyCorruptedByMB52793(
+            docinfo->deleted, *metadata);
+    if (metaOnly == GetMetaOnly::Yes && !forceValueFetch) {
+        // Can skip reading document value.
         auto it = makeItemFromDocInfo(
-                vbId, *docinfo, *metadata, {nullptr, docinfo->size});
+                vbId, *docinfo, *metadata, boost::none);
 
         docValue = GetValue(std::move(it));
         // update ep-engine IO stats
@@ -2015,7 +2029,6 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     auto* cl = sctx->lookup.get();
 
     Doc *doc = nullptr;
-    sized_buf value{nullptr, 0};
     uint64_t byseqno = docinfo->db_seq;
     Vbid vbucketId = sctx->vbid;
 
@@ -2053,7 +2066,10 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
 
     auto metadata = MetaDataFactory::createMetaData(docinfo->rev_meta);
 
-    if (sctx->valFilter != ValueFilter::KEYS_ONLY) {
+    boost::optional<sized_buf> value;
+    const bool forceValueFetch = isDocumentPotentiallyCorruptedByMB52793(
+            docinfo->deleted, *metadata);
+    if (sctx->valFilter != ValueFilter::KEYS_ONLY || forceValueFetch) {
         couchstore_open_options openOptions = 0;
 
         /**

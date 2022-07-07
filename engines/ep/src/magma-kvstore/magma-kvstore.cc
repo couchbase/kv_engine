@@ -1267,6 +1267,10 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
                                    vb,
                                    meta.revSeqno);
 
+    if (filter != ValueFilter::KEYS_ONLY) {
+        checkAndFixKVStoreCreatedItem(*item);
+    }
+
     if (meta.deleted) {
         item->setDeleted(static_cast<DeleteSource>(meta.deleteSource));
     }

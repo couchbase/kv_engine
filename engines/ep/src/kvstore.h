@@ -41,6 +41,7 @@ class DiskDocKey;
 class Item;
 class KVStore;
 class KVStoreConfig;
+class MetaData;
 class PersistenceCallback;
 class RollbackCB;
 class RollbackResult;
@@ -925,6 +926,28 @@ public:
     void setPostFlushHook(std::function<void()> hook) {
         postFlushHook = hook;
     }
+
+    /**
+     * Check if the specified document metadata is /potentially/ affected
+     * by a datatype corruption issue (MB-52793) - a deleted document with
+     * zero length value has an incorrect datatype.
+     *
+     * @return True if the document is /potentially/ affected and hence further
+     *         analysis is needed (such as fetching the document body for
+     *         additional checks).
+     */
+    static bool isDocumentPotentiallyCorruptedByMB52793(
+            bool deleted, const MetaData& metadata);
+
+    /**
+     * Function inspects the Item for some known issues that may exist in
+     * persisted data (possibly from older releases and now present due to
+     * upgrade). If an inconsistency is found it will log a fix the Item.
+     *
+     * @param item [in/out] the Item to check and if needed, fix.
+     * @return true if the Item was changed by the function because of an issue
+     */
+    static bool checkAndFixKVStoreCreatedItem(Item& item);
 
 protected:
     /**

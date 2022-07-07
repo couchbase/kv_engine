@@ -5996,3 +5996,100 @@ TEST_P(STParamPersistentBucketTest,
         EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, v->getDatatype());
     }
 }
+
+TEST_P(STParamPersistentBucketTest,
+       SanitizeOnDiskDeletedDocWithIncorrectXATTRFull) {
+    testSanitizeOnDiskDeletedDocWithIncorrectXATTR(false);
+}
+
+TEST_P(STParamPersistentBucketTest,
+       SanitizeOnDiskDeletedDocWithIncorrectXATTRMetaOnly) {
+    testSanitizeOnDiskDeletedDocWithIncorrectXATTR(true);
+}
+
+void STParamPersistentBucketTest::
+        testSanitizeOnDiskDeletedDocWithIncorrectXATTR(bool fetchMetaOnly) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    const auto key = makeStoredDocKey("key");
+
+    // Store an initial item for us to rollback to (see end of test).
+    const auto initalItem = store_item(vbid, key, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Construct a document on-disk which is Deleted, zero value,
+    // with datatype=XATTR.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    auto item = make_item(vbid, key, {}, 0, PROTOCOL_BINARY_DATATYPE_XATTR);
+    item.setCas(1234);
+    item.setDeleted(DeleteSource::Explicit);
+
+    uint64_t seqno;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              store->setWithMeta(item,
+                                 0 /* cas */,
+                                 &seqno,
+                                 cookie,
+                                 {vbucket_state_replica},
+                                 CheckConflicts::No,
+                                 /*allowExisting*/ true));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Re-fetch from disk to confirm it is correctly sanitized.
+    // Need to be active to be able to fetch from store APIs.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto fetchDocAndCheck = [&]() {
+        if (fetchMetaOnly) {
+            ItemMetaData metadata;
+            uint32_t deleted;
+            uint8_t datatype;
+            ASSERT_EQ(ENGINE_EWOULDBLOCK,
+                      store->getMetaData(key,
+                                         vbid,
+                                         cookie,
+                                         metadata,
+                                         deleted,
+                                         datatype));
+            runBGFetcherTask();
+            ASSERT_EQ(ENGINE_SUCCESS,
+                      store->getMetaData(key,
+                                         vbid,
+                                         cookie,
+                                         metadata,
+                                         deleted,
+                                         datatype));
+            EXPECT_TRUE(deleted);
+            EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, datatype);
+        } else {
+            // Fetch entire document and check sanitized.
+            get_options_t options = static_cast<get_options_t>(
+                    QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE |
+                    DELETE_TEMP | HIDE_LOCKED_CAS | TRACK_STATISTICS |
+                    GET_DELETED_VALUE);
+            auto gv = store->get(key, vbid, cookie, options);
+            ASSERT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+
+            runBGFetcherTask();
+            gv = store->get(key, vbid, cookie, GET_DELETED_VALUE);
+            EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+            EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES,
+                      gv.item->getDataType());
+        }
+    };
+    fetchDocAndCheck();
+
+    // Restart and warmup, checking that the invalid document does not cause
+    // issues at warmup.
+    resetEngineAndWarmup();
+    fetchDocAndCheck();
+
+    // Finally trigger a rollback of the problematic document, and
+    // confirm the rollback is successful (it must perform a KVStore scan
+    // which covers the affected document.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    ASSERT_EQ(TaskStatus::Complete,
+              store->rollback(vbid, initalItem.getBySeqno()));
+
+
+}
