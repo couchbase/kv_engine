@@ -801,7 +801,10 @@
             "type": "size_t"
         },
         "max_num_shards": {
-            "default": "0",
+            "default": {
+                "on-prem": "0",
+                "serverless": "1"
+            },
             "descr": "Maximum mumber of shards (0 = auto-configure)",
             "dynamic": false,
             "type": "size_t"
