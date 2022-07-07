@@ -2375,8 +2375,10 @@ ScanStatus CouchKVStore::scan(ByIdScanContext& ctx) const {
 
     couchstore_error_t errorCode = COUCHSTORE_SUCCESS;
     for (auto& range : ctx.ranges) {
-        if (range.rangeScanSuccess) {
+        if (range.state == ByIdRange::State::Completed) {
             continue;
+        } else if (range.state == ByIdRange::State::Pending) {
+            range.state = ByIdRange::State::Scanning;
         }
         std::array<sized_buf, 2> ids;
         ids[0] = sized_buf{const_cast<char*>(reinterpret_cast<const char*>(
@@ -2400,7 +2402,7 @@ ScanStatus CouchKVStore::scan(ByIdScanContext& ctx) const {
             break;
         } else {
             // This range has been fully scanned and should not be scanned again
-            range.rangeScanSuccess = true;
+            range.state = ByIdRange::State::Completed;
         }
     }
     TRACE_EVENT_END1(
