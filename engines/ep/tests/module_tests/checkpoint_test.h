@@ -135,6 +135,15 @@ public:
      * at queueing items into the checkpoints.
      */
     void testCheckpointManagerMemUsage();
+
+protected:
+    // Number of items in the checkpoint for all memUsage tests.
+    static const auto numItems = 10;
+
+    static const auto longKeyLength = 1024;
+    // Padding to be concatenated onto default short strings to avoid SSO for
+    // all memUsage tests.
+    inline static const auto longKeyPadding = std::string(longKeyLength, 'X');
 };
 
 /**

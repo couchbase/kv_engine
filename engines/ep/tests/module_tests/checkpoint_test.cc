@@ -3454,12 +3454,14 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     size_t itemOverheadAlloc = 0;
     size_t queueAlloc = 0;
     size_t keyIndexAlloc = 0;
-    const size_t numItems = 10;
+    std::string key;
     for (size_t i = 1; i <= numItems; ++i) {
-        auto item = makeCommittedItem(
-                makeStoredDocKey("key" + std::to_string(i)),
-                "value",
-                vbid); // @todo test without SSO, large keysize
+        // Evenly populate with long and short keys to test for/not SSO case
+        key = "key" + std::to_string(i);
+        if (i % 2 == 0) {
+            key += longKeyPadding;
+        }
+        auto item = makeCommittedItem(makeStoredDocKey(key), "value", vbid);
         EXPECT_TRUE(vb->checkpointManager->queueDirty(
                 item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
         // Our estimated mem-usage must account for the queued item + the
@@ -3753,7 +3755,8 @@ TEST_F(CheckpointMemoryTrackingTest, Deduplication) {
     const auto& queue =
             CheckpointManagerTestIntrospector::public_getOpenCheckpointQueue(
                     manager);
-    ASSERT_EQ("cid:0x0:key10", queue.back()->getKey().to_string());
+    const auto keyTen = "key10" + longKeyPadding;
+    ASSERT_EQ("cid:0x0:" + keyTen, queue.back()->getKey().to_string());
     const auto preValueSize = queue.back()->getNBytes();
 
     // Pre-dedup mem state
@@ -3766,9 +3769,8 @@ TEST_F(CheckpointMemoryTrackingTest, Deduplication) {
     EXPECT_GT(initialIndexOverhead, 0);
 
     // Test - deduplicate item
-    auto item = makeCommittedItem(makeStoredDocKey("key10"),
-                                  std::string(2 * preValueSize, 'x'),
-                                  vbid);
+    auto item = makeCommittedItem(
+            makeStoredDocKey(keyTen), std::string(2 * preValueSize, 'x'), vbid);
     EXPECT_FALSE(manager.queueDirty(
             item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
 
@@ -3879,16 +3881,13 @@ TEST_F(CheckpointIndexAllocatorMemoryTrackingTest,
     auto vb = store->getVBuckets().getBucket(vbid);
     auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
 
-    // Use a very long key to make it clear where the key allocation is going,
-    // i.e. keySize >> any possible non-key allocation. (SSO will not apply.)
-    const auto keySize = 1024;
     // Lambda function used to guarantee duplicate item queued is duplicate
-    auto queueLongKeyItem = [this, &manager, keySize]() {
-        auto item =
-                makeCommittedItem(makeStoredDocKey(std::string(keySize, 'x'),
-                                                   CollectionID::Default),
-                                  "value",
-                                  vbid);
+    auto queueLongKeyItem = [this, &manager]() {
+        auto item = makeCommittedItem(
+                makeStoredDocKey(std::string(longKeyLength, 'x'),
+                                 CollectionID::Default),
+                "value",
+                vbid);
         EXPECT_TRUE(manager.queueDirty(
                 item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
     };
@@ -3902,14 +3901,14 @@ TEST_F(CheckpointIndexAllocatorMemoryTrackingTest,
     // - Greater than or equal to the insertion overhead plus the size of the
     // key allocation on the heap
     EXPECT_GE(checkpoint.getKeyIndexAllocatorBytes(),
-              insertionOverhead + keySize);
+              insertionOverhead + longKeyLength);
     // - Less than or equal to the insertion overhead + the first element
     // metadata overhead for Folly maps, plus the size of the key. As
     // std::string will likely overallocate for alignment/optimization purposes,
     // upper bound the raw size of the key by some bytes
-    EXPECT_LE(
-            checkpoint.getKeyIndexAllocatorBytes(),
-            insertionOverhead + firstElemOverhead + (keySize + alignmentBytes));
+    EXPECT_LE(checkpoint.getKeyIndexAllocatorBytes(),
+              insertionOverhead + firstElemOverhead +
+                      (longKeyLength + alignmentBytes));
 
     const auto beforeOpKeyIndexAlloc = checkpoint.getKeyIndexAllocatorBytes();
     // Now expel the item from the checkpoint. The keyIndex will still contain
