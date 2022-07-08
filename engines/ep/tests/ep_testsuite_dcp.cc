@@ -1882,9 +1882,20 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h) {
               "checkpoint_memory_recovery_upper_mark",
               "1");
 
-    // Create two 'full' checkpoints
-    const auto ckptMaxSize = get_int_stat(h, "ep_checkpoint_max_size");
-    const auto value = std::string(ckptMaxSize / 10, 'x');
+    static const auto itemsPerCheckpoint = 9;
+
+    // Create two 'full' checkpoints, taking into account the current memUsed
+    const auto openCkptMemFree =
+            get_int_stat(h, "ep_checkpoint_max_size") -
+            get_int_stat(h, "vb_0:mem_usage", "checkpoint");
+    // There must be enough free mem for each item's size to be >=1
+    checkge(openCkptMemFree, itemsPerCheckpoint, "Not enough free mem");
+    const auto value = std::string(
+            std::floor(openCkptMemFree / (itemsPerCheckpoint + 1)), 'x');
+    // Add 1 to ensure == itemsPerCheckpoint, as a new open checkpoint is
+    // created if mem_usage >= ep_checkpoint_max_size, and so the size of each
+    // item must be strictly < (openCkptMemFree / itemsPerCheckpoint), such that
+    // (itemsPerCheckpoint + 1) items has mem_usage >= ep_checkpoint_max_size.
 
     uint64_t firstCkptNumItems = 0;
     for (uint64_t seqno = 1;
