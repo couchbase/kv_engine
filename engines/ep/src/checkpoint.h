@@ -468,7 +468,7 @@ public:
      */
     size_t getMemOverheadAllocatorBytes() const {
         return sizeof(Checkpoint) + getKeyIndexAllocatorBytes() +
-               getKeyIndexKeyAllocatorBytes() + getWriteQueueAllocatorBytes();
+               getWriteQueueAllocatorBytes();
     }
 
     /**
@@ -532,14 +532,10 @@ public:
         return maxDeletedRevSeqno;
     }
 
-    /// @return bytes allocated to keys stored in the keyIndex as a signed type
-    ssize_t getKeyIndexKeyAllocatorBytes() const {
-        return keyIndexKeyAllocator.getBytesAllocated();
-    }
-
     /// @return bytes allocated to keyIndex as a signed type
     ssize_t getKeyIndexAllocatorBytes() const {
-        return keyIndexAllocator.getBytesAllocated();
+        return keyIndexAllocator.getBytesAllocated() +
+               keyIndexKeyAllocator.getBytesAllocated();
     }
 
     /// @return bytes allocated to the toWrite as a signed type
@@ -638,10 +634,11 @@ private:
     // Allocator used for tracking memory used by toWrite
     MemoryTrackingAllocator<queued_item> queueAllocator;
 
-    // Allocator used for tracking memory used by keyIndex
+    // Allocator used for tracking memory used by keyIndex.
     checkpoint_index::allocator_type keyIndexAllocator;
 
-    // Allocator used for tracking memory used by keys stored in the keyIndex
+    // Allocator used for tracking memory used by keys stored in the keyIndex.
+    // Only (indirectly) available in stats through keyIndexAllocator's value.
     checkpoint_index::key_type::allocator_type keyIndexKeyAllocator;
 
     CheckpointQueue toWrite;

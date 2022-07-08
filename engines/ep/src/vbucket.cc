@@ -335,10 +335,6 @@ size_t VBucket::getCMMemOverheadAllocatorBytesIndex() const {
     return checkpointManager->getMemOverheadAllocatorBytesIndex();
 }
 
-size_t VBucket::getCMMemOverheadAllocatorBytesIndexKey() const {
-    return checkpointManager->getMemOverheadAllocatorBytesIndexKey();
-}
-
 size_t VBucket::getCMMemOverhead() const {
     return checkpointManager->getMemOverhead();
 }

@@ -602,14 +602,6 @@ void Checkpoint::addStats(const AddStatFn& add_stat,
 
     checked_snprintf(buf.data(),
                      buf.size(),
-                     "vb_%d:id_%" PRIu64 ":key_index_key_allocator_bytes",
-                     vbucketId.get(),
-                     getId());
-    add_casted_stat(
-            buf.data(), getKeyIndexKeyAllocatorBytes(), add_stat, cookie);
-
-    checked_snprintf(buf.data(),
-                     buf.size(),
                      "vb_%d:id_%" PRIu64 ":queue_allocator_bytes",
                      vbucketId.get(),
                      getId());

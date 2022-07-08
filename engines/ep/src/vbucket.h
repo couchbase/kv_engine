@@ -238,7 +238,6 @@ public:
     size_t getCMMemOverheadAllocatorBytes() const;
     size_t getCMMemOverheadAllocatorBytesQueue() const;
     size_t getCMMemOverheadAllocatorBytesIndex() const;
-    size_t getCMMemOverheadAllocatorBytesIndexKey() const;
 
     size_t getCMMemOverhead() const;
     size_t getCMMemOverheadQueue() const;

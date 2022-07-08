@@ -421,12 +421,6 @@ public:
     size_t getMemOverheadAllocatorBytesIndex() const;
 
     /**
-     * Return the mem overhead of all keys in this CM checkpoints' index,
-     * computed by allocator
-     */
-    size_t getMemOverheadAllocatorBytesIndexKey() const;
-
-    /**
      * Return memory overhead of all the checkpoints managed, computed by
      * internal counters
      */

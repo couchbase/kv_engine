@@ -1897,11 +1897,6 @@
         "cbstat": "vb_{state}_checkpoint_memory_overhead_allocator_index"
     },
     {
-        "key": "vb_checkpoint_memory_overhead_allocator_index_key",
-        "unit": "bytes",
-        "cbstat": "vb_{state}_checkpoint_memory_overhead_allocator_index_key"
-    },
-    {
         "key": "vb_checkpoint_memory_overhead",
         "unit": "bytes",
         "cbstat": "vb_{state}_checkpoint_memory_overhead",

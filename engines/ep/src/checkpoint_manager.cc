@@ -1377,15 +1377,6 @@ size_t CheckpointManager::getMemOverheadAllocatorBytesIndex() const {
     return usage;
 }
 
-size_t CheckpointManager::getMemOverheadAllocatorBytesIndexKey() const {
-    std::lock_guard<std::mutex> lh(queueLock);
-    size_t usage = 0;
-    for (const auto& checkpoint : checkpointList) {
-        usage += checkpoint->getKeyIndexKeyAllocatorBytes();
-    }
-    return usage;
-}
-
 size_t CheckpointManager::getMemOverhead() const {
     std::lock_guard<std::mutex> lh(queueLock);
     return getMemOverhead(lh);

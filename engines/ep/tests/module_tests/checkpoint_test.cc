@@ -3435,8 +3435,6 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     const auto initialQueuedOverheadAllocator =
             checkpoint->getWriteQueueAllocatorBytes();
     const auto initialIndexAllocator = checkpoint->getKeyIndexAllocatorBytes();
-    const auto initialKeyIndexKeyAllocator =
-            checkpoint->getKeyIndexKeyAllocatorBytes();
 
     // Some metaitems are already in the queue
     EXPECT_GT(initialQueued, 0);
@@ -3450,13 +3448,12 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
 
     EXPECT_EQ(initialMemOverheadAllocator,
               sizeof(Checkpoint) + initialQueuedOverheadAllocator +
-                      initialIndexAllocator + initialKeyIndexKeyAllocator);
+                      initialIndexAllocator);
 
     size_t itemsAlloc = 0;
     size_t itemOverheadAlloc = 0;
     size_t queueAlloc = 0;
     size_t keyIndexAlloc = 0;
-    size_t keyIndexKeyAlloc = 0;
     const size_t numItems = 10;
     for (size_t i = 1; i <= numItems; ++i) {
         auto item = makeCommittedItem(
@@ -3470,7 +3467,6 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
         itemsAlloc += item->size();
         itemOverheadAlloc += (item->size() - item->getValMemSize());
         queueAlloc += Checkpoint::per_item_queue_overhead;
-        keyIndexKeyAlloc += item->getKey().size();
         keyIndexAlloc += item->getKey().size() + sizeof(IndexEntry);
     }
 
@@ -3490,8 +3486,6 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     const auto queuedOverheadAllocator =
             checkpoint->getWriteQueueAllocatorBytes();
     const auto indexAllocator = checkpoint->getKeyIndexAllocatorBytes();
-    const auto keyIndexKeyAllocator =
-            checkpoint->getKeyIndexKeyAllocatorBytes();
 
     EXPECT_EQ(initialQueued + itemsAlloc, queued);
     EXPECT_EQ(initialQueueOverhead + queueAlloc, queueOverhead);
@@ -3514,8 +3508,7 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
               manager.getMemOverhead());
 
     EXPECT_EQ(memOverheadAllocator,
-              sizeof(Checkpoint) + queuedOverheadAllocator + indexAllocator +
-                      keyIndexKeyAllocator);
+              sizeof(Checkpoint) + queuedOverheadAllocator + indexAllocator);
     EXPECT_EQ(queuedOverheadAllocator,
               initialQueuedOverheadAllocator + queueAlloc);
 }
@@ -3879,53 +3872,55 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
 }
 
 TEST_F(CheckpointIndexAllocatorMemoryTrackingTest,
-       keyIndexAllocatorsAreDisjoint) {
+       keyIndexAllocatorAccountsForKey) {
+    using Introspector = CheckpointManagerTestIntrospector;
+
     setVBucketState(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
     auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
 
-    Checkpoint& checkpoint =
-            CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
-                    manager);
+    // Use a very long key to make it clear where the key allocation is going,
+    // i.e. keySize >> any possible non-key allocation. (SSO will not apply.)
+    const auto keySize = 1024;
+    // Lambda function used to guarantee duplicate item queued is duplicate
+    auto queueLongKeyItem = [this, &manager, keySize]() {
+        auto item =
+                makeCommittedItem(makeStoredDocKey(std::string(keySize, 'x'),
+                                                   CollectionID::Default),
+                                  "value",
+                                  vbid);
+        EXPECT_TRUE(manager.queueDirty(
+                item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
+    };
 
+    auto& checkpoint = Introspector::public_getOpenCheckpoint(manager);
     EXPECT_EQ(0, checkpoint.getKeyIndexAllocatorBytes());
-    EXPECT_EQ(0, checkpoint.getKeyIndexKeyAllocatorBytes());
 
-    // Use a very large key of size keySize to make it clear where the key
-    // allocation is going, i.e. keySize >> any possible non-key allocation
-    const size_t keySize = 1024;
-    auto item = makeCommittedItem(
-            makeStoredDocKey(std::string(keySize, 'x'), CollectionID::Default),
-            "value",
-            vbid);
-    EXPECT_TRUE(manager.queueDirty(
-            item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
+    queueLongKeyItem();
 
-    // Expect reasonable values for the allocators, e.g. they should differ;
-    EXPECT_NE(checkpoint.getKeyIndexAllocatorBytes(),
-              checkpoint.getKeyIndexKeyAllocatorBytes());
-    // The keyIndexKey allocation should be at least the size of the key, but
+    // Expect reasonable values for the keyIndex allocation, which should be:
+    // - Greater than or equal to the insertion overhead plus the size of the
+    // key allocation on the heap
+    EXPECT_GE(checkpoint.getKeyIndexAllocatorBytes(),
+              insertionOverhead + keySize);
+    // - Less than or equal to the insertion overhead + the first element
+    // metadata overhead for Folly maps, plus the size of the key. As
     // std::string will likely overallocate for alignment/optimization purposes,
-    // so expect a bound of some additional bytes:
-    EXPECT_GE(checkpoint.getKeyIndexKeyAllocatorBytes(), keySize);
-    EXPECT_LT(checkpoint.getKeyIndexKeyAllocatorBytes(),
-              keySize + alignmentBytes);
-    // The keyIndex allocation should be greater than zero but less than the
-    // insertion overhead + the first element metadata overhead for Folly maps:
-    EXPECT_LE(checkpoint.getKeyIndexAllocatorBytes(),
-              insertionOverhead + firstElemOverhead);
-    EXPECT_GT(checkpoint.getKeyIndexAllocatorBytes(), 0);
+    // upper bound the raw size of the key by some bytes
+    EXPECT_LE(
+            checkpoint.getKeyIndexAllocatorBytes(),
+            insertionOverhead + firstElemOverhead + (keySize + alignmentBytes));
 
+    const auto beforeOpKeyIndexAlloc = checkpoint.getKeyIndexAllocatorBytes();
     // Now expel the item from the checkpoint. The keyIndex will still contain
-    // the key/value, so both sizes should not change - expect the same values.
-    const auto preExpelKeyIndexAlloc = checkpoint.getKeyIndexAllocatorBytes();
-    const auto preExpelKeyIndexKeyAlloc =
-            checkpoint.getKeyIndexKeyAllocatorBytes();
+    // the key/value, so its size should not change - expect the same value.
     checkpoint.expelItems(std::prev(checkpoint.end()), 3);
+    EXPECT_EQ(beforeOpKeyIndexAlloc, checkpoint.getKeyIndexAllocatorBytes());
 
-    EXPECT_EQ(preExpelKeyIndexAlloc, checkpoint.getKeyIndexAllocatorBytes());
-    EXPECT_EQ(preExpelKeyIndexKeyAlloc,
-              checkpoint.getKeyIndexKeyAllocatorBytes());
+    // Queue the same item again. As a duplicate of a key that is already in the
+    // keyIndex, the memory usage should not change as nothing is inserted.
+    queueLongKeyItem();
+    EXPECT_EQ(beforeOpKeyIndexAlloc, checkpoint.getKeyIndexAllocatorBytes());
 }
 
 void ShardedCheckpointDestructionTest::SetUp() {

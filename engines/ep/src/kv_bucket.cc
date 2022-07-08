@@ -1331,9 +1331,6 @@ void KVBucket::appendAggregatedVBucketStats(
                          visitor.getCheckpointMemOverheadAllocatorBytesQueue());
         stateCol.addStat(Key::vb_checkpoint_memory_overhead_allocator_index,
                          visitor.getCheckpointMemOverheadAllocatorBytesIndex());
-        stateCol.addStat(
-                Key::vb_checkpoint_memory_overhead_allocator_index_key,
-                visitor.getCheckpointMemOverheadAllocatorBytesIndexKey());
 
         stateCol.addStat(Key::vb_checkpoint_memory_overhead,
                          visitor.getCheckpointMemOverhead());
