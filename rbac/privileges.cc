@@ -106,7 +106,7 @@ bool is_bucket_privilege(Privilege priv) {
 
     throw std::invalid_argument(
             "is_bucket_privilege() invalid privilege provided: " +
-            cb::to_hex(uint8_t(priv)));
+            std::to_string(int(priv)));
 }
 
 bool is_collection_privilege(Privilege priv) {
@@ -141,7 +141,38 @@ bool is_collection_privilege(Privilege priv) {
 
     throw std::invalid_argument(
             "is_collection_privilege() invalid privilege provided: " +
-            cb::to_hex(uint8_t(priv)));
+            std::to_string(int(priv)));
+}
+
+bool is_legal_privilege(Privilege privilege) {
+    switch (privilege) {
+    case Privilege::Read:
+    case Privilege::Insert:
+    case Privilege::Delete:
+    case Privilege::Upsert:
+    case Privilege::SimpleStats:
+    case Privilege::Stats:
+    case Privilege::NodeSupervisor:
+    case Privilege::Administrator:
+    case Privilege::Audit:
+    case Privilege::DcpConsumer:
+    case Privilege::DcpProducer:
+    case Privilege::DcpStream:
+    case Privilege::MetaWrite:
+    case Privilege::IdleConnection:
+    case Privilege::SystemXattrRead:
+    case Privilege::SystemXattrWrite:
+    case Privilege::BucketThrottleManagement:
+    case Privilege::Unthrottled:
+    case Privilege::Unmetered:
+    case Privilege::Impersonate:
+    case Privilege::Settings:
+    case Privilege::SystemSettings:
+    case Privilege::RangeScan:
+        return true;
+    }
+
+    return false;
 }
 
 } // namespace cb::rbac

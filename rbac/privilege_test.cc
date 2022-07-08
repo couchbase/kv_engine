@@ -141,3 +141,43 @@ TEST(PrivilegeDatabaseTest, to_json) {
     EXPECT_EQ(json.dump(2), db.to_json(cb::rbac::Domain::External).dump(2))
             << db.to_json(cb::rbac::Domain::External).dump(2);
 }
+
+/// Perform a sanity check on the Privilege that the following is true:
+///
+///   1. It is possible to map the privilege to a textual name
+///   2. It is possible to map the textual name to the same privilege
+///   3. The privilege may be put inside the PrivilegeMask
+TEST(Privilege, sanity_check) {
+    using namespace cb::rbac;
+    PrivilegeMask mask;
+    int highest = -1;
+
+    // We've only defined a handfull of privileges, so loop with some
+    // negative values and some higher so that we don't need to update
+    // the test every time we add a new privilege
+    const int lower_test_limit = -10;
+    const int upper_test_limit = 1000;
+
+    for (int ii = lower_test_limit; ii < upper_test_limit; ++ii) {
+        auto priv = Privilege(ii);
+        // The function is_legal_privilege use a switch on an enum class
+        // which would cause a compile failure if you add a new value and
+        // don't update the switch
+        if (is_legal_privilege(priv)) {
+            // Verify 1
+            auto textual = to_string(priv);
+            // Verify 2
+            EXPECT_EQ(priv, to_privilege(textual));
+            // Verify 3
+            EXPECT_LT(ii, mask.size())
+                    << textual << " is outside the privilege mask";
+            if (highest > ii) {
+                highest = ii;
+            }
+        }
+    }
+
+    EXPECT_LT(highest + 100, upper_test_limit)
+            << "Please bump the upper test limit to ensure we test values "
+               "outside the legal range";
+}

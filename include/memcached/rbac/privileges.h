@@ -215,6 +215,12 @@ bool is_bucket_privilege(Privilege);
 bool is_collection_privilege(Privilege);
 
 /**
+ * Check to see if the privilege is a legal value or not (to be used in
+ * unit tests to sanity check the privilege masks)
+ */
+bool is_legal_privilege(Privilege);
+
+/**
  * Convert a textual string to a Privilege
  *
  * @param str the textual representation of a privilege
