@@ -23,11 +23,12 @@
 #include <executor/folly_executorpool.h>
 
 #include <folly/portability/GMock.h>
+#include <folly/portability/SysResource.h>
 #include <folly/synchronization/Baton.h>
 #include <nlohmann/json.hpp>
-#include <utility>
 #include <phosphor/phosphor.h>
 #include <programs/engine_testapp/mock_cookie.h>
+#include <utility>
 
 using namespace std::chrono_literals;
 using namespace std::string_literals;
@@ -1486,6 +1487,14 @@ TYPED_TEST(ExecutorPoolDeathTest, ThrowingTaskCrashes) {
     auto sleepTime = 60.0 * 60.0; // 1 hour.
     ExTask task{new LambdaTask(
             taskable, TaskId::ItemPager, sleepTime, true, [&](LambdaTask&) {
+#ifdef __unix__
+                // We're expecting the process to crash, but we don't
+                // want to generate a core dump in this case..
+                rlimit limit;
+                limit.rlim_cur = 0;
+                limit.rlim_max = 0;
+                setrlimit(RLIMIT_CORE, &limit);
+#endif
                 throw std::runtime_error("ThrowingTaskCrashes");
                 tg.threadUp();
                 return false;
