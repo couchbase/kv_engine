@@ -3878,6 +3878,56 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     EXPECT_EQ(0, task.getNumCheckpoints());
 }
 
+TEST_F(CheckpointIndexAllocatorMemoryTrackingTest,
+       keyIndexAllocatorsAreDisjoint) {
+    setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+
+    Checkpoint& checkpoint =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
+                    manager);
+
+    EXPECT_EQ(0, checkpoint.getKeyIndexAllocatorBytes());
+    EXPECT_EQ(0, checkpoint.getKeyIndexKeyAllocatorBytes());
+
+    // Use a very large key of size keySize to make it clear where the key
+    // allocation is going, i.e. keySize >> any possible non-key allocation
+    const size_t keySize = 1024;
+    auto item = makeCommittedItem(
+            makeStoredDocKey(std::string(keySize, 'x'), CollectionID::Default),
+            "value",
+            vbid);
+    EXPECT_TRUE(manager.queueDirty(
+            item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
+
+    // Expect reasonable values for the allocators, e.g. they should differ;
+    EXPECT_NE(checkpoint.getKeyIndexAllocatorBytes(),
+              checkpoint.getKeyIndexKeyAllocatorBytes());
+    // The keyIndexKey allocation should be at least the size of the key, but
+    // std::string will likely overallocate for alignment/optimization purposes,
+    // so expect a bound of some additional bytes:
+    EXPECT_GE(checkpoint.getKeyIndexKeyAllocatorBytes(), keySize);
+    EXPECT_LT(checkpoint.getKeyIndexKeyAllocatorBytes(),
+              keySize + alignmentBytes);
+    // The keyIndex allocation should be greater than zero but less than the
+    // insertion overhead + the first element metadata overhead for Folly maps:
+    EXPECT_LE(checkpoint.getKeyIndexAllocatorBytes(),
+              insertionOverhead + firstElemOverhead);
+    EXPECT_GT(checkpoint.getKeyIndexAllocatorBytes(), 0);
+
+    // Now expel the item from the checkpoint. The keyIndex will still contain
+    // the key/value, so both sizes should not change - expect the same values.
+    const auto preExpelKeyIndexAlloc = checkpoint.getKeyIndexAllocatorBytes();
+    const auto preExpelKeyIndexKeyAlloc =
+            checkpoint.getKeyIndexKeyAllocatorBytes();
+    checkpoint.expelItems(std::prev(checkpoint.end()), 3);
+
+    EXPECT_EQ(preExpelKeyIndexAlloc, checkpoint.getKeyIndexAllocatorBytes());
+    EXPECT_EQ(preExpelKeyIndexKeyAlloc,
+              checkpoint.getKeyIndexKeyAllocatorBytes());
+}
+
 void ShardedCheckpointDestructionTest::SetUp() {
     if (!config_string.empty()) {
         config_string += ";";

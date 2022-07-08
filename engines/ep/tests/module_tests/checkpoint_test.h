@@ -16,6 +16,7 @@
 #include "checkpoint_manager.h"
 #include "evp_store_single_threaded_test.h"
 #include "vbucket_test.h"
+#include <checkpoint.h>
 #include <folly/portability/GTest.h>
 
 class MockCheckpointManager;
@@ -134,6 +135,34 @@ public:
      * at queueing items into the checkpoints.
      */
     void testCheckpointManagerMemUsage();
+};
+
+/**
+ * Test fixture dedicated to memory tracking of the checkpoint_index structure.
+ */
+class CheckpointIndexAllocatorMemoryTrackingTest
+    : public CheckpointMemoryTrackingTest {
+protected:
+    static constexpr size_t insertionOverhead =
+            sizeof(StoredDocKeyT<MemoryTrackingAllocator>) + sizeof(IndexEntry);
+
+    // When the first element is inserted into a Folly map, there’s a small
+    // overhead for the metadata of items which share the same
+    // row. We cannot easily predict which row different items will be assigned
+    // to, but we do know the first element will need to allocate a new row.
+    // Therefore expect the below additional bytes to be allocated above the
+    // bytes for the key+value.
+#if WIN32
+    const size_t firstElemOverhead = 32 + 16;
+#else
+    const size_t firstElemOverhead = 32;
+#endif
+
+    // std::string's allocator will also likely over-allocate as an
+    // optimization, e.g. for alignment. This has been observed to be up to
+    // multiples of 16 bytes on macOS, but this is environment dependent, so the
+    // following value is used only as an upper bound.
+    static const size_t alignmentBytes = 24;
 };
 
 /**
