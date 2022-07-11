@@ -50,6 +50,5 @@ protected:
      */
     void continueScan(RangeScan& scan);
 
-    Vbid vbid;
     EPBucket& bucket;
 };
