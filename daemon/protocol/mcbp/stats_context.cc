@@ -37,6 +37,7 @@
 #include <utilities/engine_errc_2_mcbp.h>
 #include <chrono>
 #include <cinttypes>
+#include <stdexcept>
 
 using namespace std::string_view_literals;
 
@@ -742,8 +743,11 @@ cb::engine_errc StatsCommandContext::doStats() {
     // If stats command call returns cb::engine_errc::would_block and the task
     // is not a nullptr (ie we have created a background task), then change the
     // state to be GetTaskResult and return cb::engine_errc::would_block
-    if (command_exit_code == cb::engine_errc::would_block && task) {
-        state = State::GetTaskResult;
+    if (command_exit_code == cb::engine_errc::would_block) {
+        if (task) {
+            state = State::GetTaskResult;
+        }
+
         return cb::engine_errc::would_block;
     }
 
@@ -754,15 +758,21 @@ cb::engine_errc StatsCommandContext::doStats() {
 cb::engine_errc StatsCommandContext::getTaskResult() {
     auto& stats_task = dynamic_cast<StatsTask&>(*task);
 
-    state = State::CommandComplete;
     command_exit_code = stats_task.getCommandError();
-    if (command_exit_code == cb::engine_errc::success) {
-        for (const auto& s : stats_task.getStats()) {
-            append_stats(s.first,
-                         s.second,
-                         static_cast<const CookieIface*>(&cookie));
+    if (command_exit_code == cb::engine_errc::would_block) {
+        // The call to stats blocked, so we need to retry
+        state = State::DoStats;
+    } else {
+        state = State::CommandComplete;
+        if (command_exit_code == cb::engine_errc::success) {
+            for (const auto& s : stats_task.getStats()) {
+                append_stats(s.first,
+                             s.second,
+                             static_cast<const CookieIface*>(&cookie));
+            }
         }
     }
+
     return cb::engine_errc::success;
 }
 
@@ -780,12 +790,10 @@ cb::engine_errc StatsCommandContext::commandComplete() {
                                   std::chrono::steady_clock::now() - start);
         break;
     case cb::engine_errc::would_block:
-        /* If the stats call returns cb::engine_errc::would_block then set the
-         * state to DoStats again and return success to re-trigger the
-         * stat_task.
-         */
-        state = State::DoStats;
-        return cb::engine_errc::success;
+        throw std::logic_error(
+                "StatsCommandContext::commandComplete(): Should never get here "
+                "with EWB state");
+
     case cb::engine_errc::disconnect:
         // We don't send these responses back so we will not store
         // stats for these.
