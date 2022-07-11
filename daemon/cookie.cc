@@ -562,6 +562,192 @@ cb::mcbp::Status Cookie::validate() {
         setBarrier();
     }
 
+    // MB-52884 - Some commands returns data in different threads
+    //            than the front end thread, and will race trying
+    //            to access the incomming packet data. In these
+    //            cases we might need to copy out the incomming
+    //            packet.
+    switch (request.getClientOpcode()) {
+    case cb::mcbp::ClientOpcode::Get:
+    case cb::mcbp::ClientOpcode::Set:
+    case cb::mcbp::ClientOpcode::Add:
+    case cb::mcbp::ClientOpcode::Replace:
+    case cb::mcbp::ClientOpcode::Delete:
+    case cb::mcbp::ClientOpcode::Increment:
+    case cb::mcbp::ClientOpcode::Decrement:
+    case cb::mcbp::ClientOpcode::Quit:
+    case cb::mcbp::ClientOpcode::Flush:
+    case cb::mcbp::ClientOpcode::Getq:
+    case cb::mcbp::ClientOpcode::Noop:
+    case cb::mcbp::ClientOpcode::Version:
+    case cb::mcbp::ClientOpcode::Getk:
+    case cb::mcbp::ClientOpcode::Getkq:
+    case cb::mcbp::ClientOpcode::Append:
+    case cb::mcbp::ClientOpcode::Prepend:
+    case cb::mcbp::ClientOpcode::Setq:
+    case cb::mcbp::ClientOpcode::Addq:
+    case cb::mcbp::ClientOpcode::Replaceq:
+    case cb::mcbp::ClientOpcode::Deleteq:
+    case cb::mcbp::ClientOpcode::Incrementq:
+    case cb::mcbp::ClientOpcode::Decrementq:
+    case cb::mcbp::ClientOpcode::Quitq:
+    case cb::mcbp::ClientOpcode::Flushq:
+    case cb::mcbp::ClientOpcode::Appendq:
+    case cb::mcbp::ClientOpcode::Prependq:
+    case cb::mcbp::ClientOpcode::Verbosity:
+    case cb::mcbp::ClientOpcode::Touch:
+    case cb::mcbp::ClientOpcode::Gat:
+    case cb::mcbp::ClientOpcode::Gatq:
+    case cb::mcbp::ClientOpcode::Hello:
+    case cb::mcbp::ClientOpcode::SaslListMechs:
+    case cb::mcbp::ClientOpcode::SaslAuth:
+    case cb::mcbp::ClientOpcode::SaslStep:
+    case cb::mcbp::ClientOpcode::IoctlGet:
+    case cb::mcbp::ClientOpcode::IoctlSet:
+    case cb::mcbp::ClientOpcode::ConfigValidate:
+    case cb::mcbp::ClientOpcode::ConfigReload:
+    case cb::mcbp::ClientOpcode::AuditPut:
+    case cb::mcbp::ClientOpcode::AuditConfigReload:
+    case cb::mcbp::ClientOpcode::Shutdown:
+    case cb::mcbp::ClientOpcode::SetBucketUnitThrottleLimits:
+    case cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded:
+    case cb::mcbp::ClientOpcode::Rget_Unsupported:
+    case cb::mcbp::ClientOpcode::Rset_Unsupported:
+    case cb::mcbp::ClientOpcode::Rsetq_Unsupported:
+    case cb::mcbp::ClientOpcode::Rappend_Unsupported:
+    case cb::mcbp::ClientOpcode::Rappendq_Unsupported:
+    case cb::mcbp::ClientOpcode::Rprepend_Unsupported:
+    case cb::mcbp::ClientOpcode::Rprependq_Unsupported:
+    case cb::mcbp::ClientOpcode::Rdelete_Unsupported:
+    case cb::mcbp::ClientOpcode::Rdeleteq_Unsupported:
+    case cb::mcbp::ClientOpcode::Rincr_Unsupported:
+    case cb::mcbp::ClientOpcode::Rincrq_Unsupported:
+    case cb::mcbp::ClientOpcode::Rdecr_Unsupported:
+    case cb::mcbp::ClientOpcode::Rdecrq_Unsupported:
+    case cb::mcbp::ClientOpcode::SetVbucket:
+    case cb::mcbp::ClientOpcode::GetVbucket:
+    case cb::mcbp::ClientOpcode::DelVbucket:
+    case cb::mcbp::ClientOpcode::TapConnect_Unsupported:
+    case cb::mcbp::ClientOpcode::TapMutation_Unsupported:
+    case cb::mcbp::ClientOpcode::TapDelete_Unsupported:
+    case cb::mcbp::ClientOpcode::TapFlush_Unsupported:
+    case cb::mcbp::ClientOpcode::TapOpaque_Unsupported:
+    case cb::mcbp::ClientOpcode::TapVbucketSet_Unsupported:
+    case cb::mcbp::ClientOpcode::TapCheckpointStart_Unsupported:
+    case cb::mcbp::ClientOpcode::TapCheckpointEnd_Unsupported:
+    case cb::mcbp::ClientOpcode::GetAllVbSeqnos:
+    case cb::mcbp::ClientOpcode::DcpOpen:
+    case cb::mcbp::ClientOpcode::DcpAddStream:
+    case cb::mcbp::ClientOpcode::DcpCloseStream:
+    case cb::mcbp::ClientOpcode::DcpStreamReq:
+    case cb::mcbp::ClientOpcode::DcpGetFailoverLog:
+    case cb::mcbp::ClientOpcode::DcpStreamEnd:
+    case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
+    case cb::mcbp::ClientOpcode::DcpMutation:
+    case cb::mcbp::ClientOpcode::DcpDeletion:
+    case cb::mcbp::ClientOpcode::DcpExpiration:
+    case cb::mcbp::ClientOpcode::DcpFlush_Unsupported:
+    case cb::mcbp::ClientOpcode::DcpSetVbucketState:
+    case cb::mcbp::ClientOpcode::DcpNoop:
+    case cb::mcbp::ClientOpcode::DcpBufferAcknowledgement:
+    case cb::mcbp::ClientOpcode::DcpControl:
+    case cb::mcbp::ClientOpcode::DcpSystemEvent:
+    case cb::mcbp::ClientOpcode::DcpPrepare:
+    case cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged:
+    case cb::mcbp::ClientOpcode::DcpCommit:
+    case cb::mcbp::ClientOpcode::DcpAbort:
+    case cb::mcbp::ClientOpcode::DcpSeqnoAdvanced:
+    case cb::mcbp::ClientOpcode::DcpOsoSnapshot:
+    case cb::mcbp::ClientOpcode::StopPersistence:
+    case cb::mcbp::ClientOpcode::StartPersistence:
+    case cb::mcbp::ClientOpcode::SetParam:
+    case cb::mcbp::ClientOpcode::GetReplica:
+    case cb::mcbp::ClientOpcode::CreateBucket:
+    case cb::mcbp::ClientOpcode::DeleteBucket:
+    case cb::mcbp::ClientOpcode::ListBuckets:
+    case cb::mcbp::ClientOpcode::SelectBucket:
+    case cb::mcbp::ClientOpcode::ObserveSeqno:
+    case cb::mcbp::ClientOpcode::Observe:
+    case cb::mcbp::ClientOpcode::EvictKey:
+    case cb::mcbp::ClientOpcode::GetLocked:
+    case cb::mcbp::ClientOpcode::UnlockKey:
+    case cb::mcbp::ClientOpcode::GetFailoverLog:
+    case cb::mcbp::ClientOpcode::LastClosedCheckpoint_Unsupported:
+    case cb::mcbp::ClientOpcode::DeregisterTapClient_Unsupported:
+    case cb::mcbp::ClientOpcode::ResetReplicationChain_Unsupported:
+    case cb::mcbp::ClientOpcode::GetMeta:
+    case cb::mcbp::ClientOpcode::GetqMeta:
+    case cb::mcbp::ClientOpcode::SetWithMeta:
+    case cb::mcbp::ClientOpcode::SetqWithMeta:
+    case cb::mcbp::ClientOpcode::AddWithMeta:
+    case cb::mcbp::ClientOpcode::AddqWithMeta:
+    case cb::mcbp::ClientOpcode::SnapshotVbStates_Unsupported:
+    case cb::mcbp::ClientOpcode::VbucketBatchCount_Unsupported:
+    case cb::mcbp::ClientOpcode::DelWithMeta:
+    case cb::mcbp::ClientOpcode::DelqWithMeta:
+    case cb::mcbp::ClientOpcode::CreateCheckpoint_Unsupported:
+    case cb::mcbp::ClientOpcode::NotifyVbucketUpdate_Unsupported:
+    case cb::mcbp::ClientOpcode::EnableTraffic:
+    case cb::mcbp::ClientOpcode::DisableTraffic:
+    case cb::mcbp::ClientOpcode::Ifconfig:
+    case cb::mcbp::ClientOpcode::ChangeVbFilter_Unsupported:
+    case cb::mcbp::ClientOpcode::CheckpointPersistence_Unsupported:
+    case cb::mcbp::ClientOpcode::ReturnMeta:
+    case cb::mcbp::ClientOpcode::CompactDb:
+    case cb::mcbp::ClientOpcode::SetClusterConfig:
+    case cb::mcbp::ClientOpcode::GetClusterConfig:
+    case cb::mcbp::ClientOpcode::GetRandomKey:
+    case cb::mcbp::ClientOpcode::SeqnoPersistence:
+    case cb::mcbp::ClientOpcode::CollectionsSetManifest:
+    case cb::mcbp::ClientOpcode::CollectionsGetManifest:
+    case cb::mcbp::ClientOpcode::CollectionsGetID:
+    case cb::mcbp::ClientOpcode::CollectionsGetScopeID:
+    case cb::mcbp::ClientOpcode::SetDriftCounterState_Unsupported:
+    case cb::mcbp::ClientOpcode::GetAdjustedTime_Unsupported:
+    case cb::mcbp::ClientOpcode::SubdocGet:
+    case cb::mcbp::ClientOpcode::SubdocExists:
+    case cb::mcbp::ClientOpcode::SubdocDictAdd:
+    case cb::mcbp::ClientOpcode::SubdocDictUpsert:
+    case cb::mcbp::ClientOpcode::SubdocDelete:
+    case cb::mcbp::ClientOpcode::SubdocReplace:
+    case cb::mcbp::ClientOpcode::SubdocArrayPushLast:
+    case cb::mcbp::ClientOpcode::SubdocArrayPushFirst:
+    case cb::mcbp::ClientOpcode::SubdocArrayInsert:
+    case cb::mcbp::ClientOpcode::SubdocArrayAddUnique:
+    case cb::mcbp::ClientOpcode::SubdocCounter:
+    case cb::mcbp::ClientOpcode::SubdocMultiLookup:
+    case cb::mcbp::ClientOpcode::SubdocMultiMutation:
+    case cb::mcbp::ClientOpcode::SubdocGetCount:
+    case cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr:
+    case cb::mcbp::ClientOpcode::Scrub:
+    case cb::mcbp::ClientOpcode::IsaslRefresh:
+    case cb::mcbp::ClientOpcode::SslCertsRefresh:
+    case cb::mcbp::ClientOpcode::GetCmdTimer:
+    case cb::mcbp::ClientOpcode::SetCtrlToken:
+    case cb::mcbp::ClientOpcode::GetCtrlToken:
+    case cb::mcbp::ClientOpcode::UpdateExternalUserPermissions:
+    case cb::mcbp::ClientOpcode::RbacRefresh:
+    case cb::mcbp::ClientOpcode::AuthProvider:
+    case cb::mcbp::ClientOpcode::DropPrivilege:
+    case cb::mcbp::ClientOpcode::AdjustTimeofday:
+    case cb::mcbp::ClientOpcode::EwouldblockCtl:
+    case cb::mcbp::ClientOpcode::GetErrorMap:
+    case cb::mcbp::ClientOpcode::RangeScanCreate:
+    case cb::mcbp::ClientOpcode::RangeScanCancel:
+    case cb::mcbp::ClientOpcode::Invalid:
+        break;
+
+    case cb::mcbp::ClientOpcode::RangeScanContinue:
+    case cb::mcbp::ClientOpcode::Stat:
+    case cb::mcbp::ClientOpcode::GetKeys:
+        // The command may try to call operations on the cookie to get
+        // information from the input packet from a different thread than
+        // the front end thread (for instance sending a response).
+        // To avoid this from racing with where we preserve the packet
+        // in the ewb case just copy out the packet
+        preserveRequest();
+    }
+
     validated = true;
     return cb::mcbp::Status::Success;
 }
