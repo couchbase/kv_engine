@@ -241,7 +241,7 @@ bool Request::isQuiet() const {
         case ClientOpcode::GetLocked:
         case ClientOpcode::UnlockKey:
         case ClientOpcode::GetFailoverLog:
-        case ClientOpcode::LastClosedCheckpoint:
+        case ClientOpcode::LastClosedCheckpoint_Unsupported:
         case ClientOpcode::ResetReplicationChain_Unsupported:
         case ClientOpcode::DeregisterTapClient_Unsupported:
         case ClientOpcode::GetMeta:

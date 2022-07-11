@@ -315,6 +315,7 @@ TEST_F(MeteringTest, OpsMetered) {
         case ClientOpcode::NotifyVbucketUpdate_Unsupported:
         case ClientOpcode::ChangeVbFilter_Unsupported:
         case ClientOpcode::CheckpointPersistence_Unsupported:
+        case ClientOpcode::LastClosedCheckpoint_Unsupported:
         case ClientOpcode::SetDriftCounterState_Unsupported:
         case ClientOpcode::GetAdjustedTime_Unsupported:
         case ClientOpcode::DcpFlush_Unsupported:
@@ -507,7 +508,7 @@ TEST_F(MeteringTest, OpsMetered) {
             // tested in dcp_metering_test.cc
             break;
 
-            // The following are "internal"/advanced commands not intended
+        // The following are "internal"/advanced commands not intended
         // for the average users. We may add unit tests at a later time for
         // them
         case ClientOpcode::IoctlGet:
@@ -530,7 +531,6 @@ TEST_F(MeteringTest, OpsMetered) {
         case ClientOpcode::DisableTraffic:
         case ClientOpcode::Ifconfig:
         case ClientOpcode::CreateCheckpoint:
-        case ClientOpcode::LastClosedCheckpoint:
         case ClientOpcode::CompactDb:
         case ClientOpcode::SetClusterConfig:
         case ClientOpcode::CollectionsSetManifest:

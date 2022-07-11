@@ -1132,8 +1132,6 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
         return observe(cookie, request, response);
     case cb::mcbp::ClientOpcode::ObserveSeqno:
         return observe_seqno(cookie, request, response);
-    case cb::mcbp::ClientOpcode::LastClosedCheckpoint:
-        return handleLastClosedCheckpoint(cookie, request, response);
     case cb::mcbp::ClientOpcode::CreateCheckpoint:
         return handleCreateCheckpoint(cookie, request, response);
     case cb::mcbp::ClientOpcode::SeqnoPersistence:
@@ -5238,28 +5236,6 @@ cb::engine_errc EventuallyPersistentEngine::observe_seqno(
 
 VBucketPtr EventuallyPersistentEngine::getVBucket(Vbid vbucket) const {
     return kvBucket->getVBucket(vbucket);
-}
-
-cb::engine_errc EventuallyPersistentEngine::handleLastClosedCheckpoint(
-        const CookieIface* cookie,
-        const cb::mcbp::Request& request,
-        const AddResponseFn& response) {
-    VBucketPtr vb = getVBucket(request.getVBucket());
-    if (!vb) {
-        return cb::engine_errc::not_my_vbucket;
-    }
-
-    const uint64_t id =
-            htonll(vb->checkpointManager->getLastClosedCheckpointId());
-    return sendResponse(
-            response,
-            {}, // key
-            {}, // extra
-            {reinterpret_cast<const char*>(&id), sizeof(id)}, // body
-            PROTOCOL_BINARY_RAW_BYTES,
-            cb::mcbp::Status::Success,
-            0,
-            cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::handleCreateCheckpoint(

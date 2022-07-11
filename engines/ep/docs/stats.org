@@ -1006,7 +1006,6 @@ each stat name.
 | num_items_for_persistence           | Number of items remaining for persistence |
 | state                               | The state of the vbucket this checkpoint  |
 |                                     | contains data for                         |
-| last_closed_checkpoint_id           | The last closed checkpoint number         |
 | persisted_checkpoint_id             | The last persisted checkpoint number      |
 | mem_usage                           | Total memory taken up by items in all     |
 |                                     | checkpoints under given manager           |

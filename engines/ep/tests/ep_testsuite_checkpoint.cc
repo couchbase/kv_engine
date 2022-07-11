@@ -26,27 +26,27 @@ static enum test_result test_create_new_checkpoint(EngineIface* h) {
     write_items(h, 1);
     wait_for_flusher_to_settle(h);
 
-    checkeq(0,
-            get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
-            "Last closed checkpoint Id for VB 0 should still be 0 after "
+    checkeq(1,
+            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint 0"),
+            "The open checkpoint id for VB 0 should still be 1 after "
             "storing 1 items");
 
     // Store 1 more - should push it over to the next checkpoint.
     write_items(h, 1, 1);
     wait_for_flusher_to_settle(h);
 
-    checkeq(1,
-            get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
-            "Last closed checkpoint Id for VB 0 should increase to 1 after "
+    checkeq(2,
+            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint 0"),
+            "The open checkpoint id for VB 0 should increase to 2 after "
             "storing 6 items");
 
     createCheckpoint(h);
     checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected success response from creating a new checkpoint");
 
-    checkeq(2,
-            get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
-            "Last closed checkpoint Id for VB 0 should be 2");
+    checkeq(3,
+            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint 0"),
+            "The open checkpoint id for VB 0 should be 3");
 
     return SUCCESS;
 }

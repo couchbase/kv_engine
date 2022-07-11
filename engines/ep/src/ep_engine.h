@@ -664,9 +664,6 @@ public:
         return configuration;
     }
 
-    cb::engine_errc handleLastClosedCheckpoint(const CookieIface* cookie,
-                                               const cb::mcbp::Request& request,
-                                               const AddResponseFn& response);
     cb::engine_errc handleCreateCheckpoint(const CookieIface* cookie,
                                            const cb::mcbp::Request& request,
                                            const AddResponseFn& response);

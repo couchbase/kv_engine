@@ -165,7 +165,7 @@ enum class ClientOpcode : uint8_t {
     /**
      * Return the last closed checkpoint Id for a given VBucket.
      */
-    LastClosedCheckpoint = 0x97,
+    LastClosedCheckpoint_Unsupported = 0x97,
 
     /**
      * Close the TAP connection for the registered TAP client and

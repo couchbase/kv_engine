@@ -123,7 +123,7 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::GetLocked:
     case ClientOpcode::UnlockKey:
     case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint:
+    case ClientOpcode::LastClosedCheckpoint_Unsupported:
     case ClientOpcode::ResetReplicationChain_Unsupported:
     case ClientOpcode::DeregisterTapClient_Unsupported:
     case ClientOpcode::GetMeta:
@@ -290,7 +290,6 @@ bool is_supported_opcode(ClientOpcode opcode) {
     case ClientOpcode::GetLocked:
     case ClientOpcode::UnlockKey:
     case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint:
     case ClientOpcode::GetMeta:
     case ClientOpcode::GetqMeta:
     case ClientOpcode::SetWithMeta:
@@ -375,6 +374,7 @@ bool is_supported_opcode(ClientOpcode opcode) {
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::ChangeVbFilter_Unsupported:
     case ClientOpcode::CheckpointPersistence_Unsupported:
+    case ClientOpcode::LastClosedCheckpoint_Unsupported:
     case ClientOpcode::SetDriftCounterState_Unsupported:
     case ClientOpcode::GetAdjustedTime_Unsupported:
     case ClientOpcode::Invalid:
@@ -505,7 +505,7 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::GetLocked:
     case ClientOpcode::UnlockKey:
     case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint:
+    case ClientOpcode::LastClosedCheckpoint_Unsupported:
     case ClientOpcode::ResetReplicationChain_Unsupported:
     case ClientOpcode::DeregisterTapClient_Unsupported:
     case ClientOpcode::GetMeta:
@@ -694,7 +694,7 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::ObserveSeqno:
     case ClientOpcode::Observe:
     case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint:
+    case ClientOpcode::LastClosedCheckpoint_Unsupported:
     case ClientOpcode::ResetReplicationChain_Unsupported:
     case ClientOpcode::DeregisterTapClient_Unsupported:
     case ClientOpcode::GetMeta:
@@ -891,7 +891,7 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::SelectBucket:
     case ClientOpcode::ObserveSeqno:
     case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint:
+    case ClientOpcode::LastClosedCheckpoint_Unsupported:
     case ClientOpcode::ResetReplicationChain_Unsupported:
     case ClientOpcode::DeregisterTapClient_Unsupported:
     case ClientOpcode::SnapshotVbStates_Unsupported:
@@ -1057,7 +1057,7 @@ bool is_deprecated(ClientOpcode opcode) {
     case ClientOpcode::GetLocked:
     case ClientOpcode::UnlockKey:
     case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint:
+    case ClientOpcode::LastClosedCheckpoint_Unsupported:
     case ClientOpcode::DeregisterTapClient_Unsupported:
     case ClientOpcode::ResetReplicationChain_Unsupported:
     case ClientOpcode::GetMeta:
@@ -1243,7 +1243,7 @@ bool is_preserve_ttl_supported(ClientOpcode opcode) {
     case ClientOpcode::GetLocked:
     case ClientOpcode::UnlockKey:
     case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint:
+    case ClientOpcode::LastClosedCheckpoint_Unsupported:
     case ClientOpcode::ResetReplicationChain_Unsupported:
     case ClientOpcode::DeregisterTapClient_Unsupported:
     case ClientOpcode::GetMeta:
@@ -1442,7 +1442,7 @@ bool is_subject_for_throttling(ClientOpcode opcode) {
     case ClientOpcode::SelectBucket:
     case ClientOpcode::EvictKey:
     case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint:
+    case ClientOpcode::LastClosedCheckpoint_Unsupported:
     case ClientOpcode::DeregisterTapClient_Unsupported:
     case ClientOpcode::ResetReplicationChain_Unsupported:
     case ClientOpcode::SnapshotVbStates_Unsupported:
@@ -1616,7 +1616,7 @@ bool is_client_writing_data(ClientOpcode opcode) {
     case ClientOpcode::GetLocked:
     case ClientOpcode::UnlockKey:
     case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint:
+    case ClientOpcode::LastClosedCheckpoint_Unsupported:
     case ClientOpcode::DeregisterTapClient_Unsupported:
     case ClientOpcode::ResetReplicationChain_Unsupported:
     case ClientOpcode::GetMeta:
@@ -1904,7 +1904,7 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "UNLOCK_KEY";
     case ClientOpcode::GetFailoverLog:
         return "GET_FAILOVER_LOG";
-    case ClientOpcode::LastClosedCheckpoint:
+    case ClientOpcode::LastClosedCheckpoint_Unsupported:
         return "LAST_CLOSED_CHECKPOINT";
     case ClientOpcode::ResetReplicationChain_Unsupported:
         return "RESET_REPLICATION_CHAIN";

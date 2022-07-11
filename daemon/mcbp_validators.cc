@@ -2191,15 +2191,6 @@ static Status seqno_persistence_validator(Cookie& cookie) {
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
-static Status last_closed_checkpoint_validator(Cookie& cookie) {
-    return McbpValidator::verify_header(cookie,
-                                        0,
-                                        ExpectedKeyLen::Zero,
-                                        ExpectedValueLen::Zero,
-                                        ExpectedCas::NotSet,
-                                        PROTOCOL_BINARY_RAW_BYTES);
-}
-
 static Status create_checkpoint_validator(Cookie& cookie) {
     return McbpValidator::verify_header(cookie,
                                         0,
@@ -2552,8 +2543,6 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::ReturnMeta, return_meta_validator);
     setup(cb::mcbp::ClientOpcode::SeqnoPersistence,
           seqno_persistence_validator);
-    setup(cb::mcbp::ClientOpcode::LastClosedCheckpoint,
-          last_closed_checkpoint_validator);
     setup(cb::mcbp::ClientOpcode::CreateCheckpoint,
           create_checkpoint_validator);
     setup(cb::mcbp::ClientOpcode::CompactDb, compact_db_validator);
@@ -2613,6 +2602,8 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::ChangeVbFilter_Unsupported,
           not_supported_validator);
     setup(cb::mcbp::ClientOpcode::CheckpointPersistence_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::LastClosedCheckpoint_Unsupported,
           not_supported_validator);
 
     setup(cb::mcbp::ClientOpcode::RangeScanCreate, create_range_scan_validator);

@@ -662,54 +662,6 @@ TEST_P(SeqnoPersistenceValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-class LastClosedCheckpointValidatorTest
-    : public ::testing::WithParamInterface<bool>,
-      public ValidatorTest {
-public:
-    LastClosedCheckpointValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
-    }
-
-protected:
-    cb::mcbp::Request& req;
-    cb::mcbp::Status validate() {
-        return ValidatorTest::validate(
-                cb::mcbp::ClientOpcode::LastClosedCheckpoint,
-                static_cast<void*>(&request));
-    }
-};
-
-TEST_P(LastClosedCheckpointValidatorTest, CorrectMessage) {
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(LastClosedCheckpointValidatorTest, InvalidExtlen) {
-    req.setExtlen(2);
-    req.setBodylen(2);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(LastClosedCheckpointValidatorTest, InvalidDatatype) {
-    req.setDatatype(cb::mcbp::Datatype::JSON);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(LastClosedCheckpointValidatorTest, IvalidCas) {
-    req.setCas(0xff);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(LastClosedCheckpointValidatorTest, InvalidKey) {
-    req.setKeylen(2);
-    req.setBodylen(req.getBodylen() + req.getKeylen());
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(LastClosedCheckpointValidatorTest, InvalidBodylen) {
-    req.setBodylen(10);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 class CreateCheckpointValidatorTest
     : public ::testing::WithParamInterface<bool>,
       public ValidatorTest {
@@ -887,11 +839,6 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
 
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          SeqnoPersistenceValidatorTest,
-                         ::testing::Bool(),
-                         ::testing::PrintToStringParamName());
-
-INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
-                         LastClosedCheckpointValidatorTest,
                          ::testing::Bool(),
                          ::testing::PrintToStringParamName());
 

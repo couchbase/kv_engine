@@ -92,17 +92,6 @@ uint64_t CheckpointManager::getOpenCheckpointId() const {
     return getOpenCheckpointId(lh);
 }
 
-uint64_t CheckpointManager::getLastClosedCheckpointId(
-        const std::lock_guard<std::mutex>& lh) {
-    auto id = getOpenCheckpointId(lh);
-    return id > 0 ? (id - 1) : 0;
-}
-
-uint64_t CheckpointManager::getLastClosedCheckpointId() {
-    std::lock_guard<std::mutex> lh(queueLock);
-    return getLastClosedCheckpointId(lh);
-}
-
 CheckpointType CheckpointManager::getOpenCheckpointType() const {
     std::lock_guard<std::mutex> lh(queueLock);
     return getOpenCheckpoint(lh).getCheckpointType();
@@ -1428,17 +1417,13 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
                          "vb_%d:open_checkpoint_id",
                          vb.getId().get());
         add_casted_stat(buf.data(), getOpenCheckpointId(lh), add_stat, cookie);
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "vb_%d:last_closed_checkpoint_id",
-                         vbucketId.get());
-        add_casted_stat(
-                buf.data(), getLastClosedCheckpointId(lh), add_stat, cookie);
+
         checked_snprintf(buf.data(),
                          buf.size(),
                          "vb_%d:num_conn_cursors",
                          vbucketId.get());
         add_casted_stat(buf.data(), cursors.size(), add_stat, cookie);
+
         checked_snprintf(buf.data(),
                          buf.size(),
                          "vb_%d:num_checkpoint_items",

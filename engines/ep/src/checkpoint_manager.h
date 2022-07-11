@@ -173,8 +173,6 @@ public:
 
     uint64_t getOpenCheckpointId() const;
 
-    uint64_t getLastClosedCheckpointId();
-
     CheckpointType getOpenCheckpointType() const;
 
     /**
@@ -631,13 +629,6 @@ protected:
      * @return the id of the open checkpoint
      */
     uint64_t getOpenCheckpointId(const std::lock_guard<std::mutex>& lh) const;
-
-    /**
-     *
-     * @param lh Lock to CM::queueLock
-     * @return the id of the last closed checkpoint
-     */
-    uint64_t getLastClosedCheckpointId(const std::lock_guard<std::mutex>& lh);
 
     /**
      * Helper method for queueing methods - update the global and per-VBucket
