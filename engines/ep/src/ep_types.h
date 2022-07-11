@@ -255,14 +255,15 @@ enum class EvictionPolicy {
 };
 
 std::string to_string(EvictionPolicy);
+std::ostream& operator<<(std::ostream&, const EvictionPolicy& policy);
 
 /**
  * The following will be used to identify
  * the source of an item's expiration.
  */
 enum class ExpireBy { Pager, Compactor, Access };
-
-std::ostream& operator<<(std::ostream&, const EvictionPolicy& policy);
+std::string to_string(ExpireBy);
+std::ostream& operator<<(std::ostream& out, const ExpireBy& source);
 
 enum class TaskStatus {
     Reschedule, /* Reschedule for later */

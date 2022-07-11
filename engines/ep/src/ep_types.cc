@@ -104,6 +104,23 @@ std::string to_string(EvictionPolicy policy) {
     folly::assume_unreachable();
 }
 
+std::string to_string(ExpireBy source) {
+    switch (source) {
+    case ExpireBy::Pager:
+        return "ExpireBy::Pager";
+    case ExpireBy::Compactor:
+        return "ExpireBy::Compactor";
+    case ExpireBy::Access:
+        return "ExpireBy::Access";
+    }
+    folly::assume_unreachable();
+}
+
+std::ostream& operator<<(std::ostream& out, const ExpireBy& source) {
+    out << to_string(source);
+    return out;
+}
+
 std::ostream& operator<<(std::ostream& os, TransferVB transfer) {
     switch (transfer) {
     case TransferVB::No:
