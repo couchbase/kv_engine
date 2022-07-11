@@ -2608,4 +2608,67 @@ TEST_F(MeteringTest, SubdocReplaceBodyWithXattr_Durability) {
               *rsp.getWriteUnits());
 }
 
+TEST_F(MeteringTest, TTL_Expiry) {
+    const std::string id = "TTL_Expiry";
+    const auto value = getJsonDoc().dump();
+    const auto xattr_value = getStringValue(false);
+
+    Document doc;
+    doc.info.id = id;
+    doc.info.expiration = 10;
+    doc.value = value;
+    conn->mutate(doc, Vbid{0}, MutationType::Set);
+
+    auto rsp = conn->execute(BinprotGetCommand{id});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+
+    nlohmann::json before;
+    conn->stats(
+            [&before](auto k, auto v) { before = nlohmann::json::parse(v); },
+            "bucket_details metering");
+
+    // fast forward 20 second and the document should have been expired
+    conn->adjustMemcachedClock(
+            20, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
+
+    rsp = conn->execute(BinprotCompactDbCommand{});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+
+    // But compaction schedules the TTLd document to be written to disk
+    // so we need to wait until the write queue is empty?
+    size_t ep_queue_size;
+    do {
+        using namespace std::string_view_literals;
+        conn->stats([&ep_queue_size](auto k, auto v) {
+            if (k == "ep_queue_size"sv) {
+                ep_queue_size = std::stoi(v);
+            }
+        });
+        if (ep_queue_size) {
+            std::this_thread::sleep_for(std::chrono::milliseconds{50});
+        }
+    } while (ep_queue_size != 0);
+
+    rsp = conn->execute(BinprotGetCommand{id});
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus())
+            << "should have been TTL expired";
+
+    nlohmann::json after;
+    conn->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
+                "bucket_details metering");
+
+    EXPECT_EQ(1,
+              after["wu"].get<std::size_t>() - before["wu"].get<std::size_t>());
+    // We can't reset the offset as that would cause ep-engine to disconnect
+    // the DCP stream as it doesn't look like it handle the clock going
+    // backwards very well:
+    //
+    //  eq_dcpq:n_0->n_2 - Disconnecting because a message has not been
+    //  received for the DCP idle timeout of 360s. Sent last message (e.g.
+    //  mutation/noop/streamEnd) 4294967276s ago.
+    //  Received last message 4294967276s ago. DCP noop [lastSent:4294967276s,
+    //  lastRecv:4294967276s, interval:1s, opaque:10000008, pendingRecv:false],
+    //  paused:true, pausedReason:ReadyListEmpty
+}
+
 } // namespace cb::test

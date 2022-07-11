@@ -36,10 +36,11 @@
 #include "vbucket_state.h"
 #include "warmup.h"
 
-#include <fmt/ostream.h>
 #include <executor/executorpool.h>
+#include <fmt/ostream.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <memcached/range_scan_optional_configuration.h>
+#include <memcached/server_document_iface.h>
 #include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
@@ -1217,6 +1218,10 @@ void EPBucket::flushOneDelOrSet(TransactionContext& txnCtx,
             rwUnderlying->set(txnCtx, qi);
         }
     } else {
+        if (qi->deletionSource() == DeleteSource::TTL) {
+            engine.getServerApi()->document->document_expired(engine,
+                                                              qi->getNBytes());
+        }
         HdrMicroSecBlockTimer timer(
                 &stats.diskDelHisto, "disk_delete", stats.timingLog.get());
         if (qi->isSystemEvent()) {

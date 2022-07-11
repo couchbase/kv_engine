@@ -10,6 +10,7 @@
  */
 
 #include "executors.h"
+#include "logger/logger.h"
 
 #include <daemon/cookie.h>
 #include <daemon/mc_time.h>
@@ -30,11 +31,19 @@ void adjust_timeofday_executor(Cookie& cookie) {
 
     switch (payload.getTimeType()) {
     case AdjustTimePayload::TimeType::TimeOfDay:
+        LOG_INFO("{} Adjust TimeOfDay offset from {} to {}",
+                 cookie.getConnectionId(),
+                 cb_get_timeofday_offset(),
+                 payload.getOffset());
         cb_set_timeofday_offset(gsl::narrow_cast<int>(payload.getOffset()));
         mc_time_clock_tick();
         cookie.sendResponse(cb::mcbp::Status::Success);
         return;
     case AdjustTimePayload::TimeType::Uptime:
+        LOG_INFO("{} Adjust uptime offset from {} to {}",
+                 cookie.getConnectionId(),
+                 cb_get_uptime_offset(),
+                 payload.getOffset());
         cb_set_uptime_offset(payload.getOffset());
         mc_time_clock_tick();
         cookie.sendResponse(cb::mcbp::Status::Success);

@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "buckets.h"
 #include "connection.h"
 #include "cookie.h"
 #include "doc_pre_expiry.h"
@@ -71,6 +72,16 @@ struct ServerDocumentApi : public ServerDocumentIface {
             cb::audit::document::Operation operation) override {
         auto& cookie = dynamic_cast<Cookie&>(void_cookie);
         cb::audit::document::add(cookie, operation);
+    }
+
+    void document_expired(const EngineIface& engine, size_t nbytes) override {
+        BucketManager::instance().forEach([&engine, nbytes](Bucket& bucket) {
+            if (&engine == &bucket.getEngine()) {
+                bucket.documentExpired(nbytes);
+                return false;
+            }
+            return true;
+        });
     }
 };
 

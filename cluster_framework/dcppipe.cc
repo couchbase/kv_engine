@@ -202,8 +202,29 @@ void DcpPipe::event_callback(bufferevent* bev, short event) {
         return;
     }
     // @todo fixme
+    std::string decoded;
+    if ((event & BEV_EVENT_EOF) == BEV_EVENT_EOF) {
+        decoded.append("eof,");
+    }
+    if ((event & BEV_EVENT_READING) == BEV_EVENT_READING) {
+        decoded.append("reading,");
+    }
+    if ((event & BEV_EVENT_WRITING) == BEV_EVENT_WRITING) {
+        decoded.append("writing,");
+    }
+    if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR) {
+        decoded.append("error,");
+    }
+    if ((event & BEV_EVENT_TIMEOUT) == BEV_EVENT_TIMEOUT) {
+        decoded.append("timeout,");
+    }
+    if (!decoded.empty()) {
+        decoded.pop_back();
+        decoded = " (" + decoded + ")";
+    }
+
     throw std::runtime_error(" DcpPipe::event_callback: got event: " +
-                             std::to_string(event));
+                             std::to_string(event) + decoded);
 }
 
 void DcpPipe::read_callback(bufferevent* bev, void* ctx) {

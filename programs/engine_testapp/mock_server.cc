@@ -182,6 +182,10 @@ struct MockServerDocumentApi : public ServerDocumentIface {
             cb::audit::document::Operation operation) override {
         // empty
     }
+
+    void document_expired(const EngineIface&, size_t) override {
+        // empty
+    }
 };
 
 static uint32_t privilege_context_revision = 0;

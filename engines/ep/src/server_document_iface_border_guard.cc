@@ -34,3 +34,9 @@ void ServerDocumentIfaceBorderGuard::audit_document_access(
     NonBucketAllocationGuard guard;
     guarded.audit_document_access(cookie, operation);
 }
+
+void ServerDocumentIfaceBorderGuard::document_expired(const EngineIface& engine,
+                                                      size_t nbytes) {
+    NonBucketAllocationGuard guard;
+    guarded.document_expired(engine, nbytes);
+}

@@ -21,6 +21,7 @@ enum class Operation;
 } // namespace cb::audit::document
 
 class CookieIface;
+struct EngineIface;
 
 struct ServerDocumentIface {
     virtual ~ServerDocumentIface() = default;
@@ -74,4 +75,14 @@ struct ServerDocumentIface {
      */
     virtual void audit_document_access(
             CookieIface& cookie, cb::audit::document::Operation operation) = 0;
+
+    /**
+     * Notify the core that the engine expired the document
+     *
+     * @param engine The engine which expired a document
+     * @param size The size of the expired document (This is the size
+     *             after the pre-expiry hook was run to prune the value
+     *             and user xattrs)
+     */
+    virtual void document_expired(const EngineIface& engine, size_t nbytes) = 0;
 };

@@ -180,6 +180,18 @@ void Bucket::recordMeteringReadBytes(const Connection& conn,
     ++num_metered_dcp_messages;
 }
 
+void Bucket::documentExpired(size_t nbytes) {
+    if (nbytes) {
+        auto& inst = cb::serverless::Config::instance();
+        const auto wu = inst.to_wu(nbytes);
+        throttle_gauge.increment(wu);
+        write_units_used += wu;
+    } else {
+        throttle_gauge.increment(1);
+        ++write_units_used;
+    }
+}
+
 void Bucket::commandExecuted(const Cookie& cookie) {
     ++num_commands;
     if (cookie.getConnection().isUnmetered()) {

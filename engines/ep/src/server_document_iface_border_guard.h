@@ -32,6 +32,7 @@ public:
     void audit_document_access(
             CookieIface& cookie,
             cb::audit::document::Operation operation) override;
+    void document_expired(const EngineIface& engine, size_t nbytes) override;
 
 protected:
     ServerDocumentIface& guarded;

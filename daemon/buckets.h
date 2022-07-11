@@ -193,6 +193,9 @@ public:
     /// DCP messages)
     void recordMeteringReadBytes(const Connection& conn, std::size_t nread);
 
+    /// A document expired in the bucket
+    void documentExpired(size_t nbytes);
+
     /**
      * Check to see if execution of the provided cookie should be throttled
      * or not
