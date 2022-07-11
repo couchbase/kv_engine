@@ -1918,16 +1918,7 @@ cb::engine_errc DcpConsumer::control(uint32_t opaque,
                                      std::string_view key,
                                      std::string_view value) {
     if (engine_.getConfiguration().isDcpConsumerControlEnabled()) {
-        if (key == "connection_buffer_size") {
-            uint32_t result{0};
-            auto [ptr, ec]{std::from_chars(
-                    value.data(), value.data() + value.size(), result)};
-            if (ec == std::errc()) {
-                logger->warn("changing flow control buffer size:{}", result);
-                setFlowControlBufSize(result);
-                return cb::engine_errc::success;
-            }
-        } else if (key == "always_buffer_operations") {
+        if (key == "always_buffer_operations") {
             alwaysBufferOperations = value == "true";
             // Warn about this because only tests should be here
             logger->warn(

@@ -1015,7 +1015,7 @@
             "dynamic": true,
             "validator": {
                 "range": {
-                    "min": 0.01,
+                    "min": 0.0,
                     "max": 0.2
                 }
             }

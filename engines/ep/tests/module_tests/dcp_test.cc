@@ -2591,12 +2591,12 @@ TEST_F(FlowControlTest, NotifyConsumerWhenEnabled) {
 TEST_F(FlowControlTest, Config_ConnBufferRatio_LowerThanMin) {
     auto& config = engine->getConfiguration();
     try {
-        config.setDcpConnBufferRatio(0.001);
+        config.setDcpConnBufferRatio(-0.001);
     } catch (const std::range_error& e) {
         EXPECT_THAT(
                 e.what(),
                 testing::HasSubstr("Validation Error, dcp_conn_buffer_ratio "
-                                   "takes values between 0.010000"));
+                                   "takes values between 0.000000"));
         return;
     }
     FAIL();
@@ -2610,7 +2610,7 @@ TEST_F(FlowControlTest, Config_ConnBufferRatio_HigherThanMax) {
         EXPECT_THAT(e.what(),
                     testing::HasSubstr(
                             "Validation Error, dcp_conn_buffer_ratio "
-                            "takes values between 0.010000 and 0.20000"));
+                            "takes values between 0.000000 and 0.20000"));
         return;
     }
     FAIL();

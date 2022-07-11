@@ -36,9 +36,12 @@ public:
         if (mcd_env->getTestBucket().getName() == "default_engine") {
             GTEST_SKIP() << "Skipping as DCP not supported";
         }
-        // Enable consumer control so we can force buffering
+        // Enable consumer control so we can force buffering.
+        // Also configure 0 bytes for consumers buffers, so that every input
+        // will generate an ACK.
         TestappTest::doSetUpTestCaseWithConfiguration(
-                generate_config(), "dcp_consumer_control_enabled=true");
+                generate_config(),
+                "dcp_consumer_control_enabled=true;dcp_conn_buffer_ratio=0.0");
     }
     void SetUp() override {
         if (mcd_env->getTestBucket().getName() == "default_engine") {
@@ -61,8 +64,6 @@ public:
         conn->setVbucket(Vbid{0}, vbucket_state_replica, {/*no json*/});
 
         std::vector<std::pair<std::string, std::string>> controls;
-        // Configure 0 bytes - every input will generate an ACK
-        controls.emplace_back("connection_buffer_size", "0");
         if (testAlwaysBuffered()) {
             controls.emplace_back("always_buffer_operations", "true");
         }
@@ -250,7 +251,7 @@ INSTANTIATE_TEST_SUITE_P(
                 ::testing::Values(AlwaysBuffer::Yes, AlwaysBuffer::No)),
         ToStringCombinedTestName());
 
-TEST_P(DcpConsumerBufferAckTest, DISABLED_Basic) {
+TEST_P(DcpConsumerBufferAckTest, Basic) {
     conn->recvDcpBufferAck(conn->dcpSnapshotMarkerV2(
             1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/));
 
@@ -263,7 +264,7 @@ TEST_P(DcpConsumerBufferAckTest, DISABLED_Basic) {
     conn->recvDcpBufferAck(conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno()));
 }
 
-TEST_P(DcpConsumerBufferAckTest, DISABLED_DeleteWithValue) {
+TEST_P(DcpConsumerBufferAckTest, DeleteWithValue) {
     conn->recvDcpBufferAck(conn->dcpSnapshotMarkerV2(
             1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/));
 
@@ -288,7 +289,7 @@ TEST_P(DcpConsumerBufferAckTest, DISABLED_DeleteWithValue) {
 }
 
 // Similar to previous test but use a highly compressible 'body'
-TEST_P(DcpConsumerBufferAckTest, DISABLED_DeleteWithCompressibleValue) {
+TEST_P(DcpConsumerBufferAckTest, DeleteWithCompressibleValue) {
     generateDocumentValue(getVeryCompressibleValue());
 
     conn->recvDcpBufferAck(conn->dcpSnapshotMarkerV2(
@@ -321,7 +322,7 @@ TEST_P(DcpConsumerBufferAckTest, DISABLED_DeleteWithCompressibleValue) {
 // delete triggers value sanitisation code and results in an ACK using the
 // decompressed size, which this test forces to be much larger than what we
 // sent.
-TEST_P(DcpConsumerBufferAckTest, DISABLED_DeleteWithManyCompressibleXattrs) {
+TEST_P(DcpConsumerBufferAckTest, DeleteWithManyCompressibleXattrs) {
     // The xattr key/value will be repeating characters, which will compress
     // well. These are also system keys so they are retained by sanitisation.
     std::string xattrKey = "_" + std::string(5, 'a');
