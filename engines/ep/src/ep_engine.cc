@@ -1132,8 +1132,6 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
         return observe(cookie, request, response);
     case cb::mcbp::ClientOpcode::ObserveSeqno:
         return observe_seqno(cookie, request, response);
-    case cb::mcbp::ClientOpcode::CreateCheckpoint:
-        return handleCreateCheckpoint(cookie, request, response);
     case cb::mcbp::ClientOpcode::SeqnoPersistence:
         return handleSeqnoPersistence(cookie, request, response);
     case cb::mcbp::ClientOpcode::SetWithMeta:
@@ -5236,50 +5234,6 @@ cb::engine_errc EventuallyPersistentEngine::observe_seqno(
 
 VBucketPtr EventuallyPersistentEngine::getVBucket(Vbid vbucket) const {
     return kvBucket->getVBucket(vbucket);
-}
-
-cb::engine_errc EventuallyPersistentEngine::handleCreateCheckpoint(
-        const CookieIface* cookie,
-        const cb::mcbp::Request& req,
-        const AddResponseFn& response) {
-    VBucketPtr vb = getVBucket(req.getVBucket());
-
-    if (!vb || vb->getState() != vbucket_state_active) {
-        return cb::engine_errc::not_my_vbucket;
-    }
-
-    // Create a new checkpoint, notifying flusher.
-    const uint64_t checkpointId =
-            htonll(vb->checkpointManager->createNewCheckpoint());
-    getKVBucket()->wakeUpFlusher();
-    const auto lastPersisted =
-            kvBucket->getLastPersistedCheckpointId(vb->getId());
-
-    if (lastPersisted.second) {
-        const uint64_t persistedChkId = htonll(lastPersisted.first);
-        std::array<char, sizeof(checkpointId) + sizeof(persistedChkId)> val;
-        memcpy(val.data(), &checkpointId, sizeof(checkpointId));
-        memcpy(val.data() + sizeof(checkpointId),
-               &persistedChkId,
-               sizeof(persistedChkId));
-        return sendResponse(response,
-                            {}, // key
-                            {}, // extra
-                            {val.data(), val.size()}, // body
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status::Success,
-                            0,
-                            cookie);
-    }
-
-    return sendResponse(response,
-                        {}, // key
-                        {}, // extra
-                        {}, // body
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        cb::mcbp::Status::Success,
-                        0,
-                        cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(

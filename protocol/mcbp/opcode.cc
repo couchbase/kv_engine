@@ -136,7 +136,7 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::VbucketBatchCount_Unsupported:
     case ClientOpcode::DelWithMeta:
     case ClientOpcode::DelqWithMeta:
-    case ClientOpcode::CreateCheckpoint:
+    case ClientOpcode::CreateCheckpoint_Unsupported:
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
@@ -298,7 +298,6 @@ bool is_supported_opcode(ClientOpcode opcode) {
     case ClientOpcode::AddqWithMeta:
     case ClientOpcode::DelWithMeta:
     case ClientOpcode::DelqWithMeta:
-    case ClientOpcode::CreateCheckpoint:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
     case ClientOpcode::Ifconfig:
@@ -374,6 +373,7 @@ bool is_supported_opcode(ClientOpcode opcode) {
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::ChangeVbFilter_Unsupported:
     case ClientOpcode::CheckpointPersistence_Unsupported:
+    case ClientOpcode::CreateCheckpoint_Unsupported:
     case ClientOpcode::LastClosedCheckpoint_Unsupported:
     case ClientOpcode::SetDriftCounterState_Unsupported:
     case ClientOpcode::GetAdjustedTime_Unsupported:
@@ -518,7 +518,7 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::VbucketBatchCount_Unsupported:
     case ClientOpcode::DelWithMeta:
     case ClientOpcode::DelqWithMeta:
-    case ClientOpcode::CreateCheckpoint:
+    case ClientOpcode::CreateCheckpoint_Unsupported:
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
@@ -707,7 +707,7 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::VbucketBatchCount_Unsupported:
     case ClientOpcode::DelWithMeta:
     case ClientOpcode::DelqWithMeta:
-    case ClientOpcode::CreateCheckpoint:
+    case ClientOpcode::CreateCheckpoint_Unsupported:
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
@@ -896,7 +896,7 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::DeregisterTapClient_Unsupported:
     case ClientOpcode::SnapshotVbStates_Unsupported:
     case ClientOpcode::VbucketBatchCount_Unsupported:
-    case ClientOpcode::CreateCheckpoint:
+    case ClientOpcode::CreateCheckpoint_Unsupported:
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
@@ -1066,7 +1066,7 @@ bool is_deprecated(ClientOpcode opcode) {
     case ClientOpcode::SnapshotVbStates_Unsupported:
     case ClientOpcode::VbucketBatchCount_Unsupported:
     case ClientOpcode::DelWithMeta:
-    case ClientOpcode::CreateCheckpoint:
+    case ClientOpcode::CreateCheckpoint_Unsupported:
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
@@ -1256,7 +1256,7 @@ bool is_preserve_ttl_supported(ClientOpcode opcode) {
     case ClientOpcode::VbucketBatchCount_Unsupported:
     case ClientOpcode::DelWithMeta:
     case ClientOpcode::DelqWithMeta:
-    case ClientOpcode::CreateCheckpoint:
+    case ClientOpcode::CreateCheckpoint_Unsupported:
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
@@ -1447,7 +1447,7 @@ bool is_subject_for_throttling(ClientOpcode opcode) {
     case ClientOpcode::ResetReplicationChain_Unsupported:
     case ClientOpcode::SnapshotVbStates_Unsupported:
     case ClientOpcode::VbucketBatchCount_Unsupported:
-    case ClientOpcode::CreateCheckpoint:
+    case ClientOpcode::CreateCheckpoint_Unsupported:
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
@@ -1625,7 +1625,7 @@ bool is_client_writing_data(ClientOpcode opcode) {
     case ClientOpcode::VbucketBatchCount_Unsupported:
     case ClientOpcode::DelWithMeta:
     case ClientOpcode::DelqWithMeta:
-    case ClientOpcode::CreateCheckpoint:
+    case ClientOpcode::CreateCheckpoint_Unsupported:
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
@@ -1930,7 +1930,7 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "DEL_WITH_META";
     case ClientOpcode::DelqWithMeta:
         return "DELQ_WITH_META";
-    case ClientOpcode::CreateCheckpoint:
+    case ClientOpcode::CreateCheckpoint_Unsupported:
         return "CREATE_CHECKPOINT";
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
         return "NOTIFY_VBUCKET_UPDATE";

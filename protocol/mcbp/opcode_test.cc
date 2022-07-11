@@ -143,7 +143,7 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::VbucketBatchCount_Unsupported, "VBUCKET_BATCH_COUNT"},
          {ClientOpcode::DelWithMeta, "DEL_WITH_META"},
          {ClientOpcode::DelqWithMeta, "DELQ_WITH_META"},
-         {ClientOpcode::CreateCheckpoint, "CREATE_CHECKPOINT"},
+         {ClientOpcode::CreateCheckpoint_Unsupported, "CREATE_CHECKPOINT"},
          {ClientOpcode::NotifyVbucketUpdate_Unsupported,
           "NOTIFY_VBUCKET_UPDATE"},
          {ClientOpcode::EnableTraffic, "ENABLE_TRAFFIC"},

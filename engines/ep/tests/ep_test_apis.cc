@@ -386,14 +386,6 @@ void encodeWithMetaExt(char* buffer, ItemMetaData* meta) {
     encodeWithMetaExt(buffer, cas, seqno, flags, exp);
 }
 
-void createCheckpoint(EngineIface* h) {
-    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    auto request = createPacket(cb::mcbp::ClientOpcode::CreateCheckpoint);
-    checkeq(cb::engine_errc::success,
-            h->unknown_command(cookie.get(), *request, add_response),
-            "Failed to create a new checkpoint.");
-}
-
 cb::engine_errc del(EngineIface* h,
                     const char* key,
                     uint64_t cas,

@@ -226,11 +226,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::DelqWithMeta, require<Privilege::MetaWrite>);
 
     /**
-     * Command to create a new checkpoint on a given vbucket by force
-     */
-    setup(cb::mcbp::ClientOpcode::CreateCheckpoint,
-          require<Privilege::NodeSupervisor>);
-    /**
      * Command to enable data traffic after completion of warm
      */
     setup(cb::mcbp::ClientOpcode::EnableTraffic,

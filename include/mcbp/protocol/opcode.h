@@ -198,7 +198,8 @@ enum class ClientOpcode : uint8_t {
     /**
      * Command to create a new checkpoint on a given vbucket by force
      */
-    CreateCheckpoint = 0xaa,
+    CreateCheckpoint_Unsupported = 0xaa,
+
     NotifyVbucketUpdate_Unsupported = 0xac,
     /**
      * Command to enable data traffic after completion of warm

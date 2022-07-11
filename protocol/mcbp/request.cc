@@ -250,7 +250,7 @@ bool Request::isQuiet() const {
         case ClientOpcode::SnapshotVbStates_Unsupported:
         case ClientOpcode::VbucketBatchCount_Unsupported:
         case ClientOpcode::DelWithMeta:
-        case ClientOpcode::CreateCheckpoint:
+        case ClientOpcode::CreateCheckpoint_Unsupported:
         case ClientOpcode::NotifyVbucketUpdate_Unsupported:
         case ClientOpcode::EnableTraffic:
         case ClientOpcode::DisableTraffic:

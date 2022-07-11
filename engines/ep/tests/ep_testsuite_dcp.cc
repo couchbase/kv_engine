@@ -3539,10 +3539,8 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
          start_seqno += batch_items) {
         write_items(h, batch_items, start_seqno);
         wait_for_flusher_to_settle(h);
-        createCheckpoint(h);
     }
 
-    createCheckpoint(h);
     wait_for_flusher_to_settle(h);
 
     auto* cookie = testHarness->create_cookie(h);
@@ -8296,7 +8294,11 @@ BaseTestCase testsuite_testcases[] = {
                  test_failover_scenario_one_with_dcp,
                  test_setup,
                  teardown,
-                 nullptr,
+                 // Settings to trigger checkpoint creation/removal as soon as
+                 // an item is queued in checkpoint
+                 "chk_remover_stime=1;checkpoint_memory_recovery_"
+                 "upper_mark=0;checkpoint_memory_recovery_lower_mark=0;"
+                 "checkpoint_max_size=1",
                  prepare,
                  cleanup),
         TestCase("test failover scenario two with dcp",

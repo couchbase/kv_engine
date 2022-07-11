@@ -37,6 +37,13 @@ TEST_F(DurabilityUpgradeTest, DiskHCSFromNonSyncRepNode) {
         conn->authenticate("@admin", "password", "PLAIN");
         conn->selectBucket(bucket->getName());
 
+        // Force a new checkpoint everytime an item is queued
+        const auto resp = conn->execute(BinprotSetParamCommand(
+                cb::mcbp::request::SetParamPayload::Type::Checkpoint,
+                "checkpoint_max_size",
+                "1"));
+        EXPECT_TRUE(resp.isSuccess());
+
         for (int i = 0; i < 10; i++) {
             auto info = conn->store("foo", Vbid(0), "value");
             EXPECT_NE(0, info.cas);
@@ -47,14 +54,11 @@ TEST_F(DurabilityUpgradeTest, DiskHCSFromNonSyncRepNode) {
             do {
                 observeInfo = conn->observeSeqno(Vbid(0), info.vbucketuuid);
             } while (observeInfo.lastPersistedSeqno != info.seqno);
-
-            // Force a new checkpoint
-            BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::CreateCheckpoint);
-            cmd.setVBucket(Vbid(0));
-            BinprotResponse rsp;
-            rsp = conn->execute(cmd);
-            EXPECT_TRUE(rsp.isSuccess());
         }
+
+        ASSERT_GT(conn->stats("")["ep_items_rm_from_checkpoints"].get<size_t>(),
+                  0);
+
         conn->close();
     }
 

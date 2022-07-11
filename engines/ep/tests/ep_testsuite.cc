@@ -2120,7 +2120,6 @@ static enum test_result test_mem_stats(EngineIface* h) {
 
     int itemsRemoved = get_int_stat(h, "ep_items_rm_from_checkpoints");
     wait_for_persisted_value(h, "key", value.c_str());
-    createCheckpoint(h);
     if (isPersistentBucket(h)) {
         wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
     }
@@ -4262,7 +4261,6 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h) {
 
     // Store some data and check post-set state.
     wait_for_persisted_value(h, "k1", "some value");
-    createCheckpoint(h);
     wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     checkeq(0,
@@ -4292,7 +4290,6 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h) {
             del(h, "k1", 0, Vbid(0)),
             "Failed remove with value.");
     wait_for_stat_change(h, "ep_total_persisted", numStored);
-    createCheckpoint(h);
     wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     return SUCCESS;
@@ -8787,8 +8784,11 @@ BaseTestCase testsuite_testcases[] = {
                  test_mem_stats,
                  test_setup,
                  teardown,
+                 // Settings to trigger checkpoint creation/removal as soon as
+                 // an item is queued in checkpoint
                  "chk_remover_stime=1;checkpoint_memory_recovery_"
-                 "upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
+                 "upper_mark=0;checkpoint_memory_recovery_lower_mark=0;"
+                 "checkpoint_max_size=1",
                  prepare,
                  cleanup),
         TestCase("stats key",
@@ -9012,8 +9012,11 @@ BaseTestCase testsuite_testcases[] = {
                  test_disk_gt_ram_golden,
                  test_setup,
                  teardown,
+                 // Settings to trigger checkpoint creation/removal as soon as
+                 // an item is queued in checkpoint
                  "chk_remover_stime=1;checkpoint_memory_recovery_"
-                 "upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
+                 "upper_mark=0;checkpoint_memory_recovery_lower_mark=0;"
+                 "checkpoint_max_size=1",
                  /* TODO RDB: ep_total_persisted not correct under Rocks */
                  prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),

@@ -40,14 +40,6 @@ static enum test_result test_create_new_checkpoint(EngineIface* h) {
             "The open checkpoint id for VB 0 should increase to 2 after "
             "storing 6 items");
 
-    createCheckpoint(h);
-    checkeq(cb::mcbp::Status::Success, last_status.load(),
-            "Expected success response from creating a new checkpoint");
-
-    checkeq(3,
-            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint 0"),
-            "The open checkpoint id for VB 0 should be 3");
-
     return SUCCESS;
 }
 

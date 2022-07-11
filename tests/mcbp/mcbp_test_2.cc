@@ -662,53 +662,6 @@ TEST_P(SeqnoPersistenceValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-class CreateCheckpointValidatorTest
-    : public ::testing::WithParamInterface<bool>,
-      public ValidatorTest {
-public:
-    CreateCheckpointValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
-    }
-
-protected:
-    cb::mcbp::Request& req;
-    cb::mcbp::Status validate() {
-        return ValidatorTest::validate(cb::mcbp::ClientOpcode::CreateCheckpoint,
-                                       static_cast<void*>(&request));
-    }
-};
-
-TEST_P(CreateCheckpointValidatorTest, CorrectMessage) {
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(CreateCheckpointValidatorTest, InvalidExtlen) {
-    req.setExtlen(2);
-    req.setBodylen(2);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(CreateCheckpointValidatorTest, InvalidDatatype) {
-    req.setDatatype(cb::mcbp::Datatype::JSON);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(CreateCheckpointValidatorTest, IvalidCas) {
-    req.setCas(0xff);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(CreateCheckpointValidatorTest, InvalidKey) {
-    req.setKeylen(2);
-    req.setBodylen(req.getBodylen() + req.getKeylen());
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(CreateCheckpointValidatorTest, InvalidBodylen) {
-    req.setBodylen(10);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 class CompactDbValidatorTest : public ::testing::WithParamInterface<bool>,
                                public ValidatorTest {
 public:
@@ -839,11 +792,6 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
 
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          SeqnoPersistenceValidatorTest,
-                         ::testing::Bool(),
-                         ::testing::PrintToStringParamName());
-
-INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
-                         CreateCheckpointValidatorTest,
                          ::testing::Bool(),
                          ::testing::PrintToStringParamName());
 

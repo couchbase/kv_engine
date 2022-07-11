@@ -315,6 +315,7 @@ TEST_F(MeteringTest, OpsMetered) {
         case ClientOpcode::NotifyVbucketUpdate_Unsupported:
         case ClientOpcode::ChangeVbFilter_Unsupported:
         case ClientOpcode::CheckpointPersistence_Unsupported:
+        case ClientOpcode::CreateCheckpoint_Unsupported:
         case ClientOpcode::LastClosedCheckpoint_Unsupported:
         case ClientOpcode::SetDriftCounterState_Unsupported:
         case ClientOpcode::GetAdjustedTime_Unsupported:
@@ -530,7 +531,6 @@ TEST_F(MeteringTest, OpsMetered) {
         case ClientOpcode::EnableTraffic:
         case ClientOpcode::DisableTraffic:
         case ClientOpcode::Ifconfig:
-        case ClientOpcode::CreateCheckpoint:
         case ClientOpcode::CompactDb:
         case ClientOpcode::SetClusterConfig:
         case ClientOpcode::CollectionsSetManifest:
