@@ -348,7 +348,6 @@ public:
 
     cb::engine_errc buffer_acknowledgement(const CookieIface& cookie,
                                            uint32_t opaque,
-                                           Vbid vbucket,
                                            uint32_t buffer_bytes) override;
 
     cb::engine_errc control(const CookieIface& cookie,

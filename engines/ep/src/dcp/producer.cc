@@ -906,7 +906,6 @@ cb::engine_errc DcpProducer::step(bool throttled,
 }
 
 cb::engine_errc DcpProducer::bufferAcknowledgement(uint32_t opaque,
-                                                   Vbid vbucket,
                                                    uint32_t buffer_bytes) {
     lastReceiveTime = ep_current_time();
     log.acknowledge(buffer_bytes);

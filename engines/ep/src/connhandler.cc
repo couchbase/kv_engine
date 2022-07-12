@@ -239,7 +239,6 @@ cb::engine_errc ConnHandler::noop(uint32_t opaque) {
 }
 
 cb::engine_errc ConnHandler::bufferAcknowledgement(uint32_t opaque,
-                                                   Vbid vbucket,
                                                    uint32_t buffer_bytes) {
     logger->warn(
             "Disconnecting - This connection doesn't "

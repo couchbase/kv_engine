@@ -169,9 +169,9 @@ cb::engine_errc DcpMsgProducersBorderGuard::noop(uint32_t opaque) {
     return guarded.noop(opaque);
 }
 cb::engine_errc DcpMsgProducersBorderGuard::buffer_acknowledgement(
-        uint32_t opaque, Vbid vbucket, uint32_t buffer_bytes) {
+        uint32_t opaque, uint32_t buffer_bytes) {
     NonBucketAllocationGuard guard;
-    return guarded.buffer_acknowledgement(opaque, vbucket, buffer_bytes);
+    return guarded.buffer_acknowledgement(opaque, buffer_bytes);
 }
 cb::engine_errc DcpMsgProducersBorderGuard::control(uint32_t opaque,
                                                     std::string_view key,

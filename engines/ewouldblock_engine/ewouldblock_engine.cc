@@ -932,7 +932,6 @@ public:
 
     cb::engine_errc buffer_acknowledgement(const CookieIface& cookie,
                                            uint32_t opaque,
-                                           Vbid vbucket,
                                            uint32_t buffer_bytes) override;
 
     cb::engine_errc control(const CookieIface& cookie,
@@ -1742,13 +1741,12 @@ cb::engine_errc EWB_Engine::noop(const CookieIface& cookie, uint32_t opaque) {
 
 cb::engine_errc EWB_Engine::buffer_acknowledgement(const CookieIface& cookie,
                                                    uint32_t opaque,
-                                                   Vbid vbucket,
                                                    uint32_t buffer_bytes) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->buffer_acknowledgement(
-                cookie, opaque, vbucket, buffer_bytes);
+                cookie, opaque, buffer_bytes);
     }
 }
 

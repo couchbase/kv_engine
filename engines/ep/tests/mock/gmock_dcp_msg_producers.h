@@ -127,7 +127,7 @@ public:
 
     MOCK_METHOD(cb::engine_errc,
                 buffer_acknowledgement,
-                (uint32_t opaque, Vbid vbucket, uint32_t buffer_bytes),
+                (uint32_t opaque, uint32_t buffer_bytes),
                 (override));
 
     MOCK_METHOD(cb::engine_errc,

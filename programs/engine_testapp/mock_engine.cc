@@ -655,10 +655,8 @@ cb::engine_errc MockEngine::control(const CookieIface& cookie,
 
 cb::engine_errc MockEngine::buffer_acknowledgement(const CookieIface& cookie,
                                                    uint32_t opaque,
-                                                   Vbid vbucket,
                                                    uint32_t buffer_bytes) {
-    return the_engine_dcp->buffer_acknowledgement(
-            cookie, opaque, vbucket, buffer_bytes);
+    return the_engine_dcp->buffer_acknowledgement(cookie, opaque, buffer_bytes);
 }
 
 cb::engine_errc MockEngine::response_handler(

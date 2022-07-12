@@ -28,7 +28,6 @@ void dcp_buffer_acknowledgement_executor(Cookie& cookie) {
                     req.getCommandSpecifics<DcpBufferAckPayload>();
             ret = dcpBufferAcknowledgement(cookie,
                                            req.getOpaque(),
-                                           req.getVBucket(),
                                            payload.getBufferBytes());
         }
     }

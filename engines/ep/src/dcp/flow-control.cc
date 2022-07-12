@@ -69,9 +69,8 @@ cb::engine_errc FlowControl::handleFlowCtl(
         lastBufferAck = ep_current_time();
         ackedBytes.fetch_add(ackableBytes);
         freedBytes.fetch_sub(ackableBytes);
-        // @todo: Remove Vbid arg from DcpIface::buffer_acknowledgement, unused
         return producers.buffer_acknowledgement(
-                consumerConn.incrOpaqueCounter(), Vbid(0), ackableBytes);
+                consumerConn.incrOpaqueCounter(), ackableBytes);
     }
 
     return cb::engine_errc::failed;

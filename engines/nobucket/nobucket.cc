@@ -313,7 +313,6 @@ public:
 
     cb::engine_errc buffer_acknowledgement(const CookieIface&,
                                            uint32_t,
-                                           Vbid,
                                            uint32_t) override {
         return cb::engine_errc::no_bucket;
     }

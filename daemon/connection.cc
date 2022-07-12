@@ -2533,7 +2533,6 @@ cb::engine_errc Connection::noop(uint32_t opaque) {
 }
 
 cb::engine_errc Connection::buffer_acknowledgement(uint32_t opaque,
-                                                   Vbid vbucket,
                                                    uint32_t buffer_bytes) {
     cb::mcbp::request::DcpBufferAckPayload extras;
     extras.setBufferBytes(buffer_bytes);
@@ -2541,7 +2540,6 @@ cb::engine_errc Connection::buffer_acknowledgement(uint32_t opaque,
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement);
     builder.setOpaque(opaque);
-    builder.setVBucket(vbucket);
     builder.setExtras(extras.getBuffer());
 
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());

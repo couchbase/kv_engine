@@ -426,8 +426,7 @@ void TestDcpConsumer::run(bool openConn) {
                 history.emplace_back(
                         cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
                         bytes_read);
-                dcp->buffer_acknowledgement(
-                        *cookie, ++opaque, Vbid(0), bytes_read);
+                dcp->buffer_acknowledgement(*cookie, ++opaque, bytes_read);
             } catch (const std::exception& e) {
                 std::cerr << "buffer_acknowledgement exception caught"
                           << std::endl;
@@ -992,8 +991,7 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
     do {
         if (bytes_read > 512) {
             checkeq(cb::engine_errc::success,
-                    dcp->buffer_acknowledgement(
-                            *cookie, ++opaque, Vbid(0), bytes_read),
+                    dcp->buffer_acknowledgement(*cookie, ++opaque, bytes_read),
                     "Failed to get dcp buffer ack");
             bytes_read = 0;
         }
@@ -1047,7 +1045,7 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
     } while (!done);
 
     /* Do buffer ack of the outstanding bytes */
-    dcp->buffer_acknowledgement(*cookie, ++opaque, Vbid(0), bytes_read);
+    dcp->buffer_acknowledgement(*cookie, ++opaque, bytes_read);
     checkeq((end - start + 1), num_mutations, "Invalid number of mutations");
     if (expSnapStart) {
         checkge(last_snap_start_seqno,
@@ -1286,8 +1284,7 @@ static void dcp_waiting_step(EngineIface* h,
     do {
         if (bytes_read > 512) {
             checkeq(cb::engine_errc::success,
-                    dcp->buffer_acknowledgement(
-                            *cookie, ++opaque, Vbid(0), bytes_read),
+                    dcp->buffer_acknowledgement(*cookie, ++opaque, bytes_read),
                     "Failed to get dcp buffer ack");
             bytes_read = 0;
         }
@@ -1335,7 +1332,7 @@ static void dcp_waiting_step(EngineIface* h,
     } while (!done);
 
     /* Do buffer ack of the outstanding bytes */
-    dcp->buffer_acknowledgement(*cookie, ++opaque, Vbid(0), bytes_read);
+    dcp->buffer_acknowledgement(*cookie, ++opaque, bytes_read);
 }
 
 // Testcases //////////////////////////////////////////////////////////////////

@@ -95,7 +95,6 @@ public:
                          DcpMessageProducersIface& producers) override;
 
     cb::engine_errc bufferAcknowledgement(uint32_t opaque,
-                                          Vbid vbucket,
                                           uint32_t buffer_bytes) override;
 
     cb::engine_errc control(uint32_t opaque,

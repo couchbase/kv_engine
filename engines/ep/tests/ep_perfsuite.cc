@@ -962,7 +962,7 @@ static void perf_dcp_client(EngineIface* h,
         if (bytes_read > 512) {
             checkeq(cb::engine_errc::success,
                     dcp.buffer_acknowledgement(
-                            *cookie, ++streamOpaque, vbid, bytes_read),
+                            *cookie, ++streamOpaque, bytes_read),
                     "Failed to acknowledge buffer");
             bytes_read = 0;
         }

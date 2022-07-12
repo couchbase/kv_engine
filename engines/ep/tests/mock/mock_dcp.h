@@ -98,9 +98,10 @@ public:
                                       Vbid vbucket,
                                       vbucket_state_t state) override;
     cb::engine_errc noop(uint32_t opaque) override;
+
     cb::engine_errc buffer_acknowledgement(uint32_t opaque,
-                                           Vbid vbucket,
                                            uint32_t buffer_bytes) override;
+
     cb::engine_errc control(uint32_t opaque,
                             std::string_view key,
                             std::string_view value) override;

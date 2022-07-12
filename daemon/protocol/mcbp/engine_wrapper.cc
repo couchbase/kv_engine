@@ -428,11 +428,10 @@ cb::engine_errc dcpAddStream(Cookie& cookie,
 
 cb::engine_errc dcpBufferAcknowledgement(Cookie& cookie,
                                          uint32_t opaque,
-                                         Vbid vbid,
                                          uint32_t ackSize) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->buffer_acknowledgement(cookie, opaque, vbid, ackSize);
+    auto ret = dcp->buffer_acknowledgement(cookie, opaque, ackSize);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} dcp.buffer_acknowledgement returned "

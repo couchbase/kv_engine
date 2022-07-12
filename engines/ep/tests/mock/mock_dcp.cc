@@ -330,11 +330,10 @@ cb::engine_errc MockDcpMessageProducers::noop(uint32_t opaque) {
 }
 
 cb::engine_errc MockDcpMessageProducers::buffer_acknowledgement(
-        uint32_t opaque, Vbid vbucket, uint32_t buffer_bytes) {
+        uint32_t opaque, uint32_t buffer_bytes) {
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpBufferAcknowledgement;
     last_opaque = opaque;
-    last_vbucket = vbucket;
     last_packet_size = (sizeof(cb::mcbp::Request) +
                         sizeof(cb::mcbp::request::DcpBufferAckPayload));
     return cb::engine_errc::success;

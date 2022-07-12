@@ -197,7 +197,6 @@ public:
     virtual cb::engine_errc noop(uint32_t opaque);
 
     virtual cb::engine_errc bufferAcknowledgement(uint32_t opaque,
-                                                  Vbid vbucket,
                                                   uint32_t buffer_bytes);
 
     virtual cb::engine_errc control(uint32_t opaque,

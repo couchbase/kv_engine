@@ -1480,11 +1480,10 @@ cb::engine_errc EventuallyPersistentEngine::noop(const CookieIface& cookie,
 cb::engine_errc EventuallyPersistentEngine::buffer_acknowledgement(
         const CookieIface& cookie,
         uint32_t opaque,
-        Vbid vbucket,
         uint32_t buffer_bytes) {
     auto engine = acquireEngine(this);
     auto& conn = engine->getConnHandler(&cookie);
-    return conn.bufferAcknowledgement(opaque, vbucket, buffer_bytes);
+    return conn.bufferAcknowledgement(opaque, buffer_bytes);
 }
 
 cb::engine_errc EventuallyPersistentEngine::control(const CookieIface& cookie,

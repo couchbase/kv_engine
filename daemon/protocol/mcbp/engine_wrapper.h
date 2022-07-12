@@ -147,13 +147,11 @@ cb::engine_errc dcpAddStream(Cookie& cookie,
  *
  * @param cookie The cookie representing the connection
  * @param opaque The opaque field in the received message
- * @param vbid The vbucket id
  * @param ackSize The number of acknowledged bytes
  * @return cb::engine_errc
  */
 cb::engine_errc dcpBufferAcknowledgement(Cookie& cookie,
                                          uint32_t opaque,
-                                         Vbid vbid,
                                          uint32_t ackSize);
 
 /**

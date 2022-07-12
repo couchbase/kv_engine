@@ -234,13 +234,11 @@ struct DcpMessageProducersIface {
      *
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
-     * @param vbucket the vbucket id the message belong to
      * @param buffer_bytes the amount of bytes processed
      *
      * @return cb::engine_errc::success upon success
      */
     virtual cb::engine_errc buffer_acknowledgement(uint32_t opaque,
-                                                   Vbid vbucket,
                                                    uint32_t buffer_bytes) = 0;
 
     /**
@@ -642,7 +640,6 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      */
     virtual cb::engine_errc buffer_acknowledgement(const CookieIface& cookie,
                                                    uint32_t opaque,
-                                                   Vbid vbucket,
                                                    uint32_t buffer_bytes) = 0;
 
     /**
