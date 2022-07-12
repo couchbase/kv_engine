@@ -2210,25 +2210,31 @@ KVStoreIface::ReadVBStateStatus MagmaKVStore::loadVBStateCache(
         Vbid vbid, bool resetKVStoreRev) {
     const auto readState = readVBStateFromDisk(vbid);
 
+    // We only want to reset the kvstoreRev when loading up the vbstate cache
+    // during magma instantiation. We do this regardless of the state that we
+    // find on disk as magma asserts that the kvstore rev must be monotonic
+    // and we may have a case in which the revision exists without a vBucket
+    // state.
+    if (resetKVStoreRev) {
+        auto kvstoreRev = getKVStoreRevision(vbid);
+        kvstoreRevList[getCacheSlot(vbid)].reset(kvstoreRev);
+    }
+
     // If the vBucket exists but does not have a vbucket_state (i.e. NotFound
     // is returned from readVBStateFromDisk) then just use a defaulted
     // vbucket_state (which defaults to the dead state).
     if (readState.status != ReadVBStateStatus::Success) {
-        logger->error("MagmaKVStore::loadVBStateCache {} failed. {}",
-                      vbid,
-                      to_string(readState.status));
+        logger->error(
+                "MagmaKVStore::loadVBStateCache {} failed. Rev:{} "
+                "Status:{}",
+                vbid,
+                getKVStoreRevision(vbid),
+                to_string(readState.status));
         return readState.status;
     }
 
     cachedVBStates[getCacheSlot(vbid)] =
             std::make_unique<vbucket_state>(readState.state);
-
-    // We only want to reset the kvstoreRev when loading up the
-    // vbstate cache during magma instantiation.
-    if (resetKVStoreRev) {
-        auto kvstoreRev = getKVStoreRevision(vbid);
-        kvstoreRevList[getCacheSlot(vbid)].reset(kvstoreRev);
-    }
 
     return ReadVBStateStatus::Success;
 }
