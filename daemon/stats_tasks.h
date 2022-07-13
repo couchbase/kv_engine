@@ -11,8 +11,10 @@
 #pragma once
 
 #include <executor/globaltask.h>
+#include <folly/Synchronized.h>
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
+#include <atomic>
 #include <vector>
 
 class Connection;
@@ -29,15 +31,19 @@ public:
     }
 
     /// get all of the stats pairs produced by the task
-    const std::vector<std::pair<std::string, std::string>>& getStats() const {
-        return stats;
+    std::vector<std::pair<std::string, std::string>> getStats() {
+        std::vector<std::pair<std::string, std::string>> ret;
+        stats.swap(ret);
+        return ret;
     }
 
 protected:
     StatsTask(TaskId id, Cookie& cookie);
     Cookie& cookie;
-    cb::engine_errc command_error = cb::engine_errc::success;
-    std::vector<std::pair<std::string, std::string>> stats;
+    std::atomic<cb::engine_errc> command_error{cb::engine_errc::success};
+    folly::Synchronized<std::vector<std::pair<std::string, std::string>>,
+                        std::mutex>
+            stats;
 };
 
 /**

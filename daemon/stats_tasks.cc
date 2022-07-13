@@ -30,15 +30,22 @@ StatsTaskBucketStats::StatsTaskBucketStats(Cookie& cookie,
 }
 
 bool StatsTaskBucketStats::run() {
+    std::vector<std::pair<std::string, std::string>> vec;
     command_error = bucket_get_stats(
             cookie,
             key,
             cb::const_byte_buffer(
                     reinterpret_cast<const uint8_t*>(value.data()),
                     value.size()),
-            [this](std::string_view key,
-                   std::string_view value,
-                   const void* ctx) { stats.emplace_back(key, value); });
+            [&vec](std::string_view k, std::string_view v, const void* ctx) {
+                vec.emplace_back(k, v);
+            });
+
+    stats.withLock([&vec](auto& st) {
+        st.insert(st.end(),
+                  std::make_move_iterator(vec.begin()),
+                  std::make_move_iterator(vec.end()));
+    });
 
     // If bucket_get_stats() returned a final "complete" status, notify
     // back to the front-end so this command can complete. If would_block was
@@ -64,12 +71,14 @@ StatsTaskConnectionStats::StatsTaskConnectionStats(Cookie& cookie, int64_t fd)
 
 bool StatsTaskConnectionStats::run() {
     try {
-        iterate_all_connections([this](Connection& c) -> void {
+        std::vector<std::pair<std::string, std::string>> vec;
+        iterate_all_connections([&vec, this](Connection& c) -> void {
             if (fd == -1 || c.getId() == fd) {
-                stats.emplace_back(std::make_pair<std::string, std::string>(
+                vec.emplace_back(std::make_pair<std::string, std::string>(
                         {}, c.toJSON().dump()));
             }
         });
+        stats.swap(vec);
     } catch (const std::exception& exception) {
         LOG_WARNING(
                 "{}: ConnectionStatsTask::execute(): An exception "
