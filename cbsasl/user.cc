@@ -57,8 +57,7 @@ User::User(const nlohmann::json& json, UserData unm)
         }
     }
 
-    if (!isPasswordHashAvailable(Algorithm::Argon2id13) &&
-        !isPasswordHashAvailable(Algorithm::DeprecatedPlain)) {
+    if (!password_hash) {
         throw std::runtime_error("User(\"" + username.getSanitizedValue() +
                                  "\") must contain hash entry");
     }
@@ -110,7 +109,9 @@ ScamShaFallbackSalt::ScamShaFallbackSalt() {
 
 User UserFactory::create(const std::string& unm,
                          const std::string& passwd,
-                         std::function<bool(crypto::Algorithm)> callback) {
+                         std::function<bool(crypto::Algorithm)> callback,
+                         std::string_view password_hash_type) {
+    using namespace std::string_view_literals;
     User ret{unm, false};
 
     // The format of the plain password encoding is that we're appending the
@@ -124,22 +125,20 @@ User UserFactory::create(const std::string& unm,
         callback = [](Algorithm) { return true; };
     }
 
-    if (callback(Algorithm::DeprecatedPlain)) {
-        auto mystr = cb::crypto::pwhash(
-                Algorithm::DeprecatedPlain,
-                passwd,
-                {reinterpret_cast<const char*>(salt.data()), salt.size()});
+    if (password_hash_type.empty()) {
+        if (callback(Algorithm::DeprecatedPlain)) {
+            ret.generatePasswordHash("SHA-1"sv, passwd);
+        }
 
-        ret.password_hash = User::PasswordMetaData{
-                nlohmann::json{{"algorithm", "SHA-1"},
-                               {"hash", cb::base64::encode(mystr)},
-                               {"salt", saltstring}}};
+        if (callback(Algorithm::Argon2id13)) {
+            ret.generatePasswordHash("argon2id"sv, passwd);
+        }
+    } else {
+        ret.generatePasswordHash(password_hash_type, passwd);
     }
 
-    for (const auto& alg : std::vector<Algorithm>{{Algorithm::SHA1,
-                                                   Algorithm::SHA256,
-                                                   Algorithm::SHA512,
-                                                   Algorithm::Argon2id13}}) {
+    for (const auto& alg : std::vector<Algorithm>{
+                 {Algorithm::SHA1, Algorithm::SHA256, Algorithm::SHA512}}) {
         if (callback(alg)) {
             ret.generateSecrets(alg, passwd);
         }
@@ -282,13 +281,49 @@ void User::generateSecrets(Algorithm algo, std::string_view passwd) {
         scram_sha_512 = generateShaSecrets(
                 algo, passwd, getUsername().getRawValue(), dummy);
         return;
+
     case Algorithm::Argon2id13:
-        password_hash = generateArgon2id13Secret(passwd);
-        return;
     case Algorithm::DeprecatedPlain:
         break;
     }
     throw std::invalid_argument("User::generateSecrets(): Invalid algorithm");
+}
+
+void User::generatePasswordHash(std::string_view password_hash_type,
+                                std::string_view passwd) {
+    using namespace std::string_view_literals;
+    if (password_hash_type == "pbkdf2-hmac-sha512"sv) {
+        std::vector<uint8_t> salt(cb::crypto::SHA512_DIGEST_SIZE);
+        std::string saltstring;
+        generateSalt(salt, saltstring);
+        const auto iterations = IterationCount.load();
+        auto digest = cb::crypto::pwhash(
+                Algorithm::SHA512,
+                passwd,
+                {reinterpret_cast<const char*>(salt.data()), salt.size()},
+                nlohmann::json{{"iterations", iterations}});
+        password_hash = User::PasswordMetaData{
+                nlohmann::json{{"algorithm", "pbkdf2-hmac-sha512"},
+                               {"hash", cb::base64::encode(digest)},
+                               {"salt", saltstring},
+                               {"iterations", iterations}}};
+    } else if (password_hash_type == "argon2id"sv) {
+        password_hash = generateArgon2id13Secret(passwd);
+    } else if (password_hash_type == "SHA-1"sv) {
+        std::vector<uint8_t> salt(16);
+        std::string saltstring;
+        generateSalt(salt, saltstring);
+        auto mystr = cb::crypto::pwhash(
+                Algorithm::DeprecatedPlain,
+                passwd,
+                {reinterpret_cast<const char*>(salt.data()), salt.size()});
+        password_hash = User::PasswordMetaData{
+                nlohmann::json{{"algorithm", "SHA-1"},
+                               {"hash", cb::base64::encode(mystr)},
+                               {"salt", saltstring}}};
+    } else {
+        throw std::invalid_argument("Unsupported password hash type");
+    }
 }
 
 User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
@@ -304,6 +339,7 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
     std::optional<size_t> m;
     std::optional<size_t> t;
     std::optional<size_t> p;
+    std::optional<size_t> i;
 
     for (auto it = obj.begin(); it != obj.end(); ++it) {
         const std::string label = it.key();
@@ -346,10 +382,18 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
                         "PasswordMetaData(): algorithm must be a string");
             }
             algorithm = it->get<std::string>();
-            if (algorithm != "argon2id" && algorithm != "SHA-1") {
+            if (algorithm != "argon2id" && algorithm != "SHA-1" &&
+                algorithm != "pbkdf2-hmac-sha512") {
                 throw std::invalid_argument(
-                        R"(PasswordMetaData(): algorithm must be set to "argon2id" or "SHA-1")");
+                        R"(PasswordMetaData(): algorithm must be set to "argon2id", "pbkdf2-hmac-sha512" or "SHA-1")");
             }
+        } else if (label == "iterations") {
+            if (!it->is_number()) {
+                throw std::invalid_argument(
+                        "PasswordMetaData(): iterations must be a number");
+            }
+            i = it->get<std::size_t>();
+            properties["iterations"] = *i;
         } else {
             throw std::invalid_argument(
                     "PasswordMetaData(): Invalid attribute: \"" + label + "\"");
@@ -374,18 +418,39 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
             throw std::invalid_argument(
                     "PasswordMetaData(): argon2id requires time to be set");
         }
-    } else if (algorithm == "SHA-1") {
+        if (i) {
+            throw std::invalid_argument(
+                    "PasswordMetaData(): argon2id should not contain "
+                    "iterations");
+        }
+    } else {
         if (m) {
             throw std::invalid_argument(
-                    "PasswordMetaData(): memory can't be set with SHA-1");
+                    "PasswordMetaData(): memory can't be set with SHA-1 or "
+                    "pbkdf2-hmac-sha512");
         }
         if (p) {
             throw std::invalid_argument(
-                    "PasswordMetaData(): parallelism can't be set with SHA-1");
+                    "PasswordMetaData(): parallelism can't be set with SHA-1 "
+                    "or pbkdf2-hmac-sha512");
         }
         if (t) {
             throw std::invalid_argument(
-                    "PasswordMetaData(): time can't be set with SHA-1");
+                    "PasswordMetaData(): time can't be set with SHA-1 or "
+                    "pbkdf2-hmac-sha512");
+        }
+        if (algorithm == "pbkdf2-hmac-sha512") {
+            if (!i) {
+                throw std::invalid_argument(
+                        "PasswordMetaData(): pbkdf2-hmac-sha512 requires "
+                        "iterations to be set");
+            }
+        } else {
+            if (i) {
+                throw std::invalid_argument(
+                        "PasswordMetaData(): iterations can't be set with "
+                        "SHA-1");
+            }
         }
     }
 

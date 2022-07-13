@@ -34,8 +34,19 @@ public:
         argon2id_blueprint["parallelism"] = 1;
         argon2id_blueprint["salt"] = "wkhDB1DVlfeqZ10PnV4VJA==";
         argon2id_blueprint["time"] = 3;
+
+        pbkdf2_hmac_sha512_blueprint["hash"] =
+                "c5iK5+3NiSiW/"
+                "ozSG21I2NdBzthWkNNwgLswNpEQR3Twhk7IXtRbJ5+"
+                "xw9QWaJ9185ilSien6yxV/DoJ+yoVVw==";
+        pbkdf2_hmac_sha512_blueprint["algorithm"] = "pbkdf2-hmac-sha512";
+        pbkdf2_hmac_sha512_blueprint["salt"] =
+                "AmnjC0g996UsYo6ED046UKsPhh4IzozEsPUryQl5QEOWTkIM2iMRS74iyh054k"
+                "RKeBqicw31gMAVB7mEI+tQIg==";
+        pbkdf2_hmac_sha512_blueprint["iterations"] = 10000;
     }
 
+    nlohmann::json pbkdf2_hmac_sha512_blueprint;
     nlohmann::json argon2id_blueprint;
     nlohmann::json sha1_blueprint;
 };
@@ -164,7 +175,7 @@ TEST_F(PasswordMetaTest, AlgorithmMustBeValid) {
                      e.what());
     }
 
-    // must be argon2id or SHA-1
+    // must be argon2id, pbkdf2-hmac-sha512 or SHA-1
     try {
         nlohmann::json json = argon2id_blueprint;
         json["algorithm"] = "whateverfancy";
@@ -172,7 +183,7 @@ TEST_F(PasswordMetaTest, AlgorithmMustBeValid) {
         FAIL() << "Error should be detected";
     } catch (const std::invalid_argument& e) {
         EXPECT_STREQ(
-                R"(PasswordMetaData(): algorithm must be set to "argon2id" or "SHA-1")",
+                R"(PasswordMetaData(): algorithm must be set to "argon2id", "pbkdf2-hmac-sha512" or "SHA-1")",
                 e.what());
     }
 }
@@ -255,6 +266,36 @@ TEST_F(PasswordMetaTest, HashArgon2idEntryParallelCost) {
         FAIL() << "Error should be detected";
     } catch (const std::invalid_argument& e) {
         EXPECT_STREQ("PasswordMetaData(): parallelism must be set to 1",
+                     e.what());
+    }
+}
+
+TEST_F(PasswordMetaTest, Pbkdf2HmacSha512Entry) {
+    cb::sasl::pwdb::User::PasswordMetaData md(pbkdf2_hmac_sha512_blueprint);
+}
+
+TEST_F(PasswordMetaTest, Pbkdf2HmacSha512IterationCount) {
+    // must be present
+    try {
+        nlohmann::json json = pbkdf2_hmac_sha512_blueprint;
+        json.erase("iterations");
+        cb::sasl::pwdb::User::PasswordMetaData md(json);
+        FAIL() << "Error should be detected";
+    } catch (const std::invalid_argument& e) {
+        EXPECT_STREQ(
+                "PasswordMetaData(): pbkdf2-hmac-sha512 requires iterations to "
+                "be set",
+                e.what());
+    }
+
+    // must be a number
+    try {
+        nlohmann::json json = argon2id_blueprint;
+        json["iterations"] = "whatever";
+        cb::sasl::pwdb::User::PasswordMetaData md(json);
+        FAIL() << "Error should be detected";
+    } catch (const std::invalid_argument& e) {
+        EXPECT_STREQ("PasswordMetaData(): iterations must be a number",
                      e.what());
     }
 }

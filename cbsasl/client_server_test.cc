@@ -23,7 +23,11 @@ protected:
 
         auto passwordDatabase =
                 std::make_unique<cb::sasl::pwdb::MutablePasswordDatabase>();
-        passwordDatabase->upsert(UserFactory::create("mikewied", " mik epw "));
+        passwordDatabase->upsert(UserFactory::create(
+                "mikewied",
+                " mik epw ",
+                [](cb::crypto::Algorithm) { return true; },
+                "pbkdf2-hmac-sha512"));
         swap_password_database(std::move(passwordDatabase));
     }
 

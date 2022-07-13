@@ -37,22 +37,6 @@ public:
         PasswordMetaData() = default;
 
         /**
-         * Create a new instance of the PasswordMetaData with
-         * the specified attributes
-         *
-         * @param h the password
-         * @param s the salt used (Base64 encoded)
-         * @param json additional properties
-         */
-        explicit PasswordMetaData(std::string h,
-                                  std::string s,
-                                  nlohmann::json json = {})
-            : salt(std::move(s)),
-              password(std::move(h)),
-              properties(std::move(json)) {
-        }
-
-        /**
          * Create a new instance of the PasswordMetaData and
          * initialize it from the specified JSON.
          *
@@ -159,6 +143,8 @@ protected:
     friend class UserFactory;
 
     void generateSecrets(crypto::Algorithm algo, std::string_view passwd);
+    void generatePasswordHash(std::string_view password_hash_type,
+                              std::string_view passwd);
 
     std::optional<ScramPasswordMetaData> scram_sha_512;
     std::optional<ScramPasswordMetaData> scram_sha_256;
@@ -191,12 +177,16 @@ public:
      * @param pw password
      * @param callback callback to return true/false if the provided
      *                 algorithm should be created
+     * @param password_hash_type the name of the plain password hash to
+     *                           use (may be used generate an entry with
+     *                           .
      *
      * @return a newly created dummy object
      */
     static User create(const std::string& name,
                        const std::string& pw,
-                       std::function<bool(crypto::Algorithm)> callback = {});
+                       std::function<bool(crypto::Algorithm)> callback = {},
+                       std::string_view password_hash_type = {});
 
     /**
      * Construct a dummy user object that may be used in authentication

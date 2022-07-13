@@ -23,8 +23,14 @@ Error check_password(Context* context,
     const auto& metadata = user.getPaswordHash();
     std::string generated;
 
-    if (metadata.getAlgorithm() == "argon2id") {
+    const auto& algorithm = metadata.getAlgorithm();
+    if (algorithm == "argon2id") {
         generated = cb::crypto::pwhash(Algorithm::Argon2id13,
+                                       password,
+                                       metadata.getSalt(),
+                                       metadata.getProperties());
+    } else if (algorithm == "pbkdf2-hmac-sha512") {
+        generated = cb::crypto::pwhash(Algorithm::SHA512,
                                        password,
                                        metadata.getSalt(),
                                        metadata.getProperties());

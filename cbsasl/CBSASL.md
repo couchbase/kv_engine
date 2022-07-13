@@ -37,12 +37,13 @@ The user database is stored in JSON format with the following syntax:
         "@@version@@": 2
          "username" : {
              "hash": {
-                 "algorithm": "[argon2id/SHA-1]",
+                 "algorithm": "[argon2id/SHA-1/pbkdf2-hmac-sha512]",
                  "hash": "base64 encoded salted hash of the password",
                  "memory": memory-cost,
                  "parallelism": parallel-cost,
                  "salt": "base64 encoded salt"
                  "time": time-cost,
+                 "iterations": iteration-count
              },
              "scram-sha-512" : {
                  "server_key" : "base64 encoded ",
@@ -65,8 +66,7 @@ The user database is stored in JSON format with the following syntax:
          }
      }
 
-The `hash` entry may currently only use two different algorithm
-(and the allowed attributes depend on the algorithm)
+The `hash` entry controls the legal attributes:
 
 *Argon2id*:
 
@@ -86,5 +86,14 @@ The `hash` entry may currently only use two different algorithm
      "hash": {
          "algorithm": "SHA-1",
          "hash": "base64 encoded salted hash of the password",
+         "salt": "base64 encoded salt"
+     }
+
+*pbkdf2-hmac-sha512*:
+
+     "hash": {
+         "algorithm": "pbkdf2-hmac-sha512",
+         "hash": "base64 encoded salted hash of the password",
+         "iterations": iteration-count,
          "salt": "base64 encoded salt"
      }
