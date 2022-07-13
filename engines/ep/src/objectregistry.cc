@@ -32,7 +32,7 @@ extern "C" {
     }
 }
 
-static get_allocation_size getAllocSize = defaultGetAllocSize;
+static std::atomic<get_allocation_size> getAllocSize{defaultGetAllocSize};
 
 
 
@@ -69,11 +69,11 @@ static bool verifyEngine(EventuallyPersistentEngine *engine)
 }
 
 void ObjectRegistry::initialize(get_allocation_size func) {
-    getAllocSize = func;
+    getAllocSize.store(func, std::memory_order_release);
 }
 
 void ObjectRegistry::reset() {
-    getAllocSize = defaultGetAllocSize;
+    getAllocSize.store(defaultGetAllocSize, std::memory_order_release);
 }
 
 void ObjectRegistry::onCreateBlob(const Blob *blob)
@@ -82,7 +82,7 @@ void ObjectRegistry::onCreateBlob(const Blob *blob)
    if (verifyEngine(engine)) {
        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
-       size_t size = getAllocSize(blob);
+       size_t size = getAllocSize.load(std::memory_order_acquire)(blob);
        if (size == 0) {
            size = blob->getSize();
        } else {
@@ -100,7 +100,7 @@ void ObjectRegistry::onDeleteBlob(const Blob *blob)
    if (verifyEngine(engine)) {
        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
-       size_t size = getAllocSize(blob);
+       size_t size = getAllocSize.load(std::memory_order_acquire)(blob);
        if (size == 0) {
            size = blob->getSize();
        } else {
@@ -118,7 +118,7 @@ void ObjectRegistry::onCreateStoredValue(const StoredValue *sv)
    if (verifyEngine(engine)) {
        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
-       size_t size = getAllocSize(sv);
+       size_t size = getAllocSize.load(std::memory_order_acquire)(sv);
        if (size == 0) {
            size = sv->getObjectSize();
        }
@@ -133,7 +133,7 @@ void ObjectRegistry::onDeleteStoredValue(const StoredValue *sv)
    if (verifyEngine(engine)) {
        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
-       size_t size = getAllocSize(sv);
+       size_t size = getAllocSize.load(std::memory_order_acquire)(sv);
        if (size == 0) {
            size = sv->getObjectSize();
        }
