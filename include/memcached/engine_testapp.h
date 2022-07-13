@@ -170,6 +170,12 @@ struct test_harness {
      * for a document
      */
     virtual void set_pre_link_function(PreLinkFunction function) = 0;
+
+    /**
+     * Return a ptr to the underlying EPEngine instance being tested.
+     */
+    virtual EngineIface* get_underlying_ep_engine(
+            EngineIface* bucket) = 0;
 };
 
 /*

@@ -794,6 +794,10 @@ public:
 
     cb::HlcTime getVBucketHlcNow(Vbid vbucket) override;
 
+    void setHangWarmupHook(std::function<void()> hook) override {
+        visitWarmupHook = hook;
+    }
+
 protected:
     friend class EpEngineValueChangeListener;
 
@@ -1129,6 +1133,10 @@ public:
     // destroyInner() to simulate a crash while waiting for the flusher to
     // finish
     std::function<void()> epDestroyFailureHook;
+
+    // Testing hook for MB-45654, to allow for a sleep during key loading, to
+    // allow a test to artificially increase backfill's duration.
+    std::function<void()> visitWarmupHook;
 
 protected:
     SERVER_HANDLE_V1 *serverApi;

@@ -158,6 +158,11 @@ struct mock_engine : public EngineIface, public DcpIface {
         return the_engine->getFeatures();
     }
 
+    // Set the number or reader threads
+    void set_num_reader_threads(ThreadPoolConfig::ThreadCount num) override {
+        the_engine->set_num_reader_threads(num);
+    }
+
     // DcpIface implementation ////////////////////////////////////////////////
 
     ENGINE_ERROR_CODE step(
@@ -1255,6 +1260,9 @@ public:
 
     void destroy_bucket(EngineIface* handle, bool force) override {
         handle->destroy(force);
+        if (currentEngineHandle == handle) {
+            currentEngineHandle = nullptr;
+        }
         delete handle;
     }
 
@@ -1276,6 +1284,10 @@ public:
     void notify_io_complete(const void* cookie,
                             ENGINE_ERROR_CODE status) override {
         get_mock_server_api()->cookie->notify_io_complete(cookie, status);
+    }
+
+    EngineIface* get_underlying_ep_engine(EngineIface* bucket) override {
+        return dynamic_cast<mock_engine&>(*bucket).the_engine;
     }
 
 private:

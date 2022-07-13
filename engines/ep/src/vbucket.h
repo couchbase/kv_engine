@@ -2569,7 +2569,11 @@ private:
 
     static cb::AtomicDuration<> chkFlushTimeout;
 
-    static double mutationMemThreshold;
+    // mutationMemThreshold is atomic to prevent a data race between
+    // VBucket::hasMemoryForStoredValue() being called during
+    // WarmupVbucketVisitor::visit() and
+    // EventuallyPersistentEngine::makeBucket() which was noticed by TSAN
+    static std::atomic<double> mutationMemThreshold;
 
     // The seqno threshold below which we may replace a prepare with another
     // prepare (if the associated Commit/Abort may have been deduped)

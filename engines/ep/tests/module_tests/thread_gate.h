@@ -41,7 +41,7 @@ public:
      */
     void threadUp() {
         std::unique_lock<std::mutex> lh(m);
-        if (++thread_count != n_threads) {
+        if (++thread_count < n_threads) {
             cv.wait(lh, [this, &lh]() { return isComplete(lh); });
         } else {
             cv.notify_all(); // all threads accounted for, begin

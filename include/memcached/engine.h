@@ -658,6 +658,16 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     virtual float getMinCompressionRatio() {
         return default_min_compression_ratio;
     }
+
+    /**
+     * MB-47267: Set a callback hook to be invoked during ep-engine
+     * WarmupVbucketVisitor::visit. This was done in a more generic way
+     * in cheshire-cat branch as ep_testsuite has direct access to EPEngine
+     * (both are inside the same exe), but when backported to mad-hatter
+     * release there is still separate ep_testsuite.so and ep.so libraries,
+     * so we need this method to allow setting the hook.
+     */
+    virtual void setHangWarmupHook(std::function<void()> hook) {};
 };
 
 namespace cb {
