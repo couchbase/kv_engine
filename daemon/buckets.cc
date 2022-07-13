@@ -189,8 +189,11 @@ void Bucket::commandExecuted(const Cookie& cookie) {
     auto& inst = cb::serverless::Config::instance();
     const auto [read, write] = cookie.getDocumentRWBytes();
     if (read || write) {
-        const auto ru = inst.to_ru(read);
-        const auto wu = inst.to_wu(write);
+        auto ru = inst.to_ru(read);
+        auto wu = inst.to_wu(write);
+        if (cookie.isDurable()) {
+            wu *= 2;
+        }
         throttle_gauge.increment(ru + wu);
         throttle_wait_time += cookie.getTotalThrottleTime();
         read_units_used += ru;

@@ -22,6 +22,9 @@
 #include <deque>
 #include <thread>
 
+using ClientOpcode = cb::mcbp::ClientOpcode;
+using Status = cb::mcbp::Status;
+
 namespace cb::test {
 
 class MeteringTest : public ::testing::Test {
@@ -53,12 +56,16 @@ protected:
      * @param xattr_value An optional XAttr value
      * @param wait_for_persistence if set to true it'll use durable write
      *                             and wait for persistence on master
+     * @param second_xattr_path An optional second XAttr pair
+     * @param second_xattr_value An optional second XAttr value
      */
     static void upsert(std::string id,
                        std::string value,
                        std::string xattr_path = {},
                        std::string xattr_value = {},
-                       bool wait_for_persistence = false);
+                       bool wait_for_persistence = false,
+                       std::string second_xattr_path = {},
+                       std::string second_xattr_value = {});
 
     size_t to_ru(size_t size) {
         return cb::serverless::Config::instance().to_ru(size);
@@ -135,6 +142,145 @@ protected:
         return ret;
     }
 
+    /// Operating on a document which isn't a numeric value should
+    /// account for X ru's and fail
+    void testArithmeticBadValue(ClientOpcode opcode,
+                                std::string id,
+                                std::string value,
+                                std::string xattr_path = {},
+                                std::string xattr_value = {}) {
+        auto cmd = BinprotIncrDecrCommand{opcode, id, Vbid{0}, 1ULL, 0ULL, 0};
+
+        upsert(id, value, xattr_path, xattr_value);
+        auto rsp = conn->execute(cmd);
+        EXPECT_EQ(Status::DeltaBadval, rsp.getStatus());
+        ASSERT_TRUE(rsp.getReadUnits().has_value());
+        EXPECT_EQ(to_ru(calculateDocumentSize(
+                          id, value, xattr_path, xattr_value)),
+                  *rsp.getReadUnits());
+        EXPECT_FALSE(rsp.getWriteUnits());
+    }
+
+    /// When creating a value as part of incr/decr it should not cost any
+    /// RU, but 1 WU for a normal create, and 2 WU for durable writes.
+    void testArithmeticCreateValue(ClientOpcode opcode,
+                                   std::string id,
+                                   bool durable) {
+        auto cmd = BinprotIncrDecrCommand{opcode, id, Vbid{0}, 1ULL, 0ULL, 0};
+        DurabilityFrameInfo fi(
+                cb::durability::Level::MajorityAndPersistOnMaster);
+        if (durable) {
+            cmd.addFrameInfo(fi);
+        }
+        auto rsp = conn->execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+        EXPECT_FALSE(rsp.getReadUnits());
+        ASSERT_TRUE(rsp.getWriteUnits());
+        if (durable) {
+            EXPECT_EQ(2, *rsp.getWriteUnits());
+        } else {
+            EXPECT_EQ(1, *rsp.getWriteUnits());
+        }
+    }
+
+    // Operating on a document without XAttrs should account 1WU during
+    // create and 1RU + 1WU during update (it is 1 because it only contains
+    // the body and we don't support an interger which consumes 4k digits ;)
+    // For documents with XATTRS the size of the xattrs (encoded) gets added
+    // to the RU/WU units.
+    // For durable writes it costs 2x WU
+    void testArithmetic(ClientOpcode opcode,
+                        std::string id,
+                        std::string xattr_path,
+                        std::string xattr_value,
+                        bool durable) {
+        upsert(id, "10", xattr_path, xattr_value);
+
+        auto cmd = BinprotIncrDecrCommand{opcode, id, Vbid{0}, 1ULL, 0ULL, 0};
+        DurabilityFrameInfo fi(
+                cb::durability::Level::MajorityAndPersistOnMaster);
+        if (durable) {
+            cmd.addFrameInfo(fi);
+        }
+        auto rsp = conn->execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(
+                to_ru(calculateDocumentSize(id, "10", xattr_path, xattr_value)),
+                *rsp.getReadUnits());
+
+        const auto expected_wu =
+                to_wu(calculateDocumentSize(id, "10", xattr_path, xattr_value));
+        ASSERT_TRUE(rsp.getWriteUnits());
+        if (durable) {
+            EXPECT_EQ(expected_wu * 2, *rsp.getWriteUnits());
+        } else {
+            EXPECT_EQ(expected_wu, *rsp.getWriteUnits());
+        }
+    }
+
+    // Deleting a normal document should cost 1 WU (no RU)
+    // Delete a document with user XATTRs should cost 1WU and doc size RU
+    // Delete a document with system xattrs should cost xattr + key wu and doc
+    //        size ru
+    // Durable reads should cost twice
+    void testDelete(ClientOpcode opcode,
+                    std::string id,
+                    std::string value,
+                    std::string user_xattr_path,
+                    std::string user_xattr_value,
+                    std::string system_xattr_path,
+                    std::string system_xattr_value,
+                    bool durable) {
+        upsert(id,
+               value,
+               user_xattr_path,
+               user_xattr_value,
+               false,
+               system_xattr_path,
+               system_xattr_value);
+
+        auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::Delete, id};
+        DurabilityFrameInfo fi(
+                cb::durability::Level::MajorityAndPersistOnMaster);
+        if (durable) {
+            cmd.addFrameInfo(fi);
+        }
+        auto rsp = conn->execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+        ASSERT_TRUE(rsp.getWriteUnits());
+        if (user_xattr_path.empty()) {
+            EXPECT_FALSE(rsp.getReadUnits());
+            if (durable) {
+                EXPECT_EQ(2, *rsp.getWriteUnits());
+            } else {
+                EXPECT_EQ(1, *rsp.getWriteUnits());
+            }
+        } else {
+            ASSERT_TRUE(rsp.getReadUnits());
+            EXPECT_EQ(to_ru(calculateDocumentSize(id,
+                                                  value,
+                                                  user_xattr_path,
+                                                  user_xattr_value,
+                                                  system_xattr_path,
+                                                  system_xattr_value)),
+                      *rsp.getReadUnits());
+            if (durable) {
+                EXPECT_EQ(to_wu(calculateDocumentSize(id,
+                                                      {},
+                                                      system_xattr_path,
+                                                      system_xattr_value)) *
+                                  2,
+                          *rsp.getWriteUnits());
+            } else {
+                EXPECT_EQ(
+                        to_wu(calculateDocumentSize(
+                                id, {}, system_xattr_path, system_xattr_value)),
+                        *rsp.getWriteUnits());
+            }
+        }
+    }
+
     static std::unique_ptr<MemcachedConnection> conn;
 };
 
@@ -144,7 +290,9 @@ void MeteringTest::upsert(std::string id,
                           std::string value,
                           std::string xattr_path,
                           std::string xattr_value,
-                          bool wait_for_persistence) {
+                          bool wait_for_persistence,
+                          std::string second_xattr_path,
+                          std::string second_xattr_value) {
     if (xattr_path.empty()) {
         Document doc;
         doc.info.id = std::move(id);
@@ -160,24 +308,38 @@ void MeteringTest::upsert(std::string id,
             conn->mutate(doc, Vbid{0}, MutationType::Set);
         }
     } else {
-        BinprotSubdocMultiMutationCommand cmd;
-        cmd.setKey(id);
-        cmd.setVBucket(Vbid{0});
-        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                        SUBDOC_FLAG_XATTR_PATH,
-                        xattr_path,
-                        xattr_value);
-        cmd.addMutation(
-                cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
-        cmd.addDocFlag(::mcbp::subdoc::doc_flag::Mkdoc);
-        DurabilityFrameInfo fi(
-                cb::durability::Level::MajorityAndPersistOnMaster);
-        if (wait_for_persistence) {
-            cmd.addFrameInfo(fi);
-        }
-        auto rsp = conn->execute(cmd);
-        if (!rsp.isSuccess()) {
-            throw ConnectionError("Subdoc failed", rsp);
+        for (int ii = 0; ii < 2; ++ii) {
+            BinprotSubdocMultiMutationCommand cmd;
+            cmd.setKey(id);
+            cmd.setVBucket(Vbid{0});
+            if (ii == 0) {
+                cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                                SUBDOC_FLAG_XATTR_PATH,
+                                xattr_path,
+                                xattr_value);
+                cmd.addMutation(cb::mcbp::ClientOpcode::Set,
+                                SUBDOC_FLAG_NONE,
+                                "",
+                                value);
+                cmd.addDocFlag(::mcbp::subdoc::doc_flag::Mkdoc);
+            } else {
+                cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                                SUBDOC_FLAG_XATTR_PATH,
+                                second_xattr_path,
+                                second_xattr_value);
+            }
+            DurabilityFrameInfo fi(
+                    cb::durability::Level::MajorityAndPersistOnMaster);
+            if (wait_for_persistence) {
+                cmd.addFrameInfo(fi);
+            }
+            auto rsp = conn->execute(cmd);
+            if (!rsp.isSuccess()) {
+                throw ConnectionError("Subdoc failed", rsp);
+            }
+            if (second_xattr_path.empty()) {
+                return;
+            }
         }
     }
 }
@@ -566,172 +728,205 @@ TEST_F(MeteringTest, OpsMetered) {
     }
 }
 
-TEST_F(MeteringTest, MeterArithmeticMethods) {
-    auto& sconfig = cb::serverless::Config::instance();
-
-    auto incrCmd = BinprotIncrDecrCommand{cb::mcbp::ClientOpcode::Increment,
-                                          "TestArithmeticMethods",
-                                          Vbid{0},
-                                          1ULL,
-                                          0ULL,
-                                          0};
-    auto decrCmd = BinprotIncrDecrCommand{cb::mcbp::ClientOpcode::Decrement,
-                                          "TestArithmeticMethods",
-                                          Vbid{0},
-                                          1ULL,
-                                          0ULL,
-                                          0};
-
-    // Operating on a document which isn't a numeric value should
-    // account for X ru's and fail
-    std::string key = "TestArithmeticMethods";
-    std::string value;
-    value.resize(1024 * 1024);
-    std::fill(value.begin(), value.end(), 'a');
-    value.front() = '"';
-    value.back() = '"';
-    upsert(key, value);
-
-    auto rsp = conn->execute(incrCmd);
-    EXPECT_EQ(cb::mcbp::Status::DeltaBadval, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits().has_value());
-    EXPECT_EQ(sconfig.to_ru(value.size() + key.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits().has_value());
-
-    rsp = conn->execute(decrCmd);
-    EXPECT_EQ(cb::mcbp::Status::DeltaBadval, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits().has_value());
-    EXPECT_EQ(sconfig.to_ru(value.size() + key.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits().has_value());
-
-    // When creating a value as part of incr/decr it should cost 1WU and no RU
-    conn->remove(key, Vbid{0});
-    rsp = conn->execute(incrCmd);
-    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-    EXPECT_FALSE(rsp.getReadUnits().has_value());
-    EXPECT_TRUE(rsp.getWriteUnits().has_value());
-    EXPECT_EQ(1, *rsp.getWriteUnits());
-
-    conn->remove(key, Vbid{0});
-    rsp = conn->execute(decrCmd);
-    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-    EXPECT_FALSE(rsp.getReadUnits().has_value());
-    EXPECT_TRUE(rsp.getWriteUnits().has_value());
-    EXPECT_EQ(1, *rsp.getWriteUnits());
-
-    // Operating on a document without XAttrs should account 1WU during
-    // create and 1RU + 1WU during update (it is 1 because it only contains
-    // the body and we don't support an interger which consumes 4k digits ;)
-    upsert(key, "10");
-    rsp = conn->execute(incrCmd);
-    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits().has_value());
-    EXPECT_EQ(1, *rsp.getReadUnits());
-    EXPECT_TRUE(rsp.getWriteUnits().has_value());
-    EXPECT_EQ(1, *rsp.getWriteUnits());
-
-    rsp = conn->execute(decrCmd);
-    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits().has_value());
-    EXPECT_EQ(1, *rsp.getReadUnits());
-    EXPECT_TRUE(rsp.getWriteUnits().has_value());
-    EXPECT_EQ(1, *rsp.getWriteUnits());
-
-    // Let's up the game and operate on a document with XAttrs which spans 1RU.
-    // We should then consume 2RU (one for the XAttr and one for the actual
-    // number). It'll then span into more WUs as they're 1/4 of the size of
-    // the RU.
-    upsert(key, "10", "xattr", value);
-    rsp = conn->execute(incrCmd);
-    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits().has_value());
-    EXPECT_EQ(sconfig.to_ru(value.size() + key.size()), *rsp.getReadUnits());
-    EXPECT_TRUE(rsp.getWriteUnits().has_value());
-    EXPECT_EQ(sconfig.to_wu(value.size() + key.size()), *rsp.getWriteUnits());
-
-    rsp = conn->execute(decrCmd);
-    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits().has_value());
-    EXPECT_EQ(sconfig.to_ru(value.size() + key.size()), *rsp.getReadUnits());
-    EXPECT_TRUE(rsp.getWriteUnits().has_value());
-    EXPECT_EQ(sconfig.to_wu(value.size() + key.size()), *rsp.getWriteUnits());
-
-    // So far, so good.. According to the spec Durability is supported and
-    // should cost 2 WU.
-    // @todo Metering of durable writes not implemented yet
-    conn->remove(key, Vbid{0});
-    upsert(key, "10");
-
-    DurabilityFrameInfo fi(cb::durability::Level::Majority);
-
-    incrCmd.addFrameInfo(fi);
-    rsp = conn->execute(incrCmd);
-    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits().has_value());
-    EXPECT_EQ(1, *rsp.getReadUnits());
-    EXPECT_TRUE(rsp.getWriteUnits().has_value());
-    EXPECT_EQ(1, *rsp.getWriteUnits());
-
-    decrCmd.addFrameInfo(fi);
-    rsp = conn->execute(decrCmd);
-    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits().has_value());
-    EXPECT_EQ(1, *rsp.getReadUnits());
-    EXPECT_TRUE(rsp.getWriteUnits().has_value());
-    EXPECT_EQ(1, *rsp.getWriteUnits());
+TEST_F(MeteringTest, IncrBadValuePlain) {
+    testArithmeticBadValue(
+            ClientOpcode::Increment, "IncrBadValuePlain", getStringValue());
 }
 
-TEST_F(MeteringTest, MeterDocumentDelete) {
-    auto& sconfig = cb::serverless::Config::instance();
+TEST_F(MeteringTest, IncrBadValueWithXattr) {
+    testArithmeticBadValue(ClientOpcode::Increment,
+                           "IncrBadValueWithXattr",
+                           getStringValue(),
+                           "xattr",
+                           getStringValue());
+}
 
-    const std::string id = "MeterDocumentDelete";
-    auto command = BinprotGenericCommand{cb::mcbp::ClientOpcode::Delete, id};
-    // Delete of a non-existing document should be free
-    auto rsp = conn->execute(command);
+TEST_F(MeteringTest, DecrBadValuePlain) {
+    testArithmeticBadValue(
+            ClientOpcode::Decrement, "DecrBadValuePlain", getStringValue());
+}
+
+TEST_F(MeteringTest, DecrBadValueWithXattr) {
+    testArithmeticBadValue(ClientOpcode::Decrement,
+                           "DecrBadValueWithXattr",
+                           getStringValue(),
+                           "xattr",
+                           getStringValue());
+}
+
+TEST_F(MeteringTest, IncrCreateValue) {
+    testArithmeticCreateValue(
+            ClientOpcode::Increment, "IncrCreateValue", false);
+}
+
+TEST_F(MeteringTest, IncrCreateValue_Durability) {
+    testArithmeticCreateValue(
+            ClientOpcode::Increment, "IncrCreateValue_Durability", true);
+}
+
+TEST_F(MeteringTest, DecrCreateValue) {
+    testArithmeticCreateValue(
+            ClientOpcode::Decrement, "DecrCreateValue", false);
+}
+
+TEST_F(MeteringTest, DecrCreateValue_Durability) {
+    testArithmeticCreateValue(
+            ClientOpcode::Decrement, "DecrCreateValue_Durability", true);
+}
+
+TEST_F(MeteringTest, IncrementPlain) {
+    testArithmetic(ClientOpcode::Increment, "IncrementPlain", {}, {}, false);
+}
+
+TEST_F(MeteringTest, IncrementPlain_Durability) {
+    testArithmetic(ClientOpcode::Increment,
+                   "IncrementWithXattr_Durability",
+                   {},
+                   {},
+                   true);
+}
+
+TEST_F(MeteringTest, IncrementWithXattr) {
+    testArithmetic(ClientOpcode::Increment,
+                   "IncrementWithXattr",
+                   "xattr",
+                   getStringValue(),
+                   false);
+}
+
+TEST_F(MeteringTest, IncrementWithXattr_Durability) {
+    testArithmetic(ClientOpcode::Increment,
+                   "IncrementWithXattr_Durability",
+                   "xattr",
+                   getStringValue(),
+                   true);
+}
+
+TEST_F(MeteringTest, DecrementPlain) {
+    testArithmetic(ClientOpcode::Decrement, "DecrementPlain", {}, {}, false);
+}
+
+TEST_F(MeteringTest, DecrementPlain_Durability) {
+    testArithmetic(ClientOpcode::Decrement,
+                   "DecrementWithXattr_Durability",
+                   {},
+                   {},
+                   true);
+}
+
+TEST_F(MeteringTest, DecrementWithXattr) {
+    testArithmetic(ClientOpcode::Decrement,
+                   "DecrementWithXattr",
+                   "xattr",
+                   getStringValue(),
+                   false);
+}
+
+TEST_F(MeteringTest, DecrementWithXattr_Durability) {
+    testArithmetic(ClientOpcode::Decrement,
+                   "DecrementWithXattr_Durability",
+                   "xattr",
+                   getStringValue(),
+                   true);
+}
+
+/// Delete of a non-existing document should be free
+TEST_F(MeteringTest, DeleteNonexistingItem) {
+    const std::string id = "DeleteNonexistingItem";
+    auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::Delete, id};
+    auto rsp = conn->execute(cmd);
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+}
 
-    // Delete of a single document should cost 1WU
-    upsert(id, "Hello");
-    rsp = conn->execute(command);
-    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    EXPECT_FALSE(rsp.getReadUnits());
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(1, *rsp.getWriteUnits());
+// Delete of a single document should cost 1WU
+TEST_F(MeteringTest, DeletePlain) {
+    testDelete(ClientOpcode::Delete,
+               "DeletePlain",
+               getStringValue(),
+               {},
+               {},
+               {},
+               {},
+               false);
+}
 
-    // But if it contains XAttrs we need to read the document to prune those
-    // and end up with a single write unit
-    std::string xattr_value;
-    xattr_value.resize(8192);
-    std::fill(xattr_value.begin(), xattr_value.end(), 'a');
-    xattr_value.front() = '"';
-    xattr_value.back() = '"';
-    upsert(id, "Hello", "xattr", xattr_value);
+TEST_F(MeteringTest, DeletePlain_Durability) {
+    testDelete(ClientOpcode::Delete,
+               "DeletePlain_Durability",
+               getStringValue(),
+               {},
+               {},
+               {},
+               {},
+               true);
+}
 
-    rsp = conn->execute(command);
-    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    // lets just add 100 to the xattr value to account for key; xattr path,
-    // and some "overhead".. we're going to round to the nearest 4k anyway.
-    EXPECT_EQ(sconfig.to_ru(xattr_value.size() + 100), *rsp.getReadUnits());
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(1, *rsp.getWriteUnits());
+TEST_F(MeteringTest, DeleteUserXattr) {
+    testDelete(ClientOpcode::Delete,
+               "DeleteUserXattr",
+               getStringValue(),
+               "xattr",
+               getStringValue(),
+               {},
+               {},
+               false);
+}
 
-    // If the object contains system xattrs those will be persisted and
-    // increase the WU size.
-    upsert(id, "Hello", "_xattr", xattr_value);
-    rsp = conn->execute(command);
-    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    // lets just add 100 to the xattr value to account for key; xattr path,
-    // and some "overhead".. we're going to round to the nearest 4k anyway.
-    EXPECT_EQ(sconfig.to_ru(xattr_value.size() + 100), *rsp.getReadUnits());
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(sconfig.to_wu(xattr_value.size() + 100), *rsp.getWriteUnits());
+TEST_F(MeteringTest, DeleteUserXattr_Durability) {
+    testDelete(ClientOpcode::Delete,
+               "DeleteUserXattr_Durability",
+               getStringValue(),
+               "xattr",
+               getStringValue(),
+               {},
+               {},
+               true);
+}
 
-    // @todo add Durability test once we implement metering of that on
-    //       the server
+TEST_F(MeteringTest, DeleteUserAndSystemXattr) {
+    testDelete(ClientOpcode::Delete,
+               "DeleteUserAndSystemXattr",
+               getStringValue(),
+               "xattr",
+               getStringValue(),
+               "_xattr",
+               getStringValue(),
+               false);
+}
+
+TEST_F(MeteringTest, DeleteUserAndSystemXattr_Durability) {
+    testDelete(ClientOpcode::Delete,
+               "DeleteUserAndSystemXattr_Durability",
+               getStringValue(),
+               "xattr",
+               getStringValue(),
+               "_xattr",
+               getStringValue(),
+               true);
+}
+
+TEST_F(MeteringTest, DeleteSystemXattr) {
+    testDelete(ClientOpcode::Delete,
+               "DeleteSystemXattr",
+               getStringValue(),
+               {},
+               {},
+               "_xattr",
+               getStringValue(),
+               false);
+}
+
+TEST_F(MeteringTest, DeleteSystemXattr_Durability) {
+    testDelete(ClientOpcode::Delete,
+               "DeleteSystemXattr_Durability",
+               getStringValue(),
+               {},
+               {},
+               "_xattr",
+               getStringValue(),
+               true);
 }
 
 /// The MeterDocumentGet is used to test Get and GetReplica to ensure
@@ -1255,6 +1450,25 @@ TEST_F(MeteringTest, SubdocDictAddPlainDoc) {
               *rsp.getWriteUnits());
 }
 
+/// Dict add should cost RU for the document, and 2x WUs for the new document
+TEST_F(MeteringTest, SubdocDictAddPlainDoc_Durability) {
+    const std::string id = "SubdocDictAddPlainDoc_Durability";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    auto v3 = getStringValue();
+    BinprotSubdocCommand cmd{
+            cb::mcbp::ClientOpcode::SubdocDictAdd, id, "v3", v3};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(id.size() + value.size() + v3.size()) * 2,
+              *rsp.getWriteUnits());
+}
+
 /// Dict add should cost RU for the document, and WUs for the new document
 /// (including the XAttrs copied over)
 TEST_F(MeteringTest, SubdocDictAddPlainDocWithXattr) {
@@ -1273,6 +1487,30 @@ TEST_F(MeteringTest, SubdocDictAddPlainDocWithXattr) {
     ASSERT_TRUE(rsp.getWriteUnits());
     json["v3"] = v3;
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getWriteUnits());
+}
+
+/// Dict add should cost RU for the document, and 2x WUs for the new document
+/// (including the XAttrs copied over)
+TEST_F(MeteringTest, SubdocDictAddPlainDocWithXattr_Durability) {
+    const std::string id = "SubdocDictAddPlainDocWithXattr_Durability";
+    auto json = getJsonDoc();
+    auto value = json.dump();
+    auto v3 = getStringValue();
+    const auto xattr = getStringValue();
+    upsert(id, value, "xattr", xattr);
+    BinprotSubdocCommand cmd{
+            cb::mcbp::ClientOpcode::SubdocDictAdd, id, "v3", v3};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    json["v3"] = v3;
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
               *rsp.getWriteUnits());
 }
 
@@ -1296,6 +1534,28 @@ TEST_F(MeteringTest, SubdocDictUpsertPlainDoc) {
               *rsp.getWriteUnits());
 }
 
+/// Dict Upsert should cost RU for the document, and 2x WUs for the new document
+TEST_F(MeteringTest, SubdocDictUpsertPlainDoc_Durability) {
+    const std::string id = "SubdocDictUpsertPlainDoc_Durability";
+    auto json = getJsonDoc();
+    const auto value = json.dump();
+    upsert(id, value);
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                             id,
+                             "v1",
+                             R"("this is the new value")"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    json["v1"] = "this is the new value";
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
+              *rsp.getWriteUnits());
+}
+
 /// Dict Upsert should cost RU for the document, and WUs for the new document
 /// (including the XAttrs copied over)
 TEST_F(MeteringTest, SubdocDictUpsertPlainDocWithXattr) {
@@ -1316,6 +1576,31 @@ TEST_F(MeteringTest, SubdocDictUpsertPlainDocWithXattr) {
     ASSERT_TRUE(rsp.getWriteUnits());
     json["v1"] = "this is the new value";
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getWriteUnits());
+}
+
+/// Dict Upsert should cost RU for the document, and 2x WUs for the new document
+/// (including the XAttrs copied over)
+TEST_F(MeteringTest, SubdocDictUpsertPlainDocWithXattr_Durability) {
+    const std::string id = "SubdocDictAddPlainDocWithXattr_Durability";
+    auto json = getJsonDoc();
+    auto value = json.dump();
+    const auto xattr = getStringValue();
+    upsert(id, value, "xattr", xattr);
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                             id,
+                             "v1",
+                             R"("this is the new value")"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    json["v1"] = "this is the new value";
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
               *rsp.getWriteUnits());
 }
 
@@ -1350,6 +1635,26 @@ TEST_F(MeteringTest, SubdocDeletePlainDoc) {
               *rsp.getWriteUnits());
 }
 
+/// Delete should cost the full read, and the write of the full size of the
+/// new document
+TEST_F(MeteringTest, SubdocDeletePlainDoc_Durability) {
+    const std::string id = "SubdocDeletePlainDoc_Durability";
+    auto json = getJsonDoc();
+    const auto value = json.dump();
+    upsert(id, value);
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocDelete, id, "fill"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    json.erase("fill");
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
+              *rsp.getWriteUnits());
+}
+
 /// Delete should cost the full read (including xattrs), and the write of the
 /// full size of the new document (including the xattrs copied over)
 TEST_F(MeteringTest, SubdocDeletePlainDocWithXattr) {
@@ -1367,6 +1672,28 @@ TEST_F(MeteringTest, SubdocDeletePlainDocWithXattr) {
     ASSERT_TRUE(rsp.getWriteUnits());
     json.erase("fill");
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getWriteUnits());
+}
+
+/// Delete should cost the full read (including xattrs), and the write 2x of the
+/// full size of the new document (including the xattrs copied over)
+TEST_F(MeteringTest, SubdocDeletePlainDocWithXattr_Durability) {
+    const std::string id = "SubdocDeletePlainDocWithXattr_Durability";
+    auto json = getJsonDoc();
+    const auto value = json.dump();
+    const auto xattr = getStringValue();
+    upsert(id, value, "xattr", xattr);
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocDelete, id, "fill"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    json.erase("fill");
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
               *rsp.getWriteUnits());
 }
 
@@ -1401,6 +1728,27 @@ TEST_F(MeteringTest, SubdocReplacePlainDoc) {
               *rsp.getWriteUnits());
 }
 
+/// Replace should cost the read of the document, and the write 2x of the
+/// new document
+TEST_F(MeteringTest, SubdocReplacePlainDoc_Durability) {
+    const std::string id = "SubdocReplacePlainDoc_Durability";
+    auto json = getJsonDoc();
+    const auto value = json.dump();
+    upsert(id, value);
+    BinprotSubdocCommand cmd{
+            cb::mcbp::ClientOpcode::SubdocReplace, id, "fill", "true"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    json["fill"] = true;
+    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
+              *rsp.getWriteUnits());
+}
+
 /// Replace should cost the full read (including xattrs), and the write of the
 /// full size of the new document (including the xattrs copied over)
 TEST_F(MeteringTest, SubdocReplacePlainDocWithXattr) {
@@ -1418,6 +1766,29 @@ TEST_F(MeteringTest, SubdocReplacePlainDocWithXattr) {
     ASSERT_TRUE(rsp.getWriteUnits());
     json["fill"] = true;
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getWriteUnits());
+}
+
+/// Replace should cost the full read (including xattrs), and the write 2x of
+/// the full size of the new document (including the xattrs copied over)
+TEST_F(MeteringTest, SubdocReplacePlainDocWithXattr_Durability) {
+    const std::string id = "SubdocReplacePlainDocWithXattr_Durability";
+    auto json = getJsonDoc();
+    const auto value = json.dump();
+    const auto xattr = getStringValue();
+    upsert(id, value, "xattr", xattr);
+    BinprotSubdocCommand cmd{
+            cb::mcbp::ClientOpcode::SubdocReplace, id, "fill", "true"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    json["fill"] = true;
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
               *rsp.getWriteUnits());
 }
 
@@ -1450,6 +1821,25 @@ TEST_F(MeteringTest, SubdocCounterPlainDoc) {
     EXPECT_EQ(to_wu(calculateDocumentSize(id, value)), *rsp.getWriteUnits());
 }
 
+/// Counter should cost the read of the full document and the write 2x of
+/// the new document
+TEST_F(MeteringTest, SubdocCounterPlainDoc_Durability) {
+    const std::string id = "SubdocCounterPlainDoc_Durability";
+    const auto value = getJsonDoc().dump();
+    upsert(id, value);
+    BinprotSubdocCommand cmd{
+            cb::mcbp::ClientOpcode::SubdocCounter, id, "counter", "1"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value)), *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, value)) * 2,
+              *rsp.getWriteUnits());
+}
+
 /// Counter should cost the read of the full document including xattr and
 /// write of the new document with the xattrs copied over
 TEST_F(MeteringTest, SubdocCounterPlainDocWithXattr) {
@@ -1465,6 +1855,27 @@ TEST_F(MeteringTest, SubdocCounterPlainDocWithXattr) {
               *rsp.getReadUnits());
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getWriteUnits());
+}
+
+/// Counter should cost the read of the full document including xattr and
+/// write 2x of the new document with the xattrs copied over
+TEST_F(MeteringTest, SubdocCounterPlainDocWithXattr_Durability) {
+    const std::string id = "SubdocCounterPlainDocWithXattr_Durability";
+    const auto value = getJsonDoc().dump();
+    const auto xattr = getStringValue();
+    upsert(id, value, "xattr", xattr);
+    BinprotSubdocCommand cmd{
+            cb::mcbp::ClientOpcode::SubdocCounter, id, "counter", "1"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, value, "xattr", xattr)) * 2,
               *rsp.getWriteUnits());
 }
 
@@ -1574,6 +1985,25 @@ TEST_F(MeteringTest, SubdocArrayPushLastPlainDoc) {
     EXPECT_EQ(to_wu(id.size() + json.dump().size()), *rsp.getWriteUnits());
 }
 
+/// ArrayPushLast should cost the read of the document, and then 2x the
+/// write of the new document
+TEST_F(MeteringTest, SubdocArrayPushLastPlainDoc_Durability) {
+    const std::string id = "SubdocArrayPushLastPlainDoc_Durability";
+    auto json = getJsonDoc();
+    upsert(id, json.dump());
+    BinprotSubdocCommand cmd{
+            cb::mcbp::ClientOpcode::SubdocArrayPushLast, id, "array", "true"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + json.dump().size()), *rsp.getReadUnits());
+    json["array"].push_back(true);
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(id.size() + json.dump().size()) * 2, *rsp.getWriteUnits());
+}
+
 /// ArrayPushLast should cost the read of the document, and then the
 /// write of the new document (including xattrs copied over)
 TEST_F(MeteringTest, SubdocArrayPushLastPlainDocWithXattr) {
@@ -1589,8 +2019,30 @@ TEST_F(MeteringTest, SubdocArrayPushLastPlainDocWithXattr) {
               *rsp.getReadUnits());
     json["array"].push_back(true);
     ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getWriteUnits());
+}
+
+/// ArrayPushLast should cost the read of the document, and then 2x the
+/// write of the new document (including xattrs copied over)
+TEST_F(MeteringTest, SubdocArrayPushLastPlainDocWithXattr_Durability) {
+    const std::string id = "SubdocArrayPushLastPlainDocWithXattr_Durability";
+    auto json = getJsonDoc();
+    const auto xattr = getStringValue();
+    upsert(id, json.dump(), "xattr", xattr);
+    BinprotSubdocCommand cmd{
+            cb::mcbp::ClientOpcode::SubdocArrayPushLast, id, "array", "true"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
               *rsp.getReadUnits());
+    json["array"].push_back(true);
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
+              *rsp.getWriteUnits());
 }
 
 /// ArrayPushFirst should cost the read of the document even if the path
@@ -1643,6 +2095,25 @@ TEST_F(MeteringTest, SubdocArrayPushFirstPlainDoc) {
     EXPECT_EQ(to_wu(id.size() + json.dump().size()), *rsp.getWriteUnits());
 }
 
+/// ArrayPushFirst should cost the read of the document, and then 2x the
+/// write of the new document
+TEST_F(MeteringTest, SubdocArrayPushFirstPlainDoc_Durability) {
+    const std::string id = "SubdocArrayPushFirstPlainDoc_Durability";
+    auto json = getJsonDoc();
+    upsert(id, json.dump());
+    BinprotSubdocCommand cmd{
+            cb::mcbp::ClientOpcode::SubdocArrayPushFirst, id, "array", "true"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(id.size() + json.dump().size()), *rsp.getReadUnits());
+    json["array"].insert(json["array"].begin(), true);
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(id.size() + json.dump().size()) * 2, *rsp.getWriteUnits());
+}
+
 /// ArrayPushFirst should cost the read of the document, and then the
 /// write of the new document (including xattrs copied over)
 TEST_F(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr) {
@@ -1658,8 +2129,30 @@ TEST_F(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr) {
               *rsp.getReadUnits());
     json["array"].insert(json["array"].begin(), true);
     ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getWriteUnits());
+}
+
+/// ArrayPushFirst should cost the read of the document, and then 2x the
+/// write of the new document (including xattrs copied over)
+TEST_F(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr_Durability) {
+    const std::string id = "SubdocArrayPushFirstPlainDocWithXattr_Durability";
+    auto json = getJsonDoc();
+    const auto xattr = getStringValue();
+    upsert(id, json.dump(), "xattr", xattr);
+    BinprotSubdocCommand cmd{
+            cb::mcbp::ClientOpcode::SubdocArrayPushFirst, id, "array", "true"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
               *rsp.getReadUnits());
+    json["array"].insert(json["array"].begin(), true);
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
+              *rsp.getWriteUnits());
 }
 
 /// ArrayAddUnique should cost the read of the document, even if the path
@@ -1727,8 +2220,31 @@ TEST_F(MeteringTest, SubdocArrayAddUniquePlainDoc) {
               *rsp.getReadUnits());
     json["array"].push_back("Unique value");
     ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
+              *rsp.getWriteUnits());
+}
+
+/// ArrayAddUnique should cost the read of the document, and the write
+/// of the size of the new document
+TEST_F(MeteringTest, SubdocArrayAddUniquePlainDoc_Durability) {
+    const std::string id = "SubdocArrayAddUniquePlainDocWithXattr_Durability";
+    auto json = getJsonDoc();
+    upsert(id, json.dump());
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                             id,
+                             "array",
+                             R"("Unique value")"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump())),
               *rsp.getReadUnits());
+    json["array"].push_back("Unique value");
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
+              *rsp.getWriteUnits());
 }
 
 /// ArrayAddUnique should cost the read of the document, and the write
@@ -1749,8 +2265,32 @@ TEST_F(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr) {
               *rsp.getReadUnits());
     json["array"].push_back("Unique value");
     ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getWriteUnits());
+}
+
+/// ArrayAddUnique should cost the read of the document, and the write
+/// 2x of the size of the new document including the XATTRs copied over
+TEST_F(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr_Durability) {
+    const std::string id = "SubdocArrayAddUniquePlainDocWithXattr_Durability";
+    auto json = getJsonDoc();
+    const auto xattr = getStringValue();
+    upsert(id, json.dump(), "xattr", xattr);
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                             id,
+                             "array",
+                             R"("Unique value")"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
               *rsp.getReadUnits());
+    json["array"].push_back("Unique value");
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
+              *rsp.getWriteUnits());
 }
 
 /// ArrayInsert should cost the read of the document, even if the path
@@ -1801,8 +2341,29 @@ TEST_F(MeteringTest, SubdocArrayInsertPlainDoc) {
               *rsp.getReadUnits());
     json["array"].insert(json["array"].begin(), true);
     ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
+              *rsp.getWriteUnits());
+}
+
+/// ArrayInsert should cost the read of the document, and the write 2x of
+/// the size of the new document
+TEST_F(MeteringTest, SubdocArrayInsertPlainDoc_Durability) {
+    const std::string id = "SubdocArrayInsertPlainDoc_Durability";
+    auto json = getJsonDoc();
+    upsert(id, json.dump());
+    BinprotSubdocCommand cmd{
+            cb::mcbp::ClientOpcode::SubdocArrayInsert, id, "array.[0]", "true"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump())),
               *rsp.getReadUnits());
+    json["array"].insert(json["array"].begin(), true);
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
+              *rsp.getWriteUnits());
 }
 
 /// ArrayInsert should cost the read of the document, and the write of
@@ -1823,8 +2384,30 @@ TEST_F(MeteringTest, SubdocArrayInsertPlainDocWithXattr) {
               *rsp.getReadUnits());
     json["array"].insert(json["array"].begin(), true);
     ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getWriteUnits());
+}
+
+/// ArrayInsert should cost the read of the document, and the write 2x of
+/// the size of the new document (including the xattrs copied over)
+TEST_F(MeteringTest, SubdocArrayInsertPlainDocWithXattr_Durability) {
+    const std::string id = "SubdocArrayInsertPlainDocWithXattr_Durability";
+    auto json = getJsonDoc();
+    const auto xattr = getStringValue();
+    upsert(id, json.dump(), "xattr", xattr);
+    BinprotSubdocCommand cmd{
+            cb::mcbp::ClientOpcode::SubdocArrayInsert, id, "array.[0]", "true"};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
               *rsp.getReadUnits());
+    json["array"].insert(json["array"].begin(), true);
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
+              *rsp.getWriteUnits());
 }
 
 /// MultiLookup should cost the read of the full document even if no
@@ -1926,6 +2509,41 @@ TEST_F(MeteringTest, SubdocMultiMutation) {
               *rsp.getWriteUnits());
 }
 
+/// MultiMutation should cost the read of the full document, and write 2x
+/// of the full size (including xattrs copied over)
+TEST_F(MeteringTest, SubdocMultiMutation_Durability) {
+    const std::string id = "SubdocMultiMutation_Durability";
+    auto json = getJsonDoc();
+    const auto xattr = getStringValue();
+    upsert(id, json.dump(), "xattr", xattr);
+
+    BinprotSubdocMultiMutationCommand cmd{
+            id,
+            {{cb::mcbp::ClientOpcode::SubdocDictUpsert,
+              SUBDOC_FLAG_NONE,
+              "foo",
+              "true"},
+             {cb::mcbp::ClientOpcode::SubdocDictUpsert,
+              SUBDOC_FLAG_NONE,
+              "bar",
+              "true"}},
+            ::mcbp::subdoc::doc_flag::None};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+
+    auto rsp = conn->execute(cmd);
+
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+              *rsp.getReadUnits());
+    json["foo"] = true;
+    json["bar"] = true;
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
+              *rsp.getWriteUnits());
+}
+
 /// SubdocReplaceBodyWithXattr should cost the read of the full document,
 /// and write of the full size
 TEST_F(MeteringTest, SubdocReplaceBodyWithXattr) {
@@ -1953,6 +2571,40 @@ TEST_F(MeteringTest, SubdocReplaceBodyWithXattr) {
               *rsp.getReadUnits());
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, new_value)),
+              *rsp.getWriteUnits());
+}
+
+/// SubdocReplaceBodyWithXattr should cost the read of the full document,
+/// and write 2x of the full size when durability is enabled
+TEST_F(MeteringTest, SubdocReplaceBodyWithXattr_Durability) {
+    const std::string id = "SubdocReplaceBodyWithXattr_Durability";
+    const auto new_value = getJsonDoc().dump();
+    const auto old_value = getStringValue(false);
+    upsert(id, old_value, "tnx.op.staged", new_value);
+
+    BinprotSubdocMultiMutationCommand cmd{
+            id,
+            {{cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
+              SUBDOC_FLAG_XATTR_PATH,
+              "tnx.op.staged",
+              {}},
+             {cb::mcbp::ClientOpcode::SubdocDelete,
+              SUBDOC_FLAG_XATTR_PATH,
+              "tnx.op.staged",
+              {}}},
+            ::mcbp::subdoc::doc_flag::None};
+    DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
+    cmd.addFrameInfo(fi);
+
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+
+    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(
+                      id, old_value, "tnx.op.staged", new_value)),
+              *rsp.getReadUnits());
+    ASSERT_TRUE(rsp.getWriteUnits());
+    EXPECT_EQ(to_wu(calculateDocumentSize(id, new_value)) * 2,
               *rsp.getWriteUnits());
 }
 

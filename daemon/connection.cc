@@ -1810,6 +1810,9 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
             auto& inst = cb::serverless::Config::instance();
             ru = inst.to_ru(read);
             wu = inst.to_wu(write);
+            if (cookie.isDurable()) {
+                wu *= 2;
+            }
             if (!ru && !wu) {
                 cutracing = false;
             }

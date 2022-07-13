@@ -764,6 +764,7 @@ void Cookie::reset() {
     cas = 0;
     commandContext.reset();
     tracer.clear();
+    durable = false;
     Expects(!ewouldblock &&
             "Cookie::reset() when ewouldblock is true could result in an "
             "outstanding notifyIoComplete occuring on wrong cookie");

@@ -616,6 +616,16 @@ public:
     bool isDatatypeSupported(
             protocol_binary_datatype_t datatype) const override;
 
+    /// Mark this cookie as a durable request
+    void setDurable() {
+        durable = true;
+    }
+
+    /// Does this cookie represent a durable request
+    bool isDurable() const {
+        return durable;
+    }
+
 protected:
     /**
      * Log the current connection if its execution time exceeds the
@@ -788,6 +798,9 @@ protected:
 
     /// Is the cookie currently throttled
     std::atomic_bool throttled{false};
+
+    /// Is this a durable operation or not
+    std::atomic_bool durable{false};
 
     bool ewouldblock = false;
 
