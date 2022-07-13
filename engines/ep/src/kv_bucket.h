@@ -967,6 +967,17 @@ public:
      */
     void processBucketQuotaChange(size_t desiredQuota);
 
+    /**
+     * @return The mutation memory threshold. See member variable for details.
+     */
+    double getMutationMemThreshold() const;
+
+    /**
+     * Set the new mutation memory threshold. See member variable for details.
+     * @param threshold
+     */
+    void setMutationMemThreshold(size_t threshold);
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the
@@ -1214,6 +1225,10 @@ protected:
     /// Timeout in seconds after which a pending SeqnoPersistence operation is
     /// temp-failed
     std::atomic<std::chrono::seconds> seqnoPersistenceTimeout;
+
+    /// Memory usage level (percentage of Bucket Quota) where we start rejecting
+    /// (TEMP_OOM) frontend mutations
+    std::atomic<double> mutationMemThreshold;
 
     /**
      * A task that will notify (success or timeout) of SeqnoPersistenceRequests.

@@ -2025,10 +2025,6 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
 
     maxFailoverEntries = configuration.getMaxFailoverEntries();
 
-    // Start updating the variables from the config!
-    VBucket::setMutationMemoryThreshold(
-            configuration.getMutationMemThreshold());
-
     if (configuration.getMaxSize() == 0) {
         EP_LOG_WARN_RAW(
                 "Invalid configuration: max_size must be a non-zero value");

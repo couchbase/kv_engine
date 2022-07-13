@@ -53,9 +53,6 @@
 
 using namespace std::string_literals;
 
-/* Statics definitions */
-std::atomic<double> VBucket::mutationMemThreshold = 0.9;
-
 const SyncWriteTimeoutHandlerFactory NoopSyncWriteTimeoutFactory =
         [](VBucket&) {
             return std::make_unique<NoopEventDrivenDurabilityTimeout>();
@@ -3161,16 +3158,6 @@ void VBucket::dump(std::ostream& ostream) const {
             << "]" << std::endl;
 }
 
-void VBucket::setMutationMemoryThreshold(size_t memThreshold) {
-    if (memThreshold > 0 && memThreshold <= 100) {
-        mutationMemThreshold = static_cast<double>(memThreshold) / 100.0;
-    } else {
-        throw std::invalid_argument(
-                "VBucket::setMutationMemoryThreshold invalid memThreshold:" +
-                std::to_string(memThreshold));
-    }
-}
-
 bool VBucket::hasMemoryForStoredValue(
         EPStats& st,
         const Item& item,
@@ -3179,7 +3166,8 @@ bool VBucket::hasMemoryForStoredValue(
     auto maxSize = static_cast<double>(st.getMaxDataSize());
     if (useActiveVBMemThreshold == UseActiveVBMemThreshold::Yes ||
         getState() == vbucket_state_active) {
-        return newSize <= (maxSize * mutationMemThreshold);
+        return newSize <=
+               (maxSize * (bucket ? bucket->getMutationMemThreshold() : 1.0));
     } else {
         return newSize <= (maxSize * st.replicationThrottleThreshold);
     }

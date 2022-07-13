@@ -130,7 +130,7 @@ public:
         } else if (key == "exp_pager_stime") {
             store.setExpiryPagerSleeptime(value);
         } else if (key == "mutation_mem_threshold") {
-            VBucket::setMutationMemoryThreshold(value);
+            store.setMutationMemThreshold(value);
         } else if (key == "backfill_mem_threshold") {
             double backfill_threshold = static_cast<double>(value) / 100;
             store.setBackfillMemoryThreshold(backfill_threshold);
@@ -360,7 +360,7 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             "warmup_min_items_threshold",
             std::make_unique<StatsValueChangeListener>(stats, *this));
 
-    VBucket::setMutationMemoryThreshold(config.getMutationMemThreshold());
+    setMutationMemThreshold(config.getMutationMemThreshold());
     config.addValueChangedListener(
             "mutation_mem_threshold",
             std::make_unique<EPStoreValueChangeListener>(*this));
@@ -3127,4 +3127,18 @@ cb::engine_errc KVBucket::cancelRangeScan(Vbid,
 void KVBucket::processBucketQuotaChange(size_t desiredQuota) {
     Expects(bucketQuotaChangeTask);
     bucketQuotaChangeTask->notifyNewQuotaChange(desiredQuota);
+}
+
+double KVBucket::getMutationMemThreshold() const {
+    return mutationMemThreshold;
+}
+
+void KVBucket::setMutationMemThreshold(size_t threshold) {
+    if (threshold > 0 && threshold <= 100) {
+        mutationMemThreshold = static_cast<double>(threshold) / 100.0;
+    } else {
+        throw std::invalid_argument(
+                "KVBucket::setMutationMemoryThreshold invalid threshold:" +
+                std::to_string(threshold));
+    }
 }

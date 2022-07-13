@@ -1567,15 +1567,6 @@ public:
     virtual size_t getNumPersistedDeletes() const = 0;
 
     /**
-     * Set the memory threshold on the current bucket quota for accepting a
-     * new mutation. This is same across all the vbuckets
-     *
-     * @param memThreshold Threshold between 0 and 100, value is converted to
-     *        double and divided by 100, e.g. 90 sets a value of 0.9
-     */
-    static void setMutationMemoryThreshold(size_t memThreshold);
-
-    /**
      * Check if this StoredValue has become logically non-existent.
      * By logically non-existent, the item has been deleted
      * or doesn't exist
@@ -2641,12 +2632,6 @@ private:
     // I.e., adding to Queue and adding into the DM must be an atomic operation,
     // which is what this mutex is used for.
     std::mutex dmQueueMutex;
-
-    // mutationMemThreshold is atomic to prevent a data race between
-    // VBucket::hasMemoryForStoredValue() being called during
-    // WarmupVbucketVisitor::visit() and
-    // EventuallyPersistentEngine::makeBucket() which was noticed by TSAN
-    static std::atomic<double> mutationMemThreshold;
 
     // The seqno threshold below which we may replace a prepare with another
     // prepare (if the associated Commit/Abort may have been deduped)
