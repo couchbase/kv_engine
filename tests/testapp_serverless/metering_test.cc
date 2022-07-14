@@ -142,6 +142,16 @@ protected:
         return ret;
     }
 
+    std::unique_ptr<MemcachedConnection> getReplicaConn() {
+        auto bucket = cluster->getBucket("metering");
+        auto rconn = bucket->getConnection(Vbid(0), vbucket_state_replica, 1);
+        rconn->authenticate("@admin", "password");
+        rconn->selectBucket("metering");
+        rconn->dropPrivilege(cb::rbac::Privilege::Unmetered);
+        rconn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
+        return rconn;
+    }
+
     /// Operating on a document which isn't a numeric value should
     /// account for X ru's and fail
     void testArithmeticBadValue(ClientOpcode opcode,
@@ -954,91 +964,87 @@ TEST_F(MeteringTest, DeleteSystemXattr_Durability) {
                true);
 }
 
-/// The MeterDocumentGet is used to test Get and GetReplica to ensure
-/// that we meter correctly on them.
-TEST_F(MeteringTest, MeterDocumentGet) {
-    auto& sconfig = cb::serverless::Config::instance();
-
-    auto bucket = cluster->getBucket("metering");
-    auto rconn = bucket->getConnection(Vbid(0), vbucket_state_replica, 1);
-    rconn->authenticate("@admin", "password");
-    rconn->selectBucket("metering");
-    rconn->dropPrivilege(cb::rbac::Privilege::Unmetered);
-    rconn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
-
-    // Start off by creating the documents we want to test on. We'll be
-    // using different document names as I want to run the same test
-    // on the replica (with GetReplica) and by creating them all up front
-    // they can replicate in the background while we're testing the other
-
-    const std::string id = "MeterDocumentGet";
-    std::string document_value;
-    document_value.resize(6144);
-    std::fill(document_value.begin(), document_value.end(), 'a');
-    std::string xattr_value;
-    xattr_value.resize(8192);
-    std::fill(xattr_value.begin(), xattr_value.end(), 'a');
-    xattr_value.front() = '"';
-    xattr_value.back() = '"';
-
-    upsert(id, document_value);
-    upsert(id + "-xattr", document_value, "xattr", xattr_value);
-
-    // Get of a non-existing document should not cost anything
-    auto rsp = conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Get,
-                                                   id + "-missing"});
+/// Get of a non-existing document should not cost anything
+TEST_F(MeteringTest, GetNonExistingDocument) {
+    auto rsp = conn->execute(
+            BinprotGenericCommand{ClientOpcode::Get, "GetNonExistingDocument"});
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+}
 
-    // Get of a single document without xattrs costs the size of the document
-    rsp = conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, id});
+/// Get of a single document without xattrs costs the size of the document
+TEST_F(MeteringTest, GetDocumentPlain) {
+    const std::string id = "GetDocumentPlain";
+    const auto value = getStringValue();
+    upsert(id, value);
+    auto rsp = conn->execute(BinprotGenericCommand{ClientOpcode::Get, id});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(sconfig.to_ru(document_value.size() + id.size()),
-              *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value)), *rsp.getReadUnits());
+}
 
-    // If the document contains XAttrs (system or user) those are accounted
-    // for as well.
-    rsp = conn->execute(
-            BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, id + "-xattr"});
+/// Get of a single document with xattrs costs the size of the document plus
+/// the size of the xattrs
+TEST_F(MeteringTest, GetDocumentWithXAttr) {
+    const std::string id = "GetDocumentWithXAttr";
+    const auto value = getStringValue();
+    upsert(id, value, "xattr", value);
+    auto rsp = conn->execute(BinprotGenericCommand{ClientOpcode::Get, id});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(sconfig.to_ru(xattr_value.size() + document_value.size() +
-                            id.size()),
-              *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", value)),
+              *rsp.getReadUnits());
+}
 
-    // Lets verify on the replicas...
-    rsp = rconn->execute(BinprotGenericCommand{
-            cb::mcbp::ClientOpcode::GetReplica, id + "-missing"});
+/// Get of a non-existing document should not cost anything
+TEST_F(MeteringTest, GetReplicaNonExistingDocument) {
+    auto rsp = getReplicaConn()->execute(BinprotGenericCommand{
+            ClientOpcode::GetReplica, "GetNonExistingDocument"});
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+}
 
+/// Get of a single document without xattrs costs the size of the document
+TEST_F(MeteringTest, GetReplicaDocumentPlain) {
+    const std::string id = "GetDocumentPlain";
+    const auto value = getStringValue();
+    upsert(id, value);
+
+    auto rconn = getReplicaConn();
+    BinprotResponse rsp;
     do {
         rsp = rconn->execute(
                 BinprotGenericCommand{cb::mcbp::ClientOpcode::GetReplica, id});
     } while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(sconfig.to_ru(document_value.size() + id.size()),
-              *rsp.getReadUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value)), *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+}
 
+/// Get of a single document with xattrs costs the size of the document plus
+/// the size of the xattrs
+TEST_F(MeteringTest, GetReplicaDocumentWithXAttr) {
+    const std::string id = "GetDocumentWithXAttr";
+    const auto value = getStringValue();
+    upsert(id, value, "xattr", value);
+
+    auto rconn = getReplicaConn();
+    BinprotResponse rsp;
     do {
-        rsp = rconn->execute(BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::GetReplica, id + "-xattr"});
+        rsp = rconn->execute(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::GetReplica, id});
     } while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent);
+
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(cb::mcbp::Datatype::Raw, cb::mcbp::Datatype(rsp.getDatatype()));
-    EXPECT_EQ(document_value, rsp.getDataString());
-    EXPECT_EQ(sconfig.to_ru(xattr_value.size() + document_value.size() +
-                            id.size()),
-              *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", value)),
+              *rsp.getReadUnits());
 }
 
 TEST_F(MeteringTest, MeterDocumentLocking) {
