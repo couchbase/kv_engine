@@ -12,6 +12,7 @@
 #pragma once
 
 #include "dcp/active_stream.h"
+#include "dcp/backfill.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
 
@@ -128,6 +129,8 @@ public:
      * @return A reference to BackfillManager::scanBuffer
      */
     BackfillScanBuffer& public_getBackfillScanBuffer();
+
+    UniqueDCPBackfillPtr public_dequeueNextBackfill();
 
     BackfillManager& getBFM() {
         return *backfillMgr;

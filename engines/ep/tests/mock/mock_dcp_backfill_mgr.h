@@ -44,5 +44,11 @@ public:
         return scanBuffer;
     }
 
+    UniqueDCPBackfillPtr public_dequeueNextBackfill() {
+        std::unique_lock<std::mutex> lh(lock);
+
+        return dequeueNextBackfill(lh).first;
+    }
+
     using BackfillManager::getNumBackfills;
 };

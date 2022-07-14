@@ -157,6 +157,11 @@ BackfillScanBuffer& MockDcpProducer::public_getBackfillScanBuffer() {
             ->public_getBackfillScanBuffer();
 }
 
+UniqueDCPBackfillPtr MockDcpProducer::public_dequeueNextBackfill() {
+    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr)
+            ->public_dequeueNextBackfill();
+}
+
 void MockDcpProducer::setupMockLogger() {
     logger = std::make_shared<::testing::NiceMock<MockBucketLogger>>("prod");
 }

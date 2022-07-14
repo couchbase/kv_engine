@@ -536,6 +536,7 @@ void ActiveStream::completeOSOBackfill(
         size_t diskBytesRead) {
     completeBackfillInner(
             BackfillType::OutOfSequenceOrder, maxSeqno, runtime, diskBytesRead);
+    firstMarkerSent = true;
 }
 
 void ActiveStream::snapshotMarkerAckReceived() {
@@ -1921,6 +1922,15 @@ void ActiveStream::completeBackfillInner(
                 pushToReadyQ(std::make_unique<SeqnoAdvanced>(
                         opaque_, vb_, sid, maxSeqno));
                 lastSentSeqnoAdvance.store(maxSeqno);
+            }
+
+            // Now that the OSO backfill has ended, we can tweak
+            // lastReadSeqno so that it reflects the end of the snapshot
+            // we've just processed. This ensures any pending backfill which
+            // follows continues from maxSeqno and not the max seqno of the
+            // collection(s) in the OSO scan, which could be way less.
+            if (maxSeqno > lastReadSeqno) {
+                lastReadSeqno = maxSeqno;
             }
 
             pushToReadyQ(std::make_unique<OSOSnapshot>(

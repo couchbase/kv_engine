@@ -253,7 +253,6 @@ protected:
      */
     BackfillScanBuffer scanBuffer;
 
-private:
     /**
      * Move Backfills which are pending to the New backfill queue while there
      * is available capacity.

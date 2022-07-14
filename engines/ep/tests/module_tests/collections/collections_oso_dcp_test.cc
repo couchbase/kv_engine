@@ -10,6 +10,7 @@
  */
 
 #include "checkpoint_manager.h"
+#include "dcp/backfill_by_seqno_disk.h"
 #include "item.h"
 #include "kv_bucket.h"
 #include "tests/mock/mock_dcp_consumer.h"
@@ -678,6 +679,99 @@ TEST_P(CollectionsOSODcpTest, MB_43700) {
         setCollections(cookie, cm);
         flush_vbucket_to_disk(vbid, 1);
         MB_43700(cid);
+    }
+}
+
+TEST_P(CollectionsOSODcpTest, cursor_dropped) {
+    CollectionsManifest cm(CollectionEntry::fruit);
+    VBucketPtr vb = store->getVBucket(vbid);
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::vegetable)));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    // Put data into 2 collections, we will stream the first data which has the
+    // lower high-seqno
+    ASSERT_TRUE(store_items(
+            4, vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "nice"));
+    flushVBucketToDiskIfPersistent(vbid, 4);
+    ASSERT_TRUE(store_items(4,
+                            vbid,
+                            StoredDocKey{"turnip", CollectionEntry::vegetable},
+                            "nice"));
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    ensureDcpWillBackfill();
+
+    createDcpObjects({{R"({"collections":["9"]})"}}, OutOfOrderSnapshots::Yes);
+
+    // Backfill scheduled, we will manually run and cursor drop in between
+    // create/scan
+
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    // backfill:create()
+    runNextTask(lpAuxioQ);
+
+    auto firstBackfillEnd = vb->getHighSeqno();
+
+    // More keys, flushed to the snapshot we don't have open
+    ASSERT_TRUE(store_items(
+            4, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice"));
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    // and kick all of those out of memory
+    ensureDcpWillBackfill();
+
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    auto* as = static_cast<ActiveStream*>(stream.get());
+    as->handleSlowStream();
+
+    // backfill:scan() -> complete
+    runNextTask(lpAuxioQ);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpOsoSnapshot);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+
+    std::array<std::pair<std::string, uint64_t>, 4> keys = {
+            {{"apple0", 3}, {"apple1", 4}, {"apple2", 5}, {"apple3", 6}}};
+    for (const auto& [k, s] : keys) {
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
+        EXPECT_EQ(CollectionEntry::fruit.getId(),
+                  producers->last_collection_id);
+        EXPECT_EQ(k, producers->last_key);
+        EXPECT_EQ(s, producers->last_byseqno);
+    }
+
+    // end OSO
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpOsoSnapshot);
+    EXPECT_EQ(firstBackfillEnd, as->getLastReadSeqno());
+
+    // MB-52956 noted that the backfill would start too early, meaning we may
+    // scan a range that is larger than required. Here we skip driving things
+    // via auxio and instead now grab the backfill manager so we can inspect
+    // the backfill in detail
+    auto uniquePtr = producer->public_dequeueNextBackfill();
+    ASSERT_TRUE(uniquePtr);
+    auto* backfill = dynamic_cast<DCPBackfillBySeqnoDisk*>(uniquePtr.get());
+    ASSERT_TRUE(backfill);
+    EXPECT_EQ(backfill->getStartSeqno(), firstBackfillEnd + 1);
+    EXPECT_EQ(backfill_success, backfill->run()); // create
+    EXPECT_EQ(backfill_finished, backfill->run()); // scan
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(firstBackfillEnd + 1, producers->last_snap_start_seqno);
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_snap_end_seqno);
+
+    keys = {{{"orange0", 11},
+             {"orange1", 12},
+             {"orange2", 13},
+             {"orange3", 14}}};
+    for (const auto& [k, s] : keys) {
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
+        EXPECT_EQ(CollectionEntry::fruit.getId(),
+                  producers->last_collection_id);
+        EXPECT_EQ(k, producers->last_key);
+        EXPECT_EQ(s, producers->last_byseqno);
     }
 }
 
