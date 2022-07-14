@@ -154,6 +154,10 @@ nlohmann::json Connection::toJSON() const {
         features.push_back("CCN");
     }
 
+    if (isNonBlockingThrottlingMode()) {
+        features.push_back("NonBlockingThrottlingMode");
+    }
+
     ret["features"] = features;
 
     ret["thread"] = getThread().index;
@@ -632,15 +636,20 @@ void Connection::executeCommandPipeline() {
                 //  * We have an ongoing command and this command allows
                 //    for reorder
                 if (getBucket().shouldThrottle(cookie, true)) {
-                    cookie.setThrottled(true);
-                    // Set the cookie to true to block the destruction
-                    // of the command (and the connection)
-                    cookie.setEwouldblock(true);
-                    cookie.preserveRequest();
-                    if (!cookie.mayReorder()) {
-                        // Don't add commands as we need the last one to
-                        // complete
-                        stop = true;
+                    if (isNonBlockingThrottlingMode()) {
+                        cookie.sendResponse(cb::mcbp::Status::EWouldThrottle);
+                        cookie.reset();
+                    } else {
+                        cookie.setThrottled(true);
+                        // Set the cookie to true to block the destruction
+                        // of the command (and the connection)
+                        cookie.setEwouldblock(true);
+                        cookie.preserveRequest();
+                        if (!cookie.mayReorder()) {
+                            // Don't add commands as we need the last one to
+                            // complete
+                            stop = true;
+                        }
                     }
                 } else if ((!active || cookie.mayReorder()) &&
                            cookie.execute(true)) {

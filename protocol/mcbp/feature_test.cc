@@ -41,7 +41,9 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
           "SubdocDocumentMacroSupport"},
          {cb::mcbp::Feature::SubdocReplaceBodyWithXattr,
           "SubdocReplaceBodyWithXattr"},
-         {cb::mcbp::Feature::ReportUnitUsage, "ReportUnitUsage"}}};
+         {cb::mcbp::Feature::ReportUnitUsage, "ReportUnitUsage"},
+         {cb::mcbp::Feature::NonBlockingThrottlingMode,
+          "NonBlockingThrottlingMode"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : featureBlueprint) {

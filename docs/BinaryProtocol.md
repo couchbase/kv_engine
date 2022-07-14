@@ -1815,6 +1815,7 @@ The following features is defined:
 | 0x0018 | SubdocDocumentMacroSupport |
 | 0x0019 | SubdocReplaceBodyWithXattr |
 | 0x001a | ReportUnitUsage |
+| 0x001b | NonBlockingThrottlingMode |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1904,6 +1905,8 @@ The following features is defined:
 * `ReportUnitUsage` When enabled the server will insert frame info field(s)
   in the response containing the amount of read and write units the
   command used on the server.
+* `NonBlockingThrottlingMode` cause the server to return ewouldthrottle on a request
+  instead of throttle the command.
 
 Response:
 

@@ -93,6 +93,15 @@
                 "conn-state-invalidated"
             ]
         },
+        "c": {
+            "name": "EWOULD_THROTTLE",
+            "desc": "Command would have been throttled",
+            "attrs": [
+                "temp",
+                "retry-later",
+                "rate-limit"
+            ]
+        },
         "1f": {
             "name": "AUTH_STALE",
             "desc": "Reauthentication required",

@@ -89,6 +89,9 @@ enum class Feature : uint16_t {
 
     /// Include [RW]U units as part of the response (if non-zero)
     ReportUnitUsage = 0x1a,
+
+    /// Return ewouldthrottle instead of block on throttling
+    NonBlockingThrottlingMode = 0x1b,
 };
 
 } // namespace cb::mcbp

@@ -844,6 +844,16 @@ public:
     /// Clear the DCP throttle for this connection to allow it to progress
     void resumeThrottledDcpStream();
 
+    bool isNonBlockingThrottlingMode() const {
+        return non_blocking_throttling_mode.load(
+                std::memory_order::memory_order_acquire);
+    }
+
+    void setNonBlockingThrottlingMode(bool enable) {
+        non_blocking_throttling_mode.store(enable,
+                std::memory_order::memory_order_release);
+    }
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses
@@ -1071,6 +1081,7 @@ protected:
 
     std::atomic_bool subject_to_throttling{true};
     std::atomic_bool subject_to_metering{true};
+    std::atomic_bool non_blocking_throttling_mode{false};
 
     /// The name of the client provided to us by hello
     std::array<char, MaxSavedAgentName> agentName{};

@@ -14,6 +14,7 @@
 #include <cluster_framework/cluster.h>
 #include <folly/portability/GTest.h>
 #include <protocol/connection/client_connection.h>
+#include <protocol/connection/client_mcbp_commands.h>
 #include <thread>
 #include <vector>
 
@@ -67,6 +68,29 @@ TEST(ThrottleTest, OpsAreThrottled) {
     for (auto& t : threads) {
         t.join();
     }
+}
+
+TEST(ThrottleTest, NonBlockingThrottlingMode) {
+    auto conn = cluster->getConnection(0);
+    conn->authenticate("bucket-0", "bucket-0");
+    conn->selectBucket("bucket-0");
+    conn->setFeature(cb::mcbp::Feature::NonBlockingThrottlingMode, true);
+    conn->setReadTimeout(std::chrono::seconds{30});
+
+    Document document;
+    document.info.id = "NonBlockingThrottlingMode";
+    document.value = "This is the awesome document";
+
+    // store a document (this command may be throttled for a while,
+    // depending on the previous tests...
+    conn->mutate(document, Vbid{0}, MutationType::Set);
+
+    BinprotResponse rsp;
+    do {
+        rsp = conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Get,
+                                                  "NonBlockingThrottlingMode"});
+    } while (rsp.isSuccess());
+    EXPECT_EQ(cb::mcbp::Status::EWouldThrottle, rsp.getStatus());
 }
 
 } // namespace cb::test

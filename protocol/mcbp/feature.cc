@@ -67,6 +67,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "SubdocReplaceBodyWithXattr";
     case cb::mcbp::Feature::ReportUnitUsage:
         return "ReportUnitUsage";
+    case cb::mcbp::Feature::NonBlockingThrottlingMode:
+        return "NonBlockingThrottlingMode";
     }
 
     throw std::invalid_argument(

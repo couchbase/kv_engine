@@ -246,10 +246,14 @@ bool Bucket::shouldThrottle(const Cookie& cookie,
 
     if (is_subject_for_throttling(header.getRequest().getClientOpcode()) &&
         !throttle_gauge.isBelow(throttle_limit)) {
-        num_throttled++;
-        if (addConnectionToThrottleList) {
-            auto* c = &cookie.getConnection();
-            throttledConnections[c->getThread().index].push_back(c);
+        if (cookie.getConnection().isNonBlockingThrottlingMode()) {
+            num_rejected++;
+        } else {
+            num_throttled++;
+            if (addConnectionToThrottleList) {
+                auto* c = &cookie.getConnection();
+                throttledConnections[c->getThread().index].push_back(c);
+            }
         }
         return true;
     }
