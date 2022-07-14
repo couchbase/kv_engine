@@ -865,6 +865,16 @@ protected:
      */
     void testCancelCompaction(std::function<void()> event);
 
+    /**
+     * Test for MB-51373 - if we end up with a deleted document on-disk with
+     * an empty value but datatype=XATTR (when it should be RAW_BYTES - bug
+     * MB-52793), then we should sanitize that value when it is loaded from
+     * disk.
+     * @param fetchMetaOnly If true then when fetching corrupted doc from disk,
+     *        only fetch metadata, else fetch entire document.
+     */
+    void testSanitizeOnDiskDeletedDocWithIncorrectXATTR(bool fetchMetaOnly);
+
 protected:
     EPBucket& getEPBucket();
 };
