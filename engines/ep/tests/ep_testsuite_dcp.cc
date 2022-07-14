@@ -7986,7 +7986,7 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
                  "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark="
                  "0;chk_expel_enabled=false",
-                 prepare,
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase(
                 "test dcp replica stream all with collections enabled stream",
@@ -7995,7 +7995,7 @@ BaseTestCase testsuite_testcases[] = {
                 teardown,
                 "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
                 "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
-                prepare,
+                prepare_skip_broken_under_rocks,
                 cleanup),
         TestCase(
                 "test dcp replica stream one collection with mutations just "
@@ -8005,7 +8005,7 @@ BaseTestCase testsuite_testcases[] = {
                 teardown,
                 "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
                 "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
-                prepare,
+                prepare_skip_broken_under_rocks,
                 cleanup),
         TestCase(
                 "test dcp replica stream one collection",
@@ -8014,7 +8014,7 @@ BaseTestCase testsuite_testcases[] = {
                 teardown,
                 "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
                 "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
-                prepare,
+                prepare_skip_broken_under_rocks,
                 cleanup),
         TestCase("test dcp replica stream expiries - ExpiryOutput Enabled",
                  test_dcp_replica_stream_expiry_enabled,
@@ -8095,7 +8095,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "chk_remover_stime=1;checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
-                 prepare,
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test producer disk backfill buffer limits",
                  test_dcp_producer_disk_backfill_buffer_limits,
@@ -8108,7 +8108,7 @@ BaseTestCase testsuite_testcases[] = {
                  "checkpoint_max_size=1;"
                  "checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
-                 prepare,
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test producer stream request (memory only)",
                  test_dcp_producer_stream_req_mem,
@@ -8138,7 +8138,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;checkpoint_max_size=1",
-                 prepare_skip_broken_under_ephemeral,
+                 prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
         TestCase("test dcp consumer hotness data",
                  test_dcp_consumer_hotness_data,
@@ -8177,7 +8177,7 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_remover_stime=1;checkpoint_max_size=1;checkpoint_memory_"
                  "recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
-                 prepare,
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test producer stream request nmvb",
                  test_dcp_producer_stream_req_nmvb,
@@ -8589,21 +8589,21 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare_ep_bucket,
+                 prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
         TestCase("test MB-26907 backfill expired value - ExpiryOutput Disabled",
                  test_dcp_producer_expired_item_backfill_delete,
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare,
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test MB-26907 backfill expired value - ExpiryOutput Enabled",
                  test_dcp_producer_expired_item_backfill_expire,
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare,
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test MB-32443 delete with meta with expiration stream "
                  "- ExpiryOutput Disabled",

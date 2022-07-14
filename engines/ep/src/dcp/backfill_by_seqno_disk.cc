@@ -103,6 +103,18 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
 
     bool allowNonRollBackCollectionStream = false;
     if (collHigh.has_value()) {
+        // For a filtered stream we can avoid scanning if the stats show us that
+        // the collection(s) on disk have no data above the startSeqno
+        if (collHigh.value() < startSeqno) {
+            stream->log(spdlog::level::level_enum::info,
+                        "DCPBackfillBySeqnoDisk: {} skipping as "
+                        "collection_high:{} < start:{}",
+                        getVBucketId(),
+                        collHigh.value(),
+                        startSeqno);
+            complete(*stream);
+            return backfill_finished;
+        }
         allowNonRollBackCollectionStream =
                 stream->getStartSeqno() < scanCtx->purgeSeqno &&
                 stream->getStartSeqno() >= collHigh.value() &&

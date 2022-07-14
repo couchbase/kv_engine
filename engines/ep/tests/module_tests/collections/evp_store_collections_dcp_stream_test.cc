@@ -134,12 +134,8 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
                                       {{R"({"collections":["9"]})"}}));
     EXPECT_EQ(0, rollbackSeqno);
 
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
-
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
-                  cb::engine_errc::success);
-    EXPECT_EQ(vb->getHighSeqno(), producers->last_byseqno);
-    // should be no more ops
+    // The DCP client started the stream at the collection high-seqno, they have
+    // all the data, there's nothing to send, not even a seqno advance.
     EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
               producer->step(false, *producers));
 }
@@ -246,6 +242,7 @@ TEST_F(CollectionsDcpStreamsTest,
     ensureDcpWillBackfill();
 
     uint64_t rollbackSeqno{0};
+    // stream fruit (collection 9)
     EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(0,
                                       1, // opaque
@@ -264,15 +261,8 @@ TEST_F(CollectionsDcpStreamsTest,
 
     EXPECT_EQ(13, vb->getHighSeqno());
 
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
-    EXPECT_EQ(streamSeqno, producers->last_snap_start_seqno);
-    EXPECT_EQ(vb->getHighSeqno(), producers->last_snap_end_seqno);
-
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
-                  cb::engine_errc::success);
-    EXPECT_EQ(vb->getHighSeqno(), producers->last_byseqno);
-
-    // should be no more ops
+    // Client has all data for the collection, so nothing is produced yet and
+    // is not instructed to rollback
     EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
               producer->step(false, *producers));
 }
@@ -327,17 +317,19 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
                                       {{R"({"collections":["8","9"]})"}}));
     EXPECT_EQ(0, rollbackSeqno);
 
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
-    EXPECT_EQ(streamSeqno, producers->last_snap_start_seqno);
-    EXPECT_EQ(vb->getHighSeqno(), producers->last_snap_end_seqno);
+    // A backfill is scheduled, but as the startSeqno of the backfill (7) is
+    // higher than all collection data on disk, there's no need to scan. DCP
+    // produces nothing yet, the client is up-to-date. Must run the backfill
+    // to completion
+    runBackfill();
+    // nothing from step
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->stepWithBorderGuard(*producers));
 
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
-                  cb::engine_errc::success);
-    EXPECT_EQ(vb->getHighSeqno(), producers->last_byseqno);
-
+    // Store data and the stream wakes up
     store_item(vbid, StoredDocKey{"Apple", CollectionEntry::fruit}, "value");
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, true);
-    EXPECT_EQ(vb->getHighSeqno(), producers->last_snap_start_seqno);
+    EXPECT_EQ(streamSeqno, producers->last_snap_start_seqno);
     EXPECT_EQ(vb->getHighSeqno(), producers->last_snap_end_seqno);
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
