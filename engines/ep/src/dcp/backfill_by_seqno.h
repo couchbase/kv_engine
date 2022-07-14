@@ -24,6 +24,14 @@ public:
         : startSeqno(start), endSeqno(end) {
     }
 
+    uint64_t getStartSeqno() const {
+        return startSeqno;
+    }
+
+    uint64_t getEndSeqno() const {
+        return endSeqno;
+    }
+
 protected:
     /**
      * Start seqno of the backfill
