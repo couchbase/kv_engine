@@ -1562,7 +1562,7 @@ void VBucket::incExpirationStat(const ExpireBy source) {
 }
 
 MutationStatus VBucket::setFromInternal(const Item& itm) {
-    if (!hasMemoryForStoredValue(stats, itm, UseActiveVBMemThreshold::Yes)) {
+    if (!hasMemoryForStoredValue(stats, itm)) {
         return MutationStatus::NoMem;
     }
     ht.rollbackItem(itm);
@@ -3158,10 +3158,7 @@ void VBucket::dump(std::ostream& ostream) const {
             << "]" << std::endl;
 }
 
-bool VBucket::hasMemoryForStoredValue(
-        EPStats& st,
-        const Item& item,
-        UseActiveVBMemThreshold useActiveVBMemThreshold) {
+bool VBucket::hasMemoryForStoredValue(EPStats& st, const Item& item) {
     const auto newSize = estimateNewMemoryUsage(st, item);
     const double ratio = bucket ? bucket->getMutationMemThreshold() : 1.0;
     return newSize <= (st.getMaxDataSize() * ratio);

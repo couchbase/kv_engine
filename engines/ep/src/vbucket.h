@@ -167,8 +167,6 @@ public:
          No
      };
 
-    enum class UseActiveVBMemThreshold { Yes, No };
-
     VBucket(Vbid i,
             vbucket_state_t newState,
             EPStats& st,
@@ -2094,16 +2092,9 @@ protected:
      *
      * @param st Reference to epstats
      * @param item Item that is being added
-     * @param useActiveVBMemThreshold whether active VB memory threshold
-     *                                should be used regardless of VB state.
-     *
      * @return True if there is memory for the item; else False
      */
-    bool hasMemoryForStoredValue(
-            EPStats& st,
-            const Item& item,
-            UseActiveVBMemThreshold useActiveVBMemThrehsold =
-                    UseActiveVBMemThreshold::No);
+    bool hasMemoryForStoredValue(EPStats& st, const Item& item);
 
     void _addStats(VBucketStatsDetailLevel detail,
                    const AddStatFn& add_stat,
