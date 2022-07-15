@@ -328,8 +328,7 @@ std::string to_string(Bucket::State state) {
 bool mayAccessBucket(Cookie& cookie, const std::string& bucket) {
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
-    ScopeTimer<SpanStopwatch> timer(
-            std::forward_as_tuple(cookie, Code::CreateRbacContext));
+    ScopeTimer1<SpanStopwatch> timer(cookie, Code::CreateRbacContext);
     return cb::rbac::mayAccessBucket(cookie.getConnection().getUser(), bucket);
 }
 

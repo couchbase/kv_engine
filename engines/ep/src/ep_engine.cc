@@ -2313,7 +2313,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getInner(
         const DocKey& key,
         Vbid vbucket,
         get_options_t options) {
-    ScopeTimer<HdrMicroSecStopwatch, TracerStopwatch> timer(
+    ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             std::forward_as_tuple(stats.getCmdHisto),
             std::forward_as_tuple(cookie, cb::tracing::Code::Get));
 
@@ -2379,7 +2379,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
         const DocKey& key,
         Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
-    ScopeTimer<HdrMicroSecStopwatch, TracerStopwatch> timer(
+    ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             std::forward_as_tuple(stats.getCmdHisto),
             std::forward_as_tuple(cookie, cb::tracing::Code::GetIf));
 
@@ -2502,7 +2502,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         StoreSemantics operation,
         const cb::StoreIfPredicate& predicate,
         bool preserveTtl) {
-    ScopeTimer<HdrMicroSecStopwatch, TracerStopwatch> timer(
+    ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             std::forward_as_tuple(stats.storeCmdHisto),
             std::forward_as_tuple(cookie, cb::tracing::Code::Store));
 
@@ -4763,7 +4763,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
         std::string_view value,
         const AddStatFn& add_stat) {
     const auto* c = reinterpret_cast<const CookieIface*>(cookie);
-    ScopeTimer<HdrMicroSecStopwatch, TracerStopwatch> timer(
+    ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             std::forward_as_tuple(stats.getStatsCmdHisto),
             std::forward_as_tuple(c, cb::tracing::Code::GetStats));
 

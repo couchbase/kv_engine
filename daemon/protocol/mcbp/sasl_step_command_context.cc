@@ -56,8 +56,7 @@ cb::engine_errc SaslStepCommandContext::handleSaslAuthTaskResult() {
 
 void SaslStepCommandContext::doSaslStep() {
     using cb::tracing::SpanStopwatch;
-    ScopeTimer<SpanStopwatch> timer(
-            std::forward_as_tuple(cookie, cb::tracing::Code::Sasl));
+    ScopeTimer1<SpanStopwatch> timer(cookie, cb::tracing::Code::Sasl);
 
     LOG_DEBUG("{}: SASL CONTINUE with mech: '{}' with {} bytes of data",
               connection.getId(),
