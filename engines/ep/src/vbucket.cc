@@ -3162,15 +3162,9 @@ bool VBucket::hasMemoryForStoredValue(
         EPStats& st,
         const Item& item,
         UseActiveVBMemThreshold useActiveVBMemThreshold) {
-    auto newSize = static_cast<double>(estimateNewMemoryUsage(st, item));
-    auto maxSize = static_cast<double>(st.getMaxDataSize());
-    if (useActiveVBMemThreshold == UseActiveVBMemThreshold::Yes ||
-        getState() == vbucket_state_active) {
-        return newSize <=
-               (maxSize * (bucket ? bucket->getMutationMemThreshold() : 1.0));
-    } else {
-        return newSize <= (maxSize * st.replicationThrottleThreshold);
-    }
+    const auto newSize = estimateNewMemoryUsage(st, item);
+    const double ratio = bucket ? bucket->getMutationMemThreshold() : 1.0;
+    return newSize <= (st.getMaxDataSize() * ratio);
 }
 
 void VBucket::_addStats(VBucketStatsDetailLevel detail,

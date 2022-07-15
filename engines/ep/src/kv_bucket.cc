@@ -3134,11 +3134,11 @@ double KVBucket::getMutationMemThreshold() const {
 }
 
 void KVBucket::setMutationMemThreshold(size_t threshold) {
-    if (threshold > 0 && threshold <= 100) {
-        mutationMemThreshold = static_cast<double>(threshold) / 100.0;
-    } else {
+    if (threshold < 0 || threshold > 100) {
         throw std::invalid_argument(
-                "KVBucket::setMutationMemoryThreshold invalid threshold:" +
+                "KVBucket::setMutationMemThreshold: invalid threshold:" +
                 std::to_string(threshold));
     }
+
+    mutationMemThreshold = threshold / 100.0;
 }

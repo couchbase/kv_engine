@@ -4335,9 +4335,9 @@ TEST_P(DurabilityPassiveStreamTest,
         // go over the high watermark - so test not applicable.
         return;
     }
-    // Set replicationThrottleThreshold to zero so a single mutation can push us
-    // over the limit (limit = replicationThrottleThreshold * bucket quota).
-    engine->getConfiguration().setReplicationThrottleThreshold(0);
+    // Set mutation memory threshold to zero so a single mutation can push us
+    // over the limit (limit = threshold * bucket quota).
+    engine->getConfiguration().setMutationMemThreshold(0);
 
     // Send initial snapshot marrker.
     uint32_t opaque = 0;
@@ -4380,8 +4380,8 @@ TEST_P(DurabilityPassiveStreamTest,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
 
-    // Increase replicationThrottleThreshold to allow mutation to be processed.
-    engine->getConfiguration().setReplicationThrottleThreshold(100);
+    // Increase threshold to allow mutation to be processed.
+    engine->getConfiguration().setMutationMemThreshold(100);
 
     // Test: now process the buffered message. This would previously throw a
     // Monotonic logic_error exception when attempting to push the same
