@@ -11,18 +11,18 @@
 
 #include "replicationthrottle.h"
 #include "configuration.h"
+#include "ep_engine.h"
 #include "stats.h"
 
-ReplicationThrottleEP::ReplicationThrottleEP(const Configuration& config,
-                                             EPStats& s)
-    : stats(s) {
+ReplicationThrottleEP::ReplicationThrottleEP(
+        const EventuallyPersistentEngine& engine)
+    : engine(engine) {
 }
 
 bool ReplicationThrottleEP::hasSomeMemory() const {
-    auto memoryUsed =
-            static_cast<double>(stats.getEstimatedTotalMemoryUsed());
-    auto maxSize = static_cast<double>(stats.getMaxDataSize());
-
+    const auto& stats = engine.getEpStats();
+    const auto memoryUsed = stats.getEstimatedTotalMemoryUsed();
+    const auto maxSize = stats.getMaxDataSize();
     return memoryUsed <= (maxSize * stats.replicationThrottleThreshold);
 }
 
@@ -30,15 +30,16 @@ ReplicationThrottleEP::Status ReplicationThrottleEP::getStatus() const {
     return hasSomeMemory() ? Status::Process : Status::Pause;
 }
 
-ReplicationThrottleEphe::ReplicationThrottleEphe(const Configuration& config,
-                                                 EPStats& s)
-    : ReplicationThrottleEP(config, s), config(config) {
+ReplicationThrottleEphe::ReplicationThrottleEphe(
+        const EventuallyPersistentEngine& engine)
+    : ReplicationThrottleEP(engine) {
 }
 
 ReplicationThrottleEP::Status ReplicationThrottleEphe::getStatus() const {
     auto status = ReplicationThrottleEP::getStatus();
     if (status == Status::Pause) {
-        if (config.getEphemeralFullPolicy() == "fail_new_data") {
+        if (engine.getConfiguration().getEphemeralFullPolicy() ==
+            "fail_new_data") {
             return Status::Disconnect;
         }
     }
@@ -46,7 +47,7 @@ ReplicationThrottleEP::Status ReplicationThrottleEphe::getStatus() const {
 }
 
 bool ReplicationThrottleEphe::doDisconnectOnNoMem() const {
-    if (config.getEphemeralFullPolicy() == "fail_new_data") {
+    if (engine.getConfiguration().getEphemeralFullPolicy() == "fail_new_data") {
         return true;
     }
     return false;

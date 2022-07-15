@@ -13,8 +13,7 @@
 #include <platform/socket.h>
 #include <relaxed_atomic.h>
 
-class EPStats;
-class Configuration;
+class EventuallyPersistentEngine;
 
 /**
  * ReplicationThrottle interface.
@@ -49,7 +48,7 @@ public:
  */
 class ReplicationThrottleEP : public ReplicationThrottle {
 public:
-    ReplicationThrottleEP(const Configuration& config, EPStats& s);
+    ReplicationThrottleEP(const EventuallyPersistentEngine& engine);
 
     Status getStatus() const override;
 
@@ -58,10 +57,10 @@ public:
         return false;
     }
 
-private:
+protected:
     bool hasSomeMemory() const;
 
-    EPStats &stats;
+    const EventuallyPersistentEngine& engine;
 };
 
 /**
@@ -70,12 +69,9 @@ private:
  */
 class ReplicationThrottleEphe : public ReplicationThrottleEP {
 public:
-    ReplicationThrottleEphe(const Configuration& config, EPStats& s);
+    ReplicationThrottleEphe(const EventuallyPersistentEngine& engine);
 
     Status getStatus() const override;
 
     bool doDisconnectOnNoMem() const override;
-
-private:
-    const Configuration& config;
 };

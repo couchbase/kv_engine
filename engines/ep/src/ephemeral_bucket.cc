@@ -92,8 +92,8 @@ private:
     EphemeralBucket& bucket;
 };
 
-EphemeralBucket::EphemeralBucket(EventuallyPersistentEngine& theEngine)
-    : KVBucket(theEngine) {
+EphemeralBucket::EphemeralBucket(EventuallyPersistentEngine& engine)
+    : KVBucket(engine) {
     /* We always have EvictionPolicy::Value eviction policy because a key not
        present in HashTable implies key not present at all.
        Note: This should not be confused with the eviction algorithm
@@ -105,8 +105,7 @@ EphemeralBucket::EphemeralBucket(EventuallyPersistentEngine& theEngine)
     tombstonePurgerTask =
             std::make_shared<EphTombstoneHTCleaner>(&engine, *this);
 
-    replicationThrottle = std::make_unique<ReplicationThrottleEphe>(
-            engine.getConfiguration(), stats);
+    replicationThrottle = std::make_unique<ReplicationThrottleEphe>(engine);
 }
 
 EphemeralBucket::~EphemeralBucket() = default;

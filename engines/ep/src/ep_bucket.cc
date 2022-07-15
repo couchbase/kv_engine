@@ -242,8 +242,8 @@ private:
     EPBucket& bucket;
 };
 
-EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
-    : KVBucket(theEngine), rangeScans(engine.getConfiguration()) {
+EPBucket::EPBucket(EventuallyPersistentEngine& engine)
+    : KVBucket(engine), rangeScans(engine.getConfiguration()) {
     auto& config = engine.getConfiguration();
     const std::string& policy = config.getItemEvictionPolicy();
     if (policy.compare("value_only") == 0) {
@@ -251,8 +251,7 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     } else {
         eviction_policy = EvictionPolicy::Full;
     }
-    replicationThrottle = std::make_unique<ReplicationThrottleEP>(
-            engine.getConfiguration(), stats);
+    replicationThrottle = std::make_unique<ReplicationThrottleEP>(engine);
 
     // Pre 7.0.0 Flushers were a part of KVShard so keep the same default
     // scaling.
