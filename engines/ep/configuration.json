@@ -921,18 +921,6 @@
                 }
             }
         },
-        "pager_active_vb_pcnt": {
-            "default": "40",
-            "descr": "Active vbuckets paging percentage",
-            "dynamic": true,
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 50,
-                    "min": 0
-                }
-            }
-        },
         "pager_sleep_time_ms": {
             "default": "5000",
             "descr": "How long in milliseconds the ItemPager will sleep for when not being requested to run",

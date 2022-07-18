@@ -90,8 +90,6 @@ memcached like this:
 |                                |        | scanner will be scheduled to run.          |
 | alog_resident_ratio_threshold  | int    | Resident ratio percentage above which we   |
 |                                |        | do not generate access log.                |
-| pager_active_vb_pcnt           | int    | Percentage of active vbucket items among   |
-|                                |        | all evicted items by item pager.           |
 | warmup_min_memory_threshold    | int    | Memory threshold (%) during warmup to      |
 |                                |        | enable traffic.                            |
 | warmup_min_items_threshold     | int    | Item num threshold (%) during warmup to    |

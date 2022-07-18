@@ -2684,16 +2684,6 @@ static enum test_result test_itempager_conf(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             set_param(h,
                       EngineParamCategory::Flush,
-                      "pager_active_vb_pcnt",
-                      "50"),
-            "Setting pager_active_vb_pcnt should have worked");
-    checkeq(50,
-            get_int_stat(h, "ep_pager_active_vb_pcnt"),
-            "pager_active_vb_pcnt did not get set to the correct value");
-
-    checkeq(cb::engine_errc::success,
-            set_param(h,
-                      EngineParamCategory::Flush,
                       "pager_sleep_time_ms",
                       "1000"),
             "Setting pager_sleep_time_ms should have worked");
@@ -7051,7 +7041,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_mem_used_merge_threshold_percent",
               "ep_min_compression_ratio",
               "ep_mutation_mem_threshold",
-              "ep_pager_active_vb_pcnt",
               "ep_pager_sleep_time_ms",
               "ep_pitr_enabled",
               "ep_pitr_granularity",
@@ -7342,7 +7331,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_magma_bloom_filter_accuracy_for_bottom_level",
               "ep_oom_errors",
               "ep_overhead",
-              "ep_pager_active_vb_pcnt",
               "ep_pager_sleep_time_ms",
               "ep_pending_compactions",
               "ep_pending_ops",

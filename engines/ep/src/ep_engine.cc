@@ -642,8 +642,6 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setBfilterFpProb(std::stof(val));
         } else if (key == "bfilter_key_count") {
             configuration.setBfilterKeyCount(std::stoull(val));
-        } else if (key == "pager_active_vb_pcnt") {
-            configuration.setPagerActiveVbPcnt(std::stoull(val));
         } else if (key == "pager_sleep_time_ms") {
             configuration.setPagerSleepTimeMs(std::stoull(val));
         } else if (key == "item_eviction_age_percentage") {
