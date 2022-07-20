@@ -239,8 +239,7 @@ cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
         // No point scanning if the total has been hit. Change to Idle and
         // return success. Any waiting client will see the complete status and
         // the scan now cleans-up
-        setStateIdle(cb::engine_errc::range_scan_complete);
-        return cb::engine_errc::success;
+        return tryAndSetStateIdle(cb::engine_errc::range_scan_complete);
     }
 
     EP_LOG_DEBUG("RangeScan {} continue for {}", uuid, getVBucketId());
@@ -250,7 +249,7 @@ cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
     case ScanStatus::Yield: {
         // Scan reached a limit and has yielded.
         // Set to idle, which will send success to the handler
-        setStateIdle(cb::engine_errc::range_scan_more);
+        auto status = tryAndSetStateIdle(cb::engine_errc::range_scan_more);
 
         // For RangeScan we have already consumed the last key, which is
         // different to DCP scans where the last key is read and 'rejected', so
@@ -258,7 +257,9 @@ cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
         scanCtx->ranges[0].startKey.append(0);
 
         // return range_scan_more status so scan can continue
-        return cb::engine_errc::range_scan_more;
+        return status == cb::engine_errc::success
+                       ? cb::engine_errc::range_scan_more
+                       : status;
     }
     case ScanStatus::Success:
         // Scan has reached the end
@@ -299,30 +300,41 @@ bool RangeScan::isCompleted() const {
     return continueState.rlock()->state == State::Completed;
 }
 
-void RangeScan::setStateIdle(cb::engine_errc status) {
-    continueState.withWLock([](auto& cs) {
+cb::engine_errc RangeScan::tryAndSetStateIdle(cb::engine_errc status) {
+    if (setStateIdle(status)) {
+        return cb::engine_errc::success;
+    }
+    return cb::engine_errc::range_scan_cancelled;
+}
+
+bool RangeScan::setStateIdle(cb::engine_errc status) {
+    // Changing to Idle implies a successful Continue.
+    // range_scan_complete is the end of the scan
+    // range_scan_more is a 'pause' due to limits/yield of the task
+    // Note status is overridden if state is now Cancelled
+    Expects(status == cb::engine_errc::range_scan_more ||
+            status == cb::engine_errc::range_scan_complete);
+
+    continueState.withWLock([&status](auto& cs) {
         switch (cs.state) {
         case State::Idle:
-        case State::Cancelled:
         case State::Completed:
             throw std::runtime_error(fmt::format(
                     "RangeScan::setStateIdle invalid state:{}", cs.state));
+        case State::Cancelled:
+            status = cb::engine_errc::range_scan_cancelled;
+            break;
         case State::Continuing:
             cs.setupForIdle();
             break;
         }
     });
 
-    // Changing to Idle implies a successful Continue.
-    // range_scan_complete is the end of the scan
-    // range_scan_more is a 'pause' due to limits/yield of the task
-    Expects(status == cb::engine_errc::range_scan_more ||
-            status == cb::engine_errc::range_scan_complete);
-
     // The ordering here is deliberate, set the status after the cs.state update
     // so there's no chance a client sees 'success' then fails to continue again
     // (because you cannot continue a Continuing scan)
     handleStatus(status);
+    return status != cb::engine_errc::range_scan_cancelled;
 }
 
 void RangeScan::setStateContinuing(const CookieIface& client,

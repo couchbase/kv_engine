@@ -1224,6 +1224,43 @@ TEST_P(RangeScanTest, wait_for_persistence_timeout) {
     EXPECT_EQ(cb::engine_errc::temporary_failure, mock_waitfor_cookie(cookie));
 }
 
+// Prior to this test, a cancel as the scan attempts to yield could hit an
+// exception in the state change code, this test covers that path
+TEST_P(RangeScanTest, cancel_when_yielding) {
+    auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
+    auto vb = store->getVBucket(vbid);
+
+    // Scan with a limit so we enter the yield path
+    EXPECT_EQ(cb::engine_errc::would_block,
+              vb->continueRangeScan(
+                      uuid, *cookie, 1, std::chrono::milliseconds(0), 0));
+
+    // Set a hook which will cancel when the first key is read and the scan
+    // would yield
+    testHook = [&vb, uuid, this](size_t count) {
+        // Cancel after the first key has been read
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->cancelRangeScan(uuid, cookie, true));
+    };
+
+    // scan!
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+
+    EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
+
+    // Set the status back to something we would never expect
+    status = cb::engine_errc::durability_impossible;
+
+    // must run the cancel
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+
+    // The cancellation run of the task must never invoke a callback. This
+    // expect checks status stayed as this value we never use.
+    EXPECT_EQ(cb::engine_errc::durability_impossible, status);
+}
+
 class DummyRangeScanHandler : public RangeScanDataHandlerIFace {
 public:
     DummyRangeScanHandler(size_t& callbackCounter)

@@ -104,9 +104,6 @@ public:
     /// @return true if the scan is completed (reached the end)
     bool isCompleted() const;
 
-    /// change the state of the scan to Idle
-    void setStateIdle(cb::engine_errc status);
-
     /**
      * Change the state of the scan to Continuing
      * @param client cookie of the client which continued the scan
@@ -243,6 +240,23 @@ protected:
 
     /// @return true if this scan is a random sample scan
     bool isSampling() const;
+
+    /**
+     * Try to change state to idle and send the status to the cookie/client.
+     * If the scan has been cancelled the state cannot be changed and the given
+     * status is replaced with range_scan_cancelled.
+     * @return success if state was changed and status consumed
+     */
+    cb::engine_errc tryAndSetStateIdle(cb::engine_errc status);
+
+    /**
+     * Change to idle if the current state allows, if the state is cancelled
+     * no state change occurs.
+     *
+     * @return true if state change did not occur, false if not (scan is
+     *         cancelled)
+     */
+    bool setStateIdle(cb::engine_errc status);
 
     // member variables ideally ordered by size large -> small
     cb::rangescan::Id uuid;
