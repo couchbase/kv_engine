@@ -754,8 +754,7 @@ TEST_P(CollectionsOSODcpTest, cursor_dropped) {
     auto* backfill = dynamic_cast<DCPBackfillBySeqnoDisk*>(uniquePtr.get());
     ASSERT_TRUE(backfill);
     EXPECT_EQ(backfill->getStartSeqno(), firstBackfillEnd + 1);
-    EXPECT_EQ(backfill_success, backfill->run()); // create
-    EXPECT_EQ(backfill_finished, backfill->run()); // scan
+    EXPECT_EQ(backfill_finished, backfill->run());
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(firstBackfillEnd + 1, producers->last_snap_start_seqno);

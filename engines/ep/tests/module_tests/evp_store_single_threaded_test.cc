@@ -319,9 +319,8 @@ std::shared_ptr<MockDcpProducer> SingleThreadedKVBucketTest::createDcpProducer(
 void SingleThreadedKVBucketTest::runBackfill() {
     // Run the backfill task, which has a number of steps to complete
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
-    // backfill:create()
-    runNextTask(lpAuxioQ);
-    // backfill:scan() -> complete
+    // backfill:create()->scan->complete all in one run.
+    // we'd only need extra runs when a backfill yields for memory pressure
     runNextTask(lpAuxioQ);
 }
 
@@ -1291,7 +1290,6 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
 
     // Let the backfill task complete running (it requires multiple steps to
     // complete).
-    runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
     runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
 
     // Validate. We _should_ get two mutations: key1 & key2, but we have to

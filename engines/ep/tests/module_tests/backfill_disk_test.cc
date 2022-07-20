@@ -152,7 +152,6 @@ void DCPBackfillDiskTest::backfillGetDriver(
     auto backfillRemaining = stream->getNumBackfillItemsRemaining();
     ASSERT_TRUE(backfillRemaining);
 
-    ASSERT_EQ(backfill_success, bfm.backfill()); // scan
     ASSERT_EQ(2, stream->public_readyQSize());
 
     auto response = stream->public_popFromReadyQ();

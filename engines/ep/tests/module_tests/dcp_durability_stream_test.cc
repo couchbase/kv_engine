@@ -5592,11 +5592,7 @@ TEST_P(DurabilityPromotionStreamTest, ReplicaDeadActiveCanCommitPrepare) {
     auto* activeStream = DurabilityActiveStreamTest::stream.get();
     ASSERT_TRUE(activeStream);
 
-    auto& manager = producer->getBFM();
-
-    EXPECT_EQ(backfill_success, manager.backfill()); // create
-    EXPECT_EQ(backfill_success, manager.backfill()); // scan
-    EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
+    runBackfill();
 
     // readyQ also contains SnapshotMarker
     ASSERT_EQ(2, activeStream->public_readyQSize());
@@ -5733,8 +5729,7 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
 
     auto& manager = producer->getBFM();
 
-    EXPECT_EQ(backfill_success, manager.backfill()); // create
-    EXPECT_EQ(backfill_success, manager.backfill()); // scan
+    EXPECT_EQ(backfill_success, manager.backfill());
     EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
 
     ASSERT_EQ(2, stream->public_readyQSize());
@@ -5941,8 +5936,7 @@ void DurabilityActiveStreamTest::
     auto& manager = producer->getBFM();
 
     // backfill the mutation
-    EXPECT_EQ(backfill_success, manager.backfill()); // init
-    EXPECT_EQ(backfill_success, manager.backfill()); // create
+    EXPECT_EQ(backfill_success, manager.backfill());
     EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
 
     // snapshot marker + mutation

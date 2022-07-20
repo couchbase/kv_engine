@@ -41,6 +41,7 @@ backfill_status_t DCPBackfill::run() {
                 status == backfill_finished);
         if (status == backfill_success) {
             transitionState(*lockedState, State::Scan);
+            status = scan();
         }
         break;
     case State::Scan:

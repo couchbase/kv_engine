@@ -190,10 +190,10 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_NormalWrite) {
     auto& bfm = producer->getBFM();
     ASSERT_EQ(1, bfm.getNumBackfills());
 
-    // Backfill::create - Verify SnapMarker{start:0, end:2}
+    // Verify SnapMarker{start:0, end:2}
     ASSERT_EQ(backfill_success, bfm.backfill());
     const auto& readyQ = stream->public_readyQ();
-    ASSERT_EQ(1, readyQ.size());
+    ASSERT_EQ(2, readyQ.size());
     resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
@@ -203,7 +203,6 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_NormalWrite) {
 
     // Verify only s:2 sent at Backfill::scan.
     // Before the fix backfill contains also s:1.
-    ASSERT_EQ(backfill_success, bfm.backfill());
     ASSERT_EQ(1, readyQ.size());
     resp = stream->next(*producer);
     ASSERT_TRUE(resp);
@@ -313,10 +312,9 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
     auto& bfm = producer->getBFM();
     ASSERT_EQ(1, bfm.getNumBackfills());
 
-    // Backfill::create - Verify SnapMarker{start:0, end:3}
     ASSERT_EQ(backfill_success, bfm.backfill());
     const auto& readyQ = stream->public_readyQ();
-    ASSERT_EQ(1, readyQ.size());
+    ASSERT_EQ(3, readyQ.size());
     resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
@@ -326,7 +324,6 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
 
     // Verify only seqnos [2, 3] sent at Backfill::scan.
     // Before the fix backfill contains also s:1.
-    ASSERT_EQ(backfill_success, bfm.backfill());
     ASSERT_EQ(2, readyQ.size());
     resp = stream->next(*producer);
     ASSERT_TRUE(resp);

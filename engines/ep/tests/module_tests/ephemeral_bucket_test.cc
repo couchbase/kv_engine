@@ -540,7 +540,7 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
     ASSERT_EQ(backfill_success, bfMgr.backfill());
     // SnapMarker in the readyQ
     auto& readyQ = stream->public_readyQ();
-    ASSERT_EQ(1, readyQ.size());
+    ASSERT_EQ(3, readyQ.size());
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
 
     // Commit:4
@@ -564,7 +564,6 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
     //  end up sending also prepare:1, which means same key twice in a snapshot.
     //  Side effect would be (1) breaking deduplication and (2) failing with
     //  QueueDirtyStatus::FailureDuplicateItem status at replica
-    ASSERT_EQ(backfill_success, bfMgr.backfill());
     ASSERT_EQ(3, readyQ.size());
     auto resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);

@@ -452,6 +452,9 @@ TEST_P(CollectionsLegacyDcpTest,
     createDcpObjects({});
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid, false);
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
+    // Need to manually poke the backfill again, this time the task is cancelled
+    /// and the next notifyAndStepToCheckpoint will drive the next backfill
+    runBackfill();
 
     createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
@@ -840,25 +843,19 @@ TEST_P(CollectionsLegacyDcpTest, DefaultCollectionStoresOnlyTombstones) {
     createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
 
     // Run the backfill task
+    runBackfill();
     // SnapMarker + del:3 + StreamEnd expected.
     // Before the fix, the stream would miss to send the tombstone and jump
     // directly to StreamEnd
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
-    // backfill:create()
-    runNextTask(lpAuxioQ);
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
     EXPECT_EQ(0, producers->last_snap_start_seqno);
     EXPECT_EQ(3, producers->last_snap_end_seqno);
-    // backfill:scan()
-    runNextTask(lpAuxioQ);
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, producers->last_op);
     EXPECT_EQ(3, producers->last_byseqno);
-    // backfill:finished()
-    runNextTask(lpAuxioQ);
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers->last_op);

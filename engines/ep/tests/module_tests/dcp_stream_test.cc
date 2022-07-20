@@ -1935,19 +1935,27 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
     auto& readyQ0 = stream->public_readyQ();
     auto& readyQ1 = stream1->public_readyQ();
     auto& readyQ2 = stream2->public_readyQ();
+
+    // all streams will create/scan but yield, so all have a snapshot marker and
+    // one mutation
     ASSERT_EQ(backfill_success, bfm.backfill());
     ASSERT_EQ(backfill_success, bfm.backfill());
     ASSERT_EQ(backfill_success, bfm.backfill());
 
-    EXPECT_EQ(1, readyQ0.size());
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ0.back()->getEvent());
-    EXPECT_EQ(1, readyQ1.size());
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ1.back()->getEvent());
-    EXPECT_EQ(1, readyQ2.size());
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.back()->getEvent());
+    EXPECT_EQ(2, readyQ0.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ0.front()->getEvent());
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ0.back()->getEvent());
+
+    EXPECT_EQ(2, readyQ1.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ1.front()->getEvent());
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ1.back()->getEvent());
+
+    EXPECT_EQ(2, readyQ2.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.front()->getEvent());
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ2.back()->getEvent());
 
     // To drive a single vBucket's backfill to completion requires 2 steps
-    const int backfillSteps = 2;
+    const int backfillSteps = 1;
     for (int i = 0; i < backfillSteps; i++) {
         ASSERT_EQ(backfill_success, bfm.backfill());
     }
@@ -1955,10 +1963,12 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
     // 2. Verify that all of the first VB has now backfilled.
     EXPECT_EQ(3, readyQ0.size());
     EXPECT_EQ(DcpResponse::Event::Mutation, readyQ0.back()->getEvent());
-    EXPECT_EQ(1, readyQ1.size());
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ1.back()->getEvent());
-    EXPECT_EQ(1, readyQ2.size());
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.back()->getEvent());
+    EXPECT_EQ(2, readyQ1.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ1.front()->getEvent());
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ2.back()->getEvent());
+    EXPECT_EQ(2, readyQ2.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.front()->getEvent());
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ2.back()->getEvent());
 
     for (int i = 0; i < backfillSteps; i++) {
         ASSERT_EQ(backfill_success, bfm.backfill());
@@ -1969,8 +1979,9 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
     EXPECT_EQ(DcpResponse::Event::Mutation, readyQ0.back()->getEvent());
     EXPECT_EQ(3, readyQ1.size());
     EXPECT_EQ(DcpResponse::Event::Mutation, readyQ1.back()->getEvent());
-    EXPECT_EQ(1, readyQ2.size());
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.back()->getEvent());
+    EXPECT_EQ(2, readyQ2.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.front()->getEvent());
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ2.back()->getEvent());
 
     for (int i = 0; i < backfillSteps; i++) {
         ASSERT_EQ(backfill_success, bfm.backfill());
@@ -2017,9 +2028,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
 
         // creating the stream will schedule backfill
         recreateStream(*vb);
-
-        EXPECT_EQ(backfill_success, bfm.backfill()); // create
-        EXPECT_EQ(backfill_success, bfm.backfill()); // scan
+        EXPECT_EQ(backfill_success, bfm.backfill()); // create and scan
         EXPECT_EQ(backfill_finished, bfm.backfill()); // nothing else to do
         EXPECT_EQ(0, bfm.getNumBackfills());
 
@@ -3189,9 +3198,6 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
 
     auto& bfm = producer->getBFM();
 
-    // create the backfill
-    bfm.backfill();
-
     ThreadGate tg1(2);
     ThreadGate tg2(2);
     std::thread t1;
@@ -3875,11 +3881,10 @@ TEST_P(SingleThreadedActiveStreamTest, NoValueStreamBackfillsFullSystemEvent) {
 
     auto& bfm = producer->getBFM();
     EXPECT_EQ(1, bfm.getNumBackfills());
-    EXPECT_EQ(backfill_success, bfm.backfill()); // create
     // Before the fix this step throws with:
     //     Collections::VB::Manifest::verifyFlatbuffersData: getCreateEventData
     //     data invalid, .., size:0"
-    EXPECT_EQ(backfill_success, bfm.backfill()); // scan
+    EXPECT_EQ(backfill_success, bfm.backfill()); // create->scan
 
     const auto& readyQ = stream->public_readyQ();
     ASSERT_EQ(3, readyQ.size());
@@ -3942,10 +3947,6 @@ protected:
         // Run the backfill we scheduled when we transitioned to the backfilling
         // state.
         auto& bfm = producer->getBFM();
-
-        // Persistent and Ephemeral backfill-create does not go straight to
-        // scan, they both need an extra run
-        EXPECT_EQ(backfill_status_t::backfill_success, bfm.backfill());
 
         // First item
         EXPECT_EQ(backfill_status_t::backfill_success, bfm.backfill());
@@ -4301,12 +4302,11 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillRangeCoversAllDataInTheStorage) {
     auto& bfm = producer->getBFM();
     ASSERT_EQ(1, bfm.getNumBackfills());
 
-    // Backfill::create
     // Before the fix this steps generates SnapMarker{start:0, end:2, mvs:4},
     // while we want SnapMarker{start:0, end:4, mvs:4}
     ASSERT_EQ(backfill_success, bfm.backfill());
     const auto& readyQ = stream->public_readyQ();
-    ASSERT_EQ(1, readyQ.size());
+    ASSERT_EQ(5, readyQ.size());
     resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
@@ -4315,8 +4315,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillRangeCoversAllDataInTheStorage) {
     EXPECT_EQ(4, snapMarker.getEndSeqno());
     EXPECT_EQ(4, *snapMarker.getMaxVisibleSeqno());
 
-    // Verify that all seqnos are sent at Backfill::scan
-    ASSERT_EQ(backfill_success, bfm.backfill());
+    // Verify that all seqnos are sent from the backfill
     ASSERT_EQ(4, readyQ.size());
     resp = stream->next(*producer);
     ASSERT_TRUE(resp);
@@ -4407,7 +4406,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB_45757) {
     ASSERT_EQ(1, bfm.getNumBackfills());
     ASSERT_EQ(backfill_success, bfm.backfill());
     const auto& readyQ = newStream->public_readyQ();
-    ASSERT_EQ(1, readyQ.size());
+    ASSERT_EQ(2, readyQ.size());
     const auto resp = newStream->next(*newProd);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());

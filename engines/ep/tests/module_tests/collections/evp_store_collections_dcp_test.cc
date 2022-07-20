@@ -3586,8 +3586,6 @@ TEST_F(CollectionsFilteredDcpTest, MB_47753) {
     ASSERT_TRUE(stream);
     auto* as = static_cast<ActiveStream*>(stream.get());
 
-    // Manually drive the backfill so stream can drop cursor whilst running
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     EXPECT_TRUE(as->isBackfilling());
 
     // Store a new item and flush it, to a different collection, clear the
@@ -3600,14 +3598,7 @@ TEST_F(CollectionsFilteredDcpTest, MB_47753) {
     // is the one which was scheduled as part of stream creation).
     as->handleSlowStream();
 
-    // backfill:create()
-    runNextTask(lpAuxioQ);
-
-    // backfill:scan()
-    runNextTask(lpAuxioQ);
-
-    // backfill:finished()
-    runNextTask(lpAuxioQ);
+    runBackfill();
 
     // The initial snapshot is sent to the client
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
