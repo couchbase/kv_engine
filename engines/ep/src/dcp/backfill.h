@@ -130,6 +130,8 @@ protected:
 
     /// Cumulative runtime of this backfill.
     std::chrono::steady_clock::duration runtime{0};
+    /// start time for each invocation of run
+    std::chrono::steady_clock::time_point runStart;
 };
 
 /**

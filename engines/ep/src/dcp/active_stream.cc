@@ -1874,7 +1874,7 @@ void ActiveStream::completeBackfillInner(
             const auto diskItemsRead = backfillItems.disk.load();
             const auto runtimeSecs =
                     std::chrono::duration<double>(runtime).count();
-
+            Expects(runtimeSecs != 0.0);
             log(spdlog::level::level_enum::info,
                 "{} {}Backfill complete. {} items consisting of {} bytes read "
                 "from disk, "

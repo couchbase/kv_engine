@@ -150,6 +150,7 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
 }
 
 void DCPBackfillByIdDisk::complete(ActiveStream& stream) {
+    runtime += (std::chrono::steady_clock::now() - runStart);
     stream.completeOSOBackfill(
             scanCtx->maxSeqno, runtime, scanCtx->diskBytesRead);
     stream.log(spdlog::level::level_enum::debug,

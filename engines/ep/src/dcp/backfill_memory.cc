@@ -302,6 +302,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
 void DCPBackfillMemoryBuffered::complete(ActiveStream& stream) {
     TRACE_EVENT0("dcp/backfill", "MemoryBuffered::complete");
     /* [EPHE TODO]: invalidate cursor sooner before it gets deleted */
+    runtime += (std::chrono::steady_clock::now() - runStart);
     stream.completeBackfill(runtime, 0);
     stream.log(spdlog::level::level_enum::debug,
                "({}) Backfill memory task ({} to {}) complete",

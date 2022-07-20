@@ -220,6 +220,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
 
 void DCPBackfillBySeqnoDisk::complete(ActiveStream& stream) {
     const auto diskBytesRead = scanCtx ? scanCtx->diskBytesRead : 0;
+    runtime += (std::chrono::steady_clock::now() - runStart);
     stream.completeBackfill(runtime, diskBytesRead);
     stream.log(spdlog::level::level_enum::debug,
                "({}) Backfill task ({} to {}) complete",
