@@ -14,10 +14,14 @@
 
 #include "memcached/types.h"
 
+namespace folly {
+class EventBase;
+}
+
 /*
  * Initialise this module.
  */
-void mc_time_init(struct event_base* ev_base);
+void mc_time_init(folly::EventBase& ev_base);
 
 /*
  * Init the epoch time tracking variables
@@ -35,6 +39,12 @@ rel_time_t mc_time_get_current_time();
  * clock changes.
  */
 void mc_time_clock_tick();
+
+/**
+ * Run the clock tick event that progresses memcached uptime (in the event base
+ * thread to avoid races).
+ */
+void mc_run_clock_tick_event();
 
 /*
  * Convert a relative time value to an absolute time.

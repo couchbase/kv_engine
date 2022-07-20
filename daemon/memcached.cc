@@ -1034,7 +1034,7 @@ int memcached_main(int argc, char** argv) {
                                std::chrono::minutes(5));
 
     /* Initialise memcached time keeping */
-    mc_time_init(main_base->getLibeventBase());
+    mc_time_init(*main_base);
 
     // Optional parent monitor
     {

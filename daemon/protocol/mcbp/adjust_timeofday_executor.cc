@@ -35,8 +35,10 @@ void adjust_timeofday_executor(Cookie& cookie) {
                  cookie.getConnectionId(),
                  cb_get_timeofday_offset(),
                  payload.getOffset());
+
         cb_set_timeofday_offset(gsl::narrow_cast<int>(payload.getOffset()));
-        mc_time_clock_tick();
+        mc_run_clock_tick_event();
+
         cookie.sendResponse(cb::mcbp::Status::Success);
         return;
     case AdjustTimePayload::TimeType::Uptime:
@@ -44,8 +46,10 @@ void adjust_timeofday_executor(Cookie& cookie) {
                  cookie.getConnectionId(),
                  cb_get_uptime_offset(),
                  payload.getOffset());
+
         cb_set_uptime_offset(payload.getOffset());
-        mc_time_clock_tick();
+        mc_run_clock_tick_event();
+
         cookie.sendResponse(cb::mcbp::Status::Success);
         return;
     }

@@ -36,7 +36,7 @@
 #include "buckets.h"
 #include "memcached.h"
 
-#include <event.h>
+#include <folly/io/async/EventBase.h>
 #include <logger/logger.h>
 #include <platform/platform_time.h>
 #include <atomic>
@@ -62,17 +62,16 @@ const time_t memcached_maximum_relative_time = 60*60*24*30;
 static std::atomic<rel_time_t> memcached_uptime(0);
 static std::atomic<time_t> memcached_epoch(0);
 static volatile uint64_t memcached_monotonic_start = 0;
-static struct event_base* main_ev_base = nullptr;
+static folly::EventBase* main_event_base = nullptr;
 
-static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *arg);
+static void mc_time_clock_event_handler();
 static void mc_gather_timing_samples();
 
 /*
  * Init internal state and start the timer event callback.
  */
-void mc_time_init(struct event_base* ev_base) {
-
-    main_ev_base = ev_base;
+void mc_time_init(folly::EventBase& eventBase) {
+    main_event_base = &eventBase;
 
     mc_time_init_epoch();
 
@@ -80,7 +79,7 @@ void mc_time_init(struct event_base* ev_base) {
     mc_time_clock_tick();
 
     /* Begin the time keeping by registering for a time based callback */
-    mc_time_clock_event_handler(0, 0, nullptr);
+    mc_time_clock_event_handler();
 }
 
 /*
@@ -174,36 +173,31 @@ time_t mc_time_convert_to_abs_time(const rel_time_t rel_time) {
     return memcached_epoch + rel_time;
 }
 
+void mc_schedule_clock_tick_event() {
+    main_event_base->schedule(
+            []() { mc_time_clock_event_handler(); },
+            std::chrono::seconds(memcached_clock_tick_seconds));
+}
+
 /*
  * clock_handler - libevent call back.
  * This method is called (ticks) every 'memcached_clock_tick_seconds' and
  * primarily keeps time flowing.
  */
-static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *arg) {
-    static bool initialized = false;
-    static struct event clockevent;
-    struct timeval t;
-
-    t.tv_sec = (long)memcached_clock_tick_seconds;
-    t.tv_usec = 0;
-
+static void mc_time_clock_event_handler() {
     if (is_memcached_shutting_down()) {
         stop_memcached_main_base();
         return;
     }
 
-    if (initialized) {
-        /* only delete the event if it's actually there. */
-        evtimer_del(&clockevent);
-    } else {
-        initialized = true;
-    }
-
-    evtimer_set(&clockevent, mc_time_clock_event_handler, 0);
-    event_base_set(main_ev_base, &clockevent);
-    evtimer_add(&clockevent, &t);
+    mc_schedule_clock_tick_event();
 
     mc_time_clock_tick();
+}
+
+void mc_run_clock_tick_event() {
+    main_event_base->runInEventBaseThreadAndWait(
+            []() { mc_time_clock_tick(); });
 }
 
 /*
