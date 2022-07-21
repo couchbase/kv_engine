@@ -60,6 +60,8 @@ public:
                                                 "user::zoe",
                                                 "user:aaaaaaaa",
                                                 "users"};
+    std::unordered_map<std::string, GetMetaResponse> userKeysMeta;
+
     // Other keys that get stored in the bucket
     std::vector<std::string> otherKeys = {
             "useq", "uses", "abcd", "uuu", "uuuu", "xyz"};
@@ -68,7 +70,17 @@ public:
 
     MutationInfo storeTestKeys() {
         for (const auto& key : userKeys) {
-            store_document(key, key);
+            nlohmann::json value = {{"key", key}};
+            store_document(key, value.dump(), docFlags /* non-zero flags */);
+        }
+
+        for (const auto& key : userKeys) {
+            // So we can validate that RangeScan matches GetMeta
+            auto meta =
+                    userConnection->getMeta(key, Vbid(0), GetMetaVersion::V2);
+            EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
+            auto [itr, emplaced] = userKeysMeta.try_emplace(key, meta.second);
+            EXPECT_TRUE(emplaced);
         }
 
         for (const auto& key : otherKeys) {
@@ -98,6 +110,7 @@ public:
                      size_t itemLimit,
                      const std::unordered_set<std::string> expectedKeySet);
 
+    const uint32_t docFlags = 0xAABBCCDD;
     std::string start;
     std::string end;
     nlohmann::json config;
@@ -235,17 +248,25 @@ size_t RangeScanTest::drainItemResponse(
         EXPECT_EQ(1, expectedKeySet.count(std::string{record.key}));
         auto [itr, emplaced] = allKeys.emplace(record.key);
         EXPECT_TRUE(emplaced) << "Duplicate key returned " << record.key;
+        std::string value;
         if (mcbp::datatype::is_snappy(record.meta.getDatatype())) {
             cb::compression::Buffer buffer;
             EXPECT_TRUE(cb::compression::inflate(
                     cb::compression::Algorithm::Snappy, record.value, buffer));
-            EXPECT_EQ(
-                    1,
-                    expectedKeySet.count(std::string{std::string_view{buffer}}))
-                    << record.key;
+            value = std::string{std::string_view{buffer}};
         } else {
-            EXPECT_EQ(1, expectedKeySet.count(std::string{record.value}));
+            value = record.value;
         }
+        nlohmann::json jsonValue = nlohmann::json::parse(value);
+        EXPECT_EQ(1, expectedKeySet.count(jsonValue["key"]));
+
+        // Check meta matches
+        const auto& meta = userKeysMeta.at(std::string{record.key});
+        EXPECT_EQ(meta.flags, record.meta.getFlags());
+        EXPECT_EQ(meta.expiry, record.meta.getExpiry());
+        // compare and ignore snappy as it varies based on test
+        EXPECT_EQ(meta.datatype,
+                  record.meta.getDatatype() & ~PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
         record = payload.next();
         ++count;

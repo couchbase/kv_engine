@@ -2354,7 +2354,7 @@ public:
                                            uint64_t seqno,
                                            uint64_t cas,
                                            uint8_t datatype)
-        : flags(htonl(flags)),
+        : flags(flags),
           expiry(htonl(expiry)),
           seqno(htonll(seqno)),
           cas(htonll(cas)),
@@ -2362,7 +2362,7 @@ public:
     }
 
     uint32_t getFlags() const {
-        return htonl(flags);
+        return flags;
     }
     uint32_t getExpiry() const {
         return htonl(expiry);
