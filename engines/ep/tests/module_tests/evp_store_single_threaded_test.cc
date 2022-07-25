@@ -56,6 +56,7 @@
 #include "vbucket_state.h"
 #include "warmup.h"
 
+#include <boost/algorithm/string/replace.hpp>
 #include <executor/fake_executorpool.h>
 #include <executor/task_type.h>
 #include <folly/synchronization/Baton.h>
@@ -638,24 +639,17 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
     // so we have to remove them. We'll also remove some redundant config
     // names while we're at it to make reading the param names easier.
     std::replace(config.begin(), config.end(), ':', '_');
-    config = std::regex_replace(config, std::regex("bucket_type="), "");
-    config = std::regex_replace(
-            config, std::regex("ephemeral_full_policy="), "");
-    config =
-            std::regex_replace(config, std::regex("item_eviction_policy="), "");
-    config = std::regex_replace(
-            config, std::regex("nexus_primary_backend="), "");
-    config = std::regex_replace(
-            config, std::regex("nexus_secondary_backend="), "");
-    config = std::regex_replace(config, std::regex("backend="), "");
-    config = std::regex_replace(
-            config, std::regex("bfilter_enabled="), "bfilter_");
-    config = std::regex_replace(config, std::regex("pitr_enabled="), "pitr_");
-    config = std::regex_replace(
-            config, std::regex("pitr_granularity="), "pitr_granularity_");
-    config = std::regex_replace(config,
-                                std::regex("pitr_max_history_age="),
-                                "pitr_max_history_age_");
+    boost::replace_all(config, "bucket_type=", "");
+    boost::replace_all(config, "ephemeral_full_policy=", "");
+    boost::replace_all(config, "item_eviction_policy=", "");
+    boost::replace_all(config, "nexus_primary_backend=", "");
+    boost::replace_all(config, "nexus_secondary_backend=", "");
+    boost::replace_all(config, "backend=", "");
+    boost::replace_all(config, "bfilter_enabled=", "bfilter_");
+    boost::replace_all(config, "pitr_enabled=", "pitr_");
+    boost::replace_all(config, "pitr_granularity=", "pitr_granularity_");
+    boost::replace_all(
+            config, "pitr_max_history_age=", "pitr_max_history_age_");
     return config;
 }
 
