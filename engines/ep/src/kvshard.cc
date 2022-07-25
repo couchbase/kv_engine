@@ -9,14 +9,12 @@
  *   the file licenses/APL2.txt.
  */
 
-#include <functional>
-#include <memory>
-
+#include "kvshard.h"
 #include "configuration.h"
 #include "flusher.h"
-#include "kvshard.h"
 #include "kvstore/kvstore.h"
 #include "vbucket.h"
+#include <memory>
 
 /* [EPHE TODO]: Consider not using KVShard for ephemeral bucket */
 KVShard::KVShard(Configuration& config,

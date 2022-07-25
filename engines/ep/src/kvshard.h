@@ -67,6 +67,10 @@ public:
     using id_type = uint16_t;
     KVShard(Configuration& config, id_type numShards, id_type id);
     ~KVShard();
+    KVShard(const KVShard&) = delete;
+    KVShard(KVShard&&) = delete;
+    const KVShard& operator=(const KVShard&) = delete;
+    void operator=(const KVShard&&) = delete;
 
     KVStoreIface* getRWUnderlying() {
         return rwStore.get();
@@ -225,7 +229,4 @@ private:
      * the first element in the vector is vb:1, second is vb:5, 3rd is vb:9 ...
      */
     std::vector<VBMapElement> vbuckets;
-
-public:
-    DISALLOW_COPY_AND_ASSIGN(KVShard);
 };
