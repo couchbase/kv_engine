@@ -48,7 +48,7 @@ void Bucket::reset() {
                         std::memory_order_acquire),
                 std::memory_order_release);
     } else {
-        throttle_limit = 0;
+        throttle_limit = std::numeric_limits<std::size_t>::max();
     }
     num_throttled = 0;
     throttle_wait_time = 0;
@@ -234,7 +234,8 @@ void Bucket::tick() {
 }
 
 bool Bucket::shouldThrottleDcp(const Connection& connection) {
-    if (throttle_limit == 0 || connection.isUnthrottled()) {
+    if (throttle_limit == std::numeric_limits<std::size_t>::max() ||
+        connection.isUnthrottled()) {
         return false;
     }
 
@@ -247,7 +248,8 @@ bool Bucket::shouldThrottleDcp(const Connection& connection) {
 
 bool Bucket::shouldThrottle(const Cookie& cookie,
                             bool addConnectionToThrottleList) {
-    if (throttle_limit == 0 || cookie.getConnection().isUnthrottled()) {
+    if (throttle_limit == std::numeric_limits<std::size_t>::max() ||
+        cookie.getConnection().isUnthrottled()) {
         // No limit specified, so we don't need to do any further inspection
         return false;
     }

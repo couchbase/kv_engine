@@ -34,7 +34,7 @@ TEST(BucketTest, Reset) {
             bucket_quota_exceeded = true;
 
             reset();
-            EXPECT_EQ(0, throttle_limit);
+            EXPECT_EQ(std::numeric_limits<std::size_t>::max(), throttle_limit);
             EXPECT_EQ(0, num_throttled);
             EXPECT_EQ(0, throttle_wait_time);
             EXPECT_EQ(0, num_commands);
