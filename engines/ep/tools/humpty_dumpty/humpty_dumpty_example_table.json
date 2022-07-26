@@ -1,0 +1,6 @@
+[
+    {"id": 4444, "seq": 40, "comment": "Most recent failover entry" },
+    {"id": 3333, "seq": 30 },
+    {"id": 2222, "seq": 20 },
+    {"id": 1111, "seq": 0 }
+]

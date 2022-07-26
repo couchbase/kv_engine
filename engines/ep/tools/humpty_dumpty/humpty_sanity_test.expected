@@ -1,0 +1,17 @@
+Simulating behaviour of VBucket with highSeqno: 100, purgeSeqno:0, failoverTable:
+[
+    {"id":3333,"seq":30}
+    {"id":2222,"seq":20}
+    {"id":1111,"seq":0}
+]
+
+Testing UUID:2222 snapshot:{20,30} start:25
+  Rollback:false
+Testing UUID:2222 snapshot:{45,45} start:45
+  Rollback:true
+  Requested rollback seqno:30
+  Reason: consumer ahead of producer - producer upper at 30
+Testing UUID:5555 snapshot:{10,10} start:10
+  Rollback:true
+  Requested rollback seqno:0
+  Reason: vBucket UUID not found in failover table, consumer and producer have no common history

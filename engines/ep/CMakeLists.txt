@@ -99,6 +99,8 @@ add_sanitizers(genconfig)
 add_subdirectory(tools/couchfile_upgrade)
 include_directories(tools/couchfile_upgrade)
 
+add_subdirectory(tools/humpty_dumpty)
+
 cb_add_test_executable(kvstore_gen tools/kvstore_gen.cc
         ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
         ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
