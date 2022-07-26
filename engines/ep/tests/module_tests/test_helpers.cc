@@ -17,6 +17,7 @@
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "vbucket.h"
 
+#include <boost/algorithm/string/replace.hpp>
 #include <folly/portability/GTest.h>
 #include <libcouchstore/couch_db.h>
 #include <nlohmann/json.hpp>
@@ -344,7 +345,7 @@ std::string sanitizeTestParamConfigString(std::string_view config) {
     // configuration.json we actually use couchstore so all of our test
     // parameters are labelled "couchstore" and we need to replace those with
     // "couchdb" to pass into the engine config.
-    ret = std::regex_replace(ret, std::regex("couchstore"), "couchdb");
+    boost::replace_all(ret, "couchstore", "couchdb");
     return ret;
 }
 
