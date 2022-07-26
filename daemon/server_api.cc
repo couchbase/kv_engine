@@ -76,7 +76,8 @@ struct ServerDocumentApi : public ServerDocumentIface {
 
     void document_expired(const EngineIface& engine, size_t nbytes) override {
         BucketManager::instance().forEach([&engine, nbytes](Bucket& bucket) {
-            if (&engine == &bucket.getEngine()) {
+            if (bucket.type != BucketType::ClusterConfigOnly &&
+                &engine == &bucket.getEngine()) {
                 bucket.documentExpired(nbytes);
                 return false;
             }

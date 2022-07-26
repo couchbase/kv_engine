@@ -1,4 +1,5 @@
 cb_add_test_executable(serverless_test
+        config_bucket_test.cc
         dcp_drain.cc
         dcp_drain.h
         dcp_metering_test.cc

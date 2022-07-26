@@ -539,6 +539,27 @@ cb::mcbp::Status Cookie::validate() {
         return cb::mcbp::Status::UnknownCommand;
     }
 
+    // A cluster-only bucket don't have an associated engine parameter
+    // so we don't even want to try to validate the packet unless it is
+    // one of the few commands allowed to be executed in such a bucket
+    // (to avoid a potential call throug a nil pointer)
+    if (connection.getBucket().type == BucketType::ClusterConfigOnly) {
+        const std::array<cb::mcbp::ClientOpcode, 4> whitelist{
+                {cb::mcbp::ClientOpcode::Hello,
+                 cb::mcbp::ClientOpcode::GetErrorMap,
+                 cb::mcbp::ClientOpcode::GetClusterConfig,
+                 cb::mcbp::ClientOpcode::SelectBucket}};
+        if (std::find(whitelist.begin(), whitelist.end(), opcode) ==
+            whitelist.end()) {
+            LOG_DEBUG(
+                    "{} Can't run the requested command on "
+                    "cluster-config-bucket: {}",
+                    connection.getId(),
+                    to_string(opcode));
+            return cb::mcbp::Status::Etmpfail;
+        }
+    }
+
     auto result = packetValidator.validate(opcode, *this);
     if (result != cb::mcbp::Status::Success) {
         if (result != cb::mcbp::Status::UnknownCollection &&

@@ -1674,9 +1674,15 @@ void Connection::close() {
 }
 
 void Connection::propagateDisconnect() const {
+    auto& bucket = getBucket();
+    if (bucket.type == BucketType::ClusterConfigOnly) {
+        // We don't have an engine
+        return;
+    }
+    auto& engine = bucket.getEngine();
     for (auto& cookie : cookies) {
         if (cookie) {
-            getBucket().getEngine().disconnect(*cookie);
+            engine.disconnect(*cookie);
         }
     }
 }

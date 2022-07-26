@@ -478,7 +478,9 @@ static void settings_init() {
                 auto val = ThreadPoolConfig::StorageThreadCount(
                         s.getNumStorageThreads());
                 BucketManager::instance().forEach([val](Bucket& b) -> bool {
-                    b.getEngine().set_num_storage_threads(val);
+                    if (b.type != BucketType::ClusterConfigOnly) {
+                        b.getEngine().set_num_storage_threads(val);
+                    }
                     return true;
                 });
             });
@@ -735,7 +737,9 @@ static void startExecutorPool() {
                 ExecutorPool::get()->setNumWriters(val);
                 BucketManager::instance().forEach([](Bucket& b) -> bool {
                     // Notify all buckets of the recent change
-                    b.getEngine().notify_num_writer_threads_changed();
+                    if (b.type != BucketType::ClusterConfigOnly) {
+                        b.getEngine().notify_num_writer_threads_changed();
+                    }
                     return true;
                 });
             });
@@ -745,7 +749,9 @@ static void startExecutorPool() {
                 ExecutorPool::get()->setNumAuxIO(val);
                 BucketManager::instance().forEach([](Bucket& b) -> bool {
                     // Notify all buckets of the recent change
-                    b.getEngine().notify_num_auxio_threads_changed();
+                    if (b.type != BucketType::ClusterConfigOnly) {
+                        b.getEngine().notify_num_auxio_threads_changed();
+                    }
                     return true;
                 });
             });

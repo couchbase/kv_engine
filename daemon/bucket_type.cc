@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2019-Present Couchbase, Inc.
  *
@@ -17,6 +16,8 @@ std::string to_string(BucketType type) {
         return "Memcached";
     case BucketType::Couchbase:
         return "Couchbase";
+    case BucketType::ClusterConfigOnly:
+        return "ClusterConfigOnly";
     case BucketType::EWouldBlock:
         return "EWouldBlock";
     case BucketType::NoBucket:

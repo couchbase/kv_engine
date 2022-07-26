@@ -99,10 +99,14 @@ public:
     /// the bucket.
     std::atomic<uint32_t> items_in_transit;
 
-    /**
-     * The type of bucket
-     */
-    BucketType type{BucketType::Unknown};
+    /// The type of bucket.
+    ///
+    /// The type of bucket would normally not change after it is created
+    /// except for the special case where it starts off as a "config-only"
+    /// bucket which later gets replaced with a real instance of a Couchbase
+    /// bucket. Due to that special case it needs to be marked as atomic
+    /// so that we can read it without having to lock the bucket.
+    std::atomic<BucketType> type{BucketType::Unknown};
 
     /**
      * The name of the bucket (and space for the '\0')

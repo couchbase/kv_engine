@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -34,6 +33,7 @@ unique_engine_ptr new_engine_instance(BucketType type,
             break;
         case BucketType::EWouldBlock:
             return create_ewouldblock_instance(get_server_api);
+        case BucketType::ClusterConfigOnly:
         case BucketType::Unknown:
             // fall through with status == cb::engine_errc::no_such_key
             break;
@@ -85,6 +85,7 @@ void shutdown_all_engines() {
     // are also considered for shutdown (requires the non-const type input)
     auto type = BucketType::NoBucket;
     switch (type) {
+    case BucketType::ClusterConfigOnly:
     case BucketType::NoBucket:
         // no cleanup needed;
     case BucketType::Memcached:

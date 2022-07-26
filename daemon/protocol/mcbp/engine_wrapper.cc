@@ -965,7 +965,7 @@ cb::engine_errc bucket_set_parameter(Cookie& cookie,
                                      std::string_view value,
                                      Vbid vbucket) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucket().getEngine().setParameter(
+    auto ret = connection.getBucketEngine().setParameter(
             cookie, category, key, value, vbucket);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
@@ -984,7 +984,7 @@ cb::engine_errc bucket_compact_database(Cookie& cookie) {
     const auto& payload =
             req.getCommandSpecifics<cb::mcbp::request::CompactDbPayload>();
 
-    auto ret = connection.getBucket().getEngine().compactDatabase(
+    auto ret = connection.getBucketEngine().compactDatabase(
             cookie,
             req.getVBucket(),
             payload.getPurgeBeforeTs(),
@@ -1003,8 +1003,8 @@ cb::engine_errc bucket_compact_database(Cookie& cookie) {
 std::pair<cb::engine_errc, vbucket_state_t> bucket_get_vbucket(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     const auto& req = cookie.getRequest();
-    auto ret = connection.getBucket().getEngine().getVBucket(cookie,
-                                                             req.getVBucket());
+    auto ret =
+            connection.getBucketEngine().getVBucket(cookie, req.getVBucket());
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} getVBucket() returned cb::engine_errc::disconnect",
                     connection.getId(),
@@ -1020,7 +1020,7 @@ cb::engine_errc bucket_set_vbucket(Cookie& cookie,
                                    nlohmann::json& meta) {
     const auto& req = cookie.getRequest();
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucket().getEngine().setVBucket(
+    auto ret = connection.getBucketEngine().setVBucket(
             cookie,
             req.getVBucket(),
             req.getCas(),
@@ -1038,8 +1038,7 @@ cb::engine_errc bucket_set_vbucket(Cookie& cookie,
 
 cb::engine_errc bucket_delete_vbucket(Cookie& cookie, Vbid vbid, bool sync) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucket().getEngine().deleteVBucket(
-            cookie, vbid, sync);
+    auto ret = connection.getBucketEngine().deleteVBucket(cookie, vbid, sync);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} deleteVBucket() returned cb::engine_errc::disconnect",

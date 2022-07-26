@@ -363,16 +363,38 @@ cb::engine_errc BucketManager::setClusterConfig(
     // (create/delete bucket or set cluster config).
     std::lock_guard<std::mutex> guard(buckets_lock);
 
+    auto first_free = all_buckets.size();
+
+    std::size_t ii = 0;
     for (auto& bucket : all_buckets) {
         std::lock_guard<std::mutex> bucketguard(bucket.mutex);
         if (bucket.state == Bucket::State::Ready && bucket.name == name) {
             bucket.clusterConfiguration.setConfiguration(
                     std::move(configuration));
             return cb::engine_errc::success;
+        } else if (bucket.state == Bucket::State::None &&
+                   first_free == all_buckets.size()) {
+            first_free = ii;
         }
+        ++ii;
     }
 
-    return cb::engine_errc::no_such_key;
+    if (!isServerlessDeployment()) {
+        return cb::engine_errc::no_such_key;
+    }
+
+    if (first_free == all_buckets.size()) {
+        return cb::engine_errc::too_big;
+    }
+
+    std::lock_guard<std::mutex> bucketguard(all_buckets[first_free].mutex);
+    auto& bucket = all_buckets[first_free];
+    bucket.type = BucketType::ClusterConfigOnly;
+    bucket.clusterConfiguration.setConfiguration(std::move(configuration));
+    strcpy(bucket.name, name.c_str());
+    bucket.state = Bucket::State::Ready;
+    LOG_INFO("Created cluster config bucket [{}]", name);
+    return cb::engine_errc::success;
 }
 
 cb::engine_errc BucketManager::create(Cookie& cookie,
@@ -398,10 +420,12 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
         }
         if (name == all_buckets[ii].name) {
             found = true;
+            first_free = ii;
         }
     }
 
-    if (found) {
+    if (found &&
+        all_buckets[first_free].type != BucketType::ClusterConfigOnly) {
         result = cb::engine_errc::key_already_exists;
         LOG_ERROR("{}: Create bucket [{}] failed - Already exists", cid, name);
     } else if (first_free == all_buckets.size()) {
@@ -416,7 +440,9 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
          * we can release the global lock..
          */
         std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
-        all_buckets[ii].state = Bucket::State::Creating;
+        if (all_buckets[ii].type != BucketType::ClusterConfigOnly) {
+            all_buckets[ii].state = Bucket::State::Creating;
+        }
         all_buckets[ii].type = type;
         strcpy(all_buckets[ii].name, name.c_str());
     }
@@ -432,7 +458,9 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
     // so we can do stuff without locking..
     try {
         const auto start = std::chrono::steady_clock::now();
-        bucket.setEngine(new_engine_instance(type, get_server_api));
+        if (all_buckets[ii].type != BucketType::ClusterConfigOnly) {
+            bucket.setEngine(new_engine_instance(type, get_server_api));
+        }
         const auto stop = std::chrono::steady_clock::now();
         if ((stop - start) > std::chrono::seconds{1}) {
             LOG_WARNING(
@@ -452,7 +480,7 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
     }
 
     auto& engine = bucket.getEngine();
-    {
+    if (all_buckets[ii].type != BucketType::ClusterConfigOnly) {
         std::lock_guard<std::mutex> guard(bucket.mutex);
         bucket.state = Bucket::State::Initializing;
     }
@@ -569,10 +597,14 @@ cb::engine_errc BucketManager::destroy(Cookie* cookie,
         return ret;
     }
 
-    LOG_INFO("{}: Delete bucket [{}]. Notifying engine", connection_id, name);
+    if (all_buckets[idx].type != BucketType::ClusterConfigOnly) {
+        LOG_INFO("{}: Delete bucket [{}]. Notifying engine",
+                 connection_id,
+                 name);
 
-    all_buckets[idx].getEngine().initiate_shutdown();
-    all_buckets[idx].getEngine().cancel_all_operations_in_ewb_state();
+        all_buckets[idx].getEngine().initiate_shutdown();
+        all_buckets[idx].getEngine().cancel_all_operations_in_ewb_state();
+    }
 
     LOG_INFO("{}: Delete bucket [{}]. Engine ready for shutdown",
              connection_id,
@@ -627,7 +659,9 @@ cb::engine_errc BucketManager::destroy(Cookie* cookie,
                         connection.signalIfIdle();
                     }
                 });
-                bucket.getEngine().cancel_all_operations_in_ewb_state();
+                if (all_buckets[idx].type != BucketType::ClusterConfigOnly) {
+                    bucket.getEngine().cancel_all_operations_in_ewb_state();
+                }
                 guard.lock();
                 continue;
             }
