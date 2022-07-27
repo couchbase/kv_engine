@@ -7551,7 +7551,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "ep_alog_sleep_time",
                 "ep_alog_task_time",
                 "ep_item_eviction_policy",
-                "ep_warmup"};
+                "ep_warmup",
+                "ep_warmup_backfill_scan_chunk_duration"};
         eng_stats.insert(eng_stats.end(), persistentConfig);
 
         // 'diskinfo and 'diskinfo detail' keys should be present now.

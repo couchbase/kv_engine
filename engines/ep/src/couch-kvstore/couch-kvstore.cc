@@ -2130,7 +2130,12 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
 
     couchstore_free_document(doc);
 
-    if (cb->getStatus() == ENGINE_ENOMEM) {
+    if (cb->shouldYield()) {
+        // Scan is yielding _after_ successfully processing this doc.
+        // Resume at next item.
+        sctx->lastReadSeqno = byseqno;
+        return COUCHSTORE_ERROR_CANCEL;
+    } else if (cb->getStatus() == ENGINE_ENOMEM) {
         return COUCHSTORE_ERROR_CANCEL;
     }
 

@@ -140,6 +140,14 @@ public:
         return myStatus;
     }
 
+    void yield() {
+        myStatus = ENGINE_TMPFAIL;
+    }
+
+    bool shouldYield() const {
+        return myStatus == ENGINE_TMPFAIL;
+    }
+
 private:
     int myStatus;
 };
