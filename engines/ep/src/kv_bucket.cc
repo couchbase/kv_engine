@@ -2891,9 +2891,32 @@ cb::engine_errc KVBucket::autoConfigCheckpointMaxSize() {
     }
 
     const auto& config = engine.getConfiguration();
-    const auto checkpointQuota = config.getMaxSize() * checkpointMemoryRatio;
+    const auto maxSize = config.getMaxSize();
+    const auto ckptMemRatio = checkpointMemoryRatio.load();
     const auto numCheckpointsPerVB = config.getMaxCheckpoints();
-    Expects(numCheckpointsPerVB > 0);
+
+    const auto checkpointQuota = maxSize * ckptMemRatio;
+    Expects(checkpointQuota > 0);
+
+    size_t newCheckpointMaxSize =
+            checkpointQuota / numVBuckets / numCheckpointsPerVB;
+    if (newCheckpointMaxSize < 1) {
+        throw std::invalid_argument(
+                fmt::format("KVBucket::autoConfigCheckpointMaxSize: "
+                            "newCheckpointMaxSize:{} is < 1. "
+                            "max_size:{}, "
+                            "checkpoint mem ratio:{}, "
+                            "checkpoint quota:{}, "
+                            "numVBuckets:{}, "
+                            "numCheckpointsPerVB:{}",
+                            newCheckpointMaxSize,
+                            maxSize,
+                            ckptMemRatio,
+                            checkpointQuota,
+                            numVBuckets,
+                            numCheckpointsPerVB));
+    }
+
     engine.getCheckpointConfig().setCheckpointMaxSize(
             checkpointQuota / numVBuckets / numCheckpointsPerVB);
 
