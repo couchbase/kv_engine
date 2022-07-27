@@ -361,7 +361,8 @@ static std::filesystem::path createTemporaryDirectory() {
     const auto cwd = absolute(std::filesystem::path{"."}).parent_path();
     for (;;) {
         auto candidate =
-                cwd / boost::filesystem::unique_path("cluster_%%%%%%").string();
+                cwd /
+                boost::filesystem::unique_path("cluster_test_%%%%%%").string();
         if (create_directories(candidate)) {
             return candidate;
         }
