@@ -49,7 +49,7 @@ public:
         config = {{"range", {{"start", start}, {"end", end}}},
                   {"snapshot_requirements",
                    {{"seqno", mInfo.seqno},
-                    {"vb_uuid", mInfo.vbucketuuid},
+                    {"vb_uuid", std::to_string(mInfo.vbucketuuid)},
                     {"timeout_ms", 120000}}}};
     }
 
@@ -146,6 +146,20 @@ TEST_P(RangeScanTest, CreateInvalid) {
     userConnection->sendCommand(cmd);
     userConnection->recvResponse(resp);
     ASSERT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+
+    // JSON but invalid UUID (should only be numeric) - will disconnect client.
+    config["snapshot_requirements"]["vb_uuid"] = "123abc";
+    cmd.setValue(config.dump());
+    cmd.setDatatype(cb::mcbp::Datatype::JSON);
+    userConnection->sendCommand(cmd);
+    try {
+        userConnection->recvResponse(resp);
+        FAIL() << "Expected connection to be closed after invalid UUID";
+    } catch (std::system_error& e) {
+        EXPECT_EQ(std::errc::connection_reset, e.code());
+    }
+    // Reset userConnection so it reconnects in next test.
+    userConnection.reset();
 }
 
 TEST_P(RangeScanTest, CreateCancel) {

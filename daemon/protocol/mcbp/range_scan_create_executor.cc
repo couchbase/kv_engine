@@ -61,7 +61,7 @@ static cb::rangescan::SnapshotRequirements getSnapshotRequirements(
         const nlohmann::json& snapshotRequirements) {
     auto vbUuid = cb::getJsonObject(snapshotRequirements,
                                     "vb_uuid",
-                                    nlohmann::json::value_t::number_unsigned,
+                                    nlohmann::json::value_t::string,
                                     "getSnapshotRequirements");
     auto seqno = cb::getJsonObject(snapshotRequirements,
                                    "seqno",
@@ -77,7 +77,15 @@ static cb::rangescan::SnapshotRequirements getSnapshotRequirements(
                                       nlohmann::json::value_t::number_unsigned);
 
     cb::rangescan::SnapshotRequirements rv;
-    rv.vbUuid = vbUuid.get<uint64_t>();
+    const auto uuidStr = vbUuid.get<std::string>();
+    std::size_t len{0};
+    rv.vbUuid = std::stoull(uuidStr, &len);
+    if (len != uuidStr.size()) {
+        throw std::invalid_argument(
+                "getSnapshotRequirements: non-numeric character(s) found as "
+                "part of vb_uuid: '" +
+                uuidStr + "'");
+    }
     rv.seqno = seqno.get<uint64_t>();
     if (seqnoExists) {
         rv.seqnoMustBeInSnapshot = seqnoExists.value().get<bool>();
