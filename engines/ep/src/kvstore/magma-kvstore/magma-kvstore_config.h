@@ -174,6 +174,14 @@ public:
         return magmaGroupCommitMaxTransactionCount;
     }
 
+    std::string getMagmaIndexCompressionAlgo() const {
+        return magmaIndexCompressionAlgo;
+    }
+
+    std::string getMagmaDataCompressionAlgo() const {
+        return magmaDataCompressionAlgo;
+    }
+
     void setMagmaMemQuotaRatio(float value);
 
     void setMagmaEnableBlockCache(bool enable);
@@ -362,8 +370,34 @@ private:
      */
     std::chrono::seconds magmaMaxLevel0TTL{600};
 
+    /**
+     * Accuracy of Magma's per SSTable bloom filter. These bloom filters are
+     * only enabled for the key index and this config is used for all levels
+     * apart from the bottom level. The bloom filter's total size and memory
+     * usage per key is computed from this config.
+     */
     float magmaBloomFilterAccuracy;
+    /**
+     * Accuracy of Magma's per SSTable bloom filter. These bloom filters are
+     * only enabled for the key index and this config is used only for the
+     * bottom level. We have a special config for the bottom since most of the
+     * data resides in the bottom level and these bloom filters are only used to
+     * avoid IO in case on non-existent keys.
+     */
     float magmaBloomFilterAccuracyForBottomLevel;
+
+    /**
+     * Index block level and checkpoint file compression algorithm for Magma.
+     * This config will be applied during block creation for blocks that don't
+     * contain documents ie. blocks that do not reside in the bottom level of
+     * the sequence index
+     */
+    std::string magmaIndexCompressionAlgo;
+    /**
+     * Compression algorithm used by Magma to compress data blocks where
+     * documents are stored.
+     */
+    std::string magmaDataCompressionAlgo;
 
     /**
      * Group Commit allows transactions in magma to be grouped

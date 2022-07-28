@@ -1327,6 +1327,32 @@
             "dynamic": false,
             "type": "float"
         },
+        "magma_index_compression_algo": {
+            "default": "LZ4",
+            "descr": "Compression algorithm used by Magma which is used to compress blocks that don't contain documents ie. all index related blocks",
+            "dynamic": false,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "LZ4",
+                    "Snappy",
+                    "Zstd"
+                ]
+            }
+        },
+        "magma_data_compression_algo": {
+            "default": "LZ4",
+            "descr": "Compression algorithm used by Magma to compress data blocks where documents are stored.",
+            "dynamic": false,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "LZ4",
+                    "Snappy",
+                    "Zstd"
+                ]
+            }
+        },
         "range_scan_max_continue_tasks": {
             "default": "0",
             "dynamic": true,

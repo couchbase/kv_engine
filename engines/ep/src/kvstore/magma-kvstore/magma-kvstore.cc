@@ -599,6 +599,10 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaBloomFilterAccuracyForBottomLevel();
     configuration.magmaCfg.MemoryQuotaLowWaterMarkRatio =
             configuration.getMagmaMemoryQuotaLowWaterMarkRatio();
+    configuration.magmaCfg.CompressionAlgo =
+            configuration.getMagmaIndexCompressionAlgo();
+    configuration.magmaCfg.DataCompressionAlgo =
+            configuration.getMagmaDataCompressionAlgo();
 
     configuration.setStore(this);
 

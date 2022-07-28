@@ -107,6 +107,8 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             config.getMagmaGroupCommitMaxSyncWaitDurationMs());
     magmaGroupCommitMaxTransactionCount =
             config.getMagmaGroupCommitMaxTransactionCount();
+    magmaIndexCompressionAlgo = config.getMagmaIndexCompressionAlgo();
+    magmaDataCompressionAlgo = config.getMagmaDataCompressionAlgo();
 
     config.addValueChangedListener(
             "magma_enable_block_cache",
