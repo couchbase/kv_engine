@@ -228,6 +228,44 @@ Item KVBucketTest::store_deleted_item(
     return ::testing::AssertionSuccess();
 }
 
+::testing::AssertionResult KVBucketTest::store_item_replica(
+        Vbid vbid,
+        const DocKey& key,
+        const std::string& value,
+        uint64_t seqno,
+        uint32_t exptime,
+        const cb::engine_errc expected,
+        protocol_binary_datatype_t datatype,
+        std::optional<cb::durability::Requirements> reqs,
+        bool deleted) {
+    auto item = make_item(vbid, key, value, exptime, datatype);
+    if (reqs) {
+        item.setPendingSyncWrite(*reqs);
+    }
+    if (deleted) {
+        item.setDeleted(DeleteSource::Explicit);
+    }
+    item.setBySeqno(seqno);
+    item.setCas();
+
+    auto returnCode = store->setWithMeta(item,
+                                         0,
+                                         nullptr,
+                                         cookie,
+                                         {vbucket_state_replica},
+                                         CheckConflicts::No,
+                                         true,
+                                         GenerateBySeqno::Yes,
+                                         GenerateCas::No,
+                                         nullptr);
+    if (returnCode != expected) {
+        return ::testing::AssertionFailure()
+               << "store_item_replica() unexpected error:"
+               << cb::to_string(returnCode) << " for key:" << key.to_string();
+    }
+    return ::testing::AssertionSuccess();
+}
+
 void KVBucketTest::flush_vbucket_to_disk(Vbid vbid, size_t expected) {
     size_t actualFlushed = flushVBucket(vbid);
 

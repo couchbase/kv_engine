@@ -101,6 +101,21 @@ public:
             protocol_binary_datatype_t datatype =
                     PROTOCOL_BINARY_DATATYPE_JSON);
 
+    /**
+     * Stores an item to a replica vbucket, returns an assert if the set succeed
+     * or not.
+     */
+    [[nodiscard]] ::testing::AssertionResult store_item_replica(
+            Vbid vbid,
+            const DocKey& key,
+            const std::string& value,
+            uint64_t seqno,
+            uint32_t exptime = 0,
+            const cb::engine_errc expected = cb::engine_errc::success,
+            protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON,
+            std::optional<cb::durability::Requirements> reqs = {},
+            bool deleted = false);
+
     /* Flush the given vbucket to disk, so any outstanding dirty items are
      * written (and are clean).
      */
