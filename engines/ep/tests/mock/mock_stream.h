@@ -101,10 +101,6 @@ public:
         return backfillItems.memory + backfillItems.disk;
     }
 
-    uint64_t getLastReadSeqno() const {
-        return lastReadSeqno;
-    }
-
     std::optional<cb::NonNegativeCounter<size_t>> getNumBackfillItemsRemaining()
             const {
         return backfillRemaining;
