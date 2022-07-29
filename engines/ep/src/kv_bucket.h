@@ -765,6 +765,10 @@ public:
      */
     KVShard::id_type getShardId(Vbid vbid) const;
 
+    EvictionPolicy getEvictionPolicy() const {
+        return eviction_policy;
+    }
+
 protected:
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,

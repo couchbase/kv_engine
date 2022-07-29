@@ -284,12 +284,6 @@ bool StoredValue::operator!=(const StoredValue& other) const {
 }
 
 bool StoredValue::deleteImpl(DeleteSource delSource) {
-    if (isDeleted() && !getValue()) {
-        // SV is already marked as deleted and has no value - no further
-        // deletion possible.
-        return false;
-    }
-
     resetValue();
     setDatatype(PROTOCOL_BINARY_RAW_BYTES);
     setPendingSeqno();
