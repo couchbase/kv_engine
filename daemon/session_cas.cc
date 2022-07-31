@@ -62,3 +62,12 @@ bool SessionCas::increment_session_counter(const uint64_t cas)  {
     }
     return ret;
 }
+
+bool SessionCas::execute(uint64_t cas, std::function<void()> func) {
+    if (increment_session_counter(cas)) {
+        func();
+        decrement_session_counter();
+        return true;
+    }
+    return false;
+}

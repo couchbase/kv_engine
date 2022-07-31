@@ -13,6 +13,7 @@
 #include <memcached/engine_error.h>
 #include <memcached/types.h>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 
 /**
@@ -62,6 +63,10 @@ public:
      * ran a successful increment of the session counter!!)
      */
     void decrement_session_counter();
+
+    /// Execute the provided function iff the provided cas represents
+    /// the session cas.
+    bool execute(uint64_t cas, std::function<void()> func);
 
 private:
     /**

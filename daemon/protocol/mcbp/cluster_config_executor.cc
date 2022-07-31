@@ -72,62 +72,28 @@ void get_cluster_config_executor(Cookie& cookie) {
 
 /// Push the configuration fot the provided bucket to all clients
 /// bound to the bucket and subscribe to notifications
-/// @param bucketIndex index into the bucket array
-/// @param version the version which triggered the callback
-///                 (used for logging only.. we'll always push the latest
-///                  version if there is a "race" where ns_server updates
-///                  the clustermap while we're pushing a version)
-static void push_cluster_config(unsigned int bucketIndex,
-                                const ClustermapVersion& version) {
-    // We've got a reference to the bucket so we need to disassociate
-    // when we're done!
-    auto& bucket = BucketManager::instance().at(bucketIndex);
-    bool isAlive = false;
-
-    {
-        std::lock_guard<std::mutex> guard(bucket.mutex);
-        isAlive = bucket.state == Bucket::State::Ready;
-        if (isAlive) {
-            // Bump a reference so the bucket can't be deleted while
-            // we're in the middle of pushing configurations
-            bucket.clients++;
+/// @param bucketname The name of the bucket to push
+static void push_cluster_config(Bucket& bucket) {
+    iterate_all_connections([&bucket](Connection& connection) -> void {
+        if (!connection.isClustermapChangeNotificationSupported() ||
+            bucket.state != Bucket::State::Ready) {
+            // The client hasn't asked to be notified or the bucket is
+            // about to be deleted
+            return;
         }
-    }
 
-    if (!isAlive) {
-        return;
-    }
+        if (bucket.type != BucketType::NoBucket &&
+            &bucket != &connection.getBucket()) {
+            // This isn't the global configuration or the selected bucket
+            // so we shouldn't push the configuration
+            return;
+        }
 
-    if (bucket.type == BucketType::NoBucket) {
-        LOG_INFO("Pushing new global cluster config - revision:{}", version);
-    } else {
-        LOG_INFO(
-                "Pushing new cluster config for bucket:[{}] "
-                "revision:{}",
-                bucket.name,
-                version);
-    }
-    try {
-        iterate_all_connections([bucketIndex](Connection& connection) -> void {
-            if (!connection.isClustermapChangeNotificationSupported()) {
-                // The client hasn't asked to be notified
-                return;
-            }
-
-            if (bucketIndex != 0 &&
-                bucketIndex != connection.getBucketIndex()) {
-                // This isn't the global configuration or the selected bucket
-                // so we shouldn't push the configuration
-                return;
-            }
-
-            std::unique_ptr<ClusterConfiguration::Configuration> active;
-            if (bucketIndex == 0) {
-                active =
-                        all_buckets[0]
-                                .clusterConfiguration.maybeGetConfiguration({});
+        std::unique_ptr<ClusterConfiguration::Configuration> active;
+        try {
+            if (bucket.type == BucketType::NoBucket) {
+                active = bucket.clusterConfiguration.maybeGetConfiguration({});
             } else {
-                auto& bucket = connection.getBucket();
                 auto pushed = connection.getPushedClustermapRevno();
                 active = bucket.clusterConfiguration.maybeGetConfiguration(
                         pushed);
@@ -138,19 +104,7 @@ static void push_cluster_config(unsigned int bucketIndex,
                 return;
             }
 
-            std::string name;
-            {
-                std::lock_guard<std::mutex> guard(
-                        all_buckets[bucketIndex].mutex);
-                if (all_buckets[bucketIndex].state == Bucket::State::Ready) {
-                    name = all_buckets[bucketIndex].name;
-                } else {
-                    // The bucket is no longer online
-                    return;
-                }
-            }
-
-            if (bucketIndex == 0) {
+            if (bucket.type == BucketType::NoBucket) {
                 LOG_INFO("{}: Sending global Cluster map revision:  {}",
                          connection.getId(),
                          active->version);
@@ -158,10 +112,11 @@ static void push_cluster_config(unsigned int bucketIndex,
                 connection.setPushedClustermapRevno(active->version);
                 LOG_INFO("{}: Sending Cluster map for bucket:{} revision:{}",
                          connection.getId(),
-                         name,
+                         bucket.name,
                          active->version);
             }
 
+            std::string name = bucket.name;
             using namespace cb::mcbp;
             cb::mcbp::request::SetClusterConfigPayload version;
             version.setEpoch(active->version.getEpoch());
@@ -185,12 +140,12 @@ static void push_cluster_config(unsigned int bucketIndex,
 
             // Inject our packet into the stream!
             connection.copyToOutputStream(builder.getFrame()->getFrame());
-        });
-    } catch (const std::exception& e) {
-        LOG_WARNING("Failed to push cluster config. Received exception: {}",
-                    e.what());
-    }
-    disconnect_bucket(bucket, nullptr);
+        } catch (const std::bad_alloc&) {
+            // memory allocation failed; just ignore the push request
+            connection.shutdown();
+            connection.setTerminationReason("Memory allocation failure");
+        }
+    });
 }
 
 void set_cluster_config_executor(Cookie& cookie) {
@@ -198,47 +153,41 @@ void set_cluster_config_executor(Cookie& cookie) {
     const auto& req = cookie.getRequest();
     auto& connection = cookie.getConnection();
 
-    int bucketIndex = -1;
-    // Locate bucket to operate
-    auto key = req.getKey();
-    const auto bucketname =
-            std::string{reinterpret_cast<const char*>(key.data()), key.size()};
-    for (size_t ii = 0; ii < all_buckets.size() && bucketIndex == -1; ++ii) {
-        Bucket& b = all_buckets.at(ii);
-        std::lock_guard<std::mutex> guard(b.mutex);
-        if (b.state == Bucket::State::Ready &&
-            strcmp(b.name, bucketname.c_str()) == 0) {
-            b.clients++;
-            bucketIndex = int(ii);
-        }
-    }
-
-    if (bucketIndex == -1) {
-        cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
-        return;
-    }
-
-    // verify that this is a legal session cas:
-    auto cas = req.getCas();
-    if (!session_cas.increment_session_counter(cas)) {
-        cookie.sendResponse(cb::mcbp::Status::KeyEexists);
-        disconnect_bucket(all_buckets[bucketIndex], nullptr);
-        return;
-    }
-
     using cb::mcbp::request::SetClusterConfigPayload;
     const auto& ext = req.getCommandSpecifics<SetClusterConfigPayload>();
     const ClustermapVersion version = {ext.getEpoch(), ext.getRevision()};
 
-    bool failed = false;
+    std::unique_ptr<ClusterConfiguration::Configuration> configuration;
     try {
         auto payload = req.getValue();
         std::string_view clustermap = {
                 reinterpret_cast<const char*>(payload.data()), payload.size()};
-        all_buckets[bucketIndex].clusterConfiguration.setConfiguration(
-                std::make_unique<ClusterConfiguration::Configuration>(
-                        version, clustermap));
-        if (bucketIndex == 0) {
+        configuration = std::make_unique<ClusterConfiguration::Configuration>(
+                version, clustermap);
+    } catch (const std::bad_alloc&) {
+        cookie.sendResponse(cb::mcbp::Status::Enomem);
+        return;
+    }
+
+    auto key = req.getKey();
+    const auto bucketname =
+            std::string{reinterpret_cast<const char*>(key.data()), key.size()};
+
+    // verify that this is a legal session cas:
+    auto cas = req.getCas();
+
+    cb::engine_errc status;
+    if (!session_cas.execute(cas, [&status, &bucketname, &configuration]() {
+            status = BucketManager::instance().setClusterConfig(
+                    bucketname, std::move(configuration));
+        })) {
+        cookie.sendResponse(cb::mcbp::Status::KeyEexists);
+        return;
+    }
+
+    if (status == cb::engine_errc::success) {
+        // Log and push
+        if (bucketname.empty()) {
             LOG_INFO(
                     "{}: {} Updated global cluster configuration. New "
                     "revision: {}",
@@ -247,35 +196,65 @@ void set_cluster_config_executor(Cookie& cookie) {
                     version);
         } else {
             LOG_INFO(
-                    "{}: {} Updated cluster configuration for bucket [{}]. New "
+                    "{}: Updated cluster configuration for bucket [{}]. New "
                     "revision: {}",
                     connection.getId(),
-                    connection.getDescription(),
-                    all_buckets[bucketIndex].name,
+                    bucketname,
                     version);
         }
         cookie.setCas(cas);
         cookie.sendResponse(cb::mcbp::Status::Success);
-    } catch (const std::exception& e) {
-        LOG_WARNING(
-                "{}: {} Failed to update cluster configuration for bucket "
-                "[{}] - {}",
-                connection.getId(),
-                connection.getDescription(),
-                all_buckets[bucketIndex].name,
-                e.what());
-        failed = true;
-    }
 
-    if (!failed) {
         ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
                 TaskId::Core_PushClustermapTask,
                 "Push clustermap",
-                [bucketIndex, version]() {
-                    push_cluster_config((unsigned int)bucketIndex, version);
+                [bucketname]() {
+                    for (auto& bucket : all_buckets) {
+                        bool thisIsTheBucket = false;
+                        {
+                            std::lock_guard<std::mutex> guard(bucket.mutex);
+                            if (bucket.state == Bucket::State::Ready &&
+                                bucket.name == bucketname) {
+                                bucket.clients++;
+                                thisIsTheBucket = true;
+                            }
+                        }
+
+                        if (thisIsTheBucket) {
+                            if (bucket.type == BucketType::NoBucket) {
+                                LOG_INFO_RAW(
+                                        "Pushing new global cluster "
+                                        "config");
+                            } else {
+                                LOG_INFO(
+                                        "Pushing new cluster config for "
+                                        "bucket [{}]",
+                                        bucket.name);
+                            }
+                            try {
+                                push_cluster_config(bucket);
+                            } catch (const std::exception& exception) {
+                                LOG_WARNING(
+                                        "Failed to push cluster "
+                                        "configuration for bucket [{}]: {}",
+                                        bucket.name,
+                                        exception.what());
+                            }
+
+                            disconnect_bucket(bucket, nullptr);
+                            return;
+                        }
+                    }
                 }));
+
+        return;
     }
 
-    session_cas.decrement_session_counter();
-    disconnect_bucket(all_buckets[bucketIndex], nullptr);
+    LOG_WARNING(
+            "{}: Failed to update cluster configuration for bucket [{}] - {}",
+            connection.getId(),
+            bucketname,
+            status);
+
+    cookie.sendResponse(status);
 }

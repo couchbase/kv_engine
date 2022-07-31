@@ -352,6 +352,25 @@ BucketManager& BucketManager::instance() {
 std::mutex buckets_lock;
 std::array<Bucket, cb::limits::TotalBuckets + 1> all_buckets;
 
+cb::engine_errc BucketManager::setClusterConfig(
+        const std::string& name,
+        std::unique_ptr<ClusterConfiguration::Configuration> configuration) {
+    // Make sure we don't race with anyone else touching the bucket array
+    // (create/delete bucket or set cluster config).
+    std::lock_guard<std::mutex> guard(buckets_lock);
+
+    for (auto& bucket : all_buckets) {
+        std::lock_guard<std::mutex> bucketguard(bucket.mutex);
+        if (bucket.state == Bucket::State::Ready && bucket.name == name) {
+            bucket.clusterConfiguration.setConfiguration(
+                    std::move(configuration));
+            return cb::engine_errc::success;
+        }
+    }
+
+    return cb::engine_errc::no_such_key;
+}
+
 cb::engine_errc BucketManager::create(Cookie& cookie,
                                       const std::string name,
                                       const std::string config,
