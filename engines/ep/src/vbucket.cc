@@ -1437,6 +1437,8 @@ HashTable::FindResult VBucket::fetchValidValue(
         TrackReference trackReference,
         const Collections::VB::CachingReadHandle& cHandle,
         const ForGetReplicaOp fetchRequestedForReplicaItem) {
+    fetchValidValueHook(getStateLock());
+
     const auto& key = cHandle.getKey();
 
     // Whilst fetchValidValue is used for reads it also processes expiries which

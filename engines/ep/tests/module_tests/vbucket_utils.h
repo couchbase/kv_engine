@@ -42,4 +42,9 @@ public:
     static void setIsCalledHook(VBucket& vb, std::function<void()> hook) {
         vb.isCalledHook = hook;
     }
+
+    static void setFetchValidValueHook(VBucket& vb,
+                                       TestingHook<folly::SharedMutex&> hook) {
+        vb.fetchValidValueHook = hook;
+    }
 };

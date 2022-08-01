@@ -440,6 +440,7 @@ size_t EPVBucket::getNumSystemItems() const {
 cb::engine_errc EPVBucket::statsVKey(const DocKey& key,
                                      const CookieIface* cookie,
                                      EventuallyPersistentEngine& engine) {
+    folly::SharedMutex::ReadHolder rlh(getStateLock());
     auto readHandle = lockCollections(key);
     if (!readHandle.valid()) {
         return cb::engine_errc::unknown_collection;
@@ -488,6 +489,8 @@ cb::engine_errc EPVBucket::statsVKey(const DocKey& key,
 }
 
 void EPVBucket::completeStatsVKey(const DocKey& key, const GetValue& gcb) {
+    folly::SharedMutex::ReadHolder rlh(getStateLock());
+
     auto cHandle = lockCollections(key);
     auto res = fetchValidValue(
             WantsDeleted::Yes,

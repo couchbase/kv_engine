@@ -2655,6 +2655,9 @@ private:
     // Test hook used to determine if the method .getInternal() is called
     TestingHook<> isCalledHook;
 
+    // Test hook for checking that fetchValidValue holds the state lock
+    TestingHook<folly::SharedMutex&> fetchValidValueHook;
+
     friend class DurabilityMonitorTest;
     friend class SingleThreadedActiveStreamTest;
     friend class VBucketTestBase;

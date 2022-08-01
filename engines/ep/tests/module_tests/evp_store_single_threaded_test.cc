@@ -54,6 +54,7 @@
 #include "tests/test_fileops.h"
 #include "vb_commit.h"
 #include "vbucket_state.h"
+#include "vbucket_utils.h"
 #include "warmup.h"
 
 #include <boost/algorithm/string/replace.hpp>
@@ -5851,4 +5852,25 @@ TEST_P(STParameterizedBucketTest, DcpStartFromLatestSeqno) {
     producer->closeAllStreams();
     producer->cancelCheckpointCreatorTask();
     producer.reset();
+}
+
+TEST_P(STParameterizedBucketTest, TestKeyValidationStatsHoldVBStateLock) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    VBucketTestIntrospector::setFetchValidValueHook(
+            *vb, {[](folly::SharedMutex& vbStateLock) {
+                EXPECT_FALSE(vbStateLock.try_lock());
+            }});
+
+    auto key = makeStoredDocKey("k1");
+    if (isPersistent()) {
+        store->statsVKey(key, vbid, cookie);
+        store->completeStatsVKey(cookie, key, vbid, 0);
+    }
+
+    auto dummyItem = makeCommittedItem(key, "val");
+    store->validateKey(key, vbid, *dummyItem);
 }

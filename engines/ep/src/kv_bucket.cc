@@ -1928,6 +1928,7 @@ std::string KVBucket::validateKey(const DocKey& key,
                                   Vbid vbucket,
                                   Item& diskItem) {
     VBucketPtr vb = getVBucket(vbucket);
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
 
     auto cHandle = vb->lockCollections(key);
     if (!cHandle.valid()) {
