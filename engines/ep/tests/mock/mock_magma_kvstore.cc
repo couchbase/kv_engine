@@ -85,3 +85,10 @@ magma::Status MockMagmaKVStore::runImplicitCompactKVStore(Vbid vbid) {
 magma::Status MockMagmaKVStore::newCheckpoint(Vbid vbid) {
     return magma->NewCheckpoint(vbid.get());
 }
+
+ScanStatus MockMagmaKVStore::scan(BySeqnoScanContext& scanCtx) const {
+    if (scanErrorInjector) {
+        scanErrorInjector();
+    }
+    return MagmaKVStore::scan(scanCtx);
+}

@@ -65,10 +65,13 @@ public:
         fileHandleSyncStatusHook = hook;
     }
 
+    ScanStatus scan(BySeqnoScanContext& scanCtx) const override;
+
     TestingHook<> readVBStateFromDiskHook;
 
     std::function<int(VB::Commit&, kvstats_ctx&)> saveDocsErrorInjector;
     std::function<bool()> snapshotVBucketErrorInjector;
+    std::function<ScanStatus()> scanErrorInjector;
 };
 
 #endif

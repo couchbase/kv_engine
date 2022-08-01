@@ -58,6 +58,8 @@ public:
     virtual void failAllSnapshotVBuckets() = 0;
 
     virtual bool deleteLocalDoc(Vbid, std::string_view key) = 0;
+
+    virtual void failNextScan(const std::function<ScanStatus()>& fn) = 0;
 };
 
 class CouchKVStoreErrorInjector : public ErrorInjector {
@@ -91,6 +93,14 @@ public:
 
     bool deleteLocalDoc(Vbid vbid, std::string_view key) override {
         return kvstore->deleteLocalDoc(vbid, key);
+    }
+
+    void failNextScan(const std::function<ScanStatus()>& fn) override {
+        kvstore->scanErrorInjector = [this, fn = std::move(fn)]() {
+            auto result = fn();
+            kvstore->scanErrorInjector = nullptr;
+            return result;
+        };
     }
 
 protected:
@@ -129,6 +139,14 @@ public:
     bool deleteLocalDoc(Vbid vbid, std::string_view key) override {
         auto status = kvstore->deleteLocalDoc(vbid, key);
         return status.IsOK();
+    }
+
+    void failNextScan(const std::function<ScanStatus()>& fn) override {
+        kvstore->scanErrorInjector = [this, fn = std::move(fn)]() {
+            auto result = fn();
+            kvstore->scanErrorInjector = nullptr;
+            return result;
+        };
     }
 
     MockMagmaKVStore* kvstore;
@@ -908,6 +926,48 @@ TEST_P(KVStoreErrorInjectionTest, WarmupKVStoreRevWhenVBStateNonExistent) {
     // correctly we should not first an assert here
     EXPECT_NO_THROW(
             setVBucketStateAndRunPersistTask(vbid, vbucket_state_active));
+}
+
+/**
+ * Test that we can deal with a vBucket going away while we scan a shard
+ * during warmup. If a vBucket is deleted by ns_server while we scan it, then
+ * we should cancel the scan as it is not pointless work, but we do not want
+ * to cancel the scans for other vBuckets in the shard during warmup.
+ */
+TEST_P(KVStoreErrorInjectionTest, WarmupScanCancelled) {
+    // vBucket to delete
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    store_item(vbid, makeStoredDocKey("keyVb0"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Second vBucket will not be deleted, and must belong to the same shard
+    Vbid secondVbid(engine->getConfiguration().getMaxNumShards());
+    setVBucketStateAndRunPersistTask(secondVbid, vbucket_state_active);
+    store_item(secondVbid, makeStoredDocKey("keyVb2"), "value");
+    flushVBucketToDiskIfPersistent(secondVbid, 1);
+
+    resetEngineAndEnableWarmup();
+    // The errorInjector points to the underlying KVStore so it must be
+    // re-created post-warmup to point to a valid object.
+    createErrorInjector();
+
+    // We fail the first scan with a Cancelled status. We should see this
+    // happen if a vBucket happens to go away while we scan it. It's a pain
+    // to inject this into the callback from the KVStore (which lives in the
+    // warmup code) so inject a KVStore error and manually delete the vBucket
+    errorInjector->failNextScan({[this]() {
+        store->deleteVBucket(vbid, cookie);
+        return ScanStatus::Cancelled;
+    }});
+
+    // Run all of the warmup
+    EXPECT_NO_THROW(runReadersUntilWarmedUp());
+    // vb 0 was deleted and does not exist
+    EXPECT_FALSE(store->getVBucket(vbid));
+    // vb 2 exists and has the item
+    auto secondVb = store->getVBucket(secondVbid);
+    ASSERT_TRUE(secondVb);
+    EXPECT_EQ(1, secondVb->ht.getNumItems());
 }
 
 INSTANTIATE_TEST_SUITE_P(

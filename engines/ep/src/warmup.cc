@@ -540,6 +540,14 @@ bool WarmupVbucketVisitor::visit(VBucket& vb) {
 
     auto scanStatus = kvstore->scan(*currentScanCtx);
     switch (scanStatus) {
+    case ScanStatus::Cancelled:
+        // Cancelled is expected if a vBucket goes away. We should continue
+        // scanning the next vBucket. Fall-through to success
+        EP_LOG_WARN(
+                "WarmupVbucketVisitor::visit(): {} shardId:{} scan "
+                "cancelled, did the vBucket go away?",
+                vb.getId(),
+                backfillTask.getShardId());
     case ScanStatus::Success:
         // Finished backfill for this vbucket so we need to reset the scan ctx,
         // so that we can create a scan ctx for the next vbucket.
@@ -566,9 +574,6 @@ bool WarmupVbucketVisitor::visit(VBucket& vb) {
             currentScanCtx.reset();
         }
         return !needToScanAgain;
-
-    case ScanStatus::Cancelled:
-        // Cancelled is unexpected
     case ScanStatus::Failed:
         // Disk error scanning keys - cannot continue warmup.
         currentScanCtx.reset();

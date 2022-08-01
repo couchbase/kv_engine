@@ -31,3 +31,10 @@ bool MockCouchKVStore::deleteLocalDoc(Vbid vbid, std::string_view doc) {
 
     return !errCode;
 }
+
+ScanStatus MockCouchKVStore::scan(BySeqnoScanContext& scanContext) const {
+    if (scanErrorInjector) {
+        scanErrorInjector();
+    }
+    return CouchKVStore::scan(scanContext);
+}

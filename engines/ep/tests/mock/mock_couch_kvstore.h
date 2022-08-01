@@ -106,4 +106,8 @@ public:
     }
 
     bool deleteLocalDoc(Vbid vbid, std::string_view doc);
+
+    ScanStatus scan(BySeqnoScanContext& scanContext) const override;
+
+    std::function<ScanStatus()> scanErrorInjector;
 };
