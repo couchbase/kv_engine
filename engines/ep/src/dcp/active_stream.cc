@@ -218,12 +218,13 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
                 name_, lastProcessedSeqno, CheckpointCursor::Droppable::Yes);
 
         log(spdlog::level::level_enum::info,
-            "{} ActiveStream::registerCursor name \"{}\", backfill:{}, "
-            "seqno:{}",
+            "{} ActiveStream::registerCursor name \"{}\", "
+            "lastProcessedSeqno:{}, registeredSeqno:{}, backfill:{}",
             logPrefix,
             name_,
-            result.tryBackfill,
-            result.seqno);
+            lastProcessedSeqno,
+            result.seqno,
+            result.tryBackfill);
 
         /*
          * MB-22960:  Due to cursor dropping we re-register the replication
@@ -1733,12 +1734,13 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
 
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::scheduleBackfill_UNLOCKED register cursor "
-            "with "
-            "name \"{}\" backfill:{}, seqno:{}",
+            "with name \"{}\" lastReadSeqno:{}, registeredSeqno:{}, "
+            "backfill:{}",
             logPrefix,
             name_,
-            registerResult.tryBackfill,
-            registerResult.seqno);
+            lastReadSeqno.load(),
+            registerResult.seqno,
+            registerResult.tryBackfill);
 
         curChkSeqno = registerResult.seqno;
         tryBackfill = registerResult.tryBackfill;
@@ -1974,11 +1976,12 @@ void ActiveStream::notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno) {
             log(spdlog::level::level_enum::info,
                 "{} ActiveStream::notifyEmptyBackfill "
                 "Re-registering dropped cursor with name \"{}\", "
-                "backfill:{}, seqno:{}",
+                "lastSeenSeqno:{}, registeredSeqno:{}, backfill:{}",
                 logPrefix,
                 name_,
-                result.tryBackfill,
-                result.seqno);
+                lastSeenSeqno,
+                result.seqno,
+                result.tryBackfill);
             curChkSeqno = result.seqno;
             cursor = result.cursor;
         } catch (std::exception& error) {
