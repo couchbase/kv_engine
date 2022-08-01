@@ -38,6 +38,7 @@
 
 #include <platform/dirutils.h>
 #include <statistics/cbstat_collector.h>
+#include <utilities/logtags.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -652,4 +653,46 @@ void CompactionConfig::merge(const CompactionConfig& other) {
             std::max<uint64_t>(purge_before_ts, other.purge_before_ts);
     purge_before_seq =
             std::max<uint64_t>(purge_before_seq, other.purge_before_seq);
+}
+
+bool KVStore::isDocumentPotentiallyCorruptedByMB52793(
+        bool deleted, protocol_binary_datatype_t datatype) {
+    // As per MB-52793, Deleted documents with a zero length value can
+    // incorrectly end up with the datatype set to XATTR (when it should be
+    // RAW_BYTES), if it was previously a deleted document /with/ a value of
+    // system XATTRs.
+    // To be able to fixup such documents we need to know more than just the
+    // metadata, as the value size is stored as part of the value. As such;
+    // return true if it meets all the criteria which metadata informs us of.
+    return deleted && datatype == PROTOCOL_BINARY_DATATYPE_XATTR;
+}
+
+// MB-51373: Fix the datatype of invalid documents. Currently checks for
+// datatype ! raw but no value, this invalid document has been seen in
+// production deployments and reading them can lead to a restart
+bool KVStore::checkAndFixKVStoreCreatedItem(Item& item) {
+#if CB_DEVELOPMENT_ASSERTS
+    if (item.isDeleted() &&
+        item.getDataType() == PROTOCOL_BINARY_DATATYPE_XATTR) {
+        // If we encounter a potential invalid doc (MB-51373) - Delete with
+        // datatype XATTR, we should have its value to be able to verify it
+        // is correct, or otherwise sanitise it.
+        Expects(bool(item.getValue()));
+    }
+#endif
+    if (item.isDeleted() &&
+        item.getValue() &&
+        item.getNBytes() == 0 &&
+        item.getDataType() != PROTOCOL_BINARY_RAW_BYTES) {
+        std::stringstream ss;
+        ss << item;
+        EP_LOG_WARN(
+                "KVStore::checkAndFixKVStoreCreatedItem: {} correcting invalid "
+                "datatype {}",
+                item.getVBucketId(),
+                cb::UserDataView(ss.str()).getSanitizedValue());
+        item.setDataType(PROTOCOL_BINARY_RAW_BYTES);
+        return true;
+    }
+    return false;
 }

@@ -125,26 +125,35 @@ static std::pair<couchstore_error_t, nlohmann::json> getLocalVbState(Db& db) {
 
 /**
  * Helper function to create an Item from couchstore DocInfo & related types.
+ * @param vbid The vbucket the Item belongs to
+ * @param docinfo The id, db_seq and rev_seq are used in the Item construction
+ * @param metadata The metadata to use to create the Item
+ * @param value an optional value, this allows "key-only" paths to be
+ *        distinguishable from a value of 0 length.
  */
 static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
                                                  const DocInfo& docinfo,
                                                  const MetaData& metadata,
-                                                 sized_buf value,
+                                                 std::optional<sized_buf> value,
                                                  bool fetchedCompressed) {
     auto datatype = metadata.getDataType();
     // If document was fetched compressed, then set SNAPPY flag for non-zero
     // length documents.
-    if (fetchedCompressed && (value.size > 0)) {
+    if (fetchedCompressed && value && (value->size > 0)) {
         datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 
+    value_t body;
+    if (value) {
+        body.reset(TaggedPtr<Blob>(Blob::New(value->buf, value->size),
+                                   TaggedPtrBase::NoTagValue));
+    }
     // Strip off the DurabilityPrepare namespace (if present) from the persisted
     // dockey before we create the in-memory item.
     auto item = std::make_unique<Item>(makeDiskDocKey(docinfo.id).getDocKey(),
                                        metadata.getFlags(),
                                        metadata.getExptime(),
-                                       value.buf,
-                                       value.size,
+                                       body,
                                        datatype,
                                        metadata.getCas(),
                                        docinfo.db_seq,
@@ -153,6 +162,8 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
     if (docinfo.deleted) {
         item->setDeleted(metadata.getDeleteSource());
     }
+
+    KVStore::checkAndFixKVStoreCreatedItem(*item);
 
     if (metadata.getVersionInitialisedFrom() == MetaData::Version::V3) {
         // Metadata is from a SyncWrite - update the Item appropriately.
@@ -698,7 +709,10 @@ void CouchKVStore::getRange(Vbid vb,
             }
         }
 
-        auto value = doc ? doc->data : sized_buf{nullptr, 0};
+        std::optional<sized_buf> value;
+        if (doc) {
+            value = doc->data;
+        }
         state.userFunc(GetValue{makeItemFromDocInfo(
                 state.vb, *docinfo, *metadata, value, fetchCompressed)});
         if (doc) {
@@ -768,7 +782,7 @@ static int notify_expired_item(DocInfo& info,
                                sized_buf item,
                                CompactionContext& ctx,
                                time_t currtime) {
-    sized_buf data{nullptr, 0};
+    std::optional<sized_buf> data;
     cb::compression::Buffer inflated;
 
     if (mcbp::datatype::is_xattr(metadata.getDataType())) {
@@ -795,7 +809,7 @@ static int notify_expired_item(DocInfo& info,
             // Now remove snappy bit
             metadata.setDataType(metadata.getDataType() &
                                  ~PROTOCOL_BINARY_DATATYPE_SNAPPY);
-            data = {inflated.data(), inflated.size()};
+            data = sized_buf{inflated.data(), inflated.size()};
         }
     }
 
@@ -2623,9 +2637,12 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
         return COUCHSTORE_ERROR_DB_NO_LONGER_VALID;
     }
 
-    if (filter == ValueFilter::KEYS_ONLY) {
+    const bool forceValueFetch = isDocumentPotentiallyCorruptedByMB52793(
+        docinfo->deleted, metadata->getDataType());
+    if (filter == ValueFilter::KEYS_ONLY && !forceValueFetch) {
+        // Can skip reading document value.
         auto it = makeItemFromDocInfo(
-                vbId, *docinfo, *metadata, {nullptr, 0}, fetchCompressed);
+                vbId, *docinfo, *metadata, std::nullopt, fetchCompressed);
 
         docValue = GetValue(std::move(it));
         // update ep-engine IO stats
@@ -2690,7 +2707,6 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     auto& cl = sctx->getCacheCallback();
 
     Doc *doc = nullptr;
-    sized_buf value{nullptr, 0};
     uint64_t byseqno = docinfo->db_seq;
     Vbid vbucketId = sctx->vbid;
 
@@ -2741,7 +2757,11 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     const bool keysOnly = sctx->valFilter == ValueFilter::KEYS_ONLY;
     const bool isSystemEvent =
             makeDiskDocKey(docinfo->id).getDocKey().isInSystemCollection();
-    if (!keysOnly || isSystemEvent) {
+    const bool forceValueFetch =
+            KVStore::isDocumentPotentiallyCorruptedByMB52793(
+                    docinfo->deleted, metadata->getDataType());
+    std::optional<sized_buf> value;
+    if (!keysOnly || isSystemEvent || forceValueFetch) {
         const couchstore_open_options openOptions =
                 fetchCompressed ? 0 : DECOMPRESS_DOC_BODIES;
         auto errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,

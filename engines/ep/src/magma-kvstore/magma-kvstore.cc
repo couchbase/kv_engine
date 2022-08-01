@@ -1025,25 +1025,35 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
     auto key = makeDiskDocKey(keySlice);
     auto& meta = *reinterpret_cast<const magmakv::MetaData*>(metaSlice.Data());
 
-    const bool includeValue = (filter != ValueFilter::KEYS_ONLY ||
-                               key.getDocKey().isInSystemCollection()) &&
-                              meta.valueSize;
+    const bool forceValue = isDocumentPotentiallyCorruptedByMB52793(
+            meta.deleted, meta.datatype);
+
+    const bool includeValue = filter != ValueFilter::KEYS_ONLY ||
+                              key.getDocKey().isInSystemCollection();
+
+    value_t body;
+    if (includeValue || forceValue) {
+        body.reset(TaggedPtr<Blob>(Blob::New(valueSlice.Data(), meta.valueSize),
+                                   TaggedPtrBase::NoTagValue));
+    }
 
     auto item =
             std::make_unique<Item>(key.getDocKey(),
                                    meta.flags,
                                    meta.exptime,
-                                   includeValue ? valueSlice.Data() : nullptr,
-                                   includeValue ? meta.valueSize : 0,
+                                   body,
                                    meta.datatype,
                                    meta.cas,
                                    meta.bySeqno,
                                    vb,
                                    meta.revSeqno);
 
+
     if (meta.deleted) {
         item->setDeleted(static_cast<DeleteSource>(meta.deleteSource));
     }
+
+    checkAndFixKVStoreCreatedItem(*item);
 
     switch (meta.getOperation()) {
     case magmakv::MetaData::Operation::Mutation:
