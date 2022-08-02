@@ -38,7 +38,8 @@ public:
             IncludeXattrs includeXattrs = IncludeXattrs::Yes,
             IncludeDeletedUserXattrs includeDeletedUserXattrs =
                     IncludeDeletedUserXattrs::No,
-            std::optional<std::string_view> jsonFilter = {});
+            std::optional<std::string_view> jsonFilter = {},
+            const std::string& streamName = "");
 
     // Expose underlying protected ActiveStream methods as public
     OutstandingItemsResult public_getOutstandingItems(VBucket& vb) {

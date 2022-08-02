@@ -29,10 +29,11 @@ MockActiveStream::MockActiveStream(
         IncludeValue includeValue,
         IncludeXattrs includeXattrs,
         IncludeDeletedUserXattrs includeDeletedUserXattrs,
-        std::optional<std::string_view> jsonFilter)
+        std::optional<std::string_view> jsonFilter,
+        const std::string& streamName)
     : ActiveStream(e,
                    p,
-                   p->getName(),
+                   streamName.empty() ? p->getName() : streamName,
                    flags,
                    opaque,
                    vb,
