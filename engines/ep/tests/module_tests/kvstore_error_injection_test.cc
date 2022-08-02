@@ -24,8 +24,9 @@
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/test_fileops.h"
 #include "vbucket.h"
-
 #include "vbucket_state.h"
+#include "warmup.h"
+
 #include <folly/portability/GMock.h>
 #include <storage_common/local_doc_constants.h>
 
@@ -836,8 +837,6 @@ TEST_P(KVStoreErrorInjectionTest, ResetPCursorAtPersistNonMetaItems) {
     }
 }
 
-#include "warmup.h"
-
 /**
  * Test that we can deal with a vBucket on disk that does not have a vBucket
  * state. This may happen due to crashes and/or IO errors followed by another
@@ -880,6 +879,35 @@ TEST_P(KVStoreErrorInjectionTest, WarmupVBucketWithoutState) {
     EXPECT_NO_THROW(runReadersUntilWarmedUp());
     EXPECT_EQ(WarmupState::State::Done,
               engine->getKVBucket()->getWarmup()->getWarmupState());
+}
+
+TEST_P(KVStoreErrorInjectionTest, WarmupKVStoreRevWhenVBStateNonExistent) {
+    // Bump kvstore revision so that we can test that revisions do not go
+    // backwards
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    store->deleteVBucket(vbid, cookie);
+
+    // Vbid 0 (vbid) is the vBucket that we are testing here. Write a state
+    // and nothing else. We'll use the errorInjector to remove the vBucket
+    // state later as that's easier than creating the header/KVStore without
+    // writing a state.
+    setVBucketState(vbid, vbucket_state_active);
+    flushVBucketToDiskIfPersistent(vbid, 0);
+
+    // Remove our vbstate.
+    ASSERT_TRUE(errorInjector->deleteLocalDoc(vbid, LocalDocKey::vbstate));
+
+    // Reset but don't warmup so that we can set up our test objects again.
+    resetEngineAndEnableWarmup();
+
+    // The errorInjector points to the underlying KVStore so it must be
+    // re-created post-warmup to point to a valid object.
+    createErrorInjector();
+
+    // Magma asserts that revisions cannot go backwards. If we loaded revisions
+    // correctly we should not first an assert here
+    EXPECT_NO_THROW(
+            setVBucketStateAndRunPersistTask(vbid, vbucket_state_active));
 }
 
 INSTANTIATE_TEST_SUITE_P(
