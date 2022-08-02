@@ -7,8 +7,9 @@
 if (NOT APPLE)
     GoInstall(TARGET golang_tls_test
               PACKAGE tls_test
+              UNSHIPPED
               GOPATH "${CMAKE_CURRENT_SOURCE_DIR}"
-              GOVERSION 1.17.4)
+              GOVERSION 1.18)
     # Remove the sanitizers since the link step seems to pick up some
     # of the sanitizer libraries causing the link step to fail. This is
     # a go program and we don't need to sanitize the binary (but at the same
