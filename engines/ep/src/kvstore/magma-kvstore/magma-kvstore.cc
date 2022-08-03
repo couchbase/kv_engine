@@ -1858,20 +1858,7 @@ ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
 ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx) const {
     // Process each range until it's completed
     for (auto& range : ctx.ranges) {
-        switch (range.state) {
-        case ByIdRange::State::Pending: {
-            auto& itr = dynamic_cast<MagmaByIdScanContext&>(ctx).itr;
-
-            Slice keySlice = {
-                    reinterpret_cast<const char*>(range.startKey.data()),
-                    range.startKey.size()};
-            itr->Seek(keySlice);
-            range.state = ByIdRange::State::Scanning;
-            break;
-        }
-        case ByIdRange::State::Scanning:
-            break;
-        case ByIdRange::State::Completed:
+        if (range.rangeScanSuccess) {
             continue;
         }
         const auto status = scan(ctx, range);
@@ -1879,7 +1866,7 @@ ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx) const {
         case ScanStatus::Success:
             // This range has been completely visited and the next range can be
             // scanned.
-            range.state = ByIdRange::State::Completed;
+            range.rangeScanSuccess = true;
             continue;
         case ScanStatus::Yield:
             range.startKey = ctx.lastReadKey;
@@ -1897,10 +1884,11 @@ ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx) const {
 ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx,
                               const ByIdRange& range) const {
     auto& itr = dynamic_cast<MagmaByIdScanContext&>(ctx).itr;
-
-    for (; itr->Valid(); itr->Next()) {
+    Slice keySlice = {reinterpret_cast<const char*>(range.startKey.data()),
+                      range.startKey.size()};
+    for (itr->Seek(keySlice); itr->Valid(); itr->Next()) {
         // Read the key and check we're not outside the range
-        auto keySlice = itr->GetKey();
+        keySlice = itr->GetKey();
         if (std::string_view(keySlice) > std::string_view(range.endKey)) {
             return ScanStatus::Success;
         }
@@ -1919,7 +1907,6 @@ ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx,
             // point for the scan. Doing this here to avoid unnecessary alloc +
             // copy on every key scanned.
             ctx.lastReadKey = makeDiskDocKey(keySlice);
-            itr->Next();
         case MagmaScanResult::Status::Success:
         case MagmaScanResult::Status::Cancelled:
         case MagmaScanResult::Status::Failed:

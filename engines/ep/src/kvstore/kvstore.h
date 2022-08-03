@@ -498,7 +498,8 @@ struct ByIdRange {
     }
     DiskDocKey startKey;
     DiskDocKey endKey;
-    enum class State { Pending, Scanning, Completed } state{State::Pending};
+    bool rangeScanSuccess{false};
+
     bool operator==(const ByIdRange& other) const;
     bool operator!=(const ByIdRange& other) const;
 };

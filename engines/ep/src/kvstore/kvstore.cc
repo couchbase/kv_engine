@@ -126,7 +126,7 @@ ByIdScanContext::ByIdScanContext(
 
 bool ByIdRange::operator==(const ByIdRange& other) const {
     return startKey == other.startKey && endKey == other.endKey &&
-           state == other.state;
+           rangeScanSuccess == other.rangeScanSuccess;
 }
 
 bool ByIdRange::operator!=(const ByIdRange& other) const {
