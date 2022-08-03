@@ -92,10 +92,9 @@ public:
 
     void callback(GetValue& val) override;
 
-    void updateDeadLine() {
+    void updateDeadLine(std::chrono::steady_clock::time_point chunkStart) {
         if (deltaDeadlineFromNow) {
-            deadline =
-                    (std::chrono::steady_clock::now() + *deltaDeadlineFromNow);
+            deadline = (chunkStart + *deltaDeadlineFromNow);
             pausedDueToDeadLine = false;
         }
     };
@@ -366,6 +365,15 @@ public:
     WarmupVbucketVisitor(EPBucket& ep, const WarmupBackfillTask& task)
         : ep(ep), backfillTask(task){};
 
+    /**
+     * Informs the visitor that it is about to start visiting one or more
+     * vbuckets - so we can set the deadline for when the visitor should
+     * pause (inside the kvCallback).
+     */
+    void begin() {
+        chunkStart = std::chrono::steady_clock::now();
+    }
+
     bool visit(VBucket& vb) override;
 
 private:
@@ -373,6 +381,9 @@ private:
     bool needToScanAgain = false;
     const WarmupBackfillTask& backfillTask;
     std::unique_ptr<BySeqnoScanContext> currentScanCtx;
+    /// Time when this chunk of work (task run()) begin, used to determine when
+    /// the visitor should yield.
+    std::chrono::steady_clock::time_point chunkStart;
 };
 
 /**
@@ -440,6 +451,7 @@ public:
             return false;
         }
 
+        visitor.begin();
         auto& kvBucket = *engine->getKVBucket();
         try {
             epStorePosition = kvBucket.pauseResumeVisit(
@@ -540,7 +552,7 @@ bool WarmupVbucketVisitor::visit(VBucket& vb) {
     // Update backfill deadline for when we need to next pause
     auto& kvCallback =
             dynamic_cast<LoadStorageKVPairCallback&>(*currentScanCtx->callback);
-    kvCallback.updateDeadLine();
+    kvCallback.updateDeadLine(chunkStart);
 
     auto errorCode = kvstore->scan(*currentScanCtx);
     switch (errorCode) {
