@@ -1434,14 +1434,14 @@
             }
         },
         "warmup_backfill_scan_chunk_duration": {
-            "default": "10",
+            "default": "100",
             "descr": "The duration (in ms) after which warmup's backfill scans will yield and re-schedule; allowing other tasks on the same threads to run.",
             "dynamic": false,
             "type": "size_t",
             "requires": {
                 "bucket_type": "persistent"
             },
-            "comment": "Empirical testing using perf_bucket_warmup() in ep_perfsuite has shown that 10ms is a sweet spot for back filling maxDuration as it allows ~1000 items to be loaded before meeting the deadline and doesn't show a regression as compared with before the back filling tasks being performed in a pause/resume fashion."
+            "comment": "The value selected needs to balance throughput of the task itself, and scheduling latency of other tasks on thr same thread. Too high a value (or not yielding at all) means that backfill tasks monopolise the thread they are running on and hence prevent other reader tasks - such as populating vBucket map for other Buckets being warmed up (see MB-47267 / MB-52383). Too low a value and the throughput of the task itself is low and warmup takes a long time - for example functional testing showed that time-to-first-item during a scan may be 40ms on mid-low end disks. If we selected a value less than 40ms then only a single item will be read per scan; given the setup of the scan itself can be costly we want aim to read at least a few items per scan."
         },
         "warmup_min_memory_threshold": {
             "default": "100",
