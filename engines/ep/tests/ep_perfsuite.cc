@@ -1601,12 +1601,11 @@ static enum test_result perf_bucket_warmup(EngineIface* h) {
     // Now perform testing
     for (size_t i = 0; i < numOfWarmups; i++) {
         using namespace std::chrono;
-        // shutdown the bucket so we can warm it up
-        testHarness->destroy_bucket(h, false);
+        // restart the bucket so we can warm it up.
+        testHarness->reload_engine(&h, "", false, false);
+        // initialise, and time how long it takes to complete warmup.
         const auto start = std::chrono::steady_clock::now();
-        // Warmup the bucket and wait for warmup to complete
-        h = testHarness->create_bucket(
-                true, testHarness->get_current_testcase()->cfg);
+        h->initialize(testHarness->get_current_testcase()->cfg.c_str());
         wait_for_warmup_complete(h);
         const auto end = std::chrono::steady_clock::now();
         // Store the duration for the warmup

@@ -531,11 +531,9 @@ bool WarmupVbucketVisitor::visit(VBucket& vb) {
         }
     }
     // Update backfill deadline for when we need to next pause
-    auto kvCallback =
+    auto& kvCallback =
             dynamic_cast<LoadStorageKVPairCallback&>(*currentScanCtx->callback);
     kvCallback.updateDeadLine();
-
-    ep.getEPEngine().hangWarmupHook();
 
     auto errorCode = kvstore->scan(*currentScanCtx);
     switch (errorCode) {
@@ -953,6 +951,8 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
 
     // This callback method is responsible for deleting the Item
     std::unique_ptr<Item> i(std::move(val.item));
+
+    epstore.getEPEngine().visitWarmupHook();
 
     // Don't attempt to load the system event documents.
     if (i->getKey().isInSystemCollection()) {

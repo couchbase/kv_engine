@@ -1304,7 +1304,7 @@ public:
     // Testing hook for MB-45654, to allow for a sleep in between the backfill
     // context being created and backfill starting. To allow a test to
     // artificially increase backfill's duration.
-    TestingHook<> hangWarmupHook;
+    TestingHook<> visitWarmupHook;
 
 protected:
     ServerApi* serverApi;
