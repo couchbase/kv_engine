@@ -1646,7 +1646,12 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
         GetValue rv(std::move(itm), cb::engine_errc::success, -1, onlyKeys);
         ctx.callback->callback(rv);
         auto callbackStatus = ctx.callback->getStatus();
-        if (callbackStatus == static_cast<int>(cb::engine_errc::no_memory)) {
+        if (ctx.callback->shouldYield()) {
+            // Scan is yielding _after_ successfully processing this doc.
+            // Resume at next item.
+            ctx.lastReadSeqno = seqno;
+            return scan_again;
+        } else if (callbackStatus == static_cast<int>(cb::engine_errc::no_memory)) {
             if (logger->should_log(spdlog::level::TRACE)) {
                 logger->TRACE(
                         "MagmaKVStore::scan callback {} "

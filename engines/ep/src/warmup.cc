@@ -406,6 +406,14 @@ public:
           warmup(warmup),
           shardId(shardId),
           description(fmt::format("Warmup - {} shard {}", taskDesc, shardId)),
+          // Max expected duration is the chunk duration this task yields after,
+          // plus additional margin to account for the time taken to process
+          // the last item, and also to only catch truly "slow" outlying
+          // runs - 20% margin.
+          maxExpectedRuntime((engine->getConfiguration()
+                                      .getWarmupBackfillScanChunkDuration() *
+                              120) /
+                             100),
           currentNumBackfillTasks(threadTaskCount),
           filter(warmup.shardVbIds[shardId]),
           visitor(bucket, *this),
@@ -418,14 +426,7 @@ public:
     }
 
     std::chrono::microseconds maxExpectedDuration() const override {
-        /**
-         * Empirical testing using perf_bucket_warmup() in ep_perfsuite has
-         * shown that 10ms is a sweet spot for back filling maxDuration as it
-         * allows ~1000 items to be loaded before meeting the deadline and
-         * doesn't show a regression as compared with before the back filling
-         * tasks being performed in a pause/resume fashion.
-         */
-        return std::chrono::milliseconds(10);
+        return maxExpectedRuntime;
     }
 
     bool run() override {
@@ -498,6 +499,8 @@ private:
 
     const size_t shardId;
     const std::string description;
+    /// After how long should this task yield, allowing other tasks to run?
+    const std::chrono::milliseconds maxExpectedRuntime;
     std::atomic<size_t>& currentNumBackfillTasks;
     VBucketFilter filter;
     WarmupVbucketVisitor visitor;
@@ -508,11 +511,15 @@ bool WarmupVbucketVisitor::visit(VBucket& vb) {
     auto* kvstore = ep.getROUnderlyingByShard(backfillTask.getShardId());
 
     if (!currentScanCtx) {
+        const auto chunkDuration = std::chrono::milliseconds{
+                ep.getEPEngine()
+                        .getConfiguration()
+                        .getWarmupBackfillScanChunkDuration()};
         auto kvLookup = std::make_unique<LoadStorageKVPairCallback>(
                 ep,
                 backfillTask.maybeEnableTraffic(),
                 backfillTask.getWarmup().getWarmupState(),
-                backfillTask.maxExpectedDuration());
+                chunkDuration);
         currentScanCtx = kvstore->initBySeqnoScanContext(
                 std::move(kvLookup),
                 backfillTask.makeCacheLookupCallback(),
@@ -942,13 +949,6 @@ LoadStorageKVPairCallback::LoadStorageKVPairCallback(
 }
 
 void LoadStorageKVPairCallback::callback(GetValue& val) {
-    if (deltaDeadlineFromNow && std::chrono::steady_clock::now() >= deadline) {
-        pausedDueToDeadLine = true;
-        // Use cb::engine_errc::no_memory to get KVStore to cancel the backfill
-        setStatus(cb::engine_errc::no_memory);
-        return;
-    }
-
     // This callback method is responsible for deleting the Item
     std::unique_ptr<Item> i(std::move(val.item));
 
@@ -1072,6 +1072,12 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
                 "Engine warmup is complete, request to stop "
                 "loading remaining database");
         setStatus(cb::engine_errc::no_memory);
+        return;
+    }
+
+    if (deltaDeadlineFromNow && std::chrono::steady_clock::now() >= deadline) {
+        pausedDueToDeadLine = true;
+        yield(); // force return from KVStore::scan
     } else {
         setStatus(cb::engine_errc::success);
     }

@@ -7694,3 +7694,71 @@ void STParamPersistentBucketTest::
 
 
 }
+
+/**
+ * Test fixture for single-threaded warmup tests which require a single
+ * shard.
+ */
+class WarmupSTSingleShardTest : public STParamPersistentBucketTest {
+    void SetUp() override {
+        config_string = "max_num_shards=1";
+        STParamPersistentBucketTest::SetUp();
+    }
+};
+
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         WarmupSTSingleShardTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+// MB-53118: Test that if during warmup a disk scan for keys / items is slower
+// than the backfill chunk duration / yield interval; that we still make forward
+// progres and don't livelock.
+TEST_P(WarmupSTSingleShardTest, WarmupBackillYieldForwardProgress) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // 1) Create two items to warmup
+    store_item(vbid, makeStoredDocKey("key1"), "value1");
+    store_item(vbid, makeStoredDocKey("key2"), "value2");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // 2) Restart and prepare for warmup. Note we override the default value
+    //    of warmup_backfill_scan_chunk_duration, setting to zero to simulate
+    //    the behavour if the disk scan took longer than the chunk duration.
+    resetEngineAndEnableWarmup("warmup_backfill_scan_chunk_duration=0");
+    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto* warmup = engine->getKVBucket()->getWarmup();
+    ASSERT_TRUE(warmup);
+
+    // 3) Warmup - run up to the first stage where we scan disk for documents -
+    // KeyDump (value-eviction) or LoadingKVPairs (full-eviction).
+    while ((warmup->getWarmupState() != WarmupState::State::KeyDump) &&
+           (warmup->getWarmupState() != WarmupState::State::LoadingKVPairs)) {
+        runNextTask(readerQueue);
+    }
+
+    const auto diskScanState = warmup->getWarmupState();
+    // Now run the task which is performing a disk scan.
+    // Test - expect our single item to have been processed and warmup state
+    // to advance, otherwise a slow disk hitting the yield deadline would not
+    // make any forward progress.
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    runNextTask(readerQueue);
+    EXPECT_EQ(1, vb->ht.getNumInMemoryItems());
+
+    // Running again should load the next item
+    runNextTask(readerQueue);
+    EXPECT_EQ(2, vb->ht.getNumInMemoryItems());
+
+    // Running again should advance to the next task, as we should have
+    // completed the disk scan.
+    runNextTask(readerQueue);
+    EXPECT_EQ(2, vb->ht.getNumInMemoryItems());
+
+    if (fullEviction()) {
+        EXPECT_EQ(2, engine->getEpStats().warmedUpValues);
+    } else {
+        EXPECT_EQ(2, engine->getEpStats().warmedUpKeys);
+    }
+    EXPECT_NE(diskScanState, warmup->getWarmupState());
+}

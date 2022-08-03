@@ -138,6 +138,14 @@ public:
         return myStatus;
     }
 
+    void yield() {
+        myStatus = static_cast<int>(cb::engine_errc::temporary_failure);
+    }
+
+    bool shouldYield() const {
+        return myStatus == static_cast<int>(cb::engine_errc::temporary_failure);
+    }
+
 private:
     int myStatus;
 };
