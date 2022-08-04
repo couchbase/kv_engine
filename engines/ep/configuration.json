@@ -979,7 +979,7 @@
             }
         },
         "replication_throttle_threshold": {
-            "default": "99",
+            "default": "93",
             "descr": "Percentage of max mem at which we begin NAKing replication input.",
             "dynamic": true,
             "type": "size_t",
