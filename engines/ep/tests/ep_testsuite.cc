@@ -4349,6 +4349,12 @@ static enum test_result test_disk_gt_ram_update_paged_out(EngineIface* h) {
     return SUCCESS;
 }
 
+/*
+ * Test that reading a document which has been deleted
+ * (and tombstone compacted) does not go to disk but instead uses the Bloom
+ * filter to detect the document does not exist without having to access disk.
+ *
+ */
 static enum test_result test_disk_gt_ram_delete_paged_out(EngineIface* h) {
     wait_for_persisted_value(h, "k1", "some value");
 
@@ -4357,6 +4363,22 @@ static enum test_result test_disk_gt_ram_delete_paged_out(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             del(h, "k1", 0, Vbid(0)),
             "Failed to delete.");
+
+    // Wait for delete to be persisted so Bloom filter has the deleted key added.
+    wait_for_flusher_to_settle(h);
+
+    checkeq(0,
+            get_int_stat(h, "ep_bg_fetched"),
+            "Unexpected bg_fetched after del, before get");
+
+    // Store 1 more item - this is necessary as we cannot purge the high_seqno,
+    // but we _do_ want the delete above to be purged (and hence removed from
+    // Bloom filter on rebuild).
+    wait_for_persisted_value(h, "k2", "some value2");
+
+    // Trigger compaction - this is necessary to rebuild the Bloom filter to not
+    // include deleted, purged items.
+    compact_db(h, Vbid(0), std::numeric_limits<uint64_t>::max(), 0, 0);
 
     checkeq(cb::engine_errc::no_such_key,
             verify_key(h, "k1"),
@@ -9092,7 +9114,9 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare_ep_bucket,
+                 // Assumes there is an ep-engine Bloom filter enabled which is
+                 // not the case with Magma / RocksDB.
+                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("disk>RAM set bgfetch race",
                  test_disk_gt_ram_set_race,
