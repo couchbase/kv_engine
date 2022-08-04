@@ -304,6 +304,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
         /* We may need to send the requested 'snap_start_seqno_' as the snapshot
            start when we are sending the first snapshot because the first
            snapshot could be resumption of a previous snapshot */
+        bool wasFirst = !firstMarkerSent;
         startSeqno = adjustStartIfFirstSnapshot(startSeqno);
 
         VBucketPtr vb = engine->getVBucket(vb_);
@@ -366,6 +367,37 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
         if (startSeqno > 0) {
             lastSentSnapStartSeqno = startSeqno;
         }
+
+        // Only compare last sent start with last sent end if end has already
+        // been set
+        if (!wasFirst && lastSentSnapStartSeqno <= lastSentSnapEndSeqno) {
+            auto msg = fmt::format(
+                    "ActiveStream::markDiskSnapshot:"
+                    "sent snapshot marker to client with snap start <= "
+                    "previous snap end "
+                    "{} "
+                    "lastSentSnapStart:{} "
+                    "lastSentSnapEnd:{} "
+                    "snapStart:{} "
+                    "snapEnd:{} "
+                    "sid:{} "
+                    "producer name:{} "
+                    "lastReadSeqno:{} "
+                    "curChkSeqno:{} "
+                    "lastReadSeqnoUnSnapshotted:{}",
+                    vb_,
+                    lastSentSnapStartSeqno,
+                    lastSentSnapEndSeqno,
+                    startSeqno,
+                    endSeqno,
+                    sid,
+                    getName(),
+                    lastReadSeqno,
+                    curChkSeqno,
+                    lastReadSeqnoUnSnapshotted);
+            throw std::logic_error(msg);
+        }
+
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 
         if (!isDiskOnly()) {
@@ -1428,8 +1460,10 @@ void ActiveStream::snapshot(
         /* We need to send the requested 'snap_start_seqno_' as the snapshot
            start when we are sending the first snapshot because the first
            snapshot could be resumption of a previous snapshot */
+        bool wasFirst = false;
         if (!firstMarkerSent) {
             snapStart = std::min(snap_start_seqno_, snapStart);
+            wasFirst = true;
             firstMarkerSent = true;
         }
 
@@ -1451,6 +1485,38 @@ void ActiveStream::snapshot(
         // lastSentSnapStartSeqno is initial zero
         if (snapStart > 0) {
             lastSentSnapStartSeqno = snapStart;
+        }
+
+        // Only compare last sent start with last sent end if end has already
+        // been set
+        if (!wasFirst && lastSentSnapStartSeqno <= lastSentSnapEndSeqno) {
+            auto msg = fmt::format(
+                    "ActiveStream::snapshot: sent "
+                    "snapshot marker to client with snap start <= previous "
+                    "snap end "
+                    "{} "
+                    "lastSentSnapStart:{} "
+                    "lastSentSnapEnd:{} "
+                    "snapStart:{} "
+                    "snapEnd:{} "
+                    "flags:{} "
+                    "sid:{} "
+                    "producer name:{} "
+                    "lastReadSeqno:{} "
+                    "curChkSeqno:{} "
+                    "lastReadSeqnoUnSnapshotted:{}",
+                    vb_,
+                    lastSentSnapStartSeqno,
+                    lastSentSnapEndSeqno,
+                    snapStart,
+                    snapEnd,
+                    flags,
+                    sid,
+                    getName(),
+                    lastReadSeqno,
+                    curChkSeqno,
+                    lastReadSeqnoUnSnapshotted);
+            throw std::logic_error(msg);
         }
         lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
 
@@ -2342,6 +2408,7 @@ bool ActiveStream::isSeqnoGapAtEndOfSnapshot(uint64_t streamSeqno) const {
 void ActiveStream::sendSnapshotAndSeqnoAdvanced(CheckpointType checkpointType,
                                                 uint64_t start,
                                                 uint64_t end) {
+    bool wasFirst = !firstMarkerSent;
     start = adjustStartIfFirstSnapshot(start);
 
     const auto isCkptTypeDisk = isDiskCheckpointType(checkpointType);
@@ -2361,6 +2428,38 @@ void ActiveStream::sendSnapshotAndSeqnoAdvanced(CheckpointType checkpointType,
     if (start > 0) {
         lastSentSnapStartSeqno = start;
     }
+
+    // Only compare last sent start with last sent end if end has already
+    // been set
+    if (!wasFirst && lastSentSnapStartSeqno <= lastSentSnapEndSeqno) {
+        auto msg = fmt::format(
+                "ActiveStream::sendSnapshotAndSeqnoAdvanced: sent snapshot "
+                "marker to client with snap start <= previous snap end "
+                "{} "
+                "lastSentSnapStart:{} "
+                "lastSentSnapEnd:{} "
+                "snapStart:{} "
+                "snapEnd:{} "
+                "flags:{} "
+                "sid:{} "
+                "producer name:{} "
+                "lastReadSeqno:{} "
+                "curChkSeqno:{} "
+                "lastReadSeqnoUnSnapshotted:{}",
+                vb_,
+                lastSentSnapStartSeqno,
+                lastSentSnapEndSeqno,
+                start,
+                end,
+                flags,
+                sid,
+                getName(),
+                lastReadSeqno,
+                curChkSeqno,
+                lastReadSeqnoUnSnapshotted);
+        throw std::logic_error(msg);
+    }
+
     lastSentSnapEndSeqno.store(end, std::memory_order_relaxed);
     nextSnapshotIsCheckpoint = false;
 
