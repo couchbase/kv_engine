@@ -287,6 +287,16 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
     }
 
     auto ckptIt = checkpointList.begin();
+    auto createCursorRegResult = [this, &name, &ckptIt, droppable](
+                                         ChkptQueueIterator pos,
+                                         size_t distance,
+                                         bool tryBackfill,
+                                         uint64_t seqno) -> CursorRegResult {
+        auto cursor = std::make_shared<CheckpointCursor>(
+                name, ckptIt, pos, droppable, distance);
+        cursors[name] = cursor;
+        return {tryBackfill, seqno, Cursor{cursor}};
+    };
 
     // If:
     // - there is only 1 checkpoint in CM
@@ -298,10 +308,8 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
     // Checkpoint::getMinimumCursorSeqno()/getHighSeqno() that are meaningless
     // if all mutations have been expelled.
     if ((*ckptIt)->isOpen() && (*ckptIt)->isEmptyByExpel()) {
-        auto cursor = std::make_shared<CheckpointCursor>(
-                name, ckptIt, (*ckptIt)->begin(), droppable, 0);
-        cursors[name] = cursor;
-        return {true, static_cast<uint64_t>(lastBySeqno + 1), Cursor{cursor}};
+        return createCursorRegResult(
+                (*ckptIt)->begin(), 0, true, lastBySeqno + 1);
     }
 
     const auto& openCkpt = getOpenCheckpoint(lh);
@@ -317,7 +325,31 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
 
     // Path here handles all scenarios but the new one introduced in MB-39344
     // (ie one single open checkpoint has been emptied by ItemExpel).
+    //
+    // This loop with go through each checkpoint till it finds the correct item
+    // to place a cursor on. There are three situations we will do this in, and
+    // one where we will skip to the next checkpoint:
+    //
+    // Case 1. If the seqno requested becomes before the min seqno in the
+    // checkpoint. Then register the cursor at the start of the checkpoint and
+    // return.
+    //
+    // Case 2. If the seqno request is greater than any item in the checkpoint,
+    // then skip the checkpoint.
+    //
+    // Case 3. This is a special case where we're at the last checkpoint and the
+    // last item in the checkpoint matches the seqno requested. In this case we,
+    // register the cursor here and use the next seqno as lastBySeqno + 1, as
+    // this will be the next seqno generated.
+    //
+    // Case 4: This is the normal case where we know we need to place the cursor
+    // inside the current checkpoint, but need to walk through it to find which
+    // item to register against, once found we return using the seqno of the
+    // item.
     for (; ckptIt != checkpointList.end(); ++ckptIt) {
+        const bool isLastCkpt = std::next(ckptIt) == checkpointList.end();
+        auto& ckpt = **ckptIt;
+
         // Some important sanity checks
         if (ckptIt == checkpointList.begin()) {
             // The case of an initial checkpoint emptied by expel can happen
@@ -328,56 +360,58 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
             //    the new open checkpoint is created
             // b) A closed/empty/ref checkpoint would be made unreferenced (any
             //   cursor moved away) as soon as the new open checkpoint is
-            //   created, and the we'll fall back in (a)
-            Expects(!(*ckptIt)->isEmptyByExpel());
+            //   created, and we'll fall back in (a)
+            Expects(!ckpt.isEmptyByExpel());
         } else {
             // ItemExpel is expected to touch only the oldest checkpoint.
-            Expects(!(*ckptIt)->modifiedByExpel());
+            Expects(!ckpt.modifiedByExpel());
         }
 
-        uint64_t st = (*ckptIt)->getMinimumCursorSeqno();
+        // *Before Path* Case 1) If the seqno is before this checkpoint then
+        // register the cursor at the empty item
+        auto st = ckpt.getMinimumCursorSeqno();
         if (startBySeqno < st) {
-            // Requested sequence number is before the start of this
-            // checkpoint, position cursor at the checkpoint begin.
-            auto cursor = std::make_shared<CheckpointCursor>(
-                    name, ckptIt, (*ckptIt)->begin(), droppable, 0);
-            cursors[name] = cursor;
-            return {true, st, Cursor{cursor}};
-        } else if (startBySeqno <= (*ckptIt)->getHighSeqno()) {
-            // MB-47551 Skip this checkpoint if it is closed and the requested
-            // start is the high seqno. The cursor should go to an open
-            // checkpoint ready for new mutations.
-            if (!(*ckptIt)->isOpen() &&
-                startBySeqno == uint64_t(lastBySeqno.load())) {
-                continue;
-            }
+            return createCursorRegResult(ckpt.begin(), 0, true, st);
+        }
 
-            // Requested sequence number lies within this checkpoint.
-            // Calculate the position/distance to place the cursor, plus the
-            // information for the caller on what's the next seqno available in
-            // checkpoint.
-            uint64_t registerSeqno = std::numeric_limits<uint64_t>::max();
-            auto pos = (*ckptIt)->begin();
-            size_t distance = 0;
-            while (true) {
-                auto next = std::next(pos);
-                if (next == (*ckptIt)->end()) {
-                    registerSeqno = uint64_t((*pos)->getBySeqno() + 1);
-                    break;
-                }
-                const auto nextSeqno = uint64_t((*next)->getBySeqno());
-                if (startBySeqno < nextSeqno) {
-                    registerSeqno = nextSeqno;
-                    break;
-                }
-                ++pos;
-                ++distance;
-            }
+        // *After Path* Case 2) If the seqno isn't in this checkpoint move on
+        // next, if there is another checkpoint. *NOTE* getHighSeqno() only
+        // returns the seqno's of non-meta items, so we'll move on to the next
+        // checkpoint if there isn't a non-meta item for this seqno in the
+        // current checkpoint.
+        auto en = ckpt.getHighSeqno();
+        if (startBySeqno >= en && !isLastCkpt) {
+            continue;
+        }
 
-            auto cursor = std::make_shared<CheckpointCursor>(
-                    name, ckptIt, pos, droppable, distance);
-            cursors[name] = cursor;
-            return {false, registerSeqno, Cursor{cursor}};
+        // *Special Path* Case 3) If this is the last checkpoint and the last
+        // item in the checkpoint is equal to the final item in the checkpoint
+        // then we need to set the seqno to the next seqno we'll generate
+        auto lastItemInCkptItr = std::prev(ckpt.end());
+        Expects(lastItemInCkptItr != ckpt.begin());
+        uint64_t lastItemInCkptSeqno = (*lastItemInCkptItr)->getBySeqno();
+        if (startBySeqno == lastItemInCkptSeqno && isLastCkpt) {
+            return createCursorRegResult(lastItemInCkptItr,
+                                         ckpt.getNumItems(),
+                                         false,
+                                         lastBySeqno + 1);
+        }
+
+        // *Normal Path* Case 4) Requested sequence number lies within this
+        // checkpoint. Calculate the position/distance to place the cursor, plus
+        // the information for the caller on what's the next seqno available in
+        // checkpoint.
+        size_t distance = 0;
+        for (auto curPos = ckpt.begin(); std::next(curPos) != ckpt.end();
+             ++curPos) {
+            auto nextItem = *std::next(curPos);
+            const uint64_t nextSeqno = nextItem->getBySeqno();
+
+            if (startBySeqno < nextSeqno) {
+                return createCursorRegResult(
+                        curPos, distance, false, nextSeqno);
+            }
+            ++distance;
         }
     }
 

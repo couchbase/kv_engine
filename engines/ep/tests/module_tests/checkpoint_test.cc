@@ -3389,6 +3389,54 @@ TEST_P(CheckpointTest, MB_47134_vbstate_at_backup_cursor) {
     EXPECT_EQ(0, vbucket->dirtyQueueSize);
 }
 
+/**
+ * Test to ensure that the seqno returned by registerCursorBySeqno() is
+ * consistent with the the items the manager returned from
+ * getNextItemsForCursor() for the cursor that was registered. So
+ * getNextItemsForCursor() doesn't return items with seqnos lower than the seqno
+ * returned by registerCursorBySeqno()
+ */
+TEST_P(CheckpointTest, MB_53100_RegisterCursor) {
+    // 1. Create three meta only checkpoints.
+    manager->queueSetVBState(); // seqno: 1001
+    manager->createNewCheckpoint();
+    manager->queueSetVBState(); // seqno: 1001
+    manager->createNewCheckpoint();
+    manager->queueSetVBState(); // seqno: 1001
+    manager->createNewCheckpoint();
+    // 2. Simulate a couple set vbucket states as would happen after a takeover
+    // stream and a few new mutations that we can stream
+    manager->queueSetVBState(); // seqno: 1001
+    manager->queueSetVBState(); // seqno: 1001
+    ASSERT_TRUE(queueNewItem("A")); // key:A seqno: 1001
+    ASSERT_TRUE(queueNewItem("B")); // key:B seqno: 1002
+
+    // 3. Register at seqno 1001 as if we received a stream request from 1001
+    auto result = manager->registerCursorBySeqno(
+            "test", 1001, CheckpointCursor::Droppable::Yes);
+    EXPECT_EQ(1002, result.seqno);
+    // Create a WeaklyMonotonic var to track the current cursors seqno as it
+    // would in the ActiveStream
+    WeaklyMonotonic<uint64_t, ThrowExceptionPolicy> curSeqno;
+    curSeqno = result.seqno;
+
+    // 4. Get items for cursor
+    std::vector<queued_item> items;
+    auto itemsForCursor =
+            manager->getNextItemsForCursor(*result.cursor.lock(), items);
+    // Ensure that we gets items and the first item is 1002 NOT 1001 as it would
+    // have been before MB-53100 was fixed
+    ASSERT_FALSE(items.empty());
+    EXPECT_EQ(1002, (*items.begin())->getBySeqno());
+
+    // Using the WeaklyMonotonic var, check that all the items have seqnos that
+    // are weakly monotonic from the seqno that registerCursorBySeqno returned
+    EXPECT_NO_THROW(std::for_each(
+            items.begin(), items.end(), [&curSeqno](const queued_item& i) {
+                curSeqno = i->getBySeqno();
+            }));
+}
+
 INSTANTIATE_TEST_SUITE_P(
         AllVBTypesAllEvictionModes,
         CheckpointTest,

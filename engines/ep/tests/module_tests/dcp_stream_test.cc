@@ -2053,6 +2053,136 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
     }
 }
 
+/**
+ * Test to ensure that the ActiveStream doesn't see a seqno out of order
+ * from the checkpoint manager.
+ * To do that simulate the behaviour observed in MB-53100 when a takeover stream
+ * created a checkpoint with only meta items in. Then try and register a cursor
+ * against a seqno that matches the seqno of the meta items.
+ */
+TEST_P(SingleThreadedActiveStreamTest, MB_53100_Check_Monotonicity) {
+    auto& vb = *store->getVBucket(vbid);
+    auto& ckptMgr = *vb.checkpointManager;
+
+    // Create a checkpoint that only contains meta items
+    ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
+    setVBucketState(
+            vbid, vbucket_state_pending, {}, TransferVB::Yes); // seqno: 1
+
+    // Set the vbucket to active which will create a new checkpoint but not
+    // change the high seqno
+    setVBucketState(
+            vbid, vbucket_state_active, {}, TransferVB::Yes); // seqno: 1
+    ASSERT_EQ(2, ckptMgr.getNumCheckpoints());
+    // Mimic takeover behaviour and set the topology of the active vbucket
+    setVBucketState(
+            vbid,
+            vbucket_state_active,
+            {{"topology",
+              nlohmann::json::array({{"active", "replica"}})}}); // seqno: 1
+    ASSERT_EQ(0, vb.getHighSeqno());
+    // Write a few docs to the vbucket so we have some mutations to process
+    store_item(vbid,
+               makeStoredDocKey("keyA"),
+               "value"); // seqno: 1 (Mutation makes seqno visible)
+    auto keyASeqno = vb.getHighSeqno();
+    // Ensure the high seqno has now changed
+    ASSERT_EQ(1, vb.getHighSeqno());
+    store_item(vbid, makeStoredDocKey("keyB"), "value"); // seqno: 2
+    ASSERT_EQ(2, vb.getHighSeqno());
+
+    // Create a stream from keyA's seqno, this will register the cursor in the
+    // checkpoint
+    producer->createCheckpointProcessorTask();
+    auto newStream = std::make_shared<MockActiveStream>(
+            engine.get(),
+            producer,
+            0,
+            1 /*opaque*/,
+            vb,
+            keyASeqno,
+            std::numeric_limits<uint64_t>::max(),
+            0,
+            keyASeqno,
+            keyASeqno);
+    newStream->setActive();
+    // Now ask the stream to process any items in the checkpoint manager and
+    // ensure we don't throw while processing them.
+    auto items = newStream->public_getOutstandingItems(vb);
+    EXPECT_NO_THROW(newStream->public_processItems(items));
+}
+
+TEST_P(SingleThreadedActiveStreamTest,
+       MB_53100_RegisterCursorForFixLengthStream) {
+    auto& vb = *store->getVBucket(vbid);
+    auto& ckptMgr = *vb.checkpointManager;
+
+    // Fill the current open checkpoint with meta items
+    setVBucketState(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    setVBucketState(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica2"}})}});
+
+    // Create a checkpoint, so we have a checkpoint with only meta items
+    // e.g. id:1 [ e:1, cs:1, vbs:1, vbs:1, ce:1]
+    ckptMgr.createNewCheckpoint();
+    ASSERT_EQ(2, ckptMgr.getNumCheckpoints());
+
+    // Then write two items to the new checkpoint so we have items that an
+    // active stream can read
+    store_item(vbid, makeStoredDocKey("keyA"), "value");
+    store_item(vbid, makeStoredDocKey("keyB"), "value");
+    ASSERT_EQ(2, vb.getHighSeqno());
+
+    stream.reset();
+    ASSERT_FALSE(stream);
+
+    // Now create a stream from seqno 1 -> 2. Effectively asking
+    // to just steam seqno:2. Streaming from seqno:1 will cause us to register a
+    // cursor at seqno:1, this is important as we should register the cursor at
+    // the mutation for keyA that makes seqno:1 visible and not at any of the
+    // meta items that have their seqno set to 1 e.g. the set vbucket states.
+    producer->createCheckpointProcessorTask();
+    uint64_t rollbackSeqno = -1;
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->streamRequest(0,
+                                      2,
+                                      vb.getId(),
+                                      1,
+                                      2,
+                                      vb.failovers->getLatestUUID(),
+                                      1,
+                                      1,
+                                      &rollbackSeqno,
+                                      mock_dcp_add_failover_log,
+                                      std::nullopt));
+
+    MockDcpMessageProducers producers;
+    notifyAndRunToCheckpoint(*producer, producers);
+    // The stream should return snapshot: 1 -> 2, with keyB and then an end
+    // stream
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(1, producers.last_snap_start_seqno);
+    EXPECT_EQ(2, producers.last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(2, producers.last_byseqno);
+    EXPECT_EQ("keyB", producers.last_key);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpStreamEnd));
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers.last_end_status);
+}
+
 /*
  * MB-31410: In this test I simulate a DcpConsumer that receives messages
  * while previous messages have been buffered. This simulates the system
