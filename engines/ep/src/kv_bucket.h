@@ -968,15 +968,16 @@ public:
     void processBucketQuotaChange(size_t desiredQuota);
 
     /**
-     * @return The mutation memory threshold. See member variable for details.
+     * @return The mutation memory ratio. See member variable for details.
      */
-    double getMutationMemThreshold() const;
+    float getMutationMemRatio() const;
 
     /**
-     * Set the new mutation memory threshold. See member variable for details.
-     * @param threshold
+     * Set the new mutation memory ratio. See member variable for details.
+     *
+     * @param ratio
      */
-    void setMutationMemThreshold(size_t threshold);
+    void setMutationMemRatio(float ratio);
 
 protected:
     /**
@@ -1226,9 +1227,9 @@ protected:
     /// temp-failed
     std::atomic<std::chrono::seconds> seqnoPersistenceTimeout;
 
-    /// Memory usage level (percentage of Bucket Quota) where we start rejecting
+    /// Memory usage level (ratio of Bucket Quota) where we start rejecting
     /// (TEMP_OOM) frontend mutations
-    std::atomic<double> mutationMemThreshold;
+    std::atomic<float> mutationMemRatio;
 
     /**
      * A task that will notify (success or timeout) of SeqnoPersistenceRequests.

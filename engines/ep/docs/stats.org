@@ -254,7 +254,7 @@ For introductory information on stats within Couchbase, start with the
 |                                       | bucket can use                          |
 | ep_max_vbuckets                       | The maximum amount of vbuckets that     |
 |                                       | can exist in this bucket                |
-| ep_mutation_mem_threshold             | The ratio of total memory available     |
+| ep_mutation_mem_ratio                 | The ratio of total memory available     |
 |                                       | that we should start sending temp oom   |
 |                                       | or oom message when hitting             |
 | ep_replication_throttle_threshold     | Percentage of max mem at which we       |

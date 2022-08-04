@@ -130,8 +130,6 @@ public:
             store.setCompactionWriteQueueCap(value);
         } else if (key == "exp_pager_stime") {
             store.setExpiryPagerSleeptime(value);
-        } else if (key == "mutation_mem_threshold") {
-            store.setMutationMemThreshold(value);
         } else if (key == "backfill_mem_threshold") {
             double backfill_threshold = static_cast<double>(value) / 100;
             store.setBackfillMemoryThreshold(backfill_threshold);
@@ -179,6 +177,8 @@ public:
             store.setCheckpointMemoryRecoveryLowerMark(value);
         } else if (key == "compaction_max_concurrent_ratio") {
             store.setCompactionMaxConcurrency(value);
+        } else if (key == "mutation_mem_ratio") {
+            store.setMutationMemRatio(value);
         }
     }
 
@@ -361,9 +361,9 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             "warmup_min_items_threshold",
             std::make_unique<StatsValueChangeListener>(stats, *this));
 
-    setMutationMemThreshold(config.getMutationMemThreshold());
+    setMutationMemRatio(config.getMutationMemRatio());
     config.addValueChangedListener(
-            "mutation_mem_threshold",
+            "mutation_mem_ratio",
             std::make_unique<EPStoreValueChangeListener>(*this));
 
     double backfill_threshold = static_cast<double>
@@ -3138,16 +3138,10 @@ void KVBucket::processBucketQuotaChange(size_t desiredQuota) {
     bucketQuotaChangeTask->notifyNewQuotaChange(desiredQuota);
 }
 
-double KVBucket::getMutationMemThreshold() const {
-    return mutationMemThreshold;
+float KVBucket::getMutationMemRatio() const {
+    return mutationMemRatio;
 }
 
-void KVBucket::setMutationMemThreshold(size_t threshold) {
-    if (threshold < 0 || threshold > 100) {
-        throw std::invalid_argument(
-                "KVBucket::setMutationMemThreshold: invalid threshold:" +
-                std::to_string(threshold));
-    }
-
-    mutationMemThreshold = threshold / 100.0;
+void KVBucket::setMutationMemRatio(float ratio) {
+    mutationMemRatio = ratio;
 }

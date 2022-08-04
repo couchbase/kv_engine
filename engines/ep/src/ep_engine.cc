@@ -618,8 +618,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setDurabilityTimeoutTaskInterval(std::stoull(val));
         } else if (key == "durability_min_level") {
             configuration.setDurabilityMinLevel(val);
-        } else if (key == "mutation_mem_threshold") {
-            configuration.setMutationMemThreshold(std::stoull(val));
+        } else if (key == "mutation_mem_ratio") {
+            configuration.setMutationMemRatio(std::stof(val));
         } else if (key == "timing_log") {
             EPStats& epStats = getEpStats();
             epStats.timingLog = nullptr;

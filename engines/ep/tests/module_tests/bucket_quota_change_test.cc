@@ -206,7 +206,7 @@ public:
         // between the two. We're going to reduce the quota by half and it's the
         // post-change values that we care about so add a further multiple of
         // 0.5.
-        ASSERT_LT(0.9, engine->getConfiguration().getMutationMemThreshold());
+        ASSERT_LT(0.9, engine->getConfiguration().getMutationMemRatio());
         ASSERT_GT(0.9, engine->getEpStats().mem_high_wat_percent);
         auto valueToHit = (0.9 * 0.5 * getCurrentBucketQuota());
         auto size =

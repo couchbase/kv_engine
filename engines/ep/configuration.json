@@ -915,15 +915,15 @@
             "dynamic": true,
             "type": "size_t"
         },
-        "mutation_mem_threshold": {
-            "default": "93",
-            "desr": "Percentage of memory that can be used before mutations return tmpOOMs",
+        "mutation_mem_ratio": {
+            "default": "0.93",
+            "desr": "Ratio of the Bucket Quota that can be used before mutations return tmpOOMs",
             "dynamic": true,
-            "type": "size_t",
+            "type": "float",
             "validator" : {
                 "range" : {
-                    "max": 100,
-                    "min": 0
+                    "max": 1.0,
+                    "min": 0.0
                 }
             }
         },

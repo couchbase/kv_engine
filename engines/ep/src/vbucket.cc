@@ -3162,7 +3162,7 @@ void VBucket::dump(std::ostream& ostream) const {
 
 bool VBucket::hasMemoryForStoredValue(EPStats& st, const Item& item) {
     const auto newSize = estimateNewMemoryUsage(st, item);
-    const double ratio = bucket ? bucket->getMutationMemThreshold() : 1.0;
+    const float ratio = bucket ? bucket->getMutationMemRatio() : 1.0;
     return newSize <= (st.getMaxDataSize() * ratio);
 }
 

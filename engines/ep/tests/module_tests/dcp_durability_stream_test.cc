@@ -4337,7 +4337,8 @@ TEST_P(DurabilityPassiveStreamTest,
     }
     // Set mutation memory threshold to zero so a single mutation can push us
     // over the limit (limit = threshold * bucket quota).
-    engine->getConfiguration().setMutationMemThreshold(0);
+    engine->getConfiguration().setMutationMemRatio(0.0);
+    ASSERT_EQ(0.0, store->getMutationMemRatio());
 
     // Send initial snapshot marrker.
     uint32_t opaque = 0;
@@ -4381,7 +4382,7 @@ TEST_P(DurabilityPassiveStreamTest,
                       cb::mcbp::DcpStreamId{})));
 
     // Increase threshold to allow mutation to be processed.
-    engine->getConfiguration().setMutationMemThreshold(100);
+    engine->getConfiguration().setMutationMemRatio(1.0);
 
     // Test: now process the buffered message. This would previously throw a
     // Monotonic logic_error exception when attempting to push the same

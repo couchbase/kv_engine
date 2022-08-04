@@ -63,7 +63,7 @@ memcached like this:
 |                                |        | off                                        |
 |                                |        | quota after which compaction will not queue|
 |                                |        | expired items for deletion.                |
-| mutation_mem_threshold         | float  | Memory threshold on the current bucket     |
+| mutation_mem_ratio             | float  | Memory ratio of the current bucket         |
 |                                |        | quota for accepting a new mutation         |
 | compaction_write_queue_cap     | int    | The maximum size of the disk write queue   |
 |                                |        | after which compaction tasks would snooze, |
