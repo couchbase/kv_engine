@@ -53,12 +53,16 @@ MATCHER_P(ItemExcludingExptimeEq,
 void verifyDcpPrepare(const Item& expected, const DcpResponse& actual) {
     EXPECT_EQ(DcpResponse::Event::Prepare, actual.getEvent());
     const auto& dcpPrepare = dynamic_cast<const MutationResponse&>(actual);
-    EXPECT_EQ(makeStoredDocKey("1"), dcpPrepare.getItem()->getKey());
-    EXPECT_EQ(*expected.getValue(), *dcpPrepare.getItem()->getValue());
-    EXPECT_EQ(expected.isDeleted(), dcpPrepare.getItem()->isDeleted());
-    EXPECT_EQ(expected.getCas(), dcpPrepare.getItem()->getCas());
+    const auto& dcpItem = *dcpPrepare.getItem();
+    EXPECT_EQ(makeStoredDocKey("1"), dcpItem.getKey());
+    EXPECT_EQ(bool(expected.getValue()), bool(dcpItem.getValue()));
+    if (expected.getValue()) {
+        EXPECT_EQ(*expected.getValue(), *dcpItem.getValue());
+    }
+    EXPECT_EQ(expected.isDeleted(), dcpItem.isDeleted());
+    EXPECT_EQ(expected.getCas(), dcpItem.getCas());
     EXPECT_EQ(expected.getDurabilityReqs().getLevel(),
-              dcpPrepare.getItem()->getDurabilityReqs().getLevel());
+              dcpItem.getDurabilityReqs().getLevel());
 }
 
 /**
