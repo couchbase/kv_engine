@@ -1,7 +1,7 @@
 GoModBuild(TARGET golang_tls_test
            PACKAGE tls_test
            UNSHIPPED
-           GOVERSION 1.18
+           GOVERSION 1.19
            OUTPUT tls_test)
 # Remove the sanitizers since the link step seems to pick up some
 # of the sanitizer libraries causing the link step to fail. This is
