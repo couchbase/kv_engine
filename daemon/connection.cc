@@ -281,6 +281,10 @@ void Connection::updatePrivilegeContext() {
             privilegeContext.check(cb::rbac::Privilege::Unthrottled, {}, {})
                     .failed(),
             std::memory_order::memory_order_release);
+    node_supervisor.store(
+            privilegeContext.check(cb::rbac::Privilege::NodeSupervisor, {}, {})
+                    .success(),
+            std::memory_order::memory_order_release);
 }
 
 cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
@@ -1798,7 +1802,8 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
     response.setCas(cookie.getCas());
 
     const auto tracing = isTracingEnabled() && cookie.isTracingEnabled();
-    auto cutracing = isReportUnitUsage() && isSubjectToMetering();
+    auto cutracing =
+            isReportUnitUsage() && isSubjectToMetering() && !isNodeSupervisor();
     size_t ru = 0;
     size_t wu = 0;
     if (cutracing) {

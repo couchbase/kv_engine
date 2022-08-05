@@ -34,6 +34,7 @@ public:
         conn->authenticate("@admin", "password");
         conn->selectBucket("metering");
         conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
+        conn->dropPrivilege(cb::rbac::Privilege::NodeSupervisor);
         conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
     }
 
@@ -148,6 +149,7 @@ protected:
         rconn->authenticate("@admin", "password");
         rconn->selectBucket("metering");
         rconn->dropPrivilege(cb::rbac::Privilege::Unmetered);
+        rconn->dropPrivilege(cb::rbac::Privilege::NodeSupervisor);
         rconn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
         return rconn;
     }
@@ -385,6 +387,7 @@ TEST_F(MeteringTest, UnmeteredPrivilege) {
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
     admin->selectBucket("metering");
+    admin->dropPrivilege(cb::rbac::Privilege::NodeSupervisor);
 
     nlohmann::json before;
     admin->stats(
@@ -2711,7 +2714,10 @@ TEST_F(MeteringTest, TTL_Expiry_Compaction) {
     conn->adjustMemcachedClock(
             4, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
 
-    auto rsp = conn->execute(BinprotCompactDbCommand{});
+    auto admin = cluster->getConnection(0);
+    admin->authenticate("@admin", "password");
+    admin->selectBucket("metering");
+    auto rsp = admin->execute(BinprotCompactDbCommand{});
     EXPECT_TRUE(rsp.isSuccess());
     waitForPersistence();
 

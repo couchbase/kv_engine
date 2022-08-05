@@ -841,6 +841,10 @@ public:
                 std::memory_order::memory_order_acquire);
     }
 
+    bool isNodeSupervisor() const {
+        return node_supervisor.load(std::memory_order::memory_order_acquire);
+    }
+
     /// Clear the DCP throttle for this connection to allow it to progress
     void resumeThrottledDcpStream();
 
@@ -1081,6 +1085,7 @@ protected:
 
     std::atomic_bool subject_to_throttling{true};
     std::atomic_bool subject_to_metering{true};
+    std::atomic_bool node_supervisor{false};
     std::atomic_bool non_blocking_throttling_mode{false};
 
     /// The name of the client provided to us by hello

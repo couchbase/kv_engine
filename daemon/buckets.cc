@@ -170,14 +170,19 @@ void Bucket::setEngine(unique_engine_ptr engine_) {
 
 void Bucket::recordMeteringReadBytes(const Connection& conn,
                                      std::size_t nread) {
-    if (conn.isUnmetered()) {
+    // The node supervisor runs for free
+    if (conn.isNodeSupervisor()) {
         return;
     }
+
     auto& inst = cb::serverless::Config::instance();
     const auto ru = inst.to_ru(nread);
     throttle_gauge.increment(ru);
-    read_units_used += ru;
-    ++num_metered_dcp_messages;
+
+    if (conn.isSubjectToMetering()) {
+        read_units_used += ru;
+        ++num_metered_dcp_messages;
+    }
 }
 
 void Bucket::documentExpired(size_t nbytes) {
@@ -194,7 +199,7 @@ void Bucket::documentExpired(size_t nbytes) {
 
 void Bucket::commandExecuted(const Cookie& cookie) {
     ++num_commands;
-    if (cookie.getConnection().isUnmetered()) {
+    if (cookie.getConnection().isNodeSupervisor()) {
         return;
     }
 
@@ -208,9 +213,11 @@ void Bucket::commandExecuted(const Cookie& cookie) {
         }
         throttle_gauge.increment(ru + wu);
         throttle_wait_time += cookie.getTotalThrottleTime();
-        read_units_used += ru;
-        write_units_used += wu;
-        ++num_commands_with_metered_units;
+        if (cookie.getConnection().isSubjectToMetering()) {
+            read_units_used += ru;
+            write_units_used += wu;
+            ++num_commands_with_metered_units;
+        }
     }
 }
 
