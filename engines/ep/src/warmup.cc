@@ -536,8 +536,6 @@ bool WarmupVbucketVisitor::visit(VBucket& vb) {
             currentScanCtx->getValueCallback());
     kvCallback.updateDeadLine();
 
-    ep.getEPEngine().visitWarmupHook();
-
     auto errorCode = kvstore->scan(*currentScanCtx);
     switch (errorCode) {
     case scan_success:
@@ -975,6 +973,8 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
 
     // This callback method is responsible for deleting the Item
     std::unique_ptr<Item> i(std::move(val.item));
+
+    epstore.getEPEngine().visitWarmupHook();
 
     // Don't attempt to load the system event documents.
     if (i->getKey().isInSystemCollection()) {
