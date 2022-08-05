@@ -362,7 +362,7 @@ TEST_P(KVStoreParamTest, GetModes) {
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
     EXPECT_EQ(key.to_string(), gv.item->getKey().to_string());
     EXPECT_EQ(1, gv.item->getBySeqno());
-    EXPECT_EQ(0, gv.item->getValue()->valueSize());
+    EXPECT_FALSE(gv.item->getValue());
 }
 
 // A doc not found should equal a get failure for a get call (used for some
@@ -531,7 +531,7 @@ void KVStoreParamTest::checkBGFetchResult(
     const auto& fetchedBlob = fetchedItem->getValue();
     switch (filter) {
     case ValueFilter::KEYS_ONLY:
-        EXPECT_EQ(0, fetchedBlob->valueSize());
+        EXPECT_FALSE(fetchedBlob);
         break;
     case ValueFilter::VALUES_COMPRESSED:
         if (supportsFetchingAsSnappy()) {
@@ -1110,7 +1110,7 @@ void KVStoreParamTest::testGetRange(ValueFilter filter) {
         EXPECT_EQ(expectedKey, item.getKey().c_str());
         EXPECT_EQ(expectedDatatype, item.getDataType());
         if (filter == ValueFilter::KEYS_ONLY) {
-            EXPECT_EQ(0, item.getValue()->valueSize());
+            EXPECT_FALSE(item.getValue());
         } else {
             item.decompressValue();
             EXPECT_EQ(expectedValue, item.getValue()->to_s());

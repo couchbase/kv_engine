@@ -148,13 +148,17 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
         datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 
+    value_t body;
+    if (value) {
+        body.reset(TaggedPtr<Blob>(Blob::New(value->buf, value->size),
+                                   TaggedPtrBase::NoTagValue));
+    }
     // Strip off the DurabilityPrepare namespace (if present) from the persisted
     // dockey before we create the in-memory item.
     auto item = std::make_unique<Item>(makeDiskDocKey(docinfo.id).getDocKey(),
                                        metadata.getFlags(),
                                        metadata.getExptime(),
-                                       value.value_or(sized_buf{}).buf,
-                                       value.value_or(sized_buf{}).size,
+                                       body,
                                        datatype,
                                        metadata.getCas(),
                                        docinfo.db_seq,
@@ -779,7 +783,10 @@ void CouchKVStore::getRange(Vbid vb,
             }
         }
 
-        auto value = doc ? doc->data : sized_buf{nullptr, 0};
+        std::optional<sized_buf> value;
+        if (doc) {
+            value = doc->data;
+        }
         state.userFunc(GetValue{makeItemFromDocInfo(
                 state.vb, *docinfo, *metadata, value, fetchCompressed)});
         if (doc) {
