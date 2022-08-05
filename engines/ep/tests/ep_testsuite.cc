@@ -8255,11 +8255,21 @@ static enum test_result test_replace_at_pending_insert(EngineIface* h) {
  * Test to ensure that larger buckets don't starve smaller buckets of run time
  * on the reader threads during warmup, as this can cause artificially long
  * warmup times.
+ * This is done by creating two buckets, populating each with some data,
+ * then restarting and warming up both buckets, but wioth only 1 reader thread
+ * available. We orchestrate the warmups so the larger bucket (slowBucket)
+ * begins warmup first and advances to the keyDumpforShard phase (which is O(n)),
+ * before we start warmup of the second (smallBucket). A testing hook is used
+ * which inserts a 100ms delay after every key of slowBucket is scanned.
+ * Without the fix, this causes smallBucket to be blocked for
+ * 100ms * keys_in_slowBucket. With the fix, keyDumpforShard should yield after
+ * the task has run for 10ms, which should allow smallBucket to run its warmup
+ * tasks and complete before slowBucket.
  */
 static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
     ExecutorPool::get()->setNumReaders(ThreadPoolConfig::ThreadCount{1});
 
-    const size_t keysPerVbucket = 1500;
+    const size_t keysPerVbucket = 500;
     const size_t numberOfKeyVbucketSmall = 1;
 
     // 1. Set up second bucket to be which will be smaller than the default
@@ -8292,8 +8302,7 @@ static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
     wait_for_flusher_to_settle(smallBucket);
     wait_for_flusher_to_settle(slowBucket);
 
-    // 4. Destroy the buckets in memory so we can perform warmup
-    testHarness->destroy_bucket(slowBucket, false);
+    // 4. Destroy the smallBuckets in memory so we can perform warmup
     testHarness->destroy_bucket(smallBucket, false);
 
     // Ensure that we've correctly set only one reader thread
@@ -8302,26 +8311,26 @@ static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
             "Num reader threads is not correct");
     // 5. Start warming up the slow bucket first
     ThreadGate tg(2);
-    size_t timesCalled = 0;
+    // Specify how long we will sleep for when reading each key for "slow"
+    // bucket. Once small Bucket has completed we can zero this to finish
+    // test quicker.
+    using namespace std::chrono;
+    std::atomic<int> perKeySleepMs{100};
     {
-        // Create the in memory engine but don't kick of initialization
-        slowBucket = testHarness->create_bucket(false, "");
-        auto* me = dynamic_cast<MockEngine*>(slowBucket);
+        // Re-create the in memory engine but don't kick of initialization.
+        testHarness->reload_engine(&h, "", false, false);
+        slowBucket = h;
+
         // add a test hook which will slow down the warmup of the bucket
+        auto* me = dynamic_cast<MockEngine*>(slowBucket);
+
         dynamic_cast<EventuallyPersistentEngine*>(me->the_engine.get())
-                ->visitWarmupHook = [&tg, &timesCalled]() -> void {
-            // Wait till small bucket has been created
+                ->visitWarmupHook = [&tg, &perKeySleepMs]() -> void {
+            // Pause warmup until small bucket has started it's warmup.
             tg.threadUp();
-            // Track that the hook has been called
-            ++timesCalled;
-            // Now consume 90% of the time slice so that we have to revisit the
-            // vbucket. But only do this if we've not visited the bucket no more
-            // than 2 times. As otherwise we've proved that we're yielding
-            // correctly, and we don't want to slow down the test unnecessary.
-            if (timesCalled <= 2) {
-                using namespace std::chrono_literals;
-                std::this_thread::sleep_for(9ms);
-            }
+
+            // Insert a delay when reading this key.
+            std::this_thread::sleep_for(milliseconds{perKeySleepMs});
         };
         // start warmup
         checkeq(me->the_engine->initialize(
@@ -8331,26 +8340,44 @@ static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
     }
     // 6. Create and warmup the small bucket
     smallBucket = testHarness->create_bucket(true, smallBucketConf);
+
+    // 7. Ensure we can get stats of the slowbucket vbucket state during warmup
+    // i.e. we have comlpeted Warmup::populateVBucketMap().
+    checkeq(get_str_stat(slowBucket, "vb_0", "vbucket"),
+            std::string("active"),
+            "slowBucket vbucket state vb:0isn't active");
+
+    // 8. Ensure of the slow bucket is still warming up
+    checkne(get_str_stat(slowBucket, "ep_warmup_thread", "warmup"),
+            std::string("complete"),
+            "Slow bucket completed before the fast bucket");
+    // Small bucket stats are available, unblock the slow bucket warmup
     tg.threadUp();
 
-    // 7. Ensure we can get stats of the vbucket state during warmup
+    // 9. Wait for the small bucket to return vbucket state infomation
+    // (i.e. have completed Warmup::populateVBucketMap().
+    const auto smallStart = steady_clock::now();
     checkeq(get_str_stat(smallBucket, "vb_0", "vbucket"),
             std::string("active"),
-            "vbucket state isn't active");
+            "slowBucket vbucket state vb:0 isn't active");
 
-    // 8. Wait for the small bucket is warmup
+    const auto smallEnd = steady_clock::now();
+    // Small bucket should have populated VB map "quickly" - certainly less than
+    // the time taken the slowBucket to load keysPerVbucket * 100ms.
+    // Give it a generous threshold of 50% of the time it would take if
+    // it had to wait for slowBucket
+    auto smallWarmupDuration = duration_cast<seconds>(smallEnd - smallStart);
+    auto smallWarmupTimeLimit = duration_cast<seconds>(
+            keysPerVbucket * milliseconds{perKeySleepMs} / 2);
+    checklt(smallWarmupDuration.count(),
+            smallWarmupTimeLimit.count(),
+            "smallBucket should have populated VB map before slowBucket completed warmup");
+
+    // 10. Wait for the both buckets to complete warmup - we can accelerate
+    // this now by removing the per-key sleep happening to slowBucket.
+    perKeySleepMs = 0;
     wait_for_warmup_complete(smallBucket);
-    // 9. Wait for the slow bucket to warmup
     wait_for_warmup_complete(slowBucket);
-
-    // 10. The visitWarmupHook() should have been called more than twice if
-    // warmup yielding is working correctly. We should see it get called at
-    // least twice, once by WarmupKeyDump or WarmupLoadingKVPairs and then once
-    // by WarmupLoadingData
-    checklt(size_t{2},
-            timesCalled,
-            "We should have visited the vbucket more "
-            "than twice, if we were yielding correctly");
 
     // 11. Ensure all buckets have the correct count
     verify_curr_items(smallBucket, numberOfKeyVbucketSmall, "after warmup");
