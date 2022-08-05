@@ -1642,6 +1642,16 @@
                 }
             }
         },
+        "warmup_backfill_scan_chunk_duration": {
+            "default": "10",
+            "descr": "The duration (in ms) after which warmup's backfill scans will yield and re-schedule; allowing other tasks on the same threads to run.",
+            "dynamic": false,
+            "type": "size_t",
+            "requires": {
+                "bucket_type": "persistent"
+            },
+            "comment": "Empirical testing using perf_bucket_warmup() in ep_perfsuite has shown that 10ms is a sweet spot for back filling maxDuration as it allows ~1000 items to be loaded before meeting the deadline and doesn't show a regression as compared with before the back filling tasks being performed in a pause/resume fashion."
+        },
         "warmup_min_memory_threshold": {
             "default": "100",
             "descr": "Percentage of max mem warmed up before we enable traffic.",

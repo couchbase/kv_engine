@@ -2064,7 +2064,12 @@ MagmaScanResult MagmaKVStore::scanOne(
                 ctx.valFilter == ValueFilter::KEYS_ONLY);
     ctx.getValueCallback().callback(rv);
     auto callbackStatus = ctx.getValueCallback().getStatus();
-    if (callbackStatus == static_cast<int>(cb::engine_errc::no_memory)) {
+    if (ctx.getValueCallback().shouldYield()) {
+        // Scan is yielding _after_ successfully processing this doc.
+        // Resume at next item.
+        ctx.lastReadSeqno = seqno;
+        return MagmaScanResult::Again();
+    } else if (callbackStatus == static_cast<int>(cb::engine_errc::no_memory)) {
         if (logger->should_log(spdlog::level::TRACE)) {
             logger->TRACE(
                     "MagmaKVStore::scanOne callback {} "
