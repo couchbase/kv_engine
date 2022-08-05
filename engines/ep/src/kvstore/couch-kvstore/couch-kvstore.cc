@@ -2905,7 +2905,12 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
 
     couchstore_free_document(doc);
 
-    if (cb::engine_errc{cb.getStatus()} == cb::engine_errc::no_memory) {
+    if (cb.shouldYield()) {
+        // Scan is yielding _after_ successfully processing this doc.
+        // Resume at next item.
+        sctx->lastReadSeqno = byseqno;
+        return COUCHSTORE_ERROR_CANCEL;
+    } else if (cb::engine_errc{cb.getStatus()} == cb::engine_errc::no_memory) {
         return COUCHSTORE_ERROR_CANCEL;
     }
 
