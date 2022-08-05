@@ -114,6 +114,7 @@ void AuditFile::close_and_rotate_log() {
     file.reset();
     if (current_size == 0) {
         remove(open_file_name.c_str());
+        open_time = 0;
         return;
     }
 
