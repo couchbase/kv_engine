@@ -378,6 +378,8 @@ cb::engine_errc EventuallyPersistentEngine::get_prometheus_stats(
             return doMetricGroupHigh(collector);
         case MetricGroup::Low:
             return doMetricGroupLow(collector);
+        case MetricGroup::Metering:
+            return doMetricGroupMetering(collector);
         case MetricGroup::All:
             // nothing currently requests All metrics at this level, so rather
             // than leaving an unused impl to rot, defer until it is actually
@@ -430,6 +432,15 @@ cb::engine_errc EventuallyPersistentEngine::doMetricGroupLow(
     // do dcp aggregated stats, using ":" as the separator to split
     // connection names to find the connection type.
     return doConnAggStats(collector, ":");
+}
+
+cb::engine_errc EventuallyPersistentEngine::doMetricGroupMetering(
+        const BucketStatCollector& collector) {
+    using namespace cb::stats;
+    // equivalent to Key::ep_db_file_size but named to match metering
+    // requirements.
+    collector.addStat(Key::storage, kvBucket->getTotalDiskSize());
+    return cb::engine_errc::success;
 }
 
 cb::engine_errc EventuallyPersistentEngine::store(

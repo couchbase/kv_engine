@@ -380,6 +380,13 @@ public:
             cb::prometheus::MetricGroup metricGroup) = 0;
 
     /**
+     * Get the total disk space used by this bucket.
+     *
+     * @return number of bytes of disk space used
+     */
+    virtual uint64_t getTotalDiskSize() = 0;
+
+    /**
      * Get file statistics
      *
      * @param cookie Cookie associated with ADD_STAT

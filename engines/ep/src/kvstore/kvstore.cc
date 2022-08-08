@@ -778,3 +778,10 @@ std::ostream& operator<<(std::ostream& os,
     return os << "INVALID GetCollectionStatsStatus value:"
               << static_cast<int>(status);
 }
+
+DBFileInfo& DBFileInfo::operator+=(const DBFileInfo& other) {
+    spaceUsed += other.spaceUsed;
+    fileSize += other.fileSize;
+    prepareBytes += other.prepareBytes;
+    return *this;
+}

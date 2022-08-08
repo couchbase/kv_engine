@@ -46,6 +46,11 @@ public:
         return cb::mcbp::Status::NotSupported;
     }
 
+    uint64_t getTotalDiskSize() override {
+        // Ephemeral buckets do not use a notable amount of disk space.
+        return 0;
+    }
+
     /// File stats not supported for Ephemeral buckets.
     cb::engine_errc getFileStats(
             const BucketStatCollector& collector) override {

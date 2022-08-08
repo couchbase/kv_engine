@@ -112,6 +112,10 @@ nlohmann::json Bucket::to_json() const {
 
 void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
     using namespace cb::stats;
+    // engine-related metering (e.g., disk usage)
+    getEngine().get_prometheus_stats(
+            collector, cb::prometheus::MetricGroup::Metering);
+
     // metering
     collector.addStat(Key::meter_ru_total, read_units_used);
     collector.addStat(Key::meter_wu_total, write_units_used);

@@ -165,6 +165,8 @@ public:
      */
     bool updateCompactionTasks(Vbid vbid);
 
+    uint64_t getTotalDiskSize() override;
+
     cb::engine_errc getFileStats(const BucketStatCollector& collector) override;
 
     cb::engine_errc getPerVBucketDiskStats(const CookieIface* cookie,
@@ -448,6 +450,12 @@ protected:
      * new/waiting tasks will respect the new limit.
      */
     void updateCompactionConcurrency();
+
+    /**
+     * Return disk usage information, summed across all shards.
+     * @return total file info
+     */
+    DBFileInfo getAggregatedFileInfo();
 
     /**
      * Max number of backill items in a single flusher batch before we split

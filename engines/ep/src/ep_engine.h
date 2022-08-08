@@ -1137,6 +1137,16 @@ protected:
      */
     cb::engine_errc doMetricGroupLow(const BucketStatCollector& collector);
 
+    /**
+     * Get metrics from this engine for the "Metering" group.
+     *
+     * These metrics will only be gathered if DeploymentModel::Serverless.
+     * These are likely to be scraped frequently, so should not be too
+     * numerous or expensive.
+     */
+    cb::engine_errc doMetricGroupMetering(
+            const BucketStatCollector& collector);
+
     void addLookupResult(const CookieIface* cookie,
                          std::unique_ptr<Item> result);
 

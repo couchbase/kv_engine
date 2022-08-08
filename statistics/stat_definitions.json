@@ -2580,5 +2580,10 @@
         "key": "throttle_count_total",
         "unit": "none",
         "description": "Total number of times requests have been throttled for a bucket since reset"
+    },
+    {
+        "key": "storage",
+        "unit": "bytes",
+        "description": "Total bytes on disk used by a bucket"
     }
 ]

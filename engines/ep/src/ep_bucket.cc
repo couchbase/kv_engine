@@ -1516,17 +1516,23 @@ bool EPBucket::updateCompactionTasks(Vbid vbid) {
     return false;
 }
 
-cb::engine_errc EPBucket::getFileStats(const BucketStatCollector& collector) {
+DBFileInfo EPBucket::getAggregatedFileInfo() {
     const auto numShards = vbMap.getNumShards();
     DBFileInfo totalInfo;
 
     for (uint16_t shardId = 0; shardId < numShards; shardId++) {
-        const auto dbInfo =
-                getRWUnderlyingByShard(shardId)->getAggrDbFileInfo();
-        totalInfo.spaceUsed += dbInfo.spaceUsed;
-        totalInfo.fileSize += dbInfo.fileSize;
-        totalInfo.prepareBytes += dbInfo.prepareBytes;
+        totalInfo += getRWUnderlyingByShard(shardId)->getAggrDbFileInfo();
     }
+    return totalInfo;
+}
+
+uint64_t EPBucket::getTotalDiskSize() {
+    using namespace cb::stats;
+    return getAggregatedFileInfo().fileSize;
+}
+
+cb::engine_errc EPBucket::getFileStats(const BucketStatCollector& collector) {
+    auto totalInfo = getAggregatedFileInfo();
 
     using namespace cb::stats;
     collector.addStat(Key::ep_db_data_size, totalInfo.getEstimatedLiveData());

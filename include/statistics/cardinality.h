@@ -19,5 +19,5 @@ namespace cb::prometheus {
  *  * all: include metrics from both low and high cardinality groups (e.g.,
  *         for code shared with cbstats)
  */
-enum class MetricGroup { Low, High, All };
+enum class MetricGroup { Low, High, Metering, All };
 } // namespace cb::prometheus
