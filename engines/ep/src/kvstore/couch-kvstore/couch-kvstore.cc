@@ -167,6 +167,8 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
         item->setDeleted(metadata.getDeleteSource());
     }
 
+    KVStore::checkAndFixKVStoreCreatedItem(*item);
+
     if (metadata.getVersionInitialisedFrom() == MetaData::Version::V3) {
         // Metadata is from a SyncWrite - update the Item appropriately.
         switch (metadata.getDurabilityOp()) {
@@ -2719,7 +2721,10 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
         return COUCHSTORE_ERROR_DB_NO_LONGER_VALID;
     }
 
-    if (filter == ValueFilter::KEYS_ONLY) {
+    const bool forceValueFetch = isDocumentPotentiallyCorruptedByMB52793(
+            docinfo->deleted, metadata->getDataType());
+    if (filter == ValueFilter::KEYS_ONLY && !forceValueFetch) {
+        // Can skip reading document value.
         auto it = makeItemFromDocInfo(
                 vbId, *docinfo, *metadata, std::nullopt, fetchCompressed);
 
@@ -2849,8 +2854,11 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     const bool keysOnly = sctx->valFilter == ValueFilter::KEYS_ONLY;
     const bool isSystemEvent =
             makeDiskDocKey(docinfo->id).getDocKey().isInSystemCollection();
+    const bool forceValueFetch =
+            KVStore::isDocumentPotentiallyCorruptedByMB52793(
+                    docinfo->deleted, metadata->getDataType());
     std::optional<sized_buf> value;
-    if (!keysOnly || isSystemEvent) {
+    if (!keysOnly || isSystemEvent || forceValueFetch) {
         const couchstore_open_options openOptions =
                 fetchCompressed ? 0 : DECOMPRESS_DOC_BODIES;
         auto errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
