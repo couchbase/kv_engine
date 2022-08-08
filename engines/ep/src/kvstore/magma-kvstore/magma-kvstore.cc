@@ -1240,9 +1240,12 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
     auto key = makeDiskDocKey(keySlice);
     auto meta = magmakv::getDocMeta(metaSlice);
 
-    const bool includeValue = (filter != ValueFilter::KEYS_ONLY ||
-                               key.getDocKey().isInSystemCollection()) &&
-                              meta.getValueSize();
+    const bool forceValueFetch = isDocumentPotentiallyCorruptedByMB52793(
+            meta.isDeleted(), meta.getDatatype());
+    const bool includeValue =
+            (filter != ValueFilter::KEYS_ONLY ||
+             key.getDocKey().isInSystemCollection() || forceValueFetch) &&
+            meta.getValueSize();
 
     auto item =
             std::make_unique<Item>(key.getDocKey(),
@@ -1263,6 +1266,8 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
     if (meta.isDeleted()) {
         item->setDeleted(static_cast<DeleteSource>(meta.getDeleteSource()));
     }
+
+    checkAndFixKVStoreCreatedItem(*item);
 
     if (magmakv::isPrepared(keySlice, metaSlice)) {
         auto level =
