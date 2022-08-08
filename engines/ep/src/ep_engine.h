@@ -1121,6 +1121,22 @@ protected:
                                       const AddStatFn& add_stat,
                                       std::string_view statKey);
 
+    /**
+     * Get metrics from this engine for the "High" (cardinality) group.
+     *
+     * These metrics will be gathered less frequently, and may be large in
+     * number (e.g., per scope or collection).
+     */
+    cb::engine_errc doMetricGroupHigh(const BucketStatCollector& collector);
+
+    /**
+     * Get metrics from this engine for the "Low" (cardinality) group.
+     *
+     * These metrics will be gathered more frequently, and should be limited
+     * .
+     */
+    cb::engine_errc doMetricGroupLow(const BucketStatCollector& collector);
+
     void addLookupResult(const CookieIface* cookie,
                          std::unique_ptr<Item> result);
 

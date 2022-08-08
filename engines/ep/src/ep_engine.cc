@@ -372,45 +372,64 @@ cb::engine_errc EventuallyPersistentEngine::get_prometheus_stats(
         const BucketStatCollector& collector,
         cb::prometheus::MetricGroup metricGroup) {
     try {
-        if (metricGroup == cb::prometheus::MetricGroup::High) {
-            doTimingStats(collector);
-            cb::engine_errc status;
-            if (status = doEngineStatsHighCardinality(collector);
-                status != cb::engine_errc::success) {
-                return status;
-            }
-            if (status = Collections::Manager::doPrometheusCollectionStats(
-                        *getKVBucket(), collector);
-                status != cb::engine_errc::success) {
-                return cb::engine_errc(status);
-            }
-
-            // aggregate DCP producer metrics
-
-            ConnCounter aggregator;
-            dcpConnMap_->each([&aggregator](
-                                      const std::shared_ptr<ConnHandler>& tc) {
-                ++aggregator.totalConns;
-                if (auto tp = std::dynamic_pointer_cast<DcpProducer>(tc); tp) {
-                    tp->aggregateQueueStats(aggregator);
-                }
-            });
-            addAggregatedProducerStats(collector, aggregator);
-
-        } else {
-            cb::engine_errc status;
-            if (status = doEngineStatsLowCardinality(collector);
-                status != cb::engine_errc::success) {
-                return status;
-            }
-            // do dcp aggregated stats, using ":" as the separator to split
-            // connection names to find the connection type.
-            return doConnAggStats(collector, ":");
+        using cb::prometheus::MetricGroup;
+        switch (metricGroup) {
+        case MetricGroup::High:
+            return doMetricGroupHigh(collector);
+        case MetricGroup::Low:
+            return doMetricGroupLow(collector);
+        case MetricGroup::All:
+            // nothing currently requests All metrics at this level, so rather
+            // than leaving an unused impl to rot, defer until it is actually
+            // required.
+            throw std::invalid_argument(
+                    "EventuallyPersistentEngine::get_prometheus_stats: "
+                    "fetching group 'All' not implemented");
         }
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;
     }
     return cb::engine_errc::success;
+}
+
+cb::engine_errc EventuallyPersistentEngine::doMetricGroupHigh(
+        const BucketStatCollector& collector) {
+    cb::engine_errc status;
+
+    doTimingStats(collector);
+    if (status = doEngineStatsHighCardinality(collector);
+        status != cb::engine_errc::success) {
+        return status;
+    }
+    if (status = Collections::Manager::doPrometheusCollectionStats(
+                *getKVBucket(), collector);
+        status != cb::engine_errc::success) {
+        return cb::engine_errc(status);
+    }
+
+    // aggregate DCP producer metrics
+    ConnCounter aggregator;
+    dcpConnMap_->each([&aggregator](const std::shared_ptr<ConnHandler>& tc) {
+        ++aggregator.totalConns;
+        if (auto tp = std::dynamic_pointer_cast<DcpProducer>(tc); tp) {
+            tp->aggregateQueueStats(aggregator);
+        }
+    });
+    addAggregatedProducerStats(collector, aggregator);
+    return status;
+}
+
+cb::engine_errc EventuallyPersistentEngine::doMetricGroupLow(
+        const BucketStatCollector& collector) {
+    cb::engine_errc status;
+
+    if (status = doEngineStatsLowCardinality(collector);
+        status != cb::engine_errc::success) {
+        return status;
+    }
+    // do dcp aggregated stats, using ":" as the separator to split
+    // connection names to find the connection type.
+    return doConnAggStats(collector, ":");
 }
 
 cb::engine_errc EventuallyPersistentEngine::store(
