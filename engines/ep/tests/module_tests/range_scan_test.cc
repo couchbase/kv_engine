@@ -84,11 +84,7 @@ class RangeScanTest
               std::tuple<std::string, std::string, std::string>> {
 public:
     void SetUp() override {
-        config_string += generateBackendConfig(std::get<0>(GetParam()));
-        config_string += ";item_eviction_policy=" + getEvictionMode();
-#ifdef EP_USE_MAGMA
-        config_string += ";" + magmaRollbackConfig;
-#endif
+        setupConfig();
         SingleThreadedEPBucketTest::SetUp();
 
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -106,6 +102,14 @@ public:
             const ::testing::TestParamInfo<ParamType>& info) {
         return std::get<0>(info.param) + "_" + std::get<1>(info.param) + "_" +
                std::get<2>(info.param);
+    }
+
+    void setupConfig() {
+        config_string += generateBackendConfig(std::get<0>(GetParam()));
+        config_string += ";item_eviction_policy=" + getEvictionMode();
+#ifdef EP_USE_MAGMA
+        config_string += ";" + magmaRollbackConfig;
+#endif
     }
 
     std::string getEvictionMode() const {
@@ -1464,6 +1468,55 @@ bool TestRangeScanHandler::validateStatus(cb::engine_errc code) {
             std::to_string(int(code)));
 }
 
+// This test case uses a simpler data set as the "broader" test data of
+// RangeScanTest::Setup is not required and just adds unnecessary noise
+class RangeScanTestSimple : public RangeScanTest {
+public:
+    void SetUp() override {
+        setupConfig();
+        SingleThreadedEPBucketTest::SetUp();
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+        // Setup one collection - the tests will decide their keys
+        cm.add(CollectionEntry::vegetable);
+        setCollections(cookie, cm);
+        flush_vbucket_to_disk(vbid, 1);
+    }
+};
+
+// SDK team noted exclusive end was incorrect, this test covers the failure.
+TEST_P(RangeScanTestSimple, MB_53184) {
+    std::unordered_set<StoredDocKey> expectedKeys;
+    for (const auto& k : {"a-11", "a-12", "b-11"}) {
+        auto key = makeStoredDocKey(k, scanCollection);
+        store_item(vbid, key, k);
+        expectedKeys.emplace(key);
+    }
+    // and store this extra "c" prefixed key
+    store_item(vbid, makeStoredDocKey("c-12", scanCollection), "value");
+    flushVBucket(vbid);
+
+    // Expect: a-11, a-12 and b-11
+    // Note: this is the actual MB
+    testRangeScan(expectedKeys,
+                  scanCollection,
+                  {"\0", 1}, // from min
+                  {"c", cb::rangescan::KeyType::Exclusive});
+
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+
+    // Run a second exclusive end similar to the MB, this test-case was fine
+    scannedKeys.clear();
+    handler = std::make_unique<TestRangeScanHandler>(
+            scannedItems, scannedKeys, status, testHook);
+    // Expect: a-11, a-12 and b-11
+    testRangeScan(expectedKeys,
+                  scanCollection,
+                  {"\0", 1}, // from min
+                  {"c-12", cb::rangescan::KeyType::Exclusive});
+}
+
 auto valueScanConfig =
         ::testing::Combine(::testing::Values("persistent_couchdb"
 #ifdef EP_USE_MAGMA
@@ -1484,7 +1537,7 @@ auto keyScanConfig =
 #endif
                                              ),
                            ::testing::Values("full_eviction"),
-                           ::testing::Values("value_scan"));
+                           ::testing::Values("key_scan"));
 
 INSTANTIATE_TEST_SUITE_P(RangeScanValueScan,
                          RangeScanTest,
@@ -1493,5 +1546,10 @@ INSTANTIATE_TEST_SUITE_P(RangeScanValueScan,
 
 INSTANTIATE_TEST_SUITE_P(RangeScanKeyScan,
                          RangeScanTest,
+                         keyScanConfig,
+                         RangeScanTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(RangeScanTestSimpleKeyScan,
+                         RangeScanTestSimple,
                          keyScanConfig,
                          RangeScanTest::PrintToStringParamName);

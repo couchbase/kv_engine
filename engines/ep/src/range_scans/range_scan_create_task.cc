@@ -105,10 +105,14 @@ StoredDocKey RangeScanCreateTask::makeEndStoredDocKey(
         CollectionID cid, cb::rangescan::KeyView key) {
     auto sKey = StoredDocKey{key.getKeyView(), cid};
     if (!key.isInclusive()) {
-        // If back 'byte' is > 0 subtract 1 else pop it
+        // If back 'byte' is > 0
         if (sKey.back()) {
+            // subtract 1 and append 255. sKey now covers up-to but not
+            // including the input key
             --sKey.back();
+            sKey.append(std::numeric_limits<char>::max());
         } else {
+            // else pop the 0
             sKey.pop_back();
         }
     }
