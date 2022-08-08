@@ -220,7 +220,7 @@ cb::engine_errc server_stats(const StatCollector& collector,
 
 cb::engine_errc server_prometheus_stats(
         const PrometheusStatCollector& collector,
-        cb::prometheus::Cardinality cardinality) {
+        cb::prometheus::MetricGroup metricGroup) {
     // prefix all "normal" KV metrics with a short string indicating the
     // service of origin - "kv_".
     // Only metering metrics are exposed without this, for consistency with
@@ -228,8 +228,9 @@ cb::engine_errc server_prometheus_stats(
     auto kvCollector =
             collector.withPrefix(std::string(cb::prometheus::kvPrefix));
     try {
+        using cb::prometheus::MetricGroup;
         // do global stats
-        if (cardinality == cb::prometheus::Cardinality::Low) {
+        if (metricGroup == MetricGroup::Low) {
             server_global_stats(kvCollector);
             stats_audit(kvCollector);
         } else if (isServerlessDeployment()) {
@@ -237,7 +238,7 @@ cb::engine_errc server_prometheus_stats(
             server_prometheus_metering(collector);
         }
         BucketManager::instance().forEach([&kvCollector,
-                                           cardinality](Bucket& bucket) {
+                                           metricGroup](Bucket& bucket) {
             if (std::string_view(bucket.name).empty()) {
                 // skip the initial bucket with aggregated stats
                 return true;
@@ -245,9 +246,9 @@ cb::engine_errc server_prometheus_stats(
             auto bucketC = kvCollector.forBucket(bucket.name);
 
             // do engine stats
-            bucket.getEngine().get_prometheus_stats(bucketC, cardinality);
+            bucket.getEngine().get_prometheus_stats(bucketC, metricGroup);
 
-            if (cardinality == cb::prometheus::Cardinality::Low) {
+            if (metricGroup == MetricGroup::Low) {
                 // do memcached per-bucket stats
                 server_bucket_stats(bucketC, bucket);
             } else {
@@ -267,13 +268,13 @@ cb::engine_errc server_prometheus_stats(
 
 cb::engine_errc server_prometheus_stats_low(
         const PrometheusStatCollector& collector) {
-    return server_prometheus_stats(collector, cb::prometheus::Cardinality::Low);
+    return server_prometheus_stats(collector, cb::prometheus::MetricGroup::Low);
 }
 
 cb::engine_errc server_prometheus_stats_high(
         const PrometheusStatCollector& collector) {
     return server_prometheus_stats(collector,
-                                   cb::prometheus::Cardinality::High);
+                                   cb::prometheus::MetricGroup::High);
 }
 
 cb::engine_errc server_prometheus_metering(

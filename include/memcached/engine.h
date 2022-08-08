@@ -40,7 +40,7 @@ class Request;
 } // namespace cb::mcbp
 
 namespace cb::prometheus {
-enum class Cardinality;
+enum class MetricGroup;
 } // namespace cb::prometheus
 
 namespace cb::rangescan {
@@ -526,7 +526,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      */
     virtual cb::engine_errc get_prometheus_stats(
             const BucketStatCollector& collector,
-            cb::prometheus::Cardinality cardinality) {
+            cb::prometheus::MetricGroup metricGroup) {
         return cb::engine_errc::not_supported;
     }
 

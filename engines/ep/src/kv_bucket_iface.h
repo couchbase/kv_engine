@@ -377,7 +377,7 @@ public:
      */
     virtual void getAggregatedVBucketStats(
             const BucketStatCollector& collector,
-            cb::prometheus::Cardinality cardinality) = 0;
+            cb::prometheus::MetricGroup metricGroup) = 0;
 
     /**
      * Get file statistics

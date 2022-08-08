@@ -29,9 +29,9 @@ PrometheusStatTest::EndpointMetrics PrometheusStatTest::getMetrics() const {
     EndpointMetrics metrics;
 
     server_prometheus_stats(PrometheusStatCollector(metrics.low),
-                            cb::prometheus::Cardinality::Low);
+                            cb::prometheus::MetricGroup::Low);
     server_prometheus_stats(PrometheusStatCollector(metrics.high),
-                            cb::prometheus::Cardinality::High);
+                            cb::prometheus::MetricGroup::High);
     server_prometheus_metering(PrometheusStatCollector(metrics.metering));
     return metrics;
 }

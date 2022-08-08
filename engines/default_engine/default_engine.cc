@@ -583,9 +583,9 @@ cb::engine_errc default_engine::get_stats(const CookieIface& cookie,
 
 cb::engine_errc default_engine::get_prometheus_stats(
         const BucketStatCollector& collector,
-        cb::prometheus::Cardinality cardinality) {
+        cb::prometheus::MetricGroup metricGroup) {
     try {
-        if (cardinality == cb::prometheus::Cardinality::Low) {
+        if (metricGroup == cb::prometheus::MetricGroup::Low) {
             do_engine_stats(collector);
         }
     } catch (const std::bad_alloc&) {

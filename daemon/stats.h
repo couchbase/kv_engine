@@ -20,7 +20,7 @@
 
 namespace cb::prometheus {
 // forward declaration
-enum class Cardinality;
+enum class MetricGroup;
 } // namespace cb::prometheus
 
 /**
@@ -221,7 +221,7 @@ void server_bucket_timing_stats(const BucketStatCollector& collector,
  */
 cb::engine_errc server_prometheus_stats(
         const PrometheusStatCollector& collector,
-        cb::prometheus::Cardinality cardinality);
+        cb::prometheus::MetricGroup metricGroup);
 
 /**
  * Add all "low cardinality" group stats to the provided collector.

@@ -53,7 +53,7 @@ class EventuallyPersistentEngine;
 class ReplicationThrottle;
 
 namespace cb::prometheus {
-enum class Cardinality;
+enum class MetricGroup;
 } // namespace cb::prometheus
 
 /**
@@ -185,7 +185,7 @@ public:
 
     cb::engine_errc get_prometheus_stats(
             const BucketStatCollector& collector,
-            cb::prometheus::Cardinality cardinality) override;
+            cb::prometheus::MetricGroup metricGroup) override;
 
     void reset_stats(const CookieIface& cookie) override;
 

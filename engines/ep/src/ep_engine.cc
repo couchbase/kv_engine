@@ -370,9 +370,9 @@ cb::engine_errc EventuallyPersistentEngine::get_stats(
 
 cb::engine_errc EventuallyPersistentEngine::get_prometheus_stats(
         const BucketStatCollector& collector,
-        cb::prometheus::Cardinality cardinality) {
+        cb::prometheus::MetricGroup metricGroup) {
     try {
-        if (cardinality == cb::prometheus::Cardinality::High) {
+        if (metricGroup == cb::prometheus::MetricGroup::High) {
             doTimingStats(collector);
             cb::engine_errc status;
             if (status = doEngineStatsHighCardinality(collector);
@@ -3024,7 +3024,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
                       epstats.cumulativeFlushTime);
 
     kvBucket->getAggregatedVBucketStats(collector,
-                                        cb::prometheus::Cardinality::Low);
+                                        cb::prometheus::MetricGroup::Low);
 
     collector.addStat(Key::ep_checkpoint_memory_pending_destruction,
                       kvBucket->getCheckpointPendingDestructionMemoryUsage());
@@ -3175,7 +3175,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
     configuration.addStats(collector);
 
     kvBucket->getAggregatedVBucketStats(collector,
-                                        cb::prometheus::Cardinality::High);
+                                        cb::prometheus::MetricGroup::High);
 
     EPStats& epstats = getEpStats();
 

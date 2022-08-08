@@ -1231,12 +1231,12 @@ void KVBucket::persistShutdownContext() {
 
 void KVBucket::getAggregatedVBucketStats(
         const BucketStatCollector& collector,
-        cb::prometheus::Cardinality cardinality) {
+        cb::prometheus::MetricGroup metricGroup) {
     // track whether high or low cardinality stats should be collected
-    auto doHigh = cardinality == cb::prometheus::Cardinality::All ||
-                  cardinality == cb::prometheus::Cardinality::High;
-    auto doLow = cardinality == cb::prometheus::Cardinality::All ||
-                 cardinality == cb::prometheus::Cardinality::Low;
+    auto doHigh = metricGroup == cb::prometheus::MetricGroup::All ||
+                  metricGroup == cb::prometheus::MetricGroup::High;
+    auto doLow = metricGroup == cb::prometheus::MetricGroup::All ||
+                 metricGroup == cb::prometheus::MetricGroup::Low;
 
     // Create visitors for each of the four vBucket states, and collect
     // stats for each.
