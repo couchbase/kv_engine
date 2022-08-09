@@ -257,8 +257,6 @@ For introductory information on stats within Couchbase, start with the
 | ep_mutation_mem_ratio                 | The ratio of total memory available     |
 |                                       | that we should start sending temp oom   |
 |                                       | or oom message when hitting             |
-| ep_replication_throttle_threshold     | Percentage of max mem at which we       |
-|                                       | begin NAKing dcp input                  |
 | ep_seqno_persistence_timeout          | Timeout for SeqnoPersistence operations |
 | ep_uncommitted_items                  | The amount of items that have not been  |
 |                                       | written to disk                         |

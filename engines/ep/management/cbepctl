@@ -299,8 +299,7 @@ Available params for "set":
     seqno_persistence_timeout    - Timeout in seconds after which a pending SeqnoPersistence operation is temp-failed
 
   Available params for "set replication_param":
-    replication_throttle_threshold   - Percentage of memory in use to throttle
-                                       replication streams.
+    <empty>
 
   Available params for "set dcp_param":
     dcp_consumer_process_buffered_messages_yield_limit - The threshold at which

@@ -80,9 +80,6 @@ public:
             stats.setLowWaterMark(value);
         } else if (key == "mem_high_wat") {
             stats.setHighWaterMark(value);
-        } else if (key == "replication_throttle_threshold") {
-            stats.replicationThrottleThreshold.store(
-                    static_cast<double>(value) / 100.0);
         } else if (key == "warmup_min_memory_threshold") {
             stats.warmupMemUsedCap.store(static_cast<double>(value) / 100.0);
         } else if (key == "warmup_min_items_threshold") {
@@ -341,13 +338,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             std::make_unique<StatsValueChangeListener>(stats, *this));
     config.addValueChangedListener(
             "mem_high_wat",
-            std::make_unique<StatsValueChangeListener>(stats, *this));
-
-    stats.replicationThrottleThreshold.store(static_cast<double>
-                                    (config.getReplicationThrottleThreshold())
-                                     / 100.0);
-    config.addValueChangedListener(
-            "replication_throttle_threshold",
             std::make_unique<StatsValueChangeListener>(stats, *this));
 
     stats.warmupMemUsedCap.store(static_cast<double>

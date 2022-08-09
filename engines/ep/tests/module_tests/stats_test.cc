@@ -925,7 +925,6 @@ protected:
         stats.bg_meta_fetched.store(nonDefaultCounterValue);
         stats.numRemainingBgItems.store(nonDefaultCounterValue);
         stats.numRemainingBgJobs.store(nonDefaultCounterValue);
-        stats.replicationThrottleThreshold.store(nonDefaultCounterValue);
         stats.numOpsStore.store(nonDefaultCounterValue);
         stats.numOpsDelete.store(nonDefaultCounterValue);
         stats.numOpsGet.store(nonDefaultCounterValue);
@@ -1049,7 +1048,6 @@ protected:
         EXPECT_EQ(nonStatValue, stats.mem_high_wat);
         EXPECT_EQ(nonStatValue, stats.mem_high_wat_percent);
         EXPECT_EQ(nonStatBool, stats.forceShutdown);
-        EXPECT_EQ(nonStatValue, stats.replicationThrottleThreshold);
         EXPECT_EQ(nonStatValue, stats.alogTime);
         EXPECT_EQ(nonStatValue, stats.expPagerTime);
         EXPECT_EQ(nonStatBool, stats.isShutdown);

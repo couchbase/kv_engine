@@ -519,13 +519,13 @@ cb::engine_errc EventuallyPersistentEngine::setReplicationParam(
     auto rv = cb::engine_errc::success;
 
     try {
-        if (key == "replication_throttle_threshold") {
-            getConfiguration().setReplicationThrottleThreshold(
-                    std::stoull(val));
-        } else {
-            msg = "Unknown config param";
-            rv = cb::engine_errc::no_such_key;
-        }
+        // Last param (replication_throttle_threshold) in this group removed.
+        // @todo MB-52953: Remove the replication_param group from cbepctl,
+        //  the existing dcp_param seems enough for now
+
+        msg = "Unknown config param";
+        rv = cb::engine_errc::no_such_key;
+
         // Handles exceptions thrown by the standard
         // library stoi/stoul style functions when not numeric
     } catch (std::invalid_argument&) {

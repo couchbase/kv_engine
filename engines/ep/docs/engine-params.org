@@ -77,8 +77,6 @@ memcached like this:
 | replication_throttle_queue_cap | int    | The maximum size of the disk write queue   |
 |                                |        | to throttle down tap-based replication. -1 |
 |                                |        | means don't throttle.                      |
-| replication_throttle_threshold | float  | Percentage of memory in use before we      |
-|                                |        | throttle tap streams                       |
 | replication_throttle_cap_pcnt  | int    | Percentage of total items in write queue   |
 |                                |        | to throttle tap input. 0 means use fixed   |
 |                                |        | throttle queue cap.                        |

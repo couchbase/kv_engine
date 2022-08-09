@@ -416,9 +416,6 @@ public:
     //! Histogram of expiry pager run times
     Hdr1sfMicroSecHistogram expiryPagerHisto;
 
-    //! Percentage of memory in use before we throttle replication input
-    std::atomic<double> replicationThrottleThreshold;
-
     //! The number of basic store (add, set, arithmetic, touch, etc.) operations
     Counter numOpsStore;
     //! The number of basic delete operations
