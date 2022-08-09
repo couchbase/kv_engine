@@ -137,11 +137,13 @@ TEST_P(RangeScanTest, CreateInvalid) {
     cmd.setValue("...");
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
     userConnection->sendCommand(cmd);
+    userConnection->recvResponse(resp);
     ASSERT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 
     // JSON but no datatype
     cmd.setValue(config.dump());
     cmd.setDatatype(cb::mcbp::Datatype::Raw);
+    userConnection->sendCommand(cmd);
     userConnection->recvResponse(resp);
     ASSERT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 }
