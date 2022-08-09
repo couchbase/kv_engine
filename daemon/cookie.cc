@@ -512,14 +512,14 @@ cb::mcbp::Status Cookie::validate() {
     if (!connection.isAuthenticated()) {
         // We're not authenticated. To reduce the attack vector we'll only
         // allow certain commands to be executed
-        const std::array<cb::mcbp::ClientOpcode, 5> whitelist{
+        const std::array<cb::mcbp::ClientOpcode, 5> allowed{
                 {cb::mcbp::ClientOpcode::Hello,
                  cb::mcbp::ClientOpcode::SaslListMechs,
                  cb::mcbp::ClientOpcode::SaslAuth,
                  cb::mcbp::ClientOpcode::SaslStep,
                  cb::mcbp::ClientOpcode::GetErrorMap}};
-        if (std::find(whitelist.begin(), whitelist.end(), opcode) ==
-            whitelist.end()) {
+        if (std::find(allowed.begin(), allowed.end(), opcode) ==
+            allowed.end()) {
 #if CB_DEVELOPMENT_ASSERTS
             if (cb::mcbp::is_valid_opcode(opcode)) {
                 LOG_WARNING(
@@ -544,13 +544,13 @@ cb::mcbp::Status Cookie::validate() {
     // one of the few commands allowed to be executed in such a bucket
     // (to avoid a potential call throug a nil pointer)
     if (connection.getBucket().type == BucketType::ClusterConfigOnly) {
-        const std::array<cb::mcbp::ClientOpcode, 4> whitelist{
+        const std::array<cb::mcbp::ClientOpcode, 4> allowed{
                 {cb::mcbp::ClientOpcode::Hello,
                  cb::mcbp::ClientOpcode::GetErrorMap,
                  cb::mcbp::ClientOpcode::GetClusterConfig,
                  cb::mcbp::ClientOpcode::SelectBucket}};
-        if (std::find(whitelist.begin(), whitelist.end(), opcode) ==
-            whitelist.end()) {
+        if (std::find(allowed.begin(), allowed.end(), opcode) ==
+            allowed.end()) {
             LOG_DEBUG(
                     "{} Can't run the requested command on "
                     "cluster-config-bucket: {}",

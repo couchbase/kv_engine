@@ -752,14 +752,14 @@ public:
         return std::string{*phosphor_config.rlock()};
     }
 
-    bool isLocalhostInterfaceWhitelisted() const {
-        return whitelist_localhost_interface.load(std::memory_order_acquire);
+    bool isLocalhostInterfaceAllowed() const {
+        return allow_localhost_interface.load(std::memory_order_acquire);
     }
 
-    void setWhitelistLocalhostInterface(bool val) {
-        whitelist_localhost_interface.store(val, std::memory_order_release);
-        has.whitelist_localhost_interface = true;
-        notify_changed("whitelist_localhost_interface");
+    void setAllowLocalhostInterface(bool val) {
+        allow_localhost_interface.store(val, std::memory_order_release);
+        has.allow_localhost_interface = true;
+        notify_changed("allow_localhost_interface");
     }
 
     DeploymentModel getDeploymentModel() const {
@@ -927,10 +927,10 @@ protected:
     /// Should we allow for using the external authentication service or not
     std::atomic_bool external_auth_service{false};
 
-    /// If "localhost" is whitelisted from deleting connections as part
+    /// If set "localhost" connections will not be deleted as part
     /// of server cleanup. This setting should only be used for unit
     /// tests
-    std::atomic_bool whitelist_localhost_interface{true};
+    std::atomic_bool allow_localhost_interface{true};
 
     std::atomic<DeploymentModel> deployment_model{DeploymentModel::Normal};
 
@@ -993,7 +993,7 @@ public:
         bool parent_identifier = false;
         bool prometheus_config = false;
         bool phosphor_config = false;
-        bool whitelist_localhost_interface = false;
+        bool allow_localhost_interface = false;
     } has;
 };
 

@@ -344,7 +344,6 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
         return code;
     }
 
-    // Check our whitelist
     switch (code) {
     case cb::engine_errc::success: // FALLTHROUGH
     case cb::engine_errc::no_such_key: // FALLTHROUGH
@@ -898,7 +897,7 @@ void Connection::reEvaluateParentPort() {
     }
 
     bool localhost = false;
-    if (Settings::instance().isLocalhostInterfaceWhitelisted()) {
+    if (Settings::instance().isLocalhostInterfaceAllowed()) {
         // Make sure we don't tear down localhost connections
         if (listening_port->family == AF_INET) {
             localhost =

@@ -59,7 +59,7 @@ protected:
                 cb::mcbp::ClientOpcode::ConfigReload, {}, {}});
     }
 
-    void test_mb47707(bool whitelist_localhost_interface);
+    void test_mb47707(bool allow_localhost_interface);
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -486,9 +486,8 @@ TEST_P(InterfacesTest, MB46863_NsServerWithoutSupportForIfconfig_ReloadOk) {
     ASSERT_TRUE(found) << "The prometheus interface should be present";
 }
 
-void InterfacesTest::test_mb47707(bool whitelist_localhost_interface) {
-    memcached_cfg["whitelist_localhost_interface"] =
-            whitelist_localhost_interface;
+void InterfacesTest::test_mb47707(bool allow_localhost_interface) {
+    memcached_cfg["allow_localhost_interface"] = allow_localhost_interface;
     reconfigure(memcached_cfg);
 
     // Define the interface to use
@@ -520,7 +519,7 @@ void InterfacesTest::test_mb47707(bool whitelist_localhost_interface) {
     ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
                                  << rsp.getDataString();
 
-    if (whitelist_localhost_interface) {
+    if (allow_localhost_interface) {
         // The connection should not be disconnected
         rsp = c.execute(
                 BinprotGenericCommand{cb::mcbp::ClientOpcode::SaslListMechs});
@@ -544,13 +543,13 @@ void InterfacesTest::test_mb47707(bool whitelist_localhost_interface) {
 
 /// Verify that we don't disconnect localhost connections as part of
 /// interface deletion if they're bound to localhost
-TEST_P(InterfacesTest, MB_47707_LocalhostWhitelisted) {
+TEST_P(InterfacesTest, MB_47707_LocalhostAllowed) {
     test_mb47707(true);
 }
 
 /// Verify that we disconnect localhost connections as part of
 /// interface deletion even if they're bound to localhost
-TEST_P(InterfacesTest, MB_47707_LocalhostNotWhitelisted) {
+TEST_P(InterfacesTest, MB_47707_LocalhostNotAllowed) {
     test_mb47707(false);
 }
 

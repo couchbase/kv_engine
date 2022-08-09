@@ -611,9 +611,9 @@ static void handle_prometheus(Settings& s, const nlohmann::json& obj) {
     s.setPrometheusConfig({port, family});
 }
 
-static void handle_whitelist_localhost_interface(Settings& s,
-                                                 const nlohmann::json& obj) {
-    s.setWhitelistLocalhostInterface(obj.get<bool>());
+static void handle_allow_localhost_interface(Settings& s,
+                                             const nlohmann::json& obj) {
+    s.setAllowLocalhostInterface(obj.get<bool>());
 }
 
 void Settings::reconfigure(const nlohmann::json& json) {
@@ -690,8 +690,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"prometheus", handle_prometheus},
             {"portnumber_file", handle_portnumber_file},
             {"parent_identifier", handle_parent_identifier},
-            {"whitelist_localhost_interface",
-             handle_whitelist_localhost_interface}};
+            {"allow_localhost_interface", handle_allow_localhost_interface}};
 
     for (const auto& obj : json.items()) {
         bool found = false;
@@ -1082,16 +1081,13 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
-    if (other.has.whitelist_localhost_interface) {
-        if (other.whitelist_localhost_interface !=
-            whitelist_localhost_interface) {
-            LOG_INFO(
-                    R"(Change whitelist of localhost interface from "{}" to "{}")",
-                    isLocalhostInterfaceWhitelisted() ? "enabled" : "disabled",
-                    other.isLocalhostInterfaceWhitelisted() ? "enabled"
-                                                            : "disabled");
-            setWhitelistLocalhostInterface(
-                    other.isLocalhostInterfaceWhitelisted());
+    if (other.has.allow_localhost_interface) {
+        if (other.allow_localhost_interface != allow_localhost_interface) {
+            LOG_INFO(R"(Change allow localhost interface from "{}" to "{}")",
+                     isLocalhostInterfaceAllowed() ? "enabled" : "disabled",
+                     other.isLocalhostInterfaceAllowed() ? "enabled"
+                                                         : "disabled");
+            setAllowLocalhostInterface(other.isLocalhostInterfaceAllowed());
         }
     }
 
