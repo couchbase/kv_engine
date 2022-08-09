@@ -304,7 +304,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
         /* We may need to send the requested 'snap_start_seqno_' as the snapshot
            start when we are sending the first snapshot because the first
            snapshot could be resumption of a previous snapshot */
-        bool wasFirst = !firstMarkerSent;
+        const bool wasFirst = !firstMarkerSent;
         startSeqno = adjustStartIfFirstSnapshot(startSeqno);
 
         VBucketPtr vb = engine->getVBucket(vb_);
@@ -1460,10 +1460,9 @@ void ActiveStream::snapshot(
         /* We need to send the requested 'snap_start_seqno_' as the snapshot
            start when we are sending the first snapshot because the first
            snapshot could be resumption of a previous snapshot */
-        bool wasFirst = false;
+        const bool wasFirst = !firstMarkerSent;
         if (!firstMarkerSent) {
             snapStart = std::min(snap_start_seqno_, snapStart);
-            wasFirst = true;
             firstMarkerSent = true;
         }
 
@@ -2408,7 +2407,7 @@ bool ActiveStream::isSeqnoGapAtEndOfSnapshot(uint64_t streamSeqno) const {
 void ActiveStream::sendSnapshotAndSeqnoAdvanced(CheckpointType checkpointType,
                                                 uint64_t start,
                                                 uint64_t end) {
-    bool wasFirst = !firstMarkerSent;
+    const bool wasFirst = !firstMarkerSent;
     start = adjustStartIfFirstSnapshot(start);
 
     const auto isCkptTypeDisk = isDiskCheckpointType(checkpointType);
