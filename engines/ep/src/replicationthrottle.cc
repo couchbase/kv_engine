@@ -12,6 +12,7 @@
 #include "replicationthrottle.h"
 #include "configuration.h"
 #include "ep_engine.h"
+#include "kv_bucket.h"
 #include "stats.h"
 
 ReplicationThrottleEP::ReplicationThrottleEP(
@@ -23,7 +24,12 @@ bool ReplicationThrottleEP::hasSomeMemory() const {
     const auto& stats = engine.getEpStats();
     const auto memoryUsed = stats.getEstimatedTotalMemoryUsed();
     const auto maxSize = stats.getMaxDataSize();
-    return memoryUsed <= (maxSize * stats.replicationThrottleThreshold);
+    // Note: bucket can be nullptr only in some component tests (eg VBucketTest)
+    //  Given that we have a ref to EP here then we must have a bucket.
+    const auto* bucket = engine.getKVBucket();
+    Expects(bucket);
+
+    return memoryUsed <= maxSize * bucket->getMutationMemRatio();
 }
 
 ReplicationThrottleEP::Status ReplicationThrottleEP::getStatus() const {

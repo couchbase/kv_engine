@@ -48,10 +48,6 @@ std::string VBucketTestBase::to_string(VBType vbType) {
 
 VBucketTestBase::VBucketTestBase(VBType vbType,
                                  EvictionPolicy eviction_policy) {
-    // Used for mem-checks at Replica VBuckets. Default=0 prevents any
-    // processSet, returns NoMem. I set a production-like value.
-    global_stats.replicationThrottleThreshold = 0.9;
-
     // MB-34453: Change sync_writes_max_allowed_replicas back to total
     // possible replicas given we want to still test against all replicas.
     std::string confString = "sync_writes_max_allowed_replicas=3;bucket_type=";

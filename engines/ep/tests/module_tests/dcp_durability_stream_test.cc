@@ -4350,7 +4350,7 @@ TEST_P(DurabilityPassiveStreamTest,
 
     // Setup - send prepare. This should initially be rejected, by virtue
     // of it value size which would make mem_used greater than
-    // bucket quota * replicationThrottleThreshold.
+    // bucket quota * mutation_mem_ratio.
     std::string largeValue(1024 * 1024 * 10, '\0');
     using namespace cb::durability;
     auto prepare =
@@ -4433,8 +4433,9 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpCommit) {
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 
     // Force consumer to buffer
+    auto& config = engine->getConfiguration();
+    config.setMutationMemRatio(0.0);
     auto& stats = engine->getEpStats();
-    stats.replicationThrottleThreshold = 0;
     const size_t size = stats.getMaxDataSize();
     stats.setMaxDataSize(1);
     ASSERT_EQ(ReplicationThrottle::Status::Pause,
@@ -4464,7 +4465,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpCommit) {
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 
     // undo the adjustments so that processing of buffered items will work
-    stats.replicationThrottleThreshold = 99;
+    config.setMutationMemRatio(0.99);
     engine->getEpStats().setMaxDataSize(size);
 
     // And process buffered items
@@ -4521,8 +4522,9 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 
     // Force consumer to buffer
+    auto& config = engine->getConfiguration();
+    config.setMutationMemRatio(0.0);
     auto& stats = engine->getEpStats();
-    stats.replicationThrottleThreshold = 0;
     const size_t size = stats.getMaxDataSize();
     stats.setMaxDataSize(1);
     ASSERT_EQ(ReplicationThrottle::Status::Pause,
@@ -4552,7 +4554,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 
     // undo the adjustments so that processing of buffered items will work
-    stats.replicationThrottleThreshold = 99;
+    config.setMutationMemRatio(0.99);
     engine->getEpStats().setMaxDataSize(size);
 
     // And process buffered items

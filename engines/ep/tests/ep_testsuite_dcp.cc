@@ -3697,12 +3697,12 @@ static enum test_result test_dcp_add_stream(EngineIface* h) {
 
 static enum test_result test_consumer_backoff(EngineIface* h) {
     set_param(h,
-              EngineParamCategory::Replication,
-              "replication_throttle_threshold",
-              "0");
-    checkeq(0,
-            get_int_stat(h, "ep_replication_throttle_threshold"),
-            "Incorrect replication_throttle_threshold");
+              EngineParamCategory::Flush,
+              "mutation_mem_ratio",
+              "0.0");
+    checkeq(0.0f,
+            get_float_stat(h, "ep_mutation_mem_ratio"),
+            "Incorrect mutation_mem_ratio");
 
     stop_persistence(h);
 
@@ -8574,7 +8574,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_mb19982,
                  test_setup,
                  teardown,
-                 "replication_throttle_threshold=0",
+                 "mutation_mem_ratio=0.0",
                  prepare,
                  cleanup),
         TestCase("test_set_dcp_param",

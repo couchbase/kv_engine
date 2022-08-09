@@ -2067,7 +2067,8 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
     const uint64_t snapStart = 1;
     const uint64_t snapEnd = 100;
     // Run with 4% replication throttle (see commit for this test)
-    engine->getEpStats().replicationThrottleThreshold = 0.04;
+    auto& config = engine->getConfiguration();
+    config.setMutationMemRatio(0.04);
 
     // The consumer receives the snapshot-marker
     uint32_t opaque = 0;
@@ -2097,8 +2098,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
             auto& epStats = engine->getEpStats();
 
             ASSERT_GT(epStats.getEstimatedTotalMemoryUsed(),
-                      epStats.getMaxDataSize() *
-                              epStats.replicationThrottleThreshold);
+                      epStats.getMaxDataSize() * config.getMutationMemRatio());
             ASSERT_EQ(1, stream->getNumBufferItems());
             auto& bufferedMessages = stream->getBufferMessages();
             auto& [dcpResponse, size] = bufferedMessages.at(0);
@@ -2110,8 +2110,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
             // We need this for processing other items in the next steps.
             epStats.setMaxDataSize(epStats.getMaxDataSize() * 2);
             ASSERT_LT(epStats.getEstimatedTotalMemoryUsed(),
-                      epStats.getMaxDataSize() *
-                              epStats.replicationThrottleThreshold);
+                      epStats.getMaxDataSize() * config.getMutationMemRatio());
 
             break;
         } else {
@@ -2292,8 +2291,9 @@ void SingleThreadedPassiveStreamTest::mb_33773(
 
     // This code is tricking the replication throttle into returning pause so
     // that the mutation's are buffered.
+    auto& config = engine->getConfiguration();
+    config.setMutationMemRatio(0.0);
     auto& stats = engine->getEpStats();
-    stats.replicationThrottleThreshold = 0;
     const size_t originalQuota = stats.getMaxDataSize();
     size_t expectedFlowControlBytes =
             SnapshotMarkerResponse::baseMsgBytes +
@@ -2327,7 +2327,7 @@ void SingleThreadedPassiveStreamTest::mb_33773(
     // and check they were buffered.
     ASSERT_EQ(snapEnd - snapStart, stream->getNumBufferItems());
     // Unblock consumer
-    stats.replicationThrottleThreshold = 99;
+    config.setMutationMemRatio(0.99);
     stats.setMaxDataSize(originalQuota);
 
     // We expect flowcontrol bytes to increase when the buffered items are

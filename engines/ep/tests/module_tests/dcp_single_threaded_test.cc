@@ -551,9 +551,9 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
         /* set max size to a value just over */
         stats.setMaxDataSize(stats.getPreciseTotalMemoryUsed() + 1);
         /* Simpler to set the replication threshold to 1 and test, rather than
-           testing with maxData = (memUsed / replicationThrottleThreshold); that
+           testing with maxData = (memUsed * mutationMemRatio); that
            is, we are avoiding a division */
-        engine->getConfiguration().setReplicationThrottleThreshold(100);
+        engine->getConfiguration().setMutationMemRatio(1.0);
     }
 
     MockDcpMessageProducers producers;
@@ -953,9 +953,9 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
            for  the new item */
         engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() + 1);
         /* Simpler to set the replication threshold to 1 and test, rather than
-           testing with maxData = (memUsed / replicationThrottleThreshold);
+           testing with maxData = (memUsed * mutationMemRatio);
            that is, we are avoiding a division */
-        engine->getConfiguration().setReplicationThrottleThreshold(100);
+        engine->getConfiguration().setMutationMemRatio(1.0);
     }
 
     if ((engine->getConfiguration().getBucketType() == "ephemeral") &&

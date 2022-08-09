@@ -312,8 +312,8 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
     const int numItems = n * (batchSize * yield);
 
     // Force the stream to buffer rather than process messages immediately
-    auto& stats = engine->getEpStats();
-    stats.replicationThrottleThreshold = 0;
+    auto& config = engine->getConfiguration();
+    config.setMutationMemRatio(0.0);
     ASSERT_EQ(ReplicationThrottle::Status::Pause,
               engine->getReplicationThrottle().getStatus());
 
@@ -352,7 +352,7 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
     ASSERT_EQ(numItems + 1,
               consumer->getVbucketStream(vbid)->getNumBufferItems());
     // Unblock consumer
-    stats.replicationThrottleThreshold = 99;
+    config.setMutationMemRatio(0.99);
 
     // Get our target stream ready.
     static_cast<MockDcpConsumer*>(consumer.get())
