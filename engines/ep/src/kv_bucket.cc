@@ -27,6 +27,7 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ep_vb.h"
+#include "event_driven_timeout_task.h"
 #include "ext_meta_parser.h"
 #include "failover-table.h"
 #include "flusher.h"
@@ -475,11 +476,19 @@ bool KVBucket::initialize() {
                         config.getDurabilityTimeoutTaskInterval()));
         ExecutorPool::get()->schedule(durabilityTimeoutTask);
     } else if (config.getDurabilityTimeoutMode() == "event-driven") {
+        // Create an implementation of EventDrivenTimeoutTask to manage the
+        // NonIO VBucketSyncWriteTimeoutTask. The task is scheduled / cancelled
+        // based on calls to update() /cancel() with input derived from the
+        // DurabilityManager.
+        //
+        // This class is used when durability_timeout_mode == "event-driven".
+        // See also: DurabilityTimeoutTask.
         syncWriteTimeoutFactory =
-                [&taskable =
+                [& taskable =
                          this->getEPEngine().getTaskable()](VBucket& vbucket) {
-                    return std::make_unique<EventDrivenDurabilityTimeout>(
-                            taskable, vbucket);
+                    return std::make_unique<EventDrivenTimeoutTask>(
+                            std::make_shared<VBucketSyncWriteTimeoutTask>(
+                                    taskable, vbucket));
                 };
     }
 

@@ -17,6 +17,7 @@
 
 class BgFetcher;
 class EPBucket;
+class EventDrivenTimeoutTask;
 class KVStoreIface;
 class KVStoreRevision;
 struct RangeScanCreateData;

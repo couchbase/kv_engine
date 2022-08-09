@@ -75,26 +75,23 @@ private:
     const std::chrono::steady_clock::time_point startTime;
 };
 
-/**
- * Default implementation of EventDrivenDurabilityTimeoutIface. This
- * creates a NonIO task for each instance of VBucketDurabilityTimeoutHandler;
- * the task is scheduled / cancelled based on calls to updateNextExpiryTime() /
- * cancelNextExpiryTime().
- * The background task is cancelled (and deleted) when this object is deleted.
- *
- * This class is used when durability_timeout_mode == "event-driven".
- * See also: DurabilityTimeoutTask.
- */
-class EventDrivenDurabilityTimeout : public EventDrivenDurabilityTimeoutIface {
+class VBucketSyncWriteTimeoutTask : public GlobalTask {
 public:
-    EventDrivenDurabilityTimeout(Taskable& taskable, VBucket& vbucket);
+    VBucketSyncWriteTimeoutTask(Taskable& taskable, VBucket& vBucket);
 
-    ~EventDrivenDurabilityTimeout() override;
+    std::string getDescription() const override;
 
-    void updateNextExpiryTime(std::chrono::steady_clock::time_point) override;
+    std::chrono::microseconds maxExpectedDuration() const override;
 
-    void cancelNextExpiryTime() override;
+protected:
+    bool run() override;
 
 private:
-    size_t taskId;
+    VBucket& vBucket;
+    // Need a separate vbid member variable as getDescription() can be
+    // called during Bucket shutdown (after VBucket has been deleted)
+    // as part of cleaning up tasks (see
+    // EventuallyPersistentEngine::waitForTasks) - and hence calling
+    // into vBucket->getId() would be accessing a deleted object.
+    const Vbid vbid;
 };
