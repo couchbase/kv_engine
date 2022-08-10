@@ -776,8 +776,9 @@ static cb::engine_errc initalize_configuration(struct default_engine* se,
         items[ii].key = nullptr;
         ++ii;
         cb_assert(ii == 13);
-        ret = cb::engine_errc(
-                se->server.core->parse_config(cfg_str.c_str(), items, stderr));
+        if (parse_config(cfg_str.c_str(), items, stderr) != 0) {
+            ret = cb::engine_errc::failed;
+        }
     }
 
     if (se->config.vb0) {

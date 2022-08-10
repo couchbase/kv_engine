@@ -350,7 +350,7 @@ bool Configuration::parseConfiguration(const char* str, ServerApi* sapi) {
         items[ii].value.dt_string = config[ii]->value.dt_string;
     }
 
-    bool ret = sapi->core->parse_config(str, items.data(), stderr) == 0;
+    bool ret = parse_config(str, items.data(), stderr) == 0;
     for (int ii = 0; ii < nelem; ++ii) {
         if (items[ii].found) {
             if (ret) {

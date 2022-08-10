@@ -58,12 +58,6 @@ public:
                 "UnitTestServerCore::limit_abstime() not implemented");
     }
 
-    int parse_config(const char* str,
-                     config_item* items,
-                     FILE* error) override {
-        return ::parse_config(str, items, error);
-    }
-
     ThreadPoolConfig getThreadPoolSizes() override {
         return {};
     }

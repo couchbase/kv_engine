@@ -34,12 +34,6 @@ struct ServerCoreApi : public ServerCoreIface {
         return mc_time_limit_abstime(t, limit);
     }
 
-    int parse_config(const char* str,
-                     config_item* items,
-                     FILE* error) override {
-        return ::parse_config(str, items, error);
-    }
-
     ThreadPoolConfig getThreadPoolSizes() override {
         auto& instance = Settings::instance();
         return {instance.getNumReaderThreads(), instance.getNumWriterThreads()};

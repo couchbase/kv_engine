@@ -124,10 +124,6 @@ void mock_time_travel(int by) {
     time_travel_offset += by;
 }
 
-static int mock_parse_config(const char *str, struct config_item items[], FILE *error) {
-    return parse_config(str, items, error);
-}
-
 struct MockServerCoreApi : public ServerCoreIface {
     rel_time_t get_current_time() override {
         return mock_get_current_time();
@@ -140,11 +136,6 @@ struct MockServerCoreApi : public ServerCoreIface {
     }
     time_t limit_abstime(time_t t, std::chrono::seconds limit) override {
         return mock_limit_abstime(t, limit);
-    }
-    int parse_config(const char* str,
-                     config_item* items,
-                     FILE* error) override {
-        return mock_parse_config(str, items, error);
     }
     ThreadPoolConfig getThreadPoolSizes() override {
         return {};
