@@ -74,12 +74,6 @@ memcached like this:
 |                                |        | original doc, then the doc will be shipped |
 |                                |        | as is by the DCP producer if value         |
 |                                |        | compression were enabled by the consumer.  |
-| replication_throttle_queue_cap | int    | The maximum size of the disk write queue   |
-|                                |        | to throttle down tap-based replication. -1 |
-|                                |        | means don't throttle.                      |
-| replication_throttle_cap_pcnt  | int    | Percentage of total items in write queue   |
-|                                |        | to throttle tap input. 0 means use fixed   |
-|                                |        | throttle queue cap.                        |
 | data_traffic_enabled           | bool   | True if we want to enable data traffic     |
 |                                |        | immediately after warmup completion        |
 | access_scanner_enabled         | bool   | True if access scanner task is enabled     |

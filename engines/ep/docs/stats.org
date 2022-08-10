@@ -1386,7 +1386,6 @@ Reset Stats:
 | ep_pending_ops_max                             |
 | ep_pending_ops_max_duration                    |
 | ep_pending_ops_total                           |
-| ep_replication_throttled                       |
 | ep_vbucket_del_max_walltime                    |
 | pending_ops                                    |
 
