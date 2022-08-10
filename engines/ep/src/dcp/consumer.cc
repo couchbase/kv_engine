@@ -1939,3 +1939,7 @@ cb::engine_errc DcpConsumer::control(uint32_t opaque,
 bool DcpConsumer::shouldBufferOperations() const {
     return alwaysBufferOperations;
 }
+
+bool DcpConsumer::isFlowControlEnabled() const {
+    return flowControl.isEnabled();
+}

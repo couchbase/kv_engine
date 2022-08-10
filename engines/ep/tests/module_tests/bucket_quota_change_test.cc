@@ -10,12 +10,15 @@
 
 #include "evp_store_single_threaded_test.h"
 
-#include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
+#include "dcp/consumer.h"
+#include "dcp/flow-control-manager.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "test_helpers.h"
 #include "vbucket.h"
+
+#include "../mock/mock_synchronous_ep_engine.h"
 
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
@@ -56,7 +59,19 @@ public:
         // 1) we don't have to wait
         // 2) we can run the task and the ItemPager manually and assert the
         //    order in which they run
-        engine->getConfiguration().setBucketQuotaChangeTaskPollInterval(0);
+        auto& config = engine->getConfiguration();
+        config.setBucketQuotaChangeTaskPollInterval(0);
+
+        // Add a consumer. We use it to verify that DCP buffers are correctly
+        // resized at bucket quota changes.
+        ASSERT_EQ(0, engine->getDcpFlowControlManager().getNumConsumers());
+
+        auto& connMap = engine->getDcpConnMap();
+        consumer = connMap.newConsumer(cookie, "connection", "consumer");
+        ASSERT_TRUE(consumer->isFlowControlEnabled());
+        ASSERT_EQ(1, engine->getDcpFlowControlManager().getNumConsumers());
+        EXPECT_EQ(config.getMaxSize() * config.getDcpConsumerBufferRatio(),
+                  consumer->getFlowControlBufSize());
     }
 
     void runQuotaChangeTaskOnce() {
@@ -151,6 +166,16 @@ public:
                 engine->getCheckpointConfig().getCheckpointMaxSize());
     }
 
+    void checkDcpConsumerBuffer(size_t quotaValue) const {
+        ASSERT_EQ(1, engine->getDcpFlowControlManager().getNumConsumers());
+        const auto& config = engine->getConfiguration();
+        const size_t numConsumers =
+                engine->getDcpFlowControlManager().getNumConsumers();
+        const size_t expectedSize =
+                quotaValue * config.getDcpConsumerBufferRatio() / numConsumers;
+        EXPECT_EQ(expectedSize, consumer->getFlowControlBufSize());
+    }
+
     void checkBucketQuotaAndRelatedValues(size_t quotaValue) {
         SCOPED_TRACE("");
         checkQuota(quotaValue);
@@ -158,6 +183,7 @@ public:
         checkMaxRunningBackfills(quotaValue);
         checkStorageEngineQuota(quotaValue);
         checkCheckpointMaxSize(quotaValue);
+        checkDcpConsumerBuffer(quotaValue);
     }
 
     void testQuotaChangeUp() {
@@ -259,6 +285,10 @@ public:
 
     double initialMemLowWatPercent;
     double initialMemHighWatPercent;
+
+    // Used for test DCP Consumers buffers resizing at bucket quota changes.
+    // Raw ptr, owned by the engine for proper cleanup at test tear-down.
+    DcpConsumer* consumer;
 };
 
 TEST_P(BucketQuotaChangeTest, QuotaChangeEqual) {

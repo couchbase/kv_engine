@@ -321,6 +321,11 @@ public:
      */
     bool shouldBufferOperations() const;
 
+    /**
+     * @return Whether FlowControl is enabled on this consumer connection
+     */
+    bool isFlowControlEnabled() const;
+
 protected:
     /**
      * Records when the consumer last received a message from producer.

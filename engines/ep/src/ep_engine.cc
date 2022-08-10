@@ -6833,6 +6833,10 @@ void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
 
     kvBucket->autoConfigCheckpointMaxSize();
 
+    // Ratio hasn't changed in config, but the call recomputes all consumers'
+    // buffer sizes based on the new Bucket Quota value
+    setDcpConsumerBufferRatio(configuration.getDcpConsumerBufferRatio());
+
     // Setting the quota must set the water-marks and the new water-mark values
     // must be readable from both the configuration and EPStats. The following
     // is also updating EPStats because the configuration has a change listener

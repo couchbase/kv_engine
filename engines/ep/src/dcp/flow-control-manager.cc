@@ -62,11 +62,7 @@ void DcpFlowControlManager::handleDisconnect(DcpConsumer& consumer) {
 }
 
 void DcpFlowControlManager::setDcpConsumerBufferRatio(float ratio) {
-    if (dcpConsumerBufferRatio == ratio) {
-        return;
-    }
     dcpConsumerBufferRatio = ratio;
-
     updateConsumersBufferSize(*consumers.wlock());
 }
 

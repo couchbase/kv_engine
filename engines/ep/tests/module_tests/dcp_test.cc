@@ -2656,6 +2656,33 @@ TEST_F(FlowControlTest, Config_ConsumerBufferRatio) {
     EXPECT_EQ(_1GB * ratio, consumer->getFlowControlBufSize());
 }
 
+TEST_F(FlowControlTest, Config_ConnBufferRatio_UpdateAtBucketQuotaChange) {
+    engine->getKVBucket()->setVBucketState(vbid, vbucket_state_replica);
+
+    auto& config = engine->getConfiguration();
+    const size_t _100MB = 1024 * 1024 * 100;
+    engine->setMaxDataSize(_100MB);
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(_100MB, stats.getMaxDataSize());
+
+    const float ratio = 0.05;
+    config.setDcpConsumerBufferRatio(ratio);
+
+    // Add a consumer and verify that it is assigned the correct sized buffer
+    ASSERT_EQ(0, engine->getDcpFlowControlManager().getNumConsumers());
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+    ASSERT_TRUE(consumer->public_flowControl().isEnabled());
+    ASSERT_EQ(1, engine->getDcpFlowControlManager().getNumConsumers());
+    EXPECT_EQ(_100MB * ratio, consumer->getFlowControlBufSize());
+
+    // Now change the Bucket Quota ONLY, and very consumer buffer resized
+    const size_t _1GB = 1024 * 1024 * 1024;
+    engine->setMaxDataSize(_1GB);
+    ASSERT_EQ(_1GB, stats.getMaxDataSize());
+    EXPECT_EQ(_1GB * ratio, consumer->getFlowControlBufSize());
+}
+
 struct PrintToStringCombinedNameXattrOnOff {
     std::string operator()(
             const ::testing::TestParamInfo<::testing::tuple<std::string, bool>>&

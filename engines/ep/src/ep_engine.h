@@ -923,6 +923,16 @@ public:
     cb::engine_errc doRangeScanStats(const BucketStatCollector& collector,
                                      std::string_view statKey);
 
+    /**
+     * Set the ratio of the Bucket Quota that DCP Consumers on this node can
+     * allocate for their DCP inbound buffer.
+     * Note that Consumers buffer messages only in the case of OOM conditions on
+     * the node.
+     *
+     * @param ratio
+     */
+    void setDcpConsumerBufferRatio(float ratio);
+
 protected:
     friend class EpEngineValueChangeListener;
 
@@ -1394,16 +1404,6 @@ private:
      * @param The configuration value where 0 means auto configure
      */
     void configureRangeScanConcurrency(size_t rangeScanMaxContinueTasksValue);
-
-    /**
-     * Set the ratio of the Bucket Quota that DCP Consumers on this node can
-     * allocate for their DCP inbound buffer.
-     * Note that Consumers buffer messages only in the case of OOM conditions on
-     * the node.
-     *
-     * @param ratio
-     */
-    void setDcpConsumerBufferRatio(float ratio);
 
 public:
     // Testing hook for MB-45756, to allow a throw to be made during

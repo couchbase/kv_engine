@@ -202,15 +202,20 @@ void BucketQuotaChangeTask::prepareToReduceMemoryUsage(size_t desiredQuota) {
 }
 
 void BucketQuotaChangeTask::setDesiredQuota(size_t desiredQuota) {
-    engine->getConfiguration().setMaxSize(desiredQuota);
-    engine->getEpStats().setMaxDataSize(desiredQuota);
+    auto& config = engine->getConfiguration();
+    config.setMaxSize(desiredQuota);
 
-    engine->getEpStats().setLowWaterMark(engine->getEpStats().mem_low_wat);
-    engine->getEpStats().setHighWaterMark(engine->getEpStats().mem_high_wat);
+    auto& stats = engine->getEpStats();
+    stats.setMaxDataSize(desiredQuota);
+
+    stats.setLowWaterMark(stats.mem_low_wat);
+    stats.setHighWaterMark(stats.mem_high_wat);
 
     engine->getKVBucket()->autoConfigCheckpointMaxSize();
 
     engine->updateArenaAllocThresholdForQuota(desiredQuota);
+
+    engine->setDcpConsumerBufferRatio(config.getDcpConsumerBufferRatio());
 }
 
 bool BucketQuotaChangeTask::checkMemoryState() {
