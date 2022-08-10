@@ -9,220 +9,275 @@
 
 #include <memcached/config_parser.h>
 
-#include <folly/portability/String.h>
-#include <memcached/util.h>
+#include <fmt/core.h>
 #include <platform/cb_malloc.h>
-#include <platform/cbassert.h>
 #include <cctype>
 #include <cstring>
 
-/**
- * Copy a string and trim of leading and trailing white space characters.
- * Allow the user to escape out the stop character by putting a backslash before
- * the character.
- * @param dest where to store the result
- * @param size size of the result buffer
- * @param src where to copy data from
- * @param end the last character parsed is returned here
- * @param stop the character to stop copying.
- * @return 0 if success, -1 otherwise
- */
-static int trim_copy(
-        char* dest, size_t size, const char* src, const char** end, char stop) {
-    size_t n = 0;
+std::string cb::config::internal::next_field(std::string_view& src, char stop) {
+    auto trim_tail = [](std::string& str, std::size_t minimum) {
+        while (!str.empty() && str.size() > minimum && isspace(str.back())) {
+            str.pop_back();
+        }
+        return str;
+    };
+
+    while (!src.empty() && isspace(src.front())) {
+        src.remove_prefix(1);
+    }
+
     bool escape = false;
-    int ret = 0;
-    const char* lastchar;
+    std::string dest;
+    std::size_t minimum = 0;
+    for (std::size_t ii = 0; ii < src.size(); ++ii) {
+        dest.push_back(src[ii]);
+        if (!escape && src[ii] == stop) {
+            // Remove all input characters including the stopsign
+            src.remove_prefix(ii + 1);
+            dest.pop_back();
+            return trim_tail(dest, minimum);
+        }
 
-    while (isspace(*src)) {
-        ++src;
-    }
-
-    /* Find the last non-escaped non-space character */
-    lastchar = src + strlen(src) - 1;
-    while (lastchar > src && isspace(*lastchar)) {
-        lastchar--;
-    }
-    if (lastchar < src || *lastchar == '\\') {
-        lastchar++;
-    }
-    cb_assert(lastchar >= src);
-
-    do {
-        if ((*dest = *src) == '\\') {
+        if (src[ii] == '\\' && !escape) {
             escape = true;
+            minimum = dest.size();
+            dest.pop_back();
         } else {
             escape = false;
-            ++dest;
         }
-        ++n;
-        ++src;
-
-    } while (!(n == size || src > lastchar || ((*src == stop) && !escape) ||
-               *src == '\0'));
-    *end = src;
-
-    if (n == size) {
-        --dest;
-        ret = -1;
     }
-    *dest = '\0';
 
+    src = {};
+    return trim_tail(dest, minimum);
+}
+
+static std::pair<size_t, std::string::size_type> get_multiplier(
+        const std::string& val) {
+    const char* sfx = "kmgt";
+    size_t multiplier = 1;
+    size_t m = 1;
+    const char* p;
+    std::string::size_type idx = std::string::npos;
+
+    for (p = sfx; *p != '\0'; ++p) {
+        idx = val.find_first_of(*p);
+        m *= 1024;
+        if (idx == std::string::npos) {
+            idx = val.find_first_of(toupper(*p));
+        }
+        if (idx != std::string::npos) {
+            multiplier = m;
+            break;
+        }
+    }
+    return {multiplier, idx};
+}
+
+size_t cb::config::value_as_size_t(const std::string& val) {
+    const auto [multiplier, idx] = get_multiplier(val);
+    std::size_t end = 0;
+    uint64_t ret = std::stoull(val, &end) * multiplier;
+    if (idx == std::string::npos) {
+        if (end != val.size()) {
+            throw std::runtime_error(fmt::format(
+                    R"(cb::config::value_as_size_t: "{}" contains extra characters)",
+                    val));
+        }
+    } else if (end != idx || end + 1 != val.size()) {
+        throw std::runtime_error(fmt::format(
+                R"(cb::config::value_as_size_t: "{}" contains extra characters)",
+                val));
+    }
     return ret;
 }
 
-int parse_config(const char* str, struct config_item* items, FILE* error) {
-    const char* end;
-    char key[80];
-    char value[1024];
-    int ret = 0;
-    const char* ptr = str;
-    int ii;
-
-    while (*ptr != '\0') {
-        while (isspace(*ptr)) {
-            ++ptr;
+ssize_t cb::config::value_as_ssize_t(const std::string& val) {
+    const auto [multiplier, idx] = get_multiplier(val);
+    std::size_t end = 0;
+    int64_t ret = std::stoll(val, &end) * multiplier;
+    if (idx == std::string::npos) {
+        if (end != val.size()) {
+            throw std::runtime_error(fmt::format(
+                    R"(cb::config::value_as_ssize_t: "{}" contains extra characters)",
+                    val));
         }
-        if (*ptr == '\0') {
-            /* end of parameters */
-            return 0;
-        }
-
-        if (trim_copy(key, sizeof(key), ptr, &end, '=') == -1) {
-            if (error != nullptr) {
-                fprintf(error, "ERROR: Invalid key, starting at: <%s>\n", ptr);
-            }
-            return -1;
-        }
-
-        ptr = end + 1;
-        if (trim_copy(value, sizeof(value), ptr, &end, ';') == -1) {
-            if (error != nullptr) {
-                fprintf(error,
-                        "ERROR: Invalid value, starting at: <%s>\n",
-                        ptr);
-            }
-            return -1;
-        }
-        if (*end == ';') {
-            ptr = end + 1;
-        } else {
-            ptr = end;
-        }
-
-        ii = 0;
-        while (items[ii].key != nullptr) {
-            if (strcmp(key, items[ii].key) == 0) {
-                if (items[ii].found) {
-                    if (error != nullptr) {
-                        fprintf(error,
-                                "WARNING: Found duplicate entry for \"%s\"\n",
-                                items[ii].key);
-                    }
-                }
-
-                switch (items[ii].datatype) {
-                case DT_SIZE:
-                case DT_SSIZE: {
-                    const char* sfx = "kmgt";
-                    size_t multiplier = 1;
-                    size_t m = 1;
-                    const char* p;
-
-                    for (p = sfx; *p != '\0'; ++p) {
-                        char* ptr = strchr(value, *p);
-                        m *= 1024;
-                        if (ptr == nullptr) {
-                            ptr = strchr(value, toupper(*p));
-                        }
-                        if (ptr != nullptr) {
-                            multiplier = m;
-                            *ptr = '\0';
-                            break;
-                        }
-                    }
-
-                    if (items[ii].datatype == DT_SIZE) {
-                        uint64_t val;
-                        if (safe_strtoull(value, val)) {
-                            *items[ii].value.dt_size =
-                                    (size_t)(val * multiplier);
-                            items[ii].found = true;
-                        } else {
-                            ret = -1;
-                        }
-                    } else {
-                        int64_t val;
-                        if (safe_strtoll(value, val)) {
-                            *items[ii].value.dt_size =
-                                    (size_t)(val * multiplier);
-                            items[ii].found = true;
-                        } else {
-                            ret = -1;
-                        }
-                    }
-                } break;
-                case DT_FLOAT: {
-                    float val;
-                    if (safe_strtof(value, val)) {
-                        *items[ii].value.dt_float = val;
-                        items[ii].found = true;
-                    } else {
-                        ret = -1;
-                    }
-                } break;
-                case DT_STRING:
-                    // MB-20598: free the dt_string as in case of a duplicate
-                    // config entry we would leak when overwriting with the next
-                    // strdup.
-                    if (items[ii].found) {
-                        cb_free(*items[ii].value.dt_string);
-                    }
-                    *items[ii].value.dt_string = cb_strdup(value);
-                    items[ii].found = true;
-                    break;
-                case DT_BOOL:
-                    if (strcasecmp(value, "true") == 0 ||
-                        strcasecmp(value, "on") == 0) {
-                        *items[ii].value.dt_bool = true;
-                        items[ii].found = true;
-                    } else if (strcasecmp(value, "false") == 0 ||
-                               strcasecmp(value, "off") == 0) {
-                        *items[ii].value.dt_bool = false;
-                        items[ii].found = true;
-                    } else {
-                        ret = -1;
-                    }
-                    break;
-                default:
-                    /* You need to fix your code!!! */
-                    fprintf(error,
-                            "ERROR: Invalid datatype %d for Key: <%s>\n",
-                            items[ii].datatype,
-                            key);
-                    ret = -1;
-                }
-
-                if (ret == -1) {
-                    if (error != nullptr) {
-                        fprintf(error,
-                                "Invalid entry, Key: <%s> Value: <%s>\n",
-                                key,
-                                value);
-                    }
-                    return ret;
-                }
-                break;
-            }
-            ++ii;
-        }
-
-        if (items[ii].key == nullptr) {
-            if (error != nullptr) {
-                fprintf(error, "Unsupported key: <%s>\n", key);
-            }
-            ret = 1;
-        }
+    } else if (end != idx || end + 1 != val.size()) {
+        throw std::runtime_error(fmt::format(
+                R"(cb::config::value_as_ssize_t: "{}" contains extra characters)",
+                val));
     }
     return ret;
+}
+
+bool cb::config::value_as_bool(const std::string& val) {
+    using namespace std::string_view_literals;
+    // Fast path, check for lowercase
+    if ("true"sv == val || "on"sv == val) {
+        return true;
+    }
+
+    if ("false"sv == val || "off"sv == val) {
+        return false;
+    }
+
+    // may be upper or a mix of case... lowercase and test again
+    std::string lowercase;
+    std::transform(
+            val.begin(), val.end(), std::back_inserter(lowercase), tolower);
+
+    if ("true"sv == lowercase || "on"sv == lowercase) {
+        return true;
+    }
+
+    if ("false"sv == lowercase || "off"sv == lowercase) {
+        return false;
+    }
+
+    throw std::runtime_error(fmt::format(
+            R"(cb::config::value_as_bool: "{}" is not a boolean value)", val));
+}
+
+float cb::config::value_as_float(const std::string& val) {
+    std::size_t end = 0;
+    const auto ret = std::stof(val, &end);
+    if (end != val.size()) {
+        throw std::runtime_error(fmt::format(
+                R"(cb::config::value_as_float: "{}" contains extra characters)",
+                val));
+    }
+    return ret;
+}
+
+void cb::config::tokenize(
+        std::string_view str,
+        std::function<void(std::string_view, std::string)> callback) {
+    if (!callback) {
+        throw std::invalid_argument("parse_config: callback must be set");
+    }
+    while (!str.empty()) {
+        auto key = internal::next_field(str, '=');
+        if (key.empty()) {
+            return;
+        }
+        auto value = internal::next_field(str, ';');
+        callback(key, std::move(value));
+    }
+}
+
+static void parse(
+        std::string_view str,
+        struct config_item* items,
+        std::function<void(std::string_view)> unknown_key_callback,
+        std::function<void(std::string_view)> duplicate_key_callback) {
+    using namespace cb::config;
+
+    tokenize(str,
+             [&items, &unknown_key_callback, &duplicate_key_callback](
+                     auto key, const auto& value) {
+                 int ret = 0;
+                 int ii = 0;
+                 while (items[ii].key) {
+                     if (key == items[ii].key) {
+                         if (items[ii].found) {
+                             duplicate_key_callback(items[ii].key);
+                         }
+
+                         switch (items[ii].datatype) {
+                         case DT_SIZE:
+                             try {
+                                 *items[ii].value.dt_size =
+                                         value_as_size_t(value);
+                                 items[ii].found = true;
+                             } catch (const std::exception&) {
+                                 ret = -1;
+                             }
+                             break;
+                         case DT_SSIZE:
+                             try {
+                                 *items[ii].value.dt_ssize =
+                                         value_as_ssize_t(value);
+                                 items[ii].found = true;
+                             } catch (const std::exception&) {
+                                 ret = -1;
+                             }
+                             break;
+                         case DT_FLOAT:
+                             try {
+                                 *items[ii].value.dt_float =
+                                         value_as_float(value);
+                                 items[ii].found = true;
+                             } catch (const std::exception&) {
+                                 ret = -1;
+                             }
+                             break;
+                         case DT_STRING:
+                             // MB-20598: free the dt_string as in case of a
+                             // duplicate config entry we would leak when
+                             // overwriting with the next strdup.
+                             if (items[ii].found) {
+                                 cb_free(*items[ii].value.dt_string);
+                             }
+                             *items[ii].value.dt_string =
+                                     cb_strdup(value.c_str());
+                             items[ii].found = true;
+                             break;
+                         case DT_BOOL:
+                             try {
+                                 *items[ii].value.dt_bool =
+                                         value_as_bool(value);
+                                 items[ii].found = true;
+                             } catch (const std::exception&) {
+                                 ret = -1;
+                             }
+                             break;
+                         default:
+                             /// You need to fix your code!!!
+                             throw std::invalid_argument(fmt::format(
+                                     "ERROR: Invalid datatype {} for Key: {}",
+                                     int(items[ii].datatype),
+                                     key));
+                         }
+
+                         if (ret == -1) {
+                             throw std::runtime_error(fmt::format(
+                                     "Invalid entry, Key: <{}> Value: <{}>",
+                                     key,
+                                     value));
+                         }
+                         break;
+                     }
+                     ++ii;
+                 }
+
+                 if (items[ii].key == nullptr) {
+                     unknown_key_callback(key);
+                 }
+             });
+}
+
+int parse_config(const char* str, struct config_item* items, FILE* error) {
+    bool unknown = false;
+    auto unknown_key_callback = [&error, &unknown](std::string_view key) {
+        if (error) {
+            fmt::print(error, "Unsupported key: <{}>\n", key);
+        }
+        unknown = true;
+    };
+
+    auto duplicate_key_callback = [&error](std::string_view key) {
+        if (error != nullptr) {
+            fmt::print(
+                    error, "WARNING: Found duplicate entry for \"{}\"\n", key);
+        }
+    };
+
+    try {
+        parse(str, items, unknown_key_callback, duplicate_key_callback);
+    } catch (const std::exception& e) {
+        if (error) {
+            fprintf(error, "%s\n", e.what());
+        }
+        return -1;
+    }
+    return unknown ? 1 : 0;
 }
