@@ -57,7 +57,7 @@ TEST_F(DcpTest, DcpDrainNoMeterNoThrottle) {
             [&before](auto k, auto v) { before = nlohmann::json::parse(v); },
             "bucket_details dcp");
 
-    DcpDrain instance("127.0.0.1",
+    DcpDrain instance(admin->getFamily() == AF_INET ? "127.0.0.1" : "::1",
                       std::to_string(admin->getPort()),
                       "@admin",
                       "password",
@@ -89,8 +89,11 @@ TEST_F(DcpTest, DcpDrainMeteredAndThrottled) {
             [&before](auto k, auto v) { before = nlohmann::json::parse(v); },
             "bucket_details dcp");
 
-    DcpDrain instance(
-            "127.0.0.1", std::to_string(admin->getPort()), "dcp", "dcp", "dcp");
+    DcpDrain instance(admin->getFamily() == AF_INET ? "127.0.0.1" : "::1",
+                      std::to_string(admin->getPort()),
+                      "dcp",
+                      "dcp",
+                      "dcp");
 
     auto start = std::chrono::steady_clock::now();
     instance.drain();
