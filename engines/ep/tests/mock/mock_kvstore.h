@@ -36,6 +36,8 @@ public:
     ~MockKVStore() override;
 
     MOCK_METHOD(void, deinitialize, (), (override));
+    MOCK_METHOD(bool, pause, (), (override));
+    MOCK_METHOD(void, resume, (), (override));
     MOCK_METHOD(void,
                 addStats,
                 (const AddStatFn& add_stat, CookieIface& c),

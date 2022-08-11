@@ -178,6 +178,9 @@ public:
      */
     ~CouchKVStore() override;
 
+    bool pause() override;
+    void resume() override;
+
     bool commit(std::unique_ptr<TransactionContext> txnCtx,
                 VB::Commit& commitData) override;
 

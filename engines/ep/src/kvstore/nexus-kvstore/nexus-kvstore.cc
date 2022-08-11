@@ -110,6 +110,26 @@ void NexusKVStore::deinitialize() {
     secondary->deinitialize();
 }
 
+bool NexusKVStore::pause() {
+    bool primary_result = primary->pause();
+    bool secondary_result = secondary->pause();
+    if (primary_result != secondary_result) {
+        auto msg = fmt::format(
+                "NexusKVStore::pause: {} results are different primary:{}"
+                "secondary:{}",
+                configuration.getShardId(),
+                primary_result,
+                secondary_result);
+        handleError(msg, {} /*vbid*/);
+    }
+    return primary_result;
+}
+
+void NexusKVStore::resume() {
+    primary->resume();
+    secondary->resume();
+}
+
 void NexusKVStore::addStats(const AddStatFn& add_stat, CookieIface& c) const {
     // We want to print both sets of stats here for debug-ability, but we don't
     // want to break anything relying on these stats so print primary stats

@@ -750,6 +750,21 @@ void MagmaKVStore::deinitialize() {
     logger->info("MagmaKVStore: {} deinitialized", configuration.getShardId());
 }
 
+bool MagmaKVStore::pause() {
+    logger->info("MagmaKVStore:pause() shard:{}", configuration.getShardId());
+    auto status = magma->Pause();
+    if (!status.IsOK()) {
+        logger->warn("MagmaKVStore::pause() shard:{} failed - {}", status);
+        return false;
+    }
+    return true;
+}
+
+void MagmaKVStore::resume() {
+    logger->info("MagmaKVStore:resume() shard:{}", configuration.getShardId());
+    magma->Resume();
+}
+
 bool MagmaKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
                           VB::Commit& commitData) {
     checkIfInTransaction(txnCtx->vbid, "MagmaKVStore::commit");

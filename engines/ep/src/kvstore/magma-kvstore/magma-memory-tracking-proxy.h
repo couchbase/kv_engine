@@ -111,6 +111,8 @@ public:
 
     // For all of the following functions, please see libmagma for documentation
 
+    magma::Status Pause();
+    void Resume();
     void Close();
     magma::Status CompactKVStore(
             const magma::Magma::KVStoreID kvID,

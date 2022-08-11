@@ -1976,6 +1976,14 @@ std::unique_ptr<TransactionContext> RocksDBKVStore::begin(
             *this, vbid, std::move(pcb));
 }
 
+bool RocksDBKVStore::pause() {
+    throw std::runtime_error("RocksDBKVStore::pause() not implemented");
+}
+
+void RocksDBKVStore::resume() {
+    throw std::runtime_error("RocksDBKVStore::resume() not implemented");
+}
+
 RocksDBKVStoreTransactionContext::RocksDBKVStoreTransactionContext(
         KVStore& kvstore, Vbid vbid, std::unique_ptr<PersistenceCallback> cb)
     : TransactionContext(kvstore, vbid, std::move(cb)),

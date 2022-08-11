@@ -131,6 +131,9 @@ public:
 
     ~RocksDBKVStore() override;
 
+    bool pause() override;
+    void resume() override;
+
     void operator=(RocksDBKVStore& from) = delete;
 
     bool commit(std::unique_ptr<TransactionContext> txnCtx,

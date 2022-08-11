@@ -4561,3 +4561,12 @@ std::unique_ptr<TransactionContext> CouchKVStore::begin(
     return std::make_unique<CouchKVStoreTransactionContext>(
             *this, vbid, std::move(pcb));
 }
+
+bool CouchKVStore::pause() {
+    // Nothing to do for Couchstore, no background tasks etc to cancel.
+    return true;
+}
+
+void CouchKVStore::resume() {
+    // Nothing to do for Couchstore, no background tasks etc to resume.
+}

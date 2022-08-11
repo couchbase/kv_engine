@@ -35,6 +35,10 @@ public:
     NexusKVStore(NexusKVStoreConfig& config);
 
     void deinitialize() override;
+
+    bool pause() override;
+    void resume() override;
+
     void addStats(const AddStatFn& add_stat,
                   CookieIface& cookie) const override;
     bool getStat(std::string_view name, size_t& value) const override;

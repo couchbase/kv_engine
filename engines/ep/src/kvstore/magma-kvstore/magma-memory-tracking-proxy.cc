@@ -168,6 +168,16 @@ MagmaMemoryTrackingProxy::~MagmaMemoryTrackingProxy() {
     magma.reset();
 }
 
+magma::Status MagmaMemoryTrackingProxy::Pause() {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->Pause();
+}
+
+void MagmaMemoryTrackingProxy::Resume() {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->Resume();
+}
+
 void MagmaMemoryTrackingProxy::Close() {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     magma->Close();

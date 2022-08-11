@@ -139,9 +139,7 @@ public:
      * modified until unpasue() is called.
      * @returns true if KVStore successfully paused, otherwise false.
      */
-    virtual bool pause() {
-        return true;
-    };
+    virtual bool pause() = 0;
 
     /**
      * Called when the engine is about to be resumed, cancelling a previous
@@ -149,7 +147,7 @@ public:
      * KVStore should perform any necessary work to resume background
      * flushing / persistence operations.
      */
-    virtual void resume(){};
+    virtual void resume() = 0;
 
     /**
      * Allow the kvstore to add extra statistics information
