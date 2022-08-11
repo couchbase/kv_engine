@@ -12,6 +12,7 @@
 #include <daemon/connection.h>
 #include <daemon/enginemap.h>
 #include <daemon/one_shot_task.h>
+#include <daemon/session_cas.h>
 #include <daemon/settings.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
@@ -19,10 +20,15 @@
 #include <utilities/json_utilities.h>
 
 cb::engine_errc BucketManagementCommandContext::initial() {
-    if (request.getClientOpcode() == cb::mcbp::ClientOpcode::CreateBucket) {
+    auto opcode = request.getClientOpcode();
+    if (opcode == cb::mcbp::ClientOpcode::CreateBucket) {
         state = State::Create;
-    } else {
+    } else if (opcode == cb::mcbp::ClientOpcode::DeleteBucket) {
         state = State::Remove;
+    } else if (opcode == cb::mcbp::ClientOpcode::PauseBucket) {
+        state = State::Pause;
+    } else if (opcode == cb::mcbp::ClientOpcode::ResumeBucket) {
+        state = State::Resume;
     }
 
     return cb::engine_errc::success;
@@ -165,6 +171,65 @@ cb::engine_errc BucketManagementCommandContext::remove() {
     return cb::engine_errc::would_block;
 }
 
+cb::engine_errc BucketManagementCommandContext::pause() {
+    auto k = request.getKey();
+    std::string name(reinterpret_cast<const char*>(k.data()), k.size());
+    if (name == cookie.getConnection().getBucket().name) {
+        LOG_WARNING("{} Can't pause the connections' selected bucket",
+                    cookie.getConnectionId());
+        return cb::engine_errc::invalid_arguments;
+    }
+    // Run a background task to perform the actual pause() of the bucket, as
+    // this can be long-running (need to wait for outstanding IO operations)
+    // and ns_server requires that the PauseBucket() command returns
+    // immediately.
+    auto pauseFunc = [client = &cookie, name]() {
+        ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
+                TaskId::Core_PauseBucketTask,
+                "Pause bucket",
+                [client, nm = std::move(name)]() {
+                    try {
+                        BucketManager::instance().pause(*client, nm);
+                    } catch (const std::runtime_error& error) {
+                        LOG_WARNING(
+                                "{}: An error occurred while pausing "
+                                "bucket [{}]: {}",
+                                client->getConnectionId(),
+                                nm,
+                                error.what());
+                    }
+                },
+                std::chrono::seconds(10)));
+    };
+    if (!session_cas.execute(request.getCas(), pauseFunc)) {
+        return cb::engine_errc::key_already_exists;
+    }
+    state = State::Done;
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc BucketManagementCommandContext::resume() {
+    cb::engine_errc status = cb::engine_errc::failed;
+    auto resumeFunc =
+            [&status, client = &cookie, name = request.getKeyString()]() {
+                try {
+                    status = BucketManager::instance().resume(*client, name);
+                } catch (const std::runtime_error& error) {
+                    LOG_WARNING(
+                            "{}: An error occurred while resuming "
+                            "bucket [{}]: {}",
+                            client->getConnectionId(),
+                            name,
+                            error.what());
+                }
+            };
+    if (!session_cas.execute(request.getCas(), resumeFunc)) {
+        status = cb::engine_errc::key_already_exists;
+    }
+    state = State::Done;
+    return status;
+}
+
 cb::engine_errc BucketManagementCommandContext::step() {
     try {
         auto ret = cb::engine_errc::success;
@@ -178,6 +243,12 @@ cb::engine_errc BucketManagementCommandContext::step() {
                 break;
             case State::Remove:
                 ret = remove();
+                break;
+            case State::Pause:
+                ret = pause();
+                break;
+            case State::Resume:
+                ret = resume();
                 break;
             case State::Done:
                 cookie.sendResponse(cb::mcbp::Status::Success);

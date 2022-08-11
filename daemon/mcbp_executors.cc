@@ -415,13 +415,11 @@ static void create_remove_bucket_executor(Cookie& cookie) {
 }
 
 static void pause_bucket_executor(Cookie& cookie) {
-    cookie.logCommand();
-    cookie.sendResponse(cb::mcbp::Status::NotSupported);
+    cookie.obtainContext<BucketManagementCommandContext>(cookie).drive();
 }
 
 static void resume_bucket_executor(Cookie& cookie) {
-    cookie.logCommand();
-    cookie.sendResponse(cb::mcbp::Status::NotSupported);
+    cookie.obtainContext<BucketManagementCommandContext>(cookie).drive();
 }
 
 static void get_errmap_executor(Cookie& cookie) {

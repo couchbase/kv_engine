@@ -72,6 +72,7 @@ TASK(FlusherTask, WRITER_TASK_IDX, 5)
 // Non-IO tasks
 TASK(Core_CreateBucketTask, NONIO_TASK_IDX, 0)
 TASK(Core_DeleteBucketTask, NONIO_TASK_IDX, 0)
+TASK(Core_PauseBucketTask, NONIO_TASK_IDX, 0)
 TASK(PendingOpsNotification, NONIO_TASK_IDX, 0)
 TASK(RespondAmbiguousNotification, NONIO_TASK_IDX, 0)
 TASK(NotifyHighPriorityReqTask, NONIO_TASK_IDX, 0)

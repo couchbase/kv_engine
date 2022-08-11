@@ -791,6 +791,29 @@ struct EngineIface {
     virtual cb::engine_errc cancelRangeScan(const CookieIface& cookie,
                                             Vbid vbid,
                                             cb::rangescan::Id uuid);
+
+    /**
+     * Notify the engine it has been paused. Engine should perform any work
+     * necessary to quiesce the on-disk bucket state, so the buckets' data
+     * directory can be safely copied off the node as part of hibernating it.
+     *
+     * @return The standard engine codes
+     */
+    virtual cb::engine_errc pause() {
+        return cb::engine_errc::not_supported;
+    }
+
+    /**
+     * Notify the engine it has been unpaused. Engine should perform any work
+     * necessary to re-enable modification of on-disk bucket state so normal
+     * mutations can be accepted again.
+     *
+     * @param cookie The cookie identifying the request
+     * @return The standard engine codes
+     */
+    virtual cb::engine_errc resume() {
+        return cb::engine_errc::not_supported;
+    }
 };
 
 namespace cb {

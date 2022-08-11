@@ -9,8 +9,9 @@
  */
 
 #include "buckets.h"
+#include "enginemap.h"
 #include "stats.h"
-
+#include "utilities/testing_hook.h"
 #include <folly/portability/GTest.h>
 using namespace std::string_view_literals;
 
@@ -67,10 +68,8 @@ protected:
         bucketStateChangeListenerFunc(bucket, state);
     }
 
-    std::function<void(Bucket& bucket, BucketType type)>
-            bucketTypeChangeListenerFunc = [](Bucket&, BucketType) {};
-    std::function<void(Bucket& bucket, Bucket::State state)>
-            bucketStateChangeListenerFunc = [](Bucket&, Bucket::State) {};
+    TestingHook<Bucket&, BucketType> bucketTypeChangeListenerFunc;
+    TestingHook<Bucket&, Bucket::State> bucketStateChangeListenerFunc;
 };
 
 TEST_F(BucketManagerTest, AllocateBucket) {
@@ -141,6 +140,8 @@ TEST_F(BucketManagerTest, CreateBucket) {
                                             Bucket::State state) {
         switch (state) {
         case Bucket::State::None:
+        case Bucket::State::Pausing:
+        case Bucket::State::Paused:
         case Bucket::State::Stopping:
         case Bucket::State::Destroying:
             FAIL() << "Unexpected callback";
@@ -219,6 +220,8 @@ TEST_F(BucketManagerTest, PromoteClusterConfigOnlyBucket) {
         case Bucket::State::Destroying:
         case Bucket::State::Creating:
         case Bucket::State::Initializing:
+        case Bucket::State::Pausing:
+        case Bucket::State::Paused:
             FAIL() << "Unexpected callback";
             break;
         case Bucket::State::Ready:
@@ -262,6 +265,8 @@ TEST_F(BucketManagerTest, FailingPromoteClusterConfigOnlyBucket) {
         case Bucket::State::Creating:
         case Bucket::State::Initializing:
         case Bucket::State::Ready:
+        case Bucket::State::Pausing:
+        case Bucket::State::Paused:
             FAIL() << "Unexpected callback";
             break;
         case Bucket::State::Destroying:
@@ -298,4 +303,53 @@ TEST_F(BucketManagerTest, DestroyInvalidState) {
     EXPECT_EQ(cb::engine_errc::key_already_exists,
               destroy("<none>", "DestroyInvalidState", true, {}));
     bucket->state = Bucket::State::None;
+}
+
+/// Verify that we perform correct transitions when pausing a bucket.
+TEST_F(BucketManagerTest, PauseBucket) {
+    // Require a bucket type which supports pause() - i.e. Memcached or
+    // Couchbase; using the former as simpler to spin up.
+    auto err = create(1, "mybucket", {}, BucketType::Memcached);
+    ASSERT_EQ(cb::engine_errc::success, err);
+
+    bool pausing = false;
+    bool paused = false;
+    bucketStateChangeListenerFunc = [&pausing, &paused](Bucket& bucket,
+                                                        Bucket::State state) {
+        switch (state) {
+        case Bucket::State::None:
+        case Bucket::State::Initializing:
+        case Bucket::State::Ready:
+        case Bucket::State::Stopping:
+        case Bucket::State::Destroying:
+        case Bucket::State::Creating:
+            FAIL() << "Unexpected callback for state:" << to_string(state);
+            break;
+        case Bucket::State::Pausing:
+            pausing = true;
+            EXPECT_EQ("mybucket", bucket.name);
+            EXPECT_EQ(BucketType::Memcached, bucket.type);
+            EXPECT_EQ(Bucket::State::Ready, bucket.state);
+            EXPECT_TRUE(bucket.hasEngine());
+            EXPECT_TRUE(bucket.management_operation_in_progress);
+            break;
+        case Bucket::State::Paused:
+            paused = true;
+            EXPECT_EQ("mybucket", bucket.name);
+            EXPECT_EQ(BucketType::Memcached, bucket.type);
+            EXPECT_EQ(Bucket::State::Pausing, bucket.state);
+            EXPECT_TRUE(bucket.hasEngine());
+            EXPECT_FALSE(bucket.management_operation_in_progress);
+            break;
+        }
+    };
+    err = pause("1", "mybucket");
+    EXPECT_EQ(cb::engine_errc::success, err);
+    EXPECT_TRUE(pausing) << "Expected callback for state Pausing";
+    EXPECT_TRUE(paused) << "Expected callback for state Paused";
+
+    // Cleanup
+    bucketStateChangeListenerFunc.reset();
+    destroy("1", "mybucket", false, {});
+    shutdown_all_engines();
 }

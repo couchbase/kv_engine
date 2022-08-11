@@ -48,6 +48,10 @@ public:
         Initializing,
         /// The bucket is ready for use
         Ready,
+        /// The bucket is currently pausing itself
+        Pausing,
+        /// The bucket has been paused
+        Paused,
         /// The bucket is currently being stopped. Awaiting clients to
         /// be disconnected.
         Stopping,
@@ -405,6 +409,23 @@ public:
     /// move the clock forwards in all buckets
     void tick();
 
+    /**
+     * Pause a bucket
+     * @param cookie The cookie requesting bucket pause.
+     * @param name The name of the bucket to pause.
+     * @return Status for operation.
+     */
+    cb::engine_errc pause(Cookie& cookie, std::string_view name);
+
+    /**
+     * Resume a bucket
+     *
+     * @param cookie The cookie requesting bucket resume.
+     * @param name The name of the bucket to resume.
+     * @return Status for operation.
+     */
+    cb::engine_errc resume(Cookie& cookie, std::string_view name);
+
 protected:
     /**
      * Create a bucket
@@ -498,6 +519,24 @@ protected:
     void waitForEveryoneToDisconnect(Bucket& bucket,
                                      std::string_view operation,
                                      std::string_view id);
+
+
+    /**
+     * Pause a bucket
+     * @param cid The client identifier (for logging)
+     * @param name The name of the bucket to pause.
+     * @return Status for operation.
+     */
+    cb::engine_errc pause(std::string_view cid, std::string_view name);
+
+    /**
+     * Resume a bucket
+     *
+     * @param cid The client identifier (for logging)
+     * @param name The name of the bucket to resume.
+     * @return Status for operation.
+     */
+    cb::engine_errc resume(std::string_view cid, std::string_view name);
 
     BucketManager();
 };

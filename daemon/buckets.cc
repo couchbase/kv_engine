@@ -357,6 +357,10 @@ std::string to_string(Bucket::State state) {
         return "initializing";
     case Bucket::State::Ready:
         return "ready";
+    case Bucket::State::Pausing:
+        return "pausing";
+    case Bucket::State::Paused:
+        return "paused";
     case Bucket::State::Stopping:
         return "stopping";
     case Bucket::State::Destroying:
@@ -650,7 +654,8 @@ cb::engine_errc BucketManager::destroy(std::string_view cid,
                 return false;
             }
 
-            if (b.state == Bucket::State::Ready) {
+            if (b.state == Bucket::State::Ready ||
+                b.state == Bucket::State::Paused) {
                 if (type && b.type != type.value()) {
                     ret = cb::engine_errc::key_already_exists;
                 } else {
@@ -867,6 +872,117 @@ void BucketManager::destroyAll() {
             LOG_INFO("Bucket {} deleted", name);
         }
     }
+}
+cb::engine_errc BucketManager::pause(Cookie& cookie, std::string_view name) {
+    return pause(std::to_string(cookie.getConnectionId()), name);
+}
+
+cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name) {
+    // Find the specified bucket and check it can be paused.
+    Bucket* bucket{nullptr};
+    {
+        // Make sure we don't race with anyone else touching the bucket array
+        // (create/delete/pause/resume bucket or set cluster config).
+        std::lock_guard all_bucket_lock(buckets_lock);
+
+        // locate the bucket
+        size_t idx = 0;
+        for (auto& bucket : all_buckets) {
+            std::lock_guard<std::mutex> bucketguard(bucket.mutex);
+            if (bucket.name == name) {
+                break;
+            }
+            ++idx;
+        }
+
+        if (idx == all_buckets.size()) {
+            return cb::engine_errc::no_such_key;
+        }
+
+        bucket = &all_buckets.at(idx);
+        // Perform final checks on bucket, and if all good modify the bucket
+        // state to Pausing. After this we can release the buckets_lock.
+        {
+            std::lock_guard bucketguard(bucket->mutex);
+            if (bucket->state != Bucket::State::Ready) {
+                // perhaps we want a new error code for this?
+                return cb::engine_errc::key_already_exists;
+            }
+
+            if (bucket->type == BucketType::ClusterConfigOnly) {
+                return cb::engine_errc::not_supported;
+            }
+
+            bucket->management_operation_in_progress = true;
+            bucketStateChangeListener(*bucket, Bucket::State::Pausing);
+            bucket->state = Bucket::State::Pausing;
+        }
+    }
+
+    waitForEveryoneToDisconnect(*bucket, "Pause", cid);
+
+    // Change to 'Pausing' State to block any more requests, and
+    // so observers can tell pausing has started.
+    LOG_INFO("{}: Pausing bucket [{}], notifying engine to quiesce state", cid, name);
+    auto status = bucket->getEngine().pause();
+
+    if (status == cb::engine_errc::success) {
+        LOG_INFO("{}: Paused bucket [{}]", cid, name, to_string(status));
+        std::lock_guard bucketguard(bucket->mutex);
+        bucket->management_operation_in_progress = false;
+        bucketStateChangeListener(*bucket, Bucket::State::Paused);
+        bucket->state = Bucket::State::Paused;
+    } else {
+        LOG_WARNING("{}: Pausing bucket [{}] failed:{}", cid, name, to_string(status));
+        std::lock_guard bucketguard(bucket->mutex);
+        bucketStateChangeListener(*bucket, Bucket::State::Ready);
+        bucket->state = Bucket::State::Ready;
+    }
+
+    return status;
+}
+
+cb::engine_errc BucketManager::resume(Cookie& cookie, std::string_view name) {
+    return resume(std::to_string(cookie.getConnectionId()), name);
+}
+
+cb::engine_errc BucketManager::resume(std::string_view cid,
+                                      std::string_view name) {
+    // Make sure we don't race with anyone else touching the bucket array
+    // (create/delete/pause/resume bucket or set cluster config)
+    std::lock_guard all_bucket_lock(buckets_lock);
+
+    // locate the bucket
+    size_t idx = 0;
+    for (auto& bucket : all_buckets) {
+        std::lock_guard<std::mutex> bucketguard(bucket.mutex);
+        if (bucket.name == name) {
+            if (bucket.state != Bucket::State::Paused) {
+                return cb::engine_errc::key_already_exists;
+            }
+            break;
+        }
+        ++idx;
+    }
+
+    if (idx == all_buckets.size()) {
+        return cb::engine_errc::no_such_key;
+    }
+
+    auto& bucket = all_buckets.at(idx);
+    LOG_INFO("{}: Resuming bucket '{}'", cid, name);
+    auto status = bucket.getEngine().resume();
+    if (status == cb::engine_errc::success) {
+        LOG_INFO("{}: Bucket [{}] is back online", cid, name);
+        std::lock_guard bucketguard(bucket.mutex);
+        bucketStateChangeListener(bucket, Bucket::State::Ready);
+        bucket.state = Bucket::State::Ready;
+    } else {
+        LOG_WARNING("{}: Failed to resume bucket [{}]: {}",
+                    cid, name, to_string(status));
+    }
+
+    return status;
 }
 
 BucketManager::BucketManager() {

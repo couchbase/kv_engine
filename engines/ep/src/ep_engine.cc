@@ -7053,6 +7053,16 @@ cb::engine_errc EventuallyPersistentEngine::doRangeScanStats(
     return cb::engine_errc::success;
 }
 
+cb::engine_errc EventuallyPersistentEngine::pause() {
+    // TODO: Wire through to kvBucket (next patch).
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc EventuallyPersistentEngine::resume() {
+    // TODO: Wire through to kvBucket (next patch).
+    return cb::engine_errc::success;
+}
+
 void EventuallyPersistentEngine::setDcpConsumerBufferRatio(float ratio) {
     if (dcpFlowControlManager) {
         dcpFlowControlManager->setDcpConsumerBufferRatio(ratio);

@@ -562,9 +562,10 @@ bool is_bucket_dying(Connection& c) {
 
     if (disconnect) {
         LOG_INFO(
-                "{}: The connected bucket is being deleted.. closing "
-                "connection {}",
+                "{}: The connected bucket is in state {} - closing connection "
+                "{}",
                 c.getId(),
+                to_string(b.state.load()),
                 c.getDescription());
         c.shutdown();
         c.setTerminationReason("The connected bucket is being deleted");

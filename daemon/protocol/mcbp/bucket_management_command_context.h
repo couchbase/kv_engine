@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -25,10 +24,10 @@
 class BucketManagementCommandContext : public SteppableCommandContext {
 public:
     // The state machine start off in the Initial state where it checks
-    // if the command is create or delete and moves into the appropriate
-    // state and start the task before entering the done state and wait
-    // there for the notification from the task
-    enum class State { Initial, Create, Remove, Done };
+    // the command and moves into the appropriate state and start the
+    // task before entering the done state and wait there for the notification
+    // from the task
+    enum class State { Initial, Create, Remove, Pause, Resume, Done };
 
     explicit BucketManagementCommandContext(Cookie& cookie)
         : SteppableCommandContext(cookie),
@@ -42,6 +41,8 @@ protected:
     cb::engine_errc initial();
     cb::engine_errc remove();
     cb::engine_errc create();
+    cb::engine_errc pause();
+    cb::engine_errc resume();
 
 private:
     const cb::mcbp::Request& request;

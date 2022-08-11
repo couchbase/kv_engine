@@ -806,6 +806,14 @@ public:
         return real_engine->cancelRangeScan(cookie, vbid, uuid);
     }
 
+    cb::engine_errc pause() override {
+        return real_engine->pause();
+    }
+
+    cb::engine_errc resume() override {
+        return real_engine->resume();
+    }
+
     ///////////////////////////////////////////////////////////////////////////
     //             All of the methods used in the DCP interface              //
     //                                                                       //
@@ -1342,7 +1350,7 @@ private:
     std::map<uint32_t, const CookieIface*> suspended_map;
     std::mutex suspended_map_mutex;
 
-    bool suspend(const CookieIface* cookie, uint32_t id) {
+    bool suspendConn(const CookieIface* cookie, uint32_t id) {
         {
             std::lock_guard<std::mutex> guard(suspended_map_mutex);
             auto iter = suspended_map.find(id);
@@ -1355,7 +1363,7 @@ private:
         return false;
     }
 
-    bool resume(uint32_t id) {
+    bool resumeConn(uint32_t id) {
         const CookieIface* cookie = nullptr;
         {
             std::lock_guard<std::mutex> guard(suspended_map_mutex);
@@ -1943,7 +1951,7 @@ cb::engine_errc EWB_Engine::handleBlockMonitorFile(
         return cb::engine_errc::no_such_key;
     }
 
-    if (!suspend(cookie, id)) {
+    if (!suspendConn(cookie, id)) {
         LOG_WARNING(
                 "EWB_Engine::handleBlockMonitorFile(): "
                 "Id {} already registered",
@@ -1986,7 +1994,7 @@ cb::engine_errc EWB_Engine::handleBlockMonitorFile(
 cb::engine_errc EWB_Engine::handleSuspend(const CookieIface* cookie,
                                           uint32_t id,
                                           const AddResponseFn& response) {
-    if (suspend(cookie, id)) {
+    if (suspendConn(cookie, id)) {
         LOG_DEBUG("Registered connection {} as {} to be suspended",
                   static_cast<const void*>(cookie),
                   id);
@@ -2008,7 +2016,7 @@ cb::engine_errc EWB_Engine::handleSuspend(const CookieIface* cookie,
 cb::engine_errc EWB_Engine::handleResume(const CookieIface* cookie,
                                          uint32_t id,
                                          const AddResponseFn& response) {
-    if (resume(id)) {
+    if (resumeConn(id)) {
         LOG_DEBUG("Connection with id {} will be resumed", id);
         response({},
                  {},
@@ -2115,5 +2123,5 @@ void BlockMonitorThread::run() {
     }
 
     LOG_DEBUG("Block monitor for file {} stopping (file is gone)", file);
-    engine.resume(id);
+    engine.resumeConn(id);
 }

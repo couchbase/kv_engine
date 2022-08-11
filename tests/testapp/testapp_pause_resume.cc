@@ -10,34 +10,51 @@
 
 #include "testapp_client_test.h"
 
+#include <fmt/format.h>
+#include <folly/portability/GMock.h>
+#include <platform/timeutils.h>
 #include <protocol/connection/client_mcbp_commands.h>
 
-#include <folly/portability/GMock.h>
+using namespace std::string_literals;
 
-class PauseResumeTest : public TestappClientTest {};
+class PauseResumeTest : public TestappClientTest {
+protected:
+    nlohmann::json getBucketInformation(std::string_view bucket) {
+        nlohmann::json stats;
+        auto statName = fmt::format("bucket_details {}", bucket);
+        adminConnection->stats(
+                [&stats](auto k, auto v) { stats = nlohmann::json::parse(v); },
+                statName);
+        return stats;
+    };
+
+    bool waitUntilBucketStateIs(std::string_view bucket,
+                                std::string_view stateName,
+                                std::chrono::seconds deadline) {
+        // Pause is non-blocking, need to wait for it to complete.
+        return cb::waitForPredicateUntil(
+                [&] {
+                    return getBucketInformation(bucket)["state"] ==
+                           std::string{stateName};
+                },
+                deadline);
+    }
+};
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          PauseResumeTest,
                          ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
 
-TEST_P(PauseResumeTest, DISABLED_Basic) {
+TEST_P(PauseResumeTest, Basic) {
     auto writeDoc = [](MemcachedConnection& conn) {
         Document doc;
         doc.info.id = "mydoc";
         doc.value = "This is the value";
         conn.mutate(doc, Vbid{0}, MutationType::Set);
     };
-    auto getBucketInformation = [this]() {
-        nlohmann::json stats;
-        adminConnection->stats(
-                [&stats](auto k, auto v) { stats = nlohmann::json::parse(v); },
-                "bucket_details " + bucketName);
-        return stats;
-    };
-
     // verify the state of the bucket
-    EXPECT_EQ("ready", getBucketInformation()["state"]);
+    EXPECT_EQ("ready", getBucketInformation(bucketName)["state"]);
 
     // store a document
     writeDoc(*userConnection);
@@ -46,8 +63,11 @@ TEST_P(PauseResumeTest, DISABLED_Basic) {
     auto rsp = adminConnection->execute(BinprotPauseBucketCommand{bucketName});
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
 
+    // Pause is non-blocking, need to wait for it to complete.
+    waitUntilBucketStateIs(bucketName, "paused", std::chrono::seconds{10});
+
     // Verify that it is in the expected state
-    EXPECT_EQ("paused", getBucketInformation()["state"]);
+    EXPECT_EQ("paused", getBucketInformation(bucketName)["state"]);
 
     // Verify that we can't store documents when we're in that state
     try {
@@ -65,9 +85,66 @@ TEST_P(PauseResumeTest, DISABLED_Basic) {
     EXPECT_TRUE(rsp.isSuccess());
 
     // Verify that it is in the expected state
-    EXPECT_EQ("ready", getBucketInformation()["state"]);
+    EXPECT_EQ("ready", getBucketInformation(bucketName)["state"]);
 
     // succeed to store a document
     rebuildUserConnection(true);
     writeDoc(*userConnection);
+}
+
+/// Can Delete a bucket when paused.
+TEST_P(PauseResumeTest, DeleteWhenPaused) {
+    // Need a new bucket as we are going to delete it in the test (and
+    // TearDownTestSuite expects the bucket to exist at the end of the test).
+    auto testBucket = "pause_test_bucket"s;
+    mcd_env->getTestBucket().createBucket(testBucket, "", *adminConnection);
+
+    // Pause the bucket
+    auto rsp = adminConnection->execute(BinprotPauseBucketCommand{testBucket});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
+    EXPECT_TRUE(waitUntilBucketStateIs(
+            testBucket, "paused", std::chrono::seconds{10}))
+            << getBucketInformation(testBucket)["state"];
+
+    // Delete should succeed.
+    adminConnection->deleteBucket(testBucket);
+}
+
+/// Cannot Pause a bucket when already paused.
+TEST_P(PauseResumeTest, PauseFailsWhenPaused) {
+    // Pause the bucket
+    auto rsp = adminConnection->execute(BinprotPauseBucketCommand{bucketName});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
+    waitUntilBucketStateIs(bucketName, "paused", std::chrono::seconds{10});
+
+    // Trying to pause again should be ignored.
+    rsp = adminConnection->execute(BinprotPauseBucketCommand{bucketName});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
+    EXPECT_EQ("paused", getBucketInformation(bucketName)["state"]);
+
+    // Cleanup
+    rsp = adminConnection->execute(BinprotResumeBucketCommand{bucketName});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
+    rebuildUserConnection(true);
+}
+
+/// Cannot Resume unless the bucket is paused.
+TEST_P(PauseResumeTest, ResumeFailsWhenNotPaused) {
+    // Pause the bucket
+    auto rsp = adminConnection->execute(BinprotPauseBucketCommand{bucketName});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
+    waitUntilBucketStateIs(bucketName, "paused", std::chrono::seconds{10});
+
+    // Resume the Bucket.
+    rsp = adminConnection->execute(BinprotResumeBucketCommand{bucketName});
+    ASSERT_TRUE(rsp.isSuccess());
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
+    ASSERT_EQ("ready", getBucketInformation(bucketName)["state"]);
+    rebuildUserConnection(true);
+
+    // Attempting to resume again should fail.
+    rsp = adminConnection->execute(BinprotResumeBucketCommand{bucketName});
+    EXPECT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus())
+            << rsp.getDataView();
+    EXPECT_EQ("ready", getBucketInformation(bucketName)["state"]);
 }

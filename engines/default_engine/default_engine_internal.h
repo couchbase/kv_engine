@@ -241,6 +241,14 @@ struct default_engine : public EngineIface {
 
     void generate_unknown_collection_response(const CookieIface* cookie) const;
 
+    cb::engine_errc pause() override {
+        return cb::engine_errc::success;
+    }
+
+    cb::engine_errc resume() override {
+        return cb::engine_errc::success;
+    }
+
     ServerApi server;
     GET_SERVER_API get_server_api;
 

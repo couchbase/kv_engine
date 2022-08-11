@@ -30,6 +30,11 @@ struct TestingHook : public std::function<void(Args...)> {
         FuncType::operator=(other);
     }
 
+    /// Resets the hook to the empty state.
+    void reset() {
+        FuncType::operator=(nullptr);
+    }
+
     void operator()(Args... args) {
         if (*this) {
             FuncType::operator()(args...);
