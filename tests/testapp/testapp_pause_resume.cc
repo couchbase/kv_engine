@@ -97,7 +97,7 @@ TEST_P(PauseResumeTest, DeleteWhenPaused) {
     // Need a new bucket as we are going to delete it in the test (and
     // TearDownTestSuite expects the bucket to exist at the end of the test).
     auto testBucket = "pause_test_bucket"s;
-    mcd_env->getTestBucket().createBucket(testBucket, "", *adminConnection);
+    mcd_env->getTestBucket().setUpBucket(testBucket, "", *adminConnection);
 
     // Pause the bucket
     auto rsp = adminConnection->execute(BinprotPauseBucketCommand{testBucket});

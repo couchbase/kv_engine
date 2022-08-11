@@ -263,7 +263,16 @@ public:
         // to see things like gets of tombstones going to disk and not
         // getting skipped (to ensure correct EWOULDBLOCK handling etc).
         settings += ";bfilter_enabled=false";
-
+        if (folly::kIsSanitizeThread) {
+            // Reduce vBucket count to 16 - TSan cannot handle more than 64
+            // mutexes being locked at once in a single thread, and Bucket
+            // pause() / resume() functionality relies on locking all vBucket
+            // mutexes - i.e. one per vBucket.
+            // (While running with 32 vBuckets would appear to be ok, TSan
+            //  still reports errors as it hits the 64 mutex limit somehow,
+            //  so reduce to 16 vBuckets.)
+            settings += ";max_vbuckets=16";
+        }
         if (!config.empty()) {
             settings += ";" + config;
         }

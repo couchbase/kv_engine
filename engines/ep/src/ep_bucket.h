@@ -330,6 +330,10 @@ public:
                                     cb::rangescan::Id uuid,
                                     const CookieIface& cookie) override;
 
+    cb::engine_errc prepareForPause() override;
+
+    cb::engine_errc prepareForResume() override;
+
     ReadyRangeScans* getReadyRangeScans() {
         return &rangeScans;
     }

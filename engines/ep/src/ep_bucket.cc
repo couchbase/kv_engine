@@ -39,6 +39,7 @@
 
 #include <executor/executorpool.h>
 #include <fmt/ostream.h>
+#include <folly/synchronization/Baton.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <memcached/range_scan_optional_configuration.h>
 #include <memcached/server_document_iface.h>
@@ -2479,4 +2480,97 @@ cb::engine_errc EPBucket::cancelRangeScan(Vbid vbid,
     }
     return vb->cancelRangeScan(
             uuid, &cookie, true /* schedule for background cancel */);
+}
+
+cb::engine_errc EPBucket::prepareForPause() {
+    // 1. Wait for all outstanding disk writing operations to complete.
+    // a) Flusher, Rollback, DeleteVB - These all require that the
+    //    appropriate vb_mutexes element has been acquired, so we simply
+    //    acquire _all_ of them here, which means any of the above in-flight
+    //    operations will have to complete before we continue - and that no
+    //    more can begin.
+    EP_LOG_DEBUG_RAW(
+            "EPBucket::prepareForPause: waiting for in-flight Flusher, "
+            "Rollback, DeleteVB tasks to complete");
+    for (auto& mutex : vb_mutexes) {
+        mutex.lock();
+    }
+
+    // b) Compaction - This only requires that the appropriate vb_mutexes is
+    //    acquired for critical sections (assuming that the KVStore supports
+    //    concurrent compaction, which Couchstore & Magma do). As such, we need
+    //    to do more - we reduce the capacity of the compaction semaphore to
+    //    1, then acquire this last token. This prevents any new compaction
+    //    tasks from running, and if are compaction tasks already then
+    //    we block acquiring the singular token until they have finished.
+    EP_LOG_DEBUG_RAW(
+            "EPBucket::prepareForPause: waiting for all Compaction tasks to "
+            "complete");
+    compactionSemaphore->setCapacity(1);
+    struct BlockingWaiter : public cb::Waiter {
+        BlockingWaiter(cb::AwaitableSemaphore& sem) : semaphore{sem} {
+        }
+        cb::AwaitableSemaphore& semaphore;
+        folly::Baton<> baton;
+        void signal() override {
+            // Note: signal() only indicates that we _might_ now be able to
+            // acquire a token, it doesn't mean the token has been returned.
+            if (semaphore.acquire_or_wait(weak_from_this())) {
+                baton.post();
+            }
+        }
+    };
+    auto waiter = std::make_shared<BlockingWaiter>(*compactionSemaphore);
+    // "Signal" the waiter - ie. check if we can acquire the semaphore now.
+    // (This is done to avoid repeating the same initial acquirw_or_wait()
+    //  logic here).
+    waiter->signal();
+    // And wait until the waiter successfully acquires a token.
+    waiter->baton.wait();
+
+    // 2. Tell all the KVStores to pause. This ensures any background IO
+    //    operations which ep-engine is unaware of are also completed (and no
+    //    new ones started).
+    bool allSuccess = true;
+    vbMap.forEachShard([&allSuccess](KVShard& shard) {
+        EP_LOG_DEBUG("EPBucket::prepareForPause: pausing KVShard:{}", shard.getId());
+
+        bool success = shard.getRWUnderlying()->pause();
+        if (!success) {
+            EP_LOG_WARN("EPBucket::prepareForPause: shard:{} failed",
+                        shard.getId());
+        }
+        allSuccess &= success;
+    });
+    return allSuccess ? cb::engine_errc::success : cb::engine_errc::failed;
+}
+
+cb::engine_errc EPBucket::prepareForResume() {
+    // This is the reverse of prepareForResume() - see that for more details.
+
+    // 1. Tell all KVStores to resume. This allows them schedule background
+    //    write operations on their own accord, and also perform write
+    //    operations issued by ep-engine.
+    vbMap.forEachShard([](KVShard& shard) {
+        EP_LOG_DEBUG("EPBucket::prepareForResume: resuming KVShard:{}",
+                     shard.getId());
+        shard.getRWUnderlying()->resume();
+    });
+
+    // 2. Resume ep-engine operations.
+    // a) Unblock disk writing operations from ep-engine.
+    EP_LOG_DEBUG_RAW(
+            "EPBucket::prepareForPause: unblocking all Flusher, "
+            "Rollback, DeleteVB tasks.");
+    for (auto& mutex : vb_mutexes) {
+        mutex.unlock();
+    }
+
+    // b) Reset compaction concurrency
+    EP_LOG_DEBUG_RAW(
+            "EPBucket::prepareForPause: resuming all Compaction tasks");
+    compactionSemaphore->release();
+    updateCompactionConcurrency();
+
+    return cb::engine_errc::success;
 }

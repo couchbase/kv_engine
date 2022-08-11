@@ -7021,13 +7021,11 @@ cb::engine_errc EventuallyPersistentEngine::doRangeScanStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::pause() {
-    // TODO: Wire through to kvBucket (next patch).
-    return cb::engine_errc::success;
+    return kvBucket->prepareForPause();
 }
 
 cb::engine_errc EventuallyPersistentEngine::resume() {
-    // TODO: Wire through to kvBucket (next patch).
-    return cb::engine_errc::success;
+    return kvBucket->prepareForResume();
 }
 
 void EventuallyPersistentEngine::setDcpConsumerBufferRatio(float ratio) {

@@ -132,6 +132,26 @@ public:
     virtual void deinitialize() = 0;
 
     /**
+     * Called when the engine is about to be paused, in preparation for saving
+     * a copy of the on-disk state.
+     * KVStore should perform any necessary work to ensure that on-disk state
+     * is quiesced and that after this method returns on-disk state is not
+     * modified until unpasue() is called.
+     * @returns true if KVStore successfully paused, otherwise false.
+     */
+    virtual bool pause() {
+        return true;
+    };
+
+    /**
+     * Called when the engine is about to be resumed, cancelling a previous
+     * pause.
+     * KVStore should perform any necessary work to resume background
+     * flushing / persistence operations.
+     */
+    virtual void resume(){};
+
+    /**
      * Allow the kvstore to add extra statistics information
      * back to the client
      * @param prefix prefix to use for the stats
