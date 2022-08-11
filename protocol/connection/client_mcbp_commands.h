@@ -534,6 +534,16 @@ private:
     std::vector<uint8_t> module_config;
 };
 
+class BinprotPauseBucketCommand : public BinprotGenericCommand {
+public:
+    BinprotPauseBucketCommand(std::string name, uint64_t session_token = 0);
+};
+
+class BinprotResumeBucketCommand : public BinprotGenericCommand {
+public:
+    BinprotResumeBucketCommand(std::string name, uint64_t session_token = 0);
+};
+
 class BinprotGetCommand : public BinprotGenericCommand {
 public:
     BinprotGetCommand(std::string key, Vbid vbid = Vbid{0})

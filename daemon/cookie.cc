@@ -690,6 +690,8 @@ cb::mcbp::Status Cookie::validate() {
     case cb::mcbp::ClientOpcode::DeleteBucket:
     case cb::mcbp::ClientOpcode::ListBuckets:
     case cb::mcbp::ClientOpcode::SelectBucket:
+    case cb::mcbp::ClientOpcode::PauseBucket:
+    case cb::mcbp::ClientOpcode::ResumeBucket:
     case cb::mcbp::ClientOpcode::ObserveSeqno:
     case cb::mcbp::ClientOpcode::Observe:
     case cb::mcbp::ClientOpcode::EvictKey:

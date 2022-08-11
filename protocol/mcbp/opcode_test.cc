@@ -121,6 +121,8 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::DeleteBucket, "DELETE_BUCKET"},
          {ClientOpcode::ListBuckets, "LIST_BUCKETS"},
          {ClientOpcode::SelectBucket, "SELECT_BUCKET"},
+         {ClientOpcode::PauseBucket, "PAUSE_BUCKET"},
+         {ClientOpcode::ResumeBucket, "RESUME_BUCKET"},
          {ClientOpcode::ObserveSeqno, "OBSERVE_SEQNO"},
          {ClientOpcode::Observe, "OBSERVE"},
          {ClientOpcode::EvictKey, "EVICT_KEY"},

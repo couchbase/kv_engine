@@ -538,6 +538,8 @@ TEST_F(MeteringTest, OpsMetered) {
 
         case ClientOpcode::CreateBucket:
         case ClientOpcode::DeleteBucket:
+        case ClientOpcode::PauseBucket:
+        case ClientOpcode::ResumeBucket:
             // These are management commands which should only be called
             // on a connection with the "unmetered" interface anyway.
             // Like the SASL commands we don't know which bucket the data

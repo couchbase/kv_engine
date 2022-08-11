@@ -235,6 +235,8 @@ bool Request::isQuiet() const {
         case ClientOpcode::DeleteBucket:
         case ClientOpcode::ListBuckets:
         case ClientOpcode::SelectBucket:
+        case ClientOpcode::PauseBucket:
+        case ClientOpcode::ResumeBucket:
         case ClientOpcode::ObserveSeqno:
         case ClientOpcode::Observe:
         case ClientOpcode::EvictKey:

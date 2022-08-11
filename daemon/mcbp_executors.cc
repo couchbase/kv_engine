@@ -440,6 +440,16 @@ static void create_remove_bucket_executor(Cookie& cookie) {
     cookie.obtainContext<BucketManagementCommandContext>(cookie).drive();
 }
 
+static void pause_bucket_executor(Cookie& cookie) {
+    cookie.logCommand();
+    cookie.sendResponse(cb::mcbp::Status::NotSupported);
+}
+
+static void resume_bucket_executor(Cookie& cookie) {
+    cookie.logCommand();
+    cookie.sendResponse(cb::mcbp::Status::NotSupported);
+}
+
 static void get_errmap_executor(Cookie& cookie) {
     auto value = cookie.getRequest().getValue();
     auto* req = reinterpret_cast<const cb::mcbp::request::GetErrmapPayload*>(
@@ -804,6 +814,8 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::DeleteBucket,
                   create_remove_bucket_executor);
     setup_handler(cb::mcbp::ClientOpcode::SelectBucket, select_bucket_executor);
+    setup_handler(cb::mcbp::ClientOpcode::PauseBucket, pause_bucket_executor);
+    setup_handler(cb::mcbp::ClientOpcode::ResumeBucket, resume_bucket_executor);
     setup_handler(cb::mcbp::ClientOpcode::GetErrorMap, get_errmap_executor);
     setup_handler(cb::mcbp::ClientOpcode::GetLocked, get_locked_executor);
     setup_handler(cb::mcbp::ClientOpcode::UnlockKey, unlock_executor);

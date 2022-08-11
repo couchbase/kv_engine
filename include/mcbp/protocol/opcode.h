@@ -152,6 +152,8 @@ enum class ClientOpcode : uint8_t {
     DeleteBucket = 0x86,
     ListBuckets = 0x87,
     SelectBucket = 0x89,
+    PauseBucket = 0x8a,
+    ResumeBucket = 0x8b,
 
     ObserveSeqno = 0x91,
     Observe = 0x92,

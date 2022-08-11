@@ -197,6 +197,10 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
           require<Privilege::NodeSupervisor>);
     setup(cb::mcbp::ClientOpcode::DeleteBucket,
           require<Privilege::NodeSupervisor>);
+    setup(cb::mcbp::ClientOpcode::PauseBucket,
+          require<Privilege::NodeSupervisor>);
+    setup(cb::mcbp::ClientOpcode::ResumeBucket,
+          require<Privilege::NodeSupervisor>);
     // Everyone should be able to list their own buckets
     setup(cb::mcbp::ClientOpcode::ListBuckets, empty);
     // And select the one they have access to

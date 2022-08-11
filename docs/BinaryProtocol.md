@@ -488,6 +488,8 @@ information about a given command.
 | 0x86 | Delete bucket |
 | 0x87 | [List buckets](#0x87-list-buckets) |
 | 0x89 | [Select bucket](#0x89-select-bucket) |
+| 0x8a | [PauseBucket](#0x8a-pause-bucket) |
+| 0x8b | [ResumeBucket](#0x8b-resume-bucket) |
 | 0x91 | Observe seqno |
 | 0x92 | [Observe](#92-observe) |
 | 0x93 | Evict key |
@@ -2354,6 +2356,70 @@ The following example tries to select the bucket named engineering
     CAS          (16-23): 0x0000000000000000
     Key          (24-34): The textual string "engineering"
 
+
+### 0x8a Pause Bucket
+
+The `Pause Bucket` command is used to inform memcached to pause all traffic
+(apart from a few exceptions[*]) on the specified bucket, and to complete any
+outstanding disk modification operations.
+
+On a successful request, `Pause Bucket` will:
+
+# Wait for all in-flight client requests to complete
+# Disconnect all connections associated with the bucket
+# Instruct the disk substem to quiesce
+# Prevent any clients from associating with the bucket (via `Select Bucket`).
+
+[*] After a successful `Pause Bucket` command, the bucket cannot be selected
+(via `Select Bucket`) and hence all "normal" commands operating on the selected
+bucket cannot be issued. Only the following administrative commands can be
+issued reating to the pausec bucket:
+
+* `Stat("bucket_details [bucket_name]")` - to determine the state of the bucket.
+* `Resume Bucket`
+* `Delete Bucket`
+
+Request:
+
+* MUST NOT have extra
+* MUST have key
+* MUST NOT have value
+
+Response:
+
+* MUST NOT have extras.
+* MUST NOT have key.
+* MAY have value.
+
+The key in the request is the name of the bucket to pause.
+
+The value in the response is empty on a successful pause (status: Success), or
+on failure a textual description of why the request failed.
+
+### 0x8b Resume Bucket
+
+The Resume Bucket' is used to inform memcached to resume all traffic on the
+specified bucket - normally after a bucket has been paused via `Pause Bucket`.
+
+After successful execution the bucket can again be selected by clients via
+`Select Bucket` and operations performed.
+
+Request:
+
+* MUST NOT have extra
+* MUST have key
+* MUST NOT have value
+
+Response:
+
+* MUST NOT have extras.
+* MUST NOT have key.
+* MAY have value.
+
+The key in the request is the name of the bucket to resume.
+
+The value in the response is empty on a successful resume (status: Success),
+or on failure a textual description of why the request failed.
 
 ### 0x92 Observe
 

@@ -1560,6 +1560,24 @@ static Status select_bucket_validator(Cookie& cookie) {
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
+static Status pause_bucket_validator(Cookie& cookie) {
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::Any,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::Any,
+                                        PROTOCOL_BINARY_RAW_BYTES);
+}
+
+static Status resume_bucket_validator(Cookie& cookie) {
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::Any,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::Any,
+                                        PROTOCOL_BINARY_RAW_BYTES);
+}
+
 static Status get_all_vb_seqnos_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
 
@@ -2439,6 +2457,8 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::ListBuckets, list_bucket_validator);
     setup(cb::mcbp::ClientOpcode::DeleteBucket, delete_bucket_validator);
     setup(cb::mcbp::ClientOpcode::SelectBucket, select_bucket_validator);
+    setup(cb::mcbp::ClientOpcode::PauseBucket, pause_bucket_validator);
+    setup(cb::mcbp::ClientOpcode::ResumeBucket, resume_bucket_validator);
     setup(cb::mcbp::ClientOpcode::GetAllVbSeqnos, get_all_vb_seqnos_validator);
 
     setup(cb::mcbp::ClientOpcode::EvictKey, evict_key_validator);

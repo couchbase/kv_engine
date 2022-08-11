@@ -54,6 +54,7 @@ set(memcached_testapp_SOURCES
     testapp_maxconn.cc
     testapp_misc.cc
     testapp_not_supported.cc
+    testapp_pause_resume.cc
     testapp_persistence.cc
     testapp_range_scan.cc
     testapp_rbac.cc

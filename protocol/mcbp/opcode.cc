@@ -117,6 +117,8 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::DeleteBucket:
     case ClientOpcode::ListBuckets:
     case ClientOpcode::SelectBucket:
+    case ClientOpcode::PauseBucket:
+    case ClientOpcode::ResumeBucket:
     case ClientOpcode::ObserveSeqno:
     case ClientOpcode::Observe:
     case ClientOpcode::EvictKey:
@@ -284,6 +286,8 @@ bool is_supported_opcode(ClientOpcode opcode) {
     case ClientOpcode::DeleteBucket:
     case ClientOpcode::ListBuckets:
     case ClientOpcode::SelectBucket:
+    case ClientOpcode::PauseBucket:
+    case ClientOpcode::ResumeBucket:
     case ClientOpcode::ObserveSeqno:
     case ClientOpcode::Observe:
     case ClientOpcode::EvictKey:
@@ -499,6 +503,8 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::DeleteBucket:
     case ClientOpcode::ListBuckets:
     case ClientOpcode::SelectBucket:
+    case ClientOpcode::PauseBucket:
+    case ClientOpcode::ResumeBucket:
     case ClientOpcode::ObserveSeqno:
     case ClientOpcode::Observe:
     case ClientOpcode::EvictKey:
@@ -691,6 +697,8 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::DeleteBucket:
     case ClientOpcode::ListBuckets:
     case ClientOpcode::SelectBucket:
+    case ClientOpcode::PauseBucket:
+    case ClientOpcode::ResumeBucket:
     case ClientOpcode::ObserveSeqno:
     case ClientOpcode::Observe:
     case ClientOpcode::GetFailoverLog:
@@ -889,6 +897,8 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::DeleteBucket:
     case ClientOpcode::ListBuckets:
     case ClientOpcode::SelectBucket:
+    case ClientOpcode::PauseBucket:
+    case ClientOpcode::ResumeBucket:
     case ClientOpcode::ObserveSeqno:
     case ClientOpcode::GetFailoverLog:
     case ClientOpcode::LastClosedCheckpoint_Unsupported:
@@ -1051,6 +1061,8 @@ bool is_deprecated(ClientOpcode opcode) {
     case ClientOpcode::DeleteBucket:
     case ClientOpcode::ListBuckets:
     case ClientOpcode::SelectBucket:
+    case ClientOpcode::PauseBucket:
+    case ClientOpcode::ResumeBucket:
     case ClientOpcode::ObserveSeqno:
     case ClientOpcode::Observe:
     case ClientOpcode::EvictKey:
@@ -1237,6 +1249,8 @@ bool is_preserve_ttl_supported(ClientOpcode opcode) {
     case ClientOpcode::DeleteBucket:
     case ClientOpcode::ListBuckets:
     case ClientOpcode::SelectBucket:
+    case ClientOpcode::PauseBucket:
+    case ClientOpcode::ResumeBucket:
     case ClientOpcode::ObserveSeqno:
     case ClientOpcode::Observe:
     case ClientOpcode::EvictKey:
@@ -1442,6 +1456,8 @@ bool is_subject_for_throttling(ClientOpcode opcode) {
     case ClientOpcode::DeleteBucket:
     case ClientOpcode::ListBuckets:
     case ClientOpcode::SelectBucket:
+    case ClientOpcode::PauseBucket:
+    case ClientOpcode::ResumeBucket:
     case ClientOpcode::EvictKey:
     case ClientOpcode::GetFailoverLog:
     case ClientOpcode::LastClosedCheckpoint_Unsupported:
@@ -1610,6 +1626,8 @@ bool is_client_writing_data(ClientOpcode opcode) {
     case ClientOpcode::DeleteBucket:
     case ClientOpcode::ListBuckets:
     case ClientOpcode::SelectBucket:
+    case ClientOpcode::PauseBucket:
+    case ClientOpcode::ResumeBucket:
     case ClientOpcode::ObserveSeqno:
     case ClientOpcode::Observe:
     case ClientOpcode::EvictKey:
@@ -1892,6 +1910,10 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "LIST_BUCKETS";
     case ClientOpcode::SelectBucket:
         return "SELECT_BUCKET";
+    case ClientOpcode::PauseBucket:
+        return "PAUSE_BUCKET";
+    case ClientOpcode::ResumeBucket:
+        return "RESUME_BUCKET";
     case ClientOpcode::ObserveSeqno:
         return "OBSERVE_SEQNO";
     case ClientOpcode::Observe:
