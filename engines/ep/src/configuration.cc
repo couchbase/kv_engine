@@ -373,10 +373,6 @@ bool Configuration::parseConfiguration(const char* str, ServerApi* sapi) {
                 case DT_FLOAT:
                     setParameter(items[ii].key, *items[ii].value.dt_float);
                     break;
-                case DT_CONFIGFILE:
-                    throw std::logic_error("Configuration::parseConfiguration: "
-                            "Unexpected DT_CONFIGFILE element after parse_config");
-                    break;
                 }
             }
 

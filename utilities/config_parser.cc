@@ -16,10 +16,6 @@
 #include <cctype>
 #include <cstring>
 
-static int read_config_file(const char* fname,
-                            struct config_item items[],
-                            FILE* error);
-
 /**
  * Copy a string and trim of leading and trailing white space characters.
  * Allow the user to escape out the stop character by putting a backslash before
@@ -198,12 +194,6 @@ int parse_config(const char* str, struct config_item* items, FILE* error) {
                         ret = -1;
                     }
                     break;
-                case DT_CONFIGFILE: {
-                    int r = read_config_file(value, items, error);
-                    if (r != 0) {
-                        ret = r;
-                    }
-                } break;
                 default:
                     /* You need to fix your code!!! */
                     fprintf(error,
@@ -234,36 +224,5 @@ int parse_config(const char* str, struct config_item* items, FILE* error) {
             ret = 1;
         }
     }
-    return ret;
-}
-
-static int read_config_file(const char* fname,
-                            struct config_item items[],
-                            FILE* error) {
-    char line[1024];
-    int ret = 0;
-    FILE* fp = fopen(fname, "r");
-    if (fp == nullptr) {
-        if (error != nullptr) {
-            fprintf(error, "Failed to open file: %s\n", fname);
-        }
-        return -1;
-    }
-
-    while (fgets(line, sizeof(line), fp) != nullptr && ret != -1) {
-        int r;
-        if (line[0] == '#') {
-            /* Ignore comment line */
-            continue;
-        }
-
-        r = parse_config(line, items, error);
-        if (r != 0) {
-            ret = r;
-        }
-    }
-
-    (void)fclose(fp);
-
     return ret;
 }

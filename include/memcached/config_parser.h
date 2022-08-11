@@ -17,14 +17,7 @@
 /**
  * The supported datatypes the config file parser can handle
  */
-enum config_datatype {
-    DT_SIZE,
-    DT_SSIZE,
-    DT_FLOAT,
-    DT_BOOL,
-    DT_STRING,
-    DT_CONFIGFILE
-};
+enum config_datatype { DT_SIZE, DT_SSIZE, DT_FLOAT, DT_BOOL, DT_STRING };
 
 /**
  * I don't like casting, so let's create a union to keep all the values in

@@ -242,11 +242,10 @@ TEST(ConfigParserTest, A) {
     char *string_val = nullptr;
     int ii;
     std::array<char, 1024> buffer;
-    FILE *cfg;
     FILE *error;
 
     /* Set up the different items I can handle */
-    std::array<config_item, 7> items;
+    std::array<config_item, 6> items;
     memset(&items, 0, sizeof(items));
     ii = 0;
     items[ii].key = "bool";
@@ -274,14 +273,10 @@ TEST(ConfigParserTest, A) {
     items[ii].value.dt_string = &string_val;
     ++ii;
 
-    items[ii].key = "config_file";
-    items[ii].datatype = DT_CONFIGFILE;
-    ++ii;
-
     items[ii].key = nullptr;
     ++ii;
 
-    ASSERT_EQ(7, ii);
+    ASSERT_EQ(6, ii);
     auto outfile = cb::io::mktemp("util_test");
 
     error = fopen(outfile.c_str(), "w");
@@ -432,19 +427,8 @@ TEST(ConfigParserTest, A) {
         }
     }
 
-    auto cfgfile = cb::io::mktemp("util_test");
-    cfg = fopen(cfgfile.c_str(), "w");
-    ASSERT_NE(cfg, nullptr);
-    fprintf(cfg, "# This is a config file\nbool=true\nsize_t=1023\nfloat=12.4\n");
-    fclose(cfg);
-    sprintf(buffer.data(), "config_file=%s", cfgfile.c_str());
-    ASSERT_EQ(0, parse_config(buffer.data(), items.data(), error));
-    EXPECT_TRUE(bool_val);
-    EXPECT_EQ(1023u, size_val);
-    EXPECT_EQ(12.4f, float_val);
     fclose(error);
 
-    cb::io::rmrf(cfgfile);
     /* Verify that I received the error messages ;-) */
     error = fopen(outfile.c_str(), "r");
     ASSERT_TRUE(error);

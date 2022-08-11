@@ -759,10 +759,6 @@ static cb::engine_errc initalize_configuration(struct default_engine* se,
         items[ii].value.dt_bool = &se->config.vb0;
         ++ii;
 
-        items[ii].key = "config_file";
-        items[ii].datatype = DT_CONFIGFILE;
-        ++ii;
-
         items[ii].key = "uuid";
         items[ii].datatype = DT_STRING;
         items[ii].value.dt_string = &se->config.uuid;
@@ -775,7 +771,7 @@ static cb::engine_errc initalize_configuration(struct default_engine* se,
 
         items[ii].key = nullptr;
         ++ii;
-        cb_assert(ii == 13);
+        cb_assert(ii == 12);
         if (parse_config(cfg_str.c_str(), items, stderr) != 0) {
             ret = cb::engine_errc::failed;
         }
