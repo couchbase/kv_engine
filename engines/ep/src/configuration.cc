@@ -317,73 +317,51 @@ void Configuration::requirementsMetOrThrow(const std::string& key) const {
     }
 }
 
-/**
- * Internal container of an engine parameter.
- */
-class ConfigItem: public config_item {
-public:
-    ConfigItem(const char *theKey, config_datatype theDatatype) :
-                                                                holder(nullptr) {
-        key = theKey;
-        datatype = theDatatype;
-        value.dt_string = &holder;
-    }
+bool Configuration::parseConfiguration(std::string_view str) {
+    enum config_datatype { DT_SIZE, DT_SSIZE, DT_FLOAT, DT_BOOL, DT_STRING };
 
-private:
-    char *holder;
-};
-
-bool Configuration::parseConfiguration(const char* str, ServerApi* sapi) {
-    std::vector<std::unique_ptr<ConfigItem> > config;
-
-    for (const auto& attribute : attributes) {
-        config.push_back(std::make_unique<ConfigItem>(
-                attribute.first.c_str(),
-                config_datatype(attribute.second->value.index())));
-    }
-
-    const int nelem = config.size();
-    std::vector<config_item> items(nelem + 1);
-    for (int ii = 0; ii < nelem; ++ii) {
-        items[ii].key = config[ii]->key;
-        items[ii].datatype = config[ii]->datatype;
-        items[ii].value.dt_string = config[ii]->value.dt_string;
-    }
-
-    bool ret = parse_config(str, items.data(), stderr) == 0;
-    for (int ii = 0; ii < nelem; ++ii) {
-        if (items[ii].found) {
-            if (ret) {
-                switch (items[ii].datatype) {
-                case DT_STRING:
-                    setParameter(items[ii].key,
-                                 const_cast<const char*>(
-                                         *(items[ii].value.dt_string)));
-                    break;
-                case DT_SIZE:
-                    setParameter(items[ii].key, *items[ii].value.dt_size);
-                    break;
-                case DT_SSIZE:
-                    setParameter(items[ii].key,
-                                 (ssize_t)*items[ii].value.dt_ssize);
-                    break;
-                case DT_BOOL:
-                    setParameter(items[ii].key, *items[ii].value.dt_bool);
-                    break;
-                case DT_FLOAT:
-                    setParameter(items[ii].key, *items[ii].value.dt_float);
-                    break;
+    bool failed = false;
+    cb::config::tokenize(str, [&failed, this](auto k, auto v) {
+        bool found = false;
+        for (const auto& [key, value] : attributes) {
+            if (k == key) {
+                found = true;
+                try {
+                    switch (config_datatype(value->value.index())) {
+                    case DT_STRING:
+                        setParameter(key, v);
+                        break;
+                    case DT_SIZE:
+                        setParameter(key, cb::config::value_as_size_t(v));
+                        break;
+                    case DT_SSIZE:
+                        setParameter(key, cb::config::value_as_ssize_t(v));
+                        break;
+                    case DT_BOOL:
+                        setParameter(key, cb::config::value_as_bool(v));
+                        break;
+                    case DT_FLOAT:
+                        setParameter(key, cb::config::value_as_float(v));
+                        break;
+                    }
+                } catch (const std::exception& e) {
+                    EP_LOG_WARN(
+                            "Error parsing value: key: {} value: {} error: {}",
+                            k,
+                            v,
+                            e.what());
+                    failed = true;
                 }
             }
-
-            if (items[ii].datatype == DT_STRING) {
-                cb_free(*items[ii].value.dt_string);
-            }
         }
-    }
+        if (!found) {
+            EP_LOG_WARN("Unknown configuration key: {} value: {}", k, v);
+        }
+    });
 
-    return ret;
+    return !failed;
 }
+
 void Configuration::visit(Configuration::Visitor visitor) const {
     for (const auto& attr : attributes) {
         if (requirementsMet(*attr.second)) {

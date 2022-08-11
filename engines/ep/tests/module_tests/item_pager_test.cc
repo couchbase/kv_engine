@@ -315,7 +315,7 @@ protected:
             // (ensures the config is consistent with reality, rather than
             // directly enabling the task).
             engine->getConfiguration().parseConfiguration(
-                    "exp_pager_enabled=true", get_mock_server_api());
+                    "exp_pager_enabled=true");
             ++initialNonIoTasks;
         } else {
             // Everyone else uses the ItemPager.

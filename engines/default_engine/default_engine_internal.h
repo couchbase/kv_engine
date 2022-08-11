@@ -47,7 +47,7 @@ struct config {
    size_t item_size_max;
    bool ignore_vbucket;
    bool vb0;
-   char *uuid;
+   std::string uuid;
    bool keep_deleted;
    std::atomic<bool> xattr_enabled;
    std::atomic<BucketCompressionMode> compression_mode;
@@ -95,7 +95,7 @@ class StatCollector;
  * This is currently "work in progress" so it is not as clean as it should be.
  */
 struct default_engine : public EngineIface {
-    cb::engine_errc initialize(const std::string& config_str) override;
+    cb::engine_errc initialize(std::string_view config_str) override;
     void destroy(bool force) override;
 
     std::pair<cb::unique_item_ptr, item_info> allocateItem(

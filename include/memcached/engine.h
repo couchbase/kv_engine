@@ -176,7 +176,9 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param handle the engine handle
      * @param config_str configuration this engine needs to initialize itself.
      */
-    virtual cb::engine_errc initialize(const std::string& config_str) = 0;
+    virtual cb::engine_errc initialize(std::string_view config_str) {
+        return cb::engine_errc::success;
+    }
 
     /**
      * Tear down this engine.

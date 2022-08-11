@@ -38,8 +38,7 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
     // setup / teardown (fewer VBucket & other related objects).
     // Tests which require additional vbuckets can specify that in
     // extra_config string.
-    if (!configuration.parseConfiguration("max_vbuckets=4;max_num_shards=2",
-                                          serverApi)) {
+    if (!configuration.parseConfiguration("max_vbuckets=4;max_num_shards=2")) {
         throw std::invalid_argument(
                 "SynchronousEPEngine: Unable to set reduced max_vbuckets & "
                 "max_num_shards");
@@ -47,8 +46,7 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
 
     // Merge any extra config into the main configuration.
     if (!extra_config.empty()) {
-        if (!configuration.parseConfiguration(extra_config.c_str(),
-                                              serverApi)) {
+        if (!configuration.parseConfiguration(extra_config)) {
             throw std::invalid_argument("Unable to parse config string: " +
                                         extra_config);
         }

@@ -81,20 +81,35 @@ cb::engine_errc BucketManagementCommandContext::create() {
 
 cb::engine_errc BucketManagementCommandContext::remove() {
     auto k = request.getKey();
-    auto v = request.getValue();
-
     std::string name(reinterpret_cast<const char*>(k.data()), k.size());
-    std::string config(reinterpret_cast<const char*>(v.data()), v.size());
+    const auto config = request.getValueString();
     bool force = false;
 
-    std::vector<struct config_item> items(2);
-    items[0].key = "force";
-    items[0].datatype = DT_BOOL;
-    items[0].value.dt_bool = &force;
-    items[1].key = nullptr;
-
-    if (parse_config(config.c_str(), items.data(), stderr) != 0) {
-        return cb::engine_errc::invalid_arguments;
+    try {
+        bool invalid_arguments = false;
+        cb::config::tokenize(config,
+                             [&force, &invalid_arguments](auto k, auto v) {
+                                 using namespace std::string_view_literals;
+                                 if (k == "force"sv) {
+                                     force = cb::config::value_as_bool(v);
+                                 } else {
+                                     invalid_arguments = true;
+                                 }
+                             });
+        if (invalid_arguments) {
+            LOG_WARNING("{} Invalid payload provided with delete bucket: {}",
+                        connection.getId(),
+                        config);
+            return cb::engine_errc::invalid_arguments;
+        }
+    } catch (const std::exception& e) {
+        LOG_WARNING(
+                "{} Exception occurred while parsing delete bucket payload: "
+                "\"{}\". {}",
+                connection.getId(),
+                config,
+                e.what());
+        return cb::engine_errc::failed;
     }
 
     std::string taskname{"Delete bucket [" + name + "]"};

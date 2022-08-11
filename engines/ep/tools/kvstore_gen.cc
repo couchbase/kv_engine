@@ -107,8 +107,7 @@ int main(int argc, char** argv) {
 
     // Create a vBucket in an initial active state.
     Configuration config;
-    config.parseConfiguration(("dbname="s + filename).c_str(),
-                              get_mock_server_api());
+    config.parseConfiguration("dbname="s + filename);
     CouchKVStoreConfig kvStoreConfig(config, "couchdb", 1, 0);
     auto kvstore = KVStoreFactory::create(kvStoreConfig);
     vbucket_state state;

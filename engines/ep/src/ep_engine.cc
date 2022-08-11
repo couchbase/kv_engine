@@ -2016,7 +2016,7 @@ void EventuallyPersistentEngine::maybeSaveShardCount(
 }
 
 cb::engine_errc EventuallyPersistentEngine::initialize(
-        const std::string& config) {
+        std::string_view config) {
     if (config.empty()) {
         return cb::engine_errc::invalid_arguments;
     }
@@ -2024,7 +2024,7 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     auto switchToEngine = acquireEngine(this);
     resetStats();
 
-    if (!configuration.parseConfiguration(config.c_str(), serverApi)) {
+    if (!configuration.parseConfiguration(config)) {
         EP_LOG_WARN_RAW(
                 "Failed to parse the configuration config "
                 "during bucket initialization");

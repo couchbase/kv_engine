@@ -4,6 +4,7 @@
 #include "default_engine_public.h"
 #include "engine_manager.h"
 
+#include <daemon/log_macros.h>
 #include <memcached/collections.h>
 #include <memcached/config_parser.h>
 #include <memcached/durability_spec.h>
@@ -101,7 +102,7 @@ struct ItemHolder : public ItemIface {
 };
 
 static cb::engine_errc initalize_configuration(struct default_engine* se,
-                                               const std::string& cfg_str);
+                                               std::string_view cfg_str);
 union vbucket_info_adapter {
     char c;
     struct vbucket_info v;
@@ -198,7 +199,7 @@ static ItemHolder* get_real_item(ItemIface* item) {
     return it;
 }
 
-cb::engine_errc default_engine::initialize(const std::string& config_str) {
+cb::engine_errc default_engine::initialize(std::string_view config_str) {
     cb::engine_errc ret = initalize_configuration(this, config_str);
     if (ret != cb::engine_errc::success) {
         return ret;
@@ -225,8 +226,6 @@ void destroy_engine_instance(struct default_engine* engine) {
     if (engine->initialized) {
         /* Destory the slabs cache */
         slabs_destroy(engine);
-
-        cb_free(engine->config.uuid);
         engine->initialized = false;
     }
 }
@@ -704,76 +703,56 @@ void default_engine::reset_stats(const CookieIface& cookie) {
 }
 
 static cb::engine_errc initalize_configuration(struct default_engine* se,
-                                               const std::string& cfg_str) {
+                                               std::string_view cfg_str) {
     cb::engine_errc ret = cb::engine_errc::success;
 
     se->config.vb0 = true;
 
     if (!cfg_str.empty()) {
-        struct config_item items[13];
-        int ii = 0;
+        try {
+            cb::config::tokenize(cfg_str, [se, &ret](auto k, auto v) {
+                try {
+                    using namespace cb::config;
+                    using namespace std::string_view_literals;
 
-        memset(&items, 0, sizeof(items));
-        items[ii].key = "verbose";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &se->config.verbose;
-        ++ii;
-
-        items[ii].key = "eviction";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &se->config.evict_to_free;
-        ++ii;
-
-        items[ii].key = "cache_size";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &se->config.maxbytes;
-        ++ii;
-
-        items[ii].key = "preallocate";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &se->config.preallocate;
-        ++ii;
-
-        items[ii].key = "factor";
-        items[ii].datatype = DT_FLOAT;
-        items[ii].value.dt_float = &se->config.factor;
-        ++ii;
-
-        items[ii].key = "chunk_size";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &se->config.chunk_size;
-        ++ii;
-
-        items[ii].key = "item_size_max";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &se->config.item_size_max;
-        ++ii;
-
-        items[ii].key = "ignore_vbucket";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &se->config.ignore_vbucket;
-        ++ii;
-
-        items[ii].key = "vb0";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &se->config.vb0;
-        ++ii;
-
-        items[ii].key = "uuid";
-        items[ii].datatype = DT_STRING;
-        items[ii].value.dt_string = &se->config.uuid;
-        ++ii;
-
-        items[ii].key = "keep_deleted";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &se->config.keep_deleted;
-        ++ii;
-
-        items[ii].key = nullptr;
-        ++ii;
-        cb_assert(ii == 12);
-        if (parse_config(cfg_str.c_str(), items, stderr) != 0) {
-            ret = cb::engine_errc::failed;
+                    if (k == "verbose"sv) {
+                        se->config.verbose = value_as_size_t(v);
+                    } else if (k == "eviction"sv) {
+                        se->config.evict_to_free = value_as_bool(v);
+                    } else if (k == "cache_size"sv) {
+                        se->config.maxbytes = value_as_size_t(v);
+                    } else if (k == "preallocate"sv) {
+                        se->config.preallocate = value_as_bool(v);
+                    } else if (k == "factor"sv) {
+                        se->config.factor = value_as_float(v);
+                    } else if (k == "chunk_size"sv) {
+                        se->config.chunk_size = value_as_size_t(v);
+                    } else if (k == "item_size_max"sv) {
+                        se->config.item_size_max = value_as_size_t(v);
+                    } else if (k == "ignore_vbucket"sv) {
+                        se->config.ignore_vbucket = value_as_bool(v);
+                    } else if (k == "vb0"sv) {
+                        se->config.vb0 = value_as_bool(v);
+                    } else if (k == "uuid"sv) {
+                        se->config.uuid = std::move(v);
+                    } else if (k == "keep_deleted"sv) {
+                        se->config.keep_deleted = value_as_bool(v);
+                    } else {
+                        LOG_WARNING(
+                                "Unknown configuration parameter: {} with "
+                                "value {}",
+                                k,
+                                v);
+                    }
+                } catch (const std::exception& e) {
+                    ret = cb::engine_errc::failed;
+                    LOG_WARNING("Configuration error: {}", e.what());
+                }
+            });
+        } catch (const std::exception& e) {
+            LOG_WARNING("Exception occurred while parsing configuration: {}",
+                        e.what());
+            return cb::engine_errc::failed;
         }
     }
 

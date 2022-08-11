@@ -58,7 +58,7 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
     confString += (vbType == VBType::Persistent ? "persistent" : "ephemeral");
     // Also, a bunch of tests rely on max_checkpoints=2.
     confString += ";max_checkpoints=2";
-    config.parseConfiguration(confString.c_str(), get_mock_server_api());
+    config.parseConfiguration(confString);
 
     auto manifest = std::make_unique<Collections::VB::Manifest>(
             std::make_shared<Collections::Manager>());

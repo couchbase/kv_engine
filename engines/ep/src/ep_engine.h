@@ -94,7 +94,7 @@ private:
 class EventuallyPersistentEngine : public EngineIface, public DcpIface {
     friend class LookupCallback;
 public:
-    cb::engine_errc initialize(const std::string& config) override;
+    cb::engine_errc initialize(std::string_view config) override;
     void destroy(bool force) override;
     void disconnect(const CookieIface& cookie) override;
 

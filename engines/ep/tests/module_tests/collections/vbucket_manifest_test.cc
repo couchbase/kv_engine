@@ -181,7 +181,7 @@ public:
     };
 
     ActiveReplicaManifest() : lastCompleteDeletionArgs(0) {
-        config.parseConfiguration("", get_mock_server_api());
+        config.parseConfiguration({});
         checkpoint_config = std::make_unique<CheckpointConfig>(config);
 
         vbA = std::make_shared<EPVBucket>(

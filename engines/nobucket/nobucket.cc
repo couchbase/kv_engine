@@ -29,10 +29,6 @@
  */
 class NoBucket : public EngineIface, public DcpIface {
 public:
-    cb::engine_errc initialize(const std::string&) override {
-        return cb::engine_errc::success;
-    }
-
     void destroy(bool) override {
         delete this;
     }

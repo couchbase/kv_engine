@@ -295,7 +295,7 @@ void KVStoreBackend::setup(const std::string& dataDir,
     // numbers makes tests faster / consume less memory etc.
     configStr += "max_vbuckets=16;max_num_shards=2";
 
-    config.parseConfiguration(configStr.c_str(), get_mock_server_api());
+    config.parseConfiguration(configStr);
     WorkLoadPolicy workload(config.getMaxNumWorkers(),
                             config.getMaxNumShards());
 
@@ -1842,9 +1842,7 @@ protected:
     void SetUp() override {
         KVStoreTest::SetUp();
         Configuration config;
-        config.parseConfiguration(
-                ("dbname="s + data_dir + ";backend=rocksdb").c_str(),
-                get_mock_server_api());
+        config.parseConfiguration("dbname="s + data_dir + ";backend=rocksdb");
         WorkLoadPolicy workload(config.getMaxNumWorkers(),
                                 config.getMaxNumShards());
 
@@ -1888,7 +1886,7 @@ TEST_F(RocksDBKVStoreTest, StatsTest) {
     // Note: we need to switch-on DB Statistics
     auto configStr = ("dbname="s + data_dir +
                       ";backend=rocksdb;rocksdb_stats_level=kAll");
-    config.parseConfiguration(configStr.c_str(), get_mock_server_api());
+    config.parseConfiguration(configStr);
     WorkLoadPolicy workload(config.getMaxNumWorkers(),
                             config.getMaxNumShards());
 
@@ -1925,9 +1923,7 @@ TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
     const auto baseConfig = "dbname="s + data_dir + ";backend=rocksdb";
 
     // Test wrong value
-    config.parseConfiguration(
-            (baseConfig + ";rocksdb_stats_level=wrong_value").c_str(),
-            get_mock_server_api());
+    config.parseConfiguration(baseConfig + ";rocksdb_stats_level=wrong_value");
     WorkLoadPolicy workload(config.getMaxNumWorkers(),
                             config.getMaxNumShards());
     kvstoreConfig =
@@ -1943,9 +1939,7 @@ TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
                  std::invalid_argument);
 
     // Test one right value
-    config.parseConfiguration(
-            (baseConfig + ";rocksdb_stats_level=kAll").c_str(),
-            get_mock_server_api());
+    config.parseConfiguration(baseConfig + ";rocksdb_stats_level=kAll");
     kvstoreConfig =
             std::make_unique<RocksDBKVStoreConfig>(config,
                                                    config.getBackend(),

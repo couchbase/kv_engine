@@ -99,16 +99,14 @@ protected:
         switch (storage) {
         case COUCHSTORE: {
             state.SetLabel("Couchstore");
-            config.parseConfiguration((configStr + ";backend=couchdb").c_str(),
-                                      get_mock_server_api());
+            config.parseConfiguration(configStr + ";backend=couchdb");
 
             break;
         }
 #ifdef EP_USE_ROCKSDB
         case ROCKSDB: {
             state.SetLabel("CouchRocks");
-            config.parseConfiguration((configStr + ";backend=rocksdb").c_str(),
-                                      get_mock_server_api());
+            config.parseConfiguration(configStr + ";backend=rocksdb");
             break;
         }
 #endif

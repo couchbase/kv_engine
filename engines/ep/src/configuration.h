@@ -193,10 +193,9 @@ public:
      * Parse a configuration string and set the local members
      *
      * @param str the string to parse
-     * @param sapi pointer to the server API
      * @return true if success, false otherwise
      */
-    bool parseConfiguration(const char* str, ServerApi* sapi);
+    bool parseConfiguration(std::string_view str);
 
     /**
      * Add all of the configuration variables as stats

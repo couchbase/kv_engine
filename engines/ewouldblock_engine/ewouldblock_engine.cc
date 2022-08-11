@@ -281,7 +281,7 @@ public:
 
     /* Implementation of all the engine functions. ***************************/
 
-    cb::engine_errc initialize(const std::string& config_str) override {
+    cb::engine_errc initialize(std::string_view config_str) override {
         // Extract the name of the real engine we will be proxying; then
         // create and initialize it.
         std::string config(config_str);

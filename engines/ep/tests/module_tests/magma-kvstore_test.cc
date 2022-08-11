@@ -35,7 +35,7 @@ protected:
             configStr += ";" + magmaRollbackConfig;
         }
         Configuration config;
-        config.parseConfiguration(configStr.c_str(), get_mock_server_api());
+        config.parseConfiguration(configStr);
         WorkLoadPolicy workload(config.getMaxNumWorkers(),
                                 config.getMaxNumShards());
         kvstoreConfig =
