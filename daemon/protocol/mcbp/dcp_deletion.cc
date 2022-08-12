@@ -42,7 +42,7 @@ static cb::engine_errc dcp_deletion_v1_executor(Cookie& cookie) {
     value = {value.data(), value.size() - nmeta};
 
     uint32_t priv_bytes = 0;
-    if (mcbp::datatype::is_xattr(datatype)) {
+    if (cb::mcbp::datatype::is_xattr(datatype)) {
         priv_bytes = gsl::narrow<uint32_t>(value.size());
     }
     if (priv_bytes <= cb::limits::PrivilegedBytes) {
@@ -87,7 +87,7 @@ static cb::engine_errc dcp_deletion_v2_executor(Cookie& cookie) {
 
     auto value = request.getValue();
     uint32_t priv_bytes = 0;
-    if (mcbp::datatype::is_xattr(datatype)) {
+    if (cb::mcbp::datatype::is_xattr(datatype)) {
         priv_bytes = gsl::narrow<uint32_t>(value.size());
     }
 

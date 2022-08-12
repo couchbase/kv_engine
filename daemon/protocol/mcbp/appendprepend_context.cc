@@ -84,7 +84,7 @@ cb::engine_errc AppendPrependCommandContext::getItem() {
             return cb::engine_errc::locked;
         }
 
-        if (mcbp::datatype::is_snappy(oldItemInfo.datatype)) {
+        if (cb::mcbp::datatype::is_snappy(oldItemInfo.datatype)) {
             try {
                 std::string_view payload(
                         static_cast<const char*>(oldItemInfo.value[0].iov_base),
@@ -122,7 +122,7 @@ cb::engine_errc AppendPrependCommandContext::allocateNewItem() {
 
     // If the existing item had XATTRs we need to preserve the xattrs
     auto datatype = PROTOCOL_BINARY_RAW_BYTES;
-    if (mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
+    if (cb::mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
         datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
 
         // Calculate the size of the system xattr's. We know they arn't

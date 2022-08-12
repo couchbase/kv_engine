@@ -142,18 +142,18 @@ std::string_view get_body(std::string_view payload) {
 }
 
 size_t get_system_xattr_size(uint8_t datatype, std::string_view doc) {
-    if (!::mcbp::datatype::is_xattr(datatype)) {
+    if (!cb::mcbp::datatype::is_xattr(datatype)) {
         return 0;
     }
 
     Blob blob({const_cast<char*>(doc.data()), doc.size()},
-              ::mcbp::datatype::is_snappy(datatype));
+              cb::mcbp::datatype::is_snappy(datatype));
     return blob.get_system_size();
 }
 
 size_t get_body_size(uint8_t datatype, std::string_view value) {
     cb::compression::Buffer uncompressed;
-    if (::mcbp::datatype::is_snappy(datatype)) {
+    if (cb::mcbp::datatype::is_snappy(datatype)) {
         if (!cb::compression::inflate(
                     cb::compression::Algorithm::Snappy, value, uncompressed)) {
             throw std::invalid_argument(
@@ -166,7 +166,7 @@ size_t get_body_size(uint8_t datatype, std::string_view value) {
         return 0;
     }
 
-    if (!::mcbp::datatype::is_xattr(datatype)) {
+    if (!cb::mcbp::datatype::is_xattr(datatype)) {
         return value.size();
     }
 

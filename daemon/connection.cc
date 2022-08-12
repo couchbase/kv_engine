@@ -221,7 +221,7 @@ nlohmann::json Connection::toJSON() const {
     ret["total_queued_send"] = totalSend;
     ret["total_send"] = totalSend - getSendQueueSize();
 
-    ret["datatype"] = mcbp::datatype::to_string(datatypeFilter.getRaw());
+    ret["datatype"] = cb::mcbp::datatype::to_string(datatypeFilter.getRaw());
 
     ret["sendqueue"]["size"] = sendQueueInfo.size;
     ret["sendqueue"]["last"] = sendQueueInfo.last.time_since_epoch().count();

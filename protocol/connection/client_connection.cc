@@ -246,7 +246,8 @@ void MemcachedConnection::enterMessagePumpMode(
 }
 
 void Document::compress() {
-    if (mcbp::datatype::is_snappy(protocol_binary_datatype_t(info.datatype))) {
+    if (cb::mcbp::datatype::is_snappy(
+                protocol_binary_datatype_t(info.datatype))) {
         throw std::invalid_argument(
                 "Document::compress: Cannot compress already compressed "
                 "document.");
@@ -1483,7 +1484,7 @@ uint64_t MemcachedConnection::incr_decr(cb::mcbp::ClientOpcode opcode,
         throw ValidationError(
                 std::string(opcode_name) + " \"" + key +
                 "\"invalid - response has incorrect datatype (" +
-                mcbp::datatype::to_string(response.getDatatype()) + ")");
+                cb::mcbp::datatype::to_string(response.getDatatype()) + ")");
     }
 
     if (info != nullptr) {
@@ -2063,7 +2064,7 @@ static std::string formatMcbpExceptionMsg(const std::string& prefix,
     std::string context;
     // If the response was not a success and the datatype is json then there's
     // probably a JSON error context that's been included with the response body
-    if (mcbp::datatype::is_json(response.getDatatype()) &&
+    if (cb::mcbp::datatype::is_json(response.getDatatype()) &&
         !response.isSuccess()) {
         try {
             auto json = nlohmann::json::parse(response.getDataString());

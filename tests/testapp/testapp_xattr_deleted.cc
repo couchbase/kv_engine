@@ -97,7 +97,7 @@ void XattrNoDocTest::testSinglePathDictAdd() {
     // Also check via getMeta - which should show the document exists but
     // as deleted.
     auto meta = get_meta();
-    EXPECT_TRUE(mcbp::datatype::is_xattr(meta.datatype));
+    EXPECT_TRUE(cb::mcbp::datatype::is_xattr(meta.datatype));
     EXPECT_EQ(1, meta.deleted);
 }
 
@@ -145,7 +145,7 @@ void XattrNoDocTest::testMultipathDictAdd() {
     // Also check via getMeta - which should show the document exists but
     // as deleted.
     auto meta = get_meta();
-    EXPECT_TRUE(mcbp::datatype::is_xattr(meta.datatype));
+    EXPECT_TRUE(cb::mcbp::datatype::is_xattr(meta.datatype));
     EXPECT_EQ(1, meta.deleted);
 }
 

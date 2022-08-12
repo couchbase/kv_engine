@@ -260,10 +260,11 @@ uint64_t recv_subdoc_response(
                 expectedJSONDatatype()) {
                 return AssertionFailure()
                        << "Datatype mismatch for " << cmd << " - expected:"
-                       << mcbp::datatype::to_string(protocol_binary_datatype_t(
-                                  expectedJSONDatatype()))
+                       << cb::mcbp::datatype::to_string(
+                                  protocol_binary_datatype_t(
+                                          expectedJSONDatatype()))
                        << " actual:"
-                       << mcbp::datatype::to_string(resp.getDatatype());
+                       << cb::mcbp::datatype::to_string(resp.getDatatype());
             }
 
             // Check that JSON means JSON

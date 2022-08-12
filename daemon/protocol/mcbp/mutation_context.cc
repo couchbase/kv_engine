@@ -111,7 +111,7 @@ cb::engine_errc MutationCommandContext::validateInput() {
     // If snappy datatype is enabled and if the datatype is SNAPPY,
     // validate to data to ensure that it is compressed using SNAPPY
     auto raw_value = cookie.getRequest().getValue();
-    if (mcbp::datatype::is_snappy(datatype)) {
+    if (cb::mcbp::datatype::is_snappy(datatype)) {
         auto inflated = cookie.getInflatedInputPayload();
 
         // Check if the size of the decompressed value is greater than
@@ -152,7 +152,7 @@ cb::engine_errc MutationCommandContext::getExistingItemToPreserveXattr() {
     // need it (and would throw it away in the frontend).
     auto pair = bucket_get_if(
             cookie, cookie.getRequestKey(), vbucket, [](const item_info& info) {
-                return mcbp::datatype::is_xattr(info.datatype);
+                return cb::mcbp::datatype::is_xattr(info.datatype);
             });
     if (pair.first != cb::engine_errc::no_such_key &&
         pair.first != cb::engine_errc::success) {
@@ -187,8 +187,9 @@ cb::engine_errc MutationCommandContext::getExistingItemToPreserveXattr() {
     std::string_view existingValue{
             static_cast<char*>(existing_info.value[0].iov_base),
             existing_info.value[0].iov_len};
-    existingXattrs.assign(existingValue,
-                          mcbp::datatype::is_snappy(existing_info.datatype));
+    existingXattrs.assign(
+            existingValue,
+            cb::mcbp::datatype::is_snappy(existing_info.datatype));
 
     state = State::AllocateNewItem;
 
@@ -212,7 +213,7 @@ cb::engine_errc MutationCommandContext::allocateNewItem() {
         // The result will also *not* be compressed - even if the
         // input value was (as we combine the data uncompressed).
         dtype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
-        if (mcbp::datatype::is_snappy(datatype)) {
+        if (cb::mcbp::datatype::is_snappy(datatype)) {
             value = {reinterpret_cast<const uint8_t*>(inflated.data()),
                      inflated.size()};
         }
@@ -225,7 +226,7 @@ cb::engine_errc MutationCommandContext::allocateNewItem() {
     }
 
     size_t total_size = value.size() + existingXattrs.size();
-    if (existingXattrs.size() > 0 && mcbp::datatype::is_snappy(datatype)) {
+    if (existingXattrs.size() > 0 && cb::mcbp::datatype::is_snappy(datatype)) {
         total_size = inflated.size() + existingXattrs.size();
     }
 
@@ -366,7 +367,7 @@ cb::engine_errc MutationCommandContext::reset() {
 cb::StoreIfStatus MutationCommandContext::storeIfPredicate(
         const std::optional<item_info>& existing, cb::vbucket_info vb) {
     if (existing.has_value()) {
-        if (mcbp::datatype::is_xattr(existing.value().datatype)) {
+        if (cb::mcbp::datatype::is_xattr(existing.value().datatype)) {
             return cb::StoreIfStatus::Fail;
         }
     } else if (vb.mayContainXattrs) {

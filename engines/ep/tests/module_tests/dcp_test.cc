@@ -424,7 +424,7 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
         EXPECT_GT(producers.last_packet_size, keyAndSnappyValueMessageSize);
     }
 
-    EXPECT_FALSE(mcbp::datatype::is_snappy(producers.last_datatype));
+    EXPECT_FALSE(cb::mcbp::datatype::is_snappy(producers.last_datatype));
     EXPECT_EQ(expectedDataType, producers.last_datatype);
 
     /**
@@ -450,7 +450,7 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
     EXPECT_STREQ(value.c_str(), producers.last_value.c_str());
     EXPECT_EQ(producers.last_packet_size, keyAndValueMessageSize);
 
-    EXPECT_FALSE(mcbp::datatype::is_snappy(producers.last_datatype));
+    EXPECT_FALSE(cb::mcbp::datatype::is_snappy(producers.last_datatype));
     EXPECT_EQ(expectedDataType, producers.last_datatype);
 }
 

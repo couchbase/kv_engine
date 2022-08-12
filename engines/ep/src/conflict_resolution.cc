@@ -38,8 +38,8 @@ bool RevisionSeqnoResolution::resolve(const StoredValue& v,
                     if (v.getFlags() > meta.flags) {
                         return false;
                     } else if (v.getFlags() == meta.flags) {
-                        return (mcbp::datatype::is_xattr(meta_datatype) &&
-                                !mcbp::datatype::is_xattr(v.getDatatype()));
+                        return (cb::mcbp::datatype::is_xattr(meta_datatype) &&
+                                !cb::mcbp::datatype::is_xattr(v.getDatatype()));
                     }
                 }
             }
@@ -76,8 +76,8 @@ bool LastWriteWinsResolution::resolve(const StoredValue& v,
                     if (v.getFlags() > meta.flags) {
                         return false;
                     } else if (v.getFlags() == meta.flags) {
-                        return (mcbp::datatype::is_xattr(meta_datatype) &&
-                                !mcbp::datatype::is_xattr(v.getDatatype()));
+                        return (cb::mcbp::datatype::is_xattr(meta_datatype) &&
+                                !cb::mcbp::datatype::is_xattr(v.getDatatype()));
                     }
                 }
             }

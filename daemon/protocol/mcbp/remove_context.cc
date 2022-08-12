@@ -62,7 +62,8 @@ cb::engine_errc RemoveCommandContext::getItem() {
                           [this](const item_info& info) {
                               existing_cas = info.cas;
                               existing_datatype = info.datatype;
-                              return mcbp::datatype::is_xattr(info.datatype);
+                              return cb::mcbp::datatype::is_xattr(
+                                      info.datatype);
                           });
 
     if (status == cb::engine_errc::success) {
@@ -79,7 +80,7 @@ cb::engine_errc RemoveCommandContext::getItem() {
             return cb::engine_errc::locked;
         }
 
-        if (mcbp::datatype::is_xattr(existing_datatype)) {
+        if (cb::mcbp::datatype::is_xattr(existing_datatype)) {
             state = State::RebuildXattr;
         } else {
             state = State::RemoveItem;
@@ -217,7 +218,7 @@ cb::engine_errc RemoveCommandContext::sendResponse() {
 }
 
 cb::engine_errc RemoveCommandContext::rebuildXattr() {
-    if (mcbp::datatype::is_xattr(existing_datatype)) {
+    if (cb::mcbp::datatype::is_xattr(existing_datatype)) {
         // Create a const blob of the incoming data, which may decompress it
         // Note when writing back the xattrs (if any remain) the snappy bit is
         // never reset, so no need to remember if we did decompress.
@@ -225,7 +226,7 @@ cb::engine_errc RemoveCommandContext::rebuildXattr() {
         auto view = existing->getValueView();
         const cb::xattr::Blob existingData(
                 {const_cast<char*>(view.data()), view.size()},
-                mcbp::datatype::is_snappy(existing_datatype));
+                cb::mcbp::datatype::is_snappy(existing_datatype));
 
         // We can't modify the item as when we try to replace the item it
         // may fail due to a race condition (writing back into the existing

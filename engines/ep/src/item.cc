@@ -289,7 +289,7 @@ bool Item::compressValue(bool force) {
     // datatype is still Snappy. That may happen in ActiveStream when the
     // connection is set to IncludeValue::NoWithUnderlyingDatatype.
 
-    if (mcbp::datatype::is_snappy(datatype) && !force) {
+    if (cb::mcbp::datatype::is_snappy(datatype) && !force) {
         return true;
     }
 
@@ -315,7 +315,7 @@ bool Item::compressValue(bool force) {
 
 bool Item::decompressValue() {
     uint8_t datatype = getDataType();
-    if (mcbp::datatype::is_snappy(datatype)) {
+    if (cb::mcbp::datatype::is_snappy(datatype)) {
         // Attempt decompression only if datatype indicates
         // that the value is compressed.
         cb::compression::Buffer inflated;
@@ -456,7 +456,7 @@ Item::WasValueInflated Item::removeBody() {
         return WasValueInflated::No;
     }
 
-    if (!mcbp::datatype::is_xattr(getDataType())) {
+    if (!cb::mcbp::datatype::is_xattr(getDataType())) {
         // We don't want the body and there are no xattrs, just set empty value
         setData(nullptr, 0);
         setDataType(PROTOCOL_BINARY_RAW_BYTES);
@@ -481,7 +481,7 @@ Item::WasValueInflated Item::removeXattrs() {
         return WasValueInflated::No;
     }
 
-    if (!mcbp::datatype::is_xattr(getDataType())) {
+    if (!cb::mcbp::datatype::is_xattr(getDataType())) {
         // No Xattrs, nothing to do
         return WasValueInflated::No;
     }
@@ -512,7 +512,7 @@ Item::WasValueInflated Item::removeUserXattrs() {
         return WasValueInflated::No;
     }
 
-    if (!mcbp::datatype::is_xattr(getDataType())) {
+    if (!cb::mcbp::datatype::is_xattr(getDataType())) {
         // No Xattrs, nothing to do
         return WasValueInflated::No;
     }

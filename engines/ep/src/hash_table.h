@@ -159,14 +159,13 @@ public:
      * Datatype counts; one element for each combination of datatypes
      * (e.g. JSON, JSON+XATTR, JSON+Snappy, etc...)
      */
-    using DatatypeCombo = std::array<ssize_t,
-                                     mcbp::datatype::highest + 1>;
+    using DatatypeCombo = std::array<ssize_t, cb::mcbp::datatype::highest + 1>;
     // Logically could be an array of NonNegativeCounters, but this type
     // is used in a LastLevelCacheStore; the copy for one core _may_ go
     // negative, even though the sum across cores for each entry will be
     // non-negative.
-    using AtomicDatatypeCombo =
-            std::array<CopyableAtomic<ssize_t>, mcbp::datatype::highest + 1>;
+    using AtomicDatatypeCombo = std::array<CopyableAtomic<ssize_t>,
+                                           cb::mcbp::datatype::highest + 1>;
 
     /**
      * Represents a position within the hashtable.

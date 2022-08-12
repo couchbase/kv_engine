@@ -272,13 +272,14 @@ private:
 couchstore_content_meta_flags CouchRequest::getContentMeta(const Item& it) {
     couchstore_content_meta_flags rval;
 
-    if (mcbp::datatype::is_json(it.getDataType())) {
+    if (cb::mcbp::datatype::is_json(it.getDataType())) {
         rval = COUCH_DOC_IS_JSON;
     } else {
         rval = COUCH_DOC_NON_JSON_MODE;
     }
 
-    if (it.getNBytes() > 0 && !mcbp::datatype::is_snappy(it.getDataType())) {
+    if (it.getNBytes() > 0 &&
+        !cb::mcbp::datatype::is_snappy(it.getDataType())) {
         //Compress only if a value exists and is not already compressed
         rval |= COUCH_DOC_IS_COMPRESSED;
     }
@@ -845,7 +846,7 @@ static int notify_expired_item(DocInfo& info,
     std::optional<sized_buf> data;
     cb::compression::Buffer inflated;
 
-    if (mcbp::datatype::is_xattr(metadata.getDataType())) {
+    if (cb::mcbp::datatype::is_xattr(metadata.getDataType())) {
         if (item.buf == nullptr) {
             // We need to pass on the entire document to the callback
             return COUCHSTORE_COMPACT_NEED_BODY;
@@ -855,7 +856,7 @@ static int notify_expired_item(DocInfo& info,
         // 1) info.content_meta if the document was compressed by couchstore
         // 2) datatype snappy if the document was already compressed when stored
         if ((info.content_meta & COUCH_DOC_IS_COMPRESSED) ||
-            mcbp::datatype::is_snappy(metadata.getDataType())) {
+            cb::mcbp::datatype::is_snappy(metadata.getDataType())) {
             using namespace cb::compression;
 
             if (!inflate(Algorithm::Snappy, {item.buf, item.size}, inflated)) {

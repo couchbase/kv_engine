@@ -329,11 +329,11 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
         Vbid vbucket) {
     // MB-25650 - We've got a document of 0 byte value and claims to contain
     //            xattrs.. that's not possible.
-    if (nbytes == 0 && !mcbp::datatype::is_raw(datatype)) {
+    if (nbytes == 0 && !cb::mcbp::datatype::is_raw(datatype)) {
         throw cb::engine_error(cb::engine_errc::invalid_arguments,
                                "bucket_allocate_ex: Can't set datatype to " +
-                               mcbp::datatype::to_string(datatype) +
-                               " for a 0 sized body");
+                                       cb::mcbp::datatype::to_string(datatype) +
+                                       " for a 0 sized body");
     }
 
     if (priv_nbytes > cb::limits::PrivilegedBytes) {

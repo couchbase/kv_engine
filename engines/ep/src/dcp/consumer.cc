@@ -604,7 +604,7 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
         // the user xattrs and the body. Fix up that mistake by running the
         // expiry hook which will correctly process the document
         if (value.size() > 0) {
-            if (mcbp::datatype::is_xattr(datatype)) {
+            if (cb::mcbp::datatype::is_xattr(datatype)) {
                 auto vb = engine_.getVBucket(vbucket);
                 if (vb) {
                     engine_.getKVBucket()->runPreExpiryHook(*vb, *item);

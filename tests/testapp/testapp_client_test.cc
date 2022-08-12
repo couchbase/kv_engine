@@ -238,7 +238,7 @@ cb::mcbp::Datatype TestappXattrClientTest::expectedJSONSnappyDatatype() const {
         cb::mcbp::Datatype expectedType,
         cb::mcbp::Datatype actualDatatype,
         std::string_view value) {
-    using namespace mcbp::datatype;
+    using namespace cb::mcbp::datatype;
     if (actualDatatype != expectedType) {
         return ::testing::AssertionFailure()
                << "Datatype mismatch - expected:"

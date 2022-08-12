@@ -644,7 +644,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
              * This is to account for the total number of bytes if the data
              * was sent as uncompressed
              */
-            if (mcbp::datatype::is_snappy(itmCpy->getDataType())) {
+            if (cb::mcbp::datatype::is_snappy(itmCpy->getDataType())) {
                 size_t inflated_length = 0;
                 if (snappy_uncompressed_length(itmCpy->getData(), itmCpy->getNBytes(),
                                                &inflated_length) == SNAPPY_OK) {

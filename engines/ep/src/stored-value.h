@@ -222,7 +222,7 @@ public:
      *                  value exists but has zero length
      */
     bool isCompressible() {
-        if (mcbp::datatype::is_snappy(datatype) || !valuelen()) {
+        if (cb::mcbp::datatype::is_snappy(datatype) || !valuelen()) {
             return false;
         }
         return value->isCompressible();

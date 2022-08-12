@@ -1364,7 +1364,8 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
         qi->setExpTime(ep_real_time());
     }
 
-    if (!mightContainXattrs() && mcbp::datatype::is_xattr(v.getDatatype())) {
+    if (!mightContainXattrs() &&
+        cb::mcbp::datatype::is_xattr(v.getDatatype())) {
         setMightContainXattrs();
     }
 
@@ -2386,7 +2387,8 @@ cb::engine_errc VBucket::deleteWithMeta(
             delrv = MutationStatus::NotFound;
         }
     } else if (cachedVbState == vbucket_state_active &&
-               mcbp::datatype::is_xattr(v->getDatatype()) && !v->isResident()) {
+               cb::mcbp::datatype::is_xattr(v->getDatatype()) &&
+               !v->isResident()) {
         // MB-25671: A temp deleted xattr with no value must be fetched before
         // the deleteWithMeta can be applied.
         // MB-36087: Any non-resident value
@@ -2406,7 +2408,7 @@ cb::engine_errc VBucket::deleteWithMeta(
 
         std::unique_ptr<Item> itm;
         if (cachedVbState == vbucket_state_active &&
-            mcbp::datatype::is_xattr(v->getDatatype()) &&
+            cb::mcbp::datatype::is_xattr(v->getDatatype()) &&
             (itm = pruneXattrDocument(*v, itemMeta))) {
             // A new item has been generated and must be given a new seqno
             queueItmCtx.genBySeqno = GenerateBySeqno::Yes;
@@ -3826,7 +3828,8 @@ VBucket::processExpiredItem(HashTable::FindUpdateResult& htRes,
      * only the system xattrs need to be stored.
      */
     value_t value = v.getValue();
-    bool onlyMarkDeleted = value && mcbp::datatype::is_xattr(v.getDatatype());
+    bool onlyMarkDeleted =
+            value && cb::mcbp::datatype::is_xattr(v.getDatatype());
     v.setRevSeqno(v.getRevSeqno() + 1);
     VBNotifyCtx notifyCtx;
     StoredValue* newSv;
@@ -4061,7 +4064,7 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
 
     // Now attach to the XATTRs in the document
     cb::xattr::Blob xattr({workspace.data(), workspace.size()},
-                          mcbp::datatype::is_snappy(v.getDatatype()));
+                          cb::mcbp::datatype::is_snappy(v.getDatatype()));
     xattr.prune_user_keys();
 
     auto prunedXattrs = xattr.finalize();

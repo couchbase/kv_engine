@@ -45,7 +45,7 @@ cb::engine_errc ArithmeticCommandContext::getItem() {
             return cb::engine_errc::key_already_exists;
         }
 
-        if (mcbp::datatype::is_snappy(oldItemInfo.datatype)) {
+        if (cb::mcbp::datatype::is_snappy(oldItemInfo.datatype)) {
             try {
                 std::string_view payload(
                         static_cast<const char*>(oldItemInfo.value[0].iov_base),
@@ -138,9 +138,10 @@ cb::engine_errc ArithmeticCommandContext::allocateNewItem() {
     // Preserve the XATTRs of the existing item if it had any
     size_t xattrsize = 0;
     size_t priv_bytes = 0;
-    if (mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
-        cb::xattr::Blob blob({ptr, oldsize},
-                             mcbp::datatype::is_snappy(oldItemInfo.datatype));
+    if (cb::mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
+        cb::xattr::Blob blob(
+                {ptr, oldsize},
+                cb::mcbp::datatype::is_snappy(oldItemInfo.datatype));
         priv_bytes = blob.get_system_size();
         xattrsize = blob.size();
     }

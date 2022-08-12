@@ -86,24 +86,24 @@ TEST(DatatypeFilterTest, EnableFeatures) {
 TEST(DatatypeFilterTest, Intersect0) {
     DatatypeFilter datatype;
 
-    protocol_binary_datatype_t d1 = mcbp::datatype::highest;
+    protocol_binary_datatype_t d1 = cb::mcbp::datatype::highest;
     auto d2 = datatype.getIntersection(d1);
-    EXPECT_FALSE(mcbp::datatype::is_json(d2));
-    EXPECT_FALSE(mcbp::datatype::is_xattr(d2));
-    EXPECT_FALSE(mcbp::datatype::is_snappy(d2));
-    EXPECT_TRUE(mcbp::datatype::is_raw(d2));
+    EXPECT_FALSE(cb::mcbp::datatype::is_json(d2));
+    EXPECT_FALSE(cb::mcbp::datatype::is_xattr(d2));
+    EXPECT_FALSE(cb::mcbp::datatype::is_snappy(d2));
+    EXPECT_TRUE(cb::mcbp::datatype::is_raw(d2));
 }
 
 TEST(DatatypeFilterTest, Intersect1) {
     DatatypeFilter datatype;
     datatype.enable(cb::mcbp::Feature::JSON);
 
-    protocol_binary_datatype_t d1 = mcbp::datatype::highest;
+    protocol_binary_datatype_t d1 = cb::mcbp::datatype::highest;
     auto d2 = datatype.getIntersection(d1);
-    EXPECT_TRUE(mcbp::datatype::is_json(d2));
-    EXPECT_FALSE(mcbp::datatype::is_xattr(d2));
-    EXPECT_FALSE(mcbp::datatype::is_snappy(d2));
-    EXPECT_FALSE(mcbp::datatype::is_raw(d2));
+    EXPECT_TRUE(cb::mcbp::datatype::is_json(d2));
+    EXPECT_FALSE(cb::mcbp::datatype::is_xattr(d2));
+    EXPECT_FALSE(cb::mcbp::datatype::is_snappy(d2));
+    EXPECT_FALSE(cb::mcbp::datatype::is_raw(d2));
 }
 
 TEST(DatatypeFilterTest, Intersect2) {
@@ -111,24 +111,24 @@ TEST(DatatypeFilterTest, Intersect2) {
     datatype.enable(cb::mcbp::Feature::JSON);
     datatype.enable(cb::mcbp::Feature::XATTR);
 
-    protocol_binary_datatype_t d1 = mcbp::datatype::highest;
+    protocol_binary_datatype_t d1 = cb::mcbp::datatype::highest;
     auto d2 = datatype.getIntersection(d1);
-    EXPECT_TRUE(mcbp::datatype::is_json(d2));
-    EXPECT_TRUE(mcbp::datatype::is_xattr(d2));
-    EXPECT_FALSE(mcbp::datatype::is_snappy(d2));
-    EXPECT_FALSE(mcbp::datatype::is_raw(d2));
+    EXPECT_TRUE(cb::mcbp::datatype::is_json(d2));
+    EXPECT_TRUE(cb::mcbp::datatype::is_xattr(d2));
+    EXPECT_FALSE(cb::mcbp::datatype::is_snappy(d2));
+    EXPECT_FALSE(cb::mcbp::datatype::is_raw(d2));
 }
 
 TEST(DatatypeFilterTest, IntersectAll) {
     DatatypeFilter datatype;
     datatype.enableAll();
 
-    protocol_binary_datatype_t d1 = mcbp::datatype::highest;
+    protocol_binary_datatype_t d1 = cb::mcbp::datatype::highest;
     auto d2 = datatype.getIntersection(d1);
-    EXPECT_TRUE(mcbp::datatype::is_json(d2));
-    EXPECT_TRUE(mcbp::datatype::is_xattr(d2));
-    EXPECT_TRUE(mcbp::datatype::is_snappy(d2));
-    EXPECT_FALSE(mcbp::datatype::is_raw(d2));
+    EXPECT_TRUE(cb::mcbp::datatype::is_json(d2));
+    EXPECT_TRUE(cb::mcbp::datatype::is_xattr(d2));
+    EXPECT_TRUE(cb::mcbp::datatype::is_snappy(d2));
+    EXPECT_FALSE(cb::mcbp::datatype::is_raw(d2));
 }
 
 TEST(DatatypeFilterTest, Raw0) {
@@ -145,6 +145,6 @@ TEST(DatatypeFilterTest, Raw1) {
 TEST(DatatypeFilterTest, RawAll) {
     DatatypeFilter datatype;
     datatype.enableAll();
-    protocol_binary_datatype_t d1 = mcbp::datatype::highest;
+    protocol_binary_datatype_t d1 = cb::mcbp::datatype::highest;
     EXPECT_EQ(d1, datatype.getRaw());
 }

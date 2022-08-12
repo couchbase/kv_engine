@@ -160,7 +160,7 @@ static bool isDeleted(const Slice& metaSlice) {
 }
 
 static bool isCompressed(const Slice& metaSlice) {
-    return mcbp::datatype::is_snappy(getDocMeta(metaSlice).getDatatype());
+    return cb::mcbp::datatype::is_snappy(getDocMeta(metaSlice).getDatatype());
 }
 
 static bool isPrepared(const Slice& keySlice, const Slice& metaSlice) {

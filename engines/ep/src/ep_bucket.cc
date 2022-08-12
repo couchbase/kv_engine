@@ -610,7 +610,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
             prev = item.get();
             ++flushBatchSize;
 
-            if (mcbp::datatype::is_xattr(item->getDataType())) {
+            if (cb::mcbp::datatype::is_xattr(item->getDataType())) {
                 proposedVBState.mightContainXattrs = true;
             }
 

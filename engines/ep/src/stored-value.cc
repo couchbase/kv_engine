@@ -162,7 +162,7 @@ size_t StoredValue::uncompressedValuelen() const {
     if (!value) {
         return 0;
     }
-    if (mcbp::datatype::is_snappy(datatype)) {
+    if (cb::mcbp::datatype::is_snappy(datatype)) {
         return cb::compression::get_uncompressed_length(
                 cb::compression::Algorithm::Snappy,
                 {value->getData(), value->valueSize()});
@@ -356,7 +356,7 @@ void StoredValue::setValueImpl(const Item& itm) {
 }
 
 bool StoredValue::compressValue() {
-    if (!mcbp::datatype::is_snappy(datatype)) {
+    if (!cb::mcbp::datatype::is_snappy(datatype)) {
         // Attempt compression only if datatype indicates
         // that the value is not compressed already
         cb::compression::Buffer deflated;
@@ -507,9 +507,9 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     os << (sv.isOrdered() ? "OSV @" : " SV @") << &sv << " ";
 
     // datatype: XCJ
-    os << (mcbp::datatype::is_xattr(sv.getDatatype()) ? 'X' : '.');
-    os << (mcbp::datatype::is_snappy(sv.getDatatype()) ? 'C' : '.');
-    os << (mcbp::datatype::is_json(sv.getDatatype()) ? 'J' : '.');
+    os << (cb::mcbp::datatype::is_xattr(sv.getDatatype()) ? 'X' : '.');
+    os << (cb::mcbp::datatype::is_snappy(sv.getDatatype()) ? 'C' : '.');
+    os << (cb::mcbp::datatype::is_json(sv.getDatatype()) ? 'J' : '.');
     os << ' ';
 
     // dirty (Written), deleted, new, locked

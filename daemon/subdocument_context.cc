@@ -319,8 +319,8 @@ cb::engine_errc SubdocCmdContext::pre_link_document(item_info& info) {
         cb::char_buffer blob_buffer{static_cast<char*>(info.value[0].iov_base),
                                     info.value[0].iov_len};
 
-        cb::xattr::Blob xattr_blob(blob_buffer,
-                                   mcbp::datatype::is_snappy(info.datatype));
+        cb::xattr::Blob xattr_blob(
+                blob_buffer, cb::mcbp::datatype::is_snappy(info.datatype));
         auto value = xattr_blob.get(xattr_key);
         if (value.empty()) {
             // The segment is no longer there (we may have had another
@@ -442,7 +442,7 @@ std::string_view SubdocCmdContext::expand_virtual_document_macro(
         // in_datatype / in_doc here as they have already been
         // decompressed for us (see get_document_for_searching).
         size_t value_bytes = in_doc.view.size();
-        if (mcbp::datatype::is_xattr(in_datatype)) {
+        if (cb::mcbp::datatype::is_xattr(in_datatype)) {
             // strip off xattr
             auto bodyoffset = cb::xattr::get_body_offset(in_doc.view);
             value_bytes -= bodyoffset;
@@ -457,7 +457,7 @@ std::string_view SubdocCmdContext::expand_virtual_document_macro(
         // originally compressed we'll report it here.
         nlohmann::json arr;
         auto datatypes = split_string(
-                mcbp::datatype::to_string(input_item_info.datatype), ",");
+                cb::mcbp::datatype::to_string(input_item_info.datatype), ",");
         for (const auto& d : datatypes) {
             arr.push_back(d);
         }
@@ -563,7 +563,7 @@ std::string_view SubdocCmdContext::get_document_vattr() {
         // in_datatype / in_doc here as they have already been
         // decompressed for us (see get_document_for_searching).
         size_t value_bytes = in_doc.view.size();
-        if (mcbp::datatype::is_xattr(in_datatype)) {
+        if (cb::mcbp::datatype::is_xattr(in_datatype)) {
             // strip off xattr
             auto bodyoffset = cb::xattr::get_body_offset(in_doc.view);
             value_bytes -= bodyoffset;
@@ -575,7 +575,7 @@ std::string_view SubdocCmdContext::get_document_vattr() {
         // originally compressed we'll report it here.
         nlohmann::json arr;
         auto datatypes = split_string(
-            mcbp::datatype::to_string(input_item_info.datatype), ",");
+                cb::mcbp::datatype::to_string(input_item_info.datatype), ",");
         for (const auto& d : datatypes) {
             arr.push_back(d);
         }
@@ -628,7 +628,7 @@ std::string_view SubdocCmdContext::get_vbucket_vattr() {
 }
 
 std::string_view SubdocCmdContext::get_xtoc_vattr() {
-    if (!mcbp::datatype::is_xattr(in_datatype)) {
+    if (!cb::mcbp::datatype::is_xattr(in_datatype)) {
         xtoc_vattr = R"({"$XTOC":[]})";
         return xtoc_vattr;
     }
@@ -637,7 +637,7 @@ std::string_view SubdocCmdContext::get_xtoc_vattr() {
         cb::char_buffer blob_buffer{const_cast<char*>(in_doc.view.data()),
                                     (size_t)bodyoffset};
         cb::xattr::Blob xattr_blob(blob_buffer,
-                                   mcbp::datatype::is_snappy(in_datatype));
+                                   cb::mcbp::datatype::is_snappy(in_datatype));
 
         nlohmann::json arr;
         for (const auto [key, value] : xattr_blob) {
@@ -691,7 +691,7 @@ cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
     in_datatype = info.datatype;
     in_document_state = info.document_state;
 
-    if (mcbp::datatype::is_snappy(info.datatype)) {
+    if (cb::mcbp::datatype::is_snappy(info.datatype)) {
         // Need to expand before attempting to extract from it.
         try {
             if (!cookie.inflateSnappy(in_doc.view, inflated_doc_buffer)) {
@@ -725,7 +725,7 @@ cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
 
 uint32_t SubdocCmdContext::computeValueCRC32C() {
     std::string_view value;
-    if (mcbp::datatype::is_xattr(in_datatype)) {
+    if (cb::mcbp::datatype::is_xattr(in_datatype)) {
         // Note: in the XAttr naming, body/value excludes XAttrs
         value = cb::xattr::get_body(in_doc.view);
     } else {

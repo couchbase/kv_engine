@@ -465,7 +465,7 @@ public:
 
         // If the bucket has disabled xattr, then we must reflect that in the
         // returned value
-        if (rv && mcbp::datatype::is_xattr(dtype) &&
+        if (rv && cb::mcbp::datatype::is_xattr(dtype) &&
             !selectedBucketIsXattrEnabled()) {
             rv = false;
         }

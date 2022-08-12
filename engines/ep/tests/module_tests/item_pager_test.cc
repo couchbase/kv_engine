@@ -1794,7 +1794,7 @@ TEST_P(STExpiryPagerTest, MB_25650) {
     auto item = store->get(key_1, vbid, cookie, GET_DELETED_VALUE);
 
     ASSERT_EQ(cb::engine_errc::success, item.getStatus());
-    EXPECT_TRUE(mcbp::datatype::is_xattr(item.item->getDataType()));
+    EXPECT_TRUE(cb::mcbp::datatype::is_xattr(item.item->getDataType()));
     ASSERT_NE(0, item.item->getNBytes());
     cb::xattr::Blob blob(
             {const_cast<char*>(item.item->getData()), item.item->getNBytes()},

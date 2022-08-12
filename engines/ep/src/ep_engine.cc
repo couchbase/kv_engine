@@ -1389,7 +1389,7 @@ cb::engine_errc EventuallyPersistentEngine::mutation(
         uint32_t lock_time,
         cb::const_byte_buffer meta,
         uint8_t nru) {
-    if (!mcbp::datatype::is_valid(datatype)) {
+    if (!cb::mcbp::datatype::is_valid(datatype)) {
         EP_LOG_WARN_RAW(
                 "Invalid value for datatype "
                 " (DCPMutation)");
@@ -2535,7 +2535,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
     }
 
     // MB-37374: Ensure that documents in deleted state have no user value.
-    if (mcbp::datatype::is_xattr(item.getDataType()) && item.isDeleted()) {
+    if (cb::mcbp::datatype::is_xattr(item.getDataType()) && item.isDeleted()) {
         const auto& value = item.getValue();
         auto value_size = cb::xattr::get_body_size(
                 item.getDataType(), {value->getData(), value->valueSize()});
@@ -5448,7 +5448,7 @@ protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
         std::string_view body) {
     if (!isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_JSON)) {
         // JSON check the body if xattr's are enabled
-        if (mcbp::datatype::is_xattr(datatype)) {
+        if (cb::mcbp::datatype::is_xattr(datatype)) {
             body = cb::xattr::get_body(body);
         }
 
@@ -5619,7 +5619,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         }
     }
 
-    if (mcbp::datatype::is_snappy(datatype) &&
+    if (cb::mcbp::datatype::is_snappy(datatype) &&
         !isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
         setErrorContext(cookie, "Client did not negotiate Snappy support");
         return cb::engine_errc::invalid_arguments;
@@ -5638,7 +5638,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     if (value.empty()) {
         finalDatatype = PROTOCOL_BINARY_RAW_BYTES;
     } else {
-        if (mcbp::datatype::is_snappy(datatype)) {
+        if (cb::mcbp::datatype::is_snappy(datatype)) {
             if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                           payload,
                                           uncompressedValue)) {
@@ -5659,7 +5659,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         }
 
         size_t system_xattr_size = 0;
-        if (mcbp::datatype::is_xattr(datatype)) {
+        if (cb::mcbp::datatype::is_xattr(datatype)) {
             // the validator ensured that the xattr was valid
             std::string_view xattr;
             xattr = {reinterpret_cast<const char*>(inflatedValue.data()),
@@ -5688,11 +5688,11 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
             return cb::engine_errc::too_big;
         }
 
-        finalDatatype = checkForDatatypeJson(cookie,
-                                             finalDatatype,
-                                             mcbp::datatype::is_snappy(datatype)
-                                                     ? uncompressedValue
-                                                     : payload);
+        finalDatatype = checkForDatatypeJson(
+                cookie,
+                finalDatatype,
+                cb::mcbp::datatype::is_snappy(datatype) ? uncompressedValue
+                                                        : payload);
     }
 
     auto item = std::make_unique<Item>(key,
@@ -5769,7 +5769,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
         // MB-37374: Accept user-xattrs, body is still invalid
         auto datatype = uint8_t(request.getDatatype());
         cb::compression::Buffer uncompressedValue;
-        if (mcbp::datatype::is_snappy(datatype)) {
+        if (cb::mcbp::datatype::is_snappy(datatype)) {
             if (!cb::compression::inflate(
                         cb::compression::Algorithm::Snappy,
                         {reinterpret_cast<const char*>(value.data()),
@@ -5783,7 +5783,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
         }
 
         if (allowSanitizeValueInDeletion) {
-            if (mcbp::datatype::is_xattr(datatype)) {
+            if (cb::mcbp::datatype::is_xattr(datatype)) {
                 if (!value.empty()) {
                     // Whatever we have in the value, just keep Xattrs
                     const auto valBuffer = std::string_view{

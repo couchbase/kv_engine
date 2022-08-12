@@ -36,7 +36,7 @@ using cb::mcbp::Status;
 
 static bool is_valid_xattr_blob(Cookie& cookie,
                                 const cb::mcbp::Request& request) {
-    if (!mcbp::datatype::is_xattr(uint8_t(request.getDatatype()))) {
+    if (!cb::mcbp::datatype::is_xattr(uint8_t(request.getDatatype()))) {
         // no xattr segment
         return true;
     }
@@ -130,7 +130,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
     const auto& header = cookie.getHeader();
     auto& connection = cookie.getConnection();
 
-    if (!mcbp::datatype::is_valid(header.getDatatype())) {
+    if (!cb::mcbp::datatype::is_valid(header.getDatatype())) {
         cookie.setErrorContext("Request datatype invalid");
         return Status::Einval;
     }
@@ -221,17 +221,17 @@ Status McbpValidator::verify_header(Cookie& cookie,
             if ((bit & datatypes) != bit) {
                 continue;
             }
-            if (mcbp::datatype::is_valid(protocol_binary_datatype_t(ii))) {
+            if (cb::mcbp::datatype::is_valid(protocol_binary_datatype_t(ii))) {
                 if (!connection.isDatatypeEnabled(bit)) {
                     result |= bit;
                 }
             }
         }
 
-        cookie.setErrorContext(
-                "Datatype (" +
-                mcbp::datatype::to_string(protocol_binary_datatype_t(result)) +
-                ") not enabled for the connection");
+        cookie.setErrorContext("Datatype (" +
+                               cb::mcbp::datatype::to_string(
+                                       protocol_binary_datatype_t(result)) +
+                               ") not enabled for the connection");
         return Status::Einval;
     }
 

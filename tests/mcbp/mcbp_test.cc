@@ -2270,7 +2270,7 @@ TEST_P(ErrorContextTest, ValidHeader) {
 TEST_P(ErrorContextTest, InvalidDatatype) {
     // Nonexistent datatype
     request.message.header.request.setDatatype(
-            cb::mcbp::Datatype(mcbp::datatype::highest + 1));
+            cb::mcbp::Datatype(cb::mcbp::datatype::highest + 1));
     EXPECT_EQ("Request datatype invalid",
               validate_error_context(cb::mcbp::ClientOpcode::Noop));
 

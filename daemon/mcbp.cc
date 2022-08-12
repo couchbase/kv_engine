@@ -35,9 +35,9 @@ static bool mcbp_response_handler(std::string_view key,
     cb::compression::Buffer buffer;
     auto payload = body;
 
-    if ((!c->isSnappyEnabled() && mcbp::datatype::is_snappy(datatype)) ||
-        (mcbp::datatype::is_snappy(datatype) &&
-         mcbp::datatype::is_xattr(datatype))) {
+    if ((!c->isSnappyEnabled() && cb::mcbp::datatype::is_snappy(datatype)) ||
+        (cb::mcbp::datatype::is_snappy(datatype) &&
+         cb::mcbp::datatype::is_xattr(datatype))) {
         // The client is not snappy-aware, and the content contains
         // snappy encoded data. Or it's xattr compressed. We need to inflate it!
         if (!cookie->inflateSnappy(payload, buffer)) {
@@ -48,14 +48,14 @@ static bool mcbp_response_handler(std::string_view key,
                     "Datatype indicates that document is {}",
                     c->getId(),
                     cb::UserDataView(mykey),
-                    mcbp::datatype::to_string(datatype));
+                    cb::mcbp::datatype::to_string(datatype));
             return false;
         }
         payload = buffer;
         datatype &= ~(PROTOCOL_BINARY_DATATYPE_SNAPPY);
     }
 
-    if (mcbp::datatype::is_xattr(datatype)) {
+    if (cb::mcbp::datatype::is_xattr(datatype)) {
         // We need to strip off the xattrs
         payload = cb::xattr::get_body(payload);
         datatype &= ~(PROTOCOL_BINARY_DATATYPE_XATTR);

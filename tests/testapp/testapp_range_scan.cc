@@ -249,7 +249,7 @@ size_t RangeScanTest::drainItemResponse(
         auto [itr, emplaced] = allKeys.emplace(record.key);
         EXPECT_TRUE(emplaced) << "Duplicate key returned " << record.key;
         std::string value;
-        if (mcbp::datatype::is_snappy(record.meta.getDatatype())) {
+        if (cb::mcbp::datatype::is_snappy(record.meta.getDatatype())) {
             cb::compression::Buffer buffer;
             EXPECT_TRUE(cb::compression::inflate(
                     cb::compression::Algorithm::Snappy, record.value, buffer));

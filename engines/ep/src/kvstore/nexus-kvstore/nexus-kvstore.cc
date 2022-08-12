@@ -634,7 +634,7 @@ bool NexusKVStore::compareItem(Item primaryItem, Item secondaryItem) const {
     // have to make sure that both items are in the same state of compression to
     // compare them.
     std::string decompressedValue;
-    if (mcbp::datatype::is_snappy(primaryItem.getDataType())) {
+    if (cb::mcbp::datatype::is_snappy(primaryItem.getDataType())) {
         primaryItem.decompressValue();
         decompressedValue = primaryItem.getValueView();
     } else {
@@ -642,7 +642,7 @@ bool NexusKVStore::compareItem(Item primaryItem, Item secondaryItem) const {
     }
 
     std::string otherDecompressedValue;
-    if (mcbp::datatype::is_snappy(secondaryItem.getDataType())) {
+    if (cb::mcbp::datatype::is_snappy(secondaryItem.getDataType())) {
         secondaryItem.decompressValue();
         otherDecompressedValue = secondaryItem.getValueView();
     } else {

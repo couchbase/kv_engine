@@ -58,10 +58,10 @@ cb::engine_errc GatCommandContext::getAndTouchItem() {
                    info.value[0].iov_len};
 
         bool need_inflate = false;
-        if (mcbp::datatype::is_snappy(info.datatype) &&
+        if (cb::mcbp::datatype::is_snappy(info.datatype) &&
             cookie.getHeader().getRequest().getClientOpcode() !=
                     cb::mcbp::ClientOpcode::Touch) {
-            need_inflate = mcbp::datatype::is_xattr(info.datatype) ||
+            need_inflate = cb::mcbp::datatype::is_xattr(info.datatype) ||
                            !connection.isSnappyEnabled();
         }
 
@@ -108,7 +108,7 @@ cb::engine_errc GatCommandContext::sendResponse() {
 
     // This is GAT[Q]
     protocol_binary_datatype_t datatype = info.datatype;
-    if (mcbp::datatype::is_xattr(datatype)) {
+    if (cb::mcbp::datatype::is_xattr(datatype)) {
         payload = cb::xattr::get_body(payload);
         datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
     }

@@ -36,7 +36,7 @@ nlohmann::json toJSON(cb::mcbp::Datatype datatype) {
     return ret;
 }
 
-std::string mcbp::datatype::to_string(protocol_binary_datatype_t datatype) {
+std::string cb::mcbp::datatype::to_string(protocol_binary_datatype_t datatype) {
     if (is_valid(datatype)) {
         if (is_raw(datatype)) {
             return std::string{"raw"};

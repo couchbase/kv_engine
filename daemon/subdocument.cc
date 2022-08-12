@@ -559,7 +559,7 @@ static bool operate_single_doc(SubdocCmdContext& context,
     for (auto& op : operations) {
         switch (op.traits.scope) {
         case CommandScope::SubJSON:
-            if (mcbp::datatype::is_json(doc_datatype)) {
+            if (cb::mcbp::datatype::is_json(doc_datatype)) {
                 // Got JSON, perform the operation.
                 op.status = subdoc_operate_one_path(context, op, current.view);
             } else {
@@ -738,7 +738,7 @@ static inline void replace_xattrs(std::string_view new_xattr,
  */
 static bool do_xattr_delete_phase(SubdocCmdContext& context) {
     if (!context.do_delete_doc ||
-        !mcbp::datatype::is_xattr(context.in_datatype)) {
+        !cb::mcbp::datatype::is_xattr(context.in_datatype)) {
         return true;
     }
 
@@ -751,7 +751,7 @@ static bool do_xattr_delete_phase(SubdocCmdContext& context) {
                                 (size_t)bodyoffset};
 
     const cb::xattr::Blob xattr_blob(
-            blob_buffer, mcbp::datatype::is_snappy(context.in_datatype));
+            blob_buffer, cb::mcbp::datatype::is_snappy(context.in_datatype));
 
     // The backing store for the blob is currently witin the actual
     // document.. create a copy we can use for replace.
@@ -814,7 +814,7 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     auto bodysize = context.in_doc.view.size();
     auto bodyoffset = 0;
 
-    if (mcbp::datatype::is_xattr(context.in_datatype)) {
+    if (cb::mcbp::datatype::is_xattr(context.in_datatype)) {
         bodyoffset = cb::xattr::get_body_offset(context.in_doc.view);
         bodysize -= bodyoffset;
     }
@@ -822,8 +822,8 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     cb::char_buffer blob_buffer{(char*)context.in_doc.view.data(),
                                 (size_t)bodyoffset};
 
-    cb::xattr::Blob xattr_blob(blob_buffer,
-                               mcbp::datatype::is_snappy(context.in_datatype));
+    cb::xattr::Blob xattr_blob(
+            blob_buffer, cb::mcbp::datatype::is_snappy(context.in_datatype));
     auto key = context.get_xattr_key();
     auto value_buf = xattr_blob.get(key);
 
@@ -931,7 +931,7 @@ static bool do_body_phase(SubdocCmdContext& context) {
     size_t xattrsize = 0;
     MemoryBackedBuffer body{context.in_doc};
 
-    if (mcbp::datatype::is_xattr(context.in_datatype)) {
+    if (cb::mcbp::datatype::is_xattr(context.in_datatype)) {
         // We shouldn't have any documents like that!
         xattrsize = cb::xattr::get_body_offset(body.view);
         body.view.remove_prefix(xattrsize);
@@ -1127,7 +1127,7 @@ static cb::engine_errc subdoc_update(SubdocCmdContext& context,
             if (context.in_document_state == DocumentState::Deleted &&
                 !context.reviveDocument) {
                 auto bodysize = context.in_doc.view.size();
-                if (mcbp::datatype::is_xattr(context.in_datatype)) {
+                if (cb::mcbp::datatype::is_xattr(context.in_datatype)) {
                     bodysize -= cb::xattr::get_body_offset(context.in_doc.view);
                 }
                 if (bodysize > 0) {

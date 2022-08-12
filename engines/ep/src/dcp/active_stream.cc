@@ -1012,12 +1012,12 @@ static bool shouldModifyItem(const queued_item& item,
          */
         if (isSnappyEnabled) {
             if (isForceValueCompressionEnabled) {
-                if (!mcbp::datatype::is_snappy(item->getDataType())) {
+                if (!cb::mcbp::datatype::is_snappy(item->getDataType())) {
                     return true;
                 }
             }
         } else {
-            if (mcbp::datatype::is_snappy(item->getDataType())) {
+            if (cb::mcbp::datatype::is_snappy(item->getDataType())) {
                 return true;
             }
         }
@@ -1027,7 +1027,7 @@ static bool shouldModifyItem(const queued_item& item,
          * check if xattrs need to be pruned. If not, then
          * value needs no modification
          */
-        if (mcbp::datatype::is_xattr(item->getDataType())) {
+        if (cb::mcbp::datatype::is_xattr(item->getDataType())) {
             // Do we want to strip all xattrs regardless of whether the item is
             // a mutation or deletion?
             if (includeXattrs == IncludeXattrs::No) {
@@ -1096,7 +1096,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                     if (finalItem->getNBytes() > 0) {
                         bool compressionFailed = false;
 
-                        if (!mcbp::datatype::is_snappy(
+                        if (!cb::mcbp::datatype::is_snappy(
                                     finalItem->getDataType())) {
                             compressionFailed = !finalItem->compressValue();
                         } else if (wasInflated == Item::WasValueInflated::Yes) {
@@ -1129,7 +1129,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                 //  (eg, the original value contained only a Body, now removed).
                 //  We need to avoid the call to Item::decompress in both cases,
                 //  we log an unnecessary warning otherwise.
-                if (mcbp::datatype::is_snappy(finalItem->getDataType()) &&
+                if (cb::mcbp::datatype::is_snappy(finalItem->getDataType()) &&
                     (wasInflated == Item::WasValueInflated::No) &&
                     (finalItem->getNBytes() > 0)) {
                     if (!finalItem->decompressValue()) {

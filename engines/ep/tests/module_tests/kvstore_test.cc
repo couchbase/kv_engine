@@ -208,14 +208,14 @@ TEST_P(KVStoreParamTestSkipRocks, CompressedTest) {
 
 MATCHER(IsDatatypeSnappy,
         negation ? "datatype isn't Snappy" : "datatype is Snappy") {
-    return mcbp::datatype::is_snappy(arg.getDataType());
+    return cb::mcbp::datatype::is_snappy(arg.getDataType());
 }
 
 /// For the item Item object, check that if the value is compressed, it can be
 /// decompressed successfully
 MATCHER(IsValueValid,
         "has a valid value (if Snappy can be decompressed successfully)") {
-    if (mcbp::datatype::is_snappy(arg.getDataType())) {
+    if (cb::mcbp::datatype::is_snappy(arg.getDataType())) {
         // Take a copy and attempt to decompress it to check compression.
         auto itemCopy = arg;
         return itemCopy.decompressValue();
@@ -535,14 +535,15 @@ void KVStoreParamTest::checkBGFetchResult(
         break;
     case ValueFilter::VALUES_COMPRESSED:
         if (supportsFetchingAsSnappy()) {
-            EXPECT_TRUE(mcbp::datatype::is_snappy(fetchedItem->getDataType()));
+            EXPECT_TRUE(
+                    cb::mcbp::datatype::is_snappy(fetchedItem->getDataType()));
             EXPECT_GT(testDoc.getValue()->valueSize(),
                       fetchedBlob->valueSize());
             break;
         }
         [[fallthrough]];
     case ValueFilter::VALUES_DECOMPRESSED:
-        EXPECT_FALSE(mcbp::datatype::is_snappy(fetchedItem->getDataType()));
+        EXPECT_FALSE(cb::mcbp::datatype::is_snappy(fetchedItem->getDataType()));
         EXPECT_EQ(*testDoc.getValue(), *fetchedBlob);
         break;
     }
@@ -1764,7 +1765,7 @@ TEST_P(KVStoreParamTest, GetBySeqno) {
         ASSERT_TRUE(gv.item);
         EXPECT_EQ(nItems, gv.item->getBySeqno());
         EXPECT_EQ(makeStoredDocKey("compressed"), gv.item->getKey());
-        EXPECT_TRUE(mcbp::datatype::is_snappy(gv.item->getDataType()));
+        EXPECT_TRUE(cb::mcbp::datatype::is_snappy(gv.item->getDataType()));
     }
 
     // Check an unknown seqno

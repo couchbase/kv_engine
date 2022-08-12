@@ -28,7 +28,7 @@ void dcp_expiration_executor(Cookie& cookie) {
         auto value = req.getValue();
 
         uint32_t priv_bytes = 0;
-        if (mcbp::datatype::is_xattr(datatype)) {
+        if (cb::mcbp::datatype::is_xattr(datatype)) {
             priv_bytes = gsl::narrow<uint32_t>(value.size());
         }
 

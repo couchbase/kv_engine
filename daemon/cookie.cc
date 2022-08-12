@@ -893,7 +893,7 @@ std::string_view Cookie::getInflatedInputPayload() const {
 
 bool Cookie::inflateInputPayload(const cb::mcbp::Header& header) {
     inflated_input_payload.reset();
-    if (!mcbp::datatype::is_snappy(header.getDatatype())) {
+    if (!cb::mcbp::datatype::is_snappy(header.getDatatype())) {
         return true;
     }
 

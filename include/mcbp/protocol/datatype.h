@@ -53,8 +53,7 @@ std::string to_string(cb::mcbp::Datatype datatype);
 nlohmann::json toJSON(cb::mcbp::Datatype datatype);
 
 // Create a namespace to handle the Datatypes
-namespace mcbp {
-namespace datatype {
+namespace cb::mcbp::datatype {
 const uint8_t highest = PROTOCOL_BINARY_DATATYPE_XATTR |
                         PROTOCOL_BINARY_DATATYPE_SNAPPY |
                         PROTOCOL_BINARY_DATATYPE_JSON;
@@ -82,6 +81,4 @@ inline bool is_valid(const protocol_binary_datatype_t datatype) {
 }
 
 std::string to_string(protocol_binary_datatype_t datatype);
-
-} // namespace datatype
-} // namespace mcbp
+} // namespace cb::mcbp::datatype

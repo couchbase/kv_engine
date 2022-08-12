@@ -893,7 +893,7 @@ TEST_P(GetSetTest, TestCorrectWithXattrs) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
     // Create a compressed document with a body and xattr
     setBodyAndXattr("{\"TestField\":56788}", {{"_sync", "4543"}});
-    ASSERT_TRUE(mcbp::datatype::is_snappy(
+    ASSERT_TRUE(cb::mcbp::datatype::is_snappy(
             protocol_binary_datatype_t(document.info.datatype)));
     const auto stored = userConnection->get(name, Vbid(0));
     // The test requires the client to support compression

@@ -646,7 +646,7 @@ void KVBucket::processExpiredItem(Item& it, time_t startTime, ExpireBy source) {
 
     // MB-25931: Empty XATTR items need their value before we can call
     // pre_expiry. These occur because the value has been evicted.
-    if (mcbp::datatype::is_xattr(it.getDataType()) && it.getNBytes() == 0) {
+    if (cb::mcbp::datatype::is_xattr(it.getDataType()) && it.getNBytes() == 0) {
         getValue(it);
     }
 
@@ -1468,7 +1468,7 @@ void KVBucket::appendDatatypeStats(const DatatypeStatVisitor& active,
     using namespace cb::stats;
 
     for (uint8_t ii = 0; ii < active.getNumDatatypes(); ++ii) {
-        auto datatypeStr = mcbp::datatype::to_string(ii);
+        auto datatypeStr = cb::mcbp::datatype::to_string(ii);
         auto labelled = collector.withLabels(
                 {{"datatype", datatypeStr}, {"vbucket_state", "active"}});
 
@@ -1476,7 +1476,7 @@ void KVBucket::appendDatatypeStats(const DatatypeStatVisitor& active,
     }
 
     for (uint8_t ii = 0; ii < replica.getNumDatatypes(); ++ii) {
-        auto datatypeStr = mcbp::datatype::to_string(ii);
+        auto datatypeStr = cb::mcbp::datatype::to_string(ii);
         auto labelled = collector.withLabels(
                 {{"datatype", datatypeStr}, {"vbucket_state", "replica"}});
 

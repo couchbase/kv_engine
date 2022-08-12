@@ -536,12 +536,12 @@ TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
         cb::xattr::Blob blob;
         cb::compression::Buffer deflated;
 
-        if (mcbp::datatype::is_xattr(valid)) {
+        if (cb::mcbp::datatype::is_xattr(valid)) {
             blob.set("_foo"sv, R"({"bar":5})"sv);
             value = blob.finalize();
         }
 
-        if (mcbp::datatype::is_snappy(valid)) {
+        if (cb::mcbp::datatype::is_snappy(valid)) {
             cb::compression::deflate(
                     cb::compression::Algorithm::Snappy, value, deflated);
             value = deflated;
@@ -550,7 +550,8 @@ TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
         builder.setValue(value);
         EXPECT_EQ(cb::mcbp::Status::NotSupported, validate())
                 << "Testing valid datatype: "
-                << mcbp::datatype::to_string(protocol_binary_datatype_t(valid));
+                << cb::mcbp::datatype::to_string(
+                           protocol_binary_datatype_t(valid));
     }
 }
 
@@ -566,7 +567,7 @@ TEST_P(DcpDeletionValidatorTest, InvalidDatatype) {
         std::string_view value = R"({"foo":"bar"})"sv;
         cb::compression::Buffer deflated;
 
-        if (mcbp::datatype::is_snappy(invalid)) {
+        if (cb::mcbp::datatype::is_snappy(invalid)) {
             cb::compression::deflate(
                     cb::compression::Algorithm::Snappy, value, deflated);
             value = deflated;
@@ -575,7 +576,7 @@ TEST_P(DcpDeletionValidatorTest, InvalidDatatype) {
 
         EXPECT_EQ(cb::mcbp::Status::Einval, validate())
                 << "Testing invalid datatype: "
-                << mcbp::datatype::to_string(
+                << cb::mcbp::datatype::to_string(
                            protocol_binary_datatype_t(invalid));
     }
 }

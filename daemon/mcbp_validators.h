@@ -37,7 +37,8 @@ public:
     enum class ExpectedValueLen { Zero, NonZero, Any };
     enum class ExpectedCas { Set, NotSet, Any };
 
-    constexpr static uint8_t AllSupportedDatatypes = ::mcbp::datatype::highest;
+    constexpr static uint8_t AllSupportedDatatypes =
+            cb::mcbp::datatype::highest;
 
     McbpValidator();
 
