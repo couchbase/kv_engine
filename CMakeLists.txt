@@ -115,6 +115,7 @@ IF (UNIX)
     add_breakpad_test(std_exception_with_trace)
     add_breakpad_test(std_exception_via_std_thread)
     add_breakpad_test(unknown_exception)
+    add_breakpad_test(dump_fail_perm)
 
 # ELSEIF (WIN32)
 # Disable the test on Windows until we understand why we're seeing all

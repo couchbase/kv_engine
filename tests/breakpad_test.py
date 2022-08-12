@@ -226,6 +226,9 @@ class Subprocess(object):
         try:
             (_, self.stderrdata) = self.process.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
+            # The process is not killed in case of a timeout, so we do it manually
+            self.process.kill()
+            (_, self.stderrdata) = self.process.communicate()
             logging.error("Timeout waiting for process to finish " + self.args[0])
         return (self.process.returncode, self.stderrdata)
 
@@ -242,9 +245,17 @@ parser.add_argument('--source_root', help='Root of the source root used to locat
 args = parser.parse_args()
 
 # Given there are multiple breakpad tests which can run in parallel, give
-# each one it's own minidump directory.
-minidump_dir = tempfile.mkdtemp(prefix='breakpad_test_tmp.')
+# each one it's own temp directory.
+test_temp_dir = tempfile.mkdtemp(prefix='breakpad_test_tmp.')
+minidump_dir = os.path.join(test_temp_dir, "minidump")
+os.mkdir(minidump_dir)
+
 logging.debug("Using minidump_dir=" + minidump_dir)
+
+if args.crash_mode == 'dump_fail_perm':
+    # We purposefully make Breakpad fail due to a lack of permission to write to the directory by setting the
+    # permissions on the directory to read-only.
+    os.chmod(minidump_dir, mode=0o555)
 
 rbac_data = {}
 rbac_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
@@ -262,7 +273,7 @@ config = {"interfaces": [{"tag":"plain",
           "root" : os.path.abspath(args.source_root),
           "verbosity" : 2,
           "rbac_file" : os.path.abspath(rbac_file.name),
-          "logger" : { "filename" : minidump_dir + "/log"}}
+          "logger" : { "filename" : test_temp_dir + "/log"}}
 config_json = json.dumps(config)
 
 # Need a temporary file which can be opened (a second time) by memcached,
@@ -273,7 +284,10 @@ config_file.write(config_json)
 config_file.close()
 
 os.environ['MEMCACHED_UNIT_TESTS'] = "true"
-os.environ['MEMCACHED_CRASH_TEST'] = args.crash_mode
+# Use 'std_exception' crash mode for memcached when testing breakpad dump failures
+os.environ['MEMCACHED_CRASH_TEST'] = (args.crash_mode
+                                      if not args.crash_mode.startswith('dump_fail_')
+                                      else 'std_exception')
 
 mc_args = [args.memcached_exe, "-C", os.path.abspath(config_file.name)]
 
@@ -336,34 +350,53 @@ if args.breakpad:
     # Check there is a minidump path in the output.
     # MB-42657 means there can be multiple "Writing crash" messages, the last
     # one is the relevant message for this test.
-    matches = re.findall('Writing crash dump to ([\w\\\/\:\-.]+)', stderrdata)
-    if not matches:
+    path_matches = re.findall('Writing crash dump to ([\w\\\/\:\-.]+)', stderrdata)
+    success_matches = re.findall('Writing dump succeeded: (yes|no)', stderrdata)
+    if not path_matches:
         logging.error("FAIL - Unable to find crash filename in stderr.")
         print_stderrdata(stderrdata)
         cleanup_and_exit(4)
-
-    minidump = matches[-1]
-    # Check the minidump file exists on disk.
-    if not os.path.exists(minidump):
-        logging.error(
-            "FAIL - Minidump file '{0}' does not exist.".format(minidump))
+    if not success_matches:
+        logging.error("FAIL - Unable to find success status message in stderr.")
         print_stderrdata(stderrdata)
-        cleanup_and_exit(5)
+        cleanup_and_exit(4)
 
-    # On Windows we don't have md2core or gdb; so skip these tests.
-    if args.md2core_exe and args.gdb_exe:
-        check_gdb(args.memcached_exe, args.gdb_exe, args.md2core_exe, minidump)
+    minidump = path_matches[-1]
+    success = success_matches[-1] == 'yes'
+
+    if args.crash_mode.startswith('dump_fail_'):
+        if success:
+            logging.error("FAIL - Breakpad was supposed to fail but success status was printed.")
+            print_stderrdata(stderrdata)
+            cleanup_and_exit(4)
+
+        # Check that breakpad failed to write to the directory.
+        if os.path.exists(minidump):
+            logging.error("FAIL - Breakpad was supposed to fail but a minidump was written.")
+            print_stderrdata(stderrdata)
+            cleanup_and_exit(4)
     else:
-        # Check the minidump file is non-zero in size.
-        statinfo = os.stat(minidump)
-        if statinfo.st_size == 0:
+        # Non-failure mode requested. Check the minidump file exists on disk.
+        if not os.path.exists(minidump):
             logging.error(
-                "FAIL - minidump file '{0}' is zero bytes in size.".format(
-                    minidump))
-            cleanup_and_exit(14)
+                "FAIL - Minidump file '{0}' does not exist.".format(minidump))
+            print_stderrdata(stderrdata)
+            cleanup_and_exit(5)
 
-        # Done with the minidump
-        os.remove(minidump)
+        # On Windows we don't have md2core or gdb; so skip these tests.
+        if args.md2core_exe and args.gdb_exe:
+            check_gdb(args.memcached_exe, args.gdb_exe, args.md2core_exe, minidump)
+        else:
+            # Check the minidump file is non-zero in size.
+            statinfo = os.stat(minidump)
+            if statinfo.st_size == 0:
+                logging.error(
+                    "FAIL - minidump file '{0}' is zero bytes in size.".format(
+                        minidump))
+                cleanup_and_exit(14)
+
+            # Done with the minidump
+            os.remove(minidump)
 
 # Got to the end - that's a pass
 logging.info("Pass")

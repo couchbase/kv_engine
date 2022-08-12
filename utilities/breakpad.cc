@@ -144,9 +144,15 @@ static bool dumpCallback(const wchar_t* dump_path,
 
     LOG_CRITICAL(
             "Breakpad caught a crash (Couchbase version {}). Writing crash "
-            "dump to {} before terminating.",
+            "dump to {} before terminating. Writing dump succeeded: {}",
             PRODUCT_VERSION,
-            file);
+            file,
+            succeeded ? "yes" : "no");
+
+    if (!succeeded) {
+        LOG_CRITICAL("Breakpad failed to write crash dump!");
+    }
+
     dump_stack();
     cb::logger::shutdown();
     return succeeded;
@@ -163,14 +169,21 @@ static bool dumpCallback(const wchar_t* dump_path,
 static bool dumpCallback(const MinidumpDescriptor& descriptor,
                          void* context,
                          bool succeeded) {
-    auto writeFn = [&descriptor](int fd) {
+    auto writeFn = [&descriptor, succeeded](int fd) {
         if (fd == STDERR_FILENO) {
             WRITE_MSG(fd, CRITICAL_CAUGHT_CRASH_MSG);
         } else {
             WRITE_MSG(fd, CAUGHT_CRASH_MSG);
         }
         WRITE_CSTR(fd, descriptor.path());
-        WRITE_MSG(fd, " before terminating.\n");
+        WRITE_MSG(fd, " before terminating. Writing dump succeeded: ");
+        WRITE_CSTR(fd, succeeded ? "yes\n" : "no\n");
+
+        if (!succeeded) {
+            WRITE_MSG(fd,
+                      MSG_CRITICAL "Breakpad failed to write crash dump!\n");
+        }
+
         dump_stack(fd);
     };
 
