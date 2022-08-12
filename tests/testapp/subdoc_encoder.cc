@@ -112,11 +112,12 @@ std::vector<char> SubdocMultiCmd::encode_common() const {
     return request;
 }
 
-void SubdocMultiCmd::addDocFlag(mcbp::subdoc::doc_flag flags_) {
-    static const mcbp::subdoc::doc_flag validFlags =
-            mcbp::subdoc::doc_flag::Mkdoc |
-            mcbp::subdoc::doc_flag::AccessDeleted | mcbp::subdoc::doc_flag::Add;
-    if ((flags_ & ~validFlags) == mcbp::subdoc::doc_flag::None) {
+void SubdocMultiCmd::addDocFlag(cb::mcbp::subdoc::doc_flag flags_) {
+    static const cb::mcbp::subdoc::doc_flag validFlags =
+            cb::mcbp::subdoc::doc_flag::Mkdoc |
+            cb::mcbp::subdoc::doc_flag::AccessDeleted |
+            cb::mcbp::subdoc::doc_flag::Add;
+    if ((flags_ & ~validFlags) == cb::mcbp::subdoc::doc_flag::None) {
         doc_flags = doc_flags | flags_;
     } else {
         throw std::invalid_argument("addDocFlags: flags_ (which is " +

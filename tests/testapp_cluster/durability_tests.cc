@@ -60,7 +60,7 @@ protected:
                 cmd.setPath("foo.[0]");
             } else if (opcode != cb::mcbp::ClientOpcode::SubdocReplace) {
                 cmd.addPathFlags(SUBDOC_FLAG_MKDIR_P);
-                cmd.addDocFlags(mcbp::subdoc::doc_flag::Mkdoc);
+                cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::Mkdoc);
             }
         }
         cmd.addFrameInfo(DurabilityFrameInfo{cb::durability::Level::Majority});
@@ -205,7 +205,7 @@ TEST_F(DurabilityTest, SubdocMultiMutation) {
                     SUBDOC_FLAG_MKDIR_P,
                     "foo",
                     R"("value")");
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
+    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
     cmd.addFrameInfo(DurabilityFrameInfo{cb::durability::Level::Majority});
     auto rsp = getConnection()->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess())
@@ -219,8 +219,8 @@ TEST_F(DurabilityTest, SyncWriteReviveDeletedDocument) {
     BinprotSubdocMultiMutationCommand cmd;
     std::string name = "foobar";
     cmd.setKey(name);
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::CreateAsDeleted);
+    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
+    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::CreateAsDeleted);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                     SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
                     "tnx.foo",
@@ -234,9 +234,9 @@ TEST_F(DurabilityTest, SyncWriteReviveDeletedDocument) {
 
     cmd = {};
     cmd.setKey(name);
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
+    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::AccessDeleted);
     cmd.addFrameInfo(DurabilityFrameInfo{cb::durability::Level::Majority});
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::ReviveDocument);
+    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::ReviveDocument);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                     SUBDOC_FLAG_XATTR_PATH,
                     "tnx.bar",

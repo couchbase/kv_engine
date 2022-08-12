@@ -347,7 +347,7 @@ typedef enum : uint8_t {
 
 } protocol_binary_subdoc_flag;
 
-namespace mcbp::subdoc {
+namespace cb::mcbp::subdoc {
 
 /**
  * Definitions of sub-document doc flags (this is a bitmap).
@@ -404,7 +404,7 @@ enum class doc_flag : uint8_t {
  */
 static constexpr uint8_t extrasDocFlagMask = 0xe0;
 
-} // namespace mcbp::subdoc
+} // namespace cb::mcbp::subdoc
 
 /**
  * Definition of the packet used by SUBDOCUMENT single-path commands.
@@ -2150,25 +2150,26 @@ inline protocol_binary_subdoc_flag operator|(protocol_binary_subdoc_flag a,
                                        static_cast<uint8_t>(b));
 }
 
-namespace mcbp::subdoc {
-inline constexpr mcbp::subdoc::doc_flag operator|(mcbp::subdoc::doc_flag a,
-                                                  mcbp::subdoc::doc_flag b) {
-    return mcbp::subdoc::doc_flag(static_cast<uint8_t>(a) |
-                                  static_cast<uint8_t>(b));
+namespace cb::mcbp::subdoc {
+inline constexpr cb::mcbp::subdoc::doc_flag operator|(
+        cb::mcbp::subdoc::doc_flag a, cb::mcbp::subdoc::doc_flag b) {
+    return cb::mcbp::subdoc::doc_flag(static_cast<uint8_t>(a) |
+                                      static_cast<uint8_t>(b));
 }
 
-inline constexpr mcbp::subdoc::doc_flag operator&(mcbp::subdoc::doc_flag a,
-                                                  mcbp::subdoc::doc_flag b) {
-    return mcbp::subdoc::doc_flag(static_cast<uint8_t>(a) &
-                                  static_cast<uint8_t>(b));
+inline constexpr cb::mcbp::subdoc::doc_flag operator&(
+        cb::mcbp::subdoc::doc_flag a, cb::mcbp::subdoc::doc_flag b) {
+    return cb::mcbp::subdoc::doc_flag(static_cast<uint8_t>(a) &
+                                      static_cast<uint8_t>(b));
 }
 
-inline constexpr mcbp::subdoc::doc_flag operator~(mcbp::subdoc::doc_flag a) {
-    return mcbp::subdoc::doc_flag(~static_cast<uint8_t>(a));
+inline constexpr cb::mcbp::subdoc::doc_flag operator~(
+        cb::mcbp::subdoc::doc_flag a) {
+    return cb::mcbp::subdoc::doc_flag(~static_cast<uint8_t>(a));
 }
 
-inline std::string to_string(mcbp::subdoc::doc_flag a) {
-    using mcbp::subdoc::doc_flag;
+inline std::string to_string(cb::mcbp::subdoc::doc_flag a) {
+    using cb::mcbp::subdoc::doc_flag;
     switch (a) {
     case doc_flag::None:
         return "None";
@@ -2186,36 +2187,38 @@ inline std::string to_string(mcbp::subdoc::doc_flag a) {
     return std::to_string(static_cast<uint8_t>(a));
 }
 
-inline bool hasAccessDeleted(mcbp::subdoc::doc_flag a) {
-    return (a & mcbp::subdoc::doc_flag::AccessDeleted) !=
-           mcbp::subdoc::doc_flag::None;
+inline bool hasAccessDeleted(cb::mcbp::subdoc::doc_flag a) {
+    return (a & cb::mcbp::subdoc::doc_flag::AccessDeleted) !=
+           cb::mcbp::subdoc::doc_flag::None;
 }
 
-inline bool hasMkdoc(mcbp::subdoc::doc_flag a) {
-    return (a & mcbp::subdoc::doc_flag::Mkdoc) != mcbp::subdoc::doc_flag::None;
+inline bool hasMkdoc(cb::mcbp::subdoc::doc_flag a) {
+    return (a & cb::mcbp::subdoc::doc_flag::Mkdoc) !=
+           cb::mcbp::subdoc::doc_flag::None;
 }
 
-inline bool hasAdd(mcbp::subdoc::doc_flag a) {
-    return (a & mcbp::subdoc::doc_flag::Add) != mcbp::subdoc::doc_flag::None;
+inline bool hasAdd(cb::mcbp::subdoc::doc_flag a) {
+    return (a & cb::mcbp::subdoc::doc_flag::Add) !=
+           cb::mcbp::subdoc::doc_flag::None;
 }
 
-inline bool hasReviveDocument(mcbp::subdoc::doc_flag a) {
-    return (a & mcbp::subdoc::doc_flag::ReviveDocument) ==
-           mcbp::subdoc::doc_flag::ReviveDocument;
+inline bool hasReviveDocument(cb::mcbp::subdoc::doc_flag a) {
+    return (a & cb::mcbp::subdoc::doc_flag::ReviveDocument) ==
+           cb::mcbp::subdoc::doc_flag::ReviveDocument;
 }
 
-inline bool hasCreateAsDeleted(mcbp::subdoc::doc_flag a) {
-    return (a & mcbp::subdoc::doc_flag::CreateAsDeleted) !=
-           mcbp::subdoc::doc_flag::None;
+inline bool hasCreateAsDeleted(cb::mcbp::subdoc::doc_flag a) {
+    return (a & cb::mcbp::subdoc::doc_flag::CreateAsDeleted) !=
+           cb::mcbp::subdoc::doc_flag::None;
 }
 
-inline bool isNone(mcbp::subdoc::doc_flag a) {
-    return a == mcbp::subdoc::doc_flag::None;
+inline bool isNone(cb::mcbp::subdoc::doc_flag a) {
+    return a == cb::mcbp::subdoc::doc_flag::None;
 }
-inline bool impliesMkdir_p(mcbp::subdoc::doc_flag a) {
+inline bool impliesMkdir_p(cb::mcbp::subdoc::doc_flag a) {
     return hasAdd(a) || hasMkdoc(a);
 }
-} // namespace mcbp::subdoc
+} // namespace cb::mcbp::subdoc
 
 namespace cb::mcbp::cas {
 /// The special value used as a wildcard and match all CAS values

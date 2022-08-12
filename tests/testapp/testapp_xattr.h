@@ -28,7 +28,8 @@ protected:
     BinprotSubdocResponse subdoc_get(
             const std::string& path,
             protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
-            mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None) {
+            cb::mcbp::subdoc::doc_flag docFlag =
+                    cb::mcbp::subdoc::doc_flag::None) {
         return subdoc(cb::mcbp::ClientOpcode::SubdocGet,
                       name,
                       path,
@@ -39,12 +40,14 @@ protected:
 
     BinprotSubdocMultiLookupResponse subdoc_multi_lookup(
             std::vector<BinprotSubdocMultiLookupCommand::LookupSpecifier> specs,
-            mcbp::subdoc::doc_flag docFlags = mcbp::subdoc::doc_flag::None);
+            cb::mcbp::subdoc::doc_flag docFlags =
+                    cb::mcbp::subdoc::doc_flag::None);
 
     BinprotSubdocMultiMutationResponse subdoc_multi_mutation(
             std::vector<BinprotSubdocMultiMutationCommand::MutationSpecifier>
                     specs,
-            mcbp::subdoc::doc_flag docFlags = mcbp::subdoc::doc_flag::None);
+            cb::mcbp::subdoc::doc_flag docFlags =
+                    cb::mcbp::subdoc::doc_flag::None);
 
     GetMetaResponse get_meta();
 

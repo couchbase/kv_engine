@@ -361,7 +361,7 @@ void MeteringTest::upsert(std::string id,
                                 SUBDOC_FLAG_NONE,
                                 "",
                                 value);
-                cmd.addDocFlag(::mcbp::subdoc::doc_flag::Mkdoc);
+                cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
             } else {
                 cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                                 SUBDOC_FLAG_XATTR_PATH,
@@ -2459,7 +2459,7 @@ TEST_F(MeteringTest, SubdocMultiLookupAllMiss) {
             id,
             {{cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing1"},
              {cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing2"}},
-            ::mcbp::subdoc::doc_flag::None});
+            cb::mcbp::subdoc::doc_flag::None});
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, rsp.getStatus());
     ASSERT_TRUE(rsp.getReadUnits());
@@ -2479,7 +2479,7 @@ TEST_F(MeteringTest, SubdocMultiLookup) {
             id,
             {{cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "array.[0]"},
              {cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "counter"}},
-            ::mcbp::subdoc::doc_flag::None});
+            cb::mcbp::subdoc::doc_flag::None});
 
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
@@ -2506,7 +2506,7 @@ TEST_F(MeteringTest, SubdocMultiMutationAllFailed) {
               SUBDOC_FLAG_NONE,
               "foo.missing.foo",
               "true"}},
-            ::mcbp::subdoc::doc_flag::None});
+            cb::mcbp::subdoc::doc_flag::None});
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, rsp.getStatus());
     ASSERT_TRUE(rsp.getReadUnits());
@@ -2533,7 +2533,7 @@ TEST_F(MeteringTest, SubdocMultiMutation) {
               SUBDOC_FLAG_NONE,
               "bar",
               "true"}},
-            ::mcbp::subdoc::doc_flag::None});
+            cb::mcbp::subdoc::doc_flag::None});
 
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
     ASSERT_TRUE(rsp.getReadUnits());
@@ -2564,7 +2564,7 @@ TEST_F(MeteringTest, SubdocMultiMutation_Durability) {
               SUBDOC_FLAG_NONE,
               "bar",
               "true"}},
-            ::mcbp::subdoc::doc_flag::None};
+            cb::mcbp::subdoc::doc_flag::None};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
 
@@ -2599,7 +2599,7 @@ TEST_F(MeteringTest, SubdocReplaceBodyWithXattr) {
               SUBDOC_FLAG_XATTR_PATH,
               "tnx.op.staged",
               {}}},
-            ::mcbp::subdoc::doc_flag::None});
+            cb::mcbp::subdoc::doc_flag::None});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
 
     ASSERT_TRUE(rsp.getReadUnits());
@@ -2629,7 +2629,7 @@ TEST_F(MeteringTest, SubdocReplaceBodyWithXattr_Durability) {
               SUBDOC_FLAG_XATTR_PATH,
               "tnx.op.staged",
               {}}},
-            ::mcbp::subdoc::doc_flag::None};
+            cb::mcbp::subdoc::doc_flag::None};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
 

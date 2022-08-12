@@ -43,7 +43,7 @@ static cb::mcbp::Status validate_basic_header_fields(Cookie& cookie) {
     return cb::mcbp::Status::Success;
 }
 
-static inline bool validMutationSemantics(mcbp::subdoc::doc_flag a) {
+static inline bool validMutationSemantics(cb::mcbp::subdoc::doc_flag a) {
     // Can't have both the Add flag and Mkdoc flag set as this doesn't mean
     // anything at the moment.
     return !(hasAdd(a) && hasMkdoc(a));
@@ -196,12 +196,13 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
     }
 
     const auto doc_flags = parser.getDocFlag();
-    if ((doc_flags & ~traits.valid_doc_flags) != mcbp::subdoc::doc_flag::None) {
+    if ((doc_flags & ~traits.valid_doc_flags) !=
+        cb::mcbp::subdoc::doc_flag::None) {
         cookie.setErrorContext("Request document flags invalid");
         return cb::mcbp::Status::Einval;
     }
 
-    if (mcbp::subdoc::hasCreateAsDeleted(doc_flags)) {
+    if (cb::mcbp::subdoc::hasCreateAsDeleted(doc_flags)) {
         if (!hasAdd(doc_flags) && !hasMkdoc(doc_flags)) {
             cookie.setErrorContext("CreateAsDeleted requires Mkdoc or Add");
             return cb::mcbp::Status::Einval;
@@ -358,7 +359,7 @@ static cb::mcbp::Status is_valid_multipath_spec(
         size_t& spec_len,
         bool& xattr,
         std::string_view& xattr_key,
-        mcbp::subdoc::doc_flag doc_flags,
+        cb::mcbp::subdoc::doc_flag doc_flags,
         bool& is_singleton) {
     // Decode the operation spec from the body. Slightly different struct
     // depending on LOOKUP/MUTATION.
@@ -432,7 +433,7 @@ static cb::mcbp::Status is_valid_multipath_spec(
     }
 
     if ((doc_flags & ~op_traits.valid_doc_flags) !=
-        mcbp::subdoc::doc_flag::None) {
+        cb::mcbp::subdoc::doc_flag::None) {
         cookie.setErrorContext("Request document flags invalid");
         return cb::mcbp::Status::Einval;
     }
@@ -534,13 +535,13 @@ static cb::mcbp::Status subdoc_multi_validator(
         return cb::mcbp::Status::Einval;
     }
 
-    if (mcbp::subdoc::hasReviveDocument(doc_flags)) {
-        if (!mcbp::subdoc::hasAccessDeleted(doc_flags)) {
+    if (cb::mcbp::subdoc::hasReviveDocument(doc_flags)) {
+        if (!cb::mcbp::subdoc::hasAccessDeleted(doc_flags)) {
             cookie.setErrorContext(
                     "ReviveDocument can't be used without AccessDeleted");
             return cb::mcbp::Status::Einval;
         }
-        if (mcbp::subdoc::hasCreateAsDeleted(doc_flags)) {
+        if (cb::mcbp::subdoc::hasCreateAsDeleted(doc_flags)) {
             cookie.setErrorContext(
                     "ReviveDocument can't be used with CreateAsDeleted");
             return cb::mcbp::Status::Einval;

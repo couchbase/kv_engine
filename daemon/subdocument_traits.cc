@@ -71,7 +71,7 @@ SubdocCmdTraits get_subdoc_cmd_traits(cb::mcbp::ClientOpcode cmd) {
                 cb::mcbp::ClientOpcode::Invalid,
                 SUBDOC_FLAG_NONE,
                 SUBDOC_FLAG_NONE,
-                mcbp::subdoc::doc_flag::None,
+                cb::mcbp::subdoc::doc_flag::None,
                 false,
                 false,
                 ResponseValue::None,

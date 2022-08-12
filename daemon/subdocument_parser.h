@@ -37,11 +37,11 @@ public:
         return 0;
     }
 
-    ::mcbp::subdoc::doc_flag getDocFlag() const {
+    cb::mcbp::subdoc::doc_flag getDocFlag() const {
         if (extras.size() == 4 || extras.size() == 8) {
-            return static_cast<::mcbp::subdoc::doc_flag>(extras.back());
+            return static_cast<cb::mcbp::subdoc::doc_flag>(extras.back());
         }
-        return ::mcbp::subdoc::doc_flag::None;
+        return cb::mcbp::subdoc::doc_flag::None;
     }
 
     bool isValid() const {
@@ -50,7 +50,7 @@ public:
         case 4: // including doc flags
         case 7: // including expiry
         case 8: // including expiry and doc flags
-            if ((::mcbp::subdoc::extrasDocFlagMask & uint8_t(getDocFlag())) !=
+            if ((cb::mcbp::subdoc::extrasDocFlagMask & uint8_t(getDocFlag())) !=
                 0) {
                 return false;
             }
@@ -77,11 +77,11 @@ public:
         return 0;
     }
 
-    ::mcbp::subdoc::doc_flag getDocFlag() const {
+    cb::mcbp::subdoc::doc_flag getDocFlag() const {
         if (extras.size() == 1 || extras.size() == 5) {
-            return static_cast<::mcbp::subdoc::doc_flag>(extras.back());
+            return static_cast<cb::mcbp::subdoc::doc_flag>(extras.back());
         }
-        return ::mcbp::subdoc::doc_flag::None;
+        return cb::mcbp::subdoc::doc_flag::None;
     }
 
     bool isValid() const {
@@ -90,7 +90,7 @@ public:
         case 1: // Only doc flag
         case 4: // Expiry time
         case 5: // Expiry time and doc flag
-            if ((::mcbp::subdoc::extrasDocFlagMask & uint8_t(getDocFlag())) !=
+            if ((cb::mcbp::subdoc::extrasDocFlagMask & uint8_t(getDocFlag())) !=
                 0) {
                 return false;
             }

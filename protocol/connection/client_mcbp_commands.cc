@@ -224,7 +224,7 @@ BinprotSubdocCommand::BinprotSubdocCommand(
         const std::string& path_,
         const std::string& value_,
         protocol_binary_subdoc_flag pathFlags_,
-        mcbp::subdoc::doc_flag docFlags_,
+        cb::mcbp::subdoc::doc_flag docFlags_,
         uint64_t cas_)
     : BinprotCommand() {
     setOp(cmd_);
@@ -274,8 +274,8 @@ void BinprotSubdocCommand::encode(std::vector<uint8_t>& buf) const {
     }
 
     if (include_doc_flags) {
-        buf.push_back(
-                std::underlying_type<mcbp::subdoc::doc_flag>::type(doc_flags));
+        buf.push_back(std::underlying_type<cb::mcbp::subdoc::doc_flag>::type(
+                doc_flags));
     }
 
     // Add Body: key; path; value if applicable.
@@ -296,7 +296,7 @@ BinprotSubdocCommand::BinprotSubdocCommand(cb::mcbp::ClientOpcode cmd_,
                            path_,
                            "",
                            SUBDOC_FLAG_NONE,
-                           mcbp::subdoc::doc_flag::None,
+                           cb::mcbp::subdoc::doc_flag::None,
                            0) {
 }
 BinprotSubdocCommand& BinprotSubdocCommand::setValue(std::string value_) {
@@ -318,11 +318,11 @@ BinprotSubdocCommand& BinprotSubdocCommand::addPathFlags(
     return *this;
 }
 BinprotSubdocCommand& BinprotSubdocCommand::addDocFlags(
-        mcbp::subdoc::doc_flag flags_) {
-    using namespace mcbp::subdoc;
+        cb::mcbp::subdoc::doc_flag flags_) {
+    using namespace cb::mcbp::subdoc;
     constexpr doc_flag validFlags = doc_flag::Mkdoc | doc_flag::AccessDeleted |
                                     doc_flag::Add | doc_flag::CreateAsDeleted;
-    if ((flags_ & ~validFlags) == mcbp::subdoc::doc_flag::None) {
+    if ((flags_ & ~validFlags) == cb::mcbp::subdoc::doc_flag::None) {
         doc_flags = doc_flags | flags_;
     } else {
         throw std::invalid_argument("addDocFlags: flags_ (which is " +
@@ -960,14 +960,14 @@ void BinprotSubdocMultiMutationCommand::encode(std::vector<uint8_t>& buf) const 
     }
 }
 BinprotSubdocMultiMutationCommand::BinprotSubdocMultiMutationCommand()
-    : BinprotCommand(), docFlags(mcbp::subdoc::doc_flag::None) {
+    : BinprotCommand(), docFlags(cb::mcbp::subdoc::doc_flag::None) {
     setOp(cb::mcbp::ClientOpcode::SubdocMultiMutation);
 }
 
 BinprotSubdocMultiMutationCommand::BinprotSubdocMultiMutationCommand(
         std::string key,
         std::vector<MutationSpecifier> specs,
-        mcbp::subdoc::doc_flag docFlags,
+        cb::mcbp::subdoc::doc_flag docFlags,
         const std::optional<cb::durability::Requirements>& durReqs)
     : BinprotCommand(), specs(std::move(specs)), docFlags(docFlags) {
     setOp(cb::mcbp::ClientOpcode::SubdocMultiMutation);
@@ -978,8 +978,9 @@ BinprotSubdocMultiMutationCommand::BinprotSubdocMultiMutationCommand(
 }
 
 BinprotSubdocMultiMutationCommand&
-BinprotSubdocMultiMutationCommand::addDocFlag(mcbp::subdoc::doc_flag docFlag) {
-    using namespace mcbp::subdoc;
+BinprotSubdocMultiMutationCommand::addDocFlag(
+        cb::mcbp::subdoc::doc_flag docFlag) {
+    using namespace cb::mcbp::subdoc;
     constexpr doc_flag validFlags = doc_flag::Mkdoc | doc_flag::AccessDeleted |
                                     doc_flag::Add | doc_flag::CreateAsDeleted |
                                     doc_flag::ReviveDocument;
@@ -1037,7 +1038,7 @@ void BinprotSubdocMultiMutationCommand::clearMutations() {
     specs.clear();
 }
 void BinprotSubdocMultiMutationCommand::clearDocFlags() {
-    docFlags = mcbp::subdoc::doc_flag::None;
+    docFlags = cb::mcbp::subdoc::doc_flag::None;
 }
 
 void BinprotSubdocMultiMutationResponse::assign(std::vector<uint8_t>&& buf) {
@@ -1139,14 +1140,14 @@ void BinprotSubdocMultiLookupCommand::encode(std::vector<uint8_t>& buf) const {
     }
 }
 BinprotSubdocMultiLookupCommand::BinprotSubdocMultiLookupCommand()
-    : BinprotCommand(), docFlags(mcbp::subdoc::doc_flag::None) {
+    : BinprotCommand(), docFlags(cb::mcbp::subdoc::doc_flag::None) {
     setOp(cb::mcbp::ClientOpcode::SubdocMultiLookup);
 }
 
 BinprotSubdocMultiLookupCommand::BinprotSubdocMultiLookupCommand(
         std::string key,
         std::vector<LookupSpecifier> specs,
-        mcbp::subdoc::doc_flag docFlags)
+        cb::mcbp::subdoc::doc_flag docFlags)
     : BinprotCommand(), specs(std::move(specs)), docFlags(docFlags) {
     setOp(cb::mcbp::ClientOpcode::SubdocMultiLookup);
     setKey(key);
@@ -1176,11 +1177,12 @@ BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addGetcount(
     return addLookup(path, cb::mcbp::ClientOpcode::SubdocGetCount, flags);
 }
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addDocFlag(
-        mcbp::subdoc::doc_flag docFlag) {
-    static const mcbp::subdoc::doc_flag validFlags =
-            mcbp::subdoc::doc_flag::Mkdoc |
-            mcbp::subdoc::doc_flag::AccessDeleted | mcbp::subdoc::doc_flag::Add;
-    if ((docFlag & ~validFlags) == mcbp::subdoc::doc_flag::None) {
+        cb::mcbp::subdoc::doc_flag docFlag) {
+    static const cb::mcbp::subdoc::doc_flag validFlags =
+            cb::mcbp::subdoc::doc_flag::Mkdoc |
+            cb::mcbp::subdoc::doc_flag::AccessDeleted |
+            cb::mcbp::subdoc::doc_flag::Add;
+    if ((docFlag & ~validFlags) == cb::mcbp::subdoc::doc_flag::None) {
         docFlags = docFlags | docFlag;
     } else {
         throw std::invalid_argument("addDocFlag: docFlag (Which is " +
@@ -1206,7 +1208,7 @@ size_t BinprotSubdocMultiLookupCommand::size() const {
     return specs.size();
 }
 void BinprotSubdocMultiLookupCommand::clearDocFlags() {
-    docFlags = mcbp::subdoc::doc_flag::None;
+    docFlags = cb::mcbp::subdoc::doc_flag::None;
 }
 
 void BinprotSubdocMultiLookupResponse::assign(std::vector<uint8_t>&& buf) {

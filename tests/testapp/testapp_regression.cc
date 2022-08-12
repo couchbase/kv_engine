@@ -71,7 +71,7 @@ TEST_P(RegressionTest, MB_26828_AddIsUnaffected) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
 
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
+    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
     cmd.addMutation(
             cb::mcbp::ClientOpcode::SubdocArrayPushLast,
             SUBDOC_FLAG_MKDIR_P,
@@ -118,7 +118,7 @@ TEST_P(RegressionTest, MB_26828_SetIsFixed) {
                                                /*unused*/ {},
                                                sequence);
 
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
+    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
 
     cmd.addMutation(
             cb::mcbp::ClientOpcode::SubdocArrayPushLast,

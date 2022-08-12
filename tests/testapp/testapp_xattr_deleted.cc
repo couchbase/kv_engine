@@ -18,7 +18,7 @@
 
 #include "testapp_xattr.h"
 
-using namespace mcbp::subdoc;
+using namespace cb::mcbp::subdoc;
 using namespace cb::mcbp;
 
 // Negative test: The subdoc operation returns Einval as
@@ -90,7 +90,7 @@ void XattrNoDocTest::testSinglePathDictAdd() {
     // not existing with normal subdoc operations.
     auto lookup = subdoc_multi_lookup(
             {{cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
-            mcbp::subdoc::doc_flag::AccessDeleted);
+            cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               lookup.getStatus());
 
@@ -138,7 +138,7 @@ void XattrNoDocTest::testMultipathDictAdd() {
     // not existing with normal subdoc operations.
     auto lookup = subdoc_multi_lookup(
             {{cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
-            mcbp::subdoc::doc_flag::AccessDeleted);
+            cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               lookup.getStatus());
 

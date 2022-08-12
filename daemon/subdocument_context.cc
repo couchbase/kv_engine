@@ -111,7 +111,7 @@ static void subdoc_print_command(Connection& c,
  * Definitions
  */
 void SubdocCmdContext::create_single_path_context(
-        mcbp::subdoc::doc_flag doc_flags) {
+        cb::mcbp::subdoc::doc_flag doc_flags) {
     const auto& request = cookie.getRequest();
     const auto extras = request.getExtdata();
     cb::mcbp::request::SubdocPayloadParser parser(extras);
@@ -179,7 +179,7 @@ void SubdocCmdContext::create_single_path_context(
 }
 
 void SubdocCmdContext::create_multi_path_context(
-        mcbp::subdoc::doc_flag doc_flags) {
+        cb::mcbp::subdoc::doc_flag doc_flags) {
     // Decode each of lookup specs from the value into our command context.
     const auto& request = cookie.getRequest();
     const auto valbuf = request.getValue();
@@ -275,21 +275,21 @@ void SubdocCmdContext::create_multi_path_context(
 SubdocCmdContext::SubdocCmdContext(Cookie& cookie_,
                                    const SubdocCmdTraits traits_,
                                    Vbid vbucket_,
-                                   mcbp::subdoc::doc_flag doc_flags)
+                                   cb::mcbp::subdoc::doc_flag doc_flags)
     : cookie(cookie_),
       connection(cookie_.getConnection()),
       traits(traits_),
       vbucket(vbucket_),
-      do_allow_deleted_docs(mcbp::subdoc::hasAccessDeleted(doc_flags)),
-      createState(mcbp::subdoc::hasCreateAsDeleted(doc_flags)
+      do_allow_deleted_docs(cb::mcbp::subdoc::hasAccessDeleted(doc_flags)),
+      createState(cb::mcbp::subdoc::hasCreateAsDeleted(doc_flags)
                           ? DocumentState::Deleted
                           : DocumentState::Alive),
-      mutationSemantics(mcbp::subdoc::hasAdd(doc_flags)
+      mutationSemantics(cb::mcbp::subdoc::hasAdd(doc_flags)
                                 ? MutationSemantics::Add
-                                : mcbp::subdoc::hasMkdoc(doc_flags)
-                                          ? MutationSemantics::Set
-                                          : MutationSemantics::Replace),
-      reviveDocument(mcbp::subdoc::hasReviveDocument(doc_flags)) {
+                        : cb::mcbp::subdoc::hasMkdoc(doc_flags)
+                                ? MutationSemantics::Set
+                                : MutationSemantics::Replace),
+      reviveDocument(cb::mcbp::subdoc::hasReviveDocument(doc_flags)) {
     switch (traits.path) {
     case SubdocPath::SINGLE:
         create_single_path_context(doc_flags);

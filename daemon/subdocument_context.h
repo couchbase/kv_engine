@@ -87,7 +87,7 @@ public:
     SubdocCmdContext(Cookie& cookie_,
                      const SubdocCmdTraits traits_,
                      Vbid vbucket_,
-                     mcbp::subdoc::doc_flag doc_flags);
+                     cb::mcbp::subdoc::doc_flag doc_flags);
 
     cb::engine_errc pre_link_document(item_info& info) override;
 
@@ -416,9 +416,9 @@ private:
 
     std::string_view expand_virtual_document_macro(std::string_view macro);
 
-    void create_single_path_context(mcbp::subdoc::doc_flag doc_flags);
+    void create_single_path_context(cb::mcbp::subdoc::doc_flag doc_flags);
 
-    void create_multi_path_context(mcbp::subdoc::doc_flag doc_flags);
+    void create_multi_path_context(cb::mcbp::subdoc::doc_flag doc_flags);
 
     // The xattr key being accessed in this command
     std::string xattr_key;

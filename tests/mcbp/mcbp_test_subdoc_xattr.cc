@@ -31,7 +31,7 @@ public:
           path("_sync.cas"),
           value("\"${Mutation.CAS}\""),
           flags(SUBDOC_FLAG_XATTR_PATH),
-          docFlags(mcbp::subdoc::doc_flag::None) {
+          docFlags(cb::mcbp::subdoc::doc_flag::None) {
     }
 
     void SetUp() override {
@@ -136,7 +136,7 @@ protected:
     std::string path;
     std::string value;
     uint8_t flags;
-    mcbp::subdoc::doc_flag docFlags;
+    cb::mcbp::subdoc::doc_flag docFlags;
 };
 
 INSTANTIATE_TEST_SUITE_P(
@@ -181,16 +181,17 @@ TEST_P(SubdocXattrSingleTest, ValidateFlags) {
 
     // Access Deleted should pass without XATTR flag
     flags = SUBDOC_FLAG_NONE;
-    docFlags = mcbp::subdoc::doc_flag::AccessDeleted;
+    docFlags = cb::mcbp::subdoc::doc_flag::AccessDeleted;
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
     flags |= SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
     // Check that Add & Mkdoc can't be used together
-    docFlags = mcbp::subdoc::doc_flag::Mkdoc | mcbp::subdoc::doc_flag::Add;
+    docFlags =
+            cb::mcbp::subdoc::doc_flag::Mkdoc | cb::mcbp::subdoc::doc_flag::Add;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-    docFlags = mcbp::subdoc::doc_flag::AccessDeleted;
+    docFlags = cb::mcbp::subdoc::doc_flag::AccessDeleted;
 
     flags |= SUBDOC_FLAG_EXPAND_MACROS;
     if (allowMacroExpansion()) {
@@ -284,7 +285,7 @@ TEST_P(SubdocXattrMultiLookupTest, XattrFlagsMakeSense) {
 
     // Let's try a valid access deleted flag
     request[0].flags = SUBDOC_FLAG_NONE;
-    request.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
+    request.addDocFlag(cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
     // We should be able to access deleted docs if both flags are set
@@ -297,7 +298,7 @@ TEST_P(SubdocXattrMultiLookupTest, AllowWholeDocAndXattrLookup) {
                        SUBDOC_FLAG_XATTR_PATH,
                        "_sync"});
     request.addLookup({cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""});
-    request.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
+    request.addDocFlag(cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
@@ -395,7 +396,7 @@ TEST_P(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
     request[0].flags = SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
-    request.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
+    request.addDocFlag(cb::mcbp::subdoc::doc_flag::AccessDeleted);
     request[0].flags = SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
@@ -405,7 +406,7 @@ TEST_P(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
 
     // Let's try a valid access deleted flag
     request[0].flags = SUBDOC_FLAG_NONE;
-    request.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
+    request.addDocFlag(cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
     // We should be able to access deleted docs if both flags are set

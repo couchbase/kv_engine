@@ -38,7 +38,7 @@
 static const std::array<SubdocCmdContext::Phase, 2> phases{{SubdocCmdContext::Phase::XATTR,
                                                             SubdocCmdContext::Phase::Body}};
 
-using namespace mcbp::subdoc;
+using namespace cb::mcbp::subdoc;
 
 /******************************************************************************
  * Subdocument executors

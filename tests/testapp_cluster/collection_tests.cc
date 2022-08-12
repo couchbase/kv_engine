@@ -93,7 +93,7 @@ static BinprotSubdocCommand subdocInsertXattrPath(const std::string& key,
                                 path,
                                 "{}",
                                 SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
-                                mcbp::subdoc::doc_flag::Mkdoc);
+                                cb::mcbp::subdoc::doc_flag::Mkdoc);
 }
 
 void CollectionsTests::testSubdocRbac(MemcachedConnection& conn,

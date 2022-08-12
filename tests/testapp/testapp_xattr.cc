@@ -19,14 +19,14 @@ using namespace cb::mcbp;
 
 BinprotSubdocMultiLookupResponse XattrNoDocTest::subdoc_multi_lookup(
         std::vector<BinprotSubdocMultiLookupCommand::LookupSpecifier> specs,
-        mcbp::subdoc::doc_flag docFlags) {
+        cb::mcbp::subdoc::doc_flag docFlags) {
     BinprotSubdocMultiLookupCommand cmd{name, specs, docFlags};
     return BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
 }
 
 BinprotSubdocMultiMutationResponse XattrNoDocTest::subdoc_multi_mutation(
         std::vector<BinprotSubdocMultiMutationCommand::MutationSpecifier> specs,
-        mcbp::subdoc::doc_flag docFlags) {
+        cb::mcbp::subdoc::doc_flag docFlags) {
     BinprotSubdocMultiMutationCommand cmd{name, specs, docFlags};
     userConnection->sendCommand(cmd);
     BinprotSubdocMultiMutationResponse multiResp;
@@ -390,7 +390,7 @@ TEST_P(XattrTest, SetXattrAndBodyNewDoc) {
                     sysXattr,
                     xattrVal);
     cmd.addMutation(cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
+    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
 
     testBodyAndXattrCmd(cmd);
 }
@@ -407,7 +407,7 @@ TEST_P(XattrTest, SetXattrNoValueNewDocDict) {
                        "meta.deleted",
                        "true",
                        SUBDOC_FLAG_XATTR_PATH,
-                       mcbp::subdoc::doc_flag::Mkdoc);
+                       cb::mcbp::subdoc::doc_flag::Mkdoc);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     auto doc = userConnection->get(name, Vbid(0));
@@ -428,7 +428,7 @@ TEST_P(XattrTest, SetXattrNoValueNewDocArray) {
                        "array",
                        "0",
                        SUBDOC_FLAG_XATTR_PATH,
-                       mcbp::subdoc::doc_flag::Mkdoc);
+                       cb::mcbp::subdoc::doc_flag::Mkdoc);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // Expect value to be empty JSON object.
@@ -450,7 +450,7 @@ TEST_P(XattrTest, SetXattrNoValueNewDocMultipathDict) {
                                     SUBDOC_FLAG_XATTR_PATH,
                                     "meta.deleted",
                                     "true"}},
-                                  mcbp::subdoc::doc_flag::Mkdoc);
+                                  cb::mcbp::subdoc::doc_flag::Mkdoc);
     ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
 
     // Expect value to be empty JSON object.
@@ -472,7 +472,7 @@ TEST_P(XattrTest, SetXattrNoValueNewDocMultipathArray) {
                                     SUBDOC_FLAG_XATTR_PATH,
                                     "meta.ids",
                                     "123"}},
-                                  mcbp::subdoc::doc_flag::Mkdoc);
+                                  cb::mcbp::subdoc::doc_flag::Mkdoc);
     ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
 
     // Expect value to be empty JSON dict.
@@ -494,7 +494,7 @@ TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {
                     sysXattr,
                     xattrVal);
     cmd.addMutation(cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
+    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
 
     testBodyAndXattrCmd(cmd);
 
@@ -552,7 +552,7 @@ TEST_P(XattrTest, SetXattrAndBodyInvalidFlags) {
 
     // Should not be able to set all XATTRs
     cmd.addMutation(cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
+    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::AccessDeleted);
 
     userConnection->sendCommand(cmd);
 
@@ -596,7 +596,7 @@ TEST_P(XattrTest, AddBodyAndXattr) {
                     sysXattr,
                     xattrVal);
     cmd.addMutation(cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
+    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
 
     userConnection->sendCommand(cmd);
 
@@ -619,7 +619,7 @@ TEST_P(XattrTest, AddBodyAndXattrAlreadyExistDoc) {
                     sysXattr,
                     xattrVal);
     cmd.addMutation(cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
+    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
 
     userConnection->sendCommand(cmd);
 
@@ -644,8 +644,8 @@ TEST_P(XattrTest, AddBodyAndXattrInvalidDocFlags) {
                     sysXattr,
                     xattrVal);
     cmd.addMutation(cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
+    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
+    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
 
     userConnection->sendCommand(cmd);
 
@@ -769,18 +769,18 @@ TEST_P(XattrTest, AddSystemXattrToDeletedItem) {
                        "_sync.deleted",
                        "true",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
-                       mcbp::subdoc::doc_flag::AccessDeleted);
+                       cb::mcbp::subdoc::doc_flag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
     resp = subdoc_get("_sync.deleted",
                       SUBDOC_FLAG_XATTR_PATH,
-                      mcbp::subdoc::doc_flag::AccessDeleted);
+                      cb::mcbp::subdoc::doc_flag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("true", resp.getValue());
 }
 
 TEST_P(XattrTest, AddUserXattrToDeletedItem) {
-    using namespace mcbp::subdoc;
+    using namespace cb::mcbp::subdoc;
     userConnection->remove(name, Vbid(0));
 
     // let's add a user XATTR to the deleted document
@@ -1204,8 +1204,8 @@ TEST_P(XattrDisabledTest, VerifyNotEnabled) {
     cmd.setPath("_sync.deleted");
     cmd.setValue("true");
     cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    cmd.addDocFlags(mcbp::subdoc::doc_flag::AccessDeleted |
-                    mcbp::subdoc::doc_flag::Mkdoc);
+    cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::AccessDeleted |
+                    cb::mcbp::subdoc::doc_flag::Mkdoc);
     userConnection->sendCommand(cmd);
 
     BinprotSubdocResponse resp;
@@ -1517,7 +1517,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
               SUBDOC_FLAG_XATTR_PATH,
               sysXattr},
              {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
-            mcbp::subdoc::doc_flag::AccessDeleted);
+            cb::mcbp::subdoc::doc_flag::AccessDeleted);
 
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
@@ -1537,7 +1537,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyWithoutXattr) {
               SUBDOC_FLAG_XATTR_PATH,
               sysXattr},
              {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
-            mcbp::subdoc::doc_flag::AccessDeleted);
+            cb::mcbp::subdoc::doc_flag::AccessDeleted);
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
 
@@ -1562,7 +1562,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeletedAndEmpty) {
               SUBDOC_FLAG_XATTR_PATH,
               sysXattr},
              {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
-            mcbp::subdoc::doc_flag::AccessDeleted);
+            cb::mcbp::subdoc::doc_flag::AccessDeleted);
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               multiResp.getStatus());
@@ -1586,7 +1586,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyNonJSON) {
               SUBDOC_FLAG_XATTR_PATH,
               sysXattr},
              {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
-            mcbp::subdoc::doc_flag::AccessDeleted);
+            cb::mcbp::subdoc::doc_flag::AccessDeleted);
 
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
@@ -1710,7 +1710,7 @@ TEST_P(XattrTest, MB23808_MultiPathFailureDeleted) {
              {ClientOpcode::SubdocGet,
               SUBDOC_FLAG_XATTR_PATH,
               "_sync.non_existant"}},
-            mcbp::subdoc::doc_flag::AccessDeleted);
+            cb::mcbp::subdoc::doc_flag::AccessDeleted);
 
     // We expect to successfully access the first (existing) XATTR; but not
     // the second.
@@ -1746,7 +1746,7 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
 
     auto resp = subdoc_get(sysXattr,
                            SUBDOC_FLAG_XATTR_PATH,
-                           mcbp::subdoc::doc_flag::AccessDeleted);
+                           cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ(xattrVal, resp.getValue());
 
@@ -1761,7 +1761,7 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
     // Worth noting the difference in the way it fails if AccessDeleted is set.
     getResp = subdoc_multi_lookup(
             {{cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
-            mcbp::subdoc::doc_flag::AccessDeleted);
+            cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               getResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent,
@@ -1796,13 +1796,13 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
     // system Xattrs
     resp = subdoc_get("userXattr",
                       SUBDOC_FLAG_XATTR_PATH,
-                      mcbp::subdoc::doc_flag::AccessDeleted);
+                      cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
 
     // System Xattr should still be there so lets check it
     resp = subdoc_get(sysXattr,
                       SUBDOC_FLAG_XATTR_PATH,
-                      mcbp::subdoc::doc_flag::AccessDeleted);
+                      cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ(xattrVal, resp.getValue());
 }
@@ -1891,7 +1891,7 @@ TEST_P(XattrTest, mb25928_UserCantExceedDocumentLimit) {
     cmd.setPath("user.long_string");
     cmd.setValue(value);
     cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    cmd.addDocFlags(mcbp::subdoc::doc_flag::None);
+    cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::None);
 
     const auto resp = userConnection->execute(cmd);
     EXPECT_FALSE(resp.isSuccess());
@@ -1923,7 +1923,7 @@ TEST_P(XattrTest, mb25928_SystemCanExceedDocumentLimit) {
     cmd.setPath("_system.long_string");
     cmd.setValue(value);
     cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    cmd.addDocFlags(mcbp::subdoc::doc_flag::None);
+    cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::None);
 
     const auto resp = userConnection->execute(cmd);
     EXPECT_TRUE(resp.isSuccess())
@@ -1953,7 +1953,7 @@ TEST_P(XattrTest, mb25928_SystemCantExceedSystemLimit) {
     cmd.setPath("_system.long_string");
     cmd.setValue(value);
     cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    cmd.addDocFlags(mcbp::subdoc::doc_flag::None);
+    cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::None);
 
     const auto resp = userConnection->execute(cmd);
     EXPECT_FALSE(resp.isSuccess());
@@ -2223,7 +2223,7 @@ TEST_P(XattrTest, ReplaceBodyWithXattr_WithoutXattrFlag) {
             "tnx.op.staged",
             {},
             SUBDOC_FLAG_NONE,
-            mcbp::subdoc::doc_flag::None,
+            cb::mcbp::subdoc::doc_flag::None,
             0});
     ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
 }
