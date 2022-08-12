@@ -199,7 +199,7 @@ TEST_P(ArithmeticTest, TestMutationInfo) {
 
 TEST_P(ArithmeticTest, TestIllegalDatatype) {
     Document doc;
-    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.cas = cb::mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     doc.value = memcached_cfg.dump();
@@ -332,7 +332,7 @@ static void test_stored_doc(MemcachedConnection& conn,
                             bool badval) {
 
     Document doc;
-    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.cas = cb::mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = key;
     doc.value = content;

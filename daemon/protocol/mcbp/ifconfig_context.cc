@@ -96,7 +96,7 @@ cb::engine_errc IfconfigCommandContext::done() {
                         payload,
                         payload.empty() ? cb::mcbp::Datatype::Raw
                                         : cb::mcbp::Datatype::JSON,
-                        mcbp::cas::Wildcard);
+                        cb::mcbp::cas::Wildcard);
     return cb::engine_errc::success;
 }
 

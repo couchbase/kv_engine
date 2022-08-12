@@ -147,7 +147,7 @@ TEST_P(RegressionTest, MB_26828_SetIsFixed) {
  */
 TEST_P(RegressionTest, MB_31070) {
     Document document;
-    document.info.cas = mcbp::cas::Wildcard;
+    document.info.cas = cb::mcbp::cas::Wildcard;
     document.info.flags = 0xcaffee;
     document.info.id = name;
     document.info.expiration = 30;
@@ -190,7 +190,7 @@ TEST_P(RegressionTest, MB_31070) {
  */
 TEST_P(RegressionTest, MB_31149) {
     Document document;
-    document.info.cas = mcbp::cas::Wildcard;
+    document.info.cas = cb::mcbp::cas::Wildcard;
     document.info.flags = 0xcaffee;
     document.info.id = name;
     document.info.expiration = 30;

@@ -105,7 +105,7 @@ TEST_P(WithMetaTest, basicSet) {
     try {
         resp = userConnection->mutateWithMeta(document,
                                               Vbid(0),
-                                              mcbp::cas::Wildcard,
+                                              cb::mcbp::cas::Wildcard,
                                               /*seqno*/ 1,
                                               /*options*/ 0,
                                               {});
@@ -126,7 +126,7 @@ TEST_P(WithMetaTest, basicSetXattr) {
     try {
         resp = userConnection->mutateWithMeta(document,
                                               Vbid(0),
-                                              mcbp::cas::Wildcard,
+                                              cb::mcbp::cas::Wildcard,
                                               /*seqno*/ 1,
                                               /*options*/ 0,
                                               {});
@@ -153,7 +153,7 @@ TEST_P(WithMetaTest, MB36304_DocumetTooBig) {
     document.compress();
     try {
         userConnection->mutateWithMeta(
-                document, Vbid(0), mcbp::cas::Wildcard, 1, 0, {});
+                document, Vbid(0), cb::mcbp::cas::Wildcard, 1, 0, {});
         FAIL() << "It should not be possible to store documents which exceeds "
                   "the max document size";
     } catch (const ConnectionError& error) {
@@ -178,7 +178,7 @@ TEST_P(WithMetaTest, MB36304_DocumentMaxSizeWithXattr) {
     document.value.resize((20 * 1024 * 1024) + xattrValue.size());
     document.info.datatype = cb::mcbp::Datatype::Xattr;
     userConnection->mutateWithMeta(
-            document, Vbid(0), mcbp::cas::Wildcard, 1, 0, {});
+            document, Vbid(0), cb::mcbp::cas::Wildcard, 1, 0, {});
     userConnection->remove(name, Vbid(0));
 }
 

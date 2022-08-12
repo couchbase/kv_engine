@@ -805,7 +805,7 @@ void TestappTest::store_document(std::string key,
                                  bool compress) {
     Document document;
 
-    document.info.cas = mcbp::cas::Wildcard;
+    document.info.cas = cb::mcbp::cas::Wildcard;
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.info.expiration = expiration;
     document.info.flags = flags;

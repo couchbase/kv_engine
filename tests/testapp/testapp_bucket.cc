@@ -219,7 +219,7 @@ TEST_P(BucketTest, DeleteWhileSendDataAndFullWriteBuffer) {
     Document document;
     document.info.id = name;
     document.info.flags = 0xdeadbeef;
-    document.info.cas = mcbp::cas::Wildcard;
+    document.info.cas = cb::mcbp::cas::Wildcard;
     document.info.datatype = cb::mcbp::Datatype::Raw;
     // Store a 20MB value in the cache
     document.value.assign(20 * 1024 * 1024, 'b');
@@ -347,7 +347,7 @@ TEST_P(BucketTest, TestBucketIsolationAndMaxBuckets) {
 
     // I should be able to select each bucket and the same document..
     Document doc;
-    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.cas = cb::mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = "TestBucketIsolationBuckets";
     doc.value = memcached_cfg.dump();
@@ -381,7 +381,7 @@ TEST_P(BucketTest, TestMemcachedBucketBigObjects) {
             "mybucket_000", config, BucketType::Memcached);
 
     Document doc;
-    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.cas = cb::mcbp::cas::Wildcard;
     doc.info.datatype = cb::mcbp::Datatype::Raw;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;

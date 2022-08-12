@@ -23,7 +23,7 @@ public:
 
     void SetUp() override {
         TestappTest::SetUp();
-        document.info.cas = mcbp::cas::Wildcard;
+        document.info.cas = cb::mcbp::cas::Wildcard;
         document.info.flags = 0xcaffee;
         document.info.id = name;
         document.info.expiration = 0;

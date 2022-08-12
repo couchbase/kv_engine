@@ -731,7 +731,7 @@ class BinprotRemoveCommand : public BinprotGenericCommand {
 public:
     explicit BinprotRemoveCommand(std::string key,
                                   Vbid vb = Vbid{0},
-                                  uint64_t cas = mcbp::cas::Wildcard)
+                                  uint64_t cas = cb::mcbp::cas::Wildcard)
         : BinprotGenericCommand(cb::mcbp::ClientOpcode::Delete,
                                 std::move(key)) {
         setVBucket(vb);

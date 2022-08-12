@@ -64,7 +64,7 @@ void TestappXattrClientTest::setBodyAndXattr(
         }
         userConnection->mutateWithMeta(document,
                                        Vbid(0),
-                                       mcbp::cas::Wildcard,
+                                       cb::mcbp::cas::Wildcard,
                                        /*seqno*/ 1,
                                        FORCE_WITH_META_OP | REGENERATE_CAS |
                                                SKIP_CONFLICT_RESOLUTION_FLAG);
@@ -72,7 +72,7 @@ void TestappXattrClientTest::setBodyAndXattr(
         // No SetWithMeta support, must construct the
         // document+XATTR with primitives (and cannot compress
         // it).
-        document.info.cas = mcbp::cas::Wildcard;
+        document.info.cas = cb::mcbp::cas::Wildcard;
         document.info.datatype = cb::mcbp::Datatype::Raw;
         document.value = startValue;
         userConnection->mutate(document, Vbid(0), MutationType::Set);
@@ -166,7 +166,7 @@ void TestappXattrClientTest::SetUp() {
         xattrOperationStatus = cb::mcbp::Status::NotSupported;
     }
 
-    document.info.cas = mcbp::cas::Wildcard;
+    document.info.cas = cb::mcbp::cas::Wildcard;
     document.info.flags = 0xcaffee;
     document.info.id = name;
     document.info.expiration = 0;

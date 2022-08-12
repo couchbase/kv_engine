@@ -2217,12 +2217,10 @@ inline bool impliesMkdir_p(mcbp::subdoc::doc_flag a) {
 }
 } // namespace mcbp::subdoc
 
-namespace mcbp::cas {
-/**
- * The special value used as a wildcard and match all CAS values
- */
-const uint64_t Wildcard = 0x0;
-} // namespace mcbp::cas
+namespace cb::mcbp::cas {
+/// The special value used as a wildcard and match all CAS values
+constexpr uint64_t Wildcard = 0x0;
+} // namespace cb::mcbp::cas
 
 namespace cb::mcbp::request {
 #pragma pack(1)

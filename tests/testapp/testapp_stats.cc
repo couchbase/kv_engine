@@ -53,7 +53,7 @@ TEST_P(StatsTest, TestDefaultStats) {
 TEST_P(StatsTest, TestGetMeta) {
     // Set a document
     Document doc;
-    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.cas = cb::mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     doc.value = memcached_cfg.dump();
@@ -161,7 +161,7 @@ TEST_P(StatsTest, Test_MB_17815) {
                                     sequence);
 
     Document doc;
-    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.cas = cb::mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     doc.value = memcached_cfg.dump();
@@ -195,7 +195,7 @@ TEST_P(StatsTest, Test_MB_17815_Append) {
 
     // Set a document
     Document doc;
-    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.cas = cb::mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     doc.value = memcached_cfg.dump();
@@ -237,7 +237,7 @@ TEST_P(StatsTest, Test_MB_29259_Append) {
     EXPECT_EQ(0, stats["cmd_set"].get<size_t>());
 
     Document doc;
-    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.cas = cb::mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     doc.value = memcached_cfg.dump();
@@ -261,7 +261,7 @@ TEST_P(StatsTest, TestAppend) {
 
     // Set a document
     Document doc;
-    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.cas = cb::mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     doc.value = memcached_cfg.dump();
@@ -558,7 +558,7 @@ TEST_P(StatsTest, TestSingleBucketOpStats) {
 
     // Set a document
     Document doc;
-    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.cas = cb::mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = key;
     doc.value = "asdf";

@@ -742,10 +742,11 @@ bool set_vbucket_state(EngineIface* h,
     MockCookie cookie;
     cb::engine_errc ret;
     if (meta.empty()) {
-        ret = h->setVBucket(cookie, vb, mcbp::cas::Wildcard, state, nullptr);
+        ret = h->setVBucket(
+                cookie, vb, cb::mcbp::cas::Wildcard, state, nullptr);
     } else {
         auto json = nlohmann::json::parse(meta);
-        ret = h->setVBucket(cookie, vb, mcbp::cas::Wildcard, state, &json);
+        ret = h->setVBucket(cookie, vb, cb::mcbp::cas::Wildcard, state, &json);
     }
 
     return ret == cb::engine_errc::success;

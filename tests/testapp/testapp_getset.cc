@@ -46,7 +46,7 @@ void GetSetTest::doTestAppend(bool compressedSource, bool compressedData) {
                     {{"xattr", "\"X-value\""}},
                     compressedSource);
 
-    document.info.cas = mcbp::cas::Wildcard;
+    document.info.cas = cb::mcbp::cas::Wildcard;
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.assign(1024, 'b');
     if (compressedData) {
@@ -107,7 +107,7 @@ void GetSetTest::doTestPrepend(bool compressedSource, bool compressedData) {
     int successCount = getResponseCount(cb::mcbp::Status::Success);
 
     document.value.assign(1024, 'b');
-    document.info.cas = mcbp::cas::Wildcard;
+    document.info.cas = cb::mcbp::cas::Wildcard;
     document.info.datatype = cb::mcbp::Datatype::Raw;
     if (compressedData) {
         document.compress();
@@ -222,7 +222,7 @@ void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
     // this should fail with E2BIG
     std::string userdata(GetTestBucket().getMaximumDocSize() - 10, 'a');
     document.value = userdata;
-    document.info.cas = mcbp::cas::Wildcard;
+    document.info.cas = cb::mcbp::cas::Wildcard;
     document.info.datatype = cb::mcbp::Datatype::Raw;
 
     if (compressedSource) {
@@ -251,7 +251,7 @@ void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
     // maximum permitted limit. This should succeed because system xattrs
     // doesn't fall into the quota for a regular document
     document.value = userdata;
-    document.info.cas = mcbp::cas::Wildcard;
+    document.info.cas = cb::mcbp::cas::Wildcard;
     document.info.datatype = cb::mcbp::Datatype::Raw;
 
     if (compressedSource) {
@@ -441,7 +441,7 @@ TEST_P(GetSetTest, TestAdd) {
     // Add with a cas should fail
     int invalCount = getResponseCount(cb::mcbp::Status::Einval);
     try {
-        document.info.cas = mcbp::cas::Wildcard + 1;
+        document.info.cas = cb::mcbp::cas::Wildcard + 1;
         userConnection->mutate(document, Vbid(0), MutationType::Add);
         FAIL() << "It should not be possible to add a document that exists";
     } catch (ConnectionError& error) {
@@ -520,7 +520,7 @@ TEST_P(GetSetTest, TestSet) {
 
     int successCount = getResponseCount(cb::mcbp::Status::Success);
     // set should work even if a nonexisting document should fail
-    document.info.cas = mcbp::cas::Wildcard;
+    document.info.cas = cb::mcbp::cas::Wildcard;
     userConnection->mutate(document, Vbid(0), MutationType::Set);
 
     // And it should be possible to set it once more
@@ -571,7 +571,7 @@ TEST_P(GetSetTest, TestGetSuccess) {
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + 2, getResponseCount(cb::mcbp::Status::Success));
 
-    EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
+    EXPECT_NE(cb::mcbp::cas::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(document.value, stored.value);
@@ -591,7 +591,7 @@ TEST_P(GetSetTest, TestAppend) {
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + 4, getResponseCount(cb::mcbp::Status::Success));
 
-    EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
+    EXPECT_NE(cb::mcbp::cas::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(std::string("ab"), stored.value);
@@ -702,7 +702,7 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
               getResponseCount(cb::mcbp::Status::Success));
 
     // And the rest of the doc should look the same
-    EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
+    EXPECT_NE(cb::mcbp::cas::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(std::string("ab"), stored.value);
@@ -772,7 +772,7 @@ TEST_P(GetSetTest, TestPrepend) {
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + 4, getResponseCount(cb::mcbp::Status::Success));
 
-    EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
+    EXPECT_NE(cb::mcbp::cas::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(std::string("ba"), stored.value);
@@ -814,7 +814,7 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
               getResponseCount(cb::mcbp::Status::Success));
 
     // And the rest of the doc should look the same
-    EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
+    EXPECT_NE(cb::mcbp::cas::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(std::string("ba"), stored.value);
@@ -837,7 +837,7 @@ TEST_P(GetSetTest, TestPrependCasSuccess) {
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + 4, getResponseCount(cb::mcbp::Status::Success));
 
-    EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
+    EXPECT_NE(cb::mcbp::cas::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(std::string("ba"), stored.value);
@@ -860,7 +860,7 @@ TEST_P(GetSetTest, TestPrependCasMismatch) {
     const auto stored = userConnection->get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
-    EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
+    EXPECT_NE(cb::mcbp::cas::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(std::string("a"), stored.value);

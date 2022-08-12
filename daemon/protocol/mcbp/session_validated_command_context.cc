@@ -92,7 +92,7 @@ cb::engine_errc GetVbucketCommandContext::step() {
                             {},
                             {reinterpret_cast<const char*>(&st), sizeof(st)},
                             cb::mcbp::Datatype::Raw,
-                            mcbp::cas::Wildcard);
+                            cb::mcbp::cas::Wildcard);
     }
     return cb::engine_errc(status);
 }

@@ -176,7 +176,7 @@ public:
 protected:
     MutationInfo store(MemcachedConnection& conn, MutationType type) {
         Document document;
-        document.info.cas = mcbp::cas::Wildcard;
+        document.info.cas = cb::mcbp::cas::Wildcard;
         document.info.datatype = cb::mcbp::Datatype::JSON;
         document.info.flags = 0xcaffee;
         document.info.id = name;

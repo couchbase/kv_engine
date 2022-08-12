@@ -79,7 +79,7 @@ time_t TtlTest::store(const std::string& key,
                       MutationType type,
                       bool preserveTtl) {
     Document document;
-    document.info.cas = mcbp::cas::Wildcard;
+    document.info.cas = cb::mcbp::cas::Wildcard;
     document.info.flags = 0xcaffee;
     document.info.id = name;
     document.info.expiration = gsl::narrow_cast<uint32_t>(exptime);

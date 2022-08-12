@@ -7730,7 +7730,7 @@ static enum test_result test_MB_34634(EngineIface* h) {
         checkeq(cb::engine_errc::success,
                 h->setVBucket(mc,
                               vb,
-                              mcbp::cas::Wildcard,
+                              cb::mcbp::cas::Wildcard,
                               vbucket_state_active,
                               &meta),
                 "Calling set vb state failed");

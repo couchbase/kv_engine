@@ -233,7 +233,7 @@ protected:
         // Replace body with new body.
         const std::string replacedValue = "\"JSON string\"";
         document.value = replacedValue;
-        document.info.cas = mcbp::cas::Wildcard;
+        document.info.cas = cb::mcbp::cas::Wildcard;
         document.info.datatype = cb::mcbp::Datatype::Raw;
         if (compress) {
             document.compress();
@@ -1400,7 +1400,7 @@ TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrSystemReadPriv) {
 TEST_P(XattrTest, MB_25786_XTOC_VattrNoXattrs) {
     std::string value = R"({"Test":45})";
     Document document;
-    document.info.cas = mcbp::cas::Wildcard;
+    document.info.cas = cb::mcbp::cas::Wildcard;
     document.info.flags = 0xcaffee;
     document.info.id = name;
     document.value = value;

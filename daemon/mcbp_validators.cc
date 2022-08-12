@@ -1393,7 +1393,7 @@ static Status set_ctrl_token_validator(Cookie& cookie) {
 
     const auto& payload =
             cookie.getRequest().getCommandSpecifics<SetCtrlTokenPayload>();
-    if (payload.getCas() == mcbp::cas::Wildcard) {
+    if (payload.getCas() == cb::mcbp::cas::Wildcard) {
         cookie.setErrorContext("New CAS must be set");
         return Status::Einval;
     }
