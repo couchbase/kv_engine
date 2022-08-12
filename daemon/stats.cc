@@ -294,8 +294,10 @@ cb::engine_errc server_prometheus_metering(
                           double(mc_time_convert_to_abs_time(0)));
         // add per bucket metering metrics
         BucketManager::instance().forEach([&collector](Bucket& bucket) {
-            if (std::string_view(bucket.name).empty()) {
-                // skip the initial bucket with aggregated stats
+            if (bucket.type == BucketType::NoBucket ||
+                bucket.type == BucketType::ClusterConfigOnly) {
+                // skip the initial bucket with aggregated stats and config-only
+                // buckets
                 return true;
             }
             auto bucketC = collector.forBucket(bucket.name);
