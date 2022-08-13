@@ -393,6 +393,7 @@ cb::engine_errc BucketManager::setClusterConfig(
     bucket.clusterConfiguration.setConfiguration(std::move(configuration));
     strcpy(bucket.name, name.c_str());
     bucket.state = Bucket::State::Ready;
+    bucket.supportedFeatures.emplace(cb::engine::Feature::Collections);
     LOG_INFO("Created cluster config bucket [{}]", name);
     return cb::engine_errc::success;
 }

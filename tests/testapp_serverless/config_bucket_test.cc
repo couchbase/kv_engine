@@ -53,6 +53,9 @@ TEST(ConfigOnlyTest, SetClusterConfigCreatesBucket) {
 
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
+    // MB-53379: Clients with Collections enabled can't select a "config-only"
+    // bucket. Enable collections to verify that it works
+    admin->setFeature(cb::mcbp::Feature::Collections, true);
     admin->selectBucket("cluster-config");
 
     admin->setAutoRetryTmpfail(false);
