@@ -614,14 +614,34 @@ cb::engine_errc BucketManager::destroy(Cookie* cookie,
 
     // Wait until all users disconnected...
     auto& bucket = all_buckets[idx];
+    waitForEveryoneToDisconnect(bucket, "Delete", connection_id);
+
+    LOG_INFO("{}: Delete bucket [{}]. Shut down the bucket",
+             connection_id,
+             name);
+    bucket.destroyEngine(force);
+
+    LOG_INFO("{}: Delete bucket [{}]. Clean up allocated resources ",
+             connection_id,
+             name);
+    bucket.reset();
+
+    LOG_INFO("{}: Delete bucket [{}] complete", connection_id, name);
+    return cb::engine_errc::success;
+}
+
+void BucketManager::waitForEveryoneToDisconnect(Bucket& bucket,
+                                                std::string_view operation,
+                                                std::string_view id) {
+    // Wait until all users disconnected...
     {
         std::unique_lock<std::mutex> guard(bucket.mutex);
         if (bucket.clients > 0) {
-            LOG_INFO(
-                    "{}: Delete bucket [{}]. Wait for {} clients to disconnect",
-                    connection_id,
-                    name,
-                    bucket.clients);
+            LOG_INFO("{}: {} bucket [{}]. Wait for {} clients to disconnect",
+                     id,
+                     operation,
+                     bucket.name,
+                     bucket.clients);
 
             // Signal clients bound to the bucket before waiting
             guard.unlock();
@@ -637,8 +657,8 @@ cb::engine_errc BucketManager::destroy(Cookie* cookie,
         using std::chrono::seconds;
         using std::chrono::steady_clock;
 
-        // We need to disconnect all of the clients before we can delete the
-        // bucket. We log pending connections that are blocking bucket deletion.
+        // We need to disconnect all the clients.
+        // Log pending connections that are connected every 2 minutes.
         auto nextLog = steady_clock::now() + minutes(2);
         while (bucket.clients > 0) {
             bucket.cond.wait_for(guard, seconds(1), [&bucket] {
@@ -656,7 +676,7 @@ cb::engine_errc BucketManager::destroy(Cookie* cookie,
                         connection.signalIfIdle();
                     }
                 });
-                if (all_buckets[idx].type != BucketType::ClusterConfigOnly) {
+                if (bucket.type != BucketType::ClusterConfigOnly) {
                     bucket.getEngine().cancel_all_operations_in_ewb_state();
                 }
                 guard.lock();
@@ -677,9 +697,10 @@ cb::engine_errc BucketManager::destroy(Cookie* cookie,
             });
 
             LOG_INFO(
-                    R"({}: Delete bucket [{}]. Still waiting: {} clients connected: {})",
-                    connection_id,
-                    name,
+                    R"({}: {} bucket [{}]. Still waiting: {} clients connected: {})",
+                    id,
+                    operation,
+                    bucket.name,
                     bucket.clients,
                     currConns.dump());
 
@@ -692,27 +713,15 @@ cb::engine_errc BucketManager::destroy(Cookie* cookie,
     while (num != 0) {
         if (++counter % 100 == 0) {
             LOG_INFO(
-                    R"({}: Delete bucket [{}]. Still waiting: {} items still stuck in transfer.)",
-                    connection_id,
-                    name,
+                    R"({}: {} bucket [{}]. Still waiting: {} items still stuck in transfer.)",
+                    id,
+                    operation,
+                    bucket.name,
                     num);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds{10});
         num = bucket.items_in_transit.load();
     }
-
-    LOG_INFO("{}: Delete bucket [{}]. Shut down the bucket",
-             connection_id,
-             name);
-    bucket.destroyEngine(force);
-
-    LOG_INFO("{}: Delete bucket [{}]. Clean up allocated resources ",
-             connection_id,
-             name);
-    bucket.reset();
-
-    LOG_INFO("{}: Delete bucket [{}] complete", connection_id, name);
-    return cb::engine_errc::success;
 }
 
 void BucketManager::tick() {

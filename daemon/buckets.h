@@ -370,5 +370,20 @@ public:
     void tick();
 
 protected:
+    /**
+     * Wait for all clients to disconnect from the provided bucket
+     *
+     * @param bucket The bucket to wait for
+     * @param operation The kind of operation requesting the wait (used for
+     *                  logging)
+     * @param id The connection identifier requested the wait (used for
+     *           logging and is typically cookie.getConnectionId(), but in
+     *           the case where there are no client context it should be
+     *           set to <none>)
+     */
+    void waitForEveryoneToDisconnect(Bucket& bucket,
+                                     std::string_view operation,
+                                     std::string_view id);
+
     BucketManager();
 };
