@@ -75,39 +75,35 @@ bool Bucket::supports(cb::engine::Feature feature) {
 }
 
 nlohmann::json Bucket::to_json() const {
-    nlohmann::json json;
-    {
-        std::lock_guard<std::mutex> guard(mutex);
+    const bool serverless = isServerlessDeployment();
+    std::lock_guard<std::mutex> guard(mutex);
 
-        if (state != State::None) {
-            try {
-                json["state"] = to_string(state.load());
-                json["clients"] = clients.load();
-                json["name"] = name;
-                json["type"] = to_string(type);
-                json["num_commands"] = num_commands.load();
-            } catch (const std::exception& e) {
-                LOG_ERROR("Failed to generate bucket details: {}", e.what());
+    if (state != State::None) {
+        try {
+            nlohmann::json json;
+            json["state"] = to_string(state.load());
+            json["clients"] = clients.load();
+            json["name"] = name;
+            json["type"] = to_string(type);
+            json["num_commands"] = num_commands.load();
+            if (serverless) {
+                json["ru"] = read_units_used.load();
+                json["wu"] = write_units_used.load();
+                json["num_throttled"] = num_throttled.load();
+                json["throttle_limit"] = throttle_limit.load();
+                json["throttle_wait_time"] = throttle_wait_time.load();
+                json["num_commands_with_metered_units"] =
+                        num_commands_with_metered_units.load();
+                json["num_metered_dcp_messages"] =
+                        num_metered_dcp_messages.load();
+                json["num_rejected"] = num_rejected.load();
             }
+            return json;
+        } catch (const std::exception& e) {
+            LOG_ERROR("Failed to generate bucket details: {}", e.what());
         }
     }
-    if (!json.empty() && isServerlessDeployment()) {
-        nlohmann::json array = nlohmann::json::array();
-        throttle_gauge.iterate(
-                [&array](auto count) { array.push_back(count); });
-        json["sloppy_cu"] = std::move(array);
-        json["ru"] = read_units_used.load();
-        json["wu"] = write_units_used.load();
-        json["num_throttled"] = num_throttled.load();
-        json["throttle_limit"] = throttle_limit.load();
-        json["throttle_wait_time"] = throttle_wait_time.load();
-        json["num_commands_with_metered_units"] =
-                num_commands_with_metered_units.load();
-        json["num_metered_dcp_messages"] = num_metered_dcp_messages.load();
-        json["num_rejected"] = num_rejected.load();
-    }
-
-    return json;
+    return {};
 }
 
 void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {

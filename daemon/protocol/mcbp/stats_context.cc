@@ -225,22 +225,21 @@ static cb::engine_errc stat_bucket_details_executor(const std::string& arg,
     }
 
     // Return the bucket details for the bucket with the requested name
-    nlohmann::json bucket;
-    BucketManager::instance().forEach([&bucket, &arg](const auto& b) {
-        if (arg == b.name) {
-            bucket = b.to_json();
-            return false;
+    // To avoid racing with bucket creation/deletion/pausing and all the
+    // other commands potentially changing bucket states _AND_ make sure
+    // we don't skip any states lets create a json dump of the bucket and
+    // check if it was the bucket we wanted.
+    for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
+        Bucket& bucket = BucketManager::instance().at(ii);
+        auto json = bucket.to_json();
+        if (!json.empty() && json["name"] == arg) {
+            const auto stats_str = json.dump();
+            append_stats(arg, stats_str, static_cast<void*>(&cookie));
+            return cb::engine_errc::success;
         }
-        return true;
-    });
-
-    if (bucket.empty()) {
-        return cb::engine_errc::no_such_key;
     }
 
-    const auto stats_str = bucket.dump();
-    append_stats(arg, stats_str, static_cast<void*>(&cookie));
-    return cb::engine_errc::success;
+    return cb::engine_errc::no_such_key;
 }
 
 /**

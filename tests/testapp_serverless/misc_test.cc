@@ -31,7 +31,7 @@ TEST(MiscTest, TestBucketDetailedStats) {
                 bucket = nlohmann::json::parse(v);
             },
             "bucket_details bucket-0");
-    EXPECT_EQ(14, bucket.size());
+    EXPECT_EQ(13, bucket.size());
     EXPECT_NE(bucket.end(), bucket.find("state"));
     EXPECT_NE(bucket.end(), bucket.find("clients"));
     EXPECT_NE(bucket.end(), bucket.find("name"));
@@ -45,7 +45,6 @@ TEST(MiscTest, TestBucketDetailedStats) {
     EXPECT_NE(bucket.end(), bucket.find("num_commands_with_metered_units"));
     EXPECT_NE(bucket.end(), bucket.find("num_metered_dcp_messages"));
     EXPECT_NE(bucket.end(), bucket.find("num_rejected"));
-    EXPECT_NE(bucket.end(), bucket.find("sloppy_cu"));
 }
 
 /// Verify that when a bucket gets created the throttle limit gets set to
@@ -117,7 +116,7 @@ TEST(MiscTest, MaxConnectionPerBucket) {
         conn->selectBucket("bucket-0");
         connections.emplace_back(std::move(conn));
     }
-    EXPECT_EQ(MaxConnectionsPerBucket + 5, getNumClients());
+    EXPECT_EQ(MaxConnectionsPerBucket + 4, getNumClients());
 }
 
 /// Verify that we may set the bucket in a state where the client can no
