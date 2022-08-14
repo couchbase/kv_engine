@@ -21,7 +21,7 @@
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"
 #include "protocol/mcbp/audit_configure_context.h"
-#include "protocol/mcbp/create_remove_bucket_command_context.h"
+#include "protocol/mcbp/bucket_management_command_context.h"
 #include "protocol/mcbp/dcp_deletion.h"
 #include "protocol/mcbp/dcp_expiration.h"
 #include "protocol/mcbp/dcp_mutation.h"
@@ -437,7 +437,7 @@ static void audit_put_executor(Cookie& cookie) {
 }
 
 static void create_remove_bucket_executor(Cookie& cookie) {
-    cookie.obtainContext<CreateRemoveBucketCommandContext>(cookie).drive();
+    cookie.obtainContext<BucketManagementCommandContext>(cookie).drive();
 }
 
 static void get_errmap_executor(Cookie& cookie) {

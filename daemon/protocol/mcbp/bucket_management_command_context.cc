@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -8,7 +7,7 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include "create_remove_bucket_command_context.h"
+#include "bucket_management_command_context.h"
 
 #include <daemon/connection.h>
 #include <daemon/enginemap.h>
@@ -18,7 +17,7 @@
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
 
-cb::engine_errc CreateRemoveBucketCommandContext::initial() {
+cb::engine_errc BucketManagementCommandContext::initial() {
     if (request.getClientOpcode() == cb::mcbp::ClientOpcode::CreateBucket) {
         state = State::Create;
     } else {
@@ -28,7 +27,7 @@ cb::engine_errc CreateRemoveBucketCommandContext::initial() {
     return cb::engine_errc::success;
 }
 
-cb::engine_errc CreateRemoveBucketCommandContext::create() {
+cb::engine_errc BucketManagementCommandContext::create() {
     auto k = request.getKey();
     auto v = request.getValue();
 
@@ -80,7 +79,7 @@ cb::engine_errc CreateRemoveBucketCommandContext::create() {
     return cb::engine_errc::would_block;
 }
 
-cb::engine_errc CreateRemoveBucketCommandContext::remove() {
+cb::engine_errc BucketManagementCommandContext::remove() {
     auto k = request.getKey();
     auto v = request.getValue();
 
@@ -124,7 +123,7 @@ cb::engine_errc CreateRemoveBucketCommandContext::remove() {
     return cb::engine_errc::would_block;
 }
 
-cb::engine_errc CreateRemoveBucketCommandContext::step() {
+cb::engine_errc BucketManagementCommandContext::step() {
     try {
         auto ret = cb::engine_errc::success;
         do {

@@ -71,14 +71,14 @@ add_library(memcached_daemon STATIC
             protocol/mcbp/arithmetic_context.h
             protocol/mcbp/audit_configure_context.cc
             protocol/mcbp/audit_configure_context.h
+            protocol/mcbp/bucket_management_command_context.cc
+            protocol/mcbp/bucket_management_command_context.h
             protocol/mcbp/cluster_config_executor.cc
             protocol/mcbp/collections_get_collection_id_executor.cc
             protocol/mcbp/collections_get_manifest_executor.cc
             protocol/mcbp/collections_get_scope_id_executor.cc
             protocol/mcbp/collections_set_manifest_executor.cc
             protocol/mcbp/command_context.h
-            protocol/mcbp/create_remove_bucket_command_context.cc
-            protocol/mcbp/create_remove_bucket_command_context.h
             protocol/mcbp/dcp_abort_executor.cc
             protocol/mcbp/dcp_add_failover_log.cc
             protocol/mcbp/dcp_add_failover_log.h

@@ -16,13 +16,13 @@
 #include <daemon/memcached.h>
 
 /**
- * CreateBucketCommandContext is responsible for handling the
+ * BucketManagementCommandContext is responsible for handling the
  * create and delete bucket command. Due to the fact that they are slow
  * operations it'll offload the work to another thread to do the actual
  * work before it'll notify the connection object which sends the result
  * of the operation back to the client
  */
-class CreateRemoveBucketCommandContext : public SteppableCommandContext {
+class BucketManagementCommandContext : public SteppableCommandContext {
 public:
     // The state machine start off in the Initial state where it checks
     // if the command is create or delete and moves into the appropriate
@@ -30,7 +30,7 @@ public:
     // there for the notification from the task
     enum class State { Initial, Create, Remove, Done };
 
-    explicit CreateRemoveBucketCommandContext(Cookie& cookie)
+    explicit BucketManagementCommandContext(Cookie& cookie)
         : SteppableCommandContext(cookie),
           request(cookie.getRequest()),
           state(State::Initial) {
