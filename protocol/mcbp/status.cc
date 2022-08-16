@@ -29,6 +29,7 @@ bool is_known(Status status) {
     case Status::DcpStreamNotFound:
     case Status::OpaqueNoMatch:
     case Status::EWouldThrottle:
+    case Status::EConfigOnly:
     case Status::AuthStale:
     case Status::AuthError:
     case Status::AuthContinue:
@@ -119,6 +120,7 @@ bool isStatusSuccess(Status status) {
     case Status::DcpStreamNotFound:
     case Status::OpaqueNoMatch:
     case Status::EWouldThrottle:
+    case Status::EConfigOnly:
     case Status::AuthStale:
     case Status::AuthError:
     case Status::Erange:
@@ -234,6 +236,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "OpaqueNoMatch";
         case Status::EWouldThrottle:
             return "EWouldThrottle";
+        case Status::EConfigOnly:
+            return "EConfigOnly";
         case Status::AuthStale:
             return "AuthStale";
         case Status::AuthError:
@@ -381,6 +385,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "Opaque does not match";
         case Status::EWouldThrottle:
             return "The command would have been throttled";
+        case Status::EConfigOnly:
+            return "Command can't be executed in a config-only bucket";
         case Status::AuthStale:
             return "Authentication stale. Please reauthenticate";
         case Status::AuthError:

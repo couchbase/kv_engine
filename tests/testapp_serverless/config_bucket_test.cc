@@ -58,10 +58,13 @@ TEST(ConfigOnlyTest, SetClusterConfigCreatesBucket) {
     admin->setFeature(cb::mcbp::Feature::Collections, true);
     admin->selectBucket("cluster-config");
 
-    admin->setAutoRetryTmpfail(false);
+    admin->setXerrorSupport(false);
     auto rsp =
             admin->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Stat});
-    ASSERT_EQ(cb::mcbp::Status::Etmpfail, rsp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
+    admin->setXerrorSupport(true);
+    rsp = admin->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Stat});
+    ASSERT_EQ(cb::mcbp::Status::EConfigOnly, rsp.getStatus());
 
     // But I should be able to read the cluster config
     rsp = admin->execute(
@@ -108,7 +111,7 @@ TEST(ConfigOnlyTest, DeleteClusterConfigBucket) {
     conn->setAutoRetryTmpfail(false);
     auto rsp = conn->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::DeleteBucket, bucketname});
-    ASSERT_EQ(cb::mcbp::Status::Etmpfail, rsp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::EConfigOnly, rsp.getStatus());
 
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");

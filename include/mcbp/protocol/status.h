@@ -52,6 +52,8 @@ enum class Status : uint16_t {
     OpaqueNoMatch = 0x0B,
     /// The command would have been throttled
     EWouldThrottle = 0x0c,
+    /// The command can't be run in a config-only-bucket
+    EConfigOnly = 0x0d,
     /** The authentication context is stale. You should reauthenticate*/
     AuthStale = 0x1f,
     /** Authentication failure (invalid user/password combination,

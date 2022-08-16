@@ -556,7 +556,10 @@ cb::mcbp::Status Cookie::validate() {
                     "cluster-config-bucket: {}",
                     connection.getId(),
                     to_string(opcode));
-            return cb::mcbp::Status::Etmpfail;
+            if (connection.isXerrorSupport()) {
+                return cb::mcbp::Status::EConfigOnly;
+            }
+            return cb::mcbp::Status::NotSupported;
         }
     }
 
