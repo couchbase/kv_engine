@@ -307,3 +307,19 @@ TEST_F(AuditFileTest, TestCrashRecoveryGarbeledDate) {
         EXPECT_EQ(1, files.size());
     }
 }
+
+TEST_F(AuditFileTest, MB53282) {
+    class MockAuditFile : public AuditFile {
+    public:
+        MockAuditFile() : AuditFile("testing"){};
+        void test_mb53282() {
+            ensure_open();
+            close_and_rotate_log();
+            ensure_open();
+        }
+    };
+
+    MockAuditFile auditfile;
+    auditfile.reconfigure(config);
+    auditfile.test_mb53282();
+}

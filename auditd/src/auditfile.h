@@ -85,7 +85,7 @@ public:
      */
     uint32_t get_seconds_to_rotation() const;
 
-private:
+protected:
     bool open();
     bool time_to_rotate_log() const;
     void close_and_rotate_log();
