@@ -285,6 +285,7 @@ set_source_files_properties(src/crc32.c
 
 ADD_LIBRARY(ep_objs OBJECT
             src/access_scanner.cc
+            src/array_histogram.cc
             src/bgfetcher.cc
             src/blob.cc
             src/bloomfilter.cc

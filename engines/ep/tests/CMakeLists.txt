@@ -23,6 +23,7 @@ target_link_libraries(ep_testsuite_objs PUBLIC platform)
 # so simpler / quicker just to link them into a single executable).
 cb_add_test_executable(ep-engine_ep_unit_tests
         ep_request_utils.cc
+        module_tests/array_histogram_test.cc
         module_tests/atomic_unordered_map_test.cc
         module_tests/backfill-manager_test.cc
         module_tests/backfill_disk_test.cc
