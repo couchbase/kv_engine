@@ -364,12 +364,20 @@ cb::engine_errc BucketManager::setClusterConfig(
     std::size_t ii = 0;
     for (auto& bucket : all_buckets) {
         std::lock_guard<std::mutex> bucketguard(bucket.mutex);
-        if (bucket.state == Bucket::State::Ready && bucket.name == name) {
-            bucket.clusterConfiguration.setConfiguration(
-                    std::move(configuration));
-            return cb::engine_errc::success;
-        } else if (bucket.state == Bucket::State::None &&
-                   first_free == all_buckets.size()) {
+        if (bucket.name == name) {
+            if (bucket.state == Bucket::State::Ready) {
+                bucket.clusterConfiguration.setConfiguration(
+                        std::move(configuration));
+                return cb::engine_errc::success;
+            }
+            // We can't set the cluster configuration at this time as
+            // the bucket is currently being initialized/paused/deleted,
+            // but tell the client to try again :)
+            return cb::engine_errc::temporary_failure;
+        }
+
+        if (bucket.state == Bucket::State::None &&
+            first_free == all_buckets.size()) {
             first_free = ii;
         }
         ++ii;
