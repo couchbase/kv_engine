@@ -88,6 +88,9 @@ cb::rangescan::Id RangeScan::createScan(
                             getVBucketId()));
     }
 
+    // We'll estimate how much gets read to use in metering
+    size_t approxBytesRead{0};
+
     if (snapshotReqs) {
         auto& handle = *scanCtx->handle.get();
 
@@ -127,6 +130,9 @@ cb::rangescan::Id RangeScan::createScan(
                                     snapshotReqs->seqno));
             }
         }
+
+        // Data read/stored as text/JSON, but this is only an approximate size
+        approxBytesRead += (ft.getNumEntries() * 16) + sizeof(state.state);
     }
 
     if (samplingConfig) {
@@ -160,19 +166,23 @@ cb::rangescan::Id RangeScan::createScan(
                                                getVBucketId(),
                                                snapshotReqs->seqno));
         }
+        approxBytesRead += sizeof(stats.second);
     }
 
     if (!samplingConfig) {
         // When not sampling, check for a key in the range (sampling works on
         // the entire collection, and we've checked the collection stats)
-        tryAndScanOneKey(*bucket.getRWUnderlying(getVBucketId()));
+        approxBytesRead +=
+                tryAndScanOneKey(*bucket.getRWUnderlying(getVBucketId()));
     }
+
+    const_cast<CookieIface&>(cookie).addDocumentReadBytes(approxBytesRead);
 
     // Generate the scan ID (which may also incur i/o)
     return boost::uuids::random_generator()();
 }
 
-void RangeScan::tryAndScanOneKey(KVStoreIface& kvstore) {
+size_t RangeScan::tryAndScanOneKey(KVStoreIface& kvstore) {
     struct FindMaxCommittedItem : public StatusCallback<CacheLookup> {
         void callback(CacheLookup&) override {
             // Immediately yield and the caller to scan will see the Yield
@@ -220,6 +230,7 @@ void RangeScan::tryAndScanOneKey(KVStoreIface& kvstore) {
         scanCtx->handle = std::move(checkOneKey->handle);
     }
     }
+    return checkOneKey->diskBytesRead;
 }
 
 cb::engine_errc RangeScan::hasPrivilege(

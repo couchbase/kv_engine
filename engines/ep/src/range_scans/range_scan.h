@@ -250,7 +250,7 @@ protected:
      * more keys exist in the range. Detecting an empty range allows KV to fail
      * the create
      */
-    void tryAndScanOneKey(KVStoreIface& kvstore);
+    size_t tryAndScanOneKey(KVStoreIface& kvstore);
 
     /// @return true if this scan is a random sample scan
     bool isSampling() const;

@@ -2762,11 +2762,27 @@ void MeteringTest::testRangeScan(bool keyOnly) {
     if (keyOnly) {
         range["key_only"] = true;
     }
+
+    nlohmann::json before;
+    conn->stats(
+            [&before](auto k, auto v) { before = nlohmann::json::parse(v); },
+            "bucket_details metering");
+
     BinprotRangeScanCreate create(Vbid(0), range);
     auto resp = conn->execute(create);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    ASSERT_TRUE(resp.getReadUnits());
+    ASSERT_EQ(1, *resp.getReadUnits());
+    EXPECT_FALSE(resp.getWriteUnits());
     cb::rangescan::Id id;
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
+
+    nlohmann::json after;
+    conn->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
+                "bucket_details metering");
+
+    // ru should increase when creating a scan
+    EXPECT_GT(after["ru"].get<std::size_t>(), before["ru"].get<std::size_t>());
 
     // 1 key in scan, issue 1 continue
     BinprotRangeScanContinue scanContinue(
