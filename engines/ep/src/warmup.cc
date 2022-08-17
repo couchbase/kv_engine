@@ -939,6 +939,12 @@ LoadStorageKVPairCallback::LoadStorageKVPairCallback(
 }
 
 void LoadStorageKVPairCallback::callback(GetValue& val) {
+    // "Reset" the status to success here to indicate to the caller
+    // (KVStore::scan) that it should continue scanning. This means that any
+    // returns without setting the status explicitly to something else will
+    // continue.
+    setStatus(ENGINE_SUCCESS);
+
     // This callback method is responsible for deleting the Item
     std::unique_ptr<Item> i(std::move(val.item));
 
@@ -1071,8 +1077,6 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
     if (deltaDeadlineFromNow && std::chrono::steady_clock::now() >= deadline) {
         pausedDueToDeadLine = true;
         yield(); // force return from KVStore::scan
-    } else {
-        setStatus(ENGINE_SUCCESS);
     }
 }
 
