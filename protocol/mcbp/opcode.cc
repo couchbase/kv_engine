@@ -1376,6 +1376,8 @@ bool is_subject_for_throttling(ClientOpcode opcode) {
     case ClientOpcode::SubdocMultiMutation:
     case ClientOpcode::SubdocGetCount:
     case ClientOpcode::SubdocReplaceBodyWithXattr:
+    case ClientOpcode::RangeScanCreate:
+    case ClientOpcode::RangeScanContinue:
         return true;
 
     case ClientOpcode::Quit:
@@ -1477,8 +1479,6 @@ bool is_subject_for_throttling(ClientOpcode opcode) {
     case ClientOpcode::AdjustTimeofday:
     case ClientOpcode::EwouldblockCtl:
     case ClientOpcode::GetErrorMap:
-    case ClientOpcode::RangeScanCreate:
-    case ClientOpcode::RangeScanContinue:
     case ClientOpcode::RangeScanCancel:
         // should not be throttled
         return false;

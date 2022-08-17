@@ -500,7 +500,9 @@ TEST(ClientOpcode, is_subject_for_throttling) {
                      ClientOpcode::SubdocMultiLookup,
                      ClientOpcode::SubdocMultiMutation,
                      ClientOpcode::SubdocGetCount,
-                     ClientOpcode::SubdocReplaceBodyWithXattr}},
+                     ClientOpcode::SubdocReplaceBodyWithXattr,
+                     ClientOpcode::RangeScanCreate,
+                     ClientOpcode::RangeScanContinue}},
                    "throttling");
 }
 
