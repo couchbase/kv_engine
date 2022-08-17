@@ -30,6 +30,7 @@ add_library(mcd_util STATIC
             io_control.cc
             json_utilities.cc
             json_utilities.h
+            lock_utilities.h
             logtags.cc
             logtags.h
             openssl_utils.cc

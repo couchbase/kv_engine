@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include "utilities/lock_utilities.h"
+
 #include <memcached/vbucket.h>
 #include <chrono>
 #include <memory>
@@ -277,6 +279,15 @@ enum class VBucketStatsDetailLevel {
     Durability, // state, high_seqno, topology, high_prepared_seqno
     Full, // All the vbucket stats
 };
+
+namespace internal {
+struct VBucketStateLockTag;
+} // namespace internal
+
+/**
+ * An opaque reference to a lock on the state of the VBucket.
+ */
+using VBucketStateLockRef = cb::SharedLockRef<internal::VBucketStateLockTag>;
 
 namespace cb {
 
