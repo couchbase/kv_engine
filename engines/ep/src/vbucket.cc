@@ -1867,6 +1867,12 @@ void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
                                       std::string_view collectionName,
                                       cb::ExpiryLimit maxTtl,
                                       int64_t bySeqno) {
+    // The state of the VBucket should not change here, because replicaCreate
+    // will generate SystemEvent items.
+    // NOTE: We kill all streams when changing the VBucket state and this
+    // function is only called from PassiveStream, so the lock is not
+    // technically required for now.
+    folly::SharedMutex::ReadHolder rlh(stateLock);
     manifest->wlock().replicaCreate(
             *this, uid, identifiers, collectionName, maxTtl, bySeqno);
 }
@@ -1874,6 +1880,12 @@ void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
 void VBucket::replicaDropCollection(Collections::ManifestUid uid,
                                     CollectionID cid,
                                     int64_t bySeqno) {
+    // The state of the VBucket should not change here, because replicaDrop
+    // will generate SystemEvent items.
+    // NOTE: We kill all streams when changing the VBucket state and this
+    // function is only called from PassiveStream, so the lock is not
+    // technically required for now.
+    folly::SharedMutex::ReadHolder rlh(stateLock);
     manifest->wlock().replicaDrop(*this, uid, cid, bySeqno);
 }
 
@@ -1881,12 +1893,24 @@ void VBucket::replicaCreateScope(Collections::ManifestUid uid,
                                  ScopeID sid,
                                  std::string_view scopeName,
                                  int64_t bySeqno) {
+    // The state of the VBucket should not change here, because
+    // replicaCreateScope will generate SystemEvent items.
+    // NOTE: We kill all streams when changing the VBucket state and this
+    // function is only called from PassiveStream, so the lock is not
+    // technically required for now.
+    folly::SharedMutex::ReadHolder rlh(stateLock);
     manifest->wlock().replicaCreateScope(*this, uid, sid, scopeName, bySeqno);
 }
 
 void VBucket::replicaDropScope(Collections::ManifestUid uid,
                                ScopeID sid,
                                int64_t bySeqno) {
+    // The state of the VBucket should not change here, because
+    // replicaDropScope will generate SystemEvent items.
+    // NOTE: We kill all streams when changing the VBucket state and this
+    // function is only called from PassiveStream, so the lock is not
+    // technically required for now.
+    folly::SharedMutex::ReadHolder rlh(stateLock);
     manifest->wlock().replicaDropScope(*this, uid, sid, bySeqno);
 }
 

@@ -1620,11 +1620,18 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
             Expects(!lockedVb);
 
             vbPtr->checkpointManager->queueSetVBState();
-            if (itr->second->getState() == vbucket_state_active) {
-                // For all active vbuckets, call through to the manager so
-                // that they are made 'current' with the manifest.
-                store.getCollectionsManager().maybeUpdate(*itr->second);
+
+            {
+                // Note this lock is here for correctness - the VBucket is not
+                // accessible yet, so its state cannot be changed by other code.
+                folly::SharedMutex::ReadHolder rlh(vbPtr->getStateLock());
+                if (vbPtr->getState() == vbucket_state_active) {
+                    // For all active vbuckets, call through to the manager so
+                    // that they are made 'current' with the manifest.
+                    store.getCollectionsManager().maybeUpdate(*vbPtr);
+                }
             }
+
             auto result = store.flushVBucket_UNLOCKED(
                     {vbPtr, std::move(lockedVb.getLock())});
             // if flusher returned MoreAvailable::Yes, this indicates the single

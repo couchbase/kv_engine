@@ -370,6 +370,8 @@ uint64_t PagingVisitor::casToAge(uint64_t cas) const {
 }
 
 void PagingVisitor::setUpHashBucketVisit() {
+    // We need to lock the VBucket state here, because if the vb changes state
+    // during paging, this could lead to data loss.
     vbStateLock = folly::SharedMutex::ReadHolder(currentBucket->getStateLock());
     // Grab a locked ReadHandle
     readHandle = currentBucket->lockCollections();

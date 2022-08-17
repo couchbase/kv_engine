@@ -810,6 +810,12 @@ cb::engine_errc PassiveStream::processCommit(
         return cb::engine_errc::not_my_vbucket;
     }
 
+    // The state of the VBucket should never change during a commit, because
+    // VBucket::commit() may generated expired items.
+    // NOTE: Theoretically this will never occur, because we kill all streams
+    // when changing the VBucket state.
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+
     auto rv = vb->commit(commit.getKey(),
                          commit.getPreparedSeqno(),
                          *commit.getBySeqno(),
@@ -834,6 +840,12 @@ cb::engine_errc PassiveStream::processAbort(
     if (!vb) {
         return cb::engine_errc::not_my_vbucket;
     }
+
+    // The state of the VBucket should never change during an abort, because
+    // VBucket::abort() may generated expired items.
+    // NOTE: Theoretically this will never occur, because we kill all streams
+    // when changing the VBucket state.
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
 
     auto rv = vb->abort(abort.getKey(),
                         abort.getPreparedSeqno(),
