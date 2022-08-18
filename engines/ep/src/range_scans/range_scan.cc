@@ -50,14 +50,59 @@ RangeScan::RangeScan(
     // members which must be initialised first
     uuid = createScan(cookie, bucket, snapshotReqs, samplingConfig);
 
-    EP_LOG_INFO("{} RangeScan {} created", getVBucketId(), uuid);
+    fmt::memory_buffer snapshotLog, samplingLog;
+    if (snapshotReqs) {
+        fmt::format_to(std::back_inserter(snapshotLog),
+                       ", snapshot_reqs:uuid:{}, seqno:{}, strict:{}",
+                       snapshotReqs->vbUuid,
+                       snapshotReqs->seqno,
+                       snapshotReqs->seqnoMustBeInSnapshot);
+        if (snapshotReqs->timeout) {
+            fmt::format_to(std::back_inserter(snapshotLog),
+                           "timeout:",
+                           snapshotReqs->timeout.value());
+        }
+    }
+
+    if (samplingConfig) {
+        fmt::format_to(std::back_inserter(samplingLog),
+                       ", sampling_config:samples:{}, seed:{}",
+                       samplingConfig->samples,
+                       samplingConfig->seed);
+        if (prng) {
+            fmt::format_to(std::back_inserter(samplingLog),
+                           ", prng:yes, distribution:{}",
+                           distribution.p());
+        } else {
+            fmt::format_to(std::back_inserter(samplingLog), ", prng:no");
+        }
+    }
+
+    EP_LOG_INFO("{}: {} RangeScan {} created. mode:{}{}{}",
+                cookie.getConnectionId(),
+                getVBucketId(),
+                uuid,
+                keyOnly == cb::rangescan::KeyOnly::Yes ? "keys" : "values",
+                std::string_view{snapshotLog.data(), snapshotLog.size()},
+                std::string_view{samplingLog.data(), samplingLog.size()});
 }
 
 RangeScan::~RangeScan() {
-    EP_LOG_INFO("{} RangeScan {} finished in state:{}",
+    fmt::memory_buffer valueScanStats;
+    if (keyOnly == cb::rangescan::KeyOnly::No) {
+        // format the value read stats
+        fmt::format_to(std::back_inserter(valueScanStats),
+                       ", from:mem:{}, disk:{}",
+                       totalValuesFromMemory,
+                       totalValuesFromDisk);
+    }
+
+    EP_LOG_INFO("{} RangeScan {} finished in state:{}, keys:{}{}",
                 getVBucketId(),
                 uuid,
-                continueState.rlock()->state);
+                continueState.rlock()->state,
+                totalKeys,
+                std::string_view{valueScanStats.data(), valueScanStats.size()});
 }
 
 cb::rangescan::Id RangeScan::createScan(
