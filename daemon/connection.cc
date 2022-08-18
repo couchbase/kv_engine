@@ -1474,6 +1474,15 @@ Connection::Connection(FrontEndThread& thr)
     stats.conn_structs++;
 }
 
+std::unique_ptr<Connection> Connection::create(
+        SOCKET sfd,
+        FrontEndThread& thr,
+        std::shared_ptr<ListeningPort> descr,
+        uniqueSslPtr sslStructure) {
+    return std::unique_ptr<Connection>(new Connection(
+            sfd, thr, std::move(descr), std::move(sslStructure)));
+}
+
 Connection::Connection(SOCKET sfd,
                        FrontEndThread& thr,
                        std::shared_ptr<ListeningPort> descr,

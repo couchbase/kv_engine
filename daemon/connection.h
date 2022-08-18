@@ -62,13 +62,15 @@ const size_t MaxSavedConnectionId = 34;
  */
 class Connection : public DcpMessageProducersIface {
 public:
+    /// Factory method to create a new Connection structure
+    static std::unique_ptr<Connection> create(
+            SOCKET sfd,
+            FrontEndThread& thr,
+            std::shared_ptr<ListeningPort> descr,
+            uniqueSslPtr sslStructure);
+
     enum class Type : uint8_t { Normal, Producer, Consumer };
     Connection(const Connection&) = delete;
-
-    Connection(SOCKET sfd,
-               FrontEndThread& thr,
-               std::shared_ptr<ListeningPort> descr,
-               uniqueSslPtr sslStructure);
 
     ~Connection() override;
 
@@ -858,6 +860,12 @@ public:
     }
 
 protected:
+    /// Protected constructor so that it may only be used from create();
+    Connection(SOCKET sfd,
+               FrontEndThread& thr,
+               std::shared_ptr<ListeningPort> descr,
+               uniqueSslPtr sslStructure);
+
     /**
      * Protected constructor so that it may only be used by MockSubclasses
      */

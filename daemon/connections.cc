@@ -63,8 +63,7 @@ Connection* conn_new(SOCKET sfd,
     Connection* c = nullptr;
 
     try {
-        ret = std::make_unique<Connection>(
-                sfd, thread, std::move(descr), std::move(ssl));
+        ret = Connection::create(sfd, thread, std::move(descr), std::move(ssl));
         getConnections().wlock()->push_back(ret.get());
         c = ret.release();
         stats.total_conns++;
