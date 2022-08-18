@@ -913,16 +913,54 @@ TEST_P(RangeScanTest, vb_uuid_check) {
                       .first);
 }
 
-TEST_P(RangeScanTest, random_sample_not_enough_items) {
+TEST_P(RangeScanTest, random_sample_less_keys_than_samples) {
     auto stats = getCollectionStats(vbid, {scanCollection});
-    // Request more samples than keys, which is not allowed
+    // Request more samples than keys. Everything gets returned
     auto sampleSize = stats[scanCollection].itemCount + 1;
-    createScan(scanCollection,
-               {"\0", 1},
-               {"\xFF"},
-               {/* no snapshot requirements */},
-               cb::rangescan::SamplingConfiguration{sampleSize, 0},
-               cb::engine_errc::out_of_range);
+    auto uuid = createScan(scanCollection,
+                           {"\0", 1},
+                           {"\xFF"},
+                           {/* no snapshot requirements */},
+                           cb::rangescan::SamplingConfiguration{sampleSize, 0});
+    auto vb = store->getVBucket(vbid);
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              vb->continueRangeScan(
+                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+    if (isKeyOnly()) {
+        EXPECT_EQ(stats[scanCollection].itemCount, scannedKeys.size());
+
+    } else {
+        EXPECT_EQ(stats[scanCollection].itemCount, scannedItems.size());
+    }
+}
+
+TEST_P(RangeScanTest, random_sample_keys_equal_samples) {
+    auto stats = getCollectionStats(vbid, {scanCollection});
+    // Request samples == keys. Everything gets returned
+    auto sampleSize = stats[scanCollection].itemCount;
+    auto uuid = createScan(scanCollection,
+                           {"\0", 1},
+                           {"\xFF"},
+                           {/* no snapshot requirements */},
+                           cb::rangescan::SamplingConfiguration{sampleSize, 0});
+    auto vb = store->getVBucket(vbid);
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              vb->continueRangeScan(
+                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+    if (isKeyOnly()) {
+        EXPECT_EQ(stats[scanCollection].itemCount, scannedKeys.size());
+
+    } else {
+        EXPECT_EQ(stats[scanCollection].itemCount, scannedItems.size());
+    }
 }
 
 TEST_P(RangeScanTest, random_sample) {

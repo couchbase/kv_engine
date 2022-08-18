@@ -41,9 +41,6 @@ RangeScan::RangeScan(
       end(std::move(end)),
       vbUuid(vbucket.failovers->getLatestUUID()),
       handler(std::move(handler)),
-      prng(samplingConfig ? std::make_unique<std::mt19937>(samplingConfig->seed)
-                          : nullptr),
-      totalLimit(samplingConfig ? samplingConfig->samples : 0),
       vbid(vbucket.getId()),
       keyOnly(keyOnly) {
     // Don't init the uuid in the initialisation list as we may read various
@@ -187,23 +184,29 @@ cb::rangescan::Id RangeScan::createScan(
                         ->getCollectionStats(
                                 handle, start.getDocKey().getCollectionID());
         if (stats.first == KVStore::GetCollectionStatsStatus::Success) {
-            if (stats.second.itemCount == 0 ||
-                stats.second.itemCount < samplingConfig->samples) {
+            if (stats.second.itemCount == 0) {
+                // same errc as an empty range-scan
                 throw cb::engine_error(
-                        cb::engine_errc::out_of_range,
+                        cb::engine_errc::no_such_key,
                         fmt::format("RangeScan::createScan {} sampling cannot "
                                     "be met items:{} samples:{}",
                                     getVBucketId(),
                                     stats.second.itemCount,
                                     samplingConfig->samples));
-            }
+            } else if (stats.second.itemCount > samplingConfig->samples) {
+                // Create the prng so that sampling is enabled
+                prng = std::make_unique<std::mt19937>(samplingConfig->seed);
+                // set the total so we don't go over the request
+                totalLimit = samplingConfig->samples;
 
-            // Now we can compute the distribution and assign the first sample
-            // index. Example, if asked for 999 samples and 1,000 keys exist
-            // then we set 0.999 as the probability.
-            distribution = std::bernoulli_distribution{
-                    double(samplingConfig->samples) /
-                    double(stats.second.itemCount)};
+                // Now we can compute the distribution and assign the first
+                // sample index. Example, if asked for 999 samples and 1,000
+                // keys exist then we set 0.999 as the probability.
+                distribution = std::bernoulli_distribution{
+                        double(samplingConfig->samples) /
+                        double(stats.second.itemCount)};
+            }
+            // else no prng, all keys are returned which is <= samples
         } else {
             throw cb::engine_error(cb::engine_errc::failed,
                                    fmt::format("RangeScan::createScan {} no "
